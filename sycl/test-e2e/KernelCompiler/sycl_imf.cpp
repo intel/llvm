@@ -1,4 +1,4 @@
-//==--- sycl.cpp --- kernel_compiler extension imf tests -------------------==//
+//==--- sycl_imf.cpp --- kernel_compiler extension imf tests ---------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -37,6 +37,7 @@ void imf_kernel(float *ptr) {
 
 int main() {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
+  sycl::queue q;
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;

@@ -705,8 +705,8 @@ public:
       return ::jit_compiler::BinaryFormat::AMDGCN;
     default:
       throw sycl::exception(
-          sycl::make_error_code(sycl::errc::feature_not_supported),
-          "Backend unsupported by kernel fusion");
+          sycl::make_error_code(sycl::errc::invalid),
+          "Backend does not support kernel_compiler extension");
     }
   }
 

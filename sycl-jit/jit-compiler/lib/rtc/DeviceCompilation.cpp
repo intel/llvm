@@ -376,7 +376,6 @@ static void setupTool(ClangTool &Tool, const std::string &DPCPPRoot,
 static void setGPUTarget(BinaryFormat Format,
                          SmallVector<std::string> &CommandLine) {
   auto [CPU, _] = Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
-  CommandLine.push_back("-fsycl");
   if (Format == BinaryFormat::PTX) {
     CommandLine.push_back("-fsycl-targets=nvptx64-nvidia-cuda");
     CommandLine.push_back("-Xsycl-target-backend");
@@ -603,9 +602,9 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     return createStringError("Could not determine list of device libraries: %s",
                              BuildLog.c_str());
   }
-  const bool IsGPUTarget =
+  const bool IsCudaHIP =
       Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN;
-  if (IsGPUTarget) {
+  if (IsCudaHIP) {
     // Based on the OS and the format decide on the version of libspirv.
     // NOTE: this will be problematic if cross-compiling between OSes.
     std::string Libclc{"clc/"};
@@ -638,7 +637,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   }
 
   // For GPU targets we need to link against vendor provided libdevice.
-  if (IsGPUTarget) {
+  if (IsCudaHIP) {
     Triple T{Module.getTargetTriple()};
     Driver D{(Twine(DPCPPRoot) + "/bin/clang++").str(), T.getTriple(), Diags};
     auto [CPU, _] =
@@ -680,10 +679,9 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     }
 #endif
     for (auto &LibDeviceFile : LibDeviceFiles) {
-      auto Res = LinkInLib(LibDeviceFile);
       // llvm::Error converts to false on success.
-      if (Res) {
-        return Res;
+      if (auto Error = LinkInLib(LibDeviceFile)) {
+        return Error;
       }
     }
   }
