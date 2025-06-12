@@ -3251,7 +3251,7 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
     if (DevImgImpl->getOriginMask() & ImageOriginSYCLBIN) {
       // SYCLBIN binaries should gather their kernels from the backend.
       std::vector<std::string> GatheredKernelNames =
-          getKernelNamesFromURProgram(ContextImpl->getAdapter(), ResProgram);
+          getKernelNamesFromURProgram(ContextImpl.getAdapter(), ResProgram);
       MergedKernelNames.insert(GatheredKernelNames.begin(),
                                GatheredKernelNames.end());
     }
