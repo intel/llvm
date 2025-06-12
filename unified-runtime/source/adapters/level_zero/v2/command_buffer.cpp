@@ -74,8 +74,9 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       isInOrder(desc ? desc->isInOrder : false),
       commandListManager(
           context, device,
-          std::forward<v2::raii::command_list_unique_handle>(commandList))
-{}
+          std::forward<v2::raii::command_list_unique_handle>(commandList)) {
+  ur::level_zero::urContextRetain(context);
+}
 
 ur_exp_command_buffer_sync_point_t
 ur_exp_command_buffer_handle_t_::getSyncPoint(ur_event_handle_t event) {
@@ -168,6 +169,7 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   for (auto &event : syncPoints) {
     event->release();
   }
+  ur::level_zero::urContextRelease(context);
 }
 
 ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
