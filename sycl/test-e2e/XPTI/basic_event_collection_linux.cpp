@@ -20,7 +20,7 @@
 // CHECK-NEXT: UR Call Begin : urKernelRetain
 // CHECK:      UR Call Begin : urKernelSetArgPointer
 // CHECK-NEXT: UR Call Begin : urKernelGetGroupInfo
-// CHECK-NEXT: UR Call Begin : urEnqueueKernelLaunch
+// CHECK-NEXT: UR Call Begin : urEnqueueKernelLaunchWithArgsExp
 // CHECK:      UR Call Begin : urKernelCreate
 // CHECK-NEXT: UR Call Begin : urPlatformGetInfo
 // CHECK-NEXT: UR Call Begin : urPlatformGetInfo
@@ -44,7 +44,7 @@
 // CHECK-DAG:    sycl_device : {{.*}}
 // CHECK:      UR Call Begin : urKernelSetArgPointer
 // CHECK-NEXT: UR Call Begin : urKernelGetGroupInfo
-// CHECK-NEXT: UR Call Begin : urEnqueueKernelLaunch
+// CHECK-NEXT: UR Call Begin : urEnqueueKernelLaunchWithArgsExp
 // CHECK-NEXT: Signal
 // CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    sym_line_no : {{.*}}
