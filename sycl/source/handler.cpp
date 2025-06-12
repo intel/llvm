@@ -1028,7 +1028,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
   using detail::kernel_param_kind_t;
   size_t GlobalSize = impl->MNDRDesc.GlobalSize[0];
-  for (int I = 1; I < impl->MNDRDesc.Dims; ++I) {
+  for (size_t I = 1; I < impl->MNDRDesc.Dims; ++I) {
     GlobalSize *= impl->MNDRDesc.GlobalSize[I];
   }
 
@@ -1070,7 +1070,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     // TODO adjust MNDRDesc when device image contains kernel's attribute
     if (GlobalSize == 0) {
       GlobalSize = impl->MNDRDesc.NumWorkGroups[0];
-      for (int I = 1; I < impl->MNDRDesc.Dims; ++I) {
+      for (size_t I = 1; I < impl->MNDRDesc.Dims; ++I) {
         GlobalSize *= impl->MNDRDesc.NumWorkGroups[I];
       }
     }
