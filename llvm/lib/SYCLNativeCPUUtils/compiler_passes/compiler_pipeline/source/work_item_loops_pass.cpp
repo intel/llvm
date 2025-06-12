@@ -213,30 +213,26 @@ struct ScheduleGenerator {
           old_var->getFile(), old_var->getLine(), old_var->getType(),
           /*AlwaysPreserve=*/false, DINode::FlagZero,
           old_var->getAlignInBits());
+
       // Create intrinsic
-      if (!module.IsNewDbgInfoFormat) {
-        auto *const DII = cast<Instruction *>(DIB.insertDeclare(
-            barrier.getDebugAddr(), new_var, expr, wrapperDbgLoc, block));
 
-        // Bit of a HACK to produce the same debug output as the Mem2Reg
-        // pass used to do.
-        auto *const DVIntrinsic = cast<DbgVariableIntrinsic>(DII);
-        ConvertDebugDeclareToDebugValue(DVIntrinsic, SI, DIB);
-      } else {
-        auto *const DVR = static_cast<DbgVariableRecord *>(
-            cast<DbgRecord *>(DIB.insertDeclare(barrier.getDebugAddr(), new_var,
-                                                expr, wrapperDbgLoc, block)));
+#if LLVM_VERSION_LESS(21, 0)
+      assert(module.IsNewDbgInfoFormat &&
+             "Modules should be using the new debug info format");
+#endif
+      auto *const DVR =
+          static_cast<DbgVariableRecord *>(cast<DbgRecord *>(DIB.insertDeclare(
+              barrier.getDebugAddr(), new_var, expr, wrapperDbgLoc, block)));
 
-        // This is nasty, but LLVM errors out on trailing debug info, we need a
-        // subsequent instruction even if we delete it immediately afterwards.
-        auto *DummyInst = new UnreachableInst(module.getContext(), block);
+      // This is nasty, but LLVM errors out on trailing debug info, we need a
+      // subsequent instruction even if we delete it immediately afterwards.
+      auto *DummyInst = new UnreachableInst(module.getContext(), block);
 
-        // Bit of a HACK to produce the same debug output as the Mem2Reg
-        // pass used to do.
-        ConvertDebugDeclareToDebugValue(DVR, SI, DIB);
+      // Bit of a HACK to produce the same debug output as the Mem2Reg
+      // pass used to do.
+      ConvertDebugDeclareToDebugValue(DVR, SI, DIB);
 
-        DummyInst->eraseFromParent();
-      }
+      DummyInst->eraseFromParent();
     };
     for (auto debug_pair : barrier.getDebugIntrinsics()) {
       RecreateDebugIntrinsic(debug_pair.first->getVariable(),
