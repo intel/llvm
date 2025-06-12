@@ -238,7 +238,7 @@ public:
     // special case when there is no property data, i.e. the resulting property
     // set registry should be empty
     if (Src.size() == 0)
-      return std::move(Res);
+      return Res;
 
     size_t CurrentStart = 0;
     while (CurrentStart < Src.size()) {
@@ -333,12 +333,12 @@ public:
       default:
         throw sycl::exception(make_error_code(errc::invalid),
                               "Unsupported property type: " +
-                                  std::string{Ttag});
+                                  std::to_string(Tint));
       }
       (*CurPropSet)[std::string{Parts.first}] = std::move(Prop);
     }
 
-    return std::move(Res);
+    return Res;
   }
 
   MapTy::const_iterator begin() const { return PropSetMap.begin(); }
