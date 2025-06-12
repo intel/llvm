@@ -11,7 +11,6 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/device.hpp>
-#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/queue.hpp>
@@ -55,15 +54,7 @@ get_kernel_info(const queue &Q) {
       Q.get_device());
 }
 
-} // namespace ext::oneapi
-} // namespace _V1
-} // namespace sycl
-
 // For free functions.
-
-namespace sycl {
-inline namespace _V1 {
-namespace ext::oneapi {
 namespace experimental {
 
 template <auto *Func, typename Param>
@@ -81,10 +72,10 @@ std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>,
                  typename sycl::detail::is_kernel_device_specific_info_desc<
                      Param>::return_type>
 get_kernel_info(const context &ctxt, const device &dev) {
-  auto Bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
-      ctxt, std::vector<sycl::device>{dev});
-  auto kid = sycl::ext::oneapi::experimental::get_kernel_id<Func>();
-  return Bundle.get_kernel(kid).template get_info<Param>(dev);
+  auto Bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
+      Func, sycl::bundle_state::executable>(ctxt);
+  return Bundle.template ext_oneapi_get_kernel<Func>().template get_info<Param>(
+      dev);
 }
 
 template <auto *Func, typename Param>
@@ -92,13 +83,7 @@ std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>,
                  typename sycl::detail::is_kernel_device_specific_info_desc<
                      Param>::return_type>
 get_kernel_info(const queue &q) {
-
-  const sycl::device &dev = q.get_device();
-  const sycl::context &ctxt = q.get_context();
-  auto Bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
-      ctxt, std::vector<sycl::device>{dev});
-  auto kid = sycl::ext::oneapi::experimental::get_kernel_id<Func>();
-  return Bundle.get_kernel(kid).template get_info<Param>(dev);
+  return get_kernel_info<Func, Param>(q.get_context(), q.get_device());
 }
 } // namespace experimental
 } // namespace ext::oneapi
