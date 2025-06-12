@@ -6652,13 +6652,13 @@ private:
       else if (X.getKind() == TemplateArgument::Pack) {
         for (const auto &PackArg : X.pack_elements()) {
           StringStream << ", ";
-          PackArg.print(Policy, StringStream, true);
+          PackArg.print(Policy, StringStream, /*IncludeType*/ true);
         }
         continue;
       } else
         StringStream << ", ";
 
-      X.print(Policy, StringStream, true);
+      X.print(Policy, StringStream, /*IncludeType*/ true);
     }
     StringStream.flush();
     if (Buffer.front() != '<')
