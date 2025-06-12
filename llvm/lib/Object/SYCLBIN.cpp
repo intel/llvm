@@ -445,5 +445,5 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
     }
   }
 
-  return Result;
+  return std::move(Result);
 }
