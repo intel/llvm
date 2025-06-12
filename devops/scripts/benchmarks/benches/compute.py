@@ -115,37 +115,11 @@ class ComputeBench(Suite):
             ),
         }
 
-    def enabled_runtimes(self, supported_runtimes=None, extra_runtimes=None):
-        # all runtimes in the RUNTIMES enum
-        runtimes = supported_runtimes or list(RUNTIMES)
-
-        # filter out SYCL_PREVIEW which is not supported by default in all benchmarks
-        runtimes = [r for r in runtimes if r != RUNTIMES.SYCL_PREVIEW]
-
-        if extra_runtimes is not None:
-            runtimes.extend(extra_runtimes)
-
-        # Filter out UR if not available
-        if options.ur is None:
-            runtimes = [r for r in runtimes if r != RUNTIMES.UR]
-
-        # Filter out L0 if cuda backend
-        if options.ur_adapter == "cuda":
-            runtimes = [r for r in runtimes if r != RUNTIMES.LEVEL_ZERO]
-
-        return runtimes
-
     def benchmarks(self) -> list[Benchmark]:
-        if options.sycl is None:
-            return []
-
-        if options.ur_adapter == "hip":
-            return []
-
         benches = []
 
-        # Add SubmitKernel benchmarks using loops
-        for runtime in self.enabled_runtimes(extra_runtimes=[RUNTIMES.SYCL_PREVIEW]):
+        for runtime in list(RUNTIMES):
+            # Add SubmitKernel benchmarks using loops
             for in_order_queue in [0, 1]:
                 for measure_completion in [0, 1]:
                     for use_events in [0, 1]:
@@ -161,21 +135,18 @@ class ComputeBench(Suite):
                                 )
                             )
 
-        # Add SinKernelGraph benchmarks
-        for runtime in self.enabled_runtimes():
+            # Add SinKernelGraph benchmarks
             for with_graphs in [0, 1]:
                 for num_kernels in [5, 100]:
                     benches.append(
                         GraphApiSinKernelGraph(self, runtime, with_graphs, num_kernels)
                     )
 
-        # Add ULLS benchmarks
-        for runtime in self.enabled_runtimes([RUNTIMES.SYCL, RUNTIMES.LEVEL_ZERO]):
+            # Add ULLS benchmarks
             benches.append(UllsEmptyKernel(self, runtime, 1000, 256))
             benches.append(UllsKernelSwitch(self, runtime, 8, 200, 0, 0, 1, 1))
 
-        # Add GraphApiSubmitGraph benchmarks
-        for runtime in self.enabled_runtimes():
+            # Add GraphApiSubmitGraph benchmarks
             for in_order_queue in [0, 1]:
                 for num_kernels in [4, 10, 32]:
                     for measure_completion_time in [0, 1]:
@@ -201,24 +172,24 @@ class ComputeBench(Suite):
         ]
 
         # Add UR-specific benchmarks
-        if options.ur is not None:
-            benches += [
-                MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 1, 1, 1, 1, 0),
-                MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 0, 1, 1, 1, 0),
-                MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 1, 0),
-                MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 0, 0),
-                MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 0),
-                MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 1),
-                UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256, "Both"),
-                UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256 * 1024, "Both"),
-                UsmBatchMemoryAllocation(self, RUNTIMES.UR, "Device", 128, 256, "Both"),
-                UsmBatchMemoryAllocation(
-                    self, RUNTIMES.UR, "Device", 128, 16 * 1024, "Both"
-                ),
-                UsmBatchMemoryAllocation(
-                    self, RUNTIMES.UR, "Device", 128, 128 * 1024, "Both"
-                ),
-            ]
+        benches += [
+            MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 1, 1, 1, 1, 0),
+            MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 0, 1, 1, 1, 0),
+            MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 1, 0),
+            MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 0, 0),
+            MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 0),
+            MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 1),
+            UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256, "Both"),
+            UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256 * 1024, "Both"),
+            UsmBatchMemoryAllocation(self, RUNTIMES.UR, "Device", 128, 256, "Both"),
+            UsmBatchMemoryAllocation(
+                self, RUNTIMES.UR, "Device", 128, 16 * 1024, "Both"
+            ),
+            UsmBatchMemoryAllocation(
+                self, RUNTIMES.UR, "Device", 128, 128 * 1024, "Both"
+            ),
+        ]
+
         benches += [
             MemcpyExecute(
                 self, RUNTIMES.SYCL_PREVIEW, 4096, 1, 1024, 40, 1, 1, 0, 1, 0
@@ -246,11 +217,44 @@ def parse_unit_type(compute_unit):
 
 
 class ComputeBenchmark(Benchmark):
-    def __init__(self, bench, name, test):
+    def __init__(self, bench, name, test, runtime: RUNTIMES = None):
         super().__init__(bench.directory, bench)
         self.bench = bench
         self.bench_name = name
         self.test = test
+        self.runtime = runtime
+
+    def supported_runtimes(self) -> list[RUNTIMES]:
+        """Base runtimes supported by this benchmark, can be overridden."""
+        # By default, support all runtimes except SYCL_PREVIEW
+        return [r for r in RUNTIMES if r != RUNTIMES.SYCL_PREVIEW]
+
+    def enabled_runtimes(self) -> list[RUNTIMES]:
+        """Runtimes available given the current configuration."""
+        # Start with all supported runtimes and apply configuration filters
+        runtimes = self.supported_runtimes()
+
+        # Remove UR if not available
+        if options.ur is None:
+            runtimes = [r for r in runtimes if r != RUNTIMES.UR]
+
+        # Remove Level Zero if using CUDA backend
+        if options.ur_adapter == "cuda":
+            runtimes = [r for r in runtimes if r != RUNTIMES.LEVEL_ZERO]
+
+        return runtimes
+
+    def enabled(self) -> bool:
+        # SYCL is required for all benchmarks
+        if options.sycl is None:
+            return False
+
+        # HIP adapter is not supported
+        if options.ur_adapter == "hip":
+            return False
+
+        # Check if the specific runtime is enabled (or no specific runtime required)
+        return self.runtime is None or self.runtime in self.enabled_runtimes()
 
     def bin_args(self) -> list[str]:
         return []
@@ -338,14 +342,16 @@ class SubmitKernel(ComputeBenchmark):
         KernelExecTime=1,
     ):
         self.ioq = ioq
-        self.runtime = runtime
         self.MeasureCompletion = MeasureCompletion
         self.UseEvents = UseEvents
         self.KernelExecTime = KernelExecTime
         self.NumKernels = 10
         super().__init__(
-            bench, f"api_overhead_benchmark_{runtime.value}", "SubmitKernel"
+            bench, f"api_overhead_benchmark_{runtime.value}", "SubmitKernel", runtime
         )
+
+    def supported_runtimes(self) -> list[RUNTIMES]:
+        return super().supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
     def get_tags(self):
         return ["submit", "latency", runtime_to_tag_name(self.runtime), "micro"]
@@ -619,7 +625,6 @@ class MemcpyExecute(ComputeBenchmark):
         useCopyOffload,
         useBarrier,
     ):
-        self.runtime = runtime
         self.numOpsPerThread = numOpsPerThread
         self.numThreads = numThreads
         self.allocSize = allocSize
@@ -630,7 +635,7 @@ class MemcpyExecute(ComputeBenchmark):
         self.useCopyOffload = useCopyOffload
         self.useBarrier = useBarrier
         super().__init__(
-            bench, f"multithread_benchmark_{self.runtime.value}", "MemcpyExecute"
+            bench, f"multithread_benchmark_{runtime.value}", "MemcpyExecute", runtime
         )
 
     def extra_env_vars(self) -> dict:
@@ -706,9 +711,8 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
     def __init__(self, bench, runtime: RUNTIMES, withGraphs, numKernels):
         self.withGraphs = withGraphs
         self.numKernels = numKernels
-        self.runtime = runtime
         super().__init__(
-            bench, f"graph_api_benchmark_{runtime.value}", "SinKernelGraph"
+            bench, f"graph_api_benchmark_{runtime.value}", "SinKernelGraph", runtime
         )
 
     def explicit_group(self):
@@ -759,9 +763,10 @@ class GraphApiSubmitGraph(ComputeBenchmark):
     ):
         self.inOrderQueue = inOrderQueue
         self.numKernels = numKernels
-        self.runtime = runtime
         self.measureCompletionTime = measureCompletionTime
-        super().__init__(bench, f"graph_api_benchmark_{runtime.value}", "SubmitGraph")
+        super().__init__(
+            bench, f"graph_api_benchmark_{runtime.value}", "SubmitGraph", runtime
+        )
 
     def explicit_group(self):
         return f"SubmitGraph, numKernels: {self.numKernels}"
@@ -804,8 +809,12 @@ class UllsEmptyKernel(ComputeBenchmark):
     def __init__(self, bench, runtime: RUNTIMES, wgc, wgs):
         self.wgc = wgc
         self.wgs = wgs
-        self.runtime = runtime
-        super().__init__(bench, f"ulls_benchmark_{runtime.value}", "EmptyKernel")
+        super().__init__(
+            bench, f"ulls_benchmark_{runtime.value}", "EmptyKernel", runtime
+        )
+
+    def supported_runtimes(self) -> list[RUNTIMES]:
+        return [RUNTIMES.SYCL, RUNTIMES.LEVEL_ZERO]
 
     def explicit_group(self):
         return f"EmptyKernel, wgc: {self.wgc}, wgs: {self.wgs}"
@@ -849,9 +858,13 @@ class UllsKernelSwitch(ComputeBenchmark):
         self.barrier = barrier
         self.hostVisible = hostVisible
         self.ctrBasedEvents = ctrBasedEvents
-        self.runtime = runtime
         self.ioq = ioq
-        super().__init__(bench, f"ulls_benchmark_{runtime.value}", "KernelSwitch")
+        super().__init__(
+            bench, f"ulls_benchmark_{runtime.value}", "KernelSwitch", runtime
+        )
+
+    def supported_runtimes(self):
+        return [RUNTIMES.SYCL, RUNTIMES.LEVEL_ZERO]
 
     def explicit_group(self):
         return f"KernelSwitch, count: {self.count}, kernelTime: {self.kernelTime}"
@@ -884,12 +897,14 @@ class UsmMemoryAllocation(ComputeBenchmark):
     def __init__(
         self, bench, runtime: RUNTIMES, usm_memory_placement, size, measure_mode
     ):
-        self.runtime = runtime
         self.usm_memory_placement = usm_memory_placement
         self.size = size
         self.measure_mode = measure_mode
         super().__init__(
-            bench, f"api_overhead_benchmark_{runtime.value}", "UsmMemoryAllocation"
+            bench,
+            f"api_overhead_benchmark_{runtime.value}",
+            "UsmMemoryAllocation",
+            runtime,
         )
 
     def get_tags(self):
@@ -941,13 +956,15 @@ class UsmBatchMemoryAllocation(ComputeBenchmark):
         size,
         measure_mode,
     ):
-        self.runtime = runtime
         self.usm_memory_placement = usm_memory_placement
         self.allocation_count = allocation_count
         self.size = size
         self.measure_mode = measure_mode
         super().__init__(
-            bench, f"api_overhead_benchmark_{runtime.value}", "UsmBatchMemoryAllocation"
+            bench,
+            f"api_overhead_benchmark_{runtime.value}",
+            "UsmBatchMemoryAllocation",
+            runtime,
         )
 
     def get_tags(self):
