@@ -33,15 +33,19 @@ thread_local bool NestedCallsDetector = false;
 class NestedCallsTracker {
 public:
   NestedCallsTracker() {
-    if (NestedCallsDetector)
+    if (NestedCallsDetectorRef)
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Calls to sycl::queue::submit cannot be nested. Command group "
           "function objects should use the sycl::handler API instead.");
-    NestedCallsDetector = true;
+    NestedCallsDetectorRef = true;
   }
 
-  ~NestedCallsTracker() { NestedCallsDetector = false; }
+  ~NestedCallsTracker() { NestedCallsDetectorRef = false; }
+
+private:
+  // Cache the TLS location to decrease amount of TLS accesses.
+  bool &NestedCallsDetectorRef = NestedCallsDetector;
 };
 
 static std::vector<ur_event_handle_t>
@@ -310,16 +314,12 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                         const detail::code_location &Loc, bool IsTopCodeLoc,
                         const v1::SubmissionInfo &SubmitInfo) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::handler_impl HandlerImplVal(SecondaryQueue, CallerNeedsEvent);
-  detail::handler_impl *HandlerImpl = &HandlerImplVal;
-  // Inlining `Self` results in a crash when SYCL RT is built using MSVC with
-  // optimizations enabled. No crash if built using OneAPI.
-  auto Self = shared_from_this();
-  handler Handler(HandlerImpl, Self);
+  detail::handler_impl HandlerImplVal(*this, SecondaryQueue, CallerNeedsEvent);
+  handler Handler(HandlerImplVal);
 #else
   handler Handler(shared_from_this(), SecondaryQueue, CallerNeedsEvent);
-  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 #endif
+  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
@@ -351,17 +351,11 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
   auto noLastEventPath = !isHostTask && !isGraphSubmission &&
-                         MNoEventMode.load(std::memory_order_relaxed) &&
+                         MNoLastEventMode.load(std::memory_order_acquire) &&
                          !requiresPostProcess;
 
   if (noLastEventPath) {
-    std::unique_lock<std::mutex> Lock(MMutex);
-
-    // Check if we are still in no event mode. There could
-    // have been a concurrent submit.
-    if (MNoEventMode.load(std::memory_order_relaxed)) {
-      return finalizeHandlerInOrderNoEventsUnlocked(Handler);
-    }
+    return finalizeHandlerInOrderNoEventsUnlocked(Handler);
   }
 
   detail::EventImplPtr EventImpl;
@@ -591,7 +585,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   void *TelemetryEvent = nullptr;
   uint64_t IId;
   std::string Name;
-  int32_t StreamID = xpti::invalid_id;
+  int32_t StreamID = xpti::invalid_id<>;
   if (xptiEnabled) {
     StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
     TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
@@ -751,9 +745,10 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
 bool queue_impl::queue_empty() const {
   // If we have in-order queue with non-empty last event, just check its status.
   if (isInOrder()) {
-    std::lock_guard<std::mutex> Lock(MMutex);
-    if (MEmpty)
+    if (MEmpty.load(std::memory_order_acquire))
       return true;
+
+    std::lock_guard<std::mutex> Lock(MMutex);
 
     if (MDefaultGraphDeps.LastEventPtr &&
         !MDefaultGraphDeps.LastEventPtr->isDiscarded())

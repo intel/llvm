@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023-2024 Intel Corporation
+ * Copyright (C) 2023 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -2943,6 +2943,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolTrimToExpParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPitchedAllocExpParams(
     const struct ur_usm_pitched_alloc_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_usm_context_memcpy_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmContextMemcpyExpParams(
+    const struct ur_usm_context_memcpy_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////

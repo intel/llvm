@@ -269,7 +269,7 @@ public:
       // ->call<>() instead of ->call_nocheck<>() above.
       if (status != UR_RESULT_SUCCESS &&
           status != UR_RESULT_ERROR_UNINITIALIZED) {
-        __SYCL_CHECK_UR_CODE_NO_EXC(status);
+        __SYCL_CHECK_UR_CODE_NO_EXC(status, getAdapter()->getBackend());
       }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
@@ -604,7 +604,7 @@ public:
     MExtGraphDeps.reset();
 
     if (Graph) {
-      MNoEventMode = false;
+      MNoLastEventMode = false;
     } else {
       trySwitchingToNoEventsMode();
     }
@@ -687,10 +687,12 @@ public:
 protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
-    auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);
+    auto &Queue = Handler.impl->get_queue();
+    auto ResEvent =
+        std::make_shared<detail::event_impl>(Queue.shared_from_this());
     ur_event_handle_t UREvent = nullptr;
     getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-        Handler.MQueue->getHandleRef(), 0, nullptr, &UREvent);
+        Queue.getHandleRef(), 0, nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;
   }
@@ -715,7 +717,7 @@ protected:
 #endif
 
   bool trySwitchingToNoEventsMode() {
-    if (MNoEventMode.load(std::memory_order_relaxed))
+    if (MNoLastEventMode.load(std::memory_order_relaxed))
       return true;
 
     if (!MGraph.expired() || !isInOrder())
@@ -726,7 +728,7 @@ protected:
                                         MDefaultGraphDeps.LastEventPtr))
       return false;
 
-    MNoEventMode.store(true, std::memory_order_relaxed);
+    MNoLastEventMode.store(true, std::memory_order_relaxed);
     MDefaultGraphDeps.LastEventPtr = nullptr;
     return true;
   }
@@ -735,11 +737,8 @@ protected:
   detail::EventImplPtr
   finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
     assert(isInOrder());
-    assert(MGraph.expired());
-    assert(MDefaultGraphDeps.LastEventPtr == nullptr);
-    assert(MNoEventMode);
 
-    MEmpty = false;
+    MEmpty.store(false, std::memory_order_release);
 
     synchronizeWithExternalEvent(Handler);
 
@@ -762,7 +761,7 @@ protected:
       // Note: This could be improved by moving the handling of dependencies
       // to before calling the CGF.
       Handler.depends_on(EventToBuildDeps);
-    } else if (MNoEventMode) {
+    } else if (MNoLastEventMode) {
       // There might be some operations submitted to the queue
       // but the LastEventPtr is not set. If we are to run a host_task,
       // we need to insert a barrier to ensure proper synchronization.
@@ -770,7 +769,7 @@ protected:
     }
 
     MEmpty = false;
-    MNoEventMode = false;
+    MNoLastEventMode = false;
 
     synchronizeWithExternalEvent(Handler);
 
@@ -785,7 +784,7 @@ protected:
     // this is handled by finalizeHandlerInOrderHostTask
     assert(Handler.getType() != CGType::CodeplayHostTask);
 
-    if (Handler.getType() == CGType::ExecCommandBuffer && MNoEventMode) {
+    if (Handler.getType() == CGType::ExecCommandBuffer && MNoLastEventMode) {
       // TODO: this shouldn't be needed but without this
       // the legacy adapter doesn't synchronize the operations properly
       // when non-immediate command lists are used.
@@ -801,7 +800,7 @@ protected:
     // to before calling the CGF.
     if (EventToBuildDeps && Handler.getType() != CGType::AsyncAlloc) {
       // If we have last event, this means we are no longer in no-event mode.
-      assert(!MNoEventMode);
+      assert(!MNoLastEventMode);
       Handler.depends_on(EventToBuildDeps);
     }
 
@@ -811,7 +810,7 @@ protected:
 
     EventToBuildDeps = parseEvent(Handler.finalize());
     if (EventToBuildDeps)
-      MNoEventMode = false;
+      MNoLastEventMode = false;
 
     // TODO: if the event is NOP we should be able to discard it.
     // However, NOP events are used to describe ordering for graph operations
@@ -826,7 +825,7 @@ protected:
     const CGType Type = getSyclObjImpl(Handler)->MCGType;
     std::lock_guard<std::mutex> Lock{MMutex};
 
-    MEmpty = false;
+    MEmpty.store(false, std::memory_order_release);
 
     // The following code supports barrier synchronization if host task is
     // involved in the scenario. Native barriers cannot handle host task
@@ -1045,10 +1044,10 @@ protected:
   // be true if the queue is in-order, the command graph is not
   // associated with the queue and there has never been any host
   // tasks submitted to the queue.
-  std::atomic<bool> MNoEventMode = false;
+  std::atomic<bool> MNoLastEventMode = false;
 
   // Used exclusively in getLastEvent and queue_empty() implementations
-  bool MEmpty = true;
+  std::atomic<bool> MEmpty = true;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
   std::mutex MStreamsServiceEventsMutex;

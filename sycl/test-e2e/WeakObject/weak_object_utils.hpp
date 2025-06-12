@@ -5,6 +5,7 @@
 #include <sycl/ext/oneapi/weak_object.hpp>
 #include <sycl/image.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/platform.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/usm.hpp>
 
