@@ -56,7 +56,7 @@ get_kernel_bundle(const context &Ctxt, const std::vector<device> &Devs,
     if (!FileStream.is_open())
       throw sycl::exception(make_error_code(errc::invalid),
                             "Failed to open SYCLBIN file: " +
-                                static_cast<std::string>(Filename));
+                                Filename.string());
     RawSYCLBINData =
         std::vector<char>{std::istreambuf_iterator<char>(FileStream),
                           std::istreambuf_iterator<char>()};
