@@ -1484,6 +1484,17 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
     Events.push_back(Event);
   }
 
+  {
+    ur_device_handle_t Device = GetDevice(hQueue);
+    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
+    const auto MemShadow = DeviceInfo->Shadow->MemToOrigin((uptr)pMem);
+
+    Event = nullptr;
+    UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)MemShadow, 0, size, 0,
+                                  nullptr, &Event));
+    Events.push_back(Event);
+  }
+
   if (phEvent) {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
         hQueue, Events.size(), Events.data(), phEvent));
@@ -1534,8 +1545,20 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     const auto SrcShadow = DeviceInfo->Shadow->MemToShadow((uptr)pSrc);
     const auto DstShadow = DeviceInfo->Shadow->MemToShadow((uptr)pDst);
 
-    Event = nullptr;
+    ur_event_handle_t Event{};
     UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstShadow, (void *)SrcShadow,
+                         size, 0, nullptr, &Event));
+    Events.push_back(Event);
+  }
+
+  {
+    ur_device_handle_t Device = GetDevice(hQueue);
+    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
+    const auto SrcOrigin = DeviceInfo->Shadow->MemToOrigin((uptr)pSrc);
+    const auto DstOrigin = DeviceInfo->Shadow->MemToOrigin((uptr)pDst);
+
+    ur_event_handle_t Event{};
+    UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstOrigin, (void *)SrcOrigin,
                          size, 0, nullptr, &Event));
     Events.push_back(Event);
   }
@@ -1596,8 +1619,21 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
     const auto MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
     const char Pattern = 0;
-    Event = nullptr;
+    ur_event_handle_t Event{};
     UR_CALL(pfnUSMFill2D(hQueue, (void *)MemShadow, pitch, 1, &Pattern, width,
+                         height, 0, nullptr, &Event));
+    Events.push_back(Event);
+  }
+
+  // FIXME: align to 4 bytes
+  {
+    ur_device_handle_t Device = GetDevice(hQueue);
+    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
+    const auto MemOrigin = DeviceInfo->Shadow->MemToOrigin((uptr)pMem);
+
+    const char Pattern = 0;
+    ur_event_handle_t Event{};
+    UR_CALL(pfnUSMFill2D(hQueue, (void *)MemOrigin, pitch, 1, &Pattern, width,
                          height, 0, nullptr, &Event));
     Events.push_back(Event);
   }
@@ -1660,9 +1696,23 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     const auto SrcShadow = DeviceInfo->Shadow->MemToShadow((uptr)pSrc);
     const auto DstShadow = DeviceInfo->Shadow->MemToShadow((uptr)pDst);
 
-    Event = nullptr;
+    ur_event_handle_t Event{};
     UR_CALL(pfnUSMMemcpy2D(hQueue, blocking, (void *)DstShadow, dstPitch,
                            (void *)SrcShadow, srcPitch, width, height, 0,
+                           nullptr, &Event));
+    Events.push_back(Event);
+  }
+
+  // FIXME: align to 4 bytes
+  {
+    ur_device_handle_t Device = GetDevice(hQueue);
+    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
+    const auto SrcOrigin = DeviceInfo->Shadow->MemToOrigin((uptr)pSrc);
+    const auto DstOrigin = DeviceInfo->Shadow->MemToOrigin((uptr)pDst);
+
+    ur_event_handle_t Event{};
+    UR_CALL(pfnUSMMemcpy2D(hQueue, blocking, (void *)DstOrigin, dstPitch,
+                           (void *)SrcOrigin, srcPitch, width, height, 0,
                            nullptr, &Event));
     Events.push_back(Event);
   }

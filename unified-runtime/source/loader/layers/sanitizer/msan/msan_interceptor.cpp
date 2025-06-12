@@ -81,6 +81,11 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
   ContextInfo->CleanShadowSize = std::max(ContextInfo->CleanShadowSize, Size);
 
+  bool IsHostOrSharedUSM =
+      Type == AllocType::HOST_USM || Type == AllocType::SHARED_USM;
+  bool DontCheckHostOrSharedUSM =
+      IsHostOrSharedUSM && !getContext()->Options.MsanCheckHostAndSharedUSM;
+
   // For origin tracking
   HeapType HeapType;
   switch (Type) {
@@ -98,21 +103,24 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
   }
 
   StackTrace Stack = GetCurrentBacktrace();
-  Origin HeapOrigin = Origin::CreateHeapOrigin(Stack, HeapType);
+  Origin HeapOrigin = DontCheckHostOrSharedUSM
+                          ? Origin::FromRawId(0)
+                          : Origin::CreateHeapOrigin(Stack, HeapType);
 
   // Update shadow memory
-  auto EnqueuePoison = [&](ur_device_handle_t Device) {
-    ManagedQueue Queue(Context, Device);
-    std::shared_ptr<DeviceInfo> DI = getDeviceInfo(Device);
-    DI->Shadow->EnqueuePoisonShadowWithOrigin(Queue, (uptr)Allocated, Size,
-                                              0xff, HeapOrigin.rawId());
+  auto EnqueuePoison = [&](const std::vector<ur_device_handle_t> &Devices) {
+    u8 Value = DontCheckHostOrSharedUSM ? 0 : 0xff;
+    for (ur_device_handle_t Device : Devices) {
+      ManagedQueue Queue(Context, Device);
+      std::shared_ptr<DeviceInfo> DI = getDeviceInfo(Device);
+      DI->Shadow->EnqueuePoisonShadowWithOrigin(Queue, (uptr)Allocated, Size,
+                                                Value, HeapOrigin.rawId());
+    }
   };
   if (Device) { // shared/device USM
-    EnqueuePoison(Device);
+    EnqueuePoison({Device});
   } else { // host USM
-    for (const auto &[Device, _] : m_DeviceMap) {
-      EnqueuePoison(Device);
-    }
+    EnqueuePoison(ContextInfo->DeviceList);
   }
 
   UR_LOG_L(getContext()->logger, INFO,

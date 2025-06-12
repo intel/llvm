@@ -1437,9 +1437,22 @@ void MemorySanitizer::createUserspaceApi(Module &M,
   if (TrackOrigins) {
     StringRef WarningFnName = Recover ? "__msan_warning_with_origin"
                                       : "__msan_warning_with_origin_noreturn";
-    WarningFn = M.getOrInsertFunction(WarningFnName,
-                                      TLI.getAttrList(C, {0}, /*Signed=*/false),
-                                      IRB.getVoidTy(), IRB.getInt32Ty());
+    if (!TargetTriple.isSPIROrSPIRV()) {
+      WarningFn = M.getOrInsertFunction(
+          WarningFnName, TLI.getAttrList(C, {0}, /*Signed=*/false),
+          IRB.getVoidTy(), IRB.getInt32Ty());
+    } else {
+      // __msan_warning_with_origin[_noreturn](
+      //   int origin,
+      //   char* file,
+      //   unsigned int line,
+      //   char* func
+      // )
+      WarningFn = M.getOrInsertFunction(
+          WarningFnName, IRB.getVoidTy(), IRB.getInt32Ty(),
+          IRB.getInt8PtrTy(kSpirOffloadConstantAS), IRB.getInt32Ty(),
+          IRB.getInt8PtrTy(kSpirOffloadConstantAS));
+    }
   } else {
     StringRef WarningFnName =
         Recover ? "__msan_warning" : "__msan_warning_noreturn";
@@ -1518,11 +1531,17 @@ void MemorySanitizer::createUserspaceApi(Module &M,
           IRB.getInt8PtrTy(kSpirOffloadConstantAS), IRB.getInt32Ty(),
           IRB.getInt8PtrTy(kSpirOffloadConstantAS));
 
+      // __msan_maybe_warning_N(
+      //   intN_t status,
+      //   uptr addr,
+      //   uint32_t as,
+      //   int origin,
+      // )
       FunctionName = "__msan_maybe_store_origin_" + itostr(AccessSize);
       MaybeStoreOriginFn[AccessSizeIndex] = M.getOrInsertFunction(
           FunctionName, TLI.getAttrList(C, {0, 2}, /*Signed=*/false),
           IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IntptrTy,
-          IRB.getInt32Ty());
+          IRB.getInt32Ty(), IRB.getInt32Ty());
     }
   }
 
@@ -2071,7 +2090,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Align CurrentAlignment = Alignment;
     if (Alignment >= IntptrAlignment && IntptrSize > kOriginSize) {
       Value *IntptrOrigin = originToIntptr(IRB, Origin);
-      Value *IntptrOriginPtr = IRB.CreatePointerCast(OriginPtr, MS.PtrTy);
+      Value *IntptrOriginPtr = IRB.CreatePointerCast(
+          OriginPtr,
+          !SpirOrSpirv ? MS.PtrTy : IRB.getPtrTy(kSpirOffloadGlobalAS));
       for (unsigned i = 0; i < Size / IntptrSize; ++i) {
         Value *Ptr = i ? IRB.CreateConstGEP1_32(MS.IntptrTy, IntptrOriginPtr, i)
                        : IntptrOriginPtr;
@@ -2118,11 +2139,19 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       FunctionCallee Fn = MS.MaybeStoreOriginFn[SizeIndex];
       Value *ConvertedShadow2 =
           IRB.CreateZExt(ConvertedShadow, IRB.getIntNTy(8 * (1 << SizeIndex)));
-      if (SpirOrSpirv)
-        Addr = IRB.CreatePtrToInt(Addr, IRB.getIntPtrTy(DL));
-      CallBase *CB = IRB.CreateCall(Fn, {ConvertedShadow2, Addr, Origin});
-      CB->addParamAttr(0, Attribute::ZExt);
-      CB->addParamAttr(2, Attribute::ZExt);
+      if (!SpirOrSpirv) {
+        CallBase *CB = IRB.CreateCall(Fn, {ConvertedShadow2, Addr, Origin});
+        CB->addParamAttr(0, Attribute::ZExt);
+        CB->addParamAttr(2, Attribute::ZExt);
+      } else {
+        Value *AddrInt = IRB.CreatePtrToInt(Addr, IRB.getIntPtrTy(DL));
+        Value *AS = ConstantInt::get(IRB.getInt32Ty(),
+                                     Addr->getType()->getPointerAddressSpace());
+        CallBase *CB =
+            IRB.CreateCall(Fn, {ConvertedShadow2, AddrInt, AS, Origin});
+        CB->addParamAttr(0, Attribute::ZExt);
+        CB->addParamAttr(3, Attribute::ZExt);
+      }
     } else {
       Value *Cmp = convertToBool(ConvertedShadow, IRB, "_mscmp");
       Instruction *CheckTerm = SplitBlockAndInsertIfThen(
@@ -2229,6 +2258,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         IRB.CreateCall(MS.WarningFn)->setCannotMerge();
     } else { // SPIR or SPIR-V
       SmallVector<Value *, 3> Args;
+      if (MS.TrackOrigins)
+        Args.push_back(Origin);
       appendDebugInfoToArgs(IRB, Args);
       IRB.CreateCall(MS.WarningFn, Args)->setCannotMerge();
     }
@@ -2258,10 +2289,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         CB->addParamAttr(1, Attribute::ZExt);
       } else { // SPIR or SPIR-V
         // Pass the pointer of shadow memory to the report function
-        SmallVector<Value *, 5> Args = {ConvertedShadow2};
-        Args.emplace_back(MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0));
+        SmallVector<Value *, 5> Args = {
+            ConvertedShadow2,
+            MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0)};
         appendDebugInfoToArgs(IRB, Args);
-
         CallBase *CB = IRB.CreateCall(Fn, Args);
         CB->addParamAttr(0, Attribute::ZExt);
         CB->addParamAttr(1, Attribute::ZExt);
