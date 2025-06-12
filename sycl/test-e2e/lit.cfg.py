@@ -1055,6 +1055,7 @@ for full_name, sycl_device in zip(
     features.update(device_family)
 
     be, dev = sycl_device.split(":")
+    features.add(dev)
     if "v2" in full_name:
         features.add("level_zero_v2_adapter")
     # Use short names for LIT rules.
