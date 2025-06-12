@@ -564,7 +564,7 @@ std::array<T, sizeof...(Is)> createArrayOfHelper(F &&f,
 // each element of the array.
 template <typename T, size_t N, typename F>
 std::array<T, N> createArrayOf(F &&ctor) {
-  return createArrayOfHelper<T, F>(std::forward<F>(f),
+  return createArrayOfHelper<T, F>(std::forward<F>(ctor),
                                    std::make_index_sequence<N>{});
 }
 
