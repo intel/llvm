@@ -13,6 +13,7 @@
 #ifndef LLVM_CLANG_SEMA_SEMASYCL_H
 #define LLVM_CLANG_SEMA_SEMASYCL_H
 
+#include <map>
 #include "clang/AST/ASTFwd.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Type.h"
@@ -118,6 +119,8 @@ public:
   /// integration header is required.
   void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
 
+  std::map<std::string, FunctionDecl *> KernelFirstDecl;
+
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
@@ -188,7 +191,7 @@ private:
   /// Keeps invocation descriptors for each kernel invocation started by
   /// SYCLIntegrationHeader::startKernel
   SmallVector<KernelDesc, 4> KernelDescs;
-
+  
   using SpecConstID = std::pair<QualType, std::string>;
 
   /// Keeps specialization constants met in the translation unit. Maps spec

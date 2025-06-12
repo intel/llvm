@@ -8,6 +8,8 @@
 // This implements Semantic Analysis for SYCL constructs.
 //===----------------------------------------------------------------------===//
 
+
+#include <iostream>
 #include "clang/Sema/SemaSYCL.h"
 #include "TreeTransform.h"
 #include "clang/AST/AST.h"
@@ -1166,7 +1168,7 @@ bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
   for (FunctionDecl *Redecl : FD->redecls()) {
     bool IsFreeFunctionAttr = false;
     for (auto *IRAttr :
-         Redecl->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+         FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
       SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
           IRAttr->getAttributeNameValuePairs(getASTContext());
       const auto it = std::find_if(
@@ -1183,7 +1185,7 @@ bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
       if (NextDeclaredWithAttr) {
         Diag(Loc, diag::err_free_function_first_occurrence_missing_attr);
         Diag(Redecl->getLocation(), diag::note_previous_declaration);
-        return false;
+return false;
       }
     } else {
       Loc = Redecl->getLocation();
@@ -5509,7 +5511,7 @@ static bool checkAndAddRegisteredKernelName(SemaSYCL &S, FunctionDecl *FD,
       }
       // An empty name string implies a regular free kernel construction
       // call, so simply return.
-      return false;
+return false;
     }
   }
   return true;
@@ -5517,31 +5519,61 @@ static bool checkAndAddRegisteredKernelName(SemaSYCL &S, FunctionDecl *FD,
 
 void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
                                            StringRef NameStr) {
-  if (!checkAndAddRegisteredKernelName(*this, FD, NameStr))
-    return;
-
-  SyclKernelArgsSizeChecker argsSizeChecker(*this, FD->getLocation(),
-                                            false /*IsSIMDKernel*/);
-  SyclKernelDeclCreator kernel_decl(*this, FD->getLocation(), FD->isInlined(),
-                                    false /*IsSIMDKernel */, FD);
-
-  FreeFunctionKernelBodyCreator kernel_body(*this, kernel_decl, FD);
-
-  SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
-                                        FD->getType(), FD);
-
-  SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
+  std::unique_ptr<MangleContext> MangleCtx(
+      getASTContext().createMangleContext());
+  std::string Name;
+  std::string MangledName;
+  std::tie(Name, MangledName) =
+      constructFreeFunctionKernelName(*this, FD, *MangleCtx);
+  StringRef KernelName = Name;
+  StringRef StableName = MangledName;
   KernelObjVisitor Visitor{*this};
+  const bool seenDecl =
+      getSyclIntegrationHeader().KernelFirstDecl.count(MangledName);
+  FunctionDecl *KFirstDecl =
+      getSyclIntegrationHeader().KernelFirstDecl[MangledName];
+  FunctionDecl *PrimaryDecl = seenDecl ? KFirstDecl : FD;
+  if (FD->isThisDeclarationADefinition()) {
+    if (!checkAndAddRegisteredKernelName(*this, PrimaryDecl, NameStr))
+      return;
+    if (seenDecl)
+      FD->addAttr(SYCLKernelAttr::CreateImplicit(this->getASTContext()));
+    SyclKernelArgsSizeChecker argsSizeChecker(*this, PrimaryDecl->getLocation(),
+                                              false /*IsSIMDKernel*/);
+    SyclKernelDeclCreator kernel_decl(*this, PrimaryDecl->getLocation(),
+                                      PrimaryDecl->isInlined(),
+                                      false /*IsSIMDKernel */, PrimaryDecl);
 
-  Visitor.VisitFunctionParameters(FD, argsSizeChecker, kernel_decl, kernel_body,
-                                  int_header, int_footer);
+    FreeFunctionKernelBodyCreator kernel_body(*this, kernel_decl, PrimaryDecl);
 
-  assert(getKernelFDPairs().back().first == FD &&
-         "OpenCL Kernel not found for free function entry");
-  // Register the kernel name with the OpenCL kernel generated for the
-  // free function.
-  addRegisteredKernelName(*this, NameStr, getKernelFDPairs().back().second,
-                          FD->getLocation());
+    SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
+
+    if (seenDecl)
+      Visitor.VisitFunctionParameters(PrimaryDecl, argsSizeChecker, kernel_decl,
+                                      kernel_body, int_footer);
+    else {
+      SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
+                                            PrimaryDecl->getType(),
+                                            PrimaryDecl);
+
+      Visitor.VisitFunctionParameters(PrimaryDecl, argsSizeChecker, kernel_decl,
+                                      kernel_body, int_header, int_footer);
+    }
+    assert(getKernelFDPairs().back().first == PrimaryDecl &&
+           "OpenCL Kernel not found for free function entry");
+    // Register the kernel name with the OpenCL kernel generated for the
+    // free function.
+    addRegisteredKernelName(*this, NameStr, getKernelFDPairs().back().second,
+                            PrimaryDecl->getLocation());
+  } else if (!seenDecl) {
+
+    SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
+                                          PrimaryDecl->getType(), PrimaryDecl);
+    getSyclIntegrationHeader().updateKernelNames(PrimaryDecl, KernelName,
+                                                 StableName);
+    Visitor.VisitFunctionParameters(PrimaryDecl, int_header);
+    getSyclIntegrationHeader().KernelFirstDecl[MangledName] = PrimaryDecl;
+  }
 }
 
 // Figure out the sub-group for the this function.  First we check the
@@ -5835,13 +5867,6 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
     return S.Diag(FD->getLocation(), diag::err_free_function_return_type);
   }
 
-  if (const auto *MD = llvm::dyn_cast<CXXMethodDecl>(FD))
-    // The free function extension specification usual methods to be used to
-    // define a free function kernel. We also disallow static methods because we
-    // use integration header.
-    return S.Diag(FD->getLocation(), diag::err_free_function_class_method)
-           << !MD->isStatic() << MD->getSourceRange();
-
   for (ParmVarDecl *Param : FD->parameters()) {
     if (Param->hasDefaultArg()) {
       return S.Diag(Param->getLocation(),
@@ -6126,7 +6151,7 @@ class SYCLFwdDeclEmitter
   raw_ostream &OS;
   llvm::SmallPtrSet<const NamedDecl *, 4> Printed;
   PrintingPolicy Policy;
-
+public:
   void printForwardDecl(NamedDecl *D) {
     // wrap the declaration into namespaces if needed
     unsigned NamespaceCnt = 0;
@@ -6184,7 +6209,7 @@ class SYCLFwdDeclEmitter
     if (NamespaceCnt > 0)
       OS << "\n";
   }
-
+private:
   // Checks if we've already printed forward declaration and prints it if not.
   void checkAndEmitForwardDecl(NamedDecl *D) {
     if (Printed.insert(D).second)
@@ -6393,7 +6418,6 @@ public:
 
       // Print template class name
       TSD->printQualifiedName(OS, Policy, /*WithGlobalNsPrefix*/ true);
-
       ArrayRef<TemplateArgument> Args = TSD->getTemplateArgs().asArray();
       OS << "<";
       printTemplateArgs(Args);
@@ -6571,7 +6595,7 @@ public:
     if (!TemplatedDecl)
       return;
     const std::string TemplatedDeclParams =
-        getTemplatedParamList(TemplatedDecl->parameters(), Policy);
+        getTemplatedParamList(TemplatedDecl->parameters(), Policy, S);
     const std::string TemplateParams =
         getTemplateParameters(FTD->getTemplateParameters(), S);
     printFreeFunctionDeclaration(TemplatedDecl, TemplatedDeclParams,
@@ -6658,17 +6682,19 @@ private:
   /// returns string "T1 a, T2 b"
   std::string
   getTemplatedParamList(const llvm::ArrayRef<clang::ParmVarDecl *> Parameters,
-                        PrintingPolicy Policy) {
+                        PrintingPolicy Policy, SemaSYCL &S) {
+
     bool FirstParam = true;
     llvm::SmallString<128> ParamList;
     llvm::raw_svector_ostream ParmListOstream{ParamList};
     Policy.SuppressTagKeyword = true;
+    Policy.SkipCanonicalizationOfTemplateTypeParms = true;
     for (ParmVarDecl *Param : Parameters) {
       if (FirstParam)
         FirstParam = false;
       else
         ParmListOstream << ", ";
-      ParmListOstream << Param->getType().getAsString(Policy);
+  ParmListOstream << Param->getType().getDesugaredType(S.getASTContext()).getAsString(Policy);
       ParmListOstream << " " << Param->getNameAsString();
     }
     return ParamList.str().str();
@@ -6724,6 +6750,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   PrintingPolicy Policy(LO);
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
+  Policy.UseFullyQualifiedEnumerators = true;
   // Disable printing anonymous tag locations because on Windows
   // file path separators are treated as escape sequences and cause errors
   // when integration header is compiled with host compiler.
@@ -6897,6 +6924,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
             .getExpansionRange(K.KernelLocation)
             .getEnd());
     if (K.IsUnnamedKernel) {
+        std::cout << "Printing kernel..." << std::endl;
+        std::cout << K.SyclKernel << std::endl;
       O << "template <> struct KernelInfoData<";
       OutputStableNameInChars(O, K.StableName);
       O << "> {\n";
@@ -6986,13 +7015,13 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   for (const KernelDesc &K : KernelDescs) {
     if (!S.isFreeFunction(K.SyclKernel))
       continue;
-    ++FreeFunctionCount;
+++FreeFunctionCount;
     // Generate forward declaration for free function.
     O << "\n// Definition of " << K.Name << " as a free function kernel\n";
 
     O << "\n";
     O << "// Forward declarations of kernel and its argument types:\n";
-    Policy.SuppressDefaultTemplateArgs = false;
+    //Policy.SuppressDefaultTemplateArgs = false;
     FwdDeclEmitter.Visit(K.SyclKernel->getType());
     O << "\n";
 
@@ -7016,6 +7045,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         ParmList += "Args ...";
       } else {
         Policy.SuppressTagKeyword = true;
+        Param->getType()->dump();
         Param->getType().print(ParmListWithNamesOstream, Policy);
         Policy.SuppressTagKeyword = false;
         ParmListWithNamesOstream << " " << Param->getNameAsString();
@@ -7023,13 +7053,12 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       }
     }
     ParmListWithNamesOstream.flush();
-    FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
+    FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate()->getCanonicalDecl();
     Policy.PrintAsCanonical = false;
     Policy.SuppressDefinition = true;
     Policy.PolishForDeclaration = true;
     Policy.FullyQualifiedName = true;
     Policy.EnforceScopeForElaboratedTypes = true;
-    Policy.UseFullyQualifiedEnumerators = true;
 
     // Now we need to print the declaration of the kernel itself.
     // Example:
@@ -7059,7 +7088,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     Policy.EnforceDefaultTemplateArgs = true;
     FreeFunctionPrinter FFPrinter(O, Policy);
     if (FTD) {
-      FFPrinter.printFreeFunctionDeclaration(FTD, S);
+      FTD->print(O, Policy);
+      O << ";\n";
     } else {
       FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     }
@@ -7105,7 +7135,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "\n// Definition of kernel_id of " << K.Name << "\n";
     O << "namespace sycl {\n";
     O << "template <>\n";
-    O << "kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim"
+    O << "inline kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim"
       << ShimCounter << "()>() {\n";
     O << "  return sycl::detail::get_kernel_id_impl(std::string_view{\""
       << K.Name << "\"});\n";
