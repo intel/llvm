@@ -21,15 +21,7 @@ ur_command_list_manager::ur_command_list_manager(
     ur_context_handle_t context, ur_device_handle_t device,
     v2::raii::command_list_unique_handle &&commandList)
     : hContext(context), hDevice(device),
-      zeCommandList(std::move(commandList)) {
-  UR_CALL_THROWS(ur::level_zero::urContextRetain(context));
-  UR_CALL_THROWS(ur::level_zero::urDeviceRetain(device));
-}
-
-ur_command_list_manager::~ur_command_list_manager() {
-  ur::level_zero::urContextRelease(hContext);
-  ur::level_zero::urDeviceRelease(hDevice);
-}
+      zeCommandList(std::move(commandList)) {}
 
 ur_result_t ur_command_list_manager::appendGenericFillUnlocked(
     ur_mem_buffer_t *dst, size_t offset, size_t patternSize,
