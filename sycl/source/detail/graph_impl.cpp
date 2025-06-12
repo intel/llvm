@@ -1704,7 +1704,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
     BundleObjs = sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-        ContextImpl, DeviceImpl, ExecCG.MKernelName,
+        *ContextImpl, DeviceImpl, ExecCG.MKernelName,
         ExecCG.MKernelNameBasedCachePtr);
     UrKernel = BundleObjs->MKernelHandle;
     EliminatedArgMask = BundleObjs->MKernelArgMask;

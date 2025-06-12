@@ -672,6 +672,25 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
 }
 
 /**
+ * Waits for any ongoing executions of the command-buffer to finish
+ * @param CommandBuffer The command-buffer to wait for.
+ * @return UR_RESULT_SUCCESS or an error code on failure
+ */
+ur_result_t
+waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
+
+  if (ur_event_handle_t &CurrentSubmissionEvent =
+          CommandBuffer->CurrentSubmissionEvent) {
+    ZE2UR_CALL(zeEventHostSynchronize,
+               (CurrentSubmissionEvent->ZeEvent, UINT64_MAX));
+    UR_CALL(urEventReleaseInternal(CurrentSubmissionEvent));
+    CurrentSubmissionEvent = nullptr;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+/**
  * Checks whether the command-buffer can be constructed using in order
  * command-lists.
  * @param[in] Context The Context associated with the command-buffer.
@@ -709,25 +728,6 @@ ur_result_t appendExecutionWaits(ur_exp_command_buffer_handle_t CommandBuffer) {
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (CommandBuffer->ZeCopyCommandList, nullptr, PrecondEvents.size(),
                 PrecondEvents.data()));
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
-/**
- * Waits for any ongoing executions of the command-buffer to finish.
- * @param CommandBuffer The command-buffer to wait for.
- * @return UR_RESULT_SUCCESS or an error code on failure
- */
-ur_result_t
-waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
-
-  if (ur_event_handle_t &CurrentSubmissionEvent =
-          CommandBuffer->CurrentSubmissionEvent) {
-    ZE2UR_CALL(zeEventHostSynchronize,
-               (CurrentSubmissionEvent->ZeEvent, UINT64_MAX));
-    UR_CALL(urEventReleaseInternal(CurrentSubmissionEvent));
-    CurrentSubmissionEvent = nullptr;
   }
 
   return UR_RESULT_SUCCESS;
@@ -851,9 +851,8 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t CommandBuffer) {
   if (!CommandBuffer->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
-  waitForOngoingExecution(CommandBuffer);
+  UR_CALL(waitForOngoingExecution(CommandBuffer));
   CommandBuffer->cleanupCommandBufferResources();
-
   delete CommandBuffer;
   return UR_RESULT_SUCCESS;
 }

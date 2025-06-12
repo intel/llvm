@@ -116,8 +116,13 @@ std::vector<platform> platform_impl::getAdapterPlatforms(AdapterPtr &Adapter,
     platform Platform = detail::createSyclObjFromImpl<platform>(
         getOrMakePlatformImpl(UrPlatform, Adapter));
     const bool IsBanned = IsBannedPlatform(Platform);
-    const bool HasAnyDevices =
-        !Platform.get_devices(info::device_type::all).empty();
+    bool HasAnyDevices = false;
+
+    // Platform.get_devices() increments the device count for the platform
+    // and if the platform is banned (like OpenCL for AMD), it can cause
+    // incorrect device numbering, when used with ONEAPI_DEVICE_SELECTOR.
+    if (!IsBanned)
+      HasAnyDevices = !Platform.get_devices(info::device_type::all).empty();
 
     if (!Supported) {
       if (IsBanned || !HasAnyDevices) {

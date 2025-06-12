@@ -9,6 +9,9 @@
 // UNSUPPORTED-INTENDED: sycl_ext_oneapi_work_group_static is not supported on
 // AMD
 
+// XFAIL: preview-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18911
+
 // Tests using sycl_ext_oneapi_work_group_static in a graph node with dynamic
 // cgf and dynamic parameter
 

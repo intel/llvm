@@ -707,11 +707,23 @@ ASAN_REPORT_ERROR_N(store, true)
 
 ///
 /// ASAN convert memory address to shadow memory address
+/// This function is used only for getting shadow address of private memory so
+/// that we can poison them later. And the current implmentation require the ptr
+/// to be aligned with ASAN_SHADOW_GRANULARITY. If not aligned, the subsequent
+/// poisoning will not work correctly.
 ///
+static __SYCL_CONSTANT__ const char __asan_mem_to_shadow_unaligned_msg[] =
+    "[kernel] __asan_mem_to_shadow() unaligned address: %p\n";
 
 DEVICE_EXTERN_C_NOINLINE uptr __asan_mem_to_shadow(uptr ptr, uint32_t as) {
   if (!__AsanLaunchInfo)
     return 0;
+
+  // If ptr is not aligned, then it should be considered as implementation
+  // error. Print a warning for it.
+  if (ptr & AlignMask(ASAN_SHADOW_GRANULARITY)) {
+    __spirv_ocl_printf(__asan_mem_to_shadow_unaligned_msg, (void *)ptr);
+  }
 
   return MemToShadow(ptr, as);
 }

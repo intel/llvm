@@ -1817,6 +1817,7 @@ public:
         {0x05004000, oneapi_exp_arch::intel_gpu_bmg_g21}, // A0
         {0x05004001, oneapi_exp_arch::intel_gpu_bmg_g21}, // A1
         {0x05004004, oneapi_exp_arch::intel_gpu_bmg_g21}, // B0
+        {0x05008000, oneapi_exp_arch::intel_gpu_bmg_g31}, // A0
         {0x05010000, oneapi_exp_arch::intel_gpu_lnl_m},   // A0
         {0x05010001, oneapi_exp_arch::intel_gpu_lnl_m},   // A1
         {0x05010004, oneapi_exp_arch::intel_gpu_lnl_m},   // B0
@@ -1824,6 +1825,7 @@ public:
         {0x07800004, oneapi_exp_arch::intel_gpu_ptl_h},   // B0
         {0x07804000, oneapi_exp_arch::intel_gpu_ptl_u},   // A0
         {0x07804001, oneapi_exp_arch::intel_gpu_ptl_u},   // A1
+        {0x0780c000, oneapi_exp_arch::intel_gpu_wcl},     // A0
     };
 
     // Only for Intel CPU architectures

@@ -33,15 +33,19 @@ thread_local bool NestedCallsDetector = false;
 class NestedCallsTracker {
 public:
   NestedCallsTracker() {
-    if (NestedCallsDetector)
+    if (NestedCallsDetectorRef)
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Calls to sycl::queue::submit cannot be nested. Command group "
           "function objects should use the sycl::handler API instead.");
-    NestedCallsDetector = true;
+    NestedCallsDetectorRef = true;
   }
 
-  ~NestedCallsTracker() { NestedCallsDetector = false; }
+  ~NestedCallsTracker() { NestedCallsDetectorRef = false; }
+
+private:
+  // Cache the TLS location to decrease amount of TLS accesses.
+  bool &NestedCallsDetectorRef = NestedCallsDetector;
 };
 
 static std::vector<ur_event_handle_t>

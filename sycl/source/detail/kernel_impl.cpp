@@ -20,8 +20,8 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)
     : MKernel(Kernel), MContext(Context),
-      MProgram(ProgramManager::getInstance().getUrProgramFromUrKernel(Kernel,
-                                                                      Context)),
+      MProgram(ProgramManager::getInstance().getUrProgramFromUrKernel(
+          Kernel, *Context)),
       MCreatedFromSource(true), MKernelBundleImpl(std::move(KernelBundleImpl)),
       MIsInterop(true), MKernelArgMaskPtr{ArgMask} {
   ur_context_handle_t UrContext = nullptr;
