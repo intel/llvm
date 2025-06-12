@@ -6149,7 +6149,7 @@ class SYCLFwdDeclEmitter
   raw_ostream &OS;
   llvm::SmallPtrSet<const NamedDecl *, 4> Printed;
   PrintingPolicy Policy;
-public:
+
   void printForwardDecl(NamedDecl *D) {
     // wrap the declaration into namespaces if needed
     unsigned NamespaceCnt = 0;
