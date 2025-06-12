@@ -4526,7 +4526,9 @@ This attribute can only be applied to functions and indicates that the function
 is only available for the device. It allows functions marked with it to
 overload existing functions without the attribute, in which case the overload
 with the attribute will be used on the device side and the overload without
-will be used on the host side.
+will be used on the host side. Note: as opposed to ``sycl_device`` this does
+not mark the function as being exported, both attributes can be used together
+if needed.
   }];
 }
 
