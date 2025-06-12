@@ -165,8 +165,7 @@ public:
     case BYTE_ARRAY:
       return reinterpret_cast<const char *>(Val.ByteArrayVal);
     default:
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Unsupported property type.");
+      llvm_unreachable_internal("unsupported property type");
     }
   }
 
