@@ -122,7 +122,7 @@ TEST_P(OutOfResourcesTestSuite, urProgramCreateAlwaysFail) {
   sycl::platform Plt{sycl::platform()};
   sycl::context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
-  queue q(Ctx, default_selector_v);
+  queue Q(Ctx, default_selector_v);
 
   bool threwException = false;
 
