@@ -60,7 +60,6 @@ void ndRangeKernelWriteOnlyAcc(WriteOnlyAcc Type) {}
 namespace ns4 {
 template <typename A, typename B, typename C> struct TestStructX {};
 using AliasTypeX = TestStructX<int, float, int>;
-;
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
 void singleTaskWriteOnlyAccAliasTypedef(WriteOnlyAccAliasTypedef Type) {}
