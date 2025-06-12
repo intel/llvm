@@ -505,7 +505,7 @@ graph_impl::add(std::function<void(handler &)> CGF,
   (void)Args;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::handler_impl HandlerImpl{*this};
-  sycl::handler Handler{&HandlerImpl, std::shared_ptr<detail::queue_impl>{}};
+  sycl::handler Handler{HandlerImpl};
 #else
   sycl::handler Handler{shared_from_this()};
 #endif
@@ -1002,11 +1002,6 @@ exec_graph_impl::~exec_graph_impl() {
     const sycl::detail::AdapterPtr &Adapter =
         sycl::detail::getSyclObjImpl(MContext)->getAdapter();
     MSchedule.clear();
-    // We need to wait on all command buffer executions before we can release
-    // them.
-    for (auto &Event : MExecutionEvents) {
-      Event->wait(Event);
-    }
 
     // Clean up any graph-owned allocations that were allocated
     MGraphImpl->getMemPool().deallocateAndUnmapAll();
@@ -1545,7 +1540,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
     BundleObjs = sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-        ContextImpl, DeviceImpl, ExecCG.MKernelName,
+        *ContextImpl, DeviceImpl, ExecCG.MKernelName,
         ExecCG.MKernelNameBasedCachePtr);
     UrKernel = BundleObjs->MKernelHandle;
     EliminatedArgMask = BundleObjs->MKernelArgMask;
@@ -2310,7 +2305,7 @@ void dynamic_command_group_impl::finalizeCGFList(
     // as a single command-group with multiple commands inside.
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     detail::handler_impl HandlerImpl{*MGraph};
-    sycl::handler Handler{&HandlerImpl, std::shared_ptr<detail::queue_impl>{}};
+    sycl::handler Handler{HandlerImpl};
 #else
     sycl::handler Handler{MGraph};
 #endif

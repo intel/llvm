@@ -4332,6 +4332,8 @@
 ?pitched_alloc_device@experimental@oneapi@ext@_V1@sycl@@YAPEAXPEA_KAEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?pitched_alloc_device@experimental@oneapi@ext@_V1@sycl@@YAPEAXPEA_K_K1IAEBVdevice@45@AEBVcontext@45@@Z
 ?pitched_alloc_device@experimental@oneapi@ext@_V1@sycl@@YAPEAXPEA_K_K1IAEBVqueue@45@@Z
+?postProcess@HandlerAccess@detail@_V1@sycl@@SAXAEAVhandler@34@Vtype_erased_cgfo_ty@234@@Z
+?preProcess@HandlerAccess@detail@_V1@sycl@@SAXAEAVhandler@34@Vtype_erased_cgfo_ty@234@@Z
 ?prefetch@handler@_V1@sycl@@QEAAXPEBX_K@Z
 ?prefetch@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KAEBUcode_location@detail@23@@Z
 ?prefetch@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
@@ -4380,6 +4382,7 @@
 ?setArgHelper@handler@_V1@sycl@@AEAAXHAEAVwork_group_memory_impl@detail@23@@Z
 ?setArgsHelper@handler@_V1@sycl@@AEAAXH@Z
 ?setArgsToAssociatedAccessors@handler@_V1@sycl@@AEAAXXZ
+?setDevice@HostProfilingInfo@detail@_V1@sycl@@QEAAXPEAVdevice_impl@234@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXVkernel@23@@Z
 ?setKernelCacheConfig@handler@_V1@sycl@@AEAAXW4StableKernelCacheConfig@123@@Z
