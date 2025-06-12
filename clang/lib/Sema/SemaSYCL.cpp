@@ -6207,7 +6207,7 @@ public:
     if (NamespaceCnt > 0)
       OS << "\n";
   }
-private:
+
   // Checks if we've already printed forward declaration and prints it if not.
   void checkAndEmitForwardDecl(NamedDecl *D) {
     if (Printed.insert(D).second)
@@ -6686,13 +6686,12 @@ private:
     llvm::SmallString<128> ParamList;
     llvm::raw_svector_ostream ParmListOstream{ParamList};
     Policy.SuppressTagKeyword = true;
-    Policy.SkipCanonicalizationOfTemplateTypeParms = true;
     for (ParmVarDecl *Param : Parameters) {
       if (FirstParam)
         FirstParam = false;
       else
         ParmListOstream << ", ";
-  ParmListOstream << Param->getType().getDesugaredType(S.getASTContext()).getAsString(Policy);
+  ParmListOstream << Param->getType().getAsString(Policy);
       ParmListOstream << " " << Param->getNameAsString();
     }
     return ParamList.str().str();
@@ -6748,7 +6747,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   PrintingPolicy Policy(LO);
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
-  Policy.UseFullyQualifiedEnumerators = true;
   // Disable printing anonymous tag locations because on Windows
   // file path separators are treated as escape sequences and cause errors
   // when integration header is compiled with host compiler.
@@ -6922,8 +6920,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
             .getExpansionRange(K.KernelLocation)
             .getEnd());
     if (K.IsUnnamedKernel) {
-        std::cout << "Printing kernel..." << std::endl;
-        std::cout << K.SyclKernel << std::endl;
       O << "template <> struct KernelInfoData<";
       OutputStableNameInChars(O, K.StableName);
       O << "> {\n";
@@ -7019,7 +7015,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
     O << "\n";
     O << "// Forward declarations of kernel and its argument types:\n";
-    //Policy.SuppressDefaultTemplateArgs = false;
+    Policy.SuppressDefaultTemplateArgs = false;
     FwdDeclEmitter.Visit(K.SyclKernel->getType());
     O << "\n";
 
@@ -7057,7 +7053,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     Policy.FullyQualifiedName = true;
     Policy.EnforceScopeForElaboratedTypes = true;
     Policy.UseFullyQualifiedEnumerators = true;
-    
     // Now we need to print the declaration of the kernel itself.
     // Example:
     // template <typename T, typename = int> struct Arg {
