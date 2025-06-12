@@ -41,6 +41,18 @@ void sum<int>(int arg) {
   arg = 42;
 }
 
+template <int, typename T>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::nd_range_kernel<1>))
+void sum1(T arg) {}
+
+template <>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::nd_range_kernel<1>))
+void sum1<3, float>(float arg) {
+  arg = 3.14f + static_cast<float>(3);
+}
+
 template <> void sum<float>(float arg) { arg = 3.14f; }
 
 template <> void sum<TestStruct>(TestStruct arg) {
@@ -53,11 +65,37 @@ template <> void sum<A::B::C::TestClass>(A::B::C::TestClass arg) {
   arg.setB(5.0f);
 }
 
-template <typename T> void test_func() {
+template <typename T>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::single_task_kernel))
+void F(int X) {
+  volatile T Y = static_cast<T>(X);
+}
+
+template <>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::single_task_kernel))
+void F<float>(int X) {
+  volatile float Y = static_cast<float>(X);
+}
+
+template <typename... Args>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::single_task_kernel))
+void variadic_templated(Args... args) {}
+
+template <>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::single_task_kernel))
+void variadic_templated<double>(double b) {
+  b = 20.0f;
+}
+
+template <auto *Func, typename T> void test_func() {
   queue Q;
   kernel_bundle bundle =
       get_kernel_bundle<bundle_state::executable>(Q.get_context());
-  kernel_id id = ext::oneapi::experimental::get_kernel_id<sum<T>>();
+  kernel_id id = ext::oneapi::experimental::get_kernel_id<Func>();
   kernel Kernel = bundle.get_kernel(id);
   Q.submit([&](handler &h) {
     h.set_args(static_cast<T>(4));
@@ -78,11 +116,15 @@ template <typename T> void test_func_custom_type() {
 }
 
 int main() {
-  test_func<int>();
-  test_func<float>();
-  test_func<uint32_t>();
-  test_func<char>();
+  test_func<sum<int>, int>();
+  test_func<sum<float>, float>();
+  test_func<sum<uint32_t>, uint32_t>();
+  test_func<sum<char>, char>();
   test_func_custom_type<TestStruct>();
   test_func_custom_type<A::B::C::TestClass>();
+  test_func<F<float>, float>();
+  test_func<F<uint32_t>, uint32_t>();
+  test_func<variadic_templated<double>, int>();
+  test_func<sum1<3, float>, float>();
   return 0;
 }
