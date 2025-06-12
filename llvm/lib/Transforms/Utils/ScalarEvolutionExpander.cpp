@@ -1441,7 +1441,7 @@ Value *SCEVExpander::visitSequentialUMinExpr(const SCEVSequentialUMinExpr *S) {
 }
 
 Value *SCEVExpander::visitVScale(const SCEVVScale *S) {
-  return Builder.CreateVScale(ConstantInt::get(S->getType(), 1));
+  return Builder.CreateVScale(S->getType());
 }
 
 Value *SCEVExpander::expandCodeFor(const SCEV *SH, Type *Ty,
