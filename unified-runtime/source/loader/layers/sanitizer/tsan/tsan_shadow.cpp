@@ -106,6 +106,12 @@ ur_result_t ShadowMemoryGPU::Destroy() {
     return UR_RESULT_SUCCESS;
   }
 
+  if (LocalShadowOffset != 0) {
+    UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
+                                                 (void *)LocalShadowOffset));
+    LocalShadowOffset = 0;
+  }
+
   const size_t PageSize = GetVirtualMemGranularity(Context, Device);
   for (auto [MappedPtr, PhysicalMem] : VirtualMemMaps) {
     UR_CALL(getContext()->urDdiTable.VirtualMem.pfnUnmap(
