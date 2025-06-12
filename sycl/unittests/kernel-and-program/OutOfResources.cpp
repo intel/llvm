@@ -109,9 +109,7 @@ TEST_P(OutOfResourcesTestSuite, urProgramCreate) {
   }
 }
 
-static ur_result_t ProgramCreateWithILAlwaysFail(void *) {
-  return ErrorCode;
-}
+static ur_result_t ProgramCreateWithILAlwaysFail(void *) { return ErrorCode; }
 
 TEST_P(OutOfResourcesTestSuite, urProgramCreateAlwaysFail) {
   sycl::unittest::UrMock<> Mock;
@@ -127,13 +125,13 @@ TEST_P(OutOfResourcesTestSuite, urProgramCreateAlwaysFail) {
   bool ThrewException = false;
 
   try {
-    q.single_task<class OutOfResourcesKernel1>([] {});
+    Q.single_task<class OutOfResourcesKernel1>([] {});
   } catch (exception &Ex) {
     auto Code = detail::get_ur_error(Ex);
     EXPECT_EQ(Code, ErrorCode);
-    threwException = true;
+    ThrewException = true;
   }
-  EXPECT_TRUE(threwException);
+  EXPECT_TRUE(ThrewException);
 }
 
 static int nProgramLink = 0;
