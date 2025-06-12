@@ -17,7 +17,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
     [[maybe_unused]] const ur_usm_desc_t *pUSMDesc,
     [[maybe_unused]] ur_usm_pool_handle_t pool,
     [[maybe_unused]] size_t widthInBytes, [[maybe_unused]] size_t height,
-    [[maybe_unused]] size_t elementSizeBytes, [[maybe_unused]] void **ppMem,
+    [[maybe_unused]] size_t elementSizeBytes, [[maybe_unused]] void *ppMem,
     [[maybe_unused]] size_t *pResultPitch) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
