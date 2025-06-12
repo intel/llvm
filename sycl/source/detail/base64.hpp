@@ -112,7 +112,7 @@ public:
     size_t DstSize = getDecodedSize(SrcSize);
     std::unique_ptr<byte[]> Dst(new byte[DstSize]);
     decode(Src, Dst.get(), SrcSize);
-    return std::move(Dst);
+    return Dst;
   }
 };
 
