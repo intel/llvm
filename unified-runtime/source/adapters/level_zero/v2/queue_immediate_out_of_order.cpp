@@ -1,6 +1,6 @@
 //===--------- queue_immediate_in_order.cpp - Level Zero Adapter ---------===//
 //
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2025 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -14,40 +14,29 @@
 
 namespace v2 {
 
-// Helper function to intialize std::array of command list manager.
-// This is needed because command list manager does not have a default
-// constructor.
-template <size_t... Is>
-std::array<ur_command_list_manager, sizeof...(Is)> createCommandListManagers(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
-    ze_command_queue_priority_t priority, std::index_sequence<Is...>) {
-  return {
-      ((void)Is, ur_command_list_manager(
-                     hContext, hDevice,
-                     hContext->getCommandListCache().getImmediateCommandList(
-                         hDevice->ZeDevice,
-                         {true, ordinal, true /* always enable copy offload */},
-                         ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority)))...};
-}
-
 template <size_t N>
-std::array<ur_command_list_manager, N>
-createCommandListManagers(ur_context_handle_t hContext,
-                          ur_device_handle_t hDevice, uint32_t ordinal,
-                          ze_command_queue_priority_t priority) {
-  return createCommandListManagers(hContext, hDevice, ordinal, priority,
-                                   std::make_index_sequence<N>{});
+std::array<ur_command_list_manager, N> createCommandListManagers(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
+    ze_command_queue_priority_t priority, std::optional<int32_t> index) {
+  return createArrayOf<ur_command_list_manager, numCommandLists>([&](size_t) {
+    return ur_command_list_manager(
+        hContext, hDevice,
+        hContext->getCommandListCache().getImmediateCommandList(
+            hDevice->ZeDevice,
+            {true, ordinal, true /* always enable copy offload */},
+            ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index));
+  });
 }
 
 ur_queue_immediate_out_of_order_t::ur_queue_immediate_out_of_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
-    ze_command_queue_priority_t priority, event_flags_t eventFlags,
-    ur_queue_flags_t flags)
+    ze_command_queue_priority_t priority, std::optional<int32_t> index,
+    event_flags_t eventFlags, ur_queue_flags_t flags)
     : hContext(hContext), hDevice(hDevice),
       eventPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
                     .borrow(hDevice->Id.value(), eventFlags)),
       commandListManagers(createCommandListManagers<numCommandLists>(
-          hContext, hDevice, ordinal, priority)),
+          hContext, hDevice, ordinal, priority, index)),
       flags(flags) {
   for (size_t i = 0; i < numCommandLists; i++) {
     barrierEvents[i] = eventPool->allocate();
@@ -153,11 +142,11 @@ ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrier(
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY(
       "ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrier");
-  // For in-order queue we don't need a real L0 barrier, just wait for
-  // requested events in potentially different queues and add a "barrier"
-  // event signal because it is already guaranteed that previous commands
-  // in this queue are completed when the signal is started. However, we do
-  // need to use barrier if profiling is enabled: see
+  // Since we use L0 in-order command lists, we don't need a real L0 barrier,
+  // just wait for requested events in potentially different queues and add a
+  // "barrier" event signal because it is already guaranteed that previous
+  // commands in this queue are completed when the signal is started. However,
+  // we do need to use barrier if profiling is enabled: see
   // zeCommandListAppendWaitOnEvents
   bool needsRealBarrier = (flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0;
   auto appendEventsWaitFn =

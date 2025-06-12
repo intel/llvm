@@ -1,6 +1,6 @@
 //===--------- queue_immediate_in_order.hpp - Level Zero Adapter ---------===//
 //
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2025 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -25,6 +25,10 @@ namespace v2 {
 
 struct ur_queue_immediate_out_of_order_t : ur_object, ur_queue_t_ {
 private:
+  // Number of command lists was chosen experimentally as a compromise
+  // between number of allowed concurrent launches and overhead of
+  // iterating over the command lists to synchronize them.
+  // This might need to be changed for future hardware.
   static constexpr size_t numCommandLists = 4;
 
   ur_context_handle_t hContext;
@@ -49,6 +53,7 @@ public:
   ur_queue_immediate_out_of_order_t(ur_context_handle_t, ur_device_handle_t,
                                     uint32_t ordinal,
                                     ze_command_queue_priority_t priority,
+                                    std::optional<int32_t> index,
                                     event_flags_t eventFlags,
                                     ur_queue_flags_t flags);
 
