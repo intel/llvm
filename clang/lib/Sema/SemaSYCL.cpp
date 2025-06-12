@@ -7043,7 +7043,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         ParmList += "Args ...";
       } else {
         Policy.SuppressTagKeyword = true;
-        Param->getType()->dump();
         Param->getType().print(ParmListWithNamesOstream, Policy);
         Policy.SuppressTagKeyword = false;
         ParmListWithNamesOstream << " " << Param->getNameAsString();
@@ -7051,7 +7050,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       }
     }
     ParmListWithNamesOstream.flush();
-    FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate()->getCanonicalDecl();
+    FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.PrintAsCanonical = false;
     Policy.SuppressDefinition = true;
     Policy.PolishForDeclaration = true;
