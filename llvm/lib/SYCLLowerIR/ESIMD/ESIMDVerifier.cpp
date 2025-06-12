@@ -89,6 +89,19 @@ static const char *LegalSYCLFunctionsInStatelessMode[] = {
 
 namespace {
 
+class BuffDeleter {
+public:
+  BuffDeleter(char *Buffer) : Buff(Buffer) {};
+  ~BuffDeleter() { std::free(Buff); };
+
+  BuffDeleter() = delete;
+  BuffDeleter(const BuffDeleter &) = delete;
+  BuffDeleter(BuffDeleter &&) = delete;
+
+private:
+  char *Buff;
+};
+
 class ESIMDVerifierImpl {
   const Module &M;
   bool MayNeedForceStatelessMemModeAPI;
@@ -150,6 +163,7 @@ public:
 
           id::OutputBuffer NameBuf;
           NameNode->print(NameBuf);
+          BuffDeleter NameBufDeleter(NameBuf.getBuffer());
           StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
 
           // We are interested in functions defined in SYCL namespace, but
