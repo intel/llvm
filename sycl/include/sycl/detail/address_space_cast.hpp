@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
 #include <sycl/__spirv/spirv_types.hpp>
+#include <sycl/access/access.hpp>
 
 #include <type_traits>
 
