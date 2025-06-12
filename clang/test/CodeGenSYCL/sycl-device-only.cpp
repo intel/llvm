@@ -11,9 +11,7 @@ int foo(int a) { return a + 10; }
 __attribute__((sycl_device_only)) int foo(int a) { return a + 20; }
 
 // Use a `sycl_device` function as entry point
-__attribute__((sycl_device)) int bar(int b) {
-  return foo(b);
-}
+__attribute__((sycl_device)) int bar(int b) { return foo(b); }
 
 // Verify that the order of declaration doesn't change the behavior.
 //
@@ -24,9 +22,7 @@ __attribute__((sycl_device_only)) int fooswap(int a) { return a + 20; }
 int fooswap(int a) { return a + 10; }
 
 // Use a `sycl_device` function as entry point
-__attribute__((sycl_device)) int barswap(int b) {
-  return fooswap(b);
-}
+__attribute__((sycl_device)) int barswap(int b) { return fooswap(b); }
 
 // Verify that in extern C the attribute enables mangling.
 extern "C" {
@@ -37,9 +33,7 @@ int fooc(int a) { return a + 10; }
 __attribute__((sycl_device_only)) int fooc(int a) { return a + 20; }
 
 // Use a `sycl_device` function as entry point
-__attribute__((sycl_device)) int barc(int b) {
-  return fooc(b);
-}
+__attribute__((sycl_device)) int barc(int b) { return fooc(b); }
 }
 
 // Check that both attributes can work together
@@ -47,20 +41,20 @@ __attribute__((sycl_device)) int barc(int b) {
 // CHECKH: %add = add nsw i32 %0, 10
 // CHECKD: %add = add nsw i32 %0, 20
 int fooa(int a) { return a + 10; }
-__attribute__((sycl_device_only, sycl_device)) int fooa(int a) { return a + 20; }
+__attribute__((sycl_device_only, sycl_device)) int fooa(int a) {
+  return a + 20;
+}
 
 // Use a `sycl_device` function as entry point
-__attribute__((sycl_device)) int bara(int b) {
-  return fooa(b);
-}
+__attribute__((sycl_device)) int bara(int b) { return fooa(b); }
 
 // CHECK-LABEL: _Z3fooaswapi
 // CHECKH: %add = add nsw i32 %0, 10
 // CHECKD: %add = add nsw i32 %0, 20
-__attribute__((sycl_device_only, sycl_device)) int fooaswap(int a) { return a + 20; }
+__attribute__((sycl_device_only, sycl_device)) int fooaswap(int a) {
+  return a + 20;
+}
 int fooaswap(int a) { return a + 10; }
 
 // Use a `sycl_device` function as entry point
-__attribute__((sycl_device)) int baraswap(int b) {
-  return fooaswap(b);
-}
+__attribute__((sycl_device)) int baraswap(int b) { return fooaswap(b); }
