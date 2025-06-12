@@ -18,7 +18,7 @@ template <size_t N>
 std::array<ur_command_list_manager, N> createCommandListManagers(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
     ze_command_queue_priority_t priority, std::optional<int32_t> index) {
-  return createArrayOf<ur_command_list_manager, numCommandLists>([&](size_t) {
+  return createArrayOf<ur_command_list_manager, N>([&](size_t) {
     return ur_command_list_manager(
         hContext, hDevice,
         hContext->getCommandListCache().getImmediateCommandList(
