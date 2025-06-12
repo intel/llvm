@@ -25,7 +25,8 @@ public:
   MockQueueImpl(sycl::detail::device_impl &Device,
                 const sycl::async_handler &AsyncHandler,
                 const sycl::property_list &PropList)
-      : sycl::detail::queue_impl(Device, AsyncHandler, PropList) {}
+      : sycl::detail::queue_impl(Device, AsyncHandler, PropList,
+                                 sycl::detail::queue_impl::private_tag{}) {}
   using sycl::detail::queue_impl::finalizeHandlerInOrderHostTaskUnlocked;
 };
 
@@ -34,7 +35,7 @@ class LimitedHandler {
 public:
   LimitedHandler(sycl::detail::CGType CGType,
                  std::shared_ptr<MockQueueImpl> Queue)
-      : MCGType(CGType), MQueue(Queue) {}
+      : MCGType(CGType), impl(std::make_shared<handler_impl>(Queue)) {}
 
   virtual ~LimitedHandler() {}
   virtual void depends_on(const sycl::detail::EventImplPtr &) {}
@@ -56,8 +57,12 @@ public:
   sycl::detail::CGType getType() { return MCGType; }
 
   sycl::detail::CGType MCGType;
-  std::shared_ptr<MockQueueImpl> MQueue;
-  std::shared_ptr<sycl::detail::handler_impl> impl;
+  struct handler_impl {
+    handler_impl(std::shared_ptr<MockQueueImpl> Queue) : MQueue(Queue) {}
+    std::shared_ptr<MockQueueImpl> MQueue;
+    MockQueueImpl &get_queue() { return *MQueue; }
+  };
+  std::shared_ptr<handler_impl> impl;
   std::shared_ptr<detail::kernel_impl> MKernel;
   detail::string MKernelName;
 };

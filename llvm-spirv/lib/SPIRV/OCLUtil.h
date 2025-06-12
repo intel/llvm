@@ -98,11 +98,19 @@ enum OCLScopeKind {
 // To avoid any inconsistence here, constants are explicitly initialized with
 // the corresponding constants from 'std::memory_order' enum.
 enum OCLMemOrderKind {
+#if __cplusplus >= 202002L
+  OCLMO_relaxed = std::memory_order_relaxed,
+  OCLMO_acquire = std::memory_order_acquire,
+  OCLMO_release = std::memory_order_release,
+  OCLMO_acq_rel = std::memory_order_acq_rel,
+  OCLMO_seq_cst = std::memory_order_seq_cst
+#else
   OCLMO_relaxed = std::memory_order::memory_order_relaxed,
   OCLMO_acquire = std::memory_order::memory_order_acquire,
   OCLMO_release = std::memory_order::memory_order_release,
   OCLMO_acq_rel = std::memory_order::memory_order_acq_rel,
   OCLMO_seq_cst = std::memory_order::memory_order_seq_cst
+#endif
 };
 
 enum IntelFPGAMemoryAccessesVal {
@@ -453,11 +461,12 @@ SmallVector<unsigned, 3> decodeMDNode(MDNode *N);
 template <typename T> std::string getFullPath(const T *Scope) {
   if (!Scope)
     return std::string();
-  std::string Filename = Scope->getFilename().str();
-  if (sys::path::is_absolute(Filename))
-    return Filename;
+  StringRef Filename = Scope->getFilename();
+  auto Style = sys::path::Style::native;
+  if (sys::path::is_absolute(Filename, Style))
+    return Filename.str();
   SmallString<16> DirName = Scope->getDirectory();
-  sys::path::append(DirName, sys::path::Style::posix, Filename);
+  sys::path::append(DirName, Style, Filename.str());
   return DirName.str().str();
 }
 

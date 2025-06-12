@@ -190,10 +190,12 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
             NewCmd, Lock, Res, ToCleanUp, NewCmd, Blocking);
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult) {
           throw sycl::detail::set_ur_error(
-              sycl::exception(sycl::make_error_code(errc::runtime),
-                              std::string("Enqueue process failed.\n") +
-                                  __SYCL_UR_ERROR_REPORT +
-                                  sycl::detail::codeToString(Res.MErrCode)),
+              sycl::exception(
+                  sycl::make_error_code(errc::runtime),
+                  std::string("Enqueue process failed.\n") +
+                      __SYCL_UR_ERROR_REPORT(
+                          NewCmd->getWorkerContext()->getBackend()) +
+                      sycl::detail::codeToString(Res.MErrCode)),
               Res.MErrCode);
         }
       } catch (...) {
@@ -615,7 +617,7 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
 }
 
 ur_kernel_handle_t Scheduler::completeSpecConstMaterialization(
-    [[maybe_unused]] const QueueImplPtr &Queue,
+    [[maybe_unused]] queue_impl &Queue,
     [[maybe_unused]] const RTDeviceBinaryImage *BinImage,
     [[maybe_unused]] KernelNameStrRefT KernelName,
     [[maybe_unused]] std::vector<unsigned char> &SpecConstBlob) {

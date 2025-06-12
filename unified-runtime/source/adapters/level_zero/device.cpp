@@ -15,6 +15,11 @@
 #include "ur_util.hpp"
 #include <algorithm>
 #include <climits>
+#if defined(__linux__)
+#include <ctime>
+#elif defined(_WIN32)
+#include <windows.h>
+#endif
 #include <optional>
 #include <vector>
 
@@ -1087,21 +1092,18 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
-                       Device->ZeDeviceImageProperties->maxImageDims1D > 0 &&
-                       Device->ZeDeviceImageProperties->maxImageDims2D > 0 &&
-                       Device->ZeDeviceImageProperties->maxImageDims3D > 0);
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
     // On L0 bindless images can not be backed by shared (managed) USM.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
                        Device->ZeDeviceImageProperties->maxImageDims1D > 0);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
                        Device->ZeDeviceImageProperties->maxImageDims2D > 0);
   }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
@@ -1218,13 +1220,11 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
-    return ReturnValue(true);
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    return ReturnValue(false);
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
@@ -1346,6 +1346,8 @@ ur_result_t urDeviceGetInfo(
       return ReturnValue(int32_t{PowerProperties.maxLimit});
     }
   }
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
@@ -1572,6 +1574,40 @@ ur_result_t urDeviceGetGlobalTimestamps(
     /// [out][optional] pointer to the Host's global timestamp that correlates
     /// with the Device's global timestamp value
     uint64_t *HostTimestamp) {
+  if (!DeviceTimestamp && HostTimestamp) {
+    // If only HostTimestamp is requested, we need to avoid making a call to
+    // zeDeviceGetGlobalTimestamps which has higher latency. This is a
+    // workaround for the fact that Level Zero does not provide a way to get the
+    // host timestamp directly. It is known that current implementation of L0
+    // runtime uses CLOCK_MONOTONIC_RAW on Linux and QueryPerformanceCounter on
+    // Windows.
+#if defined(__linux__)
+    timespec Monotonic;
+    if (clock_gettime(CLOCK_MONOTONIC_RAW, &Monotonic) != 0) {
+      UR_LOG(ERR, "Failed to get CLOCK_MONOTONIC time");
+      return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+    *HostTimestamp = static_cast<uint64_t>(Monotonic.tv_sec) * 1'000'000'000 +
+                     static_cast<uint64_t>(Monotonic.tv_nsec);
+    return UR_RESULT_SUCCESS;
+#elif defined(_WIN32)
+    // Use QueryPerformanceCounter on Windows
+    uint64_t Counter;
+    if (!QueryPerformanceCounter((LARGE_INTEGER *)&Counter)) {
+      UR_LOG(ERR, "Failed to get performance counter");
+      return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+    LARGE_INTEGER Frequency;
+    if (!QueryPerformanceFrequency(&Frequency)) {
+      UR_LOG(ERR, "Failed to get performance frequency");
+      return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+    *HostTimestamp = static_cast<uint64_t>(
+        (static_cast<double>(Counter) * 1'000'000'000 / Frequency.QuadPart));
+    return UR_RESULT_SUCCESS;
+#endif
+  }
+
   const uint64_t &ZeTimerResolution =
       Device->ZeDeviceProperties->timerResolution;
   const uint64_t TimestampMaxCount = Device->getTimestampMask();
