@@ -162,7 +162,6 @@ public:
 
 private:
   template <typename T> T &getValueRef();
-  void copy(const PropertyValue &P);
 
   Type Ty = NONE;
   // TODO: replace this union with std::variant when uplifting to C++17
