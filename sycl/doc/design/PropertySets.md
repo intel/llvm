@@ -139,6 +139,16 @@ __Value type:__ 32 bit integer. ("1")
 __Value:__ 1 if the kernel uses assertions and 0 or missing otherwise.
 
 
+### [SYCL/kernel names]
+
+__Key:__ Kernel name.
+
+__Value type:__ 32 bit integer. ("1")
+
+__Value:__ 1 if the name is identifies a kernel inside the binary and 0 or
+missing otherwise.
+
+
 ### [SYCL/exported symbols]
 
 __Key:__ Symbol name.
