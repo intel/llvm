@@ -124,7 +124,7 @@ TEST_P(OutOfResourcesTestSuite, urProgramCreateAlwaysFail) {
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   queue Q(Ctx, default_selector_v);
 
-  bool threwException = false;
+  bool ThrewException = false;
 
   try {
     q.single_task<class OutOfResourcesKernel1>([] {});
