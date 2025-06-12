@@ -6593,7 +6593,7 @@ public:
     if (!TemplatedDecl)
       return;
     const std::string TemplatedDeclParams =
-        getTemplatedParamList(TemplatedDecl->parameters(), Policy, S);
+        getTemplatedParamList(TemplatedDecl->parameters(), Policy);
     const std::string TemplateParams =
         getTemplateParameters(FTD->getTemplateParameters(), S);
     printFreeFunctionDeclaration(TemplatedDecl, TemplatedDeclParams,
@@ -6680,7 +6680,7 @@ private:
   /// returns string "T1 a, T2 b"
   std::string
   getTemplatedParamList(const llvm::ArrayRef<clang::ParmVarDecl *> Parameters,
-                        PrintingPolicy Policy, SemaSYCL &S) {
+                        PrintingPolicy Policy) {
 
     bool FirstParam = true;
     llvm::SmallString<128> ParamList;
