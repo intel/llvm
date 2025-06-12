@@ -158,7 +158,17 @@ public:
     }
   }
 
-  const char *data() const { return reinterpret_cast<const char *>(&Val); }
+  const char *data() const {
+    switch (Ty) {
+    case UINT32:
+      return reinterpret_cast<const char *>(&Val.UInt32Val);
+    case BYTE_ARRAY:
+      return reinterpret_cast<const char *>(Val.ByteArrayVal);
+    default:
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Unsupported property type.");
+    }
+  }
 
 private:
   template <typename T> T &getValueRef();
