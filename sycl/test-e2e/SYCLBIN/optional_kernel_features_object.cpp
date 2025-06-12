@@ -9,6 +9,11 @@
 
 // REQUIRES: aspect-usm_device_allocations
 
+// HIP and CUDA cannot answer kernel name queries on the binaries, so kernel
+// names cannot be resolved for now.
+// XFAIL: cuda || hip
+// XFAIL-TRACKER: CMPLRLLVM-68469
+
 // -- Test for compiling and loading a kernel bundle with a SYCLBIN containing
 //    the use of optional kernel features.
 
