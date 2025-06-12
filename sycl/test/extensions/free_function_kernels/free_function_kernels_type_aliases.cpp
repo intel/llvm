@@ -8,7 +8,7 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 struct TestStruct {};
 using StructAlias = TestStruct;
 
-struct TestClass {};
+class TestClass {};
 using ClassAlias = TestClass;
 namespace ns1 {
 using WriteOnlyAcc = sycl::accessor<int, 1, sycl::access::mode::write>;
