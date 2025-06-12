@@ -70,8 +70,14 @@ public:
   }
 };
 
+template <class T>
 inline static WaitInfo getWaitInfo(uint32_t numEventsInWaitList,
-                                   const ur_event_handle_t *phEventWaitList) {
+                                   const ur_event_handle_t *phEventWaitList,
+                                   const T &scheduler) {
+  if (numEventsInWaitList && !scheduler.CanWaitInThread()) {
+    urEventWait(numEventsInWaitList, phEventWaitList);
+    numEventsInWaitList = 0;
+  }
   return native_cpu::WaitInfo(numEventsInWaitList, phEventWaitList);
 }
 
@@ -175,7 +181,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   auto kernel = std::make_unique<ur_kernel_handle_t_>(*hKernel);
   kernel->updateMemPool(numParallelThreads);
 
-  auto InEvents = native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
+  auto InEvents =
+      native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList, Tasks);
 
 #ifndef NATIVECPU_USE_OCK
   native_cpu::state state = getState(ndr);
@@ -343,7 +350,7 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
     auto &tp = hQueue->getDevice()->tp;
     auto Tasks = native_cpu::getScheduler(tp);
     auto InEvents =
-        native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
+        native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList, Tasks);
     Tasks.schedule([f, InEvents](size_t) {
       InEvents.wait();
       f();

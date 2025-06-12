@@ -220,7 +220,6 @@ public:
       f.wait();
   }
   TasksInfo_TP(simple_threadpool_t &) {}
-  static constexpr bool CanWaitInThread() { return true; }
 };
 
 template <class TP, class TaskInfo> struct Scheduler_base {
@@ -228,6 +227,7 @@ template <class TP, class TaskInfo> struct Scheduler_base {
   TaskInfo ti;
   Scheduler_base(TP &ref_) : ref(ref_), ti(ref_) {}
   TaskInfo getTaskInfo() { return std::move(ti); }
+  static constexpr bool CanWaitInThread() { return true; }
 };
 
 template <class TP> struct Scheduler : Scheduler_base<TP, TasksInfo_TP> {
@@ -281,6 +281,7 @@ struct Scheduler<TBB_threadpool>
       task(thread_id);
     });
   }
+  static constexpr bool CanWaitInThread() { return false; }
 };
 
 using tasksinfo_t = TBB_TasksInfo;
