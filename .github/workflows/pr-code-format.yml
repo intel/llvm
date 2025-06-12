@@ -55,7 +55,7 @@ jobs:
           echo "$CHANGED_FILES"
 
       - name: Install clang-format
-        uses: aminya/setup-cpp@9dc9c217f497fe7342eed97e6f200bf101c9cc04 # v1.6.2
+        uses: aminya/setup-cpp@004edc19527a83d56cda032658aab55c5e2ed48f # v1.7.0
         with:
           clangformat: 19.1.6
 

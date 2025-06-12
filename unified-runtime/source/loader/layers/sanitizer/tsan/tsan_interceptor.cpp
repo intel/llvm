@@ -103,6 +103,23 @@ void ContextInfo::insertAllocInfo(ur_device_handle_t Device, TsanAllocInfo AI) {
   }
 }
 
+TsanInterceptor::~TsanInterceptor() {
+  // We must release these objects before releasing adapters, since
+  // they may use the adapter in their destructor
+  for (const auto &[_, DeviceInfo] : m_DeviceMap) {
+    DeviceInfo->Shadow->Destroy();
+    DeviceInfo->Shadow = nullptr;
+  }
+
+  m_MemBufferMap.clear();
+  m_KernelMap.clear();
+  m_ContextMap.clear();
+
+  for (auto Adapter : m_Adapters) {
+    getContext()->urDdiTable.Adapter.pfnRelease(Adapter);
+  }
+}
+
 ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             ur_device_handle_t Device,
                                             const ur_usm_desc_t *Properties,

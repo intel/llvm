@@ -33,15 +33,19 @@ thread_local bool NestedCallsDetector = false;
 class NestedCallsTracker {
 public:
   NestedCallsTracker() {
-    if (NestedCallsDetector)
+    if (NestedCallsDetectorRef)
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Calls to sycl::queue::submit cannot be nested. Command group "
           "function objects should use the sycl::handler API instead.");
-    NestedCallsDetector = true;
+    NestedCallsDetectorRef = true;
   }
 
-  ~NestedCallsTracker() { NestedCallsDetector = false; }
+  ~NestedCallsTracker() { NestedCallsDetectorRef = false; }
+
+private:
+  // Cache the TLS location to decrease amount of TLS accesses.
+  bool &NestedCallsDetectorRef = NestedCallsDetector;
 };
 
 static std::vector<ur_event_handle_t>
@@ -310,16 +314,12 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                         const detail::code_location &Loc, bool IsTopCodeLoc,
                         const v1::SubmissionInfo &SubmitInfo) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::handler_impl HandlerImplVal(SecondaryQueue, CallerNeedsEvent);
-  detail::handler_impl *HandlerImpl = &HandlerImplVal;
-  // Inlining `Self` results in a crash when SYCL RT is built using MSVC with
-  // optimizations enabled. No crash if built using OneAPI.
-  auto Self = shared_from_this();
-  handler Handler(HandlerImpl, Self);
+  detail::handler_impl HandlerImplVal(*this, SecondaryQueue, CallerNeedsEvent);
+  handler Handler(HandlerImplVal);
 #else
   handler Handler(shared_from_this(), SecondaryQueue, CallerNeedsEvent);
-  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 #endif
+  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
