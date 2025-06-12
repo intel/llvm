@@ -2,43 +2,11 @@ name: SYCL Release Branch Nightly
 
 on:
   workflow_dispatch:
-    inputs:
-      testing_branch:
-        description: |
-          Branch to test, e.g. sycl-rel-6_0_0.
-          If nothing is specified, the last release branch is used.
-
-  schedule:
-    - cron: '0 3 * * *'
 
 permissions: read-all
 
 jobs:
-  # To avoid unnecessary scheduled runs this job checks if there are new commits
-  # since the last run. More precisely, it checks if the last commit is older
-  # than 24h. That means the previous Nightly already tested this commit.
-  check_for_new_commits:
-    if: github.repository == 'intel/llvm'
-    runs-on: ubuntu-latest
-    name: Check for new commits
-    outputs:
-      is_new_commit: ${{ steps.is_new_commit.outputs.is_new_commit }}
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
-    - run: git show --quiet | tee -a $GITHUB_STEP_SUMMARY
-
-    - id: is_new_commit
-      if: ${{ github.event_name == 'schedule' }}
-      run: |
-        if [ -z "$(git rev-list --after="24 hours" HEAD)" ]; then
-          echo "is_new_commit=false" >> $GITHUB_OUTPUT
-        fi
-
   ubuntu2204_build:
-    needs: [check_for_new_commits]
-    if: ${{ github.repository == 'intel/llvm' && needs.check_for_new_commits.outputs.is_new_commit != 'false' }}
     uses: ./.github/workflows/sycl-linux-build.yml
     secrets: inherit
     with:
@@ -46,7 +14,6 @@ jobs:
       build_artifact_suffix: default
       build_configure_extra_args: '--disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-      build_ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
       pack_release: 'true'
 
       # We upload the build for people to download/use, override its name and
@@ -94,18 +61,14 @@ jobs:
       target_devices: ${{ matrix.target_devices }}
       tests_selector: e2e
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
-      repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
-      devops_ref: sycl
+      repo_ref: ${{ github.sha  }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
 
   build-win:
-    needs: [check_for_new_commits]
-    if: ${{ github.repository == 'intel/llvm' && needs.check_for_new_commits.outputs.is_new_commit != 'false' }}
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
-      ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
       build_configure_extra_args: '--disable-jit --no-assertions --add_security_flags=sanitize'
       pack_release: 'true'
 
@@ -126,8 +89,7 @@ jobs:
         include:
           - name: Intel GEN12 Graphics with Level Zero
             runner: '["Windows","gen12"]'
-            # 6_1_0 doesn't support the auto-detection, keep it until 6_2_0.
-            extra_lit_opts: --param gpu-intel-gen12=True
+
           - name: Intel Battlemage Graphics with Level Zero
             runner: '["Windows","bmg"]'
     uses: ./.github/workflows/sycl-windows-run-tests.yml
@@ -137,8 +99,7 @@ jobs:
       target_devices: level_zero:gpu
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
-      repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
-      devops_ref: sycl
+      repo_ref: ${{ github.sha  }}
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
@@ -147,7 +108,7 @@ jobs:
     secrets: inherit
     with:
       mode: start
-      ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
+      ref: ${{ github.sha  }}
 
   cuda-run-tests:
     needs: [ubuntu2204_build, cuda-aws-start]
@@ -159,8 +120,7 @@ jobs:
       image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: cuda:gpu
-      repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
-      devops_ref: sycl
+      repo_ref: ${{ github.sha  }}
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
@@ -173,7 +133,7 @@ jobs:
     secrets: inherit
     with:
       mode: stop
-      ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
+      ref: ${{ github.sha  }}
 
   build-sycl-cts:
     needs: ubuntu2204_build
@@ -185,8 +145,11 @@ jobs:
       cts_testing_mode: 'build-only'
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
       tests_selector: cts
-      repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
-      devops_ref: sycl
+      repo_ref: ${{ github.sha  }}
+      # Author: Tom Deakin <thomasdeakin@gmail.com>
+      # Date:   Thu Mar 20 15:31:29 2025 +0000
+      # Merge pull request #1052 from dyniols/cts_test_for_shorthand_aliases_address_spaces
+      # Add tests for the new shorthand aliases of address spaces
       tests_ref: 87f8677c4b67cfe56ad6f09246036f10c306c977
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
@@ -217,8 +180,7 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
-      repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_2'  }}
-      devops_ref: sycl
+      repo_ref: ${{ github.sha  }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
