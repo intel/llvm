@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <detail/cg.hpp>
 #include <detail/global_handler.hpp>
 #include <sycl/detail/cg_types.hpp>
@@ -32,6 +33,8 @@ public:
   HostTask(std::function<void(interop_handle)> &&Func) : MInteropTask(Func) {}
 
   bool isInteropTask() const { return !!MInteropTask; }
+
+  detail::queue_impl *Queue = nullptr;
 
   void call(HostProfilingInfo *HPI) {
     if (!GlobalHandler::instance().isOkToDefer()) {
