@@ -268,7 +268,7 @@ public:
   ///
   /// @return
   void setWorkerQueue(std::weak_ptr<queue_impl> WorkerQueue) {
-    MWorkerQueue = WorkerQueue;
+    MWorkerQueue = std::move(WorkerQueue);
   };
 
   /// Sets original queue used for submission.

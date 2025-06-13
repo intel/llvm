@@ -269,7 +269,7 @@ public:
       // ->call<>() instead of ->call_nocheck<>() above.
       if (status != UR_RESULT_SUCCESS &&
           status != UR_RESULT_ERROR_UNINITIALIZED) {
-        __SYCL_CHECK_UR_CODE_NO_EXC(status);
+        __SYCL_CHECK_UR_CODE_NO_EXC(status, getAdapter()->getBackend());
       }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
@@ -294,6 +294,8 @@ public:
   const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
+
+  context_impl &getContextImpl() const { return *MContext; }
 
   device_impl &getDeviceImpl() const { return MDevice; }
 

@@ -1293,8 +1293,8 @@ private:
       KernelWrapper<WrapAs::parallel_for, KName, decltype(Wrapper),
                     TransformedArgType, PropertiesT>::wrap(this, Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
-      verifyUsedKernelBundleInternal(
-          detail::string_view{detail::getKernelName<NameT>()});
+      constexpr detail::string_view Name{detail::getKernelName<NameT>()};
+      verifyUsedKernelBundleInternal(Name);
       // We are executing over the rounded range, but there are still
       // items/ids that are are constructed in ther range rounded
       // kernel use items/ids in the user range, which means that
@@ -1318,9 +1318,9 @@ private:
       KernelWrapper<WrapAs::parallel_for, NameT, KernelType, TransformedArgType,
                     PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-      constexpr std::string_view Name{detail::getKernelName<NameT>()};
+      constexpr detail::string_view Name{detail::getKernelName<NameT>()};
 
-      verifyUsedKernelBundleInternal(detail::string_view{Name});
+      verifyUsedKernelBundleInternal(Name);
       processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
@@ -1512,8 +1512,8 @@ private:
   //
   // First, from SYCL 2020, Table 129 (Member functions of the `handler ` class)
   //   > The callable ... can optionally take a `kernel_handler` ... in
-  //   which > case the SYCL runtime will construct an instance of
-  //   `kernel_handler` > and pass it to the callable.
+  //   > which case the SYCL runtime will construct an instance of
+  //   > `kernel_handler` and pass it to the callable.
   //
   // Note: "..." due to slight wording variability between
   // single_task/parallel_for (e.g. only parameter vs last). This helper class
@@ -1611,8 +1611,8 @@ private:
       throwOnKernelParameterMisuse<KernelName, KernelType>();
     }
     throwIfActionIsCreated();
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
+    constexpr detail::string_view Name{detail::getKernelName<NameT>()};
+    verifyUsedKernelBundleInternal(Name);
     setType(detail::CGType::Kernel);
 
     detail::checkValueRange<Dims>(params...);
@@ -1655,8 +1655,8 @@ private:
     // Ignore any set kernel bundles and use the one associated with the
     // kernel.
     setHandlerKernelBundle(Kernel);
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
+    constexpr detail::string_view Name{detail::getKernelName<NameT>()};
+    verifyUsedKernelBundleInternal(Name);
     setType(detail::CGType::Kernel);
 
     detail::checkValueRange<Dims>(params...);
@@ -2108,8 +2108,8 @@ public:
     kernel_single_task<NameT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
+    constexpr detail::string_view Name{detail::getKernelName<NameT>()};
+    verifyUsedKernelBundleInternal(Name);
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     setNDRangeDescriptor(range<1>{1});

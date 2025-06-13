@@ -203,7 +203,7 @@ event_impl::event_impl(HostEventState State, private_tag) : MState(State) {
 }
 
 void event_impl::setQueue(queue_impl &Queue) {
-  MQueue = Queue.shared_from_this();
+  MQueue = Queue.weak_from_this();
   MIsProfilingEnabled = Queue.MIsProfilingEnabled;
 
   // TODO After setting the queue, the event is no longer default
@@ -213,9 +213,9 @@ void event_impl::setQueue(queue_impl &Queue) {
 }
 
 void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
-  MSubmittedQueue = SubmittedQueue;
+  MSubmittedQueue = std::move(SubmittedQueue);
   if (MHostProfilingInfo) {
-    if (auto QueuePtr = SubmittedQueue.lock()) {
+    if (auto QueuePtr = MSubmittedQueue.lock()) {
       device_impl &Device = QueuePtr->getDeviceImpl();
       MHostProfilingInfo->setDevice(&Device);
     }

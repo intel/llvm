@@ -20,6 +20,9 @@
 #include "tsan_shadow.hpp"
 #include "ur_sanitizer_layer.hpp"
 
+#include <unordered_map>
+#include <unordered_set>
+
 namespace ur_sanitizer_layer {
 namespace tsan {
 
@@ -176,6 +179,8 @@ struct LaunchInfo {
 
 class TsanInterceptor {
 public:
+  ~TsanInterceptor();
+
   ur_result_t allocateMemory(ur_context_handle_t Context,
                              ur_device_handle_t Device,
                              const ur_usm_desc_t *Properties,
@@ -201,6 +206,16 @@ public:
   ur_result_t eraseMemBuffer(ur_mem_handle_t MemHandle);
 
   std::shared_ptr<MemBuffer> getMemBuffer(ur_mem_handle_t MemHandle);
+
+  ur_result_t holdAdapter(ur_adapter_handle_t Adapter) {
+    std::scoped_lock<ur_shared_mutex> Guard(m_AdaptersMutex);
+    if (m_Adapters.find(Adapter) != m_Adapters.end()) {
+      return UR_RESULT_SUCCESS;
+    }
+    UR_CALL(getContext()->urDdiTable.Adapter.pfnRetain(Adapter));
+    m_Adapters.insert(Adapter);
+    return UR_RESULT_SUCCESS;
+  }
 
   ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
                               ur_queue_handle_t Queue, LaunchInfo &LaunchInfo);
@@ -255,6 +270,9 @@ private:
   std::unordered_map<ur_mem_handle_t, std::shared_ptr<MemBuffer>>
       m_MemBufferMap;
   ur_shared_mutex m_MemBufferMapMutex;
+
+  std::unordered_set<ur_adapter_handle_t> m_Adapters;
+  ur_shared_mutex m_AdaptersMutex;
 };
 
 } // namespace tsan

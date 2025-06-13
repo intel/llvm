@@ -1,0 +1,23 @@
+# Gihub Actions launch scheduled workflows of the main branch only (sycl).
+# This is a workaround to set a scheduled launch of the sycl-rel-nightly.yml
+# workflow, which is located on the sycl-rel-* branch.
+
+name: Scheduled sycl-rel-nightly launch
+
+on:
+  # The sycl-rel-nightly.yml workflow file on the sycl-rel-6_2 branch is most
+  # likely stale. Do not schedule before it's updated.
+  # schedule:
+    # - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  launch:
+    if: github.repository == 'intel/llvm'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Launch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run sycl-rel-nightly.yml --repo ${{ github.repository }} --ref sycl-rel-6_2

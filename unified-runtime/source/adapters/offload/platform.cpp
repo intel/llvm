@@ -28,7 +28,7 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
   if (phPlatforms) {
     size_t PlatformIndex = 0;
     for (auto &Platform : Adapter.Platforms) {
-      phPlatforms[PlatformIndex++] = &Platform;
+      phPlatforms[PlatformIndex++] = Platform.get();
       if (PlatformIndex == NumEntries) {
         break;
       }

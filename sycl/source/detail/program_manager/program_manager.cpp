@@ -687,6 +687,15 @@ ProgramManager::collectDeviceImageDeps(const RTDeviceBinaryImage &Img,
   return DeviceImagesToLink;
 }
 
+static inline void
+CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
+#ifdef SYCL_RT_ZSTD_AVAILABLE
+  if (auto CompImg = dynamic_cast<CompressedRTDeviceBinaryImage *>(Img))
+    if (CompImg->IsCompressed())
+      CompImg->Decompress();
+#endif
+}
+
 std::set<RTDeviceBinaryImage *>
 ProgramManager::collectDeviceImageDepsForImportedSymbols(
     const RTDeviceBinaryImage &MainImg, const device &Dev,
@@ -713,13 +722,30 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
     bool Found = false;
     for (auto It = Range.first; It != Range.second; ++It) {
       RTDeviceBinaryImage *Img = It->second;
-      if (Img->getFormat() != Format ||
-          !doesDevSupportDeviceRequirements(Dev, *Img) ||
+
+      if (!doesDevSupportDeviceRequirements(Dev, *Img) ||
           !compatibleWithDevice(Img, *getSyclObjImpl(Dev).get()))
         continue;
+
+      // If the image is a special device image, we need to check if it
+      // should be used for this device.
       if (isSpecialDeviceImage(Img) &&
           !isSpecialDeviceImageShouldBeUsed(Img, *getSyclObjImpl(Dev).get()))
         continue;
+
+      // If any of the images is compressed, we need to decompress it
+      // and then check if the format matches.
+      if (Format == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE ||
+          Img->getFormat() == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE) {
+        auto MainImgPtr = const_cast<RTDeviceBinaryImage *>(&MainImg);
+        CheckAndDecompressImage(MainImgPtr);
+        CheckAndDecompressImage(Img);
+        Format = MainImg.getFormat();
+      }
+      // Skip this image if its format differs from the main image.
+      if (Img->getFormat() != Format)
+        continue;
+
       DeviceImagesToLink.insert(Img);
       Found = true;
       for (const sycl_device_binary_property &ISProp :
@@ -834,15 +860,6 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
       }
     }
   }
-}
-
-static inline void
-CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
-#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
-  if (auto CompImg = dynamic_cast<CompressedRTDeviceBinaryImage *>(Img))
-    if (CompImg->IsCompressed())
-      CompImg->Decompress();
-#endif
 }
 
 // When caching is enabled, the returned UrProgram will already have
@@ -1928,7 +1945,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
 
   std::unique_ptr<RTDeviceBinaryImage> Img;
   if (IsDeviceImageCompressed) {
-#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+#ifdef SYCL_RT_ZSTD_AVAILABLE
     Img = std::make_unique<CompressedRTDeviceBinaryImage>(RawImg);
 #else
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
