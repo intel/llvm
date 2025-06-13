@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_shared_allocations
 
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
+// HIP and CUDA cannot answer kernel name queries on the binaries, so kernel
+// names cannot be resolved for now.
+// XFAIL: cuda || hip
+// XFAIL-TRACKER: CMPLRLLVM-68469
 
 // -- Test for linking two SYCLBIN kernel_bundle.
 
