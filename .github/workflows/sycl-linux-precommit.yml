@@ -162,6 +162,7 @@ jobs:
         'false' }}
       # Run only if the PR does not have the 'ci-no-devigc' label.
       skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
+      env: ${{ contains(needs.detect_changes.outputs.filters, 'esimd') || '{"LIT_FILTER_OUT":"ESIMD/"}' }}
 
   test-perf:
     needs: [build, detect_changes]
