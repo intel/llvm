@@ -368,13 +368,14 @@ bool handler::isStateExplicitKernelBundle() const {
 // returns shared_ptr(nullptr) if Insert is false
 std::shared_ptr<detail::kernel_bundle_impl>
 handler::getOrInsertHandlerKernelBundle(bool Insert) const {
-  if (!impl->MKernelBundle && Insert) {
-    context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
-    impl->MKernelBundle =
-        detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
-            Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
-            {}));
-  }
+  if (impl->MKernelBundle || !Insert)
+    return impl->MKernelBundle;
+
+  context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
+  impl->MKernelBundle =
+      detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
+          Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
+          {}));
   return impl->MKernelBundle;
 }
 #endif
@@ -385,13 +386,14 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) const {
 // returns nullptr if Insert is false
 detail::kernel_bundle_impl *
 handler::getOrInsertHandlerKernelBundlePtr(bool Insert) const {
-  if (!impl->MKernelBundle && Insert) {
-    context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
-    impl->MKernelBundle =
-        detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
-            Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
-            {}));
-  }
+  if (impl->MKernelBundle || !Insert)
+    return impl->MKernelBundle.get();
+
+  context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
+  impl->MKernelBundle =
+      detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
+          Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
+          {}));
   return impl->MKernelBundle.get();
 }
 
@@ -2257,7 +2259,6 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
   impl->MUserFacingNodeType = Type;
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
   detail::kernel_bundle_impl *KernelBundleImplPtr =
       getOrInsertHandlerKernelBundlePtr(/*Insert=*/true);
@@ -2265,7 +2266,6 @@ kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
   return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
       *KernelBundleImplPtr);
 }
-#endif
 
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   device_impl &DeviceImpl = impl->get_device();

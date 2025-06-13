@@ -1747,9 +1747,7 @@ private:
   /// called.
   void setUserFacingNodeType(ext::oneapi::experimental::node_type Type);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   kernel_bundle<bundle_state::input> getKernelBundle() const;
-#endif
 
 public:
   handler(const handler &) = delete;
