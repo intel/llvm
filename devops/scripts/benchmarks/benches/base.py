@@ -51,6 +51,16 @@ class Benchmark(ABC):
         """
         return self.name()
 
+    def explicit_group(self) -> str:
+        """Returns the explicit group name for this benchmark, if any.
+        Can be modified."""
+        return ""
+
+    def enabled(self) -> bool:
+        """Returns whether this benchmark is enabled.
+        By default, it returns True, but can be overridden to disable a benchmark."""
+        return True
+
     @abstractmethod
     def setup(self):
         pass
@@ -164,6 +174,7 @@ class Benchmark(ABC):
                 range_min=range[0] if range else None,
                 range_max=range[1] if range else None,
                 display_name=self.display_name(),
+                explicit_group=self.explicit_group(),
             )
         }
 

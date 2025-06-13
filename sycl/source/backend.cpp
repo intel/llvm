@@ -62,6 +62,8 @@ backend convertUrBackend(ur_backend_t UrBackend) {
     return backend::ext_oneapi_hip;
   case UR_BACKEND_NATIVE_CPU:
     return backend::ext_oneapi_native_cpu;
+  case UR_BACKEND_OFFLOAD:
+    return backend::ext_oneapi_offload;
   default:
     throw exception(make_error_code(errc::runtime),
                     "convertBackend: Unsupported backend");
@@ -112,7 +114,7 @@ __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
       NativeHandle, Adapter->getUrAdapter(), DeviceHandles.size(),
       DeviceHandles.data(), &Properties, &UrContext);
   // Construct the SYCL context from UR context.
-  return detail::createSyclObjFromImpl<context>(std::make_shared<context_impl>(
+  return detail::createSyclObjFromImpl<context>(context_impl::create(
       UrContext, Handler, Adapter, DeviceList, !KeepOwnership));
 }
 

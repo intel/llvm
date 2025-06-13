@@ -6,6 +6,9 @@
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
 
+// XFAIL: preview-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18911
+
 // Tests updating a graph node using index-based explicit update
 
 #include "../graph_common.hpp"

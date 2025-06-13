@@ -10,6 +10,7 @@
 
 #include <detail/config.hpp>
 #include <detail/ur.hpp>
+#include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/type_traits.hpp>
@@ -23,12 +24,12 @@
 #include <memory>
 #include <mutex>
 
-#define __SYCL_CHECK_UR_CODE_NO_EXC(expr)                                      \
+#define __SYCL_CHECK_UR_CODE_NO_EXC(expr, backend)                             \
   {                                                                            \
     auto code = expr;                                                          \
     if (code != UR_RESULT_SUCCESS) {                                           \
-      std::cerr << __SYCL_UR_ERROR_REPORT << sycl::detail::codeToString(code)  \
-                << std::endl;                                                  \
+      std::cerr << __SYCL_UR_ERROR_REPORT(backend)                             \
+                << sycl::detail::codeToString(code) << std::endl;              \
     }                                                                          \
   }
 
@@ -74,7 +75,8 @@ public:
       throw sycl::detail::set_ur_error(
           sycl::exception(
               sycl::make_error_code(errc),
-              __SYCL_UR_ERROR_REPORT + sycl::detail::codeToString(ur_result) +
+              __SYCL_UR_ERROR_REPORT(MBackend) +
+                  sycl::detail::codeToString(ur_result) +
                   (message ? "\n" + std::string(message) + "(adapter error )" +
                                  std::to_string(adapter_error) + "\n"
                            : std::string{})),
@@ -83,7 +85,7 @@ public:
     if (ur_result != UR_RESULT_SUCCESS) {
       throw sycl::detail::set_ur_error(
           sycl::exception(sycl::make_error_code(errc),
-                          __SYCL_UR_ERROR_REPORT +
+                          __SYCL_UR_ERROR_REPORT(MBackend) +
                               sycl::detail::codeToString(ur_result)),
           ur_result);
     }
@@ -142,6 +144,9 @@ public:
     auto Err = call_nocheck<UrApiOffset>(std::forward<ArgsT>(Args)...);
     checkUrResult<errc>(Err);
   }
+
+  /// Returns the backend reported by the adapter.
+  backend getBackend() const { return MBackend; }
 
   /// Tells if this adapter can serve specified backend.
   /// For example, Unified Runtime adapter will be able to serve

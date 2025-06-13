@@ -207,8 +207,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
   pDdiTable->pfnRelease = urAdapterRelease;
   pDdiTable->pfnRetain = urAdapterRetain;
   pDdiTable->pfnGetLastError = urAdapterGetLastError;
-  pDdiTable->pfnSetLoggerCallback = nullptr;
-  pDdiTable->pfnSetLoggerCallbackLevel = nullptr;
+  pDdiTable->pfnSetLoggerCallback = urAdapterSetLoggerCallback;
+  pDdiTable->pfnSetLoggerCallbackLevel = urAdapterSetLoggerCallbackLevel;
   return UR_RESULT_SUCCESS;
 }
 
