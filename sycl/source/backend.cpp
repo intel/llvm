@@ -360,7 +360,7 @@ kernel make_kernel(const context &TargetContext,
 
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<kernel>(
-      std::make_shared<kernel_impl>(UrKernel, ContextImpl, KernelBundleImpl));
+      std::make_shared<kernel_impl>(UrKernel, *ContextImpl, KernelBundleImpl));
 }
 
 kernel make_kernel(ur_native_handle_t NativeHandle,
