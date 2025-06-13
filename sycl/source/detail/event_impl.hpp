@@ -78,7 +78,7 @@ public:
   }
 
   static std::shared_ptr<event_impl>
-  create_from_underlying(ur_event_handle_t Event, const context &SyclContext) {
+  create_from_handle(ur_event_handle_t Event, const context &SyclContext) {
     return std::make_shared<event_impl>(Event, SyclContext, private_tag{});
   }
 

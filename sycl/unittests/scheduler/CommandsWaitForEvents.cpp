@@ -210,11 +210,11 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   TestContext.reset(new TestCtx(Q1, Q2));
 
   std::shared_ptr<detail::event_impl> E1 =
-      detail::event_impl::create_from_underlying(TestContext->EventCtx1,
-                                                 Q1.get_context());
+      detail::event_impl::create_from_handle(TestContext->EventCtx1,
+                                             Q1.get_context());
   std::shared_ptr<detail::event_impl> E2 =
-      detail::event_impl::create_from_underlying(TestContext->EventCtx2,
-                                                 Q2.get_context());
+      detail::event_impl::create_from_handle(TestContext->EventCtx2,
+                                             Q2.get_context());
 
   MockCommand Cmd(nullptr);
 

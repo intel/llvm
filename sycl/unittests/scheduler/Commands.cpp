@@ -68,7 +68,7 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
   ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
   auto Event =
-      detail::event_impl::create_from_underlying(UREvent, Queue.get_context());
+      detail::event_impl::create_from_handle(UREvent, Queue.get_context());
 
   using EventList = std::vector<detail::EventImplPtr>;
   std::vector<EventList> InputEventWaitLists = {
