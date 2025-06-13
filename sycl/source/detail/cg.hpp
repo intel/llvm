@@ -80,6 +80,9 @@ public:
         GlobalSize[I] = N[I];
       }
     }
+    for (int I = Dims_; I < 3; ++I) {
+      GlobalSize[I] = 1;
+    }
   }
 
   template <int Dims_>
@@ -95,6 +98,10 @@ public:
     for (int I = Dims_; I < 3; ++I) {
       LocalSize[I] = LocalSizes[0] ? 1 : 0;
     }
+
+    for (int I = Dims_; I < 3; ++I) {
+      GlobalSize[I] = 1;
+    }
   }
 
   template <int Dims_>
@@ -105,9 +112,9 @@ public:
       GlobalOffset[I] = Offset[I];
     }
 
-    for (int I = Dims_; I < 3; ++I) {
-      GlobalSize[I] = 0;
-    }
+    //for (int I = Dims_; I < 3; ++I) {
+    //  GlobalSize[I] = 0;
+    //}
   }
 
   template <int Dims_>
@@ -133,7 +140,7 @@ public:
   NDRDescT &operator=(const NDRDescT &Desc) = default;
   NDRDescT &operator=(NDRDescT &&Desc) = default;
 
-  std::array<size_t, 3> GlobalSize{1, 1, 1};
+  std::array<size_t, 3> GlobalSize{0, 0, 0};
   std::array<size_t, 3> LocalSize{0, 0, 0};
   std::array<size_t, 3> GlobalOffset{0, 0, 0};
   /// Number of workgroups, used to record the number of workgroups from the
