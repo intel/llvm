@@ -22,9 +22,9 @@ namespace detail {
 // Every property is represented by a pair that represent
 // (is_property_assigned, property_value)
 struct pool_properties {
-  std::pair<bool, size_t> initial_threshold;
-  std::pair<bool, size_t> maximum_size;
-  std::pair<bool, bool> zero_init;
+  size_t initial_threshold;
+  size_t maximum_size;
+  bool zero_init;
 };
 
 class memory_pool_impl {

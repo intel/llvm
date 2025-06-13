@@ -65,9 +65,9 @@ memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
       MKind(kind), MProps(props) {
 
   if (kind == sycl::usm::alloc::device)
-    MPoolHandle = create_memory_pool_device(
-        ctx, dev, MProps.initial_threshold.second, MProps.maximum_size.second,
-        MProps.zero_init.second);
+    MPoolHandle =
+        create_memory_pool_device(ctx, dev, MProps.initial_threshold,
+                                  MProps.maximum_size, MProps.zero_init);
   else
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),

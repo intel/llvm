@@ -34,7 +34,7 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
   // Collect relevant properties from memory pool
   if (MemPool) {
     auto Props = MemPool->getProps();
-    if (Props.zero_init.second) {
+    if (Props.zero_init) {
       AllocInfo.ZeroInit = true;
     }
   }

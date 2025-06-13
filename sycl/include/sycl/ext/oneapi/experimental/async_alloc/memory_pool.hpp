@@ -63,9 +63,9 @@ public:
 
 protected:
   struct pool_properties {
-    std::pair<bool, size_t> initial_threshold;
-    std::pair<bool, size_t> maximum_size;
-    std::pair<bool, bool> zero_init;
+    size_t initial_threshold;
+    size_t maximum_size;
+    bool zero_init;
   };
 
   std::shared_ptr<detail::memory_pool_impl> impl;
@@ -89,17 +89,17 @@ protected:
   template <typename Properties> pool_properties stripProps(Properties props) {
     pool_properties poolProps{};
     if constexpr (decltype(props)::template has_property<initial_threshold>()) {
-      poolProps.initial_threshold = {
-          true, props.template get_property<initial_threshold>().value};
+      poolProps.initial_threshold =
+          props.template get_property<initial_threshold>().value;
     }
 
     if constexpr (decltype(props)::template has_property<maximum_size>()) {
-      poolProps.maximum_size = {
-          true, props.template get_property<maximum_size>().value};
+      poolProps.maximum_size =
+          props.template get_property<maximum_size>().value;
     }
 
     if constexpr (decltype(props)::template has_property<zero_init>()) {
-      poolProps.zero_init = {true, true};
+      poolProps.zero_init = true;
     }
     return poolProps;
   }
