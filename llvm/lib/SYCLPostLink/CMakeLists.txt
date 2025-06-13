@@ -22,9 +22,11 @@ add_llvm_component_library(LLVMSYCLPostLink
   BitWriter
   Core
   Demangle
+  InstCombine
   IRPrinter
   Linker
   Passes
+  ScalarOpts
   Support
   ipo
   )

@@ -672,6 +672,25 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
 }
 
 /**
+ * Waits for any ongoing executions of the command-buffer to finish
+ * @param CommandBuffer The command-buffer to wait for.
+ * @return UR_RESULT_SUCCESS or an error code on failure
+ */
+ur_result_t
+waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
+
+  if (ur_event_handle_t &CurrentSubmissionEvent =
+          CommandBuffer->CurrentSubmissionEvent) {
+    ZE2UR_CALL(zeEventHostSynchronize,
+               (CurrentSubmissionEvent->ZeEvent, UINT64_MAX));
+    UR_CALL(urEventReleaseInternal(CurrentSubmissionEvent));
+    CurrentSubmissionEvent = nullptr;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+/**
  * Checks whether the command-buffer can be constructed using in order
  * command-lists.
  * @param[in] Context The Context associated with the command-buffer.
@@ -742,7 +761,9 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   // Create a list for copy commands. Note that to simplify the implementation,
   // the current implementation only uses the main copy engine and does not use
   // the link engine even if available.
-  if (Device->hasMainCopyEngine()) {
+  //
+  // Copy engine usage disabled for DG2, see CMPLRLLVM-68064
+  if (Device->hasMainCopyEngine() && !Device->isDG2()) {
     UR_CALL(createMainCommandList(Context, Device, IsInOrder, false, true,
                                   ZeCopyCommandList));
   }
@@ -830,6 +851,7 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t CommandBuffer) {
   if (!CommandBuffer->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
+  UR_CALL(waitForOngoingExecution(CommandBuffer));
   CommandBuffer->cleanupCommandBufferResources();
   delete CommandBuffer;
   return UR_RESULT_SUCCESS;
@@ -1097,10 +1119,19 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
     ur_event_handle_t * /*Event*/,
     ur_exp_command_buffer_command_handle_t * /*Command*/) {
 
+  bool PreferCopyEngine = !IsDevicePointer(CommandBuffer->Context, Src) ||
+                          !IsDevicePointer(CommandBuffer->Context, Dst);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (CommandBuffer->Device->isDG2() &&
+      (IsSharedPointer(CommandBuffer->Context, Src) ||
+       IsSharedPointer(CommandBuffer->Context, Dst))) {
+    PreferCopyEngine = false;
+  }
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
   return enqueueCommandBufferMemCopyHelper(
-      UR_COMMAND_USM_MEMCPY, CommandBuffer, Dst, Src, Size,
-      PreferCopyEngineUsage(CommandBuffer->Device, CommandBuffer->Context, Src,
-                            Dst),
+      UR_COMMAND_USM_MEMCPY, CommandBuffer, Dst, Src, Size, PreferCopyEngine,
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
@@ -1439,25 +1470,6 @@ ur_result_t getZeCommandQueue(ur_queue_handle_t Queue, bool UseCopyEngine,
   auto &QGroup = Queue->getQueueGroup(UseCopyEngine);
   uint32_t QueueGroupOrdinal;
   ZeCommandQueue = QGroup.getZeQueue(&QueueGroupOrdinal);
-  return UR_RESULT_SUCCESS;
-}
-
-/**
- * Waits for any ongoing executions of the command-buffer to finish.
- * @param CommandBuffer The command-buffer to wait for.
- * @return UR_RESULT_SUCCESS or an error code on failure
- */
-ur_result_t
-waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
-
-  if (ur_event_handle_t &CurrentSubmissionEvent =
-          CommandBuffer->CurrentSubmissionEvent) {
-    ZE2UR_CALL(zeEventHostSynchronize,
-               (CurrentSubmissionEvent->ZeEvent, UINT64_MAX));
-    UR_CALL(urEventReleaseInternal(CurrentSubmissionEvent));
-    CurrentSubmissionEvent = nullptr;
-  }
-
   return UR_RESULT_SUCCESS;
 }
 

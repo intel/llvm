@@ -26,12 +26,18 @@ from templates import helper as th
 namespace ${n}::${adapter} {
 %for s in specs:
 %for obj in th.filter_items(s['objects'], 'type', 'function'):
+%if 'guard' in obj:
+// ${obj['guard']}
+%endif
 %if not th.obj_traits.is_loader_only(obj):
 ${x}_result_t ${th.make_func_name(n, tags, obj)}(
     %for line in th.make_param_lines(n, tags, obj, format=["type", "name", "delim"]):
     ${line}
     %endfor
     );
+%endif
+%if 'guard' in obj:
+// end ${obj['guard']}
 %endif
 %endfor
 %endfor

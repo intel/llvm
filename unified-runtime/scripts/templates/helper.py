@@ -114,11 +114,11 @@ class type_traits:
     RE_ARRAY = r"(.*)\[([1-9][0-9]*)\]"
 
     @staticmethod
-    def base(name) -> Union[str, bool]:
+    def base(name) -> Union[str, None]:
         try:
             return _remove_const_ptr(name)
         except BaseException:
-            return False
+            return None
 
     @classmethod
     def is_handle(cls, name) -> bool:
@@ -733,18 +733,24 @@ def get_loader_functions(
         for obj in s["objects"]:
             if obj_traits.is_function(obj):
                 func = {"name": make_func_name(namespace, tags, obj)}
+                if "guard" in obj:
+                    func["guard"] = obj["guard"]
                 funcs.append(func)
 
     # Process address tables functions
     for tbl in get_pfntables(specs, meta, namespace, tags):
         func = {"name": tbl["export"]["name"]}
+        if "guard" in tbl:
+            func["guard"] = tbl["guard"]
         funcs.append(func)
 
     # Print functions
     api_types_funcs = get_api_types_funcs(specs, meta, namespace, tags)
     for func in api_types_funcs:
-        func = {"name": func.c_name}
-        funcs.append(func)
+        f = {"name": func.c_name}
+        if func.guard:
+            f["guard"] = func.guard
+        funcs.append(f)
     funcs.append({"name": f"{tags['$x']}PrintFunctionParams"})
 
     return sorted(funcs, key=lambda func: func["name"])
@@ -862,6 +868,9 @@ def make_etor_lines(namespace: str, tags: dict, obj: dict, meta=None) -> List[st
         name = make_etor_name(namespace, tags, obj["name"], item["name"], meta)
         deprecated = " [[deprecated]]" if etor_traits.is_deprecated_etor(item) else ""
 
+        if "guard" in item:
+            lines.append(f"// {item['guard']}")
+
         if "value" in item:
             delim = ","
             value = _get_value_name(namespace, tags, item["value"])
@@ -872,6 +881,12 @@ def make_etor_lines(namespace: str, tags: dict, obj: dict, meta=None) -> List[st
         for line in split_line(subt(namespace, tags, item["desc"], True), 70):
             lines.append(" /// %s" % line)
         lines.append(prologue)
+
+        if "guard" in item:
+            lines += [
+                f"// end {item['guard']}",
+                "",
+            ]
 
     lines += [
         "/// @cond",
@@ -1005,7 +1020,6 @@ def find_param_name(name_re, namespace: str, tags: dict, obj) -> Union[str, None
     """
     for param in obj["params"]:
         param_cpp_name = _get_param_name(namespace, tags, param)
-        print("searching {0} for pattner {1}".format(param_cpp_name, name_re))
         if re.search(name_re, param_cpp_name):
             return param_cpp_name
     return None
@@ -1372,6 +1386,23 @@ def get_pfntables(specs: List[dict], meta: dict, namespace: str, tags) -> List[d
                     "experimental": True,
                 }
             )
+
+    for i, table in enumerate(tables):
+        guard = None
+        for function in table["functions"]:
+            if "guard" in function:
+                if guard:
+                    if guard != function["guard"]:
+                        raise Exception(
+                            "There are two or more functions using different "
+                            "guard feature names, this is not currently "
+                            "supported by the generator scripts and will "
+                            "require effort to implement: "
+                            f"{guard}, {function['guard']}"
+                        )
+                guard = function["guard"]
+        if all(map(lambda f: "guard" in f, table["functions"])):
+            tables[i]["guard"] = guard
 
     return tables
 

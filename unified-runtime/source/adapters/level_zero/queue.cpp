@@ -930,20 +930,6 @@ ur_result_t urQueueFlush(
   return Queue->executeAllOpenCommandLists();
 }
 
-ur_result_t urEnqueueKernelLaunchCustomExp(
-    ur_queue_handle_t /*hQueue*/, ur_kernel_handle_t /*hKernel*/,
-    uint32_t /*workDim*/, const size_t * /*pGlobalWorkOffset*/,
-    const size_t * /*pGlobalWorkSize*/, const size_t * /*pLocalWorkSize*/,
-    uint32_t /*numPropsInLaunchPropList*/,
-    const ur_exp_launch_property_t * /*launchPropList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t * /*phEvent*/) {
-  UR_LOG(ERR, "[UR][L0] {} function not implemented!",
-         "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 } // namespace ur::level_zero
 
 // Configuration of the command-list batching.
@@ -1291,7 +1277,6 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
   // So, disable it for modes where we print PI traces. Printing
   // traces incurs much different timings than real execution
   // ansyway, and many regression tests use it.
-  //
   bool CurrentlyEmpty = !PrintTrace && this->LastCommandEvent == nullptr;
 
   // The list can be empty if command-list only contains signals of proxy
@@ -1330,7 +1315,8 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
         die("executeCommandList: OpenCommandList should be equal to"
             "null or CommandList");
 
-      if (CommandList->second.size() < CommandBatch.QueueBatchSize) {
+      if (CommandList->second.size() < CommandBatch.QueueBatchSize &&
+          !IsBlocking) {
         CommandBatch.OpenCommandList = CommandList;
         return UR_RESULT_SUCCESS;
       }
