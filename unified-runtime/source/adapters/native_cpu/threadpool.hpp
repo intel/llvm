@@ -269,15 +269,20 @@ public:
   static constexpr bool CanWaitInThread() { return false; }
 };
 
+inline auto getTBBThreadID() {
+  auto thread_id = tbb::this_task_arena::current_thread_index();
+  assert(thread_id >= 0 &&
+         thread_id < oneapi::tbb::info::default_concurrency());
+  return thread_id;
+}
+
 template <>
 struct Scheduler<TBB_threadpool>
     : Scheduler_base<TBB_threadpool, TBB_TasksInfo> {
   using Scheduler_base<TBB_threadpool, TBB_TasksInfo>::Scheduler_base;
   template <class T> inline void schedule(T &&task_) {
     ref.Tasks().run([task = std::move(task_)]() {
-      auto thread_id = tbb::this_task_arena::current_thread_index();
-      assert(thread_id >= 0 &&
-             thread_id < oneapi::tbb::info::default_concurrency());
+      auto thread_id = getTBBThreadID();
       task(thread_id);
     });
   }

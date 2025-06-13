@@ -161,10 +161,7 @@ public:
         numParallelThreads(numParallelThreads), dimension(dim) {}
 
   void operator()(const tbb::blocked_range3d<size_t> &r) const {
-    auto thread_id = tbb::this_task_arena::current_thread_index();
-    assert(thread_id >= 0 &&
-           thread_id < oneapi::tbb::info::default_concurrency());
-
+    auto thread_id = native_cpu::getTBBThreadID();
     auto args = this->hKernel.getArgs(numParallelThreads, thread_id);
     execute(r, args, dimension);
   }
