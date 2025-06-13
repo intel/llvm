@@ -167,17 +167,6 @@ const AdapterPtr &SYCLMemObjT::getAdapter() const {
   return (MInteropContext->getAdapter());
 }
 
-size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
-                                         ur_native_handle_t MemObject) {
-  size_t BufSize = 0;
-  const AdapterPtr &Adapter = Context->getAdapter();
-  // TODO is there something required to support non-OpenCL backends?
-  Adapter->call<UrApiKind::urMemGetInfo>(
-      detail::ur::cast<ur_mem_handle_t>(MemObject), UR_MEM_INFO_SIZE,
-      sizeof(size_t), &BufSize, nullptr);
-  return BufSize;
-}
-
 bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
 
 void SYCLMemObjT::determineHostPtr(context_impl *Context, bool InitFromUserData,
