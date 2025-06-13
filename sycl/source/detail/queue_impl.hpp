@@ -295,6 +295,8 @@ public:
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
+  context_impl &getContextImpl() const { return *MContext; }
+
   device_impl &getDeviceImpl() const { return MDevice; }
 
   /// \return an associated SYCL device.
