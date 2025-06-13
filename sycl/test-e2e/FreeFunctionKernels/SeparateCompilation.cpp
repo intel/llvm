@@ -1,3 +1,6 @@
+// RUN: %clangxx -fsycl %s %S/SumKernel.cpp %S/ProductKernel.cpp -o %t.out
+// RUN: %{run} %t.out
+
 #include "ProductKernel.hpp"
 #include "SumKernel.hpp"
 #include <cassert>
@@ -6,6 +9,14 @@
 #include <sycl/kernel_bundle.hpp>
 
 using namespace sycl;
+
+// Add declarations again to test the compiler with multiple declarations of the
+// same free function kernel in the translation unit.
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::nd_range_kernel<1>))
+void SumKernel::sum(accessor<int, 1> accA, accessor<int, 1> accB,
+                    accessor<int, 1> result);
 
 constexpr size_t SIZE = 16;
 
@@ -18,7 +29,7 @@ int main() {
   queue Q;
   kernel_bundle bundle =
       get_kernel_bundle<bundle_state::executable>(Q.get_context());
-  kernel_id sumId = ext::oneapi::experimental::get_kernel_id<sum>();
+  kernel_id sumId = ext::oneapi::experimental::get_kernel_id<SumKernel::sum>();
   kernel_id productId = ext::oneapi::experimental::get_kernel_id<product>();
   kernel sumKernel = bundle.get_kernel(sumId);
   kernel productKernel = bundle.get_kernel(productId);

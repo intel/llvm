@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This implements Semantic Analysis for SYCL constructs.
 //===----------------------------------------------------------------------===//
-#include <iostream>
+
 #include "clang/Sema/SemaSYCL.h"
 #include "TreeTransform.h"
 #include "clang/AST/AST.h"
@@ -1187,7 +1187,7 @@ bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
   for (FunctionDecl *Redecl : FD->redecls()) {
     bool IsFreeFunctionAttr = false;
     for (auto *IRAttr :
-         FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+         Redecl->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
       SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
           IRAttr->getAttributeNameValuePairs(getASTContext());
       const auto it = std::find_if(
@@ -1204,7 +1204,7 @@ bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
       if (NextDeclaredWithAttr) {
         Diag(Loc, diag::err_free_function_first_occurrence_missing_attr);
         Diag(Redecl->getLocation(), diag::note_previous_declaration);
-return false;
+        return false;
       }
     } else {
       Loc = Redecl->getLocation();
@@ -5530,7 +5530,7 @@ static bool checkAndAddRegisteredKernelName(SemaSYCL &S, FunctionDecl *FD,
       }
       // An empty name string implies a regular free kernel construction
       // call, so simply return.
-return false;
+      return false;
     }
   }
   return true;
@@ -5860,6 +5860,13 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
     return S.Diag(FD->getLocation(), diag::err_free_function_return_type);
   }
 
+  if (const auto *MD = llvm::dyn_cast<CXXMethodDecl>(FD))
+    // The free function extension specification usual methods to be used to
+    // define a free function kernel. We also disallow static methods because we
+    // use integration header.
+    return S.Diag(FD->getLocation(), diag::err_free_function_class_method)
+           << !MD->isStatic() << MD->getSourceRange();
+
   for (ParmVarDecl *Param : FD->parameters()) {
     if (Param->hasDefaultArg()) {
       return S.Diag(Param->getLocation(),
@@ -5871,6 +5878,12 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
 }
 
 void SemaSYCL::ProcessFreeFunctionForwardDeclaration(FunctionDecl *FD) {
+  // This is a forward declaration for a free function kernel.
+  // At this point in time, we have all the information needed to generate the
+  // Integration Header so do it. More specifically, add the KernelDesc
+  // corresponding to this decl to the header. In case we see a definition
+  // later, this KernelDesc is removed in favor of the declaration that is an
+  // actual definition which is done in ProcessFreeFunctionDefinition.
   if (isFreeFunction(FD)) {
     if (CheckFreeFunctionDiagnostics(SemaRef, FD))
       return;
@@ -5884,10 +5897,9 @@ void SemaSYCL::ProcessFreeFunctionForwardDeclaration(FunctionDecl *FD) {
     StringRef StableName = MangledName;
     KernelObjVisitor Visitor{*this};
     SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
-                                          FD->getType(), FD);    
-getSyclIntegrationHeader().updateKernelNames(FD, KernelName, StableName);
+                                          FD->getType(), FD);
+    getSyclIntegrationHeader().updateKernelNames(FD, KernelName, StableName);
     Visitor.VisitFunctionParameters(FD, int_header);
-//    FD->addAttr(SYCLKernelAttr::CreateImplicit(this->getASTContext()));
   }
 }
 
@@ -5895,7 +5907,7 @@ void SemaSYCL::ProcessFreeFunctionDefinition(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
     if (CheckFreeFunctionDiagnostics(SemaRef, FD))
       return;
-SyclKernelDecompMarker DecompMarker(*this);
+    SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
     SyclKernelUnionChecker UnionChecker(*this);
 
@@ -6432,6 +6444,7 @@ public:
 
       // Print template class name
       TSD->printQualifiedName(OS, Policy, /*WithGlobalNsPrefix*/ true);
+
       ArrayRef<TemplateArgument> Args = TSD->getTemplateArgs().asArray();
       OS << "<";
       printTemplateArgs(Args);
@@ -6697,7 +6710,6 @@ private:
   std::string
   getTemplatedParamList(const llvm::ArrayRef<clang::ParmVarDecl *> Parameters,
                         PrintingPolicy Policy) {
-
     bool FirstParam = true;
     llvm::SmallString<128> ParamList;
     llvm::raw_svector_ostream ParmListOstream{ParamList};
@@ -6707,7 +6719,7 @@ private:
         FirstParam = false;
       else
         ParmListOstream << ", ";
-  ParmListOstream << Param->getType().getAsString(Policy);
+      ParmListOstream << Param->getType().getAsString(Policy);
       ParmListOstream << " " << Param->getNameAsString();
     }
     return ParamList.str().str();
@@ -7025,7 +7037,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   for (const KernelDesc &K : KernelDescs) {
     if (!S.isFreeFunction(K.SyclKernel))
       continue;
-++FreeFunctionCount;
+    ++FreeFunctionCount;
     // Generate forward declaration for free function.
     O << "\n// Definition of " << K.Name << " as a free function kernel\n";
 
@@ -7069,6 +7081,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     Policy.FullyQualifiedName = true;
     Policy.EnforceScopeForElaboratedTypes = true;
     Policy.UseFullyQualifiedEnumerators = true;
+
     // Now we need to print the declaration of the kernel itself.
     // Example:
     // template <typename T, typename = int> struct Arg {
