@@ -104,6 +104,10 @@ public:
       GlobalSize[I] = NumWorkItems[I];
       GlobalOffset[I] = Offset[I];
     }
+
+    for (int I = Dims_; I < 3; ++I) {
+      GlobalSize[I] = 0;
+    }
   }
 
   template <int Dims_>
