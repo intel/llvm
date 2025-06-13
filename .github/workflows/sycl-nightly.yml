@@ -281,7 +281,7 @@ jobs:
       sycl_cts_artifact: sycl_cts_bin_win
 
   run-sycl-benchmarks:
-    needs: [ubuntu2204_build]
+    needs: [linux_shared_build]
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -306,8 +306,8 @@ jobs:
       benchmark_preset: ${{ matrix.preset }}
       repo_ref: ${{ matrix.ref }}
       sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+      sycl_toolchain_archive: ${{ needs.linux_shared_build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.linux_shared_build.outputs.artifact_decompress_command }}
 
   nightly_build_upload:
     name: Nightly Build Upload
