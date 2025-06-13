@@ -70,7 +70,7 @@ public:
 
     // decode full quads
     for (size_t Qch = 0; Qch < SrcSize / 4; ++Qch, SrcOff += 4, DstOff += 3) {
-      byte Ch[4];
+      byte Ch[4] = {0, 0, 0, 0};
       decode4(Src + SrcOff, Ch);
 
       // each quad of chars produces three bytes of output
