@@ -5538,10 +5538,6 @@ static bool checkAndAddRegisteredKernelName(SemaSYCL &S, FunctionDecl *FD,
 
 void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
                                            StringRef NameStr) {
-  // In case the free function kernel has already been seen by way of a forward
-  // declaration, flush it out because a definition takes priority.
-  getSyclIntegrationHeader().removeFreeFunctionKernel(FD);
-
   if (!checkAndAddRegisteredKernelName(*this, FD, NameStr))
     return;
 
@@ -5906,7 +5902,10 @@ void SemaSYCL::ProcessFreeFunctionForwardDeclaration(FunctionDecl *FD) {
 
 void SemaSYCL::ProcessFreeFunctionDefinition(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
-    if (CheckFreeFunctionDiagnostics(SemaRef, FD))
+    // In case the free function kernel has already been seen by way of a
+    // forward declaration, flush it out because a definition takes priority.
+    const bool seen = getSyclIntegrationHeader().removeFreeFunctionKernel(FD);
+    if (!seen && CheckFreeFunctionDiagnostics(SemaRef, FD))
       return;
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
@@ -7192,18 +7191,19 @@ void SYCLIntegrationHeader::startKernel(const FunctionDecl *SyclKernel,
                            IsESIMDKernel, IsUnnamedKernel, ObjSize);
 }
 
-bool SYCLIntegrationHeader::isSameFreeFunctionKernel(const FunctionDecl *FD1, const FunctionDecl *FD2) const {
-    std::unique_ptr<MangleContext> MangleCtx(
-        S.getASTContext().createMangleContext());
-    std::string MangledName1;
-    std::string MangledName2;
-    std::tie(std::ignore, MangledName1) =
-        constructFreeFunctionKernelName(S, FD1, *MangleCtx);
-    std::tie(std::ignore, MangledName2) =
-        constructFreeFunctionKernelName(S, FD2, *MangleCtx);
+bool SYCLIntegrationHeader::isSameFreeFunctionKernel(
+    const FunctionDecl *FD1, const FunctionDecl *FD2) const {
+  std::unique_ptr<MangleContext> MangleCtx(
+      S.getASTContext().createMangleContext());
+  std::string MangledName1;
+  std::string MangledName2;
+  std::tie(std::ignore, MangledName1) =
+      constructFreeFunctionKernelName(S, FD1, *MangleCtx);
+  std::tie(std::ignore, MangledName2) =
+      constructFreeFunctionKernelName(S, FD2, *MangleCtx);
 
-    return MangledName1 == MangledName2;
-  }
+  return MangledName1 == MangledName2;
+}
 
 void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
                                          unsigned Offset) {

@@ -120,14 +120,17 @@ public:
 
   /// Returns whether two FunctionDecls are declarations of the same free
   /// function kernel
-  bool isSameFreeFunctionKernel(const FunctionDecl *FD1, const FunctionDecl *FD2) const;
+  bool isSameFreeFunctionKernel(const FunctionDecl *FD1,
+                                const FunctionDecl *FD2) const;
 
   /// Removes a free function kernel from KernelDescs.
-  void removeFreeFunctionKernel(FunctionDecl *FD) {
-    KernelDescs.erase(
+  bool removeFreeFunctionKernel(FunctionDecl *FD) {
+    const auto it =
         llvm::remove_if(KernelDescs, [this, FD](const KernelDesc &Kernel) {
           return isSameFreeFunctionKernel(Kernel.SyclKernel, FD);
-        }));
+        });
+    KernelDescs.erase(it);
+    return it != KernelDescs.end();
   }
 
 private:
