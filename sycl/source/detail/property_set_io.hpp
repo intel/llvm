@@ -14,12 +14,35 @@
 #include "detail/base64.hpp"
 #include "sycl/exception.hpp"
 
-#include <charconv>
 #include <unordered_map>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+// Helper function for converting a string_view to an integer. Allows only
+// integer values and the empty string (interpreted as 0).
+template <typename IntT>
+static IntT stringViewToInt(const std::string_view &SV) {
+  static_assert(std::is_integral_v<IntT>);
+
+  IntT Result = static_cast<IntT>(0);
+  if (SV.empty())
+    return Result;
+
+  bool Negate = std::is_signed_v<IntT> && SV[0] == '-';
+
+  for (size_t I = static_cast<size_t>(Negate); I < SV.size(); ++I) {
+    const char CurrentC = SV[I];
+    if (CurrentC < '0' || CurrentC > '9')
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Invalid integer numeral: " +
+                                std::string{CurrentC});
+    Result *= static_cast<IntT>(10);
+    Result += static_cast<IntT>(CurrentC - '0');
+  }
+  return Negate ? -Result : Result;
+}
 
 // Represents a property value. PropertyValue name is stored in the encompassing
 // container.
@@ -297,15 +320,7 @@ public:
                                   std::string{Parts.second});
 
       // parse type
-      int Tint;
-      auto TintConvRes =
-          std::from_chars(TypeVal.first.data(),
-                          TypeVal.first.data() + TypeVal.first.size(), Tint);
-      if (TintConvRes.ec == std::errc::invalid_argument ||
-          TintConvRes.ec == std::errc::result_out_of_range)
-        throw sycl::exception(make_error_code(errc::invalid),
-                              "Could not convert type to integer: " +
-                                  std::string{TypeVal.first});
+      int Tint = stringViewToInt<int>(TypeVal.first);
       PropertyValue::Type Ttag = PropertyValue::getTypeTag(Tint);
       std::string_view Val = TypeVal.second;
 
@@ -314,15 +329,7 @@ public:
       // parse value depending on its type
       switch (Ttag) {
       case PropertyValue::Type::UINT32: {
-        uint32_t ValV;
-        auto ValVConvRes =
-            std::from_chars(Val.data(), Val.data() + Val.size(), ValV);
-        if (ValVConvRes.ec == std::errc::invalid_argument ||
-            ValVConvRes.ec == std::errc::result_out_of_range)
-          throw sycl::exception(make_error_code(errc::invalid),
-                                "Could not convert value to integer: " +
-                                    std::string{Val});
-        Prop.set(ValV);
+        Prop.set(stringViewToInt<uint32_t>(Val));
         break;
       }
       case PropertyValue::Type::BYTE_ARRAY: {
