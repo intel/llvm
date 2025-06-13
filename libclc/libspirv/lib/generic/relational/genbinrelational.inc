@@ -8,7 +8,7 @@
 
 _CLC_DEFINE_RELATIONAL_BINARY_SCALAR(bool, _CLC_SPIRV_BUILTIN,
                                      _CLC_BUILTIN_IMPL, float, float)
-_CLC_DEFINE_RELATIONAL_BINARY_VEC_ALL(schar, _CLC_SPIRV_BUILTIN, float, float)
+_CLC_DEFINE_RELATIONAL_BINARY_VEC_ALL(char, _CLC_SPIRV_BUILTIN, float, float)
 
 #ifdef cl_khr_fp64
 
@@ -16,7 +16,7 @@ _CLC_DEFINE_RELATIONAL_BINARY_VEC_ALL(schar, _CLC_SPIRV_BUILTIN, float, float)
 
 _CLC_DEFINE_RELATIONAL_BINARY_SCALAR(bool, _CLC_SPIRV_BUILTIN,
                                      _CLC_BUILTIN_IMPL, double, double)
-_CLC_DEFINE_RELATIONAL_BINARY_VEC_ALL(schar, _CLC_SPIRV_BUILTIN, double, double)
+_CLC_DEFINE_RELATIONAL_BINARY_VEC_ALL(char, _CLC_SPIRV_BUILTIN, double, double)
 
 #endif
 
@@ -26,6 +26,6 @@ _CLC_DEFINE_RELATIONAL_BINARY_VEC_ALL(schar, _CLC_SPIRV_BUILTIN, double, double)
 
 _CLC_DEFINE_RELATIONAL_BINARY_SCALAR(bool, _CLC_SPIRV_BUILTIN,
                                      _CLC_BUILTIN_IMPL, half, half)
-_CLC_DEFINE_RELATIONAL_BINARY_VEC_ALL(schar, _CLC_SPIRV_BUILTIN, half, half)
+_CLC_DEFINE_RELATIONAL_BINARY_VEC_ALL(char, _CLC_SPIRV_BUILTIN, half, half)
 
 #endif

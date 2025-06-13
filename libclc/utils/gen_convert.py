@@ -68,14 +68,9 @@ half_sizes = [("2", ""), ("4", "2"), ("8", "4"), ("16", "8")]
 saturation = ["", "_sat"]
 rounding_modes = ["_rtz", "_rte", "_rtp", "_rtn"]
 
-if clc:
-    types.insert(1, "schar")
-    int_types.insert(1, "schar")
-
 bool_type = {
     "char": "char",
-    "schar": "schar",
-    "uchar": "schar" if clc else "char",
+    "uchar": "char",
     "short": "short",
     "ushort": "short",
     "int": "int",
@@ -89,7 +84,6 @@ bool_type = {
 
 unsigned_type = {
     "char": "uchar",
-    "schar": "uchar",
     "uchar": "uchar",
     "short": "ushort",
     "ushort": "ushort",
@@ -101,7 +95,6 @@ unsigned_type = {
 
 sizeof_type = {
     "char": 1,
-    "schar": 1,
     "uchar": 1,
     "short": 2,
     "ushort": 2,
@@ -116,7 +109,6 @@ sizeof_type = {
 
 limit_max = {
     "char": "CHAR_MAX",
-    "schar": "CHAR_MAX",
     "uchar": "UCHAR_MAX",
     "short": "SHRT_MAX",
     "ushort": "USHRT_MAX",
@@ -129,7 +121,6 @@ limit_max = {
 
 limit_min = {
     "char": "CHAR_MIN",
-    "schar": "CHAR_MIN",
     "uchar": "0",
     "short": "SHRT_MIN",
     "ushort": "0",
