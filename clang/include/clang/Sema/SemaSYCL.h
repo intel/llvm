@@ -126,10 +126,11 @@ public:
   /// Removes a free function kernel from KernelDescs.
   bool removeFreeFunctionKernel(FunctionDecl *FD) {
     const auto it =
-        llvm::remove_if(KernelDescs, [this, FD](const KernelDesc &Kernel) {
+        llvm::find_if(KernelDescs, [this, FD](const KernelDesc &Kernel) {
           return isSameFreeFunctionKernel(Kernel.SyclKernel, FD);
         });
-    KernelDescs.erase(it);
+    if (it != KernelDescs.end())
+      KernelDescs.erase(it);
     return it != KernelDescs.end();
   }
 
