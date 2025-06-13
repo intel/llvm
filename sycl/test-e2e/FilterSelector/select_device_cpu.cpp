@@ -39,7 +39,9 @@ int main() {
     } catch (...) {
     }
   }
-  { device d(cpu_selector_v); }
+  {
+    device d(cpu_selector_v);
+  }
 
   return 0;
 }
