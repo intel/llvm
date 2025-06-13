@@ -120,16 +120,10 @@ queue_impl::get_backend_info<info::device::backend_version>() const {
 
 static event prepareSYCLEventAssociatedWithQueue(
     const std::shared_ptr<detail::queue_impl> &QueueImpl) {
-  auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
+  auto EventImpl = detail::event_impl::create_device_event(*QueueImpl);
   EventImpl->setContextImpl(detail::getSyclObjImpl(QueueImpl->get_context()));
   EventImpl->setStateIncomplete();
   return detail::createSyclObjFromImpl<event>(EventImpl);
-}
-
-static event createDiscardedEvent() {
-  EventImplPtr EventImpl =
-      std::make_shared<event_impl>(event_impl::HES_Discarded);
-  return createSyclObjFromImpl<event>(std::move(EventImpl));
 }
 
 const std::vector<event> &
@@ -429,7 +423,7 @@ event queue_impl::submitWithHandler(const std::vector<event> &DepEvents,
   if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
     submit_without_event(CGF, SI,
                          /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
-    return createDiscardedEvent();
+    return createSyclObjFromImpl<event>(event_impl::create_discarded_event());
   }
   return submit_with_event(CGF, SI,
                            /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
@@ -463,7 +457,8 @@ event queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
                   getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr);
 
-        return createDiscardedEvent();
+        return createSyclObjFromImpl<event>(
+            event_impl::create_discarded_event());
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(shared_from_this());
