@@ -15,7 +15,7 @@
 int main() {
   bool MismatchFound = false;
 
-  sycl::device Device{default_selector_v};
+  sycl::device Device{sycl::default_selector_v};
   auto Devices = Device.create_sub_devices<
       sycl::info::partition_property::partition_equally>(2);
 
