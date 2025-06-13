@@ -64,7 +64,7 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   // Commands are linked only if the device supports host unified memory.
 
   sycl::queue Queue1{Dev};
-  sycl::detail::QueueImplPtr Q1 = sycl::detail::getSyclObjImpl(Queue1);
+  sycl::detail::queue_impl &Q1 = *sycl::detail::getSyclObjImpl(Queue1);
 
   auto AllocaDep = [](sycl::detail::Command *, sycl::detail::Command *,
                       sycl::detail::MemObjRecord *,
@@ -88,7 +88,7 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
 
   MockScheduler MS;
   sycl::detail::Command *AllocaCmd2 =
-      MS.getOrCreateAllocaForReq(Record.get(), &Req, Q1, ToEnqueue);
+      MS.getOrCreateAllocaForReq(Record.get(), &Req, &Q1, ToEnqueue);
 
   ASSERT_TRUE(!!AllocaCmd1.MLinkedAllocaCmd)
       << "No link appeared in existing command";

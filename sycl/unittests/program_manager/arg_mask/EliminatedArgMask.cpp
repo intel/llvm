@@ -135,8 +135,8 @@ class MockHandler : public sycl::handler {
 public:
   using sycl::handler::impl;
 
-  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue)
-      : sycl::handler(Queue, /*CallerNeedsEvent*/ true) {}
+  MockHandler(sycl::detail::queue_impl &Queue)
+      : sycl::handler(Queue.shared_from_this(), /*CallerNeedsEvent*/ true) {}
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     auto CGH = static_cast<sycl::handler *>(this);
@@ -171,7 +171,7 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
   EXPECT_FALSE(ExecBundle.empty()) << "Expect non-empty exec kernel bundle";
 
   // Emulating processing of command group function
-  MockHandler MockCGH(QueueImpl);
+  MockHandler MockCGH(*QueueImpl);
   MockCGH.use_kernel_bundle(ExecBundle);
   MockCGH.single_task<EAMTestKernel>([] {}); // Actual kernel does not matter
 

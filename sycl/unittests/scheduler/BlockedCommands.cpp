@@ -58,21 +58,21 @@ TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
   sycl::unittest::UrMock<> Mock;
   sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
-  MockCommand A(detail::getSyclObjImpl(Q));
+  MockCommand A(detail::getSyclObjImpl(Q).get());
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   A.MIsBlockable = true;
   A.MRetVal = UR_RESULT_SUCCESS;
 
-  MockCommand B(detail::getSyclObjImpl(Q));
+  MockCommand B(detail::getSyclObjImpl(Q).get());
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   B.MIsBlockable = true;
   B.MRetVal = UR_RESULT_SUCCESS;
 
-  MockCommand C(detail::getSyclObjImpl(Q));
+  MockCommand C(detail::getSyclObjImpl(Q).get());
   C.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
   C.MIsBlockable = true;
 
-  MockCommand D(detail::getSyclObjImpl(Q));
+  MockCommand D(detail::getSyclObjImpl(Q).get());
   D.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   D.MIsBlockable = true;
   D.MRetVal = UR_RESULT_SUCCESS;
@@ -108,11 +108,11 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
   sycl::unittest::UrMock<> Mock;
   sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
-  MockCommand A(detail::getSyclObjImpl(Q));
+  MockCommand A(detail::getSyclObjImpl(Q).get());
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
   A.MIsBlockable = true;
 
-  MockCommand B(detail::getSyclObjImpl(Q));
+  MockCommand B(detail::getSyclObjImpl(Q).get());
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   B.MRetVal = UR_RESULT_ERROR_OUT_OF_RESOURCES;
 
@@ -154,12 +154,12 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
   sycl::unittest::UrMock<> Mock;
   sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
-  MockCommand A(detail::getSyclObjImpl(Q));
+  MockCommand A(detail::getSyclObjImpl(Q).get());
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   A.MIsBlockable = true;
   A.MRetVal = UR_RESULT_SUCCESS;
 
-  MockCommand B(detail::getSyclObjImpl(Q));
+  MockCommand B(detail::getSyclObjImpl(Q).get());
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   B.MIsBlockable = true;
   B.MRetVal = UR_RESULT_SUCCESS;

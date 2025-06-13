@@ -650,8 +650,11 @@ public:
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
-  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
+  static ContextImplPtr getContext(queue_impl *Queue) {
     return Queue ? Queue->getContextImplPtr() : nullptr;
+  }
+  static ContextImplPtr getContext(const std::shared_ptr<queue_impl> &Queue) {
+    return getContext(Queue.get());
   }
 
   // Must be called under MMutex protection
@@ -689,7 +692,7 @@ public:
 protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
-    auto &Queue = Handler.impl->get_queue();
+    queue_impl &Queue = Handler.impl->get_queue();
     auto ResEvent = detail::event_impl::create_device_event(Queue);
     ur_event_handle_t UREvent = nullptr;
     getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
