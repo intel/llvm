@@ -4424,9 +4424,10 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
     // If we have an existing declaration with the same mangling for this
     // symbol it may be a SYCLDeviceOnlyAttr case.
     if (DDI != DeferredDecls.end()) {
-      auto *G = cast<ValueDecl>(DeferredDecls[MangledName].getDecl());
+      auto *PreviousGlobal =
+          cast<ValueDecl>(DeferredDecls[MangledName].getDecl());
 
-      if (!G->hasAttr<SYCLDeviceOnlyAttr>() &&
+      if (!PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
           Global->hasAttr<SYCLDeviceOnlyAttr>() &&
           Global->hasAttr<SYCLDeviceAttr>()) {
         // If the host declaration was already processed and the device only
@@ -4435,14 +4436,14 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
         // as it's marked sycl external.
         DeferredDecls.erase(DDI);
         return;
-      } else if (!G->hasAttr<SYCLDeviceOnlyAttr>() &&
+      } else if (!PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
                  Global->hasAttr<SYCLDeviceOnlyAttr>()) {
         // If the host declaration was already processed, replace it with the
         // device only declaration.
         DeferredDecls[MangledName] = GD;
         return;
-      } else if (!Global->hasAttr<SYCLDeviceOnlyAttr>() &&
-                 G->hasAttr<SYCLDeviceOnlyAttr>()) {
+      } else if (PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
+                 !Global->hasAttr<SYCLDeviceOnlyAttr>()) {
         // If the device only declaration was already processed, skip the
         // host declaration.
         return;
