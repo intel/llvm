@@ -638,7 +638,7 @@ public:
         auto [UrKernel, CacheMutex, ArgMask] =
             PM.getOrCreateKernel(Context, AdjustedName,
                                  /*PropList=*/{}, UrProgram);
-        return std::make_shared<kernel_impl>(UrKernel, getSyclObjImpl(Context),
+        return std::make_shared<kernel_impl>(UrKernel, *getSyclObjImpl(Context),
                                              Self, OwnerBundle, ArgMask,
                                              UrProgram, CacheMutex);
       }
@@ -653,7 +653,7 @@ public:
     // Kernel created by urKernelCreate is implicitly retained.
 
     return std::make_shared<kernel_impl>(
-        UrKernel, detail::getSyclObjImpl(Context), Self, OwnerBundle,
+        UrKernel, *detail::getSyclObjImpl(Context), Self, OwnerBundle,
         /*ArgMask=*/nullptr, UrProgram, /*CacheMutex=*/nullptr);
   }
 
