@@ -610,7 +610,7 @@ event handler::finalize() {
         detail::queue_impl &Queue = impl->get_queue();
         LastEventImpl->setQueue(Queue);
         LastEventImpl->setWorkerQueue(Queue.weak_from_this());
-        LastEventImpl->setContextImpl(impl->get_context().shared_from_this());
+        LastEventImpl->setContextImpl(impl->get_context());
         LastEventImpl->setStateIncomplete();
         LastEventImpl->setSubmissionTime();
 
