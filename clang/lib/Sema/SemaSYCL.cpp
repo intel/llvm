@@ -1197,6 +1197,8 @@ bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
                    NameValuePair.first == "sycl-single-task-kernel";
           });
       IsFreeFunctionAttr = it != NameValuePairs.end();
+      if (IsFreeFunctionAttr)
+        break;
     }
     if (Redecl->isFirstDecl()) {
       if (IsFreeFunctionAttr)
