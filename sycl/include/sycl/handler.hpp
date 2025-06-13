@@ -1690,6 +1690,9 @@ private:
   getOrInsertHandlerKernelBundle(bool Insert) const;
 #endif
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Rename to just getOrInsertHandlerKernelBundle
+#endif
   detail::kernel_bundle_impl *
   getOrInsertHandlerKernelBundlePtr(bool Insert) const;
 
