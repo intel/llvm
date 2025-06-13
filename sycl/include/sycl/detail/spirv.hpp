@@ -10,7 +10,11 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
+#include <sycl/__spirv/spirv_types.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/id.hpp>
+#include <sycl/multi_ptr.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
 
 #if defined(__NVPTX__)
 #include <sycl/ext/oneapi/experimental/cuda/masked_shuffles.hpp>
