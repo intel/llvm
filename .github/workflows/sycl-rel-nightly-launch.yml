@@ -4,6 +4,8 @@
 
 name: Scheduled sycl-rel-nightly launch
 
+permissions: read-all
+
 on:
   # The sycl-rel-nightly.yml workflow file on the sycl-rel-6_2 branch is most
   # likely stale. Do not schedule before it's updated.
