@@ -5,9 +5,9 @@
 name: Scheduled sycl-rel-nightly launch
 
 on:
-  schedule:
-    # The sycl-rel-nightly.yml workflow file on the sycl-rel-6_2 branch is most
-    # likely stale. Do not schedule before it's updated.
+  # The sycl-rel-nightly.yml workflow file on the sycl-rel-6_2 branch is most
+  # likely stale. Do not schedule before it's updated.
+  # schedule:
     # - cron: '0 3 * * *'
   workflow_dispatch:
 
