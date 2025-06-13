@@ -891,7 +891,7 @@ private:
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
     if constexpr (IsCallableWithKernelHandler) {
-      getOrInsertHandlerKernelBundle(/*Insert=*/true);
+      getOrInsertHandlerKernelBundlePtr(/*Insert=*/true);
     }
   }
 
@@ -1706,8 +1706,16 @@ private:
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::kernel_bundle_impl>
   getOrInsertHandlerKernelBundle(bool Insert) const;
+#endif
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Rename to just getOrInsertHandlerKernelBundle
+#endif
+  detail::kernel_bundle_impl *
+  getOrInsertHandlerKernelBundlePtr(bool Insert) const;
 
   void setHandlerKernelBundle(kernel Kernel);
 
@@ -1759,6 +1767,8 @@ private:
   /// @param Type The actual type based on what handler functions the user
   /// called.
   void setUserFacingNodeType(ext::oneapi::experimental::node_type Type);
+
+  kernel_bundle<bundle_state::input> getKernelBundle() const;
 
 public:
   handler(const handler &) = delete;

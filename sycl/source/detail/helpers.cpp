@@ -73,8 +73,7 @@ retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
     DeviceImage = KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
     Program = KernelCG->MSyclKernel->getDeviceImage()->get_ur_program_ref();
   } else if (auto SyclKernelImpl =
-                 KernelBundleImpl ? KernelBundleImpl->tryGetKernel(
-                                        KernelName, KernelBundleImpl)
+                 KernelBundleImpl ? KernelBundleImpl->tryGetKernel(KernelName)
                                   : std::shared_ptr<kernel_impl>{nullptr}) {
     // Retrieve the device image from the kernel bundle.
     DeviceImage = SyclKernelImpl->getDeviceImage()->get_bin_image_ref();
