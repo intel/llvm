@@ -17,7 +17,6 @@ int main() {
   std::map<info::device_type, std::string> m = {
       {info::device_type::cpu, "cpu"},
       {info::device_type::gpu, "gpu"},
-      {info::device_type::accelerator, "acc"},
       {info::device_type::host, "host"},
       {info::device_type::all, "all"}};
 

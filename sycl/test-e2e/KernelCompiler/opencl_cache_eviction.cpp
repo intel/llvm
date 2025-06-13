@@ -9,9 +9,6 @@
 // Tests on-disk cache and eviction with kernel_compiler.
 
 // REQUIRES: ocloc && (opencl || level_zero)
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: kernel_compiler is not available for accelerator
-// devices.
 
 // -- Test the kernel_compiler with OpenCL source.
 // RUN: %{build} -o %t.out

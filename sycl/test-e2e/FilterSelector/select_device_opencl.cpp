@@ -6,7 +6,7 @@
 // Checks that no device is selected when no device of desired type is
 // available.
 //
-// REQUIRES: opencl,gpu,cpu,accelerator
+// REQUIRES: opencl,gpu,any-device-is-cpu
 
 #include "../helpers.hpp"
 #include <iostream>
@@ -37,9 +37,6 @@ int main() {
   }
   {
     device d(cpu_selector_v);
-  }
-  {
-    device d(accelerator_selector_v);
   }
 
   return 0;
