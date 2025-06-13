@@ -728,7 +728,7 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
           !compatibleWithDevice(Img, Dev))
         continue;
 
-      // If the image is a special device image, we need to check if it
+      // If the image is a BF16 device image, we need to check if it
       // should be used for this device.
       if (isBfloat16DeviceImage(Img) && !shouldBF16DeviceImageBeUsed(Img, Dev))
         continue;
