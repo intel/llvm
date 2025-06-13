@@ -417,6 +417,9 @@ def main():
         "--native-cpu-libclc-targets",
         help="Target triples for libclc, used by the Native CPU backend",
     )
+    parser.add_argument(
+        "--use-zstd", action="store_true", help="Placeholder, does nothing currently."
+    )
     args, passthrough_args = parser.parse_known_intermixed_args()
 
     print("args:{}".format(args))
