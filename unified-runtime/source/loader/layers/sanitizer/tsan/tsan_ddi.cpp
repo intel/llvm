@@ -1217,6 +1217,110 @@ ur_result_t urEnqueueKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunch
+ur_result_t urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t pGlobalWorkOffset[3],
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t pGlobalWorkSize[3],
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t pLocalWorkSize[3],
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+    /// properties
+    const ur_kernel_launch_property_t *launchPropList,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies this
+    /// particular kernel execution instance.
+    ur_event_handle_t *phEvent) {
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "==== urEnqueueKernelLaunchWithArgsExp");
+
+  // Sanitizer layer arg processing sometimes results in an arg not getting
+  // passed through to the adapter's SetArg implementation. To implement this
+  // for set args + launch we build our own list of "accepted" args to pass to
+  // the entry point.
+  std::vector<ur_exp_kernel_arg_properties_t> KeepArgs;
+  for (uint32_t ArgPropIndex = 0; ArgPropIndex < numArgs; ArgPropIndex++) {
+    switch (pArgs[ArgPropIndex].type) {
+    case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
+      std::shared_ptr<MemBuffer> MemBuffer;
+      if (pArgs[ArgPropIndex].size == sizeof(ur_mem_handle_t) &&
+          (MemBuffer = getTsanInterceptor()->getMemBuffer(
+               *ur_cast<const ur_mem_handle_t *>(
+                   pArgs[ArgPropIndex].arg.pointer)))) {
+        auto &KernelInfo = getTsanInterceptor()->getKernelInfo(hKernel);
+        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+        KernelInfo.BufferArgs[pArgs[ArgPropIndex].index] = std::move(MemBuffer);
+      } else {
+        KeepArgs.push_back(pArgs[ArgPropIndex]);
+      }
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
+      if (std::shared_ptr<MemBuffer> MemBuffer =
+              getTsanInterceptor()->getMemBuffer(
+                  pArgs[ArgPropIndex].arg.memObjTuple.hMem)) {
+        auto &KernelInfo = getTsanInterceptor()->getKernelInfo(hKernel);
+        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+        KernelInfo.BufferArgs[pArgs[ArgPropIndex].index] = std::move(MemBuffer);
+      } else {
+        KeepArgs.push_back(pArgs[ArgPropIndex]);
+      }
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
+      auto &KI = getTsanInterceptor()->getKernelInfo(hKernel);
+      std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
+      KI.LocalArgs[pArgs[ArgPropIndex].index] =
+          TsanLocalArgsInfo{pArgs[ArgPropIndex].size};
+      KeepArgs.push_back(pArgs[ArgPropIndex]);
+      break;
+    }
+    default:
+      KeepArgs.push_back(pArgs[ArgPropIndex]);
+      break;
+    }
+  }
+
+  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
+                        pLocalWorkSize, pGlobalWorkOffset, 3);
+
+  UR_CALL(getTsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
+
+  UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
+      hQueue, hKernel, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+      KeepArgs.size(), KeepArgs.data(), numPropsInLaunchPropList,
+      launchPropList, numEventsInWaitList, phEventWaitList, phEvent));
+
+  UR_CALL(getTsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t urCheckVersion(ur_api_version_t version) {
   if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
           UR_MAJOR_VERSION(version) ||
@@ -1419,6 +1523,22 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
+/// @brief Exported function for filling application's ProgramExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+ur_result_t urGetEnqueueExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_enqueue_exp_dditable_t *pDdiTable) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnKernelLaunchWithArgsExp =
+      ur_sanitizer_layer::tsan::urEnqueueKernelLaunchWithArgsExp;
+
+  return result;
+}
 } // namespace tsan
 
 ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
@@ -1466,6 +1586,11 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result =
         ur_sanitizer_layer::tsan::urGetEnqueueProcAddrTable(&dditable->Enqueue);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_sanitizer_layer::tsan::urGetEnqueueExpProcAddrTable(
+        &dditable->EnqueueExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {

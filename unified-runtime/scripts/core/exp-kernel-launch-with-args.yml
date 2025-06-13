@@ -1,0 +1,157 @@
+#
+# Copyright (C) 2025 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental API for setting args at kernel launch"
+ordinal: "100"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "What kind of kernel arg is this"
+class: $xKernel
+name: $x_exp_kernel_arg_type_t
+etors:
+    - name: MEM_OBJ
+      desc: "Kernel arg is a memory object."
+    - name: VALUE
+      desc: "Kernel arg is a value."
+    - name: POINTER
+      desc: "Kernel arg is a pointer."
+    - name: LOCAL
+      desc: "Kernel arg is a local allocation."
+    - name: SAMPLER
+      desc: "Kernel arg is a sampler."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Mem obj/properties tuple"
+name: $x_exp_kernel_arg_mem_obj_tuple_t
+members:
+    - type: $x_mem_handle_t
+      name: hMem
+      desc: "[in] Handle of a memory object"
+    - type: $x_mem_flags_t
+      name: flags
+      desc: "[in] Memory flags to associate with `hMem`. Allowed values are: $X_MEM_FLAG_READ_WRITE, $X_MEM_FLAG_WRITE_ONLY, $X_MEM_FLAG_READ_ONLY."
+--- #--------------------------------------------------------------------------
+type: union
+desc: "Typesafe container for a kernel argument value"
+name: $x_exp_kernel_arg_value_t
+tag: $x_exp_kernel_arg_type_t
+members:
+    - type: "const void*"
+      name: pointer
+      desc: "[in] Allocation obtained by USM allocation or virtual memory mapping operation, or pointer to a literal value."
+      tag: $X_EXP_KERNEL_ARG_TYPE_POINTER
+    - type: $x_exp_kernel_arg_mem_obj_tuple_t
+      name: memObjTuple
+      desc: "[in] Struct containing a memory object and associated flags."
+      tag: $X_EXP_KERNEL_ARG_TYPE_MEM_OBJ
+    - type: $x_sampler_handle_t
+      name: sampler
+      desc: "[in] Handle of a sampler object."
+      tag: $X_EXP_KERNEL_ARG_TYPE_SAMPLER
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Kernel arg properties"
+name: $x_exp_kernel_arg_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_exp_kernel_arg_type_t
+      name: type
+      desc: "[in] type of the kernel arg"
+    - type: uint32_t
+      name: index
+      desc: "[in] index of the kernel arg"
+    - type: size_t
+      name: size
+      desc: "[in] size of the kernel arg"
+    - type: $x_exp_kernel_arg_value_t
+      name: arg
+      desc: "[in][tagged_by(type)] Union containing the argument value."
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Structure Type experimental enumerations."
+name: $x_structure_type_t
+etors:
+    - name: EXP_KERNEL_ARG_MEM_OBJ_TUPLE
+      desc: $x_exp_kernel_arg_mem_obj_tuple_t
+      value: "0x5000"
+    - name: EXP_KERNEL_ARG_PROPERTIES
+      desc: $x_exp_kernel_arg_properties_t
+      value: "0x5001"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to execute a kernel"
+class: $xEnqueue
+name: KernelLaunchWithArgsExp
+ordinal: "0"
+analogue:
+    - "**clEnqueueNDRangeKernel**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: "[in] handle of the kernel object"
+    - type: "const size_t[3]"
+      name: pGlobalWorkOffset
+      desc: "[in][optional] pointer to an array of workDim unsigned values that specify the offset used to calculate the global ID of a work-item"
+    - type: "const size_t[3]"
+      name: pGlobalWorkSize
+      desc: "[in] pointer to an array of workDim unsigned values that specify the number of global work-items in workDim that will execute the kernel function"
+    - type: "const size_t[3]"
+      name: pLocalWorkSize
+      desc: |
+            [in][optional] pointer to an array of workDim unsigned values that specify the number of local work-items forming a work-group that will execute the kernel function.
+            If nullptr, the runtime implementation will choose the work-group size.
+    - type: uint32_t
+      name: numArgs
+      desc: "[in] Number of entries in pArgs"
+    - type: "const $x_exp_kernel_arg_properties_t*"
+      name: pArgs
+      desc: "[in][optional][range(0, numArgs)] pointer to a list of kernel arg properties."
+    - type: uint32_t
+      name: numPropsInLaunchPropList
+      desc: "[in] size of the launch prop list"
+    - type: const $x_kernel_launch_property_t*
+      name: launchPropList
+      desc: "[in][optional][range(0, numPropsInLaunchPropList)] pointer to a list of launch properties"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_KERNEL
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_WORK_DIMENSION
+    - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_KERNEL_ARGS
+        - "The kernel argument values have not been specified."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_OPERATION:
+        - "If any property in `launchPropList` isn't supported by the device."
