@@ -417,11 +417,11 @@ TEST_F(CommandGraphTest, GraphPartitionsMerging) {
   auto GraphExecImpl = sycl::detail::getSyclObjImpl(GraphExec);
   auto PartitionsList = GraphExecImpl->getPartitions();
   ASSERT_EQ(PartitionsList.size(), 5ul);
-  ASSERT_FALSE(PartitionsList[0]->isHostTask());
-  ASSERT_TRUE(PartitionsList[1]->isHostTask());
-  ASSERT_FALSE(PartitionsList[2]->isHostTask());
-  ASSERT_TRUE(PartitionsList[3]->isHostTask());
-  ASSERT_FALSE(PartitionsList[4]->isHostTask());
+  ASSERT_FALSE(PartitionsList[0]->MIsHostTask);
+  ASSERT_TRUE(PartitionsList[1]->MIsHostTask);
+  ASSERT_FALSE(PartitionsList[2]->MIsHostTask);
+  ASSERT_TRUE(PartitionsList[3]->MIsHostTask);
+  ASSERT_FALSE(PartitionsList[4]->MIsHostTask);
 }
 
 TEST_F(CommandGraphTest, GetNodeFromEvent) {

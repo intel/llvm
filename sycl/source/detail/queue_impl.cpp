@@ -342,15 +342,12 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
-  auto isHostTask = Type == CGType::CodeplayHostTask;
-
-  // TODO: this shouldn't be needed but without this
-  // the legacy adapter doesn't synchronize the operations properly
-  // when non-immediate command lists are used.
-  auto isGraphSubmission = Type == CGType::ExecCommandBuffer;
+  auto isHostTask = Type == CGType::CodeplayHostTask ||
+                    (Type == CGType::ExecCommandBuffer &&
+                     HandlerImpl->MExecGraph->containsHostTask());
 
   auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
-  auto noLastEventPath = !isHostTask && !isGraphSubmission &&
+  auto noLastEventPath = !isHostTask &&
                          MNoLastEventMode.load(std::memory_order_acquire) &&
                          !requiresPostProcess;
 
@@ -369,7 +366,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     } else {
       std::unique_lock<std::mutex> Lock(MMutex);
 
-      if (!isGraphSubmission && trySwitchingToNoEventsMode()) {
+      if (trySwitchingToNoEventsMode()) {
         EventImpl = finalizeHandlerInOrderNoEventsUnlocked(Handler);
       } else {
         EventImpl = finalizeHandlerInOrderWithDepsUnlocked(Handler);
