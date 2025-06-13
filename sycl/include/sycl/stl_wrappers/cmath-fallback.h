@@ -173,11 +173,14 @@ __DPCPP_SYCL_DEVICE double nearbyint(double x) { return __nv_nearbyintf(x); }
 #elif defined(__AMDGCN__)
 extern "C" SYCL_EXTERNAL float __ocml_nearbyint_f32(float);
 extern "C" SYCL_EXTERNAL double __ocml_nearbyint_f64(double);
-__DPCPP_SYCL_DEVICE_C float nearbyintf(float x) { return __ocml_nearbyint_f32(x); }
+__DPCPP_SYCL_DEVICE_C float nearbyintf(float x) {
+  return __ocml_nearbyint_f32(x);
+}
 __DPCPP_SYCL_DEVICE float nearbyint(float x) { return __ocml_nearbyint_f32(x); }
-__DPCPP_SYCL_DEVICE double nearbyint(double x) { return __ocml_nearbyint_f64(x); }
+__DPCPP_SYCL_DEVICE double nearbyint(double x) {
+  return __ocml_nearbyint_f64(x);
+}
 #endif
-
 
 #ifdef _LIBCPP_BEGIN_NAMESPACE_STD
 _LIBCPP_BEGIN_NAMESPACE_STD
@@ -212,17 +215,13 @@ using ::cbrt;
 using ::cbrtf;
 using ::ceil;
 using ::ceilf;
-using ::div;
-using ::labs;
-using ::ldiv;
-using ::llabs;
-using ::lldiv;
 using ::copysign;
 using ::copysignf;
 using ::cos;
 using ::cosf;
 using ::cosh;
 using ::coshf;
+using ::div;
 using ::erf;
 using ::erfc;
 using ::erfcf;
@@ -244,6 +243,10 @@ using ::fmaxf;
 using ::fminf;
 using ::fmod;
 using ::fmodf;
+using ::labs;
+using ::ldiv;
+using ::llabs;
+using ::lldiv;
 // using ::fpclassify;
 using ::frexp;
 using ::hypot;
@@ -268,7 +271,6 @@ using ::lgammaf;
 // using ::llabs;
 // using ::llrint;
 using ::log;
-using ::logf;
 using ::log10;
 using ::log10f;
 using ::log1p;
@@ -277,6 +279,7 @@ using ::log2;
 using ::log2f;
 using ::logb;
 using ::logbf;
+using ::logf;
 // using ::lrint;
 // using ::lround;
 // using ::llround;
