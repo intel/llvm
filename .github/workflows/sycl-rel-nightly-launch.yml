@@ -16,6 +16,8 @@ on:
 jobs:
   launch:
     if: github.repository == 'intel/llvm'
+    permissions:
+      actions: write
     runs-on: ubuntu-latest
     steps:
       - name: Launch
