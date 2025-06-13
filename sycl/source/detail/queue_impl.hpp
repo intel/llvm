@@ -293,6 +293,7 @@ public:
 
   const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
 
+  // TODO: stop using it in existing code. New code must NOT use this!
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
   context_impl &getContextImpl() const { return *MContext; }
@@ -651,7 +652,7 @@ public:
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
   static ContextImplPtr getContext(const QueueImplPtr &Queue) {
-    return Queue ? Queue->getContextImplPtr() : nullptr;
+    return Queue ? Queue->getContextImpl().shared_from_this() : nullptr;
   }
 
   // Must be called under MMutex protection
@@ -725,7 +726,7 @@ protected:
       return false;
 
     if (MDefaultGraphDeps.LastEventPtr != nullptr &&
-        !Scheduler::CheckEventReadiness(MContext,
+        !Scheduler::CheckEventReadiness(*MContext,
                                         MDefaultGraphDeps.LastEventPtr))
       return false;
 
@@ -977,7 +978,7 @@ protected:
   mutable std::mutex MMutex;
 
   device_impl &MDevice;
-  const ContextImplPtr MContext;
+  const std::shared_ptr<context_impl> MContext;
 
   /// These events are tracked, but not owned, by the queue.
   std::vector<std::weak_ptr<event_impl>> MEventsWeak;

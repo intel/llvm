@@ -225,7 +225,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
         Dev, InteropCtxPtr, async_handler{}, property_list{});
 
     MemObject->MRecord.reset(
-        new MemObjRecord{InteropCtxPtr, LeafLimit, AllocateDependency});
+        new MemObjRecord{InteropCtxPtr.get(), LeafLimit, AllocateDependency});
     std::vector<Command *> ToEnqueue;
     getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr,
                             ToEnqueue);
@@ -233,8 +233,8 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
                                 "shouldn't lead to any enqueuing (no linked "
                                 "alloca or exceeding the leaf limit).");
   } else
-    MemObject->MRecord.reset(new MemObjRecord{queue_impl::getContext(Queue),
-                                              LeafLimit, AllocateDependency});
+    MemObject->MRecord.reset(new MemObjRecord{
+        queue_impl::getContext(Queue).get(), LeafLimit, AllocateDependency});
 
   MMemObjs.push_back(MemObject);
   return MemObject->MRecord.get();
@@ -1217,7 +1217,7 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
 Command *Scheduler::GraphBuilder::connectDepEvent(
     Command *const Cmd, const EventImplPtr &DepEvent, const DepDesc &Dep,
     std::vector<Command *> &ToCleanUp) {
-  assert(Cmd->getWorkerContext() != DepEvent->getContextImpl());
+  assert(Cmd->getWorkerContext().get() != &DepEvent->getContextImpl());
 
   // construct Host Task type command manually and make it depend on DepEvent
   ExecCGCommand *ConnectCmd = nullptr;

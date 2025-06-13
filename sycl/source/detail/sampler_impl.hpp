@@ -46,7 +46,7 @@ public:
 
   coordinate_normalization_mode get_coordinate_normalization_mode() const;
 
-  ur_sampler_handle_t getOrCreateSampler(const ContextImplPtr &ContextImpl);
+  ur_sampler_handle_t getOrCreateSampler(context_impl &ContextImpl);
 
   ~sampler_impl();
 
