@@ -12,6 +12,9 @@
 //
 // REQUIRES: any-device-is-cpu, any-device-is-gpu
 
+// XFAIL: *
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/00000
+
 #include <iostream>
 
 #include "../helpers.hpp"
