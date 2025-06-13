@@ -207,7 +207,7 @@ __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
 __SYCL_EXPORT void
 addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
                std::shared_ptr<int> &Counter) {
-  auto EventImpl = std::make_shared<detail::event_impl>(Queue);
+  auto EventImpl = detail::event_impl::create_device_event(*Queue);
   EventImpl->setContextImpl(detail::getSyclObjImpl(Queue->get_context()));
   EventImpl->setStateIncomplete();
   ur_event_handle_t UREvent = nullptr;

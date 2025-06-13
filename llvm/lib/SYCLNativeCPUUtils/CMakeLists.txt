@@ -34,15 +34,15 @@ endif()
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
-    # commit 4e4811a9b4945088667e1a1653742ffdf84e5168
-    # Merge: b347adff05 0101b4ff40
+    # commit 007a4924129ef49ca8793631d28ae343f6ba6d24
+    # Merge: 0135b8d586 9ed4bddff1
     # Author: Harald van Dijk <harald.vandijk@codeplay.com>
-    # Date:   Wed Jun 4 13:17:16 2025 +0100
+    # Date:   Wed Jun 11 16:45:25 2025 +0100
     # 
-    #     Merge pull request #854 from hvdijk/avoid-computeknownbits
+    #     Merge pull request #864 from hvdijk/llvm21-createelementcount
     #     
-    #     [LLVM 21] Avoid computeKnownBits.
-    set(OCK_GIT_INTERNAL_TAG 4e4811a9b4945088667e1a1653742ffdf84e5168)
+    #     [LLVM 21] Remove VectorizationFactor, use CreateElementCount.
+    set(OCK_GIT_INTERNAL_TAG 007a4924129ef49ca8793631d28ae343f6ba6d24)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)
