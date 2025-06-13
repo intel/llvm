@@ -726,7 +726,7 @@ protected:
       return false;
 
     if (MDefaultGraphDeps.LastEventPtr != nullptr &&
-        !Scheduler::CheckEventReadiness(MContext,
+        !Scheduler::CheckEventReadiness(*MContext,
                                         MDefaultGraphDeps.LastEventPtr))
       return false;
 

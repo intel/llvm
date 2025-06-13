@@ -455,7 +455,7 @@ event queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
     // If we have a command graph set we need to capture the op through the
     // handler rather than by-passing the scheduler.
     if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
-                                ExpandedDepEvents, MContext)) {
+                                ExpandedDepEvents, *MContext)) {
       auto isNoEventsMode = trySwitchingToNoEventsMode();
       if (!CallerNeedsEvent && isNoEventsMode) {
         NestedCallsTracker tracker;
