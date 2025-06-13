@@ -411,7 +411,7 @@ event handler::finalize() {
       (Queue && !Graph && !impl->MSubgraphNode && !Queue->hasCommandGraph() &&
        !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
        detail::Scheduler::areEventsSafeForSchedulerBypass(
-           impl->CGData.MEvents, Queue->getContextImplPtr()));
+           impl->CGData.MEvents, Queue->getContextImpl()));
 
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.
