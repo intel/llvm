@@ -597,11 +597,9 @@ public:
 
   std::string adjustKernelName(std::string_view Name) const {
     if (MOrigins & ImageOriginSYCLBIN) {
-      constexpr const char KernelPrefix[] = "__sycl_kernel_";
-      constexpr size_t KernelPrefixLen =
-          sizeof(KernelPrefix) / sizeof(char) - 1;
-      if (Name.size() > KernelPrefixLen &&
-          Name.substr(0, KernelPrefixLen) == std::string_view{KernelPrefix})
+      constexpr std::string_view KernelPrefix = "__sycl_kernel_";
+      if (Name.size() > KernelPrefix.size() &&
+          Name.substr(0, KernelPrefix.size()) == KernelPrefix)
         return Name.data();
       return std::string{KernelPrefix} + Name.data();
     }
