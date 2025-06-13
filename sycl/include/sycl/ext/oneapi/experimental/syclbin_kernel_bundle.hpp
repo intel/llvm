@@ -11,9 +11,12 @@
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/kernel_bundle.hpp>
 
-#include <filesystem>
 #include <fstream>
 #include <string>
+
+#if __has_include(<filesystem>)
+#include <filesystem>
+#endif
 
 #if __has_include(<span>)
 #include <span>
@@ -45,6 +48,7 @@ get_kernel_bundle(const context &Ctxt, const std::vector<device> &Devs,
 }
 #endif
 
+#if __cpp_lib_filesystem
 template <bundle_state State, typename PropertyListT = empty_properties_t>
 std::enable_if_t<State != bundle_state::ext_oneapi_source, kernel_bundle<State>>
 get_kernel_bundle(const context &Ctxt, const std::vector<device> &Devs,
@@ -72,6 +76,7 @@ get_kernel_bundle(const context &Ctxt, const std::filesystem::path &Filename,
   return experimental::get_kernel_bundle<State>(Ctxt, Ctxt.get_devices(),
                                                 Filename, Props);
 }
+#endif
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1
