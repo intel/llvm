@@ -120,6 +120,23 @@ static inline void execute_range(native_cpu::state &state,
   execute_range(state, hKernel, hKernel.getArgs(), first, lastPlusOne);
 }
 
+#ifdef NATIVECPU_WITH_ONETBB
+class nativecpu_tbb_executor {
+  const native_cpu::NDRDescT ndr;
+  const ur_kernel_handle_t_ &hKernel;
+  const size_t itemsPerThread;
+public:
+  void operator()(const tbb::blocked_range3d<size_t> &r) const {
+    auto state = getResizedState(ndr, itemsPerThread);
+    const IndexT first = {r.pages().begin(), r.rows().begin() , r.cols().begin()};
+    const IndexT last_plus_one = {r.pages().end() , r.rows().end() , r.cols().end() };
+    execute_range(state, hKernel, first, last_plus_one);
+  }
+  nativecpu_tbb_executor(const native_cpu::NDRDescT &n, const ur_kernel_handle_t_ &k, size_t itemsPerThreadP) : ndr(n), hKernel(k), itemsPerThread(itemsPerThreadP) {}
+};
+#define NATIVECPU_WITH_ONETBB_PARALLELFOR
+#endif
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
@@ -240,7 +257,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       if (nextMult < numWG0)
         itemsPerThread = nextMult;
     }
-
+#ifdef NATIVECPU_WITH_ONETBB_PARALLELFOR
+    const size_t wg0_num = ndr.GlobalSize[0] / itemsPerThread;
+    if (wg0_num) {
+      tbb::blocked_range3d<size_t> range(0, wg0_num, 0, numWG1, 0, numWG2);
+      nativecpu_tbb_executor tbb_ex(ndr, *kernel, itemsPerThread);
+      tbb::parallel_for(range, tbb_ex);
+    }
+    size_t wg0_index = wg0_num * itemsPerThread;
+#else
     size_t wg0_index = 0;
     for (size_t t = 0; (wg0_index + itemsPerThread) <= numWG0;
          wg0_index += itemsPerThread) {
@@ -253,10 +278,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         execute_range(resized_state, kernel, first, last);
       });
     }
-
+#endif
     if (wg0_index < numWG0) {
       // Peel the remaining work items. Since the local size is 1, we iterate
       // over the work groups.
+#ifdef NATIVECPU_WITH_ONETBB_PARALLELFOR
+      tbb::blocked_range3d<size_t> range(wg0_index, numWG0, 0, numWG1, 0, numWG2);
+      nativecpu_tbb_executor tbb_ex(ndr, *kernel, 1);
+      tbb::parallel_for(range, tbb_ex);
+#else
       Tasks.schedule([ndr, &kernel = *kernel, wg0_index, numWG0, numWG1, numWG2,
                       InEvents](size_t) {
         IndexT first = {wg0_index, 0, 0};
@@ -265,6 +295,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         native_cpu::state state = getState(ndr);
         execute_range(state, kernel, first, last);
       });
+#endif
     }
   } else {
     // We are running a parallel_for over an nd_range
@@ -283,6 +314,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     IndexT first = {0, 0, 0}, last = numWG;
     size_t wg_start = 0;
     if (groupsPerThread[dim]) {
+#ifdef TTTTTT 
+      NATIVECPU_WITH_ONETBB_PARALLELFOR
+      tbb::blocked_range3d<size_t> range(wg0_index, numWG0, 0, numWG1, 0, numWG2);
+      nativecpu_tbb_executor tbb_ex(ndr, *kernel, 1);
+      tbb::parallel_for(range, tbb_ex);
+#else
       for (size_t t = 0; t < numParallelThreads; t++) {
         first[dim] = wg_start;
         wg_start += groupsPerThread[dim];
@@ -296,6 +333,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                         last);
         });
       }
+#endif
     }
     if (wg_start < numWG[dim]) {
       first[dim] = wg_start;
