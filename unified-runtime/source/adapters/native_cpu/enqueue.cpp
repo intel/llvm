@@ -85,16 +85,19 @@ inline static WaitInfo getWaitInfo(uint32_t numEventsInWaitList,
 } // namespace native_cpu
 
 static inline native_cpu::state getResizedState(const native_cpu::NDRDescT &ndr,
-                                                size_t itemsPerThread) {
+                                                size_t itemsPerThread,
+                                                size_t dim) {
+  auto local_size = ndr.LocalSize;
+  local_size[dim] = itemsPerThread;
   native_cpu::state resized_state(
-      ndr.GlobalSize[0], ndr.GlobalSize[1], ndr.GlobalSize[2], itemsPerThread,
-      ndr.LocalSize[1], ndr.LocalSize[2], ndr.GlobalOffset[0],
-      ndr.GlobalOffset[1], ndr.GlobalOffset[2]);
+      ndr.GlobalSize[0], ndr.GlobalSize[1], ndr.GlobalSize[2], local_size[0],
+      local_size[1], local_size[2], ndr.GlobalOffset[0], ndr.GlobalOffset[1],
+      ndr.GlobalOffset[2]);
   return resized_state;
 }
 
 static inline native_cpu::state getState(const native_cpu::NDRDescT &ndr) {
-  return getResizedState(ndr, ndr.LocalSize[0]);
+  return getResizedState(ndr, ndr.LocalSize[0], 0);
 }
 
 using IndexT = std::array<size_t, 3>;
@@ -123,17 +126,50 @@ static inline void execute_range(native_cpu::state &state,
 #ifdef NATIVECPU_WITH_ONETBB
 class nativecpu_tbb_executor {
   const native_cpu::NDRDescT ndr;
-  const ur_kernel_handle_t_ &hKernel;
   const size_t itemsPerThread;
+
+protected:
+  const ur_kernel_handle_t_ &hKernel;
+
+  void execute(const tbb::blocked_range3d<size_t> &r,
+               const std::vector<void *> &args, size_t dim) const {
+    auto state = getResizedState(ndr, itemsPerThread, dim);
+    const IndexT first = {r.pages().begin(), r.rows().begin(),
+                          r.cols().begin()};
+    const IndexT last_plus_one = {r.pages().end(), r.rows().end(),
+                                  r.cols().end()};
+    execute_range(state, hKernel, args, first, last_plus_one);
+  }
+
 public:
   void operator()(const tbb::blocked_range3d<size_t> &r) const {
-    auto state = getResizedState(ndr, itemsPerThread);
-    const IndexT first = {r.pages().begin(), r.rows().begin() , r.cols().begin()};
-    const IndexT last_plus_one = {r.pages().end() , r.rows().end() , r.cols().end() };
-    execute_range(state, hKernel, first, last_plus_one);
+    execute(r, hKernel.getArgs(), 0);
   }
-  nativecpu_tbb_executor(const native_cpu::NDRDescT &n, const ur_kernel_handle_t_ &k, size_t itemsPerThreadP) : ndr(n), hKernel(k), itemsPerThread(itemsPerThreadP) {}
+  nativecpu_tbb_executor(const native_cpu::NDRDescT &n,
+                         const ur_kernel_handle_t_ &k, size_t itemsPerThreadP)
+      : ndr(n), hKernel(k), itemsPerThread(itemsPerThreadP) {}
 };
+
+class nativecpu_tbb_nd_executor : nativecpu_tbb_executor {
+  const size_t numParallelThreads, dimension;
+
+public:
+  nativecpu_tbb_nd_executor(const native_cpu::NDRDescT &n,
+                            const ur_kernel_handle_t_ &k,
+                            size_t numParallelThreads, size_t dim)
+      : nativecpu_tbb_executor(n, k, n.LocalSize[0]),
+        numParallelThreads(numParallelThreads), dimension(dim) {}
+
+  void operator()(const tbb::blocked_range3d<size_t> &r) const {
+    auto thread_id = tbb::this_task_arena::current_thread_index();
+    assert(thread_id >= 0 &&
+           thread_id < oneapi::tbb::info::default_concurrency());
+
+    auto args = this->hKernel.getArgs(numParallelThreads, thread_id);
+    execute(r, args, dimension);
+  }
+};
+
 #define NATIVECPU_WITH_ONETBB_PARALLELFOR
 #endif
 
@@ -283,7 +319,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       // Peel the remaining work items. Since the local size is 1, we iterate
       // over the work groups.
 #ifdef NATIVECPU_WITH_ONETBB_PARALLELFOR
-      tbb::blocked_range3d<size_t> range(wg0_index, numWG0, 0, numWG1, 0, numWG2);
+      tbb::blocked_range3d<size_t> range(wg0_index, numWG0, 0, numWG1, 0,
+                                         numWG2);
       nativecpu_tbb_executor tbb_ex(ndr, *kernel, 1);
       tbb::parallel_for(range, tbb_ex);
 #else
@@ -314,10 +351,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     IndexT first = {0, 0, 0}, last = numWG;
     size_t wg_start = 0;
     if (groupsPerThread[dim]) {
-#ifdef TTTTTT 
-      NATIVECPU_WITH_ONETBB_PARALLELFOR
-      tbb::blocked_range3d<size_t> range(wg0_index, numWG0, 0, numWG1, 0, numWG2);
-      nativecpu_tbb_executor tbb_ex(ndr, *kernel, 1);
+#ifdef NATIVECPU_WITH_ONETBB_PARALLELFOR
+      tbb::blocked_range3d<size_t> range(first[0], last[0], first[1], last[1],
+                                         first[2], last[2]);
+      nativecpu_tbb_nd_executor tbb_ex(ndr, *kernel, numParallelThreads, dim);
       tbb::parallel_for(range, tbb_ex);
 #else
       for (size_t t = 0; t < numParallelThreads; t++) {
@@ -338,6 +375,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     if (wg_start < numWG[dim]) {
       first[dim] = wg_start;
       last[dim] = numWG[dim];
+#ifdef NATIVECPU_WITH_ONETBB_PARALLELFOR
+      tbb::blocked_range3d<size_t> range(first[0], last[0], first[1], last[1],
+                                         first[2], last[2]);
+      nativecpu_tbb_nd_executor tbb_ex(ndr, *kernel, numParallelThreads, dim);
+      tbb::parallel_for(range, tbb_ex);
+#else
       Tasks.schedule([ndr, numParallelThreads, &kernel = *kernel, first, last,
                       InEvents](size_t threadId) {
         InEvents.wait();
@@ -346,6 +389,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                       kernel.getArgs(numParallelThreads, threadId), first,
                       last);
       });
+#endif
     }
   }
 
