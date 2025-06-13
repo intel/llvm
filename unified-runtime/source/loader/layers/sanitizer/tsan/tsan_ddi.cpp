@@ -1298,6 +1298,7 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
       KI.LocalArgs[pArgs[ArgPropIndex].index] =
           TsanLocalArgsInfo{pArgs[ArgPropIndex].size};
       KeepArgs.push_back(pArgs[ArgPropIndex]);
+      break;
     }
     default:
       KeepArgs.push_back(pArgs[ArgPropIndex]);
