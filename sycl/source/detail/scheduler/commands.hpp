@@ -272,6 +272,12 @@ protected:
 
   void waitForPreparedHostEvents() const;
 
+  void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls) {
+    for (auto &EventImpl : EventImpls) {
+      EventImpl->flushIfNeeded(MWorkerQueue.get());
+    }
+  }
+
   /// Perform glueing of events from different contexts
   /// \param DepEvent event this commands should depend on
   /// \param Dep optional DepDesc to perform connection of events properly
