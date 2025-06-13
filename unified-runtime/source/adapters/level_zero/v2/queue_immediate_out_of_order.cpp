@@ -153,27 +153,34 @@ ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrier(
   // we do need to use barrier if profiling is enabled: see
   // zeCommandListAppendWaitOnEvents
   bool needsRealBarrier = (flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0;
-  auto appendEventsWaitFn =
-      needsRealBarrier ? &ur_command_list_manager::appendEventsWaitWithBarrier
+  auto barrierFn = needsRealBarrier
+                       ? &ur_command_list_manager::appendEventsWaitWithBarrier
                        : &ur_command_list_manager::appendEventsWait;
 
   auto commandListManagersLocked = commandListManagers.lock();
 
   // Enqueue wait for the user-provider events on the first command list.
-  std::invoke(appendEventsWaitFn, commandListManagersLocked[0],
-              numEventsInWaitList, phEventWaitList, barrierEvents[0]);
+  UR_CALL(commandListManagersLocked[0].appendEventsWait(
+      numEventsInWaitList, phEventWaitList, barrierEvents[0]));
 
-  // Submit barrier or request barrierEvents[id] to be signaled on remaining
-  // command lists.
+  // Request barrierEvents[id] to be signaled on remaining command lists.
   for (size_t id = 1; id < numCommandLists; id++) {
-    std::invoke(appendEventsWaitFn, commandListManagersLocked[id], 0, nullptr,
-                barrierEvents[id]);
+    UR_CALL(commandListManagersLocked[id].appendEventsWait(0, nullptr,
+                                                           barrierEvents[id]));
   }
 
+  // Enqueue barriers on all command lists by waiting on barrierEvents.
+
   if (phEvent) {
-    UR_CALL(commandListManagersLocked[0].appendEventsWait(
-        numCommandLists, barrierEvents.data(),
-        createEventIfRequested(eventPool.get(), phEvent, this)));
+    UR_CALL(
+        std::invoke(barrierFn, commandListManagersLocked[0], numCommandLists,
+                    barrierEvents.data(),
+                    createEventIfRequested(eventPool.get(), phEvent, this)));
+  }
+
+  for (size_t id = phEvent ? 1 : 0; id < numCommandLists; id++) {
+    UR_CALL(std::invoke(barrierFn, commandListManagersLocked[0],
+                        numCommandLists, barrierEvents.data(), nullptr));
   }
 
   return UR_RESULT_SUCCESS;
