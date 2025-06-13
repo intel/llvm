@@ -145,7 +145,7 @@ __Key:__ Kernel name.
 
 __Value type:__ 32 bit integer. ("1")
 
-__Value:__ 1 if the name is identifies a kernel inside the binary and 0 or
+__Value:__ 1 if the name identifies a kernel inside the binary and 0 or
 missing otherwise.
 
 
