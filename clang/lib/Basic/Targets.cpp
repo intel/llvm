@@ -119,10 +119,6 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     return nullptr;
 
   case llvm::Triple::UnknownArch:
-    // native_cpu is only known to Clang, not to LLVM.
-    if (Triple.str() == "native_cpu")
-      return std::make_unique<NativeCPUTargetInfo>(Triple, Opts);
-
     return nullptr;
 
   case llvm::Triple::arc:
@@ -828,6 +824,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
 
   case llvm::Triple::xtensa:
     return std::make_unique<XtensaTargetInfo>(Triple, Opts);
+
+  case llvm::Triple::native_cpu:
+    return std::make_unique<NativeCPUTargetInfo>(Triple, Opts);
   }
 }
 } // namespace targets
