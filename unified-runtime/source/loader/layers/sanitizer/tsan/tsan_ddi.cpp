@@ -1264,36 +1264,43 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
   // for set args + launch we build our own list of "accepted" args to pass to
   // the entry point.
   std::vector<ur_exp_kernel_arg_properties_t> KeepArgs;
-  for (uint32_t ArgIndex = 0; ArgIndex < numArgs; ArgIndex++) {
-    switch (pArgs[ArgIndex].type) {
+  for (uint32_t ArgPropIndex = 0; ArgPropIndex < numArgs; ArgPropIndex++) {
+    switch (pArgs[ArgPropIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
       std::shared_ptr<MemBuffer> MemBuffer;
-      if (pArgs[ArgIndex].size == sizeof(ur_mem_handle_t) &&
+      if (pArgs[ArgPropIndex].size == sizeof(ur_mem_handle_t) &&
           (MemBuffer = getTsanInterceptor()->getMemBuffer(
                *ur_cast<const ur_mem_handle_t *>(
-                   pArgs[ArgIndex].arg.pointer)))) {
+                   pArgs[ArgPropIndex].arg.pointer)))) {
         auto &KernelInfo = getTsanInterceptor()->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-        KernelInfo.BufferArgs[pArgs[ArgIndex].index] = std::move(MemBuffer);
+        KernelInfo.BufferArgs[pArgs[ArgPropIndex].index] = std::move(MemBuffer);
       } else {
-        KeepArgs.push_back(pArgs[ArgIndex]);
+        KeepArgs.push_back(pArgs[ArgPropIndex]);
       }
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
       if (std::shared_ptr<MemBuffer> MemBuffer =
               getTsanInterceptor()->getMemBuffer(
-                  pArgs[ArgIndex].arg.memObjTuple.hMem)) {
+                  pArgs[ArgPropIndex].arg.memObjTuple.hMem)) {
         auto &KernelInfo = getTsanInterceptor()->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-        KernelInfo.BufferArgs[pArgs[ArgIndex].index] = std::move(MemBuffer);
+        KernelInfo.BufferArgs[pArgs[ArgPropIndex].index] = std::move(MemBuffer);
       } else {
-        KeepArgs.push_back(pArgs[ArgIndex]);
+        KeepArgs.push_back(pArgs[ArgPropIndex]);
       }
       break;
     }
+    case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
+      auto &KI = getTsanInterceptor()->getKernelInfo(hKernel);
+      std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
+      KI.LocalArgs[pArgs[ArgPropIndex].index] =
+          TsanLocalArgsInfo{pArgs[ArgPropIndex].size};
+      KeepArgs.push_back(pArgs[ArgPropIndex]);
+    }
     default:
-      KeepArgs.push_back(pArgs[ArgIndex]);
+      KeepArgs.push_back(pArgs[ArgPropIndex]);
       break;
     }
   }
