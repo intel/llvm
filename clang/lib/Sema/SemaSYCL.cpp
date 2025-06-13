@@ -5873,9 +5873,39 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
   return false;
 }
 
-void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
+void SemaSYCL::ProcessFreeFunctionForwardDeclaration(FunctionDecl *FD) {
+  // This is a forward declaration for a free function kernel.
+  // At this point in time, we have all the information needed by the
+  // Integration Header for this kernel so do it. More specifically, add the
+  // KernelDesc corresponding to this decl to the header. In case we see a
+  // definition later, this KernelDesc is removed in favor of the declaration
+  // that is an actual definition which is done in
+  // ProcessFreeFunctionDefinition.
   if (isFreeFunction(FD)) {
     if (CheckFreeFunctionDiagnostics(SemaRef, FD))
+      return;
+    std::unique_ptr<MangleContext> MangleCtx(
+        getASTContext().createMangleContext());
+    std::string Name;
+    std::string MangledName;
+    std::tie(Name, MangledName) =
+        constructFreeFunctionKernelName(*this, FD, *MangleCtx);
+    StringRef KernelName = Name;
+    StringRef StableName = MangledName;
+    KernelObjVisitor Visitor{*this};
+    SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
+                                          FD->getType(), FD);
+    getSyclIntegrationHeader().updateKernelNames(FD, KernelName, StableName);
+    Visitor.VisitFunctionParameters(FD, int_header);
+  }
+}
+
+void SemaSYCL::ProcessFreeFunctionDefinition(FunctionDecl *FD) {
+  if (isFreeFunction(FD)) {
+    // In case the free function kernel has already been seen by way of a
+    // forward declaration, flush it out because a definition takes priority.
+    const bool seen = getSyclIntegrationHeader().removeFreeFunctionKernel(FD);
+    if (!seen && CheckFreeFunctionDiagnostics(SemaRef, FD))
       return;
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
@@ -7126,7 +7156,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "\n// Definition of kernel_id of " << K.Name << "\n";
     O << "namespace sycl {\n";
     O << "template <>\n";
-    O << "kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim"
+    O << "inline kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim"
       << ShimCounter << "()>() {\n";
     O << "  return sycl::detail::get_kernel_id_impl(std::string_view{\""
       << K.Name << "\"});\n";
@@ -7159,6 +7189,20 @@ void SYCLIntegrationHeader::startKernel(const FunctionDecl *SyclKernel,
                                         bool IsUnnamedKernel, int64_t ObjSize) {
   KernelDescs.emplace_back(SyclKernel, KernelNameType, KernelLocation,
                            IsESIMDKernel, IsUnnamedKernel, ObjSize);
+}
+
+bool SYCLIntegrationHeader::isSameFreeFunctionKernel(
+    const FunctionDecl *FD1, const FunctionDecl *FD2) const {
+  std::unique_ptr<MangleContext> MangleCtx(
+      S.getASTContext().createMangleContext());
+  std::string MangledName1;
+  std::string MangledName2;
+  std::tie(std::ignore, MangledName1) =
+      constructFreeFunctionKernelName(S, FD1, *MangleCtx);
+  std::tie(std::ignore, MangledName2) =
+      constructFreeFunctionKernelName(S, FD2, *MangleCtx);
+
+  return MangledName1 == MangledName2;
 }
 
 void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
