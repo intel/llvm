@@ -734,10 +734,12 @@ jit_compiler::performPostLink(ModuleUPtr Module,
                 [](Function *F) { return F->getName(); });
 
       // TODO: Determine what is requested.
-      GlobalBinImageProps PropReq{
-          /*EmitKernelParamInfo=*/true, /*EmitProgramMetadata=*/true,
-          /*EmitExportedSymbols=*/true, /*EmitImportedSymbols=*/true,
-          /*DeviceGlobals=*/true};
+      GlobalBinImageProps PropReq{/*EmitKernelParamInfo=*/true,
+                                  /*EmitProgramMetadata=*/true,
+                                  /*EmitKernelNames=*/true,
+                                  /*EmitExportedSymbols=*/true,
+                                  /*EmitImportedSymbols=*/true,
+                                  /*DeviceGlobals=*/true};
       PropertySetRegistry Properties =
           computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq,
                                   AllowDeviceImageDependencies);
