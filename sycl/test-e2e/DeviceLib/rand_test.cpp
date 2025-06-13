@@ -2,6 +2,8 @@
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: the rand function is not required by any user targets
+// for AMD and Nvidia device.
 
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
