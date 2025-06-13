@@ -547,7 +547,7 @@ event handler::finalize() {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       if (!DiscardEvent) {
-        LastEventImpl = std::make_shared<detail::event_impl>();
+        LastEventImpl = detail::event_impl::create_completed_host_event();
       }
 #endif
 
@@ -824,7 +824,7 @@ event handler::finalize() {
   // so it can be retrieved by the graph later.
   if (impl->get_graph_or_null()) {
     impl->MGraphNodeCG = std::move(CommandGroup);
-    auto EventImpl = std::make_shared<detail::event_impl>();
+    auto EventImpl = detail::event_impl::create_completed_host_event();
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     return EventImpl;
 #else
@@ -838,7 +838,7 @@ event handler::finalize() {
   // If the queue has an associated graph then we need to take the CG and pass
   // it to the graph to create a node, rather than submit it to the scheduler.
   if (auto GraphImpl = Queue->getCommandGraph(); GraphImpl) {
-    auto EventImpl = std::make_shared<detail::event_impl>();
+    auto EventImpl = detail::event_impl::create_completed_host_event();
     EventImpl->setSubmittedQueue(Queue->weak_from_this());
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
         nullptr;
@@ -2403,5 +2403,73 @@ void handler::copyCodeLoc(const handler &other) {
 queue handler::getQueue() {
   return createSyclObjFromImpl<queue>(impl->get_queue());
 }
+namespace detail {
+__SYCL_EXPORT void HandlerAccess::preProcess(handler &CGH,
+                                             type_erased_cgfo_ty F) {
+  queue_impl &Q = CGH.impl->get_queue();
+  bool EventNeeded = !Q.isInOrder();
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  handler_impl HandlerImpl{Q, nullptr, EventNeeded};
+  handler AuxHandler{HandlerImpl};
+#else
+  handler AuxHandler{Q.shared_from_this(), EventNeeded};
+#endif
+  AuxHandler.copyCodeLoc(CGH);
+  F(AuxHandler);
+  auto E = AuxHandler.finalize();
+  assert(!CGH.MIsFinalized &&
+         "Can't do pre-processing if the command has been enqueued already!");
+  if (EventNeeded)
+    CGH.depends_on(E);
+}
+__SYCL_EXPORT void HandlerAccess::postProcess(handler &CGH,
+                                              type_erased_cgfo_ty F) {
+  // The "hacky" `handler`s manipulation mentioned near the declaration in
+  // `handler.hpp` and implemented here is far from perfect. A better approach
+  // would be
+  //
+  //    bool OrigNeedsEvent = CGH.needsEvent()
+  //    assert(CGH.not_finalized/enqueued());
+  //    if (!InOrderQueue)
+  //      CGH.setNeedsEvent()
+  //
+  //    handler PostProcessHandler(Queue, OrigNeedsEvent)
+  //    auto E = CGH.finalize(); // enqueue original or current last
+  //                             // post-process
+  //    if (!InOrder)
+  //      PostProcessHandler.depends_on(E)
+  //
+  //    swap_impls(CGH, PostProcessHandler)
+  //    return; // queue::submit finalizes PostProcessHandler and returns its
+  //            // event if necessary.
+  //
+  // Still hackier than "real" `queue::submit` but at least somewhat sane.
+  // That, however hasn't been tried yet and we have an even hackier approach
+  // copied from what's been done in an old reductions implementation before
+  // eventless submission work has started. Not sure how feasible the approach
+  // above is at this moment.
+
+  // This `finalize` is wrong (at least logically) if
+  //   `assert(!CGH.eventNeeded())`
+  auto E = CGH.finalize();
+  queue_impl &Q = CGH.impl->get_queue();
+  bool InOrder = Q.isInOrder();
+  // Cannot use `CGH.eventNeeded()` alone as there might be subsequent
+  // `postProcess` calls and we cannot address them properly similarly to the
+  // `finalize` issue described above. `swap_impls` suggested above might be
+  // able to handle this scenario naturally.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  handler_impl HandlerImpl{Q, nullptr, CGH.eventNeeded() || !InOrder};
+  handler AuxHandler{HandlerImpl};
+#else
+  handler AuxHandler{Q.shared_from_this(), CGH.eventNeeded() || !InOrder};
+#endif
+  if (!InOrder)
+    AuxHandler.depends_on(E);
+  AuxHandler.copyCodeLoc(CGH);
+  F(AuxHandler);
+  CGH.MLastEvent = AuxHandler.finalize();
+}
+} // namespace detail
 } // namespace _V1
 } // namespace sycl

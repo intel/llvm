@@ -182,7 +182,7 @@ __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
   Adapter->call<UrApiKind::urEventCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), &Properties, &UrEvent);
   event Event = detail::createSyclObjFromImpl<event>(
-      std::make_shared<event_impl>(UrEvent, Context));
+      event_impl::create_from_handle(UrEvent, Context));
 
   if (Backend == backend::opencl)
     __SYCL_OCL_CALL(clRetainEvent, ur::cast<cl_event>(NativeHandle));

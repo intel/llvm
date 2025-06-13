@@ -269,7 +269,7 @@ public:
       // ->call<>() instead of ->call_nocheck<>() above.
       if (status != UR_RESULT_SUCCESS &&
           status != UR_RESULT_ERROR_UNINITIALIZED) {
-        __SYCL_CHECK_UR_CODE_NO_EXC(status);
+        __SYCL_CHECK_UR_CODE_NO_EXC(status, getAdapter()->getBackend());
       }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
@@ -294,6 +294,8 @@ public:
   const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
+
+  context_impl &getContextImpl() const { return *MContext; }
 
   device_impl &getDeviceImpl() const { return MDevice; }
 
@@ -663,7 +665,7 @@ public:
   /// will wait for the completion of all work in the queue at the time of the
   /// insertion, but will not act as a barrier unless the queue is in-order.
   EventImplPtr insertMarkerEvent() {
-    auto ResEvent = std::make_shared<detail::event_impl>(shared_from_this());
+    auto ResEvent = detail::event_impl::create_device_event(*this);
     ur_event_handle_t UREvent = nullptr;
     getAdapter()->call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
                                                        nullptr, &UREvent);
@@ -688,8 +690,7 @@ protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
     auto &Queue = Handler.impl->get_queue();
-    auto ResEvent =
-        std::make_shared<detail::event_impl>(Queue.shared_from_this());
+    auto ResEvent = detail::event_impl::create_device_event(Queue);
     ur_event_handle_t UREvent = nullptr;
     getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
         Queue.getHandleRef(), 0, nullptr, &UREvent);
