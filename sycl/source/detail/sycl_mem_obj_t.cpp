@@ -118,7 +118,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
   }
 }
 
-void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {
+void SYCLMemObjT::releaseMem(context_impl *Context, void *MemAllocation) {
   void *Ptr = getUserPtr();
   return MemoryManager::releaseMemObj(Context, this, MemAllocation, Ptr);
 }
@@ -180,9 +180,8 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
 
 bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
 
-void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
-                                   bool InitFromUserData, void *&HostPtr,
-                                   bool &HostPtrReadOnly) {
+void SYCLMemObjT::determineHostPtr(context_impl *Context, bool InitFromUserData,
+                                   void *&HostPtr, bool &HostPtrReadOnly) {
   // The data for the allocation can be provided via either the user pointer
   // (InitFromUserData, can be read-only) or a runtime-allocated read-write
   // HostPtr. We can have one of these scenarios:
