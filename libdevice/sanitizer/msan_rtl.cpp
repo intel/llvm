@@ -31,7 +31,10 @@ constexpr uptr DG2_DEVICE_USM_BEGIN = 0xffff'8000'0000'0000ULL;
 constexpr uptr DG2_DEVICE_USM_END = 0xffff'ffff'ffff'ffffULL;
 
 const __SYCL_CONSTANT__ char __msan_print_shadow[] =
-    "[kernel] __msan_get_shadow(addr=%p, as=%d) = %p: %02X <%s>\n";
+    "[kernel] __msan_get_shadow(addr=%p, as=%d) = %p: %02X\n";
+
+const __SYCL_CONSTANT__ char __msan_print_origin[] =
+    "[kernel] __msan_get_origin(addr=%p, as=%d) = %p: %02X\n";
 
 const __SYCL_CONSTANT__ char __msan_print_unsupport_device_type[] =
     "[kernel] Unsupport device type: %d\n";
@@ -83,7 +86,7 @@ void __msan_internal_report_save(const uint32_t size,
                                  const char __SYCL_CONSTANT__ *file,
                                  const uint32_t line,
                                  const char __SYCL_CONSTANT__ *func,
-                                 const uptr origin) {
+                                 const uint32_t origin) {
   const int Expected = MSAN_REPORT_NONE;
   int Desired = MSAN_REPORT_START;
 
@@ -136,7 +139,8 @@ void __msan_internal_report_save(const uint32_t size,
 void __msan_report_error(const uint32_t size,
                          const char __SYCL_CONSTANT__ *file,
                          const uint32_t line,
-                         const char __SYCL_CONSTANT__ *func, uptr origin = 0) {
+                         const char __SYCL_CONSTANT__ *func,
+                         uint32_t origin = 0) {
   __msan_internal_report_save(size, file, line, func, origin);
 }
 
@@ -167,15 +171,15 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
     ConvertGenericPointer(addr, as);
   }
 
-  // Device USM only
-  if (as == ADDRESS_SPACE_GLOBAL && (addr & PVC_DEVICE_USM_MASK)) {
-    auto shadow_begin = GetMsanLaunchInfo->GlobalShadowOffset;
-    auto shadow_end = GetMsanLaunchInfo->GlobalShadowOffsetEnd;
-    if (addr < shadow_begin) {
-      return addr + (shadow_begin - PVC_DEVICE_USM_BEGIN);
-    } else {
-      return addr - (PVC_DEVICE_USM_END - shadow_end + 1);
+  if (as == ADDRESS_SPACE_GLOBAL) {
+    // device USM
+    if (addr >> 52 == 0xff0) {
+      return addr - 0x5000'0000'0000ULL;
     }
+    // host/shared USM
+    auto shadow_base = GetMsanLaunchInfo->GlobalShadowOffset;
+    return (addr & 0xff'ffff'ffffULL) + ((addr & 0x8000'0000'0000ULL) >> 7) +
+           shadow_base;
   } else if (as == ADDRESS_SPACE_LOCAL) {
     const auto shadow_offset = GetMsanLaunchInfo->LocalShadowOffset;
     if (shadow_offset != 0) {
@@ -214,6 +218,32 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   return GetMsanLaunchInfo->CleanShadow;
 }
 
+inline uptr __msan_get_origin_cpu(uptr addr) {
+  return addr ^ 0x500000000000ULL;
+}
+
+inline uptr __msan_get_origin_dg2(uptr addr, uint32_t as) { return 0; }
+
+inline uptr __msan_get_origin_pvc(uptr addr, uint32_t as) {
+  if (as == ADDRESS_SPACE_GENERIC) {
+    ConvertGenericPointer(addr, as);
+  }
+
+  if (as == ADDRESS_SPACE_GLOBAL) {
+    // device USM
+    if (addr >> 52 == 0xff0) {
+      return addr - 0xa000'0000'0000ULL;
+    }
+    // host/shared USM
+    uptr shadow_base = GetMsanLaunchInfo->GlobalShadowOffset;
+    return (addr & 0xff'ffff'ffffULL) + ((addr & 0x8000'0000'0000ULL) >> 7) +
+           shadow_base + 0x0200'0000'0000ULL;
+  }
+
+  // Return clean shadow (0s) by default
+  return GetMsanLaunchInfo->CleanShadow;
+}
+
 inline void __msan_exit() {
   if (!GetMsanLaunchInfo->IsRecover)
     __devicelib_exit();
@@ -233,7 +263,7 @@ void GroupAsyncCopy(uptr Dest, uptr Src, size_t NumElements, size_t Stride) {
 
 #define MSAN_MAYBE_WARNING(type, size)                                         \
   DEVICE_EXTERN_C_NOINLINE void __msan_maybe_warning_##size(                   \
-      type s, uptr o, const char __SYCL_CONSTANT__ *file, uint32_t line,       \
+      type s, uint32_t o, const char __SYCL_CONSTANT__ *file, uint32_t line,   \
       const char __SYCL_CONSTANT__ *func) {                                    \
     if (!GetMsanLaunchInfo)                                                    \
       return;                                                                  \
@@ -266,16 +296,34 @@ __msan_warning_noreturn(const char __SYCL_CONSTANT__ *file, uint32_t line,
   __msan_exit();
 }
 
+DEVICE_EXTERN_C_NOINLINE void
+__msan_warning_with_origin(uint32_t origin, const char __SYCL_CONSTANT__ *file,
+                           uint32_t line, const char __SYCL_CONSTANT__ *func) {
+  if (!GetMsanLaunchInfo)
+    return;
+  __msan_internal_report_save(1, file, line, func, origin);
+  __msan_exit();
+}
+
+DEVICE_EXTERN_C_NOINLINE void __msan_warning_with_origin_noreturn(
+    uint32_t origin, const char __SYCL_CONSTANT__ *file, uint32_t line,
+    const char __SYCL_CONSTANT__ *func) {
+  if (!GetMsanLaunchInfo)
+    return;
+  __msan_internal_report_save(1, file, line, func, origin);
+  __msan_exit();
+}
+
 // For mapping detail, ref to
 // "unified-runtime/source/loader/layers/sanitizer/msan/msan_shadow.hpp"
 DEVICE_EXTERN_C_NOINLINE __SYCL_GLOBAL__ void *
 __msan_get_shadow(uptr addr, uint32_t as,
                   const char __SYCL_CONSTANT__ *func = nullptr) {
-  // Return clean shadow (0s) by default
-  uptr shadow_ptr = GetMsanLaunchInfo->CleanShadow;
-
   if (!GetMsanLaunchInfo)
-    return (__SYCL_GLOBAL__ void *)shadow_ptr;
+    return nullptr;
+
+  // Return clean shadow (0s) by default
+  uptr shadow_ptr;
 
 #if defined(__LIBDEVICE_PVC__)
   shadow_ptr = __msan_get_shadow_pvc(addr, as);
@@ -289,17 +337,65 @@ __msan_get_shadow(uptr addr, uint32_t as,
   } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_DG2) {
     shadow_ptr = __msan_get_shadow_dg2(addr, as);
   } else {
+    shadow_ptr = GetMsanLaunchInfo->CleanShadow;
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_unsupport_device_type,
                                   GetMsanLaunchInfo->DeviceTy));
   }
 #endif
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_shadow, (void *)addr, as,
-                                (void *)shadow_ptr, *(u8 *)shadow_ptr,
-                                func ? func : __msan_print_unknown));
+                                (void *)shadow_ptr, *(u8 *)shadow_ptr));
 
   return (__SYCL_GLOBAL__ void *)shadow_ptr;
 }
+
+// For mapping detail, ref to
+// "unified-runtime/source/loader/layers/sanitizer/msan/msan_shadow.hpp"
+DEVICE_EXTERN_C_NOINLINE __SYCL_GLOBAL__ void *__msan_get_origin(uptr addr,
+                                                                 uint32_t as) {
+  if (!GetMsanLaunchInfo)
+    return nullptr;
+
+  uptr aligned_addr = addr & ~3ULL;
+  uptr origin_ptr;
+
+#if defined(__LIBDEVICE_PVC__)
+  origin_ptr = __msan_get_origin_pvc(addr, as);
+#elif defined(__LIBDEVICE_CPU__)
+  origin_ptr = __msan_get_origin_cpu(addr);
+#else
+  if (LIKELY(GetMsanLaunchInfo->DeviceTy == DeviceType::CPU)) {
+    origin_ptr = __msan_get_origin_cpu(aligned_addr);
+  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
+    origin_ptr = __msan_get_origin_pvc(aligned_addr, as);
+  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_DG2) {
+    origin_ptr = __msan_get_origin_dg2(aligned_addr, as);
+  } else {
+    // Return clean shadow (0s) by default
+    origin_ptr = GetMsanLaunchInfo->CleanShadow;
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_unsupport_device_type,
+                                  GetMsanLaunchInfo->DeviceTy));
+  }
+#endif
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_origin, (void *)addr, as,
+                                (void *)origin_ptr, 0));
+
+  return (__SYCL_GLOBAL__ void *)origin_ptr;
+}
+
+#define MSAN_MAYBE_STORE_ORIGIN(type, size)                                    \
+  DEVICE_EXTERN_C_NOINLINE void __msan_maybe_store_origin_##size(              \
+      type s, uptr addr, uint32_t as, uint32_t o) {                            \
+    if (UNLIKELY(s)) {                                                         \
+      *(__SYCL_GLOBAL__ u32 *)__msan_get_origin(addr, as) = o;                 \
+    }                                                                          \
+  }
+
+MSAN_MAYBE_STORE_ORIGIN(u8, 1)
+MSAN_MAYBE_STORE_ORIGIN(u16, 2)
+MSAN_MAYBE_STORE_ORIGIN(u32, 4)
+MSAN_MAYBE_STORE_ORIGIN(u64, 8)
 
 static __SYCL_CONSTANT__ const char __msan_print_memset[] =
     "[kernel] memset(beg=%p, shadow_beg=%p, shadow_end=%p)\n";
@@ -584,7 +680,7 @@ DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_stack(__SYCL_PRIVATE__ void *ptr,
 }
 
 static __SYCL_CONSTANT__ const char __msan_print_private_base[] =
-    "[kernel] __msan_set_private_base: %llu -> %p\n";
+    "[kernel] __msan_set_private_base(sid=%llu): %p\n";
 
 DEVICE_EXTERN_C_NOINLINE void
 __msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
@@ -635,6 +731,18 @@ __msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
                                 "__msan_unpoison_strided_copy"));
+}
+
+DEVICE_EXTERN_C_NOINLINE void
+__msan_set_alloca_origin_no_descr(void *a, uptr size,
+                                  __SYCL_GLOBAL__ u32 *id_ptr) {
+  // SetAllocaOrigin(a, size, id_ptr, nullptr, GET_CALLER_PC());
+}
+
+DEVICE_EXTERN_C_NOINLINE void
+__msan_set_alloca_origin_with_descr(void *a, uptr size,
+                                    __SYCL_GLOBAL__ u32 *id_ptr, char *descr) {
+  // SetAllocaOrigin(a, size, id_ptr, descr, GET_CALLER_PC());
 }
 
 #endif // __SPIR__ || __SPIRV__

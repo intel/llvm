@@ -732,6 +732,7 @@ private:
 
   /// Get shadow memory address
   FunctionCallee MsanGetShadowFn;
+  FunctionCallee MsanGetOriginFn;
 
   /// Storage for return values of the MsanMetadataPtrXxx functions.
   Value *MsanMetadataAlloca;
@@ -1435,9 +1436,22 @@ void MemorySanitizer::createUserspaceApi(Module &M,
   if (TrackOrigins) {
     StringRef WarningFnName = Recover ? "__msan_warning_with_origin"
                                       : "__msan_warning_with_origin_noreturn";
-    WarningFn = M.getOrInsertFunction(WarningFnName,
-                                      TLI.getAttrList(C, {0}, /*Signed=*/false),
-                                      IRB.getVoidTy(), IRB.getInt32Ty());
+    if (!TargetTriple.isSPIROrSPIRV()) {
+      WarningFn = M.getOrInsertFunction(
+          WarningFnName, TLI.getAttrList(C, {0}, /*Signed=*/false),
+          IRB.getVoidTy(), IRB.getInt32Ty());
+    } else {
+      // __msan_warning_with_origin[_noreturn](
+      //   int origin,
+      //   char* file,
+      //   unsigned int line,
+      //   char* func
+      // )
+      WarningFn = M.getOrInsertFunction(
+          WarningFnName, IRB.getVoidTy(), IRB.getInt32Ty(),
+          IRB.getInt8PtrTy(kSpirOffloadConstantAS), IRB.getInt32Ty(),
+          IRB.getInt8PtrTy(kSpirOffloadConstantAS));
+    }
   } else {
     StringRef WarningFnName =
         Recover ? "__msan_warning" : "__msan_warning_noreturn";
@@ -1496,34 +1510,47 @@ void MemorySanitizer::createUserspaceApi(Module &M,
       MaybeWarningFn[AccessSizeIndex] = M.getOrInsertFunction(
           FunctionName, TLI.getAttrList(C, {0, 1}, /*Signed=*/false),
           IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IRB.getInt32Ty());
+
+      FunctionName = "__msan_maybe_store_origin_" + itostr(AccessSize);
+      MaybeStoreOriginFn[AccessSizeIndex] = M.getOrInsertFunction(
+          FunctionName, TLI.getAttrList(C, {0, 2}, /*Signed=*/false),
+          IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), PtrTy,
+          IRB.getInt32Ty());
     } else { // SPIR or SPIR-V
       // __msan_maybe_warning_N(
       //   intN_t status,
-      //   uptr origin, // possible shadow address of status
+      //   int origin,
       //   char* file,
       //   unsigned int line,
       //   char* func
       // )
       MaybeWarningFn[AccessSizeIndex] = M.getOrInsertFunction(
           FunctionName, TLI.getAttrList(C, {0, 1}, /*Signed=*/false),
-          IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IntptrTy,
+          IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IRB.getInt32Ty(),
           IRB.getInt8PtrTy(kSpirOffloadConstantAS), IRB.getInt32Ty(),
           IRB.getInt8PtrTy(kSpirOffloadConstantAS));
-    }
 
-    FunctionName = "__msan_maybe_store_origin_" + itostr(AccessSize);
-    MaybeStoreOriginFn[AccessSizeIndex] = M.getOrInsertFunction(
-        FunctionName, TLI.getAttrList(C, {0, 2}, /*Signed=*/false),
-        IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), PtrTy,
-        IRB.getInt32Ty());
+      // __msan_maybe_warning_N(
+      //   intN_t status,
+      //   uptr addr,
+      //   uint32_t as,
+      //   int origin,
+      // )
+      FunctionName = "__msan_maybe_store_origin_" + itostr(AccessSize);
+      MaybeStoreOriginFn[AccessSizeIndex] = M.getOrInsertFunction(
+          FunctionName, TLI.getAttrList(C, {0, 2}, /*Signed=*/false),
+          IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IntptrTy,
+          IRB.getInt32Ty(), IRB.getInt32Ty());
+    }
   }
 
   MsanSetAllocaOriginWithDescriptionFn =
       M.getOrInsertFunction("__msan_set_alloca_origin_with_descr",
                             IRB.getVoidTy(), PtrTy, IntptrTy, PtrTy, PtrTy);
-  MsanSetAllocaOriginNoDescriptionFn =
-      M.getOrInsertFunction("__msan_set_alloca_origin_no_descr",
-                            IRB.getVoidTy(), PtrTy, IntptrTy, PtrTy);
+  MsanSetAllocaOriginNoDescriptionFn = M.getOrInsertFunction(
+      "__msan_set_alloca_origin_no_descr", IRB.getVoidTy(), PtrTy, IntptrTy,
+      TargetTriple.isSPIROrSPIRV() ? PointerType::get(*C, kSpirOffloadGlobalAS)
+                                   : PtrTy);
   MsanPoisonStackFn = M.getOrInsertFunction("__msan_poison_stack",
                                             IRB.getVoidTy(), PtrTy, IntptrTy);
 }
@@ -1581,7 +1608,11 @@ void MemorySanitizer::initializeCallbacks(Module &M,
 
   MsanGetShadowFn = M.getOrInsertFunction(
       "__msan_get_shadow", PointerType::get(*C, kSpirOffloadGlobalAS), IntptrTy,
-      IRB.getInt32Ty(), IRB.getInt8PtrTy(kSpirOffloadConstantAS));
+      IRB.getInt32Ty());
+
+  MsanGetOriginFn = M.getOrInsertFunction(
+      "__msan_get_origin", PointerType::get(*C, kSpirOffloadGlobalAS), IntptrTy,
+      IRB.getInt32Ty());
 
   if (CompileKernel) {
     createKernelApi(M, TLI);
@@ -2058,7 +2089,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Align CurrentAlignment = Alignment;
     if (Alignment >= IntptrAlignment && IntptrSize > kOriginSize) {
       Value *IntptrOrigin = originToIntptr(IRB, Origin);
-      Value *IntptrOriginPtr = IRB.CreatePointerCast(OriginPtr, MS.PtrTy);
+      Value *IntptrOriginPtr = IRB.CreatePointerCast(
+          OriginPtr,
+          !SpirOrSpirv ? MS.PtrTy : IRB.getPtrTy(kSpirOffloadGlobalAS));
       for (unsigned i = 0; i < Size / IntptrSize; ++i) {
         Value *Ptr = i ? IRB.CreateConstGEP1_32(MS.IntptrTy, IntptrOriginPtr, i)
                        : IntptrOriginPtr;
@@ -2105,9 +2138,19 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       FunctionCallee Fn = MS.MaybeStoreOriginFn[SizeIndex];
       Value *ConvertedShadow2 =
           IRB.CreateZExt(ConvertedShadow, IRB.getIntNTy(8 * (1 << SizeIndex)));
-      CallBase *CB = IRB.CreateCall(Fn, {ConvertedShadow2, Addr, Origin});
-      CB->addParamAttr(0, Attribute::ZExt);
-      CB->addParamAttr(2, Attribute::ZExt);
+      if (!SpirOrSpirv) {
+        CallBase *CB = IRB.CreateCall(Fn, {ConvertedShadow2, Addr, Origin});
+        CB->addParamAttr(0, Attribute::ZExt);
+        CB->addParamAttr(2, Attribute::ZExt);
+      } else {
+        Value *AddrInt = IRB.CreatePtrToInt(Addr, IRB.getIntPtrTy(DL));
+        Value *AS = ConstantInt::get(IRB.getInt32Ty(),
+                                     Addr->getType()->getPointerAddressSpace());
+        CallBase *CB =
+            IRB.CreateCall(Fn, {ConvertedShadow2, AddrInt, AS, Origin});
+        CB->addParamAttr(0, Attribute::ZExt);
+        CB->addParamAttr(3, Attribute::ZExt);
+      }
     } else {
       Value *Cmp = convertToBool(ConvertedShadow, IRB, "_mscmp");
       Instruction *CheckTerm = SplitBlockAndInsertIfThen(
@@ -2214,6 +2257,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         IRB.CreateCall(MS.WarningFn)->setCannotMerge();
     } else { // SPIR or SPIR-V
       SmallVector<Value *, 3> Args;
+      if (MS.TrackOrigins)
+        Args.push_back(Origin);
       appendDebugInfoToArgs(IRB, Args);
       IRB.CreateCall(MS.WarningFn, Args)->setCannotMerge();
     }
@@ -2243,40 +2288,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         CB->addParamAttr(1, Attribute::ZExt);
       } else { // SPIR or SPIR-V
         // Pass the pointer of shadow memory to the report function
-        SmallVector<Value *, 5> Args = {ConvertedShadow2};
-
-        if (ClSpirOffloadDebug) {
-          // Attempt to get the shadow memory
-          if (auto *LoadShadow = dyn_cast<LoadInst>(ConvertedShadow)) {
-            Args.emplace_back(IRB.CreatePointerCast(
-                LoadShadow->getPointerOperand(), MS.IntptrTy));
-          } else if (auto *BinaryOp =
-                         dyn_cast<BinaryOperator>(ConvertedShadow)) {
-            Value *LastOperand = nullptr;
-            do {
-              LastOperand = BinaryOp->getOperand(0);
-              // TODO: assert second operand is 0
-              BinaryOp = dyn_cast<BinaryOperator>(LastOperand);
-            } while (BinaryOp && BinaryOp->getOpcode() == Instruction::Or);
-
-            if (auto *LoadShadow = dyn_cast<LoadInst>(LastOperand)) {
-              Args.emplace_back(IRB.CreatePointerCast(
-                  LoadShadow->getPointerOperand(), MS.IntptrTy));
-            }
-          } else if (auto *Trunc = dyn_cast<TruncInst>(ConvertedShadow)) {
-            if (auto *LoadShadow = dyn_cast<LoadInst>(Trunc->getOperand(0))) {
-              Args.emplace_back(IRB.CreatePointerCast(
-                  LoadShadow->getPointerOperand(), MS.IntptrTy));
-            }
-          }
-        }
-
-        if (Args.size() == 1) {
-          Args.emplace_back(ConstantInt::get(MS.IntptrTy, 0));
-        }
-
+        SmallVector<Value *, 5> Args = {
+            ConvertedShadow2,
+            MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0)};
         appendDebugInfoToArgs(IRB, Args);
-
         CallBase *CB = IRB.CreateCall(Fn, Args);
         CB->addParamAttr(0, Attribute::ZExt);
         CB->addParamAttr(1, Attribute::ZExt);
@@ -2590,29 +2605,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   Value *getShadowPtrOffset(Value *Addr, IRBuilder<> &IRB) {
     Type *IntptrTy = ptrToIntPtrType(Addr->getType());
     Value *OffsetLong = IRB.CreatePointerCast(Addr, IntptrTy);
-
-    if (!SpirOrSpirv) {
-      if (uint64_t AndMask = MS.MapParams->AndMask)
-        OffsetLong =
-            IRB.CreateAnd(OffsetLong, constToIntPtr(IntptrTy, ~AndMask));
-
-      if (uint64_t XorMask = MS.MapParams->XorMask)
-        OffsetLong =
-            IRB.CreateXor(OffsetLong, constToIntPtr(IntptrTy, XorMask));
-    } else { // SPIR or SPIR-V
-      auto *ConstASPtrTy =
-          PointerType::get(Addr->getContext(), kSpirOffloadConstantAS);
-      auto *FuncNameGV = MS.Spirv.getOrCreateGlobalString(
-          "__msan_func", F.getName(), kSpirOffloadConstantAS);
-
-      OffsetLong = IRB.CreateCall(
-          MS.MsanGetShadowFn,
-          {OffsetLong, IRB.getInt32(Addr->getType()->getPointerAddressSpace()),
-           ClSpirOffloadDebug
-               ? ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy)
-               : ConstantPointerNull::get(ConstASPtrTy)});
-    }
-
+    if (uint64_t AndMask = MS.MapParams->AndMask)
+      OffsetLong = IRB.CreateAnd(OffsetLong, constToIntPtr(IntptrTy, ~AndMask));
+    if (uint64_t XorMask = MS.MapParams->XorMask)
+      OffsetLong = IRB.CreateXor(OffsetLong, constToIntPtr(IntptrTy, XorMask));
     return OffsetLong;
   }
 
@@ -2627,6 +2623,20 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   std::pair<Value *, Value *>
   getShadowOriginPtrUserspace(Value *Addr, IRBuilder<> &IRB, Type *ShadowTy,
                               MaybeAlign Alignment) {
+    if (SpirOrSpirv) {
+      unsigned int AS = Addr->getType()->getPointerAddressSpace();
+      Type *IntptrTy = ptrToIntPtrType(Addr->getType());
+      Value *ShadowLong = IRB.CreatePointerCast(Addr, IntptrTy);
+      Value *ShadowPtr =
+          IRB.CreateCall(MS.MsanGetShadowFn, {ShadowLong, IRB.getInt32(AS)});
+      Value *OriginPtr = nullptr;
+      if (MS.TrackOrigins) {
+        OriginPtr =
+            IRB.CreateCall(MS.MsanGetOriginFn, {ShadowLong, IRB.getInt32(AS)});
+      }
+      return std::make_pair(ShadowPtr, OriginPtr);
+    }
+
     VectorType *VectTy = dyn_cast<VectorType>(Addr->getType());
     if (!VectTy) {
       assert(Addr->getType()->isPointerTy());
@@ -2641,9 +2651,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           IRB.CreateAdd(ShadowLong, constToIntPtr(IntptrTy, ShadowBase));
     }
     Value *ShadowPtr = IRB.CreateIntToPtr(
-        ShadowLong,
-        getPtrToShadowPtrType(IntptrTy, ShadowTy,
-                              SpirOrSpirv ? kSpirOffloadGlobalAS : 0));
+        ShadowLong, getPtrToShadowPtrType(IntptrTy, ShadowTy));
 
     Value *OriginPtr = nullptr;
     if (MS.TrackOrigins) {
@@ -6603,7 +6611,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   Value *getLocalVarIdptr(AllocaInst &I) {
     ConstantInt *IntConst =
-        ConstantInt::get(Type::getInt32Ty((*F.getParent()).getContext()), 0);
+        ConstantInt::get(Type::getInt32Ty(I.getContext()), 0);
     return new GlobalVariable(*F.getParent(), IntConst->getType(),
                               /*isConstant=*/false, GlobalValue::PrivateLinkage,
                               IntConst);

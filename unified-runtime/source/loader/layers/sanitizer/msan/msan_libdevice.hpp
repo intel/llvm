@@ -37,7 +37,7 @@ struct MsanErrorReport {
 
   uint32_t AccessSize = 0;
   ErrorType ErrorTy = ErrorType::UNKNOWN;
-  uintptr_t Origin;
+  uint32_t Origin;
 };
 
 struct MsanLocalArgsInfo {

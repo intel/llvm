@@ -110,10 +110,21 @@ uptr MsanShadowMemoryCPU::MemToShadow(uptr Ptr) {
   return Ptr ^ CPU_SHADOW_MASK;
 }
 
+uptr MsanShadowMemoryCPU::MemToOrigin(uptr Ptr) {
+  return Ptr ^ CPU_SHADOW_MASK;
+}
+
 ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadow(
     ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t NumEvents,
     const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
+  return EnqueuePoisonShadowWithOrigin(Queue, Ptr, Size, Value, 0, NumEvents,
+                                       EventWaitList, OutEvent);
+}
 
+ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
+    ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t Origin,
+    uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
+    ur_event_handle_t *OutEvent) {
   if (Size) {
     const uptr ShadowBegin = MemToShadow(Ptr);
     const uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
@@ -183,20 +194,14 @@ ur_result_t MsanShadowMemoryGPU::Destory() {
   return Result;
 }
 
-ur_result_t MsanShadowMemoryGPU::EnqueueMapShadow(
-    ur_queue_handle_t Queue, uptr Ptr, uptr Size,
+ur_result_t MsanShadowMemoryGPU::EnqueueVirtualMemMap(
+    ur_queue_handle_t Queue, uptr VirtualBegin, uptr VirtualEnd,
     std::vector<ur_event_handle_t> &EventWaitList,
     ur_event_handle_t *OutEvent) {
-
   const size_t PageSize = GetVirtualMemGranularity(Context, Device);
-
-  const uptr ShadowBegin = MemToShadow(Ptr);
-  const uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
-  assert(ShadowBegin <= ShadowEnd);
-
   // Make sure [Ptr, Ptr + Size] is mapped to physical memory
-  for (auto MappedPtr = RoundDownTo(ShadowBegin, PageSize);
-       MappedPtr <= ShadowEnd; MappedPtr += PageSize) {
+  for (auto MappedPtr = RoundDownTo(VirtualBegin, PageSize);
+       MappedPtr <= VirtualEnd; MappedPtr += PageSize) {
     std::scoped_lock<ur_mutex> Guard(VirtualMemMapsMutex);
     if (VirtualMemMaps.find(MappedPtr) == VirtualMemMaps.end()) {
       ur_physical_mem_handle_t PhysicalMem{};
@@ -219,26 +224,12 @@ ur_result_t MsanShadowMemoryGPU::EnqueueMapShadow(
       UR_LOG_L(getContext()->logger, DEBUG, "urVirtualMemMap: {} ~ {}",
                (void *)MappedPtr, (void *)(MappedPtr + PageSize - 1));
 
-      // Initialize to zero
-      URes = EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, 0, PageSize,
-                                   EventWaitList.size(), EventWaitList.data(),
-                                   OutEvent);
-      if (URes != UR_RESULT_SUCCESS) {
-        UR_LOG_L(getContext()->logger, ERR, "EnqueueUSMSet(): {}", URes);
-        return URes;
-      }
-
       EventWaitList.clear();
       if (OutEvent) {
         EventWaitList.push_back(*OutEvent);
       }
 
       VirtualMemMaps[MappedPtr].first = PhysicalMem;
-    }
-
-    auto AllocInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Ptr);
-    if (AllocInfoItOp) {
-      VirtualMemMaps[MappedPtr].second.insert((*AllocInfoItOp)->second);
     }
   }
 
@@ -248,6 +239,14 @@ ur_result_t MsanShadowMemoryGPU::EnqueueMapShadow(
 ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadow(
     ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t NumEvents,
     const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
+  return EnqueuePoisonShadowWithOrigin(Queue, Ptr, Size, Value, 0, NumEvents,
+                                       EventWaitList, OutEvent);
+}
+
+ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
+    ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t Origin,
+    uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
+    ur_event_handle_t *OutEvent) {
   if (Size == 0) {
     if (OutEvent) {
       UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
@@ -258,22 +257,41 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadow(
 
   std::vector<ur_event_handle_t> Events(EventWaitList,
                                         EventWaitList + NumEvents);
-  UR_CALL(EnqueueMapShadow(Queue, Ptr, Size, Events, OutEvent));
+  {
+    uptr ShadowBegin = MemToShadow(Ptr);
+    uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
+    assert(ShadowBegin <= ShadowEnd);
 
-  const uptr ShadowBegin = MemToShadow(Ptr);
-  const uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
-  assert(ShadowBegin <= ShadowEnd);
+    UR_CALL(
+        EnqueueVirtualMemMap(Queue, ShadowBegin, ShadowEnd, Events, OutEvent));
 
-  auto Result = EnqueueUSMBlockingSet(Queue, (void *)ShadowBegin, Value,
-                                      ShadowEnd - ShadowBegin + 1,
-                                      Events.size(), Events.data(), OutEvent);
+    UR_LOG_L(getContext()->logger, DEBUG,
+             "EnqueuePoisonShadow(addr={}, size={}, value={})",
+             (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
+             (void *)(size_t)Value);
 
-  UR_LOG_L(getContext()->logger, DEBUG,
-           "EnqueuePoisonShadow(addr={}, count={}, value={}): {}",
-           (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-           (void *)(size_t)Value, Result);
+    UR_CALL(EnqueueUSMBlockingSet(Queue, (void *)ShadowBegin, Value,
+                                  ShadowEnd - ShadowBegin + 1, Events.size(),
+                                  Events.data(), OutEvent));
+  }
 
-  return Result;
+  {
+    uptr OriginBegin = MemToOrigin(Ptr);
+    uptr OriginEnd = MemToOrigin(Ptr + Size - 1) + sizeof(Origin) - 1;
+    UR_CALL(
+        EnqueueVirtualMemMap(Queue, OriginBegin, OriginEnd, Events, OutEvent));
+
+    UR_LOG_L(getContext()->logger, DEBUG,
+             "EnqueuePoisonOrigin(addr={}, size={}, value={})",
+             (void *)OriginBegin, OriginEnd - OriginBegin + 1,
+             (void *)(uptr)Origin);
+
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
+        Queue, (void *)OriginBegin, sizeof(Origin), &Origin,
+        OriginEnd - OriginBegin + 1, NumEvents, EventWaitList, OutEvent));
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t
@@ -392,16 +410,36 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
 }
 
 uptr MsanShadowMemoryPVC::MemToShadow(uptr Ptr) {
-  assert(MsanShadowMemoryPVC::IsDeviceUSM(Ptr) && "Ptr must be device USM");
-  if (Ptr < ShadowBegin) {
-    return Ptr + (ShadowBegin - 0xff00'0000'0000'0000ULL);
-  } else {
-    return Ptr - (0xff00'ffff'ffff'ffffULL - ShadowEnd + 1);
+  if (MsanShadowMemoryPVC::isDeviceUSM(Ptr)) {
+    return Ptr - 0x5000'0000'0000ULL;
   }
+  // host/shared USM
+  return (Ptr & 0xff'ffff'ffffULL) + ((Ptr & 0x8000'0000'0000ULL) >> 7) +
+         ShadowBegin;
+}
+
+uptr MsanShadowMemoryPVC::MemToOrigin(uptr Ptr) {
+  uptr AlignedPtr = Ptr & ~3ULL;
+  if (MsanShadowMemoryPVC::isDeviceUSM(AlignedPtr)) {
+    return AlignedPtr - 0xA000'0000'0000ULL;
+  }
+  // host/shared USM
+  return (AlignedPtr & 0xff'ffff'ffffULL) +
+         ((AlignedPtr & 0x8000'0000'0000ULL) >> 7) + ShadowBegin +
+         0x0200'0000'0000ULL;
 }
 
 uptr MsanShadowMemoryDG2::MemToShadow(uptr Ptr) {
-  assert(MsanShadowMemoryDG2::IsDeviceUSM(Ptr) && "Ptr must be device USM");
+  assert(MsanShadowMemoryDG2::isDeviceUSM(Ptr) && "Ptr must be device USM");
+  if (Ptr < ShadowBegin) {
+    return Ptr + (ShadowBegin - 0xffff'8000'0000'0000ULL);
+  } else {
+    return Ptr - (0xffff'ffff'ffff'ffffULL - ShadowEnd + 1);
+  }
+}
+
+uptr MsanShadowMemoryDG2::MemToOrigin(uptr Ptr) {
+  assert(MsanShadowMemoryDG2::isDeviceUSM(Ptr) && "Ptr must be device USM");
   if (Ptr < ShadowBegin) {
     return Ptr + (ShadowBegin - 0xffff'8000'0000'0000ULL);
   } else {
