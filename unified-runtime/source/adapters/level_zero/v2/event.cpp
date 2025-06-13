@@ -192,6 +192,12 @@ ur_event_handle_t_::getEventEndTimestampAndHandle() {
 
 ur_queue_t_ *ur_event_handle_t_::getQueue() const { return hQueue; }
 
+ur_queue_handle_t ur_event_handle_t_::getURQueueHandle() const {
+  auto urHandle = reinterpret_cast<uintptr_t>(getQueue()) -
+                  ur_queue_handle_t_::queue_offset;
+  return reinterpret_cast<ur_queue_handle_t>(urHandle);
+}
+
 ur_context_handle_t ur_event_handle_t_::getContext() const { return hContext; }
 
 ur_command_t ur_event_handle_t_::getCommandType() const { return commandType; }
@@ -261,9 +267,7 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
     return returnValue(hEvent->RefCount.load());
   }
   case UR_EVENT_INFO_COMMAND_QUEUE: {
-    auto urQueueHandle = reinterpret_cast<uintptr_t>(hEvent->getQueue()) -
-                         ur_queue_handle_t_::queue_offset;
-    return returnValue(urQueueHandle);
+    return returnValue(hEvent->getURQueueHandle());
   }
   case UR_EVENT_INFO_CONTEXT: {
     return returnValue(hEvent->getContext());

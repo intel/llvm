@@ -199,4 +199,27 @@ TEST_P(urEventGetInfoTest, InvalidNullPointerPropSizeRet) {
       UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
+TEST_P(urEventGetInfoTest, GetQueueAfterQueueRelease) {
+  ASSERT_SUCCESS(urQueueFinish(queue));
+  ASSERT_SUCCESS(urQueueRelease(queue));
+  queue = nullptr;
+
+  const ur_event_info_t property_name = UR_EVENT_INFO_COMMAND_QUEUE;
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urEventGetInfo(event, property_name, 0, nullptr, nullptr), property_name);
+
+  ur_queue_handle_t queue_from_event = nullptr;
+  ASSERT_SUCCESS(urEventGetInfo(event, property_name, sizeof(ur_queue_handle_t),
+                                &queue_from_event, nullptr));
+
+  bool empty = false;
+  ASSERT_SUCCESS(urQueueGetInfo(queue_from_event, UR_QUEUE_INFO_EMPTY,
+                                sizeof(ur_bool_t), &empty, nullptr));
+
+  uint32_t queueRef = 0;
+  ASSERT_SUCCESS(urQueueGetInfo(queue_from_event, UR_QUEUE_INFO_REFERENCE_COUNT,
+                                sizeof(queueRef), &queueRef, nullptr));
+  ASSERT_EQ(queueRef, 1);
+}
+
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventGetInfoTest);

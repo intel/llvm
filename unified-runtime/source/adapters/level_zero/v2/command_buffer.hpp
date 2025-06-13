@@ -18,7 +18,25 @@
 #include "queue_api.hpp"
 #include <unordered_set>
 #include <ze_api.h>
+
 struct kernel_command_handle;
+
+struct ur_execution_event_handle_t {
+  ur_execution_event_handle_t(ur_event_handle_t event) : hEvent(event) {}
+
+  ur_execution_event_handle_t(const ur_execution_event_handle_t &) = delete;
+  ur_execution_event_handle_t &
+  operator=(const ur_execution_event_handle_t &) = delete;
+
+  ur_result_t assign(ur_event_handle_t hNewEvent);
+  ur_event_handle_t get();
+  ur_result_t release();
+
+  ~ur_execution_event_handle_t();
+
+private:
+  ur_event_handle_t hEvent;
+};
 
 struct ur_exp_command_buffer_handle_t_ : public ur_object {
   ur_exp_command_buffer_handle_t_(
@@ -31,15 +49,6 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   ur_event_handle_t getExecutionEventUnlocked();
   ur_result_t
   registerExecutionEventUnlocked(ur_event_handle_t nextExecutionEvent);
-
-  // Indicates if command-buffer commands can be updated after it is closed.
-  const bool isUpdatable = false;
-  const bool isInOrder = true;
-
-  // Command-buffer profiling is enabled.
-  const bool isProfilingEnabled = false;
-
-  lockable<ur_command_list_manager> commandListManager;
 
   ur_result_t finalizeCommandBuffer();
 
@@ -63,6 +72,8 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   createEventIfRequested(ur_exp_command_buffer_sync_point_t *retSyncPoint);
 
 private:
+  v2::raii::cache_borrowed_event_pool eventPool;
+
   // Stores all sync points that are created by the command buffer.
   std::vector<ur_event_handle_t> syncPoints;
 
@@ -79,7 +90,15 @@ private:
   // Indicates if command-buffer was finalized.
   bool isFinalized = false;
 
-  ur_event_handle_t currentExecution = nullptr;
+  ur_execution_event_handle_t currentExecution;
 
-  v2::raii::cache_borrowed_event_pool eventPool;
+public:
+  // Indicates if command-buffer commands can be updated after it is closed.
+  const bool isUpdatable = false;
+  const bool isInOrder = true;
+
+  // Command-buffer profiling is enabled.
+  const bool isProfilingEnabled = false;
+
+  lockable<ur_command_list_manager> commandListManager;
 };
