@@ -62,24 +62,6 @@ template <typename T> struct is_backend_info_desc : std::false_type {};
 #include <sycl/info/event_profiling_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-template <typename Param> struct IsSubGroupInfo : std::false_type {};
-template <>
-struct IsSubGroupInfo<info::kernel_device_specific::max_num_sub_groups>
-    : std::true_type {};
-template <>
-struct IsSubGroupInfo<info::kernel_device_specific::compile_num_sub_groups>
-    : std::true_type {};
-template <>
-struct IsSubGroupInfo<info::kernel_device_specific::max_sub_group_size>
-    : std::true_type {};
-template <>
-struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
-    : std::true_type {};
-template <typename Param> struct IsKernelInfo : std::false_type {};
-template <>
-struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
-    : std::true_type {};
-
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   template <>                                                                  \
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \

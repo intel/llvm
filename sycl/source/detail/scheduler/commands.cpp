@@ -570,7 +570,8 @@ Command::Command(
     ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints)
     : MQueue(std::move(Queue)),
-      MEvent(std::make_shared<detail::event_impl>(MQueue)),
+      MEvent(MQueue ? detail::event_impl::create_device_event(*MQueue)
+                    : detail::event_impl::create_incomplete_host_event()),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
       MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
@@ -1298,9 +1299,11 @@ ur_result_t ReleaseCommand::enqueueImp() {
                                     ? MAllocaCmd->MLinkedAllocaCmd->getQueue()
                                     : MAllocaCmd->getQueue();
 
-    EventImplPtr UnmapEventImpl(new event_impl(Queue));
-    UnmapEventImpl->setContextImpl(Queue ? Queue->getContextImplPtr()
-                                         : nullptr);
+    assert(Queue);
+
+    std::shared_ptr<event_impl> UnmapEventImpl =
+        event_impl::create_device_event(*Queue);
+    UnmapEventImpl->setContextImpl(Queue->getContextImplPtr());
     UnmapEventImpl->setStateIncomplete();
     ur_event_handle_t UREvent = nullptr;
 

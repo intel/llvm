@@ -164,8 +164,8 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
   B.MIsBlockable = true;
   B.MRetVal = UR_RESULT_SUCCESS;
 
-  sycl::detail::EventImplPtr DepEvent{
-      new sycl::detail::event_impl(detail::getSyclObjImpl(Q))};
+  std::shared_ptr<sycl::detail::event_impl> DepEvent =
+      sycl::detail::event_impl::create_device_event(*detail::getSyclObjImpl(Q));
   DepEvent->setCommand(&B);
 
   std::vector<detail::Command *> ToCleanUp;

@@ -225,7 +225,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
         Dev, InteropCtxPtr, async_handler{}, property_list{});
 
     MemObject->MRecord.reset(
-        new MemObjRecord{InteropCtxPtr, LeafLimit, AllocateDependency});
+        new MemObjRecord{InteropCtxPtr.get(), LeafLimit, AllocateDependency});
     std::vector<Command *> ToEnqueue;
     getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr,
                             ToEnqueue);
@@ -233,8 +233,8 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
                                 "shouldn't lead to any enqueuing (no linked "
                                 "alloca or exceeding the leaf limit).");
   } else
-    MemObject->MRecord.reset(new MemObjRecord{queue_impl::getContext(Queue),
-                                              LeafLimit, AllocateDependency});
+    MemObject->MRecord.reset(new MemObjRecord{
+        queue_impl::getContext(Queue).get(), LeafLimit, AllocateDependency});
 
   MMemObjs.push_back(MemObject);
   return MemObject->MRecord.get();

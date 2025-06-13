@@ -149,7 +149,8 @@ TEST_F(SchedulerTest, QueueFlushing) {
     resetTestCtx();
     detail::MapMemObject Cmd = {&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
                                 access::mode::read_write};
-    detail::EventImplPtr DepEvent{new detail::event_impl(QueueImplB)};
+    std::shared_ptr<detail::event_impl> DepEvent =
+        detail::event_impl::create_device_event(*QueueImplB);
     DepEvent->setContextImpl(QueueImplB->getContextImplPtr());
 
     ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
@@ -165,12 +166,12 @@ TEST_F(SchedulerTest, QueueFlushing) {
     resetTestCtx();
     detail::MapMemObject Cmd = {&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
                                 access::mode::read_write};
-    detail::EventImplPtr DepEvent;
+    std::shared_ptr<detail::event_impl> DepEvent;
     {
       queue TempQueue{Ctx, default_selector_v};
-      detail::QueueImplPtr TempQueueImpl = detail::getSyclObjImpl(TempQueue);
-      DepEvent.reset(new detail::event_impl(TempQueueImpl));
-      DepEvent->setContextImpl(TempQueueImpl->getContextImplPtr());
+      detail::queue_impl &TempQueueImpl = *detail::getSyclObjImpl(TempQueue);
+      DepEvent = detail::event_impl::create_device_event(TempQueueImpl);
+      DepEvent->setContextImpl(TempQueueImpl.getContextImplPtr());
 
       ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 

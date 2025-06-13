@@ -349,6 +349,16 @@ public:
       KernelFunc(item);
     }
   }
+
+  // Copy the properties_tag getter from the original kernel to propagate
+  // property(s)
+  template <
+      typename T = KernelType,
+      typename = std::enable_if_t<ext::oneapi::experimental::detail::
+                                      HasKernelPropertiesGetMethod<T>::value>>
+  auto get(ext::oneapi::experimental::properties_tag) const {
+    return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
+  }
 };
 
 template <typename TransformedArgType, int Dims, typename KernelType>
@@ -363,6 +373,16 @@ public:
       auto item = Gen.template getItem<KernelType>();
       KernelFunc(item, KH);
     }
+  }
+
+  // Copy the properties_tag getter from the original kernel to propagate
+  // property(s)
+  template <
+      typename T = KernelType,
+      typename = std::enable_if_t<ext::oneapi::experimental::detail::
+                                      HasKernelPropertiesGetMethod<T>::value>>
+  auto get(ext::oneapi::experimental::properties_tag) const {
+    return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
   }
 };
 

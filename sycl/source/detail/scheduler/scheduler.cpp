@@ -678,7 +678,7 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
   return NewCmdEvent;
 }
 
-bool Scheduler::CheckEventReadiness(const ContextImplPtr &Context,
+bool Scheduler::CheckEventReadiness(context_impl &Context,
                                     const EventImplPtr &SyclEventImplPtr) {
   // Events that don't have an initialized context are throwaway events that
   // don't represent actual dependencies. Calling getContextImpl() would set
@@ -691,7 +691,7 @@ bool Scheduler::CheckEventReadiness(const ContextImplPtr &Context,
     return SyclEventImplPtr->isCompleted();
   }
   // Cross-context dependencies can't be passed to the backend directly.
-  if (SyclEventImplPtr->getContextImpl() != Context)
+  if (SyclEventImplPtr->getContextImpl().get() != &Context)
     return false;
 
   // A nullptr here means that the commmand does not produce a UR event or it
@@ -700,7 +700,7 @@ bool Scheduler::CheckEventReadiness(const ContextImplPtr &Context,
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<sycl::event> &DepEvents, const ContextImplPtr &Context) {
+    const std::vector<sycl::event> &DepEvents, context_impl &Context) {
 
   return std::all_of(
       DepEvents.begin(), DepEvents.end(), [&Context](const sycl::event &Event) {
@@ -710,7 +710,7 @@ bool Scheduler::areEventsSafeForSchedulerBypass(
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<EventImplPtr> &DepEvents, const ContextImplPtr &Context) {
+    const std::vector<EventImplPtr> &DepEvents, context_impl &Context) {
 
   return std::all_of(DepEvents.begin(), DepEvents.end(),
                      [&Context](const EventImplPtr &SyclEventImplPtr) {
