@@ -342,7 +342,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 
   // If there was no last event, we create an empty one.
   return detail::createSyclObjFromImpl<event>(
-      std::make_shared<detail::event_impl>(std::nullopt));
+      detail::event_impl::create_default_event());
 }
 
 /// Prevents any commands submitted afterward to this queue from executing

@@ -691,7 +691,7 @@ ProgramManager::collectDeviceImageDeps(const RTDeviceBinaryImage &Img,
 
 static inline void
 CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
-#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+#ifdef SYCL_RT_ZSTD_AVAILABLE
   if (auto CompImg = dynamic_cast<CompressedRTDeviceBinaryImage *>(Img))
     if (CompImg->IsCompressed())
       CompImg->Decompress();
@@ -1945,7 +1945,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
 
   std::unique_ptr<RTDeviceBinaryImage> Img;
   if (IsDeviceImageCompressed) {
-#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+#ifdef SYCL_RT_ZSTD_AVAILABLE
     Img = std::make_unique<CompressedRTDeviceBinaryImage>(RawImg);
 #else
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),

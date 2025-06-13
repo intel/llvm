@@ -90,7 +90,8 @@ public:
 protected:
   std::shared_ptr<detail::memory_pool_impl> impl;
 
-  memory_pool(std::shared_ptr<detail::memory_pool_impl> Impl) : impl(Impl) {}
+  memory_pool(std::shared_ptr<detail::memory_pool_impl> Impl)
+      : impl(std::move(Impl)) {}
 
   template <class Obj>
   friend const decltype(Obj::impl) &

@@ -22,6 +22,25 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+template <typename Param> struct IsSubGroupInfo : std::false_type {};
+template <>
+struct IsSubGroupInfo<info::kernel_device_specific::max_num_sub_groups>
+    : std::true_type {};
+template <>
+struct IsSubGroupInfo<info::kernel_device_specific::compile_num_sub_groups>
+    : std::true_type {};
+template <>
+struct IsSubGroupInfo<info::kernel_device_specific::max_sub_group_size>
+    : std::true_type {};
+template <>
+struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
+    : std::true_type {};
+
+template <typename Param> struct IsKernelInfo : std::false_type {};
+template <>
+struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
+    : std::true_type {};
+
 template <typename Param>
 typename std::enable_if<
     std::is_same<typename Param::return_type, std::string>::value,
