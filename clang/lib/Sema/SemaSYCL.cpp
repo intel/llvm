@@ -5879,11 +5879,12 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
 
 void SemaSYCL::ProcessFreeFunctionForwardDeclaration(FunctionDecl *FD) {
   // This is a forward declaration for a free function kernel.
-  // At this point in time, we have all the information needed to generate the
-  // Integration Header so do it. More specifically, add the KernelDesc
-  // corresponding to this decl to the header. In case we see a definition
-  // later, this KernelDesc is removed in favor of the declaration that is an
-  // actual definition which is done in ProcessFreeFunctionDefinition.
+  // At this point in time, we have all the information needed by the
+  // Integration Header for this kernel so do it. More specifically, add the
+  // KernelDesc corresponding to this decl to the header. In case we see a
+  // definition later, this KernelDesc is removed in favor of the declaration
+  // that is an actual definition which is done in
+  // ProcessFreeFunctionDefinition.
   if (isFreeFunction(FD)) {
     if (CheckFreeFunctionDiagnostics(SemaRef, FD))
       return;
