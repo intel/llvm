@@ -69,9 +69,17 @@ ur_result_t urQueueCreate(ur_context_handle_t hContext,
 
   auto zeIndex = v2::getZeIndex(pProperties);
 
-  *phQueue = ur_queue_handle_t_::create<v2::ur_queue_immediate_in_order_t>(
-      hContext, hDevice, v2::getZeOrdinal(hDevice), v2::getZePriority(flags),
-      zeIndex, v2::eventFlagsFromQueueFlags(flags), flags);
+  if ((flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) != 0) {
+    *phQueue =
+        ur_queue_handle_t_::create<v2::ur_queue_immediate_out_of_order_t>(
+            hContext, hDevice, v2::getZeOrdinal(hDevice),
+            v2::getZePriority(flags), zeIndex,
+            v2::eventFlagsFromQueueFlags(flags), flags);
+  } else {
+    *phQueue = ur_queue_handle_t_::create<v2::ur_queue_immediate_in_order_t>(
+        hContext, hDevice, v2::getZeOrdinal(hDevice), v2::getZePriority(flags),
+        zeIndex, v2::eventFlagsFromQueueFlags(flags), flags);
+  }
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
