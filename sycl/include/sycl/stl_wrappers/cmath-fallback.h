@@ -36,6 +36,7 @@ __DPCPP_SYCL_DEVICE float fabs(float x) { return x < 0 ? -x : x; }
 __DPCPP_SYCL_DEVICE_C float fabsf(float x) { return x < 0 ? -x : x; }
 __DPCPP_SYCL_DEVICE double fabs(double x) { return x < 0 ? -x : x; }
 
+__DPCPP_SPIRV_MAP_BINARY(copysign);
 __DPCPP_SPIRV_MAP_UNARY(acos);
 __DPCPP_SPIRV_MAP_UNARY(acosh);
 __DPCPP_SPIRV_MAP_UNARY(asin);
@@ -163,6 +164,21 @@ __DPCPP_SYCL_DEVICE lldiv_t ldiv(long long x, long long y) {
   return {x / y, x % y};
 }
 
+#if defined(__NVPTX__)
+extern "C" SYCL_EXTERNAL float __nv_nearbyintf(float);
+extern "C" SYCL_EXTERNAL double __nv_nearbyint(double);
+__DPCPP_SYCL_DEVICE_C float nearbyintf(float x) { return __nv_nearbyintf(x); }
+__DPCPP_SYCL_DEVICE float nearbyint(float x) { return __nv_nearbyintf(x); }
+__DPCPP_SYCL_DEVICE double nearbyint(double x) { return __nv_nearbyintf(x); }
+#elif defined(__AMDGCN__)
+extern "C" SYCL_EXTERNAL float __ocml_nearbyint_f32(float);
+extern "C" SYCL_EXTERNAL double __ocml_nearbyint_f64(double);
+__DPCPP_SYCL_DEVICE_C float nearbyintf(float x) { return __ocml_nearbyint_f32(x); }
+__DPCPP_SYCL_DEVICE float nearbyint(float x) { return __ocml_nearbyint_f32(x); }
+__DPCPP_SYCL_DEVICE double nearbyint(double x) { return __ocml_nearbyint_f64(x); }
+#endif
+
+
 #ifdef _LIBCPP_BEGIN_NAMESPACE_STD
 _LIBCPP_BEGIN_NAMESPACE_STD
 #else
@@ -170,6 +186,11 @@ namespace std {
 #ifdef _GLIBCXX_BEGIN_NAMESPACE_VERSION
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
+#endif
+
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+using ::nearbyint;
+using ::nearbyintf;
 #endif
 
 using ::abs;
@@ -196,7 +217,8 @@ using ::labs;
 using ::ldiv;
 using ::llabs;
 using ::lldiv;
-// using ::copysign;
+using ::copysign;
+using ::copysignf;
 using ::cos;
 using ::cosf;
 using ::cosh;
@@ -225,7 +247,9 @@ using ::fmodf;
 // using ::fpclassify;
 using ::frexp;
 using ::hypot;
+using ::hypotf;
 using ::ilogb;
+using ::ilogbf;
 // using ::isfinite;
 // using ::isgreater;
 // using ::isgreaterequal;
@@ -238,11 +262,13 @@ using ::ilogb;
 // using ::isunordered;
 // using ::labs;
 using ::ldexp;
+using ::ldexpf;
 using ::lgamma;
 using ::lgammaf;
 // using ::llabs;
 // using ::llrint;
 using ::log;
+using ::logf;
 using ::log10;
 using ::log10f;
 using ::log1p;
@@ -251,7 +277,6 @@ using ::log2;
 using ::log2f;
 using ::logb;
 using ::logbf;
-using ::logf;
 // using ::lrint;
 // using ::lround;
 // using ::llround;
