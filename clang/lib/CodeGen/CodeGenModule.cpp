@@ -4320,6 +4320,12 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
     }
   }
 
+  // Don't emit 'sycl_device_only' function in SYCL host compilation.
+  if (LangOpts.SYCLIsHost && isa<FunctionDecl>(Global) &&
+      Global->hasAttr<SYCLDeviceOnlyAttr>()) {
+    return;
+  }
+
   if (LangOpts.OpenMP) {
     // If this is OpenMP, check if it is legal to emit this global normally.
     if (OpenMPRuntime && OpenMPRuntime->emitTargetGlobal(GD))
@@ -4405,6 +4411,43 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
           ASTContext::InlineVariableDefinitionKind::Strong)
         GetAddrOfGlobalVar(VD);
       return;
+    }
+  }
+
+  // When using SYCLDeviceOnlyAttr, there can be two functions with the same
+  // mangling, the host function and the device overload. So when compiling for
+  // device we need to make sure we're selecting the SYCLDeviceOnlyAttr
+  // overload and dropping the host overload.
+  if (LangOpts.SYCLIsDevice) {
+    StringRef MangledName = getMangledName(GD);
+    auto DDI = DeferredDecls.find(MangledName);
+    // If we have an existing declaration with the same mangling for this
+    // symbol it may be a SYCLDeviceOnlyAttr case.
+    if (DDI != DeferredDecls.end()) {
+      auto *PreviousGlobal =
+          cast<ValueDecl>(DeferredDecls[MangledName].getDecl());
+
+      if (!PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
+          Global->hasAttr<SYCLDeviceOnlyAttr>() &&
+          Global->hasAttr<SYCLDeviceAttr>()) {
+        // If the host declaration was already processed and the device only
+        // declaration is also a sycl external declaration, remove the host
+        // variant and skip. The device only variant will be generated later
+        // as it's marked sycl external.
+        DeferredDecls.erase(DDI);
+        return;
+      } else if (!PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
+                 Global->hasAttr<SYCLDeviceOnlyAttr>()) {
+        // If the host declaration was already processed, replace it with the
+        // device only declaration.
+        DeferredDecls[MangledName] = GD;
+        return;
+      } else if (PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
+                 !Global->hasAttr<SYCLDeviceOnlyAttr>()) {
+        // If the device only declaration was already processed, skip the
+        // host declaration.
+        return;
+      }
     }
   }
 

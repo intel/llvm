@@ -1590,6 +1590,13 @@ def SYCLDevice : InheritableAttr {
   let Documentation = [SYCLDeviceDocs];
 }
 
+def SYCLDeviceOnly : InheritableAttr {
+  let Spellings = [GNU<"sycl_device_only">];
+  let Subjects = SubjectList<[Function]>;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Documentation = [SYCLDeviceOnlyDocs];
+}
+
 def SYCLGlobalVar : InheritableAttr {
   let Spellings = [GNU<"sycl_global_var">];
   let Subjects = SubjectList<[GlobalStorageNonLocalVar], ErrorDiag>;
