@@ -15,6 +15,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
@@ -31,11 +32,12 @@ using namespace llvm::module_split;
 
 namespace {
 
-ModulePassManager buildESIMDLoweringPipeline(bool Optimize, bool SplitESIMD) {
+ModulePassManager
+buildESIMDLoweringPipeline(const sycl::ESIMDProcessingOptions &Options) {
   ModulePassManager MPM;
-  MPM.addPass(SYCLLowerESIMDPass(!SplitESIMD));
+  MPM.addPass(SYCLLowerESIMDPass(!Options.SplitESIMD));
 
-  if (Optimize) {
+  if (Options.OptLevel != 0) {
     FunctionPassManager FPM;
     FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
@@ -44,7 +46,7 @@ ModulePassManager buildESIMDLoweringPipeline(bool Optimize, bool SplitESIMD) {
   FunctionPassManager MainFPM;
   MainFPM.addPass(ESIMDLowerLoadStorePass{});
 
-  if (Optimize) {
+  if (Options.OptLevel != 0) {
     MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MainFPM.addPass(EarlyCSEPass(true));
     MainFPM.addPass(InstCombinePass{});
@@ -69,7 +71,8 @@ Expected<ModuleDesc> linkModules(ModuleDesc MD1, ModuleDesc MD2) {
       llvm::Linker::linkModules(MD1.getModule(), MD2.releaseModulePtr());
 
   if (LinkError)
-    return createStringError("Linking of modules failed.");
+    return createStringError(
+        formatv("link failed. Module names: {0}, {1}", MD1.Name, MD2.Name));
 
   ModuleDesc Res(MD1.releaseModulePtr(), std::move(Names));
   Res.assignMergedProperties(MD1, MD2);
@@ -81,8 +84,8 @@ Expected<ModuleDesc> linkModules(ModuleDesc MD1, ModuleDesc MD2) {
 
 // When ESIMD code was separated from the regular SYCL code,
 // we can safely process ESIMD part.
-bool sycl::lowerESIMDConstructs(ModuleDesc &MD, bool Optimize,
-                                bool SplitESIMD) {
+bool sycl::lowerESIMDConstructs(ModuleDesc &MD,
+                                const sycl::ESIMDProcessingOptions &Options) {
   // TODO: support options like -debug-pass, -print-[before|after], and others
   LoopAnalysisManager LAM;
   CGSCCAnalysisManager CGAM;
@@ -98,7 +101,7 @@ bool sycl::lowerESIMDConstructs(ModuleDesc &MD, bool Optimize,
 
   std::vector<std::string> Names;
   MD.saveEntryPointNames(Names);
-  ModulePassManager MPM = buildESIMDLoweringPipeline(Optimize, SplitESIMD);
+  ModulePassManager MPM = buildESIMDLoweringPipeline(Options);
   PreservedAnalyses Res = MPM.run(MD.getModule(), MAM);
 
   // GenXSPIRVWriterAdaptor pass replaced some functions with "rewritten"
@@ -107,40 +110,41 @@ bool sycl::lowerESIMDConstructs(ModuleDesc &MD, bool Optimize,
   return !Res.areAllPreserved();
 }
 
-Expected<SmallVector<ModuleDesc, 2>> llvm::sycl::handleESIMD(
-    ModuleDesc MDesc, IRSplitMode SplitMode, bool EmitOnlyKernelsAsEntryPoints,
-    bool AllowDeviceImageDependencies, bool LowerESIMD, bool SplitESIMD,
-    bool OptimizeESIMDModule, bool &Modified, bool &SplitOccurred) {
+Expected<SmallVector<ModuleDesc, 2>>
+llvm::sycl::handleESIMD(ModuleDesc MDesc,
+                        const sycl::ESIMDProcessingOptions &Options,
+                        bool &Modified, bool &SplitOccurred) {
   SmallVector<ModuleDesc, 2> Result =
-      splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
-                   AllowDeviceImageDependencies);
+      splitByESIMD(std::move(MDesc), Options.EmitOnlyKernelsAsEntryPoints,
+                   Options.AllowDeviceImageDependencies);
 
   assert(Result.size() <= 2 &&
          "Split modules aren't expected to be more than 2.");
   if (Result.size() == 2 && SplitOccurred &&
-      SplitMode == module_split::SPLIT_PER_KERNEL && !SplitESIMD)
+      Options.SplitMode == module_split::SPLIT_PER_KERNEL &&
+      !Options.SplitESIMD)
     return createStringError("SYCL and ESIMD entry points detected with "
                              "-split-mode=per-kernel and -split-esimd=false. "
                              "So -split-esimd=true is mandatory.");
 
   SplitOccurred |= Result.size() > 1;
 
-  for (auto &MD : Result) {
+  for (ModuleDesc &MD : Result) {
 #ifdef LLVM_ENABLE_DUMP
     dumpEntryPoints(MD.entries(), MD.Name.c_str(), 4);
 #endif // LLVM_ENABLE_DUMP
-    if (LowerESIMD && MD.isESIMD())
-      Modified |= lowerESIMDConstructs(MD, OptimizeESIMDModule, SplitESIMD);
+    if (Options.LowerESIMD && MD.isESIMD())
+      Modified |= lowerESIMDConstructs(MD, Options);
   }
 
-  if (SplitESIMD || Result.size() == 1)
+  if (Options.SplitESIMD || Result.size() == 1)
     return Result;
 
   // SYCL/ESIMD splitting is not requested, link back into single module.
   int ESIMDInd = Result[0].isESIMD() ? 0 : 1;
   int SYCLInd = 1 - ESIMDInd;
   assert(Result[SYCLInd].isSYCL() &&
-         "no non-ESIMD module as a result ESIMD split?");
+         "Result[SYCLInd].isSYCL() expected to be true.");
 
   // Make sure that no link conflicts occur.
   Result[ESIMDInd].renameDuplicatesOf(Result[SYCLInd].getModule(), ".esimd");
@@ -152,8 +156,8 @@ Expected<SmallVector<ModuleDesc, 2>> llvm::sycl::handleESIMD(
   Linked.restoreLinkageOfDirectInvokeSimdTargets();
   std::vector<std::string> Names;
   Linked.saveEntryPointNames(Names);
-  // cleanup may remove some entry points, need to save/rebuild
-  Linked.cleanup(AllowDeviceImageDependencies);
+  // Cleanup may remove some entry points, need to save/rebuild
+  Linked.cleanup(Options.AllowDeviceImageDependencies);
   Linked.rebuildEntryPoints(Names);
   Result.clear();
   Result.emplace_back(std::move(Linked));

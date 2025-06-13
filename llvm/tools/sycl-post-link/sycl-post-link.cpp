@@ -254,6 +254,19 @@ struct IrPropSymFilenameTriple {
   std::string Sym;
 };
 
+unsigned getOptLevel() {
+  if (OptLevelO3)
+    return 3;
+  if (OptLevelO2 || OptLevelOs || OptLevelOz)
+    return 2;
+  if (OptLevelO1)
+    return 1;
+  if (OptLevelO0)
+    return 0;
+
+  return 2; // default value
+}
+
 void writeToFile(const std::string &Filename, const std::string &Content) {
   std::error_code EC;
   raw_fd_ostream OS{Filename, EC, sys::fs::OpenFlags::OF_None};
@@ -611,10 +624,14 @@ processInputModule(std::unique_ptr<Module> M) {
 
     MDesc.fixupLinkageOfDirectInvokeSimdTargets();
 
+    ESIMDProcessingOptions Options = {SplitMode,
+                                      EmitOnlyKernelsAsEntryPoints,
+                                      AllowDeviceImageDependencies,
+                                      LowerEsimd,
+                                      SplitEsimd,
+                                      getOptLevel()};
     auto ModulesOrErr =
-        handleESIMD(std::move(MDesc), SplitMode, EmitOnlyKernelsAsEntryPoints,
-                    AllowDeviceImageDependencies, LowerEsimd, SplitEsimd,
-                    OptLevelO0, Modified, SplitOccurred);
+        handleESIMD(std::move(MDesc), Options, Modified, SplitOccurred);
     CHECK_AND_EXIT(ModulesOrErr.takeError());
     SmallVector<module_split::ModuleDesc, 2> &MMs = *ModulesOrErr;
     assert(MMs.size() && "at least one module is expected after ESIMD split");

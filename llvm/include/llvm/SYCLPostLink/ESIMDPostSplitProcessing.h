@@ -17,36 +17,43 @@
 namespace llvm {
 namespace sycl {
 
+struct ESIMDProcessingOptions {
+  llvm::module_split::IRSplitMode SplitMode =
+      llvm::module_split::IRSplitMode::SPLIT_NONE;
+  bool EmitOnlyKernelsAsEntryPoints = false;
+  bool AllowDeviceImageDependencies = false;
+  bool LowerESIMD = false;
+  bool SplitESIMD = false;
+  unsigned OptLevel = 0;
+};
+
 /// Lowers ESIMD constructs after separation from regular SYCL code.
-/// \p Optimize tells whether optimizations are allowed.
-/// \p SplitESIMD identifies that ESIMD splitting is requested in the
+/// \p Options.SplitESIMD identifies that ESIMD splitting is requested in the
 /// compilation. Returns true if the given \p MD has been modified.
-bool lowerESIMDConstructs(llvm::module_split::ModuleDesc &MD, bool Optimize,
-                          bool SplitESIMD);
+bool lowerESIMDConstructs(llvm::module_split::ModuleDesc &MD,
+                          const ESIMDProcessingOptions &Options);
 
 /// Performs ESIMD processing that happens in the following steps:
 ///  1) Separate ESIMD Module from SYCL code.
-///     \p EmitOnlyKernelsAsEntryPoints and \p AllowDeviceImageDependencies are
-///     being passed into splitting.
-///  2) If \p LowerESIMD is true then ESIMD lowering pipeline is applied to the
-///  ESIMD Module.
-///     If \p OptimizeESIMD is true then ESIMD Module is being optimized after
-///     the lowering.
-///  3.1) If \p SplitESIMD is true then both ESIMD and non-ESIMD modules are
-///  returned.
+///     \p Options.EmitOnlyKernelsAsEntryPoints and
+///     \p Options.AllowDeviceImageDependencies are being used in the splitting.
+///  2) If \p Options.LowerESIMD is true then ESIMD lowering pipeline is applied
+///  to the ESIMD Module.
+///     If \p Options.OptLevel is not O0 then ESIMD Module is being optimized
+///     after the lowering.
+///  3.1) If \p Options.SplitESIMD is true then both ESIMD and non-ESIMD modules
+///  are returned.
 ///  3.2) Otherwise, two Modules are being linked into one Module which is
-///  returned. After the linking graphs become disjoint because functions
-///  shared between graphs are cloned and renamed.
+///     returned. After the linking graphs become disjoint because functions
+///     shared between graphs are cloned and renamed.
 ///
 /// \p Modified value indicates whether the Module has been modified.
-/// \p SplitOccured value indicates whether split has occured before or during
+/// \p SplitOccurred value indicates whether split has occurred before or during
 /// function's invocation.
 Expected<SmallVector<module_split::ModuleDesc, 2>>
 handleESIMD(llvm::module_split::ModuleDesc MDesc,
-            llvm::module_split::IRSplitMode SplitMode,
-            bool EmitOnlyKernelsAsEntryPoints,
-            bool AllowDeviceImageDependencies, bool LowerESIMD, bool SplitESIMD,
-            bool OptimizeESIMDModule, bool &Modified, bool &SplitOccurred);
+            const ESIMDProcessingOptions &Options, bool &Modified,
+            bool &SplitOccurred);
 
 } // namespace sycl
 } // namespace llvm
