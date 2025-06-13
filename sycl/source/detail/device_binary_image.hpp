@@ -140,7 +140,7 @@ public:
 
 public:
   RTDeviceBinaryImage() : Bin(nullptr) {}
-  RTDeviceBinaryImage(sycl_device_binary Bin) { init(Bin); }
+  RTDeviceBinaryImage(sycl_device_binary Bin);
   // Explicitly delete copy constructor/operator= to avoid unintentional copies
   RTDeviceBinaryImage(const RTDeviceBinaryImage &) = delete;
   RTDeviceBinaryImage &operator=(const RTDeviceBinaryImage &) = delete;
@@ -247,8 +247,6 @@ public:
   }
 
 protected:
-  void init();
-  void init(sycl_device_binary Bin);
   sycl_device_binary get() const { return Bin; }
 
   sycl_device_binary Bin;
