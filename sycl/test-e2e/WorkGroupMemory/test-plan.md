@@ -145,4 +145,4 @@ in kernels defined as free functions.
 
 Basic usage test should be repeated with kernels defined as free functions.
 
-[spec-link]: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_work_group_memory.asciidoc
+[spec-link]: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_work_group_memory.rst
