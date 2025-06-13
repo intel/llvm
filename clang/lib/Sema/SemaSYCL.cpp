@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This implements Semantic Analysis for SYCL constructs.
 //===----------------------------------------------------------------------===//
-
+#include <iostream>
 #include "clang/Sema/SemaSYCL.h"
 #include "TreeTransform.h"
 #include "clang/AST/AST.h"
@@ -5517,61 +5517,35 @@ return false;
 
 void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
                                            StringRef NameStr) {
-  std::unique_ptr<MangleContext> MangleCtx(
-      getASTContext().createMangleContext());
-  std::string Name;
-  std::string MangledName;
-  std::tie(Name, MangledName) =
-      constructFreeFunctionKernelName(*this, FD, *MangleCtx);
-  StringRef KernelName = Name;
-  StringRef StableName = MangledName;
+  // In case the free function kernel has already been seen by way of a forward
+  // declaration, flush it out because a definition takes priority.
+  getSyclIntegrationHeader().removeFreeFunctionKernel(FD);
+
+  if (!checkAndAddRegisteredKernelName(*this, FD, NameStr))
+    return;
+
+  SyclKernelArgsSizeChecker argsSizeChecker(*this, FD->getLocation(),
+                                            false /*IsSIMDKernel*/);
+  SyclKernelDeclCreator kernel_decl(*this, FD->getLocation(), FD->isInlined(),
+                                    false /*IsSIMDKernel */, FD);
+
+  FreeFunctionKernelBodyCreator kernel_body(*this, kernel_decl, FD);
+
+  SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
+                                        FD->getType(), FD);
+
+  SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
   KernelObjVisitor Visitor{*this};
-  const bool seenDecl =
-      getSyclIntegrationHeader().KernelFirstDecl.count(MangledName);
-  FunctionDecl *KFirstDecl =
-      getSyclIntegrationHeader().KernelFirstDecl[MangledName];
-  FunctionDecl *PrimaryDecl = seenDecl ? KFirstDecl : FD;
-  if (FD->isThisDeclarationADefinition()) {
-    if (!checkAndAddRegisteredKernelName(*this, PrimaryDecl, NameStr))
-      return;
-    if (seenDecl)
-      FD->addAttr(SYCLKernelAttr::CreateImplicit(this->getASTContext()));
-    SyclKernelArgsSizeChecker argsSizeChecker(*this, PrimaryDecl->getLocation(),
-                                              false /*IsSIMDKernel*/);
-    SyclKernelDeclCreator kernel_decl(*this, PrimaryDecl->getLocation(),
-                                      PrimaryDecl->isInlined(),
-                                      false /*IsSIMDKernel */, PrimaryDecl);
 
-    FreeFunctionKernelBodyCreator kernel_body(*this, kernel_decl, PrimaryDecl);
+  Visitor.VisitFunctionParameters(FD, argsSizeChecker, kernel_decl, kernel_body,
+                                  int_header, int_footer);
 
-    SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
-
-    if (seenDecl)
-      Visitor.VisitFunctionParameters(PrimaryDecl, argsSizeChecker, kernel_decl,
-                                      kernel_body, int_footer);
-    else {
-      SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
-                                            PrimaryDecl->getType(),
-                                            PrimaryDecl);
-
-      Visitor.VisitFunctionParameters(PrimaryDecl, argsSizeChecker, kernel_decl,
-                                      kernel_body, int_header, int_footer);
-    }
-    assert(getKernelFDPairs().back().first == PrimaryDecl &&
-           "OpenCL Kernel not found for free function entry");
-    // Register the kernel name with the OpenCL kernel generated for the
-    // free function.
-    addRegisteredKernelName(*this, NameStr, getKernelFDPairs().back().second,
-                            PrimaryDecl->getLocation());
-  } else if (!seenDecl) {
-
-    SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
-                                          PrimaryDecl->getType(), PrimaryDecl);
-    getSyclIntegrationHeader().updateKernelNames(PrimaryDecl, KernelName,
-                                                 StableName);
-    Visitor.VisitFunctionParameters(PrimaryDecl, int_header);
-    getSyclIntegrationHeader().KernelFirstDecl[MangledName] = PrimaryDecl;
-  }
+  assert(getKernelFDPairs().back().first == FD &&
+         "OpenCL Kernel not found for free function entry");
+  // Register the kernel name with the OpenCL kernel generated for the
+  // free function.
+  addRegisteredKernelName(*this, NameStr, getKernelFDPairs().back().second,
+                          FD->getLocation());
 }
 
 // Figure out the sub-group for the this function.  First we check the
@@ -5875,11 +5849,32 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
   return false;
 }
 
-void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
+void SemaSYCL::ProcessFreeFunctionForwardDeclaration(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
     if (CheckFreeFunctionDiagnostics(SemaRef, FD))
       return;
-    SyclKernelDecompMarker DecompMarker(*this);
+    std::unique_ptr<MangleContext> MangleCtx(
+        getASTContext().createMangleContext());
+    std::string Name;
+    std::string MangledName;
+    std::tie(Name, MangledName) =
+        constructFreeFunctionKernelName(*this, FD, *MangleCtx);
+    StringRef KernelName = Name;
+    StringRef StableName = MangledName;
+    KernelObjVisitor Visitor{*this};
+    SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
+                                          FD->getType(), FD);    
+getSyclIntegrationHeader().updateKernelNames(FD, KernelName, StableName);
+    Visitor.VisitFunctionParameters(FD, int_header);
+//    FD->addAttr(SYCLKernelAttr::CreateImplicit(this->getASTContext()));
+  }
+}
+
+void SemaSYCL::ProcessFreeFunctionDefinition(FunctionDecl *FD) {
+  if (isFreeFunction(FD)) {
+    if (CheckFreeFunctionDiagnostics(SemaRef, FD))
+      return;
+SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
     SyclKernelUnionChecker UnionChecker(*this);
 
@@ -7161,6 +7156,19 @@ void SYCLIntegrationHeader::startKernel(const FunctionDecl *SyclKernel,
   KernelDescs.emplace_back(SyclKernel, KernelNameType, KernelLocation,
                            IsESIMDKernel, IsUnnamedKernel, ObjSize);
 }
+
+bool SYCLIntegrationHeader::isSameFreeFunctionKernel(const FunctionDecl *FD1, const FunctionDecl *FD2) const {
+    std::unique_ptr<MangleContext> MangleCtx(
+        S.getASTContext().createMangleContext());
+    std::string MangledName1;
+    std::string MangledName2;
+    std::tie(std::ignore, MangledName1) =
+        constructFreeFunctionKernelName(S, FD1, *MangleCtx);
+    std::tie(std::ignore, MangledName2) =
+        constructFreeFunctionKernelName(S, FD2, *MangleCtx);
+
+    return MangledName1 == MangledName2;
+  }
 
 void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
                                          unsigned Offset) {

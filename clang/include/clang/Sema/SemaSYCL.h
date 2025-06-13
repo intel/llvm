@@ -119,7 +119,17 @@ public:
   /// integration header is required.
   void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
 
-  std::map<std::string, FunctionDecl *> KernelFirstDecl;
+  /// Returns whether two FunctionDecls are declarations of the same free
+  /// function kernel
+  bool isSameFreeFunctionKernel(const FunctionDecl *FD1, const FunctionDecl *FD2) const;
+
+  /// Removes a free function kernel from KernelDescs.
+  void removeFreeFunctionKernel(FunctionDecl *FD) {
+    KernelDescs.erase(
+        llvm::remove_if(KernelDescs, [this, FD](const KernelDesc &Kernel) {
+          return isSameFreeFunctionKernel(Kernel.SyclKernel, FD);
+        }));
+  }
 
 private:
   // Kernel actual parameter descriptor.
@@ -360,7 +370,8 @@ public:
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void SetSYCLKernelNames();
   void MarkDevices();
-  void ProcessFreeFunction(FunctionDecl *FD);
+  void ProcessFreeFunctionForwardDeclaration(FunctionDecl *FD);
+  void ProcessFreeFunctionDefinition(FunctionDecl *FD);
 
   /// Get the number of fields or captures within the parsed type.
   ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);
