@@ -36,7 +36,7 @@ struct ur_kernel_handle_t_ : RefCounted {
   ur_kernel_handle_t_(const ur_kernel_handle_t_ &other)
       : Args(other.Args), hProgram(other.hProgram), _name(other._name),
         _subhandler(other._subhandler), _localArgInfo(other._localArgInfo),
-        ReqdWGSize(other.ReqdWGSize) {
+        ReqdWGSize(other.ReqdWGSize), NDRangeKernel(other.NDRangeKernel) {
     takeArgReferences(other);
   }
 
@@ -49,10 +49,11 @@ struct ur_kernel_handle_t_ : RefCounted {
                       nativecpu_task_t subhandler,
                       std::optional<native_cpu::WGSize_t> ReqdWGSize,
                       std::optional<native_cpu::WGSize_t> MaxWGSize,
-                      std::optional<uint64_t> MaxLinearWGSize)
+                      std::optional<uint64_t> MaxLinearWGSize,
+                      bool isNDRangeKernel)
       : hProgram(hProgram), _name{name}, _subhandler{std::move(subhandler)},
         ReqdWGSize(ReqdWGSize), MaxWGSize(MaxWGSize),
-        MaxLinearWGSize(MaxLinearWGSize) {}
+        MaxLinearWGSize(MaxLinearWGSize), NDRangeKernel(isNDRangeKernel) {}
 
   struct arguments {
     using args_index_t = std::vector<void *>;
@@ -197,6 +198,8 @@ struct ur_kernel_handle_t_ : RefCounted {
     ReferencedArgs.push_back(Arg);
   }
 
+  bool isNDRangeKernel() const { return NDRangeKernel; }
+  
 private:
   void removeArgReferences() {
     for (auto arg : ReferencedArgs)
@@ -207,11 +210,15 @@ private:
       addArgReference(arg);
   }
 
+
+
+
 private:
   char *_localMemPool = nullptr;
   size_t _localMemPoolSize = 0;
   std::optional<native_cpu::WGSize_t> ReqdWGSize = std::nullopt;
   std::optional<native_cpu::WGSize_t> MaxWGSize = std::nullopt;
   std::optional<uint64_t> MaxLinearWGSize = std::nullopt;
+  const bool NDRangeKernel = false;
   std::vector<ur_mem_handle_t> ReferencedArgs;
 };

@@ -31,7 +31,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
+#include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 #include "llvm/TargetParser/Triple.h"
 #include <optional>
 #ifndef NDEBUG
