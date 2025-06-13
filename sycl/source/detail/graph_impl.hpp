@@ -288,7 +288,7 @@ public:
 
       return std::make_unique<sycl::detail::CGHostTask>(
           sycl::detail::CGHostTask(
-              std::move(HostTaskSPtr), CommandGroupPtr->MQueue,
+              std::move(HostTaskSPtr), CommandGroupPtr->MQueue.get(),
               CommandGroupPtr->MContext, std::move(NewArgs), std::move(Data),
               CommandGroupPtr->getType(), Loc));
     }

@@ -327,8 +327,8 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
   impl->wait_and_throw(CodeLoc);
 }
 
-static event
-getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
+static event getBarrierEventForInorderQueueHelper(
+    const std::shared_ptr<detail::queue_impl> QueueImpl) {
   // This function should not be called when a queue is recording to a graph,
   // as a graph can record from multiple queues and we cannot guarantee the
   // last node added by an in-order queue will be the last node added to the

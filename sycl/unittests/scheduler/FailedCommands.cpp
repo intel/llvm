@@ -20,8 +20,8 @@ TEST_F(SchedulerTest, FailedDependency) {
   queue Queue(context(Plt), default_selector_v);
 
   detail::Requirement MockReq = getMockRequirement();
-  MockCommand MDep(detail::getSyclObjImpl(Queue));
-  MockCommand MUser(detail::getSyclObjImpl(Queue));
+  MockCommand MDep(detail::getSyclObjImpl(Queue).get());
+  MockCommand MUser(detail::getSyclObjImpl(Queue).get());
   MDep.addUser(&MUser);
   std::vector<detail::Command *> ToCleanUp;
   (void)MUser.addDep(detail::DepDesc{&MDep, &MockReq, nullptr}, ToCleanUp);

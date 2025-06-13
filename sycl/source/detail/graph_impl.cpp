@@ -901,7 +901,7 @@ exec_graph_impl::enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
 
   sycl::detail::EventImplPtr Event =
       sycl::detail::Scheduler::getInstance().addCG(
-          Node->getCGCopy(), MQueueImpl,
+          Node->getCGCopy(), *MQueueImpl,
           /*EventNeeded=*/true, CommandBuffer, Deps);
 
   if (MIsUpdatable) {
@@ -1120,7 +1120,7 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
                 CommandBuffer, nullptr, std::move(CGData));
 
         NewEvent = sycl::detail::Scheduler::getInstance().addCG(
-            std::move(CommandGroup), Queue.shared_from_this(),
+            std::move(CommandGroup), Queue,
             /*EventNeeded=*/true);
       }
       NewEvent->setEventFromSubmittedExecCommandBuffer(true);
@@ -1140,7 +1140,7 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
           .MQueue = Queue.shared_from_this();
 
       NewEvent = sycl::detail::Scheduler::getInstance().addCG(
-          NodeImpl->getCGCopy(), Queue.shared_from_this(),
+          NodeImpl->getCGCopy(), Queue,
           /*EventNeeded=*/true);
     }
     PartitionsExecutionEvents[CurrentPartition] = NewEvent;
@@ -1422,7 +1422,7 @@ void exec_graph_impl::update(
     // other scheduler commands
     auto UpdateEvent =
         sycl::detail::Scheduler::getInstance().addCommandGraphUpdate(
-            this, Nodes, MQueueImpl, std::move(UpdateRequirements),
+            this, Nodes, MQueueImpl.get(), std::move(UpdateRequirements),
             MExecutionEvents);
 
     MExecutionEvents.push_back(UpdateEvent);

@@ -44,15 +44,15 @@ TEST_F(SchedulerTest, LeafLimit) {
   detail::Requirement MockReq = getMockRequirement(Buf);
 
   MockDepCmd =
-      std::make_unique<MockCommand>(detail::getSyclObjImpl(Q), MockReq);
+      std::make_unique<MockCommand>(detail::getSyclObjImpl(Q).get(), MockReq);
   detail::MemObjRecord *Rec =
-      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Q), &MockReq);
+      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Q).get(), &MockReq);
 
   // Create commands that will be added as leaves exceeding the limit by 1
   for (std::size_t i = 0; i < Rec->MWriteLeaves.genericCommandsCapacity() + 1;
        ++i) {
-    LeavesToAdd.push_back(
-        std::make_unique<MockCommand>(detail::getSyclObjImpl(Q), MockReq));
+    LeavesToAdd.push_back(std::make_unique<MockCommand>(
+        detail::getSyclObjImpl(Q).get(), MockReq));
   }
   // Create edges: all soon-to-be leaves are direct users of MockDep
   std::vector<detail::Command *> ToCleanUp;

@@ -102,7 +102,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 }
 
 EventImplPtr Scheduler::addCG(
-    std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+    std::unique_ptr<detail::CG> CommandGroup, queue_impl &Queue,
     bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
   EventImplPtr NewEvent = nullptr;
@@ -127,7 +127,7 @@ EventImplPtr Scheduler::addCG(
       break;
     }
     default:
-      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), std::move(Queue),
+      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), &Queue,
                                    AuxiliaryCmds, EventNeeded, CommandBuffer,
                                    std::move(Dependencies));
     }
@@ -637,7 +637,7 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
     ext::oneapi::experimental::detail::exec_graph_impl *Graph,
     std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
         Nodes,
-    const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
+    queue_impl *Queue, std::vector<Requirement *> Requirements,
     std::vector<detail::EventImplPtr> &Events) {
   std::vector<Command *> AuxiliaryCmds;
   EventImplPtr NewCmdEvent = nullptr;

@@ -28,7 +28,6 @@ class queue_impl;
 class event_impl;
 class context_impl;
 
-using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 
 // The class contains methods that work with memory. All operations with
