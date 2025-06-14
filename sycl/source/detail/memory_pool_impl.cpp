@@ -20,18 +20,17 @@ namespace detail {
 
 // <--- Helpers --->
 namespace {
-ur_usm_pool_handle_t
-create_memory_pool_device(const sycl::context &ctx, const sycl::device &dev,
-                          const size_t threshold, const size_t maxSize,
-                          const bool readOnly, const bool zeroInit) {
+ur_usm_pool_handle_t create_memory_pool_device(const sycl::context &ctx,
+                                               const sycl::device &dev,
+                                               const size_t threshold,
+                                               const size_t maxSize,
+                                               const bool zeroInit) {
   auto [urDevice, urCtx, Adapter] = get_ur_handles(dev, ctx);
 
   ur_usm_pool_limits_desc_t LimitsDesc{UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC,
                                        nullptr, maxSize, threshold};
 
   ur_usm_pool_flags_t Flags = {UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP};
-  if (readOnly)
-    Flags += UR_USM_POOL_FLAG_READ_ONLY_EXP;
   if (zeroInit)
     Flags += UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK;
 
@@ -61,32 +60,14 @@ void destroy_memory_pool(const sycl::context &ctx, const sycl::device &dev,
 memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
                                    const sycl::device &dev,
                                    const sycl::usm::alloc kind,
-                                   const property_list &props)
+                                   const pool_properties props)
     : MContextImplPtr(sycl::detail::getSyclObjImpl(ctx)), MDevice(dev),
-      MKind(kind), MPropList(props) {
-  size_t maxSize = 0;
-  size_t threshold = 0;
-  bool readOnly = false;
-  bool zeroInit = false;
-
-  // Get properties.
-  if (props.has_property<property::memory_pool::maximum_size>())
-    maxSize = props.get_property<property::memory_pool::maximum_size>()
-                  .get_maximum_size();
-
-  if (props.has_property<property::memory_pool::initial_threshold>())
-    threshold = props.get_property<property::memory_pool::initial_threshold>()
-                    .get_initial_threshold();
-
-  if (props.has_property<property::memory_pool::read_only>())
-    readOnly = true;
-
-  if (props.has_property<property::memory_pool::zero_init>())
-    zeroInit = true;
+      MKind(kind), MProps(props) {
 
   if (kind == sycl::usm::alloc::device)
-    MPoolHandle = create_memory_pool_device(ctx, dev, threshold, maxSize,
-                                            readOnly, zeroInit);
+    MPoolHandle =
+        create_memory_pool_device(ctx, dev, MProps.initial_threshold,
+                                  MProps.maximum_size, MProps.zero_init);
   else
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -98,13 +79,12 @@ memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
                                    const sycl::usm::alloc kind,
                                    ur_usm_pool_handle_t poolHandle,
                                    const bool isDefaultPool,
-                                   const property_list &props)
+                                   const pool_properties props)
     : MContextImplPtr(sycl::detail::getSyclObjImpl(ctx)), MDevice(dev),
       MKind(kind), MPoolHandle(poolHandle), MIsDefaultPool(isDefaultPool),
-      MPropList(props) {}
+      MProps(props) {}
 
 memory_pool_impl::~memory_pool_impl() {
-
   // Default memory pools cannot be destroyed.
   if (MIsDefaultPool)
     return;
