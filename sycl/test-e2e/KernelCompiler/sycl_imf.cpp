@@ -28,10 +28,10 @@ extern "C" SYCL_EXTERNAL
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(sycl::ext::oneapi::experimental::single_task_kernel)
 void imf_kernel(float *ptr) {
   // cl_intel_devicelib_imf
-  //ptr[0] = sycl::ext::intel::math::sqrt(ptr[0] * 2);
+  ptr[0] = sycl::ext::intel::math::sqrt(ptr[0] * 2);
 
   // cl_intel_devicelib_imf_bf16
-  //ptr[1] = sycl::ext::intel::math::float2bfloat16(ptr[1] * 0.5f);
+  ptr[1] = sycl::ext::intel::math::float2bfloat16(ptr[1] * 0.5f);
 }
 )===";
 
@@ -60,7 +60,7 @@ int main() {
   });
   q.wait_and_throw();
 
-  // Check that the kernel was executed. Given the {1.0, ..., 1.0} input,
+  // Check that the kernel was executed. Given the {1.0, 1.0} input,
   // the expected result is approximately {1.41, 0.5}.
   for (unsigned i = 0; i < nElem; ++i) {
     std::cout << ptr[i] << ' ';

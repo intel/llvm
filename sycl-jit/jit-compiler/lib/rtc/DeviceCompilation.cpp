@@ -11,10 +11,14 @@
 #include "JITBinaryInfo.h"
 #include "translation/Translation.h"
 
+#include <Driver/ToolChains/AMDGPU.h>
+#include <Driver/ToolChains/Cuda.h>
+#include <Driver/ToolChains/LazyDetector.h>
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
 #include <clang/Driver/Compilation.h>
+#include <clang/Driver/Driver.h>
 #include <clang/Driver/Options.h>
 #include <clang/Frontend/ChainedDiagnosticConsumer.h>
 #include <clang/Frontend/CompilerInstance.h>
@@ -24,15 +28,6 @@
 #include <clang/Frontend/Utils.h>
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
-#if defined(JIT_SUPPORT_PTX) || defined(JIT_SUPPORT_AMDGCN)
-#include <clang/Driver/Driver.h>
-#endif
-#ifdef JIT_SUPPORT_PTX
-#include <Driver/ToolChains/Cuda.h>
-#include <Driver/ToolChains/LazyDetector.h>
-#elif JIT_SUPPORT_AMDGCN
-#include <Driver/ToolChains/AMDGPU.h>
-#endif
 
 #include <llvm/IR/DiagnosticInfo.h>
 #include <llvm/IR/DiagnosticPrinter.h>
@@ -324,7 +319,7 @@ public:
 } // anonymous namespace
 
 static void adjustArgs(const InputArgList &UserArgList,
-                       const std::string &DPCPPRoot,
+                       const std::string &DPCPPRoot, BinaryFormat Format,
                        SmallVectorImpl<std::string> &CommandLine) {
   DerivedArgList DAL{UserArgList};
   const auto &OptTable = getDriverOptTable();
@@ -337,6 +332,22 @@ static void adjustArgs(const InputArgList &UserArgList,
   // unused argument warning.
   DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
 
+  if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
+    auto [CPU, _] =
+        Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
+    if (Format == BinaryFormat::AMDGCN) {
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ),
+                       "amdgcn-amd-amdhsa");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ),
+                       "amdgcn-amd-amdhsa");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
+    } else {
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ),
+                       "nvptx64-nvidia-cuda");
+      DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Xsycl_backend));
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_cuda_gpu_arch_EQ), CPU);
+    }
+  }
   ArgStringList ASL;
   for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
   for_each(UserArgList,
@@ -373,20 +384,6 @@ static void setupTool(ClangTool &Tool, const std::string &DPCPPRoot,
       });
 }
 
-static void setGPUTarget(BinaryFormat Format,
-                         SmallVector<std::string> &CommandLine) {
-  auto [CPU, _] = Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
-  if (Format == BinaryFormat::PTX) {
-    CommandLine.push_back("-fsycl-targets=nvptx64-nvidia-cuda");
-    CommandLine.push_back("-Xsycl-target-backend");
-    CommandLine.push_back("--cuda-gpu-arch=" + CPU);
-  } else if (Format == BinaryFormat::AMDGCN) {
-    CommandLine.push_back("-fsycl-targets=amdgcn-amd-amdhsa");
-    CommandLine.push_back("-Xsycl-target-backend=amdgcn-amd-amdhsa");
-    CommandLine.push_back("--offload-arch=" + CPU);
-  }
-}
-
 Expected<std::string> jit_compiler::calculateHash(
     InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
     const InputArgList &UserArgList, BinaryFormat Format) {
@@ -398,10 +395,7 @@ Expected<std::string> jit_compiler::calculateHash(
   }
 
   SmallVector<std::string> CommandLine;
-  if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
-    setGPUTarget(Format, CommandLine);
-  }
-  adjustArgs(UserArgList, DPCPPRoot, CommandLine);
+  adjustArgs(UserArgList, DPCPPRoot, Format, CommandLine);
 
   FixedCompilationDatabase DB{".", CommandLine};
   ClangTool Tool{DB, {SourceFile.Path}};
@@ -439,10 +433,7 @@ Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
   }
 
   SmallVector<std::string> CommandLine;
-  if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
-    setGPUTarget(Format, CommandLine);
-  }
-  adjustArgs(UserArgList, DPCPPRoot, CommandLine);
+  adjustArgs(UserArgList, DPCPPRoot, Format, CommandLine);
 
   FixedCompilationDatabase DB{".", CommandLine};
   ClangTool Tool{DB, {SourceFile.Path}};
@@ -657,27 +648,28 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
       return Error::success();
     };
     SmallVector<std::string, 12> LibDeviceFiles;
-#ifdef JIT_SUPPORT_PTX
-    // For NVPTX we can get away with CudaInstallationDetector.
-    LazyDetector<CudaInstallationDetector> CudaInstallation{D, T, UserArgList};
-    auto LibDevice = CudaInstallation->getLibDeviceFile(CPU);
-    if (LibDevice.empty()) {
-      return createStringError("Unable to find Cuda libdevice");
+    if (Format == BinaryFormat::PTX) {
+      // For NVPTX we can get away with CudaInstallationDetector.
+      LazyDetector<CudaInstallationDetector> CudaInstallation{D, T,
+                                                              UserArgList};
+      auto LibDevice = CudaInstallation->getLibDeviceFile(CPU);
+      if (LibDevice.empty()) {
+        return createStringError("Unable to find Cuda libdevice");
+      }
+      LibDeviceFiles.push_back(LibDevice);
+    } else {
+      // AMDGPU requires entire toolchain in order to provide all common bitcode
+      // libraries.
+      clang::driver::toolchains::ROCMToolChain TC(D, T, UserArgList);
+      auto CommonDeviceLibs = TC.getCommonDeviceLibNames(
+          UserArgList, CPU, Action::OffloadKind::OFK_SYCL, false);
+      if (CommonDeviceLibs.empty()) {
+        return createStringError("Unable to find ROCm common device libraries");
+      }
+      for (auto &Lib : CommonDeviceLibs) {
+        LibDeviceFiles.push_back(Lib.Path);
+      }
     }
-    LibDeviceFiles.push_back(LibDevice);
-#elif JIT_SUPPORT_AMDGCN
-    // AMDGPU requires entire toolchain in order to provide all common bitcode
-    // libraries.
-    clang::driver::toolchains::ROCMToolChain TC(D, T, UserArgList);
-    auto CommonDeviceLibs = TC.getCommonDeviceLibNames(
-        UserArgList, CPU, Action::OffloadKind::OFK_SYCL, false);
-    if (CommonDeviceLibs.empty()) {
-      return createStringError("Unable to find ROCm common device libraries");
-    }
-    for (auto &Lib : CommonDeviceLibs) {
-      LibDeviceFiles.push_back(Lib.Path);
-    }
-#endif
     for (auto &LibDeviceFile : LibDeviceFiles) {
       // llvm::Error converts to false on success.
       if (auto Error = LinkInLib(LibDeviceFile)) {
