@@ -176,10 +176,11 @@ private:
 
 /// Calculates a BLAKE3 hash of the pre-processed source string described by
 /// \p SourceFile (considering any additional \p IncludeFiles) and the
-/// concatenation of the \p UserArgs.
+/// concatenation of the \p UserArgs, for a given \p Format.
 JIT_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
                                               View<InMemoryFile> IncludeFiles,
-                                              View<const char *> UserArgs);
+                                              View<const char *> UserArgs,
+                                              BinaryFormat Format);
 
 /// Compiles, links against device libraries, and finalizes the device code in
 /// the source string described by \p SourceFile, considering any additional \p
@@ -191,10 +192,14 @@ JIT_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
 ///
 /// If \p SaveIR is true and \p CachedIR is empty, the LLVM module obtained from
 /// the frontend invocation is wrapped in bitcode format in the result object.
+///
+/// \p BinaryFormat describes the desired format of the compilation - which
+/// corresponds to the backend that is being targeted.
 JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
                                         View<InMemoryFile> IncludeFiles,
                                         View<const char *> UserArgs,
-                                        View<char> CachedIR, bool SaveIR);
+                                        View<char> CachedIR, bool SaveIR,
+                                        BinaryFormat Format);
 
 /// Requests that the JIT binary referenced by \p Address is deleted from the
 /// `JITContext`.

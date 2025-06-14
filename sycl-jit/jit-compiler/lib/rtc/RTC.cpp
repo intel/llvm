@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "RTC.h"
+#include "JITBinaryInfo.h"
 #include "helper/ErrorHelper.h"
 #include "rtc/DeviceCompilation.h"
 #include "translation/SPIRVLLVMTranslation.h"
@@ -26,7 +27,8 @@ using namespace jit_compiler;
 
 JIT_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
                                               View<InMemoryFile> IncludeFiles,
-                                              View<const char *> UserArgs) {
+                                              View<const char *> UserArgs,
+                                              BinaryFormat Format) {
   llvm::opt::InputArgList UserArgList;
   if (auto Error = parseUserArgs(UserArgs).moveInto(UserArgList)) {
     return errorTo<RTCHashResult>(std::move(Error),
@@ -36,8 +38,8 @@ JIT_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
 
   auto Start = std::chrono::high_resolution_clock::now();
   std::string Hash;
-  if (auto Error =
-          calculateHash(SourceFile, IncludeFiles, UserArgList).moveInto(Hash)) {
+  if (auto Error = calculateHash(SourceFile, IncludeFiles, UserArgList, Format)
+                       .moveInto(Hash)) {
     return errorTo<RTCHashResult>(std::move(Error), "Hashing failed",
                                   /*IsHash=*/false);
   }
@@ -55,7 +57,8 @@ JIT_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
 JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
                                         View<InMemoryFile> IncludeFiles,
                                         View<const char *> UserArgs,
-                                        View<char> CachedIR, bool SaveIR) {
+                                        View<char> CachedIR, bool SaveIR,
+                                        BinaryFormat Format) {
   llvm::LLVMContext Context;
   std::string BuildLog;
   configureDiagnostics(Context, BuildLog);
@@ -104,7 +107,7 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
   bool FromSource = !Module;
   if (FromSource) {
     if (auto Error = compileDeviceCode(SourceFile, IncludeFiles, UserArgList,
-                                       BuildLog, Context)
+                                       BuildLog, Context, Format)
                          .moveInto(Module)) {
       return errorTo<RTCResult>(std::move(Error), "Device compilation failed");
     }
@@ -118,7 +121,8 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
     IR = RTCDeviceCodeIR{BCString.data(), BCString.data() + BCString.size()};
   }
 
-  if (auto Error = linkDeviceLibraries(*Module, UserArgList, BuildLog)) {
+  if (auto Error =
+          linkDeviceLibraries(*Module, UserArgList, BuildLog, Format)) {
     return errorTo<RTCResult>(std::move(Error), "Device linking failed");
   }
 
@@ -131,9 +135,9 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
 
   for (auto [DevImgInfo, Module] :
        llvm::zip_equal(BundleInfo.DevImgInfos, Modules)) {
-    if (auto Error = Translator::translate(*Module, JITContext::getInstance(),
-                                           BinaryFormat::SPIRV)
-                         .moveInto(DevImgInfo.BinaryInfo)) {
+    if (auto Error =
+            Translator::translate(*Module, JITContext::getInstance(), Format)
+                .moveInto(DevImgInfo.BinaryInfo)) {
       return errorTo<RTCResult>(std::move(Error), "SPIR-V translation failed");
     }
   }
