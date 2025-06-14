@@ -282,6 +282,16 @@ void BackendConsumer::HandleTranslationUnit(ASTContext &C) {
     PreLinkingSyclPasses.run(*getModule(), MAM);
   }
 
+<<<<<<< HEAD
+=======
+  std::unique_ptr<llvm::ToolOutputFile> OptRecordFile =
+    std::move(*OptRecordFileOrErr);
+
+  if (OptRecordFile && CodeGenOpts.getProfileUse() !=
+                           llvm::driver::ProfileInstrKind::ProfileNone)
+    Ctx.setDiagnosticsHotnessRequested(true);
+
+>>>>>>> 52d34865b9db3485c8a671a88cc571270349f720
   if (CodeGenOpts.MisExpect) {
     Ctx.setMisExpectWarningRequested(true);
   }
