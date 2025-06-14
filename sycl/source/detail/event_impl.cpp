@@ -157,7 +157,8 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MContext = Context;
 }
 
-event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
+event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
+                       private_tag)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
       MIsFlushed(true), MState(HES_Complete) {
 
@@ -174,21 +175,31 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
   }
 }
 
-event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue}, MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled} {
-  if (Queue)
-    this->setContextImpl(Queue->getContextImplPtr());
-  else {
-    MState.store(HES_NotComplete);
+event_impl::event_impl(queue_impl &Queue, private_tag)
+    : MQueue{Queue.weak_from_this()},
+      MIsProfilingEnabled{Queue.MIsProfilingEnabled} {
+  this->setContextImpl(Queue.getContextImplPtr());
+  MState.store(HES_Complete);
+}
+
+event_impl::event_impl(HostEventState State, private_tag) : MState(State) {
+  switch (State) {
+  case HES_Discarded:
+  case HES_Complete: {
+    MIsFlushed = true;
+    MIsHostEvent = true;
+    break;
+  }
+  case HES_NotComplete: {
+    MIsProfilingEnabled = true;
     MHostProfilingInfo.reset(new HostProfilingInfo());
     if (!MHostProfilingInfo)
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::runtime),
           "Out of host memory " +
               codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
-    return;
   }
-  MState.store(HES_Complete);
+  }
 }
 
 void event_impl::setQueue(queue_impl &Queue) {
