@@ -10,6 +10,13 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
+// Some __spirv_* inrinsics are automatically forward-declared by the compiler,
+// but not all of them. For example:
+//   __spirv_AtomicStore(unsigned long long*, ...)
+// Therefore, we need the following include to get forward-declarations of those
+// versions.
+#include <sycl/__spirv/spirv_ops.hpp>
+
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
 
 #if defined(__NVPTX__)

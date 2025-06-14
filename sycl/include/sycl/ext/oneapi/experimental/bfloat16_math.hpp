@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/bit_cast.hpp>      // for sycl::bit_cast
 #include <sycl/builtins.hpp>      // for ceil, cos, exp, exp10, exp2
 #include <sycl/detail/memcpy.hpp> // sycl::detail::memcpy
