@@ -1185,8 +1185,8 @@ struct OptRecordFileRAII {
     else
       OptRecordFile = std::move(*OptRecordFileOrErr);
 
-    if (OptRecordFile &&
-        CodeGenOpts.getProfileUse() != CodeGenOptions::ProfileNone)
+    if (OptRecordFile && CodeGenOpts.getProfileUse() !=
+                           llvm::driver::ProfileInstrKind::ProfileNone)
       Ctx.setDiagnosticsHotnessRequested(true);
   }
   ~OptRecordFileRAII() {
