@@ -409,7 +409,7 @@ VPInstruction::VPInstruction(unsigned Opcode, ArrayRef<VPValue *> Operands,
                              const VPIRFlags &Flags, DebugLoc DL,
                              const Twine &Name)
     : VPRecipeWithIRFlags(VPDef::VPInstructionSC, Operands, Flags, DL),
-      Opcode(Opcode), Name(Name.str()) {
+      VPIRMetadata(), Opcode(Opcode), Name(Name.str()) {
   assert(flagsValidForOpcode(getOpcode()) &&
          "Set flags not supported for the provided opcode");
 }
@@ -590,7 +590,9 @@ Value *VPInstruction::generate(VPTransformState &State) {
   }
   case VPInstruction::BranchOnCond: {
     Value *Cond = State.get(getOperand(0), VPLane(0));
-    return createCondBranch(Cond, getParent(), State);
+    auto *Br = createCondBranch(Cond, getParent(), State);
+    applyMetadata(*Br);
+    return Br;
   }
   case VPInstruction::BranchOnCount: {
     // First create the compare.
@@ -643,18 +645,18 @@ Value *VPInstruction::generate(VPTransformState &State) {
     assert(!PhiR->isInLoop() &&
            "In-loop FindLastIV reduction is not supported yet");
 
-    // The recipe's operands are the reduction phi, followed by one operand for
-    // each part of the reduction.
-    unsigned UF = getNumOperands() - 2;
-    Value *ReducedPartRdx = State.get(getOperand(2));
+    // The recipe's operands are the reduction phi, the start value, the
+    // sentinel value, followed by one operand for each part of the reduction.
+    unsigned UF = getNumOperands() - 3;
+    Value *ReducedPartRdx = State.get(getOperand(3));
     for (unsigned Part = 1; Part < UF; ++Part) {
       ReducedPartRdx = createMinMaxOp(Builder, RecurKind::SMax, ReducedPartRdx,
-                                      State.get(getOperand(2 + Part)));
+                                      State.get(getOperand(3 + Part)));
     }
 
-    return createFindLastIVReduction(Builder, ReducedPartRdx,
-                                     State.get(getOperand(1), true),
-                                     RdxDesc.getSentinelValue());
+    Value *Start = State.get(getOperand(1), true);
+    Value *Sentinel = getOperand(2)->getLiveInIRValue();
+    return createFindLastIVReduction(Builder, ReducedPartRdx, Start, Sentinel);
   }
   case VPInstruction::ComputeReductionResult: {
     // FIXME: The cross-recipe dependency on VPReductionPHIRecipe is temporary
