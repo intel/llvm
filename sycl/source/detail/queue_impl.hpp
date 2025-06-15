@@ -20,7 +20,9 @@
 #include <detail/stream_impl.hpp>
 #include <detail/thread_pool.hpp>
 #include <sycl/context.hpp>
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/assert_happened.hpp>
+#endif
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
@@ -68,7 +70,9 @@ enum QueueOrder { Ordered, OOO };
 
 // Implementation of the submission information storage.
 struct SubmissionInfoImpl {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
+#endif
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
@@ -344,13 +348,19 @@ public:
   /// group is being enqueued on.
   event submit(const detail::type_erased_cgfo_ty &CGF,
                const std::shared_ptr<queue_impl> &SecondQueue,
-               const detail::code_location &Loc, bool IsTopCodeLoc,
-               const SubmitPostProcessF *PostProcess = nullptr) {
+               const detail::code_location &Loc, bool IsTopCodeLoc
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+               ,
+               const SubmitPostProcessF *PostProcess = nullptr
+#endif
+  ) {
     event ResEvent;
     v1::SubmissionInfo SI{};
     SI.SecondaryQueue() = SecondQueue;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     if (PostProcess)
       SI.PostProcessorFunc() = *PostProcess;
+#endif
     return submit_with_event(CGF, SI, Loc, IsTopCodeLoc);
   }
 
@@ -860,6 +870,7 @@ protected:
     return EventRetImpl;
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename HandlerType = handler>
   void handlerPostProcess(HandlerType &Handler,
                           const optional<SubmitPostProcessF> &PostProcessorFunc,
@@ -879,7 +890,6 @@ protected:
     PostProcess(IsKernel, KernelUsesAssert, Event);
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -898,7 +908,7 @@ protected:
               const std::shared_ptr<queue_impl> &SecondaryQueue,
               bool CallerNeedsEvent, const detail::code_location &Loc,
               bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
-#endif
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Performs command group submission to the queue.
   ///
