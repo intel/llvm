@@ -1,4 +1,4 @@
-name: 'Run SYCL E2E tests'
+name: 'Run SYCL E2E tests on Windows'
 
 inputs:
   ref:
@@ -18,7 +18,9 @@ inputs:
     required: false
   sycl_compiler:
     required: false
-
+  cxx:
+    required: false
+    default: "cl"
 
 runs:
   using: "composite"
@@ -31,7 +33,6 @@ runs:
       sparse-checkout: |
         llvm/utils/lit
         sycl/test-e2e
-
   - name: Download E2E Binaries
     if: inputs.testing_mode == 'run-only'
     uses: actions/download-artifact@v4
@@ -42,10 +43,9 @@ runs:
     shell: bash
     run: |
       mkdir build-e2e
-      tar -I 'zstd' -xf e2e_binaries.tar.zst -C build-e2e
+      tar -xf e2e_bin.tar.gz -C build-e2e
 
   - name: Deduce E2E CMake options
-    if: inputs.testing_mode != 'run-only'
     id: cmake_opts
     shell: bash
     env:
@@ -54,17 +54,31 @@ runs:
       if [ -n "$CMAKE_EXTRA_ARGS" ]; then
         echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
       fi
-  - name: Configure E2E tests
+
+  - name: Make E2E folder
     if: inputs.testing_mode != 'run-only'
     shell: bash
     run: |
-      cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which clang++)'}}" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
-  - name: SYCL End-to-end tests
+      mkdir build-e2e
+
+  - name: Configure E2E tests
+    shell: bash
+    run: |
+      cmake -GNinja -B build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which clang++).exe' }}" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py" ${{ steps.cmake_opts.outputs.opts }}
+
+  - name: Keep track of files after configuring E2E step
+    if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
+    shell: bash
+    run: ls build-e2e > e2econf_files.txt
+
+  - name: Run End-to-End tests
     shell: bash {0}
     env:
-      LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
+      LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time ${{ inputs.e2e_testing_mode == 'run-only' && 1200 || 3600 }} --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
     run: |
-      ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
+      # Run E2E tests.
+      cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1
+
       exit_code=$?
       cat e2e.log
       if [ $exit_code -ne 0 ]; then
@@ -73,15 +87,26 @@ runs:
       fi
       exit $exit_code
 
-  - name: Pack E2E binaries
+  # Github CI doesn't support containers on Windows, so we cannot guarantee
+  # that paths are the same between building and running systems. To avoid
+  # CMake issues related to absolute paths we reconfigure the build-e2e
+  # folder on the run system.
+  - name: Remove E2E configuration files
     if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
     shell: bash
     run: |
-      tar -I 'zstd -9' -cf e2e_binaries.tar.zst -C ./build-e2e .
-  - name: Upload E2E binaries
+      for FILE in $(cat e2econf_files.txt); do rm -r build-e2e/$FILE; done
+      rm e2econf_files.txt
+
+  - name: Pack E2E test binaries
+    if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
+    shell: bash
+    run: |
+      tar -czf e2e_bin.tar.gz -C build-e2e .
+  - name: Upload E2E test binaries
     if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
     uses: actions/upload-artifact@v4
     with:
       name: ${{ inputs.binaries_artifact }}
-      path: e2e_binaries.tar.zst
+      path: e2e_bin.tar.gz
       retention-days: ${{ inputs.retention-days }}
