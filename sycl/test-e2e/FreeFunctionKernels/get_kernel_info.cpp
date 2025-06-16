@@ -2,6 +2,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: cpu
+// XFAIL-TRACKER: CMPLRLLVM-68536
 // UNSUPPORTED: cuda, hip
 // UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
 
@@ -85,6 +87,16 @@ bool test_ctxt(sycl::kernel &k, sycl::queue &q) {
   if (wg_size != WGSIZE) {
     std::cerr << "Work group size from attributes: " << wg_size
               << " is not equal to expected work group size: " << WGSIZE
+              << std::endl;
+    return false;
+  }
+
+  if (const auto wg_size_cmp =
+          k.get_info<sycl::info::kernel_device_specific::work_group_size>(
+              q.get_device());
+      wg_size_cmp < wg_size) {
+    std::cerr << "Work group size from get_info: " << wg_size_cmp
+              << " is less work group size from attributes: " << wg_size
               << std::endl;
     return false;
   }
