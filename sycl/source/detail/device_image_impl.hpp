@@ -59,10 +59,10 @@ constexpr uint8_t ImageOriginKernelCompiler = 1 << 2;
 class ManagedDeviceGlobalsRegistry {
 public:
   ManagedDeviceGlobalsRegistry(
-      const std::shared_ptr<context_impl> &ContextImpl,
-      const std::string &Prefix, std::vector<std::string> &&DeviceGlobalNames,
+      context_impl &ContextImpl, const std::string &Prefix,
+      std::vector<std::string> &&DeviceGlobalNames,
       std::vector<std::unique_ptr<std::byte[]>> &&DeviceGlobalAllocations)
-      : MContextImpl{ContextImpl}, MPrefix{Prefix},
+      : MContextImpl{ContextImpl.shared_from_this()}, MPrefix{Prefix},
         MDeviceGlobalNames{std::move(DeviceGlobalNames)},
         MDeviceGlobalAllocations{std::move(DeviceGlobalAllocations)} {}
 
@@ -639,7 +639,7 @@ public:
         auto [UrKernel, CacheMutex, ArgMask] =
             PM.getOrCreateKernel(Context, AdjustedName,
                                  /*PropList=*/{}, UrProgram);
-        return std::make_shared<kernel_impl>(UrKernel, getSyclObjImpl(Context),
+        return std::make_shared<kernel_impl>(UrKernel, *getSyclObjImpl(Context),
                                              Self, OwnerBundle, ArgMask,
                                              UrProgram, CacheMutex);
       }
@@ -654,7 +654,7 @@ public:
     // Kernel created by urKernelCreate is implicitly retained.
 
     return std::make_shared<kernel_impl>(
-        UrKernel, detail::getSyclObjImpl(Context), Self, OwnerBundle,
+        UrKernel, *detail::getSyclObjImpl(Context), Self, OwnerBundle,
         /*ArgMask=*/nullptr, UrProgram, /*CacheMutex=*/nullptr);
   }
 
@@ -721,12 +721,11 @@ public:
     assert(MRTCBinInfo);
     assert(MOrigins & ImageOriginKernelCompiler);
 
-    const std::shared_ptr<sycl::detail::context_impl> &ContextImpl =
-        getSyclObjImpl(MContext);
+    sycl::detail::context_impl &ContextImpl = *getSyclObjImpl(MContext);
 
     for (const auto &SyclDev : Devices) {
       device_impl &DevImpl = *getSyclObjImpl(SyclDev);
-      if (!ContextImpl->hasDevice(DevImpl)) {
+      if (!ContextImpl.hasDevice(DevImpl)) {
         throw sycl::exception(make_error_code(errc::invalid),
                               "device not part of kernel_bundle context");
       }
@@ -762,7 +761,7 @@ public:
           Devices, BuildOptions, *SourceStrPtr, UrProgram);
     }
 
-    const AdapterPtr &Adapter = ContextImpl->getAdapter();
+    const AdapterPtr &Adapter = ContextImpl.getAdapter();
 
     if (!FetchedFromCache)
       UrProgram = createProgramFromSource(Devices, BuildOptions, LogPtr);
@@ -772,7 +771,7 @@ public:
         UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       Res = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
-          ContextImpl->getHandleRef(), UrProgram, XsFlags.c_str());
+          ContextImpl.getHandleRef(), UrProgram, XsFlags.c_str());
     }
     Adapter->checkUrResult<errc::build>(Res);
 
@@ -816,12 +815,11 @@ public:
           "compile is only available for kernel_bundle<bundle_state::source> "
           "when the source language was sycl.");
 
-    std::shared_ptr<sycl::detail::context_impl> ContextImpl =
-        getSyclObjImpl(MContext);
+    sycl::detail::context_impl &ContextImpl = *getSyclObjImpl(MContext);
 
     for (const auto &SyclDev : Devices) {
       detail::device_impl &DevImpl = *getSyclObjImpl(SyclDev);
-      if (!ContextImpl->hasDevice(DevImpl)) {
+      if (!ContextImpl.hasDevice(DevImpl)) {
         throw sycl::exception(make_error_code(errc::invalid),
                               "device not part of kernel_bundle context");
       }
@@ -895,9 +893,8 @@ private:
       const std::vector<device> Devices,
       const std::vector<sycl::detail::string_view> &BuildOptions,
       const std::string &SourceStr, ur_program_handle_t &UrProgram) const {
-    const std::shared_ptr<sycl::detail::context_impl> &ContextImpl =
-        getSyclObjImpl(MContext);
-    const AdapterPtr &Adapter = ContextImpl->getAdapter();
+    sycl::detail::context_impl &ContextImpl = *getSyclObjImpl(MContext);
+    const AdapterPtr &Adapter = ContextImpl.getAdapter();
 
     std::string UserArgs = syclex::detail::userArgsAsString(BuildOptions);
 
@@ -926,7 +923,7 @@ private:
     Properties.pMetadatas = nullptr;
 
     Adapter->call<UrApiKind::urProgramCreateWithBinary>(
-        ContextImpl->getHandleRef(), DeviceHandles.size(), DeviceHandles.data(),
+        ContextImpl.getHandleRef(), DeviceHandles.size(), DeviceHandles.data(),
         Lengths.data(), Binaries.data(), &Properties, &UrProgram);
 
     return true;
@@ -1072,11 +1069,12 @@ private:
 
       // Filter the devices that support the image requirements.
       std::vector<sycl::device> SupportingDevs = Devices;
-      auto NewSupportingDevsEnd = std::remove_if(
-          SupportingDevs.begin(), SupportingDevs.end(),
-          [&NewImageRef](const sycl::device &SDev) {
-            return !doesDevSupportDeviceRequirements(SDev, NewImageRef);
-          });
+      auto NewSupportingDevsEnd =
+          std::remove_if(SupportingDevs.begin(), SupportingDevs.end(),
+                         [&NewImageRef](const sycl::device &SDev) {
+                           return !doesDevSupportDeviceRequirements(
+                               *detail::getSyclObjImpl(SDev), NewImageRef);
+                         });
 
       // If there are no devices that support the image, we skip it.
       if (NewSupportingDevsEnd == SupportingDevs.begin())
@@ -1154,7 +1152,7 @@ private:
       }
 
       auto DGRegs = std::make_shared<ManagedDeviceGlobalsRegistry>(
-          getSyclObjImpl(MContext), std::string{Prefix},
+          *getSyclObjImpl(MContext), std::string{Prefix},
           std::move(DeviceGlobalNames), std::move(DeviceGlobalAllocations));
 
       // Mark the image as input so the program manager will bring it into
@@ -1173,7 +1171,7 @@ private:
       std::set<RTDeviceBinaryImage *> ImgDeps;
       for (const device &Device : DevImgImpl->get_devices()) {
         std::set<RTDeviceBinaryImage *> DevImgDeps = PM.collectDeviceImageDeps(
-            *NewImage, Device,
+            *NewImage, *getSyclObjImpl(Device),
             /*ErrorOnUnresolvableImport=*/State == bundle_state::executable);
         ImgDeps.insert(DevImgDeps.begin(), DevImgDeps.end());
       }
@@ -1217,9 +1215,8 @@ private:
   createProgramFromSource(const std::vector<device> Devices,
                           const std::vector<sycl::detail::string_view> &Options,
                           std::string *LogPtr) const {
-    const std::shared_ptr<sycl::detail::context_impl> &ContextImpl =
-        getSyclObjImpl(MContext);
-    const AdapterPtr &Adapter = ContextImpl->getAdapter();
+    sycl::detail::context_impl &ContextImpl = *getSyclObjImpl(MContext);
+    const AdapterPtr &Adapter = ContextImpl.getAdapter();
     const auto spirv = [&]() -> std::vector<uint8_t> {
       switch (MRTCBinInfo->MLanguage) {
       case syclex::source_language::opencl: {
@@ -1256,7 +1253,7 @@ private:
     }();
 
     ur_program_handle_t UrProgram = nullptr;
-    Adapter->call<UrApiKind::urProgramCreateWithIL>(ContextImpl->getHandleRef(),
+    Adapter->call<UrApiKind::urProgramCreateWithIL>(ContextImpl.getHandleRef(),
                                                     spirv.data(), spirv.size(),
                                                     nullptr, &UrProgram);
     // program created by urProgramCreateWithIL is implicitly retained.
