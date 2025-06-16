@@ -135,7 +135,7 @@ EventImplPtr Scheduler::addCG(
     NewEvent->setSubmissionTime();
 
     // This is the last moment we can mark the event as discarded.
-    // Doing this during command execution would could to incorrect
+    // Doing this during command execution would lead to incorrect
     // event handling (as event would change it's state from non-discarded
     // to discarded).
     if (!EventNeeded) {
