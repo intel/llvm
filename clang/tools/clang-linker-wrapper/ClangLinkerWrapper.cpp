@@ -693,6 +693,9 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
                    OPT_no_sycl_device_code_split_esimd, SplitEsimdByDefault);
   if (!Args.hasArg(OPT_sycl_thin_lto))
     PostLinkArgs.push_back("-symbols");
+  // Emit kernel names if we are producing SYCLBIN.
+  if (Args.hasArg(OPT_syclbin_EQ))
+    PostLinkArgs.push_back("-emit-kernel-names");
   // Specialization constant info generation is mandatory -
   // add options unconditionally
   PostLinkArgs.push_back("-emit-exported-symbols");

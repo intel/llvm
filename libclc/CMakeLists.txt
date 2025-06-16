@@ -489,17 +489,12 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       set( MACRO_ARCH ${ARCH} )
     endif()
 
-    # Enable SPIR-V builtin function declarations, so they don't
-    # have to be explicity declared in the soruce.
-    list( APPEND build_flags -Xclang -fdeclare-spirv-builtins)
     set( LIBCLC_ARCH_OBJFILE_DIR "${LIBCLC_OBJFILE_DIR}/${arch_suffix}" )
     file( MAKE_DIRECTORY ${LIBCLC_ARCH_OBJFILE_DIR} )
 
     # OpenCL 3.0 extensions
     string(CONCAT CL_3_0_EXTENSIONS
       "-cl-ext="
-      "+cl_khr_fp64,"
-      "+cl_khr_fp16,"
       "+__opencl_c_3d_image_writes,"
       "+__opencl_c_images,"
       "+cl_khr_3d_image_writes")
@@ -573,10 +568,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     if( BUILD_LIBSPIRV_${t} )
       set( spirv_build_flags ${build_flags} )
       list( APPEND spirv_build_flags
+        # Enable SPIR-V builtin function declarations, so they don't have to be
+        # explicity declared in the soruce.
+        -Xclang -fdeclare-spirv-builtins
         -I${CMAKE_CURRENT_SOURCE_DIR}/opencl/include
         -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
-        # FIXME: Fix libspirv to not require disabling this noisy warning
-        -Wno-bitwise-conditional-parentheses
       )
 
       add_libclc_builtin_set(
