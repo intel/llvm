@@ -653,8 +653,9 @@ public:
     // Kernel created by urKernelCreate is implicitly retained.
 
     return std::make_shared<kernel_impl>(
-        UrKernel, *detail::getSyclObjImpl(Context), Self, std::move(OwnerBundle),
-        /*ArgMask=*/nullptr, UrProgram, /*CacheMutex=*/nullptr);
+        UrKernel, *detail::getSyclObjImpl(Context), Self,
+        std::move(OwnerBundle), /*ArgMask=*/nullptr, UrProgram,
+        /*CacheMutex=*/nullptr);
   }
 
   bool hasDeviceGlobalName(const std::string &Name) const noexcept {
