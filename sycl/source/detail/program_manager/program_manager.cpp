@@ -2415,22 +2415,6 @@ ProgramManager::getBinImageState(const RTDeviceBinaryImage *BinImage) {
                                                 : sycl::bundle_state::object;
 }
 
-std::vector<std::string>
-ProgramManager::getKernelNamesFromURProgram(const AdapterPtr &Adapter,
-                                            ur_program_handle_t UrProgram) {
-  // Get the kernel names.
-  size_t KernelNamesSize;
-  Adapter->call<UrApiKind::urProgramGetInfo>(
-      UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
-
-  // semi-colon delimited list of kernel names.
-  std::string KernelNamesStr(KernelNamesSize, ' ');
-  Adapter->call<UrApiKind::urProgramGetInfo>(
-      UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, KernelNamesStr.size(),
-      &KernelNamesStr[0], nullptr);
-  return detail::split_string(KernelNamesStr, ';');
-}
-
 std::optional<kernel_id>
 ProgramManager::tryGetSYCLKernelID(KernelNameStrRefT KernelName) {
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
@@ -3161,13 +3145,6 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
     RTCInfoPtrs.emplace_back(&(DevImgImpl->getRTCInfo()));
     MergedKernelNames.insert(DevImgImpl->getKernelNames().begin(),
                              DevImgImpl->getKernelNames().end());
-    if (DevImgImpl->getOriginMask() & ImageOriginSYCLBIN) {
-      // SYCLBIN binaries should gather their kernels from the backend.
-      std::vector<std::string> GatheredKernelNames =
-          getKernelNamesFromURProgram(Adapter, LinkedProg);
-      MergedKernelNames.insert(GatheredKernelNames.begin(),
-                               GatheredKernelNames.end());
-    }
   }
   auto MergedRTCInfo = detail::KernelCompilerBinaryInfo::Merge(RTCInfoPtrs);
 
@@ -3250,13 +3227,6 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
     RTCInfoPtrs.emplace_back(&(DevImgImpl->getRTCInfo()));
     MergedKernelNames.insert(DevImgImpl->getKernelNames().begin(),
                              DevImgImpl->getKernelNames().end());
-    if (DevImgImpl->getOriginMask() & ImageOriginSYCLBIN) {
-      // SYCLBIN binaries should gather their kernels from the backend.
-      std::vector<std::string> GatheredKernelNames =
-          getKernelNamesFromURProgram(ContextImpl.getAdapter(), ResProgram);
-      MergedKernelNames.insert(GatheredKernelNames.begin(),
-                               GatheredKernelNames.end());
-    }
   }
   auto MergedRTCInfo = detail::KernelCompilerBinaryInfo::Merge(RTCInfoPtrs);
 

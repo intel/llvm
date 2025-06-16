@@ -199,6 +199,7 @@ RTDeviceBinaryImage::RTDeviceBinaryImage(sycl_device_binary Bin) {
     ProgramMetadataUR.push_back(
         ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
   }
+  KernelNames.init(Bin, __SYCL_PROPERTY_SET_SYCL_KERNEL_NAMES);
   ExportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
   ImportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS);
   DeviceGlobals.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
@@ -513,6 +514,10 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getImplicitLocalArg();
       });
+  auto MergedKernelNames =
+      naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getKernelNames();
+      });
   auto MergedExportedSymbols =
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getExportedSymbols();
@@ -522,12 +527,13 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
         return Img.getRegisteredKernels();
       });
 
-  std::array<const std::vector<sycl_device_binary_property> *, 10> MergedVecs{
+  std::array<const std::vector<sycl_device_binary_property> *, 11> MergedVecs{
       &MergedSpecConstants,      &MergedSpecConstantsDefaultValues,
       &MergedKernelParamOptInfo, &MergedAssertUsed,
       &MergedDeviceGlobals,      &MergedHostPipes,
       &MergedVirtualFunctions,   &MergedImplicitLocalArg,
-      &MergedExportedSymbols,    &MergedRegisteredKernels};
+      &MergedKernelNames,        &MergedExportedSymbols,
+      &MergedRegisteredKernels};
 
   // Exclusive merges.
   auto MergedDeviceLibReqMask =
@@ -651,6 +657,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   CopyPropertiesVec(MergedHostPipes, HostPipes);
   CopyPropertiesVec(MergedVirtualFunctions, VirtualFunctions);
   CopyPropertiesVec(MergedImplicitLocalArg, ImplicitLocalArg);
+  CopyPropertiesVec(MergedKernelNames, KernelNames);
   CopyPropertiesVec(MergedExportedSymbols, ExportedSymbols);
   CopyPropertiesVec(MergedRegisteredKernels, RegisteredKernels);
 

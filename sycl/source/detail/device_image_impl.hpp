@@ -256,6 +256,12 @@ public:
         MKernelIDs(std::move(KernelIDs)),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()), MOrigins(Origins) {
     updateSpecConstSymMap();
+    // SYCLBIN files have the kernel names embedded in the binaries, so we
+    // collect them.
+    if (BinImage && (MOrigins & ImageOriginSYCLBIN))
+      for (const sycl_device_binary_property &KNProp :
+           BinImage->getKernelNames())
+        MKernelNames.insert(KNProp->Name);
   }
 
   device_image_impl(
@@ -771,7 +777,7 @@ public:
         nullptr);
 
     std::vector<std::string> KernelNames =
-        ProgramManager::getKernelNamesFromURProgram(Adapter, UrProgram);
+        getKernelNamesFromURProgram(Adapter, UrProgram);
     KernelNameSetT KernelNameSet{KernelNames.begin(), KernelNames.end()};
 
     // If caching enabled and kernel not fetched from cache, cache.
@@ -1250,6 +1256,22 @@ private:
           "urProgramCreateWithIL resulted in a null program handle.");
 
     return UrProgram;
+  }
+
+  static std::vector<std::string>
+  getKernelNamesFromURProgram(const AdapterPtr &Adapter,
+                              ur_program_handle_t UrProgram) {
+    // Get the kernel names.
+    size_t KernelNamesSize;
+    Adapter->call<UrApiKind::urProgramGetInfo>(
+        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
+
+    // semi-colon delimited list of kernel names.
+    std::string KernelNamesStr(KernelNamesSize, ' ');
+    Adapter->call<UrApiKind::urProgramGetInfo>(
+        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, KernelNamesStr.size(),
+        &KernelNamesStr[0], nullptr);
+    return detail::split_string(KernelNamesStr, ';');
   }
 
   const std::variant<std::string, std::vector<std::byte>,

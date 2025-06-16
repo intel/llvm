@@ -227,6 +227,7 @@ public:
   const std::vector<ur_program_metadata_t> &getProgramMetadataUR() const {
     return ProgramMetadataUR;
   }
+  const PropertyRange &getKernelNames() const { return KernelNames; }
   const PropertyRange &getExportedSymbols() const { return ExportedSymbols; }
   const PropertyRange &getImportedSymbols() const { return ImportedSymbols; }
   const PropertyRange &getDeviceGlobals() const { return DeviceGlobals; }
@@ -259,6 +260,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange KernelParamOptInfo;
   RTDeviceBinaryImage::PropertyRange AssertUsed;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
+  RTDeviceBinaryImage::PropertyRange KernelNames;
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
   RTDeviceBinaryImage::PropertyRange ImportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;

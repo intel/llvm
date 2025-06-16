@@ -356,12 +356,13 @@ SYCLBINBinaries::convertAbstractModuleProperties(SYCLBIN::AbstractModule &AM) {
 
 std::vector<const RTDeviceBinaryImage *>
 SYCLBINBinaries::getBestCompatibleImages(const device &Dev) {
+  detail::device_impl &DevImpl = *getSyclObjImpl(Dev);
   auto SelectCompatibleImages =
       [&](const std::vector<RTDeviceBinaryImage> &Imgs) {
         std::vector<const RTDeviceBinaryImage *> CompatImgs;
         for (const RTDeviceBinaryImage &Img : Imgs)
-          if (doesDevSupportDeviceRequirements(Dev, Img) &&
-              doesImageTargetMatchDevice(Img, getSyclObjImpl(Dev).get()))
+          if (doesDevSupportDeviceRequirements(DevImpl, Img) &&
+              doesImageTargetMatchDevice(Img, DevImpl))
             CompatImgs.push_back(&Img);
         return CompatImgs;
       };
