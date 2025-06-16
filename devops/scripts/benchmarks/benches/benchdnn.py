@@ -47,12 +47,12 @@ class OneDnnBench(Suite):
                     self, bench_driver, bench_name, bench_args, syclgraph=False
                 )
             )
-            if rungraph == True:
-                benchmarks.append(
-                    OneDnnBenchmark(
-                        self, bench_driver, bench_name, bench_args, syclgraph=True
-                    )
-                )
+            # if rungraph == True:
+            #     benchmarks.append(
+            #         OneDnnBenchmark(
+            #             self, bench_driver, bench_name, bench_args, syclgraph=True
+            #         )
+            #     )
         return benchmarks
 
     def setup(self):
@@ -75,7 +75,7 @@ class OneDnnBench(Suite):
             "-DCMAKE_BUILD_TYPE=Release",
             "-DDNNL_BUILD_TESTS=ON",
             "-DDNNL_BUILD_EXAMPLES=OFF",
-            "-DDNNL_CPU_RUNTIME=SYCL",  # Enable SYCL support
+            "-DDNNL_CPU_RUNTIME=NONE",  # Disable SYCL support
             "-DDNNL_GPU_RUNTIME=SYCL",  # Enable SYCL GPU support
         ]
         run(
@@ -137,8 +137,7 @@ class OneDnnBenchmark(Benchmark):
         ]
 
         env_vars = dict(env_vars) if env_vars else {}
-        if options.verbose:
-            env_vars["SYCL_UR_TRACE"] = "-2"
+        # env_vars["SYCL_UR_TRACE"] = "-2"
 
         output = self.run_bench(
             command,
@@ -173,7 +172,7 @@ class OneDnnBenchmark(Benchmark):
             if line.startswith("Output template:"):
                 template = line.replace("Output template: ", "").strip().split(",")
                 try:
-                    idx_0time = template.index("%0time%")
+                    idx_0time = template.index("%-time%")
                 except ValueError:
                     return 0.0
                 continue
