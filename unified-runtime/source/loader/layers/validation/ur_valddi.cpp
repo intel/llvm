@@ -8314,7 +8314,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE < memHandleType)
+    if (UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
@@ -8528,6 +8528,47 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
   }
 
   ur_result_t result = pfnFreeMappedLinearMemoryExp(hContext, hDevice, pMem);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesSupportsImportingHandleTypeExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesSupportsImportingHandleTypeExp(
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] type of external memory handle
+    ur_exp_external_mem_type_t memHandleType,
+    /// [out] whether the device supports importing the specified external
+    /// memory handle type
+    ur_bool_t *pSupportedRet) {
+  auto pfnSupportsImportingHandleTypeExp =
+      getContext()
+          ->urDdiTable.BindlessImagesExp.pfnSupportsImportingHandleTypeExp;
+
+  if (nullptr == pfnSupportsImportingHandleTypeExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pSupportedRet)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result =
+      pfnSupportsImportingHandleTypeExp(hDevice, memHandleType, pSupportedRet);
 
   return result;
 }
@@ -10959,6 +11000,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
       pDdiTable->pfnFreeMappedLinearMemoryExp;
   pDdiTable->pfnFreeMappedLinearMemoryExp =
       ur_validation_layer::urBindlessImagesFreeMappedLinearMemoryExp;
+
+  dditable.pfnSupportsImportingHandleTypeExp =
+      pDdiTable->pfnSupportsImportingHandleTypeExp;
+  pDdiTable->pfnSupportsImportingHandleTypeExp =
+      ur_validation_layer::urBindlessImagesSupportsImportingHandleTypeExp;
 
   dditable.pfnImportExternalSemaphoreExp =
       pDdiTable->pfnImportExternalSemaphoreExp;
