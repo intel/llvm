@@ -46,19 +46,19 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl) {
   assert(!MIsDeviceImageScopeDecorated &&
          "USM allocations should not be acquired for device_global with "
          "device_image_scope property.");
-  const std::shared_ptr<context_impl> &CtxImpl = QueueImpl.getContextImplPtr();
+  context_impl &CtxImpl = QueueImpl.getContextImpl();
   const device_impl &DevImpl = QueueImpl.getDeviceImpl();
   std::lock_guard<std::mutex> Lock(MDeviceToUSMPtrMapMutex);
 
-  auto DGUSMPtr = MDeviceToUSMPtrMap.find({&DevImpl, CtxImpl.get()});
+  auto DGUSMPtr = MDeviceToUSMPtrMap.find({&DevImpl, &CtxImpl});
   if (DGUSMPtr != MDeviceToUSMPtrMap.end())
     return DGUSMPtr->second;
 
   void *NewDGUSMPtr = detail::usm::alignedAllocInternal(
-      0, MDeviceGlobalTSize, CtxImpl.get(), &DevImpl, sycl::usm::alloc::device);
+      0, MDeviceGlobalTSize, &CtxImpl, &DevImpl, sycl::usm::alloc::device);
 
   auto NewAllocIt = MDeviceToUSMPtrMap.emplace(
-      std::piecewise_construct, std::forward_as_tuple(&DevImpl, CtxImpl.get()),
+      std::piecewise_construct, std::forward_as_tuple(&DevImpl, &CtxImpl),
       std::forward_as_tuple(NewDGUSMPtr));
   assert(NewAllocIt.second &&
          "USM allocation for device and context already happened.");
@@ -83,7 +83,7 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl) {
     NewAlloc.MInitEvent = InitEvent;
   }
 
-  CtxImpl->addAssociatedDeviceGlobal(MDeviceGlobalPtr);
+  CtxImpl.addAssociatedDeviceGlobal(MDeviceGlobalPtr);
   return NewAlloc;
 }
 
@@ -92,22 +92,20 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(const context &Context) {
   assert(!MIsDeviceImageScopeDecorated &&
          "USM allocations should not be acquired for device_global with "
          "device_image_scope property.");
-  const std::shared_ptr<context_impl> &CtxImpl = getSyclObjImpl(Context);
+  context_impl &CtxImpl = *getSyclObjImpl(Context);
   const std::shared_ptr<device_impl> &DevImpl =
-      getSyclObjImpl(CtxImpl->getDevices().front());
+      getSyclObjImpl(CtxImpl.getDevices().front());
   std::lock_guard<std::mutex> Lock(MDeviceToUSMPtrMapMutex);
 
-  auto DGUSMPtr = MDeviceToUSMPtrMap.find({DevImpl.get(), CtxImpl.get()});
+  auto DGUSMPtr = MDeviceToUSMPtrMap.find({DevImpl.get(), &CtxImpl});
   if (DGUSMPtr != MDeviceToUSMPtrMap.end())
     return DGUSMPtr->second;
 
   void *NewDGUSMPtr = detail::usm::alignedAllocInternal(
-      0, MDeviceGlobalTSize, CtxImpl.get(), DevImpl.get(),
-      sycl::usm::alloc::device);
+      0, MDeviceGlobalTSize, &CtxImpl, DevImpl.get(), sycl::usm::alloc::device);
 
   auto NewAllocIt = MDeviceToUSMPtrMap.emplace(
-      std::piecewise_construct,
-      std::forward_as_tuple(DevImpl.get(), CtxImpl.get()),
+      std::piecewise_construct, std::forward_as_tuple(DevImpl.get(), &CtxImpl),
       std::forward_as_tuple(NewDGUSMPtr));
   assert(NewAllocIt.second &&
          "USM allocation for device and context already happened.");
@@ -123,9 +121,9 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(const context &Context) {
       reinterpret_cast<const void *>(
           reinterpret_cast<uintptr_t>(MDeviceGlobalPtr) +
           sizeof(MDeviceGlobalPtr)),
-      CtxImpl, MDeviceGlobalTSize, NewAlloc.MPtr);
+      &CtxImpl, MDeviceGlobalTSize, NewAlloc.MPtr);
 
-  CtxImpl->addAssociatedDeviceGlobal(MDeviceGlobalPtr);
+  CtxImpl.addAssociatedDeviceGlobal(MDeviceGlobalPtr);
   return NewAlloc;
 }
 

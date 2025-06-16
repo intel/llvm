@@ -369,15 +369,15 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   // number of targets. This kernel is compatible with the device if there is
   // at least one image (containing this kernel) whose aspects are supported by
   // the device and whose target matches the device.
+  detail::device_impl &DevImpl = *getSyclObjImpl(Dev);
   for (const auto &KernelID : KernelIDs) {
     std::set<detail::RTDeviceBinaryImage *> BinImages =
         detail::ProgramManager::getInstance().getRawDeviceImages({KernelID});
 
     if (std::none_of(BinImages.begin(), BinImages.end(),
                      [&](const detail::RTDeviceBinaryImage *Img) {
-                       return doesDevSupportDeviceRequirements(Dev, *Img) &&
-                              doesImageTargetMatchDevice(
-                                  *Img, getSyclObjImpl(Dev).get());
+                       return doesDevSupportDeviceRequirements(DevImpl, *Img) &&
+                              doesImageTargetMatchDevice(*Img, DevImpl);
                      }))
       return false;
   }

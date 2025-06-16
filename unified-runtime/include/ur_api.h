@@ -11078,7 +11078,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferRetainExp(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Decrement the command-buffer object's reference count and delete the
-///        command-buffer object if the reference count becomes zero.
+///        command-buffer object if the reference count becomes zero. It is
+///        legal to call the entry-point while `hCommandBuffer` is still
+///        executing, which will block on completion if the reference count of
+///        `hCommandBuffer` becomes zero.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
