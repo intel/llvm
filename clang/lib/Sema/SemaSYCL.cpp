@@ -2183,31 +2183,14 @@ public:
   }
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    // TODO manipulate struct depth once special types are supported for free
-    // function kernels.
-    // ++StructFieldDepth;
+    ++StructFieldDepth;
     return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *PD,
                    QualType ParamTy) final {
-    // TODO manipulate struct depth once special types are supported for free
-    // function kernels.
-    // --StructFieldDepth;
-    // TODO We don't yet support special types and therefore structs that
-    // require decomposition and leaving/entering. Diagnose for better user
-    // experience.
-    CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
-    if (RD->hasAttr<SYCLRequiresDecompositionAttr>()) {
-      Diag.Report(PD->getLocation(),
-                  diag::err_bad_kernel_param_type)
-          << ParamTy;
-      Diag.Report(PD->getLocation(),
-                  diag::note_free_function_kernel_param_type_not_supported)
-          << ParamTy;
-      IsInvalid = true;
-    }
-    return isValid();
+    --StructFieldDepth;
+    return true;
   }
 
   bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
@@ -2311,8 +2294,6 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *, QualType) final {
-    // TODO We don't support special types in free function kernel parameters,
-    // but track them to diagnose the case properly.
     CollectionStack.back() = true;
     return true;
   }
@@ -2583,8 +2564,6 @@ public:
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *,
                    QualType ParamTy) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2604,8 +2583,6 @@ public:
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *PD,
                    QualType ParamTy) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2701,8 +2678,6 @@ public:
 
   bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD,
                              QualType ParamTy) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -2736,6 +2711,9 @@ public:
 class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   FunctionDecl *KernelDecl = nullptr;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
+  // Holds the last handled kernel struct parameter that contains a special type.
+  // Set in the enterStruct functions.
+  ParmVarDecl * CurrentStruct;
   Sema::ContextRAII FuncContext;
   // Holds the last handled field's first parameter. This doesn't store an
   // iterator as push_back invalidates iterators.
@@ -3005,9 +2983,8 @@ public:
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    // TODO
-    // ++StructDepth;
+  bool enterStruct(const CXXRecordDecl *, ParmVarDecl *PD, QualType Ty) final {
+    ++StructDepth;
     return true;
   }
 
@@ -3017,8 +2994,7 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    // TODO
-    // --StructDepth;
+    --StructDepth;
     return true;
   }
 
@@ -3033,6 +3009,15 @@ public:
     --StructDepth;
     return true;
   }
+
+  bool handleStructType(ParmVarDecl *PD, QualType Ty) final {
+    StringRef Name = "_arg_struct";
+    addParam(Name, Ty);
+    CurrentStruct = Params.back();
+    return true;
+  }
+
+  bool handleStructType(FieldDecl *, QualType) final { return true; }
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                              QualType FieldTy) final {
@@ -3208,6 +3193,7 @@ public:
     return ArrayRef<ParmVarDecl *>(std::begin(Params) + LastParamIndex,
                                    std::end(Params));
   }
+  ParmVarDecl *getParentStructForCurrentField() { return CurrentStruct; }
 };
 
 // This Visitor traverses the AST of the function with
@@ -4384,22 +4370,28 @@ public:
 class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
   SyclKernelDeclCreator &DeclCreator;
   llvm::SmallVector<Stmt *, 16> BodyStmts;
+  llvm::SmallVector<FieldDecl *, 8> CurrentStructs;
   FunctionDecl *FreeFunc = nullptr;
   SourceLocation FreeFunctionSrcLoc; // Free function source location.
   llvm::SmallVector<Expr *, 8> ArgExprs;
 
-  // Creates a DeclRefExpr to the ParmVar that represents the current free
-  // function parameter.
-  Expr *createParamReferenceExpr() {
-    ParmVarDecl *FreeFunctionParameter =
-        DeclCreator.getParamVarDeclsForCurrentField()[0];
-
+  // Creates a DeclRefExpr to the ParmVar that represents an arbitrary
+  // free function parameter
+  Expr *createParamReferenceExpr(ParmVarDecl *FreeFunctionParameter) {
     QualType FreeFunctionParamType = FreeFunctionParameter->getOriginalType();
     Expr *DRE = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
         FreeFunctionParameter, FreeFunctionParamType, VK_LValue,
         FreeFunctionSrcLoc);
     DRE = SemaSYCLRef.SemaRef.DefaultLvalueConversion(DRE).get();
     return DRE;
+  }
+
+  // Creates a DeclRefExpr to the ParmVar that represents the current free
+  // function parameter.
+  Expr *createParamReferenceExpr() {
+    ParmVarDecl *FreeFunctionParameter =
+        DeclCreator.getParamVarDeclsForCurrentField()[0];
+    return createParamReferenceExpr(FreeFunctionParameter);
   }
 
   // Creates a DeclRefExpr to the ParmVar that represents the current pointer
@@ -4548,9 +4540,18 @@ public:
     DeclCreator.setBody(KernelBody);
   }
 
-  bool handleSyclSpecialType(FieldDecl *FD, QualType Ty) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
+  bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
+    // Being inside this function means there is a struct parameter to the free
+    // function kernel that contains a special type.
+    ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
+    // special_type_wrapper_map[ParentStruct->getType()] = true;
+    Expr *Base = createParamReferenceExpr(ParentStruct);
+    for (const auto &child : CurrentStructs) {
+      Base = buildMemberExpr(Base, child);
+    }
+    MemberExpr *MemberAccess = buildMemberExpr(Base, FD);
+      createSpecialMethodCall(FieldTy->getAsCXXRecordDecl(), InitMethodName,
+                              MemberAccess, BodyStmts);
     return true;
   }
 
@@ -4678,26 +4679,24 @@ public:
   }
 
   bool enterStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
+    CurrentStructs.push_back(FD);
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
+  bool enterStruct(const CXXRecordDecl *RD, ParmVarDecl *PD,
+                   QualType Ty) final {
     return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
+    CurrentStructs.pop_back();
     return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
+    ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
+    ArgExprs.push_back(SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+        ParentStruct, ParentStruct->getType(), VK_PRValue, FreeFunctionSrcLoc));
     return true;
   }
 
@@ -4741,6 +4740,11 @@ public:
     // TODO
     unsupportedFreeFunctionParamType();
     return true;
+  }
+  FieldDecl *getCurrentStruct() {
+    assert(CurrentStructs.size() &&
+           "Current free function parameter is not inside a structure!");
+    return CurrentStructs.back();
   }
 };
 
@@ -5030,8 +5034,6 @@ public:
   }
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -5042,8 +5044,6 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -5554,9 +5554,8 @@ void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
   SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
   KernelObjVisitor Visitor{*this};
 
-  Visitor.VisitFunctionParameters(FD, argsSizeChecker, kernel_decl, kernel_body,
-                                  int_header, int_footer);
-
+  Visitor.VisitFunctionParameters(FD, argsSizeChecker, kernel_decl, kernel_body, int_header, int_footer);
+  
   assert(getKernelFDPairs().back().first == FD &&
          "OpenCL Kernel not found for free function entry");
   // Register the kernel name with the OpenCL kernel generated for the
@@ -7044,6 +7043,26 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       }
     }
     ParmListWithNamesOstream.flush();
+    for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
+      // if (FreeFunctionKernelBodyCreator::isSpecialTypeWrapper(
+      //       Param->getType())) {
+      //  this is a struct that contains a special type so its neither a
+      //  special type nor a trivially copyable type. We therefore need to
+      //  explicitly communicate to the runtime that this argument should be
+      //  allowed as a free function kernel argument. We do this by defining
+      //  a certain trait recognized by the runtime to be true.
+      O << "template <>\n";
+      O << "struct "
+           "sycl::ext::oneapi::experimental::detail::is_explicitly_allowed_"
+           "arg<";
+      Policy.SuppressTagKeyword = true;
+
+      Param->getType().print(O, Policy);
+      Policy.SuppressTagKeyword = false;
+      O << "> {\n";
+      O << " static constexpr bool value = true;\n};\n";
+      //}
+    }
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.PrintAsCanonical = false;
     Policy.SuppressDefinition = true;
