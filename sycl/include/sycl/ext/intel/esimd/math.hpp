@@ -29,7 +29,7 @@ namespace ext::intel::esimd {
 /// @{
 /// @defgroup sycl_esimd_math_ext Hardware-accelerated math.
 ///
-/// This is a group of APIs implementing standard math operations which are also
+/// This is a group of APIs implementing standard math operations  which are also
 /// directly supported by the hardware. Usually the hardware support is a
 /// specific message to the "extended math" GPU "shared function" unit, sent via
 /// the \c math instruction. Most of the operations do not conform to OpenCL
