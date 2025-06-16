@@ -12,8 +12,10 @@
 #include <assert.h>
 #include <ur_api.h>
 
+#include "context.hpp"
 #include "event.hpp"
 #include "kernel.hpp"
+#include "memory.hpp"
 #include "queue.hpp"
 #include "ur2offload.hpp"
 
@@ -87,4 +89,71 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     ur_queue_handle_t, bool, void *, size_t, const void *, size_t, size_t,
     size_t, uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
+    size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  // Ignore wait list for now
+  (void)numEventsInWaitList;
+  (void)phEventWaitList;
+  //
+
+  ol_event_handle_t EventOut = nullptr;
+
+  void *DevPtr = std::get<BufferMem>(hBuffer->Mem).Ptr;
+
+  olMemcpy(hQueue->OffloadQueue, pDst, Adapter.HostDevice, DevPtr + offset,
+           hQueue->OffloadDevice, size, phEvent ? &EventOut : nullptr);
+
+  if (blockingRead) {
+    olWaitQueue(hQueue->OffloadQueue);
+  }
+
+  if (phEvent) {
+    auto *Event = new ur_event_handle_t_();
+    Event->OffloadEvent = EventOut;
+    *phEvent = Event;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
+    size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  // Ignore wait list for now
+  (void)numEventsInWaitList;
+  (void)phEventWaitList;
+  //
+
+  ol_event_handle_t EventOut = nullptr;
+
+  void *DevPtr = std::get<BufferMem>(hBuffer->Mem).Ptr;
+
+  auto Res =
+      olMemcpy(hQueue->OffloadQueue, DevPtr + offset, hQueue->OffloadDevice,
+               pSrc, Adapter.HostDevice, size, phEvent ? &EventOut : nullptr);
+  if (Res) {
+    return offloadResultToUR(Res);
+  }
+
+  if (blockingWrite) {
+    auto Res = olWaitQueue(hQueue->OffloadQueue);
+    if (Res) {
+      return offloadResultToUR(Res);
+    }
+  }
+
+  if (phEvent) {
+    auto *Event = new ur_event_handle_t_();
+    Event->OffloadEvent = EventOut;
+    *phEvent = Event;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
