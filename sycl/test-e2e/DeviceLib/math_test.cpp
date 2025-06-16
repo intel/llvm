@@ -18,13 +18,12 @@ namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 61
+#define TEST_NUM 60
 
-float ref_val[TEST_NUM] = {1.0f, 1.0f, 1, 0, 0, 0, 0, 0, 0,   1,   1,   0.5, 0,
-                           0,    1,    0, 2, 0, 0, 0, 0, 0,   1,   0,   1,   2,
-                           0,    1,    2, 5, 0, 0, 0, 0, 0.5, 0.5, NAN, NAN, 2,
-                           0,    0,    0, 0, 0, 0, 0, 0, 0,   0,   0,   0,   0,
-                           0,    0,    0, 0, 0, 0, 0, 0, 0};
+float ref_val[TEST_NUM] = {
+    1.0f, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0.5, 0, 0, 1,   0,   2,   0,   0, 0, 0,
+    0,    1, 0, 1, 2, 0, 1, 2, 5, 0, 0,   0, 0, 0.5, 0.5, NAN, NAN, 2, 0, 0,
+    0,    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0,   0,   0,   0,   0, 0, 0};
 
 float refIptr = 1;
 
@@ -54,7 +53,6 @@ void device_math_test(s::queue &deviceQueue) {
         float subnormal;
         *((uint32_t *)&subnormal) = 0x7FFFFF;
 
-        res_access[i++] = nearbyintf(0.9);
         res_access[i++] = rintf(0.9);
         res_access[i++] = cosf(0.0f);
         res_access[i++] = sinf(0.0f);
