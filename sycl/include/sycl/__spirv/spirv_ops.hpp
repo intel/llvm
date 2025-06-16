@@ -235,7 +235,7 @@ extern __DPCPP_SYCL_EXTERNAL
 
 // Atomic SPIR-V builtins
 // TODO: drop these forward-declarations.
-// As of right know, compiler does not forward-declare long long overloads for
+// As of now, compiler does not forward-declare long long overloads for
 // these and as such we can't drop anything from here. But ideally, we should
 // rely on the compiler to generate those - that would allow to drop
 // spirv_ops.hpp include from more files.
