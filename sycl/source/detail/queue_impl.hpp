@@ -752,7 +752,7 @@ protected:
 
     auto Event = parseEvent(Handler.finalize());
 
-    if (Event && !Scheduler::CheckEventReadiness(MContext, Event)) {
+    if (Event && !Scheduler::CheckEventReadiness(*MContext, Event)) {
       MDefaultGraphDeps.LastEventPtr = Event;
       MNoLastEventMode.store(false, std::memory_order_relaxed);
     }
