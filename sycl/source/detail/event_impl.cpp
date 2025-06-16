@@ -198,28 +198,28 @@ void event_impl::setQueue(queue_impl &Queue) {
   MIsDefaultConstructed = false;
 }
 
+void event_impl::initHostProfilingInfo() {
+  assert(isHost() && "This must be a host event");
+  assert(MState == HES_NotComplete &&
+         "Host event must be incomplete to initialize profiling info");
+
+  std::shared_ptr<queue_impl> QueuePtr = MSubmittedQueue.lock();
+  assert(QueuePtr && "Queue must be valid to initialize host profiling info");
+  assert(QueuePtr->MIsProfilingEnabled && "Queue must have profiling enabled");
+
+  MIsProfilingEnabled = true;
+  MHostProfilingInfo.reset(new HostProfilingInfo());
+  if (!MHostProfilingInfo)
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "Out of host memory " +
+                              codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
+
+  device_impl &Device = QueuePtr->getDeviceImpl();
+  MHostProfilingInfo->setDevice(&Device);
+}
+
 void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
   MSubmittedQueue = std::move(SubmittedQueue);
-  if (isHost()) {
-    if (auto QueuePtr = MSubmittedQueue.lock()) {
-      // Enable profiling for host events only if the queue where host task was
-      // submitted has profiling enabled.
-      MIsProfilingEnabled = QueuePtr->MIsProfilingEnabled;
-      if (!MIsProfilingEnabled || MState == HES_Discarded ||
-          MState == HES_Complete)
-        return;
-
-      MHostProfilingInfo.reset(new HostProfilingInfo());
-      if (!MHostProfilingInfo)
-        throw sycl::exception(
-            sycl::make_error_code(sycl::errc::runtime),
-            "Out of host memory " +
-                codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
-
-      device_impl &Device = QueuePtr->getDeviceImpl();
-      MHostProfilingInfo->setDevice(&Device);
-    }
-  }
 }
 
 void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,

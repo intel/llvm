@@ -1963,8 +1963,13 @@ ExecCGCommand::ExecCGCommand(
               Dependencies),
       MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CGType::CodeplayHostTask) {
-    MEvent->setSubmittedQueue(
-        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
+    const auto &SubmitQueue =
+        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue;
+    MEvent->setSubmittedQueue(SubmitQueue);
+    // Initialize host profiling info if the queue has profiling enabled.
+    if (SubmitQueue && SubmitQueue->MIsProfilingEnabled) {
+      MEvent->initHostProfilingInfo();
+    }
   }
   if (MCommandGroup->getType() == detail::CGType::ProfilingTag)
     MEvent->markAsProfilingTagEvent();
