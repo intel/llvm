@@ -1719,8 +1719,13 @@ private:
 
   void setHandlerKernelBundle(kernel Kernel);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setHandlerKernelBundle(
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
+#endif
+
+  template <typename SharedPtrT>
+  void setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr);
 
   void SetHostTask(std::function<void()> &&Func);
   void SetHostTask(std::function<void(interop_handle)> &&Func);

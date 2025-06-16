@@ -398,10 +398,17 @@ handler::getOrInsertHandlerKernelBundlePtr(bool Insert) const {
 }
 
 // Sets kernel bundle to the provided one.
+template <typename SharedPtrT>
+void handler::setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr) {
+  impl->MKernelBundle = std::forward<SharedPtrT>(NewKernelBundleImpPtr);
+}
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setHandlerKernelBundle(
     const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr) {
   impl->MKernelBundle = NewKernelBundleImpPtr;
 }
+#endif
 
 void handler::setHandlerKernelBundle(kernel Kernel) {
   // Kernel may not have an associated kernel bundle if it is created from a
@@ -409,7 +416,7 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
   //  the other way around: getSyclObjImp(Kernel->get_kernel_bundle()).
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpl =
       detail::getSyclObjImpl(Kernel)->get_kernel_bundle();
-  setHandlerKernelBundle(KernelBundleImpl);
+  setHandlerKernelBundle(std::move(KernelBundleImpl));
 }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -506,11 +513,10 @@ event handler::finalize() {
                   *KernelBundleImpPtr);
           kernel_bundle<bundle_state::executable> ExecKernelBundle =
               build(KernelBundle);
-          std::shared_ptr<detail::kernel_bundle_impl> ExecKernelBundleImpPtr =
-              detail::getSyclObjImpl(ExecKernelBundle);
-          // Raw ptr is valid, because we saved the shared_ptr to the handler
-          setHandlerKernelBundle(ExecKernelBundleImpPtr);
-          KernelBundleImpPtr = ExecKernelBundleImpPtr.get();
+          KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle).get();
+          // Raw ptr KernelBundleImpPtr is valid, because we saved the
+          // shared_ptr to the handler
+          setHandlerKernelBundle(KernelBundleImpPtr->shared_from_this());
           KernelInserted = KernelBundleImpPtr->add_kernel(
               KernelID, detail::createSyclObjFromImpl<device>(Dev));
         }
@@ -526,11 +532,10 @@ event handler::finalize() {
         kernel_bundle<bundle_state::executable> ExecBundle = build(
             detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
                 *KernelBundleImpPtr));
-        std::shared_ptr<detail::kernel_bundle_impl> ExecKernelBundleImpPtr =
-            detail::getSyclObjImpl(ExecBundle);
-        // Raw ptr is valid, because we saved the shared_ptr to the handler
-        setHandlerKernelBundle(ExecKernelBundleImpPtr);
-        KernelBundleImpPtr = ExecKernelBundleImpPtr.get();
+        KernelBundleImpPtr = detail::getSyclObjImpl(ExecBundle).get();
+        // Raw ptr KernelBundleImpPtr is valid, because we saved the shared_ptr
+        // to the handler
+        setHandlerKernelBundle(KernelBundleImpPtr->shared_from_this());
         break;
       }
       case bundle_state::executable:
