@@ -18,10 +18,12 @@ namespace detail {
 using KernelNameStrT = std::string_view;
 using KernelNameStrRefT = std::string_view;
 using ABINeutralKernelNameStrT = detail::string_view;
+using ABINeutralKernelNameStrRefT = detail::string_view;
 #else
 using KernelNameStrT = std::string;
 using KernelNameStrRefT = const std::string &;
 using ABINeutralKernelNameStrT = detail::string;
+using ABINeutralKernelNameStrRefT = const detail::string &;
 #endif
 
 inline KernelNameStrT toKernelNameStrT(const ABINeutralKernelNameStrT &str) {

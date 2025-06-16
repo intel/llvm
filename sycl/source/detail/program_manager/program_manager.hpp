@@ -200,7 +200,7 @@ public:
   FastKernelCacheValPtr
   getOrCreateKernel(context_impl &ContextImpl, device_impl &DeviceImpl,
                     KernelNameStrRefT KernelName,
-                    KernelNameBasedCacheT *KernelNameBasedCachePtr,
+                    KernelNameBasedCacheT &KernelNameBasedCache,
                     const NDRDescT &NDRDesc = {});
 
   ur_kernel_handle_t getCachedMaterializedKernel(
@@ -358,23 +358,22 @@ public:
   ~ProgramManager() = default;
 
   template <typename NameT>
-  bool kernelUsesAssert(const NameT &KernelName,
-                        KernelNameBasedCacheT *KernelNameBasedCachePtr) const {
-    if (!KernelNameBasedCachePtr)
-      return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
-
-    std::optional<bool> &UsesAssert = KernelNameBasedCachePtr->UsesAssert;
-    if (!UsesAssert.has_value())
-      UsesAssert =
-          m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
-    return UsesAssert.value();
+  bool kernelUsesAssert(const NameT &KernelName) const {
+    return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
   }
 
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
-  std::optional<int> kernelImplicitLocalArgPos(
-      KernelNameStrRefT KernelName,
-      KernelNameBasedCacheT *KernelNameBasedCachePtr) const;
+  std::optional<int>
+  kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const;
+
+  KernelNameBasedCacheT *
+  createKernelNameBasedCache(KernelNameStrRefT KernelName);
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  KernelNameBasedCacheT *
+  getOrCreateKernelNameBasedCache(KernelNameStrRefT KernelName);
+#endif
 
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
@@ -525,6 +524,11 @@ protected:
   using KernelUsesAssertSet = std::set<KernelNameStrT, std::less<>>;
   KernelUsesAssertSet m_KernelUsesAssert;
   std::unordered_map<KernelNameStrT, int> m_KernelImplicitLocalArgPos;
+
+  // Map for storing kernel name based caches. Runtime lookup should only be
+  // performed for ABI compatibility and user library unloading.
+  std::unordered_map<KernelNameStrT, KernelNameBasedCacheT>
+      m_KernelNameBasedCaches;
 
   // Sanitizer type used in device image
   SanitizerType m_SanitizerFoundInImage;

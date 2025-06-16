@@ -1127,8 +1127,8 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
 FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     context_impl &ContextImpl, device_impl &DeviceImpl,
-    KernelNameStrRefT KernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr, const NDRDescT &NDRDesc) {
+    KernelNameStrRefT KernelName, KernelNameBasedCacheT &KernelNameBasedCache,
+    const NDRDescT &NDRDesc) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << &ContextImpl
               << ", " << &DeviceImpl << ", " << KernelName << ")\n";
@@ -1138,12 +1138,9 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
 
   KernelProgramCache &Cache = ContextImpl.getKernelProgramCache();
   ur_device_handle_t UrDevice = DeviceImpl.getHandleRef();
-  FastKernelSubcacheT *CacheHintPtr =
-      KernelNameBasedCachePtr ? &KernelNameBasedCachePtr->FastKernelSubcache
-                              : nullptr;
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
-    if (auto KernelCacheValPtr =
-            Cache.tryToGetKernelFast(KernelName, UrDevice, CacheHintPtr)) {
+    if (auto KernelCacheValPtr = Cache.tryToGetKernelFast(
+            KernelName, UrDevice, KernelNameBasedCache.getKernelSubcache())) {
       return KernelCacheValPtr;
     }
   }
@@ -1200,7 +1197,8 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
   // MKernelsPerProgramCache, we need to increase the ref count of the kernel.
   ContextImpl.getAdapter()->call<UrApiKind::urKernelRetain>(
       KernelArgMaskPair.first);
-  Cache.saveKernel(KernelName, UrDevice, ret_val, CacheHintPtr);
+  Cache.saveKernel(KernelName, UrDevice, ret_val,
+                   KernelNameBasedCache.getKernelSubcache());
   return ret_val;
 }
 
@@ -1856,25 +1854,28 @@ void ProgramManager::cacheKernelImplicitLocalArg(RTDeviceBinaryImage &Img) {
     }
 }
 
-std::optional<int> ProgramManager::kernelImplicitLocalArgPos(
-    KernelNameStrRefT KernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr) const {
-  auto getLocalArgPos = [&]() -> std::optional<int> {
-    auto it = m_KernelImplicitLocalArgPos.find(KernelName);
-    if (it != m_KernelImplicitLocalArgPos.end())
-      return it->second;
-    return {};
-  };
-
-  if (!KernelNameBasedCachePtr)
-    return getLocalArgPos();
-  std::optional<std::optional<int>> &ImplicitLocalArgPos =
-      KernelNameBasedCachePtr->ImplicitLocalArgPos;
-  if (!ImplicitLocalArgPos.has_value()) {
-    ImplicitLocalArgPos = getLocalArgPos();
-  }
-  return ImplicitLocalArgPos.value();
+std::optional<int>
+ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
+  auto it = m_KernelImplicitLocalArgPos.find(KernelName);
+  if (it != m_KernelImplicitLocalArgPos.end())
+    return it->second;
+  return {};
 }
+
+KernelNameBasedCacheT *
+ProgramManager::createKernelNameBasedCache(KernelNameStrRefT KernelName) {
+  auto Result = m_KernelNameBasedCaches.try_emplace(KernelName, KernelName);
+  assert(Result.second && "Kernel name based cache instance already exists");
+  return &Result.first->second;
+}
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+KernelNameBasedCacheT *
+ProgramManager::getOrCreateKernelNameBasedCache(KernelNameStrRefT KernelName) {
+  auto Result = m_KernelNameBasedCaches.try_emplace(KernelName, KernelName);
+  return &Result.first->second;
+}
+#endif
 
 static bool isBfloat16DeviceLibImage(sycl_device_binary RawImg,
                                      uint32_t *LibVersion = nullptr) {
@@ -2238,6 +2239,10 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
           It != m_KernelName2KernelIDs.end()) {
         m_KernelIDs2BinImage.erase(It->second);
         m_KernelName2KernelIDs.erase(It);
+      }
+      if (auto It = m_KernelNameBasedCaches.find(EntriesIt->GetName());
+          It != m_KernelNameBasedCaches.end()) {
+        m_KernelNameBasedCaches.erase(It);
       }
     }
 

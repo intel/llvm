@@ -8,19 +8,27 @@
 #pragma once
 
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/kernel_name_str_t.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
 struct KernelNameBasedCacheT;
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT KernelNameBasedCacheT *createKernelNameBasedCache();
+#endif
+__SYCL_EXPORT KernelNameBasedCacheT *
+createKernelNameBasedCache(detail::ABINeutralKernelNameStrRefT MKernelName);
 
 // Retrieves a cache pointer unique to a kernel name type that can be used to
 // avoid kernel name based lookup in the runtime.
-template <typename KernelName>
-KernelNameBasedCacheT *getKernelNameBasedCache() {
-  static KernelNameBasedCacheT *Instance = createKernelNameBasedCache();
+template <typename KernelNameT>
+KernelNameBasedCacheT *
+getKernelNameBasedCache(detail::ABINeutralKernelNameStrRefT KernelName) {
+  static KernelNameBasedCacheT *Instance =
+      createKernelNameBasedCache(KernelName);
   return Instance;
 }
 

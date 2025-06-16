@@ -1539,9 +1539,10 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     UrKernel = SyclKernelImpl->getHandleRef();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
+    assert(ExecCG.MKernelNameBasedCachePtr);
     BundleObjs = sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
         *ContextImpl, DeviceImpl, ExecCG.MKernelName,
-        ExecCG.MKernelNameBasedCachePtr);
+        *ExecCG.MKernelNameBasedCachePtr);
     UrKernel = BundleObjs->MKernelHandle;
     EliminatedArgMask = BundleObjs->MKernelArgMask;
   }

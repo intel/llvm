@@ -11,7 +11,9 @@
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/util.hpp>
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <deque>
+#endif
 #include <memory>
 #include <unordered_map>
 
@@ -75,7 +77,9 @@ public:
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   KernelNameBasedCacheT *createKernelNameBasedCache();
+#endif
   static void registerStaticVarShutdownHandler();
 
   bool isOkToDefer() const;
@@ -131,7 +135,9 @@ private:
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   InstWithLock<std::deque<KernelNameBasedCacheT>> MKernelNameBasedCaches;
+#endif
 };
 } // namespace detail
 } // namespace _V1
