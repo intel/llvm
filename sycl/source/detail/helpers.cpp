@@ -62,7 +62,7 @@ retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
     auto ContextImpl = Queue.getContextImplPtr();
     ur_program_handle_t Program =
         detail::ProgramManager::getInstance().createURProgram(
-            **DeviceImage, ContextImpl, {createSyclObjFromImpl<device>(Dev)});
+            **DeviceImage, *ContextImpl, {createSyclObjFromImpl<device>(Dev)});
     return {*DeviceImage, Program};
   }
 
@@ -81,9 +81,9 @@ retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
   } else {
     auto ContextImpl = Queue.getContextImplPtr();
     DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
-        KernelName, ContextImpl, &Dev);
+        KernelName, *ContextImpl, Dev);
     Program = detail::ProgramManager::getInstance().createURProgram(
-        *DeviceImage, ContextImpl, {createSyclObjFromImpl<device>(Dev)});
+        *DeviceImage, *ContextImpl, {createSyclObjFromImpl<device>(Dev)});
   }
   return {DeviceImage, Program};
 }

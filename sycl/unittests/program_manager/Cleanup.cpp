@@ -383,13 +383,13 @@ TEST(ImageRemoval, NativePrograms) {
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};
   auto Ctx = Queue.get_context();
-  auto ProgramA = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
+  auto ProgramA = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
                                        *sycl::detail::getSyclObjImpl(Dev),
                                        generateRefName("A", "Kernel"));
-  auto ProgramB = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
+  auto ProgramB = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
                                        *sycl::detail::getSyclObjImpl(Dev),
                                        generateRefName("B", "Kernel"));
-  std::ignore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
+  std::ignore = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
                                      *sycl::detail::getSyclObjImpl(Dev),
                                      generateRefName("C", "Kernel"));
 

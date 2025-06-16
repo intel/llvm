@@ -128,7 +128,7 @@ public:
       MAllocator->deallocate(Ptr, size());
   }
 
-  void releaseMem(ContextImplPtr Context, void *MemAllocation) override;
+  void releaseMem(context_impl *Context, void *MemAllocation) override;
 
   void *getUserPtr() const {
     return MOpenCLInterop ? static_cast<void *>(MInteropMemObject) : MUserPtr;
@@ -268,13 +268,10 @@ public:
     MAllocator->setAlignment(RequiredAlign);
   }
 
-  static size_t getBufSizeForContext(const ContextImplPtr &Context,
-                                     ur_native_handle_t MemObject);
-
   void handleWriteAccessorCreation();
 
-  void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr, ur_event_handle_t &InteropEvent) override {
+  void *allocateMem(context_impl *Context, bool InitFromUserData, void *HostPtr,
+                    ur_event_handle_t &InteropEvent) override {
     (void)Context;
     (void)InitFromUserData;
     (void)HostPtr;
@@ -331,7 +328,7 @@ public:
  
 protected:
   // An allocateMem helper that determines which host ptr to use
-  void determineHostPtr(const ContextImplPtr &Context, bool InitFromUserData,
+  void determineHostPtr(context_impl *Context, bool InitFromUserData,
                         void *&HostPtr, bool &HostPtrReadOnly);
 
   // Allocator used for allocation memory on host.

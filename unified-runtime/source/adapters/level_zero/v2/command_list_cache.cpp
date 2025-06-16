@@ -28,7 +28,7 @@ bool v2::immediate_command_list_descriptor_t::operator==(
 bool v2::regular_command_list_descriptor_t::operator==(
     const regular_command_list_descriptor_t &rhs) const {
   return ZeDevice == rhs.ZeDevice && Ordinal == rhs.Ordinal &&
-         IsInOrder == rhs.IsInOrder;
+         IsInOrder == rhs.IsInOrder && Mutable == rhs.Mutable;
 }
 
 namespace v2 {
@@ -42,7 +42,7 @@ inline size_t command_list_descriptor_hash_t::operator()(
   } else {
     auto RegCmdDesc = std::get<regular_command_list_descriptor_t>(desc);
     return combine_hashes(0, RegCmdDesc.ZeDevice, RegCmdDesc.IsInOrder,
-                          RegCmdDesc.Ordinal);
+                          RegCmdDesc.Ordinal, RegCmdDesc.Mutable);
   }
 }
 
@@ -123,8 +123,9 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
 
     UR_LOG(DEBUG,
            "create command list ordinal: {}, type: immediate, "
-           "device: {}, inOrder: {}",
-           RegCmdDesc.Ordinal, RegCmdDesc.ZeDevice, RegCmdDesc.IsInOrder);
+           "device: {}, inOrder: {}, Mutable: {}",
+           RegCmdDesc.Ordinal, RegCmdDesc.ZeDevice, RegCmdDesc.IsInOrder,
+           RegCmdDesc.Mutable);
 
     ze_command_list_handle_t ZeCommandList;
     ZE2UR_CALL_THROWS(zeCommandListCreate, (ZeContext, RegCmdDesc.ZeDevice,
