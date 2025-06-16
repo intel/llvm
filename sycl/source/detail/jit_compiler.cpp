@@ -346,6 +346,24 @@ std::pair<sycl_device_binaries, std::string> jit_compiler::compileSYCL(
     const std::vector<std::pair<std::string, std::string>> &IncludePairs,
     const std::vector<std::string> &UserArgs, std::string *LogPtr,
     ::jit_compiler::BinaryFormat Format) {
+  if (Format == ::jit_compiler::BinaryFormat::PTX ||
+      Format == ::jit_compiler::BinaryFormat::AMDGCN) {
+    // If present, set-up the config with env variables describing CPU and
+    // features.
+    auto SetUpOption = [](const std::string &Value) {
+      ::jit_compiler::JITEnvVar Option(Value.begin(), Value.end());
+      return Option;
+    };
+    ::jit_compiler::JITEnvVar TargetCPUOpt = SetUpOption(
+        detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_CPU>::get());
+    this->AddToConfigHandle(
+        ::jit_compiler::option::JITTargetCPU::set(TargetCPUOpt));
+    ::jit_compiler::JITEnvVar TargetFeaturesOpt = SetUpOption(
+        detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>::get());
+    this->AddToConfigHandle(
+        ::jit_compiler::option::JITTargetFeatures::set(TargetFeaturesOpt));
+  }
+
   auto appendToLog = [LogPtr](const char *Msg) {
     if (LogPtr) {
       LogPtr->append(Msg);

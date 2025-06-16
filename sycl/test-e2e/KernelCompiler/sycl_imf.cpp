@@ -69,11 +69,6 @@ int main() {
   std::cout << std::endl;
 
   sycl::free(ptr, q);
-
-  bool ok = q.get_device().ext_oneapi_can_build(syclex::source_language::sycl);
-  if (!ok) {
-    return -1;
-  }
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif
