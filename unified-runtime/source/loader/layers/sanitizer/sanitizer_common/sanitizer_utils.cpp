@@ -13,7 +13,6 @@
 
 #include "sanitizer_utils.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
-#include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {
 
@@ -247,14 +246,6 @@ size_t GetVirtualMemGranularity(ur_context_handle_t Context,
           sizeof(Size), &Size, nullptr);
   assert(Result == UR_RESULT_SUCCESS);
   return Size;
-}
-
-ur_result_t EnqueueUSMBlockingSet(ur_queue_handle_t Queue, void *Ptr,
-                                  char Value, size_t Size, uint32_t NumEvents,
-                                  const ur_event_handle_t *EventWaitList,
-                                  ur_event_handle_t *OutEvent) {
-  return getContext()->urDdiTable.Enqueue.pfnUSMFill(
-      Queue, Ptr, 1, &Value, Size, NumEvents, EventWaitList, OutEvent);
 }
 
 void PrintUrBuildLogIfError(ur_result_t Result, ur_program_handle_t Program,

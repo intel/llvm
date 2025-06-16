@@ -165,7 +165,8 @@ ur_result_t ShadowMemoryGPU::CleanShadow(ur_queue_handle_t Queue, uptr Ptr,
                  (void *)MappedPtr, (void *)(MappedPtr + PageSize - 1));
 
         // Initialize to zero
-        URes = EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, 0, PageSize);
+        URes =
+            EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, (char)0, PageSize);
         if (URes != UR_RESULT_SUCCESS) {
           UR_LOG_L(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}",
                    URes);
@@ -177,8 +178,9 @@ ur_result_t ShadowMemoryGPU::CleanShadow(ur_queue_handle_t Queue, uptr Ptr,
     }
   }
 
-  auto URes = EnqueueUSMBlockingSet(
-      Queue, (void *)Begin, 0, Size / kShadowCell * kShadowCnt * kShadowSize);
+  auto URes =
+      EnqueueUSMBlockingSet(Queue, (void *)Begin, (char)0,
+                            Size / kShadowCell * kShadowCnt * kShadowSize);
   if (URes != UR_RESULT_SUCCESS) {
     UR_LOG_L(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}", URes);
     return URes;

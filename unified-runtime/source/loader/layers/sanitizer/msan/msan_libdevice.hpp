@@ -19,6 +19,8 @@
 namespace ur_sanitizer_layer {
 #endif // !__SPIR__ && !__SPIRV__
 
+constexpr unsigned MSAN_ORIGIN_GRANULARITY = 4U;
+
 struct MsanErrorReport {
   int Flag = 0;
 

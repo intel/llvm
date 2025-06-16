@@ -499,8 +499,8 @@ ur_result_t MsanInterceptor::prepareLaunch(
       ContextInfo->CleanShadowSize,
       (void **)&LaunchInfo.Data.Host.CleanShadow));
   UR_CALL(EnqueueUSMBlockingSet(Queue, (void *)LaunchInfo.Data.Host.CleanShadow,
-                                0, ContextInfo->CleanShadowSize, 0, nullptr,
-                                nullptr));
+                                (char)0, ContextInfo->CleanShadowSize, 0,
+                                nullptr, nullptr));
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);

@@ -12,6 +12,7 @@
  */
 
 #include "msan_ddi.hpp"
+#include "msan/msan_libdevice.hpp"
 #include "msan_interceptor.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
@@ -1478,22 +1479,13 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
     const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
     const auto MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
-    Event = nullptr;
-    UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)MemShadow, 0, size, 0,
+    ur_event_handle_t Event{};
+    UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)MemShadow, (char)0, size, 0,
                                   nullptr, &Event));
     Events.push_back(Event);
   }
 
-  {
-    ur_device_handle_t Device = GetDevice(hQueue);
-    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
-    const auto MemShadow = DeviceInfo->Shadow->MemToOrigin((uptr)pMem);
-
-    Event = nullptr;
-    UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)MemShadow, 0, size, 0,
-                                  nullptr, &Event));
-    Events.push_back(Event);
-  }
+  // NOTE: No need to set origin, since its shadow is clean
 
   if (phEvent) {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
@@ -1554,12 +1546,16 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   {
     ur_device_handle_t Device = GetDevice(hQueue);
     const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
-    const auto SrcOrigin = DeviceInfo->Shadow->MemToOrigin((uptr)pSrc);
+    const auto SrcOriginBegin = DeviceInfo->Shadow->MemToOrigin((uptr)pSrc);
+    const auto SrcOriginEnd =
+        DeviceInfo->Shadow->MemToOrigin((uptr)pSrc + size - 1) +
+        MSAN_ORIGIN_GRANULARITY;
     const auto DstOrigin = DeviceInfo->Shadow->MemToOrigin((uptr)pDst);
 
     ur_event_handle_t Event{};
-    UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstOrigin, (void *)SrcOrigin,
-                         size, 0, nullptr, &Event));
+    UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstOrigin,
+                         (void *)SrcOriginBegin, SrcOriginEnd - SrcOriginBegin,
+                         0, nullptr, &Event));
     Events.push_back(Event);
   }
 
@@ -1625,18 +1621,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
     Events.push_back(Event);
   }
 
-  // FIXME: align to 4 bytes
-  {
-    ur_device_handle_t Device = GetDevice(hQueue);
-    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
-    const auto MemOrigin = DeviceInfo->Shadow->MemToOrigin((uptr)pMem);
-
-    const char Pattern = 0;
-    ur_event_handle_t Event{};
-    UR_CALL(pfnUSMFill2D(hQueue, (void *)MemOrigin, pitch, 1, &Pattern, width,
-                         height, 0, nullptr, &Event));
-    Events.push_back(Event);
-  }
+  // NOTE: No need to set origin, since its shadow is clean
 
   if (phEvent) {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
