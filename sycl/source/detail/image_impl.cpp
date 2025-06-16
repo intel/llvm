@@ -259,9 +259,9 @@ image_channel_type convertChannelType(ur_image_channel_type_t Type) {
 }
 
 template <typename T>
-static void getImageInfo(const ContextImplPtr &Context, ur_image_info_t Info,
-                         T &Dest, ur_mem_handle_t InteropMemObject) {
-  const AdapterPtr &Adapter = Context->getAdapter();
+static void getImageInfo(context_impl &Context, ur_image_info_t Info, T &Dest,
+                         ur_mem_handle_t InteropMemObject) {
+  const AdapterPtr &Adapter = Context.getAdapter();
   Adapter->call<UrApiKind::urMemImageGetInfo>(InteropMemObject, Info, sizeof(T),
                                               &Dest, nullptr);
 }
@@ -274,8 +274,8 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
             std::move(Allocator)),
       MDimensions(Dimensions), MRange({0, 0, 0}) {
   ur_mem_handle_t Mem = ur::cast<ur_mem_handle_t>(BaseT::MInteropMemObject);
-  const ContextImplPtr &Context = getSyclObjImpl(SyclContext);
-  const AdapterPtr &Adapter = Context->getAdapter();
+  detail::context_impl &Context = *getSyclObjImpl(SyclContext);
+  const AdapterPtr &Adapter = Context.getAdapter();
   Adapter->call<UrApiKind::urMemGetInfo>(Mem, UR_MEM_INFO_SIZE, sizeof(size_t),
                                          &(BaseT::MSizeInBytes), nullptr);
 
@@ -323,7 +323,7 @@ image_impl::image_impl(ur_native_handle_t MemObject, const context &SyclContext,
   setPitches(); // sets MRowPitch, MSlice and BaseT::MSizeInBytes
 }
 
-void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
+void *image_impl::allocateMem(context_impl *Context, bool InitFromUserData,
                               void *HostPtr,
                               ur_event_handle_t &OutEventToWait) {
   bool HostPtrReadOnly = false;
@@ -338,13 +338,13 @@ void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
          "The check an image format failed.");
 
   return MemoryManager::allocateMemImage(
-      std::move(Context), this, HostPtr, HostPtrReadOnly,
-      BaseT::getSizeInBytes(), Desc, Format, BaseT::MInteropEvent,
-      BaseT::MInteropContext, MProps, OutEventToWait);
+      Context, this, HostPtr, HostPtrReadOnly, BaseT::getSizeInBytes(), Desc,
+      Format, BaseT::MInteropEvent, BaseT::MInteropContext.get(), MProps,
+      OutEventToWait);
 }
 
 bool image_impl::checkImageDesc(const ur_image_desc_t &Desc,
-                                ContextImplPtr Context, void *UserPtr) {
+                                context_impl *Context, void *UserPtr) {
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE1D, UR_MEM_TYPE_IMAGE1D_ARRAY,
                UR_MEM_TYPE_IMAGE2D_ARRAY, UR_MEM_TYPE_IMAGE2D) &&
       !checkImageValueRange<info::device::image2d_max_width>(
@@ -409,7 +409,7 @@ bool image_impl::checkImageDesc(const ur_image_desc_t &Desc,
 }
 
 bool image_impl::checkImageFormat(const ur_image_format_t &Format,
-                                  ContextImplPtr Context) {
+                                  context_impl *Context) {
   (void)Context;
   if (checkAny(Format.channelOrder, UR_IMAGE_CHANNEL_ORDER_INTENSITY,
                UR_IMAGE_CHANNEL_ORDER_LUMINANCE) &&
@@ -451,7 +451,7 @@ bool image_impl::checkImageFormat(const ur_image_format_t &Format,
   return true;
 }
 
-std::vector<device> image_impl::getDevices(const ContextImplPtr Context) {
+std::vector<device> image_impl::getDevices(context_impl *Context) {
   if (!Context)
     return {};
   return Context->get_info<info::context::devices>();
