@@ -18,7 +18,7 @@
 // CHECK-NEXT: UR Call Begin : urPlatformGetInfo
 // CHECK-NEXT: UR Call Begin : urKernelSetExecInfo
 // CHECK-NEXT: UR Call Begin : urKernelRetain
-// CHECK-NEXT: UR Call Begin : urKernelGetGroupInfo
+// CHECK:      UR Call Begin : urKernelGetGroupInfo
 // CHECK-NEXT: UR Call Begin : urEnqueueKernelLaunchWithArgsExp
 // CHECK:      UR Call Begin : urKernelCreate
 // CHECK-NEXT: UR Call Begin : urPlatformGetInfo
@@ -41,7 +41,7 @@
 // CHECK-DAG:    from_source : false
 // CHECK-DAG:    kernel_name : typeinfo name for main::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::{lambda()#1}
 // CHECK-DAG:    sycl_device : {{.*}}
-// CHECK-NEXT: UR Call Begin : urKernelGetGroupInfo
+// CHECK:      UR Call Begin : urKernelGetGroupInfo
 // CHECK-NEXT: UR Call Begin : urEnqueueKernelLaunchWithArgsExp
 // CHECK-NEXT: Signal
 // CHECK-DAG:    queue_id : {{.*}}

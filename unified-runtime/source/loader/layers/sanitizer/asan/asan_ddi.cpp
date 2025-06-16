@@ -1452,6 +1452,21 @@ __urdlllocal ur_result_t urKernelRelease(
   return UR_RESULT_SUCCESS;
 }
 
+// Returns true if the arg should be passed through to the adapters.
+inline bool handleValueArg(ur_kernel_handle_t hKernel, uint32_t index,
+                           size_t size, const void *value) {
+  std::shared_ptr<MemBuffer> MemBuffer;
+  if (size == sizeof(ur_mem_handle_t) &&
+      (MemBuffer = getAsanInterceptor()->getMemBuffer(
+           *ur_cast<const ur_mem_handle_t *>(value)))) {
+    auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+    std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+    KernelInfo.BufferArgs[index] = std::move(MemBuffer);
+    return false;
+  }
+  return true;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSetArgValue
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
@@ -1473,18 +1488,23 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
 
   UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetArgValue");
 
-  std::shared_ptr<MemBuffer> MemBuffer;
-  if (argSize == sizeof(ur_mem_handle_t) &&
-      (MemBuffer = getAsanInterceptor()->getMemBuffer(
-           *ur_cast<const ur_mem_handle_t *>(pArgValue)))) {
-    auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-    std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-    KernelInfo.BufferArgs[argIndex] = std::move(MemBuffer);
-  } else {
+  if (handleValueArg(hKernel, argIndex, argSize, pArgValue)) {
     UR_CALL(pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue));
   }
 
   return UR_RESULT_SUCCESS;
+}
+
+inline bool handleMemObjArg(ur_kernel_handle_t hKernel, uint32_t index,
+                            ur_mem_handle_t value) {
+  std::shared_ptr<MemBuffer> MemBuffer;
+  if ((MemBuffer = getAsanInterceptor()->getMemBuffer(value))) {
+    auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+    std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+    KernelInfo.BufferArgs[index] = std::move(MemBuffer);
+    return false;
+  }
+  return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1506,16 +1526,22 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
 
   UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetArgMemObj");
 
-  std::shared_ptr<MemBuffer> MemBuffer;
-  if ((MemBuffer = getAsanInterceptor()->getMemBuffer(hArgValue))) {
-    auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-    std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-    KernelInfo.BufferArgs[argIndex] = std::move(MemBuffer);
-  } else {
+  if (handleMemObjArg(hKernel, argIndex, hArgValue)) {
     UR_CALL(pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue));
   }
 
   return UR_RESULT_SUCCESS;
+}
+
+inline void handleLocalArg(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                           size_t &argSize) {
+  auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+  std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
+  // TODO: get local variable alignment
+  auto argSizeWithRZ = GetSizeAndRedzoneSizeForLocal(
+      argSize, ASAN_SHADOW_GRANULARITY, ASAN_SHADOW_GRANULARITY);
+  KI.LocalArgs[argIndex] = LocalArgsInfo{argSize, argSizeWithRZ};
+  argSize = argSizeWithRZ;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1540,18 +1566,22 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
            argSize);
 
   {
-    auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-    std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
-    // TODO: get local variable alignment
-    auto argSizeWithRZ = GetSizeAndRedzoneSizeForLocal(
-        argSize, ASAN_SHADOW_GRANULARITY, ASAN_SHADOW_GRANULARITY);
-    KI.LocalArgs[argIndex] = LocalArgsInfo{argSize, argSizeWithRZ};
-    argSize = argSizeWithRZ;
+    handleLocalArg(hKernel, argIndex, argSize);
   }
 
   ur_result_t result = pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
 
   return result;
+}
+
+inline void handlePointerArg(ur_kernel_handle_t hKernel, const void *argValue,
+                             uint32_t index) {
+  std::shared_ptr<KernelInfo> KI;
+  if (getContext()->Options.DetectKernelArguments) {
+    auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+    std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
+    KI.PointerArgs[index] = {argValue, GetCurrentBacktrace()};
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1576,12 +1606,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
            "==== urKernelSetArgPointer (argIndex={}, pArgValue={})", argIndex,
            pArgValue);
 
-  std::shared_ptr<KernelInfo> KI;
-  if (getContext()->Options.DetectKernelArguments) {
-    auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-    std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
-    KI.PointerArgs[argIndex] = {pArgValue, GetCurrentBacktrace()};
-  }
+  handlePointerArg(hKernel, pArgValue, argIndex);
 
   ur_result_t result =
       pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
@@ -1687,51 +1712,29 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
   for (uint32_t ArgPropIndex = 0; ArgPropIndex < numArgs; ArgPropIndex++) {
     switch (pArgs[ArgPropIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
-      auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-      std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
-      // TODO: get local variable alignment
-      auto argSizeWithRZ = GetSizeAndRedzoneSizeForLocal(
-          pArgs[ArgPropIndex].size, ASAN_SHADOW_GRANULARITY,
-          ASAN_SHADOW_GRANULARITY);
-      KI.LocalArgs[pArgs[ArgPropIndex].index] =
-          LocalArgsInfo{pArgs[ArgPropIndex].size, argSizeWithRZ};
+      size_t size = pArgs[ArgPropIndex].size;
+      handleLocalArg(hKernel, pArgs[ArgPropIndex].index, size);
       KeepArgs.push_back(pArgs[ArgPropIndex]);
-      KeepArgs.back().size = argSizeWithRZ;
+      KeepArgs.back().size = size;
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
-      std::shared_ptr<KernelInfo> KI;
-      if (getContext()->Options.DetectKernelArguments) {
-        auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-        std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
-        KI.PointerArgs[pArgs[ArgPropIndex].index] = {
-            pArgs[ArgPropIndex].arg.pointer, GetCurrentBacktrace()};
-      }
+      handlePointerArg(hKernel, pArgs[ArgPropIndex].arg.pointer,
+                       pArgs[ArgPropIndex].index);
       KeepArgs.push_back(pArgs[ArgPropIndex]);
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
-      std::shared_ptr<MemBuffer> MemBuffer;
-      if (pArgs[ArgPropIndex].size == sizeof(ur_mem_handle_t) &&
-          (MemBuffer = getAsanInterceptor()->getMemBuffer(
-               *ur_cast<const ur_mem_handle_t *>(
-                   pArgs[ArgPropIndex].arg.memObjTuple.hMem)))) {
-        auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-        KernelInfo.BufferArgs[pArgs[ArgPropIndex].index] = std::move(MemBuffer);
-      } else {
+      if (handleValueArg(hKernel, pArgs[ArgPropIndex].index,
+                         pArgs[ArgPropIndex].size,
+                         pArgs[ArgPropIndex].arg.pointer)) {
         KeepArgs.push_back(pArgs[ArgPropIndex]);
       }
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
-      std::shared_ptr<MemBuffer> MemBuffer;
-      if ((MemBuffer = getAsanInterceptor()->getMemBuffer(
-               pArgs[ArgPropIndex].arg.memObjTuple.hMem))) {
-        auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-        KernelInfo.BufferArgs[pArgs[ArgPropIndex].index] = std::move(MemBuffer);
-      } else {
+      if (handleMemObjArg(hKernel, pArgs[ArgPropIndex].index,
+                          pArgs[ArgPropIndex].arg.memObjTuple.hMem)) {
         KeepArgs.push_back(pArgs[ArgPropIndex]);
       }
       break;
