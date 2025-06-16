@@ -971,7 +971,8 @@ void CudaToolChain::addClangTargetOptions(
 
     if (DriverArgs.hasFlag(options::OPT_fsycl_id_queries_fit_in_int,
                            options::OPT_fno_sycl_id_queries_fit_in_int, false))
-      CC1Args.append({"-mllvm", "-nvvm-reflect-add=__CUDA_ID_QUERIES_FIT_IN_INT=1"});
+      CC1Args.append(
+          {"-mllvm", "-nvvm-reflect-add=__CUDA_ID_QUERIES_FIT_IN_INT=1"});
   } else {
     CC1Args.append({"-fcuda-is-device", "-mllvm",
                     "-enable-memcpyopt-without-libcalls",
