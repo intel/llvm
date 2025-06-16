@@ -99,6 +99,7 @@ ur_event_handle_t *ur_exp_command_buffer_handle_t_::getWaitListFromSyncPoints(
       UR_LOG(ERR, "Invalid sync point");
       throw UR_RESULT_ERROR_INVALID_VALUE;
     }
+    usedSyncPoints.insert(pSyncPointWaitList[i]);
     syncPointWaitList[i] = syncPoints[pSyncPointWaitList[i]];
   }
   return syncPointWaitList.data();
@@ -132,9 +133,10 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   if (!isInOrder) {
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (commandListLocked->getZeCommandList(), nullptr, 0, nullptr));
-    for (auto &event : syncPoints) {
+    for (auto &event : usedSyncPoints) {
       ZE2UR_CALL(zeCommandListAppendEventReset,
-                 (commandListLocked->getZeCommandList(), event->getZeEvent()));
+                 (commandListLocked->getZeCommandList(),
+                  syncPoints[event]->getZeEvent()));
     }
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (commandListLocked->getZeCommandList(), nullptr, 0, nullptr));
