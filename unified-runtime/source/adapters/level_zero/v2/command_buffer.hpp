@@ -67,7 +67,7 @@ private:
   std::vector<ur_event_handle_t> syncPoints;
 
   // Stores all sync points that should be reset after execution.
-  std::unordered_set<ur_exp_command_buffer_sync_point_t> usedSyncPoints;
+  std::vector<bool> usedSyncPoints;
 
   // Temporary storage for sync points that are passed to function that require
   // array of events. This is used to avoid allocating a new memory every time.
