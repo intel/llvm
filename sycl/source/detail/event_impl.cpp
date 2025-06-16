@@ -113,10 +113,25 @@ void event_impl::setComplete() {
   assert(false && "setComplete is not supported for non-host event");
 }
 
-static uint64_t inline getTimestamp() {
-  auto Timestamp = std::chrono::high_resolution_clock::now().time_since_epoch();
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(Timestamp)
-      .count();
+static uint64_t inline getTimestamp(device_impl *Device) {
+  if (Device) {
+    try {
+      return Device->getCurrentDeviceTime();
+    } catch (sycl::exception &e) {
+      if (e.code() == sycl::errc::feature_not_supported)
+        throw sycl::exception(
+            make_error_code(errc::profiling),
+            std::string("Unable to get command group submission time: ") +
+                e.what());
+      std::rethrow_exception(std::current_exception());
+    }
+  } else {
+    // Returning host time
+    using namespace std::chrono;
+    return duration_cast<nanoseconds>(
+               high_resolution_clock::now().time_since_epoch())
+        .count();
+  }
 }
 
 ur_event_handle_t event_impl::getHandle() const { return MEvent.load(); }
@@ -142,7 +157,8 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MContext = Context;
 }
 
-event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
+event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
+                       private_tag)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
       MIsFlushed(true), MState(HES_Complete) {
 
@@ -159,31 +175,51 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
   }
 }
 
-event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue}, MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled} {
-  if (Queue)
-    this->setContextImpl(Queue->getContextImplPtr());
-  else {
-    MState.store(HES_NotComplete);
+event_impl::event_impl(queue_impl &Queue, private_tag)
+    : MQueue{Queue.weak_from_this()},
+      MIsProfilingEnabled{Queue.MIsProfilingEnabled} {
+  this->setContextImpl(Queue.getContextImplPtr());
+  MState.store(HES_Complete);
+}
+
+event_impl::event_impl(HostEventState State, private_tag) : MState(State) {
+  switch (State) {
+  case HES_Discarded:
+  case HES_Complete: {
+    MIsFlushed = true;
+    MIsHostEvent = true;
+    break;
+  }
+  case HES_NotComplete: {
+    MIsProfilingEnabled = true;
     MHostProfilingInfo.reset(new HostProfilingInfo());
     if (!MHostProfilingInfo)
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::runtime),
           "Out of host memory " +
               codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
-    return;
   }
-  MState.store(HES_Complete);
+  }
 }
 
-void event_impl::setQueue(const QueueImplPtr &Queue) {
-  MQueue = Queue;
-  MIsProfilingEnabled = Queue->MIsProfilingEnabled;
+void event_impl::setQueue(queue_impl &Queue) {
+  MQueue = Queue.weak_from_this();
+  MIsProfilingEnabled = Queue.MIsProfilingEnabled;
 
   // TODO After setting the queue, the event is no longer default
   // constructed. Consider a design change which would allow
   // for such a change regardless of the construction method.
   MIsDefaultConstructed = false;
+}
+
+void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
+  MSubmittedQueue = std::move(SubmittedQueue);
+  if (MHostProfilingInfo) {
+    if (auto QueuePtr = MSubmittedQueue.lock()) {
+      device_impl &Device = QueuePtr->getDeviceImpl();
+      MHostProfilingInfo->setDevice(&Device);
+    }
+  }
 }
 
 void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
@@ -476,9 +512,9 @@ event_impl::get_backend_info<info::device::backend_version>() const {
 }
 #endif
 
-void HostProfilingInfo::start() { StartTime = getTimestamp(); }
+void HostProfilingInfo::start() { StartTime = getTimestamp(Device); }
 
-void HostProfilingInfo::end() { EndTime = getTimestamp(); }
+void HostProfilingInfo::end() { EndTime = getTimestamp(Device); }
 
 ur_native_handle_t event_impl::getNative() {
   if (isHost())
@@ -568,23 +604,10 @@ void event_impl::setSubmissionTime() {
   if (!MIsProfilingEnabled && !MProfilingTagEvent)
     return;
 
-  if (QueueImplPtr Queue = MQueue.lock()) {
-    try {
-      MSubmitTime = Queue->getDeviceImpl().getCurrentDeviceTime();
-    } catch (sycl::exception &e) {
-      if (e.code() == sycl::errc::feature_not_supported)
-        throw sycl::exception(
-            make_error_code(errc::profiling),
-            std::string("Unable to get command group submission time: ") +
-                e.what());
-      std::rethrow_exception(std::current_exception());
-    }
-  } else {
-    // Returning host time
-    using namespace std::chrono;
-    MSubmitTime = duration_cast<nanoseconds>(
-                      high_resolution_clock::now().time_since_epoch())
-                      .count();
+  std::weak_ptr<queue_impl> Queue = isHost() ? MSubmittedQueue : MQueue;
+  if (QueueImplPtr QueuePtr = Queue.lock()) {
+    device_impl &Device = QueuePtr->getDeviceImpl();
+    MSubmitTime = getTimestamp(&Device);
   }
 }
 

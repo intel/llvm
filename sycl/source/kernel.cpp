@@ -27,7 +27,7 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
           nativeHandle, detail::getSyclObjImpl(SyclContext)->getHandleRef(),
           nullptr, nullptr, &hKernel);
   impl = std::make_shared<detail::kernel_impl>(
-      hKernel, detail::getSyclObjImpl(SyclContext), nullptr, nullptr);
+      hKernel, *detail::getSyclObjImpl(SyclContext), nullptr, nullptr);
   // This is a special interop constructor for OpenCL, so the kernel must be
   // retained.
   if (get_backend() == backend::opencl) {

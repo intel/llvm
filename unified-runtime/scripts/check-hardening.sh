@@ -28,7 +28,7 @@ for file in $1/lib/*.so; do
         */libOpenCL*)
             # This is not built as part of UR
             true;;
-        */libzeCallMap.so | */libur_mock_headers.so)
+        */libzeCallMap.so | */libur_mock.so)
             # Only used in testing, and are too simple for many of the hardening flags to have an effect.
             true;;
         *)

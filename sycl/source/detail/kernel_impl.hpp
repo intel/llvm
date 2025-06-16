@@ -28,7 +28,6 @@ namespace detail {
 // Forward declaration
 class kernel_bundle_impl;
 
-using ContextImplPtr = std::shared_ptr<context_impl>;
 using KernelBundleImplPtr = std::shared_ptr<kernel_bundle_impl>;
 class kernel_impl {
 public:
@@ -40,7 +39,7 @@ public:
   /// \param Kernel is a valid UrKernel instance
   /// \param Context is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
+  kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
               KernelBundleImplPtr KernelBundleImpl,
               const KernelArgMask *ArgMask = nullptr);
 
@@ -50,7 +49,7 @@ public:
   /// \param Kernel is a valid UrKernel instance
   /// \param ContextImpl is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
+  kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
               DeviceImageImplPtr DeviceImageImpl,
               KernelBundleImplPtr KernelBundleImpl,
               const KernelArgMask *ArgMask, ur_program_handle_t Program,
@@ -245,7 +244,7 @@ public:
 
 private:
   ur_kernel_handle_t MKernel = nullptr;
-  const ContextImplPtr MContext;
+  const std::shared_ptr<context_impl> MContext;
   const ur_program_handle_t MProgram = nullptr;
   bool MCreatedFromSource = true;
   const DeviceImageImplPtr MDeviceImageImpl;

@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #define as_char(x) __builtin_astype(x, char)
+#define as_schar(x) __builtin_astype(x, schar)
 #define as_uchar(x) __builtin_astype(x, uchar)
 #define as_short(x) __builtin_astype(x, short)
 #define as_ushort(x) __builtin_astype(x, ushort)
@@ -19,6 +20,7 @@
 #define as_float(x) __builtin_astype(x, float)
 
 #define as_char2(x) __builtin_astype(x, char2)
+#define as_schar2(x) __builtin_astype(x, schar2)
 #define as_uchar2(x) __builtin_astype(x, uchar2)
 #define as_short2(x) __builtin_astype(x, short2)
 #define as_ushort2(x) __builtin_astype(x, ushort2)
@@ -29,6 +31,7 @@
 #define as_float2(x) __builtin_astype(x, float2)
 
 #define as_char3(x) __builtin_astype(x, char3)
+#define as_schar3(x) __builtin_astype(x, schar3)
 #define as_uchar3(x) __builtin_astype(x, uchar3)
 #define as_short3(x) __builtin_astype(x, short3)
 #define as_ushort3(x) __builtin_astype(x, ushort3)
@@ -39,6 +42,7 @@
 #define as_float3(x) __builtin_astype(x, float3)
 
 #define as_char4(x) __builtin_astype(x, char4)
+#define as_schar4(x) __builtin_astype(x, schar4)
 #define as_uchar4(x) __builtin_astype(x, uchar4)
 #define as_short4(x) __builtin_astype(x, short4)
 #define as_ushort4(x) __builtin_astype(x, ushort4)
@@ -49,6 +53,7 @@
 #define as_float4(x) __builtin_astype(x, float4)
 
 #define as_char8(x) __builtin_astype(x, char8)
+#define as_schar8(x) __builtin_astype(x, schar8)
 #define as_uchar8(x) __builtin_astype(x, uchar8)
 #define as_short8(x) __builtin_astype(x, short8)
 #define as_ushort8(x) __builtin_astype(x, ushort8)
@@ -59,6 +64,7 @@
 #define as_float8(x) __builtin_astype(x, float8)
 
 #define as_char16(x) __builtin_astype(x, char16)
+#define as_schar16(x) __builtin_astype(x, schar16)
 #define as_uchar16(x) __builtin_astype(x, uchar16)
 #define as_short16(x) __builtin_astype(x, short16)
 #define as_ushort16(x) __builtin_astype(x, ushort16)

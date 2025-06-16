@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include <vector>
 
-enum functions_t {
+enum functions_t : unsigned {
   XPTI_FRAMEWORK_INITIALIZE,
   XPTI_FRAMEWORK_FINALIZE,
   XPTI_INITIALIZE,
@@ -69,7 +69,7 @@ enum functions_t {
 
 namespace xpti {
 class ProxyLoader {
-  std::unordered_map<int, const char *> m_function_names = {
+  std::unordered_map<unsigned, const char *> m_function_names = {
       {XPTI_FRAMEWORK_INITIALIZE, "xptiFrameworkInitialize"},
       {XPTI_FRAMEWORK_FINALIZE, "xptiFrameworkFinalize"},
       {XPTI_INITIALIZE, "xptiInitialize"},
@@ -150,8 +150,8 @@ public:
 
   inline bool noErrors() { return m_loaded; }
 
-  void *functionByIndex(int index) {
-    if (index >= XPTI_FRAMEWORK_INITIALIZE && index < XPTI_FW_API_COUNT) {
+  void *functionByIndex(unsigned index) {
+    if (index < XPTI_FW_API_COUNT) {
       return reinterpret_cast<void *>(m_dispatch_table[index]);
     }
     return nullptr;
@@ -233,7 +233,7 @@ XPTI_EXPORT_API uint16_t xptiRegisterUserDefinedTracePoint(
       return (*(xpti_register_user_defined_tp_t)f)(tool_name, user_defined_tp);
     }
   }
-  return xpti::invalid_id;
+  return xpti::invalid_id<uint16_t>;
 }
 
 XPTI_EXPORT_API uint16_t xptiRegisterUserDefinedEventType(
@@ -246,7 +246,7 @@ XPTI_EXPORT_API uint16_t xptiRegisterUserDefinedEventType(
                                                    user_defined_event);
     }
   }
-  return xpti::invalid_id;
+  return xpti::invalid_id<uint16_t>;
 }
 
 XPTI_EXPORT_API xpti::result_t xptiInitialize(const char *stream, uint32_t maj,
@@ -278,7 +278,7 @@ XPTI_EXPORT_API uint64_t xptiGetUniversalId() {
       return (*reinterpret_cast<xpti_get_universal_id_t>(f))();
     }
   }
-  return xpti::invalid_id;
+  return xpti::invalid_id<uint64_t>;
 }
 
 XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid) {
@@ -329,7 +329,7 @@ XPTI_EXPORT_API uint64_t xptiGetUniqueId() {
       return (*(xpti_get_unique_id_t)f)();
     }
   }
-  return xpti::invalid_id;
+  return xpti::invalid_id<uint64_t>;
 }
 
 XPTI_EXPORT_API xpti::string_id_t xptiRegisterString(const char *string,
@@ -341,7 +341,7 @@ XPTI_EXPORT_API xpti::string_id_t xptiRegisterString(const char *string,
       return (*(xpti_register_string_t)f)(string, table_string);
     }
   }
-  return xpti::invalid_id;
+  return xpti::invalid_id<xpti::string_id_t>;
 }
 
 XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t id) {
@@ -363,7 +363,7 @@ xptiRegisterObject(const char *data, size_t size, uint8_t type) {
       return (*(xpti_register_object_t)f)(data, size, type);
     }
   }
-  return xpti::invalid_id;
+  return xpti::invalid_id<xpti::object_id_t>;
 }
 
 XPTI_EXPORT_API xpti::object_data_t xptiLookupObject(xpti::object_id_t id) {
@@ -395,7 +395,7 @@ XPTI_EXPORT_API uint8_t xptiRegisterStream(const char *stream_name) {
       return (*(xpti_register_stream_t)f)(stream_name);
     }
   }
-  return xpti::invalid_id;
+  return xpti::invalid_id<uint8_t>;
 }
 
 XPTI_EXPORT_API xpti::result_t xptiUnregisterStream(const char *stream_name) {
@@ -689,7 +689,7 @@ XPTI_EXPORT_API uint8_t xptiGetDefaultStreamID() {
       return (*(xpti_get_default_stream_id_t)f)();
     }
   }
-  return xpti::invalid_id;
+  return xpti::invalid_id<uint8_t>;
 }
 
 XPTI_EXPORT_API xpti::result_t xptiSetDefaultStreamID(uint8_t stream_id) {

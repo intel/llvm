@@ -688,9 +688,7 @@ public:
 
   bool empty() const noexcept { return MDeviceImages.empty(); }
 
-  backend get_backend() const noexcept {
-    return MContext.get_platform().get_backend();
-  }
+  backend get_backend() const noexcept { return MContext.get_backend(); }
 
   context get_context() const noexcept { return MContext; }
 
@@ -940,7 +938,7 @@ public:
             SelectedImage->get_ur_program_ref());
 
     return std::make_shared<kernel_impl>(
-        Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
+        Kernel, *detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
         SelectedImage->get_ur_program_ref(), CacheMutex);
   }
 
