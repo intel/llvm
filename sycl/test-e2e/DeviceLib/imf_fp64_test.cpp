@@ -6,6 +6,7 @@
 // RUN: %{run} %t2.out
 //
 // UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: Nvidia and AMD don't support IMF
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>
 

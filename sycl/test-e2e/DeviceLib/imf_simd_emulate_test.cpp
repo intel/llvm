@@ -5,6 +5,7 @@
 // RUN: %{run} %t2.out
 //
 // UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: Nvidia and AMD don't support IMF
 
 // UNSUPPORTED: igc-dev
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17008
