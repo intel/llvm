@@ -188,15 +188,6 @@ as kernel parameter to free function kernel and use it within kernel.
 A series of checks should be performed that we can pass `vec<T, NumElements>` 
 as kernel parameter to free function kernel and use it within kernel.
 
-#### Test `sampled_image_accessor` as kernel parameter:
-A series of checks should be performed that we can pass `sampled_image_accessor` 
-as kernel parameter to free function kernel and use it within kernel.
-
-#### Test `unsampled_image_accessor` as kernel parameter:
-A series of checks should be performed that we can pass 
-`unsampled_image_accessor` as kernel parameter to free function kernel and 
-use it within kernel.
-
 #### Test `local_accessor` as kernel parameter: 
 A series of checks should be performed that we can pass `local_accessor` 
 as kernel parameter to free function kernel and use it within kernel.
