@@ -49,7 +49,7 @@ public:
 #else
   virtual event finalize() {
     sycl::detail::EventImplPtr NewEvent =
-        std::make_shared<detail::event_impl>();
+        detail::event_impl::create_completed_host_event();
     return sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   }
 #endif

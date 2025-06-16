@@ -410,7 +410,8 @@ std::shared_ptr<node_impl> graph_impl::addNodesToExits(
   // Add all the new nodes to the node storage
   for (auto &Node : NodeList) {
     MNodeStorage.push_back(Node);
-    addEventForNode(std::make_shared<sycl::detail::event_impl>(), Node);
+    addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
+                    Node);
   }
 
   return this->add(Outputs);
@@ -500,7 +501,8 @@ graph_impl::add(std::vector<std::shared_ptr<node_impl>> &Deps) {
 
   addDepsToNode(NodeImpl, Deps);
   // Add an event associated with this explicit node for mixed usage
-  addEventForNode(std::make_shared<sycl::detail::event_impl>(), NodeImpl);
+  addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
+                  NodeImpl);
   return NodeImpl;
 }
 
@@ -558,7 +560,8 @@ graph_impl::add(std::function<void(handler &)> CGF,
       this->add(NodeType, std::move(Handler.impl->MGraphNodeCG), Deps);
 
   // Add an event associated with this explicit node for mixed usage
-  addEventForNode(std::make_shared<sycl::detail::event_impl>(), NodeImpl);
+  addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
+                  NodeImpl);
 
   // Retrieve any dynamic parameters which have been registered in the CGF and
   // register the actual nodes with them.
@@ -657,7 +660,8 @@ graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
       add(NodeType, ActiveKernel, Deps);
 
   // Add an event associated with this explicit node for mixed usage
-  addEventForNode(std::make_shared<sycl::detail::event_impl>(), NodeImpl);
+  addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
+                  NodeImpl);
 
   // Track the dynamic command-group used inside the node object
   DynCGImpl->MNodes.push_back(NodeImpl);
@@ -1150,8 +1154,7 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
             UrEnqueueWaitList, nullptr);
     return nullptr;
   } else {
-    auto NewEvent =
-        std::make_shared<sycl::detail::event_impl>(Queue.shared_from_this());
+    auto NewEvent = sycl::detail::event_impl::create_device_event(Queue);
     NewEvent->setContextImpl(Queue.getContextImplPtr());
     NewEvent->setStateIncomplete();
     NewEvent->setSubmissionTime();
@@ -1292,7 +1295,7 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
 
   bool IsCGDataSafeForSchedulerBypass =
       detail::Scheduler::areEventsSafeForSchedulerBypass(
-          CGData.MEvents, Queue.getContextImplPtr()) &&
+          CGData.MEvents, Queue.getContextImpl()) &&
       CGData.MRequirements.empty();
 
   // This variable represents the returned event. It will always be nullptr if
