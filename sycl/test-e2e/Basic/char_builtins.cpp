@@ -11,52 +11,31 @@ constexpr size_t BufferSize = 16;
 constexpr size_t NElems = 32;
 constexpr size_t WorkGroupSize = 8;
 
-#if 0
-template <typename T>
-SYCL_EXTERNAL void test_builtins(
-    T *out, T x, T y, sycl::vec<T, 4> *out2, sycl::vec<float, 4> f2,
-    sycl::nd_item<2> item,
-    sycl::multi_ptr<T, sycl::access::address_space::global_space> ptr_global,
-    sycl::multi_ptr<T, sycl::access::address_space::local_space> ptr_local) {
-  size_t num_elem = 4;
-  const auto group = item.get_group();
-  group.async_work_group_copy(ptr_local, ptr_global, num_elem);
-}
-#endif
-
 template <typename T>
 int check(const T *A, const T *B, T *C, const vec<float, 2> FVec) {
-#define UNARY_CHECK(IDX, OP)                                                   \
-  assert(C[IDX] == OP(A[IDX]) && "error: " #OP "failed")
+  assert(C[0] == clz(A[0]) && "error: clz failed");
+  assert(C[1] == ctz(A[1]) && "error: ctz failed");
+  assert(C[2] == abs(A[2]) && "error: abs failed");
 
-  UNARY_CHECK(0, clz);
-  UNARY_CHECK(1, ctz);
-  UNARY_CHECK(2, std::abs);
+  assert(C[3] == std::min(A[3], B[3]) && "error: min failed");
+  assert(C[4] == std::max(A[4], B[4]) && "error: max failed");
 
-#define BINARY_CHECK(IDX, OP)                                                  \
-  assert(C[IDX] == OP(A[IDX], B[IDX]) && "error: " #OP "failed")
-
-  BINARY_CHECK(3, std::min);
-  BINARY_CHECK(4, std::max);
-
-  auto hadd = [](auto x, auto y) {
+  auto Hadd = [](auto x, auto y) {
     return (static_cast<int>(x) + static_cast<int>(y)) >> 1;
   };
-  BINARY_CHECK(5, hadd);
-  auto rhadd = [](auto x, auto y) {
+  assert(C[5] == Hadd(A[5], B[5]) && "error: hadd failed");
+  auto Rhadd = [](auto x, auto y) {
     return (static_cast<int>(x) + static_cast<int>(y) + 1) >> 1;
   };
-  BINARY_CHECK(6, rhadd);
+  assert(C[6] == Rhadd(A[6], B[6]) && "error: rhadd failed");
 
   assert(C[7] == (T)(FVec[0]));
   assert(C[8] == (T)(FVec[1]));
 
   return 0;
-#undef UNARY_CHECK
-#undef BINARY_CHECK
 }
 
-template <typename T> int do_test(const T *A, const T *B, T *C) {
+template <typename T> int doCharTest(const T *A, const T *B, T *C) {
   queue Q;
   // Avoid out-of-range float->(u)char errors by keeping these values within
   // range.
@@ -66,30 +45,30 @@ template <typename T> int do_test(const T *A, const T *B, T *C) {
     buffer<T> BBuf(B, BufferSize);
     buffer<T> CBuf(C, BufferSize);
     Q.submit([&](handler &CGH) {
-      auto A = ABuf.template get_access<access::mode::read>(CGH);
-      auto B = BBuf.template get_access<access::mode::read>(CGH);
-      auto C = CBuf.template get_access<access::mode::write>(CGH);
+      auto AAcc = ABuf.template get_access<access::mode::read>(CGH);
+      auto BAcc = BBuf.template get_access<access::mode::read>(CGH);
+      auto CAcc = CBuf.template get_access<access::mode::write>(CGH);
       CGH.single_task<>([=]() {
-        C[0] = clz(A[0]);
-        C[1] = ctz(A[1]);
-        C[2] = abs(A[2]);
-        C[3] = min(A[3], B[3]);
-        C[4] = max(A[4], B[4]);
-        C[5] = hadd(A[5], B[5]);
-        C[6] = rhadd(A[6], B[6]);
+        CAcc[0] = clz(AAcc[0]);
+        CAcc[1] = ctz(AAcc[1]);
+        CAcc[2] = abs(AAcc[2]);
+        CAcc[3] = min(AAcc[3], BAcc[3]);
+        CAcc[4] = max(AAcc[4], BAcc[4]);
+        CAcc[5] = hadd(AAcc[5], BAcc[5]);
+        CAcc[6] = rhadd(AAcc[6], BAcc[6]);
 
-        vec<T, 2> conv = FVec.template convert<T>();
-        C[7] = conv[0];
-        C[8] = conv[1];
+        vec<T, 2> Conv = FVec.template convert<T>();
+        CAcc[7] = Conv[0];
+        CAcc[8] = Conv[1];
       });
     });
   }
 
-  // Regression test async work-group copy builtins
+  // Regression test async work-group copy builtins.
   {
     buffer<T> ABuf(A, BufferSize);
     Q.submit([&](handler &CGH) {
-      auto A = ABuf.template get_access<access::mode::read_write>(CGH);
+      auto AAcc = ABuf.template get_access<access::mode::read_write>(CGH);
       local_accessor<T, 1> Local(range<1>{WorkGroupSize}, CGH);
 
       nd_range<1> NDR{range<1>(NElems), range<1>(WorkGroupSize)};
@@ -99,7 +78,7 @@ template <typename T> int do_test(const T *A, const T *B, T *C) {
         size_t Offset = GrId * WorkGroupSize;
         auto E = NDId.async_work_group_copy(
             Local.template get_multi_ptr<access::decorated::legacy>(),
-            A.template get_multi_ptr<access::decorated::legacy>() + Offset,
+            AAcc.template get_multi_ptr<access::decorated::legacy>() + Offset,
             NElemsToCopy);
         E.wait();
       });
@@ -129,14 +108,14 @@ int main() {
   std::fill(B.begin(), B.end(), 128);
   std::fill(C.begin(), C.end(), std::numeric_limits<unsigned char>::max());
 
-  int ret = do_test(A.data(), B.data(), C.data());
+  int Ret = doCharTest(A.data(), B.data(), C.data());
 
-  ret |= do_test(reinterpret_cast<const signed char *>(A.data()),
-                 reinterpret_cast<const signed char *>(B.data()),
-                 reinterpret_cast<signed char *>(C.data()));
+  Ret |= doCharTest(reinterpret_cast<const signed char *>(A.data()),
+                    reinterpret_cast<const signed char *>(B.data()),
+                    reinterpret_cast<signed char *>(C.data()));
 
-  ret |= do_test(reinterpret_cast<const char *>(A.data()),
-                 reinterpret_cast<const char *>(B.data()),
-                 reinterpret_cast<char *>(C.data()));
-  return ret;
+  Ret |= doCharTest(reinterpret_cast<const char *>(A.data()),
+                    reinterpret_cast<const char *>(B.data()),
+                    reinterpret_cast<char *>(C.data()));
+  return Ret;
 }
