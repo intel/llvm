@@ -62,6 +62,11 @@ public:
 
 // The structure represents NDRange - global, local sizes, global offset and
 // number of dimensions.
+
+// TODO: A lot of tests rely on particular dimension values to be set for
+// dimensions that are higher than the number of dimensions actually being used
+// as passed via `Dims_`. In addition, `GlobalSize` being zero is used as
+// indication that `NumWorkGroup` should be used.
 class NDRDescT {
 
 public:
@@ -78,6 +83,10 @@ public:
     } else {
       for (size_t I = 0; I < Dims_; ++I) {
         GlobalSize[I] = N[I];
+      }
+      
+      for (int I = Dims_; I < 3; ++I) {
+        GlobalSize[I] = 1;
       }
     }
   }
@@ -121,10 +130,8 @@ public:
       : NDRDescT(Range, /*SetNumWorkGroups=*/false) {}
 
   template <int Dims_> void setClusterDimensions(sycl::range<Dims_> N) {
-    if (this->Dims != size_t(Dims_)) {
-      throw std::runtime_error(
-          "Dimensionality of cluster, global and local ranges must be same");
-    }
+    assert(this->Dims == size_t(Dims_) &&
+           "Dimensionality of cluster, global and local ranges must be same");
 
     for (int I = 0; I < Dims_; ++I)
       ClusterDimensions[I] = N[I];
