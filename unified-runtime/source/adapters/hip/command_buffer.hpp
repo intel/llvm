@@ -128,6 +128,8 @@ struct ur_exp_command_buffer_handle_t_ : ur::hip::handle_base {
   // Atomic variable counting the number of reference to this command_buffer
   // using std::atomic prevents data race when incrementing/decrementing.
   std::atomic_uint32_t RefCount;
+  // Track the event of the current graph execution.
+  ur_event_handle_t CurrentExecution = nullptr;
 
   // Ordered map of sync_points to ur_events
   std::map<ur_exp_command_buffer_sync_point_t, hipGraphNode_t> SyncPoints;
