@@ -34,7 +34,12 @@ def run(
         env = os.environ.copy()
 
         for ldlib in ld_library:
-            env["LD_LIBRARY_PATH"] = ldlib + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+            if os.path.isdir(ldlib):
+                env["LD_LIBRARY_PATH"] = (
+                    ldlib + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+                )
+            else:
+                print(f"Warning: LD_LIBRARY_PATH component does not exist: {ldlib}")
 
         # order is important, we want provided sycl rt libraries to be first
         if add_sycl:

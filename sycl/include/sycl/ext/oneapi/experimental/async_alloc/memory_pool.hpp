@@ -70,7 +70,8 @@ protected:
 
   std::shared_ptr<detail::memory_pool_impl> impl;
 
-  memory_pool(std::shared_ptr<detail::memory_pool_impl> Impl) : impl(Impl) {}
+  memory_pool(std::shared_ptr<detail::memory_pool_impl> Impl)
+      : impl(std::move(Impl)) {}
 
   memory_pool(const sycl::context &ctx, const sycl::device &dev,
               sycl::usm::alloc kind, pool_properties props);

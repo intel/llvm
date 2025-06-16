@@ -158,11 +158,19 @@ public:
     }
   }
 
-  const char *data() const { return reinterpret_cast<const char *>(&Val); }
+  const char *data() const {
+    switch (Ty) {
+    case UINT32:
+      return reinterpret_cast<const char *>(&Val.UInt32Val);
+    case BYTE_ARRAY:
+      return reinterpret_cast<const char *>(Val.ByteArrayVal);
+    default:
+      llvm_unreachable_internal("unsupported property type");
+    }
+  }
 
 private:
   template <typename T> T &getValueRef();
-  void copy(const PropertyValue &P);
 
   Type Ty = NONE;
   // TODO: replace this union with std::variant when uplifting to C++17
