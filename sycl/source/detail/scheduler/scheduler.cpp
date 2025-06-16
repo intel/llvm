@@ -133,6 +133,9 @@ EventImplPtr Scheduler::addCG(
     }
     NewEvent = NewCmd->getEvent();
     NewEvent->setSubmissionTime();
+    if (!EventNeeded) {
+      NewEvent->setStateDiscarded();
+    }
   }
 
   enqueueCommandForCG(NewEvent, AuxiliaryCmds);
