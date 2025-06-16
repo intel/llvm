@@ -20,6 +20,8 @@
 
 static inline void UMF_CALL_THROWS(umf_result_t res) {
   if (res != UMF_RESULT_SUCCESS) {
+    UR_DFAILURE("some umf call in v2 L0 adapter returned "
+                << res << " instead of success");
     throw res;
   }
 }
@@ -80,9 +82,10 @@ inline umf_usm_memory_type_t urToUmfMemoryType(ur_usm_type_t type) {
     return UMF_MEMORY_TYPE_SHARED;
   case UR_USM_TYPE_HOST:
     return UMF_MEMORY_TYPE_HOST;
-  default:
-    throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+  case UR_USM_TYPE_UNKNOWN:
+  case UR_USM_TYPE_FORCE_UINT32:; // silence warning, fail below
   }
+  UR_FFAILURE("invalid memory type: " << type);
 }
 
 static usm::DisjointPoolMemType
@@ -93,14 +96,14 @@ descToDisjoinPoolMemType(const usm::pool_descriptor &desc) {
   case UR_USM_TYPE_SHARED: {
     if (desc.deviceReadOnly)
       return usm::DisjointPoolMemType::SharedReadOnly;
-    else
-      return usm::DisjointPoolMemType::Shared;
+    return usm::DisjointPoolMemType::Shared;
   }
   case UR_USM_TYPE_HOST:
     return usm::DisjointPoolMemType::Host;
-  default:
-    throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+  case UR_USM_TYPE_UNKNOWN:
+  case UR_USM_TYPE_FORCE_UINT32:; // silence warning, fail below
   }
+  UR_FFAILURE("invalid memory type: " << desc.type);
 }
 
 static umf::provider_unique_handle_t
@@ -122,19 +125,37 @@ makeProvider(usm::pool_descriptor poolDescriptor) {
   UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsSetMemoryType(
       hParams, urToUmfMemoryType(poolDescriptor.type)));
 
-  std::vector<ze_device_handle_t> residentZeHandles;
+  // zeDeviceHandles and residentDevicesIndices have to be in the scope of
+  // hParams because hParams keeps reference of it inside.
+  std::vector<ze_device_handle_t> zeDeviceHandles;
+  std::vector<uint32_t> residentDevicesIndices;
 
-  if (poolDescriptor.type == UR_USM_TYPE_DEVICE) {
+  if (poolDescriptor.supportsResidentDevices()) {
     assert(level_zero_device_handle);
-    auto residentHandles =
-        poolDescriptor.hContext->getP2PDevices(poolDescriptor.hDevice);
-    residentZeHandles.push_back(level_zero_device_handle);
-    for (auto &device : residentHandles) {
-      residentZeHandles.push_back(device->ZeDevice);
+
+    for (auto &dev : poolDescriptor.hDevice->Platform->URDevicesCache) {
+      zeDeviceHandles.push_back(dev->ZeDevice);
+    }
+    UR_FASSERT(!zeDeviceHandles.empty(), "no devices in the platform");
+
+    for (auto dev :
+         poolDescriptor.hContext->getDevicesWhichCanAccessAllocationsPresentOn(
+             poolDescriptor.hDevice)) {
+      residentDevicesIndices.push_back(dev->Id.value());
     }
 
     UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsSetResidentDevices(
-        hParams, residentZeHandles.data(), residentZeHandles.size()));
+        hParams, zeDeviceHandles.data(), zeDeviceHandles.size(),
+        residentDevicesIndices.data(), residentDevicesIndices.size()));
+
+    UR_LOG(INFO,
+           "memory provider will be created with {} resident device(s) out of "
+           "{} devices, desc:{}",
+           residentDevicesIndices.size(), zeDeviceHandles.size(),
+           logger::makeStringFromStreamable(poolDescriptor));
+  } else {
+    UR_LOG(INFO, "memory provider does not support resident devices, desc:{}",
+           logger::makeStringFromStreamable(poolDescriptor));
   }
 
   UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsSetFreePolicy(
@@ -143,6 +164,7 @@ makeProvider(usm::pool_descriptor poolDescriptor) {
   auto [ret, provider] =
       umf::providerMakeUniqueFromOps(umfLevelZeroMemoryProviderOps(), hParams);
   if (ret != UMF_RESULT_SUCCESS) {
+    UR_DFAILURE("umf::providerMakeUniqueFromOps failed with " << ret);
     throw umf::umf2urResult(ret);
   }
 
@@ -448,6 +470,28 @@ size_t ur_usm_pool_handle_t_::getTotalUsedSize() {
 }
 
 size_t ur_usm_pool_handle_t_::getPeakUsedSize() { return allocStats.getPeak(); }
+
+void ur_usm_pool_handle_t_::changeResidentDevice(ur_device_handle_t hDevice,
+                                                 ur_device_handle_t peerDevice,
+                                                 bool isAdding) {
+  poolManager.forEachPoolWithDesc([=](const auto &desc, auto pool) {
+    if (desc.supportsResidentDevices() && desc.hDevice == hDevice) {
+      UR_LOG(INFO, "found {} of srcDevice:{} valid to {} peerDevice:{}",
+             logger::makeStringFromStreamable(desc), desc.hDevice->Id.value(),
+             isAdding ? "add" : "remove", peerDevice->Id.value());
+      umf_memory_provider_handle_t hProvider;
+      umf_result_t getProviderResult =
+          umfPoolGetMemoryProvider(pool->umfPool.get(), &hProvider);
+      UR_FASSERT(getProviderResult == UMF_RESULT_SUCCESS,
+                 "getting memory provider failed with:" << getProviderResult);
+      umf_result_t changeResult = umfMemoryProviderResidentDeviceChange(
+          hProvider, peerDevice->Id.value(), isAdding);
+      UR_FASSERT(changeResult == UMF_RESULT_SUCCESS,
+                 "changing resident devices failed with:" << changeResult);
+    }
+    return true;
+  });
+}
 
 namespace ur::level_zero {
 ur_result_t urUSMPoolCreate(

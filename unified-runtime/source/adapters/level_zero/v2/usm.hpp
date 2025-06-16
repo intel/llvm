@@ -80,6 +80,8 @@ struct ur_usm_pool_handle_t_ : ur_object {
   size_t getPeakReservedSize();
   size_t getTotalUsedSize();
   size_t getPeakUsedSize();
+  void changeResidentDevice(ur_device_handle_t hDevice,
+                            ur_device_handle_t peerDevice, bool isAdding);
 
   ur::RefCount RefCount;
 
