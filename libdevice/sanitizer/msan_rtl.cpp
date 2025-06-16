@@ -9,6 +9,8 @@
 #include "include/msan_rtl.hpp"
 #include "atomic.hpp"
 #include "device.h"
+#include "include/sanitizer_defs.hpp"
+#include "include/sanitizer_utils.hpp"
 #include "msan/msan_libdevice.hpp"
 #include "spirv_vars.h"
 
@@ -144,11 +146,9 @@ void __msan_report_error(const uint32_t size,
   __msan_internal_report_save(size, file, line, func, origin);
 }
 
-inline uptr __msan_get_shadow_cpu(uptr addr) {
-  return addr ^ 0x500000000000ULL;
-}
+inline uptr MemToShadow_CPU(uptr addr) { return addr ^ 0x500000000000ULL; }
 
-inline uptr __msan_get_shadow_dg2(uptr addr, uint32_t as) {
+inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
   if (as == ADDRESS_SPACE_GENERIC) {
     ConvertGenericPointer(addr, as);
   }
@@ -166,7 +166,7 @@ inline uptr __msan_get_shadow_dg2(uptr addr, uint32_t as) {
   }
 }
 
-inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
+inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
   if (as == ADDRESS_SPACE_GENERIC) {
     ConvertGenericPointer(addr, as);
   }
@@ -218,13 +218,39 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   return GetMsanLaunchInfo->CleanShadow;
 }
 
-inline uptr __msan_get_origin_cpu(uptr addr) {
-  return addr ^ 0x500000000000ULL;
+inline uptr MemToShadow(uptr addr, uint32_t as) {
+  // Return clean shadow (0s) by default
+  uptr shadow_ptr;
+
+#if defined(__LIBDEVICE_PVC__)
+  shadow_ptr = MemToShadow_PVC(addr, as);
+#elif defined(__LIBDEVICE_CPU__)
+  shadow_ptr = MemToShadow_CPU(addr);
+#else
+  if (LIKELY(GetMsanLaunchInfo->DeviceTy == DeviceType::CPU)) {
+    shadow_ptr = MemToShadow_CPU(addr);
+  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
+    shadow_ptr = MemToShadow_PVC(addr, as);
+  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_DG2) {
+    shadow_ptr = MemToShadow_DG2(addr, as);
+  } else {
+    shadow_ptr = GetMsanLaunchInfo->CleanShadow;
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_unsupport_device_type,
+                                  GetMsanLaunchInfo->DeviceTy));
+  }
+#endif
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_shadow, (void *)addr, as,
+                                (void *)shadow_ptr, *(u8 *)shadow_ptr));
+
+  return shadow_ptr;
 }
 
-inline uptr __msan_get_origin_dg2(uptr addr, uint32_t as) { return 0; }
+inline uptr MemToOrigin_CPU(uptr addr) { return addr ^ 0x500000000000ULL; }
 
-inline uptr __msan_get_origin_pvc(uptr addr, uint32_t as) {
+inline uptr MemToOrigin_DG2(uptr addr, uint32_t as) { return 0; }
+
+inline uptr MemToOrigin_PVC(uptr addr, uint32_t as) {
   if (as == ADDRESS_SPACE_GENERIC) {
     ConvertGenericPointer(addr, as);
   }
@@ -244,6 +270,35 @@ inline uptr __msan_get_origin_pvc(uptr addr, uint32_t as) {
   return GetMsanLaunchInfo->CleanShadow;
 }
 
+inline uptr MemToOrigin(uptr addr, uint32_t as) {
+  uptr aligned_addr = addr & ~3ULL;
+  uptr origin_ptr;
+
+#if defined(__LIBDEVICE_PVC__)
+  origin_ptr = MemToOrigin_PVC(addr, as);
+#elif defined(__LIBDEVICE_CPU__)
+  origin_ptr = MemToOrigin_CPU(addr);
+#else
+  if (LIKELY(GetMsanLaunchInfo->DeviceTy == DeviceType::CPU)) {
+    origin_ptr = MemToOrigin_CPU(aligned_addr);
+  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
+    origin_ptr = MemToOrigin_PVC(aligned_addr, as);
+  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_DG2) {
+    origin_ptr = MemToOrigin_DG2(aligned_addr, as);
+  } else {
+    // Return clean shadow (0s) by default
+    origin_ptr = GetMsanLaunchInfo->CleanShadow;
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_unsupport_device_type,
+                                  GetMsanLaunchInfo->DeviceTy));
+  }
+#endif
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_origin, (void *)addr, as,
+                                (void *)origin_ptr, 0));
+
+  return origin_ptr;
+}
+
 inline void __msan_exit() {
   if (!GetMsanLaunchInfo->IsRecover)
     __devicelib_exit();
@@ -257,6 +312,29 @@ void GroupAsyncCopy(uptr Dest, uptr Src, size_t NumElements, size_t Stride) {
   for (size_t i = 0; i < NumElements; i++) {
     DestPtr[i] = SrcPtr[i * Stride];
   }
+}
+
+static __SYCL_CONSTANT__ const char __msan_print_memcpy[] =
+    "[kernel] memcpy(dst=%p, src=%p, shadow_dst=%p, shadow_src=%p, size=%p)\n";
+
+template <uint32_t dst_as, uint32_t src_as>
+inline void
+CopyShadowAndOrigin(__attribute__((address_space(dst_as))) char *dst,
+                    __attribute__((address_space(src_as))) char *src,
+                    size_t size) {}
+
+static __SYCL_CONSTANT__ const char __msan_print_memmove[] =
+    "[kernel] memmove(dst=%p, src=%p, shadow_dst=%p, shadow_src=%p, size=%p)\n";
+
+template <uint32_t dst_as, uint32_t src_as>
+inline void
+MoveShadowAndOrigin(__attribute__((address_space(dst_as))) char *dst,
+                    __attribute__((address_space(src_as))) char *src,
+                    size_t size) {}
+
+inline void UnpoisonShadow(uptr addr, uint32_t as, size_t size) {
+  auto *shadow_ptr = (__SYCL_GLOBAL__ char *)MemToShadow(addr, as);
+  Memset(shadow_ptr, 0, size);
 }
 
 } // namespace
@@ -321,32 +399,7 @@ __msan_get_shadow(uptr addr, uint32_t as,
                   const char __SYCL_CONSTANT__ *func = nullptr) {
   if (!GetMsanLaunchInfo)
     return nullptr;
-
-  // Return clean shadow (0s) by default
-  uptr shadow_ptr;
-
-#if defined(__LIBDEVICE_PVC__)
-  shadow_ptr = __msan_get_shadow_pvc(addr, as);
-#elif defined(__LIBDEVICE_CPU__)
-  shadow_ptr = __msan_get_shadow_cpu(addr);
-#else
-  if (LIKELY(GetMsanLaunchInfo->DeviceTy == DeviceType::CPU)) {
-    shadow_ptr = __msan_get_shadow_cpu(addr);
-  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
-    shadow_ptr = __msan_get_shadow_pvc(addr, as);
-  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_DG2) {
-    shadow_ptr = __msan_get_shadow_dg2(addr, as);
-  } else {
-    shadow_ptr = GetMsanLaunchInfo->CleanShadow;
-    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_unsupport_device_type,
-                                  GetMsanLaunchInfo->DeviceTy));
-  }
-#endif
-
-  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_shadow, (void *)addr, as,
-                                (void *)shadow_ptr, *(u8 *)shadow_ptr));
-
-  return (__SYCL_GLOBAL__ void *)shadow_ptr;
+  return (__SYCL_GLOBAL__ void *)MemToShadow(addr, as);
 }
 
 // For mapping detail, ref to
@@ -355,33 +408,7 @@ DEVICE_EXTERN_C_NOINLINE __SYCL_GLOBAL__ void *__msan_get_origin(uptr addr,
                                                                  uint32_t as) {
   if (!GetMsanLaunchInfo)
     return nullptr;
-
-  uptr aligned_addr = addr & ~3ULL;
-  uptr origin_ptr;
-
-#if defined(__LIBDEVICE_PVC__)
-  origin_ptr = __msan_get_origin_pvc(addr, as);
-#elif defined(__LIBDEVICE_CPU__)
-  origin_ptr = __msan_get_origin_cpu(addr);
-#else
-  if (LIKELY(GetMsanLaunchInfo->DeviceTy == DeviceType::CPU)) {
-    origin_ptr = __msan_get_origin_cpu(aligned_addr);
-  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
-    origin_ptr = __msan_get_origin_pvc(aligned_addr, as);
-  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_DG2) {
-    origin_ptr = __msan_get_origin_dg2(aligned_addr, as);
-  } else {
-    // Return clean shadow (0s) by default
-    origin_ptr = GetMsanLaunchInfo->CleanShadow;
-    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_unsupport_device_type,
-                                  GetMsanLaunchInfo->DeviceTy));
-  }
-#endif
-
-  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_origin, (void *)addr, as,
-                                (void *)origin_ptr, 0));
-
-  return (__SYCL_GLOBAL__ void *)origin_ptr;
+  return (__SYCL_GLOBAL__ void *)MemToOrigin(addr, as);
 }
 
 #define MSAN_MAYBE_STORE_ORIGIN(type, size)                                    \
@@ -405,15 +432,9 @@ static __SYCL_CONSTANT__ const char __msan_print_memset[] =
   __attribute__((address_space(as))) void *__msan_memset_p##as(                \
       __attribute__((address_space(as))) char *dest, int val, size_t size) {   \
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg, "__msan_memset"));    \
-    uptr shadow = (uptr)__msan_get_shadow((uptr)dest, as);                     \
-    for (size_t i = 0; i < size; i++) {                                        \
-      dest[i] = val;                                                           \
-      ((__SYCL_GLOBAL__ char *)shadow)[i] = 0;                                 \
-    }                                                                          \
-    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_memset, dest, shadow,           \
-                                  shadow + size - 1));                         \
-    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end, "__msan_memset"));    \
-    return dest;                                                               \
+    auto res = Memset(dest, val, size);                                        \
+    UnpoisonShadow((uptr)dest, as, size);                                      \
+    return res;                                                                \
   }
 
 MSAN_MEMSET(0)
@@ -421,34 +442,16 @@ MSAN_MEMSET(1)
 MSAN_MEMSET(3)
 MSAN_MEMSET(4)
 
-static __SYCL_CONSTANT__ const char __msan_print_memmove[] =
-    "[kernel] memmove(dst=%p, src=%p, shadow_dst=%p, shadow_src=%p, size=%p)\n";
-
 #define MSAN_MEMMOVE_BASE(dst_as, src_as)                                      \
   DEVICE_EXTERN_C_NOINLINE __attribute__((address_space(dst_as))) void         \
       *__msan_memmove_p##dst_as##_p##src_as(                                   \
           __attribute__((address_space(dst_as))) char *dest,                   \
           __attribute__((address_space(src_as))) char *src, size_t size) {     \
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg, "__msan_memmove"));   \
-    uptr dest_shadow = (uptr)__msan_get_shadow((uptr)dest, dst_as);            \
-    uptr src_shadow = (uptr)__msan_get_shadow((uptr)src, src_as);              \
-    if ((uptr)dest > (uptr)src) {                                              \
-      for (size_t i = size - 1; i < size; i--) {                               \
-        dest[i] = src[i];                                                      \
-        ((__SYCL_GLOBAL__ char *)dest_shadow)[i] =                             \
-            ((__SYCL_GLOBAL__ char *)src_shadow)[i];                           \
-      }                                                                        \
-    } else {                                                                   \
-      for (size_t i = 0; i < size; i++) {                                      \
-        dest[i] = src[i];                                                      \
-        ((__SYCL_GLOBAL__ char *)dest_shadow)[i] =                             \
-            ((__SYCL_GLOBAL__ char *)src_shadow)[i];                           \
-      }                                                                        \
-    }                                                                          \
-    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_memmove, dest, src,             \
-                                  dest_shadow, src_shadow, size));             \
+    auto res = Memmove(dest, src, size);                                       \
+    MoveShadowAndOrigin(dest, src, size);                                      \
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end, "__msan_memmove"));   \
-    return dest;                                                               \
+    return res;                                                                \
   }
 
 #define MSAN_MEMMOVE(dst_as)                                                   \
@@ -463,26 +466,16 @@ MSAN_MEMMOVE(1)
 MSAN_MEMMOVE(3)
 MSAN_MEMMOVE(4)
 
-static __SYCL_CONSTANT__ const char __msan_print_memcpy[] =
-    "[kernel] memcpy(dst=%p, src=%p, shadow_dst=%p, shadow_src=%p, size=%p)\n";
-
 #define MSAN_MEMCPY_BASE(dst_as, src_as)                                       \
   DEVICE_EXTERN_C_NOINLINE __attribute__((address_space(dst_as))) void         \
       *__msan_memcpy_p##dst_as##_p##src_as(                                    \
           __attribute__((address_space(dst_as))) char *dest,                   \
           __attribute__((address_space(src_as))) char *src, size_t size) {     \
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg, "__msan_memcpy"));    \
-    uptr dest_shadow = (uptr)__msan_get_shadow((uptr)dest, dst_as);            \
-    uptr src_shadow = (uptr)__msan_get_shadow((uptr)src, src_as);              \
-    for (size_t i = 0; i < size; i++) {                                        \
-      dest[i] = src[i];                                                        \
-      ((__SYCL_GLOBAL__ char *)dest_shadow)[i] =                               \
-          ((__SYCL_GLOBAL__ char *)src_shadow)[i];                             \
-    }                                                                          \
-    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_memmove, dest, src,             \
-                                  dest_shadow, src_shadow, size));             \
+    auto res = Memcpy(dest, src, size);                                        \
+    CopyShadowAndOrigin(dest, src, size);                                      \
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end, "__msan_memcpy"));    \
-    return dest;                                                               \
+    return res;                                                                \
   }
 
 #define MSAN_MEMCPY(dst_as)                                                    \
@@ -516,13 +509,10 @@ DEVICE_EXTERN_C_NOINLINE void __msan_poison_shadow_static_local(uptr ptr,
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
                                   "__msan_poison_shadow_static_local"));
 
-    auto shadow_address = (uptr)__msan_get_shadow(ptr, ADDRESS_SPACE_LOCAL);
+    auto shadow_address = MemToShadow(ptr, ADDRESS_SPACE_LOCAL);
     if (shadow_address == GetMsanLaunchInfo->CleanShadow)
       return;
-
-    for (size_t i = 0; i < size; ++i) {
-      ((__SYCL_GLOBAL__ u8 *)shadow_address)[i] = 0xff;
-    }
+    Memset((__SYCL_GLOBAL__ char *)shadow_address, size, 0xff);
 
     MSAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_local, shadow_address,
                                   shadow_address + size, 0xff));
@@ -539,17 +529,9 @@ DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_shadow_static_local(uptr ptr,
       0) {
     if (!GetMsanLaunchInfo || GetMsanLaunchInfo->LocalShadowOffset == 0)
       return;
-
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
                                   "__msan_unpoison_shadow_static_local"));
-
-    auto shadow_address = (uptr)__msan_get_shadow(ptr, ADDRESS_SPACE_LOCAL);
-    for (size_t i = 0; i < size; ++i) {
-      ((__SYCL_GLOBAL__ u8 *)shadow_address)[i] = 0;
-    }
-
-    MSAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_local, shadow_address,
-                                  shadow_address + size, 0));
+    UnpoisonShadow(ptr, ADDRESS_SPACE_LOCAL, size);
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
                                   "__msan_unpoison_shadow_static_local"));
   }
@@ -646,14 +628,12 @@ DEVICE_EXTERN_C_NOINLINE void __msan_poison_stack(__SYCL_PRIVATE__ void *ptr,
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg, "__msan_poison_stack"));
 
-  auto shadow_address =
-      (uptr)__msan_get_shadow((uptr)ptr, ADDRESS_SPACE_PRIVATE);
+  auto shadow_address = MemToShadow((uptr)ptr, ADDRESS_SPACE_PRIVATE);
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow_private,
                                 (void *)shadow_address,
                                 (void *)(shadow_address + size), 0xff));
 
-  for (size_t i = 0; i < size; i++)
-    ((__SYCL_GLOBAL__ u8 *)shadow_address)[i] = 0xff;
+  Memset((__SYCL_GLOBAL__ char *)shadow_address, 0xff, size);
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end, "__msan_poison_stack"));
 }
@@ -666,14 +646,12 @@ DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_stack(__SYCL_PRIVATE__ void *ptr,
   MSAN_DEBUG(
       __spirv_ocl_printf(__msan_print_func_beg, "__msan_unpoison_stack"));
 
-  auto shadow_address =
-      (uptr)__msan_get_shadow((uptr)ptr, ADDRESS_SPACE_PRIVATE);
+  auto shadow_address = MemToShadow((uptr)ptr, ADDRESS_SPACE_PRIVATE);
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow_private,
                                 (void *)shadow_address,
                                 (void *)(shadow_address + size), 0x0));
 
-  for (size_t i = 0; i < size; i++)
-    ((__SYCL_GLOBAL__ u8 *)shadow_address)[i] = 0;
+  Memset((__SYCL_GLOBAL__ char *)shadow_address, 0, size);
 
   MSAN_DEBUG(
       __spirv_ocl_printf(__msan_print_func_end, "__msan_unpoison_stack"));
