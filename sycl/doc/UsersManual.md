@@ -390,18 +390,14 @@ and not recommended to use in production environment.
 
     NOTE: This flag is currently only supported with the CUDA and HIP targets.
 
-**`-fsycl-dump-device-code=/path/to/device/object/file`** [DEPRECATED]
-    Enable dumping of device object files(SPIR-V and PTX files) during SYCL
-    offload compilation.
+**`-fsycl-dump-device-code=<path-to-device-build-artifacts-directory>`** [DEPRECATED]
+    Enable dumping of device object files (SPIR-V and PTX files) during SYCL offload compilation.
     This option is replaced with -save-offload-code.
-
-    NOTE: This flag is currently only supported in
-    SYCL offloading to the CUDA and SPIR-V targets.
-
- **`-save-offload-code=/path/to/device/object/file`**
-    Enable saving of device object files during an offload compilation.
-    NOTE: This flag is currently only supported in
-    SYCL offloading to the CUDA and SPIR-V targets.
+    NOTE: This flag is currently only supported in SYCL offloading to the CUDA and SPIR-V targets.
+ **`-save-offload-code=<path-to-device-build-artifacts-directory>`**
+    Save offload code generated during compilation into the user provided
+    directory.
+    NOTE: This flag is currently only supported in SYCL offloading to the CUDA and SPIR-V targets.
 
 **`-f[no-]sycl-esimd-force-stateless-mem`** [EXPERIMENTAL]
 
