@@ -137,8 +137,6 @@ class OneDnnBenchmark(Benchmark):
         ]
 
         env_vars = dict(env_vars) if env_vars else {}
-        if options.verbose:
-            env_vars["SYCL_UR_TRACE"] = "-2"
 
         output = self.run_bench(
             command,
