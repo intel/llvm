@@ -174,9 +174,7 @@ public:
   void setHandle(const ur_event_handle_t &UREvent);
 
   /// Returns context that is associated with this event.
-  ///
-  /// \return a shared pointer to a valid context_impl.
-  const ContextImplPtr &getContextImpl();
+  context_impl &getContextImpl();
 
   /// \return the Adapter associated with the context of this event.
   /// Should be called when this is not a Host Event.
@@ -184,11 +182,9 @@ public:
 
   /// Associate event with the context.
   ///
-  /// Provided UrContext inside ContextImplPtr must be associated
+  /// Provided UrContext inside Context must be associated
   /// with the UrEvent object stored in this class
-  ///
-  /// @param Context is a shared pointer to an instance of valid context_impl.
-  void setContextImpl(const ContextImplPtr &Context);
+  void setContextImpl(context_impl &Context);
 
   /// Clear the event state
   void setStateIncomplete();
