@@ -72,41 +72,49 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
   static std::mutex adapterPopulationMutex{};
   ur_adapter_handle_t Adapter = nullptr;
   UR_RETURN_ON_FAILURE(urAdapterGet(1, &Adapter, nullptr));
-  if (Adapter && !(Adapter->NumPlatforms)) {
+  if (!Adapter) {
+    // The only operation urAdapterGet really performs is allocating the adapter
+    // handle via new, so no adapter handle here almost certainly means memory
+    // problems.
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  }
+
+  {
     std::lock_guard guard{adapterPopulationMutex};
+    if (!Adapter->NumPlatforms) {
+      // It's possible for urPlatformGet, if ran on multiple threads, to enter
+      // this branch simultaneously. This check ensures that only one sees that
+      // Adapter->NumPlatforms is zero.
+      if (Adapter->NumPlatforms == 0) {
+        uint32_t NumPlatforms = 0;
+        cl_int Res = clGetPlatformIDs(0, nullptr, &NumPlatforms);
 
-    // It's possible for urPlatformGet, if ran on multiple threads, to enter
-    // this branch simultaneously. This check ensures that only one sees that
-    // Adapter->NumPlatforms is zero.
-    if (Adapter->NumPlatforms == 0) {
-      uint32_t NumPlatforms = 0;
-      cl_int Res = clGetPlatformIDs(0, nullptr, &NumPlatforms);
-
-      if (NumPlatforms == 0 || Res == CL_PLATFORM_NOT_FOUND_KHR) {
-        if (pNumPlatforms) {
-          *pNumPlatforms = 0;
+        if (NumPlatforms == 0 || Res == CL_PLATFORM_NOT_FOUND_KHR) {
+          if (pNumPlatforms) {
+            *pNumPlatforms = 0;
+          }
+          return UR_RESULT_SUCCESS;
         }
-        return UR_RESULT_SUCCESS;
-      }
-      CL_RETURN_ON_FAILURE(Res);
+        CL_RETURN_ON_FAILURE(Res);
 
-      std::vector<cl_platform_id> CLPlatforms(NumPlatforms);
-      Res = clGetPlatformIDs(static_cast<cl_uint>(NumPlatforms),
-                             CLPlatforms.data(), nullptr);
-      CL_RETURN_ON_FAILURE(Res);
+        std::vector<cl_platform_id> CLPlatforms(NumPlatforms);
+        Res = clGetPlatformIDs(static_cast<cl_uint>(NumPlatforms),
+                               CLPlatforms.data(), nullptr);
+        CL_RETURN_ON_FAILURE(Res);
 
-      try {
-        for (uint32_t i = 0; i < NumPlatforms; i++) {
-          auto URPlatform =
-              std::make_unique<ur_platform_handle_t_>(CLPlatforms[i]);
-          UR_RETURN_ON_FAILURE(URPlatform->InitDevices());
-          Adapter->URPlatforms.emplace_back(URPlatform.release());
+        try {
+          for (uint32_t i = 0; i < NumPlatforms; i++) {
+            auto URPlatform =
+                std::make_unique<ur_platform_handle_t_>(CLPlatforms[i]);
+            UR_RETURN_ON_FAILURE(URPlatform->InitDevices());
+            Adapter->URPlatforms.emplace_back(URPlatform.release());
+          }
+          Adapter->NumPlatforms = NumPlatforms;
+        } catch (std::bad_alloc &) {
+          return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+        } catch (...) {
+          return UR_RESULT_ERROR_INVALID_PLATFORM;
         }
-        Adapter->NumPlatforms = NumPlatforms;
-      } catch (std::bad_alloc &) {
-        return UR_RESULT_ERROR_OUT_OF_RESOURCES;
-      } catch (...) {
-        return UR_RESULT_ERROR_INVALID_PLATFORM;
       }
     }
   }
