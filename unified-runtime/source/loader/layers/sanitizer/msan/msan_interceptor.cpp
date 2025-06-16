@@ -52,16 +52,13 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
   auto ContextInfo = getContextInfo(Context);
   std::shared_ptr<DeviceInfo> DI = Device ? getDeviceInfo(Device) : nullptr;
 
-  // Origin tracking needs alignment at leat is 4
-  constexpr uint32_t MSAN_ORIGIN_TRACKING_GRANULARITY = 4;
-
   uint32_t Alignment = Properties ? Properties->align : 4;
   // Alignment must be zero or a power-of-two
   if (0 != (Alignment & (Alignment - 1))) {
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
-  if (Alignment < MSAN_ORIGIN_TRACKING_GRANULARITY) {
-    Alignment = MSAN_ORIGIN_TRACKING_GRANULARITY;
+  if (Alignment < MSAN_ORIGIN_GRANULARITY) {
+    Alignment = MSAN_ORIGIN_GRANULARITY;
   }
 
   ur_usm_desc_t NewProperties;
@@ -306,9 +303,9 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
       // Only support device global USM
       if (DeviceInfo->Type == DeviceType::CPU ||
           (DeviceInfo->Type == DeviceType::GPU_PVC &&
-           MsanShadowMemoryPVC::isDeviceUSM(GVInfo.Addr)) ||
+           MsanShadowMemoryPVC::IsDeviceUSM(GVInfo.Addr)) ||
           (DeviceInfo->Type == DeviceType::GPU_DG2 &&
-           MsanShadowMemoryDG2::isDeviceUSM(GVInfo.Addr))) {
+           MsanShadowMemoryDG2::IsDeviceUSM(GVInfo.Addr))) {
         UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
                                                         GVInfo.Size, 0));
         ContextInfo->CleanShadowSize =

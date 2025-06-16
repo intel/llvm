@@ -195,7 +195,7 @@ struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
   MsanShadowMemoryPVC(ur_context_handle_t Context, ur_device_handle_t Device)
       : MsanShadowMemoryGPU(Context, Device) {}
 
-  static bool isDeviceUSM(uptr Ptr) { return Ptr >> 52 == 0xff0; }
+  static bool IsDeviceUSM(uptr Ptr) { return Ptr >> 52 == 0xff0; }
 
   uptr MemToShadow(uptr Ptr) override;
   uptr MemToOrigin(uptr Ptr) override;
@@ -219,7 +219,7 @@ struct MsanShadowMemoryDG2 final : public MsanShadowMemoryGPU {
   MsanShadowMemoryDG2(ur_context_handle_t Context, ur_device_handle_t Device)
       : MsanShadowMemoryGPU(Context, Device) {}
 
-  static bool isDeviceUSM(uptr Ptr) { return Ptr >> 48; }
+  static bool IsDeviceUSM(uptr Ptr) { return Ptr >> 48; }
 
   uptr MemToShadow(uptr Ptr) override;
   uptr MemToOrigin(uptr Ptr) override;

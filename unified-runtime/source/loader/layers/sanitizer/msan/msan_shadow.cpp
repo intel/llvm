@@ -408,7 +408,7 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
 }
 
 uptr MsanShadowMemoryPVC::MemToShadow(uptr Ptr) {
-  if (MsanShadowMemoryPVC::isDeviceUSM(Ptr)) {
+  if (MsanShadowMemoryPVC::IsDeviceUSM(Ptr)) {
     return Ptr - 0x5000'0000'0000ULL;
   }
   // host/shared USM
@@ -418,7 +418,7 @@ uptr MsanShadowMemoryPVC::MemToShadow(uptr Ptr) {
 
 uptr MsanShadowMemoryPVC::MemToOrigin(uptr Ptr) {
   uptr AlignedPtr = RoundDownTo(Ptr, MSAN_ORIGIN_GRANULARITY);
-  if (MsanShadowMemoryPVC::isDeviceUSM(AlignedPtr)) {
+  if (MsanShadowMemoryPVC::IsDeviceUSM(AlignedPtr)) {
     return AlignedPtr - 0xA000'0000'0000ULL;
   }
   // host/shared USM
@@ -428,7 +428,7 @@ uptr MsanShadowMemoryPVC::MemToOrigin(uptr Ptr) {
 }
 
 uptr MsanShadowMemoryDG2::MemToShadow(uptr Ptr) {
-  assert(MsanShadowMemoryDG2::isDeviceUSM(Ptr) && "Ptr must be device USM");
+  assert(MsanShadowMemoryDG2::IsDeviceUSM(Ptr) && "Ptr must be device USM");
   if (Ptr < ShadowBegin) {
     return Ptr + (ShadowBegin - 0xffff'8000'0000'0000ULL);
   } else {
@@ -437,7 +437,7 @@ uptr MsanShadowMemoryDG2::MemToShadow(uptr Ptr) {
 }
 
 uptr MsanShadowMemoryDG2::MemToOrigin(uptr Ptr) {
-  assert(MsanShadowMemoryDG2::isDeviceUSM(Ptr) && "Ptr must be device USM");
+  assert(MsanShadowMemoryDG2::IsDeviceUSM(Ptr) && "Ptr must be device USM");
   if (Ptr < ShadowBegin) {
     return Ptr + (ShadowBegin - 0xffff'8000'0000'0000ULL);
   } else {

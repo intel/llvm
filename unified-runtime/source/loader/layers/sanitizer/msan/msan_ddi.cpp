@@ -1479,7 +1479,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
     const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
     const auto MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
-    ur_event_handle_t Event{};
+    ur_event_handle_t Event = nullptr;
     UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)MemShadow, (char)0, size, 0,
                                   nullptr, &Event));
     Events.push_back(Event);
@@ -1537,7 +1537,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     const auto SrcShadow = DeviceInfo->Shadow->MemToShadow((uptr)pSrc);
     const auto DstShadow = DeviceInfo->Shadow->MemToShadow((uptr)pDst);
 
-    ur_event_handle_t Event{};
+    ur_event_handle_t Event = nullptr;
     UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstShadow, (void *)SrcShadow,
                          size, 0, nullptr, &Event));
     Events.push_back(Event);
@@ -1552,7 +1552,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         MSAN_ORIGIN_GRANULARITY;
     const auto DstOrigin = DeviceInfo->Shadow->MemToOrigin((uptr)pDst);
 
-    ur_event_handle_t Event{};
+    ur_event_handle_t Event = nullptr;
     UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstOrigin,
                          (void *)SrcOriginBegin, SrcOriginEnd - SrcOriginBegin,
                          0, nullptr, &Event));
@@ -1615,7 +1615,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
     const auto MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
     const char Pattern = 0;
-    ur_event_handle_t Event{};
+    ur_event_handle_t Event = nullptr;
     UR_CALL(pfnUSMFill2D(hQueue, (void *)MemShadow, pitch, 1, &Pattern, width,
                          height, 0, nullptr, &Event));
     Events.push_back(Event);
@@ -1681,7 +1681,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     const auto SrcShadow = DeviceInfo->Shadow->MemToShadow((uptr)pSrc);
     const auto DstShadow = DeviceInfo->Shadow->MemToShadow((uptr)pDst);
 
-    ur_event_handle_t Event{};
+    ur_event_handle_t Event = nullptr;
     UR_CALL(pfnUSMMemcpy2D(hQueue, blocking, (void *)DstShadow, dstPitch,
                            (void *)SrcShadow, srcPitch, width, height, 0,
                            nullptr, &Event));
@@ -1700,7 +1700,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     }
 
     for (size_t HeightIndex = 0; HeightIndex < height; HeightIndex++) {
-      ur_event_handle_t Event{};
+      ur_event_handle_t Event = nullptr;
       const auto DstOrigin =
           DeviceInfo->Shadow->MemToOrigin((uptr)pDst + dstPitch * HeightIndex);
       const auto SrcOrigin =
