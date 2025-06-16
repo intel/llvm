@@ -80,9 +80,6 @@ public:
         GlobalSize[I] = N[I];
       }
     }
-    for (int I = Dims_; I < 3; ++I) {
-      GlobalSize[I] = 1;
-    }
   }
 
   template <int Dims_>
