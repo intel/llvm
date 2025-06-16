@@ -32,7 +32,6 @@ int memcmp(const void *s1, const void *s2, size_t n) {
   return __devicelib_memcmp(s1, s2, n);
 }
 
-
 // This simple rand is for ease of use only, the implementation aligns with
 // LLVM libc rand which is based on xorshift64star pseudo random number
 // generator. If work item number <= 1024, each work item has its own internal
@@ -103,7 +102,6 @@ void srand(unsigned int seed) {
       (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
   RAND_NEXT_ACC[gid1] = seed;
 }
-
 
 #if defined(_WIN32)
 // Truncates a wide (16 or 32 bit) string (wstr) into an ASCII string (str).
