@@ -109,8 +109,6 @@ extern __DPCPP_SYCL_EXTERNAL double atanh(double x);
 extern __DPCPP_SYCL_EXTERNAL double frexp(double x, int *exp);
 extern __DPCPP_SYCL_EXTERNAL double ldexp(double x, int exp);
 extern __DPCPP_SYCL_EXTERNAL double hypot(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL float nearbyintf(float x);
-extern __DPCPP_SYCL_EXTERNAL double nearbyint(double x);
 extern __DPCPP_SYCL_EXTERNAL float rintf(float x);
 extern __DPCPP_SYCL_EXTERNAL double rint(double x);
 
