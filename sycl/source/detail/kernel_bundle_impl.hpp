@@ -987,7 +987,7 @@ public:
             SelectedImage->get_ur_program_ref());
 
     return std::make_shared<kernel_impl>(
-        Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
+        Kernel, *detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
         SelectedImage->get_ur_program_ref(), CacheMutex);
   }
 

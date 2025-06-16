@@ -56,15 +56,15 @@ inline namespace _V1 {
 class context;
 namespace detail {
 
-bool doesDevSupportDeviceRequirements(const device &Dev,
+bool doesDevSupportDeviceRequirements(const device_impl &Dev,
                                       const RTDeviceBinaryImage &BinImages);
 std::optional<sycl::exception>
-checkDevSupportDeviceRequirements(const device &Dev,
+checkDevSupportDeviceRequirements(const device_impl &Dev,
                                   const RTDeviceBinaryImage &BinImages,
                                   const NDRDescT &NDRDesc = {});
 
 bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
-                                const device_impl *DevImpl);
+                                const device_impl &DevImpl);
 
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
@@ -136,11 +136,11 @@ public:
 
   RTDeviceBinaryImage &getDeviceImage(KernelNameStrRefT KernelName,
                                       context_impl &ContextImpl,
-                                      const device_impl *DeviceImpl);
+                                      const device_impl &DeviceImpl);
 
   RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
-      context_impl &ContextImpl, const device_impl *DeviceImpl);
+      context_impl &ContextImpl, const device_impl &DeviceImpl);
 
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
                                       context_impl &ContextImpl,
@@ -380,11 +380,11 @@ public:
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
   std::set<RTDeviceBinaryImage *>
-  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev,
+  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device_impl &Dev,
                          bool ErrorOnUnresolvableImport = true);
   std::set<RTDeviceBinaryImage *>
   collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
-                                           const device &Dev,
+                                           const device_impl &Dev,
                                            bool ErrorOnUnresolvableImport);
 
   static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage);
@@ -418,11 +418,11 @@ private:
 
   std::set<RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
-      const RTDeviceBinaryImage &Img, const device &Dev);
+      const RTDeviceBinaryImage &Img, const device_impl &Dev);
 
-  bool isSpecialDeviceImage(RTDeviceBinaryImage *BinImage);
-  bool isSpecialDeviceImageShouldBeUsed(RTDeviceBinaryImage *BinImage,
-                                        const device_impl &DeviceImpl);
+  bool isBfloat16DeviceImage(RTDeviceBinaryImage *BinImage);
+  bool shouldBF16DeviceImageBeUsed(RTDeviceBinaryImage *BinImage,
+                                   const device_impl &DeviceImpl);
 
 protected:
   /// The three maps below are used during kernel resolution. Any kernel is
