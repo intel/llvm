@@ -273,7 +273,7 @@ void *ur_discrete_buffer_handle_t::getDevicePtr(
     return getActiveDeviceAlloc(offset);
   }
 
-  auto &p2pDevices = hContext->getP2PDevices(hDevice);
+  auto p2pDevices = hContext->getP2PDevices(hDevice);
   auto p2pAccessible = std::find(p2pDevices.begin(), p2pDevices.end(),
                                  activeAllocationDevice) != p2pDevices.end();
 

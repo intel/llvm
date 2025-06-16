@@ -42,6 +42,7 @@ ur_result_t urContextCreate(
 
     Context->initialize();
     *RetContext = reinterpret_cast<ur_context_handle_t>(Context);
+    // TODO: delete below 'if' when memory isolation in the context is implemented in the driver
     if (IndirectAccessTrackingEnabled) {
       std::scoped_lock<ur_shared_mutex> Lock(Platform->ContextsMutex);
       Platform->Contexts.push_back(*RetContext);

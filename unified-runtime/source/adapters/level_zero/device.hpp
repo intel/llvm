@@ -16,6 +16,7 @@
 #include <stdarg.h>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "adapters/level_zero/platform.hpp"
@@ -235,6 +236,9 @@ struct ur_device_handle_t_ : ur_object {
   // Map device bindless image offset to corresponding host image handle.
   std::unordered_map<ur_exp_image_native_handle_t, ze_image_handle_t>
       ZeOffsetToImageHandleMap;
+
+  // devices which user enabled p2p access by urUsmP2P(Enable|Disable)PeerAccessExp
+  std::unordered_set<DeviceId> p2pDeviceIds;
 
   // unique ephemeral identifer of the device in the adapter
   std::optional<DeviceId> Id;
