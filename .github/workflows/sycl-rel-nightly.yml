@@ -1,3 +1,6 @@
+# The actual version of this workflow can be found on the latest sycl-rel-*
+# branch. This file is no longer updated, but it's still needed to launch this
+# workflow on another branches.
 name: SYCL Release Branch Nightly
 
 on:
