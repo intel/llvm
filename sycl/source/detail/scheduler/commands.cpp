@@ -127,9 +127,9 @@ static unsigned long long getQueueID(const std::shared_ptr<queue_impl> &Queue) {
 }
 #endif
 
-static ContextImplPtr getContext(const QueueImplPtr &Queue) {
+static context_impl *getContext(const QueueImplPtr &Queue) {
   if (Queue)
-    return Queue->getContextImplPtr();
+    return &Queue->getContextImpl();
   return nullptr;
 }
 
@@ -570,7 +570,8 @@ Command::Command(
     ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints)
     : MQueue(std::move(Queue)),
-      MEvent(std::make_shared<detail::event_impl>(MQueue)),
+      MEvent(MQueue ? detail::event_impl::create_device_event(*MQueue)
+                    : detail::event_impl::create_incomplete_host_event()),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
       MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
@@ -1298,8 +1299,11 @@ ur_result_t ReleaseCommand::enqueueImp() {
                                     ? MAllocaCmd->MLinkedAllocaCmd->getQueue()
                                     : MAllocaCmd->getQueue();
 
-    EventImplPtr UnmapEventImpl(new event_impl(Queue));
-    UnmapEventImpl->setContextImpl(getContext(Queue));
+    assert(Queue);
+
+    std::shared_ptr<event_impl> UnmapEventImpl =
+        event_impl::create_device_event(*Queue);
+    UnmapEventImpl->setContextImpl(Queue->getContextImplPtr());
     UnmapEventImpl->setStateIncomplete();
     ur_event_handle_t UREvent = nullptr;
 
@@ -2876,7 +2880,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::ext_oneapi_copy_usm_cmd_buffer,
-            MQueue->getContextImplPtr(), Copy->getSrc(), MCommandBuffer,
+            &MQueue->getContextImpl(), Copy->getSrc(), MCommandBuffer,
             Copy->getLength(), Copy->getDst(), MSyncPointDeps, &OutSyncPoint);
         Result != UR_RESULT_SUCCESS)
       return Result;
@@ -2894,7 +2898,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
 
     if (auto Result = callMemOpHelper(
             MemoryManager::ext_oneapi_copyD2D_cmd_buffer,
-            MQueue->getContextImplPtr(), MCommandBuffer,
+            &MQueue->getContextImpl(), MCommandBuffer,
             AllocaCmdSrc->getSYCLMemObj(), AllocaCmdSrc->getMemAllocation(),
             ReqSrc->MDims, ReqSrc->MMemoryRange, ReqSrc->MAccessRange,
             ReqSrc->MOffset, ReqSrc->MElemSize,
@@ -2914,7 +2918,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
 
     if (auto Result = callMemOpHelper(
             MemoryManager::ext_oneapi_copyD2H_cmd_buffer,
-            MQueue->getContextImplPtr(), MCommandBuffer,
+            &MQueue->getContextImpl(), MCommandBuffer,
             AllocaCmd->getSYCLMemObj(), AllocaCmd->getMemAllocation(),
             Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
             Req->MElemSize, (char *)Copy->getDst(), Req->MDims,
@@ -2934,7 +2938,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
 
     if (auto Result = callMemOpHelper(
             MemoryManager::ext_oneapi_copyH2D_cmd_buffer,
-            MQueue->getContextImplPtr(), MCommandBuffer,
+            &MQueue->getContextImpl(), MCommandBuffer,
             AllocaCmd->getSYCLMemObj(), (char *)Copy->getSrc(), Req->MDims,
             Req->MAccessRange,
             /*SrcOffset*/ sycl::id<3>{0, 0, 0}, Req->MElemSize,
@@ -2954,7 +2958,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
 
     if (auto Result = callMemOpHelper(
             MemoryManager::ext_oneapi_fill_cmd_buffer,
-            MQueue->getContextImplPtr(), MCommandBuffer,
+            &MQueue->getContextImpl(), MCommandBuffer,
             AllocaCmd->getSYCLMemObj(), AllocaCmd->getMemAllocation(),
             Fill->MPattern.size(), Fill->MPattern.data(), Req->MDims,
             Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
@@ -2969,7 +2973,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::ext_oneapi_fill_usm_cmd_buffer,
-            MQueue->getContextImplPtr(), MCommandBuffer, Fill->getDst(),
+            &MQueue->getContextImpl(), MCommandBuffer, Fill->getDst(),
             Fill->getLength(), Fill->getPattern(), std::move(MSyncPointDeps),
             &OutSyncPoint);
         Result != UR_RESULT_SUCCESS)
@@ -2982,7 +2986,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer,
-            MQueue->getContextImplPtr(), MCommandBuffer, Prefetch->getDst(),
+            &MQueue->getContextImpl(), MCommandBuffer, Prefetch->getDst(),
             Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint);
         Result != UR_RESULT_SUCCESS)
       return Result;
@@ -2994,7 +2998,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::ext_oneapi_advise_usm_cmd_buffer,
-            MQueue->getContextImplPtr(), MCommandBuffer, Advise->getDst(),
+            &MQueue->getContextImpl(), MCommandBuffer, Advise->getDst(),
             Advise->getLength(), Advise->getAdvice(), std::move(MSyncPointDeps),
             &OutSyncPoint);
         Result != UR_RESULT_SUCCESS)
@@ -3051,7 +3055,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
           Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
       for (AllocaCommandBase *AllocaCmd : AllocaCmds)
-        if (ContextImpl == getContext(AllocaCmd->getQueue())) {
+        if (ContextImpl.get() == getContext(AllocaCmd->getQueue())) {
           auto MemArg =
               reinterpret_cast<ur_mem_handle_t>(AllocaCmd->getMemAllocation());
           ReqToMem.emplace_back(std::make_pair(Req, MemArg));

@@ -263,6 +263,10 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
   if (!hCommandBuffer->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
+  if (auto executionEvent = hCommandBuffer->getExecutionEventUnlocked()) {
+    ZE2UR_CALL(zeEventHostSynchronize,
+               (executionEvent->getZeEvent(), UINT64_MAX));
+  }
   delete hCommandBuffer;
   return UR_RESULT_SUCCESS;
 } catch (...) {

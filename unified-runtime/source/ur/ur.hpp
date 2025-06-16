@@ -380,9 +380,17 @@ extern bool PrintTrace;
 // The getInfo*/ReturnHelper facilities provide shortcut way of
 // writing return bytes for the various getInfo APIs.
 namespace ur {
+
+// Base class for handles, stores the ddi table used by the loader to
+// dispatch to the correct adapter implementation of entry points.
 template <typename getddi> struct handle_base {
-  handle_base() { ddi_table = getddi::value(); };
   const ur_dditable_t *ddi_table = nullptr;
+
+  handle_base() { ddi_table = getddi::value(); };
+
+  // Handles are non-copyable.
+  handle_base(const handle_base &) = delete;
+  handle_base &operator=(const handle_base &) = delete;
 };
 
 template <typename T, typename Assign>
