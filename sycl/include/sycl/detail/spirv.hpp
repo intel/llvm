@@ -12,9 +12,9 @@
 
 #include <sycl/__spirv/spirv_types.hpp>
 #include <sycl/access/access.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/id.hpp>
 #include <sycl/multi_ptr.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
 
 #if defined(__NVPTX__)
 #include <sycl/ext/oneapi/experimental/cuda/masked_shuffles.hpp>
@@ -28,6 +28,7 @@ struct sub_group;
 namespace ext {
 namespace oneapi {
 struct sub_group;
+struct sub_group_mask;
 namespace experimental {
 template <typename ParentGroup> class ballot_group;
 template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
@@ -58,6 +59,9 @@ GetMultiPtrDecoratedAs(multi_ptr<FromT, Space, IsDecorated> MPtr) {
 
 template <typename NonUniformGroup>
 inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id);
+template <typename NonUniformGroup>
+inline ext::oneapi::sub_group_mask GetMask(NonUniformGroup Group);
+inline sycl::vec<unsigned, 4> ExtractMask(ext::oneapi::sub_group_mask Mask);
 
 namespace spirv {
 
