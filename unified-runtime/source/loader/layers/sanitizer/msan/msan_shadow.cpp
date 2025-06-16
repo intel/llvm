@@ -195,7 +195,7 @@ ur_result_t MsanShadowMemoryGPU::Destory() {
 }
 
 ur_result_t MsanShadowMemoryGPU::EnqueueVirtualMemMap(
-    ur_queue_handle_t Queue, uptr VirtualBegin, uptr VirtualEnd,
+    uptr VirtualBegin, uptr VirtualEnd,
     std::vector<ur_event_handle_t> &EventWaitList,
     ur_event_handle_t *OutEvent) {
   const size_t PageSize = GetVirtualMemGranularity(Context, Device);
@@ -262,8 +262,7 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
     uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
     assert(ShadowBegin <= ShadowEnd);
 
-    UR_CALL(
-        EnqueueVirtualMemMap(Queue, ShadowBegin, ShadowEnd, Events, OutEvent));
+    UR_CALL(EnqueueVirtualMemMap(ShadowBegin, ShadowEnd, Events, OutEvent));
 
     UR_LOG_L(getContext()->logger, DEBUG,
              "EnqueuePoisonShadow(addr={}, size={}, value={})",
@@ -278,8 +277,7 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
   {
     uptr OriginBegin = MemToOrigin(Ptr);
     uptr OriginEnd = MemToOrigin(Ptr + Size - 1) + sizeof(Origin) - 1;
-    UR_CALL(
-        EnqueueVirtualMemMap(Queue, OriginBegin, OriginEnd, Events, OutEvent));
+    UR_CALL(EnqueueVirtualMemMap(OriginBegin, OriginEnd, Events, OutEvent));
 
     UR_LOG_L(getContext()->logger, DEBUG,
              "EnqueuePoisonOrigin(addr={}, size={}, value={})",
@@ -419,7 +417,7 @@ uptr MsanShadowMemoryPVC::MemToShadow(uptr Ptr) {
 }
 
 uptr MsanShadowMemoryPVC::MemToOrigin(uptr Ptr) {
-  uptr AlignedPtr = Ptr & ~3ULL;
+  uptr AlignedPtr = RoundDownTo(Ptr, MSAN_ORIGIN_GRANULARITY);
   if (MsanShadowMemoryPVC::isDeviceUSM(AlignedPtr)) {
     return AlignedPtr - 0xA000'0000'0000ULL;
   }

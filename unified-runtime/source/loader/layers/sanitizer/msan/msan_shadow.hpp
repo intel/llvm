@@ -157,8 +157,7 @@ struct MsanShadowMemoryGPU : public MsanShadowMemory {
 
 private:
   ur_result_t
-  EnqueueVirtualMemMap(ur_queue_handle_t Queue, uptr VirtualBegin,
-                       uptr VirtualEnd,
+  EnqueueVirtualMemMap(uptr VirtualBegin, uptr VirtualEnd,
                        std::vector<ur_event_handle_t> &EventWaitList,
                        ur_event_handle_t *OutEvent);
 
@@ -169,7 +168,6 @@ private:
   ur_mutex VirtualMemMapsMutex;
 
   uptr LocalShadowOffset = 0;
-
   uptr PrivateShadowOffset = 0;
 };
 

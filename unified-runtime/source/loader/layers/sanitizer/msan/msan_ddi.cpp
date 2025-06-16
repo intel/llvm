@@ -1688,18 +1688,32 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     Events.push_back(Event);
   }
 
-  // FIXME: align to 4 bytes
   {
     ur_device_handle_t Device = GetDevice(hQueue);
     const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
-    const auto SrcOrigin = DeviceInfo->Shadow->MemToOrigin((uptr)pSrc);
-    const auto DstOrigin = DeviceInfo->Shadow->MemToOrigin((uptr)pDst);
 
-    ur_event_handle_t Event{};
-    UR_CALL(pfnUSMMemcpy2D(hQueue, blocking, (void *)DstOrigin, dstPitch,
-                           (void *)SrcOrigin, srcPitch, width, height, 0,
-                           nullptr, &Event));
-    Events.push_back(Event);
+    auto pfnUSMMemcpy = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
+
+    std::vector<ur_event_handle_t> WaitEvents(numEventsInWaitList);
+    for (uint32_t i = 0; i < numEventsInWaitList; i++) {
+      WaitEvents[i] = phEventWaitList[i];
+    }
+
+    for (size_t HeightIndex = 0; HeightIndex < height; HeightIndex++) {
+      ur_event_handle_t Event{};
+      const auto DstOrigin =
+          DeviceInfo->Shadow->MemToOrigin((uptr)pDst + dstPitch * HeightIndex);
+      const auto SrcOrigin =
+          DeviceInfo->Shadow->MemToOrigin((uptr)pSrc + srcPitch * HeightIndex);
+      const auto SrcOriginEnd =
+          DeviceInfo->Shadow->MemToOrigin((uptr)pSrc + srcPitch * HeightIndex +
+                                          width - 1) +
+          MSAN_ORIGIN_GRANULARITY;
+      pfnUSMMemcpy(hQueue, false, (void *)DstOrigin, (void *)SrcOrigin,
+                   SrcOriginEnd - SrcOrigin, WaitEvents.size(),
+                   WaitEvents.data(), &Event);
+      Events.push_back(Event);
+    }
   }
 
   if (phEvent) {

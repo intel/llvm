@@ -248,7 +248,9 @@ inline uptr MemToShadow(uptr addr, uint32_t as) {
 
 inline uptr MemToOrigin_CPU(uptr addr) { return addr ^ 0x500000000000ULL; }
 
-inline uptr MemToOrigin_DG2(uptr addr, uint32_t as) { return 0; }
+inline uptr MemToOrigin_DG2(uptr addr, uint32_t as) {
+  return GetMsanLaunchInfo->CleanShadow;
+}
 
 inline uptr MemToOrigin_PVC(uptr addr, uint32_t as) {
   if (as == ADDRESS_SPACE_GENERIC) {
@@ -317,20 +319,45 @@ void GroupAsyncCopy(uptr Dest, uptr Src, size_t NumElements, size_t Stride) {
 static __SYCL_CONSTANT__ const char __msan_print_memcpy[] =
     "[kernel] memcpy(dst=%p, src=%p, shadow_dst=%p, shadow_src=%p, size=%p)\n";
 
-template <uint32_t dst_as, uint32_t src_as>
-inline void
-CopyShadowAndOrigin(__attribute__((address_space(dst_as))) char *dst,
-                    __attribute__((address_space(src_as))) char *src,
-                    size_t size) {}
+// FIXME: The original implemention only copies the origin of poisoned memories
+void CopyOrigin(uptr dst, uint32_t dst_as, uptr src, uint32_t src_as,
+                uptr size) {
+  auto *src_beg = (__SYCL_GLOBAL__ char *)MemToOrigin(src, src_as);
+  auto *src_end = (__SYCL_GLOBAL__ char *)MemToOrigin(src + size - 1, src_as) +
+                  MSAN_ORIGIN_GRANULARITY;
+  auto *dst_beg = (__SYCL_GLOBAL__ char *)MemToOrigin(dst, dst_as);
+  Memcpy(dst_beg, src_beg, src_end - src_beg);
+}
+
+inline void CopyShadowAndOrigin(uptr dst, uint32_t dst_as, uptr src,
+                                uint32_t src_as, size_t size) {
+  auto *shadow_dst = (__SYCL_GLOBAL__ char *)MemToShadow(dst, dst_as);
+  auto *shadow_src = (__SYCL_GLOBAL__ char *)MemToShadow(src, src_as);
+  Memcpy(shadow_dst, shadow_src, size);
+  CopyOrigin(dst, dst_as, src, src_as, size);
+}
 
 static __SYCL_CONSTANT__ const char __msan_print_memmove[] =
     "[kernel] memmove(dst=%p, src=%p, shadow_dst=%p, shadow_src=%p, size=%p)\n";
 
-template <uint32_t dst_as, uint32_t src_as>
-inline void
-MoveShadowAndOrigin(__attribute__((address_space(dst_as))) char *dst,
-                    __attribute__((address_space(src_as))) char *src,
-                    size_t size) {}
+// FIXME: The original implemention only moves the origin of poisoned memories
+void MoveOrigin(uptr dst, uint32_t dst_as, uptr src, uint32_t src_as,
+                uptr size) {
+  auto *src_beg = (__SYCL_GLOBAL__ char *)MemToOrigin(src, src_as);
+  auto *src_end = (__SYCL_GLOBAL__ char *)MemToOrigin(src + size - 1, src_as) +
+                  MSAN_ORIGIN_GRANULARITY;
+  auto *dst_beg = (__SYCL_GLOBAL__ char *)MemToOrigin(dst, dst_as);
+  Memmove(dst_beg, src_beg, src_end - src_beg);
+}
+
+inline void MoveShadowAndOrigin(uptr dst, uint32_t dst_as, uptr src,
+                                uint32_t src_as, size_t size) {
+  auto *shadow_dst = (__SYCL_GLOBAL__ char *)MemToShadow(dst, dst_as);
+  auto *shadow_src = (__SYCL_GLOBAL__ char *)MemToShadow(src, src_as);
+  // MoveOrigin transfers origins by refering to their shadows
+  MoveOrigin(dst, dst_as, src, src_as, size);
+  Memmove(shadow_dst, shadow_src, size);
+}
 
 inline void UnpoisonShadow(uptr addr, uint32_t as, size_t size) {
   auto *shadow_ptr = (__SYCL_GLOBAL__ char *)MemToShadow(addr, as);
@@ -449,7 +476,7 @@ MSAN_MEMSET(4)
           __attribute__((address_space(src_as))) char *src, size_t size) {     \
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg, "__msan_memmove"));   \
     auto res = Memmove(dest, src, size);                                       \
-    MoveShadowAndOrigin(dest, src, size);                                      \
+    MoveShadowAndOrigin((uptr)dest, dst_as, (uptr)src, src_as, size);          \
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end, "__msan_memmove"));   \
     return res;                                                                \
   }
@@ -473,7 +500,7 @@ MSAN_MEMMOVE(4)
           __attribute__((address_space(src_as))) char *src, size_t size) {     \
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg, "__msan_memcpy"));    \
     auto res = Memcpy(dest, src, size);                                        \
-    CopyShadowAndOrigin(dest, src, size);                                      \
+    CopyShadowAndOrigin((uptr)dest, dst_as, (uptr)src, src_as, size);          \
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end, "__msan_memcpy"));    \
     return res;                                                                \
   }
@@ -711,16 +738,14 @@ __msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
                                 "__msan_unpoison_strided_copy"));
 }
 
-DEVICE_EXTERN_C_NOINLINE void
-__msan_set_alloca_origin_no_descr(void *a, uptr size,
-                                  __SYCL_GLOBAL__ u32 *id_ptr) {
-  // SetAllocaOrigin(a, size, id_ptr, nullptr, GET_CALLER_PC());
-}
+// FIXME: not support origin tracking for private memory
+DEVICE_EXTERN_C_NOINLINE void __msan_set_alloca_origin_no_descr(
+    [[maybe_unused]] void *a, [[maybe_unused]] uptr size,
+    [[maybe_unused]] __SYCL_GLOBAL__ u32 *id_ptr) {}
 
-DEVICE_EXTERN_C_NOINLINE void
-__msan_set_alloca_origin_with_descr(void *a, uptr size,
-                                    __SYCL_GLOBAL__ u32 *id_ptr, char *descr) {
-  // SetAllocaOrigin(a, size, id_ptr, descr, GET_CALLER_PC());
-}
+// FIXME: not support origin tracking for private memory
+DEVICE_EXTERN_C_NOINLINE void __msan_set_alloca_origin_with_descr(
+    [[maybe_unused]] void *a, [[maybe_unused]] uptr size,
+    [[maybe_unused]] __SYCL_GLOBAL__ u32 *id_ptr, char *descr) {}
 
 #endif // __SPIR__ || __SPIRV__
