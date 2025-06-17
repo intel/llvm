@@ -628,10 +628,10 @@ config.substitutions.append(("%link-vulkan", link_vulkan))
 
 # Add DirectX 12 libraries to the configuration for substitution.
 if platform.system() == "Windows":
-    dx12libs = ['-ld3d12', '-ldxgi', '-ldxguid']
+    dx12libs = ["-ld3d12", "-ldxgi", "-ldxguid"]
     if cl_options:
-        dx12libs = ['/clang:' + l for l in dx12libs]
-    config.substitutions.append(("%link-directx", ' '.join(dx12libs)))
+        dx12libs = ["/clang:" + l for l in dx12libs]
+    config.substitutions.append(("%link-directx", " ".join(dx12libs)))
 
 if not config.gpu_aot_target_opts:
     config.gpu_aot_target_opts = '"-device *"'
