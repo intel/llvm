@@ -843,52 +843,23 @@ private:
                                               Dims>());
 #endif
 
-    constexpr bool KernelHasName =
-        detail::getKernelName<KernelName>() != nullptr &&
-        detail::getKernelName<KernelName>()[0] != '\0';
-
     // Some host compilers may have different captures from Clang. Currently
     // there is no stable way of handling this when extracting the captures, so
     // a static assert is made to fail for incompatible kernel lambdas.
 
     // TODO remove the ifdef once the kernel size builtin is supported.
-#ifdef __INTEL_SYCL_USE_INTEGRATION_HEADERS
-    static_assert(
-        !KernelHasName ||
-            sizeof(KernelType) == detail::getKernelSize<KernelName>(),
-        "Unexpected kernel lambda size. This can be caused by an "
-        "external host compiler producing a lambda with an "
-        "unexpected layout. This is a limitation of the compiler."
-        "In many cases the difference is related to capturing constexpr "
-        "variables. In such cases removing constexpr specifier aligns the "
-        "captures between the host compiler and the device compiler."
-        "\n"
-        "In case of MSVC, passing "
-        "-fsycl-host-compiler-options='/std:c++latest' "
-        "might also help.");
-#endif
-    // Empty name indicates that the compilation happens without integration
-    // header, so don't perform things that require it.
-    if constexpr (KernelHasName) {
-      // TODO support ESIMD in no-integration-header case too.
+    // TODO support ESIMD in no-integration-header case too.
 
-      // Force hasSpecialCaptures to be evaluated at compile-time.
-      constexpr bool HasSpecialCapt = detail::hasSpecialCaptures<KernelName>();
-      setKernelInfo((void *)MHostKernel->getPtr(),
-                    detail::getKernelNumParams<KernelName>(),
-                    &(detail::getKernelParamDesc<KernelName>),
-                    detail::isKernelESIMD<KernelName>(), HasSpecialCapt);
+    // Force hasSpecialCaptures to be evaluated at compile-time.
+    constexpr bool HasSpecialCapt = detail::hasSpecialCaptures<KernelName>();
+    setKernelInfo((void *)MHostKernel->getPtr(),
+                  detail::getKernelNumParams<KernelName>(),
+                  &(detail::getKernelParamDesc<KernelName>),
+                  detail::isKernelESIMD<KernelName>(), HasSpecialCapt);
 
-      constexpr std::string_view KernelNameStr =
-          detail::getKernelName<KernelName>();
-      MKernelName = KernelNameStr;
-    } else {
-      // In case w/o the integration header it is necessary to process
-      // accessors from the list(which are associated with this handler) as
-      // arguments. We must copy the associated accessors as they are checked
-      // later during finalize.
-      setArgsToAssociatedAccessors();
-    }
+    constexpr std::string_view KernelNameStr =
+        detail::getKernelName<KernelName>();
+    MKernelName = KernelNameStr;
     setKernelNameBasedCachePtr(detail::getKernelNameBasedCache<KernelName>());
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
