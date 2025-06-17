@@ -15,7 +15,7 @@ void foo(sycl::buffer<int, 2>) {}
 // CHECK-NEXT:  0 |       class std::__shared_ptr_access<class sycl::detail::buffer_impl, __gnu_cxx::_S_atomic> (base) (empty)
 // CHECK-NEXT:  0 |       element_type * _M_ptr
 // CHECK-NEXT:  8 |       class std::__shared_count<> _M_refcount
-// CHECK-NEXT:  8 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:  8 |         _Sp_counted_base<(__gnu_cxx::_Lock_policy)2U> * _M_pi
 // CHECK-NEXT:  0 | class sycl::detail::OwnerLessBase<class sycl::buffer<int, 2> > (base) (empty)
 // CHECK-NEXT: 16 |   class sycl::range<2> Range
 // CHECK-NEXT: 16 |     class sycl::detail::array<2> (base)

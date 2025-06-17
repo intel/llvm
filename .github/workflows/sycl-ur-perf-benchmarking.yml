@@ -1,0 +1,139 @@
+name: Run Benchmarks
+
+on:
+  workflow_call:
+    inputs:
+      preset:
+        type: string
+        description: |
+          Benchmark presets to run: See /devops/scripts/benchmarks/presets.py
+        required: false
+        default: 'Minimal'  # Only compute-benchmarks
+      pr_no:
+        type: string
+        description: |
+          PR no. to build SYCL from if specified: SYCL will be built from HEAD
+          of incoming branch used by the specified PR no.
+
+          If both pr_no and commit_hash are empty, the latest SYCL nightly build
+          will be used.
+        required: false
+        default: ''
+      commit_hash:
+        type: string
+        description: |
+          Commit hash (within intel/llvm) to build SYCL from if specified.
+
+          If both pr_no and commit_hash are empty, the latest commit in
+          deployment branch will be used.
+        required: false
+        default: ''
+      upload_results:
+        type: string # true/false: workflow_dispatch does not support booleans
+        required: true
+      runner:
+        type: string
+        required: true
+      backend:
+        type: string
+        required: true
+
+  workflow_dispatch:
+    inputs:
+      preset:
+        type: choice
+        description: |
+          Benchmark presets to run, See /devops/scripts/benchmarks/presets.py. Hint: Minimal is compute-benchmarks only.
+        options:
+          - Full
+          - SYCL
+          - Minimal
+          - Normal
+          - Test
+        default: 'Minimal'  # Only compute-benchmarks
+      pr_no:
+        type: string
+        description: |
+          PR no. to build SYCL from:
+            
+          SYCL will be built from HEAD of incoming branch.
+        required: false
+        default: ''
+      commit_hash:
+        type: string
+        description: |
+          Commit hash (within intel/llvm) to build SYCL from:
+
+          Leave both pr_no and commit_hash empty to use latest commit.
+        required: false
+        default: ''
+      upload_results:
+        description: 'Save and upload results'
+        type: choice
+        options:
+          - false
+          - true
+        default: true
+      runner:
+        type: choice
+        options:
+          - '["PVC_PERF"]'
+          - '["BMG_PERF"]'
+      backend:
+        description: Backend to use
+        type: choice
+        options:
+          - 'level_zero:gpu'
+          - 'level_zero_v2:gpu'
+            # As of #17407, sycl-linux-build now builds v2 by default
+
+permissions: read-all
+
+jobs:
+  build_sycl:
+    name: Build SYCL
+    uses: ./.github/workflows/sycl-linux-build.yml
+    with:
+      build_ref: |
+        ${{
+          inputs.commit_hash != '' && inputs.commit_hash ||
+          inputs.pr_no != '' && format('refs/pull/{0}/head', inputs.pr_no) ||
+          github.ref
+        }}
+      build_cache_root: "/__w/"
+      build_artifact_suffix: "prod_noassert"
+      build_cache_suffix: "prod_noassert"
+      build_configure_extra_args: "--no-assertions"
+      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
+      cc: clang
+      cxx: clang++
+      changes: '[]'
+
+  run_benchmarks_build:
+    name: Run Benchmarks on Build
+    needs: [ build_sycl ]
+    strategy:
+      matrix:
+        include:
+          - ref: ${{ inputs.commit_hash != '' && inputs.commit_hash || inputs.pr_no != '' && format('refs/pull/{0}/head', inputs.pr_no) || github.ref }}
+            save_name: ${{ inputs.commit_hash != '' && format('Commit{0}', inputs.commit_hash) || inputs.pr_no != '' && format('PR{0}', inputs.pr_no) || 'Baseline' }}
+            # Set default values if not specified:
+            runner: ${{ inputs.runner || '["PVC_PERF"]' }}
+            backend: ${{ inputs.backend || 'level_zero:gpu' }}
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    secrets: inherit
+    with:
+      name: Run compute-benchmarks (${{ matrix.save_name }}, ${{ matrix.runner }}, ${{ matrix.backend }})
+      runner: ${{ matrix.runner }}
+      image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
+      image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+      target_devices: ${{ matrix.backend }}
+      tests_selector: benchmarks
+      benchmark_upload_results: ${{ inputs.upload_results }}
+      benchmark_save_name: ${{ matrix.save_name }}
+      benchmark_preset: ${{ inputs.preset }}
+      repo_ref: ${{ matrix.ref }}
+      devops_ref: ${{ github.ref }}
+      sycl_toolchain_artifact: sycl_linux_prod_noassert
+      sycl_toolchain_archive: ${{ needs.build_sycl.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.build_sycl.outputs.artifact_decompress_command }}

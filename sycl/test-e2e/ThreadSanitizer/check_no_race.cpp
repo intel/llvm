@@ -3,8 +3,6 @@
 // RUN: %{run} %t1.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_tsan_flags -O2 -g -o %t2.out
 // RUN: %{run} %t2.out 2>&1 | FileCheck %s
-// UNSUPPORTED: true
-// UNSUPPORTED-TRACKER: CMPLRLLVM-66203
 #include "sycl/detail/core.hpp"
 #include "sycl/usm.hpp"
 
@@ -16,7 +14,7 @@ int main() {
   Q.submit([&](sycl::handler &h) {
      h.parallel_for<class MyKernelR_4>(
          sycl::nd_range<1>(N, 8),
-         [=](sycl::nd_item<1> item) { array[item.get_group_linear_id()]++; });
+         [=](sycl::nd_item<1> item) { array[item.get_global_linear_id()]++; });
    }).wait();
   // CHECK-NOT: WARNING: DeviceSanitizer: data race
 

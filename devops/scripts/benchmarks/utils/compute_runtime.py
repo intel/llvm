@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -30,8 +30,8 @@ class ComputeRuntime:
 
     def ld_libraries(self) -> list[str]:
         paths = [
-            os.path.join(self.gmmlib, "lib64"),
-            os.path.join(self.level_zero, "lib64"),
+            os.path.join(self.gmmlib, "lib"),
+            os.path.join(self.level_zero, "lib"),
             os.path.join(self.compute_runtime, "bin"),
         ]
 
@@ -62,7 +62,7 @@ class ComputeRuntime:
             f"-DCMAKE_BUILD_TYPE=Release",
         ]
         run(configure_command)
-        run(f"cmake --build {self.gmmlib_build} -j")
+        run(f"cmake --build {self.gmmlib_build} -j {options.build_jobs}")
         run(f"cmake --install {self.gmmlib_build}")
         return self.gmmlib_install
 
@@ -87,7 +87,7 @@ class ComputeRuntime:
             f"-DCMAKE_BUILD_TYPE=Release",
         ]
         run(configure_command)
-        run(f"cmake --build {self.level_zero_build} -j")
+        run(f"cmake --build {self.level_zero_build} -j {options.build_jobs}")
         run(f"cmake --install {self.level_zero_build}")
         return self.level_zero_install
 
@@ -97,44 +97,46 @@ class ComputeRuntime:
             options.workdir,
             "vc-intrinsics",
             "https://github.com/intel/vc-intrinsics",
-            "facb2076a2ce6cd6527c1e16570ba0fbaa2f1dba",
+            "9d255266e1df8f1dc5d11e1fbb03213acfaa4fc7",
         )
         self.llvm_project = git_clone(
             options.workdir,
             "llvm-project",
             "https://github.com/llvm/llvm-project",
-            "llvmorg-14.0.5",
+            "llvmorg-15.0.7",
         )
         llvm_projects = os.path.join(self.llvm_project, "llvm", "projects")
         self.ocl = git_clone(
             llvm_projects,
             "opencl-clang",
             "https://github.com/intel/opencl-clang",
-            "ocl-open-140",
+            "ocl-open-150",
         )
         self.translator = git_clone(
             llvm_projects,
             "llvm-spirv",
             "https://github.com/KhronosGroup/SPIRV-LLVM-Translator",
-            "llvm_release_140",
+            "llvm_release_150",
         )
         self.spirv_tools = git_clone(
             options.workdir,
             "SPIRV-Tools",
             "https://github.com/KhronosGroup/SPIRV-Tools.git",
-            "173fe3c60a8d9c7d35d7842ae267bb9df267a127",
+            "f289d047f49fb60488301ec62bafab85573668cc",
         )
         self.spirv_headers = git_clone(
             options.workdir,
             "SPIRV-Headers",
             "https://github.com/KhronosGroup/SPIRV-Headers.git",
-            "2b2e05e088841c63c0b6fd4c9fb380d8688738d3",
+            "0e710677989b4326ac974fd80c5308191ed80965",
         )
 
         self.igc_build = os.path.join(options.workdir, "igc-build")
         self.igc_install = os.path.join(options.workdir, "igc-install")
         configure_command = [
             "cmake",
+            "-DCMAKE_C_FLAGS=-Wno-error",
+            "-DCMAKE_CXX_FLAGS=-Wno-error",
             f"-B {self.igc_build}",
             f"-S {self.igc_repo}",
             f"-DCMAKE_INSTALL_PREFIX={self.igc_install}",
@@ -142,8 +144,11 @@ class ComputeRuntime:
         ]
         run(configure_command)
 
-        # set timeout to 30min. IGC takes A LONG time to build if building from scratch.
-        run(f"cmake --build {self.igc_build} -j", timeout=600 * 3)
+        # set timeout to 2h. IGC takes A LONG time to build if building from scratch.
+        run(
+            f"cmake --build {self.igc_build} -j {options.build_jobs}",
+            timeout=60 * 60 * 2,
+        )
         # cmake --install doesn't work...
         run("make install", cwd=self.igc_build)
         return self.igc_install
@@ -214,7 +219,7 @@ class ComputeRuntime:
             configure_command.append(f"-DIGC_DIR={self.igc}")
 
         run(configure_command)
-        run(f"cmake --build {self.compute_runtime_build} -j")
+        run(f"cmake --build {self.compute_runtime_build} -j {options.build_jobs}")
         return self.compute_runtime_build
 
 

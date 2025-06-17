@@ -10,6 +10,10 @@ set(UR_LEVEL_ZERO_LOADER_TAG "" CACHE STRING " GIT tag of the Level Loader taken
 set(UR_COMPUTE_RUNTIME_REPO "" CACHE STRING "Github repo to get the compute runtime sources from")
 set(UR_COMPUTE_RUNTIME_TAG "" CACHE STRING " GIT tag of the compute runtime taken from github repo")
 
+# If UR_COMPUTE_RUNTIME_FETCH_REPO is set to OFF, then UR_COMPUTE_RUNTIME_REPO should be defined and
+# should point to the compute runtime repo.
+set(UR_COMPUTE_RUNTIME_FETCH_REPO ON CACHE BOOL "Flag to indicate wheather to fetch the compute runtime repo")
+
 # Copy Level Zero loader/headers locally to the build to avoid leaking their path.
 set(LEVEL_ZERO_COPY_DIR ${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader)
 if (NOT UR_LEVEL_ZERO_LOADER_LIBRARY STREQUAL "")
@@ -43,7 +47,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
         set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
     endif()
     if (UR_LEVEL_ZERO_LOADER_TAG STREQUAL "")
-        set(UR_LEVEL_ZERO_LOADER_TAG v1.21.1)
+        set(UR_LEVEL_ZERO_LOADER_TAG 35c037cdf4aa9a2e6df34b6f1ce1bdc86ac5422f)
     endif()
 
     # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
@@ -102,23 +106,51 @@ target_include_directories(LevelZeroLoader-Headers
               "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
 
-if (UR_COMPUTE_RUNTIME_REPO STREQUAL "")
-set(UR_COMPUTE_RUNTIME_REPO "https://github.com/intel/compute-runtime.git")
+find_path(L0_COMPUTE_RUNTIME_HEADERS
+  NAMES "ze_intel_gpu.h"
+  PATH_SUFFIXES "level_zero"
+)
+if(NOT UR_COMPUTE_RUNTIME_REPO AND L0_COMPUTE_RUNTIME_HEADERS)
+    set(COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE "${L0_COMPUTE_RUNTIME_HEADERS}")
+    set(COMPUTE_RUNTIME_REPO_PATH "${L0_COMPUTE_RUNTIME_HEADERS}")
+elseif (UR_COMPUTE_RUNTIME_FETCH_REPO)
+    # Fetch only if UR_COMPUTE_RUNTIME_FETCH_REPO is set to ON.
+    if (UR_COMPUTE_RUNTIME_REPO STREQUAL "")
+        set(UR_COMPUTE_RUNTIME_REPO "https://github.com/intel/compute-runtime.git")
+    endif()
+    if (UR_COMPUTE_RUNTIME_TAG STREQUAL "")
+        set(UR_COMPUTE_RUNTIME_TAG 25.05.32567.17)
+    endif()
+
+    include(FetchContent)
+    # Sparse fetch only the dir with level zero headers for experimental features to avoid pulling in the entire compute-runtime.
+    FetchContentSparse_Declare(exp-headers ${UR_COMPUTE_RUNTIME_REPO} "${UR_COMPUTE_RUNTIME_TAG}" "level_zero/include")
+    FetchContent_GetProperties(exp-headers)
+    if(NOT exp-headers_POPULATED)
+        FetchContent_Populate(exp-headers)
+    endif()
+
+    set(COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE "${exp-headers_SOURCE_DIR}")
+    set(COMPUTE_RUNTIME_REPO_PATH "${exp-headers_SOURCE_DIR}/../..")
+
+# When UR_COMPUTE_RUNTIME_FETCH_REPO is OFF, use UR_COMPUTE_RUNTIME_REPO as repo.
+else()
+
+    # Check if UR_COMPUTE_RUNTIME_REPO is set. Throw if not.
+    if (UR_COMPUTE_RUNTIME_REPO STREQUAL "")
+        message(FATAL_ERROR "UR_COMPUTE_RUNTIME_FETCH_REPO is set to OFF but UR_COMPUTE_RUNTIME_REPO is not set. Please set it to the compute runtime repo.")
+    endif()
+
+    set(COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE "${UR_COMPUTE_RUNTIME_REPO}/level_zero/include")
+    set(COMPUTE_RUNTIME_REPO_PATH "${UR_COMPUTE_RUNTIME_REPO}")
 endif()
-if (UR_COMPUTE_RUNTIME_TAG STREQUAL "")
-set(UR_COMPUTE_RUNTIME_TAG 25.05.32567.17)
-endif()
-include(FetchContent)
-# Sparse fetch only the dir with level zero headers for experimental features to avoid pulling in the entire compute-runtime.
-FetchContentSparse_Declare(exp-headers ${UR_COMPUTE_RUNTIME_REPO} "${UR_COMPUTE_RUNTIME_TAG}" "level_zero/include")
-FetchContent_GetProperties(exp-headers)
-if(NOT exp-headers_POPULATED)
-  FetchContent_Populate(exp-headers)
-endif()
+
+message(STATUS "Using Level Zero include headers from ${COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE}")
+
 add_library(ComputeRuntimeLevelZero-Headers INTERFACE)
-set(COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE "${exp-headers_SOURCE_DIR}/../..")
 message(STATUS "Level Zero Adapter: Using Level Zero headers from ${COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE}")
 target_include_directories(ComputeRuntimeLevelZero-Headers
     INTERFACE "$<BUILD_INTERFACE:${COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE}>"
+              "$<BUILD_INTERFACE:${COMPUTE_RUNTIME_REPO_PATH}>"
               "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )

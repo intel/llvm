@@ -58,3 +58,15 @@
 // PHASES-PREPROC-DEPS: 0: input, {{.*}}, c++, (device-sycl)
 // PHASES-PROPROC-DEPS: 1: preprocessor, {0}, dependencies, (device-sycl)
 // PHASES-PREPROC-DEPS: 2: offload, "device-sycl (spir64-unknown-unknown)" {1}, none
+
+/// Check that "-fno-offload-use-alloca-addrspace-for-srets" is not set by
+/// default on the command-line in a non-sycl compilation.
+// RUN:   %clang -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-ALLOCA-ADDRSPACE %s
+// CHECK-ALLOCA-ADDRSPACE-NOT: clang{{.*}} "-fno-offload-use-alloca-addrspace-for-srets"
+
+/// Check that "-fno-offload-use-alloca-addrspace-for-srets" is set if it is
+/// not specified on the command-line by the user with -fsycl
+// RUN:   %clang -### -fsycl %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-NO-ALLOCA-ADDRSPACE %s
+// CHECK-NO-ALLOCA-ADDRSPACE: clang{{.*}} "-fno-offload-use-alloca-addrspace-for-srets"

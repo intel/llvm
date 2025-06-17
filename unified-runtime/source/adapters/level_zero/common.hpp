@@ -25,244 +25,31 @@
 #include <unistd.h>
 #endif
 
+#include <loader/ze_loader.h>
 #include <ur/ur.hpp>
 #include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include <level_zero/include/level_zero/ze_intel_gpu.h>
+#include <level_zero/ze_intel_gpu.h>
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
 #include "logger/ur_logger.hpp"
+#include "ur_interface_loader.hpp"
 
 struct _ur_platform_handle_t;
 
 [[maybe_unused]] static bool checkL0LoaderTeardown() {
-  bool loaderStable = true;
-#ifdef _WIN32
-  uint32_t ZeDriverCount = 0;
-  HMODULE zeLoader = LoadLibrary("ze_loader.dll");
-  if (zeLoader) {
-    typedef ze_result_t (*zeDriverGet_t)(uint32_t *, ze_driver_handle_t *);
-    zeDriverGet_t zeDriverGetLoader =
-        (zeDriverGet_t)GetProcAddress(zeLoader, "zeDriverGet");
-    if (zeDriverGetLoader) {
-      ze_result_t result = zeDriverGetLoader(&ZeDriverCount, nullptr);
-      logger::debug(
-          "ZE ---> checkL0LoaderTeardown result = {} driver count = {}", result,
-          ZeDriverCount);
-      if (result != ZE_RESULT_SUCCESS || ZeDriverCount == 0) {
-        loaderStable = false;
-      }
-    } else {
-      logger::debug("ZE ---> checkL0LoaderTeardown: Failed to get address of "
-                    "zeDriverGet");
-      loaderStable = false;
+  try {
+    if (!zelCheckIsLoaderInTearDown()) {
+      return true;
     }
-    FreeLibrary(zeLoader);
-  } else {
-    logger::debug(
-        "ZE ---> checkL0LoaderTeardown: Failed to load ze_loader.dll");
-    loaderStable = false;
+  } catch (...) {
   }
-#else
-  uint32_t ZeDriverCount = 0;
-  void *zeLoader = dlopen("libze_loader.so.1", RTLD_LAZY);
-  if (zeLoader) {
-    typedef ze_result_t (*zeDriverGet_t)(uint32_t *, ze_driver_handle_t *);
-    zeDriverGet_t zeDriverGetLoader =
-        (zeDriverGet_t)dlsym(zeLoader, "zeDriverGet");
-    if (zeDriverGetLoader) {
-      ze_result_t result = zeDriverGetLoader(&ZeDriverCount, nullptr);
-      logger::debug(
-          "ZE ---> checkL0LoaderTeardown result = {} driver count = {}", result,
-          ZeDriverCount);
-      if (result != ZE_RESULT_SUCCESS || ZeDriverCount == 0) {
-        loaderStable = false;
-      }
-    } else {
-      logger::debug("ZE ---> checkL0LoaderTeardown: Failed to get address of "
-                    "zeDriverGet");
-      loaderStable = false;
-    }
-    dlclose(zeLoader);
-  } else {
-    logger::debug(
-        "ZE ---> checkL0LoaderTeardown: Failed to load libze_loader.so.1");
-    loaderStable = false;
-  }
-#endif
-  if (!loaderStable) {
-    logger::debug(
-        "ZE ---> checkL0LoaderTeardown: Loader is not stable, returning false");
-  }
-  return loaderStable;
+  UR_LOG(DEBUG,
+         "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
+  return false;
 }
-
-static auto getUrResultString = [](ur_result_t Result) {
-  switch (Result) {
-  case UR_RESULT_SUCCESS:
-    return "UR_RESULT_SUCCESS";
-  case UR_RESULT_ERROR_INVALID_OPERATION:
-    return "UR_RESULT_ERROR_INVALID_OPERATION";
-  case UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES:
-    return "UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES";
-  case UR_RESULT_ERROR_INVALID_QUEUE:
-    return "UR_RESULT_ERROR_INVALID_QUEUE";
-  case UR_RESULT_ERROR_INVALID_VALUE:
-    return "UR_RESULT_ERROR_INVALID_VALUE";
-  case UR_RESULT_ERROR_INVALID_CONTEXT:
-    return "UR_RESULT_ERROR_INVALID_CONTEXT";
-  case UR_RESULT_ERROR_INVALID_PLATFORM:
-    return "UR_RESULT_ERROR_INVALID_PLATFORM";
-  case UR_RESULT_ERROR_INVALID_BINARY:
-    return "UR_RESULT_ERROR_INVALID_BINARY";
-  case UR_RESULT_ERROR_INVALID_PROGRAM:
-    return "UR_RESULT_ERROR_INVALID_PROGRAM";
-  case UR_RESULT_ERROR_INVALID_SAMPLER:
-    return "UR_RESULT_ERROR_INVALID_SAMPLER";
-  case UR_RESULT_ERROR_INVALID_BUFFER_SIZE:
-    return "UR_RESULT_ERROR_INVALID_BUFFER_SIZE";
-  case UR_RESULT_ERROR_INVALID_MEM_OBJECT:
-    return "UR_RESULT_ERROR_INVALID_MEM_OBJECT";
-  case UR_RESULT_ERROR_INVALID_EVENT:
-    return "UR_RESULT_ERROR_INVALID_EVENT";
-  case UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
-    return "UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST";
-  case UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET:
-    return "UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET";
-  case UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE:
-    return "UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE";
-  case UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE:
-    return "UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE";
-  case UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE:
-    return "UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE";
-  case UR_RESULT_ERROR_DEVICE_NOT_FOUND:
-    return "UR_RESULT_ERROR_DEVICE_NOT_FOUND";
-  case UR_RESULT_ERROR_INVALID_DEVICE:
-    return "UR_RESULT_ERROR_INVALID_DEVICE";
-  case UR_RESULT_ERROR_DEVICE_LOST:
-    return "UR_RESULT_ERROR_DEVICE_LOST";
-  case UR_RESULT_ERROR_DEVICE_REQUIRES_RESET:
-    return "UR_RESULT_ERROR_DEVICE_REQUIRES_RESET";
-  case UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE:
-    return "UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE";
-  case UR_RESULT_ERROR_DEVICE_PARTITION_FAILED:
-    return "UR_RESULT_ERROR_DEVICE_PARTITION_FAILED";
-  case UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT:
-    return "UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT";
-  case UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE:
-    return "UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE";
-  case UR_RESULT_ERROR_INVALID_WORK_DIMENSION:
-    return "UR_RESULT_ERROR_INVALID_WORK_DIMENSION";
-  case UR_RESULT_ERROR_INVALID_KERNEL_ARGS:
-    return "UR_RESULT_ERROR_INVALID_KERNEL_ARGS";
-  case UR_RESULT_ERROR_INVALID_KERNEL:
-    return "UR_RESULT_ERROR_INVALID_KERNEL";
-  case UR_RESULT_ERROR_INVALID_KERNEL_NAME:
-    return "UR_RESULT_ERROR_INVALID_KERNEL_NAME";
-  case UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX:
-    return "UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX";
-  case UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE:
-    return "UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE";
-  case UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE:
-    return "UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE";
-  case UR_RESULT_ERROR_INVALID_IMAGE_SIZE:
-    return "UR_RESULT_ERROR_INVALID_IMAGE_SIZE";
-  case UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-    return "UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR";
-  case UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT:
-    return "UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT";
-  case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
-    return "UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE";
-  case UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE:
-    return "UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE";
-  case UR_RESULT_ERROR_UNINITIALIZED:
-    return "UR_RESULT_ERROR_UNINITIALIZED";
-  case UR_RESULT_ERROR_OUT_OF_HOST_MEMORY:
-    return "UR_RESULT_ERROR_OUT_OF_HOST_MEMORY";
-  case UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY:
-    return "UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY";
-  case UR_RESULT_ERROR_OUT_OF_RESOURCES:
-    return "UR_RESULT_ERROR_OUT_OF_RESOURCES";
-  case UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
-    return "UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE";
-  case UR_RESULT_ERROR_PROGRAM_LINK_FAILURE:
-    return "UR_RESULT_ERROR_PROGRAM_LINK_FAILURE";
-  case UR_RESULT_ERROR_UNSUPPORTED_VERSION:
-    return "UR_RESULT_ERROR_UNSUPPORTED_VERSION";
-  case UR_RESULT_ERROR_UNSUPPORTED_FEATURE:
-    return "UR_RESULT_ERROR_UNSUPPORTED_FEATURE";
-  case UR_RESULT_ERROR_INVALID_ARGUMENT:
-    return "UR_RESULT_ERROR_INVALID_ARGUMENT";
-  case UR_RESULT_ERROR_INVALID_NULL_HANDLE:
-    return "UR_RESULT_ERROR_INVALID_NULL_HANDLE";
-  case UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE:
-    return "UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE";
-  case UR_RESULT_ERROR_INVALID_NULL_POINTER:
-    return "UR_RESULT_ERROR_INVALID_NULL_POINTER";
-  case UR_RESULT_ERROR_INVALID_SIZE:
-    return "UR_RESULT_ERROR_INVALID_SIZE";
-  case UR_RESULT_ERROR_UNSUPPORTED_SIZE:
-    return "UR_RESULT_ERROR_UNSUPPORTED_SIZE";
-  case UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT:
-    return "UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT";
-  case UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT:
-    return "UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT";
-  case UR_RESULT_ERROR_INVALID_ENUMERATION:
-    return "UR_RESULT_ERROR_INVALID_ENUMERATION";
-  case UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
-    return "UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION";
-  case UR_RESULT_ERROR_INVALID_NATIVE_BINARY:
-    return "UR_RESULT_ERROR_INVALID_NATIVE_BINARY";
-  case UR_RESULT_ERROR_INVALID_GLOBAL_NAME:
-    return "UR_RESULT_ERROR_INVALID_GLOBAL_NAME";
-  case UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE:
-    return "UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE";
-  case UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
-    return "UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION";
-  case UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION:
-    return "UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION";
-  case UR_RESULT_ERROR_PROGRAM_UNLINKED:
-    return "UR_RESULT_ERROR_PROGRAM_UNLINKED";
-  case UR_RESULT_ERROR_OVERLAPPING_REGIONS:
-    return "UR_RESULT_ERROR_OVERLAPPING_REGIONS";
-  case UR_RESULT_ERROR_INVALID_HOST_PTR:
-    return "UR_RESULT_ERROR_INVALID_HOST_PTR";
-  case UR_RESULT_ERROR_INVALID_USM_SIZE:
-    return "UR_RESULT_ERROR_INVALID_USM_SIZE";
-  case UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE:
-    return "UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE";
-  case UR_RESULT_ERROR_ADAPTER_SPECIFIC:
-    return "UR_RESULT_ERROR_ADAPTER_SPECIFIC";
-  default:
-    return "UR_RESULT_ERROR_UNKNOWN";
-  }
-};
-
-// Trace an internal UR call; returns in case of an error.
-#define UR_CALL(Call)                                                          \
-  {                                                                            \
-    if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
-    ur_result_t Result = (Call);                                               \
-    if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
-    if (Result != UR_RESULT_SUCCESS)                                           \
-      return Result;                                                           \
-  }
-
-// Trace an internal UR call; throw in case of an error.
-#define UR_CALL_THROWS(Call)                                                   \
-  {                                                                            \
-    if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
-    ur_result_t Result = (Call);                                               \
-    if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
-    if (Result != UR_RESULT_SUCCESS)                                           \
-      throw Result;                                                            \
-  }
 
 // Controls UR L0 calls tracing.
 enum UrDebugLevel {
@@ -372,11 +159,6 @@ public:
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value);
 
-// Helper for one-liner validation
-#define UR_ASSERT(condition, error)                                            \
-  if (!(condition))                                                            \
-    return error;
-
 // Returns the ze_structure_type_t to use in .stype of a structured descriptor.
 // Intentionally not defined; will give an error if no proper specialization
 template <class T> ze_structure_type_t getZeStructureType();
@@ -401,11 +183,6 @@ template <class T> struct ZesStruct : public T {
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value);
-
-// Helper for one-liner validation
-#define UR_ASSERT(condition, error)                                            \
-  if (!(condition))                                                            \
-    return error;
 
 // Map Level Zero runtime error code to UR error code.
 ur_result_t ze2urResult(ze_result_t ZeResult);
@@ -480,8 +257,8 @@ private:
 };
 
 // Base class to store common data
-struct _ur_object {
-  _ur_object() : RefCount{} {}
+struct ur_object : ur::handle_base<ur::level_zero::ddi_getter> {
+  ur_object() : handle_base(), RefCount{} {}
 
   // Must be atomic to prevent data race when incrementing/decrementing.
   ReferenceCounter RefCount;
@@ -504,14 +281,11 @@ struct _ur_object {
   // Indicates if we own the native handle or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   bool OwnNativeHandle = false;
-
-  // Indicates if this object is an interop handle.
-  bool IsInteropNativeHandle = false;
 };
 
 // Record for a memory allocation. This structure is used to keep information
 // for each memory allocation.
-struct MemAllocRecord : _ur_object {
+struct MemAllocRecord : ur_object {
   MemAllocRecord(ur_context_handle_t Context, bool OwnZeMemHandle = true)
       : Context(Context) {
     OwnNativeHandle = OwnZeMemHandle;
@@ -600,13 +374,10 @@ constexpr char ZE_SUPPORTED_EXTENSIONS[] =
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 constexpr size_t MaxMessageSize = 256;
-extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 extern thread_local int32_t ErrorAdapterNativeCode;
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *pMessage,
-                                      ur_result_t ErrorCode,
+[[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode,
                                       int32_t AdapterErrorCode);
-
-#define L0_DRIVER_INORDER_MIN_VERSION 29534

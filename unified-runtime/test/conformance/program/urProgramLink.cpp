@@ -12,11 +12,10 @@ struct urProgramLinkTest : uur::urProgramTest {
     UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
     // TODO: This should use a query for urProgramCreateWithIL support or
     // rely on UR_RESULT_ERROR_UNSUPPORTED_FEATURE being returned.
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                     sizeof(ur_platform_backend_t), &backend,
-                                     nullptr));
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+                                     sizeof(ur_backend_t), &backend, nullptr));
+    if (backend == UR_BACKEND_HIP) {
       GTEST_SKIP();
     }
     ASSERT_SUCCESS(urProgramCompile(context, program, nullptr));
@@ -82,29 +81,26 @@ struct urProgramLinkErrorTest : uur::urQueueTest {
   const std::string linker_error_program_name = "linker_error";
 
   void SetUp() override {
-    // We haven't got device code tests working on native cpu yet.
-    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
     // TODO: This should use a query for urProgramCreateWithIL support or
     // rely on UR_RESULT_ERROR_UNSUPPORTED_FEATURE being returned.
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                     sizeof(ur_platform_backend_t), &backend,
-                                     nullptr));
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+                                     sizeof(ur_backend_t), &backend, nullptr));
+    if (backend == UR_BACKEND_HIP) {
       GTEST_SKIP();
     }
     // Don't know how to produce alinker error on CUDA
-    if (backend == UR_PLATFORM_BACKEND_CUDA) {
+    if (backend == UR_BACKEND_CUDA) {
       GTEST_SKIP();
     }
 
     std::shared_ptr<std::vector<char>> il_binary{};
     UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
         linker_error_program_name, platform, il_binary));
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        platform, context, device, *il_binary, nullptr, &program));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, device, *il_binary, nullptr, &program));
     ASSERT_SUCCESS(urProgramCompile(context, program, nullptr));
   }
 

@@ -773,32 +773,26 @@ entry:
 
 Note: Kernel naming is not fully stable for now.
 
-##### Kernel Fusion Support
+##### JIT compilation support
 
-The [experimental kernel fusion
-extension](../extensions/removed/sycl_ext_codeplay_kernel_fusion.asciidoc)
-also supports the CUDA and HIP backends. However, as the CUBIN, PTX and AMD assembly
-are not suitable input formats for the [kernel fusion JIT compiler](KernelFusionJIT.md), a
-suitable IR has to be added as an additional device binary.
-
-Therefore, in case kernel fusion should be performed for the CUDA or HIP backends, the
-user needs to specify the additional flag `-fsycl-embed-ir` during compilation,
-to add LLVM IR as an additional device binary. When the flag `-fsycl-embed-ir`
-is specified, the LLVM IR produced by Clang for the CUDA/HIP backend device
-compilation is added to the fat binary file. To this end, the resulting
-file-table from `sycl-post-link` is additionally passed to the
-`clang-offload-wrapper`, creating a wrapper object with target `llvm_nvptx64`
-for the CUDA backend and `llvm_amdgcn` for the HIP backend.
+CUBIN, PTX and AMDGCN assembly cannot be loaded as input formats for JIT
+compilation for the CUDA or HIP backends. Hence, the user needs to specify the
+additional flag `-fsycl-embed-ir` during compilation, to add LLVM IR as an
+additional device binary. When the flag `-fsycl-embed-ir` is specified, the LLVM
+IR produced by Clang for the CUDA/HIP backend device compilation is added to the
+fat binary file. To this end, the resulting file-table from `sycl-post-link` is
+additionally passed to the `clang-offload-wrapper`, creating a wrapper object
+with target `llvm_nvptx64` for the CUDA backend and `llvm_amdgcn` for the HIP
+backend.
 
 This device binary in LLVM IR format can be retrieved by the SYCL runtime and
-used by the kernel fusion JIT compiler. For the CUDA backend, the resulting fused
-kernel is compiled to PTX assembly by the kernel fusion JIT compiler at runtime.
-For the HIP backend, the resulting fused kernel is compiled to an AMDGCN binary
-by the kernel fusion JIT compiler at runtime, however this output requires
-finalization by `lld`. Rather than adding another dependancy to the fusion jit,
-a `Requires finalization` property is added the binary. The HIP
-UR adapter will then use the AMD Compiler Object Manager library
-(`comgr`, part of the ROCm package) in order to finalize it into
+used by the JIT compiler. For the CUDA backend, the resulting LLVM module is
+compiled to PTX assembly by the JIT compiler at runtime. For the HIP backend,
+the resulting LLVM module is compiled to an AMDGCN binary by the JIT compiler
+at runtime, however this output requires finalization by `lld`. Rather than
+adding another dependency to the JIT library, a `Requires finalization` property
+is added the binary. The HIP UR adapter will then use the AMD Compiler Object
+Manager library (`comgr`, part of the ROCm package) in order to finalize it into
 a loadable format.
 
 Note that the device binary in LLVM IR does not replace the device binary in

@@ -63,6 +63,13 @@ TEST_P(urSamplerCreateTestWithParam, Success) {
   const auto addr_mode = std::get<1>(param);
   const auto filter_mode = std::get<2>(param);
 
+  if (normalized == false &&
+      (addr_mode == UR_SAMPLER_ADDRESSING_MODE_REPEAT ||
+       addr_mode == UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT)) {
+    // Invalid value
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"gfx1100"});
+  }
+
   ur_sampler_desc_t sampler_desc{
       UR_STRUCTURE_TYPE_SAMPLER_DESC, /* stype */
       nullptr,                        /* pNext */

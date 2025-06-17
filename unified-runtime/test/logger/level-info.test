@@ -1,0 +1,16 @@
+RUN: UR_LOG_ADAPTER_TEST="level:info" logger-test 2>&1 1>%null | FileCheck %s
+RUN: UR_LOG_ADAPTER_TEST="level:info;output:stdout" logger-test | FileCheck %s
+RUN: UR_LOG_ADAPTER_TEST="level:info;output:stderr" logger-test 2>&1 1>%null | FileCheck %s
+RUN: UR_LOG_ADAPTER_TEST="level:info;output:file,%t" logger-test
+RUN: FileCheck --input-file %t %s
+
+RUN: UR_LOG_ADAPTER_TEST="flush:info;level:info" logger-test 2>&1 1>%null | FileCheck %s
+RUN: UR_LOG_ADAPTER_TEST="flush:info;level:info;output:stdout" logger-test | FileCheck %s
+RUN: UR_LOG_ADAPTER_TEST="flush:info;level:info;output:stderr" logger-test 2>&1 1>%null | FileCheck %s
+RUN: UR_LOG_ADAPTER_TEST="flush:info;level:info;output:file,%t" logger-test
+RUN: FileCheck --input-file %t %s
+
+CHECK-NOT: <ADAPTER_TEST>[DEBUG]: Test message: success
+CHECK: <ADAPTER_TEST>[INFO]: Test message: success
+CHECK: <ADAPTER_TEST>[WARNING]: Test message: success
+CHECK: <ADAPTER_TEST>[ERROR]: Test message: success

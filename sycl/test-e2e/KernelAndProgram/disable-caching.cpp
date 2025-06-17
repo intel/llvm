@@ -1,7 +1,5 @@
 // This test ensures created program/kernels are not retained
 // if and only if caching is disabled.
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: bug in L0 loader param validation (fixed in v.1.21.1)
 
 // RUN: %{build} -o %t.out
 // RUN: env ZE_DEBUG=-6 SYCL_UR_TRACE=2 SYCL_CACHE_IN_MEM=0 %{run} %t.out \
@@ -37,8 +35,6 @@ int main() {
   // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
   // CHECK-CACHE: <--- urEnqueueKernelLaunch
-  // CHECK-CACHE: <--- urKernelRelease
-  // CHECK-CACHE: <--- urProgramRelease
   // CHECK-CACHE: <--- urEventWait
   q.single_task([] {}).wait();
 
@@ -100,6 +96,8 @@ int main() {
 // windows should handle the memory cleanup.
 
 // (Program cache releases)
+// CHECK-RELEASE: <--- urKernelRelease
+// CHECK-RELEASE: <--- urProgramRelease
 // CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease

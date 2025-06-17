@@ -11,7 +11,8 @@
 #include <gtest/gtest.h>
 
 TEST_F(LoaderHandleTest, Success) {
-  ur_platform_handle_t query_platform;
+  ur_platform_handle_t query_platform =
+      reinterpret_cast<ur_platform_handle_t>(1234);
   size_t retsize;
   ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_PLATFORM,
                                  sizeof(intptr_t), &query_platform, &retsize));

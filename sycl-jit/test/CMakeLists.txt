@@ -12,11 +12,11 @@ configure_lit_site_cfg(
 )
 
 # Add a target to invoke tests via Ninja/make.
-add_lit_testsuite(check-sycl-jit-lit-tests "Running SYCL Fusion lit tests"
+add_lit_testsuite(check-sycl-jit-lit-tests "Running SYCL-JIT lit tests"
     "${CMAKE_CURRENT_BINARY_DIR}"
 
     DEPENDS
-    SYCLKernelJIT
+    SYCLJITPassesPlugin
     opt
     FileCheck
 )

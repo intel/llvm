@@ -227,6 +227,10 @@ template <typename DataT, int Dimensions = 1,
           typename PropertyListT = ext::oneapi::accessor_property_list<>>
 class accessor;
 
+namespace ext::oneapi::experimental {
+template <typename, int> class dynamic_local_accessor;
+}
+
 namespace detail {
 
 template <typename... Ts>
@@ -236,7 +240,7 @@ template <typename... Ts>
 void cannot_be_called_on_host([[maybe_unused]] const char *API,
                               Ts &&.../* ignore */) {
 #ifndef __SYCL_DEVICE_ONLY__
-  std::fprintf(stderr, "%s cannot be called on host!\n", API);
+  std::cerr << API << " cannot be called on host!" << std::endl;
   std::abort();
 #endif
 }
@@ -2638,6 +2642,8 @@ public:
 
 private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
+  template <typename, int>
+  friend class ext::oneapi::experimental::dynamic_local_accessor;
 };
 
 template <typename DataT, int Dimensions = 1,

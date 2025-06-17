@@ -1,11 +1,10 @@
 // REQUIRES: aspect-fp64
-// UNSUPPORTED: target-amd || target-nvidia
 // XFAIL: windows && arch-intel_gpu_bmg_g21
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/17165
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 
-// RUN: %{build} -fsycl-device-lib-jit-link -o %t2.out
+// RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-device-lib-jit-link -o %t2.out
 // RUN: %{run} %t2.out
 
 #include <array>

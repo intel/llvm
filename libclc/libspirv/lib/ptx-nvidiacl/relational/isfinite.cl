@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 
 #include <libspirv/ptx-nvidiacl/libdevice.h>
-#include <relational.h>
+#include <libspirv/relational.h>
 
 #ifdef cl_khr_fp64
 

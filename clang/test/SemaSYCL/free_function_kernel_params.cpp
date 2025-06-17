@@ -1,7 +1,8 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ast-dump \
 // RUN: %s -o - | FileCheck %s
 // This test checks parameter rewriting for free functions with parameters
-// of type scalar, pointer, non-decomposed struct and work group memory.
+// of type scalar, pointer, non-decomposed struct, work group memory, dynamic work group memory 
+// and special types.
 
 #include "sycl.hpp"
 
@@ -191,3 +192,125 @@ void ff_7(sycl::work_group_memory<int> mem) {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(sycl::work_group_memory<int>)' <FunctionToPointerDecay>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'void (sycl::work_group_memory<int>)' lvalue Function {{.*}} 'ff_7' 'void (sycl::work_group_memory<int>)'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::work_group_memory<int>' Var {{.*}} 'mem' 'sycl::work_group_memory<int>'
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_8(sycl::dynamic_work_group_memory<int> DynMem) {
+}
+// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__local int *)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used __arg_Ptr '__local int *'
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: DeclStmt
+// CHECK-NEXT: VarDecl {{.*}} used DynMem 'sycl::dynamic_work_group_memory<int>' callinit
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::dynamic_work_group_memory<int>' 'void () noexcept'
+// CHECK-NEXT: CXXMemberCallExpr {{.*}} 'void'
+// CHECK-NEXT: MemberExpr {{.*}} 'void (__local int *)' lvalue .__init
+// CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::dynamic_work_group_memory<int>' Var {{.*}} 'DynMem' 'sycl::dynamic_work_group_memory<int>'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__local int *' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} '__local int *' lvalue ParmVar {{.*}} '__arg_Ptr' '__local int *'
+// CHECK-NEXT: CallExpr {{.*}} 'void'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(sycl::dynamic_work_group_memory<int>)' <FunctionToPointerDecay>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'void (sycl::dynamic_work_group_memory<int>)' lvalue Function {{.*}} 'ff_8' 'void (sycl::dynamic_work_group_memory<int>)'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::dynamic_work_group_memory<int>' Var {{.*}} 'DynMem' 'sycl::dynamic_work_group_memory<int>'
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_9(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
+}
+
+// CHECK: FunctionDecl {{.*}}'void (sycl::accessor<int, 1, sycl::access::mode::read_write>)'
+// CHECK-NEXT: ParmVarDecl {{.*}}acc 'sycl::accessor<int, 1, sycl::access::mode::read_write>'
+// CHECK: ParmVarDecl {{.*}}__arg_Ptr '__global int *'
+// CHECK: ParmVarDecl {{.*}}__arg_AccessRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}__arg_MemRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}__arg_Offset 'sycl::id<1>'
+// CHECK: CXXMemberCallExpr
+// CHECK-NEXT: MemberExpr {{.*}}.__init
+
+template <typename DataT>
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_9(sycl::local_accessor<DataT, 1> lacc) {
+}
+
+template void ff_9(sycl::local_accessor<float, 1> lacc);
+
+// CHECK: FunctionDecl {{.*}}'void (sycl::local_accessor<float, 1>)'
+// CHECK: ParmVarDecl {{.*}}lacc 'sycl::local_accessor<float, 1>'
+// CHECK: ParmVarDecl {{.*}}__arg_Ptr '__local float *'
+// CHECK: ParmVarDecl {{.*}}__arg_AccessRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}__arg_MemRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}__arg_Offset 'sycl::id<1>'
+// CHECK: CXXMemberCallExpr
+// CHECK-NEXT: MemberExpr {{.*}}.__init
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_9(sycl::local_accessor<int, 1> lacc) {
+}
+
+// CHECK: FunctionDecl {{.*}}'void (sycl::local_accessor<int, 1>)'
+// CHECK: ParmVarDecl {{.*}}lacc 'sycl::local_accessor<int, 1>'
+// CHECK: ParmVarDecl {{.*}}__arg_Ptr '__local int *'
+// CHECK: ParmVarDecl {{.*}}__arg_AccessRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}__arg_MemRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}used __arg_Offset 'sycl::id<1>'
+// CHECK: CXXMemberCallExpr
+// CHECK-NEXT: MemberExpr {{.*}}.__init
+
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_10(sycl::sampler S) {
+}
+
+// CHECK: FunctionDecl {{.*}}'void (sycl::sampler)'
+// CHECK: ParmVarDecl {{.*}}S 'sycl::sampler'
+// CHECK: FunctionDecl {{.*}}'void (sampler_t)'
+// CHECK: ParmVarDecl {{.*}}__arg_Sampler 'sampler_t'
+// CHECK: CXXMemberCallExpr {{.*}}'void'
+// CHECK-NEXT: MemberExpr {{.*}}.__init
+
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_11(sycl::stream str) {
+}
+
+// CHECK: FunctionDecl {{.*}}'void (sycl::stream)'
+// CHECK: ParmVarDecl {{.*}}str 'sycl::stream'
+// CHECK: FunctionDecl {{.*}}'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int)'
+// CHECK: ParmVarDecl {{.*}}__arg_Ptr '__global char *'
+// CHECK: ParmVarDecl {{.*}}__arg_AccessRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}__arg_MemRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}__arg_Offset 'sycl::id<1>'
+// CHECK: ParmVarDecl {{.*}}__arg__FlushBufferSize 'int'
+// CHECK: CXXMemberCallExpr {{.*}}
+// CHECK-NEXT: MemberExpr {{.*}}.__init
+
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_12(sycl::ext::oneapi::experimental::annotated_arg<int> arg) {
+}
+
+// CHECK: FunctionDecl {{.*}}'void (sycl::ext::oneapi::experimental::annotated_arg<int>)'
+// CHECK: ParmVarDecl {{.*}}arg 'sycl::ext::oneapi::experimental::annotated_arg<int>'
+// CHECK: FunctionDecl {{.*}}'void (int)'
+// CHECK: ParmVarDecl {{.*}}__arg__obj 'int'
+// CHECK: CXXMemberCallExpr {{.*}}
+// CHECK-NEXT: MemberExpr {{.*}}.__init
+
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_13(sycl::ext::oneapi::experimental::annotated_ptr<int> ptr) {
+}
+
+// CHECK: FunctionDecl {{.*}}'void (sycl::ext::oneapi::experimental::annotated_ptr<int>)'
+// CHECK: ParmVarDecl {{.*}}ptr 'sycl::ext::oneapi::experimental::annotated_ptr<int>'
+// CHECK: FunctionDecl {{.*}}'void (int *)'
+// CHECK: ParmVarDecl {{.*}}__arg__obj 'int *'
+// CHECK: CXXMemberCallExpr {{.*}}
+// CHECK-NEXT: MemberExpr {{.*}}.__init
+

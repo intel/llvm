@@ -190,30 +190,6 @@ private:
                                        const InputInfoList &InputFiles) const;
 };
 
-/// Directly call FPGA Compiler and Linker
-namespace fpga {
-
-class LLVM_LIBRARY_VISIBILITY BackendCompiler : public Tool {
-public:
-  BackendCompiler(const ToolChain &TC)
-      : Tool("fpga::BackendCompiler", "fpga compiler", TC) {}
-
-  bool hasIntegratedCPP() const override { return false; }
-
-  void ConstructJob(Compilation &C, const JobAction &JA,
-                    const InputInfo &Output, const InputInfoList &Inputs,
-                    const llvm::opt::ArgList &TCArgs,
-                    const char *LinkingOutput) const override;
-
-private:
-  void constructOpenCLAOTCommand(Compilation &C, const JobAction &JA,
-                                 const InputInfo &Output,
-                                 const InputInfoList &InputFiles,
-                                 const llvm::opt::ArgList &Args) const;
-};
-
-} // end namespace fpga
-
 namespace gen {
 
 class LLVM_LIBRARY_VISIBILITY BackendCompiler : public Tool {
@@ -269,6 +245,11 @@ public:
 } // end namespace SYCL
 } // end namespace tools
 
+inline bool isSYCLNativeCPU(const llvm::Triple &Triple) {
+  return Triple.getArch() == llvm::Triple::UnknownArch &&
+         Triple.str() == "native_cpu";
+}
+
 namespace toolchains {
 
 class LLVM_LIBRARY_VISIBILITY SYCLToolChain : public ToolChain {
@@ -309,12 +290,12 @@ public:
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override {
-    if (this->IsSYCLNativeCPU)
+    if (isSYCLNativeCPU(this->getTriple()))
       return this->HostTC.isPICDefault();
     return false;
   }
   llvm::codegenoptions::DebugInfoFormat getDefaultDebugFormat() const override {
-    if (this->IsSYCLNativeCPU ||
+    if (isSYCLNativeCPU(this->getTriple()) &&
         this->HostTC.getTriple().isWindowsMSVCEnvironment())
       return this->HostTC.getDefaultDebugFormat();
     return ToolChain::getDefaultDebugFormat();
@@ -337,9 +318,6 @@ public:
 
   SanitizerMask getSupportedSanitizers() const override;
 
-  const bool IsSYCLNativeCPU;
-
-
 protected:
   Tool *buildBackendCompiler() const override;
   Tool *buildLinker() const override;
@@ -353,24 +331,6 @@ private:
 };
 
 } // end namespace toolchains
-
-inline bool isSYCLNativeCPU(const llvm::opt::ArgList &Args) {
-  if (auto SYCLTargets = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
-    if (SYCLTargets->containsValue("native_cpu"))
-      return true;
-  }
-  return false;
-}
-
-inline bool isSYCLNativeCPU(const llvm::Triple &HostT,
-                            const llvm::Triple &DevT) {
-  return HostT == DevT;
-}
-
-inline bool isSYCLNativeCPU(const ToolChain &TC) {
-  const llvm::Triple *const AuxTriple = TC.getAuxTriple();
-  return AuxTriple && isSYCLNativeCPU(TC.getTriple(), *AuxTriple);
-}
 } // end namespace driver
 } // end namespace clang
 

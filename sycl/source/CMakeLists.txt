@@ -3,6 +3,7 @@
 #2. Use AddLLVM to modify the build and access config options
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
+include(CheckLinkerFlag)
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
@@ -24,9 +25,32 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   # Common compilation step setup
 
+  check_cxx_compiler_flag(-Winstantiation-after-specialization
+    HAS_INST_AFTER_SPEC)
+  check_cxx_compiler_flag(-ffunction-sections HAS_FUNCTION_SECTIONS_FLAG)
+  check_cxx_compiler_flag(-fdata-sections HAS_DATA_SECTIONS_FLAG)
+
+  target_compile_options(
+    ${LIB_OBJ_NAME}
+    PRIVATE
+      ${ARG_COMPILE_OPTIONS}
+      $<$<BOOL:${HAS_INST_AFTER_SPEC}>:-Winstantiation-after-specialization>
+      $<$<BOOL:${HAS_FUNCTION_SECTIONS_FLAG}>:-ffunction-sections>
+      $<$<BOOL:${HAS_DATA_SECTIONS_FLAG}>:-fdata-sections>
+    PUBLIC
+      $<$<NOT:$<BOOL:${MSVC}>>:-fvisibility=hidden -fvisibility-inlines-hidden>
+      # Sycl math built-in macros cause a GCC 4.6 'note' to be output
+      # repeatedly.
+      # => note: the ABI for passing parameters with 32-byte alignment has
+      #          changed in GCC 4.6
+      # Seems to be no way to suppress it except use -Wno-psabi
+      $<$<NOT:$<BOOL:${MSVC}>>:-Wno-psabi>
+  )
+
   target_compile_definitions(
     ${LIB_OBJ_NAME}
     PRIVATE
+      __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
       __SYCL_INTERNAL_API
       SYCL2020_DISABLE_DEPRECATION_WARNINGS
       $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
@@ -107,10 +131,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     )
   endif()
 
-  if (ARG_COMPILE_OPTIONS)
-    target_compile_options(${LIB_OBJ_NAME} PRIVATE ${ARG_COMPILE_OPTIONS})
-  endif()
-
   add_dependencies(${LIB_OBJ_NAME}
     sycl-headers
   )
@@ -122,11 +142,19 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
-  if (NOT LLVM_ENABLE_ZSTD)
-    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_NOT_AVAIABLE)
-  else()
+  if (LLVM_ENABLE_ZSTD)
+    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_AVAILABLE)
     target_link_libraries(${LIB_NAME} PRIVATE ${zstd_STATIC_LIBRARY})
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${zstd_INCLUDE_DIR})
+  endif()
+
+  if (EMHASH_SYS_LOC)
+    # If we are using system emhash, include the system directory
+    # containing the emhash folder and note this location so
+    # other modules using emhash can find it.
+    cmake_path(GET EMHASH_SYS_LOC PARENT_PATH EMHASH_SYS_LOC)
+    set(SYCL_EMHASH_DIR ${EMHASH_SYS_LOC} CACHE INTERNAL "")
+    target_include_directories(${LIB_OBJ_NAME} PRIVATE ${EMHASH_SYS_LOC})
   endif()
 
   # ur_win_proxy_loader
@@ -162,14 +190,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     # Install stripped PDB
     add_stripped_pdb(${LIB_NAME})
   else()
-    target_compile_options(${LIB_OBJ_NAME} PUBLIC
-                           -fvisibility=hidden -fvisibility-inlines-hidden)
-
-    # Sycl math built-in macros cause a GCC 4.6 'note' to be output repeatedly.
-    # => note: the ABI for passing parameters with 32-byte alignment has changed in GCC 4.6
-    # Seems to be no way to suppress it except use -Wno-psabi
-    target_compile_options(${LIB_OBJ_NAME} PUBLIC -Wno-psabi)
-
     if (UNIX AND NOT APPLE)
       set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
       target_link_libraries(
@@ -179,6 +199,13 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     if (SYCL_ENABLE_XPTI_TRACING)
       target_link_libraries(${LIB_NAME} PRIVATE ${CMAKE_DL_LIBS})
     endif()
+  endif()
+
+  check_linker_flag(CXX "-Wl,--gc-sections" LINKER_SUPPORTS_WL_GC_SECTIONS)
+  if(LINKER_SUPPORTS_WL_GC_SECTIONS)
+    # Reduces the size of the resulting library by having the linker perform
+    # garbage collection.
+    target_link_options(${LIB_NAME} PRIVATE -Wl,--gc-sections)
   endif()
 
   if(SYCL_ENABLE_EXTENSION_JIT)
@@ -201,14 +228,9 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   set_target_properties(${LIB_NAME} PROPERTIES
                         VERSION ${SYCL_VERSION_STRING}
-                        SOVERSION ${SYCL_MAJOR_VERSION})
-
-  check_cxx_compiler_flag(-Winstantiation-after-specialization
-    HAS_INST_AFTER_SPEC)
-  if (HAS_INST_AFTER_SPEC)
-    target_compile_options(${LIB_OBJ_NAME} PRIVATE
-      -Winstantiation-after-specialization)
-  endif()
+                        SOVERSION ${SYCL_MAJOR_VERSION}
+                        # Set the runpath to the lib directory so libsycl can find libur_loader
+                        INSTALL_RPATH "\$ORIGIN")
 
   # When building using icx on Windows, the VERSION file
   # produced by cmake is used in source code
@@ -263,6 +285,7 @@ set(SYCL_COMMON_SOURCES
     "detail/kernel_compiler/kernel_compiler_opencl.cpp"
     "detail/kernel_compiler/kernel_compiler_sycl.cpp"
     "detail/kernel_impl.cpp"
+    "detail/kernel_name_based_cache.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
     "detail/pipes.cpp"
@@ -308,6 +331,10 @@ set(SYCL_COMMON_SOURCES
     "stream.cpp"
     "spirv_ops.cpp"
     "virtual_mem.cpp"
+    "detail/memory_pool_impl.cpp"
+    "detail/async_alloc.cpp"
+    "detail/memory_pool.cpp"
+    "detail/graph_memory_pool.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_ur.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_ur.cpp>"
 )

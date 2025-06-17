@@ -52,7 +52,7 @@ int main(){
 // CHECK-RTC-NOT: free_function_single_kernel
 // CHECK-RTC-NOT: free_function_nd_range
 
-// CHECK-NORTC:       void free_function_single(int *ptr, int start, int end);
+// CHECK-NORTC:       void free_function_single(int * ptr, int start, int end);
 // CHECK-NORTC:       static constexpr auto __sycl_shim[[#FIRST:]]()
 // CHECK-NORTC-NEXT:  return (void (*)(int *, int, int))free_function_single;
 
@@ -63,7 +63,7 @@ int main(){
 // CHECK-NORTC-NEXT:  static constexpr bool value = true;
 
 
-// CHECK-NORTC:       void free_function_nd_range(int *ptr, int start, int end);
+// CHECK-NORTC:       void free_function_nd_range(int * ptr, int start, int end);
 // CHECK-NORTC:       static constexpr auto __sycl_shim[[#SECOND:]]() {
 // CHECK-NORTC-NEXT:  return (void (*)(int *, int, int))free_function_nd_range;
 

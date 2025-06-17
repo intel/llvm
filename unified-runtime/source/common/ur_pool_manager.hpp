@@ -174,26 +174,25 @@ public:
     return {UR_RESULT_SUCCESS, std::move(manager)};
   }
 
-  ur_result_t addPool(const D &desc, unique_pool_handle_t &&hPool) noexcept {
+  ur_result_t addPool(const D &desc, unique_pool_handle_t &&hPool) {
     if (!descToPoolMap.try_emplace(desc, std::move(hPool)).second) {
-      logger::error("Pool for pool descriptor: {}, already exists", desc);
+      UR_LOG(ERR, "Pool for pool descriptor: {}, already exists", desc);
       return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
     return UR_RESULT_SUCCESS;
   }
 
-  std::optional<pool_handle_t> getPool(const D &desc) noexcept {
+  std::optional<pool_handle_t> getPool(const D &desc) {
     auto it = descToPoolMap.find(desc);
     if (it == descToPoolMap.end()) {
-      logger::error("Pool descriptor doesn't match any existing pool: {}",
-                    desc);
+      UR_LOG(ERR, "Pool descriptor doesn't match any existing pool: {}", desc);
       return std::nullopt;
     }
 
     return it->second.get();
   }
-  template <typename Func> void forEachPool(Func func) noexcept {
+  template <typename Func> void forEachPool(Func func) {
     for (const auto &[desc, pool] : descToPoolMap) {
       if (!func(pool.get()))
         break;

@@ -6,6 +6,7 @@ function(link_llvm_libs target)
 endfunction()
 
 add_subdirectory(sycl-ls)
+add_subdirectory(syclbin-dump)
 
 if (SYCL_ENABLE_XPTI_TRACING)
   if (UNIX)

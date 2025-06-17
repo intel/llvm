@@ -16,6 +16,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/platform.hpp>
 #include <sycl/usm.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -41,7 +42,7 @@ int main() {
       return false;
     }
     for (auto dev : devices) {
-      if (!dev.ext_oneapi_can_compile(syclexp::source_language::sycl)) {
+      if (!dev.ext_oneapi_can_build(syclexp::source_language::sycl)) {
         return false;
       }
     }

@@ -2,7 +2,7 @@
 // windows.
 // REQUIRES: (level_zero || opencl) && linux
 
-// RUN: rm -rf %t/cache_dir
+// RUN: %{run-aux} rm -rf %t/cache_dir
 // RUN: %{build} -o %t.out -DTARGET_IMAGE=INC100
 
 // When no environment variables pointing cache directory are set the cache is
@@ -12,13 +12,13 @@
 
 // When any of environment variables pointing to cache root is present cache is
 // enabled
-// RUN: rm -rf %t/cache_dir
+// RUN: %{run-aux} rm -rf %t/cache_dir
 // RUN: env SYCL_CACHE_PERSISTENT=1 XDG_CACHE_HOME=%t/cache_dir SYCL_UR_TRACE=2 env -u SYCL_CACHE_DIR env -u HOME %{run} %t.out | FileCheck %s --check-prefixes=CHECK-BUILD
 // RUN: env SYCL_CACHE_PERSISTENT=1 XDG_CACHE_HOME=%t/cache_dir SYCL_UR_TRACE=2 env -u SYCL_CACHE_DIR env -u HOME %{run} %t.out | FileCheck %s --check-prefixes=CHECK-CACHE
-// RUN: rm -rf %t/cache_dir
+// RUN: %{run-aux} rm -rf %t/cache_dir
 // RUN: env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_UR_TRACE=2 env -u XDG_CACHE_HOME env -u HOME %{run} %t.out | FileCheck %s --check-prefixes=CHECK-BUILD
 // RUN: env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_UR_TRACE=2 env -u XDG_CACHE_HOME env -u HOME %{run} %t.out | FileCheck %s --check-prefixes=CHECK-CACHE
-// RUN: rm -rf %t/cache_dir
+// RUN: %{run-aux} rm -rf %t/cache_dir
 // RUN: env SYCL_CACHE_PERSISTENT=1 HOME=%t/cache_dir SYCL_UR_TRACE=2 env -u XDG_CACHE_HOME env -u SYCL_CACHE_DIR %{run} %t.out | FileCheck %s --check-prefixes=CHECK-BUILD
 // RUN: env SYCL_CACHE_PERSISTENT=1 HOME=%t/cache_dir SYCL_UR_TRACE=2 env -u XDG_CACHE_HOME env -u SYCL_CACHE_DIR %{run} %t.out | FileCheck %s --check-prefixes=CHECK-CACHE
 

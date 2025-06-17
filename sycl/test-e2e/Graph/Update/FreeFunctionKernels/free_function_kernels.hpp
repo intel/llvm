@@ -4,6 +4,7 @@
 #include "sycl/ext/oneapi/kernel_properties/properties.hpp"
 #include "sycl/kernel_bundle.hpp"
 #include <sycl/ext/oneapi/free_function_queries.hpp>
+#include <sycl/group_barrier.hpp>
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((exp_ext::single_task_kernel))
 void ff_0(int *Ptr) {
@@ -53,5 +54,19 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((exp_ext::single_task_kernel))
 void ff_6(int *Ptr, int ScalarValue) {
   for (size_t i{0}; i < Size; ++i) {
     Ptr[i] = ScalarValue;
+  }
+}
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((exp_ext::nd_range_kernel<1>))
+void ff_7(exp_ext::dynamic_work_group_memory<int[]> DynLocalMem, int *PtrA) {
+  const auto Item = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
+  size_t GlobalID = Item.get_global_id();
+  auto LocalRange = Item.get_local_range(0);
+  auto LocalMem = DynLocalMem.get();
+
+  LocalMem[Item.get_local_id()] = LocalRange;
+  group_barrier(Item.get_group());
+
+  for (size_t i{0}; i < LocalRange; ++i) {
+    PtrA[GlobalID] += LocalMem[i];
   }
 }

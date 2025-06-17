@@ -65,23 +65,24 @@ static void verifyCleanup(detail::MemObjRecord *Record,
 // Check that any non-leaf commands enqueued as part of high level scheduler
 // calls are cleaned up.
 static void checkCleanupOnEnqueue(MockScheduler &MS,
-                                  detail::QueueImplPtr &QueueImpl,
+                                  detail::QueueImplPtr &QueueImplPtr,
                                   buffer<int, 1> &Buf,
                                   detail::Requirement &MockReq) {
+  detail::queue_impl &QueueImpl = *QueueImplPtr;
   bool CommandDeleted = false;
   std::vector<detail::Command *> ToCleanUp;
   std::vector<detail::Command *> ToEnqueue;
   detail::MemObjRecord *Record =
-      MS.getOrInsertMemObjRecord(QueueImpl, &MockReq);
+      MS.getOrInsertMemObjRecord(QueueImplPtr, &MockReq);
   detail::AllocaCommandBase *AllocaCmd =
-      MS.getOrCreateAllocaForReq(Record, &MockReq, QueueImpl, ToEnqueue);
+      MS.getOrCreateAllocaForReq(Record, &MockReq, QueueImplPtr, ToEnqueue);
   std::function<void()> Callback = [&CommandDeleted]() {
     CommandDeleted = true;
   };
 
   // Check addCG.
   MockCommand *MockCmd =
-      new MockCommandWithCallback(QueueImpl, MockReq, Callback);
+      new MockCommandWithCallback(&QueueImpl, MockReq, Callback);
   (void)MockCmd->addDep(detail::DepDesc(AllocaCmd, &MockReq, nullptr),
                         ToCleanUp);
   EXPECT_TRUE(ToCleanUp.empty());
@@ -98,13 +99,13 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
                              /*Requirements*/ {&MockReq},
                              /*Events*/ {}))};
   detail::EventImplPtr Event =
-      MS.addCG(std::move(CG), QueueImpl, /*EventNeeded=*/true);
+      MS.addCG(std::move(CG), QueueImplPtr, /*EventNeeded=*/true);
   auto *Cmd = static_cast<detail::Command *>(Event->getCommand());
   verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
 
   // Check add/releaseHostAccessor.
   CommandDeleted = false;
-  MockCmd = new MockCommandWithCallback(QueueImpl, MockReq, Callback);
+  MockCmd = new MockCommandWithCallback(&QueueImpl, MockReq, Callback);
   addEdge(MockCmd, Cmd, AllocaCmd);
   MS.addNodeToLeaves(Record, MockCmd, access::mode::read_write, ToEnqueue);
   MS.updateLeaves({Cmd}, Record, access::mode::read_write, ToCleanUp);
@@ -112,10 +113,10 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
   verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
 
   CommandDeleted = false;
-  MockCmd = new MockCommandWithCallback(QueueImpl, MockReq, Callback);
+  MockCmd = new MockCommandWithCallback(&QueueImpl, MockReq, Callback);
   addEdge(MockCmd, AllocaCmd, AllocaCmd);
   MockCommand *LeafMockCmd =
-      new MockCommandWithCallback(QueueImpl, MockReq, Callback);
+      new MockCommandWithCallback(&QueueImpl, MockReq, Callback);
   addEdge(LeafMockCmd, MockCmd, AllocaCmd);
   MS.addNodeToLeaves(Record, LeafMockCmd, access::mode::read_write, ToEnqueue);
   MS.releaseHostAccessor(&MockReq);
@@ -125,7 +126,7 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
   auto addNewMockCmds = [&]() -> MockCommand * {
     CommandDeleted = false;
     MockCmd = LeafMockCmd;
-    LeafMockCmd = new MockCommandWithCallback(QueueImpl, MockReq, Callback);
+    LeafMockCmd = new MockCommandWithCallback(&QueueImpl, MockReq, Callback);
     addEdge(LeafMockCmd, MockCmd, AllocaCmd);
     MS.addNodeToLeaves(Record, LeafMockCmd, access::mode::read_write,
                        ToEnqueue);
@@ -139,7 +140,7 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
     verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
     CommandDeleted = false;
     MockCmd = LeafMockCmd;
-    LeafMockCmd = new MockCommandWithCallback(QueueImpl, MockReq, Callback);
+    LeafMockCmd = new MockCommandWithCallback(&QueueImpl, MockReq, Callback);
     addEdge(LeafMockCmd, MockCmd, AllocaCmd);
     MS.addNodeToLeaves(Record, LeafMockCmd, access::mode::read_write,
                        ToEnqueue);
@@ -179,7 +180,7 @@ static void checkCleanupOnLeafUpdate(
 
   // Add a mock command as a leaf and enqueue it.
   MockCommand *MockCmd =
-      new MockCommandWithCallback(QueueImpl, MockReq, Callback);
+      new MockCommandWithCallback(QueueImpl.get(), MockReq, Callback);
   (void)MockCmd->addDep(detail::DepDesc(AllocaCmd, &MockReq, nullptr),
                         ToCleanUp);
   EXPECT_TRUE(ToCleanUp.empty());
@@ -250,7 +251,8 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
         std::vector<std::unique_ptr<MockCommand>> Leaves;
         for (std::size_t I = 0;
              I < Record->MWriteLeaves.genericCommandsCapacity(); ++I)
-          Leaves.push_back(std::make_unique<MockCommand>(QueueImpl, MockReq));
+          Leaves.push_back(
+              std::make_unique<MockCommand>(QueueImpl.get(), MockReq));
 
         detail::AllocaCommandBase *AllocaCmd = Record->MAllocaCommands[0];
         std::vector<detail::Command *> ToCleanUp;

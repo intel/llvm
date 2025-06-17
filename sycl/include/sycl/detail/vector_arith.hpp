@@ -16,11 +16,7 @@
 
 namespace sycl {
 inline namespace _V1 {
-
-template <typename DataT, int NumElem> class __SYCL_EBO vec;
-
 namespace detail {
-
 template <typename T> struct from_incomplete;
 template <typename T>
 struct from_incomplete<const T> : public from_incomplete<T> {};
@@ -30,6 +26,33 @@ struct from_incomplete<vec<DataT, NumElements>> {
   using element_type = DataT;
   static constexpr size_t size() { return NumElements; }
 };
+
+#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct from_incomplete<
+    hide_swizzle_from_adl::Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
+  using element_type = DataT;
+  static constexpr size_t size() { return sizeof...(Indexes); }
+
+  using vec_ty = std::conditional_t<IsConstVec, const vec<DataT, VecSize>,
+                                    vec<DataT, VecSize>>;
+  using result_vec_ty = vec<DataT, size()>;
+  static constexpr int vec_size = VecSize;
+  static constexpr bool is_over_const_vec = IsConstVec;
+  static constexpr bool has_repeating_indexes = []() constexpr {
+    int Idxs[] = {Indexes...};
+    for (std::size_t i = 1; i < sizeof...(Indexes); ++i) {
+      for (std::size_t j = 0; j < i; ++j)
+        if (Idxs[j] == Idxs[i])
+          // Repeating index
+          return true;
+    }
+
+    return false;
+  }();
+  static constexpr bool is_assignable = !IsConstVec && !has_repeating_indexes;
+};
+#endif
 
 template <bool Cond, typename Mixin> struct ApplyIf {};
 template <typename Mixin> struct ApplyIf<true, Mixin> : Mixin {};
@@ -66,6 +89,18 @@ struct IncDec {};
 
 template <class T> static constexpr bool not_fp = !is_vgenfloat_v<T>;
 
+#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
+// Not using `is_byte_v` to avoid unnecessary dependencies on `half`/`bfloat16`
+// headers.
+template <class T>
+static constexpr bool not_byte =
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+    !std::is_same_v<T, std::byte>;
+#else
+    true;
+#endif
+#endif
+
 // To provide information about operators availability depending on vec/swizzle
 // element type.
 template <typename Op, typename T>
@@ -80,6 +115,7 @@ inline constexpr bool is_op_available_for_type<OpAssign<Op>, T> =
   inline constexpr bool is_op_available_for_type<OP, T> = COND;
 
 // clang-format off
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 __SYCL_OP_AVAILABILITY(std::plus<void>          , true)
 __SYCL_OP_AVAILABILITY(std::minus<void>         , true)
 __SYCL_OP_AVAILABILITY(std::multiplies<void>    , true)
@@ -110,6 +146,38 @@ __SYCL_OP_AVAILABILITY(std::bit_not<void>       , not_fp<T>)
 __SYCL_OP_AVAILABILITY(UnaryPlus                , true)
 
 __SYCL_OP_AVAILABILITY(IncDec                   , true)
+#else
+__SYCL_OP_AVAILABILITY(std::plus<void>          , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::minus<void>         , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::multiplies<void>    , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::divides<void>       , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::modulus<void>       , not_fp<T>)
+
+__SYCL_OP_AVAILABILITY(std::bit_and<void>       , not_fp<T>)
+__SYCL_OP_AVAILABILITY(std::bit_or<void>        , not_fp<T>)
+__SYCL_OP_AVAILABILITY(std::bit_xor<void>       , not_fp<T>)
+
+__SYCL_OP_AVAILABILITY(std::equal_to<void>      , true)
+__SYCL_OP_AVAILABILITY(std::not_equal_to<void>  , true)
+__SYCL_OP_AVAILABILITY(std::less<void>          , true)
+__SYCL_OP_AVAILABILITY(std::greater<void>       , true)
+__SYCL_OP_AVAILABILITY(std::less_equal<void>    , true)
+__SYCL_OP_AVAILABILITY(std::greater_equal<void> , true)
+
+__SYCL_OP_AVAILABILITY(std::logical_and<void>   , not_byte<T> && not_fp<T>)
+__SYCL_OP_AVAILABILITY(std::logical_or<void>    , not_byte<T> && not_fp<T>)
+
+__SYCL_OP_AVAILABILITY(ShiftLeft                , not_byte<T> && not_fp<T>)
+__SYCL_OP_AVAILABILITY(ShiftRight               , not_byte<T> && not_fp<T>)
+
+// Unary
+__SYCL_OP_AVAILABILITY(std::negate<void>        , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::logical_not<void>   , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::bit_not<void>       , not_fp<T>)
+__SYCL_OP_AVAILABILITY(UnaryPlus                , not_byte<T>)
+
+__SYCL_OP_AVAILABILITY(IncDec                   , not_byte<T>)
+#endif
 // clang-format on
 
 #undef __SYCL_OP_AVAILABILITY
@@ -187,6 +255,12 @@ template <typename Self> struct VecOperators {
 
   using element_type = typename from_incomplete<Self>::element_type;
   static constexpr int N = from_incomplete<Self>::size();
+
+#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
+  template <typename T>
+  static constexpr bool is_compatible_scalar =
+      std::is_convertible_v<T, typename from_incomplete<Self>::element_type>;
+#endif
 
   template <typename Op>
   using result_t = std::conditional_t<
@@ -293,6 +367,7 @@ template <typename Self> struct VecOperators {
   struct OpMixin<Op, std::enable_if_t<std::is_same_v<Op, IncDec>>>
       : public IncDecImpl<Self> {};
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 #define __SYCL_VEC_BINOP_MIXIN(OP, OPERATOR)                                   \
   template <typename Op>                                                       \
   struct OpMixin<Op, std::enable_if_t<std::is_same_v<Op, OP>>> {               \
@@ -341,6 +416,52 @@ template <typename Self> struct VecOperators {
     friend auto operator OPERATOR(const Self &v) { return apply<OP>(v); }      \
   };
 
+#else
+
+#define __SYCL_VEC_BINOP_MIXIN(OP, OPERATOR)                                   \
+  template <typename Op>                                                       \
+  struct OpMixin<Op, std::enable_if_t<std::is_same_v<Op, OP>>> {               \
+    friend result_t<OP> operator OPERATOR(const Self & lhs,                    \
+                                          const Self & rhs) {                  \
+      return VecOperators::apply<OP>(lhs, rhs);                                \
+    }                                                                          \
+    template <typename T>                                                      \
+    friend std::enable_if_t<is_compatible_scalar<T>, result_t<OP>>             \
+    operator OPERATOR(const Self & lhs, const T & rhs) {                       \
+      return VecOperators::apply<OP>(lhs, Self{static_cast<T>(rhs)});          \
+    }                                                                          \
+    template <typename T>                                                      \
+    friend std::enable_if_t<is_compatible_scalar<T>, result_t<OP>>             \
+    operator OPERATOR(const T & lhs, const Self & rhs) {                       \
+      return VecOperators::apply<OP>(Self{static_cast<T>(lhs)}, rhs);          \
+    }                                                                          \
+  };
+
+#define __SYCL_VEC_OPASSIGN_MIXIN(OP, OPERATOR)                                \
+  template <typename Op>                                                       \
+  struct OpMixin<Op, std::enable_if_t<std::is_same_v<Op, OpAssign<OP>>>> {     \
+    friend Self &operator OPERATOR(Self & lhs, const Self & rhs) {             \
+      lhs = OP{}(lhs, rhs);                                                    \
+      return lhs;                                                              \
+    }                                                                          \
+    template <typename T>                                                      \
+    friend std::enable_if_t<is_compatible_scalar<T>, Self &>                   \
+    operator OPERATOR(Self & lhs, const T & rhs) {                             \
+      lhs = OP{}(lhs, rhs);                                                    \
+      return lhs;                                                              \
+    }                                                                          \
+  };
+
+#define __SYCL_VEC_UOP_MIXIN(OP, OPERATOR)                                     \
+  template <typename Op>                                                       \
+  struct OpMixin<Op, std::enable_if_t<std::is_same_v<Op, OP>>> {               \
+    friend result_t<OP> operator OPERATOR(const Self & v) {                    \
+      return apply<OP>(v);                                                     \
+    }                                                                          \
+  };
+
+#endif
+
   __SYCL_INSTANTIATE_OPERATORS(__SYCL_VEC_BINOP_MIXIN,
                                __SYCL_VEC_OPASSIGN_MIXIN, __SYCL_VEC_UOP_MIXIN)
 
@@ -348,6 +469,7 @@ template <typename Self> struct VecOperators {
 #undef __SYCL_VEC_OPASSIGN_MIXIN
 #undef __SYCL_VEC_BINOP_MIXIN
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
   template <typename Op>
   struct OpMixin<Op, std::enable_if_t<std::is_same_v<Op, std::bit_not<void>>>> {
     template <typename T = typename from_incomplete<Self>::element_type>
@@ -356,6 +478,7 @@ template <typename Self> struct VecOperators {
       return apply<std::bit_not<void>>(v);
     }
   };
+#endif
 
   template <typename... Op>
   struct __SYCL_EBO CombineImpl : public OpMixin<Op>... {};
@@ -377,6 +500,173 @@ template <typename Self> struct VecOperators {
                     OpAssign<ShiftRight>, IncDec> {};
 };
 
+#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
+template <typename Self> struct SwizzleOperators {
+  using element_type = typename from_incomplete<Self>::element_type;
+  using vec_ty = typename from_incomplete<Self>::result_vec_ty;
+  static constexpr int N = from_incomplete<Self>::size();
+
+  template <typename T>
+  static constexpr bool is_compatible_scalar =
+      std::is_convertible_v<T, typename from_incomplete<Self>::element_type> &&
+      !is_swizzle_v<T>;
+
+  // Can't use partial specialization on constexpr variables because it took too
+  // long for gcc to fix https://gcc.gnu.org/bugzilla/show_bug.cgi?id=71954 and
+  // we need to support older versions without the fix.
+  template <typename OtherSwizzle, typename = void>
+  struct is_compatible_swizzle_impl : std::false_type {};
+
+  template <typename OtherSwizzle>
+  struct is_compatible_swizzle_impl<
+      OtherSwizzle, std::enable_if_t<is_swizzle_v<OtherSwizzle>>>
+      : std::bool_constant<
+            std::is_same_v<typename from_incomplete<OtherSwizzle>::element_type,
+                           typename from_incomplete<Self>::element_type> &&
+            from_incomplete<OtherSwizzle>::size() ==
+                from_incomplete<Self>::size()> {};
+
+  template <typename OtherSwizzle>
+  static constexpr bool is_compatible_swizzle =
+      is_compatible_swizzle_impl<OtherSwizzle>::value;
+
+  template <typename OtherSwizzle, typename = void>
+  struct is_compatible_swizzle_opposite_const_impl : std::false_type {};
+
+  template <typename OtherSwizzle>
+  struct is_compatible_swizzle_opposite_const_impl<
+      OtherSwizzle, std::enable_if_t<is_swizzle_v<OtherSwizzle>>>
+      : std::bool_constant<is_compatible_swizzle<OtherSwizzle> &&
+                           from_incomplete<OtherSwizzle>::is_over_const_vec !=
+                               from_incomplete<Self>::is_over_const_vec> {};
+
+  template <typename OtherSwizzle>
+  static constexpr bool is_compatible_swizzle_opposite_const =
+      is_compatible_swizzle_opposite_const_impl<OtherSwizzle>::value;
+
+  template <typename Op>
+  using result_t = std::conditional_t<
+      is_logical<Op>, vec<fixed_width_signed<sizeof(element_type)>, N>, vec_ty>;
+
+  // Uglier than possible due to
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85282.
+  template <typename Op, typename = void> struct OpMixin;
+
+  template <typename Op>
+  struct OpMixin<Op, std::enable_if_t<std::is_same_v<Op, IncDec>>>
+      : public IncDecImpl<const Self> {};
+
+#define __SYCL_SWIZZLE_BINOP_MIXIN(OP, OPERATOR)                               \
+  template <typename Op>                                                       \
+  struct OpMixin<Op, std::enable_if_t<std::is_same_v<Op, OP>>> {               \
+    friend result_t<OP> operator OPERATOR(const Self & lhs,                    \
+                                          const vec_ty & rhs) {                \
+      return OP{}(vec_ty{lhs}, rhs);                                           \
+    }                                                                          \
+    friend result_t<OP> operator OPERATOR(const vec_ty & lhs,                  \
+                                          const Self & rhs) {                  \
+      return OP{}(lhs, vec_ty{rhs});                                           \
+    }                                                                          \
+    template <typename T>                                                      \
+    friend std::enable_if_t<is_compatible_scalar<T>, result_t<OP>>             \
+    operator OPERATOR(const Self & lhs, const T & rhs) {                       \
+      return OP{}(vec_ty{lhs}, vec_ty{rhs});                                   \
+    }                                                                          \
+    template <typename T>                                                      \
+    friend std::enable_if_t<is_compatible_scalar<T>, result_t<OP>>             \
+    operator OPERATOR(const T & lhs, const Self & rhs) {                       \
+      return OP{}(vec_ty{lhs}, vec_ty{rhs});                                   \
+    }                                                                          \
+    template <typename OtherSwizzle>                                           \
+    friend std::enable_if_t<is_compatible_swizzle<OtherSwizzle>, result_t<OP>> \
+    operator OPERATOR(const Self & lhs, const OtherSwizzle & rhs) {            \
+      return OP{}(vec_ty{lhs}, vec_ty{rhs});                                   \
+    }                                                                          \
+    template <typename OtherSwizzle>                                           \
+    friend std::enable_if_t<                                                   \
+        is_compatible_swizzle_opposite_const<OtherSwizzle>, result_t<OP>>      \
+    operator OPERATOR(const OtherSwizzle & lhs, const Self & rhs) {            \
+      return OP{}(vec_ty{lhs}, vec_ty{rhs});                                   \
+    }                                                                          \
+  };
+
+#define __SYCL_SWIZZLE_OPASSIGN_MIXIN(OP, OPERATOR)                            \
+  template <typename Op>                                                       \
+  struct OpMixin<OpAssign<Op>, std::enable_if_t<std::is_same_v<Op, OP>>> {     \
+    friend const Self &operator OPERATOR(const Self & lhs,                     \
+                                         const vec_ty & rhs) {                 \
+      lhs = OP{}(vec_ty{lhs}, rhs);                                            \
+      return lhs;                                                              \
+    }                                                                          \
+    template <typename T>                                                      \
+    friend std::enable_if_t<is_compatible_scalar<T>, const Self &>             \
+    operator OPERATOR(const Self & lhs, const T & rhs) {                       \
+      lhs = OP{}(vec_ty{lhs}, vec_ty{rhs});                                    \
+      return lhs;                                                              \
+    }                                                                          \
+    template <typename OtherSwizzle>                                           \
+    friend std::enable_if_t<is_compatible_swizzle<OtherSwizzle>, const Self &> \
+    operator OPERATOR(const Self & lhs, const OtherSwizzle & rhs) {            \
+      lhs = OP{}(vec_ty{lhs}, vec_ty{rhs});                                    \
+      return lhs;                                                              \
+    }                                                                          \
+  };
+
+#define __SYCL_SWIZZLE_UOP_MIXIN(OP, OPERATOR)                                 \
+  template <typename Op>                                                       \
+  struct OpMixin<Op, std::enable_if_t<std::is_same_v<Op, OP>>> {               \
+    friend result_t<OP> operator OPERATOR(const Self & v) {                    \
+      return OP{}(vec_ty{v});                                                  \
+    }                                                                          \
+  };
+
+  __SYCL_INSTANTIATE_OPERATORS(__SYCL_SWIZZLE_BINOP_MIXIN,
+                               __SYCL_SWIZZLE_OPASSIGN_MIXIN,
+                               __SYCL_SWIZZLE_UOP_MIXIN)
+
+#undef __SYCL_SWIZZLE_UOP_MIXIN
+#undef __SYCL_SWIZZLE_OPASSIGN_MIXIN
+#undef __SYCL_SWIZZLE_BINOP_MIXIN
+
+  template <typename... Op>
+  struct __SYCL_EBO CombineImpl
+      : ApplyIf<is_op_available_for_type<Op, element_type>, OpMixin<Op>>... {};
+
+  template <typename _Self, typename = void>
+  struct CombinedImpl
+      : CombineImpl<std::plus<void>, std::minus<void>, std::multiplies<void>,
+                    std::divides<void>, std::modulus<void>, std::bit_and<void>,
+                    std::bit_or<void>, std::bit_xor<void>, std::equal_to<void>,
+                    std::not_equal_to<void>, std::less<void>,
+                    std::greater<void>, std::less_equal<void>,
+                    std::greater_equal<void>, std::logical_and<void>,
+                    std::logical_or<void>, ShiftLeft, ShiftRight,
+                    std::negate<void>, std::logical_not<void>,
+                    std::bit_not<void>, UnaryPlus> {};
+
+  template <typename _Self>
+  struct CombinedImpl<_Self,
+                      std::enable_if_t<from_incomplete<_Self>::is_assignable>>
+      : CombineImpl<std::plus<void>, std::minus<void>, std::multiplies<void>,
+                    std::divides<void>, std::modulus<void>, std::bit_and<void>,
+                    std::bit_or<void>, std::bit_xor<void>, std::equal_to<void>,
+                    std::not_equal_to<void>, std::less<void>,
+                    std::greater<void>, std::less_equal<void>,
+                    std::greater_equal<void>, std::logical_and<void>,
+                    std::logical_or<void>, ShiftLeft, ShiftRight,
+                    std::negate<void>, std::logical_not<void>,
+                    std::bit_not<void>, UnaryPlus, OpAssign<std::plus<void>>,
+                    OpAssign<std::minus<void>>, OpAssign<std::multiplies<void>>,
+                    OpAssign<std::divides<void>>, OpAssign<std::modulus<void>>,
+                    OpAssign<std::bit_and<void>>, OpAssign<std::bit_or<void>>,
+                    OpAssign<std::bit_xor<void>>, OpAssign<ShiftLeft>,
+                    OpAssign<ShiftRight>, IncDec> {};
+
+  using Combined = CombinedImpl<Self>;
+};
+#endif
+
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 template <typename DataT, int NumElements>
 class vec_arith : public VecOperators<vec<DataT, NumElements>>::Combined {};
 
@@ -427,6 +717,7 @@ protected:
   }
 };
 #endif // (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#endif
 
 #undef __SYCL_INSTANTIATE_OPERATORS
 

@@ -7,9 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clcmacro.h>
-#include <core/clc_core.h>
-#include <libspirv/spirv.h>
 #include <libspirv/ptx-nvidiacl/intrinsics.h>
+#include <libspirv/spirv.h>
 
 _CLC_OVERLOAD _CLC_DEF int __spirv_ocl_s_mul_hi(int x, int y) {
   return __nvvm_mulhi_i(x, y);

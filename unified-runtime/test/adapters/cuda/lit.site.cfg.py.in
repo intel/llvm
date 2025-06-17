@@ -1,0 +1,3 @@
+config.binary_dir = "@CMAKE_CURRENT_BINARY_DIR@"
+
+lit_config.load_config(config, "@CMAKE_CURRENT_SOURCE_DIR@/lit.cfg.py")

@@ -22,9 +22,7 @@ inline namespace _V1 {
 namespace detail {
 template <> struct KernelInfo<WorkGroupMemoryKernel> {
   static constexpr unsigned getNumParams() { return 1; }
-  static const detail::kernel_param_desc_t &getParamDesc(int) {
-    static detail::kernel_param_desc_t WorkGroupMemory = {
-        detail::kernel_param_kind_t::kind_work_group_memory, 0, 0};
+  static constexpr const detail::kernel_param_desc_t &getParamDesc(int) {
     return WorkGroupMemory;
   }
   static constexpr bool isESIMD() { return false; }
@@ -32,6 +30,10 @@ template <> struct KernelInfo<WorkGroupMemoryKernel> {
   static constexpr bool callsAnyThisFreeFunction() { return false; }
   static constexpr int64_t getKernelSize() { return sizeof(arg_type); }
   static constexpr const char *getName() { return "WorkGroupMemoryKernel"; }
+
+private:
+  static constexpr detail::kernel_param_desc_t WorkGroupMemory = {
+      detail::kernel_param_kind_t::kind_work_group_memory, 0, 0};
 };
 
 } // namespace detail

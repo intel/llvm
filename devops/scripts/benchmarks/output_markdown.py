@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import collections
-from benches.result import Result
+from utils.result import Result, BenchmarkMetadata
 from options import options, MarkdownSize
 import ast
 
@@ -79,7 +79,7 @@ def get_improved_regressed_summary(is_improved: bool, rows_count: int):
         "\n<details>\n"
         "<summary>\n"
         f"{title} {rows_count} "
-        f"(threshold {options.epsilon*100:.2f}%)\n"
+        f"(threshold {options.stddev_threshold*100:.2f}%)\n"
         "</summary>\n\n"
     )
 
@@ -113,13 +113,17 @@ def is_content_in_size_limit(content_size: int, current_markdown_size: int):
     return content_size <= get_available_markdown_size(current_markdown_size)
 
 
-def get_explicit_group_name(result: Result):
-    explicit_group_name = result.explicit_group
-
-    if explicit_group_name != "":
-        return explicit_group_name
-    else:
+def get_explicit_group_name(result: Result, metadata: dict[str, BenchmarkMetadata]):
+    explicit_group_name = ""
+    try:
+        explicit_group_name = metadata[result.label].explicit_group
+    except Exception as e:
+        print(
+            f"Warning: Unexpected error when getting explicit_group for '{result.label}': {e}"
+        )
         return "Other"
+
+    return explicit_group_name if explicit_group_name else "Other"
 
 
 # Function to generate the markdown collapsible sections for each variant
@@ -137,17 +141,6 @@ def generate_markdown_details(
     for res in results:
         env_dict = res.env
         command = res.command
-
-        # If data is collected from already saved results,
-        # the content is parsed as strings
-        if isinstance(res.env, str):
-            # Since the scripts would be used solely on data prepared
-            # by our scripts, this should be safe
-            # However, maybe needs an additional blessing
-            # https://docs.python.org/3/library/ast.html#ast.literal_eval
-            env_dict = ast.literal_eval(res.env)
-        if isinstance(res.command, str):
-            command = ast.literal_eval(res.command)
 
         section = (
             "\n<details>\n"
@@ -179,8 +172,11 @@ def generate_markdown_details(
             return "\nBenchmark details contain too many chars to display\n"
 
 
-def generate_summary_table_and_chart(
-    chart_data: dict[str, list[Result]], baseline_name: str, markdown_size: MarkdownSize
+def generate_summary_table(
+    chart_data: dict[str, list[Result]],
+    baseline_name: str,
+    markdown_size: MarkdownSize,
+    metadata: dict[str, BenchmarkMetadata],
 ):
     summary_table = get_chart_markdown_header(
         chart_data=chart_data, baseline_name=baseline_name
@@ -215,7 +211,7 @@ def generate_summary_table_and_chart(
         for key, res in results.items():
             if not are_suite_group_assigned:
                 oln.suite = res.suite
-                oln.explicit_group = get_explicit_group_name(res)
+                oln.explicit_group = get_explicit_group_name(res, metadata)
 
                 are_suite_group_assigned = True
 
@@ -276,7 +272,7 @@ def generate_summary_table_and_chart(
                 delta = oln.diff - 1
                 oln.row += f" {delta*100:.2f}%"
 
-                if abs(delta) > options.epsilon:
+                if abs(delta) > options.stddev_threshold:
                     if delta > 0:
                         improved_rows.append(oln.row + " | \n")
                     else:
@@ -374,11 +370,29 @@ def generate_summary_table_and_chart(
                 return "\n# Summary\n" "Benchmark output is too large to display\n\n"
 
 
+def generate_failures_section(failures: dict[str, str]) -> str:
+    if not failures:
+        return ""
+
+    section = "\n# Failures\n"
+    section += "| Name | Failure |\n"
+    section += "|---|---|\n"
+
+    for name, failure in failures.items():
+        section += f"| {name} | {failure} |\n"
+
+    return section
+
+
 def generate_markdown(
-    name: str, chart_data: dict[str, list[Result]], markdown_size: MarkdownSize
+    name: str,
+    chart_data: dict[str, list[Result]],
+    failures: dict[str, str],
+    markdown_size: MarkdownSize,
+    metadata: dict[str, BenchmarkMetadata],
 ):
-    (summary_line, summary_table) = generate_summary_table_and_chart(
-        chart_data, name, markdown_size
+    (summary_line, summary_table) = generate_summary_table(
+        chart_data, name, markdown_size, metadata
     )
 
     current_markdown_size = len(summary_line) + len(summary_table)
@@ -396,4 +410,6 @@ def generate_markdown(
         )
         generated_markdown += "\n# Details\n" f"{markdown_details}\n"
 
-    return generated_markdown
+    failures_section = generate_failures_section(failures)
+
+    return failures_section + generated_markdown

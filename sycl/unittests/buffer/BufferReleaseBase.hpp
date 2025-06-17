@@ -16,7 +16,6 @@
 #include <gtest/gtest.h>
 
 #include <detail/buffer_impl.hpp>
-#include <detail/global_handler.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <gmock/gmock.h>
 
@@ -27,11 +26,11 @@ public:
   MockCmdWithReleaseTracking(
       sycl::detail::QueueImplPtr Queue, sycl::detail::Requirement Req,
       sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
-      : MockCommand(Queue, Req, Type){};
+      : MockCommand(Queue.get(), Req, Type) {};
   MockCmdWithReleaseTracking(
       sycl::detail::QueueImplPtr Queue,
       sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
-      : MockCommand(Queue, Type){};
+      : MockCommand(Queue.get(), Type) {};
   ~MockCmdWithReleaseTracking() { Release(); }
   MOCK_METHOD0(Release, void());
 };

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "error_handling.hpp"
+#include "sycl/detail/common.hpp"
 
 #include <detail/adapter.hpp>
 #include <sycl/backend_types.hpp>
@@ -69,8 +70,7 @@ void handleOutOfResources(const device_impl &DeviceImpl,
   // Fallback
   constexpr ur_result_t Error = UR_RESULT_ERROR_OUT_OF_RESOURCES;
   throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                        "UR backend failed. UR backend returns:" +
-                            codeToString(Error));
+                        __SYCL_UR_ERROR_REPORT(Backend) + codeToString(Error));
 }
 
 void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
@@ -404,14 +404,6 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
   case UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE:
     return handleInvalidWorkGroupSize(DeviceImpl, Kernel, NDRDesc);
 
-  case UR_RESULT_ERROR_INVALID_KERNEL_ARGS:
-    throw detail::set_ur_error(
-        sycl::exception(
-            make_error_code(errc::kernel_argument),
-            "The kernel argument values have not been specified OR a kernel "
-            "argument declared to be a pointer to a type."),
-        UR_RESULT_ERROR_INVALID_KERNEL_ARGS);
-
   case UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE:
     return handleInvalidWorkItemSize(DeviceImpl, NDRDesc);
 
@@ -467,7 +459,8 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
   default:
     throw detail::set_ur_error(
         exception(make_error_code(errc::runtime),
-                  "UR error: " + sycl::detail::codeToString(Error)),
+                  __SYCL_UR_ERROR_REPORT(DeviceImpl.getBackend()) +
+                      sycl::detail::codeToString(Error)),
         Error);
   }
 }

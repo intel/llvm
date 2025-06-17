@@ -10,6 +10,7 @@
 #pragma once
 
 #include <cuda.h>
+#include <memory>
 #include <ur_api.h>
 
 #include <atomic>
@@ -17,6 +18,7 @@
 #include <set>
 #include <vector>
 
+#include "adapter.hpp"
 #include "common.hpp"
 #include "device.hpp"
 #include "umf_helpers.hpp"
@@ -76,39 +78,7 @@ typedef void (*ur_context_extended_deleter_t)(void *user_data);
 ///
 ///
 
-static ur_result_t
-CreateHostMemoryProviderPool(ur_device_handle_t_ *DeviceHandle,
-                             umf_memory_provider_handle_t *MemoryProviderHost,
-                             umf_memory_pool_handle_t *MemoryPoolHost) {
-
-  *MemoryProviderHost = nullptr;
-  CUcontext context = DeviceHandle->getNativeContext();
-
-  umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams = nullptr;
-  umf_result_t UmfResult =
-      umfCUDAMemoryProviderParamsCreate(&CUMemoryProviderParams);
-  UMF_RETURN_UR_ERROR(UmfResult);
-  OnScopeExit Cleanup(
-      [=]() { umfCUDAMemoryProviderParamsDestroy(CUMemoryProviderParams); });
-
-  UmfResult = umf::setCUMemoryProviderParams(
-      CUMemoryProviderParams, 0 /* cuDevice */, context, UMF_MEMORY_TYPE_HOST);
-  UMF_RETURN_UR_ERROR(UmfResult);
-
-  // create UMF CUDA memory provider and pool for the host memory
-  // (UMF_MEMORY_TYPE_HOST)
-  UmfResult = umfMemoryProviderCreate(
-      umfCUDAMemoryProviderOps(), CUMemoryProviderParams, MemoryProviderHost);
-  UMF_RETURN_UR_ERROR(UmfResult);
-
-  UmfResult = umfPoolCreate(umfProxyPoolOps(), *MemoryProviderHost, nullptr, 0,
-                            MemoryPoolHost);
-  UMF_RETURN_UR_ERROR(UmfResult);
-
-  return UR_RESULT_SUCCESS;
-}
-
-struct ur_context_handle_t_ {
+struct ur_context_handle_t_ : ur::cuda::handle_base {
 
   struct deleter_data {
     ur_context_extended_deleter_t Function;
@@ -126,16 +96,14 @@ struct ur_context_handle_t_ {
   umf_memory_pool_handle_t MemoryPoolHost = nullptr;
 
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
-      : Devices{Devs, Devs + NumDevices}, RefCount{1} {
-    for (auto &Dev : Devices) {
-      urDeviceRetain(Dev);
-    }
-
+      : handle_base(), Devices{Devs, Devs + NumDevices}, RefCount{1} {
     // Create UMF CUDA memory provider for the host memory
     // (UMF_MEMORY_TYPE_HOST) from any device (Devices[0] is used here, because
     // it is guaranteed to exist).
-    UR_CHECK_ERROR(CreateHostMemoryProviderPool(Devices[0], &MemoryProviderHost,
-                                                &MemoryPoolHost));
+    UR_CHECK_ERROR(umf::CreateProviderPool(
+        0, Devices[0]->getNativeContext(), UMF_MEMORY_TYPE_HOST,
+        &MemoryProviderHost, &MemoryPoolHost));
+    UR_CHECK_ERROR(urAdapterRetain(ur::cuda::adapter));
   };
 
   ~ur_context_handle_t_() {
@@ -145,9 +113,7 @@ struct ur_context_handle_t_ {
     if (MemoryProviderHost) {
       umfMemoryProviderDestroy(MemoryProviderHost);
     }
-    for (auto &Dev : Devices) {
-      urDeviceRelease(Dev);
-    }
+    UR_CHECK_ERROR(urAdapterRelease(ur::cuda::adapter));
   }
 
   void invokeExtendedDeleters() {

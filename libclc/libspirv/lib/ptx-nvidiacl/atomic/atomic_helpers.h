@@ -83,14 +83,10 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(int, int);
     __asm__ __volatile__("fence.sc.cta;");                                     \
   }
 
-#define __CLC_NVVM_ATOMIC_IMPL(                                                \
-    TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP, NAME_MANGLED,            \
-    ADDR_SPACE, POINTER_AND_ADDR_SPACE_MANGLED, ADDR_SPACE_NV, SUBSTITUTION)   \
-  __attribute__((always_inline)) _CLC_DECL TYPE                                \
-      NAME_MANGLED##POINTER_AND_ADDR_SPACE_MANGLED##TYPE_MANGLED##N5__spv\
-5Scope4FlagENS##SUBSTITUTION##_19MemorySemanticsMask4FlagE##TYPE_MANGLED(      \
-          volatile ADDR_SPACE TYPE *pointer, enum Scope scope,                 \
-          enum MemorySemanticsMask semantics, TYPE value) {                    \
+#define __CLC_NVVM_ATOMIC_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP, NAME,       \
+                               ADDR_SPACE, ADDR_SPACE_NV)                      \
+  __attribute__((always_inline)) _CLC_OVERLOAD _CLC_DECL TYPE NAME(            \
+      ADDR_SPACE TYPE *pointer, int scope, int semantics, TYPE value) {        \
     /* Semantics mask may include memory order, storage class and other info   \
 Memory order is stored in the lowest 5 bits */                                 \
     unsigned int order = semantics & 0x1F;                                     \
@@ -140,12 +136,10 @@ Memory order is stored in the lowest 5 bits */                                 \
     __builtin_unreachable();                                                   \
   }
 
-#define __CLC_NVVM_ATOMIC(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP,    \
-                          NAME_MANGLED)                                        \
-  __CLC_NVVM_ATOMIC_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP,     \
-                         NAME_MANGLED, __global, PU3AS1, _global_, 1)          \
-  __CLC_NVVM_ATOMIC_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP,     \
-                         NAME_MANGLED, __local, PU3AS3, _shared_, 1)           \
-  __CLC_NVVM_ATOMIC_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP,     \
-                         NAME_MANGLED, , P, _gen_, 0)
+#define __CLC_NVVM_ATOMIC(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP, NAME)            \
+  __CLC_NVVM_ATOMIC_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP, NAME, __global,   \
+                         _global_)                                             \
+  __CLC_NVVM_ATOMIC_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP, NAME, __local,    \
+                         _shared_)                                             \
+  __CLC_NVVM_ATOMIC_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP, NAME, , _gen_)
 #endif

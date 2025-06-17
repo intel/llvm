@@ -14,12 +14,12 @@
 /// metrics and events.
 
 #include "xpti/xpti_trace_framework.hpp"
-#include "hash_table7.hpp"
 #include "parallel_hashmap/phmap.h"
 #include "xpti/xpti_trace_framework.h"
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_object_table.hpp"
 #include "xpti_string_table.hpp"
+#include <emhash/hash_table7.hpp>
 
 #include <algorithm>
 #include <array>
@@ -82,7 +82,15 @@ static thread_local xpti_tracepoint_t *g_tls_tracepoint_scope_data;
 /// Default stream for the trace framework, if none is provided by the user.
 constexpr const char *g_default_stream = "xpti.framework";
 
+/// @brief Flag to ensure the default stream is initialized only once.
+/// @details Used with `std::call_once` to initialize the default stream in a
+/// thread-safe manner.
 static std::once_flag g_initialize_default_stream_flag;
+
+/// @brief Flag to ensure the default stream is finalized only once.
+/// @details Used with `std::call_once` to finalize the default stream in a
+/// thread-safe manner.
+static std::once_flag g_finalize_default_stream_flag;
 
 namespace xpti {
 /// @var env_subscribers
@@ -196,9 +204,9 @@ struct TracePointImpl : xpti_payload_t,
   /// @brief Event data for the trace point.
   xpti::trace_event_data_t MEvent;
   /// @brief Cached Function string ID for the trace point.
-  int32_t MFuncID = xpti::invalid_id;
+  int32_t MFuncID = xpti::invalid_id<>;
   /// @brief Cached File string ID for the trace point.
-  int32_t MFileID = xpti::invalid_id;
+  int32_t MFileID = xpti::invalid_id<>;
   /// @brief Iterator for the metadata associated with the trace point.
   xpti::metadata_t::iterator MCurr;
 
@@ -936,7 +944,7 @@ public:
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
     string_id_t KeyID = MStringTableRef.add(Key);
-    if (KeyID == xpti::invalid_id) {
+    if (KeyID == xpti::invalid_id<string_id_t>) {
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
     }
 
@@ -1379,7 +1387,7 @@ public:
   /// @brief Maps a trace type to its associated callback entries.
   /// @details This unordered map uses a uint16_t as the key to represent the
   /// trace point type, and cb_entries_t to store the associated callbacks.
-  using cb_t = std::unordered_map<uint16_t, cb_entries_t>;
+  using cb_t = emhash7::HashMap<uint16_t, cb_entries_t>;
 
   /// @typedef stream_cb_t
   /// @brief Maps a stream ID to its corresponding callbacks for different
@@ -1387,7 +1395,7 @@ public:
   /// @details This unordered map uses a uint16_t as the key for the stream
   /// ID, and cb_t to map the stream to registered callbacks for each trace
   /// type
-  using stream_cb_t = std::unordered_map<uint16_t, cb_t>;
+  using stream_cb_t = emhash7::HashMap<uint16_t, cb_t>;
 
   /// @typedef statistics_t
   /// @brief Keeps track of statistics, typically counts, associated with
@@ -1396,13 +1404,13 @@ public:
   /// the type of statistical data and usually not defined by default. To
   /// enable it, XPTI_STATISTICS has to be defined while compiling the
   /// frmaework library.
-  using statistics_t = std::unordered_map<uint16_t, uint64_t>;
+  using statistics_t = emhash7::HashMap<uint16_t, uint64_t>;
   /// @typedef trace_flags_t
   /// @brief Maps an trace type to a boolean flag indicating its state.
   /// @details This unordered map uses a uint16_t as the key for the trace
   /// type, and a boolean value to indicate whether callbacks are registered
   /// for this trace type (e.g., registered or unregisterted/no callback).
-  using trace_flags_t = std::unordered_map<uint16_t, bool>;
+  using trace_flags_t = emhash7::HashMap<uint16_t, bool>;
 
   /// @typedef stream_flags_t
   /// @brief Maps a stream ID to its corresponding trace flags for different
@@ -1411,7 +1419,7 @@ public:
   /// and trace_flags_t to map the trace type to their boolean that indiciates
   /// whether a callback has been registered for this trace type in the given
   /// stream.
-  using stream_flags_t = std::unordered_map<uint8_t, trace_flags_t>;
+  using stream_flags_t = emhash7::HashMap<uint8_t, trace_flags_t>;
 
   /// @brief Registers a callback function for a specific trace type and stream
   /// ID.
@@ -2107,7 +2115,7 @@ public:
 
   string_id_t registerString(const char *String, char **TableString) {
     if (!TableString || !String)
-      return xpti::invalid_id;
+      return xpti::invalid_id<string_id_t>;
 
     *TableString = 0;
 
@@ -2126,7 +2134,7 @@ public:
 
   object_id_t registerObject(const char *Object, size_t Size, uint8_t Type) {
     if (!Object)
-      return xpti::invalid_id;
+      return xpti::invalid_id<object_id_t>;
 
     return MObjectTable.insert(std::string_view(Object, Size), Type);
   }
@@ -2290,6 +2298,9 @@ public:
   }
 
   static Framework &instance() {
+    // Using std::call_once has the same overhead as the original approach
+    // std::call_once(g_initialize_framework_flag,
+    //               [&]() { MInstance = new Framework(); });
     Framework *TmpFramework = MInstance.load(std::memory_order_relaxed);
     std::atomic_thread_fence(std::memory_order_acquire);
     if (TmpFramework == nullptr) {
@@ -2309,6 +2320,11 @@ private:
   friend void ::xptiFrameworkFinalize();
 
   static void release() {
+    // Using std::call_once has the same overhead as the original approach
+    // std::call_once(g_release_framework_flag, [&]() {
+    //   delete MInstance;
+    //   MInstance = nullptr;
+    // });
     Framework *TmpFramework = MInstance.load(std::memory_order_relaxed);
     MInstance.store(nullptr, std::memory_order_relaxed);
     delete TmpFramework;
@@ -2482,7 +2498,10 @@ XPTI_EXPORT_API xpti::result_t xptiInitialize(const char *Stream, uint32_t maj,
 /// when the stream is no longer in use.
 
 XPTI_EXPORT_API void xptiFinalize(const char *Stream) {
-  xpti::Framework::instance().finalizeStream(Stream);
+  auto &FW = xpti::Framework::instance();
+  std::call_once(g_finalize_default_stream_flag,
+                 [&]() { FW.finalizeStream(g_default_stream); });
+  FW.finalizeStream(Stream);
 }
 
 /// @brief Retrieves the 64-bit universal ID for the current scope, if published

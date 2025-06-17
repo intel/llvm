@@ -7,16 +7,16 @@
 // CHECK-NEXT: accessor.hpp
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
-// CHECK-NEXT: __spirv/spirv_ops.hpp
+// CHECK-NEXT: atomic.hpp
 // CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp
-// CHECK-NEXT: detail/export.hpp
-// CHECK-NEXT: atomic.hpp
 // CHECK-NEXT: detail/helpers.hpp
+// CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: aliases.hpp
+// CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-NEXT: detail/type_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: half_type.hpp
@@ -82,9 +82,6 @@
 // CHECK-NEXT: info/ext_oneapi_device_traits.def
 // CHECK-NEXT: info/ext_oneapi_kernel_queue_specific_traits.def
 // CHECK-NEXT: info/sycl_backend_traits.def
-// CHECK-NEXT: platform.hpp
-// CHECK-NEXT: detail/string_view.hpp
-// CHECK-NEXT: detail/util.hpp
-// CHECK-NEXT: device_selector.hpp
+// CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
 // CHECK-EMPTY:

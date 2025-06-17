@@ -43,7 +43,7 @@ int group_imul_khr(short a) {
   return __spirv_GroupIMulKHR(2, 0, a);
 }
 
-bool group_bitwise_or_khr(long a) {
+long group_bitwise_or_khr(long a) {
   // CHECK-LABEL: @group_bitwise_or_khr(
   // CHECK: call spir_func i64 @_Z25__spirv_GroupBitwiseOrKHRiil(
   return __spirv_GroupBitwiseOrKHR(2, 0, a);
@@ -67,8 +67,8 @@ float group_fmax(float a) {
   return __spirv_GroupFMax(2, 2, a);
 }
 
-float group_ful_khr(float a) {
-  // CHECK-LABEL: @group_ful_khr(
+float group_fmul_khr(float a) {
+  // CHECK-LABEL: @group_fmul_khr(
   // CHECK: call spir_func float @_Z20__spirv_GroupFMulKHRiif(
   return __spirv_GroupFMulKHR(2, 2, a);
 }

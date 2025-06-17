@@ -100,6 +100,8 @@ TEST_P(urMemBufferPartitionTest, InvalidBufferSize) {
 
 TEST_P(urMemBufferPartitionTest, InvalidValueCreateType) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::NativeCPU{});
+  // Seems to report "success"
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{"gfx1100"});
 
   // create a read only buffer
   uur::raii::Mem ro_buffer = nullptr;

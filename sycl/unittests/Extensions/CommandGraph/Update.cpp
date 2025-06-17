@@ -26,18 +26,30 @@ TEST_F(CommandGraphTest, UpdatableException) {
   EXPECT_ANY_THROW(ExecGraphNoUpdatable.update(Node));
 }
 
-TEST_F(CommandGraphTest, DynamicParamRegister) {
-  // Check that registering a dynamic param with a node from a graph that was
-  // not passed to its constructor throws.
-  experimental::dynamic_parameter DynamicParam(Graph, int{});
+TEST_F(CommandGraphTest, DynamicObjRegister) {
+  // Check that registering a dynamic object with a node from a graph that was
+  // not passed to its constructor does not throw.
 
-  auto OtherGraph =
-      experimental::command_graph(Queue.get_context(), Queue.get_device());
-  auto Node = OtherGraph.add([&](sycl::handler &cgh) {
-    // This should throw since OtherGraph is not associated with DynamicParam
-    EXPECT_ANY_THROW(cgh.set_arg(0, DynamicParam));
-    cgh.single_task<TestKernel<>>([]() {});
-  });
+  auto CheckRegisterWrongGraph = [&](auto &DynObj) {
+    auto OtherGraph =
+        experimental::command_graph(Queue.get_context(), Queue.get_device());
+    auto Node = OtherGraph.add([&](sycl::handler &cgh) {
+      // This should not throw
+      EXPECT_NO_THROW(cgh.set_arg(0, DynObj));
+      cgh.single_task<TestKernel<>>([]() {});
+    });
+  };
+
+  // TODO: Update test when deprecated constructors that take a graph have been
+  // removed.
+  experimental::dynamic_parameter DynamicParam{Graph, int{}};
+  ASSERT_NO_FATAL_FAILURE(CheckRegisterWrongGraph(DynamicParam));
+
+  experimental::dynamic_work_group_memory<int[]> DynamicWorkGroupMem{Graph, 1};
+  ASSERT_NO_FATAL_FAILURE(CheckRegisterWrongGraph(DynamicWorkGroupMem));
+
+  experimental::dynamic_local_accessor<int, 1> DynamicLocalAcc{Graph, 1};
+  ASSERT_NO_FATAL_FAILURE(CheckRegisterWrongGraph(DynamicLocalAcc));
 }
 
 TEST_F(CommandGraphTest, UpdateNodeNotInGraph) {
@@ -65,73 +77,83 @@ TEST_F(CommandGraphTest, UpdateWithUnchangedNode) {
 }
 
 TEST_F(CommandGraphTest, UpdateNodeTypeExceptions) {
-  // Check that registering a dynamic parameter with various node types either
+  // Check that registering a dynamic object with various node types either
   // throws or does not throw as appropriate
 
-  // Allocate some pointers for memory nodes
-  int *PtrA = malloc_device<int>(16, Queue);
-  int *PtrB = malloc_device<int>(16, Queue);
+  auto CheckNodeCompatibility = [&](auto &DynObj) {
+    // Allocate some pointers for memory nodes
+    int *PtrA = malloc_device<int>(16, Queue);
+    int *PtrB = malloc_device<int>(16, Queue);
+
+    ASSERT_NO_THROW(auto NodeKernel = Graph.add([&](sycl::handler &cgh) {
+      cgh.set_arg(0, DynObj);
+      cgh.single_task<TestKernel<>>([]() {});
+    }));
+
+    ASSERT_ANY_THROW(auto NodeMemcpy = Graph.add([&](sycl::handler &cgh) {
+      cgh.set_arg(0, DynObj);
+      cgh.memcpy(PtrA, PtrB, 16 * sizeof(int));
+    }));
+
+    ASSERT_ANY_THROW(auto NodeMemset = Graph.add([&](sycl::handler &cgh) {
+      cgh.set_arg(0, DynObj);
+      cgh.memset(PtrB, 7, 16 * sizeof(int));
+    }));
+
+    ASSERT_ANY_THROW(auto NodeMemfill = Graph.add([&](sycl::handler &cgh) {
+      cgh.set_arg(0, DynObj);
+      cgh.fill(PtrB, 7, 16);
+    }));
+
+    ASSERT_ANY_THROW(auto NodePrefetch = Graph.add([&](sycl::handler &cgh) {
+      cgh.set_arg(0, DynObj);
+      cgh.prefetch(PtrA, 16 * sizeof(int));
+    }));
+
+    ASSERT_ANY_THROW(auto NodeMemadvise = Graph.add([&](sycl::handler &cgh) {
+      cgh.set_arg(0, DynObj);
+      cgh.mem_advise(PtrA, 16 * sizeof(int), 1);
+    }));
+
+    ASSERT_ANY_THROW(auto NodeHostTask = Graph.add([&](sycl::handler &cgh) {
+      cgh.set_arg(0, DynObj);
+      cgh.host_task([]() {});
+    }));
+
+    ASSERT_ANY_THROW(auto NodeBarreriTask = Graph.add([&](sycl::handler &cgh) {
+      cgh.set_arg(0, DynObj);
+      cgh.ext_oneapi_barrier();
+    }));
+
+    Graph.begin_recording(Queue);
+    ASSERT_ANY_THROW(auto NodeBarrierTask = Graph.add([&](sycl::handler &cgh) {
+      cgh.set_arg(0, DynObj);
+      cgh.ext_oneapi_barrier();
+    }));
+    Graph.end_recording(Queue);
+
+    auto NodeEmpty = Graph.add();
+
+    experimental::command_graph Subgraph(Queue.get_context(),
+                                         Queue.get_device());
+    // Add an empty node to the subgraph
+    Subgraph.add();
+
+    auto SubgraphExec = Subgraph.finalize();
+    ASSERT_ANY_THROW(auto NodeSubgraph = Graph.add([&](sycl::handler &cgh) {
+      cgh.set_arg(0, DynObj);
+      cgh.ext_oneapi_graph(SubgraphExec);
+    }));
+  };
 
   experimental::dynamic_parameter DynamicParam{Graph, int{}};
+  ASSERT_NO_FATAL_FAILURE(CheckNodeCompatibility(DynamicParam));
 
-  ASSERT_NO_THROW(auto NodeKernel = Graph.add([&](sycl::handler &cgh) {
-    cgh.set_arg(0, DynamicParam);
-    cgh.single_task<TestKernel<>>([]() {});
-  }));
+  experimental::dynamic_work_group_memory<int[]> DynamicWorkGroupMem{Graph, 1};
+  ASSERT_NO_FATAL_FAILURE(CheckNodeCompatibility(DynamicWorkGroupMem));
 
-  ASSERT_ANY_THROW(auto NodeMemcpy = Graph.add([&](sycl::handler &cgh) {
-    cgh.set_arg(0, DynamicParam);
-    cgh.memcpy(PtrA, PtrB, 16 * sizeof(int));
-  }));
-
-  ASSERT_ANY_THROW(auto NodeMemset = Graph.add([&](sycl::handler &cgh) {
-    cgh.set_arg(0, DynamicParam);
-    cgh.memset(PtrB, 7, 16 * sizeof(int));
-  }));
-
-  ASSERT_ANY_THROW(auto NodeMemfill = Graph.add([&](sycl::handler &cgh) {
-    cgh.set_arg(0, DynamicParam);
-    cgh.fill(PtrB, 7, 16);
-  }));
-
-  ASSERT_ANY_THROW(auto NodePrefetch = Graph.add([&](sycl::handler &cgh) {
-    cgh.set_arg(0, DynamicParam);
-    cgh.prefetch(PtrA, 16 * sizeof(int));
-  }));
-
-  ASSERT_ANY_THROW(auto NodeMemadvise = Graph.add([&](sycl::handler &cgh) {
-    cgh.set_arg(0, DynamicParam);
-    cgh.mem_advise(PtrA, 16 * sizeof(int), 1);
-  }));
-
-  ASSERT_ANY_THROW(auto NodeHostTask = Graph.add([&](sycl::handler &cgh) {
-    cgh.set_arg(0, DynamicParam);
-    cgh.host_task([]() {});
-  }));
-
-  ASSERT_ANY_THROW(auto NodeBarreriTask = Graph.add([&](sycl::handler &cgh) {
-    cgh.set_arg(0, DynamicParam);
-    cgh.ext_oneapi_barrier();
-  }));
-
-  Graph.begin_recording(Queue);
-  ASSERT_ANY_THROW(auto NodeBarrierTask = Graph.add([&](sycl::handler &cgh) {
-    cgh.set_arg(0, DynamicParam);
-    cgh.ext_oneapi_barrier();
-  }));
-  Graph.end_recording(Queue);
-
-  auto NodeEmpty = Graph.add();
-
-  experimental::command_graph Subgraph(Queue.get_context(), Dev);
-  // Add an empty node to the subgraph
-  Subgraph.add();
-
-  auto SubgraphExec = Subgraph.finalize();
-  ASSERT_ANY_THROW(auto NodeSubgraph = Graph.add([&](sycl::handler &cgh) {
-    cgh.set_arg(0, DynamicParam);
-    cgh.ext_oneapi_graph(SubgraphExec);
-  }));
+  experimental::dynamic_local_accessor<int, 1> DynamicLocalAcc{Graph, 1};
+  ASSERT_NO_FATAL_FAILURE(CheckNodeCompatibility(DynamicLocalAcc));
 }
 
 TEST_F(CommandGraphTest, UpdateRangeErrors) {
@@ -325,7 +347,7 @@ TEST_F(WholeGraphUpdateTest, UnsupportedNodeType) {
       EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
   auto UpdateNodeC = UpdateGraph.add(
       EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
-  auto UpdateNodeD = Graph.add(
+  auto UpdateNodeD = UpdateGraph.add(
       [&](handler &CGH) {
         auto Acc = Buffer.get_access(CGH);
         CGH.fill(Acc, 1);

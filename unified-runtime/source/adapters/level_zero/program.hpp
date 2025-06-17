@@ -12,7 +12,7 @@
 #include "common.hpp"
 #include "device.hpp"
 
-struct ur_program_handle_t_ : _ur_object {
+struct ur_program_handle_t_ : ur_object {
   // ur_program_handle_t_() {}
 
   typedef enum {
@@ -41,6 +41,12 @@ struct ur_program_handle_t_ : _ur_object {
     Invalid
   } state;
 
+  enum class CodeFormat : uint8_t {
+    Native,
+    SPIRV,
+    Unknown,
+  };
+
   // A utility class that converts specialization constants into the form
   // required by the Level Zero driver.
   class SpecConstantShim {
@@ -68,7 +74,7 @@ struct ur_program_handle_t_ : _ur_object {
 
   // Construct a program in IL.
   ur_program_handle_t_(state St, ur_context_handle_t Context, const void *Input,
-                       size_t Length);
+                       size_t Length, CodeFormat Format);
 
   // Construct a program in NATIVE for multiple devices.
   ur_program_handle_t_(state St, ur_context_handle_t Context,
@@ -113,28 +119,42 @@ struct ur_program_handle_t_ : _ur_object {
     return DeviceDataMap[ZeDevice].ZeModule;
   }
 
+  CodeFormat getCodeFormat(ze_device_handle_t ZeDevice = nullptr) const {
+    if (!ZeDevice)
+      return ILCodeFormat;
+
+    auto It = DeviceDataMap.find(ZeDevice);
+    if (It == DeviceDataMap.end())
+      return ILCodeFormat;
+
+    if (It->second.State == state::IL)
+      return ILCodeFormat;
+    else
+      return CodeFormat::Native;
+  }
+
   uint8_t *getCode(ze_device_handle_t ZeDevice = nullptr) {
     if (!ZeDevice)
-      return SpirvCode.get();
+      return ILCode.get();
 
     if (DeviceDataMap.find(ZeDevice) == DeviceDataMap.end())
       return nullptr;
 
     if (DeviceDataMap[ZeDevice].State == state::IL)
-      return SpirvCode.get();
+      return ILCode.get();
     else
       return DeviceDataMap[ZeDevice].Binary.first.get();
   }
 
   size_t getCodeSize(ze_device_handle_t ZeDevice = nullptr) {
     if (ZeDevice == nullptr)
-      return SpirvCodeLength;
+      return ILCodeLength;
 
     if (DeviceDataMap.find(ZeDevice) == DeviceDataMap.end())
       return 0;
 
     if (DeviceDataMap[ZeDevice].State == state::IL)
-      return SpirvCodeLength;
+      return ILCodeLength;
     else
       return DeviceDataMap[ZeDevice].Binary.second;
   }
@@ -233,8 +253,9 @@ private:
 
   // In IL and Object states, this contains the SPIR-V representation of the
   // module.
-  std::unique_ptr<uint8_t[]> SpirvCode; // Array containing raw IL code.
-  size_t SpirvCodeLength = 0;           // Size (bytes) of the array.
+  std::unique_ptr<uint8_t[]> ILCode; // Array containing raw IL code.
+  size_t ILCodeLength = 0;           // Size (bytes) of the array.
+  CodeFormat ILCodeFormat = CodeFormat::Unknown; // Format of the IL code.
 
   // The Level Zero module handle for interoperability.
   // This module handle is either initialized with the handle provided to

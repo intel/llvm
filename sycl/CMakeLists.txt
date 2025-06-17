@@ -82,6 +82,7 @@ if(MSVC)
   endif()
 endif()
 
+include(FetchEmhash)
 include(FetchUnifiedRuntime)
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
@@ -108,15 +109,12 @@ define_property(GLOBAL PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
 if (MSVC)
   set(CMAKE_CXX_FLAGS "/W4 ${CMAKE_CXX_FLAGS}")
 else ()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-deprecated-declarations")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 endif()
 
 if(SYCL_ENABLE_WERROR)
   if(MSVC)
     set(CMAKE_CXX_FLAGS "/WX ${CMAKE_CXX_FLAGS}")
-    add_definitions(
-      -wd4996 # Suppress 'function': was declared deprecated'
-    )
   else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
   endif()
@@ -216,9 +214,6 @@ install(FILES
   DESTINATION "${SYCL_INCLUDE_DIR}/sycl"
   COMPONENT sycl-headers)
 
-include(AddBoostMp11Headers)
-include(FetchBoostUnorderedHeaders)
-
 # This is workaround to detect changes (add or modify) in subtree which
 # are not detected by copy_directory command.
 # TODO: detect and process remove header/directory case
@@ -253,7 +248,7 @@ add_custom_target(sycl-headers
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
           ${OUT_UR_HEADERS}
           sycl-device-aspect-macros-header
-          boost_mp11-headers)
+          )
 
 add_custom_command(
   OUTPUT  ${OUT_HEADERS_IN_SYCL_DIR}
@@ -278,7 +273,6 @@ add_custom_command(
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/ COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(DIRECTORY ${BOOST_MP11_DESTINATION_DIR} DESTINATION ${SYCL_INCLUDE_DIR}/sycl/detail COMPONENT boost_mp11-headers)
 install(DIRECTORY "${sycl_inc_dir}/syclcompat" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${sycl_inc_dir}/syclcompat.hpp" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}
@@ -362,6 +356,12 @@ if (NOT WIN32)
     COMPONENT sycl-headers-extras)
 endif()
 
+if(SYCL_ENABLE_XPTI_TRACING AND
+    DEFINED LLVM_EXTERNAL_PROJECTS AND
+    (NOT "xpti" IN_LIST LLVM_EXTERNAL_PROJECTS OR NOT "xptifw" IN_LIST LLVM_EXTERNAL_PROJECTS))
+  message(FATAL_ERROR "SYCL_ENABLE_XPTI_TRACING=ON but XPTI is not going to be built")
+endif()
+
 if (SYCL_ENABLE_XPTI_TRACING)
   if (MSVC)
     set(XPTIFW_LIBS xpti xptid xptifw xptifwd)
@@ -405,7 +405,7 @@ add_custom_target( sycl-toolchain ALL
 )
 
 if (WIN32)
-  add_dependencies(sycl-toolchain ur_win_proxy_loader)
+  add_dependencies(sycl-toolchain ur_win_proxy_loader unified-runtimed-build)
 endif()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -455,7 +455,6 @@ get_property(SYCL_TOOLCHAIN_DEPS GLOBAL PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONEN
 # Listed here are component names contributing the package
 set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      append-file
-     boost_mp11-headers
      clang
      clang-offload-wrapper
      clang-offload-bundler
@@ -546,6 +545,11 @@ if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
 
   add_dependencies(sycl-toolchain ur_adapter_hip)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_hip)
+endif()
+
+if(SYCL_INSTALL_DEVICE_CONFIG_FILE)
+  add_dependencies(sycl-toolchain DeviceConfigFile)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS DeviceConfigFile)
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.

@@ -14,14 +14,14 @@
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_atanpi(float x) {
   const float pi = 3.1415926535897932f;
 
-  uint ux = as_uint(x);
+  uint ux = __clc_as_uint(x);
   uint aux = ux & EXSIGNBIT_SP32;
   uint sx = ux ^ aux;
 
   float xbypi = MATH_DIVIDE(x, pi);
-  float shalf = as_float(sx | as_uint(0.5f));
+  float shalf = __clc_as_float(sx | __clc_as_uint(0.5f));
 
-  float v = as_float(aux);
+  float v = __clc_as_float(aux);
 
   // Return for NaN
   float ret = x;
@@ -77,7 +77,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_atanpi(float x) {
 
   float z = c - (q - x);
   z = MATH_DIVIDE(z, pi);
-  float zs = as_float(sx | as_uint(z));
+  float zs = __clc_as_float(sx | __clc_as_uint(z));
 
   ret = aux < 0x4c800000 ? zs : ret;
 
