@@ -350,6 +350,7 @@ TEST(GetProfilingInfo, check_command_submission_time_with_host_accessor) {
 // enabled.
 TEST(GetProfilingInfo, check_host_task_profiling_info) {
   using namespace sycl;
+  [[maybe_unused]] unittest::UrMock<> Mock;
   queue Queue;
   event E = Queue.submit([&](handler &cgh) { cgh.host_task([]() {}); });
 
