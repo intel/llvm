@@ -9,7 +9,6 @@
 
 #include "atomic.hpp"
 #include "spir_global_var.hpp"
-
 #include <cstdint>
 
 using uptr = uintptr_t;

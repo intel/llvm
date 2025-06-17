@@ -20,14 +20,45 @@
 namespace ur_sanitizer_layer {
 namespace msan {
 
-#define CPU_SHADOW1_BEGIN 0x010000000000ULL
-#define CPU_SHADOW1_END 0x100000000000ULL
-#define CPU_SHADOW2_BEGIN 0x200000000000ULL
-#define CPU_SHADOW2_END 0x300000000000ULL
-#define CPU_SHADOW3_BEGIN 0x500000000000ULL
-#define CPU_SHADOW3_END 0x510000000000ULL
+namespace {
 
-#define CPU_SHADOW_MASK 0x500000000000ULL
+//
+// The CPU part of shadow mapping is based on llvm/compiler-rt/lib/msan/msan.h
+//
+struct MappingDesc {
+  uptr start;
+  uptr end;
+  enum Type {
+    INVALID = 1,
+    ALLOCATOR = 2,
+    APP = 4,
+    SHADOW = 8,
+    ORIGIN = 16,
+  } type;
+  const char *name;
+};
+
+const MappingDesc kMemoryLayout[] = {
+    {0x000000000000ULL, 0x010000000000ULL, MappingDesc::APP, "app-1"},
+    {0x010000000000ULL, 0x100000000000ULL, MappingDesc::SHADOW, "shadow-2"},
+    {0x100000000000ULL, 0x110000000000ULL, MappingDesc::INVALID, "invalid"},
+    {0x110000000000ULL, 0x200000000000ULL, MappingDesc::ORIGIN, "origin-2"},
+    {0x200000000000ULL, 0x300000000000ULL, MappingDesc::SHADOW, "shadow-3"},
+    {0x300000000000ULL, 0x400000000000ULL, MappingDesc::ORIGIN, "origin-3"},
+    {0x400000000000ULL, 0x500000000000ULL, MappingDesc::INVALID, "invalid"},
+    {0x500000000000ULL, 0x510000000000ULL, MappingDesc::SHADOW, "shadow-1"},
+    {0x510000000000ULL, 0x600000000000ULL, MappingDesc::APP, "app-2"},
+    {0x600000000000ULL, 0x610000000000ULL, MappingDesc::ORIGIN, "origin-1"},
+    {0x610000000000ULL, 0x700000000000ULL, MappingDesc::INVALID, "invalid"},
+    {0x700000000000ULL, 0x740000000000ULL, MappingDesc::ALLOCATOR, "allocator"},
+    {0x740000000000ULL, 0x800000000000ULL, MappingDesc::APP, "app-3"}};
+
+const uptr kMemoryLayoutSize = sizeof(kMemoryLayout) / sizeof(kMemoryLayout[0]);
+
+#define MEM_TO_SHADOW(mem) (((uptr)(mem)) ^ 0x500000000000ULL)
+#define SHADOW_TO_ORIGIN(mem) (((uptr)(mem)) + 0x100000000000ULL)
+
+} // namespace
 
 std::shared_ptr<MsanShadowMemory>
 GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
@@ -52,29 +83,30 @@ GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
 
 ur_result_t MsanShadowMemoryCPU::Setup() {
   static ur_result_t Result = [this]() {
-    if (MmapFixedNoReserve(CPU_SHADOW1_BEGIN,
-                           CPU_SHADOW1_END - CPU_SHADOW1_BEGIN) == 0) {
-      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
+      uptr Start = kMemoryLayout[i].start;
+      uptr End = kMemoryLayout[i].end;
+      uptr Size = End - Start;
+      MappingDesc::Type Type = kMemoryLayout[i].type;
+      bool InitOrigins = true;
+
+      bool IsMap = Type == MappingDesc::SHADOW ||
+                   (InitOrigins && Type == MappingDesc::ORIGIN);
+      bool IsProtect = Type == MappingDesc::INVALID ||
+                       (!InitOrigins && Type == MappingDesc::ORIGIN);
+
+      if (IsMap) {
+        if (MmapFixedNoReserve(Start, Size) == 0) {
+          return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+        }
+        DontCoredumpRange(Start, Size);
+      }
+      if (IsProtect) {
+        if (ProtectMemoryRange(Start, Size) == 0) {
+          return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+        }
+      }
     }
-    if (ProtectMemoryRange(CPU_SHADOW1_END,
-                           CPU_SHADOW2_BEGIN - CPU_SHADOW1_END) == 0) {
-      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-    if (MmapFixedNoReserve(CPU_SHADOW2_BEGIN,
-                           CPU_SHADOW2_END - CPU_SHADOW2_BEGIN) == 0) {
-      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-    if (ProtectMemoryRange(CPU_SHADOW2_END,
-                           CPU_SHADOW3_BEGIN - CPU_SHADOW2_END) == 0) {
-      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-    if (MmapFixedNoReserve(CPU_SHADOW3_BEGIN,
-                           CPU_SHADOW3_END - CPU_SHADOW3_BEGIN) == 0) {
-      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-    ShadowBegin = CPU_SHADOW1_BEGIN;
-    ShadowEnd = CPU_SHADOW3_END;
-    DontCoredumpRange(ShadowBegin, ShadowEnd - ShadowBegin);
     return UR_RESULT_SUCCESS;
   }();
   return Result;
@@ -85,20 +117,19 @@ ur_result_t MsanShadowMemoryCPU::Destory() {
     return UR_RESULT_SUCCESS;
   }
   static ur_result_t Result = [this]() {
-    if (!Munmap(CPU_SHADOW1_BEGIN, CPU_SHADOW1_END - CPU_SHADOW1_BEGIN)) {
-      return UR_RESULT_ERROR_UNKNOWN;
-    }
-    if (!Munmap(CPU_SHADOW1_END, CPU_SHADOW2_BEGIN - CPU_SHADOW1_END)) {
-      return UR_RESULT_ERROR_UNKNOWN;
-    }
-    if (!Munmap(CPU_SHADOW2_BEGIN, CPU_SHADOW2_END - CPU_SHADOW2_BEGIN) == 0) {
-      return UR_RESULT_ERROR_UNKNOWN;
-    }
-    if (!Munmap(CPU_SHADOW2_END, CPU_SHADOW3_BEGIN - CPU_SHADOW2_END)) {
-      return UR_RESULT_ERROR_UNKNOWN;
-    }
-    if (!Munmap(CPU_SHADOW3_BEGIN, CPU_SHADOW3_END - CPU_SHADOW3_BEGIN) == 0) {
-      return UR_RESULT_ERROR_UNKNOWN;
+    for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
+      uptr Start = kMemoryLayout[i].start;
+      uptr End = kMemoryLayout[i].end;
+      uptr Size = End - Start;
+      MappingDesc::Type Type = kMemoryLayout[i].type;
+      bool InitOrigins = true;
+      bool IsMap = Type == MappingDesc::SHADOW ||
+                   (InitOrigins && Type == MappingDesc::ORIGIN);
+      if (IsMap) {
+        if (Munmap(Start, Size)) {
+          return UR_RESULT_ERROR_UNKNOWN;
+        }
+      }
     }
     ShadowBegin = ShadowEnd = 0;
     return UR_RESULT_SUCCESS;
@@ -106,12 +137,10 @@ ur_result_t MsanShadowMemoryCPU::Destory() {
   return Result;
 }
 
-uptr MsanShadowMemoryCPU::MemToShadow(uptr Ptr) {
-  return Ptr ^ CPU_SHADOW_MASK;
-}
+uptr MsanShadowMemoryCPU::MemToShadow(uptr Ptr) { return MEM_TO_SHADOW(Ptr); }
 
 uptr MsanShadowMemoryCPU::MemToOrigin(uptr Ptr) {
-  return Ptr ^ CPU_SHADOW_MASK;
+  return SHADOW_TO_ORIGIN(Ptr);
 }
 
 ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadow(

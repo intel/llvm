@@ -246,7 +246,7 @@ inline uptr MemToShadow(uptr addr, uint32_t as) {
   return shadow_ptr;
 }
 
-inline uptr MemToOrigin_CPU(uptr addr) { return addr ^ 0x500000000000ULL; }
+inline uptr MemToOrigin_CPU(uptr addr) { return addr ^ 0x100000000000ULL; }
 
 inline uptr MemToOrigin_DG2(uptr addr, uint32_t as) {
   return GetMsanLaunchInfo->CleanShadow;
