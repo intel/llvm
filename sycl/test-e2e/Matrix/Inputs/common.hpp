@@ -80,7 +80,8 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
             acc += make_fp32(va[i]) * make_fp32(vb[i]);
           else if constexpr (std::is_same_v<Ta, sycl::half>)
             acc += (float)va[i] * (float)vb[i];
-          else if constexpr (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, bfloat16>)
+          else if constexpr (std::is_same_v<Ta, bfloat16> &&
+                             std::is_same_v<Tc, bfloat16>)
             tmp += (float)va[i] * (float)vb[i];
           else if constexpr (std::is_same_v<Ta, float> &&
                                  std::is_same_v<Tc, float> ||
@@ -94,7 +95,8 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
             assert(false && "Unsupported type in matrix_multiply_ref.");
         }
       }
-      if constexpr (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, bfloat16>)
+      if constexpr (std::is_same_v<Ta, bfloat16> &&
+                    std::is_same_v<Tc, bfloat16>)
         acc += (bfloat16)tmp;
 
       if constexpr (!std::is_same_v<F, std::nullptr_t>) {
@@ -186,11 +188,11 @@ template <typename T1, typename T2, bool exact = false>
 bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
-      if constexpr (!exact && (std::is_same_v<T1, float> ||
-                               std::is_same_v<T1, bfloat16> ||
-                               std::is_same_v<T1, half> ||
-                               (std::is_same_v<T1, double> &&
-                                std::is_same_v<T2, double>))) {
+      if constexpr (!exact &&
+                    (std::is_same_v<T1, float> ||
+                     std::is_same_v<T1, bfloat16> || std::is_same_v<T1, half> ||
+                     (std::is_same_v<T1, double> &&
+                      std::is_same_v<T2, double>))) {
         float diff = std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]);
         if (diff > FLOAT_EPSILON || std::isnan(src[i * cols + j])) {
           std::cerr << "Incorrect result in matrix. "

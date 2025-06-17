@@ -1,4 +1,4 @@
-//==-------- SG32/joint_matrix_bfloat16_accumulator.cpp  - DPC++ joint_matrix----------- ----==//
+//==- SG32/joint_matrix_bfloat16_accumulator.cpp  - DPC++ joint_matrix -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,7 +17,6 @@
 // RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=2 %{run} %t.out %}
 // RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
 // RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
-
 
 #include "common.hpp"
 
