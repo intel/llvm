@@ -1037,7 +1037,7 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
 
   auto CreateNewEvent([&]() {
     auto NewEvent = sycl::detail::event_impl::create_device_event(Queue);
-    NewEvent->setContextImpl(Queue.getContextImplPtr());
+    NewEvent->setContextImpl(Queue.getContextImpl());
     NewEvent->setStateIncomplete();
     return NewEvent;
   });

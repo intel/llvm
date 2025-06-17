@@ -533,10 +533,8 @@ void Command::waitForEvents(queue_impl *Queue,
           RequiredEventsPerContext;
 
       for (const EventImplPtr &Event : EventImpls) {
-        ContextImplPtr Context = Event->getContextImpl();
-        assert(Context.get() &&
-               "Only non-host events are expected to be waited for here");
-        RequiredEventsPerContext[Context.get()].push_back(Event);
+        context_impl &Context = Event->getContextImpl();
+        RequiredEventsPerContext[&Context].push_back(Event);
       }
 
       for (auto &CtxWithEvents : RequiredEventsPerContext) {
@@ -576,7 +574,7 @@ Command::Command(
   MEvent->setSubmittedQueue(MWorkerQueue);
   MEvent->setCommand(this);
   if (MQueue)
-    MEvent->setContextImpl(MQueue->getContextImplPtr());
+    MEvent->setContextImpl(MQueue->getContextImpl());
   MEvent->setStateIncomplete();
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
@@ -781,9 +779,9 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
 
   Command *ConnectionCmd = nullptr;
 
-  ContextImplPtr DepEventContext = DepEvent->getContextImpl();
+  context_impl &DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
-  if (DepEventContext != WorkerContext && WorkerContext) {
+  if (&DepEventContext != WorkerContext.get() && WorkerContext) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
   } else
@@ -1298,7 +1296,7 @@ ur_result_t ReleaseCommand::enqueueImp() {
 
     std::shared_ptr<event_impl> UnmapEventImpl =
         event_impl::create_device_event(*Queue);
-    UnmapEventImpl->setContextImpl(Queue->getContextImplPtr());
+    UnmapEventImpl->setContextImpl(Queue->getContextImpl());
     UnmapEventImpl->setStateIncomplete();
     ur_event_handle_t UREvent = nullptr;
 
@@ -1516,7 +1514,7 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
       MSrcReq(std::move(SrcReq)), MSrcAllocaCmd(SrcAllocaCmd),
       MDstReq(std::move(DstReq)), MDstAllocaCmd(DstAllocaCmd) {
   if (MSrcQueue) {
-    MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
+    MEvent->setContextImpl(MSrcQueue->getContextImpl());
   }
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
@@ -1689,7 +1687,7 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
       MSrcReq(std::move(SrcReq)), MSrcAllocaCmd(SrcAllocaCmd),
       MDstReq(std::move(DstReq)), MDstPtr(DstPtr) {
   if (MSrcQueue) {
-    MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
+    MEvent->setContextImpl(MSrcQueue->getContextImpl());
   }
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
