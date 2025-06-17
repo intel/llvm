@@ -32,15 +32,6 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   ur_result_t
   registerExecutionEventUnlocked(ur_event_handle_t nextExecutionEvent);
 
-  // Indicates if command-buffer commands can be updated after it is closed.
-  const bool isUpdatable = false;
-  const bool isInOrder = true;
-
-  // Command-buffer profiling is enabled.
-  const bool isProfilingEnabled = false;
-
-  lockable<ur_command_list_manager> commandListManager;
-
   ur_result_t finalizeCommandBuffer();
 
   ur_result_t
@@ -63,6 +54,8 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   createEventIfRequested(ur_exp_command_buffer_sync_point_t *retSyncPoint);
 
 private:
+  v2::raii::cache_borrowed_event_pool eventPool;
+
   // Stores all sync points that are created by the command buffer.
   std::vector<ur_event_handle_t> syncPoints;
 
@@ -84,5 +77,13 @@ private:
 
   ur_event_handle_t currentExecution = nullptr;
 
-  v2::raii::cache_borrowed_event_pool eventPool;
+public:
+  // Indicates if command-buffer commands can be updated after it is closed.
+  const bool isUpdatable = false;
+  const bool isInOrder = true;
+
+  // Command-buffer profiling is enabled.
+  const bool isProfilingEnabled = false;
+
+  lockable<ur_command_list_manager> commandListManager;
 };

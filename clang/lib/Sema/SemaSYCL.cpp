@@ -1197,6 +1197,8 @@ bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
                    NameValuePair.first == "sycl-single-task-kernel";
           });
       IsFreeFunctionAttr = it != NameValuePairs.end();
+      if (IsFreeFunctionAttr)
+        break;
     }
     if (Redecl->isFirstDecl()) {
       if (IsFreeFunctionAttr)
@@ -6615,9 +6617,18 @@ public:
         // function
         NSInserted = true;
       }
+      if (FD->isFunctionTemplateSpecialization() &&
+          FD->isThisDeclarationADefinition())
+        O << "template <> ";
       O << TemplateParameters;
       O << FD->getReturnType().getAsString() << " ";
-      O << FD->getNameAsString() << "(" << Args << ");";
+      FD->printName(O, Policy);
+      if (FD->isFunctionTemplateSpecialization() &&
+          FD->isThisDeclarationADefinition())
+        O << getTemplateSpecializationArgString(
+            FD->getTemplateSpecializationArgs());
+
+      O << "(" << Args << ");";
       if (NSInserted) {
         O << "\n";
         PrintNSClosingBraces(O, FD);
@@ -6639,35 +6650,49 @@ public:
     if (NSInserted)
       PrintNamespaces(O, FD, /*isPrintNamesOnly=*/true);
     O << FD->getIdentifier()->getName().data();
-    if (FD->getPrimaryTemplate()) {
-      std::string Buffer;
-      llvm::raw_string_ostream StringStream(Buffer);
-      const TemplateArgumentList *TAL = FD->getTemplateSpecializationArgs();
-      ArrayRef<TemplateArgument> A = TAL->asArray();
-      bool FirstParam = true;
-      for (const auto &X : A) {
-        if (FirstParam)
-          FirstParam = false;
-        else if (X.getKind() == TemplateArgument::Pack) {
-          for (const auto &PackArg : X.pack_elements()) {
-            StringStream << ", ";
-            PackArg.print(Policy, StringStream, true);
-          }
-          continue;
-        } else {
-          StringStream << ", ";
-        }
-
-        X.print(Policy, StringStream, true);
-      }
-      StringStream.flush();
-      if (Buffer.front() != '<')
-        Buffer = "<" + Buffer + ">";
-      O << Buffer;
-    }
+    if (FD->getPrimaryTemplate())
+      O << getTemplateSpecializationArgString(
+          FD->getTemplateSpecializationArgs());
   }
 
 private:
+  /// Helper method to get string with template types
+  /// \param TAL The template argument list.
+  /// \returns string Example:
+  /// \code
+  ///  template <typename T1, typename T2>
+  ///  void foo(T1 a, T2 b);
+  /// \endcode
+  /// returns string "<T1, T2>"
+  /// If TAL is nullptr, returns empty string.
+  std::string
+  getTemplateSpecializationArgString(const TemplateArgumentList *TAL) {
+    if (!TAL)
+      return "";
+    std::string Buffer;
+    llvm::raw_string_ostream StringStream(Buffer);
+    ArrayRef<TemplateArgument> A = TAL->asArray();
+    bool FirstParam = true;
+    for (const auto &X : A) {
+      if (FirstParam)
+        FirstParam = false;
+      else if (X.getKind() == TemplateArgument::Pack) {
+        for (const auto &PackArg : X.pack_elements()) {
+          StringStream << ", ";
+          PackArg.print(Policy, StringStream, /*IncludeType*/ true);
+        }
+        continue;
+      } else
+        StringStream << ", ";
+
+      X.print(Policy, StringStream, /*IncludeType*/ true);
+    }
+    StringStream.flush();
+    if (Buffer.front() != '<')
+      Buffer = "<" + Buffer + ">";
+    return Buffer;
+  }
+
   /// Helper method to get arguments of templated function as a string
   /// \param Parameters Array of parameters of the function.
   /// \param Policy Printing policy.
@@ -7081,6 +7106,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     FreeFunctionPrinter FFPrinter(O, Policy);
     if (FTD) {
       FFPrinter.printFreeFunctionDeclaration(FTD, S);
+      if (const auto kind = K.SyclKernel->getTemplateSpecializationKind();
+          K.SyclKernel->isFunctionTemplateSpecialization() &&
+          kind == TSK_ExplicitSpecialization)
+        FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     } else {
       FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     }

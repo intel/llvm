@@ -133,6 +133,14 @@ EventImplPtr Scheduler::addCG(
     }
     NewEvent = NewCmd->getEvent();
     NewEvent->setSubmissionTime();
+
+    // This is the last moment we can mark the event as discarded.
+    // Doing this during command execution would lead to incorrect
+    // event handling (as event would change it's state from non-discarded
+    // to discarded).
+    if (!EventNeeded) {
+      NewEvent->setStateDiscarded();
+    }
   }
 
   enqueueCommandForCG(NewEvent, AuxiliaryCmds);

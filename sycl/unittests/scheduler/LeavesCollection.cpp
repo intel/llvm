@@ -33,7 +33,7 @@ protected:
 
 std::shared_ptr<Command>
 createGenericCommand(const std::shared_ptr<queue_impl> &Q) {
-  return std::shared_ptr<Command>{new MockCommand(Q, Command::RUN_CG)};
+  return std::shared_ptr<Command>{new MockCommand(Q.get(), Command::RUN_CG)};
 }
 
 std::shared_ptr<Command> createEmptyCommand(const Requirement &Req) {
