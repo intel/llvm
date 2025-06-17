@@ -214,8 +214,7 @@
 namespace sycl {
 inline namespace _V1 {
 class stream;
-template <typename T, access::address_space addressSpace>
-class atomic;
+template <typename T, access::address_space addressSpace> class atomic;
 
 namespace ext::intel::esimd::detail {
 // Forward declare a "back-door" access class to support ESIMD.
