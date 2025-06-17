@@ -615,9 +615,7 @@ bool event_impl::isCompleted() {
          info::event_command_status::complete;
 }
 
-void event_impl::setCommand(void *Cmd) {
-  MCommand = Cmd;
-}
+void event_impl::setCommand(void *Cmd) { MCommand = Cmd; }
 
 } // namespace detail
 } // namespace _V1
