@@ -20,7 +20,7 @@
 #include <unistd.h> // for close
 #else
 #include <handleapi.h> // for CloseHandle
-#endif // _WIN32
+#endif                 // _WIN32
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
