@@ -26,7 +26,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: github.repository == 'intel/llvm'
+    if: false
     steps:
     - uses: actions/checkout@v4
       with:
