@@ -653,9 +653,6 @@ public:
   static ContextImplPtr getContext(queue_impl *Queue) {
     return Queue ? Queue->getContextImplPtr() : nullptr;
   }
-  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
-    return getContext(Queue.get());
-  }
 
   // Must be called under MMutex protection
   void doUnenqueuedCommandCleanup(
@@ -692,7 +689,7 @@ public:
 protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
-    auto &Queue = Handler.impl->get_queue();
+    queue_impl &Queue = Handler.impl->get_queue();
     auto ResEvent = detail::event_impl::create_device_event(Queue);
     ur_event_handle_t UREvent = nullptr;
     getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(

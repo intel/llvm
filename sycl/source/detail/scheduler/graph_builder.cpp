@@ -56,10 +56,6 @@ static bool isOnSameContext(const ContextImplPtr Context, queue_impl *Queue) {
   // contexts comparison.
   return Context == queue_impl::getContext(Queue);
 }
-static bool isOnSameContext(const ContextImplPtr Context,
-                            const QueueImplPtr &Queue) {
-  return isOnSameContext(Context, Queue.get());
-}
 
 /// Checks if the required access mode is allowed under the current one.
 static bool isAccessModeAllowed(access::mode Required, access::mode Current) {
@@ -182,7 +178,7 @@ MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
 }
 
 MemObjRecord *
-Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
+Scheduler::GraphBuilder::getOrInsertMemObjRecord(queue_impl *Queue,
                                                  const Requirement *Req) {
   SYCLMemObjI *MemObject = Req->MSYCLMemObj;
   MemObjRecord *Record = getMemObjRecord(MemObject);
@@ -230,8 +226,8 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
     MemObject->MRecord.reset(
         new MemObjRecord{InteropCtxPtr.get(), LeafLimit, AllocateDependency});
     std::vector<Command *> ToEnqueue;
-    getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr,
-                            ToEnqueue);
+    getOrCreateAllocaForReq(MemObject->MRecord.get(), Req,
+                            InteropQueuePtr.get(), ToEnqueue);
     assert(ToEnqueue.empty() && "Creation of the first alloca for a record "
                                 "shouldn't lead to any enqueuing (no linked "
                                 "alloca or exceeding the leaf limit).");
@@ -273,14 +269,13 @@ void Scheduler::GraphBuilder::addNodeToLeaves(
 }
 
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
-    MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue,
+    MemObjRecord *Record, Requirement *Req, queue_impl *Queue,
     std::vector<Command *> &ToEnqueue) {
   auto Context = queue_impl::getContext(Queue);
   AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, Context);
   assert(AllocaCmd && "There must be alloca for requirement!");
   UpdateHostRequirementCommand *UpdateCommand =
-      new UpdateHostRequirementCommand(Queue.get(), *Req, AllocaCmd,
-                                       &Req->MData);
+      new UpdateHostRequirementCommand(Queue, *Req, AllocaCmd, &Req->MData);
   // Need copy of requirement because after host accessor destructor call
   // dependencies become invalid if requirement is stored by pointer.
   const Requirement *StoredReq = UpdateCommand->getRequirement();
@@ -329,9 +324,10 @@ static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
   return MapCmd;
 }
 
-Command *Scheduler::GraphBuilder::insertMemoryMove(
-    MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue,
-    std::vector<Command *> &ToEnqueue) {
+Command *
+Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
+                                          Requirement *Req, queue_impl *Queue,
+                                          std::vector<Command *> &ToEnqueue) {
   AllocaCommandBase *AllocaCmdDst =
       getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   if (!AllocaCmdDst)
@@ -518,7 +514,7 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
     auto SYCLMemObj = static_cast<detail::SYCLMemObjT *>(Req->MSYCLMemObj);
     SYCLMemObj->handleWriteAccessorCreation();
   }
-  // Host accessor is not attached to any queue so no QueueImplPtr object to be
+  // Host accessor is not attached to any queue so no queue object to be
   // sent to getOrInsertMemObjRecord.
   MemObjRecord *Record = getOrInsertMemObjRecord(nullptr, Req);
   if (MPrintOptionsArray[BeforeAddHostAcc])
@@ -690,7 +686,7 @@ static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
 // Note, creation of new allocation command can lead to the current context
 // (Record->MCurContext) change.
 AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
-    MemObjRecord *Record, const Requirement *Req, const QueueImplPtr &Queue,
+    MemObjRecord *Record, const Requirement *Req, queue_impl *Queue,
     std::vector<Command *> &ToEnqueue) {
   auto Context = queue_impl::getContext(Queue);
   AllocaCommandBase *AllocaCmd =
@@ -709,8 +705,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
 
       auto *ParentAlloca =
           getOrCreateAllocaForReq(Record, &ParentRequirement, Queue, ToEnqueue);
-      AllocaCmd = new AllocaSubBufCommand(Queue.get(), *Req, ParentAlloca,
-                                          ToEnqueue, ToCleanUp);
+      AllocaCmd = new AllocaSubBufCommand(Queue, *Req, ParentAlloca, ToEnqueue,
+                                          ToCleanUp);
     } else {
 
       const Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
@@ -786,8 +782,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           }
       }
 
-      AllocaCmd = new AllocaCommand(Queue.get(), FullReq, InitFromUserData,
-                                    LinkedAllocaCmd);
+      AllocaCmd =
+          new AllocaCommand(Queue, FullReq, InitFromUserData, LinkedAllocaCmd);
 
       // Update linked command
       if (LinkedAllocaCmd) {
@@ -925,16 +921,16 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
 }
 
 Command *Scheduler::GraphBuilder::addCG(
-    std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+    std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
     std::vector<Command *> &ToEnqueue, bool EventNeeded,
     ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
   std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
   std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();
 
-  auto NewCmd = std::make_unique<ExecCGCommand>(
-      std::move(CommandGroup), Queue.get(), EventNeeded, CommandBuffer,
-      std::move(Dependencies));
+  auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue,
+                                                EventNeeded, CommandBuffer,
+                                                std::move(Dependencies));
 
   if (!NewCmd)
     throw exception(make_error_code(errc::memory_allocation),
@@ -957,9 +953,9 @@ Command *Scheduler::GraphBuilder::addCG(
     bool isSameCtx = false;
 
     {
-      const QueueImplPtr &QueueForAlloca =
+      queue_impl *QueueForAlloca =
           isInteropTask
-              ? static_cast<detail::CGHostTask &>(NewCmd->getCG()).MQueue
+              ? static_cast<detail::CGHostTask &>(NewCmd->getCG()).MQueue.get()
               : Queue;
 
       Record = getOrInsertMemObjRecord(QueueForAlloca, Req);
@@ -989,15 +985,15 @@ Command *Scheduler::GraphBuilder::addCG(
       // Cannot directly copy memory from OpenCL device to OpenCL device -
       // create two copies: device->host and host->device.
       bool NeedMemMoveToHost = false;
-      auto MemMoveTargetQueue = Queue;
+      queue_impl *MemMoveTargetQueue = Queue;
 
       if (isInteropTask) {
         const detail::CGHostTask &HT =
             static_cast<detail::CGHostTask &>(NewCmd->getCG());
 
-        if (!isOnSameContext(Record->MCurContext, HT.MQueue)) {
+        if (!isOnSameContext(Record->MCurContext, HT.MQueue.get())) {
           NeedMemMoveToHost = true;
-          MemMoveTargetQueue = HT.MQueue;
+          MemMoveTargetQueue = HT.MQueue.get();
         }
       } else if (Queue && Record->MCurContext)
         NeedMemMoveToHost = true;
@@ -1229,7 +1225,9 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
   try {
     std::shared_ptr<detail::HostTask> HT(new detail::HostTask);
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
-        std::move(HT), /* Queue = */ Cmd->getQueue(), /* Context = */ {},
+        std::move(HT),
+        /* Queue = */ Cmd->getQueue(),
+        /* Context = */ {},
         /* Args = */ {},
         detail::CG::StorageInitHelper(
             /* ArgsStorage = */ {}, /* AccStorage = */ {},
@@ -1280,11 +1278,11 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
     ext::oneapi::experimental::detail::exec_graph_impl *Graph,
     std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
         Nodes,
-    const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
+    queue_impl *Queue, std::vector<Requirement *> Requirements,
     std::vector<detail::EventImplPtr> &Events,
     std::vector<Command *> &ToEnqueue) {
   auto NewCmd =
-      std::make_unique<UpdateCommandBufferCommand>(Queue.get(), Graph, Nodes);
+      std::make_unique<UpdateCommandBufferCommand>(Queue, Graph, Nodes);
   // If there are multiple requirements for the same memory object, its
   // AllocaCommand creation will be dependent on the access mode of the first
   // requirement. Combine these access modes to take all of them into account.

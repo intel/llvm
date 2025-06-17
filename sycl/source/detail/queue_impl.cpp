@@ -118,10 +118,10 @@ queue_impl::get_backend_info<info::device::backend_version>() const {
 }
 #endif
 
-static event prepareSYCLEventAssociatedWithQueue(
-    const std::shared_ptr<detail::queue_impl> &QueueImpl) {
-  auto EventImpl = detail::event_impl::create_device_event(*QueueImpl);
-  EventImpl->setContextImpl(QueueImpl->getContextImpl());
+static event
+prepareSYCLEventAssociatedWithQueue(detail::queue_impl &QueueImpl) {
+  auto EventImpl = detail::event_impl::create_device_event(QueueImpl);
+  EventImpl->setContextImpl(QueueImpl.getContextImpl());
   EventImpl->setStateIncomplete();
   return detail::createSyclObjFromImpl<event>(EventImpl);
 }
@@ -464,7 +464,7 @@ event queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
             event_impl::create_discarded_event());
       }
 
-      event ResEvent = prepareSYCLEventAssociatedWithQueue(shared_from_this());
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(*this);
       const auto &EventImpl = detail::getSyclObjImpl(ResEvent);
       {
         NestedCallsTracker tracker;
