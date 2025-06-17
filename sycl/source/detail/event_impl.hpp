@@ -31,7 +31,6 @@ class Adapter;
 class context_impl;
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
-using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
 class event_impl;
 using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
@@ -238,7 +237,7 @@ public:
   /// Performs a flush on the queue associated with this event if the user queue
   /// is different and the task associated with this event hasn't been submitted
   /// to the device yet.
-  void flushIfNeeded(const QueueImplPtr &UserQueue);
+  void flushIfNeeded(queue_impl *UserQueue);
 
   /// Cleans dependencies of this event_impl.
   void cleanupDependencyEvents();
@@ -258,7 +257,9 @@ public:
   ///
   /// @return shared_ptr to MWorkerQueue, please be aware it can be empty
   /// pointer
-  QueueImplPtr getWorkerQueue() { return MWorkerQueue.lock(); };
+  std::shared_ptr<sycl::detail::queue_impl> getWorkerQueue() {
+    return MWorkerQueue.lock();
+  };
 
   /// Sets worker queue for command.
   ///
@@ -285,7 +286,9 @@ public:
   /// @return Submission time for command associated with this event
   uint64_t getSubmissionTime();
 
-  QueueImplPtr getSubmittedQueue() const { return MSubmittedQueue.lock(); };
+  std::shared_ptr<sycl::detail::queue_impl> getSubmittedQueue() const {
+    return MSubmittedQueue.lock();
+  };
 
   /// Checks if this event is complete.
   ///
