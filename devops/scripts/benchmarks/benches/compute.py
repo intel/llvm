@@ -50,7 +50,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "ffd199db86a904451f0697cb25a0e7a6b9f2006f"
+        return "83b9ae3ebb3563552409f3a317cdc1cf3d3ca6bd"
 
     def setup(self):
         if options.sycl is None:
@@ -113,6 +113,9 @@ class ComputeBench(Suite):
             "SubmitGraph": BenchmarkMetadata(
                 type="group", tags=["submit", "micro", "SYCL", "UR", "L0", "graph"]
             ),
+            "FinalizeGraph": BenchmarkMetadata(
+                type="group", tags=["finalize", "micro", "SYCL", "graph"]
+            ),
         }
 
     def benchmarks(self) -> list[Benchmark]:
@@ -169,6 +172,10 @@ class ComputeBench(Suite):
             ExecImmediateCopyQueue(self, 0, 1, "Device", "Device", 1024),
             ExecImmediateCopyQueue(self, 1, 1, "Device", "Host", 1024),
             VectorSum(self),
+            GraphApiFinalizeGraph(self, RUNTIMES.SYCL, 0, "Gromacs"),
+            GraphApiFinalizeGraph(self, RUNTIMES.SYCL, 1, "Gromacs"),
+            GraphApiFinalizeGraph(self, RUNTIMES.SYCL, 0, "Llama"),
+            GraphApiFinalizeGraph(self, RUNTIMES.SYCL, 1, "Llama"),
         ]
 
         # Add UR-specific benchmarks
@@ -1004,4 +1011,72 @@ class UsmBatchMemoryAllocation(ComputeBenchmark):
             f"--size={self.size}",
             f"--measureMode={self.measure_mode}",
             "--iterations=1000",
+        ]
+
+
+class GraphApiFinalizeGraph(ComputeBenchmark):
+    def __init__(
+        self,
+        bench,
+        runtime: RUNTIMES,
+        rebuild_graph_every_iteration,
+        graph_structure,
+    ):
+        self.rebuild_graph_every_iteration = rebuild_graph_every_iteration
+        self.graph_structure = graph_structure
+        self.iterations = 10000
+        # LLama graph is about 10X the size of Gromacs, so reduce the
+        # iterations to avoid excessive benchmark time.
+        if graph_structure == "Llama":
+            self.iterations /= 10
+
+        super().__init__(
+            bench,
+            f"graph_api_benchmark_{runtime.value}",
+            "FinalizeGraph",
+            runtime,
+        )
+
+    def explicit_group(self):
+        return f"FinalizeGraph, GraphStructure: {self.graph_structure}"
+
+    def description(self) -> str:
+        what_is_measured = ""
+
+        if self.rebuild_graph_every_iteration == 0:
+            what_is_measured = (
+                "It measures finalizing the same modifiable graph repeatedly "
+                "over multiple iterations."
+            )
+        else:
+            what_is_measured = (
+                "It measures finalizing a unique modifiable graph per iteration."
+            )
+
+        return (
+            "Measures the time taken to finalize a SYCL graph, using a graph "
+            f"structure based on the usage of graphs in {self.graph_structure}. "
+            f"{what_is_measured}"
+        )
+
+    def name(self):
+        return f"graph_api_benchmark_{self.runtime.value} FinalizeGraph rebuildGraphEveryIter:{self.rebuild_graph_every_iteration} graphStructure:{self.graph_structure}"
+
+    def display_name(self) -> str:
+        return f"{self.runtime.value.upper()} FinalizeGraph, rebuildGraphEveryIter {self.rebuild_graph_every_iteration}, graphStructure {self.graph_structure}"
+
+    def get_tags(self):
+        return [
+            "graph",
+            runtime_to_tag_name(self.runtime),
+            "micro",
+            "finalize",
+            "latency",
+        ]
+
+    def bin_args(self) -> list[str]:
+        return [
+            f"--iterations={self.iterations}",
+            f"--rebuildGraphEveryIter={self.rebuild_graph_every_iteration}",
+            f"--graphStructure={self.graph_structure}",
         ]
