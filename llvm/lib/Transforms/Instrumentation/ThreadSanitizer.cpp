@@ -1077,8 +1077,7 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
                cast<AllocaInst>(Inst).getAllocatedType()->isSized() &&
                !getTargetExtType(cast<AllocaInst>(Inst).getAllocatedType()))
         Allocas.push_back(&Inst);
-      else if ((isa<CallInst>(Inst) && !isa<DbgInfoIntrinsic>(Inst)) ||
-               isa<InvokeInst>(Inst)) {
+      else if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst)) {
         if (CallInst *CI = dyn_cast<CallInst>(&Inst)) {
           maybeMarkSanitizerLibraryCallNoBuiltin(CI, &TLI);
           if (Spirv) {
