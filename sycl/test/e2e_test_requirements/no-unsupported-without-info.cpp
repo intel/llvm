@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 250
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 249
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -110,7 +110,6 @@
 // CHECK-NEXT: DeviceLib/imf_half_type_cast.cpp
 // CHECK-NEXT: DeviceLib/imf_half_type_cast.cpp
 // CHECK-NEXT: DeviceLib/imf_simd_emulate_test.cpp
-// CHECK-NEXT: DeviceLib/rand_test.cpp
 // CHECK-NEXT: DeviceLib/separate_compile_test.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortK.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortKv2.cpp
