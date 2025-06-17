@@ -777,6 +777,8 @@ ur_result_t urProgramLinkExp(ur_context_handle_t hContext, uint32_t numDevices,
                              const ur_program_handle_t *phPrograms,
                              const char *pOptions,
                              ur_program_handle_t *phProgram);
+ur_result_t urUSMContextMemcpyExp(ur_context_handle_t hContext, void *pDst,
+                                  const void *pSrc, size_t size);
 ur_result_t urUSMImportExp(ur_context_handle_t hContext, void *pMem,
                            size_t size);
 ur_result_t urUSMReleaseExp(ur_context_handle_t hContext, void *pMem);

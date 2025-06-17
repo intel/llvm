@@ -187,11 +187,12 @@ class type_erased_cgfo_ty {
 
 public:
   template <class T>
-  type_erased_cgfo_ty(T &f)
-      // NOTE: Even if `T` is a pointer to a function, `&f` is a pointer to a
+  type_erased_cgfo_ty(T &&f)
+      // NOTE: Even if `f` is a pointer to a function, `&f` is a pointer to a
       // pointer to a function and as such can be casted to `void *` (pointer to
       // a function cannot be casted).
-      : object(static_cast<const void *>(&f)), invoker_f(&invoker<T>::call) {}
+      : object(static_cast<const void *>(&f)),
+        invoker_f(&invoker<std::remove_reference_t<T>>::call) {}
   ~type_erased_cgfo_ty() = default;
 
   type_erased_cgfo_ty(const type_erased_cgfo_ty &) = delete;
@@ -348,6 +349,16 @@ public:
       KernelFunc(item);
     }
   }
+
+  // Copy the properties_tag getter from the original kernel to propagate
+  // property(s)
+  template <
+      typename T = KernelType,
+      typename = std::enable_if_t<ext::oneapi::experimental::detail::
+                                      HasKernelPropertiesGetMethod<T>::value>>
+  auto get(ext::oneapi::experimental::properties_tag) const {
+    return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
+  }
 };
 
 template <typename TransformedArgType, int Dims, typename KernelType>
@@ -362,6 +373,16 @@ public:
       auto item = Gen.template getItem<KernelType>();
       KernelFunc(item, KH);
     }
+  }
+
+  // Copy the properties_tag getter from the original kernel to propagate
+  // property(s)
+  template <
+      typename T = KernelType,
+      typename = std::enable_if_t<ext::oneapi::experimental::detail::
+                                      HasKernelPropertiesGetMethod<T>::value>>
+  auto get(ext::oneapi::experimental::properties_tag) const {
+    return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
   }
 };
 
@@ -424,28 +445,23 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
 /// \ingroup sycl_api
 class __SYCL_EXPORT handler {
 private:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// Constructs SYCL handler from the pre-constructed stack-allocated
+  /// `handler_impl` (not enforced, but meaningless to do a heap allocation
+  /// outside handler instance).
+  ///
+  /// \param HandlerImpl is a pre-constructed handler_impl.
+  //
+  // Can't provide this overload outside preview because `handler` lacks
+  // required data members.
+  handler(detail::handler_impl &HandlerImpl);
+#else
   /// Constructs SYCL handler from queue.
   ///
   /// \param Queue is a SYCL queue.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  handler(const std::shared_ptr<detail::queue_impl> &Queue,
-          bool CallerNeedsEvent);
-#else
   handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
-#endif
-
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  /// Constructs SYCL handler from the pre-constructed handler_impl and the
-  /// associated queue. Inside of Graph implementation, the Queue value is not
-  /// used, for those cases it can be initialized with an empty shared_ptr.
-  ///
-  /// \param HandlerImpl is a pre-constructed handler_impl.
-  /// \param Queue is a SYCL queue.
-  handler(detail::handler_impl *HandlerImpl,
-          const std::shared_ptr<detail::queue_impl> &Queue);
-#else
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
   ///
@@ -456,20 +472,14 @@ private:
   ///        is null if no secondary queue is associated with the submission.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: This function is not used anymore, remove it in the next
-  // ABI-breaking window.
   handler(std::shared_ptr<detail::queue_impl> Queue,
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
           std::shared_ptr<detail::queue_impl> SecondaryQueue,
           bool CallerNeedsEvent);
-#endif
   __SYCL_DLL_LOCAL handler(std::shared_ptr<detail::queue_impl> Queue,
                            detail::queue_impl *SecondaryQueue,
                            bool CallerNeedsEvent);
-#endif
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs SYCL handler from Graph.
   ///
   /// The handler will add the command-group as a node to the graph rather than
@@ -1303,8 +1313,8 @@ private:
       KernelWrapper<WrapAs::parallel_for, KName, decltype(Wrapper),
                     TransformedArgType, PropertiesT>::wrap(this, Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
-      verifyUsedKernelBundleInternal(
-          detail::string_view{detail::getKernelName<NameT>()});
+      constexpr detail::string_view Name{detail::getKernelName<NameT>()};
+      verifyUsedKernelBundleInternal(Name);
       // We are executing over the rounded range, but there are still
       // items/ids that are are constructed in ther range rounded
       // kernel use items/ids in the user range, which means that
@@ -1328,9 +1338,9 @@ private:
       KernelWrapper<WrapAs::parallel_for, NameT, KernelType, TransformedArgType,
                     PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-      constexpr std::string_view Name{detail::getKernelName<NameT>()};
+      constexpr detail::string_view Name{detail::getKernelName<NameT>()};
 
-      verifyUsedKernelBundleInternal(detail::string_view{Name});
+      verifyUsedKernelBundleInternal(Name);
       processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
@@ -1522,8 +1532,8 @@ private:
   //
   // First, from SYCL 2020, Table 129 (Member functions of the `handler ` class)
   //   > The callable ... can optionally take a `kernel_handler` ... in
-  //   which > case the SYCL runtime will construct an instance of
-  //   `kernel_handler` > and pass it to the callable.
+  //   > which case the SYCL runtime will construct an instance of
+  //   > `kernel_handler` and pass it to the callable.
   //
   // Note: "..." due to slight wording variability between
   // single_task/parallel_for (e.g. only parameter vs last). This helper class
@@ -1621,8 +1631,8 @@ private:
       throwOnKernelParameterMisuse<KernelName, KernelType>();
     }
     throwIfActionIsCreated();
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
+    constexpr detail::string_view Name{detail::getKernelName<NameT>()};
+    verifyUsedKernelBundleInternal(Name);
     setType(detail::CGType::Kernel);
 
     detail::checkValueRange<Dims>(params...);
@@ -1665,8 +1675,8 @@ private:
     // Ignore any set kernel bundles and use the one associated with the
     // kernel.
     setHandlerKernelBundle(Kernel);
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
+    constexpr detail::string_view Name{detail::getKernelName<NameT>()};
+    verifyUsedKernelBundleInternal(Name);
     setType(detail::CGType::Kernel);
 
     detail::checkValueRange<Dims>(params...);
@@ -2118,8 +2128,8 @@ public:
     kernel_single_task<NameT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
+    constexpr detail::string_view Name{detail::getKernelName<NameT>()};
+    verifyUsedKernelBundleInternal(Name);
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     setNDRangeDescriptor(range<1>{1});
@@ -3368,16 +3378,15 @@ public:
 
 private:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // In some cases we need to construct handler_impl in heap. Sole propose
-  // of MImplOwner is to destroy handler_impl in destructor of handler.
-  // Can't use unique_ptr because declaration of handler_impl is not available
-  // in this header.
-  std::shared_ptr<detail::handler_impl> MImplOwner;
+  // TODO: Maybe make it a reference when non-preview branch is removed.
+  // On the other hand, see `HandlerAccess:postProcess` to how `swap_impl` might
+  // be useful in future, pointer here would make that possible/easier.
   detail::handler_impl *impl;
-  const std::shared_ptr<detail::queue_impl> &MQueue;
 #else
   std::shared_ptr<detail::handler_impl> impl;
-  std::shared_ptr<detail::queue_impl> MQueue;
+
+  // Use impl->get_queue*() instead:
+  std::shared_ptr<detail::queue_impl> MQueueDoNotUse;
 #endif
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
@@ -3426,8 +3435,6 @@ private:
   friend class detail::reduction_impl_algo;
 
   friend inline void detail::reduction::finalizeHandler(handler &CGH);
-  template <class FunctorTy>
-  friend void detail::reduction::withAuxHandler(handler &CGH, FunctorTy Func);
 
   template <typename KernelName, detail::reduction::strategy Strategy, int Dims,
             typename PropertiesT, typename... RestT>
@@ -3870,6 +3877,8 @@ private:
   void setKernelNameBasedCachePtr(
       detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
 
+  queue getQueue();
+
 protected:
   /// Registers event dependencies in this command group.
   void depends_on(const detail::EventImplPtr &Event);
@@ -3888,6 +3897,33 @@ public:
   static void parallelForImpl(handler &Handler, RangeT Range, PropertiesT Props,
                               kernel Kernel) {
     Handler.parallel_for_impl(Range, Props, Kernel);
+  }
+
+  // pre/postProcess are used only for reductions right now, but the
+  // abstractions they provide aren't reduction-specific. The main problem they
+  // solve is
+  //
+  //   # User code
+  //   q.submit([&](handler &cgh) {
+  //     set_dependencies(cgh);
+  //     enqueue_whatever(cgh);
+  //   });  // single submission
+  //
+  // that needs to be implemented as multiple enqueues involving
+  // pre-/post-processing internally. SYCL prohibits recursive submits from
+  // inside control group function object (lambda above) so we resort to a
+  // somewhat hacky way of creating multiple `handler`s and manual finalization
+  // of them (instead of the one in `queue::submit`).
+  __SYCL_EXPORT static void preProcess(handler &CGH, type_erased_cgfo_ty F);
+  __SYCL_EXPORT static void postProcess(handler &CGH, type_erased_cgfo_ty F);
+
+  template <class FunctorTy>
+  static void preProcess(handler &CGH, FunctorTy &Func) {
+    preProcess(CGH, type_erased_cgfo_ty{Func});
+  }
+  template <class FunctorTy>
+  static void postProcess(handler &CGH, FunctorTy &Func) {
+    postProcess(CGH, type_erased_cgfo_ty{Func});
   }
 };
 } // namespace detail

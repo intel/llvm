@@ -20,6 +20,9 @@
 #include "tsan_shadow.hpp"
 #include "ur_sanitizer_layer.hpp"
 
+#include <unordered_map>
+#include <unordered_set>
+
 namespace ur_sanitizer_layer {
 namespace tsan {
 
@@ -84,6 +87,9 @@ struct KernelInfo {
   ur_shared_mutex Mutex;
   std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
 
+  // Need preserve the order of local arguments
+  std::map<uint32_t, TsanLocalArgsInfo> LocalArgs;
+
   KernelInfo() = default;
 
   explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {
@@ -126,20 +132,36 @@ struct TsanRuntimeDataWrapper {
   ur_result_t syncFromDevice(ur_queue_handle_t Queue);
 
   ur_result_t syncToDevice(ur_queue_handle_t Queue);
+
+  ur_result_t
+  importLocalArgsInfo(ur_queue_handle_t Queue,
+                      const std::vector<TsanLocalArgsInfo> &LocalArgs);
 };
 
 struct LaunchInfo {
   ur_context_handle_t Context = nullptr;
   ur_device_handle_t Device = nullptr;
+  const size_t *GlobalWorkSize = nullptr;
+  const size_t *GlobalWorkOffset = nullptr;
+  std::vector<size_t> LocalWorkSize;
+  uint32_t WorkDim = 0;
   TsanRuntimeDataWrapper Data;
 
-  LaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device)
-      : Context(Context), Device(Device), Data(Context, Device) {
+  LaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
+             const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+             const size_t *GlobalWorkOffset, uint32_t WorkDim)
+      : Context(Context), Device(Device), GlobalWorkSize(GlobalWorkSize),
+        GlobalWorkOffset(GlobalWorkOffset), WorkDim(WorkDim),
+        Data(Context, Device) {
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Context.pfnRetain(Context);
     assert(Result == UR_RESULT_SUCCESS);
     Result = getContext()->urDdiTable.Device.pfnRetain(Device);
     assert(Result == UR_RESULT_SUCCESS);
+    if (LocalWorkSize) {
+      this->LocalWorkSize =
+          std::vector<size_t>(LocalWorkSize, LocalWorkSize + WorkDim);
+    }
   }
 
   ~LaunchInfo() {
@@ -157,6 +179,8 @@ struct LaunchInfo {
 
 class TsanInterceptor {
 public:
+  ~TsanInterceptor();
+
   ur_result_t allocateMemory(ur_context_handle_t Context,
                              ur_device_handle_t Device,
                              const ur_usm_desc_t *Properties,
@@ -183,6 +207,16 @@ public:
 
   std::shared_ptr<MemBuffer> getMemBuffer(ur_mem_handle_t MemHandle);
 
+  ur_result_t holdAdapter(ur_adapter_handle_t Adapter) {
+    std::scoped_lock<ur_shared_mutex> Guard(m_AdaptersMutex);
+    if (m_Adapters.find(Adapter) != m_Adapters.end()) {
+      return UR_RESULT_SUCCESS;
+    }
+    UR_CALL(getContext()->urDdiTable.Adapter.pfnRetain(Adapter));
+    m_Adapters.insert(Adapter);
+    return UR_RESULT_SUCCESS;
+  }
+
   ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
                               ur_queue_handle_t Queue, LaunchInfo &LaunchInfo);
 
@@ -206,6 +240,8 @@ public:
     assert(m_KernelMap.find(Kernel) != m_KernelMap.end());
     return m_KernelMap[Kernel];
   }
+
+  ur_shared_mutex KernelLaunchMutex;
 
 private:
   ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &CI,
@@ -234,6 +270,9 @@ private:
   std::unordered_map<ur_mem_handle_t, std::shared_ptr<MemBuffer>>
       m_MemBufferMap;
   ur_shared_mutex m_MemBufferMapMutex;
+
+  std::unordered_set<ur_adapter_handle_t> m_Adapters;
+  ur_shared_mutex m_AdaptersMutex;
 };
 
 } // namespace tsan

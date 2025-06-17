@@ -1031,11 +1031,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
-  }
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
@@ -1103,7 +1104,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
 /// Gets the native HIP handle of a UR device object
 ///
 /// \param[in] hDevice The UR device to get the native HIP object of.
-/// \param[out] phNativeHandle Set to the native handle of the UR device object.
+/// \param[out] phNativeHandle Set to the native handle of the UR device
+/// object.
 ///
 /// \return UR_RESULT_SUCCESS
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
