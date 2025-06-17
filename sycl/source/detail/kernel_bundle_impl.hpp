@@ -617,8 +617,6 @@ public:
                             "kernel_bundles successfully built from "
                             "kernel_bundle<bundle_state::ext_oneapi_source>.");
 
-    std::shared_ptr<kernel_bundle_impl> Self = shared_from_this();
-
     // TODO: When linking is properly implemented for kernel compiler binaries,
     //       there can be scenarios where multiple binaries have the same
     //       kernels. In this case, all these bundles should be found and the
@@ -628,8 +626,7 @@ public:
       const std::shared_ptr<device_image_impl> &DevImgImpl =
           getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> PotentialKernelImpl =
-              // move is performed only when SourceBasedKernel is not null
-          DevImgImpl->tryGetSourceBasedKernel(Name, MContext, std::move(Self),
+          DevImgImpl->tryGetSourceBasedKernel(Name, MContext, *this,
                                               DevImgImpl))
         return detail::createSyclObjFromImpl<kernel>(
             std::move(PotentialKernelImpl));
@@ -955,7 +952,6 @@ public:
 
   std::shared_ptr<kernel_impl>
   tryGetKernel(detail::KernelNameStrRefT Name) const {
-    std::shared_ptr<kernel_bundle_impl> Self = shared_from_this();
     // TODO: For source-based kernels, it may be faster to keep a map between
     //       {kernel_name, device} and their corresponding image.
     // First look through the kernels registered in source-based images.
@@ -963,8 +959,7 @@ public:
       const std::shared_ptr<device_image_impl> &DevImgImpl =
           getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> SourceBasedKernel =
-              // move is performed only when SourceBasedKernel is not null
-          DevImgImpl->tryGetSourceBasedKernel(Name, MContext, std::move(Self),
+          DevImgImpl->tryGetSourceBasedKernel(Name, MContext, *this,
                                               DevImgImpl))
         return SourceBasedKernel;
     }
