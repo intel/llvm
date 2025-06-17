@@ -254,9 +254,15 @@ auto builtin_delegate_ptr_impl(FuncTy F, PtrTy p, Ts... xs) {
   detail::NON_SCALAR_ENABLER<SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TEMPLATE_TYPE),  \
                              PtrTy>                                            \
   NAME(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TEMPLATE_TYPE_ARG), PtrTy p) {         \
-    return bit_cast<detail::NON_SCALAR_ENABLER<                                \
-        SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TEMPLATE_TYPE), PtrTy>>(              \
-        detail::NAME##_impl(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _ARG), p));        \
+    auto From = detail::NAME##_impl(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _ARG), p); \
+    using ToTy = detail::NON_SCALAR_ENABLER<                                   \
+        SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TEMPLATE_TYPE), PtrTy>;               \
+    ToTy To;                                                                   \
+    /* For vectors of length 3, make sure to only copy 3 elements, not 4, to   \
+       work around code generation issues, see LLVM #144454. */                \
+    constexpr auto N = ToTy::size() * sizeof(detail::get_elem_type_t<ToTy>);   \
+    sycl::detail::memcpy_no_adl(&To, &From, N);                                \
+    return To;                                                                 \
   }
 
 #if __SYCL_DEVICE_ONLY__
