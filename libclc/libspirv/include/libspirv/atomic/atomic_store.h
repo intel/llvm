@@ -6,21 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DECL(TYPE, AS)                                                         \
-  _CLC_OVERLOAD _CLC_DECL void __spirv_AtomicStore(                            \
-      AS TYPE *, int Scope, int MemorySemanticsMask, TYPE);
-
-#define DECL_AS(TYPE)                                                          \
-  DECL(TYPE, global)                                                           \
-  DECL(TYPE, local)
-
-DECL_AS(int)
-DECL_AS(unsigned int)
-
-#ifdef cl_khr_int64_base_atomics
-DECL_AS(long)
-DECL_AS(unsigned long)
-#endif
-
-#undef DECL_AS
-#undef DECL
+#define __SPIRV_FUNCTION __spirv_AtomicStore
+#define __SPIRV_FUNCTION_S __spirv_AtomicStore
+#define __SPIRV_FUNCTION_U __spirv_AtomicStore
+#define __SPIRV_INT64_BASE
+#define __SPIRV_INT64_EXTENDED
+#define __SPIRV_RETURN_VOID
+#define __SPIRV_FLOATING_POINT
+#include <libspirv/atomic/atomic_decl.inc>

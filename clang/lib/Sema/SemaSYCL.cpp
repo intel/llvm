@@ -73,6 +73,8 @@ static constexpr llvm::StringLiteral InitSpecConstantsBuffer =
 static constexpr llvm::StringLiteral FinalizeMethodName = "__finalize";
 static constexpr llvm::StringLiteral LibstdcxxFailedAssertion =
     "__failed_assertion";
+static constexpr llvm::StringLiteral GlibcxxAssertFail =
+    "__glibcxx_assert_fail";
 constexpr unsigned MaxKernelArgsSize = 2048;
 
 bool SemaSYCL::isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
@@ -94,7 +96,8 @@ bool SemaSYCL::isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
 
 static bool isSyclAccessorType(QualType Ty) {
   return SemaSYCL::isSyclType(Ty, SYCLTypeAttr::accessor) ||
-         SemaSYCL::isSyclType(Ty, SYCLTypeAttr::local_accessor);
+         SemaSYCL::isSyclType(Ty, SYCLTypeAttr::local_accessor) ||
+         SemaSYCL::isSyclType(Ty, SYCLTypeAttr::dynamic_local_accessor);
 }
 
 // FIXME: Accessor property lists should be modified to use compile-time
@@ -598,14 +601,33 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
   if (!Callee->getIdentifier())
     return false;
 
+  bool IsAllowed = false;
   // libstdc++-11 introduced an undefined function "void __failed_assertion()"
   // which may lead to SemaSYCL check failure. However, this undefined function
   // is used to trigger some compilation error when the check fails at compile
   // time and will be ignored when the check succeeds. We allow calls to this
   // function to support some important std functions in SYCL device.
-  return (Callee->getName() == LibstdcxxFailedAssertion) &&
-         Callee->getNumParams() == 0 && Callee->getReturnType()->isVoidType() &&
-         SrcMgr.isInSystemHeader(Callee->getLocation());
+  IsAllowed = (Callee->getName() == LibstdcxxFailedAssertion) &&
+              Callee->getNumParams() == 0 &&
+              Callee->getReturnType()->isVoidType() &&
+              SrcMgr.isInSystemHeader(Callee->getLocation());
+
+  if (IsAllowed)
+    return true;
+
+  // GCC-15 introduced "std::__glibcxx_assert_fail" declared c++config.h and
+  // extensively used in STL to do runtime check in debug mode. The behavior
+  // is similar to "assert", we have supported it in libdevice in the same way
+  // as "assert". However, Sema check will report "undefined function without
+  // SYCL_EXTERNAL attribute" error in some cases. We have to allow it just as
+  // what we did to "__failed_assertion". The prototype is following:
+  // void __glibcxx_assert_fail(const char *, int, const char *, const char*);
+  IsAllowed = (Callee->getName() == GlibcxxAssertFail) &&
+              Callee->getNumParams() == 4 &&
+              Callee->getReturnType()->isVoidType() &&
+              SrcMgr.isInSystemHeader(Callee->getLocation());
+
+  return IsAllowed;
 }
 
 // Helper function to report conflicting function attributes.
@@ -824,7 +846,7 @@ static bool isDeclaredInSYCLNamespace(const Decl *D) {
     ND = cast<NamespaceDecl>(Parent);
   }
 
-  return ND && ND->getName() == "sycl";
+  return ND->getName() == "sycl";
 }
 
 static bool isSYCLPrivateMemoryVar(VarDecl *VD) {
@@ -1151,7 +1173,8 @@ static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
 /// \return the target of given SYCL accessor type
 static target getAccessTarget(QualType FieldTy,
                               const ClassTemplateSpecializationDecl *AccTy) {
-  if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::local_accessor))
+  if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::local_accessor) ||
+      SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor))
     return local;
 
   return static_cast<target>(
@@ -1159,14 +1182,33 @@ static target getAccessTarget(QualType FieldTy,
 }
 
 bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
-  for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
-    SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
-        IRAttr->getAttributeNameValuePairs(getASTContext());
-    for (const auto &NameValuePair : NameValuePairs) {
-      if (NameValuePair.first == "sycl-nd-range-kernel" ||
-          NameValuePair.first == "sycl-single-task-kernel") {
+  SourceLocation Loc = FD->getLocation();
+  bool NextDeclaredWithAttr = false;
+  for (FunctionDecl *Redecl : FD->redecls()) {
+    bool IsFreeFunctionAttr = false;
+    for (auto *IRAttr :
+         Redecl->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+      SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+          IRAttr->getAttributeNameValuePairs(getASTContext());
+      const auto it = std::find_if(
+          NameValuePairs.begin(), NameValuePairs.end(),
+          [](const auto &NameValuePair) {
+            return NameValuePair.first == "sycl-nd-range-kernel" ||
+                   NameValuePair.first == "sycl-single-task-kernel";
+          });
+      IsFreeFunctionAttr = it != NameValuePairs.end();
+    }
+    if (Redecl->isFirstDecl()) {
+      if (IsFreeFunctionAttr)
         return true;
+      if (NextDeclaredWithAttr) {
+        Diag(Loc, diag::err_free_function_first_occurrence_missing_attr);
+        Diag(Redecl->getLocation(), diag::note_previous_declaration);
+        return false;
       }
+    } else {
+      Loc = Redecl->getLocation();
+      NextDeclaredWithAttr = IsFreeFunctionAttr;
     }
   }
   return false;
@@ -4796,7 +4838,13 @@ public:
       int Dims = static_cast<int>(
           AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
       int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
-      Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+
+      SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
+          SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor)
+              ? SYCLIntegrationHeader::kind_dynamic_accessor
+              : SYCLIntegrationHeader::kind_accessor;
+
+      Header.addParamDesc(ParamKind, Info,
                           CurOffset +
                               offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
@@ -4822,8 +4870,12 @@ public:
           AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
       int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
 
-      Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
-                          CurOffset + offsetOf(FD, FieldTy));
+      SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
+          SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor)
+              ? SYCLIntegrationHeader::kind_dynamic_accessor
+              : SYCLIntegrationHeader::kind_accessor;
+
+      Header.addParamDesc(ParamKind, Info, CurOffset + offsetOf(FD, FieldTy));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::stream)) {
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
@@ -5804,6 +5856,13 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
     return S.Diag(FD->getLocation(), diag::err_free_function_return_type);
   }
 
+  if (const auto *MD = llvm::dyn_cast<CXXMethodDecl>(FD))
+    // The free function extension specification usual methods to be used to
+    // define a free function kernel. We also disallow static methods because we
+    // use integration header.
+    return S.Diag(FD->getLocation(), diag::err_free_function_class_method)
+           << !MD->isStatic() << MD->getSourceRange();
+
   for (ParmVarDecl *Param : FD->parameters()) {
     if (Param->hasDefaultArg()) {
       return S.Diag(Param->getLocation(),
@@ -6037,6 +6096,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(pointer);
     CASE(work_group_memory);
     CASE(dynamic_work_group_memory);
+    CASE(dynamic_accessor);
   }
   return "<ERROR>";
 

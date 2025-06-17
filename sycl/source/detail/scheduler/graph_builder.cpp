@@ -221,11 +221,11 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
     // Since all the Scheduler commands require queue but we have only context
     // here, we need to create a dummy queue bound to the context and one of the
     // devices from the context.
-    QueueImplPtr InteropQueuePtr{new detail::queue_impl{
-        Dev, InteropCtxPtr, /*AsyncHandler=*/{}, /*PropertyList=*/{}}};
+    std::shared_ptr<queue_impl> InteropQueuePtr = queue_impl::create(
+        Dev, InteropCtxPtr, async_handler{}, property_list{});
 
     MemObject->MRecord.reset(
-        new MemObjRecord{InteropCtxPtr, LeafLimit, AllocateDependency});
+        new MemObjRecord{InteropCtxPtr.get(), LeafLimit, AllocateDependency});
     std::vector<Command *> ToEnqueue;
     getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr,
                             ToEnqueue);
@@ -233,8 +233,8 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
                                 "shouldn't lead to any enqueuing (no linked "
                                 "alloca or exceeding the leaf limit).");
   } else
-    MemObject->MRecord.reset(new MemObjRecord{queue_impl::getContext(Queue),
-                                              LeafLimit, AllocateDependency});
+    MemObject->MRecord.reset(new MemObjRecord{
+        queue_impl::getContext(Queue).get(), LeafLimit, AllocateDependency});
 
   MMemObjs.push_back(MemObject);
   return MemObject->MRecord.get();

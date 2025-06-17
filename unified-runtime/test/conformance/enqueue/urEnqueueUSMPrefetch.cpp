@@ -13,7 +13,8 @@ struct urEnqueueUSMPrefetchWithParamTest
     // The setup for the parent fixture does a urQueueFlush, which isn't
     // supported by native cpu.
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-    uur::urUSMDeviceAllocTestWithParam<ur_usm_migration_flag_t>::SetUp();
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urUSMDeviceAllocTestWithParam<ur_usm_migration_flag_t>::SetUp());
   }
 };
 

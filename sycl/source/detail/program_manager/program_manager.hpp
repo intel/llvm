@@ -12,6 +12,7 @@
 #include <detail/device_global_map_entry.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_arg_mask.hpp>
+#include <detail/kernel_name_based_cache_t.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/common.hpp>
@@ -55,15 +56,15 @@ inline namespace _V1 {
 class context;
 namespace detail {
 
-bool doesDevSupportDeviceRequirements(const device &Dev,
+bool doesDevSupportDeviceRequirements(const device_impl &Dev,
                                       const RTDeviceBinaryImage &BinImages);
 std::optional<sycl::exception>
-checkDevSupportDeviceRequirements(const device &Dev,
+checkDevSupportDeviceRequirements(const device_impl &Dev,
                                   const RTDeviceBinaryImage &BinImages,
                                   const NDRDescT &NDRDesc = {});
 
 bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
-                                const device_impl *DevImpl);
+                                const device_impl &DevImpl);
 
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
@@ -134,15 +135,15 @@ public:
   static ProgramManager &getInstance();
 
   RTDeviceBinaryImage &getDeviceImage(KernelNameStrRefT KernelName,
-                                      const ContextImplPtr &ContextImpl,
-                                      const device_impl *DeviceImpl);
+                                      context_impl &ContextImpl,
+                                      const device_impl &DeviceImpl);
 
   RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
-      const ContextImplPtr &ContextImpl, const device_impl *DeviceImpl);
+      context_impl &ContextImpl, const device_impl &DeviceImpl);
 
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
-                                      const ContextImplPtr &ContextImpl,
+                                      context_impl &ContextImpl,
                                       const std::vector<device> &Devices);
   /// Creates a UR program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
@@ -166,7 +167,7 @@ public:
   std::pair<ur_program_handle_t, bool> getOrCreateURProgram(
       const RTDeviceBinaryImage &Img,
       const std::vector<const RTDeviceBinaryImage *> &AllImages,
-      const ContextImplPtr &ContextImpl, const std::vector<device> &Devices,
+      context_impl &ContextImpl, const std::vector<device> &Devices,
       const std::string &CompileAndLinkOptions, SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
@@ -175,7 +176,7 @@ public:
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
-  ur_program_handle_t getBuiltURProgram(const ContextImplPtr &ContextImpl,
+  ur_program_handle_t getBuiltURProgram(context_impl &ContextImpl,
                                         device_impl &DeviceImpl,
                                         KernelNameStrRefT KernelName,
                                         const NDRDescT &NDRDesc = {});
@@ -192,14 +193,12 @@ public:
   /// the program should be built with.
   ur_program_handle_t
   getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
-                    const ContextImplPtr &ContextImpl,
-                    const std::vector<device> &Devs,
+                    context_impl &ContextImpl, const std::vector<device> &Devs,
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
                     const SerializedObj &SpecConsts = {});
 
-  std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
-             ur_program_handle_t>
-  getOrCreateKernel(const ContextImplPtr &ContextImpl, device_impl &DeviceImpl,
+  FastKernelCacheValPtr
+  getOrCreateKernel(context_impl &ContextImpl, device_impl &DeviceImpl,
                     KernelNameStrRefT KernelName,
                     KernelNameBasedCacheT *KernelNameBasedCachePtr,
                     const NDRDescT &NDRDesc = {});
@@ -214,7 +213,7 @@ public:
       const std::vector<unsigned char> &SpecializationConsts);
 
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
-                                               const ContextImplPtr &Context);
+                                               context_impl &Context);
 
   void addImage(sycl_device_binary RawImg, bool RegisterImgExports = true,
                 RTDeviceBinaryImage **OutImage = nullptr,
@@ -223,7 +222,7 @@ public:
   void removeImages(sycl_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
-                                        const ContextImplPtr &Context);
+                                        context_impl &Context);
 
   uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
 
@@ -359,24 +358,33 @@ public:
   ~ProgramManager() = default;
 
   template <typename NameT>
-  bool kernelUsesAssert(const NameT &KernelName) const {
-    return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
+  bool kernelUsesAssert(const NameT &KernelName,
+                        KernelNameBasedCacheT *KernelNameBasedCachePtr) const {
+    if (!KernelNameBasedCachePtr)
+      return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
+
+    std::optional<bool> &UsesAssert = KernelNameBasedCachePtr->UsesAssert;
+    if (!UsesAssert.has_value())
+      UsesAssert =
+          m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
+    return UsesAssert.value();
   }
 
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
-  std::optional<int>
-  kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const;
+  std::optional<int> kernelImplicitLocalArgPos(
+      KernelNameStrRefT KernelName,
+      KernelNameBasedCacheT *KernelNameBasedCachePtr) const;
 
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
   std::set<RTDeviceBinaryImage *>
-  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev,
+  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device_impl &Dev,
                          bool ErrorOnUnresolvableImport = true);
   std::set<RTDeviceBinaryImage *>
   collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
-                                           const device &Dev,
+                                           const device_impl &Dev,
                                            bool ErrorOnUnresolvableImport);
 
 private:
@@ -385,7 +393,7 @@ private:
 
   using ProgramPtr = std::unique_ptr<std::remove_pointer_t<ur_program_handle_t>,
                                      decltype(&::urProgramRelease)>;
-  ProgramPtr build(ProgramPtr Program, const ContextImplPtr &Context,
+  ProgramPtr build(ProgramPtr Program, context_impl &Context,
                    const std::string &CompileOptions,
                    const std::string &LinkOptions,
                    std::vector<ur_device_handle_t> &Devices,
@@ -404,11 +412,11 @@ private:
 
   std::set<RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
-      const RTDeviceBinaryImage &Img, const device &Dev);
+      const RTDeviceBinaryImage &Img, const device_impl &Dev);
 
-  bool isSpecialDeviceImage(RTDeviceBinaryImage *BinImage);
-  bool isSpecialDeviceImageShouldBeUsed(RTDeviceBinaryImage *BinImage,
-                                        const device_impl &DeviceImpl);
+  bool isBfloat16DeviceImage(RTDeviceBinaryImage *BinImage);
+  bool shouldBF16DeviceImageBeUsed(RTDeviceBinaryImage *BinImage,
+                                   const device_impl &DeviceImpl);
 
 protected:
   /// The three maps below are used during kernel resolution. Any kernel is

@@ -966,6 +966,13 @@ void CudaToolChain::addClangTargetOptions(
     if (FastRelaxedMath || UnsafeMathOpt)
       CC1Args.append({"-mllvm", "--nvptx-prec-divf32=0", "-mllvm",
                       "--nvptx-prec-sqrtf32=0"});
+
+    CC1Args.append({"-mllvm", "-enable-memcpyopt-without-libcalls"});
+
+    if (DriverArgs.hasFlag(options::OPT_fsycl_id_queries_fit_in_int,
+                           options::OPT_fno_sycl_id_queries_fit_in_int, false))
+      CC1Args.append(
+          {"-mllvm", "-nvvm-reflect-add=__CUDA_ID_QUERIES_FIT_IN_INT=1"});
   } else {
     CC1Args.append({"-fcuda-is-device", "-mllvm",
                     "-enable-memcpyopt-without-libcalls",

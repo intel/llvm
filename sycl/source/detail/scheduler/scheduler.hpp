@@ -9,6 +9,7 @@
 #pragma once
 
 #include <detail/cg.hpp>
+#include <detail/context_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/leaves_collection.hpp>
 #include <detail/sycl_mem_obj_i.hpp>
@@ -198,10 +199,11 @@ using CommandPtr = std::unique_ptr<Command>;
 ///
 /// \ingroup sycl_graph
 struct MemObjRecord {
-  MemObjRecord(ContextImplPtr Ctx, std::size_t LeafLimit,
+  MemObjRecord(context_impl *Ctx, std::size_t LeafLimit,
                LeavesCollection::AllocateDependencyF AllocateDependency)
       : MReadLeaves{this, LeafLimit, AllocateDependency},
-        MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx} {}
+        MWriteLeaves{this, LeafLimit, AllocateDependency},
+        MCurContext{Ctx ? Ctx->shared_from_this() : nullptr} {}
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
 
@@ -212,7 +214,7 @@ struct MemObjRecord {
   LeavesCollection MWriteLeaves;
 
   // The context which has the latest state of the memory object.
-  ContextImplPtr MCurContext;
+  std::shared_ptr<context_impl> MCurContext;
 
   // The mode this object can be accessed from the host (host_accessor).
   // Valid only if the current usage is on host.
@@ -453,7 +455,7 @@ public:
   void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
 
   ur_kernel_handle_t completeSpecConstMaterialization(
-      const QueueImplPtr &Queue, const RTDeviceBinaryImage *BinImage,
+      queue_impl &Queue, const RTDeviceBinaryImage *BinImage,
       KernelNameStrRefT KernelName, std::vector<unsigned char> &SpecConstBlob);
 
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
@@ -477,15 +479,15 @@ public:
       const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
       std::vector<detail::EventImplPtr> &Events);
 
-  static bool CheckEventReadiness(const ContextImplPtr &Context,
+  static bool CheckEventReadiness(context_impl &Context,
                                   const EventImplPtr &SyclEventImplPtr);
 
   static bool
   areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
-                                  const ContextImplPtr &Context);
+                                  context_impl &Context);
   static bool
   areEventsSafeForSchedulerBypass(const std::vector<EventImplPtr> &DepEvents,
-                                  const ContextImplPtr &Context);
+                                  context_impl &Context);
 
 protected:
   using RWLockT = std::shared_timed_mutex;

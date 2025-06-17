@@ -152,7 +152,9 @@ static std::optional<llvm::module_split::IRSplitMode> SYCLModuleSplitMode;
 
 static bool UseSYCLPostLinkTool;
 
-static bool OutputSYCLBIN;
+static bool OutputSYCLBIN = false;
+
+static SYCLBIN::BundleState SYCLBINState = SYCLBIN::BundleState::Input;
 
 static SmallString<128> OffloadImageDumpDir;
 
@@ -692,6 +694,9 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
                    OPT_no_sycl_device_code_split_esimd, SplitEsimdByDefault);
   if (!Args.hasArg(OPT_sycl_thin_lto))
     PostLinkArgs.push_back("-symbols");
+  // Emit kernel names if we are producing SYCLBIN.
+  if (Args.hasArg(OPT_syclbin_EQ))
+    PostLinkArgs.push_back("-emit-kernel-names");
   // Specialization constant info generation is mandatory -
   // add options unconditionally
   PostLinkArgs.push_back("-emit-exported-symbols");
@@ -2019,7 +2024,6 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
   // When creating SYCLBIN files, we need to store the compiled modules for
   // combined packaging.
   std::mutex SYCLBINModulesMtx;
-  SYCLBIN::BundleState SYCLBINState = SYCLBIN::BundleState::Input;
   SmallVector<SYCLBIN::SYCLBINModuleDesc> SYCLBINModules;
 
   // Initialize the images with any overriding inputs.
@@ -2671,7 +2675,25 @@ int main(int Argc, char **Argv) {
                                   "-no-use-sycl-post-link-tool options can't "
                                   "be used together."));
 
-  OutputSYCLBIN = Args.hasArg(OPT_syclbin);
+  if (Arg *SYCLBINArg = Args.getLastArg(OPT_syclbin_EQ)) {
+    OutputSYCLBIN = true;
+    auto MaybeSYCLBINState =
+        llvm::StringSwitch<std::optional<SYCLBIN::BundleState>>(
+            SYCLBINArg->getValue())
+            .Case("input", SYCLBIN::BundleState::Input)
+            .Case("object", SYCLBIN::BundleState::Object)
+            .Case("executable", SYCLBIN::BundleState::Executable)
+            .Default(std::nullopt);
+
+    if (MaybeSYCLBINState)
+      SYCLBINState = *MaybeSYCLBINState;
+    else
+      reportError(
+          createStringError("Invalid argument for -syclbin (" +
+                            StringRef{SYCLBINArg->getValue()} +
+                            "). Must be either input, object or executable."));
+  }
+
   if (OutputSYCLBIN && Args.hasArg(OPT_sycl_embed_ir))
     reportError(createStringError(
         "-sycl-embed_ir and -syclbin can't be used together."));

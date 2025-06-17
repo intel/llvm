@@ -250,10 +250,11 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                                 uint32_t NumEntries,
                                 ur_device_handle_t *phDevices,
                                 uint32_t *pNumDevices) {
-  constexpr std::pair<const ur_backend_t, const char *> adapters[6] = {
-      {UR_BACKEND_UNKNOWN, "*"},     {UR_BACKEND_LEVEL_ZERO, "level_zero"},
-      {UR_BACKEND_OPENCL, "opencl"}, {UR_BACKEND_CUDA, "cuda"},
-      {UR_BACKEND_HIP, "hip"},       {UR_BACKEND_NATIVE_CPU, "native_cpu"}};
+  constexpr std::pair<const ur_backend_t, const char *> adapters[7] = {
+      {UR_BACKEND_UNKNOWN, "*"},      {UR_BACKEND_LEVEL_ZERO, "level_zero"},
+      {UR_BACKEND_OPENCL, "opencl"},  {UR_BACKEND_CUDA, "cuda"},
+      {UR_BACKEND_HIP, "hip"},        {UR_BACKEND_NATIVE_CPU, "native_cpu"},
+      {UR_BACKEND_OFFLOAD, "offload"}};
 
   if (!hPlatform) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;

@@ -150,6 +150,10 @@ public:
     return MaxWorkItemSizes[index];
   }
 
+  const size_t *getMaxWorkItemSizes() const noexcept {
+    return MaxWorkItemSizes;
+  }
+
   size_t getMaxWorkGroupSize() const noexcept { return MaxWorkGroupSize; };
 
   size_t getMaxRegsPerBlock() const noexcept { return MaxRegsPerBlock; };

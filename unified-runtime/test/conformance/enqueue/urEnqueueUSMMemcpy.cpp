@@ -178,7 +178,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueUSMMemcpyTest);
 
 struct urEnqueueUSMMemcpyMultiDeviceTest : uur::urAllDevicesTest {
   void SetUp() override {
-    uur::urAllDevicesTest::SetUp();
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urAllDevicesTest::SetUp());
     for (auto &device : devices) {
       ur_device_usm_access_capability_flags_t device_usm = 0;
       ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));

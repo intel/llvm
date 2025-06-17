@@ -38,7 +38,7 @@ public:
   const char *get_name() { return MName.data(); }
 
 private:
-  KernelNameStrT MName;
+  std::string MName;
 };
 
 } // namespace detail

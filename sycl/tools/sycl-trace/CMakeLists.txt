@@ -145,6 +145,8 @@ if(SYCL_BUILD_BACKEND_CUDA)
       "${CUDAToolkit_ROOT}/extras/CUPTI/include"
       "${CUDAToolkit_INCLUDE_DIRS}/../extras/CUPTI/include"
       "${CUDAToolkit_INCLUDE_DIRS}"
+      "${CUDAToolkit_CUPTI_INCLUDE_DIR}"
+      "${CUDAToolkit_INCLUDE_DIRS}/../../../extras/CUPTI/include"
       NO_DEFAULT_PATH)
 
   if( EXISTS "${GEN_CUDA_META_H_DIR}/generated_cuda_meta.h" )

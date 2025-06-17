@@ -665,13 +665,21 @@ public:
                             "'device_image_scope' property");
     }
 
-    // TODO: Add context-only initialization via `urUSMContextMemcpyExp` instead
-    // of using a throw-away queue.
-    queue InitQueue{MContext, Dev};
-    auto &USMMem =
-        Entry->getOrAllocateDeviceGlobalUSM(getSyclObjImpl(InitQueue));
-    InitQueue.wait_and_throw();
-    return USMMem.getPtr();
+    const auto &DeviceImpl = getSyclObjImpl(Dev);
+    bool SupportContextMemcpy = false;
+    DeviceImpl->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        DeviceImpl->getHandleRef(),
+        UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP,
+        sizeof(SupportContextMemcpy), &SupportContextMemcpy, nullptr);
+    if (SupportContextMemcpy) {
+      return Entry->getOrAllocateDeviceGlobalUSM(MContext).getPtr();
+    } else {
+      queue InitQueue{MContext, Dev};
+      auto &USMMem =
+          Entry->getOrAllocateDeviceGlobalUSM(*getSyclObjImpl(InitQueue));
+      InitQueue.wait_and_throw();
+      return USMMem.getPtr();
+    }
   }
 
   size_t ext_oneapi_get_device_global_size(const std::string &Name) const {
@@ -680,9 +688,7 @@ public:
 
   bool empty() const noexcept { return MDeviceImages.empty(); }
 
-  backend get_backend() const noexcept {
-    return MContext.get_platform().get_backend();
-  }
+  backend get_backend() const noexcept { return MContext.get_backend(); }
 
   context get_context() const noexcept { return MContext; }
 
@@ -932,7 +938,7 @@ public:
             SelectedImage->get_ur_program_ref());
 
     return std::make_shared<kernel_impl>(
-        Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
+        Kernel, *detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
         SelectedImage->get_ur_program_ref(), CacheMutex);
   }
 

@@ -50,12 +50,16 @@ typedef struct {
   float real, imag;
 } complex_float;
 
+#ifdef cl_khr_fp64
 typedef struct {
   double real, imag;
 } complex_double;
+#endif
 
+#ifdef cl_khr_fp16
 typedef struct {
   half real, imag;
 } complex_half;
+#endif
 
 #endif // CLC_SPIRV_TYPES
