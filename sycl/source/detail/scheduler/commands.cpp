@@ -323,13 +323,6 @@ bool Command::isFusable() const {
 }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
-static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
-                                const QueueImplPtr &Queue) {
-  for (auto &EventImpl : EventImpls) {
-    EventImpl->flushIfNeeded(Queue);
-  }
-}
-
 namespace {
 
 struct EnqueueNativeCommandData {
@@ -553,7 +546,7 @@ void Command::waitForEvents(QueueImplPtr Queue,
       }
     } else {
       std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
-      flushCrossQueueDeps(EventImpls, MWorkerQueue);
+      flushCrossQueueDeps(EventImpls);
       const AdapterPtr &Adapter = Queue->getAdapter();
 
       Adapter->call<UrApiKind::urEnqueueEventsWait>(
@@ -1397,7 +1390,7 @@ ur_result_t MapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
-  flushCrossQueueDeps(EventImpls, MWorkerQueue);
+  flushCrossQueueDeps(EventImpls);
 
   ur_event_handle_t UREvent = nullptr;
   if (auto Result = callMemOpHelperRet(
@@ -1480,7 +1473,7 @@ ur_result_t UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
-  flushCrossQueueDeps(EventImpls, MWorkerQueue);
+  flushCrossQueueDeps(EventImpls);
 
   ur_event_handle_t UREvent = nullptr;
   if (auto Result =
@@ -1590,7 +1583,7 @@ ur_result_t MemCpyCommand::enqueueImp() {
   ur_event_handle_t UREvent = nullptr;
 
   auto RawEvents = getUrEvents(EventImpls);
-  flushCrossQueueDeps(EventImpls, MWorkerQueue);
+  flushCrossQueueDeps(EventImpls);
 
   if (auto Result = callMemOpHelper(
           MemoryManager::copy, MSrcAllocaCmd->getSYCLMemObj(),
@@ -1751,7 +1744,7 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
     return UR_RESULT_SUCCESS;
   }
 
-  flushCrossQueueDeps(EventImpls, MWorkerQueue);
+  flushCrossQueueDeps(EventImpls);
 
   if (auto Result = callMemOpHelper(
           MemoryManager::copy, MSrcAllocaCmd->getSYCLMemObj(),
@@ -2848,7 +2841,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   // submissions of the command buffer itself will not receive dependencies on
   // them, e.g. initial copies from host to device
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  flushCrossQueueDeps(EventImpls, MWorkerQueue);
+  flushCrossQueueDeps(EventImpls);
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   if (!RawEvents.empty()) {
     MQueue->getAdapter()->call<UrApiKind::urEventWait>(RawEvents.size(),
@@ -3128,7 +3121,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getUrEvents(EventImpls);
-  flushCrossQueueDeps(EventImpls, MWorkerQueue);
+  flushCrossQueueDeps(EventImpls);
 
   // We can omit creating a UR event and create a "discarded" event if the
   // command has been explicitly marked as not needing an event, e.g. if the
