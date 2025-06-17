@@ -1464,6 +1464,8 @@ _Throws:_
   created.
 * An `exception` with error code `invalid` if `node` is not part of the
   graph.
+* An `exception` with error code `invalid` if the type of `node` is either
+  `node_type::async_malloc` or `node_type::async_free`.
 * If any other `exception` is thrown the state of the graph node is undefined.
 
 [source,c++]
@@ -1489,6 +1491,8 @@ _Throws:_
   `property::graph::updatable` was not set when the executable graph was created.
 * An `exception` with error code `invalid` if any node in `nodes` is not part of the
   graph.
+* An `exception` with error code `invalid` if the type of any node in `nodes` is
+  either `node_type::async_malloc` or `node_type::async_free`.
 * If any other `exception` is thrown the state of the graph nodes is undefined.
 
 [source, c++]
@@ -1811,6 +1815,9 @@ as the device and context used on creation of the graph.
 
 _Returns:_ An event which represents the command which is submitted to the queue.
 
+_Throws:_ Synchronous `exception` with error code `invalid` if `graph` contains
+any <<graph-memory-allocations, graph-owned memory allocations>>.
+
 [source,c++]
 ----
 event
@@ -1830,6 +1837,9 @@ _Preconditions:_ The queue should be associated with a device and context that
 are the same as the device and context used on creation of the graph.
 
 _Returns:_ An event which represents the command which is submitted to the queue.
+
+_Throws:_ Synchronous `exception` with error code `invalid` if `graph` contains
+any <<graph-memory-allocations, graph-owned memory allocations>>.
 
 [source,c++]
 ----
@@ -1851,6 +1861,9 @@ are the same as the device and context used on creation of the graph.
 
 _Returns:_ An event which represents the command which is submitted to the queue.
 
+_Throws:_ Synchronous `exception` with error code `invalid` if `graph` contains
+any <<graph-memory-allocations, graph-owned memory allocations>>.
+
 ==== New Handler Member Functions
 
 ===== Additional member functions of the `sycl::handler` class
@@ -1866,9 +1879,12 @@ execute at any time. If `graph` is submitted multiple times, dependencies
 are automatically added by the runtime to prevent concurrent executions of 
 an identical graph.
 
-_Throws:_ Synchronously `exception` with error code `invalid` if the handler
+_Throws:_ 
+* Synchronously `exception` with error code `invalid` if the handler
 is submitted to a queue which is associated with a device or context that is
 different from the device and context used on creation of the graph.
+* Synchronous `exception` with error code `invalid` if `graph` contains
+any <<graph-memory-allocations, graph-owned memory allocations>>.
 
 [source,c++]
 ----
