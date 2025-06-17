@@ -234,7 +234,7 @@ allocation and use of temporary memory for those kernels. One approach is custom
 allocators which rely on SYCL events to control the lifetime and re-use of this
 temporary memory, but these are not compatible with events returned from queue
 submissions which are recorded to a graph. Instead the
-[sycl_ext_oneapi_async_memory_alloc](../extensions/experimental/sycl_ext_oneapi_async_memory_alloc.asciidoc)
+[sycl_ext_oneapi_async_memory_alloc](../extensions/proposed/sycl_ext_oneapi_async_memory_alloc.asciidoc)
 extension can be used which provides similar functionality for eager SYCL usage
 as well as compatibility with graphs.
 

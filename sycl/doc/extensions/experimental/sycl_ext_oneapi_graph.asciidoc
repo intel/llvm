@@ -727,7 +727,7 @@ public:
     void update(const std::vector<node>& nodes);
     void update(const command_graph<graph_state::modifiable>& graph);
 
-    size_t get_required_mem_size() const;
+    size_t get_required_mem_size() const noexcept;
 };
 
 }  // namespace sycl::ext::oneapi::experimental
@@ -980,7 +980,7 @@ in the new graph.
 
 ==== Graph-Owned Memory Allocations [[graph-memory-allocations]]
 
-:async_alloc_spec: xref:../experimental/sycl_ext_oneapi_async_memory_alloc.asciidoc
+:async_alloc_spec: xref:../proposed/sycl_ext_oneapi_async_memory_alloc.asciidoc
 
 It can be desirable for a graph to own and manage memory allocations for memory
 associated with commands in the graph. This is made possible by using the
@@ -1021,9 +1021,10 @@ Queue.submit(CGF);
 Queue.submit([&](handler &CGH){
   async_free(CGH, Ptr);
 });
+Graph.end_recording(Queue);
 ----
 
-The `async_*` commands which take a queue can also be used with queue
+The `async_*` functions which take a queue can also be used with queue
 recording, particularly when recording an in-order queue to specify dependencies
 as no SYCL event is returned.
 
@@ -1036,6 +1037,7 @@ queue Queue {syclContext, syclDevice, {property::queue::in_order{}}};
 Graph.begin_recording(Queue);
 Ptr = async_malloc(Queue, usm::alloc::device, AllocSize);
 async_free(Queue, Ptr);
+Graph.end_recording(Queue);
 ----
 
 ===== Supported Features [[allocation-supported-features]]
@@ -1049,10 +1051,11 @@ with error code `feature_not_supported`.
 The following restrictions apply to any graph containing async malloc or free
 nodes:
 
-* Only one executable graph instance (created by finalizing the modifiable
-graph) can be alive at any time, and all copies of that instance (created via
-the {crs}[common reference semantics] of the `command_graph` class) must be
-destroyed before the graph can be finalized again. 
+* Only one executable graph instance for a given modifiable graph (created by
+finalizing the modifiable graph) can be alive at any time, and all copies of
+that instance (created via the {crs}[common reference semantics] of the
+`command_graph` class) must be destroyed before the graph can be finalized
+again. 
 * The graph cannot be used as a sub-graph in another graph.
 * Graph memory allocation nodes cannot be updated, and graphs containing these
 nodes cannot be updated via <<whole-graph-update, Whole Graph Update>>.
@@ -1076,15 +1079,15 @@ will result in undefined behavior.
 ===== Behaviour 
 
 The semantics of `async_malloc` and `async_free` within a graph differ from the
-eager SYCL usage described in the
+non-graph usage described in the
 {async_alloc_spec}[sycl_ext_oneapi_async_memory_alloc] extension.
 
 * Graph memory allocations are not made directly from any default or
-user-provided Memory Pool. Each graph containing alloc/free nodes maintains its
-own pool of memory from which allocations are made. The following properties of
-a default or user-provided memory pool provided in calls to
-`async_<malloc/malloc_from_pool>` will be respected for the associated graph
-allocations, all other properties will be ignored:
+user-provided Memory Pool. Each graph containing async mlloc/free nodes
+maintains its own pool of memory from which allocations are made.
+The following properties of a default or user-provided memory pool provided in
+calls to `async_<malloc/malloc_from_pool>` will be respected for the associated
+graph allocations, all other properties will be ignored:
 
 ** The allocation type specified when creating the pool with
 `usm::alloc::<host/device/shared>`, subject to the limitations in the
@@ -1102,8 +1105,9 @@ nodes ordered after that node in the same way any USM pointer would be.
 
 * `node_type::async_free` nodes within a graph indicate that a given allocation
 is no longer in use. They must be ordered after the associated allocation node.
-Attempting to add a free node for an allocation which does not exist in the
-graph will result in a synchronous error being thrown with error code `invalid`.
+The pointer provided to `async_free` must be the address of a memory allocation
+allocated by an async malloc node in the same graph.
+Violating these preconditions will result in undefined behavior.
 
 * Other nodes which use a given graph allocation must be ordered via
 dependencies such that they are ordered after the allocation node and before the
@@ -1425,7 +1429,7 @@ _Returns:_ A list of all nodes in the graph which have no dependencies.
 
 [source,c++]
 ----
-size_t get_required_mem_size() const;
+size_t get_required_mem_size() const noexcept;
 ----
 
 _Constraints:_ This member function is only available when the `command_graph` state is
@@ -1528,7 +1532,7 @@ _Throws:_
   `property::graph::updatable` was not set when the executable graph was
   created.
 
-* Synchronously `exception` with error code `invalid` if the graph contains any
+* Synchronous `exception` with error code `invalid` if the graph contains any
   <<graph-memory-allocations, graph-owned memory allocations>>.
 
 * If any other `exception` is thrown the state of the graph nodes is undefined.
@@ -2061,7 +2065,7 @@ extensions.
 ==== sycl_ext_oneapi_async_memory_alloc
 
 The APIs defined in
-link:../experimental/sycl_ext_oneapi_async_memory_alloc.asciidoc[sycl_ext_oneapi_async_memory_alloc]
+link:../proposed/sycl_ext_oneapi_async_memory_alloc.asciidoc[sycl_ext_oneapi_async_memory_alloc]
 are supported for use in graphs. For further details see the section on
 <<graph-memory-allocations, Graph-owned memory allocations>>.
 
