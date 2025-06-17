@@ -114,7 +114,6 @@
 // CHECK-NEXT: DeviceLib/imf_half_type_cast.cpp
 // CHECK-NEXT: DeviceLib/imf_half_type_cast.cpp
 // CHECK-NEXT: DeviceLib/imf_simd_emulate_test.cpp
-// CHECK-NEXT: DeviceLib/rand_test.cpp
 // CHECK-NEXT: DeviceLib/separate_compile_test.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortK.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortKv2.cpp
