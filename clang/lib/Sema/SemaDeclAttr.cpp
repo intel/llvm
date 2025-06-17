@@ -53,7 +53,6 @@
 #include "clang/Sema/SemaOpenCL.h"
 #include "clang/Sema/SemaOpenMP.h"
 #include "clang/Sema/SemaRISCV.h"
-#include "clang/Sema/SemaSPIRV.h"
 #include "clang/Sema/SemaSYCL.h"
 #include "clang/Sema/SemaSwift.h"
 #include "clang/Sema/SemaWasm.h"
@@ -3291,8 +3290,7 @@ bool Sema::checkTargetAttr(SourceLocation LiteralLoc, StringRef AttrStr) {
     if (ParsedAttrs.Duplicate != "")
       return Diag(LiteralLoc, diag::err_duplicate_target_attribute)
              << Duplicate << None << ParsedAttrs.Duplicate << Target;
-    for (const auto &Feature : ParsedAttrs.Features) {
-      StringRef CurFeature = Feature;
+    for (StringRef CurFeature : ParsedAttrs.Features) {
       if (!CurFeature.starts_with('+') && !CurFeature.starts_with('-'))
         return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
                << Unsupported << None << AttrStr << Target;
@@ -3300,8 +3298,7 @@ bool Sema::checkTargetAttr(SourceLocation LiteralLoc, StringRef AttrStr) {
   }
 
   if (Context.getTargetInfo().getTriple().isLoongArch()) {
-    for (const auto &Feature : ParsedAttrs.Features) {
-      StringRef CurFeature = Feature;
+    for (StringRef CurFeature : ParsedAttrs.Features) {
       if (CurFeature.starts_with("!arch=")) {
         StringRef ArchValue = CurFeature.split("=").second.trim();
         return Diag(LiteralLoc, diag::err_attribute_unsupported)
