@@ -26,11 +26,11 @@ public:
   MockCmdWithReleaseTracking(
       sycl::detail::QueueImplPtr Queue, sycl::detail::Requirement Req,
       sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
-      : MockCommand(Queue, Req, Type){};
+      : MockCommand(Queue.get(), Req, Type) {};
   MockCmdWithReleaseTracking(
       sycl::detail::QueueImplPtr Queue,
       sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
-      : MockCommand(Queue, Type){};
+      : MockCommand(Queue.get(), Type) {};
   ~MockCmdWithReleaseTracking() { Release(); }
   MOCK_METHOD0(Release, void());
 };

@@ -701,9 +701,8 @@ event handler::finalize() {
     detail::context_impl &Context = impl->get_context();
     detail::queue_impl *Queue = impl->get_queue_or_null();
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(impl->MHostTask), Queue ? Queue->shared_from_this() : nullptr,
-        Context.shared_from_this(), std::move(impl->MArgs),
-        std::move(impl->CGData), getType(), MCodeLoc));
+        std::move(impl->MHostTask), Queue, Context.shared_from_this(),
+        std::move(impl->MArgs), std::move(impl->CGData), getType(), MCodeLoc));
     break;
   }
   case detail::CGType::Barrier:
