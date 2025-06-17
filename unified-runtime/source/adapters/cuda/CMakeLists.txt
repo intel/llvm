@@ -40,6 +40,8 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/sampler.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tracing.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_allocator.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/host_allocator_v2.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/usm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/usm_p2p.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/virtual_mem.cpp

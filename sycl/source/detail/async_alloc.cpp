@@ -61,11 +61,11 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Unknown allocation kinds are disallowed!");
 
-  // Non-device allocations are unsupported.
-  if (kind != sycl::usm::alloc::device)
+  // Shared allocations are unsupported.
+  if (kind == sycl::usm::alloc::shared)
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Only device backed asynchronous allocations are supported!");
+        "Shared asynchronous allocations are unsupported!");
 
   auto &Adapter = h.getContextImplPtr()->getAdapter();
 
@@ -76,15 +76,23 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
   void *alloc = nullptr;
 
   ur_event_handle_t Event = nullptr;
-  // If a graph is present do the allocation from the graph memory pool instead.
-  if (auto Graph = h.getCommandGraph(); Graph) {
-    auto DepNodes =
+  if (kind == sycl::usm::alloc::device) {
+    // If a graph is present do the allocation from the graph memory pool instead.
+    if (auto Graph = h.getCommandGraph(); Graph) {
+      auto DepNodes =
         getDepGraphNodes(h, h.impl->get_queue_or_null(), Graph, DepEvents);
-    alloc = Graph->getMemPool().malloc(size, kind, DepNodes);
-  } else {
+      alloc = Graph->getMemPool().malloc(size, kind, DepNodes);
+    } else {
+      ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
+      Adapter->call<sycl::errc::runtime,
+                    sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
+          Q, (ur_usm_pool_handle_t)0, size, nullptr, UREvents.size(),
+          UREvents.data(), &alloc, &Event);
+    }
+  } else if (kind == sycl::usm::alloc::host) {
     ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
     Adapter->call<sycl::errc::runtime,
-                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
+                  sycl::detail::UrApiKind::urEnqueueUSMHostAllocExp>(
         Q, (ur_usm_pool_handle_t)0, size, nullptr, UREvents.size(),
         UREvents.data(), &alloc, &Event);
   }
