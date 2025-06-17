@@ -51,11 +51,14 @@ static bool IsSuitableSubReq(const Requirement *Req) {
   return Req->MIsSubBuffer;
 }
 
-static bool isOnSameContext(const ContextImplPtr Context,
-                            const QueueImplPtr &Queue) {
+static bool isOnSameContext(const ContextImplPtr Context, queue_impl *Queue) {
   // Covers case for host usage (nullptr == nullptr) and existing device
   // contexts comparison.
   return Context == queue_impl::getContext(Queue);
+}
+static bool isOnSameContext(const ContextImplPtr Context,
+                            const QueueImplPtr &Queue) {
+  return isOnSameContext(Context, Queue.get());
 }
 
 /// Checks if the required access mode is allowed under the current one.
@@ -276,7 +279,8 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
   AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, Context);
   assert(AllocaCmd && "There must be alloca for requirement!");
   UpdateHostRequirementCommand *UpdateCommand =
-      new UpdateHostRequirementCommand(Queue, *Req, AllocaCmd, &Req->MData);
+      new UpdateHostRequirementCommand(Queue.get(), *Req, AllocaCmd,
+                                       &Req->MData);
   // Need copy of requirement because after host accessor destructor call
   // dependencies become invalid if requirement is stored by pointer.
   const Requirement *StoredReq = UpdateCommand->getRequirement();
@@ -705,8 +709,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
 
       auto *ParentAlloca =
           getOrCreateAllocaForReq(Record, &ParentRequirement, Queue, ToEnqueue);
-      AllocaCmd = new AllocaSubBufCommand(Queue, *Req, ParentAlloca, ToEnqueue,
-                                          ToCleanUp);
+      AllocaCmd = new AllocaSubBufCommand(Queue.get(), *Req, ParentAlloca,
+                                          ToEnqueue, ToCleanUp);
     } else {
 
       const Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
@@ -782,8 +786,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           }
       }
 
-      AllocaCmd =
-          new AllocaCommand(Queue, FullReq, InitFromUserData, LinkedAllocaCmd);
+      AllocaCmd = new AllocaCommand(Queue.get(), FullReq, InitFromUserData,
+                                    LinkedAllocaCmd);
 
       // Update linked command
       if (LinkedAllocaCmd) {
@@ -928,9 +932,9 @@ Command *Scheduler::GraphBuilder::addCG(
   std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
   std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();
 
-  auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue,
-                                                EventNeeded, CommandBuffer,
-                                                std::move(Dependencies));
+  auto NewCmd = std::make_unique<ExecCGCommand>(
+      std::move(CommandGroup), Queue.get(), EventNeeded, CommandBuffer,
+      std::move(Dependencies));
 
   if (!NewCmd)
     throw exception(make_error_code(errc::memory_allocation),
@@ -1217,7 +1221,7 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
 Command *Scheduler::GraphBuilder::connectDepEvent(
     Command *const Cmd, const EventImplPtr &DepEvent, const DepDesc &Dep,
     std::vector<Command *> &ToCleanUp) {
-  assert(Cmd->getWorkerContext() != DepEvent->getContextImpl());
+  assert(Cmd->getWorkerContext().get() != &DepEvent->getContextImpl());
 
   // construct Host Task type command manually and make it depend on DepEvent
   ExecCGCommand *ConnectCmd = nullptr;
@@ -1280,7 +1284,7 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
     std::vector<detail::EventImplPtr> &Events,
     std::vector<Command *> &ToEnqueue) {
   auto NewCmd =
-      std::make_unique<UpdateCommandBufferCommand>(Queue, Graph, Nodes);
+      std::make_unique<UpdateCommandBufferCommand>(Queue.get(), Graph, Nodes);
   // If there are multiple requirements for the same memory object, its
   // AllocaCommand creation will be dependent on the access mode of the first
   // requirement. Combine these access modes to take all of them into account.

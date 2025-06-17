@@ -38,8 +38,10 @@ void event_impl::initContextIfNeeded() {
     return;
 
   const device SyclDevice;
-  this->setContextImpl(
-      detail::queue_impl::getDefaultOrNew(*detail::getSyclObjImpl(SyclDevice)));
+  MIsHostEvent = false;
+  MContext =
+      detail::queue_impl::getDefaultOrNew(*detail::getSyclObjImpl(SyclDevice));
+  assert(MContext);
 }
 
 event_impl::~event_impl() {
@@ -140,9 +142,10 @@ void event_impl::setHandle(const ur_event_handle_t &UREvent) {
   MEvent.store(UREvent);
 }
 
-const ContextImplPtr &event_impl::getContextImpl() {
+context_impl &event_impl::getContextImpl() {
   initContextIfNeeded();
-  return MContext;
+  assert(MContext && "Trying to get context from a host event!");
+  return *MContext;
 }
 
 const AdapterPtr &event_impl::getAdapter() {
@@ -152,8 +155,8 @@ const AdapterPtr &event_impl::getAdapter() {
 
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
-void event_impl::setContextImpl(const ContextImplPtr &Context) {
-  MContext = Context;
+void event_impl::setContextImpl(context_impl &Context) {
+  MContext = Context.shared_from_this();
 }
 
 event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
@@ -177,7 +180,7 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
 event_impl::event_impl(queue_impl &Queue, private_tag)
     : MQueue{Queue.weak_from_this()},
       MIsProfilingEnabled{Queue.MIsProfilingEnabled} {
-  this->setContextImpl(Queue.getContextImplPtr());
+  this->setContextImpl(Queue.getContextImpl());
   MState.store(HES_Complete);
 }
 

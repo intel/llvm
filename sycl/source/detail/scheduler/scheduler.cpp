@@ -133,6 +133,14 @@ EventImplPtr Scheduler::addCG(
     }
     NewEvent = NewCmd->getEvent();
     NewEvent->setSubmissionTime();
+
+    // This is the last moment we can mark the event as discarded.
+    // Doing this during command execution would lead to incorrect
+    // event handling (as event would change it's state from non-discarded
+    // to discarded).
+    if (!EventNeeded) {
+      NewEvent->setStateDiscarded();
+    }
   }
 
   enqueueCommandForCG(NewEvent, AuxiliaryCmds);
@@ -691,7 +699,7 @@ bool Scheduler::CheckEventReadiness(context_impl &Context,
     return SyclEventImplPtr->isCompleted();
   }
   // Cross-context dependencies can't be passed to the backend directly.
-  if (SyclEventImplPtr->getContextImpl().get() != &Context)
+  if (&SyclEventImplPtr->getContextImpl() != &Context)
     return false;
 
   // A nullptr here means that the commmand does not produce a UR event or it

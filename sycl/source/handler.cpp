@@ -610,7 +610,7 @@ event handler::finalize() {
         detail::queue_impl &Queue = impl->get_queue();
         LastEventImpl->setQueue(Queue);
         LastEventImpl->setWorkerQueue(Queue.weak_from_this());
-        LastEventImpl->setContextImpl(impl->get_context().shared_from_this());
+        LastEventImpl->setContextImpl(impl->get_context());
         LastEventImpl->setStateIncomplete();
         LastEventImpl->setSubmissionTime();
 
@@ -701,9 +701,8 @@ event handler::finalize() {
     detail::context_impl &Context = impl->get_context();
     detail::queue_impl *Queue = impl->get_queue_or_null();
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(impl->MHostTask), Queue ? Queue->shared_from_this() : nullptr,
-        Context.shared_from_this(), std::move(impl->MArgs),
-        std::move(impl->CGData), getType(), MCodeLoc));
+        std::move(impl->MHostTask), Queue, Context.shared_from_this(),
+        std::move(impl->MArgs), std::move(impl->CGData), getType(), MCodeLoc));
     break;
   }
   case detail::CGType::Barrier:
@@ -895,11 +894,15 @@ event handler::finalize() {
 #endif
   }
 
+  bool DiscardEvent = !impl->MEventNeeded && Queue &&
+                      Queue->supportsDiscardingPiEvents() &&
+                      CommandGroup->getRequirements().size() == 0;
+
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), Queue->shared_from_this(), impl->MEventNeeded);
+      std::move(CommandGroup), Queue->shared_from_this(), !DiscardEvent);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  MLastEvent = Event;
+  MLastEvent = DiscardEvent ? nullptr : Event;
 #else
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
 #endif
