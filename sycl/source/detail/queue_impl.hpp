@@ -295,6 +295,8 @@ public:
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
+  context_impl &getContextImpl() const { return *MContext; }
+
   device_impl &getDeviceImpl() const { return MDevice; }
 
   /// \return an associated SYCL device.
@@ -648,8 +650,11 @@ public:
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
-  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
+  static ContextImplPtr getContext(queue_impl *Queue) {
     return Queue ? Queue->getContextImplPtr() : nullptr;
+  }
+  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
+    return getContext(Queue.get());
   }
 
   // Must be called under MMutex protection
@@ -663,7 +668,7 @@ public:
   /// will wait for the completion of all work in the queue at the time of the
   /// insertion, but will not act as a barrier unless the queue is in-order.
   EventImplPtr insertMarkerEvent() {
-    auto ResEvent = std::make_shared<detail::event_impl>(shared_from_this());
+    auto ResEvent = detail::event_impl::create_device_event(*this);
     ur_event_handle_t UREvent = nullptr;
     getAdapter()->call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
                                                        nullptr, &UREvent);
@@ -688,8 +693,7 @@ protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
     auto &Queue = Handler.impl->get_queue();
-    auto ResEvent =
-        std::make_shared<detail::event_impl>(Queue.shared_from_this());
+    auto ResEvent = detail::event_impl::create_device_event(Queue);
     ur_event_handle_t UREvent = nullptr;
     getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
         Queue.getHandleRef(), 0, nullptr, &UREvent);
@@ -724,7 +728,7 @@ protected:
       return false;
 
     if (MDefaultGraphDeps.LastEventPtr != nullptr &&
-        !Scheduler::CheckEventReadiness(MContext,
+        !Scheduler::CheckEventReadiness(*MContext,
                                         MDefaultGraphDeps.LastEventPtr))
       return false;
 

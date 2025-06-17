@@ -411,7 +411,7 @@ event handler::finalize() {
       (Queue && !Graph && !impl->MSubgraphNode && !Queue->hasCommandGraph() &&
        !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
        detail::Scheduler::areEventsSafeForSchedulerBypass(
-           impl->CGData.MEvents, Queue->getContextImplPtr()));
+           impl->CGData.MEvents, Queue->getContextImpl()));
 
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.
@@ -547,7 +547,7 @@ event handler::finalize() {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       if (!DiscardEvent) {
-        LastEventImpl = std::make_shared<detail::event_impl>();
+        LastEventImpl = detail::event_impl::create_completed_host_event();
       }
 #endif
 
@@ -701,9 +701,8 @@ event handler::finalize() {
     detail::context_impl &Context = impl->get_context();
     detail::queue_impl *Queue = impl->get_queue_or_null();
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(impl->MHostTask), Queue ? Queue->shared_from_this() : nullptr,
-        Context.shared_from_this(), std::move(impl->MArgs),
-        std::move(impl->CGData), getType(), MCodeLoc));
+        std::move(impl->MHostTask), Queue, Context.shared_from_this(),
+        std::move(impl->MArgs), std::move(impl->CGData), getType(), MCodeLoc));
     break;
   }
   case detail::CGType::Barrier:
@@ -824,7 +823,7 @@ event handler::finalize() {
   // so it can be retrieved by the graph later.
   if (impl->get_graph_or_null()) {
     impl->MGraphNodeCG = std::move(CommandGroup);
-    auto EventImpl = std::make_shared<detail::event_impl>();
+    auto EventImpl = detail::event_impl::create_completed_host_event();
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     return EventImpl;
 #else
@@ -838,7 +837,7 @@ event handler::finalize() {
   // If the queue has an associated graph then we need to take the CG and pass
   // it to the graph to create a node, rather than submit it to the scheduler.
   if (auto GraphImpl = Queue->getCommandGraph(); GraphImpl) {
-    auto EventImpl = std::make_shared<detail::event_impl>();
+    auto EventImpl = detail::event_impl::create_completed_host_event();
     EventImpl->setSubmittedQueue(Queue->weak_from_this());
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
         nullptr;

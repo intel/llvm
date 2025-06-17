@@ -31,11 +31,14 @@ class Adapter;
 class context_impl;
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
-using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
 class event_impl;
 using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
-class event_impl {
+class event_impl : public std::enable_shared_from_this<event_impl> {
+  struct private_tag {
+    explicit private_tag() = default;
+  };
+
 public:
   enum HostEventState : int {
     HES_NotComplete = 0,
@@ -46,11 +49,9 @@ public:
   /// Constructs a ready SYCL event.
   ///
   /// If the constructed SYCL event is waited on it will complete immediately.
-  /// Normally constructs a host event, use std::nullopt to instead instantiate
-  /// a device event.
-  event_impl(std::optional<HostEventState> State = HES_Complete)
-      : MIsFlushed(true), MState(State.value_or(HES_Complete)),
-        MIsDefaultConstructed(!State), MIsHostEvent(State) {
+  event_impl(private_tag)
+      : MIsFlushed(true), MState(HES_Complete), MIsDefaultConstructed(true),
+        MIsHostEvent(false) {
     // Need to fail in event() constructor  if there are problems with the
     // ONEAPI_DEVICE_SELECTOR. Deferring may lead to conficts with noexcept
     // event methods. This ::get() call uses static vars to read and parse the
@@ -65,8 +66,39 @@ public:
   ///
   /// \param Event is a valid instance of UR event.
   /// \param SyclContext is an instance of SYCL context.
-  event_impl(ur_event_handle_t Event, const context &SyclContext);
-  event_impl(const QueueImplPtr &Queue);
+  event_impl(ur_event_handle_t Event, const context &SyclContext, private_tag);
+
+  event_impl(queue_impl &Queue, private_tag);
+  event_impl(HostEventState State, private_tag);
+
+  // Corresponds to `sycl::event{}`.
+  static std::shared_ptr<event_impl> create_default_event() {
+    return std::make_shared<event_impl>(private_tag{});
+  }
+
+  static std::shared_ptr<event_impl>
+  create_from_handle(ur_event_handle_t Event, const context &SyclContext) {
+    return std::make_shared<event_impl>(Event, SyclContext, private_tag{});
+  }
+
+  static std::shared_ptr<event_impl> create_device_event(queue_impl &queue) {
+    return std::make_shared<event_impl>(queue, private_tag{});
+  }
+
+  static std::shared_ptr<event_impl> create_discarded_event() {
+    return std::make_shared<event_impl>(HostEventState::HES_Discarded,
+                                        private_tag{});
+  }
+
+  static std::shared_ptr<event_impl> create_completed_host_event() {
+    return std::make_shared<event_impl>(HostEventState::HES_Complete,
+                                        private_tag{});
+  }
+
+  static std::shared_ptr<event_impl> create_incomplete_host_event() {
+    return std::make_shared<event_impl>(HostEventState::HES_NotComplete,
+                                        private_tag{});
+  }
 
   /// Sets a queue associated with the event
   ///
@@ -209,7 +241,7 @@ public:
   /// Performs a flush on the queue associated with this event if the user queue
   /// is different and the task associated with this event hasn't been submitted
   /// to the device yet.
-  void flushIfNeeded(const QueueImplPtr &UserQueue);
+  void flushIfNeeded(queue_impl *UserQueue);
 
   /// Cleans dependencies of this event_impl.
   void cleanupDependencyEvents();
@@ -229,7 +261,9 @@ public:
   ///
   /// @return shared_ptr to MWorkerQueue, please be aware it can be empty
   /// pointer
-  QueueImplPtr getWorkerQueue() { return MWorkerQueue.lock(); };
+  std::shared_ptr<sycl::detail::queue_impl> getWorkerQueue() {
+    return MWorkerQueue.lock();
+  };
 
   /// Sets worker queue for command.
   ///
@@ -256,7 +290,9 @@ public:
   /// @return Submission time for command associated with this event
   uint64_t getSubmissionTime();
 
-  QueueImplPtr getSubmittedQueue() const { return MSubmittedQueue.lock(); };
+  std::shared_ptr<sycl::detail::queue_impl> getSubmittedQueue() const {
+    return MSubmittedQueue.lock();
+  };
 
   /// Checks if this event is complete.
   ///
