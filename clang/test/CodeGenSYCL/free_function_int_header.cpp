@@ -254,6 +254,16 @@ __attribute__((sycl_device))
 void ff_20(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
 }
 
+[[__sycl_detail__::add_ir_attributes_function("work_group_size", 16)]]
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_21(AliasType start, AliasType *ptr) {
+}
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+[[__sycl_detail__::add_ir_attributes_function("work_group_size", 16)]]
+void ff_22(AliasType start, AliasType *ptr) {
+}
+
 // CHECK:      const char* const kernel_names[] = {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piii
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piiii
@@ -286,6 +296,8 @@ void ff_20(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_free_functions5tests5ff_18ENS_3AggEPS1_
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_19N14free_functions16KArgWithPtrArrayILi50EEE
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_20N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_217DerivedPS_
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_227DerivedPS_
 
 // CHECK-NEXT:   ""
 // CHECK-NEXT: };
@@ -980,6 +992,37 @@ void ff_20(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
 // CHECK-NEXT: };
 // CHECK-NEXT: }
 
+
+// CHECK: void ff_21(Derived start, Derived * ptr);
+// CHECK-NEXT: static constexpr auto __sycl_shim30() {
+// CHECK-NEXT:  return (void (*)(struct Derived, struct Derived *))ff_21;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim30()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim30()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: }
+
+// CHECK: void ff_22(Derived start, Derived * ptr);
+// CHECK-NEXT: static constexpr auto __sycl_shim31() {
+// CHECK-NEXT:  return (void (*)(struct Derived, struct Derived *))ff_22;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim31()> {
+// CHECK-NEXT:  static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim31()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: }
+
 // CHECK: #include <sycl/kernel_bundle.hpp>
 
 // CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_2Piii
@@ -1194,5 +1237,19 @@ void ff_20(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
 // CHECK-NEXT: template <>
 // CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim29()>() {
 // CHECK-NEXT:   return sycl::detail::get_kernel_id_impl(std::string_view{"_Z19__sycl_kernel_ff_20N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE"});
+// CHECK-NEXT: }
+// CHECK-NEXT: }
+
+// CHECK: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim30()>() {
+// CHECK-NEXT: return sycl::detail::get_kernel_id_impl(std::string_view{"_Z19__sycl_kernel_ff_217DerivedPS_"});
+// CHECK-NEXT: }
+// CHECK-NEXT: }
+
+// CHECK: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim31()>() {
+// CHECK-NEXT: return sycl::detail::get_kernel_id_impl(std::string_view{"_Z19__sycl_kernel_ff_227DerivedPS_"});
 // CHECK-NEXT: }
 // CHECK-NEXT: }
