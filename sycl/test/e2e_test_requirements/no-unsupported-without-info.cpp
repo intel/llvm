@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 253
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 252
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -271,7 +271,6 @@
 // CHECK-NEXT: Reduction/reduction_span_pack.cpp
 // CHECK-NEXT: Reduction/reduction_usm.cpp
 // CHECK-NEXT: Reduction/reduction_usm_dw.cpp
-// CHECK-NEXT: Regression/acos.cpp
 // CHECK-NEXT: Regression/barrier_waitlist_with_interop_event.cpp
 // CHECK-NEXT: Regression/complex_global_object.cpp
 // CHECK-NEXT: Regression/event_destruction.cpp
