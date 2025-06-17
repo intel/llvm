@@ -571,6 +571,9 @@ private:
   /// object destruction.
   ///
   /// \return a SYCL event object representing the command group
+  ///
+  /// Note: in preview mode, handler.finalize() is expected to return
+  /// nullptr if the event is not needed (discarded).
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::EventImplPtr finalize();
 #else

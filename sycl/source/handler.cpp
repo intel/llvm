@@ -903,10 +903,7 @@ event handler::finalize() {
       std::move(CommandGroup), Queue->shared_from_this(), !DiscardEvent);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // For preview mode, handler.finalize() is expected to return nullptr
-  // if the event is discarded.
   MLastEvent = DiscardEvent ? nullptr : Event;
-  assert(MLastEvent || !MLastEvent->isDiscarded());
 #else
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
 #endif
