@@ -11,6 +11,10 @@
 // -- Test for compiling and loading a kernel bundle with a SYCLBIN containing
 //    the use of optional kernel features.
 
+// Fails for CUDA target due to new offload driver regression.
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18432
+
 // RUN: %clangxx %{sycl_target_opts} --offload-new-driver -fsyclbin=executable %S/Inputs/optional_kernel_features.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out %t.syclbin

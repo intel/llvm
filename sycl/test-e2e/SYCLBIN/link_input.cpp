@@ -10,6 +10,10 @@
 
 // -- Test for linking two SYCLBIN kernel_bundle.
 
+// Fails for CUDA target due to new offload driver regression.
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18432
+
 // RUN: %clangxx %{sycl_target_opts} --offload-new-driver -fsyclbin=input -fsycl-allow-device-image-dependencies %S/Inputs/exporting_function.cpp -o %t.export.syclbin
 // RUN: %clangxx %{sycl_target_opts} --offload-new-driver -fsyclbin=input -fsycl-allow-device-image-dependencies %S/Inputs/importing_kernel.cpp -o %t.import.syclbin
 // RUN: %{build} -o %t.out

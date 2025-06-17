@@ -11,6 +11,10 @@
 // -- Basic test for compiling and loading a SYCLBIN kernel_bundle in object
 // -- state.
 
+// Fails for CUDA target due to new offload driver regression.
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18432
+
 // RUN: %clangxx %{sycl_target_opts} --offload-new-driver -fsyclbin=object %S/Inputs/basic_kernel.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out %t.syclbin

@@ -12,6 +12,10 @@
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
+// Fails for CUDA target due to new offload driver regression.
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18432
+
 // -- Test for linking where one kernel is runtime-compiled and one is compiled
 // -- to SYCLBIN.
 
