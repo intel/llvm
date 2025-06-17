@@ -67,9 +67,6 @@ math/cbrt.cl
 math/ceil.cl
 math/clc_exp10.cl
 math/clc_fmod.cl
-math/clc_pow.cl
-math/clc_pown.cl
-math/clc_powr.cl
 math/clc_remainder.cl
 math/clc_remquo.cl
 math/clc_rootn.cl
@@ -152,7 +149,6 @@ math/rootn.cl
 math/round.cl
 math/sin.cl
 math/sincos.cl
-math/sincos_helpers.cl
 math/sinh.cl
 math/sinpi.cl
 math/sqrt.cl

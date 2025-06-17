@@ -69,8 +69,7 @@ context::context(const std::vector<device> &DeviceList,
     throw exception(make_error_code(errc::invalid),
                     "Can't add devices across platforms to a single context.");
   else
-    impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler,
-                                                  PropList);
+    impl = detail::context_impl::create(DeviceList, AsyncHandler, PropList);
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {
   const auto &Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
@@ -81,8 +80,7 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
   Adapter->call<detail::UrApiKind::urContextCreateWithNativeHandle>(
       nativeHandle, Adapter->getUrAdapter(), 0, nullptr, nullptr, &hContext);
 
-  impl =
-      std::make_shared<detail::context_impl>(hContext, AsyncHandler, Adapter);
+  impl = detail::context_impl::create(hContext, AsyncHandler, Adapter);
 }
 
 template <typename Param>

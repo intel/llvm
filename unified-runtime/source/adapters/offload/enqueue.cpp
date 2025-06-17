@@ -12,38 +12,53 @@
 #include <assert.h>
 #include <ur_api.h>
 
+#include "context.hpp"
 #include "event.hpp"
 #include "kernel.hpp"
+#include "memory.hpp"
 #include "queue.hpp"
 #include "ur2offload.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+    const size_t *pLocalWorkSize, uint32_t, const ur_kernel_launch_property_t *,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
   // Ignore wait list for now
   (void)numEventsInWaitList;
   (void)phEventWaitList;
   //
 
   (void)pGlobalWorkOffset;
-  (void)pLocalWorkSize;
 
-  if (workDim == 1) {
-    std::cerr
-        << "UR Offload adapter only supports 1d kernel launches at the moment";
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  size_t GlobalSize[3] = {1, 1, 1};
+  for (uint32_t I = 0; I < workDim; I++) {
+    GlobalSize[I] = pGlobalWorkSize[I];
+  }
+
+  // TODO: We default to 1, 1, 1 here. In future if pLocalWorkSize is not
+  // specified, we should pick the "best" one
+  size_t GroupSize[3] = {1, 1, 1};
+  if (pLocalWorkSize) {
+    for (uint32_t I = 0; I < workDim; I++) {
+      GroupSize[I] = pLocalWorkSize[I];
+    }
+  }
+
+  if (GroupSize[0] > GlobalSize[0] || GroupSize[1] > GlobalSize[1] ||
+      GroupSize[2] > GlobalSize[2]) {
+    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
 
   ol_kernel_launch_size_args_t LaunchArgs;
   LaunchArgs.Dimensions = workDim;
-  LaunchArgs.NumGroupsX = pGlobalWorkSize[0];
-  LaunchArgs.NumGroupsY = 1;
-  LaunchArgs.NumGroupsZ = 1;
-  LaunchArgs.GroupSizeX = 1;
-  LaunchArgs.GroupSizeY = 1;
-  LaunchArgs.GroupSizeZ = 1;
+  LaunchArgs.NumGroupsX = GlobalSize[0] / GroupSize[0];
+  LaunchArgs.NumGroupsY = GlobalSize[1] / GroupSize[1];
+  LaunchArgs.NumGroupsZ = GlobalSize[2] / GroupSize[2];
+  LaunchArgs.GroupSizeX = GroupSize[0];
+  LaunchArgs.GroupSizeY = GroupSize[1];
+  LaunchArgs.GroupSizeZ = GroupSize[2];
   LaunchArgs.DynSharedMemory = 0;
 
   ol_event_handle_t EventOut;
@@ -74,4 +89,71 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     ur_queue_handle_t, bool, void *, size_t, const void *, size_t, size_t,
     size_t, uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
+    size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  // Ignore wait list for now
+  (void)numEventsInWaitList;
+  (void)phEventWaitList;
+  //
+
+  ol_event_handle_t EventOut = nullptr;
+
+  void *DevPtr = std::get<BufferMem>(hBuffer->Mem).Ptr;
+
+  olMemcpy(hQueue->OffloadQueue, pDst, Adapter.HostDevice, DevPtr + offset,
+           hQueue->OffloadDevice, size, phEvent ? &EventOut : nullptr);
+
+  if (blockingRead) {
+    olWaitQueue(hQueue->OffloadQueue);
+  }
+
+  if (phEvent) {
+    auto *Event = new ur_event_handle_t_();
+    Event->OffloadEvent = EventOut;
+    *phEvent = Event;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
+    size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  // Ignore wait list for now
+  (void)numEventsInWaitList;
+  (void)phEventWaitList;
+  //
+
+  ol_event_handle_t EventOut = nullptr;
+
+  void *DevPtr = std::get<BufferMem>(hBuffer->Mem).Ptr;
+
+  auto Res =
+      olMemcpy(hQueue->OffloadQueue, DevPtr + offset, hQueue->OffloadDevice,
+               pSrc, Adapter.HostDevice, size, phEvent ? &EventOut : nullptr);
+  if (Res) {
+    return offloadResultToUR(Res);
+  }
+
+  if (blockingWrite) {
+    auto Res = olWaitQueue(hQueue->OffloadQueue);
+    if (Res) {
+      return offloadResultToUR(Res);
+    }
+  }
+
+  if (phEvent) {
+    auto *Event = new ur_event_handle_t_();
+    Event->OffloadEvent = EventOut;
+    *phEvent = Event;
+  }
+
+  return UR_RESULT_SUCCESS;
 }

@@ -9650,6 +9650,47 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMContextMemcpyExp
+__urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    /// [in] Context associated with the device(s) that own the allocations
+    /// `pSrc` and `pDst`.
+    ur_context_handle_t hContext,
+    /// [in] Destination pointer to copy to.
+    void *pDst,
+    /// [in] Source pointer to copy from.
+    const void *pSrc,
+    /// [in] Size in bytes to be copied.
+    size_t size) {
+  auto pfnContextMemcpyExp =
+      getContext()->urDdiTable.USMExp.pfnContextMemcpyExp;
+
+  if (nullptr == pfnContextMemcpyExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_context_memcpy_exp_params_t params = {&hContext, &pDst, &pSrc, &size};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP, "urUSMContextMemcpyExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urUSMContextMemcpyExp\n");
+
+  ur_result_t result = pfnContextMemcpyExp(hContext, pDst, pSrc, size);
+
+  getContext()->notify_end(UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP,
+                           "urUSMContextMemcpyExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urUSMContextMemcpyExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     /// [in] handle of the context object
@@ -11096,6 +11137,9 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   dditable.pfnPitchedAllocExp = pDdiTable->pfnPitchedAllocExp;
   pDdiTable->pfnPitchedAllocExp = ur_tracing_layer::urUSMPitchedAllocExp;
+
+  dditable.pfnContextMemcpyExp = pDdiTable->pfnContextMemcpyExp;
+  pDdiTable->pfnContextMemcpyExp = ur_tracing_layer::urUSMContextMemcpyExp;
 
   dditable.pfnImportExp = pDdiTable->pfnImportExp;
   pDdiTable->pfnImportExp = ur_tracing_layer::urUSMImportExp;

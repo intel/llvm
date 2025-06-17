@@ -133,6 +133,14 @@ EventImplPtr Scheduler::addCG(
     }
     NewEvent = NewCmd->getEvent();
     NewEvent->setSubmissionTime();
+
+    // This is the last moment we can mark the event as discarded.
+    // Doing this during command execution would lead to incorrect
+    // event handling (as event would change it's state from non-discarded
+    // to discarded).
+    if (!EventNeeded) {
+      NewEvent->setStateDiscarded();
+    }
   }
 
   enqueueCommandForCG(NewEvent, AuxiliaryCmds);
@@ -190,10 +198,12 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
             NewCmd, Lock, Res, ToCleanUp, NewCmd, Blocking);
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult) {
           throw sycl::detail::set_ur_error(
-              sycl::exception(sycl::make_error_code(errc::runtime),
-                              std::string("Enqueue process failed.\n") +
-                                  __SYCL_UR_ERROR_REPORT +
-                                  sycl::detail::codeToString(Res.MErrCode)),
+              sycl::exception(
+                  sycl::make_error_code(errc::runtime),
+                  std::string("Enqueue process failed.\n") +
+                      __SYCL_UR_ERROR_REPORT(
+                          NewCmd->getWorkerContext()->getBackend()) +
+                      sycl::detail::codeToString(Res.MErrCode)),
               Res.MErrCode);
         }
       } catch (...) {
@@ -676,7 +686,7 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
   return NewCmdEvent;
 }
 
-bool Scheduler::CheckEventReadiness(const ContextImplPtr &Context,
+bool Scheduler::CheckEventReadiness(context_impl &Context,
                                     const EventImplPtr &SyclEventImplPtr) {
   // Events that don't have an initialized context are throwaway events that
   // don't represent actual dependencies. Calling getContextImpl() would set
@@ -689,7 +699,7 @@ bool Scheduler::CheckEventReadiness(const ContextImplPtr &Context,
     return SyclEventImplPtr->isCompleted();
   }
   // Cross-context dependencies can't be passed to the backend directly.
-  if (SyclEventImplPtr->getContextImpl() != Context)
+  if (SyclEventImplPtr->getContextImpl().get() != &Context)
     return false;
 
   // A nullptr here means that the commmand does not produce a UR event or it
@@ -698,7 +708,7 @@ bool Scheduler::CheckEventReadiness(const ContextImplPtr &Context,
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<sycl::event> &DepEvents, const ContextImplPtr &Context) {
+    const std::vector<sycl::event> &DepEvents, context_impl &Context) {
 
   return std::all_of(
       DepEvents.begin(), DepEvents.end(), [&Context](const sycl::event &Event) {
@@ -708,7 +718,7 @@ bool Scheduler::areEventsSafeForSchedulerBypass(
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<EventImplPtr> &DepEvents, const ContextImplPtr &Context) {
+    const std::vector<EventImplPtr> &DepEvents, context_impl &Context) {
 
   return std::all_of(DepEvents.begin(), DepEvents.end(),
                      [&Context](const EventImplPtr &SyclEventImplPtr) {

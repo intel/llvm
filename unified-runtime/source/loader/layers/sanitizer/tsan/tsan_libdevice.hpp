@@ -46,6 +46,7 @@ enum : AccessType {
   kAccessWrite = 0,
   kAccessRead = 1 << 0,
   kAccessAtomic = 1 << 1,
+  kAccessLocal = 1 << 2,
 };
 
 // Fixed-size vector clock, used both for threads and sync objects.
@@ -74,12 +75,24 @@ struct TsanErrorReport {
   uint32_t AccessSize = 0;
 };
 
+struct TsanLocalArgsInfo {
+  uint64_t Size = 0;
+};
+
 constexpr uint64_t TSAN_MAX_NUM_REPORTS = 128;
 
 struct TsanRuntimeData {
   uintptr_t GlobalShadowOffset = 0;
 
   uintptr_t GlobalShadowOffsetEnd = 0;
+
+  uintptr_t LocalShadowOffset = 0;
+
+  uintptr_t LocalShadowOffsetEnd = 0;
+
+  TsanLocalArgsInfo *LocalArgs = nullptr; // Ordered by ArgIndex
+
+  uint32_t NumLocalArgs = 0;
 
   // The last one is to record global state
   VectorClock Clock[kThreadSlotCount + 1];
