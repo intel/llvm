@@ -658,6 +658,9 @@ etors:
 - name: USM_CONTEXT_MEMCPY_EXP
   desc: Enumerator for $xUSMContextMemcpyExp
   value: '273'
+- name: ENQUEUE_HOST_TASK_EXP
+  desc: Enumerator for $xEnqueueHostTaskExp
+  value: '274'
 ---
 type: enum
 desc: Defines structure types
