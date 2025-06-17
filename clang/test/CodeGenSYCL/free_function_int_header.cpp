@@ -445,7 +445,6 @@ void ff_20(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
 // CHECK: Definition of _Z18__sycl_kernel_ff_3IiEvPT_S0_S0_ as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: template <typename T> void ff_3(T * ptr, T start, T end);
-// CHECK: template <> void ff_3<int>(int * ptr, int start, int end);
 // CHECK-NEXT: static constexpr auto __sycl_shim3() {
 // CHECK-NEXT:   return (void (*)(int *, int, int))ff_3<int>;
 // CHECK-NEXT: }
@@ -463,7 +462,6 @@ void ff_20(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
 // CHECK: Definition of _Z18__sycl_kernel_ff_3IfEvPT_S0_S0_ as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: template <typename T> void ff_3(T * ptr, T start, T end);
-// CHECK: template <> void ff_3<float>(float * ptr, float start, float end);
 // CHECK-NEXT: static constexpr auto __sycl_shim4() {
 // CHECK-NEXT:   return (void (*)(float *, float, float))ff_3<float>;
 // CHECK-NEXT: }
@@ -520,7 +518,6 @@ void ff_20(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: struct Derived;
 // CHECK: template <typename T1, typename T2> void ff_6(T1 S1, T2 S2, int end);
-// CHECK: template <> void ff_6<struct Agg, struct Derived>(Agg S1, Derived S2, int end);
 // CHECK-NEXT: static constexpr auto __sycl_shim7() {
 // CHECK-NEXT:   return (void (*)(struct Agg, struct Derived, int))ff_6<struct Agg, struct Derived>;
 // CHECK-NEXT: }
@@ -541,7 +538,6 @@ void ff_20(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
 // CHECK: template <int ArrSize> struct KArgWithPtrArray;
 //
 // CHECK: template <int ArrSize> void ff_7(KArgWithPtrArray<ArrSize> KArg);
-// CHECK-NEXT: template <> void ff_7<3>(KArgWithPtrArray<3> KArg);
 // CHECK-NEXT: static constexpr auto __sycl_shim8() {
 // CHECK-NEXT:   return (void (*)(struct KArgWithPtrArray<3>))ff_7<3>;
 // CHECK-NEXT: }
@@ -740,7 +736,6 @@ void ff_20(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
 // CHECK: Forward declarations of kernel and its argument types:
 
 // CHECK: template <typename DataT> void ff_11(sycl::local_accessor<DataT, 1> lacc);
-// CHECK-NEXT: template <> void ff_11<float>(sycl::local_accessor<float, 1> lacc);
 // CHECK-NEXT: static constexpr auto __sycl_shim
 // CHECK-NEXT:  return (void (*)(class sycl::local_accessor<float, 1>))ff_11<float>;
 

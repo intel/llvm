@@ -6615,10 +6615,14 @@ public:
         // function
         NSInserted = true;
       }
+      if (FD->isFunctionTemplateSpecialization() &&
+          FD->isThisDeclarationADefinition())
+        O << "template <> ";
       O << TemplateParameters;
       O << FD->getReturnType().getAsString() << " ";
       FD->printName(O, Policy);
-      if (FD->isFunctionTemplateSpecialization())
+      if (FD->isFunctionTemplateSpecialization() &&
+          FD->isThisDeclarationADefinition())
         O << getTemplateSpecializationArgString(
             FD->getTemplateSpecializationArgs());
 
@@ -7101,8 +7105,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     if (FTD) {
       FFPrinter.printFreeFunctionDeclaration(FTD, S);
       if (K.SyclKernel->isFunctionTemplateSpecialization()) {
-        O << "template <> ";
-        FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
+        auto kind = K.SyclKernel->getTemplateSpecializationKind();
+        if (kind == TSK_Undeclared || kind == TSK_ExplicitSpecialization)
+          FFPrinter.printFreeFunctionDeclaration(K.SyclKernel,
+                                                 ParmListWithNames);
       }
     } else {
       FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
