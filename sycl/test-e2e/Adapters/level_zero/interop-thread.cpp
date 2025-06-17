@@ -61,8 +61,8 @@ ze_event_pool_handle_t event_pool = {};
 std::vector<operation> old_ops;
 
 void init() {
-  // Initialize Level Zero driver is required if this test is linked
-  // statically with Level Zero loader, the driver will not be init otherwise.
+  // Initializing Level Zero driver is required if this test is linked
+  // statically with Level Zero loader, otherwise the driver will not be initialized.
   ze_result_t result = zeInit(0);
   assert(result == ZE_RESULT_SUCCESS);
 
