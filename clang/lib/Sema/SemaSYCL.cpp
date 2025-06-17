@@ -7104,12 +7104,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     FreeFunctionPrinter FFPrinter(O, Policy);
     if (FTD) {
       FFPrinter.printFreeFunctionDeclaration(FTD, S);
-      if (K.SyclKernel->isFunctionTemplateSpecialization()) {
-        auto kind = K.SyclKernel->getTemplateSpecializationKind();
-        if (kind == TSK_Undeclared || kind == TSK_ExplicitSpecialization)
-          FFPrinter.printFreeFunctionDeclaration(K.SyclKernel,
-                                                 ParmListWithNames);
-      }
+      if (const auto kind = K.SyclKernel->getTemplateSpecializationKind();
+          K.SyclKernel->isFunctionTemplateSpecialization() &&
+          kind == TSK_ExplicitSpecialization)
+        FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     } else {
       FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     }
