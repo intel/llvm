@@ -84,9 +84,9 @@ extern __DPCPP_SYCL_EXTERNAL void __spirv_CooperativeMatrixStoreCheckedINTEL(
     std::size_t Stride, size_t Height, size_t Width, size_t CoordX,
     size_t CoordY, __spv::MatrixLayout Layout = L, int MemOperand = 0);
 
-template <typename TA, typename TB, typename TC, typename TD, std::size_t M, std::size_t K,
-          std::size_t N, __spv::MatrixUse UA, __spv::MatrixUse UB,
-          __spv::MatrixUse UC,
+template <typename TA, typename TB, typename TC, typename TD, std::size_t M,
+          std::size_t K, std::size_t N, __spv::MatrixUse UA,
+          __spv::MatrixUse UB, __spv::MatrixUse UC,
           __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,

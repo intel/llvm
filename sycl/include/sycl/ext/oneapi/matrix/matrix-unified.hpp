@@ -496,7 +496,8 @@ void joint_matrix_copy(
   auto wi_data_dst = sycl::ext::oneapi::detail::get_wi_data(sg, dst);
   for (int i = 0; i < wi_data_c.length(); i++) {
     if constexpr (std::is_same_v<T1, half>) {
-      wi_data_dst[i] = static_cast<storage_element_type>(static_cast<src_storage_element_type>(wi_data_c[i]));
+      wi_data_dst[i] = static_cast<storage_element_type>(
+          static_cast<src_storage_element_type>(wi_data_c[i]));
     } else {
       wi_data_dst[i] = static_cast<storage_element_type>(wi_data_c[i]);
     }

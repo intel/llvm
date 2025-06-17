@@ -85,7 +85,7 @@ extern "C" constexpr __spv::MatrixLayout joint_matrix_layout_to_spv(
   }
 }
 
-template<typename Ta, typename Tb, typename Tc, typename Td>
+template <typename Ta, typename Tb, typename Tc, typename Td>
 constexpr uint32_t CalculateMatrixOperand() {
   if constexpr (std::is_same<Ta, sycl::ext::oneapi::bfloat16>::value &&
                 std::is_same<Tb, sycl::ext::oneapi::bfloat16>::value)

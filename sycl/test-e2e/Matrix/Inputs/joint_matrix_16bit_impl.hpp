@@ -13,7 +13,8 @@ class imatrix;
 template <typename Tab, typename TAcc, typename TResult, size_t M, size_t N,
           size_t K, size_t TM, size_t TN, size_t TK, layout B_layout, size_t VF>
 void matrix_multiply(big_matrix<TResult, M, N> &D, big_matrix<TAcc, M, N> &C,
-                     big_matrix<Tab, M, K> &A, big_matrix<Tab, K / VF, N * VF> &B) {
+                     big_matrix<Tab, M, K> &A,
+                     big_matrix<Tab, K / VF, N * VF> &B) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
   buffer<Tab, 2> bufA(A.get_data(), range<2>(M, K));
@@ -21,7 +22,8 @@ void matrix_multiply(big_matrix<TResult, M, N> &D, big_matrix<TAcc, M, N> &C,
   buffer<TAcc, 2> bufC((TAcc *)C.get_data(), range<2>(M, N));
   buffer<TResult, 2> bufD((TResult *)D.get_data(), range<2>(M, N));
   queue q;
-  size_t sg_size = get_sg_size<imatrix<Tab, TAcc, TResult, TM, TN, TK, B_layout>>(q);
+  size_t sg_size =
+      get_sg_size<imatrix<Tab, TAcc, TResult, TM, TN, TK, B_layout>>(q);
 
   q.submit([&](handler &cgh) {
      accessor accA{bufA, cgh};
@@ -45,7 +47,8 @@ void matrix_multiply(big_matrix<TResult, M, N> &D, big_matrix<TAcc, M, N> &C,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, Tab, use::a, TM, TK, layout::row_major> sub_a;
+           joint_matrix<sub_group, Tab, use::a, TM, TK, layout::row_major>
+               sub_a;
            joint_matrix<sub_group, Tab, use::b, TK, TN, B_layout> sub_b;
            joint_matrix<sub_group, TAcc, use::accumulator, TM, TN> sub_c;
            joint_matrix<sub_group, TResult, use::accumulator, TM, TN> sub_d;
@@ -62,11 +65,11 @@ void matrix_multiply(big_matrix<TResult, M, N> &D, big_matrix<TAcc, M, N> &C,
                  accA.template get_multi_ptr<access::decorated::no>() +
                      (sg_startx * TM) * K + k * TK,
                  K);
-                joint_matrix_load(
-                    sg, sub_b,
-                    accB.template get_multi_ptr<access::decorated::no>() +
-                        (k * TK / VF) * (N * VF) + sg_starty / sg_size * TN * VF,
-                    N * VF);
+             joint_matrix_load(
+                 sg, sub_b,
+                 accB.template get_multi_ptr<access::decorated::no>() +
+                     (k * TK / VF) * (N * VF) + sg_starty / sg_size * TN * VF,
+                 N * VF);
 
              joint_matrix_mad(sg, sub_d, sub_a, sub_b, sub_c);
              joint_matrix_copy(sg, sub_d, sub_c);
@@ -108,26 +111,28 @@ void test() {
   big_matrix<Tab, MATRIX_M, MATRIX_K> MA((Tab *)&A);
   big_matrix<Tab, MATRIX_K / VF, MATRIX_N * VF> MB((Tab *)&B);
 
-  matrix_multiply<Tab, TAcc, TResult, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK, B_layout, VF>(
-        MD, MC, MA, MB);
-  matrix_multiply_ref<Tab, Tab, TResult, VF>((Tab *)A, (Tab *)B, (TResult *)DRef, MATRIX_M,
-         MATRIX_N, MATRIX_K / VF);
+  matrix_multiply<Tab, TAcc, TResult, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK,
+                  B_layout, VF>(MD, MC, MA, MB);
+  matrix_multiply_ref<Tab, Tab, TResult, VF>(
+      (Tab *)A, (Tab *)B, (TResult *)DRef, MATRIX_M, MATRIX_N, MATRIX_K / VF);
   assert(matrix_compare(MATRIX_M, MATRIX_N, (TResult *)D, (TResult *)DRef));
 }
 
-template<typename T1, typename T2, size_t TM, size_t TN, size_t TK, layout B_layout, size_t VF> void test_combo() { 
-  test<T1, T1, T2, TM, TN, TK, B_layout, VF>();
-  test<T1, T2, T1, TM, TN, TK, B_layout, VF>();
-  test<T1, T1, T1, TM, TN, TK, B_layout, VF>();
-  test<T1, T2, T2, TM, TN, TK, B_layout, VF>();
+template <typename TLow, typename THigh, size_t TM, size_t TN, size_t TK,
+          layout B_layout, size_t VF>
+void test_combo() {
+  test<TLow, TLow, THigh, TM, TN, TK, B_layout, VF>();
+  test<TLow, THigh, TLow, TM, TN, TK, B_layout, VF>();
+  test<TLow, TLow, TLow, TM, TN, TK, B_layout, VF>();
+  test<TLow, THigh, THigh, TM, TN, TK, B_layout, VF>();
 }
 
-
-template <typename T1, typename T2, layout B_layout, size_t VF> void test_all() {
-  test_combo<T1, T2, /*TM*/ 8,  /*TN*/ 16, /*TK*/ 16, B_layout, VF>();
-  test_combo<T1, T2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16, B_layout, VF>();
-  test_combo<T1, T2, /*TM*/ 1,  /*TN*/ 64, /*TK*/ 16, B_layout, VF>();
-  test_combo<T1, T2, /*TM*/ 1,  /*TN*/ 64, /*TK*/ 32, B_layout, VF>();
-  test_combo<T1, T2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16, B_layout, VF>();
-  test_combo<T1, T2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32, B_layout, VF>();
+template <typename TLow, typename THigh, layout B_layout, size_t VF>
+void test_all() {
+  test_combo<TLow, THigh, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16, B_layout, VF>();
+  test_combo<TLow, THigh, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16, B_layout, VF>();
+  test_combo<TLow, THigh, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16, B_layout, VF>();
+  test_combo<TLow, THigh, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32, B_layout, VF>();
+  test_combo<TLow, THigh, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16, B_layout, VF>();
+  test_combo<TLow, THigh, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32, B_layout, VF>();
 }
