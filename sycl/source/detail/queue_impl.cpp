@@ -343,10 +343,12 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   // when non-immediate command lists are used.
   auto isGraphSubmission = Type == CGType::ExecCommandBuffer;
 
-  auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
   auto noLastEventPath = !isHostTask && !isGraphSubmission &&
-                         MNoLastEventMode.load(std::memory_order_acquire) &&
-                         !requiresPostProcess;
+                         MNoLastEventMode.load(std::memory_order_relaxed) &&
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+                         SubmitInfo.PostProcessorFunc() &&
+#endif
+                         !Streams.size();
 
   if (noLastEventPath) {
     return finalizeHandlerInOrderNoEventsUnlocked(Handler);
@@ -371,6 +373,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     }
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   if (SubmitInfo.PostProcessorFunc()) {
     // All the submission functions using post processing are event based
     // functions
@@ -378,6 +381,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     event Event = createSyclObjFromImpl<event>(EventImpl);
     handlerPostProcess(Handler, SubmitInfo.PostProcessorFunc(), Event);
   }
+#endif
 
   for (auto &Stream : Streams) {
     // We don't want stream flushing to be blocking operation that is why submit
