@@ -1758,7 +1758,7 @@ public:
 
   template <int Dims = Dimensions>
   operator typename std::enable_if_t<
-      Dims == 0 &&AccessMode == access::mode::atomic,
+      Dims == 0 && AccessMode == access::mode::atomic,
 #ifdef __ENABLE_USM_ADDR_SPACE__
       atomic<DataT, access::address_space::global_space>
 #else
