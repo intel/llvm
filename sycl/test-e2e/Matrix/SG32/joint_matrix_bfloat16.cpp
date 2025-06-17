@@ -31,17 +31,20 @@ int main() {
 
   for (unsigned int i = 0; i < combinations.size(); i++) {
     if (combinations[i].nsize == 0) { // Intel AMX
-      test<bfloat16, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16, layout::row_major, 1>();
+      test<bfloat16, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16,
+           layout::row_major, 1>();
       break;
     }
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
-      test<bfloat16, float, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16, layout::row_major, 1>();
+      test<bfloat16, float, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16,
+           layout::row_major, 1>();
       break;
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
-      test<bfloat16, float, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16, layout::row_major, 1>();
+      test<bfloat16, float, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16,
+           layout::row_major, 1>();
       break;
     }
   }
