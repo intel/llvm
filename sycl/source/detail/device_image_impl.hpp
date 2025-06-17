@@ -617,10 +617,10 @@ public:
                MRTCBinInfo->MKernelNames.end();
   }
 
-  std::shared_ptr<kernel_impl> tryGetSourceBasedKernel(
-      std::string_view Name, const context &Context,
-      const kernel_bundle_impl &OwnerBundle,
-      const std::shared_ptr<device_image_impl> &Self) const;
+  std::shared_ptr<kernel_impl>
+  tryGetSourceBasedKernel(std::string_view Name, const context &Context,
+                          const kernel_bundle_impl &OwnerBundle,
+                          const std::shared_ptr<device_image_impl> &Self) const;
 
   bool hasDeviceGlobalName(const std::string &Name) const noexcept {
     if (!MRTCBinInfo.has_value())

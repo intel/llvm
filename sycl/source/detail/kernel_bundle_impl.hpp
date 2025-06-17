@@ -626,8 +626,8 @@ public:
       const std::shared_ptr<device_image_impl> &DevImgImpl =
           getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> PotentialKernelImpl =
-          DevImgImpl->tryGetSourceBasedKernel(Name, MContext, *this,
-                                              DevImgImpl))
+              DevImgImpl->tryGetSourceBasedKernel(Name, MContext, *this,
+                                                  DevImgImpl))
         return detail::createSyclObjFromImpl<kernel>(
             std::move(PotentialKernelImpl));
     }
@@ -959,8 +959,8 @@ public:
       const std::shared_ptr<device_image_impl> &DevImgImpl =
           getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> SourceBasedKernel =
-          DevImgImpl->tryGetSourceBasedKernel(Name, MContext, *this,
-                                              DevImgImpl))
+              DevImgImpl->tryGetSourceBasedKernel(Name, MContext, *this,
+                                                  DevImgImpl))
         return SourceBasedKernel;
     }
 
