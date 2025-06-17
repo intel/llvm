@@ -894,11 +894,15 @@ event handler::finalize() {
 #endif
   }
 
+  bool DiscardEvent = !impl->MEventNeeded && Queue &&
+                      Queue->supportsDiscardingPiEvents() &&
+                      CommandGroup->getRequirements().size() == 0;
+
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), Queue->shared_from_this(), impl->MEventNeeded);
+      std::move(CommandGroup), Queue->shared_from_this(), !DiscardEvent);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  MLastEvent = Event;
+  MLastEvent = DiscardEvent ? nullptr : Event;
 #else
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
 #endif

@@ -712,7 +712,11 @@ protected:
   }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-#define parseEvent(arg) (arg)
+  inline const detail::EventImplPtr &
+  parseEvent(const detail::EventImplPtr &Event) {
+    assert(!Event || !Event->isDiscarded());
+    return Event;
+  }
 #else
   inline detail::EventImplPtr parseEvent(const event &Event) {
     const detail::EventImplPtr &EventImpl = getSyclObjImpl(Event);

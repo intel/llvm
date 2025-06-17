@@ -3122,22 +3122,17 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls);
 
-  // We can omit creating a UR event and create a "discarded" event if the
-  // command has been explicitly marked as not needing an event, e.g. if the
-  // user did not ask for one, and there are no requirements.
-  bool DiscardUrEvent = MQueue && !MEventNeeded &&
-                        MQueue->supportsDiscardingPiEvents() &&
-                        MCommandGroup->getRequirements().size() == 0;
-
   ur_event_handle_t UREvent = nullptr;
-  ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &UREvent;
-  detail::event_impl *EventImpl = DiscardUrEvent ? nullptr : MEvent.get();
+  ur_event_handle_t *Event = !MEventNeeded ? nullptr : &UREvent;
+  detail::event_impl *EventImpl = !MEventNeeded ? nullptr : MEvent.get();
 
   auto SetEventHandleOrDiscard = [&]() {
-    if (Event)
+    if (!MEventNeeded) {
+      assert(MEvent->isDiscarded());
+    } else {
+      assert(!MEvent->isDiscarded());
       MEvent->setHandle(*Event);
-    else
-      MEvent->setStateDiscarded();
+    }
   };
 
   switch (MCommandGroup->getType()) {
