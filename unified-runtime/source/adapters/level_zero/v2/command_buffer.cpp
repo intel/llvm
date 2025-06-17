@@ -67,8 +67,9 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     v2::raii::command_list_unique_handle &&commandList,
     const ur_exp_command_buffer_desc_t *desc)
     : eventPool(context->getEventPoolCache(PoolCacheType::Regular)
-                    .borrow(device->Id.value(),
-                            isInOrder ? v2::EVENT_FLAGS_COUNTER : 0)),
+                    .borrow(device->Id.value(), (desc && desc->isInOrder)
+                                                    ? v2::EVENT_FLAGS_COUNTER
+                                                    : 0)),
       context(context), device(device),
       isUpdatable(desc ? desc->isUpdatable : false),
       isInOrder(desc ? desc->isInOrder : false),
