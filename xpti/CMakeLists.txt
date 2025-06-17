@@ -22,41 +22,6 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type (default Release)" FORCE)
 endif()
 
-if (MSVC)
-  # MSVC provides two incompatible build variants for its CRT: release and debug
-  # To avoid potential issues in user code we also need to provide two kinds
-  # of SYCL Runtime Library for release and debug configurations.
-  set(XPTI_CXX_FLAGS "")
-  if (CMAKE_BUILD_TYPE MATCHES "Debug")
-    set(XPTI_CXX_FLAGS "${CMAKE_CXX_FLAGS_DEBUG}")
-    string(REPLACE "/MDd" "" XPTI_CXX_FLAGS "${XPTI_CXX_FLAGS}")
-    string(REPLACE "/MTd" "" XPTI_CXX_FLAGS "${XPTI_CXX_FLAGS}")
-  else()
-    if (CMAKE_BUILD_TYPE MATCHES "Release")
-      set(XPTI_CXX_FLAGS "${CMAKE_CXX_FLAGS_RELEASE}")
-    elseif (CMAKE_BUILD_TYPE MATCHES "RelWithDebInfo")
-      set(XPTI_CXX_FLAGS "${CMAKE_CXX_FLAGS_MINSIZEREL}")
-    elseif (CMAKE_BUILD_TYPE MATCHES "MinSizeRel")
-      set(XPTI_CXX_FLAGS "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
-    endif()
-    string(REPLACE "/MD" "" XPTI_CXX_FLAGS "${XPTI_CXX_FLAGS}")
-    string(REPLACE "/MT" "" XPTI_CXX_FLAGS "${XPTI_CXX_FLAGS}")
-  endif()
-
-  # target_compile_options requires list of options, not a string
-  string(REPLACE " " ";" XPTI_CXX_FLAGS "${XPTI_CXX_FLAGS}")
-
-  set(XPTI_CXX_FLAGS_RELEASE "${XPTI_CXX_FLAGS};/MD")
-  set(XPTI_CXX_FLAGS_DEBUG "${XPTI_CXX_FLAGS};/MDd")
-
-  # CMake automatically applies these flags to all targets. To override this
-  # behavior, options lists are reset.
-  set(CMAKE_CXX_FLAGS_RELEASE "")
-  set(CMAKE_CXX_FLAGS_MINSIZEREL "")
-  set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "")
-  set(CMAKE_CXX_FLAGS_DEBUG "")
-endif()
-
 if (SYCL_USE_LIBCXX)
   if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
     (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
@@ -91,9 +56,6 @@ if (LLVM_BINARY_DIR)
     COMMENT "Copying XPTI headers ..."
   )
   add_dependencies(xpti xpti-headers)
-  if (MSVC)
-    add_dependencies(xptid xpti-headers)
-  endif()
 endif()
 
 include(GNUInstallDirs)
