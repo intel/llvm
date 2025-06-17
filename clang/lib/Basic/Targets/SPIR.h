@@ -432,8 +432,6 @@ public:
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override {
     WindowsARM64_SPIR64TargetInfo::getTargetDefines(Opts, Builder);
-    // Device code doesn't need to have ARM64EC defines
-    Builder.defineMacro("_M_ARM64", "1");
   }
 };
 
@@ -672,8 +670,6 @@ public:
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override {
     WindowsARM64_SPIRV64TargetInfo::getTargetDefines(Opts, Builder);
-    // Device code doesn't need to have ARM64EC defines
-    Builder.defineMacro("_M_ARM64", "1");
   }
 };
 
