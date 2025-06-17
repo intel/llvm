@@ -3,7 +3,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %{build} -Wno-error=unused-command-line-argument -fno-builtin -fsycl-device-lib-jit-link -o %t1.out
+// RUN: %{build} -fno-builtin %if target-spir %{ -fsycl-device-lib-jit-link %} -o %t1.out
 // RUN: %{run} %t1.out
 //
 // UNSUPPORTED: target-nvidia || target-amd
