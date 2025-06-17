@@ -792,17 +792,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   try {
-    if (hCommandBuffer->CurrentExecution) {
-      UR_CHECK_ERROR(hCommandBuffer->CurrentExecution->wait());
-      UR_CHECK_ERROR(urEventRelease(hCommandBuffer->CurrentExecution));
-    }
-
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     ScopedDevice Active(hQueue->getDevice());
     uint32_t StreamToken;
     ur_stream_guard Guard;
     hipStream_t HIPStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
+
+    if (hCommandBuffer->CurrentExecution) {
+      UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, 1,
+                                       &hCommandBuffer->CurrentExecution));
+      UR_CHECK_ERROR(urEventRelease(hCommandBuffer->CurrentExecution));
+    }
 
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                      phEventWaitList));
