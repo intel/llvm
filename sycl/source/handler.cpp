@@ -2176,6 +2176,7 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
   });
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 const std::shared_ptr<detail::context_impl> &
 handler::getContextImplPtr() const {
   if (auto *Graph = impl->get_graph_or_null()) {
@@ -2183,6 +2184,7 @@ handler::getContextImplPtr() const {
   }
   return impl->get_queue().getContextImplPtr();
 }
+#endif
 
 detail::context_impl &handler::getContextImpl() const {
   if (auto *Graph = impl->get_graph_or_null()) {
