@@ -9,6 +9,9 @@
 // required optimimizations.
 //===----------------------------------------------------------------------===//
 
+#ifndef LLVM_SYCL_POST_LINK_ESIMD_POST_SPLIT_PROCESSING_H
+#define LLVM_SYCL_POST_LINK_ESIMD_POST_SPLIT_PROCESSING_H
+
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 
 #include "llvm/ADT/SmallVector.h"
@@ -57,3 +60,5 @@ handleESIMD(llvm::module_split::ModuleDesc MDesc,
 
 } // namespace sycl
 } // namespace llvm
+
+#endif // LLVM_SYCL_POST_LINK_ESIMD_POST_SPLIT_PROCESSING_H

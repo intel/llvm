@@ -120,12 +120,6 @@ llvm::sycl::handleESIMD(ModuleDesc MDesc,
 
   assert(Result.size() <= 2 &&
          "Split modules aren't expected to be more than 2.");
-  if (Result.size() == 2 && SplitOccurred &&
-      Options.SplitMode == module_split::SPLIT_PER_KERNEL &&
-      !Options.SplitESIMD)
-    return createStringError("SYCL and ESIMD entry points detected with "
-                             "-split-mode=per-kernel and -split-esimd=false. "
-                             "So -split-esimd=true is mandatory.");
 
   SplitOccurred |= Result.size() > 1;
 
@@ -156,7 +150,7 @@ llvm::sycl::handleESIMD(ModuleDesc MDesc,
   Linked.restoreLinkageOfDirectInvokeSimdTargets();
   std::vector<std::string> Names;
   Linked.saveEntryPointNames(Names);
-  // Cleanup may remove some entry points, need to save/rebuild
+  // Cleanup may remove some entry points, need to save/rebuild.
   Linked.cleanup(Options.AllowDeviceImageDependencies);
   Linked.rebuildEntryPoints(Names);
   Result.clear();
