@@ -153,7 +153,6 @@ const AdapterPtr &event_impl::getAdapter() {
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
-  MIsHostEvent = Context == nullptr;
   MContext = Context;
 }
 
@@ -208,12 +207,7 @@ void event_impl::initHostProfilingInfo() {
   assert(QueuePtr->MIsProfilingEnabled && "Queue must have profiling enabled");
 
   MIsProfilingEnabled = true;
-  MHostProfilingInfo.reset(new HostProfilingInfo());
-  if (!MHostProfilingInfo)
-    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                          "Out of host memory " +
-                              codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
-
+  MHostProfilingInfo = std::make_unique<HostProfilingInfo>();
   device_impl &Device = QueuePtr->getDeviceImpl();
   MHostProfilingInfo->setDevice(&Device);
 }
@@ -620,9 +614,6 @@ bool event_impl::isCompleted() {
 
 void event_impl::setCommand(void *Cmd) {
   MCommand = Cmd;
-  auto TypedCommand = static_cast<Command *>(Cmd);
-  if (TypedCommand)
-    MIsHostEvent = TypedCommand->getWorkerContext() == nullptr;
 }
 
 } // namespace detail
