@@ -62,8 +62,8 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
           Rec, &MockReq, detail::getSyclObjImpl(Queue), ToEnqueue);
       std::ignore =
           MS.getOrCreateAllocaForReq(Rec, &MockReq, nullptr, ToEnqueue);
-      DepCmd =
-          std::make_unique<MockCommand>(detail::getSyclObjImpl(Queue), MockReq);
+      DepCmd = std::make_unique<MockCommand>(
+          detail::getSyclObjImpl(Queue).get(), MockReq);
     }
   };
 
@@ -85,7 +85,7 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
   auto AddLeafWithDeps = [&AddedLeaves, &MockReq,
                           &MS](const QueueRelatedObjects &QueueStuff) {
     auto NewLeaf = std::make_unique<MockCommand>(
-        detail::getSyclObjImpl(QueueStuff.Queue), MockReq);
+        detail::getSyclObjImpl(QueueStuff.Queue).get(), MockReq);
     // Create edges: all soon-to-be leaves are direct users of MockDep
     std::vector<detail::Command *> ToCleanUp;
     (void)NewLeaf->addDep(detail::DepDesc{QueueStuff.DepCmd.get(), &MockReq,
