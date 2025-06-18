@@ -16,3 +16,8 @@
 // RUN: | FileCheck %s --check-prefix=CHECK -DOPTION=-fsycl-device-lib-jit-link
 // RUN: %clangxx -fsycl -fno-sycl-device-lib-jit-link %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK -DOPTION=-fno-sycl-device-lib-jit-link
+
+// RUN: %clangxx -fsycl -fsycl-device-lib=libc %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK -DOPTION=-fsycl-device-lib=libc
+// RUN: %clangxx -fsycl -fno-sycl-device-lib=libc %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK -DOPTION=-fno-sycl-device-lib=libc
