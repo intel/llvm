@@ -404,7 +404,8 @@ std::shared_ptr<node_impl> graph_impl::addNodesToExits(
   // Add all the new nodes to the node storage
   for (auto &Node : NodeList) {
     MNodeStorage.push_back(Node);
-    addEventForNode(std::make_shared<sycl::detail::event_impl>(), Node);
+    addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
+                    Node);
   }
 
   return this->add(Outputs);
@@ -494,7 +495,8 @@ graph_impl::add(std::vector<std::shared_ptr<node_impl>> &Deps) {
 
   addDepsToNode(NodeImpl, Deps);
   // Add an event associated with this explicit node for mixed usage
-  addEventForNode(std::make_shared<sycl::detail::event_impl>(), NodeImpl);
+  addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
+                  NodeImpl);
   return NodeImpl;
 }
 
@@ -552,7 +554,8 @@ graph_impl::add(std::function<void(handler &)> CGF,
       this->add(NodeType, std::move(Handler.impl->MGraphNodeCG), Deps);
 
   // Add an event associated with this explicit node for mixed usage
-  addEventForNode(std::make_shared<sycl::detail::event_impl>(), NodeImpl);
+  addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
+                  NodeImpl);
 
   // Retrieve any dynamic parameters which have been registered in the CGF and
   // register the actual nodes with them.
@@ -651,7 +654,8 @@ graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
       add(NodeType, ActiveKernel, Deps);
 
   // Add an event associated with this explicit node for mixed usage
-  addEventForNode(std::make_shared<sycl::detail::event_impl>(), NodeImpl);
+  addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
+                  NodeImpl);
 
   // Track the dynamic command-group used inside the node object
   DynCGImpl->MNodes.push_back(NodeImpl);
@@ -856,7 +860,7 @@ exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
     std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
         StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
         CGExec->MKernelName.data(), CGExec->MKernelNameBasedCachePtr, nullptr,
-        CGExec->MNDRDesc, CGExec->MKernelBundle, CGExec->MArgs);
+        CGExec->MNDRDesc, CGExec->MKernelBundle.get(), CGExec->MArgs);
     if (CmdTraceEvent)
       sycl::detail::emitInstrumentationGeneral(
           StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
@@ -1032,9 +1036,8 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
       PartitionsExecutionEvents;
 
   auto CreateNewEvent([&]() {
-    auto NewEvent =
-        std::make_shared<sycl::detail::event_impl>(Queue.shared_from_this());
-    NewEvent->setContextImpl(Queue.getContextImplPtr());
+    auto NewEvent = sycl::detail::event_impl::create_device_event(Queue);
+    NewEvent->setContextImpl(Queue.getContextImpl());
     NewEvent->setStateIncomplete();
     return NewEvent;
   });
@@ -1533,8 +1536,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else if (auto SyclKernelImpl =
                  KernelBundleImplPtr
-                     ? KernelBundleImplPtr->tryGetKernel(ExecCG.MKernelName,
-                                                         KernelBundleImplPtr)
+                     ? KernelBundleImplPtr->tryGetKernel(ExecCG.MKernelName)
                      : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();

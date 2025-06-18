@@ -15,8 +15,6 @@ using namespace sycl;
 
 class MemObjMock : public sycl::detail::SYCLMemObjI {
 public:
-  using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
-
   MemObjMock(const std::shared_ptr<sycl::detail::MemObjRecord> &Record)
       : SYCLMemObjI() {
     MRecord = Record;
@@ -26,12 +24,13 @@ public:
 
   MemObjType getType() const override { return MemObjType::Buffer; }
 
-  void *allocateMem(ContextImplPtr, bool, void *, ur_event_handle_t &) {
+  void *allocateMem(detail::context_impl *, bool, void *,
+                    ur_event_handle_t &) override {
     return nullptr;
   }
 
   void *allocateHostMem() { return nullptr; }
-  void releaseMem(ContextImplPtr, void *) {}
+  void releaseMem(detail::context_impl *, void *) override {}
   void releaseHostMem(void *) {}
   size_t getSizeInBytes() const noexcept override { return 10; }
   bool isInterop() const override { return false; }
@@ -39,7 +38,10 @@ public:
   bool isHostPointerReadOnly() const override { return false; }
   bool usesPinnedHostMemory() const override { return false; }
 
-  detail::ContextImplPtr getInteropContext() const override { return nullptr; }
+  std::shared_ptr<sycl::detail::context_impl>
+  getInteropContext() const override {
+    return nullptr;
+  }
 };
 
 static sycl::device getDeviceWithHostUnifiedMemory(sycl::platform &Plt) {

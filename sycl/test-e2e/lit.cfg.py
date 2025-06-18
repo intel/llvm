@@ -316,9 +316,8 @@ with test_env():
 # check if the compiler was built in NDEBUG configuration
 has_ndebug = False
 ps = subprocess.Popen(
-    [config.dpcpp_compiler, "-mllvm", "-debug", "-x", "c", "-", "-S", "-o", "-"],
+    [config.dpcpp_compiler, "-mllvm", "-debug", "-x", "c", "-", "-S", "-o", os.devnull],
     stdin=subprocess.PIPE,
-    stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
 )
 _ = ps.communicate(input=b"int main(){}\n")
@@ -426,10 +425,9 @@ ps = subprocess.Popen(
         "c++",
         "-",
         "-o",
-        "-",
+        os.devnull,
     ],
     stdin=subprocess.PIPE,
-    stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
 )
 op = ps.communicate(input=b"")
@@ -574,7 +572,7 @@ if cl_options:
     )
     config.substitutions.append(("%include_option", "/FI"))
     config.substitutions.append(("%debug_option", "/Zi /DEBUG"))
-    config.substitutions.append(("%cxx_std_option", "/std:"))
+    config.substitutions.append(("%cxx_std_option", "/clang:-std="))
     config.substitutions.append(("%fPIC", ""))
     config.substitutions.append(("%shared_lib", "/LD"))
     config.substitutions.append(("%O0", "/Od"))

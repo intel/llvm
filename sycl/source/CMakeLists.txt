@@ -269,6 +269,7 @@ set(SYCL_COMMON_SOURCES
     "detail/host_pipe_map.cpp"
     "detail/device_global_map.cpp"
     "detail/device_global_map_entry.cpp"
+    "detail/device_image_impl.cpp"
     "detail/device_impl.cpp"
     "detail/error_handling/error_handling.cpp"
     "detail/event_impl.cpp"

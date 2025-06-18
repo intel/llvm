@@ -74,6 +74,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_REFERENCE_COUNT:
     // Devices are never allocated or freed
     return ReturnValue(uint32_t{1});
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
+    return ReturnValue(uint32_t{3});
   // Unimplemented features
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
   case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
