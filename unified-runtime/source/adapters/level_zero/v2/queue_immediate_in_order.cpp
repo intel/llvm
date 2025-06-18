@@ -28,25 +28,29 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ze_command_queue_priority_t priority, std::optional<int32_t> index,
     event_flags_t eventFlags, ur_queue_flags_t flags)
     : hContext(hContext), hDevice(hDevice),
+      eventPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
+                    .borrow(hDevice->Id.value(), eventFlags)),
       commandListManager(
           hContext, hDevice,
           hContext->getCommandListCache().getImmediateCommandList(
               hDevice->ZeDevice,
               {true, ordinal, true /* always enable copy offload */},
               ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index)),
-      flags(flags),
-      eventPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
-                    .borrow(hDevice->Id.value(), eventFlags)) {}
+      flags(flags) {
+  ur::level_zero::urContextRetain(hContext);
+}
 
 ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     raii::command_list_unique_handle commandListHandle,
     event_flags_t eventFlags, ur_queue_flags_t flags)
     : hContext(hContext), hDevice(hDevice),
-      commandListManager(hContext, hDevice, std::move(commandListHandle)),
-      flags(flags),
       eventPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
-                    .borrow(hDevice->Id.value(), eventFlags)) {}
+                    .borrow(hDevice->Id.value(), eventFlags)),
+      commandListManager(hContext, hDevice, std::move(commandListHandle)),
+      flags(flags) {
+  ur::level_zero::urContextRetain(hContext);
+}
 
 ur_result_t
 ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
@@ -122,6 +126,7 @@ ur_result_t ur_queue_immediate_in_order_t::queueFlush() {
 ur_queue_immediate_in_order_t::~ur_queue_immediate_in_order_t() {
   try {
     UR_CALL_THROWS(queueFinish());
+    ur::level_zero::urContextRelease(hContext);
   } catch (...) {
     // Ignore errors during destruction
   }

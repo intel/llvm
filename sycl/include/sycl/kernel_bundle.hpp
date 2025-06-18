@@ -1335,12 +1335,7 @@ void handler::set_specialization_constant(
 
   setStateSpecConstSet();
 
-  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-      getOrInsertHandlerKernelBundle(/*Insert=*/true);
-
-  detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-      std::move(KernelBundleImplPtr))
-      .set_specialization_constant<SpecName>(Value);
+  getKernelBundle().set_specialization_constant<SpecName>(Value);
 }
 
 template <auto &SpecName>
@@ -1352,12 +1347,7 @@ handler::get_specialization_constant() const {
                           "Specialization constants cannot be read after "
                           "explicitly setting the used kernel bundle");
 
-  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-      getOrInsertHandlerKernelBundle(/*Insert=*/true);
-
-  return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-             std::move(KernelBundleImplPtr))
-      .get_specialization_constant<SpecName>();
+  return getKernelBundle().get_specialization_constant<SpecName>();
 }
 
 } // namespace _V1

@@ -68,9 +68,15 @@ class kernel_impl;
 /// The class is an impl counterpart of the sycl::kernel_bundle.
 // It provides an access and utilities to manage set of sycl::device_images
 // objects.
-class kernel_bundle_impl {
+class kernel_bundle_impl
+    : public std::enable_shared_from_this<kernel_bundle_impl> {
 
   using SpecConstMapT = std::map<std::string, std::vector<unsigned char>>;
+  using Base = std::enable_shared_from_this<kernel_bundle_impl>;
+
+  struct private_tag {
+    explicit private_tag() = default;
+  };
 
   void common_ctor_checks() const {
     const bool AllDevicesInTheContext =
@@ -93,7 +99,8 @@ class kernel_bundle_impl {
   }
 
 public:
-  kernel_bundle_impl(context Ctx, std::vector<device> Devs, bundle_state State)
+  kernel_bundle_impl(context Ctx, std::vector<device> Devs, bundle_state State,
+                     private_tag)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
     common_ctor_checks();
@@ -104,7 +111,7 @@ public:
   }
 
   // Interop constructor used by make_kernel
-  kernel_bundle_impl(context Ctx, std::vector<device> Devs)
+  kernel_bundle_impl(context Ctx, std::vector<device> Devs, private_tag)
       : MContext(Ctx), MDevices(Devs), MState(bundle_state::executable) {
     if (!checkAllDevicesAreInContext(Devs, Ctx))
       throw sycl::exception(
@@ -115,8 +122,8 @@ public:
 
   // Interop constructor
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
-                     device_image_plain &DevImage)
-      : kernel_bundle_impl(Ctx, Devs) {
+                     device_image_plain &DevImage, private_tag Tag)
+      : kernel_bundle_impl(Ctx, Devs, Tag) {
     MDeviceImages.emplace_back(DevImage);
     MUniqueDeviceImages.emplace_back(DevImage);
   }
@@ -126,7 +133,7 @@ public:
   // signature
   kernel_bundle_impl(const kernel_bundle<bundle_state::input> &InputBundle,
                      std::vector<device> Devs, const property_list &PropList,
-                     bundle_state TargetState)
+                     bundle_state TargetState, private_tag)
       : MContext(InputBundle.get_context()), MDevices(std::move(Devs)),
         MState(TargetState) {
 
@@ -198,7 +205,7 @@ public:
   // Matches sycl::link
   kernel_bundle_impl(
       const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
-      std::vector<device> Devs, const property_list &PropList)
+      std::vector<device> Devs, const property_list &PropList, private_tag)
       : MDevices(std::move(Devs)), MState(bundle_state::executable) {
     if (MDevices.empty())
       throw sycl::exception(make_error_code(errc::invalid),
@@ -415,7 +422,7 @@ public:
 
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      const std::vector<kernel_id> &KernelIDs,
-                     bundle_state State)
+                     bundle_state State, private_tag)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
     common_ctor_checks();
@@ -426,7 +433,8 @@ public:
   }
 
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
-                     const DevImgSelectorImpl &Selector, bundle_state State)
+                     const DevImgSelectorImpl &Selector, bundle_state State,
+                     private_tag)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
     common_ctor_checks();
@@ -438,7 +446,7 @@ public:
 
   // C'tor matches sycl::join API
   kernel_bundle_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
-                     bundle_state State)
+                     bundle_state State, private_tag)
       : MState(State) {
     if (Bundles.empty())
       return;
@@ -517,7 +525,8 @@ public:
   // oneapi_ext_kernel_compiler
   // construct from source string
   kernel_bundle_impl(const context &Context, syclex::source_language Lang,
-                     const std::string &Src, include_pairs_t IncludePairsVec)
+                     const std::string &Src, include_pairs_t IncludePairsVec,
+                     private_tag)
       : MContext(Context), MDevices(Context.get_devices()),
         MDeviceImages{device_image_plain{std::make_shared<device_image_impl>(
             Src, MContext, MDevices, Lang, std::move(IncludePairsVec))}},
@@ -529,7 +538,7 @@ public:
   // oneapi_ext_kernel_compiler
   // construct from source bytes
   kernel_bundle_impl(const context &Context, syclex::source_language Lang,
-                     const std::vector<std::byte> &Bytes)
+                     const std::vector<std::byte> &Bytes, private_tag)
       : MContext(Context), MDevices(Context.get_devices()),
         MDeviceImages{device_image_plain{std::make_shared<device_image_impl>(
             Bytes, MContext, MDevices, Lang)}},
@@ -544,7 +553,7 @@ public:
       const context &Context, const std::vector<device> &Devs,
       std::vector<device_image_plain> &&DevImgs,
       std::vector<std::shared_ptr<ManagedDeviceBinaries>> &&DevBinaries,
-      bundle_state State)
+      bundle_state State, private_tag)
       : MContext(Context), MDevices(Devs),
         MSharedDeviceBinaries(std::move(DevBinaries)),
         MUniqueDeviceImages(std::move(DevImgs)), MState(State) {
@@ -582,6 +591,12 @@ public:
     fillUniqueDeviceImages();
   }
 
+  template <typename... Ts>
+  static std::shared_ptr<kernel_bundle_impl> create(Ts &&...args) {
+    return std::make_shared<kernel_bundle_impl>(std::forward<Ts>(args)...,
+                                                private_tag{});
+  }
+
   std::shared_ptr<kernel_bundle_impl> build_from_source(
       const std::vector<device> Devices,
       const std::vector<sycl::detail::string_view> &BuildOptions,
@@ -601,9 +616,8 @@ public:
       for (std::shared_ptr<device_image_impl> &DevImgImpl : NewDevImgImpls)
         NewDevImgs.emplace_back(std::move(DevImgImpl));
     }
-    return std::make_shared<kernel_bundle_impl>(
-        MContext, Devices, std::move(NewDevImgs), std::move(NewBinReso),
-        bundle_state::executable);
+    return create(MContext, Devices, std::move(NewDevImgs),
+                  std::move(NewBinReso), bundle_state::executable);
   }
 
   std::shared_ptr<kernel_bundle_impl> compile_from_source(
@@ -626,9 +640,8 @@ public:
       for (std::shared_ptr<device_image_impl> &DevImgImpl : NewDevImgImpls)
         NewDevImgs.emplace_back(std::move(DevImgImpl));
     }
-    return std::make_shared<kernel_bundle_impl>(
-        MContext, Devices, std::move(NewDevImgs), std::move(NewBinReso),
-        bundle_state::object);
+    return create(MContext, Devices, std::move(NewDevImgs),
+                  std::move(NewBinReso), bundle_state::object);
   }
 
 public:
@@ -639,9 +652,7 @@ public:
                        });
   }
 
-  kernel
-  ext_oneapi_get_kernel(const std::string &Name,
-                        const std::shared_ptr<kernel_bundle_impl> &Self) const {
+  kernel ext_oneapi_get_kernel(const std::string &Name) const {
     if (!hasSourceBasedImages() && !hasSYCLBINImages())
       throw sycl::exception(make_error_code(errc::invalid),
                             "'ext_oneapi_get_kernel' is only available in "
@@ -658,7 +669,7 @@ public:
       const std::shared_ptr<device_image_impl> &DevImgImpl =
           getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> PotentialKernelImpl =
-              DevImgImpl->tryGetExtensionKernel(Name, MContext, Self,
+              DevImgImpl->tryGetExtensionKernel(Name, MContext, *this,
                                                 DevImgImpl))
         return detail::createSyclObjFromImpl<kernel>(
             std::move(PotentialKernelImpl));
@@ -760,11 +771,8 @@ public:
     return Result;
   }
 
-  kernel
-  get_kernel(const kernel_id &KernelID,
-             const std::shared_ptr<detail::kernel_bundle_impl> &Self) const {
-    if (std::shared_ptr<kernel_impl> KernelImpl =
-            tryGetOfflineKernel(KernelID, Self))
+  kernel get_kernel(const kernel_id &KernelID) const {
+    if (std::shared_ptr<kernel_impl> KernelImpl = tryGetOfflineKernel(KernelID))
       return detail::createSyclObjFromImpl<kernel>(std::move(KernelImpl));
     throw sycl::exception(make_error_code(errc::invalid),
                           "The kernel bundle does not contain the kernel "
@@ -925,9 +933,8 @@ public:
     });
   }
 
-  std::shared_ptr<kernel_impl> tryGetOfflineKernel(
-      const kernel_id &KernelID,
-      const std::shared_ptr<detail::kernel_bundle_impl> &Self) const {
+  std::shared_ptr<kernel_impl>
+  tryGetOfflineKernel(const kernel_id &KernelID) const {
     using ImageImpl = std::shared_ptr<detail::device_image_impl>;
     // Selected image.
     ImageImpl SelectedImage = nullptr;
@@ -987,13 +994,13 @@ public:
             SelectedImage->get_ur_program_ref());
 
     return std::make_shared<kernel_impl>(
-        Kernel, *detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
-        SelectedImage->get_ur_program_ref(), CacheMutex);
+        Kernel, *detail::getSyclObjImpl(MContext), SelectedImage,
+        shared_from_this(), ArgMask, SelectedImage->get_ur_program_ref(),
+        CacheMutex);
   }
 
   std::shared_ptr<kernel_impl>
-  tryGetKernel(detail::KernelNameStrRefT Name,
-               const std::shared_ptr<kernel_bundle_impl> &Self) const {
+  tryGetKernel(detail::KernelNameStrRefT Name) const {
     // TODO: For source-based kernels, it may be faster to keep a map between
     //       {kernel_name, device} and their corresponding image.
     // First look through the kernels registered in source-based images.
@@ -1001,7 +1008,7 @@ public:
       const std::shared_ptr<device_image_impl> &DevImgImpl =
           getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> SourceBasedKernel =
-              DevImgImpl->tryGetExtensionKernel(Name, MContext, Self,
+              DevImgImpl->tryGetExtensionKernel(Name, MContext, *this,
                                                 DevImgImpl))
         return SourceBasedKernel;
     }
@@ -1010,8 +1017,12 @@ public:
     if (std::optional<kernel_id> MaybeKernelID =
             sycl::detail::ProgramManager::getInstance().tryGetSYCLKernelID(
                 Name))
-      return tryGetOfflineKernel(*MaybeKernelID, Self);
+      return tryGetOfflineKernel(*MaybeKernelID);
     return nullptr;
+  }
+
+  std::shared_ptr<kernel_bundle_impl> shared_from_this() const {
+    return const_cast<kernel_bundle_impl *>(this)->Base::shared_from_this();
   }
 
 private:

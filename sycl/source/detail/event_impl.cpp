@@ -38,8 +38,10 @@ void event_impl::initContextIfNeeded() {
     return;
 
   const device SyclDevice;
-  this->setContextImpl(
-      detail::queue_impl::getDefaultOrNew(*detail::getSyclObjImpl(SyclDevice)));
+  MIsHostEvent = false;
+  MContext =
+      detail::queue_impl::getDefaultOrNew(*detail::getSyclObjImpl(SyclDevice));
+  assert(MContext);
 }
 
 event_impl::~event_impl() {
@@ -140,9 +142,10 @@ void event_impl::setHandle(const ur_event_handle_t &UREvent) {
   MEvent.store(UREvent);
 }
 
-const ContextImplPtr &event_impl::getContextImpl() {
+context_impl &event_impl::getContextImpl() {
   initContextIfNeeded();
-  return MContext;
+  assert(MContext && "Trying to get context from a host event!");
+  return *MContext;
 }
 
 const AdapterPtr &event_impl::getAdapter() {
@@ -152,9 +155,9 @@ const AdapterPtr &event_impl::getAdapter() {
 
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
-void event_impl::setContextImpl(const ContextImplPtr &Context) {
-  MIsHostEvent = Context == nullptr;
-  MContext = Context;
+void event_impl::setContextImpl(context_impl &Context) {
+  MIsHostEvent = false;
+  MContext = Context.shared_from_this();
 }
 
 event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
@@ -178,7 +181,7 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
 event_impl::event_impl(queue_impl &Queue, private_tag)
     : MQueue{Queue.weak_from_this()},
       MIsProfilingEnabled{Queue.MIsProfilingEnabled} {
-  this->setContextImpl(Queue.getContextImplPtr());
+  this->setContextImpl(Queue.getContextImpl());
   MState.store(HES_Complete);
 }
 
@@ -215,7 +218,7 @@ void event_impl::setQueue(queue_impl &Queue) {
 void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
   MSubmittedQueue = std::move(SubmittedQueue);
   if (MHostProfilingInfo) {
-    if (auto QueuePtr = MSubmittedQueue.lock()) {
+    if (std::shared_ptr<queue_impl> QueuePtr = MSubmittedQueue.lock()) {
       device_impl &Device = QueuePtr->getDeviceImpl();
       MHostProfilingInfo->setDevice(&Device);
     }
@@ -248,7 +251,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
     // queue is available with the wait events. We check to see if the
     // TraceEvent is available in the Queue object.
     void *TraceEvent = nullptr;
-    if (QueueImplPtr Queue = MQueue.lock()) {
+    if (std::shared_ptr<queue_impl> Queue = MQueue.lock()) {
       TraceEvent = Queue->getTraceEvent();
       WaitEvent =
           (TraceEvent ? static_cast<xpti_td *>(TraceEvent) : GSYCLGraphEvent);
@@ -317,7 +320,7 @@ void event_impl::wait_and_throw(
     std::shared_ptr<sycl::detail::event_impl> Self) {
   wait(Self);
 
-  if (QueueImplPtr SubmittedQueue = MSubmittedQueue.lock())
+  if (std::shared_ptr<queue_impl> SubmittedQueue = MSubmittedQueue.lock())
     SubmittedQueue->throw_asynchronous();
 }
 
@@ -462,7 +465,7 @@ event_impl::get_backend_info<info::platform::version>() const {
                           "the info::platform::version info descriptor can "
                           "only be queried with an OpenCL backend");
   }
-  if (QueueImplPtr Queue = MQueue.lock()) {
+  if (std::shared_ptr<queue_impl> Queue = MQueue.lock()) {
     return Queue->getDeviceImpl()
         .get_platform()
         .get_info<info::platform::version>();
@@ -485,7 +488,7 @@ event_impl::get_backend_info<info::device::version>() const {
                           "the info::device::version info descriptor can only "
                           "be queried with an OpenCL backend");
   }
-  if (QueueImplPtr Queue = MQueue.lock()) {
+  if (std::shared_ptr<queue_impl> Queue = MQueue.lock()) {
     return Queue->getDeviceImpl().get_info<info::device::version>();
   }
   return ""; // If the queue has been released, no device will be associated so
@@ -552,21 +555,21 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
   return Result;
 }
 
-void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
+void event_impl::flushIfNeeded(queue_impl *UserQueue) {
   // Some events might not have a native handle underneath even at this point,
   // e.g. those produced by memset with 0 size (no UR call is made).
   auto Handle = this->getHandle();
   if (MIsFlushed || !Handle)
     return;
 
-  QueueImplPtr Queue = MQueue.lock();
+  std::shared_ptr<queue_impl> Queue = MQueue.lock();
   // If the queue has been released, all of the commands have already been
   // implicitly flushed by urQueueRelease.
   if (!Queue) {
     MIsFlushed = true;
     return;
   }
-  if (Queue == UserQueue)
+  if (Queue.get() == UserQueue)
     return;
 
   // Check if the task for this event has already been submitted.
@@ -604,9 +607,9 @@ void event_impl::setSubmissionTime() {
   if (!MIsProfilingEnabled && !MProfilingTagEvent)
     return;
 
-  std::weak_ptr<queue_impl> Queue = isHost() ? MSubmittedQueue : MQueue;
-  if (QueueImplPtr QueuePtr = Queue.lock()) {
-    device_impl &Device = QueuePtr->getDeviceImpl();
+  if (std::shared_ptr<queue_impl> Queue =
+          isHost() ? MSubmittedQueue.lock() : MQueue.lock()) {
+    device_impl &Device = Queue->getDeviceImpl();
     MSubmitTime = getTimestamp(&Device);
   }
 }
