@@ -18,6 +18,13 @@ static inline size_t WorkGroupLinearId() {
          __spirv_BuiltInWorkgroupId.z;
 }
 
+static inline size_t LocalLinearId() {
+  return __spirv_BuiltInLocalInvocationId.x * __spirv_BuiltInWorkgroupSize.y *
+             __spirv_BuiltInWorkgroupSize.z +
+         __spirv_BuiltInLocalInvocationId.y * __spirv_BuiltInWorkgroupSize.z +
+         __spirv_BuiltInLocalInvocationId.z;
+}
+
 // For GPU device, each sub group is a hardware thread
 static inline size_t SubGroupLinearId() {
   return __spirv_BuiltInGlobalLinearId / __spirv_BuiltInSubgroupSize;

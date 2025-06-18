@@ -376,7 +376,8 @@ public:
   /// directly to the queue.
   /// \param Dependencies Optional list of dependency
   /// sync points when enqueuing to a command buffer.
-  /// \return an event object to wait on for command group completion.
+  /// \return an event object to wait on for command group completion. It can
+  /// be a discarded event.
   EventImplPtr addCG(
       std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
       bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
