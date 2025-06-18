@@ -12718,11 +12718,14 @@ typedef struct ur_exp_kernel_arg_mem_obj_tuple_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Typesafe container for a kernel argument value
 typedef union ur_exp_kernel_arg_value_t {
+  /// [in] Struct containing a memory object and associated flags.
+  ur_exp_kernel_arg_mem_obj_tuple_t memObjTuple;
+  /// [in] argument value represented as matching arg type.
+  /// The data pointed to will be copied and therefore can be reused on return.
+  const void *value;
   /// [in] Allocation obtained by USM allocation or virtual memory mapping
   /// operation, or pointer to a literal value.
   const void *pointer;
-  /// [in] Struct containing a memory object and associated flags.
-  ur_exp_kernel_arg_mem_obj_tuple_t memObjTuple;
   /// [in] Handle of a sampler object.
   ur_sampler_handle_t sampler;
 

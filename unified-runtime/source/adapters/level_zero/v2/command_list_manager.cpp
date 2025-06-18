@@ -999,7 +999,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
       case UR_EXP_KERNEL_ARG_TYPE_VALUE:
         UR_CALL(hKernel->setArgValue(pArgs[argIndex].index,
                                      pArgs[argIndex].size, nullptr,
-                                     pArgs[argIndex].arg.pointer));
+                                     pArgs[argIndex].arg.value));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_POINTER:
         UR_CALL(hKernel->setArgPointer(pArgs[argIndex].index, nullptr,

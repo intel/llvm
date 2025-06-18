@@ -638,7 +638,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
       }
       case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
         hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
-                              pArgs[i].arg.pointer);
+                              pArgs[i].arg.value);
         break;
       }
       case UR_EXP_KERNEL_ARG_TYPE_POINTER: {

@@ -705,7 +705,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
     switch (pArgs[argIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-      hKernel->addArg(pArgs[argIndex].arg.pointer, pArgs[argIndex].index,
+      hKernel->addArg(pArgs[argIndex].arg.value, pArgs[argIndex].index,
                       pArgs[argIndex].size);
       break;
     case UR_EXP_KERNEL_ARG_TYPE_POINTER:

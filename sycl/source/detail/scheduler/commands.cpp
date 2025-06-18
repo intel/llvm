@@ -2341,12 +2341,11 @@ void GetUrArgsBasedOnType(
     } else {
       Type = UR_EXP_KERNEL_ARG_TYPE_LOCAL;
     }
-    UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-                      nullptr,
-                      Type,
-                      static_cast<uint32_t>(NextTrueIndex),
-                      static_cast<size_t>(Arg.MSize),
-                      {Arg.MPtr}});
+    ur_exp_kernel_arg_value_t Value = {};
+    Value.value = {Arg.MPtr};
+    UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                      Type, static_cast<uint32_t>(NextTrueIndex),
+                      static_cast<size_t>(Arg.MSize), Value});
 
     break;
   }
@@ -2362,15 +2361,14 @@ void GetUrArgsBasedOnType(
     break;
   }
   case kernel_param_kind_t::kind_pointer: {
-    void *Ptr = *static_cast<void *const *>(Arg.MPtr);
-    // We need to de-rerence this to get the actual USM allocation - that's the
+    ur_exp_kernel_arg_value_t Value = {};
+    // We need to de-rerence to get the actual USM allocation - that's the
     // pointer UR is expecting.
-    UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-                      nullptr,
+    Value.pointer = *static_cast<void *const *>(Arg.MPtr);
+    UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
                       UR_EXP_KERNEL_ARG_TYPE_POINTER,
-                      static_cast<uint32_t>(NextTrueIndex),
-                      sizeof(Ptr),
-                      {Ptr}});
+                      static_cast<uint32_t>(NextTrueIndex), sizeof(Arg.MPtr),
+                      Value});
     break;
   }
   case kernel_param_kind_t::kind_specialization_constants_buffer: {
@@ -2428,22 +2426,21 @@ static ur_result_t SetKernelParamsAndLaunch(
       switch (ParamDesc.kind) {
       case kernel_param_kind_t::kind_std_layout: {
         int Size = ParamDesc.info;
-        UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-                          nullptr,
+        ur_exp_kernel_arg_value_t Value = {};
+        Value.value = ArgPtr;
+        UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
                           UR_EXP_KERNEL_ARG_TYPE_VALUE,
                           static_cast<uint32_t>(NextTrueIndex),
-                          static_cast<size_t>(Size),
-                          {ArgPtr}});
+                          static_cast<size_t>(Size), Value});
         break;
       }
       case kernel_param_kind_t::kind_pointer: {
-        const void *Ptr = *static_cast<const void *const *>(ArgPtr);
-        UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-                          nullptr,
+        ur_exp_kernel_arg_value_t Value = {};
+        Value.pointer = *static_cast<const void *const *>(ArgPtr);
+        UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
                           UR_EXP_KERNEL_ARG_TYPE_POINTER,
                           static_cast<uint32_t>(NextTrueIndex),
-                          sizeof(Ptr),
-                          {Ptr}});
+                          sizeof(Value.pointer), Value});
         break;
       }
       default:

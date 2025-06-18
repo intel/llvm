@@ -186,7 +186,7 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
         break;
       case UR_EXP_KERNEL_ARG_TYPE_VALUE:
         UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        Args[i].arg.pointer));
+                                        Args[i].arg.value));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_POINTER:
         UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,

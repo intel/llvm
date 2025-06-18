@@ -39,19 +39,27 @@ members:
       name: flags
       desc: "[in] Memory flags to associate with `hMem`. Allowed values are: $X_MEM_FLAG_READ_WRITE, $X_MEM_FLAG_WRITE_ONLY, $X_MEM_FLAG_READ_ONLY."
 --- #--------------------------------------------------------------------------
+# We have redundant entries in the union (value + pointer) to make printing work
+# as it relies on the tags and we can currently only have one tag per member.
 type: union
 desc: "Typesafe container for a kernel argument value"
 name: $x_exp_kernel_arg_value_t
 tag: $x_exp_kernel_arg_type_t
 members:
-    - type: "const void*"
-      name: pointer
-      desc: "[in] Allocation obtained by USM allocation or virtual memory mapping operation, or pointer to a literal value."
-      tag: $X_EXP_KERNEL_ARG_TYPE_POINTER
     - type: $x_exp_kernel_arg_mem_obj_tuple_t
       name: memObjTuple
       desc: "[in] Struct containing a memory object and associated flags."
       tag: $X_EXP_KERNEL_ARG_TYPE_MEM_OBJ
+    - type: "const void*"
+      name: value
+      desc: |
+         [in] argument value represented as matching arg type.
+         The data pointed to will be copied and therefore can be reused on return.
+      tag: $X_EXP_KERNEL_ARG_TYPE_VALUE
+    - type: "const void*"
+      name: pointer
+      desc: "[in] Allocation obtained by USM allocation or virtual memory mapping operation, or pointer to a literal value."
+      tag: $X_EXP_KERNEL_ARG_TYPE_POINTER
     - type: $x_sampler_handle_t
       name: sampler
       desc: "[in] Handle of a sampler object."

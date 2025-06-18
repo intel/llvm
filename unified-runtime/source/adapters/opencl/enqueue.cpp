@@ -548,7 +548,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     case UR_EXP_KERNEL_ARG_TYPE_VALUE:
       CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
                                           static_cast<cl_uint>(pArgs[i].index),
-                                          pArgs[i].size, pArgs[i].arg.pointer));
+                                          pArgs[i].size, pArgs[i].arg.value));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
       cl_mem mem = pArgs[i].arg.memObjTuple.hMem
