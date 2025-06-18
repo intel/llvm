@@ -1,8 +1,7 @@
-// REQUIRES: aspect-ext_intel_legacy_image
+// REQUIRES: aspect-ext_intel_legacy_image, opencl
 //
 // l0 may use createUrMemFromZeImage instead of the usual urMemImageCreate
 // depending on the arch
-// UNSUPPORTED: level_zero
 //
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=-1 %{run} %t.out | FileCheck %s
