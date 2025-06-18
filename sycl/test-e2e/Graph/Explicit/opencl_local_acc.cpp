@@ -7,6 +7,9 @@
 
 // REQUIRES: ocloc && (opencl || level_zero)
 
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19034
+
 #define GRAPH_E2E_EXPLICIT
 
 #include "../Inputs/opencl_local_acc.cpp"
