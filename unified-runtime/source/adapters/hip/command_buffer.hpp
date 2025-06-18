@@ -109,9 +109,8 @@ struct ur_exp_command_buffer_handle_t_ : ur::hip::handle_base {
     registerSyncPoint(SyncPoint, std::move(HIPNode));
     return SyncPoint;
   }
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
@@ -125,9 +124,6 @@ struct ur_exp_command_buffer_handle_t_ : ur::hip::handle_base {
   hipGraph_t HIPGraph;
   // HIP Graph Exec handle
   hipGraphExec_t HIPGraphExec = nullptr;
-  // Atomic variable counting the number of reference to this command_buffer
-  // using std::atomic prevents data race when incrementing/decrementing.
-  std::atomic_uint32_t RefCount;
 
   // Ordered map of sync_points to ur_events
   std::map<ur_exp_command_buffer_sync_point_t, hipGraphNode_t> SyncPoints;
@@ -138,4 +134,7 @@ struct ur_exp_command_buffer_handle_t_ : ur::hip::handle_base {
   // Handles to individual commands in the command-buffer
   std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
       CommandHandles;
+
+private:
+  UR_ReferenceCounter RefCounter;
 };

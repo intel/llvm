@@ -14,6 +14,8 @@
 
 #include "command_list_cache.hpp"
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
+
 #include "event_pool_cache.hpp"
 #include "usm.hpp"
 
@@ -64,6 +66,8 @@ struct ur_context_handle_t_ : ur_object {
   // For that the Device or its root devices need to be in the context.
   bool isValidDevice(ur_device_handle_t Device) const;
 
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
 private:
   const v2::raii::ze_context_handle_t hContext;
   const std::vector<ur_device_handle_t> hDevices;
@@ -81,4 +85,6 @@ private:
   ur_usm_pool_handle_t_ defaultUSMPool;
   ur_usm_pool_handle_t_ asyncPool;
   std::list<ur_usm_pool_handle_t> usmPoolHandles;
+
+  UR_ReferenceCounter RefCounter;
 };

@@ -15,7 +15,7 @@
 
 #include "CL/cl.h"
 #include "common.hpp"
-#include "logger/ur_logger.hpp"
+#include "common/ur_ref_counter.hpp"
 
 struct ur_adapter_handle_t_ : ur::opencl::handle_base {
   ur_adapter_handle_t_();
@@ -24,7 +24,6 @@ struct ur_adapter_handle_t_ : ur::opencl::handle_base {
   ur_adapter_handle_t_(ur_adapter_handle_t_ &) = delete;
   ur_adapter_handle_t_ &operator=(const ur_adapter_handle_t_ &) = delete;
 
-  std::atomic<uint32_t> RefCount = 0;
   logger::Logger &log = logger::get_logger("opencl");
   cl_ext::ExtFuncPtrCacheT fnCache{};
 
@@ -37,6 +36,11 @@ struct ur_adapter_handle_t_ : ur::opencl::handle_base {
 #define CL_CORE_FUNCTION(FUNC) decltype(::FUNC) *FUNC = nullptr;
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 namespace ur {

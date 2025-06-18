@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "queue.hpp"
 
 #include <vector>
@@ -19,13 +20,11 @@ struct ur_event_handle_t_ : ur::opencl::handle_base {
   native_type CLEvent;
   ur_context_handle_t Context;
   ur_queue_handle_t Queue;
-  std::atomic<uint32_t> RefCount = 0;
   bool IsNativeHandleOwned = true;
 
   ur_event_handle_t_(native_type Event, ur_context_handle_t Ctx,
                      ur_queue_handle_t Queue)
       : handle_base(), CLEvent(Event), Context(Ctx), Queue(Queue) {
-    RefCount = 1;
     urContextRetain(Context);
     if (Queue) {
       urQueueRetain(Queue);
@@ -42,11 +41,7 @@ struct ur_event_handle_t_ : ur::opencl::handle_base {
     }
   }
 
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
 
   ur_result_t ensureQueue() {
     if (!Queue) {
@@ -60,6 +55,9 @@ struct ur_event_handle_t_ : ur::opencl::handle_base {
 
     return UR_RESULT_SUCCESS;
   }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 inline cl_event *ifUrEvent(ur_event_handle_t *ReturnedEvent, cl_event &Event) {

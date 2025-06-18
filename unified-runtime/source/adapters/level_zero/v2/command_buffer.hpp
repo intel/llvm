@@ -12,6 +12,7 @@
 #include "../helpers/mutable_helpers.hpp"
 #include "command_list_manager.hpp"
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
 #include "context.hpp"
 #include "kernel.hpp"
 #include "lockable.hpp"
@@ -53,6 +54,8 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   ur_event_handle_t
   createEventIfRequested(ur_exp_command_buffer_sync_point_t *retSyncPoint);
 
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
 private:
   v2::raii::cache_borrowed_event_pool eventPool;
 
@@ -86,4 +89,6 @@ public:
   const bool isProfilingEnabled = false;
 
   lockable<ur_command_list_manager> commandListManager;
+
+  UR_ReferenceCounter RefCounter;
 };

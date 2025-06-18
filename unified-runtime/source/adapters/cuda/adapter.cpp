@@ -66,7 +66,7 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
     std::call_once(InitFlag,
                    [=]() { ur::cuda::adapter = new ur_adapter_handle_t_; });
 
-    ur::cuda::adapter->RefCount++;
+    ur::cuda::adapter->getRefCounter().increment();
     *phAdapters = ur::cuda::adapter;
   }
 
@@ -78,13 +78,13 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
-  ur::cuda::adapter->RefCount++;
+  ur::cuda::adapter->getRefCounter().increment();
 
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
-  if (--ur::cuda::adapter->RefCount == 0) {
+  if (ur::cuda::adapter->getRefCounter().decrement() == 0) {
     delete ur::cuda::adapter;
   }
   return UR_RESULT_SUCCESS;
@@ -108,7 +108,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
   case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_CUDA);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
-    return ReturnValue(ur::cuda::adapter->RefCount.load());
+    return ReturnValue(ur::cuda::adapter->getRefCounter().getCount());
   case UR_ADAPTER_INFO_VERSION:
     return ReturnValue(uint32_t{1});
   default:

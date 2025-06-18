@@ -64,7 +64,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t /*hMem*/) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
   UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  decrementOrDelete(hMem);
+  if (hMem->getRefCounter().decrement() == 0) {
+    delete hMem;
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -78,7 +80,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
                 !(static_cast<ur_buffer *>(hBuffer))->isSubBuffer(),
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  std::shared_lock<ur_shared_mutex> Guard(hBuffer->Mutex);
+  std::shared_lock<ur_shared_mutex> Guard(hBuffer->getMutex());
 
   if (flags != UR_MEM_FLAG_READ_WRITE) {
     die("urMemBufferPartition: NativeCPU implements only read-write buffer,"

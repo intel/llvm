@@ -11,6 +11,7 @@
 
 #include "../common.hpp"
 #include "../device.hpp"
+#include "common/ur_ref_counter.hpp"
 
 #include "context.hpp"
 #include "event.hpp"
@@ -452,6 +453,11 @@ public:
         pfnNativeEnqueue, data, numMemsInMemList, phMemList, pProperties,
         numEventsInWaitList, phEventWaitList, createEventIfRequested(phEvent));
   }
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+
+private:
+  UR_ReferenceCounter RefCounter;
 };
 
 } // namespace v2

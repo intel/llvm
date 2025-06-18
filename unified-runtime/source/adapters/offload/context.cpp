@@ -34,7 +34,7 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
   case UR_CONTEXT_INFO_DEVICES:
     return ReturnValue(&hContext->Device, 1);
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(hContext->RefCount.load());
+    return ReturnValue(hContext->getRefCounter().getCount());
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     return ReturnValue(false);
@@ -47,13 +47,13 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRetain(ur_context_handle_t hContext) {
-  hContext->RefCount++;
+  hContext->getRefCounter().increment();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  if (--hContext->RefCount == 0) {
+  if (hContext->getRefCounter().decrement() == 0) {
     delete hContext;
   }
   return UR_RESULT_SUCCESS;

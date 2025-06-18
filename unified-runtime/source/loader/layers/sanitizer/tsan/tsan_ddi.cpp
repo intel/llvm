@@ -129,7 +129,7 @@ ur_result_t urContextRetain(
     UR_LOG_L(getContext()->logger, ERR, "Invalid context");
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
-  ContextInfo->RefCount++;
+  ContextInfo->getRefCounter().increment();
 
   return UR_RESULT_SUCCESS;
 }
@@ -149,7 +149,7 @@ ur_result_t urContextRelease(
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
 
-  if (--ContextInfo->RefCount == 0) {
+  if (ContextInfo->getRefCounter().decrement() == 0) {
     UR_CALL(getTsanInterceptor()->eraseContext(hContext));
   }
 
@@ -316,7 +316,7 @@ ur_result_t urMemRetain(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urMemRetain");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hMem)) {
-    MemBuffer->RefCount++;
+    MemBuffer->getRefCounter().increment();
   } else {
     UR_CALL(getContext()->urDdiTable.Mem.pfnRetain(hMem));
   }
@@ -332,7 +332,7 @@ ur_result_t urMemRelease(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urMemRelease");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hMem)) {
-    if (--MemBuffer->RefCount != 0) {
+    if (MemBuffer->getRefCounter().decrement() != 0) {
       return UR_RESULT_SUCCESS;
     }
     UR_CALL(MemBuffer->free());
@@ -991,7 +991,7 @@ ur_result_t urKernelRetain(
   UR_CALL(getContext()->urDdiTable.Kernel.pfnRetain(hKernel));
 
   auto &KernelInfo = getTsanInterceptor()->getKernelInfo(hKernel);
-  KernelInfo.RefCount++;
+  KernelInfo.getRefCounter().increment();
 
   return UR_RESULT_SUCCESS;
 }
@@ -1006,7 +1006,7 @@ ur_result_t urKernelRelease(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelRelease");
 
   auto &KernelInfo = getTsanInterceptor()->getKernelInfo(hKernel);
-  if (--KernelInfo.RefCount == 0) {
+  if (KernelInfo.getRefCounter().decrement() == 0) {
     UR_CALL(getTsanInterceptor()->eraseKernel(hKernel));
   }
   UR_CALL(pfnRelease(hKernel));

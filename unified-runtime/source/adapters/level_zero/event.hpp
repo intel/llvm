@@ -25,6 +25,8 @@
 #include <zes_api.h>
 
 #include "common.hpp"
+#include "common/ur_ref_counter.hpp"
+
 #include "queue.hpp"
 #include "ur_api.h"
 
@@ -220,23 +222,7 @@ struct ur_event_handle_t_ : ur_object {
   uint64_t RecordEventStartTimestamp = 0;
   uint64_t RecordEventEndTimestamp = 0;
 
-  // Besides each PI object keeping a total reference count in
-  // ur_object::RefCount we keep special track of the event *external*
-  // references. This way we are able to tell when the event is not referenced
-  // externally anymore, i.e. it can't be passed as a dependency event to
-  // piEnqueue* functions and explicitly waited meaning that we can do some
-  // optimizations:
-  // 1. For in-order queues we can reset and reuse event even if it was not yet
-  // completed by submitting a reset command to the queue (since there are no
-  // external references, we know that nobody can wait this event somewhere in
-  // parallel thread or pass it as a dependency which may lead to hang)
-  // 2. We can avoid creating host proxy event.
-  // This counter doesn't track the lifetime of an event object. Even if it
-  // reaches zero an event object may not be destroyed and can be used
-  // internally in the plugin.
-  std::atomic<uint32_t> RefCountExternal{0};
-
-  bool hasExternalRefs() { return RefCountExternal != 0; }
+  bool hasExternalRefs() { return RefCounterExternal.getCount() != 0; }
 
   // Reset ur_event_handle_t object.
   ur_result_t reset();
@@ -262,6 +248,30 @@ struct ur_event_handle_t_ : ur_object {
   // Used only for asynchronous allocations. This is the event originally used
   // on async free to indicate when the allocation can be used again.
   ur_event_handle_t OriginAllocEvent = nullptr;
+
+  UR_ReferenceCounter &getRefCounter() noexcept { return RefCounter; }
+  UR_ReferenceCounter &getRefCounterExternal() noexcept {
+    return RefCounterExternal;
+  }
+
+private:
+  UR_ReferenceCounter RefCounter;
+
+  // Besides each UR object keeping a total reference count in
+  // RefCounter we keep special track of the event *external*
+  // references. This way we are able to tell when the event is not referenced
+  // externally anymore, i.e. it can't be passed as a dependency event to
+  // urEnqueue* functions and explicitly waited meaning that we can do some
+  // optimizations:
+  // 1. For in-order queues we can reset and reuse event even if it was not yet
+  // completed by submitting a reset command to the queue (since there are no
+  // external references, we know that nobody can wait this event somewhere in
+  // parallel thread or pass it as a dependency which may lead to hang)
+  // 2. We can avoid creating host proxy event.
+  // This counter doesn't track the lifetime of an event object. Even if it
+  // reaches zero an event object may not be destroyed and can be used
+  // internally in the plugin.
+  UR_ReferenceCounter RefCounterExternal;
 };
 
 // Helper function to implement zeHostSynchronize.
