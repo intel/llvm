@@ -491,6 +491,7 @@ void ff_22(AliasType start, AliasType *ptr) {
 // CHECK: Definition of _Z18__sycl_kernel_ff_3IdEvPT_S0_S0_ as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: template <typename T> void ff_3(T * ptr, T start, T end);
+// CHECK: template <> void ff_3<double>(double * ptr, double start, double end);
 // CHECK-NEXT: static constexpr auto __sycl_shim5() {
 // CHECK-NEXT:   return (void (*)(double *, double, double))ff_3<double>;
 // CHECK-NEXT: }

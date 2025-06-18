@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 252
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 248
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -92,10 +92,6 @@
 // CHECK-NEXT: Basic/kernel_info_attr.cpp
 // CHECK-NEXT: Basic/submit_time.cpp
 // CHECK-NEXT: DeprecatedFeatures/DiscardEvents/discard_events_using_assert.cpp
-// CHECK-NEXT: DeviceImageDependencies/dynamic.cpp
-// CHECK-NEXT: DeviceImageDependencies/math_device_lib.cpp
-// CHECK-NEXT: DeviceImageDependencies/objects.cpp
-// CHECK-NEXT: DeviceImageDependencies/singleDynamicLibrary.cpp
 // CHECK-NEXT: DeviceLib/built-ins/printf.cpp
 // CHECK-NEXT: DeviceLib/cmath-aot.cpp
 // CHECK-NEXT: DeviceLib/imf_bfloat16_integeral_convesions.cpp

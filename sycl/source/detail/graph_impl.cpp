@@ -866,7 +866,7 @@ exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
     std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
         StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
         CGExec->MKernelName.data(), CGExec->MKernelNameBasedCachePtr, nullptr,
-        CGExec->MNDRDesc, CGExec->MKernelBundle, CGExec->MArgs);
+        CGExec->MNDRDesc, CGExec->MKernelBundle.get(), CGExec->MArgs);
     if (CmdTraceEvent)
       sycl::detail::emitInstrumentationGeneral(
           StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
@@ -1155,7 +1155,7 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     return nullptr;
   } else {
     auto NewEvent = sycl::detail::event_impl::create_device_event(Queue);
-    NewEvent->setContextImpl(Queue.getContextImplPtr());
+    NewEvent->setContextImpl(Queue.getContextImpl());
     NewEvent->setStateIncomplete();
     NewEvent->setSubmissionTime();
     ur_event_handle_t UrEvent = nullptr;
@@ -1700,8 +1700,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else if (auto SyclKernelImpl =
                  KernelBundleImplPtr
-                     ? KernelBundleImplPtr->tryGetKernel(ExecCG.MKernelName,
-                                                         KernelBundleImplPtr)
+                     ? KernelBundleImplPtr->tryGetKernel(ExecCG.MKernelName)
                      : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
