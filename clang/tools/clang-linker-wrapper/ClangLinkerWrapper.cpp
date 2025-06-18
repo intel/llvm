@@ -1725,7 +1725,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     return generic::clang(InputFiles, Args, IsSYCLKind);
   default:
     if (Triple.str() == "native_cpu" && IsSYCLKind)
-      return generic::clang(InputFiles, Args);
+      return generic::clang(InputFiles, Args, IsSYCLKind);
 
     return createStringError(Triple.getArchName() +
                              " linking is not supported");
