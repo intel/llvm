@@ -686,11 +686,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
 #ifdef SYCL_RT_ZSTD_AVAILABLE
 CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
     sycl_device_binary CompressedBin)
-    : m_ImageSize(ZSTDCompressor::GetDecompressedSize(
-          reinterpret_cast<const char *>(CompressedBin->BinaryStart),
-          static_cast<size_t>(CompressedBin->BinaryEnd -
-                              CompressedBin->BinaryStart))),
-      RTDeviceBinaryImage(new sycl_device_binary_struct(*CompressedBin)) {}
+    : RTDeviceBinaryImage(new sycl_device_binary_struct(*CompressedBin)) {}
 
 void CompressedRTDeviceBinaryImage::Decompress() {
 
@@ -714,6 +710,17 @@ CompressedRTDeviceBinaryImage::~CompressedRTDeviceBinaryImage() {
   // De-allocate device binary struct.
   delete Bin;
   Bin = nullptr;
+}
+
+size_t CompressedRTDeviceBinaryImage::getSize() {
+  assert(Bin && "binary image data not set");
+  // Lazily calculate the image size first time it is needed.
+  if (!m_ImageSize)
+    m_ImageSize = ZSTDCompressor::GetDecompressedSize(
+        reinterpret_cast<const char *>(CompressedBin->BinaryStart),
+        static_cast<size_t>(CompressedBin->BinaryEnd -
+                            CompressedBin->BinaryStart));
+  return *m_ImageSize;
 }
 #endif // SYCL_RT_ZSTD_AVAILABLE
 

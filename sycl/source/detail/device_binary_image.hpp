@@ -316,10 +316,7 @@ public:
   void Decompress();
 
   // We return the size of decompressed data, not the size of compressed data.
-  size_t getSize() const override {
-    assert(Bin && "binary image data not set");
-    return m_ImageSize;
-  }
+  size_t getSize() const override;
 
   bool IsCompressed() const { return m_DecompressedData.get() == nullptr; }
   void print() const override {
@@ -329,7 +326,7 @@ public:
 
 private:
   std::unique_ptr<char[]> m_DecompressedData;
-  size_t m_ImageSize;
+  std::optional<size_t> m_ImageSize = std::nullopt;
 };
 #endif // SYCL_RT_ZSTD_AVAILABLE
 
