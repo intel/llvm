@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/device_image_impl.hpp>
+#include <detail/kernel_arg_mask.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 
 namespace sycl {
@@ -48,10 +49,15 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
                                            &UrKernel);
   // Kernel created by urKernelCreate is implicitly retained.
 
-  return std::make_shared<kernel_impl>(
-      UrKernel, *detail::getSyclObjImpl(Context), Self,
-      OwnerBundle.shared_from_this(),
-      /*ArgMask=*/nullptr, UrProgram, /*CacheMutex=*/nullptr);
+  const KernelArgMask *ArgMask = nullptr;
+  if (auto ArgMaskIt = MEliminatedKernelArgMasks.find(AdjustedName);
+      ArgMaskIt != MEliminatedKernelArgMasks.end())
+    ArgMask = &ArgMaskIt->second;
+
+  return std::make_shared<kernel_impl>(UrKernel,
+                                       *detail::getSyclObjImpl(Context), Self,
+                                       OwnerBundle.shared_from_this(), ArgMask,
+                                       UrProgram, /*CacheMutex=*/nullptr);
 }
 
 } // namespace detail
