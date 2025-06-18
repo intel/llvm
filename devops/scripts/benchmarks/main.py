@@ -12,6 +12,7 @@ from benches.syclbench import *
 from benches.llamacpp import *
 from benches.umf import *
 from benches.test import TestSuite
+from benches.benchdnn import OneDnnBench
 from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
@@ -171,6 +172,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         LlamaCppBench(directory),
         UMFSuite(directory),
         GromacsBench(directory),
+        OneDnnBench(directory),
         TestSuite(),
     ]
 
