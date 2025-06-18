@@ -47,18 +47,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   }
 
   if (GroupSize[0] > GlobalSize[0] || GroupSize[1] > GlobalSize[1] ||
-      GroupSize[2] > GlobalSize[2]) {
+      GroupSize[2] > GlobalSize[2] ||
+      GroupSize[0] > std::numeric_limits<uint32_t>::max() ||
+      GroupSize[1] > std::numeric_limits<uint32_t>::max() ||
+      GroupSize[2] > std::numeric_limits<uint32_t>::max() ||
+      GlobalSize[0] / GroupSize[0] > std::numeric_limits<uint32_t>::max() ||
+      GlobalSize[1] / GroupSize[1] > std::numeric_limits<uint32_t>::max() ||
+      GlobalSize[2] / GroupSize[2] > std::numeric_limits<uint32_t>::max()) {
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
 
   ol_kernel_launch_size_args_t LaunchArgs;
   LaunchArgs.Dimensions = workDim;
-  LaunchArgs.NumGroupsX = GlobalSize[0] / GroupSize[0];
-  LaunchArgs.NumGroupsY = GlobalSize[1] / GroupSize[1];
-  LaunchArgs.NumGroupsZ = GlobalSize[2] / GroupSize[2];
-  LaunchArgs.GroupSizeX = GroupSize[0];
-  LaunchArgs.GroupSizeY = GroupSize[1];
-  LaunchArgs.GroupSizeZ = GroupSize[2];
+  LaunchArgs.NumGroups.x = GlobalSize[0] / GroupSize[0];
+  LaunchArgs.NumGroups.y = GlobalSize[1] / GroupSize[1];
+  LaunchArgs.NumGroups.z = GlobalSize[2] / GroupSize[2];
+  LaunchArgs.GroupSize.x = GroupSize[0];
+  LaunchArgs.GroupSize.y = GroupSize[1];
+  LaunchArgs.GroupSize.z = GroupSize[2];
   LaunchArgs.DynSharedMemory = 0;
 
   ol_event_handle_t EventOut;

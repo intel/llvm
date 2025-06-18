@@ -29,4 +29,4 @@
   ANY_ID(TYPE##8) { return _CLC_ANY8(v); }                                     \
   ANY_ID(TYPE##16) { return _CLC_ANY16(v); }
 
-ANY_VECTORIZE(schar)
+ANY_VECTORIZE(char)
