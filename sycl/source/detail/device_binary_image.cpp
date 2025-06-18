@@ -212,7 +212,8 @@ RTDeviceBinaryImage::RTDeviceBinaryImage(sycl_device_binary Bin) {
 
 std::atomic<uintptr_t> RTDeviceBinaryImage::ImageCounter = 1;
 
-DynRTDeviceBinaryImage::DynRTDeviceBinaryImage() : RTDeviceBinaryImage() {
+DynRTDeviceBinaryImage::DynRTDeviceBinaryImage()
+    : RTDeviceBinaryImage(nullptr) {
   Bin = new sycl_device_binary_struct();
   Bin->Version = SYCL_DEVICE_BINARY_VERSION;
   Bin->Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
@@ -685,12 +686,11 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
 #ifdef SYCL_RT_ZSTD_AVAILABLE
 CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
     sycl_device_binary CompressedBin)
-    : RTDeviceBinaryImage(new sycl_device_binary_struct(*CompressedBin)) {
-  // Get the decompressed size of the binary image.
-  m_ImageSize = ZSTDCompressor::GetDecompressedSize(
-      reinterpret_cast<const char *>(Bin->BinaryStart),
-      static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart));
-}
+    : m_ImageSize(ZSTDCompressor::GetDecompressedSize(
+          reinterpret_cast<const char *>(CompressedBin->BinaryStart),
+          static_cast<size_t>(CompressedBin->BinaryEnd -
+                              CompressedBin->BinaryStart))),
+      RTDeviceBinaryImage(new sycl_device_binary_struct(*CompressedBin)) {}
 
 void CompressedRTDeviceBinaryImage::Decompress() {
 
