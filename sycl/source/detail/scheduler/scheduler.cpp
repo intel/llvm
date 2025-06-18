@@ -8,6 +8,7 @@
 
 #include <detail/scheduler/scheduler.hpp>
 
+#include <detail/adapter.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/graph_impl.hpp>
 #include <detail/jit_compiler.hpp>

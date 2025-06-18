@@ -59,6 +59,29 @@ public:
   }
 };
 
+inline std::string_view get_backend_name_no_vendor(backend Backend) {
+  switch (Backend) {
+  case backend::host:
+    return "host";
+  case backend::opencl:
+    return "opencl";
+  case backend::ext_oneapi_level_zero:
+    return "level_zero";
+  case backend::ext_oneapi_cuda:
+    return "cuda";
+  case backend::ext_oneapi_hip:
+    return "hip";
+  case backend::ext_oneapi_native_cpu:
+    return "native_cpu";
+  case backend::ext_oneapi_offload:
+    return "offload";
+  case backend::all:
+    return "all";
+  }
+
+  return "";
+}
+
 std::string getDeviceTypeName(const device &Device) {
   auto DeviceType = Device.get_info<info::device::device_type>();
   switch (DeviceType) {
@@ -411,10 +434,10 @@ int main(int argc, char **argv) {
       // adapter.
 
       for (const auto &Device : Devices) {
-        std::cout << "[" << detail::get_backend_name_no_vendor(Backend) << ":"
+        std::cout << "[" << get_backend_name_no_vendor(Backend) << ":"
                   << getDeviceTypeName(Device) << "]";
         if (!SuppressNumberPrinting) {
-          std::cout << "[" << detail::get_backend_name_no_vendor(Backend) << ":"
+          std::cout << "[" << get_backend_name_no_vendor(Backend) << ":"
                     << DeviceNums[Backend] << "]";
           ++DeviceNums[Backend];
         }

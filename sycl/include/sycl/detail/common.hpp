@@ -177,17 +177,6 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-#ifdef __SYCL_DEVICE_ONLY__
-// TODO remove this when 'assert' is supported in device code
-#define __SYCL_ASSERT(x)
-#else
-#define __SYCL_ASSERT(x) assert(x)
-#endif // #ifdef __SYCL_DEVICE_ONLY__
-
-#define __SYCL_UR_ERROR_REPORT(backend)                                        \
-  std::string(sycl::detail::get_backend_name_no_vendor(backend)) +             \
-      " backend failed with error: "
-
 #include <sycl/exception.hpp>
 
 namespace sycl {
@@ -213,94 +202,6 @@ template <template <int> class T> struct InitializedVal<2, T> {
 template <template <int> class T> struct InitializedVal<3, T> {
   template <int Val> static T<3> get() { return T<3>{Val, Val, Val}; }
 };
-
-/// Helper class for the \c NDLoop.
-template <int NDims, int Dim, template <int> class LoopBoundTy, typename FuncTy,
-          template <int> class LoopIndexTy>
-struct NDLoopIterateImpl {
-  NDLoopIterateImpl(const LoopIndexTy<NDims> &LowerBound,
-                    const LoopBoundTy<NDims> &Stride,
-                    const LoopBoundTy<NDims> &UpperBound, FuncTy f,
-                    LoopIndexTy<NDims> &Index) {
-    constexpr size_t AdjIdx = NDims - 1 - Dim;
-    for (Index[AdjIdx] = LowerBound[AdjIdx]; Index[AdjIdx] < UpperBound[AdjIdx];
-         Index[AdjIdx] += Stride[AdjIdx]) {
-
-      NDLoopIterateImpl<NDims, Dim - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
-          LowerBound, Stride, UpperBound, f, Index};
-    }
-  }
-};
-
-// Specialization for Dim=0 to terminate recursion
-template <int NDims, template <int> class LoopBoundTy, typename FuncTy,
-          template <int> class LoopIndexTy>
-struct NDLoopIterateImpl<NDims, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
-  NDLoopIterateImpl(const LoopIndexTy<NDims> &LowerBound,
-                    const LoopBoundTy<NDims> &Stride,
-                    const LoopBoundTy<NDims> &UpperBound, FuncTy f,
-                    LoopIndexTy<NDims> &Index) {
-
-    constexpr size_t AdjIdx = NDims - 1;
-    for (Index[AdjIdx] = LowerBound[AdjIdx]; Index[AdjIdx] < UpperBound[AdjIdx];
-         Index[AdjIdx] += Stride[AdjIdx]) {
-
-      f(Index);
-    }
-  }
-};
-
-/// Generates an NDims-dimensional perfect loop nest. The purpose of this class
-/// is to better support handling of situations where there must be a loop nest
-/// over a multi-dimensional space - it allows to avoid generating unnecessary
-/// outer loops like 'for (int z=0; z<1; z++)' in case of 1D and 2D iteration
-/// spaces or writing specializations of the algorithms for 1D, 2D and 3D cases.
-/// Loop is unrolled in a reverse directions, i.e. ID = 0 is the inner-most one.
-template <int NDims> struct NDLoop {
-  /// Generates ND loop nest with {0,..0} .. \c UpperBound bounds with unit
-  /// stride. Applies \c f at each iteration, passing current index of
-  /// \c LoopIndexTy<NDims> type as the parameter.
-  template <template <int> class LoopBoundTy, typename FuncTy,
-            template <int> class LoopIndexTy = LoopBoundTy>
-  static __SYCL_ALWAYS_INLINE void iterate(const LoopBoundTy<NDims> &UpperBound,
-                                           FuncTy f) {
-    const LoopIndexTy<NDims> LowerBound =
-        InitializedVal<NDims, LoopIndexTy>::template get<0>();
-    const LoopBoundTy<NDims> Stride =
-        InitializedVal<NDims, LoopBoundTy>::template get<1>();
-    LoopIndexTy<NDims> Index =
-        InitializedVal<NDims, LoopIndexTy>::template get<0>();
-
-    NDLoopIterateImpl<NDims, NDims - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
-        LowerBound, Stride, UpperBound, f, Index};
-  }
-
-  /// Generates ND loop nest with \c LowerBound .. \c UpperBound bounds and
-  /// stride \c Stride. Applies \c f at each iteration, passing current index of
-  /// \c LoopIndexTy<NDims> type as the parameter.
-  template <template <int> class LoopBoundTy, typename FuncTy,
-            template <int> class LoopIndexTy = LoopBoundTy>
-  static __SYCL_ALWAYS_INLINE void iterate(const LoopIndexTy<NDims> &LowerBound,
-                                           const LoopBoundTy<NDims> &Stride,
-                                           const LoopBoundTy<NDims> &UpperBound,
-                                           FuncTy f) {
-    LoopIndexTy<NDims> Index =
-        InitializedVal<NDims, LoopIndexTy>::template get<0>();
-    NDLoopIterateImpl<NDims, NDims - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
-        LowerBound, Stride, UpperBound, f, Index};
-  }
-};
-
-constexpr size_t getNextPowerOfTwoHelper(size_t Var, size_t Offset) {
-  return Offset != 64
-             ? getNextPowerOfTwoHelper(Var | (Var >> Offset), Offset * 2)
-             : Var;
-}
-
-// Returns the smallest power of two not less than Var
-constexpr size_t getNextPowerOfTwo(size_t Var) {
-  return getNextPowerOfTwoHelper(Var - 1, 1) + 1;
-}
 
 // Returns linear index by given index and range
 template <int Dims, template <int> class T, template <int> class U>
@@ -363,19 +264,6 @@ template <typename DataT, template <typename, typename> typename FlattenF>
 struct ArrayCreator<DataT, FlattenF> {
   static constexpr auto Create() { return std::array<DataT, 0>{}; }
 };
-
-// Helper function for creating an arbitrary sized array with the same value
-// repeating.
-template <typename T, size_t... Is>
-static constexpr std::array<T, sizeof...(Is)>
-RepeatValueHelper(const T &Arg, std::index_sequence<Is...>) {
-  auto ReturnArg = [&](size_t) { return Arg; };
-  return {ReturnArg(Is)...};
-}
-template <size_t N, typename T>
-static constexpr std::array<T, N> RepeatValue(const T &Arg) {
-  return RepeatValueHelper(Arg, std::make_index_sequence<N>());
-}
 
 // to output exceptions caught in ~destructors
 #ifndef NDEBUG
