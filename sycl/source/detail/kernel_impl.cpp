@@ -16,19 +16,19 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
+kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)
-    : MKernel(Kernel), MContext(Context),
-      MProgram(ProgramManager::getInstance().getUrProgramFromUrKernel(
-          Kernel, *Context)),
+    : MKernel(Kernel), MContext(Context.shared_from_this()),
+      MProgram(ProgramManager::getInstance().getUrProgramFromUrKernel(Kernel,
+                                                                      Context)),
       MCreatedFromSource(true), MKernelBundleImpl(std::move(KernelBundleImpl)),
       MIsInterop(true), MKernelArgMaskPtr{ArgMask} {
   ur_context_handle_t UrContext = nullptr;
   // Using the adapter from the passed ContextImpl
   getAdapter()->call<UrApiKind::urKernelGetInfo>(
       MKernel, UR_KERNEL_INFO_CONTEXT, sizeof(UrContext), &UrContext, nullptr);
-  if (Context->getHandleRef() != UrContext)
+  if (Context.getHandleRef() != UrContext)
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Input context must be the same as the context of cl_kernel");
@@ -37,12 +37,13 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
   enableUSMIndirectAccess();
 }
 
-kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
+kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
                          DeviceImageImplPtr DeviceImageImpl,
-                         KernelBundleImplPtr KernelBundleImpl,
+                         KernelBundleImplPtr &&KernelBundleImpl,
                          const KernelArgMask *ArgMask,
                          ur_program_handle_t Program, std::mutex *CacheMutex)
-    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(Program),
+    : MKernel(Kernel), MContext(ContextImpl.shared_from_this()),
+      MProgram(Program),
       MCreatedFromSource(DeviceImageImpl->isNonSYCLSourceBased()),
       MDeviceImageImpl(std::move(DeviceImageImpl)),
       MKernelBundleImpl(std::move(KernelBundleImpl)),
