@@ -329,7 +329,9 @@ _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 #endif
 
+#undef __DPCPP_SPIRV_MAP_BINARY
 #undef __DPCPP_SPIRV_MAP_UNARY
+#undef __DPCPP_SYCL_DEVICE_C
 #undef __DPCPP_SYCL_DEVICE
 #endif
 #endif
