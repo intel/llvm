@@ -42,7 +42,7 @@ public:
     std::lock_guard<std::mutex> Lock(Mtx);
     for (auto FreeMemoriesIt = FreeMemories.begin();
          FreeMemoriesIt != FreeMemories.end(); FreeMemoriesIt++) {
-      if (size >= FreeMemoriesIt->second) {
+      if (size <= FreeMemoriesIt->second) {
         *ppMem = FreeMemoriesIt->first;
         uint64_t CurFreeMemAddress =
             reinterpret_cast<uint64_t>(FreeMemoriesIt->first);
