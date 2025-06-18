@@ -63,7 +63,7 @@ public:
 // The structure represents NDRange - global, local sizes, global offset and
 // number of dimensions.
 
-// TODO: A lot of tests tely on particular values to be set for dimensions that
+// TODO: A lot of tests rely on particular values to be set for dimensions that
 // are not used. To clarify, for example, if a 2D kernel is invoked, in
 // NDRDescT, the value of index 2 in GlobalSize must be set to either 1 or 0
 // depending on which constructor is used for no clear reason.
