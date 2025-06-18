@@ -622,7 +622,7 @@ private:
 
 void enqueueImpKernel(
     queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
-    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+    detail::kernel_bundle_impl *KernelBundleImplPtr,
     const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr,
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
@@ -691,8 +691,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     std::string_view SyclKernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
-    const NDRDescT &NDRDesc,
-    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+    const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs);
 #endif
 
