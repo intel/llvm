@@ -32,6 +32,7 @@
 #include <sycl/properties/buffer_properties.hpp>      // for buffer, buffer...
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range
+#include <sycl/atomic.hpp>
 
 #include <cstddef>     // for size_t
 #include <functional>  // for hash
