@@ -667,8 +667,7 @@ ur_result_t urAdapterGet(
     uint32_t *NumAdapters) {
   if (NumEntries > 0 && Adapters) {
     if (GlobalAdapter) {
-      std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
-      if (GlobalAdapter->RefCount++ == 0) {
+      if (GlobalAdapter->incrementRefCount() == 0) {
         adapterStateInit();
       }
     } else {
@@ -676,8 +675,7 @@ ur_result_t urAdapterGet(
       // then temporarily create a new Adapter handle and register a new
       // cleanup.
       GlobalAdapter = new ur_adapter_handle_t_();
-      std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
-      if (GlobalAdapter->RefCount++ == 0) {
+      if (GlobalAdapter->incrementRefCount() == 0) {
         adapterStateInit();
       }
       std::atexit(globalAdapterOnDemandCleanup);
@@ -695,8 +693,7 @@ ur_result_t urAdapterGet(
 ur_result_t urAdapterRelease(ur_adapter_handle_t) {
   // Check first if the Adapter pointer is valid
   if (GlobalAdapter) {
-    std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
-    if (--GlobalAdapter->RefCount == 0) {
+    if (GlobalAdapter->decrementRefCount() == 0) {
       auto result = adapterStateTeardown();
 #ifdef UR_STATIC_LEVEL_ZERO
       // Given static linking of the L0 Loader, we must delay the loader's
@@ -712,8 +709,7 @@ ur_result_t urAdapterRelease(ur_adapter_handle_t) {
 
 ur_result_t urAdapterRetain(ur_adapter_handle_t) {
   if (GlobalAdapter) {
-    std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
-    GlobalAdapter->RefCount++;
+    GlobalAdapter->incrementRefCount();
   }
 
   return UR_RESULT_SUCCESS;
@@ -743,7 +739,7 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
   case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_LEVEL_ZERO);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
-    return ReturnValue(GlobalAdapter->RefCount.load());
+    return ReturnValue(GlobalAdapter->getRefCount());
   case UR_ADAPTER_INFO_VERSION: {
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
     uint32_t adapterVersion = 2;

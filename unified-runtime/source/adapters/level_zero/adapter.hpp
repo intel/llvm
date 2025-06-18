@@ -11,10 +11,8 @@
 
 #include "logger/ur_logger.hpp"
 #include "ur_interface_loader.hpp"
-#include <atomic>
 #include <loader/ur_loader.hpp>
 #include <loader/ze_loader.h>
-#include <mutex>
 #include <optional>
 #include <ur/ur.hpp>
 #include <ze_api.h>
@@ -27,8 +25,6 @@ class ur_legacy_sink;
 
 struct ur_adapter_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   ur_adapter_handle_t_();
-  std::atomic<uint32_t> RefCount = 0;
-  std::mutex Mutex;
 
   zes_pfnDriverGetDeviceByUuidExp_t getDeviceByUUIdFunctionPtr = nullptr;
   zes_pfnDriverGet_t getSysManDriversFunctionPtr = nullptr;
