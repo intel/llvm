@@ -35,7 +35,7 @@ class Command;
 class MockCommand : public sycl::detail::Command {
 public:
   MockCommand(
-      sycl::detail::QueueImplPtr Queue, sycl::detail::Requirement Req,
+      sycl::detail::queue_impl *Queue, sycl::detail::Requirement Req,
       sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
       : Command{Type, Queue}, MRequirement{std::move(Req)} {
     using namespace testing;
@@ -45,7 +45,7 @@ public:
   }
 
   MockCommand(
-      sycl::detail::QueueImplPtr Queue,
+      sycl::detail::queue_impl *Queue,
       sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
       : Command{Type, Queue}, MRequirement{std::move(getMockRequirement())} {
     using namespace testing;
@@ -78,7 +78,7 @@ public:
       std::shared_ptr<sycl::detail::queue_impl> Queue,
       std::vector<std::shared_ptr<sycl::detail::event_impl>> &RawEvents,
       ur_event_handle_t &Event) {
-    Command::waitForEvents(Queue, RawEvents, Event);
+    Command::waitForEvents(Queue.get(), RawEvents, Event);
   }
 
   std::shared_ptr<sycl::detail::event_impl> getEvent() { return MEvent; }
@@ -89,7 +89,7 @@ protected:
 
 class MockCommandWithCallback : public MockCommand {
 public:
-  MockCommandWithCallback(sycl::detail::QueueImplPtr Queue,
+  MockCommandWithCallback(sycl::detail::queue_impl *Queue,
                           sycl::detail::Requirement Req,
                           std::function<void()> Callback)
       : MockCommand(Queue, Req), MCallback(std::move(Callback)) {}
@@ -313,8 +313,9 @@ public:
     }
     case sycl::detail::CGType::CodeplayHostTask: {
       CommandGroup.reset(new sycl::detail::CGHostTask(
-          std::move(getHostTask()), getQueue(), getQueue()->getContextImplPtr(),
-          getArgs(), std::move(CGData), getType(), getCodeLoc()));
+          std::move(getHostTask()), getQueue().get(),
+          getQueue()->getContextImplPtr(), getArgs(), std::move(CGData),
+          getType(), getCodeLoc()));
       break;
     }
     default:

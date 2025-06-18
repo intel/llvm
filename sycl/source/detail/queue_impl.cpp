@@ -121,7 +121,7 @@ queue_impl::get_backend_info<info::device::backend_version>() const {
 static event prepareSYCLEventAssociatedWithQueue(
     const std::shared_ptr<detail::queue_impl> &QueueImpl) {
   auto EventImpl = detail::event_impl::create_device_event(*QueueImpl);
-  EventImpl->setContextImpl(detail::getSyclObjImpl(QueueImpl->get_context()));
+  EventImpl->setContextImpl(QueueImpl->getContextImpl());
   EventImpl->setStateIncomplete();
   return detail::createSyclObjFromImpl<event>(EventImpl);
 }
