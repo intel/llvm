@@ -8,8 +8,7 @@
 
 #include <cstring>
 
-// Test launching kernels with multiple local arguments return the expected
-// outputs
+// This kernel has a mix of local memory, pointer and value args.
 struct urEnqueueKernelLaunchWithArgsTest : uur::urKernelExecutionTest {
   void SetUp() override {
     program_name = "saxpy_usm_local_mem";
@@ -46,17 +45,19 @@ struct urEnqueueKernelLaunchWithArgsTest : uur::urKernelExecutionTest {
                     UR_EXP_KERNEL_ARG_TYPE_LOCAL,
                     current_index++,
                     local_mem_a_size,
-                    {nullptr}});
+                    {{nullptr}}});
 
     // Hip has extra args for local mem at index 1-3
+    ur_exp_kernel_arg_value_t argValue = {};
     if (backend == UR_BACKEND_HIP) {
+      argValue.value = &hip_local_offset;
       ur_exp_kernel_arg_properties_t local_offset = {
           UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
           nullptr,
           UR_EXP_KERNEL_ARG_TYPE_VALUE,
           current_index++,
           sizeof(hip_local_offset),
-          {&hip_local_offset}};
+          argValue};
       args.push_back(local_offset);
       local_offset.index = current_index++;
       args.push_back(local_offset);
@@ -70,16 +71,17 @@ struct urEnqueueKernelLaunchWithArgsTest : uur::urKernelExecutionTest {
                     UR_EXP_KERNEL_ARG_TYPE_LOCAL,
                     current_index++,
                     local_mem_b_size,
-                    {nullptr}});
+                    {{nullptr}}});
 
     if (backend == UR_BACKEND_HIP) {
+      argValue.value = &hip_local_offset;
       ur_exp_kernel_arg_properties_t local_offset = {
           UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
           nullptr,
           UR_EXP_KERNEL_ARG_TYPE_VALUE,
           current_index++,
           sizeof(hip_local_offset),
-          {&hip_local_offset}};
+          argValue};
       args.push_back(local_offset);
       local_offset.index = current_index++;
       args.push_back(local_offset);
@@ -88,33 +90,25 @@ struct urEnqueueKernelLaunchWithArgsTest : uur::urKernelExecutionTest {
     }
 
     // Index 2 is output
-    args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-                    nullptr,
-                    UR_EXP_KERNEL_ARG_TYPE_POINTER,
-                    current_index++,
-                    sizeof(shared_ptrs[0]),
-                    {shared_ptrs[0]}});
+    argValue.pointer = shared_ptrs[0];
+    args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                    UR_EXP_KERNEL_ARG_TYPE_POINTER, current_index++,
+                    sizeof(shared_ptrs[0]), argValue});
     // Index 3 is A
-    args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-                    nullptr,
-                    UR_EXP_KERNEL_ARG_TYPE_VALUE,
-                    current_index++,
-                    sizeof(A),
-                    {(void *)&A}});
+    argValue.value = &A;
+    args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                    UR_EXP_KERNEL_ARG_TYPE_VALUE, current_index++, sizeof(A),
+                    argValue});
     // Index 4 is X
-    args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-                    nullptr,
-                    UR_EXP_KERNEL_ARG_TYPE_POINTER,
-                    current_index++,
-                    sizeof(shared_ptrs[1]),
-                    {shared_ptrs[1]}});
+    argValue.pointer = shared_ptrs[1];
+    args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                    UR_EXP_KERNEL_ARG_TYPE_POINTER, current_index++,
+                    sizeof(shared_ptrs[1]), argValue});
     // Index 5 is Y
-    args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-                    nullptr,
-                    UR_EXP_KERNEL_ARG_TYPE_POINTER,
-                    current_index++,
-                    sizeof(shared_ptrs[2]),
-                    {shared_ptrs[2]}});
+    argValue.pointer = shared_ptrs[2];
+    args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                    UR_EXP_KERNEL_ARG_TYPE_POINTER, current_index++,
+                    sizeof(shared_ptrs[2]), argValue});
   }
 
   void Validate(uint32_t *output, uint32_t *X, uint32_t *Y, uint32_t A,
@@ -161,4 +155,28 @@ TEST_P(urEnqueueKernelLaunchWithArgsTest, Success) {
   uint32_t *X = (uint32_t *)shared_ptrs[1];
   uint32_t *Y = (uint32_t *)shared_ptrs[2];
   Validate(output, X, Y, A, global_size[0], local_size[0]);
+}
+
+TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullHandleQueue) {
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                   urEnqueueKernelLaunchWithArgsExp(
+                       nullptr, kernel, global_offset, global_size, local_size,
+                       args.size(), args.data(), 0, nullptr, 0, nullptr,
+                       nullptr));
+}
+
+TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullHandleKernel) {
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                   urEnqueueKernelLaunchWithArgsExp(
+                       queue, nullptr, global_offset, global_size, local_size,
+                       args.size(), args.data(), 0, nullptr, 0, nullptr,
+                       nullptr));
+}
+
+TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullPointerGlobalSize) {
+  ASSERT_EQ_RESULT(
+      UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+      urEnqueueKernelLaunchWithArgsExp(queue, kernel, global_offset, nullptr,
+                                       local_size, args.size(), args.data(), 0,
+                                       nullptr, 0, nullptr, nullptr));
 }

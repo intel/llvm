@@ -10710,6 +10710,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pGlobalWorkSize)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
