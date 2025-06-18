@@ -23,89 +23,93 @@ public:
   host_allocator(const host_allocator& obj) = delete;
 
   ~host_allocator() {
-    for (auto Allocation : Allocations) {
-      UR_CHECK_ERROR(urUSMFree(Context, Allocation.first));
-    }
-
-    for (auto FreeMemory : FreeMemories) {
-      UR_CHECK_ERROR(urUSMFree(Context, FreeMemory.second));
+    for (auto HeadPtr : PoolsHeadPtr) {
+      UR_CHECK_ERROR(urUSMFree(Context, HeadPtr));
     }
     Allocations.clear();
     FreeMemories.clear();
   }
 
   static host_allocator& getInstance(ur_context_handle_t hContext) {
-    std::lock_guard<std::mutex> lock(mtx);
-    static host_allocator instance(hContext);
+    std::lock_guard<std::mutex> Lock(Mtx);
+    static host_allocator Instance(hContext);
       
-    return instance;
+    return Instance;
   }
 
   ur_result_t allocate(size_t size, void** ppMem) {
-    auto FirstFitMem = FreeMemories.lower_bound({size, 0});
-
-    if (FirstFitMem == FreeMemories.end()) {
-      UR_CHECK_ERROR(urUSMHostAlloc(Context, nullptr, nullptr, size, ppMem));
-      Allocations.insert({*ppMem, {size, size}});
-      TotalAllocatedMem += size;
-      return UR_RESULT_SUCCESS;
-    } else if (WastedMem >= size) {
-      std::vector<void*> needResizedMems;
-      size_t curWastedMem = 0;
-      for (auto AllocationsIt = Allocations.begin(); curWastedMem < size && AllocationsIt != Allocations.end(); AllocationsIt++) {
-        if (AllocationsIt->second.second > AllocationsIt->second.first) {
-          needResizedMems.push_back(AllocationsIt->first);
-          curWastedMem += (AllocationsIt->second.second - AllocationsIt->second.first);
+    std::lock_guard<std::mutex> Lock(Mtx);
+    for (auto FreeMemoriesIt = FreeMemories.begin(); FreeMemoriesIt != FreeMemories.end(); FreeMemoriesIt++) {
+      if (size >= FreeMemoriesIt->second) {
+        *ppMem = FreeMemoriesIt->first;
+        uint64_t CurFreeMemAddress = reinterpret_cast<uint64_t>(FreeMemoriesIt->first);
+        size_t RemainingSize = FreeMemoriesIt->second - size;
+        if (RemainingSize == 0) {
+          Allocations.insert({FreeMemoriesIt->first, size});
+          FreeMemories.erase(FreeMemoriesIt);
+        } else {
+          Allocations.insert({FreeMemoriesIt->first, size});
+          FreeMemories.insert({reinterpret_cast<void*>(CurFreeMemAddress + size), RemainingSize});
+          FreeMemories.erase(FreeMemoriesIt);
         }
+        return UR_RESULT_SUCCESS;
       }
-      for (size_t i = 0; i < needResizedMems.size(); i++) {
-        void* newMem = nullptr;
-        auto &allocation = Allocations[needResizedMems[i]];
-        UR_CHECK_ERROR(urUSMHostAlloc(Context, nullptr, nullptr, allocation.first, &newMem));
-        std::memcpy(newMem, needResizedMems[i], allocation.first);
-        WastedMem -= (allocation.second - allocation.first);
-        Allocations.insert({newMem, {allocation.first, allocation.first}});
-        Allocations.erase(needResizedMems[i]);
-      }
-      UR_CHECK_ERROR(urUSMHostAlloc(Context, nullptr, nullptr, size, ppMem));
-      Allocations.insert({*ppMem, {size, size}});
-      TotalAllocatedMem += size;
-
-      return UR_RESULT_SUCCESS;
     }
-    *ppMem = FirstFitMem->second;
-    Allocations.insert({FirstFitMem->second, {size, FirstFitMem->first}});
-    TotalAllocatedMem += size;
-    WastedMem += FirstFitMem->first - size;
-    FreeMemories.erase(FirstFitMem);
+    void *NewAllocatedMem = nullptr;
+    UR_CHECK_ERROR(urUSMHostAlloc(Context, nullptr, nullptr, size, &NewAllocatedMem));
+    
+    Allocations.insert({NewAllocatedMem, size});
+    *ppMem = NewAllocatedMem;
+    PoolsHeadPtr.push_back(NewAllocatedMem);
+
     return UR_RESULT_SUCCESS;
   }
 
   ur_result_t deallocate(void* pMem) {
+    std::lock_guard<std::mutex> Lock(Mtx);
+    for (auto AllocationsIt = Allocations.begin(); AllocationsIt != Allocations.end(); AllocationsIt++) {
+      if (AllocationsIt->first == pMem) {
+        size_t FreeSize = AllocationsIt->second;
+        uint64_t FreeMemStartAddress = reinterpret_cast<uint64_t>(AllocationsIt->first);
 
-    auto AllocatedMemory = Allocations.find(pMem);
-    if (AllocatedMemory == Allocations.end()) {
-      return UR_RESULT_ERROR_INVALID_HOST_PTR;
+        // Merge before and after freeMemory if it exist.
+        auto FindFreeMemoryBef = [FreeMemStartAddress](const std::pair<void*, size_t> &FreeMemory) {
+                                                return reinterpret_cast<uint64_t>(FreeMemory.first) == FreeMemStartAddress - FreeMemory.second;
+                                            };
+        auto FindFreeMemoryAft = [FreeMemStartAddress, AllocationsIt](const std::pair<void*, size_t> &FreeMemory) {
+                                                return reinterpret_cast<uint64_t>(FreeMemory.first) == FreeMemStartAddress + AllocationsIt->second;
+                                            };
+                  
+        auto FreeMemBeforeIt = std::find_if(FreeMemories.begin(), FreeMemories.end(), FindFreeMemoryBef);
+        auto FreeMemAfterIt = std::find_if(FreeMemories.begin(), FreeMemories.end(), FindFreeMemoryAft);
+        if (FreeMemBeforeIt != FreeMemories.end()) {
+          FreeSize += FreeMemBeforeIt->second;
+          FreeMemStartAddress = reinterpret_cast<uint64_t>(FreeMemBeforeIt->first);
+          FreeMemories.erase(FreeMemBeforeIt);
+        }
+        if (FreeMemAfterIt != FreeMemories.end()) {
+          FreeSize += FreeMemAfterIt->second;
+          FreeMemories.erase(FreeMemAfterIt);
+        }
+
+        FreeMemories.insert({reinterpret_cast<void *>(FreeMemStartAddress), FreeSize});
+        Allocations.erase(AllocationsIt);
+        return UR_RESULT_SUCCESS;
+      }
     }
-    FreeMemories.insert({AllocatedMemory->second.second, AllocatedMemory->first});
-    TotalAllocatedMem -= AllocatedMemory->second.first;
-    WastedMem -= (AllocatedMemory->second.second - AllocatedMemory->second.first);
-    Allocations.erase(AllocatedMemory);
-    return UR_RESULT_SUCCESS;
+    return UR_RESULT_ERROR_INVALID_HOST_PTR;
   }
 
 private:
-    // Map between host allocated ptr and {allocation_memory_size, total_memory_size}
-    std::unordered_map<void*, std::pair<size_t, size_t>> Allocations;
-    // Set with total_free_memory_size and host_allocated_ptr
-    std::set<std::pair<size_t, void*>> FreeMemories;
-    size_t TotalAllocatedMem = 0;
-    size_t WastedMem = 0;
+    std::set<std::pair<void*, size_t>> Allocations;
+    std::set<std::pair<void*, size_t>> FreeMemories;
+    size_t TotalPoolSize = 0;
+    std::vector<void*> PoolsHeadPtr;
     ur_context_handle_t Context;
 
-    static std::mutex mtx;
+    static std::mutex Mtx;
 
     host_allocator(ur_context_handle_t hContext) : Context(hContext) {};
 };
 
-std::mutex host_allocator::mtx;
+std::mutex host_allocator::Mtx;

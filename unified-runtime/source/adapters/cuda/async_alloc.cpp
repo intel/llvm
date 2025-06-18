@@ -16,7 +16,6 @@
 #include "queue.hpp"
 #include "usm.hpp"
 #include "host_allocator.hpp"
-#include "host_allocator_v2.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
     ur_queue_handle_t hQueue, ur_usm_pool_handle_t hPool, const size_t size,
@@ -83,7 +82,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    UR_CHECK_ERROR(host_allocator_v2::getInstance(hQueue->getContext()).allocate(size, ppMem));
+    UR_CHECK_ERROR(host_allocator::getInstance(hQueue->getContext()).allocate(size, ppMem));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
@@ -131,7 +130,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFreeExp(
   if (property_value == UR_USM_TYPE_DEVICE) {
     UR_CHECK_ERROR(cuMemFreeAsync(reinterpret_cast<CUdeviceptr>(pMem), CuStream));
   } else if (property_value == UR_USM_TYPE_HOST) {
-    UR_CHECK_ERROR(host_allocator_v2::getInstance(hQueue->getContext()).deallocate(pMem));
+    UR_CHECK_ERROR(host_allocator::getInstance(hQueue->getContext()).deallocate(pMem));
   } else {
     return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
   }
