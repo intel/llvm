@@ -12,7 +12,7 @@
 
 #if defined(__SPIR__) || defined(__SPIRV__)
 
-size_t WorkGroupLinearId() {
+inline size_t WorkGroupLinearId() {
   return __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
              __spirv_BuiltInNumWorkgroups.z +
          __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
@@ -20,28 +20,28 @@ size_t WorkGroupLinearId() {
 }
 
 // For GPU device, each sub group is a hardware thread
-size_t SubGroupLinearId() {
+inline size_t SubGroupLinearId() {
   return __spirv_BuiltInGlobalLinearId / __spirv_BuiltInSubgroupSize;
 }
 
-void SubGroupBarrier() {
+inline void SubGroupBarrier() {
   __spirv_ControlBarrier(__spv::Scope::Subgroup, __spv::Scope::Subgroup,
                          __spv::MemorySemanticsMask::SequentiallyConsistent |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory);
 }
 
-__SYCL_GLOBAL__ void *ToGlobal(void *ptr) {
+inline __SYCL_GLOBAL__ void *ToGlobal(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToGlobal(ptr, 5);
 }
-__SYCL_LOCAL__ void *ToLocal(void *ptr) {
+inline __SYCL_LOCAL__ void *ToLocal(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToLocal(ptr, 4);
 }
-__SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
+inline __SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToPrivate(ptr, 7);
 }
 
-template <typename T> SYCL_EXTERNAL T Memset(T ptr, int value, size_t size) {
+template <typename T> T Memset(T ptr, int value, size_t size) {
   for (size_t i = 0; i < size; i++) {
     ptr[i] = value;
   }
@@ -49,7 +49,7 @@ template <typename T> SYCL_EXTERNAL T Memset(T ptr, int value, size_t size) {
 }
 
 template <typename DstT, typename SrcT>
-SYCL_EXTERNAL DstT Memcpy(DstT dst, SrcT src, size_t size) {
+DstT Memcpy(DstT dst, SrcT src, size_t size) {
   for (size_t i = 0; i < size; i++) {
     dst[i] = src[i];
   }
@@ -57,7 +57,7 @@ SYCL_EXTERNAL DstT Memcpy(DstT dst, SrcT src, size_t size) {
 }
 
 template <typename DstT, typename SrcT>
-SYCL_EXTERNAL DstT Memmove(DstT dst, SrcT src, size_t size) {
+DstT Memmove(DstT dst, SrcT src, size_t size) {
   if ((uptr)dst < (uptr)src) {
     for (size_t i = 0; i < size; i++) {
       dst[i] = src[i];

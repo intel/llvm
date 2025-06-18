@@ -140,7 +140,8 @@ ur_result_t MsanShadowMemoryCPU::Destory() {
 uptr MsanShadowMemoryCPU::MemToShadow(uptr Ptr) { return MEM_TO_SHADOW(Ptr); }
 
 uptr MsanShadowMemoryCPU::MemToOrigin(uptr Ptr) {
-  return SHADOW_TO_ORIGIN(Ptr);
+  uptr AlignedPtr = RoundDownTo(Ptr, MSAN_ORIGIN_GRANULARITY);
+  return SHADOW_TO_ORIGIN(AlignedPtr);
 }
 
 ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadow(
@@ -161,9 +162,22 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
     UR_LOG_L(getContext()->logger, DEBUG,
              "EnqueuePoisonShadow(addr={}, count={}, value={})",
              (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-             (void *)(size_t)Value);
+             (void *)(uptr)Value);
     memset((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
   }
+
+  // if (Size) {
+  //   const uptr OriginBegin = MemToOrigin(Ptr);
+  //   const uptr OriginEnd =
+  //       MemToOrigin(Ptr + Size - 1) + MSAN_ORIGIN_GRANULARITY;
+  //   assert(OriginBegin <= OriginEnd);
+  //   UR_LOG_L(getContext()->logger, DEBUG,
+  //            "EnqueuePoisonOrigin(addr={}, count={}, value={})",
+  //            (void *)OriginBegin, OriginEnd - OriginBegin + 1,
+  //            (void *)(uptr)Origin);
+  //   // memset((void *)OriginBegin, Value, OriginEnd - OriginBegin + 1);
+  //   std::fill((uint32_t *)OriginBegin, (uint32_t *)OriginEnd, Origin);
+  // }
 
   if (OutEvent) {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(

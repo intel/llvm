@@ -2616,8 +2616,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   Value *getShadowPtrOffset(Value *Addr, IRBuilder<> &IRB) {
     Type *IntptrTy = ptrToIntPtrType(Addr->getType());
     Value *OffsetLong = IRB.CreatePointerCast(Addr, IntptrTy);
+
     if (uint64_t AndMask = MS.MapParams->AndMask)
       OffsetLong = IRB.CreateAnd(OffsetLong, constToIntPtr(IntptrTy, ~AndMask));
+
     if (uint64_t XorMask = MS.MapParams->XorMask)
       OffsetLong = IRB.CreateXor(OffsetLong, constToIntPtr(IntptrTy, XorMask));
     return OffsetLong;
@@ -6622,7 +6624,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   Value *getLocalVarIdptr(AllocaInst &I) {
     ConstantInt *IntConst =
-        ConstantInt::get(Type::getInt32Ty(I.getContext()), 0);
+        ConstantInt::get(Type::getInt32Ty((*F.getParent()).getContext()), 0);
     return new GlobalVariable(*F.getParent(), IntConst->getType(),
                               /*isConstant=*/false, GlobalValue::PrivateLinkage,
                               IntConst);
