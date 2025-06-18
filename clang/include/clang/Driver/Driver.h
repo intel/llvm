@@ -101,7 +101,7 @@ class Driver {
 
   IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS;
 
-  bool DumpDeviceCode;
+  bool SaveOffloadCode;
 
   enum DriverMode {
     GCCMode,
@@ -453,7 +453,7 @@ public:
     return ClangExecutable.c_str();
   }
 
-  bool isDumpDeviceCodeEnabled() const { return DumpDeviceCode; }
+  bool isSaveOffloadCodeEnabled() const { return SaveOffloadCode; }
 
   bool isSaveTempsEnabled() const { return SaveTemps != SaveTempsNone; }
   bool isSaveTempsObj() const { return SaveTemps == SaveTempsObj; }
