@@ -16,7 +16,13 @@
 #include "msan/msan_ddi.hpp"
 
 namespace ur_sanitizer_layer {
-context_t *getContext() { return context_t::get_direct(); }
+context_t *getContext() {
+  try {
+    return context_t::get_direct();
+  } catch (...) {
+    die("Failed to get sanitizer context.");
+  }
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 context_t::context_t()
