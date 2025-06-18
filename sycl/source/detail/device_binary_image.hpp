@@ -326,7 +326,9 @@ public:
 
 private:
   std::unique_ptr<char[]> m_DecompressedData;
-  std::optional<size_t> m_ImageSize = std::nullopt;
+  // m_ImageSize is lazily initialized in getSize to properly answer the query
+  // in the base ctor.
+  mutable std::optional<size_t> m_ImageSize = std::nullopt;
 };
 #endif // SYCL_RT_ZSTD_AVAILABLE
 
