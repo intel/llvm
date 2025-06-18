@@ -68,7 +68,8 @@ enum class peer_access {
 /// may be executed.
 ///
 /// \ingroup sycl_api
-class PLATFORM_SPECIFIC_ATTRIBUTE __SYCL_EXPORT device : public detail::OwnerLessBase<device> {
+class PLATFORM_SPECIFIC_ATTRIBUTE __SYCL_EXPORT device
+    : public detail::OwnerLessBase<device> {
 public:
   /// Constructs a SYCL device instance using the default device.
   device();
