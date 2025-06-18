@@ -851,6 +851,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
                "Skip checking private memory of kernel <{}>",
                GetKernelName(Kernel));
       LaunchInfo.Data.Host.PrivateShadowOffset = 0;
+      LaunchInfo.Data.Host.PrivateBase = 0;
     } else {
       UR_LOG_L(getContext()->logger, INFO,
                "ShadowMemory(Private, WorkGroup={}, {} - {})", NumWG,

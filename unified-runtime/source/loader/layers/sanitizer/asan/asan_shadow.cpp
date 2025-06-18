@@ -128,11 +128,8 @@ ur_result_t ShadowMemoryGPU::Setup() {
 }
 
 ur_result_t ShadowMemoryGPU::Destory() {
-  if (PrivateShadowOffset != 0) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
-                                                 (void *)PrivateShadowOffset));
-    PrivateShadowOffset = 0;
-  }
+  PrivateBaseCleaner.Toggle();
+  PrivateShadowCleaner.Toggle();
 
   if (LocalShadowOffset != 0) {
     UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
@@ -282,51 +279,75 @@ ur_result_t ShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
                                                 uint64_t NumWI, uint32_t NumWG,
                                                 uptr *&Base, uptr &Begin,
                                                 uptr &End) {
-  {
-    const size_t Size = NumWI * sizeof(uptr);
+  // Cleaner for when things go wrong
+  ScopeGuard PrivateBaseAllocationCleaner, PrivateShadowAllocationCleaner;
+
+  const size_t RequiredBaseSize = NumWI * sizeof(uptr);
+  static size_t LastBaseSize = 0;
+  if (RequiredBaseSize > LastBaseSize) {
+    PrivateBaseCleaner.Toggle();
+
     ur_usm_desc_t Properties{UR_STRUCTURE_TYPE_USM_DESC, nullptr,
                              UR_USM_ADVICE_FLAG_DEFAULT, sizeof(uptr)};
     UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, &Properties, nullptr, Size, (void **)&Base));
+        Context, Device, &Properties, nullptr, RequiredBaseSize,
+        (void **)&PrivateBasePtr));
+    LastBaseSize = RequiredBaseSize;
+
+    // FIXME: there is no statistic collection for private base, need to add
+    // it.
+
+    auto CleanUpPrivateBase = [&]() {
+      if (PrivateBasePtr) {
+        getContext()->urDdiTable.USM.pfnFree(Context, (void *)PrivateBasePtr);
+        PrivateBasePtr = 0;
+        LastBaseSize = 0;
+      }
+    };
+
+    PrivateBaseCleaner.SetCallback(CleanUpPrivateBase);
+    PrivateBaseAllocationCleaner.SetCallback(CleanUpPrivateBase);
   }
 
-  {
-    const size_t RequiredShadowSize =
-        (NumWG * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE;
-    static size_t LastAllocedSize = 0;
-    if (RequiredShadowSize > LastAllocedSize) {
-      ur_context_handle_t QueueContext = GetContext(Queue);
-      auto ContextInfo = getAsanInterceptor()->getContextInfo(QueueContext);
+  const size_t RequiredShadowSize =
+      (NumWG * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE;
+  static size_t LastAllocedSize = 0;
+  if (RequiredShadowSize > LastAllocedSize) {
+    PrivateShadowCleaner.Toggle();
+
+    ur_context_handle_t QueueContext = GetContext(Queue);
+    auto ContextInfo = getAsanInterceptor()->getContextInfo(QueueContext);
+
+    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        Context, Device, nullptr, nullptr, RequiredShadowSize,
+        (void **)&PrivateShadowOffset));
+    LastAllocedSize = RequiredShadowSize;
+
+    auto CleanUpPrivateShadow = [&]() {
       if (PrivateShadowOffset) {
-        UR_CALL(getContext()->urDdiTable.USM.pfnFree(
-            Context, (void *)PrivateShadowOffset));
+        getContext()->urDdiTable.USM.pfnFree(Context,
+                                             (void *)PrivateShadowOffset);
+        PrivateShadowOffset = 0;
+        LastAllocedSize = 0;
+
         ContextInfo->Stats.UpdateShadowFreed(LastAllocedSize);
-        PrivateShadowOffset = 0;
-        LastAllocedSize = 0;
       }
+    };
+    PrivateShadowAllocationCleaner.SetCallback(CleanUpPrivateShadow);
+    PrivateShadowCleaner.SetCallback(CleanUpPrivateShadow);
 
-      UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-          Context, Device, nullptr, nullptr, RequiredShadowSize,
-          (void **)&PrivateShadowOffset));
-
-      // Initialize shadow memory
-      ur_result_t URes = EnqueueUSMBlockingSet(
-          Queue, (void *)PrivateShadowOffset, 0, RequiredShadowSize);
-      if (URes != UR_RESULT_SUCCESS) {
-        UR_CALL(getContext()->urDdiTable.USM.pfnFree(
-            Context, (void *)PrivateShadowOffset));
-        PrivateShadowOffset = 0;
-        LastAllocedSize = 0;
-      }
-
-      ContextInfo->Stats.UpdateShadowMalloced(RequiredShadowSize);
-
-      LastAllocedSize = RequiredShadowSize;
-    }
-
-    Begin = PrivateShadowOffset;
-    End = PrivateShadowOffset + RequiredShadowSize - 1;
+    // Initialize shadow memory
+    UR_CALL(EnqueueUSMBlockingSet(Queue, (void *)PrivateShadowOffset, 0,
+                                  RequiredShadowSize));
+    ContextInfo->Stats.UpdateShadowMalloced(RequiredShadowSize);
   }
+
+  Base = (uptr *)PrivateBasePtr;
+  Begin = PrivateShadowOffset;
+  End = PrivateShadowOffset + RequiredShadowSize - 1;
+
+  PrivateBaseAllocationCleaner.Dismiss();
+  PrivateShadowAllocationCleaner.Dismiss();
   return UR_RESULT_SUCCESS;
 }
 

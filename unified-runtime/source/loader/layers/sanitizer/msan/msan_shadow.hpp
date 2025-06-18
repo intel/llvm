@@ -15,6 +15,7 @@
 
 #include "msan_allocator.hpp"
 #include "sanitizer_common/sanitizer_libdevice.hpp"
+#include "sanitizer_common/sanitizer_utils.hpp"
 
 #include <unordered_set>
 
@@ -151,7 +152,10 @@ private:
 
   uptr LocalShadowOffset = 0;
 
+  ScopeGuard PrivateShadowCleaner;
   uptr PrivateShadowOffset = 0;
+  ScopeGuard PrivateBaseCleaner;
+  uptr PrivateBasePtr = 0;
 };
 
 // clang-format off

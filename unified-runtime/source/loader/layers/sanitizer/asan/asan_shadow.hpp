@@ -15,6 +15,7 @@
 
 #include "sanitizer_common/sanitizer_common.hpp"
 #include "sanitizer_common/sanitizer_libdevice.hpp"
+#include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {
@@ -119,8 +120,10 @@ struct ShadowMemoryGPU : public ShadowMemory {
   std::unordered_map<uptr, ur_physical_mem_handle_t> VirtualMemMaps;
 
   uptr LocalShadowOffset = 0;
-
   uptr PrivateShadowOffset = 0;
+  ScopeGuard PrivateShadowCleaner;
+  uptr PrivateBasePtr = 0;
+  ScopeGuard PrivateBaseCleaner;
 };
 
 /// Shadow Memory layout of GPU PVC device

@@ -15,6 +15,7 @@
 
 #include "sanitizer_libdevice.hpp"
 #include "ur_api.h"
+#include "ur_sanitizer_layer.hpp"
 
 #include <string>
 #include <vector>
@@ -67,5 +68,39 @@ EnqueueUSMBlockingSet(ur_queue_handle_t Queue, void *Ptr, char Value,
 
 void PrintUrBuildLogIfError(ur_result_t Result, ur_program_handle_t Program,
                             ur_device_handle_t *Devices, size_t NumDevices);
+
+/**
+ * A RAII helper to run callback when destructing, useful for clean up resources
+ */
+struct ScopeGuard {
+
+  // Disable copy and move semantics
+  ScopeGuard(const ScopeGuard &) = delete;
+  ScopeGuard &operator=(const ScopeGuard &) = delete;
+  ScopeGuard(ScopeGuard &&) = delete;
+  ScopeGuard &operator=(ScopeGuard &&) = delete;
+
+  ScopeGuard() {}
+
+  void SetCallback(std::function<void()> CB) { this->Callback = CB; }
+
+  void RunCallback() {
+    if (!IsDismissed && Callback) {
+      Callback();
+    }
+  }
+
+  void Toggle() {
+    RunCallback();
+    Callback = nullptr;
+  }
+
+  ~ScopeGuard() { Toggle(); }
+
+  void Dismiss() { IsDismissed = true; }
+
+  bool IsDismissed = false;
+  std::function<void()> Callback;
+};
 
 } // namespace ur_sanitizer_layer
