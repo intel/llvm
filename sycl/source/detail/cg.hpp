@@ -84,7 +84,7 @@ public:
       for (size_t I = 0; I < Dims_; ++I) {
         GlobalSize[I] = N[I];
       }
-      
+
       for (int I = Dims_; I < 3; ++I) {
         GlobalSize[I] = 1;
       }
