@@ -73,6 +73,8 @@ static constexpr llvm::StringLiteral InitSpecConstantsBuffer =
 static constexpr llvm::StringLiteral FinalizeMethodName = "__finalize";
 static constexpr llvm::StringLiteral LibstdcxxFailedAssertion =
     "__failed_assertion";
+static constexpr llvm::StringLiteral GlibcxxAssertFail =
+    "__glibcxx_assert_fail";
 constexpr unsigned MaxKernelArgsSize = 2048;
 
 bool SemaSYCL::isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
@@ -599,14 +601,33 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
   if (!Callee->getIdentifier())
     return false;
 
+  bool IsAllowed = false;
   // libstdc++-11 introduced an undefined function "void __failed_assertion()"
   // which may lead to SemaSYCL check failure. However, this undefined function
   // is used to trigger some compilation error when the check fails at compile
   // time and will be ignored when the check succeeds. We allow calls to this
   // function to support some important std functions in SYCL device.
-  return (Callee->getName() == LibstdcxxFailedAssertion) &&
-         Callee->getNumParams() == 0 && Callee->getReturnType()->isVoidType() &&
-         SrcMgr.isInSystemHeader(Callee->getLocation());
+  IsAllowed = (Callee->getName() == LibstdcxxFailedAssertion) &&
+              Callee->getNumParams() == 0 &&
+              Callee->getReturnType()->isVoidType() &&
+              SrcMgr.isInSystemHeader(Callee->getLocation());
+
+  if (IsAllowed)
+    return true;
+
+  // GCC-15 introduced "std::__glibcxx_assert_fail" declared c++config.h and
+  // extensively used in STL to do runtime check in debug mode. The behavior
+  // is similar to "assert", we have supported it in libdevice in the same way
+  // as "assert". However, Sema check will report "undefined function without
+  // SYCL_EXTERNAL attribute" error in some cases. We have to allow it just as
+  // what we did to "__failed_assertion". The prototype is following:
+  // void __glibcxx_assert_fail(const char *, int, const char *, const char*);
+  IsAllowed = (Callee->getName() == GlibcxxAssertFail) &&
+              Callee->getNumParams() == 4 &&
+              Callee->getReturnType()->isVoidType() &&
+              SrcMgr.isInSystemHeader(Callee->getLocation());
+
+  return IsAllowed;
 }
 
 // Helper function to report conflicting function attributes.
@@ -825,7 +846,7 @@ static bool isDeclaredInSYCLNamespace(const Decl *D) {
     ND = cast<NamespaceDecl>(Parent);
   }
 
-  return ND && ND->getName() == "sycl";
+  return ND->getName() == "sycl";
 }
 
 static bool isSYCLPrivateMemoryVar(VarDecl *VD) {
@@ -1176,6 +1197,8 @@ bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
                    NameValuePair.first == "sycl-single-task-kernel";
           });
       IsFreeFunctionAttr = it != NameValuePairs.end();
+      if (IsFreeFunctionAttr)
+        break;
     }
     if (Redecl->isFirstDecl()) {
       if (IsFreeFunctionAttr)
@@ -5835,6 +5858,13 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
     return S.Diag(FD->getLocation(), diag::err_free_function_return_type);
   }
 
+  if (const auto *MD = llvm::dyn_cast<CXXMethodDecl>(FD))
+    // The free function extension specification usual methods to be used to
+    // define a free function kernel. We also disallow static methods because we
+    // use integration header.
+    return S.Diag(FD->getLocation(), diag::err_free_function_class_method)
+           << !MD->isStatic() << MD->getSourceRange();
+
   for (ParmVarDecl *Param : FD->parameters()) {
     if (Param->hasDefaultArg()) {
       return S.Diag(Param->getLocation(),
@@ -6587,9 +6617,18 @@ public:
         // function
         NSInserted = true;
       }
+      if (FD->isFunctionTemplateSpecialization() &&
+          FD->isThisDeclarationADefinition())
+        O << "template <> ";
       O << TemplateParameters;
       O << FD->getReturnType().getAsString() << " ";
-      O << FD->getNameAsString() << "(" << Args << ");";
+      FD->printName(O, Policy);
+      if (FD->isFunctionTemplateSpecialization() &&
+          FD->isThisDeclarationADefinition())
+        O << getTemplateSpecializationArgString(
+            FD->getTemplateSpecializationArgs());
+
+      O << "(" << Args << ");";
       if (NSInserted) {
         O << "\n";
         PrintNSClosingBraces(O, FD);
@@ -6611,35 +6650,49 @@ public:
     if (NSInserted)
       PrintNamespaces(O, FD, /*isPrintNamesOnly=*/true);
     O << FD->getIdentifier()->getName().data();
-    if (FD->getPrimaryTemplate()) {
-      std::string Buffer;
-      llvm::raw_string_ostream StringStream(Buffer);
-      const TemplateArgumentList *TAL = FD->getTemplateSpecializationArgs();
-      ArrayRef<TemplateArgument> A = TAL->asArray();
-      bool FirstParam = true;
-      for (const auto &X : A) {
-        if (FirstParam)
-          FirstParam = false;
-        else if (X.getKind() == TemplateArgument::Pack) {
-          for (const auto &PackArg : X.pack_elements()) {
-            StringStream << ", ";
-            PackArg.print(Policy, StringStream, true);
-          }
-          continue;
-        } else {
-          StringStream << ", ";
-        }
-
-        X.print(Policy, StringStream, true);
-      }
-      StringStream.flush();
-      if (Buffer.front() != '<')
-        Buffer = "<" + Buffer + ">";
-      O << Buffer;
-    }
+    if (FD->getPrimaryTemplate())
+      O << getTemplateSpecializationArgString(
+          FD->getTemplateSpecializationArgs());
   }
 
 private:
+  /// Helper method to get string with template types
+  /// \param TAL The template argument list.
+  /// \returns string Example:
+  /// \code
+  ///  template <typename T1, typename T2>
+  ///  void foo(T1 a, T2 b);
+  /// \endcode
+  /// returns string "<T1, T2>"
+  /// If TAL is nullptr, returns empty string.
+  std::string
+  getTemplateSpecializationArgString(const TemplateArgumentList *TAL) {
+    if (!TAL)
+      return "";
+    std::string Buffer;
+    llvm::raw_string_ostream StringStream(Buffer);
+    ArrayRef<TemplateArgument> A = TAL->asArray();
+    bool FirstParam = true;
+    for (const auto &X : A) {
+      if (FirstParam)
+        FirstParam = false;
+      else if (X.getKind() == TemplateArgument::Pack) {
+        for (const auto &PackArg : X.pack_elements()) {
+          StringStream << ", ";
+          PackArg.print(Policy, StringStream, /*IncludeType*/ true);
+        }
+        continue;
+      } else
+        StringStream << ", ";
+
+      X.print(Policy, StringStream, /*IncludeType*/ true);
+    }
+    StringStream.flush();
+    if (Buffer.front() != '<')
+      Buffer = "<" + Buffer + ">";
+    return Buffer;
+  }
+
   /// Helper method to get arguments of templated function as a string
   /// \param Parameters Array of parameters of the function.
   /// \param Policy Printing policy.
@@ -7053,6 +7106,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     FreeFunctionPrinter FFPrinter(O, Policy);
     if (FTD) {
       FFPrinter.printFreeFunctionDeclaration(FTD, S);
+      if (const auto kind = K.SyclKernel->getTemplateSpecializationKind();
+          K.SyclKernel->isFunctionTemplateSpecialization() &&
+          kind == TSK_ExplicitSpecialization)
+        FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     } else {
       FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     }

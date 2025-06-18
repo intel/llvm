@@ -9,6 +9,18 @@
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 
+struct urEnqueueKernelLaunchNoArgs3DTest : uur::urKernelExecutionTest {
+  void SetUp() override {
+    program_name = "no_args";
+    UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
+  }
+
+  size_t global_size[3] = {32, 16, 8};
+  size_t global_offset[3] = {0, 0, 0};
+  size_t n_dimensions = 3;
+};
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchNoArgs3DTest);
+
 struct urEnqueueKernelLaunchTest : uur::urKernelExecutionTest {
   void SetUp() override {
     program_name = "fill";
@@ -66,6 +78,13 @@ struct urEnqueueKernelLaunchKernelStandardTest : uur::urKernelExecutionTest {
   size_t offset = 0;
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchKernelStandardTest);
+
+TEST_P(urEnqueueKernelLaunchNoArgs3DTest, Success) {
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
+                                       global_offset, global_size, nullptr, 0,
+                                       nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+}
 
 TEST_P(urEnqueueKernelLaunchTest, Success) {
   ur_mem_handle_t buffer = nullptr;

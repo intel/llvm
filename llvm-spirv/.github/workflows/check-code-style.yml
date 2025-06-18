@@ -18,7 +18,22 @@ on:
       - 'test/**' # tests
       - '**.md'   # README
       - '**.txt'  # CMakeLists.txt
-      - '**/check-**-build.yml' # Other workflows
+      - '**/check-**-build.yml' # build workflows
+      - '**/backport-to-branch.yml' # backport workflow
+      - '**/patch-release.yaml' # patch release workflow
+  repository_dispatch:
+    types: [backport-complete]
+    branches:
+      - main
+      - llvm_release_*
+    paths-ignore: # no need to check formatting for:
+      - 'docs/**' # documentation
+      - 'test/**' # tests
+      - '**.md'   # README
+      - '**.txt'  # CMakeLists.txt
+      - '**/check-**-build.yml' # build workflows
+      - '**/backport-to-branch.yml' # backport workflow
+      - '**/patch-release.yaml' # patch release workflow
 
 env:
   # We need compile command database in order to perform clang-tidy check. So,

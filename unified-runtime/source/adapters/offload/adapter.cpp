@@ -43,15 +43,17 @@ ur_result_t ur_adapter_handle_t_::init() {
         } else if (Backend != OL_PLATFORM_BACKEND_UNKNOWN) {
           auto URPlatform =
               std::find_if(Platforms->begin(), Platforms->end(), [&](auto &P) {
-                return P.OffloadPlatform == Platform;
+                return P->OffloadPlatform == Platform;
               });
 
           if (URPlatform == Platforms->end()) {
-            URPlatform =
-                Platforms->insert(URPlatform, ur_platform_handle_t_(Platform));
+            URPlatform = Platforms->insert(
+                URPlatform, std::make_unique<ur_platform_handle_t_>(Platform));
           }
 
-          URPlatform->Devices.push_back(ur_device_handle_t_{&*URPlatform, D});
+          (*URPlatform)
+              ->Devices.push_back(
+                  std::make_unique<ur_device_handle_t_>(URPlatform->get(), D));
         }
         return false;
       },
@@ -115,5 +117,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(ur_adapter_handle_t,
                                                           int32_t *) {
   // This only needs to write out the error if another entry point has returned
   // "ADAPTER_SPECIFIC", which we never do
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+    ur_adapter_handle_t, ur_logger_callback_t pfnLoggerCallback,
+    void *pUserData, ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET) {
+
+  Adapter.Logger.setCallbackSink(pfnLoggerCallback, pUserData, level);
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterSetLoggerCallbackLevel(ur_adapter_handle_t, ur_logger_level_t level) {
+
+  Adapter.Logger.setCallbackLevel(level);
+
   return UR_RESULT_SUCCESS;
 }

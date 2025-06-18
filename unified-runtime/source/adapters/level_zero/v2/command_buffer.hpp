@@ -59,9 +59,15 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
       const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
       uint32_t numSyncPointsInWaitList);
 
+  ur_event_handle_t
+  createEventIfRequested(ur_exp_command_buffer_sync_point_t *retSyncPoint);
+
 private:
   // Stores all sync points that are created by the command buffer.
   std::vector<ur_event_handle_t> syncPoints;
+
+  // Stores all sync points that should be reset after execution.
+  std::vector<bool> usedSyncPoints;
 
   // Temporary storage for sync points that are passed to function that require
   // array of events. This is used to avoid allocating a new memory every time.
@@ -77,4 +83,6 @@ private:
   bool isFinalized = false;
 
   ur_event_handle_t currentExecution = nullptr;
+
+  v2::raii::cache_borrowed_event_pool eventPool;
 };

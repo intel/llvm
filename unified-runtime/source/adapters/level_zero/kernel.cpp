@@ -1122,15 +1122,16 @@ ur_result_t urKernelSuggestMaxCooperativeGroupCount(
   (void)dynamicSharedMemorySize;
   std::shared_lock<ur_shared_mutex> Guard(hKernel->Mutex);
 
+  ze_kernel_handle_t ZeKernel;
+  UR_CALL(getZeKernel(hDevice->ZeDevice, hKernel, &ZeKernel));
+
   uint32_t WG[3];
   WG[0] = ur_cast<uint32_t>(pLocalWorkSize[0]);
   WG[1] = workDim >= 2 ? ur_cast<uint32_t>(pLocalWorkSize[1]) : 1;
   WG[2] = workDim == 3 ? ur_cast<uint32_t>(pLocalWorkSize[2]) : 1;
-  ZE2UR_CALL(zeKernelSetGroupSize, (hKernel->ZeKernel, WG[0], WG[1], WG[2]));
+  ZE2UR_CALL(zeKernelSetGroupSize, (ZeKernel, WG[0], WG[1], WG[2]));
 
   uint32_t TotalGroupCount = 0;
-  ze_kernel_handle_t ZeKernel;
-  UR_CALL(getZeKernel(hDevice->ZeDevice, hKernel, &ZeKernel));
   ZE2UR_CALL(zeKernelSuggestMaxCooperativeGroupCount,
              (ZeKernel, &TotalGroupCount));
   *pGroupCountRet = TotalGroupCount;
