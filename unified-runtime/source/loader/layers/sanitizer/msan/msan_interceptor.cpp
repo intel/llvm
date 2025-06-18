@@ -244,15 +244,17 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
 
       std::string KernelName =
           std::string(KernelNameV.begin(), KernelNameV.end());
+      bool CheckLocals = SKI.Flags & SanitizedKernelFlags::CHECK_LOCALS;
+      bool CheckPrivates = SKI.Flags & SanitizedKernelFlags::CHECK_PRIVATES;
+      bool TrackOrigins = SKI.Flags & SanitizedKernelFlags::MSAN_TRACK_ORIGINS;
 
       UR_LOG_L(getContext()->logger, INFO,
                "SpirKernel(name='{}', isInstrumented={}, "
-               "checkLocals={}, checkPrivates={})",
-               KernelName, true, (bool)SKI.CheckLocals,
-               (bool)SKI.CheckPrivates);
+               "checkLocals={}, checkPrivates={}, trackOrigins={})",
+               KernelName, true, CheckLocals, CheckPrivates, TrackOrigins);
 
-      PI->KernelMetadataMap[KernelName] = ProgramInfo::KernelMetada{
-          (bool)SKI.CheckLocals, (bool)SKI.CheckPrivates};
+      PI->KernelMetadataMap[KernelName] =
+          ProgramInfo::KernelMetada{CheckLocals, CheckPrivates, TrackOrigins};
     }
     UR_LOG_L(getContext()->logger, INFO, "Number of sanitized kernel: {}",
              PI->KernelMetadataMap.size());
@@ -408,6 +410,7 @@ KernelInfo &MsanInterceptor::getOrCreateKernelInfo(ur_kernel_handle_t Kernel) {
     auto &KM = PI->getKernelMetadata(Kernel);
     KI->IsCheckLocals = KM.CheckLocals;
     KI->IsCheckPrivates = KM.CheckPrivates;
+    KI->IsTrackOrigins = KM.TrackOrigins;
   }
 
   std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
@@ -457,9 +460,10 @@ ur_result_t MsanInterceptor::prepareLaunch(
   auto &KernelInfo = getOrCreateKernelInfo(Kernel);
   UR_LOG_L(getContext()->logger, INFO,
            "KernelInfo {} (Name=<{}>, IsInstrumented={}, "
-           "IsCheckLocals={}, IsCheckPrivates={})",
+           "CheckLocals={}, CheckPrivates={}, TrackOrigins={})",
            (void *)Kernel, GetKernelName(Kernel), KernelInfo.IsInstrumented,
-           KernelInfo.IsCheckLocals, KernelInfo.IsCheckPrivates);
+           KernelInfo.IsCheckLocals, KernelInfo.IsCheckPrivates,
+           KernelInfo.IsTrackOrigins);
 
   std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
 

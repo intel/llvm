@@ -32,7 +32,7 @@ struct SanitizerOptions {
   bool DetectLeaks = true;
   bool HaltOnError = true;
   bool Recover = false;
-  bool MsanCheckHostAndSharedUSM = false;
+  bool MsanCheckHostAndSharedUSM = true;
 
   void Init(const std::string &EnvName, logger::Logger &Logger);
 };

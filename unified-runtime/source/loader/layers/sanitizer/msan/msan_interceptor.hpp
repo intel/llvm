@@ -83,6 +83,8 @@ struct KernelInfo {
   bool IsCheckLocals = true;
   // check private memory
   bool IsCheckPrivates = true;
+  // track origins
+  bool IsTrackOrigins = false;
 
   // lock this mutex if following fields are accessed
   ur_shared_mutex Mutex;
@@ -111,6 +113,7 @@ struct ProgramInfo {
   struct KernelMetada {
     bool CheckLocals;
     bool CheckPrivates;
+    bool TrackOrigins;
   };
 
   // Program is built only once, so we don't need to lock it
@@ -250,8 +253,7 @@ struct DeviceGlobalInfo {
 struct SpirKernelInfo {
   uptr KernelName;
   uptr Size;
-  uptr CheckLocals;
-  uptr CheckPrivates;
+  uptr Flags;
 };
 
 class MsanInterceptor {

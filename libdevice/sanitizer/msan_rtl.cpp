@@ -421,9 +421,8 @@ DEVICE_EXTERN_C_NOINLINE void __msan_warning_with_origin_noreturn(
 
 // For mapping detail, ref to
 // "unified-runtime/source/loader/layers/sanitizer/msan/msan_shadow.hpp"
-DEVICE_EXTERN_C_NOINLINE __SYCL_GLOBAL__ void *
-__msan_get_shadow(uptr addr, uint32_t as,
-                  const char __SYCL_CONSTANT__ *func = nullptr) {
+DEVICE_EXTERN_C_NOINLINE __SYCL_GLOBAL__ void *__msan_get_shadow(uptr addr,
+                                                                 uint32_t as) {
   if (!GetMsanLaunchInfo)
     return nullptr;
   return (__SYCL_GLOBAL__ void *)MemToShadow(addr, as);
@@ -737,15 +736,5 @@ __msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
                                 "__msan_unpoison_strided_copy"));
 }
-
-// FIXME: not support origin tracking for private memory
-DEVICE_EXTERN_C_NOINLINE void __msan_set_alloca_origin_no_descr(
-    [[maybe_unused]] void *a, [[maybe_unused]] uptr size,
-    [[maybe_unused]] __SYCL_GLOBAL__ u32 *id_ptr) {}
-
-// FIXME: not support origin tracking for private memory
-DEVICE_EXTERN_C_NOINLINE void __msan_set_alloca_origin_with_descr(
-    [[maybe_unused]] void *a, [[maybe_unused]] uptr size,
-    [[maybe_unused]] __SYCL_GLOBAL__ u32 *id_ptr, char *descr) {}
 
 #endif // __SPIR__ || __SPIRV__

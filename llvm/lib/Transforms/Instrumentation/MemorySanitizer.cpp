@@ -787,7 +787,7 @@ public:
     Int32Ty = Type::getInt32Ty(C);
   }
 
-  bool instrumentModule();
+  bool instrumentModule(int TrackOrigins);
   void beforeInstrumentFunction(Function &F, Instruction *FnPrologueEnd);
   void afterInstrumentFunction(Function &F);
 
@@ -799,7 +799,7 @@ private:
   void instrumentGlobalVariables();
   void instrumentStaticLocalMemory();
   void instrumentDynamicLocalMemory(Function &F);
-  void instrumentKernelsMetadata();
+  void instrumentKernelsMetadata(int TrackOrigins);
   void instrumentPrivateArguments(Function &F, Instruction *FnPrologueEnd);
   void instrumentPrivateBase(Function &F);
 
@@ -1174,17 +1174,15 @@ void MemorySanitizerOnSpirv::instrumentPrivateArguments(
 
 // Instrument __MsanKernelMetadata, which records information of sanitized
 // kernel
-void MemorySanitizerOnSpirv::instrumentKernelsMetadata() {
+void MemorySanitizerOnSpirv::instrumentKernelsMetadata(int TrackOrigins) {
   SmallVector<Constant *, 8> SpirKernelsMetadata;
 
   // SpirKernelsMetadata only saves fixed kernels, and is described by
   // following structure:
   //  uptr unmangled_kernel_name
   //  uptr unmangled_kernel_name_size
-  //  uptr check_local_memory
-  //  uptr check_private_memory
-  StructType *StructTy =
-      StructType::get(IntptrTy, IntptrTy, IntptrTy, IntptrTy);
+  //  uptr sanitized_flags
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
   for (Function &F : M) {
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
@@ -1196,11 +1194,21 @@ void MemorySanitizerOnSpirv::instrumentKernelsMetadata() {
     auto KernelName = F.getName();
     auto *KernelNameGV = getOrCreateGlobalString("__msan_kernel", KernelName,
                                                  kSpirOffloadConstantAS);
+
+    uintptr_t SanitizerFlags = 0;
+    SanitizerFlags |= ClSpirOffloadLocals ? SanitizedKernelFlags::CHECK_LOCALS
+                                          : SanitizedKernelFlags::NO_CHECK;
+    SanitizerFlags |= ClSpirOffloadPrivates
+                          ? SanitizedKernelFlags::CHECK_PRIVATES
+                          : SanitizedKernelFlags::NO_CHECK;
+    SanitizerFlags |= TrackOrigins != 0
+                          ? SanitizedKernelFlags::MSAN_TRACK_ORIGINS
+                          : SanitizedKernelFlags::NO_CHECK;
+
     SpirKernelsMetadata.emplace_back(ConstantStruct::get(
         StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
         ConstantInt::get(IntptrTy, KernelName.size()),
-        ConstantInt::get(IntptrTy, ClSpirOffloadLocals),
-        ConstantInt::get(IntptrTy, ClSpirOffloadPrivates)));
+        ConstantInt::get(IntptrTy, SanitizerFlags)));
   }
 
   // Create global variable to record spirv kernels' information
@@ -1246,14 +1254,14 @@ void MemorySanitizerOnSpirv::initializeRetVecMap(Function *F) {
   KernelToRetVecMap[F] = std::move(RetVec);
 }
 
-bool MemorySanitizerOnSpirv::instrumentModule() {
+bool MemorySanitizerOnSpirv::instrumentModule(int TrackOrigins) {
   if (!IsSPIRV)
     return false;
 
   initializeCallbacks();
   instrumentGlobalVariables();
   instrumentStaticLocalMemory();
-  instrumentKernelsMetadata();
+  instrumentKernelsMetadata(TrackOrigins);
 
   return true;
 }
@@ -1291,7 +1299,7 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
   }
 
   MemorySanitizerOnSpirv MsanSpirv(M);
-  Modified |= MsanSpirv.instrumentModule();
+  Modified |= MsanSpirv.instrumentModule(Options.TrackOrigins);
 
   auto &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   for (Function &F : M) {
@@ -1336,8 +1344,11 @@ void MemorySanitizerPass::printPipeline(
 static GlobalVariable *createPrivateConstGlobalForString(Module &M,
                                                          StringRef Str) {
   Constant *StrConst = ConstantDataArray::getString(M.getContext(), Str);
+  bool SpirOrSpirv = Triple(M.getTargetTriple()).isSPIROrSPIRV();
   return new GlobalVariable(M, StrConst->getType(), /*isConstant=*/true,
-                            GlobalValue::PrivateLinkage, StrConst, "");
+                            GlobalValue::PrivateLinkage, StrConst, "", nullptr,
+                            llvm::GlobalValue::NotThreadLocal,
+                            SpirOrSpirv ? kSpirOffloadConstantAS : 0);
 }
 
 template <typename... ArgsTy>
@@ -1548,10 +1559,9 @@ void MemorySanitizer::createUserspaceApi(Module &M,
   MsanSetAllocaOriginWithDescriptionFn =
       M.getOrInsertFunction("__msan_set_alloca_origin_with_descr",
                             IRB.getVoidTy(), PtrTy, IntptrTy, PtrTy, PtrTy);
-  MsanSetAllocaOriginNoDescriptionFn = M.getOrInsertFunction(
-      "__msan_set_alloca_origin_no_descr", IRB.getVoidTy(), PtrTy, IntptrTy,
-      TargetTriple.isSPIROrSPIRV() ? PointerType::get(*C, kSpirOffloadGlobalAS)
-                                   : PtrTy);
+  MsanSetAllocaOriginNoDescriptionFn =
+      M.getOrInsertFunction("__msan_set_alloca_origin_no_descr",
+                            IRB.getVoidTy(), PtrTy, IntptrTy, PtrTy);
   MsanPoisonStackFn = M.getOrInsertFunction("__msan_poison_stack",
                                             IRB.getVoidTy(), PtrTy, IntptrTy);
 }
@@ -6637,7 +6647,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       IRB.CreateMemSet(ShadowBase, PoisonValue, Len, I.getAlign());
     }
 
-    if (PoisonStack && MS.TrackOrigins) {
+    // FIXME: Not support track origins on private memory yet
+    if (PoisonStack && MS.TrackOrigins && !SpirOrSpirv) {
       Value *Idptr = getLocalVarIdptr(I);
       if (ClPrintStackNames) {
         Value *Descr = getLocalVarDescription(I);
