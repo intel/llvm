@@ -455,7 +455,7 @@ uptr MsanShadowMemoryPVC::MemToShadow(uptr Ptr) {
     return Ptr - 0x5000'0000'0000ULL;
   }
   // host/shared USM
-  return (Ptr & 0xff'ffff'ffffULL) + ((Ptr & 0x8000'0000'0000ULL) >> 7) +
+  return (Ptr & 0xfff'ffff'ffffULL) + ((Ptr & 0x8000'0000'0000ULL) >> 3) +
          ShadowBegin;
 }
 
@@ -465,9 +465,9 @@ uptr MsanShadowMemoryPVC::MemToOrigin(uptr Ptr) {
     return AlignedPtr - 0xA000'0000'0000ULL;
   }
   // host/shared USM
-  return (AlignedPtr & 0xff'ffff'ffffULL) +
-         ((AlignedPtr & 0x8000'0000'0000ULL) >> 7) + ShadowBegin +
-         0x0200'0000'0000ULL;
+  return (AlignedPtr & 0xfff'ffff'ffffULL) +
+         ((AlignedPtr & 0x8000'0000'0000ULL) >> 3) + ShadowBegin +
+         0x2000'0000'0000ULL;
 }
 
 uptr MsanShadowMemoryDG2::MemToShadow(uptr Ptr) {

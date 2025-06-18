@@ -178,7 +178,7 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
     }
     // host/shared USM
     auto shadow_base = GetMsanLaunchInfo->GlobalShadowOffset;
-    return (addr & 0xff'ffff'ffffULL) + ((addr & 0x8000'0000'0000ULL) >> 7) +
+    return (addr & 0xfff'ffff'ffffULL) + ((addr & 0x8000'0000'0000ULL) >> 3) +
            shadow_base;
   } else if (as == ADDRESS_SPACE_LOCAL) {
     const auto shadow_offset = GetMsanLaunchInfo->LocalShadowOffset;
@@ -264,8 +264,8 @@ inline uptr MemToOrigin_PVC(uptr addr, uint32_t as) {
     }
     // host/shared USM
     uptr shadow_base = GetMsanLaunchInfo->GlobalShadowOffset;
-    return (addr & 0xff'ffff'ffffULL) + ((addr & 0x8000'0000'0000ULL) >> 7) +
-           shadow_base + 0x0200'0000'0000ULL;
+    return (addr & 0xfff'ffff'ffffULL) + ((addr & 0x8000'0000'0000ULL) >> 3) +
+           shadow_base + 0x2000'0000'0000ULL;
   }
 
   // Return clean shadow (0s) by default

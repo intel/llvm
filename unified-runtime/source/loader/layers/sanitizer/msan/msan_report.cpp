@@ -22,7 +22,7 @@
 namespace ur_sanitizer_layer {
 namespace msan {
 
-void ReportUsesUninitializedValue(const MsanErrorReport &Report,
+bool ReportUsesUninitializedValue(const MsanErrorReport &Report,
                                   ur_kernel_handle_t Kernel) {
   const char *File = Report.File[0] ? Report.File : "<unknown file>";
   const char *Func = Report.Func[0] ? Report.Func : "<unknown func>";
@@ -43,7 +43,7 @@ void ReportUsesUninitializedValue(const MsanErrorReport &Report,
            Report.Line);
 
   if (!Report.Origin) {
-    return;
+    return true;
   }
 
   Origin Origin = Origin::FromRawId(Report.Origin);
@@ -53,7 +53,11 @@ void ReportUsesUninitializedValue(const MsanErrorReport &Report,
     UR_LOG_L(getContext()->logger, QUIET, "ORIGIN: {} allocation ({})",
              ToString(Type), (void *)(uptr)Report.Origin);
     Stack.print();
+
+    return !(Type == HeapType::HostUSM || Type == HeapType::SharedUSM);
   }
+
+  return true;
 }
 
 } // namespace msan

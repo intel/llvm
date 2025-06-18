@@ -33,7 +33,8 @@ void validateDeviceUSM(uptr Allocated, DeviceType DeviceType) {
 void validateSharedUSM(uptr Allocated, DeviceType DeviceType) {
   switch (DeviceType) {
   case DeviceType::GPU_PVC: {
-    assert((Allocated >> 40) == 0x7f);
+    std::cout << (void *)Allocated << std::endl;
+    assert((Allocated >> 44) == 0x7);
     break;
   default:
     break;
