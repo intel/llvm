@@ -66,8 +66,7 @@ int main() {
     // <--- First allocation, use, and free --->
 
     // Allocate in pool
-    void *FirstAlloc =
-        syclexp::async_malloc(Q, sycl::usm::alloc::host, Width);
+    void *FirstAlloc = syclexp::async_malloc(Q, sycl::usm::alloc::host, Width);
 
     // Use allocation in kernel
     Q.submit([&](sycl::handler &CGH) {
@@ -84,8 +83,7 @@ int main() {
     // <--- Second allocation, use, and free --->
 
     // Re-use allocation in pool
-    void *SecondAlloc =
-        syclexp::async_malloc(Q, sycl::usm::alloc::host, Width);
+    void *SecondAlloc = syclexp::async_malloc(Q, sycl::usm::alloc::host, Width);
 
     // Re-use allocation in kernel
     Q.submit([&](sycl::handler &CGH) {

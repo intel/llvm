@@ -13,9 +13,9 @@
 #include "context.hpp"
 #include "enqueue.hpp"
 #include "event.hpp"
+#include "host_allocator.hpp"
 #include "queue.hpp"
 #include "usm.hpp"
-#include "host_allocator.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
     ur_queue_handle_t hQueue, ur_usm_pool_handle_t hPool, const size_t size,
@@ -62,19 +62,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
-    ur_queue_handle_t hQueue, [[maybe_unused]] ur_usm_pool_handle_t hPool, const size_t size,
-    [[maybe_unused]] const ur_exp_async_usm_alloc_properties_t *pProperties, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, void **ppMem, ur_event_handle_t *phEvent) {
+    ur_queue_handle_t hQueue, [[maybe_unused]] ur_usm_pool_handle_t hPool,
+    const size_t size,
+    [[maybe_unused]] const ur_exp_async_usm_alloc_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    void **ppMem, ur_event_handle_t *phEvent) {
   try {
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     ScopedContext Active(hQueue->getDevice());
     uint32_t StreamToken;
     ur_stream_guard Guard;
     CUstream CuStream = hQueue->getNextComputeStream(
-      numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
+        numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
 
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
-                                   phEventWaitList));
+                                     phEventWaitList));
 
     if (phEvent) {
       RetImplEvent = std::make_unique<ur_event_handle_t_>(
@@ -82,7 +84,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    UR_CHECK_ERROR(host_allocator::getInstance(hQueue->getContext()).allocate(size, ppMem));
+    UR_CHECK_ERROR(host_allocator::getInstance(hQueue->getContext())
+                       .allocate(size, ppMem));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
@@ -125,12 +128,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFreeExp(
 
   const ur_usm_alloc_info_t property_name = UR_USM_ALLOC_INFO_TYPE;
   ur_usm_type_t property_value = UR_USM_TYPE_FORCE_UINT32;
-  UR_CHECK_ERROR(urUSMGetMemAllocInfo(hQueue->getContext(), pMem, property_name, sizeof(ur_usm_type_t), &property_value, nullptr));
+  UR_CHECK_ERROR(urUSMGetMemAllocInfo(hQueue->getContext(), pMem, property_name,
+                                      sizeof(ur_usm_type_t), &property_value,
+                                      nullptr));
 
   if (property_value == UR_USM_TYPE_DEVICE) {
-    UR_CHECK_ERROR(cuMemFreeAsync(reinterpret_cast<CUdeviceptr>(pMem), CuStream));
+    UR_CHECK_ERROR(
+        cuMemFreeAsync(reinterpret_cast<CUdeviceptr>(pMem), CuStream));
   } else if (property_value == UR_USM_TYPE_HOST) {
-    UR_CHECK_ERROR(host_allocator::getInstance(hQueue->getContext()).deallocate(pMem));
+    UR_CHECK_ERROR(
+        host_allocator::getInstance(hQueue->getContext()).deallocate(pMem));
   } else {
     return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
   }

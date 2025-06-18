@@ -77,10 +77,11 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
 
   ur_event_handle_t Event = nullptr;
   if (kind == sycl::usm::alloc::device) {
-    // If a graph is present do the allocation from the graph memory pool instead.
+    // If a graph is present do the allocation from the graph memory pool
+    // instead.
     if (auto Graph = h.getCommandGraph(); Graph) {
       auto DepNodes =
-        getDepGraphNodes(h, h.impl->get_queue_or_null(), Graph, DepEvents);
+          getDepGraphNodes(h, h.impl->get_queue_or_null(), Graph, DepEvents);
       alloc = Graph->getMemPool().malloc(size, kind, DepNodes);
     } else {
       ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
