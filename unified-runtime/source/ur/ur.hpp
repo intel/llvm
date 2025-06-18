@@ -228,6 +228,14 @@ template <typename getddi> struct handle_base {
   // Handles are non-copyable.
   handle_base(const handle_base &) = delete;
   handle_base &operator=(const handle_base &) = delete;
+
+  uint32_t getRefCount() const noexcept { return Count.load(); }
+  uint32_t incrementRefCount() { return ++Count; }
+  uint32_t decrementRefCount() { return --Count; }
+  void resetRefCount() { Count = 1; }
+
+private:
+  std::atomic_uint32_t Count{1};
 };
 
 template <typename T, typename Assign>
