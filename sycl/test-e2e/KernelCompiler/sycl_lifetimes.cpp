@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_device_allocations
 
 // UNSUPPORTED: accelerator
@@ -51,14 +50,15 @@ int test_lifetimes() {
       ctx, syclex::source_language::sycl, SYCLSource);
 
   exe_kb kbExe1 = syclex::build(kbSrc);
-  // CHECK: urProgramCreateWithIL{{.*}}phProgram{{.*}}([[PROG1:.*]]))
+  // Cuda/Hip programs will be cratew with Binary, spirv IL.
+  // CHECK: urProgramCreateWith{{IL|Binary}}{{.*}}phProgram{{.*}}([[PROG1:.*]]))
 
   {
     std::cout << "Scope1\n";
     // CHECK: Scope1
     exe_kb kbExe2 = syclex::build(kbSrc);
     // kbExe2 goes out of scope; its kernels are removed from program mananager.
-    // CHECK: urProgramCreateWithIL{{.*}}phProgram{{.*}}([[PROG2:.*]]))
+    // CHECK: urProgramCreateWith{{IL|Binary}}{{.*}}phProgram{{.*}}([[PROG2:.*]]))
     // CHECK: urProgramRelease{{.*}}[[PROG2]]
   }
   std::cout << "End Scope1\n";

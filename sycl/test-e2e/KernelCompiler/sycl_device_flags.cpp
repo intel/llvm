@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: level_zero
+// REQUIRES: (level_zero || cuda || amd)
 // REQUIRES: aspect-usm_device_allocations
 
 // UNSUPPORTED: windows
