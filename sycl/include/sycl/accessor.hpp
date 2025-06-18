@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>                     // for target, mode
+#include <sycl/access/access.hpp> // for target, mode
+#include <sycl/atomic.hpp>
 #include <sycl/buffer.hpp>                            // for range
 #include <sycl/detail/accessor_iterator.hpp>          // for accessor_iterator
 #include <sycl/detail/common.hpp>                     // for code_location
@@ -32,7 +33,6 @@
 #include <sycl/properties/buffer_properties.hpp>      // for buffer, buffer...
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range
-#include <sycl/atomic.hpp>
 
 #include <cstddef>     // for size_t
 #include <functional>  // for hash
