@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+// REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_device_allocations
 
 // UNSUPPORTED: accelerator
@@ -24,11 +25,11 @@
 
 // CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: enabled
 // CHECK-WRITTEN-TO-CACHE-NOT: [Persistent Cache]: using cached device binary
-// CHECK-WRITTEN-TO-CACHE: {{\[Persistent Cache\]: device binary has been cached|\[kernel_compiler Persistent Cache\]: storing device code IR}}
+// CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: device binary has been cached
 
 // CHECK-READ-FROM-CACHE: [Persistent Cache]: enabled
 // CHECK-READ-FROM-CACHE-NOT: [Persistent Cache]: device binary has been cached
-// CHECK-READ-FROM-CACHE: {{\[kernel_compiler Persistent Cache\]: using cached device code IR|\[Persistent Cache\]: using cached device binary}}
+// CHECK-READ-FROM-CACHE: [Persistent Cache]: using cached device binary
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

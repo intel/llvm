@@ -11,7 +11,7 @@
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out %S | FileCheck %s --check-prefixes=CHECK,CHECK-NOCWD
+// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out %S | FileCheck %s --check-prefixes=CHECK,CHECK-NOCWD
 
 // COM: Run test again in a directory that contains a different version of
 //      `header1.hpp`
