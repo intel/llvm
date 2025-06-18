@@ -58,12 +58,17 @@ enum class peer_access {
 };
 
 } // namespace ext::oneapi
+#if __has_cpp_attribute(_Clang::__standalone_debug__)
+#define PLATFORM_SPECIFIC_ATTRIBUTE [[_Clang::__standalone_debug__]]
+#else
+#define PLATFORM_SPECIFIC_ATTRIBUTE
+#endif
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT device : public detail::OwnerLessBase<device> {
+class PLATFORM_SPECIFIC_ATTRIBUTE __SYCL_EXPORT device : public detail::OwnerLessBase<device> {
 public:
   /// Constructs a SYCL device instance using the default device.
   device();
