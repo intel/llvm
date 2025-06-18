@@ -1452,21 +1452,6 @@ __urdlllocal ur_result_t urKernelRelease(
   return UR_RESULT_SUCCESS;
 }
 
-// Returns true if the arg should be passed through to the adapters.
-inline bool handleValueArg(ur_kernel_handle_t hKernel, uint32_t index,
-                           size_t size, const void *value) {
-  std::shared_ptr<MemBuffer> MemBuffer;
-  if (size == sizeof(ur_mem_handle_t) &&
-      (MemBuffer = getAsanInterceptor()->getMemBuffer(
-           *ur_cast<const ur_mem_handle_t *>(value)))) {
-    auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-    std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-    KernelInfo.BufferArgs[index] = std::move(MemBuffer);
-    return false;
-  }
-  return true;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSetArgValue
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
@@ -1488,23 +1473,18 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
 
   UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetArgValue");
 
-  if (handleValueArg(hKernel, argIndex, argSize, pArgValue)) {
+  std::shared_ptr<MemBuffer> MemBuffer;
+  if (argSize == sizeof(ur_mem_handle_t) &&
+      (MemBuffer = getAsanInterceptor()->getMemBuffer(
+           *ur_cast<const ur_mem_handle_t *>(pArgValue)))) {
+    auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+    std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+    KernelInfo.BufferArgs[argIndex] = std::move(MemBuffer);
+  } else {
     UR_CALL(pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue));
   }
 
   return UR_RESULT_SUCCESS;
-}
-
-inline bool handleMemObjArg(ur_kernel_handle_t hKernel, uint32_t index,
-                            ur_mem_handle_t value) {
-  std::shared_ptr<MemBuffer> MemBuffer;
-  if ((MemBuffer = getAsanInterceptor()->getMemBuffer(value))) {
-    auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-    std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-    KernelInfo.BufferArgs[index] = std::move(MemBuffer);
-    return false;
-  }
-  return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1526,22 +1506,16 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
 
   UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetArgMemObj");
 
-  if (handleMemObjArg(hKernel, argIndex, hArgValue)) {
+  std::shared_ptr<MemBuffer> MemBuffer;
+  if ((MemBuffer = getAsanInterceptor()->getMemBuffer(hArgValue))) {
+    auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+    std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+    KernelInfo.BufferArgs[argIndex] = std::move(MemBuffer);
+  } else {
     UR_CALL(pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue));
   }
 
   return UR_RESULT_SUCCESS;
-}
-
-inline void handleLocalArg(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                           size_t &argSize) {
-  auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-  std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
-  // TODO: get local variable alignment
-  auto argSizeWithRZ = GetSizeAndRedzoneSizeForLocal(
-      argSize, ASAN_SHADOW_GRANULARITY, ASAN_SHADOW_GRANULARITY);
-  KI.LocalArgs[argIndex] = LocalArgsInfo{argSize, argSizeWithRZ};
-  argSize = argSizeWithRZ;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1566,22 +1540,18 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
            argSize);
 
   {
-    handleLocalArg(hKernel, argIndex, argSize);
+    auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+    std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
+    // TODO: get local variable alignment
+    auto argSizeWithRZ = GetSizeAndRedzoneSizeForLocal(
+        argSize, ASAN_SHADOW_GRANULARITY, ASAN_SHADOW_GRANULARITY);
+    KI.LocalArgs[argIndex] = LocalArgsInfo{argSize, argSizeWithRZ};
+    argSize = argSizeWithRZ;
   }
 
   ur_result_t result = pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
 
   return result;
-}
-
-inline void handlePointerArg(ur_kernel_handle_t hKernel, const void *argValue,
-                             uint32_t index) {
-  std::shared_ptr<KernelInfo> KI;
-  if (getContext()->Options.DetectKernelArguments) {
-    auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-    std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
-    KI.PointerArgs[index] = {argValue, GetCurrentBacktrace()};
-  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1606,7 +1576,12 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
            "==== urKernelSetArgPointer (argIndex={}, pArgValue={})", argIndex,
            pArgValue);
 
-  handlePointerArg(hKernel, pArgValue, argIndex);
+  std::shared_ptr<KernelInfo> KI;
+  if (getContext()->Options.DetectKernelArguments) {
+    auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
+    std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
+    KI.PointerArgs[argIndex] = {pArgValue, GetCurrentBacktrace()};
+  }
 
   ur_result_t result =
       pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
@@ -1710,44 +1685,48 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
   UR_LOG_L(getContext()->logger, DEBUG,
            "==== urEnqueueKernelLaunchWithArgsExp");
 
-  // Sanitizer layer arg processing sometimes results in an arg not getting
-  // passed through to the adapter's SetArg implementation. To implement this
-  // for set args + launch we build our own list of "accepted" args to pass to
-  // the entry point.
-  std::vector<ur_exp_kernel_arg_properties_t> KeepArgs;
+  // We need to set all the args now rather than letting LaunchWithArgs handle
+  // them. This is because some implementations of
+  // urKernelGetSuggestedLocalWorkSize, which is used in preLaunchKernel, rely
+  // on all the args being set.
   for (uint32_t ArgPropIndex = 0; ArgPropIndex < numArgs; ArgPropIndex++) {
     switch (pArgs[ArgPropIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
-      size_t size = pArgs[ArgPropIndex].size;
-      handleLocalArg(hKernel, pArgs[ArgPropIndex].index, size);
-      KeepArgs.push_back(pArgs[ArgPropIndex]);
-      KeepArgs.back().size = size;
+      UR_CALL(ur_sanitizer_layer::asan::urKernelSetArgLocal(
+          hKernel, pArgs[ArgPropIndex].index, pArgs[ArgPropIndex].size,
+          nullptr));
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
-      handlePointerArg(hKernel, pArgs[ArgPropIndex].arg.pointer,
-                       pArgs[ArgPropIndex].index);
-      KeepArgs.push_back(pArgs[ArgPropIndex]);
+      UR_CALL(ur_sanitizer_layer::asan::urKernelSetArgPointer(
+          hKernel, pArgs[ArgPropIndex].index, nullptr,
+          pArgs[ArgPropIndex].arg.pointer));
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
-      if (handleValueArg(hKernel, pArgs[ArgPropIndex].index,
-                         pArgs[ArgPropIndex].size,
-                         pArgs[ArgPropIndex].arg.pointer)) {
-        KeepArgs.push_back(pArgs[ArgPropIndex]);
-      }
+      UR_CALL(ur_sanitizer_layer::asan::urKernelSetArgValue(
+          hKernel, pArgs[ArgPropIndex].index, pArgs[ArgPropIndex].size, nullptr,
+          pArgs[ArgPropIndex].arg.pointer));
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
-      if (handleMemObjArg(hKernel, pArgs[ArgPropIndex].index,
-                          pArgs[ArgPropIndex].arg.memObjTuple.hMem)) {
-        KeepArgs.push_back(pArgs[ArgPropIndex]);
-      }
+      ur_kernel_arg_mem_obj_properties_t Properties = {
+          UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
+          pArgs[ArgPropIndex].arg.memObjTuple.flags};
+      UR_CALL(ur_sanitizer_layer::asan::urKernelSetArgMemObj(
+          hKernel, pArgs[ArgPropIndex].index, &Properties,
+          pArgs[ArgPropIndex].arg.memObjTuple.hMem));
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+      auto pfnKernelSetArgSampler =
+          getContext()->urDdiTable.Kernel.pfnSetArgSampler;
+      UR_CALL(pfnKernelSetArgSampler(hKernel, pArgs[ArgPropIndex].index,
+                                     nullptr, pArgs[ArgPropIndex].arg.sampler));
       break;
     }
     default:
-      KeepArgs.push_back(pArgs[ArgPropIndex]);
-      break;
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
     }
   }
 
@@ -1759,9 +1738,8 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
 
   UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
       hQueue, hKernel, pGlobalWorkOffset, pGlobalWorkSize,
-      LaunchInfo.LocalWorkSize.data(), KeepArgs.size(), KeepArgs.data(),
-      numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
-      phEventWaitList, phEvent));
+      LaunchInfo.LocalWorkSize.data(), 0, nullptr, numPropsInLaunchPropList,
+      launchPropList, numEventsInWaitList, phEventWaitList, phEvent));
 
   UR_CALL(getAsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 

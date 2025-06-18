@@ -1778,52 +1778,49 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
   UR_LOG_L(getContext()->logger, DEBUG,
            "==== urEnqueueKernelLaunchWithArgsExp");
 
-  // Sanitizer layer arg processing sometimes results in an arg not getting
-  // passed through to the adapter's SetArg implementation. To implement this
-  // for set args + launch we build our own list of "accepted" args to pass to
-  // the entry point.
-  std::vector<ur_exp_kernel_arg_properties_t> KeepArgs;
+  // We need to set all the args now rather than letting LaunchWithArgs handle
+  // them. This is because some implementations of
+  // urKernelGetSuggestedLocalWorkSize, which is used in preLaunchKernel, rely
+  // on all the args being set.
   for (uint32_t ArgPropIndex = 0; ArgPropIndex < numArgs; ArgPropIndex++) {
     switch (pArgs[ArgPropIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
-      auto &KI = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
-      std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
-      KI.LocalArgs[pArgs[ArgPropIndex].index] =
-          MsanLocalArgsInfo{pArgs[ArgPropIndex].size};
-      KeepArgs.push_back(pArgs[ArgPropIndex]);
+      UR_CALL(ur_sanitizer_layer::msan::urKernelSetArgLocal(
+          hKernel, pArgs[ArgPropIndex].index, pArgs[ArgPropIndex].size,
+          nullptr));
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
+      auto pfnKernelSetArgPointer =
+          getContext()->urDdiTable.Kernel.pfnSetArgPointer;
+      UR_CALL(pfnKernelSetArgPointer(hKernel, pArgs[ArgPropIndex].index,
+                                     nullptr, pArgs[ArgPropIndex].arg.pointer));
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
-
-      std::shared_ptr<MemBuffer> MemBuffer;
-      if (pArgs[ArgPropIndex].size == sizeof(ur_mem_handle_t) &&
-          (MemBuffer = getMsanInterceptor()->getMemBuffer(
-               *ur_cast<const ur_mem_handle_t *>(
-                   pArgs[ArgPropIndex].arg.pointer)))) {
-        auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
-        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-        KernelInfo.BufferArgs[pArgs[ArgPropIndex].index] = std::move(MemBuffer);
-      } else {
-        KeepArgs.push_back(pArgs[ArgPropIndex]);
-      }
+      UR_CALL(ur_sanitizer_layer::msan::urKernelSetArgValue(
+          hKernel, pArgs[ArgPropIndex].index, pArgs[ArgPropIndex].size, nullptr,
+          pArgs[ArgPropIndex].arg.pointer));
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
-      std::shared_ptr<MemBuffer> MemBuffer;
-      std::shared_ptr<KernelInfo> KernelInfo;
-      if ((MemBuffer = getMsanInterceptor()->getMemBuffer(
-               pArgs[ArgPropIndex].arg.memObjTuple.hMem))) {
-        auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
-        std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-        KernelInfo.BufferArgs[pArgs[ArgPropIndex].index] = std::move(MemBuffer);
-      } else {
-        KeepArgs.push_back(pArgs[ArgPropIndex]);
-      }
+      ur_kernel_arg_mem_obj_properties_t Properties = {
+          UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
+          pArgs[ArgPropIndex].arg.memObjTuple.flags};
+      UR_CALL(ur_sanitizer_layer::msan::urKernelSetArgMemObj(
+          hKernel, pArgs[ArgPropIndex].index, &Properties,
+          pArgs[ArgPropIndex].arg.memObjTuple.hMem));
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+      auto pfnKernelSetArgSampler =
+          getContext()->urDdiTable.Kernel.pfnSetArgSampler;
+      UR_CALL(pfnKernelSetArgSampler(hKernel, pArgs[ArgPropIndex].index,
+                                     nullptr, pArgs[ArgPropIndex].arg.sampler));
       break;
     }
     default:
-      KeepArgs.push_back(pArgs[ArgPropIndex]);
-      break;
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
     }
   }
 
@@ -1836,9 +1833,8 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
 
   UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
       hQueue, hKernel, pGlobalWorkOffset, pGlobalWorkSize,
-      LaunchInfo.LocalWorkSize.data(), KeepArgs.size(), KeepArgs.data(),
-      numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
-      phEventWaitList, phEvent));
+      LaunchInfo.LocalWorkSize.data(), 0, nullptr, numPropsInLaunchPropList,
+      launchPropList, numEventsInWaitList, phEventWaitList, phEvent));
 
   UR_CALL(getMsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 
