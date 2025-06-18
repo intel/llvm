@@ -699,7 +699,7 @@ bool Scheduler::CheckEventReadiness(context_impl &Context,
     return SyclEventImplPtr->isCompleted();
   }
   // Cross-context dependencies can't be passed to the backend directly.
-  if (SyclEventImplPtr->getContextImpl().get() != &Context)
+  if (&SyclEventImplPtr->getContextImpl() != &Context)
     return false;
 
   // A nullptr here means that the commmand does not produce a UR event or it
