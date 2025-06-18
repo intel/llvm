@@ -1,4 +1,9 @@
 // REQUIRES: aspect-ext_intel_legacy_image
+//
+// l0 may use createUrMemFromZeImage instead of the usual urMemImageCreate
+// depending on the arch
+// UNSUPPORTED: level_zero
+//
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=-1 %{run} %t.out | FileCheck %s
 
@@ -67,7 +72,4 @@ int main() {
         return 1;
       }
     }
-
-  std::cout << "Success" << std::endl;
-  return 0;
 }
