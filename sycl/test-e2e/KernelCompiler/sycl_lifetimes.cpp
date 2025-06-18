@@ -50,7 +50,7 @@ int test_lifetimes() {
       ctx, syclex::source_language::sycl, SYCLSource);
 
   exe_kb kbExe1 = syclex::build(kbSrc);
-  // Cuda/Hip programs will be cratew with Binary, spirv IL.
+  // Cuda/Hip programs will be created with Binary, spirv IL.
   // CHECK: urProgramCreateWith{{IL|Binary}}{{.*}}phProgram{{.*}}([[PROG1:.*]]))
 
   {
