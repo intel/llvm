@@ -650,8 +650,11 @@ public:
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
-  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
+  static ContextImplPtr getContext(queue_impl *Queue) {
     return Queue ? Queue->getContextImplPtr() : nullptr;
+  }
+  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
+    return getContext(Queue.get());
   }
 
   // Must be called under MMutex protection
@@ -709,7 +712,11 @@ protected:
   }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-#define parseEvent(arg) (arg)
+  inline const detail::EventImplPtr &
+  parseEvent(const detail::EventImplPtr &Event) {
+    assert(!Event || !Event->isDiscarded());
+    return Event;
+  }
 #else
   inline detail::EventImplPtr parseEvent(const event &Event) {
     const detail::EventImplPtr &EventImpl = getSyclObjImpl(Event);

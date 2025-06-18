@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} --save-temps -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
