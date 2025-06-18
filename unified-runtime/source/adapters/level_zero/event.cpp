@@ -1429,7 +1429,7 @@ ur_result_t ur_event_handle_t_::reset() {
   CommandType = UR_EXT_COMMAND_TYPE_USER;
   WaitList = {};
   RefCountExternal = 0;
-  RefCount.reset();
+  resetRefCount();
   CommandList = std::nullopt;
   completionBatch = std::nullopt;
   OriginAllocEvent = nullptr;
