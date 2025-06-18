@@ -448,5 +448,8 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP);
 }
 } // namespace urinfo

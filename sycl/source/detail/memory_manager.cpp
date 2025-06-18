@@ -250,7 +250,7 @@ void memUnmapHelper(const AdapterPtr &Adapter, ur_queue_handle_t Queue,
   }
 }
 
-void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
+void MemoryManager::release(context_impl *TargetContext, SYCLMemObjI *MemObj,
                             void *MemAllocation,
                             std::vector<EventImplPtr> DepEvents,
                             ur_event_handle_t &OutEvent) {
@@ -262,7 +262,7 @@ void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
   MemObj->releaseMem(TargetContext, MemAllocation);
 }
 
-void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
+void MemoryManager::releaseMemObj(context_impl *TargetContext,
                                   SYCLMemObjI *MemObj, void *MemAllocation,
                                   void *UserPtr) {
   if (UserPtr == MemAllocation) {
@@ -279,7 +279,7 @@ void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
   memReleaseHelper(Adapter, ur::cast<ur_mem_handle_t>(MemAllocation));
 }
 
-void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
+void *MemoryManager::allocate(context_impl *TargetContext, SYCLMemObjI *MemObj,
                               bool InitFromUserData, void *HostPtr,
                               std::vector<EventImplPtr> DepEvents,
                               ur_event_handle_t &OutEvent) {
@@ -306,8 +306,8 @@ void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
 }
 
 void *MemoryManager::allocateInteropMemObject(
-    ContextImplPtr TargetContext, void *UserPtr,
-    const EventImplPtr &InteropEvent, const ContextImplPtr &InteropContext,
+    context_impl *TargetContext, void *UserPtr,
+    const EventImplPtr &InteropEvent, context_impl *InteropContext,
     const sycl::property_list &, ur_event_handle_t &OutEventToWait) {
   (void)TargetContext;
   (void)InteropContext;
@@ -334,7 +334,7 @@ static ur_mem_flags_t getMemObjCreationFlags(void *UserPtr,
   return Result;
 }
 
-void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
+void *MemoryManager::allocateImageObject(context_impl *TargetContext,
                                          void *UserPtr, bool HostPtrReadOnly,
                                          const ur_image_desc_t &Desc,
                                          const ur_image_format_t &Format,
@@ -351,7 +351,7 @@ void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
 }
 
 void *
-MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
+MemoryManager::allocateBufferObject(context_impl *TargetContext, void *UserPtr,
                                     bool HostPtrReadOnly, const size_t Size,
                                     const sycl::property_list &PropsList) {
   ur_mem_flags_t CreationFlags =
@@ -391,11 +391,11 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
   return NewMem;
 }
 
-void *MemoryManager::allocateMemBuffer(ContextImplPtr TargetContext,
+void *MemoryManager::allocateMemBuffer(context_impl *TargetContext,
                                        SYCLMemObjI *MemObj, void *UserPtr,
                                        bool HostPtrReadOnly, size_t Size,
                                        const EventImplPtr &InteropEvent,
-                                       const ContextImplPtr &InteropContext,
+                                       context_impl *InteropContext,
                                        const sycl::property_list &PropsList,
                                        ur_event_handle_t &OutEventToWait) {
   void *MemPtr;
@@ -414,10 +414,10 @@ void *MemoryManager::allocateMemBuffer(ContextImplPtr TargetContext,
 }
 
 void *MemoryManager::allocateMemImage(
-    ContextImplPtr TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
+    context_impl *TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
     bool HostPtrReadOnly, size_t Size, const ur_image_desc_t &Desc,
     const ur_image_format_t &Format, const EventImplPtr &InteropEvent,
-    const ContextImplPtr &InteropContext, const sycl::property_list &PropsList,
+    context_impl *InteropContext, const sycl::property_list &PropsList,
     ur_event_handle_t &OutEventToWait) {
   if (!TargetContext)
     return allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size,
@@ -429,7 +429,7 @@ void *MemoryManager::allocateMemImage(
                              Format, PropsList);
 }
 
-void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
+void *MemoryManager::allocateMemSubBuffer(context_impl *TargetContext,
                                           void *ParentMemObj, size_t ElemSize,
                                           size_t Offset, range<3> Range,
                                           std::vector<EventImplPtr> DepEvents,
@@ -891,6 +891,16 @@ void MemoryManager::copy_usm(const void *SrcMem, queue_impl &SrcQueue,
                                                DepEvents.data(), OutEvent);
 }
 
+void MemoryManager::context_copy_usm(const void *SrcMem, context_impl *Context,
+                                     size_t Len, void *DstMem) {
+  if (!SrcMem || !DstMem)
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory copy operation.");
+  const AdapterPtr &Adapter = Context->getAdapter();
+  Adapter->call<UrApiKind::urUSMContextMemcpyExp>(Context->getHandleRef(),
+                                                  DstMem, SrcMem, Len);
+}
+
 void MemoryManager::fill_usm(void *Mem, queue_impl &Queue, size_t Length,
                              const std::vector<unsigned char> &Pattern,
                              std::vector<ur_event_handle_t> DepEvents,
@@ -952,7 +962,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
 
   bool SupportsUSMMemcpy2D = false;
   Adapter->call<UrApiKind::urContextGetInfo>(
-      Queue.getContextImplPtr()->getHandleRef(),
+      Queue.getContextImpl().getHandleRef(),
       UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT, sizeof(bool), &SupportsUSMMemcpy2D,
       nullptr);
 
@@ -967,7 +977,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
 
   // Otherwise we allow the special case where the copy is to or from host.
 #ifndef NDEBUG
-  context Ctx = createSyclObjFromImpl<context>(Queue.getContextImplPtr());
+  context Ctx = createSyclObjFromImpl<context>(Queue.getContextImpl());
   usm::alloc SrcAllocType = get_pointer_type(SrcMem, Ctx);
   usm::alloc DstAllocType = get_pointer_type(DstMem, Ctx);
   bool SrcIsHost =
@@ -1126,9 +1136,9 @@ getOrBuildProgramForDeviceGlobal(queue_impl &Queue,
 
   // Look for cached programs with the device_global.
   device Device = Queue.get_device();
-  ContextImplPtr ContextImpl = Queue.getContextImplPtr();
+  context_impl &ContextImpl = Queue.getContextImpl();
   std::optional<ur_program_handle_t> CachedProgram =
-      ContextImpl->getProgramForDeviceGlobal(Device, DeviceGlobalEntry);
+      ContextImpl.getProgramForDeviceGlobal(Device, DeviceGlobalEntry);
   if (CachedProgram)
     return *CachedProgram;
 
@@ -1136,7 +1146,8 @@ getOrBuildProgramForDeviceGlobal(queue_impl &Queue,
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
   ProgramManager &PM = ProgramManager::getInstance();
   RTDeviceBinaryImage &Img = PM.getDeviceImage(
-      DeviceGlobalEntry->MImages, ContextImpl, getSyclObjImpl(Device).get());
+      DeviceGlobalEntry->MImages, ContextImpl, *getSyclObjImpl(Device));
+
   device_image_plain DeviceImage =
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
   device_image_plain BuiltImage =
@@ -1218,7 +1229,7 @@ void MemoryManager::copy_from_device_global(
 
 // Command buffer methods
 void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
-    sycl::detail::ContextImplPtr Context,
+    sycl::detail::context_impl *Context,
     ur_exp_command_buffer_handle_t CommandBuffer, SYCLMemObjI *SYCLMemObj,
     void *SrcMem, unsigned int DimSrc, sycl::range<3> SrcSize,
     sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
@@ -1284,7 +1295,7 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
 }
 
 void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
-    sycl::detail::ContextImplPtr Context,
+    sycl::detail::context_impl *Context,
     ur_exp_command_buffer_handle_t CommandBuffer, SYCLMemObjI *SYCLMemObj,
     void *SrcMem, unsigned int DimSrc, sycl::range<3> SrcSize,
     sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
@@ -1360,7 +1371,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
 }
 
 void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
-    sycl::detail::ContextImplPtr Context,
+    sycl::detail::context_impl *Context,
     ur_exp_command_buffer_handle_t CommandBuffer, SYCLMemObjI *SYCLMemObj,
     char *SrcMem, unsigned int DimSrc, sycl::range<3> SrcSize,
     sycl::id<3> SrcOffset, unsigned int SrcElemSize, void *DstMem,
@@ -1438,7 +1449,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
 }
 
 void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
-    ContextImplPtr Context, const void *SrcMem,
+    context_impl *Context, const void *SrcMem,
     ur_exp_command_buffer_handle_t CommandBuffer, size_t Len, void *DstMem,
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
@@ -1461,7 +1472,7 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
 }
 
 void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
-    sycl::detail::ContextImplPtr Context,
+    sycl::detail::context_impl *Context,
     ur_exp_command_buffer_handle_t CommandBuffer, void *DstMem, size_t Len,
     const std::vector<unsigned char> &Pattern,
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,
@@ -1486,7 +1497,7 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
 }
 
 void MemoryManager::ext_oneapi_fill_cmd_buffer(
-    sycl::detail::ContextImplPtr Context,
+    sycl::detail::context_impl *Context,
     ur_exp_command_buffer_handle_t CommandBuffer, SYCLMemObjI *SYCLMemObj,
     void *Mem, size_t PatternSize, const unsigned char *Pattern,
     unsigned int Dim, sycl::range<3> Size, sycl::range<3> AccessRange,
@@ -1523,7 +1534,7 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
 }
 
 void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
-    sycl::detail::ContextImplPtr Context,
+    sycl::detail::context_impl *Context,
     ur_exp_command_buffer_handle_t CommandBuffer, void *Mem, size_t Length,
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
@@ -1534,7 +1545,7 @@ void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
 }
 
 void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
-    sycl::detail::ContextImplPtr Context,
+    sycl::detail::context_impl *Context,
     ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem,
     size_t Length, ur_usm_advice_flags_t Advice,
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,

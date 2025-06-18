@@ -33,15 +33,19 @@ thread_local bool NestedCallsDetector = false;
 class NestedCallsTracker {
 public:
   NestedCallsTracker() {
-    if (NestedCallsDetector)
+    if (NestedCallsDetectorRef)
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Calls to sycl::queue::submit cannot be nested. Command group "
           "function objects should use the sycl::handler API instead.");
-    NestedCallsDetector = true;
+    NestedCallsDetectorRef = true;
   }
 
-  ~NestedCallsTracker() { NestedCallsDetector = false; }
+  ~NestedCallsTracker() { NestedCallsDetectorRef = false; }
+
+private:
+  // Cache the TLS location to decrease amount of TLS accesses.
+  bool &NestedCallsDetectorRef = NestedCallsDetector;
 };
 
 static std::vector<ur_event_handle_t>
@@ -116,16 +120,10 @@ queue_impl::get_backend_info<info::device::backend_version>() const {
 
 static event prepareSYCLEventAssociatedWithQueue(
     const std::shared_ptr<detail::queue_impl> &QueueImpl) {
-  auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
-  EventImpl->setContextImpl(detail::getSyclObjImpl(QueueImpl->get_context()));
+  auto EventImpl = detail::event_impl::create_device_event(*QueueImpl);
+  EventImpl->setContextImpl(QueueImpl->getContextImpl());
   EventImpl->setStateIncomplete();
   return detail::createSyclObjFromImpl<event>(EventImpl);
-}
-
-static event createDiscardedEvent() {
-  EventImplPtr EventImpl =
-      std::make_shared<event_impl>(event_impl::HES_Discarded);
-  return createSyclObjFromImpl<event>(std::move(EventImpl));
 }
 
 const std::vector<event> &
@@ -310,16 +308,12 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                         const detail::code_location &Loc, bool IsTopCodeLoc,
                         const v1::SubmissionInfo &SubmitInfo) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::handler_impl HandlerImplVal(SecondaryQueue, CallerNeedsEvent);
-  detail::handler_impl *HandlerImpl = &HandlerImplVal;
-  // Inlining `Self` results in a crash when SYCL RT is built using MSVC with
-  // optimizations enabled. No crash if built using OneAPI.
-  auto Self = shared_from_this();
-  handler Handler(HandlerImpl, Self);
+  detail::handler_impl HandlerImplVal(*this, SecondaryQueue, CallerNeedsEvent);
+  handler Handler(HandlerImplVal);
 #else
   handler Handler(shared_from_this(), SecondaryQueue, CallerNeedsEvent);
-  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 #endif
+  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
@@ -351,7 +345,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
   auto noLastEventPath = !isHostTask && !isGraphSubmission &&
-                         MNoLastEventMode.load(std::memory_order_relaxed) &&
+                         MNoLastEventMode.load(std::memory_order_acquire) &&
                          !requiresPostProcess;
 
   if (noLastEventPath) {
@@ -435,7 +429,7 @@ event queue_impl::submitWithHandler(const std::vector<event> &DepEvents,
   if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
     submit_without_event(CGF, SI,
                          /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
-    return createDiscardedEvent();
+    return createSyclObjFromImpl<event>(event_impl::create_discarded_event());
   }
   return submit_with_event(CGF, SI,
                            /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
@@ -461,7 +455,7 @@ event queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
     // If we have a command graph set we need to capture the op through the
     // handler rather than by-passing the scheduler.
     if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
-                                ExpandedDepEvents, MContext)) {
+                                ExpandedDepEvents, *MContext)) {
       auto isNoEventsMode = trySwitchingToNoEventsMode();
       if (!CallerNeedsEvent && isNoEventsMode) {
         NestedCallsTracker tracker;
@@ -469,7 +463,8 @@ event queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
                   getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr);
 
-        return createDiscardedEvent();
+        return createSyclObjFromImpl<event>(
+            event_impl::create_discarded_event());
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(shared_from_this());
@@ -591,7 +586,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   void *TelemetryEvent = nullptr;
   uint64_t IId;
   std::string Name;
-  int32_t StreamID = xpti::invalid_id;
+  int32_t StreamID = xpti::invalid_id<>;
   if (xptiEnabled) {
     StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
     TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
@@ -751,9 +746,10 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
 bool queue_impl::queue_empty() const {
   // If we have in-order queue with non-empty last event, just check its status.
   if (isInOrder()) {
-    std::lock_guard<std::mutex> Lock(MMutex);
-    if (MEmpty)
+    if (MEmpty.load(std::memory_order_acquire))
       return true;
+
+    std::lock_guard<std::mutex> Lock(MMutex);
 
     if (MDefaultGraphDeps.LastEventPtr &&
         !MDefaultGraphDeps.LastEventPtr->isDiscarded())

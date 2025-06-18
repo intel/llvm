@@ -7,10 +7,10 @@
 // to int doesn't work due to sign extension, so we use type punning to
 // preserve the bit pattern and avoid sign extension.
 
-#define DEF_POPCOUNT_HELPER(TYPE, UTYPE) \
-_CLC_OVERLOAD TYPE __popcount_helper(TYPE c) { \
-  return __builtin_popcountg(*(UTYPE*)&c); \
-}
+#define DEF_POPCOUNT_HELPER(TYPE, UTYPE)                                       \
+  _CLC_OVERLOAD TYPE __popcount_helper(TYPE c) {                               \
+    return __builtin_popcountg(*(UTYPE *)&c);                                  \
+  }
 
 DEF_POPCOUNT_HELPER(char, unsigned char)
 DEF_POPCOUNT_HELPER(short, unsigned short)

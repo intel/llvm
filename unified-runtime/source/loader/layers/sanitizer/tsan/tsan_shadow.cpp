@@ -13,6 +13,7 @@
 
 #include "tsan_shadow.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
+#include "tsan_interceptor.hpp"
 
 namespace ur_sanitizer_layer {
 namespace tsan {
@@ -46,7 +47,7 @@ ur_result_t ShadowMemoryCPU::Setup() {
   return URes;
 }
 
-ur_result_t ShadowMemoryCPU::Destory() {
+ur_result_t ShadowMemoryCPU::Destroy() {
   if (ShadowBegin == 0 && ShadowEnd == 0)
     return UR_RESULT_SUCCESS;
   static ur_result_t URes = [this]() {
@@ -97,14 +98,18 @@ ur_result_t ShadowMemoryGPU::Setup() {
     return Result;
   }
   ShadowEnd = ShadowBegin + ShadowSize;
-  // Retain the context which reserves shadow memory
-  getContext()->urDdiTable.Context.pfnRetain(Context);
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ShadowMemoryGPU::Destory() {
+ur_result_t ShadowMemoryGPU::Destroy() {
   if (ShadowBegin == 0) {
     return UR_RESULT_SUCCESS;
+  }
+
+  if (LocalShadowOffset != 0) {
+    UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
+                                                 (void *)LocalShadowOffset));
+    LocalShadowOffset = 0;
   }
 
   const size_t PageSize = GetVirtualMemGranularity(Context, Device);
@@ -187,6 +192,44 @@ ur_result_t ShadowMemoryGPU::CleanShadow(ur_queue_handle_t Queue, uptr Ptr,
   UR_LOG_L(getContext()->logger, DEBUG, "CleanShadow(addr={}, count={})",
            (void *)Begin, Size / kShadowCell);
 
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
+                                              uint32_t NumWG, uptr &Begin,
+                                              uptr &End) {
+  const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
+  const size_t RequiredShadowSize = NumWG * LocalMemorySize;
+  static size_t LastAllocatedSize = 0;
+  if (RequiredShadowSize > LastAllocatedSize) {
+    if (LocalShadowOffset) {
+      UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
+                                                   (void *)LocalShadowOffset));
+      LocalShadowOffset = 0;
+      LastAllocatedSize = 0;
+    }
+
+    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        Context, Device, nullptr, nullptr, RequiredShadowSize,
+        (void **)&LocalShadowOffset));
+
+    // Initialize shadow memory
+    ur_result_t URes = EnqueueUSMBlockingSet(Queue, (void *)LocalShadowOffset,
+                                             0, RequiredShadowSize);
+    if (URes != UR_RESULT_SUCCESS) {
+      UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
+                                                   (void *)LocalShadowOffset));
+      LocalShadowOffset = 0;
+      LastAllocatedSize = 0;
+
+      return URes;
+    }
+
+    LastAllocatedSize = RequiredShadowSize;
+  }
+
+  Begin = LocalShadowOffset;
+  End = LocalShadowOffset + RequiredShadowSize - 1;
   return UR_RESULT_SUCCESS;
 }
 

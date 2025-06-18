@@ -269,7 +269,7 @@ public:
       // ->call<>() instead of ->call_nocheck<>() above.
       if (status != UR_RESULT_SUCCESS &&
           status != UR_RESULT_ERROR_UNINITIALIZED) {
-        __SYCL_CHECK_UR_CODE_NO_EXC(status);
+        __SYCL_CHECK_UR_CODE_NO_EXC(status, getAdapter()->getBackend());
       }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
@@ -294,6 +294,8 @@ public:
   const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
+
+  context_impl &getContextImpl() const { return *MContext; }
 
   device_impl &getDeviceImpl() const { return MDevice; }
 
@@ -648,8 +650,11 @@ public:
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
-  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
+  static ContextImplPtr getContext(queue_impl *Queue) {
     return Queue ? Queue->getContextImplPtr() : nullptr;
+  }
+  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
+    return getContext(Queue.get());
   }
 
   // Must be called under MMutex protection
@@ -663,7 +668,7 @@ public:
   /// will wait for the completion of all work in the queue at the time of the
   /// insertion, but will not act as a barrier unless the queue is in-order.
   EventImplPtr insertMarkerEvent() {
-    auto ResEvent = std::make_shared<detail::event_impl>(shared_from_this());
+    auto ResEvent = detail::event_impl::create_device_event(*this);
     ur_event_handle_t UREvent = nullptr;
     getAdapter()->call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
                                                        nullptr, &UREvent);
@@ -687,10 +692,11 @@ public:
 protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
-    auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);
+    auto &Queue = Handler.impl->get_queue();
+    auto ResEvent = detail::event_impl::create_device_event(Queue);
     ur_event_handle_t UREvent = nullptr;
     getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-        Handler.MQueue->getHandleRef(), 0, nullptr, &UREvent);
+        Queue.getHandleRef(), 0, nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;
   }
@@ -706,7 +712,11 @@ protected:
   }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-#define parseEvent(arg) (arg)
+  inline const detail::EventImplPtr &
+  parseEvent(const detail::EventImplPtr &Event) {
+    assert(!Event || !Event->isDiscarded());
+    return Event;
+  }
 #else
   inline detail::EventImplPtr parseEvent(const event &Event) {
     const detail::EventImplPtr &EventImpl = getSyclObjImpl(Event);
@@ -722,7 +732,7 @@ protected:
       return false;
 
     if (MDefaultGraphDeps.LastEventPtr != nullptr &&
-        !Scheduler::CheckEventReadiness(MContext,
+        !Scheduler::CheckEventReadiness(*MContext,
                                         MDefaultGraphDeps.LastEventPtr))
       return false;
 
@@ -735,15 +745,19 @@ protected:
   detail::EventImplPtr
   finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
     assert(isInOrder());
-    assert(MGraph.expired());
-    assert(MDefaultGraphDeps.LastEventPtr == nullptr);
-    assert(MNoLastEventMode);
 
-    MEmpty = false;
+    MEmpty.store(false, std::memory_order_release);
 
     synchronizeWithExternalEvent(Handler);
 
-    return parseEvent(Handler.finalize());
+    auto Event = parseEvent(Handler.finalize());
+
+    if (Event && !Scheduler::CheckEventReadiness(*MContext, Event)) {
+      MDefaultGraphDeps.LastEventPtr = Event;
+      MNoLastEventMode.store(false, std::memory_order_relaxed);
+    }
+
+    return Event;
   }
 
   template <typename HandlerType = handler>
@@ -826,7 +840,7 @@ protected:
     const CGType Type = getSyclObjImpl(Handler)->MCGType;
     std::lock_guard<std::mutex> Lock{MMutex};
 
-    MEmpty = false;
+    MEmpty.store(false, std::memory_order_release);
 
     // The following code supports barrier synchronization if host task is
     // involved in the scenario. Native barriers cannot handle host task
@@ -1048,7 +1062,7 @@ protected:
   std::atomic<bool> MNoLastEventMode = false;
 
   // Used exclusively in getLastEvent and queue_empty() implementations
-  bool MEmpty = true;
+  std::atomic<bool> MEmpty = true;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
   std::mutex MStreamsServiceEventsMutex;
