@@ -27,7 +27,7 @@
       UR_LOG(QUIET, "UR ---> {}", #Call);                                      \
     Res = (Call);                                                              \
     if (PrintTrace)                                                            \
-      UR_LOG(QUIET, "UR <--- {}({})", #Call, getUrResultString(Res));          \
+      UR_LOG(QUIET, "UR <--- {}({})", #Call, Res);                             \
     if (Res != UR_RESULT_SUCCESS)                                              \
       break;                                                                   \
   }
