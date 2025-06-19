@@ -131,7 +131,7 @@ ur_result_t urSamplerRetain(
 ur_result_t urSamplerRelease(
     /// [in] handle of the sampler object to release
     ur_sampler_handle_t Sampler) {
-  if (!Sampler->decrementRefCount() == 0)
+  if (!Sampler->decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   if (checkL0LoaderTeardown()) {

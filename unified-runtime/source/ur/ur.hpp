@@ -232,6 +232,7 @@ template <typename getddi> struct handle_base {
   uint32_t getRefCount() const noexcept { return Count.load(); }
   uint32_t incrementRefCount() { return ++Count; }
   uint32_t decrementRefCount() { return --Count; }
+  bool decrementAndTest() { return --Count == 0; }
   void resetRefCount() { Count = 1; }
 
 private:

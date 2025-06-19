@@ -691,7 +691,7 @@ ur_result_t urMemRetain(ur_mem_handle_t hMem) try {
 }
 
 ur_result_t urMemRelease(ur_mem_handle_t hMem) try {
-  if (!hMem->getObject()->decrementRefCount() == 0)
+  if (!hMem->getObject()->decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   delete hMem;
