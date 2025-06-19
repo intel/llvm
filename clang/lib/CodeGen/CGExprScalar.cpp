@@ -1863,9 +1863,11 @@ ScalarExprEmitter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
   ASTContext &Context = CGF.getContext();
   std::optional<LangAS> GlobalAS =
       Context.getTargetInfo().getConstantAddressSpace();
+  LangAS AS = GlobalAS.value_or(LangAS::Default);
   llvm::Constant *GlobalConstStr = Builder.CreateGlobalStringPtr(
       E->ComputeName(Context), "__usid_str",
-      static_cast<unsigned>(GlobalAS.value_or(LangAS::Default)));
+      isTargetAddressSpace(AS) ? toTargetAddressSpace(AS)
+                               : static_cast<unsigned>(AS));
 
   unsigned ExprAS = CGF.CGM.getTypes().getTargetAddressSpace(E->getType());
 
