@@ -275,7 +275,7 @@ public:
       sycl::ext::oneapi::bfloat16 floatValue;
     };
     floatValue = *ExtractP;
-    return __devicelib_ConvertBF16ToFINTEL(intStorage);
+    return __spirv_ConvertBF16ToFINTEL(intStorage);
 
 #else
     throw exception(make_error_code(errc::runtime),
