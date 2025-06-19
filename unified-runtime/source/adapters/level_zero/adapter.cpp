@@ -667,7 +667,7 @@ ur_result_t urAdapterGet(
     uint32_t *NumAdapters) {
   if (NumEntries > 0 && Adapters) {
     if (GlobalAdapter) {
-      if (GlobalAdapter->incrementRefCount() == 0) {
+      if (GlobalAdapter->incrementRefCount() == 1) {
         adapterStateInit();
       }
     } else {
@@ -675,7 +675,7 @@ ur_result_t urAdapterGet(
       // then temporarily create a new Adapter handle and register a new
       // cleanup.
       GlobalAdapter = new ur_adapter_handle_t_();
-      if (GlobalAdapter->incrementRefCount() == 0) {
+      if (GlobalAdapter->incrementRefCount() == 1) {
         adapterStateInit();
       }
       std::atexit(globalAdapterOnDemandCleanup);
