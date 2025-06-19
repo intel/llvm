@@ -357,7 +357,7 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
                                                     uptr &Begin, uptr &End) {
   // Trying to allocate private base array and private shadow, and any one of
   // them fail to allocate would be a failure
-  ur_result_t UrRes;
+  ur_result_t UrRes = UR_RESULT_SUCCESS;
   static size_t LastPrivateBaseAllocedSize = 0;
   static size_t LastPrivateShadowAllocedSize = 0;
 
