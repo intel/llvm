@@ -9,7 +9,7 @@
 #define __SYCL_GRAPH_IMPL_CPP
 
 #include "graph_node_impl.hpp"
-#include <detail/graph_impl.hpp> // for graph_impl
+#include "graph_impl.hpp" // for graph_impl
 
 namespace sycl {
 inline namespace _V1 {

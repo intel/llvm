@@ -37,6 +37,56 @@ namespace detail {
 class node_impl;
 class graph_impl;
 
+class dynamic_command_group_impl
+    : public std::enable_shared_from_this<dynamic_command_group_impl> {
+public:
+  dynamic_command_group_impl(
+      const command_graph<graph_state::modifiable> &Graph);
+
+  /// Returns the index of the active command-group
+  size_t getActiveIndex() const { return MActiveCGF; }
+
+  /// Returns the number of CGs in the dynamic command-group.
+  size_t getNumCGs() const { return MCommandGroups.size(); }
+
+  /// Set the index of the active command-group.
+  /// @param Index The new index.
+  void setActiveIndex(size_t Index);
+
+  /// Instantiates a command-group object for each CGF in the list.
+  /// @param CGFList List of CGFs to finalize with a handler into CG objects.
+  void
+  finalizeCGFList(const std::vector<std::function<void(handler &)>> &CGFList);
+
+  /// Retrieve CG at the currently active index
+  /// @param Shared pointer to the active CG object.
+  std::shared_ptr<sycl::detail::CG> getActiveCG() const {
+    return MCommandGroups[MActiveCGF];
+  }
+
+  /// Graph this dynamic command-group is associated with.
+  std::shared_ptr<graph_impl> MGraph;
+
+  /// Index of active command-group
+  std::atomic<size_t> MActiveCGF;
+
+  /// List of command-groups for dynamic command-group nodes
+  std::vector<std::shared_ptr<sycl::detail::CG>> MCommandGroups;
+
+  /// List of nodes using this dynamic command-group.
+  std::vector<std::weak_ptr<node_impl>> MNodes;
+
+  unsigned long long getID() const { return MID; }
+
+  /// Type of the CGs in this dynamic command-group
+  sycl::detail::CGType MCGType = sycl::detail::CGType::None;
+
+private:
+  unsigned long long MID;
+  // Used for std::hash in order to create a unique hash for the instance.
+  inline static std::atomic<unsigned long long> NextAvailableID = 0;
+};
+
 class dynamic_parameter_impl {
 public:
   dynamic_parameter_impl()
@@ -185,57 +235,7 @@ public:
   void updateCGLocalAccessor(std::shared_ptr<sycl::detail::CG> &CG,
                              int ArgIndex, range<3> NewAllocationSize);
 
-  detail::LocalAccessorImplHost LAccImplHost;
-};
-
-class dynamic_command_group_impl
-    : public std::enable_shared_from_this<dynamic_command_group_impl> {
-public:
-  dynamic_command_group_impl(
-      const command_graph<graph_state::modifiable> &Graph);
-
-  /// Returns the index of the active command-group
-  size_t getActiveIndex() const { return MActiveCGF; }
-
-  /// Returns the number of CGs in the dynamic command-group.
-  size_t getNumCGs() const { return MCommandGroups.size(); }
-
-  /// Set the index of the active command-group.
-  /// @param Index The new index.
-  void setActiveIndex(size_t Index);
-
-  /// Instantiates a command-group object for each CGF in the list.
-  /// @param CGFList List of CGFs to finalize with a handler into CG objects.
-  void
-  finalizeCGFList(const std::vector<std::function<void(handler &)>> &CGFList);
-
-  /// Retrieve CG at the currently active index
-  /// @param Shared pointer to the active CG object.
-  std::shared_ptr<sycl::detail::CG> getActiveCG() const {
-    return MCommandGroups[MActiveCGF];
-  }
-
-  /// Graph this dynamic command-group is associated with.
-  std::shared_ptr<graph_impl> MGraph;
-
-  /// Index of active command-group
-  std::atomic<size_t> MActiveCGF;
-
-  /// List of command-groups for dynamic command-group nodes
-  std::vector<std::shared_ptr<sycl::detail::CG>> MCommandGroups;
-
-  /// List of nodes using this dynamic command-group.
-  std::vector<std::weak_ptr<node_impl>> MNodes;
-
-  unsigned long long getID() const { return MID; }
-
-  /// Type of the CGs in this dynamic command-group
-  sycl::detail::CGType MCGType = sycl::detail::CGType::None;
-
-private:
-  unsigned long long MID;
-  // Used for std::hash in order to create a unique hash for the instance.
-  inline static std::atomic<unsigned long long> NextAvailableID = 0;
+  sycl::detail::LocalAccessorImplHost LAccImplHost;
 };
 } // namespace detail
 } // namespace experimental
