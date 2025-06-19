@@ -848,7 +848,7 @@ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t CommandBuffer) {
 
 ur_result_t
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t CommandBuffer) {
-  if (!CommandBuffer->decrementRefCount() == 0)
+  if (!CommandBuffer->decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   UR_CALL(waitForOngoingExecution(CommandBuffer));

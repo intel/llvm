@@ -47,7 +47,7 @@ ur_result_t urPhysicalMemRetain(ur_physical_mem_handle_t hPhysicalMem) {
 }
 
 ur_result_t urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
-  if (!hPhysicalMem->decrementRefCount() == 0)
+  if (!hPhysicalMem->decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   if (checkL0LoaderTeardown()) {

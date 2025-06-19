@@ -1088,7 +1088,7 @@ ur_event_handle_t_::~ur_event_handle_t_() {
 
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
                                    bool *isEventDeleted) {
-  if (!Event->decrementRefCount() == 0)
+  if (!Event->decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   if (Event->OriginAllocEvent) {

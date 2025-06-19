@@ -97,7 +97,7 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(
 }
 
 ur_result_t ur_kernel_handle_t_::release() {
-  if (!decrementRefCount() == 0)
+  if (!decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   // manually release kernels to allow errors to be propagated

@@ -565,7 +565,7 @@ ur_result_t urProgramRetain(
 ur_result_t urProgramRelease(
     /// [in] handle for the Program to release
     ur_program_handle_t Program) {
-  if (!Program->decrementRefCount() == 0)
+  if (!Program->decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   delete Program;
@@ -1115,7 +1115,7 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
   // must be destroyed before the Module can be destroyed.  So, be sure
   // to destroy build log before destroying the module.
   if (!deletion) {
-    if (!decrementRefCount() == 0) {
+    if (!decrementAndTest()) {
       return;
     }
   }

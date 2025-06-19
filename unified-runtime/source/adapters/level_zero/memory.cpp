@@ -1642,7 +1642,7 @@ ur_result_t urMemRetain(
 ur_result_t urMemRelease(
     /// [in] handle of the memory object to release
     ur_mem_handle_t Mem) {
-  if (!Mem->decrementRefCount() == 0)
+  if (!Mem->decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   if (Mem->isImage()) {
