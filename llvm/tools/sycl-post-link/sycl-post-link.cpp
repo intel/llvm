@@ -219,6 +219,9 @@ cl::opt<bool> EmitProgramMetadata{"emit-program-metadata",
                                   cl::desc("emit SYCL program metadata"),
                                   cl::cat(PostLinkCat)};
 
+cl::opt<bool> EmitKernelNames{
+    "emit-kernel-names", cl::desc("emit kernel names"), cl::cat(PostLinkCat)};
+
 cl::opt<bool> EmitExportedSymbols{"emit-exported-symbols",
                                   cl::desc("emit exported symbols"),
                                   cl::cat(PostLinkCat)};
@@ -402,8 +405,8 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
     auto CopyTriple = BaseTriple;
     if (DoPropGen) {
       GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
-                                   EmitExportedSymbols, EmitImportedSymbols,
-                                   DeviceGlobals};
+                                   EmitKernelNames,     EmitExportedSymbols,
+                                   EmitImportedSymbols, DeviceGlobals};
       CopyTriple.Prop =
           saveModuleProperties(MD, Props, I, Suffix, OutputFile.Target);
     }
@@ -811,6 +814,7 @@ int main(int argc, char **argv) {
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
   bool DoParamInfo = EmitKernelParamInfo.getNumOccurrences() > 0;
   bool DoProgMetadata = EmitProgramMetadata.getNumOccurrences() > 0;
+  bool DoKernelNames = EmitKernelNames.getNumOccurrences() > 0;
   bool DoExportedSyms = EmitExportedSymbols.getNumOccurrences() > 0;
   bool DoImportedSyms = EmitImportedSymbols.getNumOccurrences() > 0;
   bool DoDeviceGlobals = DeviceGlobals.getNumOccurrences() > 0;
@@ -818,8 +822,8 @@ int main(int argc, char **argv) {
       GenerateDeviceImageWithDefaultSpecConsts.getNumOccurrences() > 0;
 
   if (!DoSplit && !DoSpecConst && !DoSymGen && !DoPropGen && !DoParamInfo &&
-      !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms && !DoImportedSyms &&
-      !DoDeviceGlobals && !DoLowerEsimd) {
+      !DoProgMetadata && !DoSplitEsimd && !DoKernelNames && !DoExportedSyms &&
+      !DoImportedSyms && !DoDeviceGlobals && !DoLowerEsimd) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
@@ -850,6 +854,11 @@ int main(int argc, char **argv) {
   }
   if (IROutputOnly && DoProgMetadata) {
     errs() << "error: -" << EmitProgramMetadata.ArgStr << " can't be used with"
+           << " -" << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
+  if (IROutputOnly && DoKernelNames) {
+    errs() << "error: -" << EmitKernelNames.ArgStr << " can't be used with"
            << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
