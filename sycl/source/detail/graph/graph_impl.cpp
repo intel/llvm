@@ -9,10 +9,10 @@
 #define __SYCL_GRAPH_IMPL_CPP
 
 #include "graph_impl.hpp"
+#include "graph_dynamic_impl.hpp" // for dynamic classes
+#include "graph_node_impl.hpp"    // for node_impl
 #include <detail/cg.hpp> // for CG, CGExecKernel, CGHostTask, ArgDesc, NDRDescT
 #include <detail/event_impl.hpp>                      // for event_impl
-#include <detail/graph_dynamic_impl.hpp>              // for dynamic classes
-#include <detail/graph_node_impl.hpp>                 // for node_impl
 #include <detail/handler_impl.hpp>                    // for handler_impl
 #include <detail/kernel_arg_mask.hpp>                 // for KernelArgMask
 #include <detail/kernel_impl.hpp>                     // for kernel_impl
@@ -302,25 +302,6 @@ void exec_graph_impl::makePartitions() {
   for (auto &Node : MNodeStorage) {
     Node->MPartitionNum = -1;
   }
-}
-
-static void checkGraphPropertiesAndThrow(const property_list &Properties) {
-  auto CheckDataLessProperties = [](int PropertyKind) {
-#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
-  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
-    return true;
-#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
-    switch (PropertyKind) {
-#include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.def>
-
-    default:
-      return false;
-    }
-  };
-  // No properties with data for graph now.
-  auto NoAllowedPropertiesCheck = [](int) { return false; };
-  sycl::detail::PropertyValidator::checkPropsAndThrow(
-      Properties, CheckDataLessProperties, NoAllowedPropertiesCheck);
 }
 
 graph_impl::graph_impl(const sycl::context &SyclContext,

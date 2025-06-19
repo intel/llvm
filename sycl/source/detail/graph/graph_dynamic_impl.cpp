@@ -9,13 +9,13 @@
 #define __SYCL_GRAPH_DYNAMIC_PARAM_IMPL_CPP
 
 #include "graph_dynamic_impl.hpp"
+#include "graph_node_impl.hpp"         // for NodeShared
 #include <detail/cg.hpp>               // for CG
-#include <detail/graph_node_impl.hpp>  // for NodeShared
 #include <detail/handler_impl.hpp>     // for handler_impl
 #include <detail/sycl_mem_obj_t.hpp>   // for SYCLMemObjT
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for checkGraphPropertiesAndThrow
-#include <sycl/ext/oneapi/experimental/graph.hpp> // for command_graph
+#include <sycl/ext/oneapi/experimental/graph/command_graph.hpp> // for command_graph
 
 namespace sycl {
 inline namespace _V1 {

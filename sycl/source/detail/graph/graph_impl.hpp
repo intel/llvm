@@ -8,12 +8,11 @@
 
 #pragma once
 
+#include "graph_memory_pool.hpp"    // for graph_mem_pool
+#include "graph_node_impl.hpp"      // for node_impl
+#include <detail/event_impl.hpp>    // for event_impl
 #include <sycl/detail/cg_types.hpp> // for CGType
 #include <sycl/detail/os_util.hpp>  // for OS utils
-
-#include <detail/event_impl.hpp>        // for event_impl
-#include <detail/graph_memory_pool.hpp> // for graph_mem_pool
-#include <detail/graph_node_impl.hpp>   // for node_impl
 
 #include <fstream>      // for fstream
 #include <functional>   // for function
