@@ -12,18 +12,11 @@ using namespace sycl;
 
 // Add declarations again to test the compiler with multiple declarations of the
 // same free function kernel in the translation unit.
-void func(accessor<int, 1> acc) {
-}
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<1>))
 void SumKernel::sum(accessor<int, 1> accA, accessor<int, 1> accB,
                     accessor<int, 1> result);
-
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    (ext::oneapi::experimental::nd_range_kernel<1>))
-void OtherKernel(accessor<int, 1> accA) {};
-
 
 constexpr size_t SIZE = 16;
 
