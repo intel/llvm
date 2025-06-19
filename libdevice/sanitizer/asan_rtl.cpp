@@ -921,12 +921,12 @@ __asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
       launch_info->PrivateBase == 0)
     return;
   // Only set on the first sub-group item
-  if (__spirv_BuiltInSubgroupLocalInvocationId != 0)
-    return;
-  const size_t sid = SubGroupLinearId();
-  launch_info->PrivateBase[sid] = (uptr)ptr;
+  if (__spirv_BuiltInSubgroupLocalInvocationId == 0) {
+    const size_t sid = SubGroupLinearId();
+    launch_info->PrivateBase[sid] = (uptr)ptr;
+    ASAN_DEBUG(__spirv_ocl_printf(__asan_print_private_base, sid, ptr));
+  }
   SubGroupBarrier();
-  ASAN_DEBUG(__spirv_ocl_printf(__asan_print_private_base, sid, ptr));
 }
 
 #endif // __SPIR__ || __SPIRV__
