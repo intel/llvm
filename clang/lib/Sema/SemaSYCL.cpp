@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This implements Semantic Analysis for SYCL constructs.
 //===----------------------------------------------------------------------===//
-
+#include <iostream>
 #include "clang/Sema/SemaSYCL.h"
 #include "TreeTransform.h"
 #include "clang/AST/AST.h"
@@ -3044,7 +3044,6 @@ public:
             : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
-
     // Don't do -1 here because we count on this to be the first parameter added
     // (if any).
     size_t ParamIndex = Params.size();
@@ -5393,12 +5392,11 @@ void SemaSYCL::SetSYCLKernelNames() {
 
     getSyclIntegrationHeader().updateKernelNames(Pair.first, KernelName,
                                                  StableName);
-
-    // Set name of generated kernel.
-    Pair.second->setDeclName(&getASTContext().Idents.get(KernelName));
-    // Update the AsmLabel for this generated kernel.
-    Pair.second->addAttr(
-        AsmLabelAttr::CreateImplicit(getASTContext(), KernelName));
+      // Set name of generated kernel.
+      Pair.second->setDeclName(&getASTContext().Idents.get(KernelName));
+      // Update the AsmLabel for this generated kernel.
+      Pair.second->addAttr(
+          AsmLabelAttr::CreateImplicit(getASTContext(), KernelName));
   }
 }
 
@@ -5534,6 +5532,16 @@ static bool checkAndAddRegisteredKernelName(SemaSYCL &S, FunctionDecl *FD,
     }
   }
   return true;
+}
+
+void SemaSYCL::finalizeFreeFunctionKernels() {
+  // This is called at the end of the translation unit. The kernels that appear
+  // in this list are kernels that have been declared but not defined. Since the
+  // semantic actions rely on the declaration rather than definition we can
+  // proceed to process them at this stage as if they were defined.
+  for (FunctionDecl *kernel : FreeFunctionDeclarations) {
+    ProcessFreeFunction(kernel);
+  }
 }
 
 void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
@@ -5873,40 +5881,27 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
   return false;
 }
 
-void SemaSYCL::ProcessFreeFunctionForwardDeclaration(FunctionDecl *FD) {
-  // This is a forward declaration for a free function kernel.
-  // At this point in time, we have all the information needed by the
-  // Integration Header for this kernel so do it. More specifically, add the
-  // KernelDesc corresponding to this decl to the header. In case we see a
-  // definition later, this KernelDesc is removed in favor of the declaration
-  // that is an actual definition which is done in
-  // ProcessFreeFunctionDefinition.
+void SemaSYCL::ProcessFreeFunctionDeclaration(FunctionDecl *FD) {
+  // FD represents a forward declaration of a free function kernel.
+  // Save them for the end of the translation unit action. This makes it easier
+  // to handle the case where a definition is defined later and
+  // also makes sure that special types are fully defined in the AST so that
+  // the semantics step can reference its __init method.
+  if (isFreeFunction(FD))
+    FreeFunctionDeclarations.emplace_back(FD);
+}
+
+void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
     if (CheckFreeFunctionDiagnostics(SemaRef, FD))
       return;
-    std::unique_ptr<MangleContext> MangleCtx(
-        getASTContext().createMangleContext());
-    std::string Name;
-    std::string MangledName;
-    std::tie(Name, MangledName) =
-        constructFreeFunctionKernelName(*this, FD, *MangleCtx);
-    StringRef KernelName = Name;
-    StringRef StableName = MangledName;
-    KernelObjVisitor Visitor{*this};
-    SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
-                                          FD->getType(), FD);
-    getSyclIntegrationHeader().updateKernelNames(FD, KernelName, StableName);
-    Visitor.VisitFunctionParameters(FD, int_header);
-  }
-}
 
-void SemaSYCL::ProcessFreeFunctionDefinition(FunctionDecl *FD) {
-  if (isFreeFunction(FD)) {
     // In case the free function kernel has already been seen by way of a
     // forward declaration, flush it out because a definition takes priority.
-    const bool seen = getSyclIntegrationHeader().removeFreeFunctionKernel(FD);
-    if (!seen && CheckFreeFunctionDiagnostics(SemaRef, FD))
-      return;
+    llvm::erase_if(FreeFunctionDeclarations, [FD](FunctionDecl *decl) {
+      return decl->getCanonicalDecl() == FD->getCanonicalDecl();
+    });
+
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
     SyclKernelUnionChecker UnionChecker(*this);
@@ -7189,20 +7184,6 @@ void SYCLIntegrationHeader::startKernel(const FunctionDecl *SyclKernel,
                                         bool IsUnnamedKernel, int64_t ObjSize) {
   KernelDescs.emplace_back(SyclKernel, KernelNameType, KernelLocation,
                            IsESIMDKernel, IsUnnamedKernel, ObjSize);
-}
-
-bool SYCLIntegrationHeader::isSameFreeFunctionKernel(
-    const FunctionDecl *FD1, const FunctionDecl *FD2) const {
-  std::unique_ptr<MangleContext> MangleCtx(
-      S.getASTContext().createMangleContext());
-  std::string MangledName1;
-  std::string MangledName2;
-  std::tie(std::ignore, MangledName1) =
-      constructFreeFunctionKernelName(S, FD1, *MangleCtx);
-  std::tie(std::ignore, MangledName2) =
-      constructFreeFunctionKernelName(S, FD2, *MangleCtx);
-
-  return MangledName1 == MangledName2;
 }
 
 void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,

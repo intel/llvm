@@ -11178,7 +11178,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   if (LangOpts.SYCLIsDevice && !NewFD->isDependentContext() &&
       !D.isRedeclaration() &&
       D.getFunctionDefinitionKind() == FunctionDefinitionKind::Declaration)
-    SYCL().ProcessFreeFunctionForwardDeclaration(NewFD);
+    SYCL().ProcessFreeFunctionDeclaration(NewFD);
 
   return NewFD;
 }
@@ -16823,7 +16823,7 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
 
   // Handle free functions.
   if (LangOpts.SYCLIsDevice && Body && !FD->isDependentContext())
-    SYCL().ProcessFreeFunctionDefinition(FD);
+    SYCL().ProcessFreeFunction(FD);
 
   return dcl;
 }
