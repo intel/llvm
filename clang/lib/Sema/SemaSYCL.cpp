@@ -3044,6 +3044,7 @@ public:
             : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
+
     // Don't do -1 here because we count on this to be the first parameter added
     // (if any).
     size_t ParamIndex = Params.size();
