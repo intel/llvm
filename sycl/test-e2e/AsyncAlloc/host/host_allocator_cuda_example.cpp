@@ -45,11 +45,6 @@ int main() {
   size_t Width = 16;
   std::vector<char> Out(Width);
 
-#ifdef MEM_REUSE_CHECK
-  std::vector<char> Expected = {0,  3,  6,  9,  12, 15, 18, 21,
-                                16, 19, 22, 25, 12, 14, 16, 18};
-#endif
-
   try {
     // Check aspect
     bool AsyncSupport = Dev.has(sycl::aspect::ext_oneapi_async_memory_alloc);
@@ -78,8 +73,28 @@ int main() {
           });
     });
 
+    /* clang-format off */
+    /*
+                              FirstAlloc(size=16)
+                                 |
+                                 ⌄
+      Allocation at this point: {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+
+    */
+    /* clang-format on */
+
     // Free memory back to pool
     syclexp::async_free(Q, FirstAlloc);
+
+    /* clang-format off */
+    /*
+                              Free Memory(size=16)
+                                 |
+                                 ⌄
+      Allocation at this point: {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+
+    */
+    /* clang-format on */
 
     // <--- Second allocation, use, and free --->
     size_t SecondAllocationWidth = 8;
@@ -98,6 +113,16 @@ int main() {
           });
     });
 
+    /* clang-format off */
+    /*
+                              SecondAlloc(size=8)          Free Memory(size=8)
+                                 |                          |
+                                 ⌄                          ⌄
+      Allocation at this point: {0, 2, 4, 6, 8, 10, 12, 14, 8, 9, 10, 11, 12, 13, 14, 15}
+
+    */
+    /* clang-format on */
+
     // <--- Third allocation, use, and free --->
     size_t ThirdAllocationWidth = 4;
     // Re-use allocation in pool
@@ -114,6 +139,17 @@ int main() {
                 *((char *)ThirdAlloc + Dim0) + static_cast<char>(Dim0);
           });
     });
+
+    /* clang-format off */
+    /*
+                                                          ThirdAlloc(size=4)  
+                              SecondAlloc(size=8)           |             Free Memory(size=4)
+                                 |                          |              |
+                                 ⌄                          ⌄              ⌄
+      Allocation at this point: {0, 2, 4, 6, 8, 10, 12, 14, 8, 10, 12, 14, 12, 13, 14, 15}
+
+    */
+    /* clang-format on */
 
     // <--- Forth allocation, use, and free --->
     size_t ForthAllocationWidth = 4;
@@ -132,9 +168,30 @@ int main() {
           });
     });
 
+    /* clang-format off */
+    /*
+                                                          ThirdAlloc(size=4)  
+                              SecondAlloc(size=8)           |             ForthAlloc(size=4)
+                                 |                          |              |
+                                 ⌄                          ⌄              ⌄
+      Allocation at this point: {0, 2, 4, 6, 8, 10, 12, 14, 8, 10, 12, 14, 12, 14, 16, 18}
+
+    */
+    /* clang-format on */
+
     // Free memory back to pool
     syclexp::async_free(Q, ThirdAlloc);
     syclexp::async_free(Q, SecondAlloc);
+
+    /* clang-format off */
+    /*  
+                              FreeMemory(size=12)                        ForthAlloc(size=4)
+                                 |                                         |
+                                 ⌄                                         ⌄
+      Allocation at this point: {0, 2, 4, 6, 8, 10, 12, 14, 8, 10, 12, 14, 12, 14, 16, 18}
+
+    */
+    /* clang-format on */
 
     // <--- Fifth allocation, use, and free --->
     size_t FifthAllocationWidth = 12;
@@ -153,11 +210,31 @@ int main() {
           });
     });
 
+    /* clang-format off */
+    /*  
+                              FifthAlloc(size=12)                        ForthAlloc(size=4)
+                                 |                                           |
+                                 ⌄                                           ⌄
+      Allocation at this point: {0, 3, 6, 9, 12, 15, 18, 21, 16, 19, 22, 25, 12, 14, 16, 18}
+
+    */
+    /* clang-format on */
+
     Q.memcpy(Out.data(), FifthAlloc, Width);
 
     // Free memory back to pool
     syclexp::async_free(Q, ForthAlloc);
     syclexp::async_free(Q, FifthAlloc);
+
+    /* clang-format off */
+    /*  
+                              FreeMemory(size=16)                      
+                                 |                                           
+                                 ⌄                                           
+      Allocation at this point: {0, 3, 6, 9, 12, 15, 18, 21, 16, 19, 22, 25, 12, 14, 16, 18}
+
+    */
+    /* clang-format on */
 
     // Wait and thus release memory back to OS
     Q.wait_and_throw();
@@ -169,6 +246,11 @@ int main() {
     std::cerr << "Unknown exception caught!\n";
     return 3;
   }
+
+#ifdef MEM_REUSE_CHECK
+  std::vector<char> Expected = {0,  3,  6,  9,  12, 15, 18, 21,
+                                16, 19, 22, 25, 12, 14, 16, 18};
+#endif
 
   bool Validated = true;
 #ifdef MEM_REUSE_CHECK

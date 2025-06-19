@@ -19,6 +19,21 @@
 #include "queue.hpp"
 
 /// Allocator to manage async memory allocated on the host
+/*
+The Allocator works by allocating memory on the host lazily when it is needed.
+When a user asks for allocation, the allocator would search the past memories
+that was freed for a free memory with a suitable size and return it to the user.
+If there was no free memory available with a suitable size, it will allocate a
+new memory on the host and add it to the allocations list. When a user asks to
+deallocate a memory, the allocator would just mark this memory as a free to use
+memory by won't release it to the OS until the program exits. The allocator
+would also check the memory surronding the memory that is requested to be freed,
+and if the surronding memory was also free, it will merge all the consecutive
+free memories together in one big free memory.
+
+For a step by step guide how the allocator works refer to sycl-e2e test:
+sycl/test-e2e/AsyncAlloc/host/host_allocator_cuda_example.cpp
+*/
 class host_allocator {
 public:
   host_allocator(const host_allocator &obj) = delete;
@@ -38,6 +53,10 @@ public:
     return Instance;
   }
 
+  // We search first the FreeMemories list that we have saved from previous
+  // deallocations, if there is a free memory with available size, we use it. If
+  // there isn't we allocate a new memory using urUSMHostAlloc and save it in
+  // the Allocations list.
   ur_result_t allocate(size_t size, void **ppMem) {
     std::lock_guard<std::mutex> Lock(Mtx);
     for (auto FreeMemoriesIt = FreeMemories.begin();
