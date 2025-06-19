@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This implements Semantic Analysis for SYCL constructs.
 //===----------------------------------------------------------------------===//
-#include <iostream>
+
 #include "clang/Sema/SemaSYCL.h"
 #include "TreeTransform.h"
 #include "clang/AST/AST.h"
@@ -5392,11 +5392,12 @@ void SemaSYCL::SetSYCLKernelNames() {
 
     getSyclIntegrationHeader().updateKernelNames(Pair.first, KernelName,
                                                  StableName);
-      // Set name of generated kernel.
-      Pair.second->setDeclName(&getASTContext().Idents.get(KernelName));
-      // Update the AsmLabel for this generated kernel.
-      Pair.second->addAttr(
-          AsmLabelAttr::CreateImplicit(getASTContext(), KernelName));
+
+    // Set name of generated kernel.
+    Pair.second->setDeclName(&getASTContext().Idents.get(KernelName));
+    // Update the AsmLabel for this generated kernel.
+    Pair.second->addAttr(
+        AsmLabelAttr::CreateImplicit(getASTContext(), KernelName));
   }
 }
 
