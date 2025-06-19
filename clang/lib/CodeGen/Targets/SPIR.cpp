@@ -203,7 +203,7 @@ public:
   }
 
   bool shouldEmitStaticExternCAliases() const override;
-  unsigned getOpenCLKernelCallingConv() const override;
+  unsigned getDeviceKernelCallingConv() const override;
   llvm::Type *getOpenCLType(CodeGenModule &CGM, const Type *T) const override;
   llvm::Type *
   getHLSLType(CodeGenModule &CGM, const Type *Ty,
@@ -374,7 +374,7 @@ void computeSPIRKernelABIInfo(CodeGenModule &CGM, CGFunctionInfo &FI) {
 }
 }
 
-unsigned CommonSPIRTargetCodeGenInfo::getOpenCLKernelCallingConv() const {
+unsigned CommonSPIRTargetCodeGenInfo::getDeviceKernelCallingConv() const {
   return llvm::CallingConv::SPIR_KERNEL;
 }
 
