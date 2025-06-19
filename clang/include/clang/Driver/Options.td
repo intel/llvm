@@ -7371,9 +7371,14 @@ defm sycl_allow_device_image_dependencies: BoolOptionWithoutMarshalling<"f", "sy
   PosFlag<SetTrue, [], [ClangOption], "Allow dependencies between device code images">,
   NegFlag<SetFalse, [], [ClangOption], "Do not allow dependencies between device code images (default)">>;
 
-def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">,
+def save_offload_code_EQ : Joined<["-"], "save-offload-code=">,
   Flags<[NoXarchOption]>,
-  HelpText<"Dump device code into the user provided directory.">;
+  Visibility<[ClangOption]>,
+  HelpText<"Save offload code generated during compilation into the user provided directory.">;
+def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">,
+  Alias<save_offload_code_EQ>,
+  Flags<[NoXarchOption, Deprecated]>,
+  HelpText<"Dump device code into the user provided directory. (deprecated)">;
 def fsyclbin_EQ : Joined<["-"], "fsyclbin=">, Values<"executable,object,input">,
   HelpText<"Output in the SYCLBIN binary format in the state specified by <arg> (input, object or executable (default))">;
 def fsyclbin : Flag<["-"], "fsyclbin">, Alias<fsyclbin_EQ>,
@@ -9611,6 +9616,8 @@ def : Separate<["-"], "Xmicrosoft-windows-sdk-version">,
     Alias<_SLASH_winsdkversion>;
 def : Separate<["-"], "Xmicrosoft-windows-sys-root">,
     Alias<_SLASH_winsysroot>;
+def _SLASH_Qsave_offload_code : CLJoined<"Qsave-offload-code=">, Alias<save_offload_code_EQ>,
+  HelpText<"Save offload code generated during compilation into the user provided directory.">;
 
 // Ignored:
 

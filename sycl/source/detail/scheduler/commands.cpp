@@ -1954,8 +1954,15 @@ ExecCGCommand::ExecCGCommand(
     : Command(CommandType::RUN_CG, Queue, CommandBuffer, Dependencies),
       MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CGType::CodeplayHostTask) {
-    MEvent->setSubmittedQueue(
-        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
+    queue_impl *SubmitQueue =
+        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue.get();
+    assert(SubmitQueue &&
+           "Host task command group must have a valid submit queue");
+
+    MEvent->setSubmittedQueue(SubmitQueue->weak_from_this());
+    // Initialize host profiling info if the queue has profiling enabled.
+    if (SubmitQueue->MIsProfilingEnabled)
+      MEvent->initHostProfilingInfo();
   }
   if (MCommandGroup->getType() == detail::CGType::ProfilingTag)
     MEvent->markAsProfilingTagEvent();

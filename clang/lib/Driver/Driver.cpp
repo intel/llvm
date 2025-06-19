@@ -257,7 +257,7 @@ std::string CUIDOptions::getCUID(StringRef InputFile,
 Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
                DiagnosticsEngine &Diags, std::string Title,
                IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS)
-    : Diags(Diags), VFS(std::move(VFS)), DumpDeviceCode(false), Mode(GCCMode),
+    : Diags(Diags), VFS(std::move(VFS)), SaveOffloadCode(false), Mode(GCCMode),
       SaveTemps(SaveTempsNone), BitcodeEmbed(EmbedNone),
       Offload(OffloadHostDevice), CXX20HeaderType(HeaderMode_None),
       ModulesModeCXX20(false), LTOMode(LTOK_None), OffloadLTOMode(LTOK_None),
@@ -2110,8 +2110,8 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
                     .Default(SaveTempsCwd);
   }
 
-  if (Args.getLastArg(options::OPT_fsycl_dump_device_code_EQ))
-    DumpDeviceCode = true;
+  if (Args.getLastArg(options::OPT_save_offload_code_EQ))
+    SaveOffloadCode = true;
 
   if (const Arg *A = Args.getLastArg(
           options::OPT_offload_host_only, options::OPT_offload_device_only,

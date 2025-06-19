@@ -10621,15 +10621,15 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         TCArgs.MakeArgString("--out-file-list=" + OutputFileName));
     ForeachArgs.push_back(
         TCArgs.MakeArgString("--out-replace=" + OutputFileName));
-    // If fsycl-dump-device-code is passed, put the output files from llvm-spirv
-    // into the path provided in fsycl-dump-device-code.
-    if (C.getDriver().isDumpDeviceCodeEnabled()) {
+    // If save-offload-code is passed, put the output files from llvm-spirv
+    // into the path provided in save-offload-code.
+    if (C.getDriver().isSaveOffloadCodeEnabled()) {
       SmallString<128> OutputDir;
 
-      Arg *DumpDeviceCodeArg =
-          C.getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+      Arg *SaveOffloadCodeArg =
+          C.getArgs().getLastArg(options::OPT_save_offload_code_EQ);
 
-      OutputDir = (DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "");
+      OutputDir = (SaveOffloadCodeArg ? SaveOffloadCodeArg->getValue() : "");
 
       // If the output directory path is empty, put the llvm-spirv output in the
       // current directory.
@@ -11283,9 +11283,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
 
-    if (C.getDriver().isDumpDeviceCodeEnabled()) {
+    if (C.getDriver().isSaveOffloadCodeEnabled()) {
       SmallString<128> DumpDir;
-      Arg *A = C.getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+      Arg *A = C.getArgs().getLastArg(options::OPT_save_offload_code_EQ);
       DumpDir = A ? A->getValue() : "";
       CmdArgs.push_back(
           Args.MakeArgString(Twine("-sycl-dump-device-code=") + DumpDir));
