@@ -134,6 +134,10 @@ GlobalHandler &GlobalHandler::instance() {
   return *RTGlobalObjHandler;
 }
 
+bool GlobalHandler::isInstanceAlive() {
+  return GlobalHandler::getInstancePtr();
+}
+
 template <typename T, typename... Types>
 T &GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types &&...Args) {
   const LockGuard Lock{IWL.Lock};
