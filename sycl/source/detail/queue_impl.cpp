@@ -120,16 +120,10 @@ queue_impl::get_backend_info<info::device::backend_version>() const {
 
 static event prepareSYCLEventAssociatedWithQueue(
     const std::shared_ptr<detail::queue_impl> &QueueImpl) {
-  auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
-  EventImpl->setContextImpl(detail::getSyclObjImpl(QueueImpl->get_context()));
+  auto EventImpl = detail::event_impl::create_device_event(*QueueImpl);
+  EventImpl->setContextImpl(QueueImpl->getContextImpl());
   EventImpl->setStateIncomplete();
   return detail::createSyclObjFromImpl<event>(EventImpl);
-}
-
-static event createDiscardedEvent() {
-  EventImplPtr EventImpl =
-      std::make_shared<event_impl>(event_impl::HES_Discarded);
-  return createSyclObjFromImpl<event>(std::move(EventImpl));
 }
 
 const std::vector<event> &
@@ -342,20 +336,23 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
-  auto isHostTask = Type == CGType::CodeplayHostTask;
-
-  // TODO: this shouldn't be needed but without this
-  // the legacy adapter doesn't synchronize the operations properly
-  // when non-immediate command lists are used.
-  auto isGraphSubmission = Type == CGType::ExecCommandBuffer;
+  auto isHostTask = Type == CGType::CodeplayHostTask ||
+                    (Type == CGType::ExecCommandBuffer &&
+                     HandlerImpl->MExecGraph->containsHostTask());
 
   auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
-  auto noLastEventPath = !isHostTask && !isGraphSubmission &&
+  auto noLastEventPath = !isHostTask &&
                          MNoLastEventMode.load(std::memory_order_acquire) &&
                          !requiresPostProcess;
 
   if (noLastEventPath) {
-    return finalizeHandlerInOrderNoEventsUnlocked(Handler);
+    std::unique_lock<std::mutex> Lock(MMutex);
+
+    // Check if we are still in no last event mode. There could
+    // have been a concurrent submit.
+    if (MNoLastEventMode.load(std::memory_order_relaxed)) {
+      return finalizeHandlerInOrderNoEventsUnlocked(Handler);
+    }
   }
 
   detail::EventImplPtr EventImpl;
@@ -369,7 +366,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     } else {
       std::unique_lock<std::mutex> Lock(MMutex);
 
-      if (!isGraphSubmission && trySwitchingToNoEventsMode()) {
+      if (trySwitchingToNoEventsMode()) {
         EventImpl = finalizeHandlerInOrderNoEventsUnlocked(Handler);
       } else {
         EventImpl = finalizeHandlerInOrderWithDepsUnlocked(Handler);
@@ -429,7 +426,7 @@ event queue_impl::submitWithHandler(const std::vector<event> &DepEvents,
   if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
     submit_without_event(CGF, SI,
                          /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
-    return createDiscardedEvent();
+    return createSyclObjFromImpl<event>(event_impl::create_discarded_event());
   }
   return submit_with_event(CGF, SI,
                            /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
@@ -455,7 +452,7 @@ event queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
     // If we have a command graph set we need to capture the op through the
     // handler rather than by-passing the scheduler.
     if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
-                                ExpandedDepEvents, MContext)) {
+                                ExpandedDepEvents, *MContext)) {
       auto isNoEventsMode = trySwitchingToNoEventsMode();
       if (!CallerNeedsEvent && isNoEventsMode) {
         NestedCallsTracker tracker;
@@ -463,7 +460,8 @@ event queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
                   getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr);
 
-        return createDiscardedEvent();
+        return createSyclObjFromImpl<event>(
+            event_impl::create_discarded_event());
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(shared_from_this());

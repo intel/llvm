@@ -689,9 +689,17 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
       switch (HT.getEnvironment()) {
       default: // Assume MSVC for unknown environments
       case llvm::Triple::MSVC:
-        assert(HT.getArch() == llvm::Triple::x86_64 &&
-               "Unsupported host architecture");
-        return std::make_unique<MicrosoftX86_64_SPIR64TargetInfo>(Triple, Opts);
+        switch (HT.getArch()) {
+        case llvm::Triple::aarch64:
+          return std::make_unique<MicrosoftARM64_SPIR64TargetInfo>(Triple,
+                                                                   Opts);
+        case llvm::Triple::x86_64:
+          return std::make_unique<MicrosoftX86_64_SPIR64TargetInfo>(Triple,
+                                                                    Opts);
+        default:
+          llvm::report_fatal_error(
+              "Unsupported host architecture (not x86_64 or aarch64)");
+        }
       }
     case llvm::Triple::Linux:
       if (IsFPGASubArch)
@@ -737,10 +745,17 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
       switch (HT.getEnvironment()) {
       default: // Assume MSVC for unknown environments
       case llvm::Triple::MSVC:
-        assert(HT.getArch() == llvm::Triple::x86_64 &&
-               "Unsupported host architecture");
-        return std::make_unique<MicrosoftX86_64_SPIRV64TargetInfo>(Triple,
-                                                                   Opts);
+        switch (HT.getArch()) {
+        case llvm::Triple::aarch64:
+          return std::make_unique<MicrosoftARM64_SPIRV64TargetInfo>(Triple,
+                                                                    Opts);
+        case llvm::Triple::x86_64:
+          return std::make_unique<MicrosoftX86_64_SPIRV64TargetInfo>(Triple,
+                                                                     Opts);
+        default:
+          llvm::report_fatal_error(
+              "Unsupported host architecture (not x86_64 or aarch64)");
+        }
       }
     default:
       return std::make_unique<SPIRV64TargetInfo>(Triple, Opts);
