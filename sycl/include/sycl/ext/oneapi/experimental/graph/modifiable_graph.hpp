@@ -148,19 +148,7 @@ public:
     print_graph(sycl::detail::string_view{path}, verbose);
   }
 #else
-#ifdef __SYCL_GRAPH_IMPL_CPP
-  // Magic combination found by trial and error:
-  __SYCL_EXPORT
-#if _WIN32
-  inline
-#endif
-#else
-  inline
-#endif
-      void
-      print_graph(const std::string path, bool verbose = false) const {
-    print_graph(sycl::detail::string_view{path}, verbose);
-  }
+  void print_graph(const std::string path, bool verbose = false) const;
 #endif
 
   /// Get a list of all nodes contained in this graph.
@@ -223,6 +211,7 @@ protected:
 
   static void checkNodePropertiesAndThrow(const property_list &Properties);
 };
+
 } // namespace detail
 } // namespace experimental
 } // namespace oneapi
