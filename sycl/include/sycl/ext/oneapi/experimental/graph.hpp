@@ -520,14 +520,12 @@ public:
   dynamic_parameter_base(
       const std::shared_ptr<detail::dynamic_parameter_impl> &impl);
 
-  dynamic_parameter_base(
-      sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
-          Graph);
+  dynamic_parameter_base(const sycl::ext::oneapi::experimental::command_graph<
+                         graph_state::modifiable> &Graph);
 
-  dynamic_parameter_base(
-      sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
-          Graph,
-      size_t ParamSize, const void *Data);
+  dynamic_parameter_base(const sycl::ext::oneapi::experimental::command_graph<
+                             graph_state::modifiable> &Graph,
+                         size_t ParamSize, const void *Data);
 
   /// Common Reference Semantics
   friend bool operator==(const dynamic_parameter_base &LHS,
@@ -567,7 +565,7 @@ public:
 #endif
   // TODO: Remove in next ABI breaking window
   dynamic_work_group_memory_base(
-      experimental::command_graph<graph_state::modifiable> Graph,
+      const experimental::command_graph<graph_state::modifiable> &Graph,
       size_t BufferSizeInBytes);
 
 protected:
@@ -631,14 +629,16 @@ public:
   /// @param Graph The graph associated with this object.
   /// @param Num Number of elements in the unbounded array DataT.
   dynamic_work_group_memory(
-      experimental::command_graph<graph_state::modifiable> Graph, size_t Num)
+      const experimental::command_graph<graph_state::modifiable> &Graph,
+      size_t Num)
       : detail::dynamic_work_group_memory_base(
             Graph, Num * sizeof(std::remove_extent_t<DataT>)) {}
 
 #else
-  dynamic_work_group_memory(experimental::command_graph<graph_state::modifiable>
-                            /* Graph */,
-                            size_t /* Num */) {}
+  dynamic_work_group_memory(
+      const experimental::command_graph<graph_state::modifiable> &
+      /* Graph */,
+      size_t /* Num */) {}
 #endif
 
   work_group_memory<DataT, PropertyListT> get() const {
@@ -698,16 +698,17 @@ public:
   /// @param AllocationSize The size of the local accessor.
   /// @param PropList List of properties for the underlying accessor.
   dynamic_local_accessor(
-      experimental::command_graph<graph_state::modifiable> /* Graph */,
+      const experimental::command_graph<graph_state::modifiable> & /* Graph */,
       range<Dimensions> AllocationSize, const property_list &PropList = {})
       : detail::dynamic_local_accessor_base(
             detail::convertToArrayOfN<3, 1>(AllocationSize), Dimensions,
             sizeof(DataT), PropList) {}
 #else
-  dynamic_local_accessor(experimental::command_graph<graph_state::modifiable>
-                         /* Graph */,
-                         range<Dimensions> /* AllocationSize */,
-                         const property_list & /*PropList */ = {}) {}
+  dynamic_local_accessor(
+      const experimental::command_graph<graph_state::modifiable> &
+      /* Graph */,
+      range<Dimensions> /* AllocationSize */,
+      const property_list & /*PropList */ = {}) {}
 #endif
 
   local_accessor<DataT, Dimensions> get() const {
@@ -770,8 +771,9 @@ public:
   /// Constructs a new dynamic parameter.
   /// @param Graph The graph associated with this parameter.
   /// @param Param A reference value for this parameter used for CTAD.
-  dynamic_parameter(experimental::command_graph<graph_state::modifiable> Graph,
-                    const ValueT &Param)
+  dynamic_parameter(
+      const experimental::command_graph<graph_state::modifiable> &Graph,
+      const ValueT &Param)
       : detail::dynamic_parameter_base(Graph, sizeof(ValueT), &Param) {}
 
   /// Updates this dynamic parameter and all registered nodes with a new value.
@@ -787,8 +789,9 @@ public:
 
 /// Additional CTAD deduction guides.
 template <typename ValueT>
-dynamic_parameter(experimental::command_graph<graph_state::modifiable> Graph,
-                  const ValueT &Param) -> dynamic_parameter<ValueT>;
+dynamic_parameter(
+    const experimental::command_graph<graph_state::modifiable> &Graph,
+    const ValueT &Param) -> dynamic_parameter<ValueT>;
 template <graph_state State = graph_state::modifiable>
 command_graph(const context &SyclContext, const device &SyclDevice,
               const property_list &PropList) -> command_graph<State>;
