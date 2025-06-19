@@ -266,6 +266,7 @@ private:
   llvm::DenseSet<const FunctionDecl *> SYCLKernelFunctions;
   
   llvm::SmallVector<FunctionDecl *, 8> FreeFunctionDeclarations;
+
 public:
   SemaSYCL(Sema &S);
 
