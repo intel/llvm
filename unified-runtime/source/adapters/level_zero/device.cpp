@@ -1674,7 +1674,7 @@ ur_result_t urDeviceRetain(ur_device_handle_t Device) {
 ur_result_t urDeviceRelease(ur_device_handle_t Device) {
   // Root devices are destroyed during the piTearDown process.
   if (Device->isSubDevice()) {
-    if (Device->decrementRefCount() == 0) {
+    if (Device->decrementAndTest()) {
       delete Device;
     }
   }

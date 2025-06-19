@@ -251,7 +251,7 @@ ur_device_handle_t ur_context_handle_t_::getRootDevice() const {
 // from the list of tracked contexts.
 ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
 
-  if (!Context->decrementRefCount() == 0)
+  if (!Context->decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   if (IndirectAccessTrackingEnabled) {

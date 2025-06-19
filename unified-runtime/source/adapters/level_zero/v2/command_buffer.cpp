@@ -266,7 +266,7 @@ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
 
 ur_result_t
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
-  if (!hCommandBuffer->decrementRefCount() == 0)
+  if (!hCommandBuffer->decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   if (auto executionEvent = hCommandBuffer->getExecutionEventUnlocked()) {

@@ -530,7 +530,7 @@ urUSMPoolRetain(ur_usm_pool_handle_t Pool) {
 ur_result_t
 /// [in] pointer to USM memory pool
 urUSMPoolRelease(ur_usm_pool_handle_t Pool) {
-  if (Pool->decrementRefCount() == 0) {
+  if (Pool->decrementAndTest()) {
     std::scoped_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
     Pool->Context->UsmPoolHandles.remove(Pool);
     delete Pool;
@@ -1250,7 +1250,7 @@ ur_result_t ZeMemFreeHelper(ur_context_handle_t Context, void *Ptr) {
     if (It == std::end(Context->MemAllocs)) {
       die("All memory allocations must be tracked!");
     }
-    if (!It->second.decrementRefCount() == 0) {
+    if (!It->second.decrementAndTest()) {
       // Memory can't be deallocated yet.
       return UR_RESULT_SUCCESS;
     }
@@ -1297,7 +1297,7 @@ ur_result_t USMFreeHelper(ur_context_handle_t Context, void *Ptr,
     if (It == std::end(Context->MemAllocs)) {
       die("All memory allocations must be tracked!");
     }
-    if (!It->second.decrementRefCount() == 0) {
+    if (!It->second.decrementAndTest()) {
       // Memory can't be deallocated yet.
       return UR_RESULT_SUCCESS;
     }

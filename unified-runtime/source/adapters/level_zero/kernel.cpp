@@ -946,7 +946,7 @@ ur_result_t urKernelRetain(
 ur_result_t urKernelRelease(
     /// [in] handle for the Kernel to release
     ur_kernel_handle_t Kernel) {
-  if (!Kernel->decrementRefCount() == 0)
+  if (!Kernel->decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   auto KernelProgram = Kernel->Program;

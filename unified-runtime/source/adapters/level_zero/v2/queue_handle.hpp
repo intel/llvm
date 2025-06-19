@@ -59,7 +59,7 @@ struct ur_queue_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   ur_result_t queueRelease() {
     return std::visit(
         [queueHandle = this](auto &q) {
-          if (!q.decrementRefCount() == 0)
+          if (!q.decrementAndTest())
             return UR_RESULT_SUCCESS;
           delete queueHandle;
           return UR_RESULT_SUCCESS;

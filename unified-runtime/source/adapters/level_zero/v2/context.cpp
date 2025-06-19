@@ -85,7 +85,7 @@ ur_result_t ur_context_handle_t_::retain() {
 }
 
 ur_result_t ur_context_handle_t_::release() {
-  if (!decrementRefCount() == 0)
+  if (!decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   delete this;

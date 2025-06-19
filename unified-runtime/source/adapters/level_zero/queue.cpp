@@ -612,7 +612,7 @@ ur_result_t urQueueRelease(
       // internal reference count. When the External Reference count == 0, then
       // cleanup of the queue begins and the final decrement of the internal
       // reference count is completed.
-      static_cast<void>(Queue->decrementRefCount() == 0);
+      static_cast<void>(Queue->decrementAndTest());
       return UR_RESULT_SUCCESS;
     }
 
@@ -1588,7 +1588,7 @@ void ur_queue_handle_t_::clearEndTimeRecordings() {
 }
 
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
-  if (!Queue->decrementRefCount() == 0)
+  if (!Queue->decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   for (auto &Cache : Queue->EventCaches) {
