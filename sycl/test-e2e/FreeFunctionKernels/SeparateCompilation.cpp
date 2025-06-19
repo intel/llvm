@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s %S/SumKernel.cpp %S/ProductKernel.cpp -o %t.out
+// RUN: %clangxx -fsycl %s %S/SumKernel.cc %S/ProductKernel.cc -o %t.out
 // RUN: %{run} %t.out
 
 #include "ProductKernel.hpp"
@@ -12,11 +12,18 @@ using namespace sycl;
 
 // Add declarations again to test the compiler with multiple declarations of the
 // same free function kernel in the translation unit.
+void func(accessor<int, 1> acc) {
+}
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<1>))
 void SumKernel::sum(accessor<int, 1> accA, accessor<int, 1> accB,
                     accessor<int, 1> result);
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::nd_range_kernel<1>))
+void OtherKernel(accessor<int, 1> accA) {};
+
 
 constexpr size_t SIZE = 16;
 
@@ -47,7 +54,7 @@ int main() {
   }
 
   for (int i = 0; i < SIZE; ++i) {
-    assert(result[i] == 2 * data[i]);
+    assert(result[i] == 2 * data[i] + 1);
   }
 
   {

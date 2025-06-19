@@ -1,3 +1,8 @@
+// This is not meant as a standalone test but rather as a source file that will
+// link with SeparateCompilation.cpp to check that separate compilation works
+// with free function kernels. Hence the .cc suffix to exclude it from the list
+// of picked up tests.
+
 #include "SumKernel.hpp"
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 
