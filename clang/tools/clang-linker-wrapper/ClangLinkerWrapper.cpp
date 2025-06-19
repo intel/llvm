@@ -520,7 +520,6 @@ Expected<StringRef> ptxas(StringRef InputFile, const ArgList &Args,
     return std::move(Err);
   return *TempFileOrErr;
 }
-
 } // namespace nvptx
 
 namespace amdgcn {
