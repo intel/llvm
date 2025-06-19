@@ -186,23 +186,9 @@ event_impl::event_impl(queue_impl &Queue, private_tag)
 }
 
 event_impl::event_impl(HostEventState State, private_tag) : MState(State) {
-  switch (State) {
-  case HES_Discarded:
-  case HES_Complete: {
+  MIsHostEvent = true;
+  if (State == HES_Discarded || State == HES_Complete)
     MIsFlushed = true;
-    MIsHostEvent = true;
-    break;
-  }
-  case HES_NotComplete: {
-    MIsProfilingEnabled = true;
-    MHostProfilingInfo.reset(new HostProfilingInfo());
-    if (!MHostProfilingInfo)
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::runtime),
-          "Out of host memory " +
-              codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
-  }
-  }
 }
 
 void event_impl::setQueue(queue_impl &Queue) {
@@ -215,14 +201,23 @@ void event_impl::setQueue(queue_impl &Queue) {
   MIsDefaultConstructed = false;
 }
 
+void event_impl::initHostProfilingInfo() {
+  assert(isHost() && "This must be a host event");
+  assert(MState == HES_NotComplete &&
+         "Host event must be incomplete to initialize profiling info");
+
+  std::shared_ptr<queue_impl> QueuePtr = MSubmittedQueue.lock();
+  assert(QueuePtr && "Queue must be valid to initialize host profiling info");
+  assert(QueuePtr->MIsProfilingEnabled && "Queue must have profiling enabled");
+
+  MIsProfilingEnabled = true;
+  MHostProfilingInfo = std::make_unique<HostProfilingInfo>();
+  device_impl &Device = QueuePtr->getDeviceImpl();
+  MHostProfilingInfo->setDevice(&Device);
+}
+
 void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
   MSubmittedQueue = std::move(SubmittedQueue);
-  if (MHostProfilingInfo) {
-    if (std::shared_ptr<queue_impl> QueuePtr = MSubmittedQueue.lock()) {
-      device_impl &Device = QueuePtr->getDeviceImpl();
-      MHostProfilingInfo->setDevice(&Device);
-    }
-  }
 }
 
 void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
@@ -621,12 +616,7 @@ bool event_impl::isCompleted() {
          info::event_command_status::complete;
 }
 
-void event_impl::setCommand(void *Cmd) {
-  MCommand = Cmd;
-  auto TypedCommand = static_cast<Command *>(Cmd);
-  if (TypedCommand)
-    MIsHostEvent = TypedCommand->getWorkerContext() == nullptr;
-}
+void event_impl::setCommand(void *Cmd) { MCommand = Cmd; }
 
 } // namespace detail
 } // namespace _V1
