@@ -202,7 +202,19 @@ public:
     print_graph(sycl::detail::string_view{path}, verbose);
   }
 #else
-  void print_graph(const std::string path, bool verbose = false) const;
+#ifdef __SYCL_GRAPH_IMPL_CPP
+  // Magic combination found by trial and error:
+  __SYCL_EXPORT
+#if _WIN32
+  inline
+#endif
+#else
+  inline
+#endif
+      void
+      print_graph(const std::string path, bool verbose = false) const {
+    print_graph(sycl::detail::string_view{path}, verbose);
+  }
 #endif
 
   /// Get a list of all nodes contained in this graph.
@@ -265,23 +277,6 @@ protected:
 
   static void checkNodePropertiesAndThrow(const property_list &Properties);
 };
-
-#ifndef ___INTEL_PREVIEW_BREAKING_CHANGES
-#ifdef __SYCL_GRAPH_IMPL_CPP
-// Magic combination found by trial and error:
-__SYCL_EXPORT
-#if _WIN32
-inline
-#endif
-#else
-inline
-#endif
-    void
-    modifiable_command_graph::print_graph(const std::string path,
-                                          bool verbose) const {
-  print_graph(sycl::detail::string_view{path}, verbose);
-}
-#endif
 
 // Templateless executable command-graph base class.
 class __SYCL_EXPORT executable_command_graph
