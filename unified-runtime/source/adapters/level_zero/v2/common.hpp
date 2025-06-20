@@ -106,5 +106,58 @@ HANDLE_WRAPPER_TYPE(ze_context_handle_t, zeContextDestroy)
 HANDLE_WRAPPER_TYPE(ze_command_list_handle_t, zeCommandListDestroy)
 HANDLE_WRAPPER_TYPE(ze_image_handle_t, zeImageDestroy)
 
+template <typename RawHandle, ur_result_t (*retain)(RawHandle),
+          ur_result_t (*release)(RawHandle)>
+struct ur_handle {
+  ur_handle(RawHandle handle = nullptr) : handle(handle) {
+    if (handle) {
+      retain(handle);
+    }
+  }
+
+  ur_handle(const ur_handle &) = delete;
+  ur_handle &operator=(const ur_handle &) = delete;
+
+  ur_handle(ur_handle &&rhs) {
+    this->handle = rhs.handle;
+    rhs.handle = nullptr;
+  }
+
+  ur_handle &operator=(ur_handle &&rhs) {
+    if (this == &rhs) {
+      return *this;
+    }
+
+    if (this->handle) {
+      release(this->handle);
+    }
+
+    this->handle = rhs.handle;
+    rhs.handle = nullptr;
+
+    return *this;
+  }
+
+  ~ur_handle() {
+    if (handle) {
+      release(handle);
+    }
+  }
+
+  RawHandle get() const { return handle; }
+
+  RawHandle operator->() const { return get(); }
+
+private:
+  RawHandle handle;
+};
+
+using ur_context_handle_t =
+    ur_handle<::ur_context_handle_t, ur::level_zero::urContextRetain,
+              ur::level_zero::urContextRelease>;
+using ur_device_handle_t =
+    ur_handle<::ur_device_handle_t, ur::level_zero::urDeviceRetain,
+              ur::level_zero::urDeviceRelease>;
+
 } // namespace raii
 } // namespace v2
