@@ -47,7 +47,7 @@ struct ur_command_list_manager {
   operator=(const ur_command_list_manager &src) = delete;
   ur_command_list_manager &operator=(ur_command_list_manager &&src) = default;
 
-  ~ur_command_list_manager() = default;
+  ~ur_command_list_manager();
 
   ze_command_list_handle_t getZeCommandList();
 

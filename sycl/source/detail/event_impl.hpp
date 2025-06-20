@@ -378,6 +378,9 @@ public:
     return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand;
   }
 
+  // Initializes the host profiling info for the event.
+  void initHostProfilingInfo();
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
