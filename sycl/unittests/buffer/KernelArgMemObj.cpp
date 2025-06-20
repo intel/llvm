@@ -52,9 +52,9 @@ ur_result_t redefinedEnqueueKernelLaunchWithArgsExp(void *pParams) {
     if (Args[i].type != UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ) {
       continue;
     }
-    PropertyPresent = Args[i].arg.memObjTuple.flags != 0;
+    PropertyPresent = Args[i].value.memObjTuple.flags != 0;
     if (PropertyPresent) {
-      MemFlags = Args[i].arg.memObjTuple.flags;
+      MemFlags = Args[i].value.memObjTuple.flags;
     }
   }
   return UR_RESULT_SUCCESS;

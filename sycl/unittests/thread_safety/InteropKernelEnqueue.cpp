@@ -36,7 +36,7 @@ ur_result_t redefined_urEnqueueKernelLaunchWithArgsExp(void *pParams) {
     EXPECT_EQ((LastArgSet + 1) % NArgs, ArgIndex);
     LastArgSet = ArgIndex;
     std::size_t ArgValue =
-        *static_cast<const std::size_t *>(Args[i].arg.pointer);
+        *static_cast<const std::size_t *>(Args[i].value.pointer);
     if (ArgIndex == 0)
       LastThread = ArgValue;
     else
