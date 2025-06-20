@@ -96,7 +96,8 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
     HeapType = HeapType::SharedUSM;
     break;
   default:
-    assert(false && "Unknown heap type");
+    UR_LOG_L(getContext()->logger, ERR, "Unknown heap type");
+    return UR_RESULT_ERROR_UNKNOWN;
   }
 
   StackTrace Stack = GetCurrentBacktrace();

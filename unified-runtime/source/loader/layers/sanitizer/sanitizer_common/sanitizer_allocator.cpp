@@ -19,7 +19,8 @@
 namespace ur_sanitizer_layer {
 
 namespace {
-void validateDeviceUSM(uptr Allocated, DeviceType DeviceType) {
+void validateDeviceUSM([[maybe_unused]] uptr Allocated,
+                       [[maybe_unused]] DeviceType DeviceType) {
   switch (DeviceType) {
   case DeviceType::GPU_PVC:
     assert((Allocated >> 52) == 0xff0);
@@ -29,7 +30,8 @@ void validateDeviceUSM(uptr Allocated, DeviceType DeviceType) {
   }
 }
 
-void validateSharedUSM(uptr Allocated, DeviceType DeviceType) {
+void validateSharedUSM([[maybe_unused]] uptr Allocated,
+                       [[maybe_unused]] DeviceType DeviceType) {
   switch (DeviceType) {
   case DeviceType::GPU_PVC:
     assert((Allocated >> 44) == 0x7);
