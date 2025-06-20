@@ -16,6 +16,10 @@
 
 // *** <sycl/builtins.hpp> ***
 
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+#include "cmath-fallback.h"
+#endif
+
 #include <sycl/detail/defines_elementary.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -105,6 +109,8 @@ extern __DPCPP_SYCL_EXTERNAL double atanh(double x);
 extern __DPCPP_SYCL_EXTERNAL double frexp(double x, int *exp);
 extern __DPCPP_SYCL_EXTERNAL double ldexp(double x, int exp);
 extern __DPCPP_SYCL_EXTERNAL double hypot(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL float rintf(float x);
+extern __DPCPP_SYCL_EXTERNAL double rint(double x);
 
 }
 #ifdef __GLIBC__
