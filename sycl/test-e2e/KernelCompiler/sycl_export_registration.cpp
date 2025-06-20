@@ -11,6 +11,8 @@
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
+// Note linking is not supported on CUDA/HIP.
+
 // -- Test for a case where a kernel bundle is built that exports a symbol and
 // -- other kernel bundles that uses it are compiled/linked without it. These
 // -- cases should fail due to unresolved symbols, rather than picking up the
