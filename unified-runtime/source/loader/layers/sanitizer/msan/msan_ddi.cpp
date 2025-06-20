@@ -1487,8 +1487,8 @@ ur_result_t urEnqueueUSMFill(
     uptr MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
     ur_event_handle_t Event = nullptr;
-    UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)MemShadow, (char)0, size, 0,
-                                  nullptr, &Event));
+    UR_CALL(EnqueueUSMSet(hQueue, (void *)MemShadow, (char)0, size, 0, nullptr,
+                          &Event));
     Events.push_back(Event);
   }
 
@@ -1579,8 +1579,8 @@ ur_result_t urEnqueueUSMMemcpy(
     {
       const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
       ur_event_handle_t Event = nullptr;
-      UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)DstShadow, (char)0, size, 0,
-                                    nullptr, &Event));
+      UR_CALL(EnqueueUSMSet(hQueue, (void *)DstShadow, (char)0, size, 0,
+                            nullptr, &Event));
       Events.push_back(Event);
     }
   }

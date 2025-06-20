@@ -315,9 +315,9 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
              (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
              (void *)(size_t)Value);
 
-    UR_CALL(EnqueueUSMBlockingSet(Queue, (void *)ShadowBegin, Value,
-                                  ShadowEnd - ShadowBegin + 1, Events.size(),
-                                  Events.data(), OutEvent));
+    UR_CALL(EnqueueUSMSet(Queue, (void *)ShadowBegin, Value,
+                          ShadowEnd - ShadowBegin + 1, Events.size(),
+                          Events.data(), OutEvent));
   }
 
   {
@@ -386,8 +386,8 @@ ur_result_t MsanShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
         (void **)&LocalShadowOffset));
 
     // Initialize shadow memory
-    ur_result_t URes = EnqueueUSMBlockingSet(Queue, (void *)LocalShadowOffset,
-                                             (char)0, RequiredShadowSize);
+    ur_result_t URes = EnqueueUSMSet(Queue, (void *)LocalShadowOffset, (char)0,
+                                     RequiredShadowSize);
     if (URes != UR_RESULT_SUCCESS) {
       UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
                                                    (void *)LocalShadowOffset));
@@ -434,8 +434,8 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
           (void **)&PrivateShadowOffset));
 
       // Initialize shadow memory
-      ur_result_t URes = EnqueueUSMBlockingSet(
-          Queue, (void *)PrivateShadowOffset, (char)0, RequiredShadowSize);
+      ur_result_t URes = EnqueueUSMSet(Queue, (void *)PrivateShadowOffset,
+                                       (char)0, RequiredShadowSize);
       if (URes != UR_RESULT_SUCCESS) {
         UR_CALL(getContext()->urDdiTable.USM.pfnFree(
             Context, (void *)PrivateShadowOffset));
