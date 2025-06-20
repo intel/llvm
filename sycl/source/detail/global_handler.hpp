@@ -52,6 +52,9 @@ public:
   /// `__attribute__((destructor))` is called).
   static GlobalHandler &instance();
 
+  /// \return true if the instance has not been deallocated yet.
+  static bool isInstanceAlive();
+
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
   GlobalHandler &operator=(const GlobalHandler &) = delete;
