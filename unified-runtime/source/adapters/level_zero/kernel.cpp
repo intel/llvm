@@ -201,9 +201,8 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
         break;
       }
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-        ZE2UR_CALL(zeKernelSetArgumentValue,
-                   (Kernel->ZeKernel, Args[i].index, sizeof(void *),
-                    &Args[i].value.sampler->ZeSampler));
+        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
+                                        &Args[i].value.sampler->ZeSampler));
         break;
       }
       default:
