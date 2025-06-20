@@ -118,7 +118,7 @@ unsigned TargetCodeGenInfo::getDeviceKernelCallingConv() const {
     return llvm::CallingConv::SPIR_KERNEL;
   }
   if (getABIInfo().getContext().getLangOpts().SYCLIsNativeCPU) {
-    return getABIInfo().getTarget().getDefaultCallingConv();
+    return llvm::CallingConv::SPIR_KERNEL;
   }
   llvm_unreachable("Unknown kernel calling convention");
 }
