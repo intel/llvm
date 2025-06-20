@@ -1383,6 +1383,15 @@ ur_result_t urPrintBindlessImagesFreeMappedLinearMemoryExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintBindlessImagesSupportsImportingHandleTypeExpParams(
+    const struct ur_bindless_images_supports_importing_handle_type_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintBindlessImagesImportExternalSemaphoreExpParams(
     const struct ur_bindless_images_import_external_semaphore_exp_params_t
         *params,

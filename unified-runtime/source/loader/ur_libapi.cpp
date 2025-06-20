@@ -8041,8 +8041,7 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE <
-///         memHandleType`
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalMemDesc`
 ///         + `NULL == phExternalMem`
@@ -8235,6 +8234,43 @@ ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   return pfnFreeMappedLinearMemoryExp(hContext, hDevice, pMem);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Checks whether the device supports importing the specified external
+///        memory handle type
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pSupportedRet`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+ur_result_t UR_APICALL urBindlessImagesSupportsImportingHandleTypeExp(
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] type of external memory handle
+    ur_exp_external_mem_type_t memHandleType,
+    /// [out] whether the device supports importing the specified external
+    /// memory handle type
+    ur_bool_t *pSupportedRet) try {
+  auto pfnSupportsImportingHandleTypeExp =
+      ur_lib::getContext()
+          ->urDdiTable.BindlessImagesExp.pfnSupportsImportingHandleTypeExp;
+  if (nullptr == pfnSupportsImportingHandleTypeExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnSupportsImportingHandleTypeExp(hDevice, memHandleType,
+                                           pSupportedRet);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
