@@ -1000,7 +1000,6 @@ protected:
   const async_handler MAsyncHandler;
   const property_list MPropList;
 
-  /// List of queues created for FPGA device from a single SYCL queue.
   ur_queue_handle_t MQueue;
 
   // Access should be guarded with MMutex
