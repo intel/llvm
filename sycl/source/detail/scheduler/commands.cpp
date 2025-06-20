@@ -2415,8 +2415,7 @@ static ur_result_t SetKernelParamsAndLaunch(
                               : Empty);
   }
 
-  std::vector<ur_exp_kernel_arg_properties_t> UrArgs;
-  UrArgs.reserve(Args.size());
+  auto UrArgs = Queue.getKernelArgStorage(Args.size());
 
   if (KernelFuncPtr && !KernelHasSpecialCaptures) {
     auto setFunc = [&UrArgs,
