@@ -55,7 +55,7 @@ entry:
 ; CHECK_1S: [[LSIZE:%.*]] = call i64 @__mux_get_local_size(i32 0)
 ; CHECK_1S: [[WREM:%.*]] = sub nuw nsw i64 [[LSIZE]], [[LID]]
 ; CHECK_1S: [[T0:%.*]] = call i64 @llvm.vscale.i64()
-; CHECK_1S: [[T1:%.*]] = shl i64 [[T0]], 2
+; CHECK_1S: [[T1:%.*]] = shl {{(nuw )?}}i64 [[T0]], 2
 ; CHECK_1S: [[T2:%.*]] = call i64 @llvm.umin.i64(i64 [[WREM]], i64 [[T1]])
 ; CHECK_1S: [[VL:%.*]] = trunc {{(nuw )?(nsw )?}}i64 [[T2]] to i32
 ; CHECK_1S: [[LHS:%.*]] = call <vscale x 4 x i32> @llvm.vp.load.nxv4i32.p0(ptr {{%.*}}, [[TRUEMASK:<vscale x 4 x i1> (shufflevector \(<vscale x 4 x i1> insertelement \(<vscale x 4 x i1> (undef|poison), i1 true, (i32|i64) 0\), <vscale x 4 x i1> (undef|poison), <vscale x 4 x i32> zeroinitializer\)|splat \(i1 true\))]], i32 [[VL]])
@@ -94,7 +94,7 @@ entry:
 ; CHECK_V4_1S: [[LSIZE:%.*]] = call i64 @__mux_get_local_size(i32 0)
 ; CHECK_V4_1S: [[WREM:%.*]] = sub nuw nsw i64 [[LSIZE]], [[LID]]
 ; CHECK_V4_1S: [[T0:%.*]] = call i64 @llvm.vscale.i64()
-; CHECK_V4_1S: [[T1:%.*]] = shl i64 [[T0]], 2
+; CHECK_V4_1S: [[T1:%.*]] = shl {{(nuw )?}}i64 [[T0]], 2
 ; CHECK_V4_1S: [[T2:%.*]] = call i64 @llvm.umin.i64(i64 [[WREM]], i64 [[T1]])
 ; CHECK_V4_1S: [[VL:%.*]] = trunc {{(nuw )?(nsw )?}}i64 [[T2]] to i32
 ; Each WI performs 4 elements, so multiply the VL by 4
