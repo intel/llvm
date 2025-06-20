@@ -44,7 +44,6 @@ int main() {
   std::vector<sycl::float4> Img1HostData(Img1Size.size(), {1, 2, 3, 4});
   std::vector<sycl::float4> Img2HostData(Img2Size.size(), {0, 0, 0, 0});
 
-
   {
     sycl::image<2> Img1(Img1HostData.data(), ChanOrder, ChanType, Img1Size);
     sycl::image<2> Img2(Img2HostData.data(), ChanOrder, ChanType, Img2Size);
