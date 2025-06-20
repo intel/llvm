@@ -233,7 +233,7 @@ template <typename getddi> struct handle_base {
   uint32_t incrementRefCount() { return ++Count; }
   uint32_t decrementRefCount() { return --Count; }
   bool decrementAndTest() { return --Count == 0; }
-  void resetRefCount() { Count = 1; }
+  void resetRefCount(uint32_t value = 1) { Count = value; }
 
 private:
   std::atomic_uint32_t Count{1};
