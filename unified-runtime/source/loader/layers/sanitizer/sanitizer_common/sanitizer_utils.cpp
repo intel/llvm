@@ -123,6 +123,15 @@ std::string GetKernelName(ur_kernel_handle_t Kernel) {
   return std::string(KernelNameBuf.data(), KernelNameSize - 1);
 }
 
+bool IsUSM(ur_context_handle_t Context, const void *MemPtr) {
+  ur_usm_type_t USMType = UR_USM_TYPE_UNKNOWN;
+  auto Result = getContext()->urDdiTable.USM.pfnGetMemAllocInfo(
+      Context, MemPtr, UR_USM_ALLOC_INFO_TYPE, sizeof(USMType), &USMType,
+      nullptr);
+  assert(Result == UR_RESULT_SUCCESS);
+  return USMType != UR_USM_TYPE_UNKNOWN;
+}
+
 ur_device_handle_t GetUSMAllocDevice(ur_context_handle_t Context,
                                      const void *MemPtr) {
   ur_device_handle_t Device{};

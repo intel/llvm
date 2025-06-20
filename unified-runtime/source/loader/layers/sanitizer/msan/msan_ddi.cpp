@@ -1481,8 +1481,10 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
   Events.push_back(Event);
 
   {
-    ur_device_handle_t Device = GetDevice(hQueue);
-    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
+    ur_context_handle_t hContext = GetContext(hQueue);
+    ur_device_handle_t hDevice = GetUSMAllocDevice(hContext, pMem);
+    assert(hDevice);
+    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(hDevice);
     const auto MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
     ur_event_handle_t Event = nullptr;
@@ -1537,32 +1539,51 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
                        phEventWaitList, &Event));
   Events.push_back(Event);
 
-  {
-    ur_device_handle_t Device = GetDevice(hQueue);
-    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
-    const auto SrcShadow = DeviceInfo->Shadow->MemToShadow((uptr)pSrc);
-    const auto DstShadow = DeviceInfo->Shadow->MemToShadow((uptr)pDst);
+  ur_context_handle_t hContext = GetContext(hQueue);
+  bool IsSrcUSM = IsUSM(hContext, pSrc);
+  bool IsDstUSM = IsUSM(hContext, pDst);
 
-    ur_event_handle_t Event = nullptr;
-    UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstShadow, (void *)SrcShadow,
-                         size, 0, nullptr, &Event));
-    Events.push_back(Event);
-  }
+  if (IsSrcUSM && IsDstUSM) {
+    ur_device_handle_t SrcDevice = GetUSMAllocDevice(hContext, pSrc);
+    ur_device_handle_t DstDevice = GetUSMAllocDevice(hContext, pDst);
+    assert(SrcDevice && DstDevice);
+    const auto SrcDI = getMsanInterceptor()->getDeviceInfo(SrcDevice);
+    const auto DstDI = getMsanInterceptor()->getDeviceInfo(DstDevice);
+    {
+      const auto SrcShadow = SrcDI->Shadow->MemToShadow((uptr)pSrc);
+      const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
 
-  {
-    ur_device_handle_t Device = GetDevice(hQueue);
-    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
-    const auto SrcOriginBegin = DeviceInfo->Shadow->MemToOrigin((uptr)pSrc);
-    const auto SrcOriginEnd =
-        DeviceInfo->Shadow->MemToOrigin((uptr)pSrc + size - 1) +
-        MSAN_ORIGIN_GRANULARITY;
-    const auto DstOrigin = DeviceInfo->Shadow->MemToOrigin((uptr)pDst);
+      ur_event_handle_t Event = nullptr;
+      UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstShadow,
+                           (void *)SrcShadow, size, 0, nullptr, &Event));
+      Events.push_back(Event);
+    }
+    {
+      const auto SrcOriginBegin = SrcDI->Shadow->MemToOrigin((uptr)pSrc);
+      const auto SrcOriginEnd =
+          SrcDI->Shadow->MemToOrigin((uptr)pSrc + size - 1) +
+          MSAN_ORIGIN_GRANULARITY;
+      const auto DstOrigin = DstDI->Shadow->MemToOrigin((uptr)pDst);
 
-    ur_event_handle_t Event = nullptr;
-    UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstOrigin,
-                         (void *)SrcOriginBegin, SrcOriginEnd - SrcOriginBegin,
-                         0, nullptr, &Event));
-    Events.push_back(Event);
+      ur_event_handle_t Event = nullptr;
+      UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstOrigin,
+                           (void *)SrcOriginBegin,
+                           SrcOriginEnd - SrcOriginBegin, 0, nullptr, &Event));
+      Events.push_back(Event);
+    }
+  } else if (IsDstUSM) {
+    // FIXME: Assume host memory is always initialized memory, but the better
+    // way may enable host-side Msan as well
+    ur_device_handle_t DstDevice = GetUSMAllocDevice(hContext, pDst);
+    assert(DstDevice);
+    const auto DstDI = getMsanInterceptor()->getDeviceInfo(DstDevice);
+    {
+      const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
+      ur_event_handle_t Event = nullptr;
+      UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)DstShadow, (char)0, size, 0,
+                                    nullptr, &Event));
+      Events.push_back(Event);
+    }
   }
 
   if (phEvent) {
@@ -1616,8 +1637,10 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
   Events.push_back(Event);
 
   {
-    ur_device_handle_t Device = GetDevice(hQueue);
-    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
+    ur_context_handle_t hContext = GetContext(hQueue);
+    ur_device_handle_t hDevice = GetUSMAllocDevice(hContext, pMem);
+    assert(hDevice);
+    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(hDevice);
     const auto MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
     const char Pattern = 0;
@@ -1681,45 +1704,64 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
                          &Event));
   Events.push_back(Event);
 
-  {
-    ur_device_handle_t Device = GetDevice(hQueue);
-    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
-    const auto SrcShadow = DeviceInfo->Shadow->MemToShadow((uptr)pSrc);
-    const auto DstShadow = DeviceInfo->Shadow->MemToShadow((uptr)pDst);
+  ur_context_handle_t hContext = GetContext(hQueue);
+  bool IsSrcUSM = IsUSM(hContext, pSrc);
+  bool IsDstUSM = IsUSM(hContext, pDst);
 
-    ur_event_handle_t Event = nullptr;
-    UR_CALL(pfnUSMMemcpy2D(hQueue, blocking, (void *)DstShadow, dstPitch,
-                           (void *)SrcShadow, srcPitch, width, height, 0,
-                           nullptr, &Event));
-    Events.push_back(Event);
-  }
+  if (IsSrcUSM && IsDstUSM) {
+    ur_device_handle_t SrcDevice = GetUSMAllocDevice(hContext, pSrc);
+    ur_device_handle_t DstDevice = GetUSMAllocDevice(hContext, pDst);
+    assert(SrcDevice && DstDevice);
+    const auto SrcDI = getMsanInterceptor()->getDeviceInfo(SrcDevice);
+    const auto DstDI = getMsanInterceptor()->getDeviceInfo(DstDevice);
+    {
+      const auto SrcShadow = SrcDI->Shadow->MemToShadow((uptr)pSrc);
+      const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
 
-  {
-    ur_device_handle_t Device = GetDevice(hQueue);
-    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
-
-    auto pfnUSMMemcpy = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
-
-    std::vector<ur_event_handle_t> WaitEvents(numEventsInWaitList);
-    for (uint32_t i = 0; i < numEventsInWaitList; i++) {
-      WaitEvents[i] = phEventWaitList[i];
-    }
-
-    for (size_t HeightIndex = 0; HeightIndex < height; HeightIndex++) {
       ur_event_handle_t Event = nullptr;
-      const auto DstOrigin =
-          DeviceInfo->Shadow->MemToOrigin((uptr)pDst + dstPitch * HeightIndex);
-      const auto SrcOrigin =
-          DeviceInfo->Shadow->MemToOrigin((uptr)pSrc + srcPitch * HeightIndex);
-      const auto SrcOriginEnd =
-          DeviceInfo->Shadow->MemToOrigin((uptr)pSrc + srcPitch * HeightIndex +
-                                          width - 1) +
-          MSAN_ORIGIN_GRANULARITY;
-      pfnUSMMemcpy(hQueue, false, (void *)DstOrigin, (void *)SrcOrigin,
-                   SrcOriginEnd - SrcOrigin, WaitEvents.size(),
-                   WaitEvents.data(), &Event);
+      UR_CALL(pfnUSMMemcpy2D(hQueue, blocking, (void *)DstShadow, dstPitch,
+                             (void *)SrcShadow, srcPitch, width, height, 0,
+                             nullptr, &Event));
       Events.push_back(Event);
     }
+
+    {
+      auto pfnUSMMemcpy = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
+
+      std::vector<ur_event_handle_t> WaitEvents(numEventsInWaitList);
+      for (uint32_t i = 0; i < numEventsInWaitList; i++) {
+        WaitEvents[i] = phEventWaitList[i];
+      }
+
+      for (size_t HeightIndex = 0; HeightIndex < height; HeightIndex++) {
+        ur_event_handle_t Event = nullptr;
+        const auto DstOrigin =
+            DstDI->Shadow->MemToOrigin((uptr)pDst + dstPitch * HeightIndex);
+        const auto SrcOrigin =
+            SrcDI->Shadow->MemToOrigin((uptr)pSrc + srcPitch * HeightIndex);
+        const auto SrcOriginEnd =
+            SrcDI->Shadow->MemToOrigin((uptr)pSrc + srcPitch * HeightIndex +
+                                       width - 1) +
+            MSAN_ORIGIN_GRANULARITY;
+        pfnUSMMemcpy(hQueue, false, (void *)DstOrigin, (void *)SrcOrigin,
+                     SrcOriginEnd - SrcOrigin, WaitEvents.size(),
+                     WaitEvents.data(), &Event);
+        Events.push_back(Event);
+      }
+    }
+  } else if (IsDstUSM) {
+    // FIXME: Assume host memory is always initialized memory, but the better
+    // way may enable host-side Msan as well
+    ur_device_handle_t DstDevice = GetUSMAllocDevice(hContext, pDst);
+    assert(DstDevice);
+    const auto DstDI = getMsanInterceptor()->getDeviceInfo(DstDevice);
+    const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
+    const char Pattern = 0;
+    ur_event_handle_t Event = nullptr;
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill2D(
+        hQueue, (void *)DstShadow, dstPitch, 1, &Pattern, width, height, 0,
+        nullptr, &Event));
+    Events.push_back(Event);
   }
 
   if (phEvent) {

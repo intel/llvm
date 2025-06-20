@@ -13,7 +13,6 @@
 
 #include "sanitizer_stackdepot.hpp"
 
-#include <atomic>
 #include <unordered_map>
 
 namespace ur_sanitizer_layer {

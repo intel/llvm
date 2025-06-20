@@ -52,7 +52,7 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
   auto ContextInfo = getContextInfo(Context);
   std::shared_ptr<DeviceInfo> DI = Device ? getDeviceInfo(Device) : nullptr;
 
-  uint32_t Alignment = Properties ? Properties->align : 4;
+  uint32_t Alignment = Properties ? Properties->align : MSAN_ORIGIN_GRANULARITY;
   // Alignment must be zero or a power-of-two
   if (0 != (Alignment & (Alignment - 1))) {
     return UR_RESULT_ERROR_INVALID_ARGUMENT;

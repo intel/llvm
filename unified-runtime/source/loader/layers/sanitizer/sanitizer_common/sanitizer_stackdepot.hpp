@@ -35,6 +35,7 @@ inline const char *ToString(HeapType Type) {
   }
 }
 
+// Save/load stack with corresponding stack id
 void StackDepotPut(uint32_t Id, StackTrace &Stack);
 StackTrace StackDepotGet(uint32_t Id);
 

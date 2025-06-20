@@ -50,6 +50,7 @@ bool GetDeviceUSMCapability(ur_device_handle_t Device,
 std::string GetKernelName(ur_kernel_handle_t Kernel);
 size_t GetDeviceLocalMemorySize(ur_device_handle_t Device);
 ur_program_handle_t GetProgram(ur_kernel_handle_t Kernel);
+bool IsUSM(ur_context_handle_t Context, const void *MemPtr);
 ur_device_handle_t GetUSMAllocDevice(ur_context_handle_t Context,
                                      const void *MemPtr);
 uint32_t GetKernelNumArgs(ur_kernel_handle_t Kernel);

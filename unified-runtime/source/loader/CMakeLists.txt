@@ -164,7 +164,6 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_interceptor.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_interceptor.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_libdevice.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_origin.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_origin.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_report.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_report.hpp
