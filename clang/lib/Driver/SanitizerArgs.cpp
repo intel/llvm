@@ -1319,6 +1319,8 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       CmdArgs.push_back("-msan-poison-stack-with-call=1");
 
       if (MsanTrackOrigins) {
+        assert(MsanTrackOrigins == 1 &&
+               "Only support -fsanitize-memory-track-origins=1");
         CmdArgs.push_back("-mllvm");
         CmdArgs.push_back(Args.MakeArgString("-msan-track-origins=" +
                                              Twine(MsanTrackOrigins)));

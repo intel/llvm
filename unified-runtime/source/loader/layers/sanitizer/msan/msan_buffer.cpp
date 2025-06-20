@@ -12,6 +12,7 @@
  */
 
 #include "msan_buffer.hpp"
+#include "msan_ddi.hpp"
 #include "msan_interceptor.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
@@ -58,25 +59,11 @@ ur_result_t EnqueueMemCopyRectHelper(
   // loop call 2D memory copy function to implement it.
   for (size_t i = 0; i < Region.depth; i++) {
     ur_event_handle_t NewEvent{};
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy2D(
+    UR_CALL(msan::urEnqueueUSMMemcpy2D(
         Queue, false, DstOrigin + (i * DstSlicePitch), DstRowPitch,
         SrcOrigin + (i * SrcSlicePitch), SrcRowPitch, Region.width,
         Region.height, NumEventsInWaitList, EventWaitList, &NewEvent));
     Events.push_back(NewEvent);
-
-    // Update shadow memory
-    {
-      NewEvent = nullptr;
-      uptr DstShadowAddr = DeviceInfo->Shadow->MemToShadow((uptr)DstOrigin +
-                                                           (i * DstSlicePitch));
-      uptr SrcShadowAddr = DeviceInfo->Shadow->MemToShadow((uptr)SrcOrigin +
-                                                           (i * SrcSlicePitch));
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy2D(
-          Queue, false, (void *)DstShadowAddr, DstRowPitch,
-          (void *)SrcShadowAddr, SrcRowPitch, Region.width, Region.height,
-          NumEventsInWaitList, EventWaitList, &NewEvent));
-      Events.push_back(NewEvent);
-    }
   }
 
   if (Blocking) {
@@ -118,9 +105,8 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
     ur_usm_desc_t USMDesc{};
     USMDesc.align = getAlignment();
     ur_usm_pool_handle_t Pool{};
-    URes = getMsanInterceptor()->allocateMemory(Context, Device, &USMDesc, Pool,
-                                                Size, AllocType::DEVICE_USM,
-                                                ur_cast<void **>(&Allocation));
+    URes = msan::urUSMDeviceAlloc(Context, Device, &USMDesc, Pool, Size,
+                                  ur_cast<void **>(&Allocation));
     if (URes != UR_RESULT_SUCCESS) {
       UR_LOG_L(getContext()->logger, ERR,
                "Failed to allocate {} bytes memory for buffer {}", Size, this);
@@ -129,8 +115,8 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
 
     if (HostPtr) {
       ManagedQueue Queue(Context, Device);
-      URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-          Queue, true, Allocation, HostPtr, Size, 0, nullptr, nullptr);
+      URes = msan::urEnqueueUSMMemcpy(Queue, true, Allocation, HostPtr, Size, 0,
+                                      nullptr, nullptr);
       if (URes != UR_RESULT_SUCCESS) {
         UR_LOG_L(
             getContext()->logger, ERR,
@@ -138,12 +124,6 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
             Size, (void *)HostPtr, this);
         return URes;
       }
-
-      // Update shadow memory
-      std::shared_ptr<DeviceInfo> DeviceInfo =
-          getMsanInterceptor()->getDeviceInfo(Device);
-      UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, (uptr)Allocation,
-                                                      Size, 0));
     }
   }
 
@@ -162,8 +142,8 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
       ur_usm_desc_t USMDesc{};
       USMDesc.align = getAlignment();
       ur_usm_pool_handle_t Pool{};
-      URes = getContext()->urDdiTable.USM.pfnHostAlloc(
-          Context, &USMDesc, Pool, Size, ur_cast<void **>(&HostAllocation));
+      URes = msan::urUSMHostAlloc(Context, &USMDesc, Pool, Size,
+                                  ur_cast<void **>(&HostAllocation));
       if (URes != UR_RESULT_SUCCESS) {
         UR_LOG_L(getContext()->logger, ERR,
                  "Failed to allocate {} bytes host "
@@ -176,9 +156,9 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
     // Copy data from last synced device to host
     {
       ManagedQueue Queue(Context, LastSyncedDevice.hDevice);
-      URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-          Queue, true, HostAllocation, LastSyncedDevice.MemHandle, Size, 0,
-          nullptr, nullptr);
+      URes = msan::urEnqueueUSMMemcpy(Queue, true, HostAllocation,
+                                      LastSyncedDevice.MemHandle, Size, 0,
+                                      nullptr, nullptr);
       if (URes != UR_RESULT_SUCCESS) {
         UR_LOG_L(getContext()->logger, ERR,
                  "Failed to migrate memory buffer data");
@@ -189,8 +169,8 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
     // Sync data back to device
     {
       ManagedQueue Queue(Context, Device);
-      URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-          Queue, true, Allocation, HostAllocation, Size, 0, nullptr, nullptr);
+      URes = msan::urEnqueueUSMMemcpy(Queue, true, Allocation, HostAllocation,
+                                      Size, 0, nullptr, nullptr);
       if (URes != UR_RESULT_SUCCESS) {
         UR_LOG_L(getContext()->logger, ERR,
                  "Failed to migrate memory buffer data");
@@ -206,7 +186,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
 
 ur_result_t MemBuffer::free() {
   for (const auto &[_, Ptr] : Allocations) {
-    ur_result_t URes = getContext()->urDdiTable.USM.pfnFree(Context, Ptr);
+    ur_result_t URes = msan::urUSMFree(Context, Ptr);
     if (URes != UR_RESULT_SUCCESS) {
       UR_LOG_L(getContext()->logger, ERR, "Failed to free buffer handle {}",
                (void *)Ptr);

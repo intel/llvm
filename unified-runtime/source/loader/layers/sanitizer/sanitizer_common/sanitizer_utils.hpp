@@ -51,7 +51,12 @@ std::string GetKernelName(ur_kernel_handle_t Kernel);
 size_t GetDeviceLocalMemorySize(ur_device_handle_t Device);
 ur_program_handle_t GetProgram(ur_kernel_handle_t Kernel);
 bool IsUSM(ur_context_handle_t Context, const void *MemPtr);
+bool IsHostUSM(ur_context_handle_t Context, const void *MemPtr);
 ur_device_handle_t GetUSMAllocDevice(ur_context_handle_t Context,
+                                     const void *MemPtr);
+// Get the device of MemPtr. If MemPtr is host USM, then return the device
+// of Queue
+ur_device_handle_t GetUSMAllocDevice(ur_queue_handle_t Queue,
                                      const void *MemPtr);
 uint32_t GetKernelNumArgs(ur_kernel_handle_t Kernel);
 size_t GetKernelLocalMemorySize(ur_kernel_handle_t Kernel,

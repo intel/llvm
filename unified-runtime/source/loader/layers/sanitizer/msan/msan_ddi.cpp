@@ -108,7 +108,7 @@ ur_result_t urUSMDeviceAlloc(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMHostAlloc
-ur_result_t UR_APICALL urUSMHostAlloc(
+ur_result_t urUSMHostAlloc(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     const ur_usm_desc_t
         *pUSMDesc, ///< [in][optional] USM memory allocation descriptor
@@ -126,7 +126,7 @@ ur_result_t UR_APICALL urUSMHostAlloc(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMSharedAlloc
-ur_result_t UR_APICALL urUSMSharedAlloc(
+ur_result_t urUSMSharedAlloc(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
     ur_device_handle_t hDevice,    ///< [in] handle of the device object
     const ur_usm_desc_t *pUSMDesc, ///< [in][optional] Pointer to USM memory
@@ -145,7 +145,7 @@ ur_result_t UR_APICALL urUSMSharedAlloc(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMFree
-ur_result_t UR_APICALL urUSMFree(
+ur_result_t urUSMFree(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
     /// [in] pointer to USM memory object
@@ -1422,7 +1422,7 @@ ur_result_t urKernelSetArgMemObj(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSetArgLocal
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
+__urdlllocal ur_result_t urKernelSetArgLocal(
     /// [in] handle of the kernel object
     ur_kernel_handle_t hKernel,
     /// [in] argument index in range [0, num args - 1]
@@ -1448,7 +1448,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueUSMFill
-ur_result_t UR_APICALL urEnqueueUSMFill(
+ur_result_t urEnqueueUSMFill(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
     /// [in][bounds(0, size)] pointer to USM memory object
@@ -1481,11 +1481,10 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
   Events.push_back(Event);
 
   {
-    ur_context_handle_t hContext = GetContext(hQueue);
-    ur_device_handle_t hDevice = GetUSMAllocDevice(hContext, pMem);
+    ur_device_handle_t hDevice = GetUSMAllocDevice(hQueue, pMem);
     assert(hDevice);
     const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(hDevice);
-    const auto MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
+    uptr MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
     ur_event_handle_t Event = nullptr;
     UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)MemShadow, (char)0, size, 0,
@@ -1508,7 +1507,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueUSMMemcpy
-ur_result_t UR_APICALL urEnqueueUSMMemcpy(
+ur_result_t urEnqueueUSMMemcpy(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
     /// [in] blocking or non-blocking copy
@@ -1544,8 +1543,8 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   bool IsDstUSM = IsUSM(hContext, pDst);
 
   if (IsSrcUSM && IsDstUSM) {
-    ur_device_handle_t SrcDevice = GetUSMAllocDevice(hContext, pSrc);
-    ur_device_handle_t DstDevice = GetUSMAllocDevice(hContext, pDst);
+    ur_device_handle_t SrcDevice = GetUSMAllocDevice(hQueue, pSrc);
+    ur_device_handle_t DstDevice = GetUSMAllocDevice(hQueue, pDst);
     assert(SrcDevice && DstDevice);
     const auto SrcDI = getMsanInterceptor()->getDeviceInfo(SrcDevice);
     const auto DstDI = getMsanInterceptor()->getDeviceInfo(DstDevice);
@@ -1574,7 +1573,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   } else if (IsDstUSM) {
     // FIXME: Assume host memory is always initialized memory, but the better
     // way may enable host-side Msan as well
-    ur_device_handle_t DstDevice = GetUSMAllocDevice(hContext, pDst);
+    ur_device_handle_t DstDevice = GetUSMAllocDevice(hQueue, pDst);
     assert(DstDevice);
     const auto DstDI = getMsanInterceptor()->getDeviceInfo(DstDevice);
     {
@@ -1599,7 +1598,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueUSMFill2D
-ur_result_t UR_APICALL urEnqueueUSMFill2D(
+ur_result_t urEnqueueUSMFill2D(
     /// [in] handle of the queue to submit to.
     ur_queue_handle_t hQueue,
     /// [in][bounds(0, pitch * height)] pointer to memory to be filled.
@@ -1637,8 +1636,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
   Events.push_back(Event);
 
   {
-    ur_context_handle_t hContext = GetContext(hQueue);
-    ur_device_handle_t hDevice = GetUSMAllocDevice(hContext, pMem);
+    ur_device_handle_t hDevice = GetUSMAllocDevice(hQueue, pMem);
     assert(hDevice);
     const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(hDevice);
     const auto MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
@@ -1665,7 +1663,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueUSMMemcpy2D
-ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
+ur_result_t urEnqueueUSMMemcpy2D(
     /// [in] handle of the queue to submit to.
     ur_queue_handle_t hQueue,
     /// [in] indicates if this operation should block the host.
@@ -1709,8 +1707,8 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
   bool IsDstUSM = IsUSM(hContext, pDst);
 
   if (IsSrcUSM && IsDstUSM) {
-    ur_device_handle_t SrcDevice = GetUSMAllocDevice(hContext, pSrc);
-    ur_device_handle_t DstDevice = GetUSMAllocDevice(hContext, pDst);
+    ur_device_handle_t SrcDevice = GetUSMAllocDevice(hQueue, pSrc);
+    ur_device_handle_t DstDevice = GetUSMAllocDevice(hQueue, pDst);
     assert(SrcDevice && DstDevice);
     const auto SrcDI = getMsanInterceptor()->getDeviceInfo(SrcDevice);
     const auto DstDI = getMsanInterceptor()->getDeviceInfo(DstDevice);
@@ -1752,7 +1750,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
   } else if (IsDstUSM) {
     // FIXME: Assume host memory is always initialized memory, but the better
     // way may enable host-side Msan as well
-    ur_device_handle_t DstDevice = GetUSMAllocDevice(hContext, pDst);
+    ur_device_handle_t DstDevice = GetUSMAllocDevice(hQueue, pDst);
     assert(DstDevice);
     const auto DstDI = getMsanInterceptor()->getDeviceInfo(DstDevice);
     const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
