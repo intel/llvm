@@ -1322,8 +1322,6 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
         CmdArgs.push_back("-mllvm");
         CmdArgs.push_back(Args.MakeArgString("-msan-track-origins=" +
                                              Twine(MsanTrackOrigins)));
-        CmdArgs.push_back("-mllvm");
-        CmdArgs.push_back("-msan-print-stack-names=0");
       }
     } else if (Sanitizers.has(SanitizerKind::Thread)) {
       CmdArgs.push_back("-fsanitize=thread");

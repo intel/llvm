@@ -394,16 +394,6 @@ static cl::opt<bool>
                           cl::desc("instrument private pointer"), cl::Hidden,
                           cl::init(true));
 
-// This flag is used to enhance debug for spirv (internal use only)
-//  - Add function name (not demangled for easily debug) on __msan_get_shadow
-//  (but not work on GPU)
-//  - Diable combination of origin and shadow propagation
-//  - The "origin" parameter of "__msan_maybe_warning_N" is the shadow address
-//  of UUM
-static cl::opt<bool> ClSpirOffloadDebug("msan-spir-debug",
-                                        cl::desc("enhance debug for spirv"),
-                                        cl::Hidden, cl::init(false));
-
 const char kMsanModuleCtorName[] = "msan.module_ctor";
 const char kMsanInitName[] = "__msan_init";
 
@@ -793,6 +783,8 @@ public:
 
   Constant *getOrCreateGlobalString(StringRef Name, StringRef Value,
                                     unsigned AddressSpace);
+
+  operator bool() const { return IsSPIRV; }
 
 private:
   void initializeCallbacks();
@@ -1343,11 +1335,8 @@ void MemorySanitizerPass::printPipeline(
 static GlobalVariable *createPrivateConstGlobalForString(Module &M,
                                                          StringRef Str) {
   Constant *StrConst = ConstantDataArray::getString(M.getContext(), Str);
-  bool SpirOrSpirv = Triple(M.getTargetTriple()).isSPIROrSPIRV();
   return new GlobalVariable(M, StrConst->getType(), /*isConstant=*/true,
-                            GlobalValue::PrivateLinkage, StrConst, "", nullptr,
-                            llvm::GlobalValue::NotThreadLocal,
-                            SpirOrSpirv ? kSpirOffloadConstantAS : 0);
+                            GlobalValue::PrivateLinkage, StrConst, "");
 }
 
 template <typename... ArgsTy>
@@ -1453,7 +1442,7 @@ void MemorySanitizer::createUserspaceApi(Module &M,
           IRB.getVoidTy(), IRB.getInt32Ty());
     } else {
       // __msan_warning_with_origin[_noreturn](
-      //   int origin,
+      //   uint32_t origin,
       //   char* file,
       //   unsigned int line,
       //   char* func
@@ -1530,7 +1519,7 @@ void MemorySanitizer::createUserspaceApi(Module &M,
     } else { // SPIR or SPIR-V
       // __msan_maybe_warning_N(
       //   intN_t status,
-      //   int origin,
+      //   uint32_t origin,
       //   char* file,
       //   unsigned int line,
       //   char* func
@@ -1541,11 +1530,11 @@ void MemorySanitizer::createUserspaceApi(Module &M,
           IRB.getInt8PtrTy(kSpirOffloadConstantAS), IRB.getInt32Ty(),
           IRB.getInt8PtrTy(kSpirOffloadConstantAS));
 
-      // __msan_maybe_warning_N(
+      // __msan_maybe_store_origin_N(
       //   intN_t status,
       //   uptr addr,
       //   uint32_t as,
-      //   int origin,
+      //   uint32_t origin
       // )
       FunctionName = "__msan_maybe_store_origin_" + itostr(AccessSize);
       MaybeStoreOriginFn[AccessSizeIndex] = M.getOrInsertFunction(
@@ -1743,7 +1732,7 @@ void MemorySanitizer::initializeModule(Module &M) {
   ColdCallWeights = MDBuilder(*C).createUnlikelyBranchWeights();
   OriginStoreWeights = MDBuilder(*C).createUnlikelyBranchWeights();
 
-  if (!CompileKernel) {
+  if (!CompileKernel && !Spirv) {
     if (TrackOrigins)
       M.getOrInsertGlobal("__msan_track_origins", IRB.getInt32Ty(), [&] {
         return new GlobalVariable(
@@ -2324,7 +2313,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     const DataLayout &DL = F.getDataLayout();
     // Disable combining in some cases. TrackOrigins checks each shadow to pick
     // correct origin.
-    bool Combine = !(MS.TrackOrigins || ClSpirOffloadDebug);
+    bool Combine = !MS.TrackOrigins;
     Instruction *Instruction = InstructionChecks.front().OrigIns;
     Value *Shadow = nullptr;
     for (const auto &ShadowData : InstructionChecks) {
