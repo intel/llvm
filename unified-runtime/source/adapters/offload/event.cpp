@@ -14,7 +14,7 @@
 #include "event.hpp"
 #include "ur2offload.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hKernel,
+UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
                                                    ur_event_info_t propName,
                                                    size_t propSize,
                                                    void *pPropValue,
@@ -23,7 +23,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hKernel,
 
   switch (propName) {
   case UR_EVENT_INFO_REFERENCE_COUNT:
-    return ReturnValue(hKernel->RefCount.load());
+    return ReturnValue(hEvent->RefCount.load());
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
@@ -42,9 +42,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(ur_event_handle_t,
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   for (uint32_t i = 0; i < numEvents; i++) {
-    auto Res = olWaitEvent(phEventWaitList[i]->OffloadEvent);
-    if (Res) {
-      return offloadResultToUR(Res);
+    if (phEventWaitList[i]->OffloadEvent) {
+      auto Res = olWaitEvent(phEventWaitList[i]->OffloadEvent);
+      if (Res) {
+        return offloadResultToUR(Res);
+      }
     }
   }
   return UR_RESULT_SUCCESS;
