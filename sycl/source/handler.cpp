@@ -2219,6 +2219,13 @@ handler::getContextImplPtr() const {
   return impl->get_queue().getContextImplPtr();
 }
 
+detail::context_impl &handler::getContextImpl() const {
+  if (auto *Graph = impl->get_graph_or_null()) {
+    return *Graph->getContextImplPtr();
+  }
+  return impl->get_queue().getContextImpl();
+}
+
 void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
   switch (Config) {
   case handler::StableKernelCacheConfig::Default:
