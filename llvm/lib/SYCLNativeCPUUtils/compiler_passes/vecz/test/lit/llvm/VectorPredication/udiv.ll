@@ -41,7 +41,7 @@ entry:
 ; CHECK: [[LSIZE:%.*]] = call i64 @__mux_get_local_size(i32 0)
 ; CHECK: [[WREM:%.*]] = sub nuw nsw i64 [[LSIZE]], [[LID]]
 ; CHECK: [[T0:%.*]] = call i64 @llvm.vscale.i64()
-; CHECK: [[T1:%.*]] = shl i64 [[T0]], 1
+; CHECK: [[T1:%.*]] = shl {{(nuw )?}}i64 [[T0]], 1
 ; CHECK: [[T2:%.*]] = call i64 @llvm.umin.i64(i64 [[WREM]], i64 [[T1]])
 ; CHECK: [[VL:%.*]] = trunc i64 [[T2]] to i32
 ; CHECK: [[LHS:%.*]] = call <vscale x 2 x i32> @llvm.vp.load.nxv2i32.p0(ptr {{%.*}}, [[TRUEMASK:<vscale x 2 x i1> (shufflevector \(<vscale x 2 x i1> insertelement \(<vscale x 2 x i1> (undef|poison), i1 true, (i32|i64) 0\), <vscale x 2 x i1> (undef|poison), <vscale x 2 x i32> zeroinitializer\)|splat \(i1 true\))]], i32 [[VL]])

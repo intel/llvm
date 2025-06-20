@@ -34,7 +34,7 @@ define spir_kernel void @get_sub_group_size(i32 addrspace(1)* %in, i32 addrspace
   ret void
 ; CHECK-LABEL: define spir_kernel void @__vecz_nxv4_get_sub_group_size(
 ; CHECK: [[VSCALE:%.*]] = call i32 @llvm.vscale.i32()
-; CHECK: [[W:%.*]] = shl i32 [[VSCALE]], 2
+; CHECK: [[W:%.*]] = shl {{(nuw )?}}i32 [[VSCALE]], 2
 ; CHECK: [[RED:%.*]] = call i32 @__mux_sub_group_reduce_add_i32(i32 [[W]])
 ; CHECK: store i32 [[RED]], ptr addrspace(1) {{.*}}
 }
@@ -47,7 +47,7 @@ define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrs
 ; CHECK-LABEL: define spir_kernel void @__vecz_nxv4_get_sub_group_local_id(
 ; CHECK: %call = tail call spir_func i32 @__mux_get_sub_group_local_id()
 ; CHECK: [[VSCALE:%.*]] = call i32 @llvm.vscale.i32()
-; CHECK: [[SHL:%.*]] = shl i32 %1, 2
+; CHECK: [[SHL:%.*]] = shl {{(nuw )?}}i32 [[VSCALE]], 2
 ; CHECK: [[MUL:%.*]] = mul i32 %call, [[SHL]]
 ; CHECK: [[SPLATINSERT:%.*]] = insertelement <vscale x 4 x i32> poison, i32 [[MUL]], i64 0
 ; CHECK: [[SPLAT:%.*]] = shufflevector <vscale x 4 x i32> [[SPLATINSERT]], <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer
