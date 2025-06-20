@@ -899,6 +899,7 @@ public:
     return result;                                                             \
   }                                                                            \
   Value *VisitBin##OP##Assign(const CompoundAssignOperator *E) {               \
+    ApplyAtomGroup Grp(CGF.getDebugInfo());                                    \
     return EmitCompoundAssign(E, &ScalarExprEmitter::Emit##OP);                \
   }
   HANDLEBINOP(Mul)
@@ -3042,6 +3043,7 @@ public:
 llvm::Value *
 ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
                                            bool isInc, bool isPre) {
+  ApplyAtomGroup Grp(CGF.getDebugInfo());
   OMPLastprivateConditionalUpdateRAII OMPRegion(CGF, E);
   QualType type = E->getSubExpr()->getType();
   llvm::PHINode *atomicPHI = nullptr;
@@ -3600,20 +3602,20 @@ ScalarExprEmitter::VisitUnaryExprOrTypeTraitExpr(
           CGF.EmitIgnoredExpr(E->getArgumentExpr());
         }
 
-        auto VlaSize = CGF.getVLASize(VAT);
-        llvm::Value *size = VlaSize.NumElts;
+        // For _Countof, we just want to return the size of a single dimension.
+        if (Kind == UETT_CountOf)
+          return CGF.getVLAElements1D(VAT).NumElts;
 
         // For sizeof and __datasizeof, we need to scale the number of elements
-        // by the size of the array element type. For _Countof, we just want to
-        // return the size directly.
-        if (Kind != UETT_CountOf) {
-          // Scale the number of non-VLA elements by the non-VLA element size.
-          CharUnits eltSize = CGF.getContext().getTypeSizeInChars(VlaSize.Type);
-          if (!eltSize.isOne())
-            size = CGF.Builder.CreateNUWMul(CGF.CGM.getSize(eltSize), size);
-        }
+        // by the size of the array element type.
+        auto VlaSize = CGF.getVLASize(VAT);
 
-        return size;
+        // Scale the number of non-VLA elements by the non-VLA element size.
+        CharUnits eltSize = CGF.getContext().getTypeSizeInChars(VlaSize.Type);
+        if (!eltSize.isOne())
+          return CGF.Builder.CreateNUWMul(CGF.CGM.getSize(eltSize),
+                                          VlaSize.NumElts);
+        return VlaSize.NumElts;
       }
     }
   } else if (E->getKind() == UETT_OpenMPRequiredSimdAlign) {
@@ -5105,6 +5107,7 @@ llvm::Value *CodeGenFunction::EmitWithOriginalRHSBitfieldAssignment(
 }
 
 Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
+  ApplyAtomGroup Grp(CGF.getDebugInfo());
   bool Ignore = TestAndClearIgnoreResultAssign();
 
   Value *RHS;
@@ -5887,6 +5890,7 @@ LValue CodeGenFunction::EmitObjCIsaExpr(const ObjCIsaExpr *E) {
 
 LValue CodeGenFunction::EmitCompoundAssignmentLValue(
                                             const CompoundAssignOperator *E) {
+  ApplyAtomGroup Grp(getDebugInfo());
   ScalarExprEmitter Scalar(*this);
   Value *Result = nullptr;
   switch (E->getOpcode()) {

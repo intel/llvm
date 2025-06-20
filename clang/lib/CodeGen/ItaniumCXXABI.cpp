@@ -2065,6 +2065,10 @@ void ItaniumCXXABI::emitVTableDefinitions(CodeGenVTables &CGVT,
     if (!VTable->isDSOLocal())
       CGVT.GenerateRelativeVTableAlias(VTable, VTable->getName());
   }
+
+  // Emit symbol for debugger only if requested debug info.
+  if (CGDebugInfo *DI = CGM.getModuleDebugInfo())
+    DI->emitVTableSymbol(VTable, RD);
 }
 
 bool ItaniumCXXABI::isVirtualOffsetNeededForVTableField(
@@ -2170,10 +2174,7 @@ llvm::GlobalVariable *ItaniumCXXABI::getAddrOfVTable(const CXXRecordDecl *RD,
   // Use pointer to global alignment for the vtable. Otherwise we would align
   // them based on the size of the initializer which doesn't make sense as only
   // single values are read.
-  LangAS AS = CGM.GetGlobalVarAddressSpace(nullptr);
-  unsigned PAlign = CGM.getItaniumVTableContext().isRelativeLayout()
-                        ? 32
-                        : CGM.getTarget().getPointerAlign(AS);
+  unsigned PAlign = CGM.getVtableGlobalVarAlignment();
 
   VTable = CGM.CreateOrReplaceCXXRuntimeVariable(
       Name, VTableType, llvm::GlobalValue::ExternalLinkage,
@@ -3655,7 +3656,7 @@ static bool TypeInfoIsInStandardLibrary(const BuiltinType *Ty) {
     case BuiltinType::OCLReserveID:
 #define SVE_TYPE(Name, Id, SingletonId) \
     case BuiltinType::Id:
-#include "clang/Basic/AArch64SVEACLETypes.def"
+#include "clang/Basic/AArch64ACLETypes.def"
 #define PPC_VECTOR_TYPE(Name, Id, Size) \
     case BuiltinType::Id:
 #include "clang/Basic/PPCTypes.def"
@@ -3971,6 +3972,7 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty,
     break;
 
   case Type::HLSLAttributedResource:
+  case Type::HLSLInlineSpirv:
     llvm_unreachable("HLSL doesn't support virtual functions");
   }
 
@@ -4246,6 +4248,7 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(
     break;
 
   case Type::HLSLAttributedResource:
+  case Type::HLSLInlineSpirv:
     llvm_unreachable("HLSL doesn't support RTTI");
   }
 
@@ -5064,7 +5067,11 @@ void ItaniumCXXABI::emitBeginCatch(CodeGenFunction &CGF,
 
   // Emit the local.
   CodeGenFunction::AutoVarEmission var = CGF.EmitAutoVarAlloca(*CatchParam);
-  InitCatchParam(CGF, *CatchParam, var.getObjectAddress(CGF), S->getBeginLoc());
+  {
+    ApplyAtomGroup Grp(CGF.getDebugInfo());
+    InitCatchParam(CGF, *CatchParam, var.getObjectAddress(CGF),
+                   S->getBeginLoc());
+  }
   CGF.EmitAutoVarCleanups(var);
 }
 

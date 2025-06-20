@@ -3175,6 +3175,12 @@ static SPIRVType *getVulkanBufferType(const TargetExtType *ExtensionType,
   return GR->getOrCreateVulkanBufferType(MIRBuilder, T, SC, IsWritable);
 }
 
+static SPIRVType *getLayoutType(const TargetExtType *ExtensionType,
+                                MachineIRBuilder &MIRBuilder,
+                                SPIRVGlobalRegistry *GR) {
+  return GR->getOrCreateLayoutType(MIRBuilder, ExtensionType);
+}
+
 namespace SPIRV {
 TargetExtType *parseBuiltinTypeNameToTargetExtType(std::string TypeName,
                                                    LLVMContext &Context) {
@@ -3252,6 +3258,8 @@ SPIRVType *lowerBuiltinType(const Type *OpaqueType,
     TargetType = getInlineSpirvType(BuiltinType, MIRBuilder, GR);
   } else if (Name == "spirv.VulkanBuffer") {
     TargetType = getVulkanBufferType(BuiltinType, MIRBuilder, GR);
+  } else if (Name == "spirv.Layout") {
+    TargetType = getLayoutType(BuiltinType, MIRBuilder, GR);
   } else {
     // Lookup the demangled builtin type in the TableGen records.
     const SPIRV::BuiltinType *TypeRecord = SPIRV::lookupBuiltinType(Name);

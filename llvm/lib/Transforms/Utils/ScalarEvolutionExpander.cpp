@@ -435,7 +435,7 @@ static const Loop *PickMostRelevantLoop(const Loop *A, const Loop *B,
 /// expression, according to PickMostRelevantLoop.
 const Loop *SCEVExpander::getRelevantLoop(const SCEV *S) {
   // Test whether we've already computed the most relevant loop for this SCEV.
-  auto Pair = RelevantLoops.insert(std::make_pair(S, nullptr));
+  auto Pair = RelevantLoops.try_emplace(S);
   if (!Pair.second)
     return Pair.first->second;
 

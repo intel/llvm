@@ -21,6 +21,8 @@ namespace clang {
 
 class ASTRecordWriter;
 class IdentifierInfo;
+class LangOptions;
+class TargetInfo;
 
 class AttributeCommonInfo {
 public:
@@ -74,6 +76,7 @@ public:
     MSVC,
     OMP,
     HLSL,
+    VK,
     GSL,
     RISCV,
     INTEL,
@@ -209,6 +212,9 @@ public:
   /// with surrounding underscores removed as appropriate (e.g.
   /// __gnu__::__attr__ will be normalized to gnu::attr).
   std::string getNormalizedFullName() const;
+  std::optional<std::string>
+  getCorrectedFullName(const TargetInfo &Target,
+                       const LangOptions &LangOpts) const;
   SourceRange getNormalizedRange() const;
 
   bool isDeclspecAttribute() const { return SyntaxUsed == AS_Declspec; }
