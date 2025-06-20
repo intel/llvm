@@ -301,6 +301,8 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   ZeInitResult = ZE_RESULT_ERROR_UNINITIALIZED;
   ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
 
+  resetRefCount(0);
+
 #ifdef UR_STATIC_LEVEL_ZERO
   // Given static linking of the L0 Loader, we must delay the loader's
   // destruction of its context until after the UR Adapter is destroyed.
@@ -667,7 +669,7 @@ ur_result_t urAdapterGet(
     uint32_t *NumAdapters) {
   if (NumEntries > 0 && Adapters) {
     if (GlobalAdapter) {
-      if (GlobalAdapter->incrementRefCount() == 1) {
+      if (GlobalAdapter->incrementRefCount() == 0) {
         adapterStateInit();
       }
     } else {
@@ -675,7 +677,7 @@ ur_result_t urAdapterGet(
       // then temporarily create a new Adapter handle and register a new
       // cleanup.
       GlobalAdapter = new ur_adapter_handle_t_();
-      if (GlobalAdapter->incrementRefCount() == 1) {
+      if (GlobalAdapter->incrementRefCount() == 0) {
         adapterStateInit();
       }
       std::atexit(globalAdapterOnDemandCleanup);
@@ -693,7 +695,7 @@ ur_result_t urAdapterGet(
 ur_result_t urAdapterRelease(ur_adapter_handle_t) {
   // Check first if the Adapter pointer is valid
   if (GlobalAdapter) {
-    if (GlobalAdapter->decrementRefCount() == 0) {
+    if (GlobalAdapter->decrementAndTest()) {
       auto result = adapterStateTeardown();
 #ifdef UR_STATIC_LEVEL_ZERO
       // Given static linking of the L0 Loader, we must delay the loader's
