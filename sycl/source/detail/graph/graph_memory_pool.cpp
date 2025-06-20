@@ -7,14 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "graph_memory_pool.hpp"
+#include "graph_impl.hpp"
 
 #include <optional>
 #include <queue>
 
-#include "graph_impl.hpp"
-
 namespace sycl {
 inline namespace _V1 {
+
 namespace ext {
 namespace oneapi {
 namespace experimental {

@@ -36,10 +36,35 @@ class node;
 namespace property::node {
 class depends_on;
 } // namespace property::node
-// Graph property trait specializations.
-enum class graph_state;
+
+/// State to template the command_graph class on.
+enum class graph_state {
+  modifiable, ///< In modifiable state, commands can be added to graph.
+  executable, ///< In executable state, the graph is ready to execute.
+};
+
 template <graph_state State> class command_graph;
 
+namespace detail {
+inline void checkGraphPropertiesAndThrow(const property_list &Properties) {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.def>
+
+    default:
+      return false;
+    }
+  };
+  // No properties with data for graph now.
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
+  sycl::detail::PropertyValidator::checkPropsAndThrow(
+      Properties, CheckDataLessProperties, NoAllowedPropertiesCheck);
+}
+} // namespace detail
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
