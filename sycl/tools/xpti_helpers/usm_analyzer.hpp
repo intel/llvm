@@ -432,7 +432,7 @@ public:
     // Search for pointer args and validate the pointers
     for (uint32_t i = 0; i < *Params->pnumArgs; i++) {
       if ((*Params->ppArgs)[i].type == UR_EXP_KERNEL_ARG_TYPE_POINTER) {
-        void *Ptr = (const_cast<void *>((*Params->ppArgs)[i].arg.pointer));
+        void *Ptr = (const_cast<void *>((*Params->ppArgs)[i].value.pointer));
         CheckPointerValidness("kernel parameter with index = " +
                                   std::to_string((*Params->ppArgs)[i].index),
                               Ptr, 0 /*no data how it will be used in kernel*/,

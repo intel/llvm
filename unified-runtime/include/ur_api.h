@@ -582,10 +582,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES = 0x3000,
   /// ::ur_exp_enqueue_ext_properties_t
   UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES = 0x4000,
-  /// ::ur_exp_kernel_arg_mem_obj_tuple_t
-  UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_MEM_OBJ_TUPLE = 0x5000,
   /// ::ur_exp_kernel_arg_properties_t
-  UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES = 0x5001,
+  UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES = 0x5000,
   /// @cond
   UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -12682,7 +12680,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 // Intel 'oneAPI' Unified Runtime Experimental API for setting args at kernel
 // launch
 #if !defined(__GNUC__)
-#pragma region kernel_launch_with_args_(experimental)
+#pragma region enqueue_kernel_launch_with_args_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief What kind of kernel arg is this
@@ -12746,7 +12744,7 @@ typedef struct ur_exp_kernel_arg_properties_t {
   /// [in] size of the kernel arg
   size_t size;
   /// [in][tagged_by(type)] Union containing the argument value.
-  ur_exp_kernel_arg_value_t arg;
+  ur_exp_kernel_arg_value_t value;
 
 } ur_exp_kernel_arg_properties_t;
 

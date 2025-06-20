@@ -638,25 +638,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
       }
       case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
         hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
-                              pArgs[i].arg.value);
+                              pArgs[i].value.value);
         break;
       }
       case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
         // setKernelArg is expecting a pointer to our argument
         hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
-                              &pArgs[i].arg.pointer);
+                              &pArgs[i].value.pointer);
         break;
       }
       case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
         ur_kernel_arg_mem_obj_properties_t Props = {
             UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
-            pArgs[i].arg.memObjTuple.flags};
+            pArgs[i].value.memObjTuple.flags};
         UR_CALL(urKernelSetArgMemObj(hKernel, pArgs[i].index, &Props,
-                                     pArgs[i].arg.memObjTuple.hMem));
+                                     pArgs[i].value.memObjTuple.hMem));
         break;
       }
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-        uint32_t SamplerProps = pArgs[i].arg.sampler->Props;
+        uint32_t SamplerProps = pArgs[i].value.sampler->Props;
         hKernel->setKernelArg(pArgs[i].index, sizeof(uint32_t),
                               (void *)&SamplerProps);
         break;

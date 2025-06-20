@@ -1446,9 +1446,6 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES:
     os << "UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES";
     break;
-  case UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_MEM_OBJ_TUPLE:
-    os << "UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_MEM_OBJ_TUPLE";
-    break;
   case UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES:
     os << "UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES";
     break;
@@ -1766,12 +1763,6 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES: {
     const ur_exp_enqueue_ext_properties_t *pstruct =
         (const ur_exp_enqueue_ext_properties_t *)ptr;
-    printPtr(os, pstruct);
-  } break;
-
-  case UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_MEM_OBJ_TUPLE: {
-    const ur_exp_kernel_arg_mem_obj_tuple_t *pstruct =
-        (const ur_exp_kernel_arg_mem_obj_tuple_t *)ptr;
     printPtr(os, pstruct);
   } break;
 
@@ -12353,8 +12344,8 @@ operator<<(std::ostream &os,
   os << (params.size);
 
   os << ", ";
-  os << ".arg = ";
-  ur::details::printUnion(os, (params.arg), params.type);
+  os << ".value = ";
+  ur::details::printUnion(os, (params.value), params.type);
 
   os << "}";
   return os;

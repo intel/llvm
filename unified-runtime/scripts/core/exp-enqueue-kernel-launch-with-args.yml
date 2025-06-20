@@ -80,7 +80,7 @@ members:
       name: size
       desc: "[in] size of the kernel arg"
     - type: $x_exp_kernel_arg_value_t
-      name: arg
+      name: value
       desc: "[in][tagged_by(type)] Union containing the argument value."
 --- #--------------------------------------------------------------------------
 type: enum
@@ -88,12 +88,9 @@ extend: true
 desc: "Structure Type experimental enumerations."
 name: $x_structure_type_t
 etors:
-    - name: EXP_KERNEL_ARG_MEM_OBJ_TUPLE
-      desc: $x_exp_kernel_arg_mem_obj_tuple_t
-      value: "0x5000"
     - name: EXP_KERNEL_ARG_PROPERTIES
       desc: $x_exp_kernel_arg_properties_t
-      value: "0x5001"
+      value: "0x5000"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to execute a kernel"

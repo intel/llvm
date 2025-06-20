@@ -1700,29 +1700,30 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
       UR_CALL(ur_sanitizer_layer::asan::urKernelSetArgPointer(
           hKernel, pArgs[ArgPropIndex].index, nullptr,
-          pArgs[ArgPropIndex].arg.pointer));
+          pArgs[ArgPropIndex].value.pointer));
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
       UR_CALL(ur_sanitizer_layer::asan::urKernelSetArgValue(
           hKernel, pArgs[ArgPropIndex].index, pArgs[ArgPropIndex].size, nullptr,
-          pArgs[ArgPropIndex].arg.pointer));
+          pArgs[ArgPropIndex].value.value));
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
       ur_kernel_arg_mem_obj_properties_t Properties = {
           UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
-          pArgs[ArgPropIndex].arg.memObjTuple.flags};
+          pArgs[ArgPropIndex].value.memObjTuple.flags};
       UR_CALL(ur_sanitizer_layer::asan::urKernelSetArgMemObj(
           hKernel, pArgs[ArgPropIndex].index, &Properties,
-          pArgs[ArgPropIndex].arg.memObjTuple.hMem));
+          pArgs[ArgPropIndex].value.memObjTuple.hMem));
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
       auto pfnKernelSetArgSampler =
           getContext()->urDdiTable.Kernel.pfnSetArgSampler;
       UR_CALL(pfnKernelSetArgSampler(hKernel, pArgs[ArgPropIndex].index,
-                                     nullptr, pArgs[ArgPropIndex].arg.sampler));
+                                     nullptr,
+                                     pArgs[ArgPropIndex].value.sampler));
       break;
     }
     default:

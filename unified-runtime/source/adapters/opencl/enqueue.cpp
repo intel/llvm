@@ -548,11 +548,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     case UR_EXP_KERNEL_ARG_TYPE_VALUE:
       CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
                                           static_cast<cl_uint>(pArgs[i].index),
-                                          pArgs[i].size, pArgs[i].arg.value));
+                                          pArgs[i].size, pArgs[i].value.value));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
-      cl_mem mem = pArgs[i].arg.memObjTuple.hMem
-                       ? pArgs[i].arg.memObjTuple.hMem->CLMemory
+      cl_mem mem = pArgs[i].value.memObjTuple.hMem
+                       ? pArgs[i].value.memObjTuple.hMem->CLMemory
                        : nullptr;
       CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
                                           static_cast<cl_uint>(pArgs[i].index),
@@ -562,12 +562,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     case UR_EXP_KERNEL_ARG_TYPE_POINTER:
       CL_RETURN_ON_FAILURE(SetKernelArgMemPointerPtr(
           hKernel->CLKernel, static_cast<cl_uint>(pArgs[i].index),
-          pArgs[i].arg.pointer));
+          pArgs[i].value.pointer));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
       CL_RETURN_ON_FAILURE(clSetKernelArg(
           hKernel->CLKernel, static_cast<cl_uint>(pArgs[i].index),
-          pArgs[i].size, &pArgs[i].arg.sampler->CLSampler));
+          pArgs[i].size, &pArgs[i].value.sampler->CLSampler));
       break;
     }
     default:

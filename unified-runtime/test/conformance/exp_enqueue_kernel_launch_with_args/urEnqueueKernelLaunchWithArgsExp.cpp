@@ -238,7 +238,7 @@ struct urEnqueueKernelLaunchWithArgsMemObjTest : uur::urKernelExecutionTest {
         current_arg_index++,
         sizeof(buffer),
         {nullptr}};
-    arg.arg.memObjTuple = buffer_and_properties;
+    arg.value.memObjTuple = buffer_and_properties;
     args.push_back(arg);
 
     // Add accessor arguments depending on backend.
@@ -246,7 +246,7 @@ struct urEnqueueKernelLaunchWithArgsMemObjTest : uur::urKernelExecutionTest {
     if (backend == UR_BACKEND_HIP) {
       arg.type = UR_EXP_KERNEL_ARG_TYPE_VALUE;
       arg.size = sizeof(hip_local_offset);
-      arg.arg.value = &hip_local_offset;
+      arg.value.value = &hip_local_offset;
       arg.index = current_arg_index++;
       args.push_back(arg);
       arg.index = current_arg_index++;
@@ -257,7 +257,7 @@ struct urEnqueueKernelLaunchWithArgsMemObjTest : uur::urKernelExecutionTest {
       arg.type = UR_EXP_KERNEL_ARG_TYPE_VALUE;
       arg.index = current_arg_index++;
       arg.size = sizeof(accessor);
-      arg.arg.value = &accessor;
+      arg.value.value = &accessor;
       args.push_back(arg);
     }
 
@@ -265,7 +265,7 @@ struct urEnqueueKernelLaunchWithArgsMemObjTest : uur::urKernelExecutionTest {
     arg.type = UR_EXP_KERNEL_ARG_TYPE_VALUE;
     arg.index = current_arg_index++;
     arg.size = sizeof(val);
-    arg.arg.value = &val;
+    arg.value.value = &val;
     args.push_back(arg);
   }
 

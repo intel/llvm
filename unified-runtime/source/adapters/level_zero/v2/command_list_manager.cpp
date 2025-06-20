@@ -999,22 +999,23 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
       case UR_EXP_KERNEL_ARG_TYPE_VALUE:
         UR_CALL(hKernel->setArgValue(pArgs[argIndex].index,
                                      pArgs[argIndex].size, nullptr,
-                                     pArgs[argIndex].arg.value));
+                                     pArgs[argIndex].value.value));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_POINTER:
         UR_CALL(hKernel->setArgPointer(pArgs[argIndex].index, nullptr,
-                                       pArgs[argIndex].arg.pointer));
+                                       pArgs[argIndex].value.pointer));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
         // TODO: import helper for converting ur flags to internal equivalent
         UR_CALL(hKernel->addPendingMemoryAllocation(
-            {pArgs[argIndex].arg.memObjTuple.hMem,
+            {pArgs[argIndex].value.memObjTuple.hMem,
              ur_mem_buffer_t::device_access_mode_t::read_write,
              pArgs[argIndex].index}));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-        UR_CALL(hKernel->setArgValue(argIndex, sizeof(void *), nullptr,
-                                     &pArgs[argIndex].arg.sampler->ZeSampler));
+        UR_CALL(
+            hKernel->setArgValue(argIndex, sizeof(void *), nullptr,
+                                 &pArgs[argIndex].value.sampler->ZeSampler));
         break;
       }
       default:

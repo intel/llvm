@@ -186,24 +186,24 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
         break;
       case UR_EXP_KERNEL_ARG_TYPE_VALUE:
         UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        Args[i].arg.value));
+                                        Args[i].value.value));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_POINTER:
         UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        &Args[i].arg.pointer));
+                                        &Args[i].value.pointer));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
         ur_kernel_arg_mem_obj_properties_t Properties = {
             UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
-            Args[i].arg.memObjTuple.flags};
+            Args[i].value.memObjTuple.flags};
         UR_CALL(KernelSetArgMemObjHelper(Kernel, Args[i].index, &Properties,
-                                         Args[i].arg.memObjTuple.hMem));
+                                         Args[i].value.memObjTuple.hMem));
         break;
       }
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
         ZE2UR_CALL(zeKernelSetArgumentValue,
                    (Kernel->ZeKernel, Args[i].index, sizeof(void *),
-                    &Args[i].arg.sampler->ZeSampler));
+                    &Args[i].value.sampler->ZeSampler));
         break;
       }
       default:

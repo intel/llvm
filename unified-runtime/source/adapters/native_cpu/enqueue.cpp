@@ -705,15 +705,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
     switch (pArgs[argIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-      hKernel->addArg(pArgs[argIndex].arg.value, pArgs[argIndex].index,
+      hKernel->addArg(pArgs[argIndex].value.value, pArgs[argIndex].index,
                       pArgs[argIndex].size);
       break;
     case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-      hKernel->addPtrArg(const_cast<void *>(pArgs[argIndex].arg.pointer),
+      hKernel->addPtrArg(const_cast<void *>(pArgs[argIndex].value.pointer),
                          pArgs[argIndex].index);
       break;
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
-      auto MemObj = pArgs[argIndex].arg.memObjTuple.hMem;
+      auto MemObj = pArgs[argIndex].value.memObjTuple.hMem;
       if (MemObj) {
         hKernel->addArgReference(MemObj);
       }
