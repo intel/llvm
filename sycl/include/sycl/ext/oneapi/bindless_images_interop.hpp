@@ -12,16 +12,11 @@
 
 #include <stddef.h> // for size_t
 
+#include "common_interop_resource_types.hpp"
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
-
-// Types of external memory handles
-enum class external_mem_handle_type {
-  opaque_fd = 0,
-  win32_nt_handle = 1,
-  win32_nt_dx12_resource = 2,
-};
 
 // Types of external semaphore handles
 enum class external_semaphore_handle_type {
@@ -43,16 +38,6 @@ struct external_semaphore {
   using raw_handle_type = ur_exp_external_semaphore_handle_t;
   raw_handle_type raw_handle;
   external_semaphore_handle_type handle_type;
-};
-
-// External resource file descriptor type
-struct resource_fd {
-  int file_descriptor;
-};
-
-// Windows external handle type
-struct resource_win32_handle {
-  void *handle;
 };
 
 // Windows external name type

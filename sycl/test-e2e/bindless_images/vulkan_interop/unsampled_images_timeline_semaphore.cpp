@@ -9,8 +9,8 @@
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
+#include "../../CommonUtils/vulkan_common.hpp"
 #include "../helpers/common.hpp"
-#include "vulkan_common.hpp"
 #include <sycl/properties/queue_properties.hpp>
 
 #include <random>

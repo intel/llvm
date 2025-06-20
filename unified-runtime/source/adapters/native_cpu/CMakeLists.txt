@@ -24,6 +24,7 @@ add_ur_adapter(${TARGET_NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/kernel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/kernel.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/memory.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/memory.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
