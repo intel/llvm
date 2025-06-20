@@ -1383,15 +1383,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
           extMemDesc.type = hipExternalMemoryHandleTypeOpaqueWin32;
           break;
         case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE:
-        case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE:
           // Memory descriptor flag values such as hipExternalMemoryDedicated
           // are not available before HIP 5.6, so we safely fallback to marking
           // this as an unsupported.
 #if HIP_VERSION >= 50600000
-          extMemDesc.type =
-              (memHandleType == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE)
-                  ? hipExternalMemoryHandleTypeD3D12Resource
-                  : hipExternalMemoryHandleTypeD3D11Resource;
+          extMemDesc.type = hipExternalMemoryHandleTypeD3D12Resource;
+          extMemDesc.flags = hipExternalMemoryDedicated;
+#else
+          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+#endif
+          break;
+        case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE:
+#if HIP_VERSION >= 50600000
+          extMemDesc.type = hipExternalMemoryHandleTypeD3D11Resource;
           extMemDesc.flags = hipExternalMemoryDedicated;
 #else
           return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

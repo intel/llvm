@@ -15,7 +15,9 @@
 // Windows Runtime C++ Template Library (ComPtr and friends)
 #include <wrl.h>
 
+// For D3D11CreateDevice, ID3D11Device and ID3D11DeviceContext
 #include <d3d11.h>
+// For D3D12CreateDevice and ID3D12Device
 #include <d3d12.h>
 
 // As we are to share common DXGI interface functionality between our DX 11 and
@@ -26,15 +28,16 @@
 #if HAS_DXGI_1_6
 #include <dxgi1_6.h>
 #else
+// This version assumes Windows 10 and above.
 #include <dxgi1_4.h>
 #endif
 
+// Required for the DXGI debug layer (for IDXGIFactoy).
 #include <dxgidebug.h>
 
 #include <sycl/detail/core.hpp>
 
 using Microsoft::WRL::ComPtr;
-namespace syclexp = sycl::ext::oneapi::experimental;
 
 inline std::string ResultToString(HRESULT result) {
   char s_str[64] = {};
@@ -48,9 +51,23 @@ inline void ThrowIfFailed(HRESULT result) {
   }
 }
 
+void CloseNTHandle(HANDLE handle) {
+  assert(handle);
+  const bool valid = handle != NULL && handle != INVALID_HANDLE_VALUE;
+  if (valid) {
+    if (!CloseHandle(handle)) {
+      throw std::runtime_error("Error closing the shared NT handle.");
+    }
+  } else {
+    throw std::runtime_error("Error trying to close an invalid NT handle.");
+  }
+}
+
 namespace dx_helpers {
 
 enum class dx_version { DX11, DX12 };
+
+enum class device_preference { Unspecified, Integrated, Dedicated };
 
 DXGI_FORMAT toDXGIFormat(int NChannels, sycl::image_channel_type channelType) {
   switch (channelType) {
@@ -199,6 +216,14 @@ DXGI_FORMAT toDXGIFormat(int NChannels, sycl::image_channel_type channelType) {
   exit(-1);
 }
 
+bool isDXGIDebugLayerEnabled(IDXGIFactory1 *pFactory) {
+  ComPtr<IDXGIFactory3> factory3;
+  if (SUCCEEDED(pFactory->QueryInterface(IID_PPV_ARGS(&factory3)))) {
+    return (factory3->GetCreationFlags() & DXGI_CREATE_FACTORY_DEBUG) != 0;
+  }
+  return false;
+}
+
 /// @brief  This is a helper function to find an appropriate hardware adapter.
 /// It does not create the final D3D device but rather tests creating it with
 /// the chosen hardware adapter, so it can be used safely for SYCL interop.
@@ -210,23 +235,36 @@ DXGI_FORMAT toDXGIFormat(int NChannels, sycl::image_channel_type channelType) {
 /// @param pFactory
 /// @param ppAdapter
 template <dx_version dxVer>
-void getDXGIHardwareAdapter(IDXGIFactory1 *pFactory, IDXGIAdapter1 **ppAdapter,
-                        bool skipIntegrated = false) {
+void getDXGIHardwareAdapter(
+    IDXGIFactory1 *pFactory, IDXGIAdapter1 **ppAdapter,
+    device_preference devicePreference = device_preference::Unspecified) {
+  assert(pFactory);
   *ppAdapter = nullptr;
-
   ComPtr<IDXGIAdapter1> adapter;
 
+  // We don't need any device features of the Direct3D API beyond that version.
   constexpr D3D_FEATURE_LEVEL minFeatureLevel = D3D_FEATURE_LEVEL_11_0;
 
-  bool foundAdapter{false};
+  // It is not neccessary to tie the DXGI debug layer with the Direct3D 11 or 12
+  // device debug layer, but for the purposes of our tests and this abstracted
+  // functionality, it makes things easier to maintain so you just need to flip
+  // one switch and get access to the full debugging utilities of DirectX.
+  const bool withDebugDevice = isDXGIDebugLayerEnabled(pFactory);
+
+  const bool preferIntegrated =
+      devicePreference == device_preference::Integrated;
+  const bool preferDedicated = devicePreference == device_preference::Dedicated;
+
+  bool foundAdapter = false;
   // Find a suitable hardware adapter.
 #if HAS_DXGI_1_6
-  ComPtr<IDXGIFactory6> factory6;
-  if (SUCCEEDED(pFactory->QueryInterface(IID_PPV_ARGS(&factory6)))) {
+  if (ComPtr<IDXGIFactory6> factory6;
+      SUCCEEDED(pFactory->QueryInterface(IID_PPV_ARGS(&factory6)))) {
     for (UINT adapterIndex = 0; SUCCEEDED(factory6->EnumAdapterByGpuPreference(
              adapterIndex,
-             skipIntegrated ? DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE
-                            : DXGI_GPU_PREFERENCE_UNSPECIFIED,
+             preferDedicated    ? DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE
+             : preferIntegrated ? DXGI_GPU_PREFERENCE_MINIMUM_POWER
+                                : DXGI_GPU_PREFERENCE_UNSPECIFIED,
              IID_PPV_ARGS(&adapter)));
          ++adapterIndex) {
       if (!adapter) {
@@ -234,6 +272,7 @@ void getDXGIHardwareAdapter(IDXGIFactory1 *pFactory, IDXGIAdapter1 **ppAdapter,
       }
 
       DXGI_ADAPTER_DESC1 desc;
+      ZeroMemory(&desc, sizeof(desc));
       if (FAILED(adapter->GetDesc1(&desc))) {
         continue;
       }
@@ -256,10 +295,7 @@ void getDXGIHardwareAdapter(IDXGIFactory1 *pFactory, IDXGIAdapter1 **ppAdapter,
         // the actual device yet.
         ComPtr<ID3D11Device> device = nullptr;
         ComPtr<ID3D11DeviceContext> deviceContext = nullptr;
-        UINT deviceFlags = 0;
-#if defined(D3D_DEVICE_DEBUG)
-        deviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
-#endif
+        UINT deviceFlags = withDebugDevice ? D3D11_CREATE_DEVICE_DEBUG : 0;
         D3D_FEATURE_LEVEL outFeatureLevel;
         // We don't want SW renderer. Ideally we specify
         // D3D_DRIVER_TYPE_HARDWARE on creation but when we specify an Adapter
@@ -274,15 +310,14 @@ void getDXGIHardwareAdapter(IDXGIFactory1 *pFactory, IDXGIAdapter1 **ppAdapter,
             &deviceContext);
         if (SUCCEEDED(Result)) {
           assert(outFeatureLevel == minFeatureLevel); // sanity check
-          std::cout << "Created D3D11 Device successfully.\n";
           foundAdapter = true;
           break;
         }
       }
     }
-    // If not found fallback to EnumAdapters1 to search all available HW
-    // adapters.
   }
+  // Note: If no adapters were found from the above filtered enumeration, then
+  // will fallback to EnumAdapters1 to search all of the available HW adapters.
 #endif
 
   // Find a suitable hardware adapter.
@@ -296,6 +331,7 @@ void getDXGIHardwareAdapter(IDXGIFactory1 *pFactory, IDXGIAdapter1 **ppAdapter,
       }
 
       DXGI_ADAPTER_DESC1 desc;
+      ZeroMemory(&desc, sizeof(desc));
       if (FAILED(adapter->GetDesc1(&desc))) {
         continue;
       }
@@ -305,7 +341,7 @@ void getDXGIHardwareAdapter(IDXGIFactory1 *pFactory, IDXGIAdapter1 **ppAdapter,
         continue;
       }
 
-      if (skipIntegrated) {
+      if (devicePreference != device_preference::Unspecified) {
         // Simple heuristic, but it's hard to do better without external deps.
         ComPtr<IDXGIAdapter3> tmpAdapter3;
         DXGI_QUERY_VIDEO_MEMORY_INFO videoMemoryInfo;
@@ -320,7 +356,8 @@ void getDXGIHardwareAdapter(IDXGIFactory1 *pFactory, IDXGIAdapter1 **ppAdapter,
         // derive that  if  if the non-local memory segment is 0 then it's an
         // intergrated graphics card that is using/allocating it as local.
         // In the case of dedicated GPUs both segments will be independent.
-        if (bool isIntegrated = !isNonLocalMemoryPresent; isIntegrated) {
+        if (bool isIntegrated = !isNonLocalMemoryPresent;
+            isIntegrated && !preferIntegrated) {
           continue;
         }
       }
@@ -341,10 +378,7 @@ void getDXGIHardwareAdapter(IDXGIFactory1 *pFactory, IDXGIAdapter1 **ppAdapter,
         // the actual device yet.
         ComPtr<ID3D11Device> device = nullptr;
         ComPtr<ID3D11DeviceContext> deviceContext = nullptr;
-        UINT deviceFlags = 0;
-#if defined(D3D_DEVICE_DEBUG)
-        deviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
-#endif
+        UINT deviceFlags = withDebugDevice ? D3D11_CREATE_DEVICE_DEBUG : 0;
         D3D_FEATURE_LEVEL outFeatureLevel;
         // We don't want SW renderer. Ideally we specify
         // D3D_DRIVER_TYPE_HARDWARE on creation but when we specify an Adapter
@@ -359,7 +393,6 @@ void getDXGIHardwareAdapter(IDXGIFactory1 *pFactory, IDXGIAdapter1 **ppAdapter,
             &deviceContext);
         if (SUCCEEDED(Result)) {
           assert(outFeatureLevel == minFeatureLevel); // sanity check
-          std::cout << "Created D3D11 Device successfully.\n";
           foundAdapter = true;
           break;
         }
@@ -371,8 +404,10 @@ void getDXGIHardwareAdapter(IDXGIFactory1 *pFactory, IDXGIAdapter1 **ppAdapter,
     // Set the returned adapter.
     *ppAdapter = adapter.Detach();
   } else {
+#ifdef VERBOSE_PRINT
     std::cerr << "Could not find the requested DirectX hardware adapter.";
+#endif
   }
 }
 
-} // namespace dx_heleprs
+} // namespace dx_helpers

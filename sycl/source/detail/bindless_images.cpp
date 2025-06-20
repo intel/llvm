@@ -447,6 +447,9 @@ __SYCL_EXPORT external_mem import_external_memory<resource_win32_handle>(
   case external_mem_handle_type::win32_nt_dx12_resource:
     urHandleType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE;
     break;
+  case external_mem_handle_type::win32_nt_dx11_resource:
+    urHandleType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE;
+    break;
   default:
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Invalid memory handle type");

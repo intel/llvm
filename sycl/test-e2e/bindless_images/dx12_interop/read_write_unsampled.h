@@ -1,22 +1,12 @@
 
 #pragma once
 
-// Reduce the size of Win32 header files
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-
-// Define NOMINMAX to enable compilation on Windows
-#define NOMINMAX
-
-#include <windows.h>
-
-#include <d3d12.h>
-#include <dxgi1_4.h>
-
 #include <iostream>
 #include <string>
-#include <wrl.h>
+
+#include "../helpers/common.hpp"
+#include "../helpers/dx_interop_common.hpp"
+using namespace dx_helpers;
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
@@ -24,18 +14,6 @@
 
 using Microsoft::WRL::ComPtr;
 namespace syclexp = sycl::ext::oneapi::experimental;
-
-inline std::string ResultToString(HRESULT result) {
-  char s_str[64] = {};
-  sprintf_s(s_str, "Error result == 0x%08X", static_cast<uint32_t>(result));
-  return std::string(s_str);
-}
-
-inline void ThrowIfFailed(HRESULT result) {
-  if (result != S_OK) {
-    throw std::runtime_error(ResultToString(result));
-  }
-}
 
 class DX12SYCLDevice {
 public:

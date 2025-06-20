@@ -7,155 +7,6 @@
 #pragma clang diagnostic ignored "-Waddress-of-temporary"
 
 #include "read_write_unsampled.h"
-#include "../helpers/common.hpp"
-
-static DXGI_FORMAT toDXGIFormat(int NChannels,
-                                sycl::image_channel_type channelType) {
-  switch (channelType) {
-  case sycl::image_channel_type::snorm_int8:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R8_SNORM;
-    case 2:
-      return DXGI_FORMAT_R8G8_SNORM;
-    case 4:
-      return DXGI_FORMAT_R8G8B8A8_SNORM;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::snorm_int16:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R16_SNORM;
-    case 2:
-      return DXGI_FORMAT_R16G16_SNORM;
-    case 4:
-      return DXGI_FORMAT_R16G16B16A16_SNORM;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::unorm_int8:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R8_UNORM;
-    case 2:
-      return DXGI_FORMAT_R8G8_UNORM;
-    case 4:
-      return DXGI_FORMAT_R8G8B8A8_UNORM;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::unorm_int16:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R16_UNORM;
-    case 2:
-      return DXGI_FORMAT_R16G16_UNORM;
-    case 4:
-      return DXGI_FORMAT_R16G16B16A16_UNORM;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::unorm_short_565:
-    return DXGI_FORMAT_B5G6R5_UNORM;
-  case sycl::image_channel_type::unorm_short_555:
-    return DXGI_FORMAT_B5G5R5A1_UNORM;
-  case sycl::image_channel_type::unorm_int_101010:
-    return DXGI_FORMAT_R10G10B10A2_UNORM;
-  case sycl::image_channel_type::signed_int8:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R8_SINT;
-    case 2:
-      return DXGI_FORMAT_R8G8_SINT;
-    case 4:
-      return DXGI_FORMAT_R8G8B8A8_SINT;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::signed_int16:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R16_SINT;
-    case 2:
-      return DXGI_FORMAT_R16G16_SINT;
-    case 4:
-      return DXGI_FORMAT_R16G16B16A16_SINT;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::signed_int32:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R32_SINT;
-    case 2:
-      return DXGI_FORMAT_R32G32_SINT;
-    case 4:
-      return DXGI_FORMAT_R32G32B32A32_SINT;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::unsigned_int8:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R8_UINT;
-    case 2:
-      return DXGI_FORMAT_R8G8_UINT;
-    case 4:
-      return DXGI_FORMAT_R8G8B8A8_UINT;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::unsigned_int16:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R16_UINT;
-    case 2:
-      return DXGI_FORMAT_R16G16_UINT;
-    case 4:
-      return DXGI_FORMAT_R16G16B16A16_UINT;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::unsigned_int32:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R32_UINT;
-    case 2:
-      return DXGI_FORMAT_R32G32_UINT;
-    case 4:
-      return DXGI_FORMAT_R32G32B32A32_UINT;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::fp16:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R16_FLOAT;
-    case 2:
-      return DXGI_FORMAT_R16G16_FLOAT;
-    case 4:
-      return DXGI_FORMAT_R16G16B16A16_FLOAT;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::fp32:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R32_FLOAT;
-    case 2:
-      return DXGI_FORMAT_R32G32_FLOAT;
-    case 4:
-      return DXGI_FORMAT_R32G32B32A32_FLOAT;
-    default:
-      break;
-    }
-  default:
-    break;
-  }
-  std::cerr << "Unsupported image_channel_type in toDXGIFormat\n";
-  exit(-1);
-}
 
 DX12SYCLDevice::DX12SYCLDevice() {
   m_syclQueue = sycl::queue{m_syclDevice, {sycl::property::queue::in_order{}}};
@@ -194,34 +45,18 @@ void DX12SYCLDevice::initDX12CommandList() {
 
 void DX12SYCLDevice::getDX12Adapter(IDXGIFactory2 *pFactory,
                                     IDXGIAdapter1 **ppAdapter) {
-  ComPtr<IDXGIAdapter1> adapter;
-  *ppAdapter = nullptr;
-
-  // Find a suitable hardware adapter.
-  uint32_t adapterIndex = 0;
-  HRESULT adapterFound = pFactory->EnumAdapters1(adapterIndex, &adapter);
-  while (adapterFound != DXGI_ERROR_NOT_FOUND) {
-    DXGI_ADAPTER_DESC1 desc;
-    adapter->GetDesc1(&desc);
-
-    if (!(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
-      // We don't want a software adapter.
-
-      // Check to see if the adapter supports Direct3D 12, but don't create the
-      // actual device yet.
-      if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_0,
-                                      _uuidof(ID3D12Device), nullptr))) {
-        break;
-      }
-    }
-
-    // Increment adapter index and find the next adapter.
-    adapterIndex++;
-    pFactory->EnumAdapters1(adapterIndex, &adapter);
+#if defined(PREFER_INTEGRATED_GPU)
+  constexpr auto devicePreference = device_preference::Integrated;
+#else
+  constexpr auto devicePreference = device_preference::Dedicated;
+#endif
+  getDXGIHardwareAdapter<dx_version::DX12>(pFactory, ppAdapter,
+                                           devicePreference);
+  if (!(*ppAdapter) && devicePreference != device_preference::Unspecified) {
+    std::cout << "Could not find suitable device, look again.\n";
+    // Request again but this time falling back to any available GPU.
+    getDXGIHardwareAdapter<dx_version::DX12>(pFactory, ppAdapter);
   }
-
-  // Set the returned adapter.
-  *ppAdapter = adapter.Detach();
 }
 
 template <int NDims, typename DType, int NChannels>
