@@ -23,6 +23,11 @@
 
 #include <memory>
 #include <mutex>
+#include <string>
+
+#define __SYCL_UR_ERROR_REPORT(backend)                                        \
+  std::string(sycl::detail::get_backend_name_no_vendor(backend)) +             \
+      " backend failed with error: "
 
 #define __SYCL_CHECK_UR_CODE_NO_EXC(expr, backend)                             \
   {                                                                            \
@@ -35,8 +40,31 @@
 
 namespace sycl {
 inline namespace _V1 {
-enum class backend : char;
+
 namespace detail {
+
+inline std::string_view get_backend_name_no_vendor(backend Backend) {
+  switch (Backend) {
+  case backend::host:
+    return "host";
+  case backend::opencl:
+    return "opencl";
+  case backend::ext_oneapi_level_zero:
+    return "level_zero";
+  case backend::ext_oneapi_cuda:
+    return "cuda";
+  case backend::ext_oneapi_hip:
+    return "hip";
+  case backend::ext_oneapi_native_cpu:
+    return "native_cpu";
+  case backend::ext_oneapi_offload:
+    return "offload";
+  case backend::all:
+    return "all";
+  }
+
+  return "";
+}
 
 /// The adapter class provides a unified interface to the underlying low-level
 /// runtimes for the device-agnostic SYCL runtime.

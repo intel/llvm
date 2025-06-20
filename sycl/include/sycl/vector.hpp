@@ -91,6 +91,19 @@ struct elem {
 };
 
 namespace detail {
+// Helper function for creating an arbitrary sized array with the same value
+// repeating.
+template <typename T, size_t... Is>
+static constexpr std::array<T, sizeof...(Is)>
+RepeatValueHelper(const T &Arg, std::index_sequence<Is...>) {
+  auto ReturnArg = [&](size_t) { return Arg; };
+  return {ReturnArg(Is)...};
+}
+template <size_t N, typename T>
+static constexpr std::array<T, N> RepeatValue(const T &Arg) {
+  return RepeatValueHelper(Arg, std::make_index_sequence<N>());
+}
+
 // To be defined in tests, trick to access vec's private methods
 template <typename T1, int T2> class vec_base_test;
 

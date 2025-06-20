@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <sycl/__spirv/spirv_types.hpp>        // for Scope, __ocl_event_t
-#include <sycl/access/access.hpp>              // for decorated, mode, addr...
-#include <sycl/detail/common.hpp>              // for NDLoop, __SYCL_ASSERT
+#include <sycl/__spirv/spirv_types.hpp> // for Scope, __ocl_event_t
+#include <sycl/access/access.hpp>       // for decorated, mode, addr...
+#include <sycl/detail/common.hpp>
 #include <sycl/detail/defines.hpp>             // for __SYCL_TYPE
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 #include <sycl/detail/generic_type_traits.hpp> // for convertToOpenCLType
@@ -36,6 +36,84 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 class Builder;
+
+/// Helper class for the \c NDLoop.
+template <int NDims, int Dim, template <int> class LoopBoundTy, typename FuncTy,
+          template <int> class LoopIndexTy>
+struct NDLoopIterateImpl {
+  NDLoopIterateImpl(const LoopIndexTy<NDims> &LowerBound,
+                    const LoopBoundTy<NDims> &Stride,
+                    const LoopBoundTy<NDims> &UpperBound, FuncTy f,
+                    LoopIndexTy<NDims> &Index) {
+    constexpr size_t AdjIdx = NDims - 1 - Dim;
+    for (Index[AdjIdx] = LowerBound[AdjIdx]; Index[AdjIdx] < UpperBound[AdjIdx];
+         Index[AdjIdx] += Stride[AdjIdx]) {
+
+      NDLoopIterateImpl<NDims, Dim - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+          LowerBound, Stride, UpperBound, f, Index};
+    }
+  }
+};
+
+// Specialization for Dim=0 to terminate recursion
+template <int NDims, template <int> class LoopBoundTy, typename FuncTy,
+          template <int> class LoopIndexTy>
+struct NDLoopIterateImpl<NDims, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
+  NDLoopIterateImpl(const LoopIndexTy<NDims> &LowerBound,
+                    const LoopBoundTy<NDims> &Stride,
+                    const LoopBoundTy<NDims> &UpperBound, FuncTy f,
+                    LoopIndexTy<NDims> &Index) {
+
+    constexpr size_t AdjIdx = NDims - 1;
+    for (Index[AdjIdx] = LowerBound[AdjIdx]; Index[AdjIdx] < UpperBound[AdjIdx];
+         Index[AdjIdx] += Stride[AdjIdx]) {
+
+      f(Index);
+    }
+  }
+};
+
+/// Generates an NDims-dimensional perfect loop nest. The purpose of this class
+/// is to better support handling of situations where there must be a loop nest
+/// over a multi-dimensional space - it allows to avoid generating unnecessary
+/// outer loops like 'for (int z=0; z<1; z++)' in case of 1D and 2D iteration
+/// spaces or writing specializations of the algorithms for 1D, 2D and 3D cases.
+/// Loop is unrolled in a reverse directions, i.e. ID = 0 is the inner-most one.
+template <int NDims> struct NDLoop {
+  /// Generates ND loop nest with {0,..0} .. \c UpperBound bounds with unit
+  /// stride. Applies \c f at each iteration, passing current index of
+  /// \c LoopIndexTy<NDims> type as the parameter.
+  template <template <int> class LoopBoundTy, typename FuncTy,
+            template <int> class LoopIndexTy = LoopBoundTy>
+  static __SYCL_ALWAYS_INLINE void iterate(const LoopBoundTy<NDims> &UpperBound,
+                                           FuncTy f) {
+    const LoopIndexTy<NDims> LowerBound =
+        InitializedVal<NDims, LoopIndexTy>::template get<0>();
+    const LoopBoundTy<NDims> Stride =
+        InitializedVal<NDims, LoopBoundTy>::template get<1>();
+    LoopIndexTy<NDims> Index =
+        InitializedVal<NDims, LoopIndexTy>::template get<0>();
+
+    NDLoopIterateImpl<NDims, NDims - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+        LowerBound, Stride, UpperBound, f, Index};
+  }
+
+  /// Generates ND loop nest with \c LowerBound .. \c UpperBound bounds and
+  /// stride \c Stride. Applies \c f at each iteration, passing current index of
+  /// \c LoopIndexTy<NDims> type as the parameter.
+  template <template <int> class LoopBoundTy, typename FuncTy,
+            template <int> class LoopIndexTy = LoopBoundTy>
+  static __SYCL_ALWAYS_INLINE void iterate(const LoopIndexTy<NDims> &LowerBound,
+                                           const LoopBoundTy<NDims> &Stride,
+                                           const LoopBoundTy<NDims> &UpperBound,
+                                           FuncTy f) {
+    LoopIndexTy<NDims> Index =
+        InitializedVal<NDims, LoopIndexTy>::template get<0>();
+    NDLoopIterateImpl<NDims, NDims - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+        LowerBound, Stride, UpperBound, f, Index};
+  }
+};
+
 
 // Implements a barrier accross work items within a work group.
 inline void workGroupBarrier() {
@@ -577,8 +655,6 @@ public:
   bool operator==(const group<Dimensions> &rhs) const {
     bool Result = (rhs.globalRange == globalRange) &&
                   (rhs.localRange == localRange) && (rhs.index == index);
-    __SYCL_ASSERT(rhs.groupRange == groupRange &&
-                  "inconsistent group class fields");
     return Result;
   }
 
