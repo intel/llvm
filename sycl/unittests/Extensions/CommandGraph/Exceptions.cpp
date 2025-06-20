@@ -919,15 +919,21 @@ TEST_F(CommandGraphTest, AsyncAllocKindExceptionCheck) {
 
   Graph.begin_recording(Queue);
 
+  addAsyncAlloc<OperationPath::RecordReplay, usm::alloc::host>(Graph, Queue,
+                                                               1024, Ptr1);
   addAsyncAlloc<OperationPath::RecordReplay, usm::alloc::shared>(Graph, Queue,
                                                                  1024, Ptr1);
+  addAsyncAlloc<OperationPath::Shortcut, usm::alloc::host>(Graph, Queue, 1024,
+                                                           Ptr2);
   addAsyncAlloc<OperationPath::Shortcut, usm::alloc::shared>(Graph, Queue, 1024,
                                                              Ptr2);
 
   Graph.end_recording();
 
+  void *Ptr3 = nullptr;
   void *Ptr4 = nullptr;
-
+  addAsyncAlloc<OperationPath::Explicit, usm::alloc::host>(Graph, Queue, 1024,
+                                                           Ptr3);
   addAsyncAlloc<OperationPath::Explicit, usm::alloc::shared>(Graph, Queue, 1024,
                                                              Ptr4);
 }

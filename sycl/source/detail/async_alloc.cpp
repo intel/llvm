@@ -76,26 +76,26 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
   void *alloc = nullptr;
 
   ur_event_handle_t Event = nullptr;
-  if (kind == sycl::usm::alloc::device) {
-    // If a graph is present do the allocation from the graph memory pool
-    // instead.
-    if (auto Graph = h.getCommandGraph(); Graph) {
-      auto DepNodes =
-          getDepGraphNodes(h, h.impl->get_queue_or_null(), Graph, DepEvents);
-      alloc = Graph->getMemPool().malloc(size, kind, DepNodes);
-    } else {
+  // If a graph is present do the allocation from the graph memory pool
+  // instead.
+  if (auto Graph = h.getCommandGraph(); Graph) {
+    auto DepNodes =
+        getDepGraphNodes(h, h.impl->get_queue_or_null(), Graph, DepEvents);
+    alloc = Graph->getMemPool().malloc(size, kind, DepNodes);
+  } else {
+    if (kind == sycl::usm::alloc::device) {
       ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
       Adapter->call<sycl::errc::runtime,
                     sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
           Q, (ur_usm_pool_handle_t)0, size, nullptr, UREvents.size(),
           UREvents.data(), &alloc, &Event);
+    } else if (kind == sycl::usm::alloc::host) {
+      ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
+      Adapter->call<sycl::errc::runtime,
+                    sycl::detail::UrApiKind::urEnqueueUSMHostAllocExp>(
+          Q, (ur_usm_pool_handle_t)0, size, nullptr, UREvents.size(),
+          UREvents.data(), &alloc, &Event);
     }
-  } else if (kind == sycl::usm::alloc::host) {
-    ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
-    Adapter->call<sycl::errc::runtime,
-                  sycl::detail::UrApiKind::urEnqueueUSMHostAllocExp>(
-        Q, (ur_usm_pool_handle_t)0, size, nullptr, UREvents.size(),
-        UREvents.data(), &alloc, &Event);
   }
 
   // Async malloc must return a void* immediately.
