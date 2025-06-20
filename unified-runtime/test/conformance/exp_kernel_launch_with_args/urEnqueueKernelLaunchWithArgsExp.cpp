@@ -8,7 +8,7 @@
 
 #include <cstring>
 
-// This kernel has a mix of local memory, pointer and value args.
+// This test runs a kernel with a mix of local memory, pointer and value args.
 struct urEnqueueKernelLaunchWithArgsTest : uur::urKernelExecutionTest {
   void SetUp() override {
     program_name = "saxpy_usm_local_mem";
@@ -45,7 +45,7 @@ struct urEnqueueKernelLaunchWithArgsTest : uur::urKernelExecutionTest {
                     UR_EXP_KERNEL_ARG_TYPE_LOCAL,
                     current_index++,
                     local_mem_a_size,
-                    {{nullptr}}});
+                    {nullptr}});
 
     // Hip has extra args for local mem at index 1-3
     ur_exp_kernel_arg_value_t argValue = {};
@@ -71,7 +71,7 @@ struct urEnqueueKernelLaunchWithArgsTest : uur::urKernelExecutionTest {
                     UR_EXP_KERNEL_ARG_TYPE_LOCAL,
                     current_index++,
                     local_mem_b_size,
-                    {{nullptr}}});
+                    {nullptr}});
 
     if (backend == UR_BACKEND_HIP) {
       argValue.value = &hip_local_offset;
@@ -175,8 +175,126 @@ TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullHandleKernel) {
 
 TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullPointerGlobalSize) {
   ASSERT_EQ_RESULT(
-      UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+      UR_RESULT_ERROR_INVALID_NULL_POINTER,
       urEnqueueKernelLaunchWithArgsExp(queue, kernel, global_offset, nullptr,
                                        local_size, args.size(), args.data(), 0,
                                        nullptr, 0, nullptr, nullptr));
+}
+
+TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullPointerProperties) {
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                   urEnqueueKernelLaunchWithArgsExp(
+                       queue, kernel, global_offset, global_size, local_size,
+                       args.size(), args.data(), 1, nullptr, 0, nullptr,
+                       nullptr));
+}
+
+TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullPointerArgs) {
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                   urEnqueueKernelLaunchWithArgsExp(
+                       queue, kernel, global_offset, global_size, local_size,
+                       args.size(), nullptr, 0, nullptr, 0, nullptr, nullptr));
+}
+
+TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidEventWaitList) {
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
+                   urEnqueueKernelLaunchWithArgsExp(
+                       queue, kernel, global_offset, global_size, local_size,
+                       args.size(), args.data(), 0, nullptr, 1, nullptr,
+                       nullptr));
+  ur_event_handle_t event = nullptr;
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
+                   urEnqueueKernelLaunchWithArgsExp(
+                       queue, kernel, global_offset, global_size, local_size,
+                       args.size(), args.data(), 0, nullptr, 0, &event,
+                       nullptr));
+}
+
+// This test runs a kernel with a buffer (MEM_OBJ) arg.
+struct urEnqueueKernelLaunchWithArgsMemObjTest : uur::urKernelExecutionTest {
+  void SetUp() override {
+    program_name = "fill";
+    UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
+
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                     sizeof(backend), &backend, nullptr));
+
+    ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE,
+                                     sizeof(val) * global_size[0], nullptr,
+                                     &buffer));
+
+    char zero = 0;
+    ASSERT_SUCCESS(urEnqueueMemBufferFill(queue, buffer, &zero, sizeof(zero), 0,
+                                          buffer_size, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+
+    // First argument is buffer to fill
+    unsigned current_arg_index = 0;
+    ur_exp_kernel_arg_mem_obj_tuple_t buffer_and_properties = {buffer, 0};
+    ur_exp_kernel_arg_properties_t arg = {
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+        current_arg_index++,
+        sizeof(buffer),
+        {nullptr}};
+    arg.arg.memObjTuple = buffer_and_properties;
+    args.push_back(arg);
+
+    // Add accessor arguments depending on backend.
+    // HIP has 3 offset parameters and other backends only have 1.
+    if (backend == UR_BACKEND_HIP) {
+      arg.type = UR_EXP_KERNEL_ARG_TYPE_VALUE;
+      arg.size = sizeof(hip_local_offset);
+      arg.arg.value = &hip_local_offset;
+      arg.index = current_arg_index++;
+      args.push_back(arg);
+      arg.index = current_arg_index++;
+      args.push_back(arg);
+      arg.index = current_arg_index++;
+      args.push_back(arg);
+    } else {
+      arg.type = UR_EXP_KERNEL_ARG_TYPE_VALUE;
+      arg.index = current_arg_index++;
+      arg.size = sizeof(accessor);
+      arg.arg.value = &accessor;
+      args.push_back(arg);
+    }
+
+    // Second user defined argument is scalar to fill with.
+    arg.type = UR_EXP_KERNEL_ARG_TYPE_VALUE;
+    arg.index = current_arg_index++;
+    arg.size = sizeof(val);
+    arg.arg.value = &val;
+    args.push_back(arg);
+  }
+
+  void TearDown() override {
+    if (buffer) {
+      EXPECT_SUCCESS(urMemRelease(buffer));
+    }
+
+    UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::TearDown());
+  }
+
+  static constexpr uint32_t val = 42;
+  static constexpr size_t global_size[3] = {32, 1, 1};
+  static constexpr size_t buffer_size = sizeof(val) * global_size[0];
+  static constexpr uint64_t hip_local_offset = 0;
+  ur_backend_t backend{};
+  ur_mem_handle_t buffer = nullptr;
+  // This is the accessor offset struct sycl kernels expect to accompany buffer args.
+  struct {
+    size_t offsets[1] = {0};
+  } accessor;
+  std::vector<ur_exp_kernel_arg_properties_t> args;
+};
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchWithArgsMemObjTest);
+
+TEST_P(urEnqueueKernelLaunchWithArgsMemObjTest, Success) {
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, nullptr, global_size, nullptr, args.size(), args.data(), 0,
+      nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+  ValidateBuffer(buffer, buffer_size, val);
 }

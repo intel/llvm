@@ -12231,14 +12231,14 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_kernel_arg_type_t value) {
   switch (value) {
-  case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
-    os << "UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ";
-    break;
   case UR_EXP_KERNEL_ARG_TYPE_VALUE:
     os << "UR_EXP_KERNEL_ARG_TYPE_VALUE";
     break;
   case UR_EXP_KERNEL_ARG_TYPE_POINTER:
     os << "UR_EXP_KERNEL_ARG_TYPE_POINTER";
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
+    os << "UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ";
     break;
   case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
     os << "UR_EXP_KERNEL_ARG_TYPE_LOCAL";
@@ -12283,13 +12283,6 @@ inline ur_result_t printUnion(std::ostream &os,
   os << "(union ur_exp_kernel_arg_value_t){";
 
   switch (tag) {
-  case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
-
-    os << ".memObjTuple = ";
-
-    os << (params.memObjTuple);
-
-    break;
   case UR_EXP_KERNEL_ARG_TYPE_VALUE:
 
     os << ".value = ";
@@ -12302,6 +12295,13 @@ inline ur_result_t printUnion(std::ostream &os,
     os << ".pointer = ";
 
     ur::details::printPtr(os, (params.pointer));
+
+    break;
+  case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
+
+    os << ".memObjTuple = ";
+
+    os << (params.memObjTuple);
 
     break;
   case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:

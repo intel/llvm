@@ -12687,12 +12687,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief What kind of kernel arg is this
 typedef enum ur_exp_kernel_arg_type_t {
-  /// Kernel arg is a memory object.
-  UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ = 0,
   /// Kernel arg is a value.
-  UR_EXP_KERNEL_ARG_TYPE_VALUE = 1,
+  UR_EXP_KERNEL_ARG_TYPE_VALUE = 0,
   /// Kernel arg is a pointer.
-  UR_EXP_KERNEL_ARG_TYPE_POINTER = 2,
+  UR_EXP_KERNEL_ARG_TYPE_POINTER = 1,
+  /// Kernel arg is a memory object.
+  UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ = 2,
   /// Kernel arg is a local allocation.
   UR_EXP_KERNEL_ARG_TYPE_LOCAL = 3,
   /// Kernel arg is a sampler.
@@ -12718,14 +12718,14 @@ typedef struct ur_exp_kernel_arg_mem_obj_tuple_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Typesafe container for a kernel argument value
 typedef union ur_exp_kernel_arg_value_t {
-  /// [in] Struct containing a memory object and associated flags.
-  ur_exp_kernel_arg_mem_obj_tuple_t memObjTuple;
   /// [in] argument value represented as matching arg type.
   /// The data pointed to will be copied and therefore can be reused on return.
   const void *value;
   /// [in] Allocation obtained by USM allocation or virtual memory mapping
   /// operation, or pointer to a literal value.
   const void *pointer;
+  /// [in] Struct containing a memory object and associated flags.
+  ur_exp_kernel_arg_mem_obj_tuple_t memObjTuple;
   /// [in] Handle of a sampler object.
   ur_sampler_handle_t sampler;
 
@@ -12767,6 +12767,8 @@ typedef struct ur_exp_kernel_arg_properties_t {
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkSize`
+///         + `launchPropList == NULL && numPropsInLaunchPropList > 0`
+///         + `pArgs == NULL && numArgs > 0`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE

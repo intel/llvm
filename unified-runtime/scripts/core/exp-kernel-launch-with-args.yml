@@ -17,12 +17,12 @@ desc: "What kind of kernel arg is this"
 class: $xKernel
 name: $x_exp_kernel_arg_type_t
 etors:
-    - name: MEM_OBJ
-      desc: "Kernel arg is a memory object."
     - name: VALUE
       desc: "Kernel arg is a value."
     - name: POINTER
       desc: "Kernel arg is a pointer."
+    - name: MEM_OBJ
+      desc: "Kernel arg is a memory object."
     - name: LOCAL
       desc: "Kernel arg is a local allocation."
     - name: SAMPLER
@@ -46,10 +46,6 @@ desc: "Typesafe container for a kernel argument value"
 name: $x_exp_kernel_arg_value_t
 tag: $x_exp_kernel_arg_type_t
 members:
-    - type: $x_exp_kernel_arg_mem_obj_tuple_t
-      name: memObjTuple
-      desc: "[in] Struct containing a memory object and associated flags."
-      tag: $X_EXP_KERNEL_ARG_TYPE_MEM_OBJ
     - type: "const void*"
       name: value
       desc: |
@@ -60,6 +56,10 @@ members:
       name: pointer
       desc: "[in] Allocation obtained by USM allocation or virtual memory mapping operation, or pointer to a literal value."
       tag: $X_EXP_KERNEL_ARG_TYPE_POINTER
+    - type: $x_exp_kernel_arg_mem_obj_tuple_t
+      name: memObjTuple
+      desc: "[in] Struct containing a memory object and associated flags."
+      tag: $X_EXP_KERNEL_ARG_TYPE_MEM_OBJ
     - type: $x_sampler_handle_t
       name: sampler
       desc: "[in] Handle of a sampler object."
@@ -163,3 +163,6 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
     - $X_RESULT_ERROR_INVALID_OPERATION:
         - "If any property in `launchPropList` isn't supported by the device."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`launchPropList == NULL && numPropsInLaunchPropList > 0`"
+        - "`pArgs == NULL && numArgs > 0`"
