@@ -112,7 +112,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
   char *DevPtr =
       reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
 
-  olMemcpy(hQueue->OffloadQueue, pDst, Adapter.HostDevice, DevPtr + offset,
+  olMemcpy(hQueue->OffloadQueue, pDst, Adapter->HostDevice, DevPtr + offset,
            hQueue->OffloadDevice, size, phEvent ? &EventOut : nullptr);
 
   if (blockingRead) {
@@ -145,7 +145,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 
   auto Res =
       olMemcpy(hQueue->OffloadQueue, DevPtr + offset, hQueue->OffloadDevice,
-               pSrc, Adapter.HostDevice, size, phEvent ? &EventOut : nullptr);
+               pSrc, Adapter->HostDevice, size, phEvent ? &EventOut : nullptr);
   if (Res) {
     return offloadResultToUR(Res);
   }
