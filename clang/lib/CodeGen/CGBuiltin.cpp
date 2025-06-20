@@ -2085,7 +2085,7 @@ Value *CodeGenFunction::EmitCheckedArgForAssume(const Expr *E) {
       std::make_pair(ArgValue, CheckOrdinal), CheckHandler,
       {EmitCheckSourceLocation(E->getExprLoc()),
        llvm::ConstantInt::get(Builder.getInt8Ty(), BCK_AssumePassedFalse)},
-      std::nullopt);
+      {});
   return ArgValue;
 }
 
