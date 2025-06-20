@@ -5538,6 +5538,16 @@ static bool checkAndAddRegisteredKernelName(SemaSYCL &S, FunctionDecl *FD,
   return true;
 }
 
+void SemaSYCL::finalizeFreeFunctionKernels() {
+  // This is called at the end of the translation unit. The kernels that appear
+  // in this list are kernels that have been declared but not defined. Since the
+  // semantic actions rely on the declaration rather than definition we can
+  // proceed to process them at this stage as if they were defined.
+  for (FunctionDecl *kernel : FreeFunctionDeclarations) {
+    ProcessFreeFunction(kernel);
+  }
+}
+
 void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
                                            StringRef NameStr) {
   if (!checkAndAddRegisteredKernelName(*this, FD, NameStr))
@@ -5875,10 +5885,27 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
   return false;
 }
 
+void SemaSYCL::ProcessFreeFunctionDeclaration(FunctionDecl *FD) {
+  // FD represents a forward declaration of a free function kernel.
+  // Save them for the end of the translation unit action. This makes it easier
+  // to handle the case where a definition is defined later and
+  // also makes sure that special types are fully defined in the AST so that
+  // the semantics step can reference its __init method.
+  if (isFreeFunction(FD))
+    FreeFunctionDeclarations.emplace_back(FD);
+}
+
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
     if (CheckFreeFunctionDiagnostics(SemaRef, FD))
       return;
+
+    // In case the free function kernel has already been seen by way of a
+    // forward declaration, flush it out because a definition takes priority.
+    llvm::erase_if(FreeFunctionDeclarations, [FD](FunctionDecl *decl) {
+      return decl->getCanonicalDecl() == FD->getCanonicalDecl();
+    });
+
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
     SyclKernelUnionChecker UnionChecker(*this);
@@ -7155,7 +7182,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "\n// Definition of kernel_id of " << K.Name << "\n";
     O << "namespace sycl {\n";
     O << "template <>\n";
-    O << "kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim"
+    O << "inline kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim"
       << ShimCounter << "()>() {\n";
     O << "  return sycl::detail::get_kernel_id_impl(std::string_view{\""
       << K.Name << "\"});\n";
