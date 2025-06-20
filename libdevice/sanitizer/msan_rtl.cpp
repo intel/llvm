@@ -36,7 +36,7 @@ const __SYCL_CONSTANT__ char __msan_print_shadow[] =
     "[kernel] __msan_get_shadow(addr=%p, as=%d) = %p: %02X\n";
 
 const __SYCL_CONSTANT__ char __msan_print_origin[] =
-    "[kernel] __msan_get_origin(addr=%p, as=%d) = %p: %02X\n";
+    "[kernel] __msan_get_origin(addr=%p, as=%d) = %p: %04x\n";
 
 const __SYCL_CONSTANT__ char __msan_print_unsupport_device_type[] =
     "[kernel] Unsupport device type: %d\n";
@@ -136,6 +136,7 @@ void SaveReport(const uint32_t size, const char __SYCL_CONSTANT__ *file,
   }
 }
 
+// The CPU mapping is based on compiler-rt/msan
 inline uptr MemToShadow_CPU(uptr addr) { return addr ^ 0x500000000000ULL; }
 
 inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
@@ -236,7 +237,10 @@ inline uptr MemToShadow(uptr addr, uint32_t as) {
   return shadow_ptr;
 }
 
-inline uptr MemToOrigin_CPU(uptr addr) { return addr ^ 0x100000000000ULL; }
+// The CPU mapping is based on compiler-rt/msan
+inline uptr MemToOrigin_CPU(uptr addr) {
+  return MemToShadow_CPU(addr) + 0x100000000000ULL;
+}
 
 inline uptr MemToOrigin_DG2(uptr addr, uint32_t as) {
   return GetMsanLaunchInfo->CleanShadow;
@@ -286,7 +290,7 @@ inline uptr MemToOrigin(uptr addr, uint32_t as) {
 #endif
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_origin, (void *)addr, as,
-                                (void *)origin_ptr, 0));
+                                (void *)origin_ptr, *(uint32_t *)origin_ptr));
 
   return origin_ptr;
 }
@@ -313,8 +317,9 @@ void GroupAsyncCopy(uptr Dest, uptr Src, size_t NumElements, size_t Stride) {
   }
 }
 
-static __SYCL_CONSTANT__ const char __msan_print_memcpy[] =
-    "[kernel] memcpy(dst=%p, src=%p, shadow_dst=%p, shadow_src=%p, size=%p)\n";
+static __SYCL_CONSTANT__ const char __msan_print_copy_shadow[] =
+    "[kernel] CopyShadow(dst=%p(%d), src=%p(%d), shadow_dst=%p, shadow_src=%p, "
+    "size=%p)\n";
 
 // FIXME: The original implemention only copies the origin of poisoned memories
 void CopyOrigin(uptr dst, uint32_t dst_as, uptr src, uint32_t src_as,
@@ -332,10 +337,14 @@ inline void CopyShadowAndOrigin(uptr dst, uint32_t dst_as, uptr src,
   auto *shadow_src = (__SYCL_GLOBAL__ char *)MemToShadow(src, src_as);
   Memcpy(shadow_dst, shadow_src, size);
   CopyOrigin(dst, dst_as, src, src_as, size);
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_copy_shadow, dst, dst_as, src,
+                                src_as, shadow_dst, shadow_src));
 }
 
-static __SYCL_CONSTANT__ const char __msan_print_memmove[] =
-    "[kernel] memmove(dst=%p, src=%p, shadow_dst=%p, shadow_src=%p, size=%p)\n";
+static __SYCL_CONSTANT__ const char __msan_print_move_shadow[] =
+    "[kernel] MoveShadow(dst=%p(%d), src=%p(%d), shadow_dst=%p, shadow_src=%p, "
+    "size=%p)\n";
 
 // FIXME: The original implemention only moves the origin of poisoned memories
 void MoveOrigin(uptr dst, uint32_t dst_as, uptr src, uint32_t src_as,
@@ -354,6 +363,9 @@ inline void MoveShadowAndOrigin(uptr dst, uint32_t dst_as, uptr src,
   // MoveOrigin transfers origins by refering to their shadows
   MoveOrigin(dst, dst_as, src, src_as, size);
   Memmove(shadow_dst, shadow_src, size);
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_move_shadow, dst, dst_as, src,
+                                src_as, shadow_dst, shadow_src));
 }
 
 inline void UnpoisonShadow(uptr addr, uint32_t as, size_t size) {
@@ -433,7 +445,7 @@ DEVICE_EXTERN_C_NOINLINE __SYCL_GLOBAL__ void *__msan_get_origin(uptr addr,
   DEVICE_EXTERN_C_NOINLINE void __msan_maybe_store_origin_##size(              \
       type s, uptr addr, uint32_t as, uint32_t o) {                            \
     if (UNLIKELY(s)) {                                                         \
-      *(__SYCL_GLOBAL__ u32 *)__msan_get_origin(addr, as) = o;                 \
+      *(__SYCL_GLOBAL__ u32 *)MemToOrigin(addr, as) = o;                       \
     }                                                                          \
   }
 
