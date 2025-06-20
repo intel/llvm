@@ -1,7 +1,9 @@
-// REQUIRES: aspect-ext_intel_legacy_image, opencl
+// REQUIRES: aspect-ext_intel_legacy_image
 //
 // l0 may use createUrMemFromZeImage instead of the usual urMemImageCreate
 // depending on the arch
+//
+// UNSUPPORTED: level_zero
 //
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=-1 %{run} %t.out | FileCheck %s
@@ -27,6 +29,7 @@
 
 #include <sycl/accessor_image.hpp>
 #include <sycl/image.hpp>
+#include <sycl/properties/image_properties.hpp>
 
 int main() {
   const sycl::image_channel_order ChanOrder = sycl::image_channel_order::rgba;
@@ -41,9 +44,15 @@ int main() {
   std::vector<sycl::float4> Img1HostData(Img1Size.size(), {1, 2, 3, 4});
   std::vector<sycl::float4> Img2HostData(Img2Size.size(), {0, 0, 0, 0});
 
+
   {
     sycl::image<2> Img1(Img1HostData.data(), ChanOrder, ChanType, Img1Size);
     sycl::image<2> Img2(Img2HostData.data(), ChanOrder, ChanType, Img2Size);
+
+    // Trace will be different depending on whether host ptr is used or not
+    if (!Img1.has_property<sycl::property::image::use_host_ptr>())
+      return 0;
+
     TestQueue Q{sycl::default_selector_v};
     Q.submit([&](sycl::handler &CGH) {
       auto Img1Acc = Img1.get_access<sycl::float4, SYCLRead>(CGH);
