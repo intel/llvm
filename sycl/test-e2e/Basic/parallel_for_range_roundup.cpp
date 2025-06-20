@@ -25,9 +25,11 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17077
 //
-#include <iostream>
+#include <sycl/atomic.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/vector.hpp>
+
+#include <iostream>
 
 using namespace sycl;
 

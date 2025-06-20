@@ -9,6 +9,7 @@
 
 #else
 
+#include <sycl/atomic.hpp>
 #include <sycl/detail/core.hpp>
 
 using namespace sycl::access;
