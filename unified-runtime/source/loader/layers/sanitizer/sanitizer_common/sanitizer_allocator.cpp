@@ -21,24 +21,21 @@ namespace ur_sanitizer_layer {
 namespace {
 void validateDeviceUSM(uptr Allocated, DeviceType DeviceType) {
   switch (DeviceType) {
-  case DeviceType::GPU_PVC: {
+  case DeviceType::GPU_PVC:
     assert((Allocated >> 52) == 0xff0);
     break;
   default:
     break;
   }
-  }
 }
 
 void validateSharedUSM(uptr Allocated, DeviceType DeviceType) {
   switch (DeviceType) {
-  case DeviceType::GPU_PVC: {
-    std::cout << (void *)Allocated << std::endl;
+  case DeviceType::GPU_PVC:
     assert((Allocated >> 44) == 0x7);
     break;
   default:
     break;
-  }
   }
 }
 } // namespace
