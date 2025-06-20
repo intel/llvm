@@ -84,11 +84,9 @@ inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_generic_to, old, addr, as));
 }
 
-void __msan_internal_report_save(const uint32_t size,
-                                 const char __SYCL_CONSTANT__ *file,
-                                 const uint32_t line,
-                                 const char __SYCL_CONSTANT__ *func,
-                                 const uint32_t origin) {
+void SaveReport(const uint32_t size, const char __SYCL_CONSTANT__ *file,
+                const uint32_t line, const char __SYCL_CONSTANT__ *func,
+                const uint32_t origin = 0) {
   const int Expected = MSAN_REPORT_NONE;
   int Desired = MSAN_REPORT_START;
 
@@ -136,14 +134,6 @@ void __msan_internal_report_save(const uint32_t size,
     // Show we've done copying
     atomicStore(&SanitizerReport.Flag, MSAN_REPORT_FINISH);
   }
-}
-
-void __msan_report_error(const uint32_t size,
-                         const char __SYCL_CONSTANT__ *file,
-                         const uint32_t line,
-                         const char __SYCL_CONSTANT__ *func,
-                         uint32_t origin = 0) {
-  __msan_internal_report_save(size, file, line, func, origin);
 }
 
 inline uptr MemToShadow_CPU(uptr addr) { return addr ^ 0x500000000000ULL; }
@@ -301,9 +291,16 @@ inline uptr MemToOrigin(uptr addr, uint32_t as) {
   return origin_ptr;
 }
 
-inline void __msan_exit() {
+inline void Exit() {
   if (!GetMsanLaunchInfo->IsRecover)
     __devicelib_exit();
+}
+
+inline void ReportError(const uint32_t size, const char __SYCL_CONSTANT__ *file,
+                        const uint32_t line, const char __SYCL_CONSTANT__ *func,
+                        const uint32_t origin = 0) {
+  SaveReport(size, file, line, func, origin);
+  Exit();
 }
 
 // This function is only used for shadow propagation
@@ -373,8 +370,7 @@ inline void UnpoisonShadow(uptr addr, uint32_t as, size_t size) {
     if (!GetMsanLaunchInfo)                                                    \
       return;                                                                  \
     if (UNLIKELY(s)) {                                                         \
-      __msan_report_error(size, file, line, func, o);                          \
-      __msan_exit();                                                           \
+      ReportError(size, file, line, func, o);                                  \
     }                                                                          \
   }
 
@@ -388,8 +384,7 @@ __msan_warning(const char __SYCL_CONSTANT__ *file, uint32_t line,
                const char __SYCL_CONSTANT__ *func) {
   if (!GetMsanLaunchInfo)
     return;
-  __msan_report_error(1, file, line, func);
-  __msan_exit();
+  ReportError(1, file, line, func);
 }
 
 DEVICE_EXTERN_C_NOINLINE void
@@ -397,8 +392,7 @@ __msan_warning_noreturn(const char __SYCL_CONSTANT__ *file, uint32_t line,
                         const char __SYCL_CONSTANT__ *func) {
   if (!GetMsanLaunchInfo)
     return;
-  __msan_internal_report_save(1, file, line, func, 0);
-  __msan_exit();
+  ReportError(1, file, line, func, 0);
 }
 
 DEVICE_EXTERN_C_NOINLINE void
@@ -406,8 +400,7 @@ __msan_warning_with_origin(uint32_t origin, const char __SYCL_CONSTANT__ *file,
                            uint32_t line, const char __SYCL_CONSTANT__ *func) {
   if (!GetMsanLaunchInfo)
     return;
-  __msan_internal_report_save(1, file, line, func, origin);
-  __msan_exit();
+  ReportError(1, file, line, func, origin);
 }
 
 DEVICE_EXTERN_C_NOINLINE void __msan_warning_with_origin_noreturn(
@@ -415,8 +408,7 @@ DEVICE_EXTERN_C_NOINLINE void __msan_warning_with_origin_noreturn(
     const char __SYCL_CONSTANT__ *func) {
   if (!GetMsanLaunchInfo)
     return;
-  __msan_internal_report_save(1, file, line, func, origin);
-  __msan_exit();
+  ReportError(1, file, line, func, origin);
 }
 
 // For mapping detail, ref to
