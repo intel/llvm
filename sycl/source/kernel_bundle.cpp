@@ -211,6 +211,12 @@ get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
 }
 
 detail::KernelBundleImplPtr
+get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+                       const sycl::span<char> &Bytes, bundle_state State) {
+  return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs, Bytes, State);
+}
+
+detail::KernelBundleImplPtr
 get_empty_interop_kernel_bundle_impl(const context &Ctx,
                                      const std::vector<device> &Devs) {
   return detail::kernel_bundle_impl::create(Ctx, Devs);

@@ -387,6 +387,8 @@ public:
                                            const device_impl &Dev,
                                            bool ErrorOnUnresolvableImport);
 
+  static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage);
+
 private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
