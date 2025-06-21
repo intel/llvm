@@ -493,9 +493,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 #endif
     return ReturnValue(S.str().c_str());
   }
-  case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION: {
-    return ReturnValue("");
-  }
   case UR_DEVICE_INFO_EXTENSIONS: {
     std::string SupportedExtensions = "";
 

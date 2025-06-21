@@ -81,11 +81,7 @@ template <> uint32_t inline ur_cast(uint64_t Value) {
   return CastedValue;
 }
 
-// TODO: promote all of the below extensions to the Unified Runtime
-//       and get rid of these ZER_EXT constants.
-const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
-    (ur_device_info_t)0x103D;
-
+// TODO: Promote the below extensions to the Unified Runtime?
 const ur_command_t UR_EXT_COMMAND_TYPE_USER =
     (ur_command_t)((uint32_t)UR_COMMAND_FORCE_UINT32 - 1);
 
