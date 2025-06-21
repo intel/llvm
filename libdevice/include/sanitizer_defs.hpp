@@ -8,7 +8,6 @@
 #pragma once
 
 #include "atomic.hpp"
-#include "group_utils.hpp"
 #include "spir_global_var.hpp"
 #include <cstdint>
 
@@ -29,6 +28,11 @@ enum ADDRESS_SPACE : uint32_t {
   ADDRESS_SPACE_LOCAL = 3,
   ADDRESS_SPACE_GENERIC = 4,
 };
+
+#define __SYCL_GLOBAL__ __attribute__((opencl_global))
+#define __SYCL_LOCAL__ __attribute__((opencl_local))
+#define __SYCL_PRIVATE__ __attribute__((opencl_private))
+#define __SYCL_CONSTANT__ __attribute__((opencl_constant))
 
 #define LIKELY(x) __builtin_expect(!!(x), 1)
 #define UNLIKELY(x) __builtin_expect(!!(x), 0)
@@ -55,15 +59,5 @@ __spirv_ControlBarrier(int32_t Execution, int32_t Memory,
                        int32_t Semantics) noexcept;
 
 extern "C" SYCL_EXTERNAL void __devicelib_exit();
-
-__SYCL_GLOBAL__ void *ToGlobal(void *ptr) {
-  return __spirv_GenericCastToPtrExplicit_ToGlobal(ptr, 5);
-}
-__SYCL_LOCAL__ void *ToLocal(void *ptr) {
-  return __spirv_GenericCastToPtrExplicit_ToLocal(ptr, 4);
-}
-__SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
-  return __spirv_GenericCastToPtrExplicit_ToPrivate(ptr, 7);
-}
 
 #endif // __SPIR__ || __SPIRV__

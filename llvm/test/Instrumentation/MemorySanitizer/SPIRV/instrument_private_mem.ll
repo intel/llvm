@@ -20,7 +20,7 @@ define spir_func void @ByValFunc(ptr noundef byval(%"class.sycl::_V1::range") al
 ; CHECK-LABEL: define spir_func void @ByValFunc
 entry:
   ; CHECK: %0 = ptrtoint ptr %_arg_array12 to i64
-  ; CHECK: %1 = call ptr addrspace(1) @__msan_get_shadow(i64 %0, i32 0, ptr addrspace(2) null)
+  ; CHECK: %1 = call ptr addrspace(1) @__msan_get_shadow(i64 %0, i32 0)
   ; CHECK: call void @llvm.memset.p1.i64(ptr addrspace(1) align 8 %1, i8 0, i64 8, i1 false)
   %_arg_array12.ascast = addrspacecast ptr %_arg_array12 to ptr addrspace(4)
   ret void

@@ -210,7 +210,7 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
                  (void *)MappedPtr, (void *)(MappedPtr + PageSize - 1));
 
         // Initialize to zero
-        URes = EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, 0, PageSize);
+        URes = EnqueueUSMSet(Queue, (void *)MappedPtr, (char)0, PageSize);
         if (URes != UR_RESULT_SUCCESS) {
           UR_LOG_L(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}",
                    URes);
@@ -222,8 +222,8 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
     }
   }
 
-  auto URes = EnqueueUSMBlockingSet(Queue, (void *)ShadowBegin, Value,
-                                    ShadowEnd - ShadowBegin + 1);
+  auto URes = EnqueueUSMSet(Queue, (void *)ShadowBegin, Value,
+                            ShadowEnd - ShadowBegin + 1);
 
   if (URes != UR_RESULT_SUCCESS) {
     UR_LOG_L(getContext()->logger, ERR,
@@ -259,8 +259,8 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
         (void **)&LocalShadowOffset));
 
     // Initialize shadow memory
-    ur_result_t URes = EnqueueUSMBlockingSet(Queue, (void *)LocalShadowOffset,
-                                             0, RequiredShadowSize);
+    ur_result_t URes = EnqueueUSMSet(Queue, (void *)LocalShadowOffset, (char)0,
+                                     RequiredShadowSize);
     if (URes != UR_RESULT_SUCCESS) {
       UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
                                                    (void *)LocalShadowOffset));
@@ -310,8 +310,8 @@ ur_result_t ShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
           (void **)&PrivateShadowOffset));
 
       // Initialize shadow memory
-      ur_result_t URes = EnqueueUSMBlockingSet(
-          Queue, (void *)PrivateShadowOffset, 0, RequiredShadowSize);
+      ur_result_t URes = EnqueueUSMSet(Queue, (void *)PrivateShadowOffset,
+                                       (char)0, RequiredShadowSize);
       if (URes != UR_RESULT_SUCCESS) {
         UR_CALL(getContext()->urDdiTable.USM.pfnFree(
             Context, (void *)PrivateShadowOffset));

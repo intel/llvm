@@ -75,6 +75,9 @@ extern DEVICE_EXTERNAL void __spirv_AtomicStore(int *, int, int, int) noexcept;
 extern DEVICE_EXTERNAL int __spirv_AtomicIAdd(SPIR_GLOBAL int *, int, int,
                                               int) noexcept;
 
+extern DEVICE_EXTERNAL int __spirv_AtomicIAdd(SPIR_GLOBAL unsigned int *, int,
+                                              int, int) noexcept;
+
 /// Atomically set the value in *Ptr with Desired if and only if it is Expected
 /// Return the value which already was in *Ptr
 static inline int atomicCompareAndSet(SPIR_GLOBAL int *Ptr, int Desired,
@@ -108,6 +111,12 @@ static inline void atomicStore(int *Ptr, int V) {
 }
 
 static inline int atomicAdd(SPIR_GLOBAL int *Ptr, int V) {
+  return __spirv_AtomicIAdd(Ptr, __spv::Scope::Device,
+                            __spv::MemorySemanticsMask::SequentiallyConsistent,
+                            V);
+}
+
+static inline int atomicAdd(SPIR_GLOBAL unsigned int *Ptr, int V) {
   return __spirv_AtomicIAdd(Ptr, __spv::Scope::Device,
                             __spv::MemorySemanticsMask::SequentiallyConsistent,
                             V);
