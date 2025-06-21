@@ -49,10 +49,10 @@
 // SYCL-MSAN-SAME: "-mllvm" "-msan-eager-checks=1"
 
 // RUN: %clangxx -fsycl -fsanitize=memory -fsanitize-memory-track-origins=1 -c %s -### 2>&1 \
-// RUN:   | FileCheck --check-prefix=SYCL-MSAN %s
-// SYCL-MSAN: clang{{.*}} "-fsycl-is-device"
-// SYCL-MSAN-SAME: -fsanitize=memory
-// SYCL-MSAN-SAME: "-mllvm" "-msan-track-origins=1"
+// RUN:   | FileCheck --check-prefix=SYCL-MSAN-ORIGIN %s
+// SYCL-MSAN-ORIGIN: clang{{.*}} "-fsycl-is-device"
+// SYCL-MSAN-ORIGIN-SAME: -fsanitize=memory
+// SYCL-MSAN-ORIGIN-SAME: "-mllvm" "-msan-track-origins=1"
 
 // RUN: %clangxx -fsycl -Xarch_device -fsanitize=memory -c %s -### 2>&1 \
 // RUN:   | FileCheck --check-prefix=SYCL-MSAN-XARCH-DEVICE %s
