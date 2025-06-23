@@ -1870,28 +1870,6 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
       (FD->hasAttr<CUDADeviceAttr>() || FD->hasAttr<CUDAHostAttr>()))
     Fn->setLinkage(llvm::Function::WeakODRLinkage);
 
-  // If this is a kernel generated from a free function kernel,
-  // set weak ODR linkage for possibly duplicated functions in different
-  // translation units
-  bool isFreeFunction = false;
-  for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
-    SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
-        IRAttr->getAttributeNameValuePairs(FD->getASTContext());
-    const auto it =
-        std::find_if(NameValuePairs.begin(), NameValuePairs.end(),
-                     [](const auto &NameValuePair) {
-                       return NameValuePair.first == "sycl-nd-range-kernel" ||
-                              NameValuePair.first == "sycl-single-task-kernel";
-                     });
-    if (it != NameValuePairs.end()) {
-      isFreeFunction = true;
-      break;
-    }
-  }
-
-  if (getLangOpts().SYCLIsDevice && isFreeFunction)
-    Fn->setLinkage(llvm::Function::WeakODRLinkage);
-
   // Ensure that the function adheres to the forward progress guarantee, which
   // is required by certain optimizations.
   // In C++11 and up, the attribute will be removed if the body contains a

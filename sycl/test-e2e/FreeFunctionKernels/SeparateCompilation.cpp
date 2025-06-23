@@ -47,7 +47,7 @@ int main() {
   }
 
   for (int i = 0; i < SIZE; ++i) {
-    assert(result[i] == 2 * data[i] + 1);
+    assert(result[i] == 2 * data[i]);
   }
 
   {
