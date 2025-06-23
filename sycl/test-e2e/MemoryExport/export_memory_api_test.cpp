@@ -6,7 +6,6 @@
 
 #include <iostream>
 #include <sycl/ext/oneapi/memory_export.hpp>
-#include <sycl/sycl.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -26,33 +25,44 @@ int main() {
     std::cout << "Device supports memory export.\n";
   }
 
-  // Allocate exportable memory.
-  size_t size = 1024;
+  try {
+    // Allocate exportable memory.
+    size_t size = 1024;
 
 #ifndef _WIN32
-  void *mem = syclexp::alloc_exportable_device_mem(
-      0, size, syclexp::export_external_mem_handle_type::opaque_fd, device,
-      context);
+    void *mem = syclexp::alloc_exportable_device_mem(
+        0, size, syclexp::export_external_mem_handle_type::opaque_fd, device,
+        context);
 #else
-  void *mem = syclexp::alloc_exportable_device_mem(
-      0, size, syclexp::export_external_mem_handle_type::win32_nt, device,
-      context);
+    void *mem = syclexp::alloc_exportable_device_mem(
+        0, size, syclexp::export_external_mem_handle_type::win32_nt, device,
+        context);
 #endif // _WIN32
 
-  // Export the memory handle.
+    // Export the memory handle.
 #ifndef _WIN32
-  auto exportableMemoryHandle = syclexp::export_device_mem_handle<
-      syclexp::export_external_mem_handle_type::opaque_fd>(mem, device,
-                                                           context);
-  std::cout << "Exported file descriptor == " << exportableMemoryHandle << "\n";
+    auto exportableMemoryHandle = syclexp::export_device_mem_handle<
+        syclexp::export_external_mem_handle_type::opaque_fd>(mem, device,
+                                                             context);
+    std::cout << "Exported file descriptor == " << exportableMemoryHandle
+              << "\n";
 #else
-  auto exportableMemoryHandle = syclexp::export_device_mem_handle<
-      syclexp::export_external_mem_handle_type::win32_nt>(mem, device, context);
-  std::cout << "Exported win32 handle == " << exportableMemoryHandle << "\n";
+    auto exportableMemoryHandle = syclexp::export_device_mem_handle<
+        syclexp::export_external_mem_handle_type::win32_nt>(mem, device,
+                                                            context);
+    std::cout << "Exported win32 handle == " << exportableMemoryHandle << "\n";
 #endif // _WIN32
 
-  // Free the exportable memory.
-  syclexp::free_exportable_memory(mem, device, context);
+    // Free the exportable memory.
+    syclexp::free_exportable_memory(mem, device, context);
+
+  } catch (const sycl::exception &e) {
+    std::cerr << "SYCL exception caught: " << e.what() << "\n";
+    return 2;
+  } catch (...) {
+    std::cerr << "Unknown exception caught.\n";
+    return 3;
+  }
 
   return 0;
 }

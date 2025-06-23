@@ -212,39 +212,55 @@ int main(int argc, char *argv[]) {
   }
 
   // Init SYCL. Allocate exportable memory and get interop handle.
-  initSycl(syclDevice, memorySizeBytes, memoryAlignment);
+  try {
+    initSycl(syclDevice, memorySizeBytes, memoryAlignment);
+  } catch (const sycl::exception &e) {
+    std::cerr << "SYCL exception caught: " << e.what() << "\n";
+    return 2;
+  } catch (...) {
+    std::cerr << "Unknown exception caught.\n";
+    return 3;
+  }
 
   // Init Vulkan
   if (vkutil::setupInstance() != VK_SUCCESS) {
     std::cerr << "Instance setup failed!\n";
-    return EXIT_FAILURE;
+    return 4;
   }
 
   if (vkutil::setupDevice(syclDevice) != VK_SUCCESS) {
     std::cerr << "Device setup failed!\n";
-    return EXIT_FAILURE;
+    return 5;
   }
 
   if (vkutil::setupCommandBuffers() != VK_SUCCESS) {
     std::cerr << "Command buffers setup failed!\n";
-    return EXIT_FAILURE;
+    return 6;
   }
 
   auto testPassed = runTest(syclDevice, memorySizeBytes);
 
   if (vkutil::cleanup() != VK_SUCCESS) {
     std::cerr << "Cleanup failed!\n";
-    return EXIT_FAILURE;
+    return 7;
   }
 
-  // Cleanup SYCL
-  cleanupSycl(syclDevice);
+  // Cleanup SYCL.
+  try {
+    cleanupSycl(syclDevice);
+  } catch (const sycl::exception &e) {
+    std::cerr << "SYCL exception caught: " << e.what() << "\n";
+    return 8;
+  } catch (...) {
+    std::cerr << "Unknown exception caught.\n";
+    return 9;
+  }
 
   if (testPassed) {
     std::cout << "Test passed!\n";
-    return EXIT_SUCCESS;
+    return 0;
   }
 
   std::cerr << "Test failed\n";
-  return EXIT_FAILURE;
+  return 10;
 }
