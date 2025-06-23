@@ -68,6 +68,7 @@ public:
   template <sycl::errc errc = sycl::errc::runtime>
   void checkUrResult(ur_result_t ur_result) const {
     if (ur_result == UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
+      assert(!adapterReleased);
       const char *message = nullptr;
       int32_t adapter_error = 0;
       ur_result = call_nocheck<UrApiKind::urAdapterGetLastError>(
@@ -154,8 +155,19 @@ public:
   bool hasBackend(backend Backend) const { return Backend == MBackend; }
 
   void release() {
-    call<UrApiKind::urAdapterRelease>(MAdapter);
+    auto Res = call_nocheck<UrApiKind::urAdapterRelease>(MAdapter);
+    if (Res == UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
+      // We can't query the adapter for the error message because the adapter
+      // has been released
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::runtime),
+          __SYCL_UR_ERROR_REPORT(MBackend) +
+              "Adapter failed to be released and reported "
+              "`UR_RESULT_ERROR_ADAPTER_SPECIFIC`. This should "
+              "never happen, please file a bug.");
+    }
     this->adapterReleased = true;
+    checkUrResult(Res);
   }
 
   // Return the index of a UR platform.

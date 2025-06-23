@@ -66,17 +66,15 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t context, ur_device_handle_t device,
     v2::raii::command_list_unique_handle &&commandList,
     const ur_exp_command_buffer_desc_t *desc)
-    : eventPool(context->getEventPoolCache(PoolCacheType::Regular)
-                    .borrow(device->Id.value(),
-                            isInOrder ? v2::EVENT_FLAGS_COUNTER : 0)),
-      context(context), device(device),
-      isUpdatable(desc ? desc->isUpdatable : false),
+    : isUpdatable(desc ? desc->isUpdatable : false),
       isInOrder(desc ? desc->isInOrder : false),
       commandListManager(
           context, device,
-          std::forward<v2::raii::command_list_unique_handle>(commandList)) {
-  ur::level_zero::urContextRetain(context);
-}
+          std::forward<v2::raii::command_list_unique_handle>(commandList)),
+      context(context), device(device),
+      eventPool(context->getEventPoolCache(PoolCacheType::Regular)
+                    .borrow(device->Id.value(),
+                            isInOrder ? v2::EVENT_FLAGS_COUNTER : 0)) {}
 
 ur_exp_command_buffer_sync_point_t
 ur_exp_command_buffer_handle_t_::getSyncPoint(ur_event_handle_t event) {
@@ -175,7 +173,6 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   for (auto &event : syncPoints) {
     event->release();
   }
-  ur::level_zero::urContextRelease(context);
 }
 
 ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
