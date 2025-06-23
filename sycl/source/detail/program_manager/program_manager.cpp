@@ -2115,42 +2115,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
                          KernelIDs->end());
 
   // ... and initialize associated device_global information
-  {
-    std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
-
-    auto DeviceGlobals = Img->getDeviceGlobals();
-    for (const sycl_device_binary_property &DeviceGlobal : DeviceGlobals) {
-      ByteArray DeviceGlobalInfo =
-          DeviceBinaryProperty(DeviceGlobal).asByteArray();
-
-      // The supplied device_global info property is expected to contain:
-      // * 8 bytes - Size of the property.
-      // * 4 bytes - Size of the underlying type in the device_global.
-      // * 4 bytes - 0 if device_global has device_image_scope and any value
-      //             otherwise.
-      DeviceGlobalInfo.dropBytes(8);
-      auto [TypeSize, DeviceImageScopeDecorated] =
-          DeviceGlobalInfo.consume<std::uint32_t, std::uint32_t>();
-      assert(DeviceGlobalInfo.empty() && "Extra data left!");
-
-      // Give the image pointer as an identifier for the image the
-      // device-global is associated with.
-
-      auto ExistingDeviceGlobal = m_DeviceGlobals.find(DeviceGlobal->Name);
-      if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
-        // If it has already been registered we update the information.
-        ExistingDeviceGlobal->second->initialize(Img.get(), TypeSize,
-                                                 DeviceImageScopeDecorated);
-      } else {
-        // If it has not already been registered we create a new entry.
-        // Note: Pointer to the device global is not available here, so it
-        //       cannot be set until registration happens.
-        auto EntryUPtr = std::make_unique<DeviceGlobalMapEntry>(
-            DeviceGlobal->Name, Img.get(), TypeSize, DeviceImageScopeDecorated);
-        m_DeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
-      }
-    }
-  }
+  m_DeviceGlobals.initializeEntries(Img.get());
   // ... and initialize associated host_pipe information
   {
     std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
@@ -2257,24 +2222,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
         m_VFSet2BinImage.erase(SetName);
     }
 
-    {
-      std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
-      auto DeviceGlobals = Img->getDeviceGlobals();
-      for (const sycl_device_binary_property &DeviceGlobal : DeviceGlobals) {
-        if (auto DevGlobalIt = m_DeviceGlobals.find(DeviceGlobal->Name);
-            DevGlobalIt != m_DeviceGlobals.end()) {
-          auto findDevGlobalByValue = std::find_if(
-              m_Ptr2DeviceGlobal.begin(), m_Ptr2DeviceGlobal.end(),
-              [&DevGlobalIt](const std::pair<const void *,
-                                             DeviceGlobalMapEntry *> &Entry) {
-                return Entry.second == DevGlobalIt->second.get();
-              });
-          if (findDevGlobalByValue != m_Ptr2DeviceGlobal.end())
-            m_Ptr2DeviceGlobal.erase(findDevGlobalByValue);
-          m_DeviceGlobals.erase(DevGlobalIt);
-        }
-      }
-    }
+    m_DeviceGlobals.eraseEntries(Img);
 
     {
       std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
@@ -2468,21 +2416,7 @@ kernel_id ProgramManager::getBuiltInKernelID(KernelNameStrRefT KernelName) {
 
 void ProgramManager::addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
                                                 const char *UniqueId) {
-  std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
-
-  auto ExistingDeviceGlobal = m_DeviceGlobals.find(UniqueId);
-  if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
-    // Update the existing information and add the entry to the pointer map.
-    ExistingDeviceGlobal->second->initialize(DeviceGlobalPtr);
-    m_Ptr2DeviceGlobal.insert(
-        {DeviceGlobalPtr, ExistingDeviceGlobal->second.get()});
-    return;
-  }
-
-  auto EntryUPtr =
-      std::make_unique<DeviceGlobalMapEntry>(UniqueId, DeviceGlobalPtr);
-  auto NewEntry = m_DeviceGlobals.emplace(UniqueId, std::move(EntryUPtr));
-  m_Ptr2DeviceGlobal.insert({DeviceGlobalPtr, NewEntry.first->second.get()});
+  m_DeviceGlobals.addOrInitialize(DeviceGlobalPtr, UniqueId);
 }
 
 std::set<RTDeviceBinaryImage *>
@@ -2499,42 +2433,21 @@ ProgramManager::getRawDeviceImages(const std::vector<kernel_id> &KernelIDs) {
 
 DeviceGlobalMapEntry *
 ProgramManager::getDeviceGlobalEntry(const void *DeviceGlobalPtr) {
-  std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
-  auto Entry = m_Ptr2DeviceGlobal.find(DeviceGlobalPtr);
-  assert(Entry != m_Ptr2DeviceGlobal.end() && "Device global entry not found");
-  return Entry->second;
+  return m_DeviceGlobals.getEntry(DeviceGlobalPtr);
 }
 
 DeviceGlobalMapEntry *
 ProgramManager::tryGetDeviceGlobalEntry(const std::string &UniqueId,
                                         bool ExcludeDeviceImageScopeDecorated) {
-  std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
-  auto DeviceGlobalEntry = m_DeviceGlobals.find(UniqueId);
-  assert(DeviceGlobalEntry != m_DeviceGlobals.end() &&
-         "Device global not found in map.");
-  if (DeviceGlobalEntry != m_DeviceGlobals.end() &&
-      (!ExcludeDeviceImageScopeDecorated ||
-       !DeviceGlobalEntry->second->MIsDeviceImageScopeDecorated))
-    return DeviceGlobalEntry->second.get();
-  return nullptr;
+  return m_DeviceGlobals.tryGetEntry(UniqueId,
+                                     ExcludeDeviceImageScopeDecorated);
 }
 
 std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
     const std::vector<std::string> &UniqueIds,
     bool ExcludeDeviceImageScopeDecorated) {
-  std::vector<DeviceGlobalMapEntry *> FoundEntries;
-  FoundEntries.reserve(UniqueIds.size());
-
-  std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
-  for (const std::string &UniqueId : UniqueIds) {
-    auto DeviceGlobalEntry = m_DeviceGlobals.find(UniqueId);
-    assert(DeviceGlobalEntry != m_DeviceGlobals.end() &&
-           "Device global not found in map.");
-    if (!ExcludeDeviceImageScopeDecorated ||
-        !DeviceGlobalEntry->second->MIsDeviceImageScopeDecorated)
-      FoundEntries.push_back(DeviceGlobalEntry->second.get());
-  }
-  return FoundEntries;
+  return m_DeviceGlobals.getEntries(UniqueIds,
+                                    ExcludeDeviceImageScopeDecorated);
 }
 
 void ProgramManager::addOrInitHostPipeEntry(const void *HostPipePtr,
