@@ -650,8 +650,11 @@ public:
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
-  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
+  static ContextImplPtr getContext(queue_impl *Queue) {
     return Queue ? Queue->getContextImplPtr() : nullptr;
+  }
+  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
+    return getContext(Queue.get());
   }
 
   // Must be called under MMutex protection
@@ -709,7 +712,11 @@ protected:
   }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-#define parseEvent(arg) (arg)
+  inline const detail::EventImplPtr &
+  parseEvent(const detail::EventImplPtr &Event) {
+    assert(!Event || !Event->isDiscarded());
+    return Event;
+  }
 #else
   inline detail::EventImplPtr parseEvent(const event &Event) {
     const detail::EventImplPtr &EventImpl = getSyclObjImpl(Event);
@@ -743,14 +750,23 @@ protected:
 
     synchronizeWithExternalEvent(Handler);
 
-    return parseEvent(Handler.finalize());
+    auto Event = parseEvent(Handler.finalize());
+
+    if (Event && !Scheduler::CheckEventReadiness(*MContext, Event)) {
+      MDefaultGraphDeps.LastEventPtr = Event;
+      MNoLastEventMode.store(false, std::memory_order_relaxed);
+    }
+
+    return Event;
   }
 
   template <typename HandlerType = handler>
   detail::EventImplPtr
   finalizeHandlerInOrderHostTaskUnlocked(HandlerType &Handler) {
     assert(isInOrder());
-    assert(Handler.getType() == CGType::CodeplayHostTask);
+    assert(Handler.getType() == CGType::CodeplayHostTask ||
+           (Handler.getType() == CGType::ExecCommandBuffer &&
+            getSyclObjImpl(Handler)->MExecGraph->containsHostTask()));
 
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;
@@ -784,13 +800,8 @@ protected:
   finalizeHandlerInOrderWithDepsUnlocked(HandlerType &Handler) {
     // this is handled by finalizeHandlerInOrderHostTask
     assert(Handler.getType() != CGType::CodeplayHostTask);
-
-    if (Handler.getType() == CGType::ExecCommandBuffer && MNoLastEventMode) {
-      // TODO: this shouldn't be needed but without this
-      // the legacy adapter doesn't synchronize the operations properly
-      // when non-immediate command lists are used.
-      Handler.depends_on(insertHelperBarrier(Handler));
-    }
+    assert(!(Handler.getType() == CGType::ExecCommandBuffer &&
+             getSyclObjImpl(Handler)->MExecGraph->containsHostTask()));
 
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;

@@ -328,15 +328,15 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
 }
 
 static event
-getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
+getBarrierEventForInorderQueueHelper(detail::queue_impl &QueueImpl) {
   // This function should not be called when a queue is recording to a graph,
   // as a graph can record from multiple queues and we cannot guarantee the
   // last node added by an in-order queue will be the last node added to the
   // graph.
-  assert(!QueueImpl->hasCommandGraph() &&
+  assert(!QueueImpl.hasCommandGraph() &&
          "Should not be called in on graph recording.");
 
-  sycl::detail::optional<event> LastEvent = QueueImpl->getLastEvent();
+  sycl::detail::optional<event> LastEvent = QueueImpl.getLastEvent();
   if (LastEvent)
     return *LastEvent;
 
@@ -353,11 +353,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  if (is_in_order() && !impl->hasCommandGraph() && !impl->MIsProfilingEnabled) {
-    return getBarrierEventForInorderQueueHelper(impl);
-  }
-
-  return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
+  return ext_oneapi_submit_barrier(std::vector<event>{}, CodeLoc);
 }
 
 /// Prevents any commands submitted afterward to this queue from executing
@@ -379,11 +375,14 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
       });
   if (is_in_order() && !impl->hasCommandGraph() && !impl->MIsProfilingEnabled &&
       AllEventsEmptyOrNop) {
-    return getBarrierEventForInorderQueueHelper(impl);
+    return getBarrierEventForInorderQueueHelper(*impl);
   }
 
-  return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
-                CodeLoc);
+  if (WaitList.empty())
+    return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
+  else
+    return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
+                  CodeLoc);
 }
 
 template <typename Param>
