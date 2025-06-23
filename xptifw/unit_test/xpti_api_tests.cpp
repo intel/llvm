@@ -32,18 +32,18 @@ TEST_F(xptiApiTest, xptiRegisterStringBadInput) {
   char *TStr;
 
   auto ID = xptiRegisterString(nullptr, nullptr);
-  EXPECT_EQ(ID, xpti::invalid_id);
+  EXPECT_EQ(ID, xpti::invalid_id<xpti::string_id_t>);
   ID = xptiRegisterString(nullptr, &TStr);
-  EXPECT_EQ(ID, xpti::invalid_id);
+  EXPECT_EQ(ID, xpti::invalid_id<xpti::string_id_t>);
   ID = xptiRegisterString("foo", nullptr);
-  EXPECT_EQ(ID, xpti::invalid_id);
+  EXPECT_EQ(ID, xpti::invalid_id<xpti::string_id_t>);
 }
 
 TEST_F(xptiApiTest, xptiRegisterStringGoodInput) {
   char *TStr = nullptr;
 
   auto ID = xptiRegisterString("foo", &TStr);
-  EXPECT_NE(ID, xpti::invalid_id);
+  EXPECT_NE(ID, xpti::invalid_id<>);
   EXPECT_NE(TStr, nullptr);
   EXPECT_STREQ("foo", TStr);
 }
@@ -59,7 +59,7 @@ TEST_F(xptiApiTest, xptiLookupStringGoodInput) {
   char *TStr = nullptr;
 
   auto ID = xptiRegisterString("foo", &TStr);
-  EXPECT_NE(ID, xpti::invalid_id);
+  EXPECT_NE(ID, xpti::invalid_id<>);
   EXPECT_NE(TStr, nullptr);
   EXPECT_STREQ("foo", TStr);
 
@@ -316,12 +316,12 @@ TEST_F(xptiApiTest, xptiQueryLookupPayloadBadInput) {
 
 TEST_F(xptiApiTest, xptiRegisterStreamBadInput) {
   auto ID = xptiRegisterStream(nullptr);
-  EXPECT_EQ(ID, (uint8_t)xpti::invalid_id);
+  EXPECT_EQ(ID, (uint8_t)xpti::invalid_id<>);
 }
 
 TEST_F(xptiApiTest, xptiRegisterStreamGoodInput) {
   auto ID = xptiRegisterStream("foo");
-  EXPECT_NE(ID, xpti::invalid_id);
+  EXPECT_NE(ID, xpti::invalid_id<>);
   auto NewID = xptiRegisterStream("foo");
   EXPECT_EQ(ID, NewID);
 }
@@ -333,7 +333,7 @@ TEST_F(xptiApiTest, xptiUnregisterStreamBadInput) {
 
 TEST_F(xptiApiTest, xptiUnregisterStreamGoodInput) {
   auto ID = xptiRegisterStream("foo");
-  EXPECT_NE(ID, xpti::invalid_id);
+  EXPECT_NE(ID, xpti::invalid_id<>);
   auto Result = xptiUnregisterStream("NoSuchStream");
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_NOTFOUND);
   // Event though stream exists, no callbacks registered

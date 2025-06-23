@@ -64,7 +64,7 @@ TEST_F(xptiCorrectnessTest, xptiMakeEvent) {
 TEST_F(xptiCorrectnessTest, xptiUnregisterStream) {
   xptiForceSetTraceEnabled(true);
   auto ID = xptiRegisterStream("foo1");
-  EXPECT_NE(ID, xpti::invalid_id);
+  EXPECT_NE(ID, xpti::invalid_id<>);
   auto Result = xptiUnregisterStream("foo2");
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_NOTFOUND);
   // Event though stream exists, no callbacks registered
@@ -72,7 +72,7 @@ TEST_F(xptiCorrectnessTest, xptiUnregisterStream) {
   EXPECT_EQ(NewResult, xpti::result_t::XPTI_RESULT_NOTFOUND);
   // Register again
   ID = xptiRegisterStream("foo1");
-  EXPECT_NE(ID, xpti::invalid_id);
+  EXPECT_NE(ID, xpti::invalid_id<>);
   Result = xptiRegisterCallback(
       ID, (uint16_t)xpti::trace_point_type_t::graph_create, tpCallback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
@@ -184,7 +184,7 @@ TEST_F(xptiCorrectnessTest, xptiCreateTracepoint) {
 TEST_F(xptiCorrectnessTest, xptiRegisterString) {
   char *TStr = nullptr;
   auto ID = xptiRegisterString("foo", &TStr);
-  EXPECT_NE(ID, xpti::invalid_id);
+  EXPECT_NE(ID, xpti::invalid_id<>);
   EXPECT_NE(TStr, nullptr);
   EXPECT_STREQ("foo", TStr);
 
