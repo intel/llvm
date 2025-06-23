@@ -1192,10 +1192,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
       continue;
     // If we've been given the actual binary by the SYCL runtime to inspect,
     // attempt to parse it as a clang offload bundle.
-    if (auto *const p = pBinaries[i].pNext) {
-      using BinaryBlob = std::pair<const unsigned char *, size_t>;
-      auto blah = *(const BinaryBlob *)p;
-      if (auto Parser = HipOffloadBundleParser::load(blah.first, blah.second)) {
+    using BinaryBlobTy = std::pair<const unsigned char *, size_t>;
+    if (auto *const BinaryBlob = (const BinaryBlobTy *)pBinaries[i].pNext) {
+      if (auto Parser = HipOffloadBundleParser::load(BinaryBlob->first,
+                                                     BinaryBlob->second)) {
         if (Parser->containsBundle(ArchName)) {
           *pSelectedBinary = i;
           return UR_RESULT_SUCCESS;
