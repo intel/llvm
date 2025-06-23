@@ -151,7 +151,6 @@ std::vector<platform> platform_impl::get_platforms() {
 
   // See which platform we want to be served by which adapter.
   // There should be just one adapter serving each backend.
-
   std::vector<AdapterPtr> Adapters = ur::initializeUr();
   std::vector<std::pair<platform, AdapterPtr>> PlatformsWithAdapter;
 
