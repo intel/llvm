@@ -239,9 +239,7 @@ std::vector<std::unique_ptr<Adapter>> &GlobalHandler::getAdapters() {
 // Get vector of raw pointers to adapters.
 std::vector<Adapter*> GlobalHandler::getAdapterRawPtrs() {
   std::vector<Adapter*> RawPtrs;
-  const auto &Adapters = getAdapters();
-  RawPtrs.reserve(Adapters.size());
-  for (const auto &Adapter : Adapters) {
+  for (const auto &Adapter : getAdapters()) {
     RawPtrs.push_back(Adapter.get());
   }
   return RawPtrs;

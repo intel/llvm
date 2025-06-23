@@ -366,8 +366,7 @@ void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
 // convenient to be able to reference them without extra `detail::`.
 inline auto get_ur_handles(sycl::detail::context_impl &Ctx) {
   ur_context_handle_t urCtx = Ctx.getHandleRef();
-  const sycl::detail::Adapter *Adapter = Ctx.getAdapter();
-  return std::tuple{urCtx, Adapter};
+  return std::tuple{urCtx, Ctx.getAdapter()};
 }
 inline auto get_ur_handles(const sycl::context &syclContext) {
   return get_ur_handles(*sycl::detail::getSyclObjImpl(syclContext));
