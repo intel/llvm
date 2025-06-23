@@ -47,12 +47,12 @@ class OneDnnBench(Suite):
                     self, bench_driver, bench_name, bench_args, syclgraph=False
                 )
             )
-            # if rungraph == True:
-            #     benchmarks.append(
-            #         OneDnnBenchmark(
-            #             self, bench_driver, bench_name, bench_args, syclgraph=True
-            #         )
-            #     )
+            if rungraph == True:
+                benchmarks.append(
+                    OneDnnBenchmark(
+                        self, bench_driver, bench_name, bench_args, syclgraph=True
+                    )
+                )
         return benchmarks
 
     def setup(self):
@@ -98,7 +98,7 @@ class OneDnnBenchmark(Benchmark):
         self.suite = suite
         self.bench_name = f"{bench_driver}-{bench_name}"
         self.bench_args = f"--{bench_driver} --mode=P --engine=gpu --max-ms-per-prb=100"
-        # self.bench_args = f"--{bench_driver} --mode=f --engine=gpu"
+
         self.exp_group = self.bench_name
         if syclgraph:
             self.bench_args += " --execution-mode=graph"
@@ -137,7 +137,7 @@ class OneDnnBenchmark(Benchmark):
         ]
 
         env_vars = dict(env_vars) if env_vars else {}
-        # env_vars["SYCL_UR_TRACE"] = "-2"
+        env_vars["ONEAPI_DEVICE_SELECTOR"] = "level_zero:*"
 
         output = self.run_bench(
             command,
@@ -164,23 +164,27 @@ class OneDnnBenchmark(Benchmark):
             )
         ]
 
+    # example output:
+    # Output template: perf, %engine%,%-time%,%-ops%,%-MB%,%-pr
+    # perf,gpu,0.000000,0.000000,0.000000,0
+    # perf,gpu,0.000000,0.000000,0.000000,0
     def _extract_time(self, output):
         lines = output.splitlines()
-        idx_0time = None
+        idx_time = None
         values = []
         for i, line in enumerate(lines):
             if line.startswith("Output template:"):
                 template = line.replace("Output template: ", "").strip().split(",")
                 try:
-                    idx_0time = template.index("%-time%")
+                    idx_time = template.index("%-time%")
                 except ValueError:
                     return 0.0
                 continue
-            if idx_0time is not None and line.startswith("perf,"):
+            if idx_time is not None and line.startswith("perf,"):
                 fields = line.strip().split(",")
-                if len(fields) > idx_0time:
+                if len(fields) > idx_time:
                     try:
-                        values.append(float(fields[idx_0time]))
+                        values.append(float(fields[idx_time]))
                     except Exception:
                         continue
         if values:

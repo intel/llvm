@@ -93,8 +93,6 @@ class Benchmark(ABC):
             env_vars.update(
                 {"UR_ADAPTERS_FORCE_LOAD": Benchmark.get_adapter_full_path()}
             )
-        if options.ur == "level_zero_v2":
-            env_vars.update({"UR_LOADER_USE_LEVEL_ZERO_V2": "1"})
 
         env_vars.update(options.extra_env_vars)
 
