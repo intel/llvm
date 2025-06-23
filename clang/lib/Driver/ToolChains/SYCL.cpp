@@ -6,20 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
-#include "CommonArgs.h"
-#include "clang/Driver/Action.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
-#include "clang/Driver/InputInfo.h"
-#include "clang/Driver/Options.h"
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/Option/Option.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
-#include <algorithm>
 #include <sstream>
 
 using namespace clang::driver;
