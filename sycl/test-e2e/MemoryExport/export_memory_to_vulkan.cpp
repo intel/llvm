@@ -38,11 +38,12 @@ void initSycl(const sycl::device &syclDevice, const size_t memorySizeBytes,
 #ifndef _WIN32
   syclExportableLinearMemory = syclexp::alloc_exportable_device_mem(
       memoryAlignment, memorySizeBytes,
-      syclexp::external_mem_handle_type::opaque_fd, syclDevice, syclContext);
+      syclexp::export_external_mem_handle_type::opaque_fd, syclDevice,
+      syclContext);
 #else
   syclExportableLinearMemory = syclexp::alloc_exportable_device_mem(
       memoryAlignment, memorySizeBytes,
-      syclexp::external_mem_handle_type::win32_nt_handle, syclDevice,
+      syclexp::export_external_mem_handle_type::win32_nt, syclDevice,
       syclContext);
 #endif // _WIN32
 
@@ -58,11 +59,11 @@ void initSycl(const sycl::device &syclDevice, const size_t memorySizeBytes,
   // Export the SYCL allocated memory handle.
 #ifndef _WIN32
   exportableMemoryHandle = syclexp::export_device_mem_handle<
-      syclexp::external_mem_handle_type::opaque_fd>(syclExportableLinearMemory,
-                                                    syclDevice, syclContext);
+      syclexp::export_external_mem_handle_type::opaque_fd>(
+      syclExportableLinearMemory, syclDevice, syclContext);
 #else
   exportableMemoryHandle = syclexp::export_device_mem_handle<
-      syclexp::external_mem_handle_type::win32_nt_handle>(
+      syclexp::export_external_mem_handle_type::win32_nt>(
       syclExportableLinearMemory, syclDevice, syclContext);
 #endif // _WIN32
 

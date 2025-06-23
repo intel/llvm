@@ -31,24 +31,25 @@ int main() {
 
 #ifndef _WIN32
   void *mem = syclexp::alloc_exportable_device_mem(
-      0, size, syclexp::external_mem_handle_type::opaque_fd, device, context);
+      0, size, syclexp::export_external_mem_handle_type::opaque_fd, device,
+      context);
 #else
   void *mem = syclexp::alloc_exportable_device_mem(
-      0, size, syclexp::external_mem_handle_type::win32_nt_handle, device,
-      context);
-#endif
+      0, size, syclexp::export_external_mem_handle_type::win32_nt,
+      device, context);
+#endif // _WIN32
 
   // Export the memory handle.
 #ifndef _WIN32
   auto exportableMemoryHandle = syclexp::export_device_mem_handle<
-      syclexp::external_mem_handle_type::opaque_fd>(mem, device, context);
-  std::cout << "exportableMemoryHandle.file_descriptor == "
-            << exportableMemoryHandle << "\n";
+      syclexp::export_external_mem_handle_type::opaque_fd>(mem, device,
+                                                           context);
+  std::cout << "Exported file descriptor == " << exportableMemoryHandle << "\n";
 #else
   auto exportableMemoryHandle = syclexp::export_device_mem_handle<
-      syclexp::external_mem_handle_type::win32_nt_handle>(mem, device, context);
-  std::cout << "exportableMemoryHandle.handle == "
-            << exportableMemoryHandle << "\n";
+      syclexp::export_external_mem_handle_type::win32_nt>(mem, device,
+                                                                 context);
+  std::cout << "Exported win32 handle == " << exportableMemoryHandle << "\n";
 #endif // _WIN32
 
   // Free the exportable memory.

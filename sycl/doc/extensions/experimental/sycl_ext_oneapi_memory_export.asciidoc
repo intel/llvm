@@ -136,16 +136,15 @@ represented by a `void *`.
 
 namespace sycl::ext::oneapi::experimental {
 
-void *
-alloc_exportable_device_mem(size_t size, size_t alignment,
-                            export_external_mem_handle_type externalMemHandleType,
-                            const sycl::device &syclDevice,
-                            const sycl::context &syclContext);
+void *alloc_exportable_device_mem(
+    size_t size, size_t alignment,
+    export_external_mem_handle_type externalMemHandleType,
+    const sycl::device &syclDevice, const sycl::context &syclContext);
 
-void *
-alloc_exportable_device_mem(size_t size, size_t alignment,
-                            export_external_mem_handle_type externalMemHandleType,
-                            const sycl::queue &syclQueue);
+void *alloc_exportable_device_mem(
+    size_t size, size_t alignment,
+    export_external_mem_handle_type externalMemHandleType,
+    const sycl::queue &syclQueue);
 }
 ```
 
@@ -180,24 +179,26 @@ If the SYCL backend does not support exporting memory, the function will throw a
 
 namespace sycl::ext::oneapi::experimental {
 
-// Available only when ExternalMemType == export_external_mem_handle_type::opaque_fd
+// Available only when 
+// ExternalMemType == export_external_mem_handle_type::opaque_fd
 template <export_external_mem_handle_type ExternalMemType>
 int export_device_mem_handle(void *deviceMemory, const sycl::device &syclDevice,
                              const sycl::context &syclContext);
 
-// Available only when ExternalMemType == export_external_mem_handle_type::opaque_fd
+// Available only when
+// ExternalMemType == export_external_mem_handle_type::opaque_fd
 template <export_external_mem_handle_type ExternalMemType>
 int export_device_mem_handle(void *deviceMemory, const sycl::queue &syclQueue);
 
 // Available only when
-// ExternalMemType == export_external_mem_handle_type::win32_nt_handle
+// ExternalMemType == export_external_mem_handle_type::win32_nt
 template <export_external_mem_handle_type ExternalMemType>
 void *export_device_mem_handle(void *deviceMemory,
                                const sycl::device &syclDevice,
                                const sycl::context &syclContext);
 
 // Available only when
-// ExternalMemType == export_external_mem_handle_type::win32_nt_handle
+// ExternalMemType == export_external_mem_handle_type::win32_nt
 template <export_external_mem_handle_type ExternalMemType>
 void *export_device_mem_handle(void *deviceMemory,
                                const sycl::queue &syclQueue);
@@ -241,8 +242,8 @@ Using `free_exportable_mem` on memory allocated through any function other
 than `alloc_exportable_device_mem` results in undefined behavior.
 
 Using `free_exportable_mem` on a memory region invalidates the handle
-returned by `export_device_mem_handle` for that region. The handle must not be used
-after the memory has been freed.
+returned by `export_device_mem_handle` for that region. The handle must not be
+used after the memory has been freed.
 
 If any error occurs while freeing the memory, the function will throw a
 `sycl::exception` with the `errc::runtime` code.

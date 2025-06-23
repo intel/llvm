@@ -25,21 +25,27 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-__SYCL_EXPORT void *
-alloc_exportable_device_mem(size_t alignment, size_t size,
-                        external_mem_handle_type externalMemHandleType,
-                        const sycl::device &syclDevice,
-                        const sycl::context &syclContext) {
+__SYCL_EXPORT void *alloc_exportable_device_mem(
+    size_t alignment, size_t size,
+    export_external_mem_handle_type externalMemHandleType,
+    const sycl::device &syclDevice, const sycl::context &syclContext) {
+
+  if (!syclDevice.has(sycl::aspect::ext_oneapi_memory_export_linear)) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device does not support memory export");
+  }
+
   auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
 
   void *retDeviceMemory = nullptr;
 
   ur_exp_external_mem_type_t urExternalMemType;
   switch (externalMemHandleType) {
-  case external_mem_handle_type::opaque_fd:
+  case export_external_mem_handle_type::opaque_fd:
     urExternalMemType = UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD;
     break;
-  case external_mem_handle_type::win32_nt_handle:
+  case export_external_mem_handle_type::win32_nt:
     urExternalMemType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT;
     break;
   default:
@@ -59,6 +65,12 @@ alloc_exportable_device_mem(size_t alignment, size_t size,
 __SYCL_EXPORT void free_exportable_memory(void *deviceMemory,
                                           const sycl::device &syclDevice,
                                           const sycl::context &syclContext) {
+  if (!syclDevice.has(sycl::aspect::ext_oneapi_memory_export_linear)) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device does not support memory export");
+  }
+
   auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
 
   Adapter->call<sycl::errc::runtime,
@@ -73,6 +85,12 @@ namespace detail {
 __SYCL_EXPORT int
 export_device_mem_opaque_fd(void *deviceMemory, const sycl::device &syclDevice,
                             const sycl::context &syclContext) {
+  if (!syclDevice.has(sycl::aspect::ext_oneapi_memory_export_linear)) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device does not support memory export");
+  }
+
   auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
 
   ur_exp_external_mem_type_t urExternalMemType =
@@ -92,6 +110,12 @@ __SYCL_EXPORT void *
 export_device_mem_win32_nt_handle(void *deviceMemory,
                                   const sycl::device &syclDevice,
                                   const sycl::context &syclContext) {
+  if (!syclDevice.has(sycl::aspect::ext_oneapi_memory_export_linear)) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device does not support memory export");
+  }
+
   auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
 
   ur_exp_external_mem_type_t urExternalMemType =
