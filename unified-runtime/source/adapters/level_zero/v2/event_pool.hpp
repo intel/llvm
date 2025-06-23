@@ -34,8 +34,8 @@ public:
       : hContext(hContext), provider(std::move(Provider)),
         mutex(std::make_unique<std::mutex>()) {};
 
-  event_pool(event_pool &&other) = default;
-  event_pool &operator=(event_pool &&other) = default;
+  event_pool(event_pool &&other) = delete;
+  event_pool &operator=(event_pool &&other) = delete;
 
   event_pool(const event_pool &) = delete;
   event_pool &operator=(const event_pool &) = delete;
