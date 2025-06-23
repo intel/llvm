@@ -21,10 +21,12 @@ std::atomic_int TotalNumVerifiedTests = 0;
 std::atomic<UINT64> key;
 
 template <typename DType, int NChannels>
-void populateD3D11Texture(g_d3d11ProgramState *d3d11ProgramState,
+void populateD3D11Texture(D3D11ProgramState *d3d11ProgramState,
                           ID3D11Resource *pResource, uint32_t width,
                           uint32_t height, uint32_t depth, DXGI_FORMAT format,
                           const DType *inputData, IDXGIKeyedMutex *keyedMutex) {
+  assert(d3d11ProgramState && d3d11ProgramState->deviceContext);
+  assert(keyedMutex);
   // There are more efficient ways than using UpdateSubresource (ie
   // Map/Unmap). However, this test application is not a realtime
   // performance-critical one, so this is good enough for our needs since we
@@ -36,10 +38,10 @@ void populateD3D11Texture(g_d3d11ProgramState *d3d11ProgramState,
   dstRegion.bottom = height;
   dstRegion.front = 0;
   dstRegion.back = 1;
-  ID3D11DeviceContext *deviceContext = d3d11ProgramState->deviceContext;
   ThrowIfFailed(keyedMutex->AcquireSync(key++, INFINITE));
   const UINT rowPitch = width * NChannels * sizeof(DType);
   const UINT depthPitch = height * rowPitch;
+  ID3D11DeviceContext *deviceContext = d3d11ProgramState->deviceContext;
   deviceContext->UpdateSubresource(pResource, 0, &dstRegion,
                                    static_cast<const void *>(inputData),
                                    rowPitch, depthPitch);
@@ -117,11 +119,12 @@ void callSyclKernel(sycl::queue syclQueue,
 }
 
 template <typename DType, int NChannels>
-bool verifyResult(const g_d3d11ProgramState *d3d11ProgramState,
+bool verifyResult(const D3D11ProgramState *d3d11ProgramState,
                   ID3D11Resource *pResource,
                   const D3D11_TEXTURE2D_DESC &texDesc, const DType *inputData,
                   IDXGIKeyedMutex *keyedMutex) {
-  assert(d3d11ProgramState);
+  assert(d3d11ProgramState && d3d11ProgramState->device &&
+         d3d11ProgramState->deviceContext);
   auto *pDevice = d3d11ProgramState->device;
   auto *pDeviceContext = d3d11ProgramState->deviceContext;
 
@@ -197,12 +200,12 @@ bool verifyResult(const g_d3d11ProgramState *d3d11ProgramState,
 /// @param localSize
 /// @return 0 on success and 1 on failure
 template <int NDims, typename DType, int NChannels>
-int runTest(g_d3d11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
+int runTest(D3D11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
             sycl::image_channel_type channelType,
             const sycl::range<NDims> &globalSize,
             const sycl::range<NDims> &localSize) {
-  assert(d3d11ProgramState);
-  // Assume device, context, etc. are initialized.
+  assert(d3d11ProgramState && d3d11ProgramState->device &&
+         d3d11ProgramState->deviceContext);
   auto *pDevice = d3d11ProgramState->device;
   auto *pDeviceContext = d3d11ProgramState->deviceContext;
 
@@ -335,7 +338,7 @@ int runTest(g_d3d11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
 
 int main() {
   // Initialize D3D11
-  auto d3d11ProgramState = std::make_unique<g_d3d11ProgramState>();
+  auto d3d11ProgramState = std::make_unique<D3D11ProgramState>();
   initializeD3D11(d3d11ProgramState.get());
 
   // Initialize SYCL

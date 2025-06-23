@@ -39,6 +39,12 @@
 
 using Microsoft::WRL::ComPtr;
 
+namespace dx_helpers {
+
+enum class dx_version { DX11, DX12 };
+
+enum class device_preference { Unspecified, Integrated, Dedicated };
+
 inline std::string ResultToString(HRESULT result) {
   char s_str[64] = {};
   sprintf_s(s_str, "Error result == 0x%08X", static_cast<uint32_t>(result));
@@ -62,12 +68,6 @@ void CloseNTHandle(HANDLE handle) {
     throw std::runtime_error("Error trying to close an invalid NT handle.");
   }
 }
-
-namespace dx_helpers {
-
-enum class dx_version { DX11, DX12 };
-
-enum class device_preference { Unspecified, Integrated, Dedicated };
 
 DXGI_FORMAT toDXGIFormat(int NChannels, sycl::image_channel_type channelType) {
   switch (channelType) {
@@ -216,6 +216,8 @@ DXGI_FORMAT toDXGIFormat(int NChannels, sycl::image_channel_type channelType) {
   exit(-1);
 }
 
+namespace detail {
+
 bool isDXGIDebugLayerEnabled(IDXGIFactory1 *pFactory) {
   ComPtr<IDXGIFactory3> factory3;
   if (SUCCEEDED(pFactory->QueryInterface(IID_PPV_ARGS(&factory3)))) {
@@ -224,6 +226,50 @@ bool isDXGIDebugLayerEnabled(IDXGIFactory1 *pFactory) {
   return false;
 }
 
+/// @brief  This helper function does not output a device. It just tests if the
+///         creating a logical device from the chosen adapter parameters works.
+template <dx_version dxVer>
+bool d3dCreateTestDevice(IDXGIAdapter1 *pAdapter, bool withDebugDevice) {
+  // We don't need any device features of the Direct3D API beyond that version.
+  static constexpr D3D_FEATURE_LEVEL minFeatureLevel = D3D_FEATURE_LEVEL_11_0;
+  if constexpr (dxVer == dx_version::DX12) {
+    // Check to see if the adapter supports Direct3D 12, but don't create
+    // the actual device yet. All Direct3D 12 drivers support at least
+    // feature level 11_0, making it a safe and reliable choice for device
+    // creation. It is also perfectly sufficient for our interopability
+    // feature testing purposes.
+    if (SUCCEEDED(D3D12CreateDevice(pAdapter, minFeatureLevel,
+                                    _uuidof(ID3D12Device), nullptr))) {
+      return true;
+    }
+  } else {
+    // Check to see if the adapter supports Direct3D 11, but don't create
+    // the actual device yet.
+    ComPtr<ID3D11Device> device = nullptr;
+    ComPtr<ID3D11DeviceContext> deviceContext = nullptr;
+    UINT deviceFlags = withDebugDevice ? D3D11_CREATE_DEVICE_DEBUG : 0;
+    D3D_FEATURE_LEVEL outFeatureLevel;
+    // We don't want SW renderer. Ideally we specify
+    // D3D_DRIVER_TYPE_HARDWARE on creation but when we specify an Adapter
+    // we need to specify the D3D_DRIVER_TYPE_UNKNOWN enum, otherwise the
+    // call fails. This is okay as we made sure to select the best possible
+    // HW adapter. We can create Device without a DXGIAdapter but we want
+    // one to exist, so we can use it for LUID matching with the SYCL device
+    // for interop.
+    HRESULT Result =
+        D3D11CreateDevice(pAdapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr,
+                          deviceFlags, &minFeatureLevel, 1u, D3D11_SDK_VERSION,
+                          &device, &outFeatureLevel, &deviceContext);
+    if (SUCCEEDED(Result)) {
+      assert(outFeatureLevel == minFeatureLevel); // sanity check
+      return true;
+    }
+  }
+  return false;
+}
+
+} // namespace detail
+
 /// @brief  This is a helper function to find an appropriate hardware adapter.
 /// It does not create the final D3D device but rather tests creating it with
 /// the chosen hardware adapter, so it can be used safely for SYCL interop.
@@ -231,9 +277,6 @@ bool isDXGIDebugLayerEnabled(IDXGIFactory1 *pFactory) {
 /// Ideally we will not be searching for the highest performing adapter but for
 /// the one that specifically matches the SYCL device for interopability. For
 /// that reason we will need to introduce an LUID device query extension first.
-/// @tparam dxVer
-/// @param pFactory
-/// @param ppAdapter
 template <dx_version dxVer>
 void getDXGIHardwareAdapter(
     IDXGIFactory1 *pFactory, IDXGIAdapter1 **ppAdapter,
@@ -242,14 +285,11 @@ void getDXGIHardwareAdapter(
   *ppAdapter = nullptr;
   ComPtr<IDXGIAdapter1> adapter;
 
-  // We don't need any device features of the Direct3D API beyond that version.
-  constexpr D3D_FEATURE_LEVEL minFeatureLevel = D3D_FEATURE_LEVEL_11_0;
-
   // It is not neccessary to tie the DXGI debug layer with the Direct3D 11 or 12
   // device debug layer, but for the purposes of our tests and this abstracted
   // functionality, it makes things easier to maintain so you just need to flip
   // one switch and get access to the full debugging utilities of DirectX.
-  const bool withDebugDevice = isDXGIDebugLayerEnabled(pFactory);
+  const bool withDebugDevice = detail::isDXGIDebugLayerEnabled(pFactory);
 
   const bool preferIntegrated =
       devicePreference == device_preference::Integrated;
@@ -282,37 +322,10 @@ void getDXGIHardwareAdapter(
         continue;
       }
 
-      if constexpr (dxVer == dx_version::DX12) {
-        // Check to see whether the adapter supports Direct3D 12, but don't
-        // create the actual device yet.
-        if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0,
-                                        _uuidof(ID3D12Device), nullptr))) {
-          foundAdapter = true;
-          break;
-        }
-      } else {
-        // Check to see if the adapter supports Direct3D 11, but don't create
-        // the actual device yet.
-        ComPtr<ID3D11Device> device = nullptr;
-        ComPtr<ID3D11DeviceContext> deviceContext = nullptr;
-        UINT deviceFlags = withDebugDevice ? D3D11_CREATE_DEVICE_DEBUG : 0;
-        D3D_FEATURE_LEVEL outFeatureLevel;
-        // We don't want SW renderer. Ideally we specify
-        // D3D_DRIVER_TYPE_HARDWARE on creation but when we specify an Adapter
-        // we need to specify the D3D_DRIVER_TYPE_UNKNOWN enum, otherwise the
-        // call fails. This is okay as we made sure to select the best possible
-        // HW adapter. We can create Device without a DXGIAdapter but we want
-        // one to exist, so we can use it for LUID matching with the SYCL device
-        // for interop.
-        HRESULT Result = D3D11CreateDevice(
-            adapter.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr, deviceFlags,
-            &minFeatureLevel, 1u, D3D11_SDK_VERSION, &device, &outFeatureLevel,
-            &deviceContext);
-        if (SUCCEEDED(Result)) {
-          assert(outFeatureLevel == minFeatureLevel); // sanity check
-          foundAdapter = true;
-          break;
-        }
+      // Test if we can successfully create a device with this adapter.
+      if (detail::d3dCreateTestDevice<dxVer>(adapter.Get(), withDebugDevice)) {
+        foundAdapter = true;
+        break;
       }
     }
   }
@@ -345,7 +358,7 @@ void getDXGIHardwareAdapter(
         // Simple heuristic, but it's hard to do better without external deps.
         ComPtr<IDXGIAdapter3> tmpAdapter3;
         DXGI_QUERY_VIDEO_MEMORY_INFO videoMemoryInfo;
-        bool isNonLocalMemoryPresent{false};
+        bool isNonLocalMemoryPresent = false;
         if (SUCCEEDED(adapter.As(&tmpAdapter3)) && tmpAdapter3 &&
             SUCCEEDED(tmpAdapter3->QueryVideoMemoryInfo(
                 0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &videoMemoryInfo))) {
@@ -362,40 +375,10 @@ void getDXGIHardwareAdapter(
         }
       }
 
-      if constexpr (dxVer == dx_version::DX12) {
-        // Check to see if the adapter supports Direct3D 12, but don't create
-        // the actual device yet. All Direct3D 12 drivers support at least
-        // feature level 11_0, making it a safe and reliable choice for device
-        // creation. It is also perfectly sufficient for our interopability
-        // feature testing purposes.
-        if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), minFeatureLevel,
-                                        _uuidof(ID3D12Device), nullptr))) {
-          foundAdapter = true;
-          break;
-        }
-      } else {
-        // Check to see if the adapter supports Direct3D 11, but don't create
-        // the actual device yet.
-        ComPtr<ID3D11Device> device = nullptr;
-        ComPtr<ID3D11DeviceContext> deviceContext = nullptr;
-        UINT deviceFlags = withDebugDevice ? D3D11_CREATE_DEVICE_DEBUG : 0;
-        D3D_FEATURE_LEVEL outFeatureLevel;
-        // We don't want SW renderer. Ideally we specify
-        // D3D_DRIVER_TYPE_HARDWARE on creation but when we specify an Adapter
-        // we need to specify the D3D_DRIVER_TYPE_UNKNOWN enum, otherwise the
-        // call fails. This is okay as we made sure to select the best possible
-        // HW adapter. We can create Device without a DXGIAdapter but we want
-        // one to exist, so we can use it for LUID matching with the SYCL device
-        // for interop.
-        HRESULT Result = D3D11CreateDevice(
-            adapter.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr, deviceFlags,
-            &minFeatureLevel, 1u, D3D11_SDK_VERSION, &device, &outFeatureLevel,
-            &deviceContext);
-        if (SUCCEEDED(Result)) {
-          assert(outFeatureLevel == minFeatureLevel); // sanity check
-          foundAdapter = true;
-          break;
-        }
+      // Test if we can successfully create a device with this adapter.
+      if (detail::d3dCreateTestDevice<dxVer>(adapter.Get(), withDebugDevice)) {
+        foundAdapter = true;
+        break;
       }
     }
   }
@@ -405,7 +388,73 @@ void getDXGIHardwareAdapter(
     *ppAdapter = adapter.Detach();
   } else {
 #ifdef VERBOSE_PRINT
-    std::cerr << "Could not find the requested DirectX hardware adapter.";
+    std::cerr << "Could not find the requested DirectX hardware adapter.\n";
+#endif
+  }
+}
+
+/// @brief  This is a helper function to find a hardware adapter with a
+//          particular LUID.
+// NOTE: In Windows, a Locally Unique Identifier (LUID) is represented as a
+// 64-bit (signed) integer, defined as a struct of two 32-bit integers in DXGI.
+// The @param luid type may depend on how a future SYCL ext defines it, so for
+// simplicity we take it as a int64_t here and the low and high parts will need
+// to be extracted for comparison with the DXGI adapter's LUID.
+template <dx_version dxVer>
+[[maybe_unused]] void getDXGIHardwareAdapterFromLUID(IDXGIFactory1 *pFactory,
+                                                     IDXGIAdapter1 **ppAdapter,
+                                                     int64_t luid) {
+  assert(pFactory);
+  *ppAdapter = nullptr;
+  ComPtr<IDXGIAdapter1> adapter;
+
+  // It is not neccessary to tie the DXGI debug layer with the Direct3D 11 or 12
+  // device debug layer, but for the purposes of our tests and this abstracted
+  // functionality, it makes things easier to maintain so you just need to flip
+  // one switch and get access to the full debugging utilities of DirectX.
+  const bool withDebugDevice = isDXGIDebugLayerEnabled(pFactory);
+
+  // Find a suitable hardware adapter.
+  bool foundAdapter = false;
+  for (UINT adapterIndex = 0;
+       pFactory->EnumAdapters1(adapterIndex, adapter.GetAddressOf()) !=
+       DXGI_ERROR_NOT_FOUND;
+       ++adapterIndex) {
+    if (!adapter) {
+      continue;
+    }
+
+    DXGI_ADAPTER_DESC1 desc;
+    ZeroMemory(&desc, sizeof(desc));
+    if (FAILED(adapter->GetDesc1(&desc))) {
+      continue;
+    }
+
+    // We don't want the Microsoft Basic Render Driver (software) adapter.
+    if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
+      continue;
+    }
+
+    // TODO: Compare LUIDs here when a SYCL LUID extension is implemented. E.g.
+    // Extract the low and hight parts of the the luid parameter.
+    const auto luidLowPart = static_cast<uint32_t>(luid & 0xFFFFFFFF);
+    const auto luidHightPart = static_cast<int32_t>((luid >> 32) & 0xFFFFFFFF);
+    if ((desc.AdapterLuid.LowPart == luidLowPart) &&
+        (desc.AdapterLuid.HighPart == luidHightPart)) {
+      // Test if we can successfully create a device with this adapter.
+      if (detail::d3dCreateTestDevice<dxVer>(adapter.Get(), withDebugDevice)) {
+        foundAdapter = true;
+        break;
+      }
+    }
+  }
+
+  if (foundAdapter) {
+    // Set the returned adapter.
+    *ppAdapter = adapter.Detach();
+  } else {
+#ifdef VERBOSE_PRINT
+    std::cerr << "Could not find the requested DirectX hardware adapter.\n";
 #endif
   }
 }

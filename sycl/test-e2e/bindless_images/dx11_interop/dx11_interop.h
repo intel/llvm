@@ -12,7 +12,7 @@ using namespace dx_helpers;
 namespace dx11_interop {
 
 /// @brief
-struct g_d3d11ProgramState {
+struct D3D11ProgramState {
   // device management
   ID3D11Device *device{nullptr};
   ID3D11DeviceContext *deviceContext{nullptr};
@@ -21,18 +21,18 @@ struct g_d3d11ProgramState {
   // Can also store a DXGI_ADAPTER_DESC if more state is needed.
   std::string deviceName;
 
-  g_d3d11ProgramState() = default;
-  ~g_d3d11ProgramState();
+  D3D11ProgramState() = default;
+  ~D3D11ProgramState();
 };
 
-g_d3d11ProgramState::~g_d3d11ProgramState() {
+D3D11ProgramState::~D3D11ProgramState() {
   if (device)
     device->Release();
   if (deviceContext)
     deviceContext->Release();
 }
 
-void initializeD3D11(g_d3d11ProgramState *d3d11ProgramState) {
+void initializeD3D11(D3D11ProgramState *d3d11ProgramState) {
   assert(d3d11ProgramState);
 
   UINT dxgiFactoryFlags = 0;
@@ -61,7 +61,7 @@ void initializeD3D11(g_d3d11ProgramState *d3d11ProgramState) {
   // GetHardwareAdapter function implements in order to find a "suitable" GPU.
   // That way we will also be able to control it via ONEAPI_DEVICE_SELECTOR
   // env.
-  assert(hardwareAdapter && "Could not find a valid DirectX hardware adapter.");
+  assert(hardwareAdapter && "Invalid DirectX hardware adapter.");
 
   // Creating the D3D11 device.
   ComPtr<ID3D11Device> device = nullptr;
@@ -95,7 +95,7 @@ void initializeD3D11(g_d3d11ProgramState *d3d11ProgramState) {
 }
 
 inline sycl::device
-getSyclDeviceFromDX11(const g_d3d11ProgramState *d3d11ProgramState) {
+getSyclDeviceFromDX11(const D3D11ProgramState *d3d11ProgramState) {
   assert(d3d11ProgramState);
   return sycl::device(
       [deviceName = d3d11ProgramState->deviceName](const sycl::device &dev) {
