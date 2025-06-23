@@ -514,8 +514,6 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(*Device->SubDeviceCreationProperty);
   }
   // Everything under here is not supported yet
-  case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
-    return ReturnValue("");
   case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
     return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE:

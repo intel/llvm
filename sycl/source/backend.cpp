@@ -306,7 +306,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
       ImageOriginInterop);
   device_image_plain DevImg{DevImgImpl};
 
-  return std::make_shared<kernel_bundle_impl>(TargetContext, Devices, DevImg);
+  return kernel_bundle_impl::create(TargetContext, Devices, DevImg);
 }
 
 // TODO: Unused. Remove when allowed.
