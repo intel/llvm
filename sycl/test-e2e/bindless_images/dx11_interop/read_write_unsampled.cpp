@@ -5,10 +5,8 @@
 // RUN: %{run-unfiltered-devices} %t.out
 
 #include "dx11_interop.h"
-using namespace dx11_interop;
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
-namespace syclexp = sycl::ext::oneapi::experimental;
 
 // Used primarily for ID3D11Device1
 #include <d3d11_1.h>
@@ -16,9 +14,11 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 #include <atomic>
 #include <limits>
 
-std::atomic_int TotalNumVerifiedTests = 0;
-// used for device mutex (Acquire/ReleaseSync)
-std::atomic<UINT64> key;
+using namespace dx11_interop;
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+// This is a global counter to keep track of the number of verified tests.
+static int TotalNumVerifiedTests = 0;
 
 template <typename DType, int NChannels>
 void populateD3D11Texture(D3D11ProgramState *d3d11ProgramState,
@@ -38,14 +38,14 @@ void populateD3D11Texture(D3D11ProgramState *d3d11ProgramState,
   dstRegion.bottom = height;
   dstRegion.front = 0;
   dstRegion.back = 1;
-  ThrowIfFailed(keyedMutex->AcquireSync(key++, INFINITE));
+  ThrowIfFailed(keyedMutex->AcquireSync(d3d11ProgramState->key++, INFINITE));
   const UINT rowPitch = width * NChannels * sizeof(DType);
   const UINT depthPitch = height * rowPitch;
   ID3D11DeviceContext *deviceContext = d3d11ProgramState->deviceContext;
   deviceContext->UpdateSubresource(pResource, 0, &dstRegion,
                                    static_cast<const void *>(inputData),
                                    rowPitch, depthPitch);
-  ThrowIfFailed(keyedMutex->ReleaseSync(key));
+  ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState->key));
 }
 
 void syclImportTextureMem(HANDLE sharedHandle, size_t allocationSize,
@@ -111,6 +111,11 @@ void callSyclKernel(sycl::queue syclQueue,
               });
         })
         .wait_and_throw();
+        // Instead of wait_and_throw here, we may want to import and use the
+        // ID3D11Fence interface to synchronize the SYCL queue with the D3D11
+        // device by signaling the completion of the work and waiting for it on
+        // the D3D11 side. I haven't implemented it here, but it is a good idea
+        // to do this when testing a future ID3D11Fence interop implementation.
   } catch (sycl::exception e) {
     std::cerr << "\tSYCL kernel submission error: " << e.what() << std::endl;
   } catch (...) {
@@ -142,9 +147,9 @@ bool verifyResult(const D3D11ProgramState *d3d11ProgramState,
       pDevice->CreateTexture2D(&stagingDesc, nullptr, &stagingTexture));
 
   // Copy the texture subresource
-  ThrowIfFailed(keyedMutex->AcquireSync(key++, INFINITE));
+  ThrowIfFailed(keyedMutex->AcquireSync(d3d11ProgramState->key++, INFINITE));
   pDeviceContext->CopyResource(stagingTexture.Get(), pResource);
-  ThrowIfFailed(keyedMutex->ReleaseSync(key));
+  ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState->key));
 
   // Map the staging texture to CPU memory
   D3D11_MAPPED_SUBRESOURCE mappedResource;
@@ -190,14 +195,6 @@ bool verifyResult(const D3D11ProgramState *d3d11ProgramState,
 }
 
 /// @brief Runner for the DX11-SYCL memory interopability functionality.
-/// @tparam DType
-/// @tparam NDims
-/// @tparam NChannels
-/// @param d3d11ProgramState
-/// @param syclQueue
-/// @param channelType
-/// @param globalSize
-/// @param localSize
 /// @return 0 on success and 1 on failure
 template <int NDims, typename DType, int NChannels>
 int runTest(D3D11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
@@ -236,7 +233,7 @@ int runTest(D3D11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
   D3D11_TEXTURE2D_DESC texDesc;
   ZeroMemory(&texDesc, sizeof(texDesc));
   texDesc.Width = texWidth;
-  texDesc.Height = texHeight;   // if height is, we can mimic sharing 1D memory
+  texDesc.Height = texHeight;   // if height is 1, we can mimic sharing 1D mem
   texDesc.MipLevels = 1;        // 1 for a multisampled texture, so no mips
   texDesc.ArraySize = texDepth; // array slices used for sharing 3D memory
   texDesc.Format = texFormat;
@@ -255,7 +252,7 @@ int runTest(D3D11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
   // Create the keyed mutex for synchronising the shared resource.
   ComPtr<IDXGIKeyedMutex> keyedMutex;
   ThrowIfFailed(texture.As(&keyedMutex));
-  key = 0;
+  d3d11ProgramState->key = 0;
 
   // Create an NT handle to a shared resource referring to our texture.
   // Opening the that shared resource gives access to it on the device.
@@ -291,7 +288,7 @@ int runTest(D3D11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
         texFormat, inputData.data(), keyedMutex.Get());
   }
 
-  // Unfortunately, DX11 does not expose the texture allocatoin information
+  // Unfortunately, DX11 does not expose the texture allocation information
   // like DX12, so we have to calculate it manually the best we can (no mips).
   const size_t allocationSize =
       texWidth * texHeight * texDepth * NChannels * sizeof(DType);
@@ -302,11 +299,12 @@ int runTest(D3D11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
   // Submit the SYCL kernel.
   // When IKeyedMutex importing into SYCL is implemented, we'll be able to
   // call it from the SYCL API. All it does is ensuring only one device has
-  // exclusive ThrowIfFailed(keyedMutex->AcquireSync(key++, INFINITE));
+  // exclusive access.
+  ThrowIfFailed(keyedMutex->AcquireSync(d3d11ProgramState->key++, INFINITE));
   callSyclKernel<NDims, DType, NChannels>(syclQueue, syclImageHandle,
                                           globalSize, localSize);
   // Back to the D3D11 process
-  // ThrowIfFailed(keyedMutex->ReleaseSync(key));
+  ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState->key));
 
   // Read-back and verify
   int errc = 1;
@@ -343,7 +341,7 @@ int main() {
 
   // Initialize SYCL
   sycl::device syclDevice = getSyclDeviceFromDX11(d3d11ProgramState.get());
-  sycl::queue syclQueue(syclDevice, {sycl::property::queue::in_order{}});
+  sycl::queue syclQueue(syclDevice);
 
   int errors = 0;
 

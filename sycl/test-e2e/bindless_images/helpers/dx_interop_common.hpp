@@ -1,4 +1,5 @@
-#pragma once
+#ifndef DX_INTEROP_COMMON_HPP
+#define DX_INTEROP_COMMON_HPP
 
 // Reduce the size of Win32 header files
 #ifndef WIN32_LEAN_AND_MEAN
@@ -226,7 +227,7 @@ bool isDXGIDebugLayerEnabled(IDXGIFactory1 *pFactory) {
 /// @brief  This helper function does not output a device. It just tests if the
 ///         creating a logical device from the chosen adapter parameters works.
 template <dx_version dxVer>
-bool d3dCreateTestDevice(IDXGIAdapter1 *pAdapter, bool withDebugDevice) {
+bool canCreateDxDevice(IDXGIAdapter1 *pAdapter, bool withDebugDevice) {
   // We don't need any device features of the Direct3D API beyond that version.
   static constexpr D3D_FEATURE_LEVEL minFeatureLevel = D3D_FEATURE_LEVEL_11_0;
   if constexpr (dxVer == dx_version::DX12) {
@@ -320,7 +321,7 @@ void getDXGIHardwareAdapter(
       }
 
       // Test if we can successfully create a device with this adapter.
-      if (detail::d3dCreateTestDevice<dxVer>(adapter.Get(), withDebugDevice)) {
+      if (detail::canCreateDxDevice<dxVer>(adapter.Get(), withDebugDevice)) {
         foundAdapter = true;
         break;
       }
@@ -373,7 +374,7 @@ void getDXGIHardwareAdapter(
       }
 
       // Test if we can successfully create a device with this adapter.
-      if (detail::d3dCreateTestDevice<dxVer>(adapter.Get(), withDebugDevice)) {
+      if (detail::canCreateDxDevice<dxVer>(adapter.Get(), withDebugDevice)) {
         foundAdapter = true;
         break;
       }
@@ -439,7 +440,7 @@ template <dx_version dxVer>
     if ((desc.AdapterLuid.LowPart == luidLowPart) &&
         (desc.AdapterLuid.HighPart == luidHightPart)) {
       // Test if we can successfully create a device with this adapter.
-      if (detail::d3dCreateTestDevice<dxVer>(adapter.Get(), withDebugDevice)) {
+      if (detail::canCreateDxDevice<dxVer>(adapter.Get(), withDebugDevice)) {
         foundAdapter = true;
         break;
       }
@@ -457,3 +458,5 @@ template <dx_version dxVer>
 }
 
 } // namespace dx_helpers
+
+#endif // DX_INTEROP_COMMON_HPP

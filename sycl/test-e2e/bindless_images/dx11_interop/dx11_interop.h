@@ -1,13 +1,14 @@
-#pragma once
+#ifndef DX11_INTEROP_H
+#define DX11_INTEROP_H
 
 #pragma clang diagnostic ignored "-Waddress-of-temporary"
 
 #include "../helpers/common.hpp"
 #include "../helpers/dx_interop_common.hpp"
-using namespace dx_helpers;
 
 #include <sycl/detail/core.hpp>
-#include <sycl/properties/queue_properties.hpp>
+
+using namespace dx_helpers;
 
 namespace dx11_interop {
 
@@ -20,6 +21,9 @@ struct D3D11ProgramState {
   // Temporary, this is to be replaced by LUID.
   // Can also store a DXGI_ADAPTER_DESC if more state is needed.
   std::string deviceName;
+
+  // Keyed mutex ID for synchronizing access to the shared resource per device.
+  std::atomic<UINT64> key;
 
   D3D11ProgramState() = default;
   ~D3D11ProgramState();
@@ -118,3 +122,5 @@ getSyclDeviceFromDX11(const D3D11ProgramState *d3d11ProgramState) {
 }
 
 } // namespace dx11_interop
+
+#endif // DX11_INTEROP_H
