@@ -192,7 +192,7 @@ as kernel parameter to free function kernel and use it within kernel.
 A series of checks should be performed that we can pass `local_accessor` 
 as kernel parameter to free function kernel and use it within kernel.
 
-#### Test structs that contain one of the following `accessor`, `local_accessor`, types when used as kernel parameter:
+#### Test structs that contain either `accessor` or `local_accessor` when used as kernel parameter:
 A series of checks should be performed that we can pass struct that contain 
 either `accessor` or `local_accessor` as kernel parameters 
 to free function kernel and use it within kernel.
