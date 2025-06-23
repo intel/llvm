@@ -114,7 +114,6 @@ template <int NDims> struct NDLoop {
   }
 };
 
-
 // Implements a barrier accross work items within a work group.
 inline void workGroupBarrier() {
 #ifdef __SYCL_DEVICE_ONLY__
