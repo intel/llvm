@@ -340,9 +340,9 @@ void context_impl::addDeviceGlobalInitializer(
   }
 }
 
-std::vector<ur_event_handle_t>
-context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
-                                      queue_impl &QueueImpl) {
+std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
+    ur_program_handle_t NativePrg, queue_impl &QueueImpl,
+    detail::kernel_bundle_impl *KernelBundleImplPtr) {
   if (!MDeviceGlobalNotInitializedCnt.load(std::memory_order_acquire))
     return {};
 
@@ -396,6 +396,12 @@ context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
         detail::ProgramManager::getInstance().getDeviceGlobalEntries(
             DeviceGlobalIds,
             /*ExcludeDeviceImageScopeDecorated=*/true);
+    // Kernel bundles may have isolated device globals. They need to be
+    // initialized too.
+    if (KernelBundleImplPtr && KernelBundleImplPtr->getDeviceGlobalMap().size())
+      KernelBundleImplPtr->getDeviceGlobalMap().getEntries(
+          DeviceGlobalIds, /*ExcludeDeviceImageScopeDecorated=*/true,
+          DeviceGlobalEntries);
 
     // If there were no device globals without device_image_scope the device
     // globals are trivially fully initialized and we can end early.

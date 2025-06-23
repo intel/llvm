@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/device_global_map.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -189,6 +190,7 @@ public:
                                                         MDevices, PropList);
         MDeviceImages.emplace_back(BuiltImg);
         MUniqueDeviceImages.emplace_back(BuiltImg);
+        populateDeviceGlobalsForSYCLBIN();
         break;
       }
       case bundle_state::input:
@@ -411,6 +413,8 @@ public:
 
     removeDuplicateImages();
 
+    populateDeviceGlobalsForSYCLBIN();
+
     for (const kernel_bundle<bundle_state::object> &Bundle : ObjectBundles) {
       const KernelBundleImplPtr &BundlePtr = getSyclObjImpl(Bundle);
       for (const std::pair<const std::string, std::vector<unsigned char>>
@@ -488,6 +492,9 @@ public:
     }
 
     fillUniqueDeviceImages();
+
+    if (get_bundle_state() == bundle_state::executable)
+      populateDeviceGlobalsForSYCLBIN();
 
     if (get_bundle_state() == bundle_state::input) {
       // Copy spec constants values from the device images.
@@ -589,6 +596,8 @@ public:
     ProgramManager::getInstance().bringSYCLDeviceImagesToState(MDeviceImages,
                                                                State);
     fillUniqueDeviceImages();
+    if (State == bundle_state::executable)
+      populateDeviceGlobalsForSYCLBIN();
   }
 
   template <typename... Ts>
@@ -698,10 +707,14 @@ public:
   }
 
   bool ext_oneapi_has_device_global(const std::string &Name) const {
-    return std::any_of(
-        begin(), end(), [&Name](const device_image_plain &DeviceImage) {
-          return getSyclObjImpl(DeviceImage)->hasDeviceGlobalName(Name);
-        });
+    std::string MangledName = mangleDeviceGlobalName(Name);
+    return (MDeviceGlobals.size() &&
+            MDeviceGlobals.tryGetEntryLockless(MangledName)) ||
+           std::any_of(begin(), end(),
+                       [&MangledName](const device_image_plain &DeviceImage) {
+                         return getSyclObjImpl(DeviceImage)
+                             ->hasDeviceGlobalName(MangledName);
+                       });
   }
 
   void *ext_oneapi_get_device_global_address(const std::string &Name,
@@ -1025,28 +1038,51 @@ public:
     return const_cast<kernel_bundle_impl *>(this)->Base::shared_from_this();
   }
 
+  DeviceGlobalMap &getDeviceGlobalMap() { return MDeviceGlobals; }
+
 private:
   DeviceGlobalMapEntry *getDeviceGlobalEntry(const std::string &Name) const {
-    if (!hasSourceBasedImages()) {
+    if (!hasSourceBasedImages() && !hasSYCLBINImages()) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Querying device globals by name is only available "
-                            "in kernel_bundles successfully built from "
+                            "in kernel_bundles created from SYCLBIN files and "
+                            "kernel_bundles successfully built from "
                             "kernel_bundle<bundle_state>::ext_oneapi_source> "
                             "with 'sycl' source language.");
     }
 
-    if (!ext_oneapi_has_device_global(Name)) {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "device global '" + Name +
-                                "' not found in kernel_bundle");
-    }
+    std::string MangledName = mangleDeviceGlobalName(Name);
+
+    if (MDeviceGlobals.size())
+      if (DeviceGlobalMapEntry *Entry =
+              MDeviceGlobals.tryGetEntryLockless(MangledName))
+        return Entry;
 
     for (const device_image_plain &DevImg : MUniqueDeviceImages)
       if (DeviceGlobalMapEntry *Entry =
-              getSyclObjImpl(DevImg)->tryGetDeviceGlobalEntry(Name))
+              getSyclObjImpl(DevImg)->tryGetDeviceGlobalEntry(MangledName))
         return Entry;
-    assert(false && "Device global should have been found.");
-    return nullptr;
+
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "device global '" + Name +
+                              "' not found in kernel_bundle");
+  }
+
+  static std::string mangleDeviceGlobalName(const std::string &Name) {
+    // TODO: Support device globals declared in namespaces.
+    return "_Z" + std::to_string(Name.length()) + Name;
+  }
+
+  void populateDeviceGlobalsForSYCLBIN() {
+    // This should only be called from ctors, so lockless initialization is
+    // safe.
+    for (const device_image_plain &DevImg : MUniqueDeviceImages) {
+      const auto &DevImgImpl = getSyclObjImpl(DevImg);
+      if (DevImgImpl->getOriginMask() & ImageOriginSYCLBIN)
+        if (const RTDeviceBinaryImage *DevBinImg =
+                DevImgImpl->get_bin_image_ref())
+          MDeviceGlobals.initializeEntriesLockless(DevBinImg);
+    }
   }
 
   void fillUniqueDeviceImages() {
@@ -1084,6 +1120,12 @@ private:
   // from any device image.
   SpecConstMapT MSpecConstValues;
   bundle_state MState;
+
+  // Map for isolating device_global variables owned by the SYCLBINs in the
+  // kernel_bundle. This map will ensure the cleanup of its entries, unlike the
+  // map in program_manager which has its entry cleanup managed by the
+  // corresponding owner contexts.
+  DeviceGlobalMap MDeviceGlobals{/*OwnerControlledCleanup=*/false};
 };
 
 } // namespace detail

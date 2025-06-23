@@ -223,7 +223,8 @@ public:
 
   /// Initializes device globals for a program on the associated queue.
   std::vector<ur_event_handle_t>
-  initializeDeviceGlobals(ur_program_handle_t NativePrg, queue_impl &QueueImpl);
+  initializeDeviceGlobals(ur_program_handle_t NativePrg, queue_impl &QueueImpl,
+                          detail::kernel_bundle_impl *KernelBundleImplPtr);
 
   void memcpyToHostOnlyDeviceGlobal(device_impl &DeviceImpl,
                                     const void *DeviceGlobalPtr,
