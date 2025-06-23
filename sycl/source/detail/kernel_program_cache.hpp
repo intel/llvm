@@ -129,7 +129,7 @@ public:
             ur_result_t Err =
                 AdapterSharedPtr->call_nocheck<UrApiKind::urProgramRelease>(
                     Val);
-            __SYCL_CHECK_UR_CODE_NO_EXC(Err);
+            __SYCL_CHECK_UR_CODE_NO_EXC(Err, AdapterSharedPtr->getBackend());
           }
         }
       } catch (std::exception &e) {
@@ -214,7 +214,7 @@ public:
             ur_result_t Err =
                 AdapterSharedPtr->call_nocheck<UrApiKind::urKernelRelease>(
                     Val.first);
-            __SYCL_CHECK_UR_CODE_NO_EXC(Err);
+            __SYCL_CHECK_UR_CODE_NO_EXC(Err, AdapterSharedPtr->getBackend());
           }
         }
       } catch (std::exception &e) {
@@ -818,7 +818,9 @@ public:
             BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
           reset();
           BuildResult->updateAndNotify(BuildState::BS_Initial);
-          continue;
+          if (AttemptCounter + 1 < MaxAttempts) {
+            continue;
+          }
         }
 
         BuildResult->updateAndNotify(BuildState::BS_Failed);

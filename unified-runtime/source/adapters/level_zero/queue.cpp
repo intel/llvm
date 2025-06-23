@@ -1277,7 +1277,6 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
   // So, disable it for modes where we print PI traces. Printing
   // traces incurs much different timings than real execution
   // ansyway, and many regression tests use it.
-  //
   bool CurrentlyEmpty = !PrintTrace && this->LastCommandEvent == nullptr;
 
   // The list can be empty if command-list only contains signals of proxy
@@ -1316,7 +1315,8 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
         die("executeCommandList: OpenCommandList should be equal to"
             "null or CommandList");
 
-      if (CommandList->second.size() < CommandBatch.QueueBatchSize) {
+      if (CommandList->second.size() < CommandBatch.QueueBatchSize &&
+          !IsBlocking) {
         CommandBatch.OpenCommandList = CommandList;
         return UR_RESULT_SUCCESS;
       }

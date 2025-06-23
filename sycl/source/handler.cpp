@@ -361,27 +361,54 @@ bool handler::isStateExplicitKernelBundle() const {
   return impl->isStateExplicitKernelBundle();
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // Returns a shared_ptr to the kernel_bundle.
 // If there is no kernel_bundle created:
 // returns newly created kernel_bundle if Insert is true
 // returns shared_ptr(nullptr) if Insert is false
 std::shared_ptr<detail::kernel_bundle_impl>
 handler::getOrInsertHandlerKernelBundle(bool Insert) const {
-  if (!impl->MKernelBundle && Insert) {
-    context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
-    impl->MKernelBundle =
-        detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
-            Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
-            {}));
-  }
+  if (impl->MKernelBundle || !Insert)
+    return impl->MKernelBundle;
+
+  context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
+  impl->MKernelBundle =
+      detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
+          Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
+          {}));
   return impl->MKernelBundle;
+}
+#endif
+
+// Returns a ptr to the kernel_bundle.
+// If there is no kernel_bundle created:
+// returns newly created kernel_bundle if Insert is true
+// returns nullptr if Insert is false
+detail::kernel_bundle_impl *
+handler::getOrInsertHandlerKernelBundlePtr(bool Insert) const {
+  if (impl->MKernelBundle || !Insert)
+    return impl->MKernelBundle.get();
+
+  context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
+  impl->MKernelBundle =
+      detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
+          Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
+          {}));
+  return impl->MKernelBundle.get();
 }
 
 // Sets kernel bundle to the provided one.
+template <typename SharedPtrT>
+void handler::setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr) {
+  impl->MKernelBundle = std::forward<SharedPtrT>(NewKernelBundleImpPtr);
+}
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setHandlerKernelBundle(
     const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr) {
   impl->MKernelBundle = NewKernelBundleImpPtr;
 }
+#endif
 
 void handler::setHandlerKernelBundle(kernel Kernel) {
   // Kernel may not have an associated kernel bundle if it is created from a
@@ -389,7 +416,7 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
   //  the other way around: getSyclObjImp(Kernel->get_kernel_bundle()).
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpl =
       detail::getSyclObjImpl(Kernel)->get_kernel_bundle();
-  setHandlerKernelBundle(KernelBundleImpl);
+  setHandlerKernelBundle(std::move(KernelBundleImpl));
 }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -411,7 +438,7 @@ event handler::finalize() {
       (Queue && !Graph && !impl->MSubgraphNode && !Queue->hasCommandGraph() &&
        !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
        detail::Scheduler::areEventsSafeForSchedulerBypass(
-           impl->CGData.MEvents, Queue->getContextImplPtr()));
+           impl->CGData.MEvents, Queue->getContextImpl()));
 
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.
@@ -462,16 +489,15 @@ event handler::finalize() {
 
   if (type == detail::CGType::Kernel) {
     // If there were uses of set_specialization_constant build the kernel_bundle
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/false);
+    detail::kernel_bundle_impl *KernelBundleImpPtr =
+        getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
       if (!impl->isStateExplicitKernelBundle() &&
           !(MKernel && MKernel->isInterop()) &&
           (KernelBundleImpPtr->empty() ||
            KernelBundleImpPtr->hasSYCLOfflineImages()) &&
-          !KernelBundleImpPtr->tryGetKernel(toKernelNameStrT(MKernelName),
-                                            KernelBundleImpPtr)) {
+          !KernelBundleImpPtr->tryGetKernel(toKernelNameStrT(MKernelName))) {
         detail::device_impl &Dev = impl->get_device();
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(
@@ -484,11 +510,13 @@ event handler::finalize() {
             KernelBundleImpPtr->get_bundle_state() == bundle_state::input) {
           auto KernelBundle =
               detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-                  KernelBundleImpPtr);
+                  *KernelBundleImpPtr);
           kernel_bundle<bundle_state::executable> ExecKernelBundle =
               build(KernelBundle);
-          KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle);
-          setHandlerKernelBundle(KernelBundleImpPtr);
+          KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle).get();
+          // Raw ptr KernelBundleImpPtr is valid, because we saved the
+          // shared_ptr to the handler
+          setHandlerKernelBundle(KernelBundleImpPtr->shared_from_this());
           KernelInserted = KernelBundleImpPtr->add_kernel(
               KernelID, detail::createSyclObjFromImpl<device>(Dev));
         }
@@ -503,9 +531,11 @@ event handler::finalize() {
         // Underlying level expects kernel_bundle to be in executable state
         kernel_bundle<bundle_state::executable> ExecBundle = build(
             detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-                KernelBundleImpPtr));
-        KernelBundleImpPtr = detail::getSyclObjImpl(ExecBundle);
-        setHandlerKernelBundle(KernelBundleImpPtr);
+                *KernelBundleImpPtr));
+        KernelBundleImpPtr = detail::getSyclObjImpl(ExecBundle).get();
+        // Raw ptr KernelBundleImpPtr is valid, because we saved the shared_ptr
+        // to the handler
+        setHandlerKernelBundle(KernelBundleImpPtr->shared_from_this());
         break;
       }
       case bundle_state::executable:
@@ -547,7 +577,7 @@ event handler::finalize() {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       if (!DiscardEvent) {
-        LastEventImpl = std::make_shared<detail::event_impl>();
+        LastEventImpl = detail::event_impl::create_completed_host_event();
       }
 #endif
 
@@ -610,7 +640,7 @@ event handler::finalize() {
         detail::queue_impl &Queue = impl->get_queue();
         LastEventImpl->setQueue(Queue);
         LastEventImpl->setWorkerQueue(Queue.weak_from_this());
-        LastEventImpl->setContextImpl(impl->get_context().shared_from_this());
+        LastEventImpl->setContextImpl(impl->get_context());
         LastEventImpl->setStateIncomplete();
         LastEventImpl->setSubmissionTime();
 
@@ -701,9 +731,8 @@ event handler::finalize() {
     detail::context_impl &Context = impl->get_context();
     detail::queue_impl *Queue = impl->get_queue_or_null();
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(impl->MHostTask), Queue ? Queue->shared_from_this() : nullptr,
-        Context.shared_from_this(), std::move(impl->MArgs),
-        std::move(impl->CGData), getType(), MCodeLoc));
+        std::move(impl->MHostTask), Queue, Context.shared_from_this(),
+        std::move(impl->MArgs), std::move(impl->CGData), getType(), MCodeLoc));
     break;
   }
   case detail::CGType::Barrier:
@@ -769,15 +798,20 @@ event handler::finalize() {
           nullptr, impl->MExecGraph, std::move(impl->CGData)));
 
     } else {
-      event GraphCompletionEvent =
-          impl->MExecGraph->enqueue(impl->get_queue(), std::move(impl->CGData));
-
+      detail::queue_impl &Queue = impl->get_queue();
+      bool DiscardEvent = !impl->MEventNeeded &&
+                          Queue.supportsDiscardingPiEvents() &&
+                          !impl->MExecGraph->containsHostTask();
+      detail::EventImplPtr GraphCompletionEvent = impl->MExecGraph->enqueue(
+          Queue, std::move(impl->CGData), !DiscardEvent);
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      MLastEvent = getSyclObjImpl(GraphCompletionEvent);
+      return GraphCompletionEvent;
 #else
-      MLastEvent = GraphCompletionEvent;
+      return sycl::detail::createSyclObjFromImpl<sycl::event>(
+          GraphCompletionEvent
+              ? GraphCompletionEvent
+              : sycl::detail::event_impl::create_discarded_event());
 #endif
-      return MLastEvent;
     }
   } break;
   case detail::CGType::CopyImage:
@@ -824,7 +858,7 @@ event handler::finalize() {
   // so it can be retrieved by the graph later.
   if (impl->get_graph_or_null()) {
     impl->MGraphNodeCG = std::move(CommandGroup);
-    auto EventImpl = std::make_shared<detail::event_impl>();
+    auto EventImpl = detail::event_impl::create_completed_host_event();
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     return EventImpl;
 #else
@@ -838,7 +872,7 @@ event handler::finalize() {
   // If the queue has an associated graph then we need to take the CG and pass
   // it to the graph to create a node, rather than submit it to the scheduler.
   if (auto GraphImpl = Queue->getCommandGraph(); GraphImpl) {
-    auto EventImpl = std::make_shared<detail::event_impl>();
+    auto EventImpl = detail::event_impl::create_completed_host_event();
     EventImpl->setSubmittedQueue(Queue->weak_from_this());
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
         nullptr;
@@ -895,11 +929,15 @@ event handler::finalize() {
 #endif
   }
 
+  bool DiscardEvent = !impl->MEventNeeded && Queue &&
+                      Queue->supportsDiscardingPiEvents() &&
+                      CommandGroup->getRequirements().size() == 0;
+
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), Queue->shared_from_this(), impl->MEventNeeded);
+      std::move(CommandGroup), Queue->shared_from_this(), !DiscardEvent);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  MLastEvent = Event;
+  MLastEvent = DiscardEvent ? nullptr : Event;
 #else
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
 #endif
@@ -1344,8 +1382,8 @@ detail::ABINeutralKernelNameStrT handler::getKernelName() {
 }
 
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
-  auto UsedKernelBundleImplPtr =
-      getOrInsertHandlerKernelBundle(/*Insert=*/false);
+  detail::kernel_bundle_impl *UsedKernelBundleImplPtr =
+      getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
     return;
 
@@ -2181,6 +2219,13 @@ handler::getContextImplPtr() const {
   return impl->get_queue().getContextImplPtr();
 }
 
+detail::context_impl &handler::getContextImpl() const {
+  if (auto *Graph = impl->get_graph_or_null()) {
+    return *Graph->getContextImplPtr();
+  }
+  return impl->get_queue().getContextImpl();
+}
+
 void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
   switch (Config) {
   case handler::StableKernelCacheConfig::Default:
@@ -2232,6 +2277,14 @@ handler::getCommandGraph() const {
 
 void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
   impl->MUserFacingNodeType = Type;
+}
+
+kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
+  detail::kernel_bundle_impl *KernelBundleImplPtr =
+      getOrInsertHandlerKernelBundlePtr(/*Insert=*/true);
+
+  return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+      *KernelBundleImplPtr);
 }
 
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
@@ -2403,5 +2456,73 @@ void handler::copyCodeLoc(const handler &other) {
 queue handler::getQueue() {
   return createSyclObjFromImpl<queue>(impl->get_queue());
 }
+namespace detail {
+__SYCL_EXPORT void HandlerAccess::preProcess(handler &CGH,
+                                             type_erased_cgfo_ty F) {
+  queue_impl &Q = CGH.impl->get_queue();
+  bool EventNeeded = !Q.isInOrder();
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  handler_impl HandlerImpl{Q, nullptr, EventNeeded};
+  handler AuxHandler{HandlerImpl};
+#else
+  handler AuxHandler{Q.shared_from_this(), EventNeeded};
+#endif
+  AuxHandler.copyCodeLoc(CGH);
+  F(AuxHandler);
+  auto E = AuxHandler.finalize();
+  assert(!CGH.MIsFinalized &&
+         "Can't do pre-processing if the command has been enqueued already!");
+  if (EventNeeded)
+    CGH.depends_on(E);
+}
+__SYCL_EXPORT void HandlerAccess::postProcess(handler &CGH,
+                                              type_erased_cgfo_ty F) {
+  // The "hacky" `handler`s manipulation mentioned near the declaration in
+  // `handler.hpp` and implemented here is far from perfect. A better approach
+  // would be
+  //
+  //    bool OrigNeedsEvent = CGH.needsEvent()
+  //    assert(CGH.not_finalized/enqueued());
+  //    if (!InOrderQueue)
+  //      CGH.setNeedsEvent()
+  //
+  //    handler PostProcessHandler(Queue, OrigNeedsEvent)
+  //    auto E = CGH.finalize(); // enqueue original or current last
+  //                             // post-process
+  //    if (!InOrder)
+  //      PostProcessHandler.depends_on(E)
+  //
+  //    swap_impls(CGH, PostProcessHandler)
+  //    return; // queue::submit finalizes PostProcessHandler and returns its
+  //            // event if necessary.
+  //
+  // Still hackier than "real" `queue::submit` but at least somewhat sane.
+  // That, however hasn't been tried yet and we have an even hackier approach
+  // copied from what's been done in an old reductions implementation before
+  // eventless submission work has started. Not sure how feasible the approach
+  // above is at this moment.
+
+  // This `finalize` is wrong (at least logically) if
+  //   `assert(!CGH.eventNeeded())`
+  auto E = CGH.finalize();
+  queue_impl &Q = CGH.impl->get_queue();
+  bool InOrder = Q.isInOrder();
+  // Cannot use `CGH.eventNeeded()` alone as there might be subsequent
+  // `postProcess` calls and we cannot address them properly similarly to the
+  // `finalize` issue described above. `swap_impls` suggested above might be
+  // able to handle this scenario naturally.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  handler_impl HandlerImpl{Q, nullptr, CGH.eventNeeded() || !InOrder};
+  handler AuxHandler{HandlerImpl};
+#else
+  handler AuxHandler{Q.shared_from_this(), CGH.eventNeeded() || !InOrder};
+#endif
+  if (!InOrder)
+    AuxHandler.depends_on(E);
+  AuxHandler.copyCodeLoc(CGH);
+  F(AuxHandler);
+  CGH.MLastEvent = AuxHandler.finalize();
+}
+} // namespace detail
 } // namespace _V1
 } // namespace sycl

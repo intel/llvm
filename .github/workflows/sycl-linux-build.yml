@@ -173,7 +173,7 @@ jobs:
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
-          --ci-defaults --use-zstd ${{ inputs.build_configure_extra_args }} \
+          --ci-defaults ${{ inputs.build_configure_extra_args }} \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DLLVM_INSTALL_UTILS=ON \
@@ -322,3 +322,18 @@ jobs:
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}_spirv_backend
         sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
         extra_lit_opts: --param spirv-backend=True
+
+    - name: Remove E2E tests before preview-mode run
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      run: rm -rf build-e2e
+
+    - name: Build E2E tests in Preview Mode
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      uses: ./devops/actions/run-tests/e2e
+      with:
+        ref: ${{ inputs.ref || github.sha }}
+        testing_mode: build-only
+        target_devices: all
+        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}_preview
+        sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
+        extra_lit_opts: --param test-preview-mode=True

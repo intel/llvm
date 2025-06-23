@@ -22,13 +22,13 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
               ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
 
   if (pNumPlatforms) {
-    *pNumPlatforms = Adapter.Platforms.size();
+    *pNumPlatforms = Adapter->Platforms.size();
   }
 
   if (phPlatforms) {
     size_t PlatformIndex = 0;
-    for (auto &Platform : Adapter.Platforms) {
-      phPlatforms[PlatformIndex++] = &Platform;
+    for (auto &Platform : Adapter->Platforms) {
+      phPlatforms[PlatformIndex++] = Platform.get();
       if (PlatformIndex == NumEntries) {
         break;
       }

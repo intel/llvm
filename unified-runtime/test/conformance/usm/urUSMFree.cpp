@@ -28,10 +28,10 @@ TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
   ur_event_handle_t event = nullptr;
 
   uint8_t pattern = 0;
-  EXPECT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+  ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
                                   allocation_size, 0, nullptr, &event));
-  EXPECT_SUCCESS(urQueueFlush(queue));
-  EXPECT_SUCCESS(urEventWait(1, &event));
+  ASSERT_SUCCESS(urQueueFlush(queue));
+  ASSERT_SUCCESS(urEventWait(1, &event));
 
   ASSERT_SUCCESS(urUSMFree(context, ptr));
   ASSERT_SUCCESS(urEventRelease(event));
@@ -53,10 +53,10 @@ TEST_P(urUSMFreeTest, SuccessHostAlloc) {
 
   ur_event_handle_t event = nullptr;
   uint8_t pattern = 0;
-  EXPECT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+  ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
                                   allocation_size, 0, nullptr, &event));
-  EXPECT_SUCCESS(urQueueFlush(queue));
-  EXPECT_SUCCESS(urEventWait(1, &event));
+  ASSERT_SUCCESS(urQueueFlush(queue));
+  ASSERT_SUCCESS(urEventWait(1, &event));
 
   ASSERT_SUCCESS(urUSMFree(context, ptr));
   ASSERT_SUCCESS(urEventRelease(event));
@@ -84,10 +84,10 @@ TEST_P(urUSMFreeTest, SuccessSharedAlloc) {
 
   ur_event_handle_t event = nullptr;
   uint8_t pattern = 0;
-  EXPECT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+  ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
                                   allocation_size, 0, nullptr, &event));
-  EXPECT_SUCCESS(urQueueFlush(queue));
-  EXPECT_SUCCESS(urEventWait(1, &event));
+  ASSERT_SUCCESS(urQueueFlush(queue));
+  ASSERT_SUCCESS(urEventWait(1, &event));
 
   ASSERT_SUCCESS(urUSMFree(context, ptr));
   ASSERT_SUCCESS(urEventRelease(event));
@@ -121,6 +121,9 @@ struct urUSMFreeDuringExecutionTest : uur::urKernelExecutionTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMFreeDuringExecutionTest);
 
 TEST_P(urUSMFreeDuringExecutionTest, SuccessHost) {
+  // Causes an abort in liboffload
+  UUR_KNOWN_FAILURE_ON(uur::Offload{});
+
   ur_device_usm_access_capability_flags_t host_usm_flags = 0;
   ASSERT_SUCCESS(uur::GetDeviceUSMHostSupport(device, host_usm_flags));
   if (!(host_usm_flags & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS)) {
@@ -131,9 +134,9 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessHost) {
       urUSMHostAlloc(context, nullptr, nullptr, allocation_size, &allocation));
   ASSERT_NE(allocation, nullptr);
 
-  EXPECT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
-  EXPECT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
-  EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
+  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
+  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
                                        &array_size, nullptr, 0, nullptr, 0,
                                        nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
@@ -141,6 +144,9 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessHost) {
 }
 
 TEST_P(urUSMFreeDuringExecutionTest, SuccessDevice) {
+  // Causes an abort in liboffload
+  UUR_KNOWN_FAILURE_ON(uur::Offload{});
+
   ur_device_usm_access_capability_flags_t device_usm_flags = 0;
   ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm_flags));
   if (!(device_usm_flags & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS)) {
@@ -151,10 +157,10 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessDevice) {
                                   allocation_size, &allocation));
   ASSERT_NE(allocation, nullptr);
 
-  EXPECT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
-  EXPECT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
+  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
+  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
 
-  EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
                                        &array_size, nullptr, 0, nullptr, 0,
                                        nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
@@ -162,6 +168,9 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessDevice) {
 }
 
 TEST_P(urUSMFreeDuringExecutionTest, SuccessShared) {
+  // Causes an abort in liboffload
+  UUR_KNOWN_FAILURE_ON(uur::Offload{});
+
   ur_device_usm_access_capability_flags_t shared_usm_flags = 0;
   ASSERT_SUCCESS(
       uur::GetDeviceUSMSingleSharedSupport(device, shared_usm_flags));
@@ -173,9 +182,9 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessShared) {
                                   allocation_size, &allocation));
   ASSERT_NE(allocation, nullptr);
 
-  EXPECT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
-  EXPECT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
-  EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
+  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
+  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
                                        &array_size, nullptr, 0, nullptr, 0,
                                        nullptr, nullptr));
   ASSERT_SUCCESS(urUSMFree(context, allocation));
