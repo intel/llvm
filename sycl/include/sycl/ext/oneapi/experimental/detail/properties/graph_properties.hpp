@@ -10,6 +10,7 @@
 
 #include <sycl/detail/property_helper.hpp>     // for DataLessPropKind
 #include <sycl/properties/property_traits.hpp> // for is_property_of
+#include <sycl/property_list.hpp>              // for property_list
 
 #include <type_traits> // for true_type
 
