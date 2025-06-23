@@ -4,20 +4,17 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-
 // Define NOMINMAX to enable compilation on Windows
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-
 #include <windows.h>
 
 // Windows Runtime C++ Template Library (ComPtr and friends)
 #include <wrl.h>
 
-// For D3D11CreateDevice, ID3D11Device and ID3D11DeviceContext
+// Direct3D 11 and 12 API headers.
 #include <d3d11.h>
-// For D3D12CreateDevice and ID3D12Device
 #include <d3d12.h>
 
 // As we are to share common DXGI interface functionality between our DX 11 and

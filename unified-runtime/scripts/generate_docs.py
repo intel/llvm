@@ -304,8 +304,7 @@ def generate_html(dstpath):
         print("sphinx-build returned non-zero error code.")
         print("--- output ---")
         print(result.stderr.decode())
-        # temporary skip the exception for dev purposes.
-        # raise Exception("Failed to generate html documentation.")
+        raise Exception("Failed to generate html documentation.")
 
 
 def generate_pdf(dstpath):
