@@ -687,7 +687,7 @@ ur_result_t urAdapterGet(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urAdapterRelease(ur_adapter_handle_t Adapter) {
+ur_result_t urAdapterRelease([[maybe_unused]] ur_adapter_handle_t Adapter) {
   assert(GlobalAdapter && GlobalAdapter == Adapter);
 
   // NOTE: This does not require guarding with a mutex; the instant the ref
@@ -709,7 +709,7 @@ ur_result_t urAdapterRelease(ur_adapter_handle_t Adapter) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urAdapterRetain(ur_adapter_handle_t Adapter) {
+ur_result_t urAdapterRetain([[maybe_unused]] ur_adapter_handle_t Adapter) {
   assert(GlobalAdapter && GlobalAdapter == Adapter);
   GlobalAdapter->RefCount++;
 
