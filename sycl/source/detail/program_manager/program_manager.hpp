@@ -136,8 +136,8 @@ public:
   static ProgramManager &getInstance();
 
   const RTDeviceBinaryImage &getDeviceImage(KernelNameStrRefT KernelName,
-                                      context_impl &ContextImpl,
-                                      const device_impl &DeviceImpl);
+                                            context_impl &ContextImpl,
+                                            const device_impl &DeviceImpl);
 
   const RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<const RTDeviceBinaryImage *> &ImagesToVerify,
