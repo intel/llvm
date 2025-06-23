@@ -119,9 +119,9 @@
 // CHECK-NEXT: ext/oneapi/experimental/detail/properties/graph_properties.hpp
 // CHECK-NEXT: ext/oneapi/experimental/detail/properties/graph_properties.def
 // CHECK-NEXT: ext/oneapi/experimental/detail/properties/node_properties.def
-// CHECK-NEXT: ext/oneapi/experimental/graph/graph_node.hpp
+// CHECK-NEXT: ext/oneapi/experimental/graph/node.hpp
 // CHECK-NEXT: ext/oneapi/experimental/graph/modifiable_graph.hpp
-// CHECK-NEXT: ext/oneapi/experimental/graph/graph_dynamic.hpp
+// CHECK-NEXT: ext/oneapi/experimental/graph/dynamic.hpp
 // CHECK-NEXT: ext/oneapi/experimental/work_group_memory.hpp
 // CHECK-NEXT: handler.hpp
 // CHECK-NEXT: detail/cl.h

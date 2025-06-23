@@ -12,8 +12,8 @@
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/detail/string_view.hpp>     // for string_view
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph_state
-#include <sycl/ext/oneapi/experimental/graph/graph_node.hpp> // for node class
-#include <sycl/property_list.hpp> // for property_list
+#include <sycl/ext/oneapi/experimental/graph/node.hpp> // for node class
+#include <sycl/property_list.hpp>                      // for property_list
 
 #include <functional> // for function
 #include <memory>     // for shared_ptr

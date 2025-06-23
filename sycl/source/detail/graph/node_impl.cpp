@@ -9,8 +9,8 @@
 #define __SYCL_GRAPH_IMPL_CPP
 
 #include "node_impl.hpp"
-#include "graph_impl.hpp"                                    // for graph_impl
-#include <sycl/ext/oneapi/experimental/graph/graph_node.hpp> // for node
+#include "graph_impl.hpp"                              // for graph_impl
+#include <sycl/ext/oneapi/experimental/graph/node.hpp> // for node
 
 namespace sycl {
 inline namespace _V1 {

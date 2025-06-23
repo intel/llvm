@@ -1,4 +1,4 @@
-//==--------- graph_dynamic.hpp --- SYCL graph extension -------------------==//
+//==--------- dynamic.hpp --- SYCL graph extension -------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -152,8 +152,8 @@ protected:
 } // namespace detail
 
 template <typename DataT, typename PropertyListT = empty_properties_t>
-class __SYCL_SPECIAL_CLASS
-__SYCL_TYPE(dynamic_work_group_memory) dynamic_work_group_memory
+class __SYCL_SPECIAL_CLASS __SYCL_TYPE(dynamic_work_group_memory)
+    dynamic_work_group_memory
 #ifndef __SYCL_DEVICE_ONLY__
     : public detail::dynamic_work_group_memory_base
 #endif
@@ -240,8 +240,8 @@ private:
 };
 
 template <typename DataT, int Dimensions = 1>
-class __SYCL_SPECIAL_CLASS
-__SYCL_TYPE(dynamic_local_accessor) dynamic_local_accessor
+class __SYCL_SPECIAL_CLASS __SYCL_TYPE(dynamic_local_accessor)
+    dynamic_local_accessor
 #ifndef __SYCL_DEVICE_ONLY__
     : public detail::dynamic_local_accessor_base
 #endif
