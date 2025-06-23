@@ -21,17 +21,29 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
+namespace detail {
+
+__SYCL_EXPORT int export_device_mem_opaque_fd(void *deviceMemory,
+                                              const sycl::device &syclDevice,
+                                              const sycl::context &syclContext);
+
 __SYCL_EXPORT void *
-alloc_exportable_memory(size_t alignment, size_t size,
+export_device_mem_win32_nt_handle(void *deviceMemory,
+                                  const sycl::device &syclDevice,
+                                  const sycl::context &syclContext);
+} // namespace detail
+
+__SYCL_EXPORT void *
+alloc_exportable_device_mem(size_t alignment, size_t size,
                         external_mem_handle_type externalMemHandleType,
                         const sycl::device &syclDevice,
                         const sycl::context &syclContext);
 
 inline void *
-alloc_exportable_memory(size_t alignment, size_t size,
+alloc_exportable_device_mem(size_t alignment, size_t size,
                         external_mem_handle_type externalMemHandleType,
                         const sycl::queue &syclQueue) {
-  return alloc_exportable_memory(size, alignment, externalMemHandleType,
+  return alloc_exportable_device_mem(size, alignment, externalMemHandleType,
                                  syclQueue.get_device(),
                                  syclQueue.get_context());
 }
@@ -46,15 +58,51 @@ inline void free_exportable_memory(void *deviceMemory,
                          syclQueue.get_context());
 }
 
-template <typename ResourceType>
-__SYCL_EXPORT ResourceType
-export_memory_handle(void *deviceMemory, const sycl::device &syclDevice,
-                     const sycl::context &syclContext);
+// Available only when ExternalMemType == external_mem_handle_type::opaque_fd
+template <
+    external_mem_handle_type ExternalMemType,
+    std::enable_if_t<ExternalMemType == external_mem_handle_type::opaque_fd,
+                     bool> = true>
+__SYCL_EXPORT int
+export_device_mem_handle(void *deviceMemory, const sycl::device &syclDevice,
+                         const sycl::context &syclContext) {
+  return detail::export_device_mem_opaque_fd(deviceMemory, syclDevice,
+                                             syclContext);
+}
 
-template <typename ResourceType>
-inline ResourceType export_memory_handle(void *deviceMemory,
-                                         const sycl::queue &syclQueue) {
-  return export_memory_handle<ResourceType>(
+// Available only when ExternalMemType == external_mem_handle_type::opaque_fd
+template <
+    external_mem_handle_type ExternalMemType,
+    std::enable_if_t<ExternalMemType == external_mem_handle_type::opaque_fd,
+                     bool> = true>
+inline int export_device_mem_handle(void *deviceMemory,
+                                    const sycl::queue &syclQueue) {
+  return export_device_mem_handle<ExternalMemType>(
+      deviceMemory, syclQueue.get_device(), syclQueue.get_context());
+}
+
+// Available only when
+// ExternalMemType == external_mem_handle_type::win32_nt_handle
+template <external_mem_handle_type ExternalMemType,
+          std::enable_if_t<ExternalMemType ==
+                               external_mem_handle_type::win32_nt_handle,
+                           bool> = true>
+__SYCL_EXPORT void *export_device_mem_handle(void *deviceMemory,
+                                             const sycl::device &syclDevice,
+                                             const sycl::context &syclContext) {
+  return detail::export_device_mem_win32_nt_handle(deviceMemory, syclDevice,
+                                                   syclContext);
+}
+
+// Available only when
+// ExternalMemType == external_mem_handle_type::win32_nt_handle
+template <external_mem_handle_type ExternalMemType,
+          std::enable_if_t<ExternalMemType ==
+                               external_mem_handle_type::win32_nt_handle,
+                           bool> = true>
+inline void *export_device_mem_handle(void *deviceMemory,
+                                      const sycl::queue &syclQueue) {
+  return export_device_mem_handle<ExternalMemType>(
       deviceMemory, syclQueue.get_device(), syclQueue.get_context());
 }
 

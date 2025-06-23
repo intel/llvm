@@ -19,9 +19,9 @@ namespace {
 void *syclExportableLinearMemory;
 
 #ifndef _WIN32
-syclexp::resource_fd exportableMemoryHandle;
+int exportableMemoryHandle;
 #else
-syclexp::resource_win32_handle exportableMemoryHandle;
+void *exportableMemoryHandle;
 #endif // _WIN32
 
 std::vector<DataT> syclInput;
@@ -35,9 +35,16 @@ void initSycl(const sycl::device &syclDevice, const size_t memorySizeBytes,
   sycl::queue syclQueue(syclContext, syclDevice);
 
   // Allocate SYCL exportable memory.
-  syclExportableLinearMemory = syclexp::alloc_exportable_memory(
+#ifndef _WIN32
+  syclExportableLinearMemory = syclexp::alloc_exportable_device_mem(
       memoryAlignment, memorySizeBytes,
       syclexp::external_mem_handle_type::opaque_fd, syclDevice, syclContext);
+#else
+  syclExportableLinearMemory = syclexp::alloc_exportable_device_mem(
+      memoryAlignment, memorySizeBytes,
+      syclexp::external_mem_handle_type::win32_nt_handle, syclDevice,
+      syclContext);
+#endif // _WIN32
 
   // Fill the SYCL allocated memory with some data.
   syclInput.resize(memorySizeBytes / sizeof(DataT), 0);
@@ -50,12 +57,13 @@ void initSycl(const sycl::device &syclDevice, const size_t memorySizeBytes,
 
   // Export the SYCL allocated memory handle.
 #ifndef _WIN32
-  exportableMemoryHandle = syclexp::export_memory_handle<syclexp::resource_fd>(
-      syclExportableLinearMemory, syclDevice, syclContext);
+  exportableMemoryHandle = syclexp::export_device_mem_handle<
+      syclexp::external_mem_handle_type::opaque_fd>(syclExportableLinearMemory,
+                                                    syclDevice, syclContext);
 #else
-  exportableMemoryHandle =
-      syclexp::export_memory_handle<syclexp::resource_win32_handle>(
-          syclExportableLinearMemory, syclDevice, syclContext);
+  exportableMemoryHandle = syclexp::export_device_mem_handle<
+      syclexp::external_mem_handle_type::win32_nt_handle>(
+      syclExportableLinearMemory, syclDevice, syclContext);
 #endif // _WIN32
 
   return;
@@ -86,12 +94,10 @@ int runTest(sycl::device &syclDevice, const size_t memorySizeBytes) {
 
 #ifndef _WIN32
     vkImportedBufferMemory = vkutil::importDeviceMemory<int>(
-        memorySizeBytes, inputBufferMemTypeIndex,
-        exportableMemoryHandle.file_descriptor);
+        memorySizeBytes, inputBufferMemTypeIndex, exportableMemoryHandle);
 #else
-    vkImportedBufferMemory = vkutil::importDeviceMemoryWin32<void *>(
-        memorySizeBytes, inputBufferMemTypeIndex,
-        exportableMemoryHandle.win32_handle);
+    vkImportedBufferMemory = vkutil::importDeviceMemory<void *>(
+        memorySizeBytes, inputBufferMemTypeIndex, exportableMemoryHandle);
 #endif
 
     VK_CHECK_CALL(vkBindBufferMemory(vk_device, vkImportedBuffer,
