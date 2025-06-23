@@ -25,17 +25,16 @@ inline namespace _V1 {
 enum class backend : char;
 namespace detail {
 class Adapter;
-using AdapterPtr = std::shared_ptr<Adapter>;
+using AdapterPtr = Adapter*;
 
 namespace ur {
 void *getURLoaderLibrary();
 
 // Performs UR one-time initialization.
-std::vector<AdapterPtr> &
-initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
+std::vector<AdapterPtr> initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
 
 // Get the adapter serving given backend.
-template <backend BE> const AdapterPtr &getAdapter();
+template <backend BE> AdapterPtr &getAdapter();
 } // namespace ur
 
 // Convert from UR backend to SYCL backend enum

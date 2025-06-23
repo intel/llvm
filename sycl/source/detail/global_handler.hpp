@@ -30,7 +30,6 @@ class ThreadPool;
 struct KernelNameBasedCacheT;
 
 using ContextImplPtr = std::shared_ptr<context_impl>;
-using AdapterPtr = std::shared_ptr<Adapter>;
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
@@ -71,7 +70,8 @@ public:
   std::mutex &getPlatformToDefaultContextCacheMutex();
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
-  std::vector<AdapterPtr> &getAdapters();
+  std::vector<std::unique_ptr<Adapter>> &getAdapters();
+  std::vector<Adapter*> getAdapterRawPtrs();
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
@@ -126,7 +126,7 @@ private:
   InstWithLock<std::mutex> MPlatformToDefaultContextCacheMutex;
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
-  InstWithLock<std::vector<AdapterPtr>> MAdapters;
+  InstWithLock<std::vector<std::unique_ptr<Adapter>>> MAdapters;
   InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution

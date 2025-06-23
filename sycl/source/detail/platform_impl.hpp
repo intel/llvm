@@ -40,7 +40,7 @@ class platform_impl : public std::enable_shared_from_this<platform_impl> {
   // Platforms can only be created under `GlobalHandler`'s ownership via
   // `platform_impl::getOrMakePlatformImpl` method.
   explicit platform_impl(ur_platform_handle_t APlatform,
-                         const std::shared_ptr<Adapter> &AAdapter)
+                          Adapter *AAdapter)
       : MPlatform(APlatform), MAdapter(AAdapter) {
     // Find out backend of the platform
     ur_backend_t UrBackend = UR_BACKEND_UNKNOWN;

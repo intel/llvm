@@ -112,25 +112,21 @@ public:
   };
 
   struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
-    std::weak_ptr<Adapter> AdapterWeakPtr;
-    ProgramBuildResult(const AdapterPtr &Adapter) : AdapterWeakPtr(Adapter) {
+    AdapterPtr adapter;
+    ProgramBuildResult(const AdapterPtr &_adapter) : adapter(_adapter) {
       Val = nullptr;
     }
-    ProgramBuildResult(const AdapterPtr &Adapter, BuildState InitialState)
-        : AdapterWeakPtr(Adapter) {
+    ProgramBuildResult(const AdapterPtr &_adapter, BuildState InitialState)
+        : adapter(_adapter) {
       Val = nullptr;
       this->State.store(InitialState);
     }
     ~ProgramBuildResult() {
       try {
         if (Val) {
-          AdapterPtr AdapterSharedPtr = AdapterWeakPtr.lock();
-          if (AdapterSharedPtr) {
-            ur_result_t Err =
-                AdapterSharedPtr->call_nocheck<UrApiKind::urProgramRelease>(
-                    Val);
-            __SYCL_CHECK_UR_CODE_NO_EXC(Err, AdapterSharedPtr->getBackend());
-          }
+          ur_result_t Err =
+              adapter->call_nocheck<UrApiKind::urProgramRelease>(Val);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err, adapter->getBackend());
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
@@ -202,20 +198,16 @@ public:
   using KernelArgMaskPairT =
       std::pair<ur_kernel_handle_t, const KernelArgMask *>;
   struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
-    std::weak_ptr<Adapter> AdapterWeakPtr;
-    KernelBuildResult(const AdapterPtr &Adapter) : AdapterWeakPtr(Adapter) {
+    AdapterPtr adapter;
+    KernelBuildResult(const AdapterPtr &_adapter) : adapter(_adapter) {
       Val.first = nullptr;
     }
     ~KernelBuildResult() {
       try {
         if (Val.first) {
-          AdapterPtr AdapterSharedPtr = AdapterWeakPtr.lock();
-          if (AdapterSharedPtr) {
-            ur_result_t Err =
-                AdapterSharedPtr->call_nocheck<UrApiKind::urKernelRelease>(
-                    Val.first);
-            __SYCL_CHECK_UR_CODE_NO_EXC(Err, AdapterSharedPtr->getBackend());
-          }
+          ur_result_t Err =
+            adapter->call_nocheck<UrApiKind::urKernelRelease>(Val.first);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err, adapter->getBackend());
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
