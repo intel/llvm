@@ -1529,9 +1529,22 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   if (DeviceFilteredImgs.empty())
     return nullptr;
 
+  std::vector<std::pair<const unsigned char *, size_t>> UrBinariesStorage(
+      DeviceFilteredImgs.size());
+
   std::vector<ur_device_binary_t> UrBinaries(DeviceFilteredImgs.size());
   for (uint32_t BinaryCount = 0; BinaryCount < DeviceFilteredImgs.size();
        BinaryCount++) {
+    // Pass extra information to the HIP adapter to aid in binary selection. We
+    // pass it the raw binary as a {ptr, length} pair.
+    if (DeviceImpl->getBackend() == backend::ext_oneapi_hip) {
+      if (auto *RawImg = getRawImg(DeviceFilteredImgs[BinaryCount])) {
+        UrBinariesStorage[BinaryCount] = {
+            RawImg->BinaryStart,
+            std::distance(RawImg->BinaryStart, RawImg->BinaryEnd)};
+        UrBinaries[BinaryCount].pNext = &UrBinariesStorage[BinaryCount];
+      }
+    }
     UrBinaries[BinaryCount].pDeviceTargetSpec = getUrDeviceTarget(
         getRawImg(DeviceFilteredImgs[BinaryCount])->DeviceTargetSpec);
   }
