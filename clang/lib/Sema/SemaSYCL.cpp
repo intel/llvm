@@ -5562,7 +5562,7 @@ void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
                                            StringRef NameStr) {
   if (!checkAndAddRegisteredKernelName(*this, FD, NameStr))
     return;
-  
+
   SyclKernelArgsSizeChecker argsSizeChecker(*this, FD->getLocation(),
                                             false /*IsSIMDKernel*/);
   SyclKernelDeclCreator kernel_decl(*this, FD->getLocation(), FD->isInlined(),
