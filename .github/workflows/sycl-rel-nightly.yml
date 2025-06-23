@@ -13,7 +13,7 @@ jobs:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
       build_configure_extra_args: '--disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda'
-      build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+      build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest-133fee559371ce0e6ff867e378c21cde2bdf6c90
       pack_release: 'true'
 
       # We upload the build for people to download/use, override its name and
@@ -57,6 +57,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-ae0e85c8391ba07b7c895e36cfb8a78cacd421dd
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: e2e
@@ -117,7 +118,7 @@ jobs:
     with:
       name: CUDA E2E
       runner: '["aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}"]'
-      image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+      image: ghcr.io/intel/llvm/ubuntu2204_build:latest-133fee559371ce0e6ff867e378c21cde2bdf6c90
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: cuda:gpu
       repo_ref: ${{ github.sha  }}
@@ -143,6 +144,7 @@ jobs:
       name: Build SYCL-CTS
       runner: '["Linux", "build"]'
       cts_testing_mode: 'build-only'
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-ae0e85c8391ba07b7c895e36cfb8a78cacd421dd
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
       tests_selector: cts
       repo_ref: ${{ github.sha  }}
@@ -177,6 +179,7 @@ jobs:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       cts_testing_mode: 'run-only'
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps-ae0e85c8391ba07b7c895e36cfb8a78cacd421dd
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
