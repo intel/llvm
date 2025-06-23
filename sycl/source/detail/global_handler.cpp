@@ -231,14 +231,15 @@ std::mutex &GlobalHandler::getFilterMutex() {
 }
 
 std::vector<std::unique_ptr<Adapter>> &GlobalHandler::getAdapters() {
-  static std::vector<std::unique_ptr<Adapter>> &adapters = getOrCreate(MAdapters);
+  static std::vector<std::unique_ptr<Adapter>> &adapters =
+      getOrCreate(MAdapters);
   enableOnCrashStackPrinting();
   return adapters;
 }
 
 // Get vector of raw pointers to adapters.
-std::vector<Adapter*> GlobalHandler::getAdapterRawPtrs() {
-  std::vector<Adapter*> RawPtrs;
+std::vector<Adapter *> GlobalHandler::getAdapterRawPtrs() {
+  std::vector<Adapter *> RawPtrs;
   for (const auto &Adapter : getAdapters()) {
     RawPtrs.push_back(Adapter.get());
   }

@@ -71,7 +71,7 @@ public:
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
   std::vector<std::unique_ptr<Adapter>> &getAdapters();
-  std::vector<Adapter*> getAdapterRawPtrs();
+  std::vector<Adapter *> getAdapterRawPtrs();
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();

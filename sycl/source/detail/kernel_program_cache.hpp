@@ -206,7 +206,7 @@ public:
       try {
         if (Val.first) {
           ur_result_t Err =
-            adapter->call_nocheck<UrApiKind::urKernelRelease>(Val.first);
+              adapter->call_nocheck<UrApiKind::urKernelRelease>(Val.first);
           __SYCL_CHECK_UR_CODE_NO_EXC(Err, adapter->getBackend());
         }
       } catch (std::exception &e) {
