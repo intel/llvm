@@ -15,7 +15,7 @@
 
 // COM: Run test again in a directory that contains a different version of
 //      `header1.hpp`
-// RUN: cd %S/include/C ; %{run} %t.out %S | FileCheck %s --check-prefixes=CHECK,CHECK-CWD
+// RUN: cd %S/include/C ; %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out %S | FileCheck %s --check-prefixes=CHECK,CHECK-CWD
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
