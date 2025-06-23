@@ -13,6 +13,7 @@
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVM.h"
 #include "mlir/Conversion/SYCLToMath/SYCLToMath.h"
 #include "mlir/Conversion/SYCLToSPIRV/SYCLToSPIRV.h"
+#include "mlir/Conversion/SPIRVBuiltInToNVVM/SPIRVBuiltInToNVVM.h"
 
 namespace mlir {
 namespace sycl {
