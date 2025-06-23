@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-embed-ir %s %S/SumKernel.cc %S/ProductKernel.cc -o %t.out
+// RUN: %{build} %S/SumKernel.cc %S/ProductKernel.cc -o %t.out
 // RUN: %{run} %t.out
 
 #include "ProductKernel.hpp"
