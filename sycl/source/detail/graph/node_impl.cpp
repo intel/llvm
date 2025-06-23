@@ -1,4 +1,4 @@
-//==--------- graph_node_impl.cpp - SYCL graph extension ------------------==//
+//==--------- node_impl.cpp - SYCL graph extension -------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,7 +8,7 @@
 
 #define __SYCL_GRAPH_IMPL_CPP
 
-#include "graph_node_impl.hpp"
+#include "node_impl.hpp"
 #include "graph_impl.hpp" // for graph_impl
 
 namespace sycl {

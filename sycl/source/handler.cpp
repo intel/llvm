@@ -12,9 +12,9 @@
 
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
-#include <detail/graph/graph_dynamic_impl.hpp>
+#include <detail/graph/dynamic_impl.hpp>
 #include <detail/graph/graph_impl.hpp>
-#include <detail/graph/graph_node_impl.hpp>
+#include <detail/graph/node_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/helpers.hpp>
 #include <detail/host_task.hpp>

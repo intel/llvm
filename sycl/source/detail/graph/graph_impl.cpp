@@ -9,8 +9,8 @@
 #define __SYCL_GRAPH_IMPL_CPP
 
 #include "graph_impl.hpp"
-#include "graph_dynamic_impl.hpp" // for dynamic classes
-#include "graph_node_impl.hpp"    // for node_impl
+#include "dynamic_impl.hpp" // for dynamic classes
+#include "node_impl.hpp"    // for node_impl
 #include <detail/cg.hpp> // for CG, CGExecKernel, CGHostTask, ArgDesc, NDRDescT
 #include <detail/event_impl.hpp>                      // for event_impl
 #include <detail/handler_impl.hpp>                    // for handler_impl

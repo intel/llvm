@@ -1,4 +1,4 @@
-//==--------- graph_dynamic_impl.cpp - SYCL graph extension ----------------==//
+//==--------- dynamic_impl.cpp - SYCL graph extension ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,8 +8,8 @@
 
 #define __SYCL_GRAPH_DYNAMIC_PARAM_IMPL_CPP
 
-#include "graph_dynamic_impl.hpp"
-#include "graph_node_impl.hpp"         // for NodeShared
+#include "dynamic_impl.hpp"
+#include "node_impl.hpp"               // for NodeShared
 #include <detail/cg.hpp>               // for CG
 #include <detail/handler_impl.hpp>     // for handler_impl
 #include <detail/sycl_mem_obj_t.hpp>   // for SYCLMemObjT
