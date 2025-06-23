@@ -4050,6 +4050,7 @@
 ?getChannelType@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEBA?AW4image_channel_type@34@XZ
 ?getChannelType@image_plain@detail@_V1@sycl@@IEBA?AW4image_channel_type@34@XZ
 ?getCommandGraph@handler@_V1@sycl@@AEBA?AV?$shared_ptr@Vgraph_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@XZ
+?getContextImpl@handler@_V1@sycl@@AEBAAEAVcontext_impl@detail@23@XZ
 ?getContextImplPtr@handler@_V1@sycl@@AEBAAEBV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@XZ
 ?getCurrentDSODir@OSUtil@detail@_V1@sycl@@SA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ?getDeviceBackend@handler@_V1@sycl@@AEBA?AW4backend@23@XZ
@@ -4202,6 +4203,7 @@
 ?get_platforms@platform@_V1@sycl@@SA?AV?$vector@Vplatform@_V1@sycl@@V?$allocator@Vplatform@_V1@sycl@@@std@@@std@@XZ
 ?get_pointer_device@_V1@sycl@@YA?AVdevice@12@PEBXAEBVcontext@12@@Z
 ?get_pointer_type@_V1@sycl@@YA?AW4alloc@usm@12@PEBXAEBVcontext@12@@Z
+?get_pointer_type@detail@_V1@sycl@@YA?AW4alloc@usm@23@PEBXAEAVcontext_impl@123@@Z
 ?get_precision@stream@_V1@sycl@@QEBA_KXZ
 ?get_predecessors@node@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_queue@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEBA?AVqueue@56@XZ
