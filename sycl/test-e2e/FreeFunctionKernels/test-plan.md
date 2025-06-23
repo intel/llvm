@@ -194,7 +194,7 @@ as kernel parameter to free function kernel and use it within kernel.
 
 #### Test structs that contain one of the following `accessor`, `local_accessor`, types when used as kernel parameter:
 A series of checks should be performed that we can pass struct that contain 
-one of the following `accessor`, `local_accessor` or types as kernel parameter 
+either `accessor` or `local_accessor` as kernel parameters 
 to free function kernel and use it within kernel.
 
 #### Test `struct` defined at namespace scope as kernel parameter:
