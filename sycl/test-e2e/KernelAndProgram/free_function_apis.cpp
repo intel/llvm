@@ -212,7 +212,7 @@ bool test_bundle_apis(queue Queue) {
       ff_2, bundle_state::executable>(Context);
 
   bool PassS =
-      ext::oneapi::experimental::get_kernel_info<ff_2,
+      ext::oneapi::get_kernel_info<ff_2,
                                                  info::kernel::function_name>(
           Context) == Bundle_ff2.ext_oneapi_get_kernel<ff_2>()
                           .get_info<info::kernel::function_name>();
@@ -223,7 +223,7 @@ bool test_bundle_apis(queue Queue) {
       ff_3<int>, bundle_state::executable>(Context);
 
   bool PassT =
-      ext::oneapi::experimental::get_kernel_info<
+      ext::oneapi::get_kernel_info<
           ff_3<int>, info::kernel_device_specific::work_group_size>(Context,
                                                                     Device) ==
       Bundle_ff3.ext_oneapi_get_kernel<ff_3<int>>()
@@ -232,7 +232,7 @@ bool test_bundle_apis(queue Queue) {
   Pass &= PassT;
 
   bool PassU =
-      ext::oneapi::experimental::get_kernel_info<
+      ext::oneapi::get_kernel_info<
           ff_3<int>, info::kernel_device_specific::work_group_size>(Queue) ==
       Bundle_ff3.ext_oneapi_get_kernel<ff_3<int>>()
           .get_info<info::kernel_device_specific::work_group_size>(
