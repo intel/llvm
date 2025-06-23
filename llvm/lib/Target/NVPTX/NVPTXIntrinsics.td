@@ -1490,6 +1490,9 @@ def INT_NVVM_RCP_APPROX_FTZ_F : F_MATH_1<"rcp.approx.ftz.f32",
 def INT_NVVM_RCP_APPROX_FTZ_D : F_MATH_1<"rcp.approx.ftz.f64",
   F64RT, F64RT, int_nvvm_rcp_approx_ftz_d>;
 
+def INT_NVVM_RCP_APPROX_F : F_MATH_1<"rcp.approx.f32",
+  F32RT, F32RT, int_nvvm_rcp_approx_f>;
+
 //
 // Sqrt
 //

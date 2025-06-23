@@ -214,8 +214,8 @@
 // O2O2: "-O3"
 
 // RUN: %clang_cl --target=i686-pc-win32 -Werror -Wno-msvc-not-found /O3 -### -- %s 2>&1 | FileCheck -check-prefix=O3 %s
-// O3: -mframe-pointer=none
 // O3: -O3
+// O3: -mframe-pointer=none
 
 // RUN: %clang_cl /Zs -Werror /Oy -- %s 2>&1
 
