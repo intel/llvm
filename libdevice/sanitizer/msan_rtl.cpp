@@ -592,12 +592,12 @@ __msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
       GetMsanLaunchInfo->PrivateBase == 0)
     return;
   // Only set on the first sub-group item
-  if (__spirv_BuiltInSubgroupLocalInvocationId != 0)
-    return;
-  const size_t sid = SubGroupLinearId();
-  GetMsanLaunchInfo->PrivateBase[sid] = (uptr)ptr;
+  if (__spirv_BuiltInSubgroupLocalInvocationId == 0) {
+    const size_t sid = SubGroupLinearId();
+    GetMsanLaunchInfo->PrivateBase[sid] = (uptr)ptr;
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_private_base, sid, ptr));
+  }
   SubGroupBarrier();
-  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_private_base, sid, ptr));
 }
 
 static __SYCL_CONSTANT__ const char __msan_print_strided_copy_unsupport_type[] =

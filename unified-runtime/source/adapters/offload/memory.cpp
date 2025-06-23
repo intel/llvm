@@ -60,7 +60,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 
   if (PerformInitialCopy) {
     auto Res = olMemcpy(nullptr, Ptr, OffloadDevice, HostPtr,
-                        Adapter.HostDevice, size, nullptr);
+                        Adapter->HostDevice, size, nullptr);
     if (Res) {
       return offloadResultToUR(Res);
     }
