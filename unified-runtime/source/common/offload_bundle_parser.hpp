@@ -21,6 +21,7 @@
 #define PACKED(d) d __attribute__((packed))
 #endif
 
+// https://clang.llvm.org/docs/ClangOffloadBundler.html#bundled-binary-file-layout
 class HipOffloadBundleParser {
   static constexpr std::string_view Magic = "__CLANG_OFFLOAD_BUNDLE__";
   const uint8_t *Buff;
@@ -33,11 +34,11 @@ class HipOffloadBundleParser {
     char EntryIdStart;
   });
 
-  struct __attribute__((packed)) BundleHeader {
+  PACKED(struct BundleHeader {
     const char HeaderMagic[Magic.size()];
     uint64_t EntryCount;
     BundleEntry FirstEntry;
-  };
+  });
 
   HipOffloadBundleParser() = delete;
   HipOffloadBundleParser(const uint8_t *Buff, size_t Length)

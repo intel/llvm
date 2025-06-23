@@ -10,6 +10,7 @@
  */
 
 #include "offload_bundle_parser.hpp"
+#include <string>
 
 std::optional<HipOffloadBundleParser>
 HipOffloadBundleParser::load(const uint8_t *Buff, size_t Length) {
@@ -36,7 +37,6 @@ ur_result_t HipOffloadBundleParser::extract(std::string_view SearchTargetId,
   }
   return UR_RESULT_SUCCESS;
 }
-#include <iostream>
 
 std::optional<HipOffloadBundleParser::BundleEntry>
 HipOffloadBundleParser::containsBundle(std::string_view SearchTargetId) {
