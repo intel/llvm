@@ -8,18 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ID_QUERIES_FIT_...
-
-#if __SYCL_ID_QUERIES_FIT_IN_INT__ && __has_builtin(__builtin_assume)
-#include <climits>
-#define __SYCL_ASSUME_INT(x) __builtin_assume((x) <= INT_MAX)
-#else
-#define __SYCL_ASSUME_INT(x)
-#if __SYCL_ID_QUERIES_FIT_IN_INT__ && !__has_builtin(__builtin_assume)
-#warning "No assumptions will be emitted due to no __builtin_assume available"
-#endif
-#endif
-
 // FIXME Check for  __SYCL_DEVICE_ONLY__ can be removed if implementation of
 // __has_attribute is fixed to consider LangOpts when generating attributes in
 // tablegen.

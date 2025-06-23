@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
+#include <sycl/detail/assume_int.hpp>            // for __SYCL_ASSUME_INT
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE, __SYC...
 #include <sycl/detail/helpers.hpp>            // for Builder
 #include <sycl/detail/item_base.hpp>          // for id, range, ItemBase

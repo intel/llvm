@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
 #include <sycl/__spirv/spirv_types.hpp>       // for Scope
 #include <sycl/__spirv/spirv_vars.hpp>        // for initLocalInvocationId
 #include <sycl/access/access.hpp>             // for mode, fence_space

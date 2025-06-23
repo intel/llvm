@@ -9,7 +9,7 @@
 #pragma once
 
 #include <sycl/access/access.hpp> // for target, mode
-#include <sycl/atomic.hpp>
+#include <sycl/detail/defines.hpp>
 #include <sycl/buffer.hpp>                            // for range
 #include <sycl/detail/accessor_iterator.hpp>          // for accessor_iterator
 #include <sycl/detail/common.hpp>                     // for code_location
