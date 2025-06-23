@@ -31,6 +31,9 @@ namespace oneapi {
 namespace experimental {
 // Forward declarations
 template <graph_state State> class command_graph;
+template <typename, typename> class dynamic_work_group_memory;
+template <typename ValueT> class dynamic_parameter;
+class dynamic_command_group;
 
 namespace detail {
 // Forward declarations
@@ -243,3 +246,33 @@ public:
 } // namespace ext
 } // namespace _V1
 } // namespace sycl
+
+namespace std {
+template <>
+struct __SYCL_EXPORT
+    hash<sycl::ext::oneapi::experimental::dynamic_command_group> {
+  size_t operator()(const sycl::ext::oneapi::experimental::dynamic_command_group
+                        &DynamicCGH) const;
+};
+
+template <typename ValueT>
+struct hash<sycl::ext::oneapi::experimental::dynamic_parameter<ValueT>> {
+  size_t
+  operator()(const sycl::ext::oneapi::experimental::dynamic_parameter<ValueT>
+                 &DynamicParam) const {
+    auto ID = sycl::detail::getSyclObjImpl(DynamicParam)->getID();
+    return std::hash<decltype(ID)>()(ID);
+  }
+};
+
+template <typename DataT, typename PropertyListT>
+struct hash<sycl::ext::oneapi::experimental::dynamic_work_group_memory<
+    DataT, PropertyListT>> {
+  size_t
+  operator()(const sycl::ext::oneapi::experimental::dynamic_work_group_memory<
+             DataT, PropertyListT> &DynWorkGroupMem) const {
+    auto ID = sycl::detail::getSyclObjImpl(DynWorkGroupMem)->getID();
+    return std::hash<decltype(ID)>()(ID);
+  }
+};
+} // namespace std

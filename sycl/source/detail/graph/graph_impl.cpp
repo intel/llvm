@@ -22,10 +22,11 @@
 #include <stack>                                      // for stack
 #include <sycl/detail/common.hpp>      // for tls_code_loc_t etc..
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
-#include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for checking graph properties
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp> // for string_view
-#endif
+#include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for checking graph properties
+#include <sycl/ext/oneapi/experimental/graph/command_graph.hpp> // for command_graph
+#include <sycl/ext/oneapi/experimental/graph/executable_graph.hpp> // for executable_command_graph
+#include <sycl/ext/oneapi/experimental/graph/modifiable_graph.hpp> // for modifiable_command_graph
 #include <sycl/feature_test.hpp> // for testing
 #include <sycl/queue.hpp>        // for queue
 

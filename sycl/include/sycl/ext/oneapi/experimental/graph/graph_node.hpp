@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+#include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl, createSyclObjFromImpl...
 #include <sycl/detail/property_helper.hpp> // for PropertyWith...
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph properties classes
 #include <sycl/nd_range.hpp> // for range, nd_range
@@ -117,9 +118,3 @@ private:
 
 } // namespace _V1
 } // namespace sycl
-
-namespace std {
-template <> struct __SYCL_EXPORT hash<sycl::ext::oneapi::experimental::node> {
-  size_t operator()(const sycl::ext::oneapi::experimental::node &Node) const;
-};
-} // namespace std

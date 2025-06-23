@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include "command_graph.hpp"
+#include <sycl/accessor.hpp>           // for local_accessor
 #include <sycl/detail/export.hpp>      // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph_state
@@ -34,7 +36,6 @@ namespace oneapi {
 namespace experimental {
 // Forward declarations
 class raw_kernel_arg;
-template <graph_state State> class command_graph;
 template <typename, typename> class work_group_memory;
 
 namespace detail {
@@ -84,10 +85,12 @@ public:
       const std::shared_ptr<detail::dynamic_parameter_impl> &impl);
 
   dynamic_parameter_base(const sycl::ext::oneapi::experimental::command_graph<
-                         graph_state::modifiable> &Graph);
+                         graph_state::modifiable>
+                             Graph);
 
   dynamic_parameter_base(const sycl::ext::oneapi::experimental::command_graph<
-                             graph_state::modifiable> &Graph,
+                             graph_state::modifiable>
+                             Graph,
                          size_t ParamSize, const void *Data);
 
   /// Common Reference Semantics
@@ -128,7 +131,7 @@ public:
 #endif
   // TODO: Remove in next ABI breaking window
   dynamic_work_group_memory_base(
-      const experimental::command_graph<graph_state::modifiable> &Graph,
+      const experimental::command_graph<graph_state::modifiable> Graph,
       size_t BufferSizeInBytes);
 
 protected:
@@ -361,32 +364,3 @@ dynamic_parameter(
 
 } // namespace _V1
 } // namespace sycl
-
-namespace std {
-template <>
-struct __SYCL_EXPORT
-    hash<sycl::ext::oneapi::experimental::dynamic_command_group> {
-  size_t operator()(const sycl::ext::oneapi::experimental::dynamic_command_group
-                        &DynamicCGH) const;
-};
-
-template <typename ValueT>
-struct hash<sycl::ext::oneapi::experimental::dynamic_parameter<ValueT>> {
-  size_t
-  operator()(const sycl::ext::oneapi::experimental::dynamic_parameter<ValueT>
-                 &DynamicParam) const {
-    auto ID = sycl::detail::getSyclObjImpl(DynamicParam)->getID();
-    return std::hash<decltype(ID)>()(ID);
-  }
-};
-
-template <typename DataT>
-struct hash<sycl::ext::oneapi::experimental::dynamic_work_group_memory<DataT>> {
-  size_t operator()(
-      const sycl::ext::oneapi::experimental::dynamic_work_group_memory<DataT>
-          &DynWorkGroupMem) const {
-    auto ID = sycl::detail::getSyclObjImpl(DynWorkGroupMem)->getID();
-    return std::hash<decltype(ID)>()(ID);
-  }
-};
-} // namespace std

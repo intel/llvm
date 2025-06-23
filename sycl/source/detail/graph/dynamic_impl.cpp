@@ -16,6 +16,7 @@
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for checkGraphPropertiesAndThrow
 #include <sycl/ext/oneapi/experimental/graph/command_graph.hpp> // for command_graph
+#include <sycl/ext/oneapi/experimental/graph/graph_dynamic.hpp> // for dynamic parameters
 
 namespace sycl {
 inline namespace _V1 {
@@ -35,10 +36,10 @@ dynamic_parameter_base::dynamic_parameter_base(
     : impl(impl) {}
 
 dynamic_parameter_base::dynamic_parameter_base(
-    const command_graph<graph_state::modifiable> &)
+    const command_graph<graph_state::modifiable>)
     : impl(std::make_shared<dynamic_parameter_impl>()) {}
 dynamic_parameter_base::dynamic_parameter_base(
-    const command_graph<graph_state::modifiable> &, size_t ParamSize,
+    const command_graph<graph_state::modifiable>, size_t ParamSize,
     const void *Data)
     : impl(std::make_shared<dynamic_parameter_impl>(ParamSize, Data)) {}
 
@@ -65,7 +66,7 @@ dynamic_work_group_memory_base::dynamic_work_group_memory_base(
 #endif
 
 dynamic_work_group_memory_base::dynamic_work_group_memory_base(
-    const experimental::command_graph<graph_state::modifiable> & /* Graph */,
+    const experimental::command_graph<graph_state::modifiable> /* Graph */,
     size_t BufferSizeInBytes)
     : dynamic_parameter_base(
           std::make_shared<dynamic_work_group_memory_impl>(BufferSizeInBytes)) {

@@ -9,7 +9,9 @@
 #include <sycl/sycl.hpp>
 
 #include "../../thread_safety/ThreadUtils.h"
+#include "detail/graph/dynamic_impl.hpp"
 #include "detail/graph/graph_impl.hpp"
+#include "detail/graph/node_impl.hpp"
 
 #include <detail/config.hpp>
 #include <helpers/ScopedEnvVar.hpp>

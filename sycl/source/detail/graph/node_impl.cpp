@@ -9,7 +9,8 @@
 #define __SYCL_GRAPH_IMPL_CPP
 
 #include "node_impl.hpp"
-#include "graph_impl.hpp" // for graph_impl
+#include "graph_impl.hpp"                                    // for graph_impl
+#include <sycl/ext/oneapi/experimental/graph/graph_node.hpp> // for node
 
 namespace sycl {
 inline namespace _V1 {
@@ -19,6 +20,8 @@ namespace oneapi {
 namespace experimental {
 namespace detail {
 
+/// Takes a vector of weak_ptrs to node_impls and returns a vector of node
+/// objects created from those impls, in the same order.
 std::vector<node> createNodesFromImpls(
     const std::vector<std::weak_ptr<detail::node_impl>> &Impls) {
   std::vector<node> Nodes{};
@@ -31,6 +34,8 @@ std::vector<node> createNodesFromImpls(
   return Nodes;
 }
 
+/// Takes a vector of shared_ptrs to node_impls and returns a vector of node
+/// objects created from those impls, in the same order.
 std::vector<node> createNodesFromImpls(
     const std::vector<std::shared_ptr<detail::node_impl>> &Impls) {
   std::vector<node> Nodes{};

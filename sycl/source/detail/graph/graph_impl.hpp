@@ -950,3 +950,15 @@ private:
 
 } // namespace _V1
 } // namespace sycl
+
+namespace std {
+template <sycl::ext::oneapi::experimental::graph_state State>
+struct __SYCL_EXPORT
+    hash<sycl::ext::oneapi::experimental::command_graph<State>> {
+  size_t operator()(const sycl::ext::oneapi::experimental::command_graph<State>
+                        &Graph) const {
+    auto ID = sycl::detail::getSyclObjImpl(Graph)->getID();
+    return std::hash<decltype(ID)>()(ID);
+  }
+};
+} // namespace std

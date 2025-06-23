@@ -25,6 +25,9 @@ inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
+// Forward declarations
+class node;
+
 namespace detail {
 // Forward declarations
 class node_impl;
@@ -759,3 +762,9 @@ private:
 
 } // namespace _V1
 } // namespace sycl
+
+namespace std {
+template <> struct __SYCL_EXPORT hash<sycl::ext::oneapi::experimental::node> {
+  size_t operator()(const sycl::ext::oneapi::experimental::node &Node) const;
+};
+} // namespace std

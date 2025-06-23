@@ -8,12 +8,9 @@
 
 #pragma once
 
-#include "command_graph.hpp"               // for command_graph
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <sycl/detail/string_view.hpp> // for string_view
-#endif
+#include <sycl/detail/string_view.hpp>     // for string_view
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph_state
 #include <sycl/ext/oneapi/experimental/graph/graph_node.hpp> // for node class
 #include <sycl/property_list.hpp> // for property_list
@@ -34,6 +31,7 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 // Forward declarations
+template <graph_state State> class command_graph;
 class dynamic_command_group;
 
 namespace detail {
