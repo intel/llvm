@@ -415,7 +415,6 @@ void run_imf_fp16_test() {
           F3(sycl_imf::hcmadd));
     std::cout << "hcmadd passes." << std::endl;
   }
-
 }
 #endif
 

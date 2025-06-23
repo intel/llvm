@@ -8,8 +8,8 @@
 // UNSUPPORTED: ze_debug && windows
 
 #include "imf_utils.hpp"
-#include <sycl/ext/intel/math.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/math.hpp>
 
 int main() {
   sycl::queue device_queue(sycl::default_selector_v);
