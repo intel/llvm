@@ -1537,7 +1537,7 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
        BinaryCount++) {
     // Pass extra information to the HIP adapter to aid in binary selection. We
     // pass it the raw binary as a {ptr, length} pair.
-    if (DeviceImpl->getBackend() == backend::ext_oneapi_hip) {
+    if (DeviceImpl.getBackend() == backend::ext_oneapi_hip) {
       if (auto *RawImg = getRawImg(DeviceFilteredImgs[BinaryCount])) {
         UrBinariesStorage[BinaryCount] = {
             RawImg->BinaryStart,

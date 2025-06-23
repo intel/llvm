@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2022-2024 Intel Corporation
+ * Copyright (C) 2025 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions. See LICENSE.TXT
@@ -15,17 +15,23 @@
 #include <optional>
 #include <string_view>
 
+#ifdef _MSC_VER
+#define PACKED(d) __pragma(pack(push, 1)) d __pragma(pack(pop))
+#else
+#define PACKED(d) d __attribute__((packed))
+#endif
+
 class HipOffloadBundleParser {
   static constexpr std::string_view Magic = "__CLANG_OFFLOAD_BUNDLE__";
   const uint8_t *Buff;
   size_t Length;
 
-  struct __attribute__((packed)) BundleEntry {
+  PACKED(struct BundleEntry {
     uint64_t ObjectOffset;
     uint64_t ObjectSize;
     uint64_t EntryIdSize;
     char EntryIdStart;
-  };
+  });
 
   struct __attribute__((packed)) BundleHeader {
     const char HeaderMagic[Magic.size()];
