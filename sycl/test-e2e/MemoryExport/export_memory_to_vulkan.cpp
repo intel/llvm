@@ -6,8 +6,8 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
+#include <numeric>
 #include <sycl/ext/oneapi/memory_export.hpp>
-#include <sycl/sycl.hpp>
 
 #include "../CommonUtils/vulkan_common.hpp"
 
