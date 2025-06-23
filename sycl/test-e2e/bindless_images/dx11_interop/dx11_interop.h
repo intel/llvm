@@ -8,6 +8,8 @@
 
 #include <sycl/detail/core.hpp>
 
+#include <atomic>
+
 using namespace dx_helpers;
 
 namespace dx11_interop {
@@ -22,7 +24,7 @@ struct D3D11ProgramState {
   // Can also store a DXGI_ADAPTER_DESC if more state is needed.
   std::string deviceName;
 
-  // Keyed mutex ID for synchronizing access to the shared resource per device.
+  // Keyed mutex ID for synchronizing access to the shared resource.
   std::atomic<UINT64> key;
 
   D3D11ProgramState() = default;

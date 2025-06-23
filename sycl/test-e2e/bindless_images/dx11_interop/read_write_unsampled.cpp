@@ -11,7 +11,6 @@
 // Used primarily for ID3D11Device1
 #include <d3d11_1.h>
 
-#include <atomic>
 #include <limits>
 
 using namespace dx11_interop;
@@ -48,10 +47,10 @@ void populateD3D11Texture(D3D11ProgramState *d3d11ProgramState,
   ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState->key));
 }
 
-void syclImportTextureMem(HANDLE sharedHandle, size_t allocationSize,
-                          syclexp::image_descriptor syclImageDesc,
-                          sycl::queue syclQueue,
-                          syclexp::unsampled_image_handle &syclImageHandle) {
+syclexp::unsampled_image_handle
+syclImportTextureMem(HANDLE sharedHandle, size_t allocationSize,
+                     const syclexp::image_descriptor &syclImageDesc,
+                     sycl::queue syclQueue) {
   // Import the memory from the shared handle into SYCL
   syclexp::external_mem_descriptor<syclexp::resource_win32_handle> extMemDesc{
       sharedHandle, syclexp::external_mem_handle_type::win32_nt_dx11_resource,
@@ -63,8 +62,9 @@ void syclImportTextureMem(HANDLE sharedHandle, size_t allocationSize,
   auto syclImageMemHandle = syclexp::map_external_image_memory(
       syclExternalMemHandle, syclImageDesc, syclQueue);
 
-  syclImageHandle =
+  syclexp::unsampled_image_handle syclImageHandle =
       syclexp::create_image(syclImageMemHandle, syclImageDesc, syclQueue);
+  return syclImageHandle;
 }
 
 template <int NDims, typename DType, int NChannels>
@@ -111,11 +111,11 @@ void callSyclKernel(sycl::queue syclQueue,
               });
         })
         .wait_and_throw();
-        // Instead of wait_and_throw here, we may want to import and use the
-        // ID3D11Fence interface to synchronize the SYCL queue with the D3D11
-        // device by signaling the completion of the work and waiting for it on
-        // the D3D11 side. I haven't implemented it here, but it is a good idea
-        // to do this when testing a future ID3D11Fence interop implementation.
+    // Instead of wait_and_throw here, we may want to import and use the
+    // ID3D11Fence interface to synchronize the SYCL queue with the D3D11
+    // device by signaling the completion of the work and waiting for it on
+    // the D3D11 side. I haven't implemented it here, but it is a good idea
+    // to do this when testing a future ID3D11Fence interop implementation.
   } catch (sycl::exception e) {
     std::cerr << "\tSYCL kernel submission error: " << e.what() << std::endl;
   } catch (...) {
@@ -124,7 +124,7 @@ void callSyclKernel(sycl::queue syclQueue,
 }
 
 template <typename DType, int NChannels>
-bool verifyResult(const D3D11ProgramState *d3d11ProgramState,
+bool verifyResult(D3D11ProgramState *d3d11ProgramState,
                   ID3D11Resource *pResource,
                   const D3D11_TEXTURE2D_DESC &texDesc, const DType *inputData,
                   IDXGIKeyedMutex *keyedMutex) {
@@ -230,8 +230,7 @@ int runTest(D3D11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
   // Create a shared texture
   ComPtr<ID3D11Texture2D> texture;
   // Initialize the texture description.
-  D3D11_TEXTURE2D_DESC texDesc;
-  ZeroMemory(&texDesc, sizeof(texDesc));
+  D3D11_TEXTURE2D_DESC texDesc{};
   texDesc.Width = texWidth;
   texDesc.Height = texHeight;   // if height is 1, we can mimic sharing 1D mem
   texDesc.MipLevels = 1;        // 1 for a multisampled texture, so no mips
@@ -292,12 +291,11 @@ int runTest(D3D11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
   // like DX12, so we have to calculate it manually the best we can (no mips).
   const size_t allocationSize =
       texWidth * texHeight * texDepth * NChannels * sizeof(DType);
-  syclexp::unsampled_image_handle syclImageHandle{};
-  syclImportTextureMem(sharedHandle, allocationSize, syclImageDesc, syclQueue,
-                       syclImageHandle);
+  syclexp::unsampled_image_handle syclImageHandle = syclImportTextureMem(
+      sharedHandle, allocationSize, syclImageDesc, syclQueue);
 
   // Submit the SYCL kernel.
-  // When IKeyedMutex importing into SYCL is implemented, we'll be able to
+  // When IDXGIKeyedMutex importing into SYCL is implemented, we'll be able to
   // call it from the SYCL API. All it does is ensuring only one device has
   // exclusive access.
   ThrowIfFailed(keyedMutex->AcquireSync(d3d11ProgramState->key++, INFINITE));
