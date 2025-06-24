@@ -22,7 +22,7 @@
 // don't have to find a magic number that works for all binaries (and by
 // definition is flaky).
 // RUN: %{run-aux} rm -rf %t/cache_dir
-// RUN: %{run-aux}%if (opencl || level_zero) %{ %{cache_vars} %{max_cache_size} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-EVICT %}
+// RUN: %{run-aux} %if (opencl || level_zero) %{ %{cache_vars} %{max_cache_size} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-EVICT %}
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
