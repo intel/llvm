@@ -898,9 +898,9 @@ ur_result_t bindlessImagesHandleCopyFlags(
       auto *UrImageDst = static_cast<ur_bindless_mem_handle_t *>(pDst);
       auto *UrImageSrc = static_cast<const ur_bindless_mem_handle_t *>(pSrc);
       ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
-                 (ZeCommandList, UrImageDst->getZeImage(), UrImageSrc->getZeImage(),
-                  &DstRegion, &SrcRegion, zeSignalEvent, numWaitEvents,
-                  phWaitEvents));
+                 (ZeCommandList, UrImageDst->getZeImage(),
+                  UrImageSrc->getZeImage(), &DstRegion, &SrcRegion,
+                  zeSignalEvent, numWaitEvents, phWaitEvents));
     } else {
       // Copy from Non-USM/pitched USM memory to pitched USM/Non-USM memory
       // Note: This might be the same procedure as pitched USM to
@@ -914,9 +914,9 @@ ur_result_t bindlessImagesHandleCopyFlags(
       auto *UrImageDst = static_cast<ur_bindless_mem_handle_t *>(pDst);
       auto *UrImageSrc = static_cast<const ur_bindless_mem_handle_t *>(pSrc);
       ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
-                 (ZeCommandList, UrImageDst->getZeImage(), UrImageSrc->getZeImage(),
-                  &DstRegion, &SrcRegion, zeSignalEvent, numWaitEvents,
-                  phWaitEvents));
+                 (ZeCommandList, UrImageDst->getZeImage(),
+                  UrImageSrc->getZeImage(), &DstRegion, &SrcRegion,
+                  zeSignalEvent, numWaitEvents, phWaitEvents));
     }
     return UR_RESULT_SUCCESS;
   };
