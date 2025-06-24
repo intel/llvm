@@ -19,7 +19,7 @@
 // RUN: %if cuda %{ echo "WOOF CUDA"; %}
 // RUN: %if hip %{ echo "WOOF HIP"; %}
 // RUN: %if (cuda || hip) %{ echo "WOOF CUDA || HIP"; %}
-// RUN: %if !(cuda || hip) %{ echo "WOOF !CUDA || HIP"; %}
+// RUN: %if !(cuda || hip) %{ echo "WOOF NOT CUDA || HIP"; %}
 //
 // RUN: %{run-aux} %if cuda %{ echo "WOOF run-aux CUDA"; %}
 // RUN: %{run-aux} %if hip %{ echo "WOOF run-aux HIP"; %}
