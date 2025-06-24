@@ -327,7 +327,7 @@ public:
 
   void exitWithErrors() {
     m_NormalExit = false;
-    exit(1);
+    std::abort();
   }
 
   bool isNormalExit() { return m_NormalExit; }
