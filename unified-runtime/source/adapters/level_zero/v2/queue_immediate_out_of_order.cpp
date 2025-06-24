@@ -41,8 +41,6 @@ ur_queue_immediate_out_of_order_t::ur_queue_immediate_out_of_order_t(
   for (size_t i = 0; i < numCommandLists; i++) {
     barrierEvents[i] = eventPool->allocate();
   }
-
-  ur::level_zero::urContextRetain(hContext);
 }
 
 ur_result_t ur_queue_immediate_out_of_order_t::queueGetInfo(
@@ -134,8 +132,6 @@ ur_queue_immediate_out_of_order_t::~ur_queue_immediate_out_of_order_t() {
     for (size_t i = 0; i < numCommandLists; i++) {
       barrierEvents[i]->release();
     }
-
-    ur::level_zero::urContextRelease(hContext);
   } catch (...) {
     // Ignore errors during destruction
   }
