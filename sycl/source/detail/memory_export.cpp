@@ -16,11 +16,6 @@
 #include <assert.h> // for assert
 #include <stddef.h> // for size_t
 
-#ifndef _WIN32
-#include <unistd.h> // for close
-#else
-#include <handleapi.h> // for CloseHandle
-#endif                 // _WIN32
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {

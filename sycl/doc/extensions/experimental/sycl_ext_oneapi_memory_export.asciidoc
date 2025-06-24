@@ -112,8 +112,24 @@ namespace sycl::ext::oneapi::experimental {
 // External memory resource handle types.
 enum class export_external_mem_handle_type {
   opaque_fd = 0,
-  win32_nt_handle = 1,
+  win32_nt = 1,
 };
+
+template <export_external_mem_handle_type ExportMemHandleType>
+struct exported_mem;
+
+template <>
+struct exported_mem<export_external_mem_handle_type::opaque_fd> {
+  using type = int;
+};
+
+template <>
+struct exported_mem<export_external_mem_handle_type::win32_nt> {
+  using type = void *;
+};
+
+template <export_external_mem_handle_type ExportMemHandleType>
+using exported_mem_t = typename exported_mem<ExportMemHandleType>::type;
 
 }
 ```
@@ -130,6 +146,14 @@ represented by an `int`.
 The `win32_nt_handle` handle type corresponds to a Windows NT handle, which is
 represented by a `void *`.
 
+The `exported_mem` template struct is specialized for each of the
+`export_external_mem_handle_type` values. Each specialization defines a `type`
+member that represents the type of the exported memory handle for that specific
+handle.
+
+The `exported_mem_t` type alias allows the user to easily obtain the type of
+the exported memory handle based on the `export_external_mem_handle_type`.
+
 === API of the extension
 
 ```c++
@@ -138,12 +162,12 @@ namespace sycl::ext::oneapi::experimental {
 
 void *alloc_exportable_device_mem(
     size_t size, size_t alignment,
-    export_external_mem_handle_type externalMemHandleType,
+    export_external_mem_handle_type exportMemHandleType,
     const sycl::device &syclDevice, const sycl::context &syclContext);
 
 void *alloc_exportable_device_mem(
     size_t size, size_t alignment,
-    export_external_mem_handle_type externalMemHandleType,
+    export_external_mem_handle_type exportMemHandleType,
     const sycl::queue &syclQueue);
 }
 ```
@@ -166,7 +190,7 @@ Memory allocated through this function has a linear memory layout on the device
 (which is the same as memory allocated by other USM allocation functions like 
 `sycl::malloc_device`).
 
-If an invalid `externalMemHandleType` is passed, the function will throw a
+If an invalid `exportMemHandleType` is passed, the function will throw a
 `sycl::exception` with the `errc::invalid` code.
 
 If any error occurs while allocating the memory, the function will throw a
@@ -179,37 +203,25 @@ If the SYCL backend does not support exporting memory, the function will throw a
 
 namespace sycl::ext::oneapi::experimental {
 
-// Available only when 
-// ExternalMemType == export_external_mem_handle_type::opaque_fd
-template <export_external_mem_handle_type ExternalMemType>
-int export_device_mem_handle(void *deviceMemory, const sycl::device &syclDevice,
-                             const sycl::context &syclContext);
+template <export_external_mem_handle_type ExportMemHandleType>
+exported_mem_t<ExportMemHandleType>
+export_device_mem_handle(void *deviceMemory, const sycl::device &syclDevice,
+                         const sycl::context &syclContext);
 
-// Available only when
-// ExternalMemType == export_external_mem_handle_type::opaque_fd
-template <export_external_mem_handle_type ExternalMemType>
-int export_device_mem_handle(void *deviceMemory, const sycl::queue &syclQueue);
+template <export_external_mem_handle_type ExportMemHandleType>
+exported_mem_t<ExportMemHandleType>
+export_device_mem_handle(void *deviceMemory, const sycl::queue &syclQueue);
 
-// Available only when
-// ExternalMemType == export_external_mem_handle_type::win32_nt
-template <export_external_mem_handle_type ExternalMemType>
-void *export_device_mem_handle(void *deviceMemory,
-                               const sycl::device &syclDevice,
-                               const sycl::context &syclContext);
-
-// Available only when
-// ExternalMemType == export_external_mem_handle_type::win32_nt
-template <export_external_mem_handle_type ExternalMemType>
-void *export_device_mem_handle(void *deviceMemory,
-                               const sycl::queue &syclQueue);
 }
 ```
 
 The `export_device_mem_handle` function accepts a `void *` representing a device
 allocation made using `alloc_exportable_device_mem`.
 
-The return type is determined by the template parameter, `ExternalMemType`.
-The value of `ExternalMemType` must match the value passed to
+The return type is determined by the template parameter,
+`ExportMemHandleType`.
+
+The value of `ExportMemHandleType` must match the value passed to
 `alloc_exportable_device_mem` when the memory was allocated.
 
 The returned handle can be used to import the SYCL allocated memory into an
