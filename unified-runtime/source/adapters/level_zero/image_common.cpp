@@ -865,21 +865,61 @@ ur_result_t bindlessImagesHandleCopyFlags(
     return UR_RESULT_SUCCESS;
   };
   case UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE: {
-    ze_image_region_t DstRegion;
-    UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
-                                 &pCopyRegion->copyExtent, DstRegion));
-    ze_image_region_t SrcRegion;
-    UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
-                                 &pCopyRegion->copyExtent, SrcRegion));
+    if (pSrcImageDesc->rowPitch != 0 && pDstImageDesc->rowPitch != 0) {
+      // Copy from pitched USM memory to pitched USM memory
+      uint32_t SrcRowPitch = pSrcImageDesc->rowPitch;
+      uint32_t DstRowPitch = pDstImageDesc->rowPitch;
+      ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
+                                      (uint32_t)pCopyRegion->dstOffset.y,
+                                      (uint32_t)pCopyRegion->dstOffset.z,
+                                      DstRowPitch,
+                                      (uint32_t)pCopyRegion->copyExtent.height,
+                                      (uint32_t)pCopyRegion->copyExtent.depth};
+      uint32_t DstSlicePitch = 0;
+      uint32_t SrcSlicePitch = 0;
+      ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->srcOffset.x,
+                                      (uint32_t)pCopyRegion->srcOffset.y,
+                                      (uint32_t)pCopyRegion->srcOffset.z,
+                                      SrcRowPitch,
+                                      (uint32_t)pCopyRegion->copyExtent.height,
+                                      (uint32_t)pCopyRegion->copyExtent.depth};
+      ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
+                 (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
+                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent,
+                  numWaitEvents, phWaitEvents));
+    } else if (pSrcImageDesc->rowPitch == 0 && pDstImageDesc->rowPitch == 0) {
+      // Copy from Non-USM memory to Non-USM memory
+      ze_image_region_t DstRegion;
+      UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
+                                   &pCopyRegion->copyExtent, DstRegion));
+      ze_image_region_t SrcRegion;
+      UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
+                                   &pCopyRegion->copyExtent, SrcRegion));
+      auto *UrImageDst = static_cast<ur_bindless_mem_handle_t *>(pDst);
+      auto *UrImageSrc = static_cast<const ur_bindless_mem_handle_t *>(pSrc);
+      ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
+                 (ZeCommandList, UrImageDst->getZeImage(), UrImageSrc->getZeImage(),
+                  &DstRegion, &SrcRegion, zeSignalEvent, numWaitEvents,
+                  phWaitEvents));
 
-    auto *urImgSrc = reinterpret_cast<const ur_bindless_mem_handle_t *>(pSrc);
-    auto *urImgDst = reinterpret_cast<ur_bindless_mem_handle_t *>(pDst);
-
-    ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
-               (ZeCommandList, urImgDst->getZeImage(), urImgSrc->getZeImage(),
-                &DstRegion, &SrcRegion, zeSignalEvent, numWaitEvents,
-                phWaitEvents));
-
+    } else {
+      // Copy from Non-USM/pitched USM memory to pitched USM/Non-USM memory
+      // Note: This might be the same procedure as pitched USM to
+      // pitched USM. Need further testing.
+      ze_image_region_t DstRegion;
+      UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
+                                   &pCopyRegion->copyExtent, DstRegion));
+      ze_image_region_t SrcRegion;
+      UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
+                                   &pCopyRegion->copyExtent, SrcRegion));
+      auto *UrImageDst = static_cast<ur_bindless_mem_handle_t *>(pDst);
+      auto *UrImageSrc = static_cast<const ur_bindless_mem_handle_t *>(pSrc);
+      ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
+                 (ZeCommandList, UrImageDst->getZeImage(), UrImageSrc->getZeImage(),
+                  &DstRegion, &SrcRegion, zeSignalEvent, numWaitEvents,
+                  phWaitEvents));
+    }
+    
     return UR_RESULT_SUCCESS;
   };
   default:
