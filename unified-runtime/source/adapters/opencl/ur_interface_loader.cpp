@@ -29,9 +29,7 @@ ur_result_t validateProcInputs(ur_api_version_t Version, void *pDdiTable) {
 }
 } // namespace
 
-#if defined(__cplusplus)
 extern "C" {
-#endif
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
     ur_api_version_t version, ur_adapter_dditable_t *pDdiTable) {
@@ -467,9 +465,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   return UR_RESULT_SUCCESS;
 }
 
-#if defined(__cplusplus)
 } // extern "C"
-#endif
 
 const ur_dditable_t *ur::opencl::ddi_getter::value() {
   static std::once_flag flag;
