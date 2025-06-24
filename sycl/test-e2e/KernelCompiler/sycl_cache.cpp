@@ -15,14 +15,14 @@
 // DEFINE: %{max_cache_size} = SYCL_CACHE_MAX_SIZE=30000
 // RUN: %{build} -o %t.out
 // RUN: %{run-aux} rm -rf %t/cache_dir
-// RUN: %{run} %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-UNLIM
+// RUN: %{run-aux} %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-UNLIM
 
 // Eviction mechanism is based on the size of compiled kernels, which in turns
 // depends on the target. Don't run eviction check for CUDA/HIP, so that we
 // don't have to find a magic number that works for all binaries (and by
 // definition is flaky).
 // RUN: %{run-aux} rm -rf %t/cache_dir
-// RUN: %{run} %if (opencl || level_zero) %{ %{cache_vars} %{max_cache_size} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-EVICT %}
+// RUN: %{run-aux}%if (opencl || level_zero) %{ %{cache_vars} %{max_cache_size} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-EVICT %}
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
