@@ -1529,24 +1529,24 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   if (DeviceFilteredImgs.empty())
     return nullptr;
 
-  std::vector<std::pair<const unsigned char *, size_t>> UrBinariesStorage(
-      DeviceFilteredImgs.size());
+  const size_t NumImgs = DeviceFilteredImgs.size();
+  // Pass extra information to the HIP adapter to aid in binary selection. We
+  // pass it the raw binary as a {ptr, length} pair.
+  std::vector<std::pair<const unsigned char *, size_t>> UrBinariesStorage;
+  if (DeviceImpl.getBackend() == backend::ext_oneapi_hip)
+    UrBinariesStorage.reserve(NumImgs);
 
-  std::vector<ur_device_binary_t> UrBinaries(DeviceFilteredImgs.size());
-  for (uint32_t BinaryCount = 0; BinaryCount < DeviceFilteredImgs.size();
-       BinaryCount++) {
-    // Pass extra information to the HIP adapter to aid in binary selection. We
-    // pass it the raw binary as a {ptr, length} pair.
+  std::vector<ur_device_binary_t> UrBinaries(NumImgs);
+  for (uint32_t BinaryCount = 0; BinaryCount < NumImgs; BinaryCount++) {
+    sycl_device_binary RawImg = getRawImg(DeviceFilteredImgs[BinaryCount]);
+    UrBinaries[BinaryCount].pDeviceTargetSpec =
+        getUrDeviceTarget(RawImg->DeviceTargetSpec);
     if (DeviceImpl.getBackend() == backend::ext_oneapi_hip) {
-      if (auto *RawImg = getRawImg(DeviceFilteredImgs[BinaryCount])) {
-        UrBinariesStorage[BinaryCount] = {
-            RawImg->BinaryStart,
-            std::distance(RawImg->BinaryStart, RawImg->BinaryEnd)};
-        UrBinaries[BinaryCount].pNext = &UrBinariesStorage[BinaryCount];
-      }
+      UrBinariesStorage.emplace_back(
+          RawImg->BinaryStart,
+          std::distance(RawImg->BinaryStart, RawImg->BinaryEnd));
+      UrBinaries[BinaryCount].pNext = &UrBinariesStorage[BinaryCount];
     }
-    UrBinaries[BinaryCount].pDeviceTargetSpec = getUrDeviceTarget(
-        getRawImg(DeviceFilteredImgs[BinaryCount])->DeviceTargetSpec);
   }
 
   uint32_t ImgInd = 0;
