@@ -91,7 +91,8 @@ platform::get_backend_info() const {
 context platform::khr_get_default_context() const {
   // Keeping the default context for platforms in the global cache to avoid
   // shared_ptr based circular dependency between platform and context classes
-  std::unordered_map<detail::platform_impl *, detail::ContextImplPtr>
+  std::unordered_map<detail::platform_impl *,
+                     std::shared_ptr<detail::context_impl>>
       &PlatformToDefaultContextCache =
           detail::GlobalHandler::instance().getPlatformToDefaultContextCache();
 

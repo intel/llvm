@@ -570,13 +570,13 @@ public:
 
   ur_native_handle_t getNative() const {
     assert(MProgram);
-    const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
-    const AdapterPtr &Adapter = ContextImplPtr->getAdapter();
+    context_impl &ContextImpl = *detail::getSyclObjImpl(MContext);
+    const AdapterPtr &Adapter = ContextImpl.getAdapter();
 
     ur_native_handle_t NativeProgram = 0;
     Adapter->call<UrApiKind::urProgramGetNativeHandle>(MProgram,
                                                        &NativeProgram);
-    if (ContextImplPtr->getBackend() == backend::opencl)
+    if (ContextImpl.getBackend() == backend::opencl)
       __SYCL_OCL_CALL(clRetainProgram, ur::cast<cl_program>(NativeProgram));
 
     return NativeProgram;

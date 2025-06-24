@@ -1084,7 +1084,7 @@ EventImplPtr exec_graph_impl::enqueueHostTaskPartition(
   // dependencies for the current execution.
   std::unique_ptr<sycl::detail::CG> CommandGroup =
       std::make_unique<sycl::detail::CGHostTask>(sycl::detail::CGHostTask(
-          NodeCommandGroup->MHostTask, &Queue, NodeCommandGroup->MContext,
+          NodeCommandGroup->MHostTask, &Queue, NodeCommandGroup->MContext.get(),
           NodeCommandGroup->MArgs, std::move(CGData),
           NodeCommandGroup->getType()));
 

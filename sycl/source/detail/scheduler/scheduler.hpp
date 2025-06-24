@@ -185,7 +185,6 @@ class event_impl;
 class context_impl;
 class DispatchHostTask;
 
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
@@ -688,7 +687,8 @@ protected:
     /// Finds dependencies for the requirement.
     std::set<Command *> findDepsForReq(MemObjRecord *Record,
                                        const Requirement *Req,
-                                       const ContextImplPtr &Context);
+                                       // TODO: ref?
+                                       context_impl *Context);
 
     EmptyCommand *addEmptyCmd(Command *Cmd,
                               const std::vector<Requirement *> &Req,
@@ -702,7 +702,8 @@ protected:
     /// Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
                                         const Requirement *Req,
-                                        const ContextImplPtr &Context,
+                                        // TODO: ref
+                                        context_impl *Context,
                                         bool AllowConst = true);
 
     friend class Command;

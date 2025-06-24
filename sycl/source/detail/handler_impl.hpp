@@ -199,9 +199,9 @@ public:
   template <typename Self = handler_impl> context_impl &get_context() {
     Self *self = this;
     if (auto *Queue = self->get_queue_or_null())
-      return *Queue->getContextImplPtr();
+      return Queue->getContextImpl();
     else
-      return *self->get_graph().getContextImplPtr();
+      return self->get_graph().getContextImpl();
   }
 
   /// If we are submitting a graph using ext_oneapi_graph this will be the graph

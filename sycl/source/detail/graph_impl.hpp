@@ -289,8 +289,8 @@ public:
       return std::make_unique<sycl::detail::CGHostTask>(
           sycl::detail::CGHostTask(
               std::move(HostTaskSPtr), CommandGroupPtr->MQueue.get(),
-              CommandGroupPtr->MContext, std::move(NewArgs), std::move(Data),
-              CommandGroupPtr->getType(), Loc));
+              CommandGroupPtr->MContext.get(), std::move(NewArgs),
+              std::move(Data), CommandGroupPtr->getType(), Loc));
     }
     case sycl::detail::CGType::Barrier:
     case sycl::detail::CGType::BarrierWaitlist:
@@ -980,8 +980,13 @@ public:
 
   /// Query for the context impl tied to this graph.
   /// @return shared_ptr ref for the context impl associated with graph.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const std::shared_ptr<sycl::detail::context_impl> &getContextImplPtr() const {
     return sycl::detail::getSyclObjImpl(MContext);
+  }
+#endif
+  sycl::detail::context_impl &getContextImpl() const {
+    return *sycl::detail::getSyclObjImpl(MContext);
   }
 
   /// Query for the device_impl tied to this graph.

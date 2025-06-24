@@ -731,8 +731,8 @@ event handler::finalize() {
     detail::context_impl &Context = impl->get_context();
     detail::queue_impl *Queue = impl->get_queue_or_null();
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(impl->MHostTask), Queue, Context.shared_from_this(),
-        std::move(impl->MArgs), std::move(impl->CGData), getType(), MCodeLoc));
+        std::move(impl->MHostTask), Queue, &Context, std::move(impl->MArgs),
+        std::move(impl->CGData), getType(), MCodeLoc));
     break;
   }
   case detail::CGType::Barrier:
@@ -1993,7 +1993,7 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
   if (Queue && EventGraph) {
     auto QueueGraph = Queue->getCommandGraph();
 
-    if (EventGraph->getContextImplPtr().get() != &impl->get_context()) {
+    if (&EventGraph->getContextImpl() != &impl->get_context()) {
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Cannot submit to a queue with a dependency from a graph that is "
@@ -2211,6 +2211,7 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
   });
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 const std::shared_ptr<detail::context_impl> &
 handler::getContextImplPtr() const {
   if (auto *Graph = impl->get_graph_or_null()) {
@@ -2218,10 +2219,11 @@ handler::getContextImplPtr() const {
   }
   return impl->get_queue().getContextImplPtr();
 }
+#endif
 
 detail::context_impl &handler::getContextImpl() const {
   if (auto *Graph = impl->get_graph_or_null()) {
-    return *Graph->getContextImplPtr();
+    return Graph->getContextImpl();
   }
   return impl->get_queue().getContextImpl();
 }

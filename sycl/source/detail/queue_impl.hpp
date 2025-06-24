@@ -52,8 +52,6 @@ class graph_impl;
 
 namespace detail {
 
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
-
 /// Sets max number of queues supported by FPGA RT.
 static constexpr size_t MaxNumQueues = 256;
 
@@ -84,17 +82,19 @@ protected:
 public:
   // \return a default context for the platform if it includes the device
   // passed and default contexts are enabled, a new context otherwise.
-  static ContextImplPtr getDefaultOrNew(device_impl &Device) {
-    if (!SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
-      return detail::getSyclObjImpl(
-          context{createSyclObjFromImpl<device>(Device), {}, {}});
+  static std::shared_ptr<context_impl> getDefaultOrNew(device_impl &Device) {
+    if (SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get()) {
+      // TODO: Move `khr_get_default_context` to `platform_impl` and return
+      // `context_impl` from there.
+      context Ctx = Device.get_platform().khr_get_default_context();
+      context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
+      if (CtxImpl.isDeviceValid(Device))
+        return CtxImpl.shared_from_this();
+    }
 
-    ContextImplPtr DefaultContext =
-        detail::getSyclObjImpl(Device.get_platform().khr_get_default_context());
-    if (DefaultContext->isDeviceValid(Device))
-      return DefaultContext;
-    return detail::getSyclObjImpl(
-        context{createSyclObjFromImpl<device>(Device), {}, {}});
+    return context_impl::create(
+        std::vector<device>{createSyclObjFromImpl<device>(Device)},
+        async_handler{}, property_list{});
   }
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
@@ -290,7 +290,11 @@ public:
 
   const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
 
-  const ContextImplPtr &getContextImplPtr() const { return MContext; }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  const std::shared_ptr<context_impl> &getContextImplPtr() const {
+    return MContext;
+  }
+#endif
 
   context_impl &getContextImpl() const { return *MContext; }
 
@@ -647,8 +651,8 @@ public:
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
-  static ContextImplPtr getContext(queue_impl *Queue) {
-    return Queue ? Queue->getContextImplPtr() : nullptr;
+  static context_impl *getContext(queue_impl *Queue) {
+    return Queue ? &Queue->getContextImpl() : nullptr;
   }
 
   // Must be called under MMutex protection
