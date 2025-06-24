@@ -6,10 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/sanitizer_defs.hpp"
-#include "include/sanitizer_utils.hpp"
+#include "include/msan_rtl.hpp"
 #include "msan/msan_libdevice.hpp"
-#include "spirv_vars.h"
 
 DeviceGlobal<void *> __MsanLaunchInfo;
 #define GetMsanLaunchInfo                                                      \

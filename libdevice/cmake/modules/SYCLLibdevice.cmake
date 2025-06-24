@@ -302,6 +302,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
   set(msan_obj_deps
     device.h atomic.hpp spirv_vars.h
     ${UR_SANITIZER_INCLUDE_DIR}/msan/msan_libdevice.hpp
+    include/msan_rtl.hpp
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
     include/sanitizer_utils.hpp

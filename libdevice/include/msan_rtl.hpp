@@ -12,6 +12,3 @@
 
 // Treat this header as system one to workaround frontend's restriction
 #pragma clang system_header
-
-extern SPIR_GLOBAL_VAR __SYCL_GLOBAL__ uint64_t *__SYCL_LOCAL__
-    __AsanLaunchInfo;

@@ -10,6 +10,7 @@
 #include "atomic.hpp"
 #include "device.h"
 #include "spir_global_var.hpp"
+#include "spirv_vars.h"
 
 #include <cstdint>
 

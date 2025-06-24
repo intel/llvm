@@ -9,7 +9,7 @@
 
 #include "sanitizer_defs.hpp"
 #include "sanitizer_utils.hpp"
-#include "spir_global_var.hpp"
+
 #include "tsan/tsan_libdevice.hpp"
 
 // Treat this header as system one to workaround frontend's restriction
