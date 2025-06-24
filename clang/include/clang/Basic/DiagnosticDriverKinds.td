@@ -127,7 +127,7 @@ def err_drv_no_sycl_libspirv : Error<
 def warn_flag_no_sycl_libspirv
     : Warning<"'-fno-sycl-libspirv' should not be used with target '%0'; "
               "libspirv is required for correct behavior">,
-      InGroup<NoLibspirvHipCuda>;
+      InGroup<UnsafeLibspirvNotLinked>;
 def err_drv_mix_cuda_hip : Error<
   "mixed CUDA and HIP compilation is not supported">;
 def err_drv_bad_target_id : Error<

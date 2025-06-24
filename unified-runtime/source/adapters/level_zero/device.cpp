@@ -1147,8 +1147,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP: {
-    // L0 does not support fetching 1D non-USM sampled image data.
-    return ReturnValue(false);
+    // L0 does support fetching 1D non-USM sampled image data.
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP: {
     // L0 does support fetching 2D USM sampled image data.

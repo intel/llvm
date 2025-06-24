@@ -394,16 +394,6 @@ static cl::opt<bool>
                           cl::desc("instrument private pointer"), cl::Hidden,
                           cl::init(true));
 
-// This flag is used to enhance debug for spirv (internal use only)
-//  - Add function name (not demangled for easily debug) on __msan_get_shadow
-//  (but not work on GPU)
-//  - Diable combination of origin and shadow propagation
-//  - The "origin" parameter of "__msan_maybe_warning_N" is the shadow address
-//  of UUM
-static cl::opt<bool> ClSpirOffloadDebug("msan-spir-debug",
-                                        cl::desc("enhance debug for spirv"),
-                                        cl::Hidden, cl::init(false));
-
 const char kMsanModuleCtorName[] = "msan.module_ctor";
 const char kMsanInitName[] = "__msan_init";
 
@@ -732,6 +722,7 @@ private:
 
   /// Get shadow memory address
   FunctionCallee MsanGetShadowFn;
+  FunctionCallee MsanGetOriginFn;
 
   /// Storage for return values of the MsanMetadataPtrXxx functions.
   Value *MsanMetadataAlloca;
@@ -786,19 +777,21 @@ public:
     Int32Ty = Type::getInt32Ty(C);
   }
 
-  bool instrumentModule();
+  bool instrumentModule(int TrackOrigins);
   void beforeInstrumentFunction(Function &F, Instruction *FnPrologueEnd);
   void afterInstrumentFunction(Function &F);
 
   Constant *getOrCreateGlobalString(StringRef Name, StringRef Value,
                                     unsigned AddressSpace);
 
+  operator bool() const { return IsSPIRV; }
+
 private:
   void initializeCallbacks();
   void instrumentGlobalVariables();
   void instrumentStaticLocalMemory();
   void instrumentDynamicLocalMemory(Function &F);
-  void instrumentKernelsMetadata();
+  void instrumentKernelsMetadata(int TrackOrigins);
   void instrumentPrivateArguments(Function &F, Instruction *FnPrologueEnd);
   void instrumentPrivateBase(Function &F);
 
@@ -1169,7 +1162,7 @@ void MemorySanitizerOnSpirv::instrumentPrivateArguments(
 
 // Instrument __MsanKernelMetadata, which records information of sanitized
 // kernel
-void MemorySanitizerOnSpirv::instrumentKernelsMetadata() {
+void MemorySanitizerOnSpirv::instrumentKernelsMetadata(int TrackOrigins) {
   SmallVector<Constant *, 8> SpirKernelsMetadata;
   SmallVector<uint8_t, 256> KernelNamesBytes;
 
@@ -1177,10 +1170,8 @@ void MemorySanitizerOnSpirv::instrumentKernelsMetadata() {
   // following structure:
   //  uptr unmangled_kernel_name
   //  uptr unmangled_kernel_name_size
-  //  uptr check_local_memory
-  //  uptr check_private_memory
-  StructType *StructTy =
-      StructType::get(IntptrTy, IntptrTy, IntptrTy, IntptrTy);
+  //  uptr sanitized_flags
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
   for (Function &F : M) {
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
@@ -1193,11 +1184,21 @@ void MemorySanitizerOnSpirv::instrumentKernelsMetadata() {
     KernelNamesBytes.append(KernelName.begin(), KernelName.end());
     auto *KernelNameGV = getOrCreateGlobalString("__msan_kernel", KernelName,
                                                  kSpirOffloadConstantAS);
+
+    uintptr_t SanitizerFlags = 0;
+    SanitizerFlags |= ClSpirOffloadLocals ? SanitizedKernelFlags::CHECK_LOCALS
+                                          : SanitizedKernelFlags::NO_CHECK;
+    SanitizerFlags |= ClSpirOffloadPrivates
+                          ? SanitizedKernelFlags::CHECK_PRIVATES
+                          : SanitizedKernelFlags::NO_CHECK;
+    SanitizerFlags |= TrackOrigins != 0
+                          ? SanitizedKernelFlags::MSAN_TRACK_ORIGINS
+                          : SanitizedKernelFlags::NO_CHECK;
+
     SpirKernelsMetadata.emplace_back(ConstantStruct::get(
         StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
         ConstantInt::get(IntptrTy, KernelName.size()),
-        ConstantInt::get(IntptrTy, ClSpirOffloadLocals),
-        ConstantInt::get(IntptrTy, ClSpirOffloadPrivates)));
+        ConstantInt::get(IntptrTy, SanitizerFlags)));
   }
 
   // Create global variable to record spirv kernels' information
@@ -1244,14 +1245,14 @@ void MemorySanitizerOnSpirv::initializeRetVecMap(Function *F) {
   KernelToRetVecMap[F] = std::move(RetVec);
 }
 
-bool MemorySanitizerOnSpirv::instrumentModule() {
+bool MemorySanitizerOnSpirv::instrumentModule(int TrackOrigins) {
   if (!IsSPIRV)
     return false;
 
   initializeCallbacks();
   instrumentGlobalVariables();
   instrumentStaticLocalMemory();
-  instrumentKernelsMetadata();
+  instrumentKernelsMetadata(TrackOrigins);
 
   return true;
 }
@@ -1289,7 +1290,7 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
   }
 
   MemorySanitizerOnSpirv MsanSpirv(M);
-  Modified |= MsanSpirv.instrumentModule();
+  Modified |= MsanSpirv.instrumentModule(Options.TrackOrigins);
 
   auto &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   for (Function &F : M) {
@@ -1435,9 +1436,22 @@ void MemorySanitizer::createUserspaceApi(Module &M,
   if (TrackOrigins) {
     StringRef WarningFnName = Recover ? "__msan_warning_with_origin"
                                       : "__msan_warning_with_origin_noreturn";
-    WarningFn = M.getOrInsertFunction(WarningFnName,
-                                      TLI.getAttrList(C, {0}, /*Signed=*/false),
-                                      IRB.getVoidTy(), IRB.getInt32Ty());
+    if (!TargetTriple.isSPIROrSPIRV()) {
+      WarningFn = M.getOrInsertFunction(
+          WarningFnName, TLI.getAttrList(C, {0}, /*Signed=*/false),
+          IRB.getVoidTy(), IRB.getInt32Ty());
+    } else {
+      // __msan_warning_with_origin[_noreturn](
+      //   uint32_t origin,
+      //   char* file,
+      //   unsigned int line,
+      //   char* func
+      // )
+      WarningFn = M.getOrInsertFunction(
+          WarningFnName, IRB.getVoidTy(), IRB.getInt32Ty(),
+          IRB.getInt8PtrTy(kSpirOffloadConstantAS), IRB.getInt32Ty(),
+          IRB.getInt8PtrTy(kSpirOffloadConstantAS));
+    }
   } else {
     StringRef WarningFnName =
         Recover ? "__msan_warning" : "__msan_warning_noreturn";
@@ -1496,26 +1510,38 @@ void MemorySanitizer::createUserspaceApi(Module &M,
       MaybeWarningFn[AccessSizeIndex] = M.getOrInsertFunction(
           FunctionName, TLI.getAttrList(C, {0, 1}, /*Signed=*/false),
           IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IRB.getInt32Ty());
+
+      FunctionName = "__msan_maybe_store_origin_" + itostr(AccessSize);
+      MaybeStoreOriginFn[AccessSizeIndex] = M.getOrInsertFunction(
+          FunctionName, TLI.getAttrList(C, {0, 2}, /*Signed=*/false),
+          IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), PtrTy,
+          IRB.getInt32Ty());
     } else { // SPIR or SPIR-V
       // __msan_maybe_warning_N(
       //   intN_t status,
-      //   uptr origin, // possible shadow address of status
+      //   uint32_t origin,
       //   char* file,
       //   unsigned int line,
       //   char* func
       // )
       MaybeWarningFn[AccessSizeIndex] = M.getOrInsertFunction(
           FunctionName, TLI.getAttrList(C, {0, 1}, /*Signed=*/false),
-          IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IntptrTy,
+          IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IRB.getInt32Ty(),
           IRB.getInt8PtrTy(kSpirOffloadConstantAS), IRB.getInt32Ty(),
           IRB.getInt8PtrTy(kSpirOffloadConstantAS));
-    }
 
-    FunctionName = "__msan_maybe_store_origin_" + itostr(AccessSize);
-    MaybeStoreOriginFn[AccessSizeIndex] = M.getOrInsertFunction(
-        FunctionName, TLI.getAttrList(C, {0, 2}, /*Signed=*/false),
-        IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), PtrTy,
-        IRB.getInt32Ty());
+      // __msan_maybe_store_origin_N(
+      //   intN_t status,
+      //   uptr addr,
+      //   uint32_t as,
+      //   uint32_t origin
+      // )
+      FunctionName = "__msan_maybe_store_origin_" + itostr(AccessSize);
+      MaybeStoreOriginFn[AccessSizeIndex] = M.getOrInsertFunction(
+          FunctionName, TLI.getAttrList(C, {0, 2}, /*Signed=*/false),
+          IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IntptrTy,
+          IRB.getInt32Ty(), IRB.getInt32Ty());
+    }
   }
 
   MsanSetAllocaOriginWithDescriptionFn =
@@ -1581,7 +1607,11 @@ void MemorySanitizer::initializeCallbacks(Module &M,
 
   MsanGetShadowFn = M.getOrInsertFunction(
       "__msan_get_shadow", PointerType::get(*C, kSpirOffloadGlobalAS), IntptrTy,
-      IRB.getInt32Ty(), IRB.getInt8PtrTy(kSpirOffloadConstantAS));
+      IRB.getInt32Ty());
+
+  MsanGetOriginFn = M.getOrInsertFunction(
+      "__msan_get_origin", PointerType::get(*C, kSpirOffloadGlobalAS), IntptrTy,
+      IRB.getInt32Ty());
 
   if (CompileKernel) {
     createKernelApi(M, TLI);
@@ -1702,7 +1732,7 @@ void MemorySanitizer::initializeModule(Module &M) {
   ColdCallWeights = MDBuilder(*C).createUnlikelyBranchWeights();
   OriginStoreWeights = MDBuilder(*C).createUnlikelyBranchWeights();
 
-  if (!CompileKernel) {
+  if (!CompileKernel && !Spirv) {
     if (TrackOrigins)
       M.getOrInsertGlobal("__msan_track_origins", IRB.getInt32Ty(), [&] {
         return new GlobalVariable(
@@ -2058,7 +2088,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Align CurrentAlignment = Alignment;
     if (Alignment >= IntptrAlignment && IntptrSize > kOriginSize) {
       Value *IntptrOrigin = originToIntptr(IRB, Origin);
-      Value *IntptrOriginPtr = IRB.CreatePointerCast(OriginPtr, MS.PtrTy);
+      Value *IntptrOriginPtr = IRB.CreatePointerCast(
+          OriginPtr,
+          !SpirOrSpirv ? MS.PtrTy : IRB.getPtrTy(kSpirOffloadGlobalAS));
       for (unsigned i = 0; i < Size / IntptrSize; ++i) {
         Value *Ptr = i ? IRB.CreateConstGEP1_32(MS.IntptrTy, IntptrOriginPtr, i)
                        : IntptrOriginPtr;
@@ -2105,9 +2137,19 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       FunctionCallee Fn = MS.MaybeStoreOriginFn[SizeIndex];
       Value *ConvertedShadow2 =
           IRB.CreateZExt(ConvertedShadow, IRB.getIntNTy(8 * (1 << SizeIndex)));
-      CallBase *CB = IRB.CreateCall(Fn, {ConvertedShadow2, Addr, Origin});
-      CB->addParamAttr(0, Attribute::ZExt);
-      CB->addParamAttr(2, Attribute::ZExt);
+      if (!SpirOrSpirv) {
+        CallBase *CB = IRB.CreateCall(Fn, {ConvertedShadow2, Addr, Origin});
+        CB->addParamAttr(0, Attribute::ZExt);
+        CB->addParamAttr(2, Attribute::ZExt);
+      } else {
+        Value *AddrInt = IRB.CreatePtrToInt(Addr, IRB.getIntPtrTy(DL));
+        Value *AS = ConstantInt::get(IRB.getInt32Ty(),
+                                     Addr->getType()->getPointerAddressSpace());
+        CallBase *CB =
+            IRB.CreateCall(Fn, {ConvertedShadow2, AddrInt, AS, Origin});
+        CB->addParamAttr(0, Attribute::ZExt);
+        CB->addParamAttr(3, Attribute::ZExt);
+      }
     } else {
       Value *Cmp = convertToBool(ConvertedShadow, IRB, "_mscmp");
       Instruction *CheckTerm = SplitBlockAndInsertIfThen(
@@ -2214,6 +2256,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         IRB.CreateCall(MS.WarningFn)->setCannotMerge();
     } else { // SPIR or SPIR-V
       SmallVector<Value *, 3> Args;
+      if (MS.TrackOrigins)
+        Args.push_back(Origin);
       appendDebugInfoToArgs(IRB, Args);
       IRB.CreateCall(MS.WarningFn, Args)->setCannotMerge();
     }
@@ -2243,40 +2287,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         CB->addParamAttr(1, Attribute::ZExt);
       } else { // SPIR or SPIR-V
         // Pass the pointer of shadow memory to the report function
-        SmallVector<Value *, 5> Args = {ConvertedShadow2};
-
-        if (ClSpirOffloadDebug) {
-          // Attempt to get the shadow memory
-          if (auto *LoadShadow = dyn_cast<LoadInst>(ConvertedShadow)) {
-            Args.emplace_back(IRB.CreatePointerCast(
-                LoadShadow->getPointerOperand(), MS.IntptrTy));
-          } else if (auto *BinaryOp =
-                         dyn_cast<BinaryOperator>(ConvertedShadow)) {
-            Value *LastOperand = nullptr;
-            do {
-              LastOperand = BinaryOp->getOperand(0);
-              // TODO: assert second operand is 0
-              BinaryOp = dyn_cast<BinaryOperator>(LastOperand);
-            } while (BinaryOp && BinaryOp->getOpcode() == Instruction::Or);
-
-            if (auto *LoadShadow = dyn_cast<LoadInst>(LastOperand)) {
-              Args.emplace_back(IRB.CreatePointerCast(
-                  LoadShadow->getPointerOperand(), MS.IntptrTy));
-            }
-          } else if (auto *Trunc = dyn_cast<TruncInst>(ConvertedShadow)) {
-            if (auto *LoadShadow = dyn_cast<LoadInst>(Trunc->getOperand(0))) {
-              Args.emplace_back(IRB.CreatePointerCast(
-                  LoadShadow->getPointerOperand(), MS.IntptrTy));
-            }
-          }
-        }
-
-        if (Args.size() == 1) {
-          Args.emplace_back(ConstantInt::get(MS.IntptrTy, 0));
-        }
-
+        SmallVector<Value *, 5> Args = {
+            ConvertedShadow2,
+            MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0)};
         appendDebugInfoToArgs(IRB, Args);
-
         CallBase *CB = IRB.CreateCall(Fn, Args);
         CB->addParamAttr(0, Attribute::ZExt);
         CB->addParamAttr(1, Attribute::ZExt);
@@ -2299,7 +2313,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     const DataLayout &DL = F.getDataLayout();
     // Disable combining in some cases. TrackOrigins checks each shadow to pick
     // correct origin.
-    bool Combine = !(MS.TrackOrigins || ClSpirOffloadDebug);
+    bool Combine = !MS.TrackOrigins;
     Instruction *Instruction = InstructionChecks.front().OrigIns;
     Value *Shadow = nullptr;
     for (const auto &ShadowData : InstructionChecks) {
@@ -2591,28 +2605,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Type *IntptrTy = ptrToIntPtrType(Addr->getType());
     Value *OffsetLong = IRB.CreatePointerCast(Addr, IntptrTy);
 
-    if (!SpirOrSpirv) {
-      if (uint64_t AndMask = MS.MapParams->AndMask)
-        OffsetLong =
-            IRB.CreateAnd(OffsetLong, constToIntPtr(IntptrTy, ~AndMask));
+    if (uint64_t AndMask = MS.MapParams->AndMask)
+      OffsetLong = IRB.CreateAnd(OffsetLong, constToIntPtr(IntptrTy, ~AndMask));
 
-      if (uint64_t XorMask = MS.MapParams->XorMask)
-        OffsetLong =
-            IRB.CreateXor(OffsetLong, constToIntPtr(IntptrTy, XorMask));
-    } else { // SPIR or SPIR-V
-      auto *ConstASPtrTy =
-          PointerType::get(Addr->getContext(), kSpirOffloadConstantAS);
-      auto *FuncNameGV = MS.Spirv.getOrCreateGlobalString(
-          "__msan_func", F.getName(), kSpirOffloadConstantAS);
-
-      OffsetLong = IRB.CreateCall(
-          MS.MsanGetShadowFn,
-          {OffsetLong, IRB.getInt32(Addr->getType()->getPointerAddressSpace()),
-           ClSpirOffloadDebug
-               ? ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy)
-               : ConstantPointerNull::get(ConstASPtrTy)});
-    }
-
+    if (uint64_t XorMask = MS.MapParams->XorMask)
+      OffsetLong = IRB.CreateXor(OffsetLong, constToIntPtr(IntptrTy, XorMask));
     return OffsetLong;
   }
 
@@ -2627,6 +2624,20 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   std::pair<Value *, Value *>
   getShadowOriginPtrUserspace(Value *Addr, IRBuilder<> &IRB, Type *ShadowTy,
                               MaybeAlign Alignment) {
+    if (SpirOrSpirv) {
+      unsigned int AS = Addr->getType()->getPointerAddressSpace();
+      Type *IntptrTy = ptrToIntPtrType(Addr->getType());
+      Value *ShadowLong = IRB.CreatePointerCast(Addr, IntptrTy);
+      Value *ShadowPtr =
+          IRB.CreateCall(MS.MsanGetShadowFn, {ShadowLong, IRB.getInt32(AS)});
+      Value *OriginPtr = nullptr;
+      if (MS.TrackOrigins) {
+        OriginPtr =
+            IRB.CreateCall(MS.MsanGetOriginFn, {ShadowLong, IRB.getInt32(AS)});
+      }
+      return std::make_pair(ShadowPtr, OriginPtr);
+    }
+
     VectorType *VectTy = dyn_cast<VectorType>(Addr->getType());
     if (!VectTy) {
       assert(Addr->getType()->isPointerTy());
@@ -2641,9 +2652,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           IRB.CreateAdd(ShadowLong, constToIntPtr(IntptrTy, ShadowBase));
     }
     Value *ShadowPtr = IRB.CreateIntToPtr(
-        ShadowLong,
-        getPtrToShadowPtrType(IntptrTy, ShadowTy,
-                              SpirOrSpirv ? kSpirOffloadGlobalAS : 0));
+        ShadowLong, getPtrToShadowPtrType(IntptrTy, ShadowTy));
 
     Value *OriginPtr = nullptr;
     if (MS.TrackOrigins) {
@@ -6628,7 +6637,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       IRB.CreateMemSet(ShadowBase, PoisonValue, Len, I.getAlign());
     }
 
-    if (PoisonStack && MS.TrackOrigins) {
+    // FIXME: Not support track origins on private memory yet
+    if (PoisonStack && MS.TrackOrigins && !SpirOrSpirv) {
       Value *Idptr = getLocalVarIdptr(I);
       if (ClPrintStackNames) {
         Value *Descr = getLocalVarDescription(I);
