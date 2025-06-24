@@ -419,25 +419,24 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
                                                     uptr &Begin, uptr &End) {
   // Trying to allocate private base array and private shadow, and any one of
   // them fail to allocate would be a failure
-  ur_result_t UrRes;
   static size_t LastPrivateBaseAllocedSize = 0;
   static size_t LastPrivateShadowAllocedSize = 0;
 
-  do {
+  try {
     const size_t NewPrivateBaseSize = NumWI * sizeof(uptr);
     if (NewPrivateBaseSize > LastPrivateBaseAllocedSize) {
       if (PrivateBasePtr) {
-        UR_CALL_BREAK(UrRes, getContext()->urDdiTable.USM.pfnFree(
-                                 Context, (void *)PrivateBasePtr));
+        UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnFree(
+            Context, (void *)PrivateBasePtr));
         PrivateBasePtr = 0;
         LastPrivateBaseAllocedSize = 0;
       }
 
       ur_usm_desc_t PrivateBaseProps{UR_STRUCTURE_TYPE_USM_DESC, nullptr,
                                      UR_USM_ADVICE_FLAG_DEFAULT, sizeof(uptr)};
-      UR_CALL_BREAK(UrRes, getContext()->urDdiTable.USM.pfnDeviceAlloc(
-                               Context, Device, &PrivateBaseProps, nullptr,
-                               NewPrivateBaseSize, (void **)&PrivateBasePtr));
+      UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+          Context, Device, &PrivateBaseProps, nullptr, NewPrivateBaseSize,
+          (void **)&PrivateBasePtr));
 
       // No need to clean the shadow base, their should be set by work item on
       // launch
@@ -450,29 +449,26 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
     if (NewPrivateShadowSize > LastPrivateShadowAllocedSize) {
 
       if (PrivateShadowOffset) {
-        UR_CALL_BREAK(UrRes, getContext()->urDdiTable.USM.pfnFree(
-                                 Context, (void *)PrivateShadowOffset));
+        UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnFree(
+            Context, (void *)PrivateShadowOffset));
         PrivateShadowOffset = 0;
         LastPrivateShadowAllocedSize = 0;
       }
 
-      UR_CALL_BREAK(UrRes,
-                    getContext()->urDdiTable.USM.pfnDeviceAlloc(
-                        Context, Device, nullptr, nullptr, NewPrivateShadowSize,
-                        (void **)&PrivateShadowOffset));
-      UR_CALL_BREAK(UrRes,
-        EnqueueUSMSet(Queue, (void *)PrivateShadowOffset, (char)0,
-                                          NewPrivateShadowSize));
+      UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+          Context, Device, nullptr, nullptr, NewPrivateShadowSize,
+          (void **)&PrivateShadowOffset));
+      UR_CALL_THROWS(EnqueueUSMSet(Queue, (void *)PrivateShadowOffset, (char)0,
+                                   NewPrivateShadowSize));
     }
 
     Base = (uptr *)PrivateBasePtr;
     Begin = PrivateShadowOffset;
     End = PrivateShadowOffset + NewPrivateShadowSize - 1;
 
-  } while (0);
+  } catch (ur_result_t &UrRes) {
+    assert(UrRes != UR_RESULT_SUCCESS);
 
-  // Clean up if any allocation failed
-  if (UrRes != UR_RESULT_SUCCESS) {
     if (PrivateBasePtr) {
 
       UR_CALL_NOCHECK(getContext()->urDdiTable.USM.pfnFree(

@@ -20,19 +20,6 @@
 #include <string>
 #include <vector>
 
-// Trace an internal UR call, storing the result to Res and break instead of
-// return when not success
-#define UR_CALL_BREAK(Res, Call)                                               \
-  {                                                                            \
-    if (PrintTrace)                                                            \
-      UR_LOG(QUIET, "UR ---> {}", #Call);                                      \
-    Res = (Call);                                                              \
-    if (PrintTrace)                                                            \
-      UR_LOG(QUIET, "UR <--- {}({})", #Call, getUrResultString(Res));          \
-    if (Res != UR_RESULT_SUCCESS)                                              \
-      break;                                                                   \
-  }
-
 namespace ur_sanitizer_layer {
 
 struct ManagedQueue {
