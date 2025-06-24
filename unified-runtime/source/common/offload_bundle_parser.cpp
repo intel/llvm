@@ -71,7 +71,8 @@ HipOffloadBundleParser::containsBundle(std::string_view SearchTargetId) {
     if (isHip && VersionMatches)
       return *CurrentEntry;
 
-    CurrentEntry = reinterpret_cast<const BundleEntry *>(EntryId.end());
+    CurrentEntry = reinterpret_cast<const BundleEntry *>(
+        EntryBytes + CurrentEntry->EntryIdSize);
   }
 
   return std::nullopt;
