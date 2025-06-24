@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 232
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 248
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -94,6 +94,22 @@
 // CHECK-NEXT: DeprecatedFeatures/DiscardEvents/discard_events_using_assert.cpp
 // CHECK-NEXT: DeviceLib/built-ins/printf.cpp
 // CHECK-NEXT: DeviceLib/cmath-aot.cpp
+// CHECK-NEXT: DeviceLib/imf_bfloat16_integeral_convesions.cpp
+// CHECK-NEXT: DeviceLib/imf_bfloat16_integeral_convesions.cpp
+// CHECK-NEXT: DeviceLib/imf_double2bfloat16.cpp
+// CHECK-NEXT: DeviceLib/imf_double2half.cpp
+// CHECK-NEXT: DeviceLib/imf_float2bfloat16.cpp
+// CHECK-NEXT: DeviceLib/imf_fp16_trivial_test.cpp
+// CHECK-NEXT: DeviceLib/imf_fp16_trivial_test.cpp
+// CHECK-NEXT: DeviceLib/imf_fp32_rounding_test.cpp
+// CHECK-NEXT: DeviceLib/imf_fp32_test.cpp
+// CHECK-NEXT: DeviceLib/imf_fp32_test.cpp
+// CHECK-NEXT: DeviceLib/imf_fp64_rounding_test.cpp
+// CHECK-NEXT: DeviceLib/imf_fp64_test.cpp
+// CHECK-NEXT: DeviceLib/imf_fp64_test2.cpp
+// CHECK-NEXT: DeviceLib/imf_half_type_cast.cpp
+// CHECK-NEXT: DeviceLib/imf_half_type_cast.cpp
+// CHECK-NEXT: DeviceLib/imf_simd_emulate_test.cpp
 // CHECK-NEXT: DeviceLib/separate_compile_test.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortK.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortKv2.cpp
