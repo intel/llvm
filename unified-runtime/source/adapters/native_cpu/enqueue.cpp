@@ -705,27 +705,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
     switch (pArgs[argIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-      hKernel->addArg(pArgs[argIndex].value.value, pArgs[argIndex].index,
-                      pArgs[argIndex].size);
+      UR_CALL(hKernel->addArg(pArgs[argIndex].value.value,
+                              pArgs[argIndex].index, pArgs[argIndex].size));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-      hKernel->addPtrArg(const_cast<void *>(pArgs[argIndex].value.pointer),
-                         pArgs[argIndex].index);
+      UR_CALL(
+          hKernel->addPtrArg(const_cast<void *>(pArgs[argIndex].value.pointer),
+                             pArgs[argIndex].index));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
       auto MemObj = pArgs[argIndex].value.memObjTuple.hMem;
-      if (MemObj) {
-        hKernel->addArgReference(MemObj);
-      }
-
-      hKernel->addPtrArg(MemObj ? MemObj->_mem : nullptr,
-                         pArgs[argIndex].index);
+      UR_CALL(hKernel->addMemObjArg(MemObj, pArgs[argIndex].index));
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-      hKernel->addPtrArg(nullptr, pArgs[argIndex].index);
-      hKernel->_localArgInfo.emplace_back(pArgs[argIndex].index,
-                                          pArgs[argIndex].size);
+      UR_CALL(
+          hKernel->addLocalArg(pArgs[argIndex].index, pArgs[argIndex].size));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
