@@ -57,6 +57,7 @@ int main() {
     for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
       std::string Name = Platform.get_info<sycl::info::platform::name>();
       std::string Ver = Platform.get_info<sycl::info::platform::version>();
+
       if (env::isDefined("TRACE_CHECK")) {
         std::cout
             << "CHECK: SYCL_UR_TRACE: Device allowed by SYCL_DEVICE_ALLOWLIST\n"
@@ -67,7 +68,6 @@ int main() {
         // symbols that can be treated in a special way.
         replaceSpecialCharacters(Name);
         replaceSpecialCharacters(Ver);
-
         std::cout << "SYCL_DEVICE_ALLOWLIST=PlatformName:{{" << Name
                   << "}},PlatformVersion:{{" << Ver << "}}";
       }
