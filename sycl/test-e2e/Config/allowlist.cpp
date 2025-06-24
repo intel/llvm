@@ -58,10 +58,10 @@ int main() {
       std::string Name = Platform.get_info<sycl::info::platform::name>();
       std::string Ver = Platform.get_info<sycl::info::platform::version>();
       if (env::isDefined("TRACE_CHECK")) {
-        std::cout<<
-          "CHECK: SYCL_UR_TRACE: Device allowed by SYCL_DEVICE_ALLOWLIST\n"<<
-          "CHECK-NEXT: SYCL_UR_TRACE:   platform: "<< Name <<"\n"<<
-          "CHECK-NEXT: SYCL_UR_TRACE:   device: {{.*}}"<<std::endl;
+        std::cout
+            << "CHECK: SYCL_UR_TRACE: Device allowed by SYCL_DEVICE_ALLOWLIST\n"
+            << "CHECK-NEXT: SYCL_UR_TRACE:   platform: " << Name << "\n"
+            << "CHECK-NEXT: SYCL_UR_TRACE:   device: {{.*}}" << std::endl;
       } else {
         // As a string will be used as regexp pattern, we need to get rid of
         // symbols that can be treated in a special way.
@@ -69,7 +69,7 @@ int main() {
         replaceSpecialCharacters(Ver);
 
         std::cout << "SYCL_DEVICE_ALLOWLIST=PlatformName:{{" << Name
-          << "}},PlatformVersion:{{" << Ver << "}}";
+                  << "}},PlatformVersion:{{" << Ver << "}}";
       }
 
       return 0;
@@ -83,13 +83,14 @@ int main() {
       const sycl::device Dev = Platform.get_devices().at(0);
       std::string Name = Dev.get_info<sycl::info::device::name>();
       std::string Ver = Dev.get_info<sycl::info::device::driver_version>();
-      std::string PlatformName = Platform.get_info<sycl::info::platform::name>();
+      std::string PlatformName =
+          Platform.get_info<sycl::info::platform::name>();
 
       if (env::isDefined("TRACE_CHECK")) {
-        std::cout<<
-          "CHECK: SYCL_UR_TRACE: Device allowed by SYCL_DEVICE_ALLOWLIST\n"<<
-          "CHECK-NEXT: SYCL_UR_TRACE:   platform: "<< PlatformName <<"\n"<<
-          "CHECK-NEXT: SYCL_UR_TRACE:   device: "<< Name <<std::endl;
+        std::cout
+            << "CHECK: SYCL_UR_TRACE: Device allowed by SYCL_DEVICE_ALLOWLIST\n"
+            << "CHECK-NEXT: SYCL_UR_TRACE:   platform: " << PlatformName << "\n"
+            << "CHECK-NEXT: SYCL_UR_TRACE:   device: " << Name << std::endl;
       } else {
         // As a string will be used as regexp pattern, we need to get rid of
         // symbols that can be treated in a special way.
