@@ -264,13 +264,13 @@ void ff_21(AliasType start, AliasType *ptr) {
 void ff_22(AliasType start, AliasType *ptr) {
 }
 
-// Forward declaration of ff_21.
+// Forward declaration of ff_23.
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void ff_23(int arg);
 
-// Forward declaration of ff_22 followed by a definition just after.
-// Note that ff_22 appears earlier than ff_21 in the integration header because kernels which
-// only declared and not defined are handled at the end of the translation unit to wait for a definition if it appears.
+// Forward declaration of ff_24 followed by a definition just after.
+// Note that ff_24 appears earlier than ff_23 in the integration header because kernels which
+// only declared and not defined such as ff_23 are handled at the end of the translation unit to wait for a definition if it appears.
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void ff_24(int arg);
 
@@ -433,10 +433,10 @@ void ff_24(int arg) {
 // CHECK: //--- _Z19__sycl_kernel_ff_20N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE
 // CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
 
-// CHECK: //--- _Z19__sycl_kernel_ff_22i
+// CHECK: //--- _Z19__sycl_kernel_ff_24i
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
 
-// CHECK: //--- _Z19__sycl_kernel_ff_21i
+// CHECK: //--- _Z19__sycl_kernel_ff_23i
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
 
 // CHECK:        { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
