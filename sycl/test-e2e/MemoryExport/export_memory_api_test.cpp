@@ -36,8 +36,8 @@ int main() {
   try {
     // Allocate exportable memory.
     size_t size = 1024;
-    void *mem = syclexp::alloc_exportable_device_mem(0, size, exportHandleType,
-                                                     device, context);
+    void *mem = syclexp::alloc_exportable_device_mem(
+        0 /* alignment */, size, exportHandleType, device, context);
 
     // Export the memory handle.
     syclexp::exported_mem_t<exportHandleType> exportableMemoryHandle =

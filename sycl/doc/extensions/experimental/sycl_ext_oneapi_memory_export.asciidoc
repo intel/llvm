@@ -161,14 +161,16 @@ the exported memory handle based on the `export_external_mem_handle_type`.
 namespace sycl::ext::oneapi::experimental {
 
 void *alloc_exportable_device_mem(
-    size_t size, size_t alignment,
+    size_t alignment, size_t size,
     export_external_mem_handle_type exportMemHandleType,
-    const sycl::device &syclDevice, const sycl::context &syclContext);
+    const sycl::device &syclDevice, const sycl::context &syclContext,
+    const property_list& propList = {});
 
 void *alloc_exportable_device_mem(
-    size_t size, size_t alignment,
+    size_t alignment, size_t size,
     export_external_mem_handle_type exportMemHandleType,
-    const sycl::queue &syclQueue);
+    const sycl::queue &syclQueue,
+    const property_list& propList = {});
 }
 ```
 
@@ -189,6 +191,11 @@ Memory allocated through this function is only available on device.
 Memory allocated through this function has a linear memory layout on the device 
 (which is the same as memory allocated by other USM allocation functions like 
 `sycl::malloc_device`).
+
+Zero or more properties can be passed in the `propList` parameter via an
+instance of `sycl::property_list`. Currently, this extension does not define
+any properties that can be used with this function, so the `propList` parameter
+is ignored and reserved for future use.
 
 If an invalid `exportMemHandleType` is passed, the function will throw a
 `sycl::exception` with the `errc::invalid` code.

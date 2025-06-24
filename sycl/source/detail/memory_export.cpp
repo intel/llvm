@@ -23,7 +23,8 @@ namespace ext::oneapi::experimental {
 __SYCL_EXPORT void *alloc_exportable_device_mem(
     size_t alignment, size_t size,
     export_external_mem_handle_type externalMemHandleType,
-    const sycl::device &syclDevice, const sycl::context &syclContext) {
+    const sycl::device &syclDevice, const sycl::context &syclContext,
+    const sycl::property_list& propList) {
 
   if (!syclDevice.has(sycl::aspect::ext_oneapi_memory_export_linear)) {
     throw sycl::exception(

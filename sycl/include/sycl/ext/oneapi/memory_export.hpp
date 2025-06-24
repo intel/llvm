@@ -53,15 +53,16 @@ export_device_mem_win32_nt(void *deviceMemory, const sycl::device &syclDevice,
 __SYCL_EXPORT void *alloc_exportable_device_mem(
     size_t alignment, size_t size,
     export_external_mem_handle_type externalMemHandleType,
-    const sycl::device &syclDevice, const sycl::context &syclContext);
+    const sycl::device &syclDevice, const sycl::context &syclContext,
+    const sycl::property_list &propList = {});
 
 inline void *alloc_exportable_device_mem(
     size_t alignment, size_t size,
     export_external_mem_handle_type externalMemHandleType,
-    const sycl::queue &syclQueue) {
-  return alloc_exportable_device_mem(size, alignment, externalMemHandleType,
+    const sycl::queue &syclQueue, const sycl::property_list &propList = {}) {
+  return alloc_exportable_device_mem(alignment, size, externalMemHandleType,
                                      syclQueue.get_device(),
-                                     syclQueue.get_context());
+                                     syclQueue.get_context(), propList);
 }
 
 __SYCL_EXPORT void free_exportable_memory(void *deviceMemory,
