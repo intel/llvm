@@ -268,9 +268,6 @@ public:
     MAllocator->setAlignment(RequiredAlign);
   }
 
-  static size_t getBufSizeForContext(const ContextImplPtr &Context,
-                                     ur_native_handle_t MemObject);
-
   void handleWriteAccessorCreation();
 
   void *allocateMem(context_impl *Context, bool InitFromUserData, void *HostPtr,

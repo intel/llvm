@@ -254,18 +254,28 @@ __attribute__((sycl_device))
 void ff_20(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
 }
 
+[[__sycl_detail__::add_ir_attributes_function("work_group_size", 16)]]
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_21(AliasType start, AliasType *ptr) {
+}
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+[[__sycl_detail__::add_ir_attributes_function("work_group_size", 16)]]
+void ff_22(AliasType start, AliasType *ptr) {
+}
+
 // Forward declaration of ff_21.
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
-void ff_21(int arg);
+void ff_23(int arg);
 
 // Forward declaration of ff_22 followed by a definition just after.
 // Note that ff_22 appears earlier than ff_21 in the integration header because kernels which
 // only declared and not defined are handled at the end of the translation unit to wait for a definition if it appears.
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
-void ff_22(int arg);
+void ff_24(int arg);
 
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
-void ff_22(int arg) { 
+void ff_24(int arg) { 
 }
 
 // CHECK:      const char* const kernel_names[] = {
@@ -300,8 +310,10 @@ void ff_22(int arg) {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_free_functions5tests5ff_18ENS_3AggEPS1_
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_19N14free_functions16KArgWithPtrArrayILi50EEE
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_20N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE
-// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_22i"
-// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_21i"
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_217DerivedPS_
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_227DerivedPS_
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_24i"
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_23i"
 
 // CHECK-NEXT:   ""
 // CHECK-NEXT: };
@@ -501,6 +513,7 @@ void ff_22(int arg) {
 // CHECK: Definition of _Z18__sycl_kernel_ff_3IdEvPT_S0_S0_ as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: template <typename T> void ff_3(T * ptr, T start, T end);
+// CHECK: template <> void ff_3<double>(double * ptr, double start, double end);
 // CHECK-NEXT: static constexpr auto __sycl_shim5() {
 // CHECK-NEXT:   return (void (*)(double *, double, double))ff_3<double>;
 // CHECK-NEXT: }
@@ -1001,11 +1014,9 @@ void ff_22(int arg) {
 // CHECK-NEXT: static constexpr bool value = true;
 // CHECK-NEXT: };
 
-// CHECK: Definition of _Z19__sycl_kernel_ff_22i as a free function kernel
-// CHECK: Forward declarations of kernel and its argument types:
-// CHECK: void ff_22(int arg);
+// CHECK: void ff_21(Derived start, Derived * ptr);
 // CHECK-NEXT: static constexpr auto __sycl_shim30() {
-// CHECK-NEXT:  return (void (*)(int))ff_22;
+// CHECK-NEXT:  return (void (*)(struct Derived, struct Derived *))ff_21;
 // CHECK-NEXT: }
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: template <>
@@ -1016,20 +1027,51 @@ void ff_22(int arg) {
 // CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim30()> {
 // CHECK-NEXT: static constexpr bool value = true;
 // CHECK-NEXT: };
+// CHECK-NEXT: }
 
-// CHECK: Definition of _Z19__sycl_kernel_ff_21i as a free function kernel
-// CHECK: Forward declarations of kernel and its argument types:
-// CHECK: void ff_21(int arg);
+// CHECK: void ff_22(Derived start, Derived * ptr);
 // CHECK-NEXT: static constexpr auto __sycl_shim31() {
-// CHECK-NEXT: return (void (*)(int))ff_21;
+// CHECK-NEXT:  return (void (*)(struct Derived, struct Derived *))ff_22;
 // CHECK-NEXT: }
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: template <>
 // CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim31()> {
-// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT:  static constexpr bool value = true;
 // CHECK-NEXT: };
 // CHECK-NEXT: template <>
 // CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim31()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+
+// CHECK: Definition of _Z19__sycl_kernel_ff_24i as a free function kernel
+// CHECK: Forward declarations of kernel and its argument types:
+// CHECK: void ff_24(int arg);
+// CHECK-NEXT: static constexpr auto __sycl_shim32() {
+// CHECK-NEXT:  return (void (*)(int))ff_24;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim32()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim32()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+
+// CHECK: Definition of _Z19__sycl_kernel_ff_23i as a free function kernel
+// CHECK: Forward declarations of kernel and its argument types:
+// CHECK: void ff_23(int arg);
+// CHECK-NEXT: static constexpr auto __sycl_shim33() {
+// CHECK-NEXT: return (void (*)(int))ff_23;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim33()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim33()> {
 // CHECK-NEXT: static constexpr bool value = true;
 // CHECK-NEXT: };
 
@@ -1252,18 +1294,31 @@ void ff_22(int arg) {
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
-// CHECK: // Definition of kernel_id of _Z19__sycl_kernel_ff_22i
-// CHECK-NEXT: namespace sycl {
+// CHECK: namespace sycl {
 // CHECK-NEXT: template <>
-// CHECK-NEXT: inline kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim30()>() {
-// CHECK-NEXT    return sycl::detail::get_kernel_id_impl(std::string_view{"_Z19__sycl_kernel_ff_22i"});
+// CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim30()>() {
+// CHECK-NEXT: return sycl::detail::get_kernel_id_impl(std::string_view{"_Z19__sycl_kernel_ff_217DerivedPS_"});
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
-// CHECK: // Definition of kernel_id of _Z19__sycl_kernel_ff_21i
+// CHECK: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim31()>() {
+// CHECK-NEXT: return sycl::detail::get_kernel_id_impl(std::string_view{"_Z19__sycl_kernel_ff_227DerivedPS_"});
+
+// CHECK: // Definition of kernel_id of _Z19__sycl_kernel_ff_24i
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: template <>
-// CHECK-NEXT: inline kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim31()>() {
-// CHECK-NEXT:   return sycl::detail::get_kernel_id_impl(std::string_view{"_Z19__sycl_kernel_ff_21i"});
+// CHECK-NEXT: inline kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim32()>() {
+// CHECK-NEXT    return sycl::detail::get_kernel_id_impl(std::string_view{"_Z19__sycl_kernel_ff_24i"});
+// CHECK-NEXT: }
+// CHECK-NEXT: }
+
+// CHECK: // Definition of kernel_id of _Z19__sycl_kernel_ff_23i
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: inline kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim33()>() {
+// CHECK-NEXT:   return sycl::detail::get_kernel_id_impl(std::string_view{"_Z19__sycl_kernel_ff_23i"});
+
 // CHECK-NEXT: }
 // CHECK-NEXT: }
