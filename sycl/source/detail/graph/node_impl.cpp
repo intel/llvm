@@ -14,7 +14,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -88,7 +87,6 @@ template <> __SYCL_EXPORT void node::update_range<3>(range<3> Range) {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-
 } // namespace _V1
 } // namespace sycl
 

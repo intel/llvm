@@ -20,7 +20,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -416,7 +415,6 @@ void dynamic_command_group::set_active_index(size_t Index) {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-
 } // namespace _V1
 } // namespace sycl
 

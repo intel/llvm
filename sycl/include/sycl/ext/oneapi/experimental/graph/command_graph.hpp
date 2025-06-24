@@ -1,5 +1,4 @@
-//==--------- command_graph.hpp --- SYCL graph extension
-//---------------------------==//
+//==--------- command_graph.hpp --- SYCL graph extension -------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -133,6 +132,5 @@ command_graph(const context &SyclContext, const device &SyclDevice,
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-
 } // namespace _V1
 } // namespace sycl

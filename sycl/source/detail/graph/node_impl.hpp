@@ -21,7 +21,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -759,7 +758,6 @@ private:
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-
 } // namespace _V1
 } // namespace sycl
 

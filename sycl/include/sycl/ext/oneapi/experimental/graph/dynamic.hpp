@@ -361,6 +361,5 @@ dynamic_parameter(
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-
 } // namespace _V1
 } // namespace sycl
