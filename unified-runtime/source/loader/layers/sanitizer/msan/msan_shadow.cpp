@@ -470,7 +470,6 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
     assert(UrRes != UR_RESULT_SUCCESS);
 
     if (PrivateBasePtr) {
-
       UR_CALL_NOCHECK(getContext()->urDdiTable.USM.pfnFree(
           Context, (void *)PrivateBasePtr));
       PrivateBasePtr = 0;
