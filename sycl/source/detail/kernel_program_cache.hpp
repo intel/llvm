@@ -12,6 +12,7 @@
 #include <detail/config.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/unordered_multimap.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/locked.hpp>
 #include <sycl/detail/os_util.hpp>
@@ -25,11 +26,9 @@
 #include <mutex>
 #include <numeric>
 #include <set>
+#include <sstream>
 #include <thread>
 #include <type_traits>
-
-#include <boost/unordered/unordered_flat_map.hpp>
-#include <boost/unordered_map.hpp>
 
 // For testing purposes
 class MockKernelProgramCache;
@@ -177,8 +176,8 @@ public:
   };
 
   struct ProgramCache {
-    ::boost::unordered_map<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
-    ::boost::unordered_multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
+    emhash8::HashMap<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
+    UnorderedMultimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
     // Mapping between a UR program and its size.
     std::unordered_map<ur_program_handle_t, size_t> ProgramSizeMap;
 
@@ -215,9 +214,9 @@ public:
   using KernelBuildResultPtr = std::shared_ptr<KernelBuildResult>;
 
   using KernelByNameT =
-      ::boost::unordered_map<std::string, KernelBuildResultPtr>;
+      emhash8::HashMap<std::string, KernelBuildResultPtr>;
   using KernelCacheT =
-      ::boost::unordered_map<ur_program_handle_t, KernelByNameT>;
+      emhash8::HashMap<ur_program_handle_t, KernelByNameT>;
 
   using KernelFastCacheKeyT =
       std::pair<ur_device_handle_t, /* UR device handle pointer */
@@ -238,7 +237,7 @@ public:
   // higher overhead of insertion that comes with unordered_flat_map is more
   // of an issue there. For that reason, those use regular unordered maps.
   using KernelFastCacheT =
-      ::boost::unordered_flat_map<KernelFastCacheKeyT, KernelFastCacheValT>;
+      emhash8::HashMap<KernelFastCacheKeyT, KernelFastCacheValT>;
 
   // DS to hold data and functions related to Program cache eviction.
   struct EvictionList {
@@ -503,7 +502,7 @@ public:
       auto KeyMapItrRange = ProgCache.KeyMap.equal_range(CommonKey);
       for (auto KeyMapItr = KeyMapItrRange.first;
            KeyMapItr != KeyMapItrRange.second; ++KeyMapItr) {
-        if (KeyMapItr->second == CacheKey) {
+        if ((*KeyMapItr).second == CacheKey) {
           ProgCache.KeyMap.erase(KeyMapItr);
           break;
         }
@@ -742,7 +741,7 @@ public:
     if (It == ProgCache.KeyMap.end())
       return;
 
-    auto Key = It->second;
+    auto Key = (*It).second;
     removeProgramByKey(Key, ProgCache);
     {
       auto LockedEvictionList = acquireEvictionList();
