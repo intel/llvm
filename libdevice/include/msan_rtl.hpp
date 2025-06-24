@@ -1,4 +1,4 @@
-//==-- asan_rtl.hpp - Declaration for sanitizer global var ---==//
+//==-- msan_rtl.hpp - Declaration for sanitizer global var ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
