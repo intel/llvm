@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "include/tsan_rtl.hpp"
-#include "atomic.hpp"
-#include "device.h"
 #include "spirv_vars.h"
 
 DeviceGlobal<void *> __TsanLaunchInfo;
