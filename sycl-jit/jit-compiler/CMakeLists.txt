@@ -34,7 +34,6 @@ add_llvm_library(sycl-jit
    TargetParser
    MC
    SYCLLowerIR
-   GenXIntrinsics
    ${LLVM_TARGETS_TO_BUILD}
 
    LINK_LIBS
