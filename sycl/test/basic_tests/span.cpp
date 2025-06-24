@@ -96,10 +96,10 @@ int main() {
   {
     // ALWAYS IMPLICIT (dynamic, fixed extent)
     { // array reference constructors
-      static_assert(std::is_constructible_v<sycl::span<int>, int(&)[4]>);
-      static_assert(std::is_convertible_v<int(&)[4], sycl::span<int>>);
-      static_assert(std::is_constructible_v<sycl::span<int, 4>, int(&)[4]>);
-      static_assert(std::is_convertible_v<int(&)[4], sycl::span<int, 4>>);
+      static_assert(std::is_constructible_v<sycl::span<int>, int (&)[4]>);
+      static_assert(std::is_convertible_v<int (&)[4], sycl::span<int>>);
+      static_assert(std::is_constructible_v<sycl::span<int, 4>, int (&)[4]>);
+      static_assert(std::is_convertible_v<int (&)[4], sycl::span<int, 4>>);
     }
     { // std::array constructors
       static_assert(

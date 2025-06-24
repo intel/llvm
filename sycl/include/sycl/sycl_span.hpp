@@ -140,8 +140,8 @@ template<class Container>
 #include <initializer_list> // for initializer_list
 #include <iterator>         // for size, data, distance, reverse_iterator
 #include <stdexcept>        // for out_of_range
-#include <type_traits>      // for enable_if_t, enable_if, remove_cv_t, false_type
-#include <utility>          // for declval
+#include <type_traits> // for enable_if_t, enable_if, remove_cv_t, false_type
+#include <utility>     // for declval
 
 #define _SYCL_SPAN_TEMPLATE_VIS
 #define _SYCL_SPAN_INLINE_VISIBILITY inline
