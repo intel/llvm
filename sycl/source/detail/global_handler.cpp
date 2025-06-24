@@ -397,6 +397,10 @@ void shutdown_late() {
   Handler->MScheduler.Inst.reset(nullptr);
   Handler->MProgramManager.Inst.reset(nullptr);
 
+  // Cache stores handles to the adapter, so clear it before
+  // releasing adapters.
+  Handler->MKernelNameBasedCaches.Inst.reset(nullptr);
+
   // Clear the adapters and reset the instance if it was there.
   Handler->unloadAdapters();
   if (Handler->MAdapters.Inst)
