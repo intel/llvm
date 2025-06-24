@@ -1044,7 +1044,7 @@ Graph.end_recording(Queue);
 
 Currently only device allocations are supported. Attempting to add allocations
 of any other type to a graph will result in synchronous errors being thrown
-with error code `feature_not_supported`.
+with error code `invalid`.
 
 ===== Restrictions
 
@@ -1373,14 +1373,16 @@ command_graph<graph_state::executable>
 finalize(const property_list& propList = {}) const;
 ----
 
-_Effects:_ Synchronous operation that creates a new graph in the executable state with a
-fixed topology that can be submitted for execution on any queue sharing the
-context associated with the graph. It is valid to call this member function
-multiple times to create subsequent executable graphs, unless the graph contains
-<<graph-memory-allocations, graph-owned memory allocations>>. It is also valid
-to continue to add new nodes to the modifiable graph instance after calling this
-function. It is valid to finalize an empty graph instance with no recorded
-commands.
+_Effects:_ Synchronous operation that creates a new graph in the executable
+state with a fixed topology that can be submitted for execution on any queue
+sharing the context associated with the graph.
+It is valid to call this member function to create a new executable graph while
+another executable graph created from the same modifiable graph already exists,
+unless the graph contains
+<<graph-memory-allocations, graph-owned memory allocations>>.
+It is also valid to continue to add new nodes to the modifiable graph instance
+after calling this function. It is valid to finalize an empty graph instance
+with no recorded commands.
 
 _Constraints:_ This member function is only available when the `command_graph`
 state is `graph_state::modifiable`.
