@@ -16,15 +16,13 @@ using rwAccType = sycl::accessor<int, 1, sycl::access::mode::read_write>;
 using flagType = sycl::accessor<bool, 1>;
 
 template <typename T, int Dims, access::mode modeT>
-bool hasAccessorMode(sycl::accessor<T, Dims, modeT> acc,
-                     access::mode mode) {
+bool hasAccessorMode(sycl::accessor<T, Dims, modeT> acc, access::mode mode) {
   return modeT == mode;
 }
 
 template <typename AccType>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
-void verifyAccessorMode(AccType acc, access::mode accMode,
-                        flagType flagAcc) {
+void verifyAccessorMode(AccType acc, access::mode accMode, flagType flagAcc) {
   flagAcc[0] = hasAccessorMode(acc, accMode);
 }
 
@@ -40,6 +38,7 @@ int main() {
   const auto rwMode = sycl::access::mode::read_write;
 
   bool flag1, flag2, flag3;
+  flag1 = (flag2 = (flag3 = false));
   {
     sycl::buffer<bool, 1> flagBuffer1(&flag1, 1);
     sycl::buffer<bool, 1> flagBuffer2(&flag2, 1);
