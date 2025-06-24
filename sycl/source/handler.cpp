@@ -1662,7 +1662,7 @@ void handler::ext_oneapi_copy(
 
   // Calculate host pitch, where host memory is always assumed to be tightly
   // packed.
-  size_t HostRowPitch = DeviceImgDesc.width * DeviceImgDesc.num_channels *
+  size_t HostRowPitch = HostExtent[0] * DeviceImgDesc.num_channels *
                         detail::get_channel_size(DeviceImgDesc);
 
   // Fill the host extent based on the type of copy.
