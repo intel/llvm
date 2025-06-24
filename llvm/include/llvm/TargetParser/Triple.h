@@ -931,7 +931,7 @@ public:
             getEnvironment() == Triple::GNUEABIHFT64 ||
             getEnvironment() == Triple::OpenHOS ||
             getEnvironment() == Triple::MuslEABIHF || isAndroid()) &&
-           isOSBinFormatELF();
+           isOSBinFormatELF() && !isOSNetBSD();
   }
 
   // ARM EABI is the bare-metal EABI described in ARM ABI documents and
