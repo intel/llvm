@@ -1621,10 +1621,17 @@ void handler::ext_oneapi_copy(
       get_pointer_type(Dest,
                        createSyclObjFromImpl<context>(impl->get_context())));
 
+  // Calculate host pitch, where host memory is always assumed to be tightly
+  // packed.
+  size_t HostRowPitch =
+      Desc.width * Desc.num_channels * detail::get_channel_size(Desc);
+
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
-    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags, 0, DeviceRowPitch);
+    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags, HostRowPitch,
+                           DeviceRowPitch);
   } else if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
-    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags, DeviceRowPitch, 0);
+    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags, DeviceRowPitch,
+                           HostRowPitch);
   } else {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Copy Error: This copy function only performs host "
@@ -1653,15 +1660,20 @@ void handler::ext_oneapi_copy(
       get_pointer_type(Dest,
                        createSyclObjFromImpl<context>(impl->get_context())));
 
+  // Calculate host pitch, where host memory is always assumed to be tightly
+  // packed.
+  size_t HostRowPitch = DeviceImgDesc.width * DeviceImgDesc.num_channels *
+                        detail::get_channel_size(DeviceImgDesc);
+
   // Fill the host extent based on the type of copy.
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
-    detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags, 0,
-                           DeviceRowPitch, SrcOffset, HostExtent, DestOffset,
-                           {0, 0, 0}, CopyExtent);
+    detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags,
+                           HostRowPitch, DeviceRowPitch, SrcOffset, HostExtent,
+                           DestOffset, {0, 0, 0}, CopyExtent);
   } else if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
     detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags,
-                           DeviceRowPitch, 0, SrcOffset, {0, 0, 0}, DestOffset,
-                           HostExtent, CopyExtent);
+                           DeviceRowPitch, HostRowPitch, SrcOffset, {0, 0, 0},
+                           DestOffset, HostExtent, CopyExtent);
   } else {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Copy Error: This copy function only performs host "
