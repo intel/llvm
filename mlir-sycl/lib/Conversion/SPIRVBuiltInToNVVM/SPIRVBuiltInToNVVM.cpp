@@ -11,17 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Conversion/SYCLToSPIRV/SYCLToSPIRV.h"
-
-#include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/Arith/Utils/Utils.h"
-#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
-#include "mlir/Dialect/Vector/IR/VectorOps.h"
-#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
 
 #include "llvm/ADT/TypeSwitch.h"
@@ -60,7 +51,7 @@ LLVM::LLVMFuncOp getOrInsertNVVMIntrinsic(OpBuilder &builder, ModuleOp module,
     return func;
 
   auto funcType = LLVM::LLVMFunctionType::get(retType, argTypes, false);
-  OpBuilder::InsertionGuard guard(builder);           
+  OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(module.getBody()); 
 
   auto newFunc =
