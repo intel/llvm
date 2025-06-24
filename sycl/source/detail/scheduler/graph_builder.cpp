@@ -210,7 +210,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
           cleanupCommand(Cmd);
       };
 
-  const ContextImplPtr &InteropCtxPtr = Req->MSYCLMemObj->getInteropContext();
+  context_impl *InteropCtxPtr = Req->MSYCLMemObj->getInteropContext();
   if (InteropCtxPtr) {
     // The memory object has been constructed using interoperability constructor
     // which means that there is already an allocation(cl_mem) in some context.
@@ -225,10 +225,10 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
     // here, we need to create a dummy queue bound to the context and one of the
     // devices from the context.
     std::shared_ptr<queue_impl> InteropQueuePtr = queue_impl::create(
-        Dev, InteropCtxPtr, async_handler{}, property_list{});
+        Dev, *InteropCtxPtr, async_handler{}, property_list{});
 
     MemObject->MRecord.reset(
-        new MemObjRecord{InteropCtxPtr.get(), LeafLimit, AllocateDependency});
+        new MemObjRecord{InteropCtxPtr, LeafLimit, AllocateDependency});
     std::vector<Command *> ToEnqueue;
     getOrCreateAllocaForReq(MemObject->MRecord.get(), Req, InteropQueuePtr,
                             ToEnqueue);
