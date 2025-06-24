@@ -52,7 +52,7 @@ LLVM::LLVMFuncOp getOrInsertNVVMIntrinsic(OpBuilder &builder, ModuleOp module,
 
   auto funcType = LLVM::LLVMFunctionType::get(retType, argTypes, false);
   OpBuilder::InsertionGuard guard(builder);
-  builder.setInsertionPointToStart(module.getBody()); 
+  builder.setInsertionPointToStart(module.getBody());
 
   auto newFunc =
       builder.create<LLVM::LLVMFuncOp>(builder.getUnknownLoc(), name, funcType);
