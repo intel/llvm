@@ -11,8 +11,8 @@
 
 using namespace llvm;
 
-bool llvm::SPIRVTTIImpl::collectFlatAddressOperands(SmallVectorImpl<int> &OpIndexes,
-                                              Intrinsic::ID IID) const {
+bool llvm::SPIRVTTIImpl::collectFlatAddressOperands(
+    SmallVectorImpl<int> &OpIndexes, Intrinsic::ID IID) const {
   switch (IID) {
   case Intrinsic::spv_generic_cast_to_ptr_explicit:
     OpIndexes.push_back(0);
@@ -23,8 +23,8 @@ bool llvm::SPIRVTTIImpl::collectFlatAddressOperands(SmallVectorImpl<int> &OpInde
 }
 
 Value *llvm::SPIRVTTIImpl::rewriteIntrinsicWithAddressSpace(IntrinsicInst *II,
-                                                      Value *OldV,
-                                                      Value *NewV) const {
+                                                            Value *OldV,
+                                                            Value *NewV) const {
   auto IntrID = II->getIntrinsicID();
   switch (IntrID) {
   case Intrinsic::spv_generic_cast_to_ptr_explicit: {

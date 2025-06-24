@@ -1,6 +1,6 @@
 // This test checks that the dynamic address casts can be optimized out
 // (via LowerSYCLAddressSpaceCasts) when the address spaces are known at compile
-// time by checking that only one of the from {foo, bar, baz} are called. Note:
+// time by checking that only one of from {foo, bar, baz} are called. Note:
 // this can only happen if dispatch is inlined, which is why we use
 // __attribute__((always_inline)) on it.
 
