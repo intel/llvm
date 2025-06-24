@@ -2045,9 +2045,9 @@ void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
 
 static bool checkContextSupports(detail::context_impl &ContextImpl,
                                  ur_context_info_t InfoQuery) {
-  auto &Adapter = ContextImpl.getAdapter();
+  auto& adapter = ContextImpl.getAdapter();
   ur_bool_t SupportsOp = false;
-  Adapter->call<UrApiKind::urContextGetInfo>(ContextImpl.getHandleRef(),
+  adapter.call<UrApiKind::urContextGetInfo>(ContextImpl.getHandleRef(),
                                              InfoQuery, sizeof(ur_bool_t),
                                              &SupportsOp, nullptr);
   return SupportsOp;
@@ -2290,7 +2290,7 @@ kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   device_impl &DeviceImpl = impl->get_device();
   std::array<size_t, 3> UrResult = {};
-  auto Ret = DeviceImpl.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+  auto Ret = DeviceImpl.getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
       DeviceImpl.getHandleRef(),
       UrInfoCode<
           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,

@@ -129,19 +129,19 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
                      const std::vector<device> &Devices) {
   assert(!Devices.empty() && "At least one device is expected");
   // We expect all devices to be from the same platform/adpater.
-  auto Adapter = detail::getSyclObjImpl(Devices[0])->getAdapter();
+  auto& adapter = detail::getSyclObjImpl(Devices[0])->getAdapter();
   unsigned int DeviceNum = 0;
-  Adapter->call<UrApiKind::urProgramGetInfo>(
+  adapter.call<UrApiKind::urProgramGetInfo>(
       NativePrg, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
       nullptr);
 
   std::vector<ur_device_handle_t> URDevices(DeviceNum);
-  Adapter->call<UrApiKind::urProgramGetInfo>(
+  adapter.call<UrApiKind::urProgramGetInfo>(
       NativePrg, UR_PROGRAM_INFO_DEVICES,
       sizeof(ur_device_handle_t) * URDevices.size(), URDevices.data(), nullptr);
 
   std::vector<size_t> BinarySizes(DeviceNum);
-  Adapter->call<UrApiKind::urProgramGetInfo>(
+  adapter.call<UrApiKind::urProgramGetInfo>(
       NativePrg, UR_PROGRAM_INFO_BINARY_SIZES,
       sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
@@ -152,7 +152,7 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
     Pointers.push_back(Binaries[I].data());
   }
 
-  Adapter->call<UrApiKind::urProgramGetInfo>(
+  adapter.call<UrApiKind::urProgramGetInfo>(
       NativePrg, UR_PROGRAM_INFO_BINARIES, sizeof(char *) * Pointers.size(),
       Pointers.data(), nullptr);
 

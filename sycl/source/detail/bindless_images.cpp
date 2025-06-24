@@ -112,9 +112,9 @@ image_mem::get_mip_level_mem_handle(const unsigned int level) const {
 __SYCL_EXPORT void destroy_image_handle(unsampled_image_handle &imageHandle,
                                         const sycl::device &syclDevice,
                                         const sycl::context &syclContext) {
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+  auto [urDevice, urCtx, adapter] = get_ur_handles(syclDevice, syclContext);
 
-  Adapter->call<
+  adapter->call<
       sycl::errc::runtime,
       sycl::detail::UrApiKind::urBindlessImagesUnsampledImageHandleDestroyExp>(
       urCtx, urDevice, imageHandle.raw_handle);
@@ -129,9 +129,9 @@ __SYCL_EXPORT void destroy_image_handle(unsampled_image_handle &imageHandle,
 __SYCL_EXPORT void destroy_image_handle(sampled_image_handle &imageHandle,
                                         const sycl::device &syclDevice,
                                         const sycl::context &syclContext) {
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+  auto [urDevice, urCtx, adapter] = get_ur_handles(syclDevice, syclContext);
 
-  Adapter->call<
+  adapter->call<
       sycl::errc::runtime,
       sycl::detail::UrApiKind::urBindlessImagesSampledImageHandleDestroyExp>(
       urCtx, urDevice, imageHandle.raw_handle);
@@ -148,7 +148,7 @@ alloc_image_mem(const image_descriptor &desc, const sycl::device &syclDevice,
                 const sycl::context &syclContext) {
   desc.verify();
 
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+  auto [urDevice, urCtx, adapter] = get_ur_handles(syclDevice, syclContext);
 
   ur_image_desc_t urDesc;
   ur_image_format_t urFormat;
@@ -157,7 +157,7 @@ alloc_image_mem(const image_descriptor &desc, const sycl::device &syclDevice,
   image_mem_handle retHandle = {};
 
   // Call impl.
-  Adapter->call<sycl::errc::memory_allocation,
+  adapter->call<sycl::errc::memory_allocation,
                 sycl::detail::UrApiKind::urBindlessImagesImageAllocateExp>(
       urCtx, urDevice, &urFormat, &urDesc,
       reinterpret_cast<ur_exp_image_mem_native_handle_t *>(
@@ -175,11 +175,11 @@ __SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
     const image_mem_handle mipMem, unsigned int level,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
 
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+  auto [urDevice, urCtx, adapter] = get_ur_handles(syclDevice, syclContext);
 
   // Call impl.
   image_mem_handle individual_image = {};
-  Adapter->call<sycl::errc::runtime,
+  adapter->call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::urBindlessImagesMipmapGetLevelExp>(
       urCtx, urDevice, mipMem.raw_handle, level, &individual_image.raw_handle);
 
@@ -197,15 +197,15 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
                                   image_type imageType,
                                   const sycl::device &syclDevice,
                                   const sycl::context &syclContext) {
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+  auto [urDevice, urCtx, adapter] = get_ur_handles(syclDevice, syclContext);
 
   if (memHandle.raw_handle != 0) {
     if (imageType == image_type::mipmap) {
-      Adapter->call<sycl::errc::memory_allocation,
+      adapter->call<sycl::errc::memory_allocation,
                     sycl::detail::UrApiKind::urBindlessImagesMipmapFreeExp>(
           urCtx, urDevice, memHandle.raw_handle);
     } else {
-      Adapter->call<sycl::errc::memory_allocation,
+      adapter->call<sycl::errc::memory_allocation,
                     sycl::detail::UrApiKind::urBindlessImagesImageFreeExp>(
           urCtx, urDevice, memHandle.raw_handle);
     }
@@ -337,7 +337,7 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
              const sycl::context &syclContext) {
   desc.verify();
 
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+  auto [urDevice, urCtx, adapter] = get_ur_handles(syclDevice, syclContext);
 
   ur_sampler_desc_t UrSamplerProps{
       UR_STRUCTURE_TYPE_SAMPLER_DESC, nullptr,
@@ -373,7 +373,7 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
 
   // Call impl.
   ur_exp_image_native_handle_t urImageHandle = 0;
-  Adapter->call<sycl::errc::runtime,
+  adapter->call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::urBindlessImagesSampledImageCreateExp>(
       urCtx, urDevice,
       reinterpret_cast<ur_exp_image_mem_native_handle_t>(devPtr), &urFormat,
@@ -476,7 +476,7 @@ image_mem_handle map_external_image_memory(external_mem extMem,
                                            const sycl::context &syclContext) {
   desc.verify();
 
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+  auto [urDevice, urCtx, adapter] = get_ur_handles(syclDevice, syclContext);
 
   ur_image_desc_t urDesc;
   ur_image_format_t urFormat;
@@ -485,7 +485,7 @@ image_mem_handle map_external_image_memory(external_mem extMem,
   ur_exp_external_mem_handle_t urExternalMem{extMem.raw_handle};
 
   image_mem_handle retHandle = {};
-  Adapter->call<sycl::errc::invalid,
+  adapter->call<sycl::errc::invalid,
                 sycl::detail::UrApiKind::urBindlessImagesMapExternalArrayExp>(
       urCtx, urDevice, &urFormat, &urDesc, urExternalMem,
       &retHandle.raw_handle);
@@ -505,12 +505,12 @@ __SYCL_EXPORT
 void *map_external_linear_memory(external_mem extMem, uint64_t offset,
                                  uint64_t size, const sycl::device &syclDevice,
                                  const sycl::context &syclContext) {
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+  auto [urDevice, urCtx, adapter] = get_ur_handles(syclDevice, syclContext);
 
   ur_exp_external_mem_handle_t urExternalMem{extMem.raw_handle};
 
   void *retMemory = nullptr;
-  Adapter->call<
+  adapter->call<
       sycl::errc::invalid,
       sycl::detail::UrApiKind::urBindlessImagesMapExternalLinearMemoryExp>(
       urCtx, urDevice, offset, size, urExternalMem, &retMemory);
@@ -546,9 +546,9 @@ __SYCL_EXPORT void
 unmap_external_linear_memory(void *mappedLinearRegion,
                              const sycl::device &syclDevice,
                              const sycl::context &syclContext) {
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+  auto [urDevice, urCtx, adapter] = get_ur_handles(syclDevice, syclContext);
 
-  Adapter->call<
+  adapter->call<
       sycl::errc::invalid,
       sycl::detail::UrApiKind::urBindlessImagesFreeMappedLinearMemoryExp>(
       urCtx, urDevice, mappedLinearRegion);
@@ -564,7 +564,7 @@ template <>
 __SYCL_EXPORT external_semaphore import_external_semaphore(
     external_semaphore_descriptor<resource_fd> externalSemaphoreDesc,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+  auto [urDevice, urCtx, adapter] = get_ur_handles(syclDevice, syclContext);
 
   ur_exp_external_semaphore_handle_t urExternalSemaphore = nullptr;
   ur_exp_file_descriptor_t urFileDescriptor = {};
@@ -592,7 +592,7 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
                           "Invalid semaphore handle type");
   }
 
-  Adapter->call<
+  adapter->call<
       sycl::errc::invalid,
       sycl::detail::UrApiKind::urBindlessImagesImportExternalSemaphoreExp>(
       urCtx, urDevice, urHandleType, &urExternalSemDesc, &urExternalSemaphore);
@@ -613,7 +613,7 @@ template <>
 __SYCL_EXPORT external_semaphore import_external_semaphore(
     external_semaphore_descriptor<resource_win32_handle> externalSemaphoreDesc,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+  auto [urDevice, urCtx, adapter] = get_ur_handles(syclDevice, syclContext);
 
   ur_exp_external_semaphore_handle_t urExternalSemaphore = nullptr;
   ur_exp_win32_handle_t urWin32Handle = {};
@@ -640,7 +640,7 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
                           "Invalid semaphore handle type");
   }
 
-  Adapter->call<
+  adapter->call<
       sycl::errc::invalid,
       sycl::detail::UrApiKind::urBindlessImagesImportExternalSemaphoreExp>(
       urCtx, urDevice, urHandleType, &urExternalSemDesc, &urExternalSemaphore);
@@ -661,9 +661,9 @@ __SYCL_EXPORT void
 release_external_semaphore(external_semaphore externalSemaphore,
                            const sycl::device &syclDevice,
                            const sycl::context &syclContext) {
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+  auto [urDevice, urCtx, adapter] = get_ur_handles(syclDevice, syclContext);
 
-  Adapter->call<
+  adapter->call<
       sycl::errc::invalid,
       sycl::detail::UrApiKind::urBindlessImagesReleaseExternalSemaphoreExp>(
       urCtx, urDevice, externalSemaphore.raw_handle);
@@ -680,19 +680,19 @@ __SYCL_EXPORT sycl::range<3> get_image_range(const image_mem_handle memHandle,
                                              const sycl::device &syclDevice,
                                              const sycl::context &syclContext) {
   (void)syclDevice;
-  auto [urCtx, Adapter] = get_ur_handles(syclContext);
+  auto [urCtx, adapter] = get_ur_handles(syclContext);
 
   size_t Width = 0, Height = 0, Depth = 0;
 
-  Adapter->call<sycl::errc::invalid,
+  adapter->call<sycl::errc::invalid,
                 sycl::detail::UrApiKind::urBindlessImagesImageGetInfoExp>(
       urCtx, memHandle.raw_handle, UR_IMAGE_INFO_WIDTH, &Width, nullptr);
 
-  Adapter->call<sycl::errc::invalid,
+  adapter->call<sycl::errc::invalid,
                 sycl::detail::UrApiKind::urBindlessImagesImageGetInfoExp>(
       urCtx, memHandle.raw_handle, UR_IMAGE_INFO_HEIGHT, &Height, nullptr);
 
-  Adapter->call<sycl::errc::invalid,
+  adapter->call<sycl::errc::invalid,
                 sycl::detail::UrApiKind::urBindlessImagesImageGetInfoExp>(
       urCtx, memHandle.raw_handle, UR_IMAGE_INFO_DEPTH, &Depth, nullptr);
 
@@ -710,11 +710,11 @@ get_image_channel_type(const image_mem_handle memHandle,
                        const sycl::device &syclDevice,
                        const sycl::context &syclContext) {
   (void)syclDevice;
-  auto [urCtx, Adapter] = get_ur_handles(syclContext);
+  auto [urCtx, adapter] = get_ur_handles(syclContext);
 
   ur_image_format_t URFormat = {};
 
-  Adapter->call<sycl::errc::invalid,
+  adapter->call<sycl::errc::invalid,
                 sycl::detail::UrApiKind::urBindlessImagesImageGetInfoExp>(
       urCtx, memHandle.raw_handle, UR_IMAGE_INFO_FORMAT, &URFormat, nullptr);
 
@@ -742,9 +742,9 @@ __SYCL_EXPORT void *pitched_alloc_device(size_t *resultPitch,
                           "Cannot allocate pitched memory with zero size!");
   }
 
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+  auto [urDevice, urCtx, adapter] = get_ur_handles(syclDevice, syclContext);
 
-  Adapter->call<sycl::errc::memory_allocation,
+  adapter->call<sycl::errc::memory_allocation,
                 sycl::detail::UrApiKind::urUSMPitchedAllocExp>(
       urCtx, urDevice, nullptr, nullptr, widthInBytes, height, elementSizeBytes,
       &RetVal, resultPitch);
@@ -787,10 +787,10 @@ get_image_num_channels(const image_mem_handle memHandle,
                        const sycl::device &syclDevice,
                        const sycl::context &syclContext) {
   (void)syclDevice;
-  auto [urCtx, Adapter] = get_ur_handles(syclContext);
+  auto [urCtx, adapter] = get_ur_handles(syclContext);
   ur_image_format_t URFormat = {};
 
-  Adapter->call<sycl::errc::runtime,
+  adapter->call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::urBindlessImagesImageGetInfoExp>(
       urCtx, memHandle.raw_handle, UR_IMAGE_INFO_FORMAT, &URFormat, nullptr);
 
@@ -815,14 +815,14 @@ get_image_memory_support(const image_descriptor &imageDescriptor,
       sycl::detail::getSyclObjImpl(syclDevice);
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  const sycl::detail::Adapter& adapter = CtxImpl->getAdapter();
 
   ur_image_desc_t urDesc;
   ur_image_format_t urFormat;
   populate_ur_structs(imageDescriptor, urDesc, urFormat);
 
   ur_bool_t supportsPointerAllocation{0};
-  Adapter->call<sycl::errc::runtime,
+  adapter.call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::
                     urBindlessImagesGetImageMemoryHandleTypeSupportExp>(
       CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
@@ -830,7 +830,7 @@ get_image_memory_support(const image_descriptor &imageDescriptor,
       &supportsPointerAllocation);
 
   ur_bool_t supportsOpaqueAllocation{0};
-  Adapter->call<sycl::errc::runtime,
+  adapter.call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::
                     urBindlessImagesGetImageMemoryHandleTypeSupportExp>(
       CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
@@ -866,7 +866,7 @@ __SYCL_EXPORT bool is_image_handle_supported<unsampled_image_handle>(
       sycl::detail::getSyclObjImpl(syclDevice);
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  const sycl::detail::Adapter& adapter = CtxImpl->getAdapter();
 
   ur_image_desc_t urDesc;
   ur_image_format_t urFormat;
@@ -878,7 +878,7 @@ __SYCL_EXPORT bool is_image_handle_supported<unsampled_image_handle>(
           : ur_exp_image_mem_type_t::UR_EXP_IMAGE_MEM_TYPE_USM_POINTER;
 
   ur_bool_t supportsUnsampledHandle{0};
-  Adapter->call<sycl::errc::runtime,
+  adapter.call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::
                     urBindlessImagesGetImageUnsampledHandleSupportExp>(
       CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
@@ -906,7 +906,7 @@ __SYCL_EXPORT bool is_image_handle_supported<sampled_image_handle>(
       sycl::detail::getSyclObjImpl(syclDevice);
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  const sycl::detail::Adapter& adapter = CtxImpl->getAdapter();
 
   ur_image_desc_t urDesc;
   ur_image_format_t urFormat;
@@ -918,7 +918,7 @@ __SYCL_EXPORT bool is_image_handle_supported<sampled_image_handle>(
           : ur_exp_image_mem_type_t::UR_EXP_IMAGE_MEM_TYPE_USM_POINTER;
 
   ur_bool_t supportsSampledHandle{0};
-  Adapter->call<
+  adapter.call<
       sycl::errc::runtime,
       sycl::detail::UrApiKind::urBindlessImagesGetImageSampledHandleSupportExp>(
       CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,

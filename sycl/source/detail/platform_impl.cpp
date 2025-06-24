@@ -32,7 +32,7 @@ namespace detail {
 
 platform_impl &
 platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
-                                     const AdapterPtr &Adapter) {
+                                    const Adapter& AAAdapter) {
   std::shared_ptr<platform_impl> Result;
   {
     const std::lock_guard<std::mutex> Guard(
@@ -50,10 +50,10 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
     // Otherwise make the impl. Our ctor/dtor are private, so std::make_shared
     // needs a bit of help...
     struct creator : platform_impl {
-      creator(ur_platform_handle_t APlatform, const AdapterPtr &AAdapter)
+      creator(ur_platform_handle_t APlatform, const Adapter& AAdapter)
           : platform_impl(APlatform, AAdapter) {}
     };
-    Result = std::make_shared<creator>(UrPlatform, Adapter);
+    Result = std::make_shared<creator>(UrPlatform, AAAdapter);
     PlatformCache.emplace_back(Result);
   }
 
@@ -62,13 +62,13 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
 
 platform_impl &
 platform_impl::getPlatformFromUrDevice(ur_device_handle_t UrDevice,
-                                       const AdapterPtr &Adapter) {
+                                       const Adapter& AAdapter) {
   ur_platform_handle_t Plt =
       nullptr; // TODO catch an exception and put it to list
   // of asynchronous exceptions
-  Adapter->call<UrApiKind::urDeviceGetInfo>(UrDevice, UR_DEVICE_INFO_PLATFORM,
+  AAdapter.call<UrApiKind::urDeviceGetInfo>(UrDevice, UR_DEVICE_INFO_PLATFORM,
                                             sizeof(Plt), &Plt, nullptr);
-  return getOrMakePlatformImpl(Plt, Adapter);
+  return getOrMakePlatformImpl(Plt, AAdapter);
 }
 
 static bool IsBannedPlatform(platform Platform) {
@@ -102,11 +102,11 @@ static bool IsBannedPlatform(platform Platform) {
 // replace uses of this with a helper in adapter object, the adapter
 // objects will own the ur adapter handles and they'll need to pass them to
 // urPlatformsGet - so urPlatformsGet will need to be wrapped with a helper
-std::vector<platform> platform_impl::getAdapterPlatforms(AdapterPtr &Adapter,
+std::vector<platform> platform_impl::getAdapterPlatforms(Adapter& AAdapter,
                                                          bool Supported) {
   std::vector<platform> Platforms;
 
-  auto UrPlatforms = Adapter->getUrPlatforms();
+  auto UrPlatforms = AAdapter.getUrPlatforms();
 
   if (UrPlatforms.empty()) {
     return Platforms;
@@ -114,7 +114,7 @@ std::vector<platform> platform_impl::getAdapterPlatforms(AdapterPtr &Adapter,
 
   for (const auto &UrPlatform : UrPlatforms) {
     platform Platform = detail::createSyclObjFromImpl<platform>(
-        getOrMakePlatformImpl(UrPlatform, Adapter));
+        getOrMakePlatformImpl(UrPlatform, AAdapter));
     const bool IsBanned = IsBannedPlatform(Platform);
     bool HasAnyDevices = false;
 
@@ -152,12 +152,12 @@ std::vector<platform> platform_impl::get_platforms() {
   // See which platform we want to be served by which adapter.
   // There should be just one adapter serving each backend.
 
-  std::vector<AdapterPtr> Adapters = ur::initializeUr();
-  std::vector<std::pair<platform, AdapterPtr>> PlatformsWithAdapter;
+  std::vector<Adapter*> Adapters = ur::initializeUr();
+  std::vector<std::pair<platform, Adapter*>> PlatformsWithAdapter;
 
   // Then check backend-specific adapters
   for (auto &Adapter : Adapters) {
-    const auto &AdapterPlatforms = getAdapterPlatforms(Adapter);
+    const auto &AdapterPlatforms = getAdapterPlatforms(*Adapter);
     for (const auto &P : AdapterPlatforms) {
       PlatformsWithAdapter.push_back({P, Adapter});
     }
@@ -488,15 +488,15 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // analysis. Doing adjustment by simple copy of last device num from
     // previous platform.
     // Needs non const adapter reference.
-    std::vector<AdapterPtr> Adapters = ur::initializeUr();
+    std::vector<Adapter*> Adapters = ur::initializeUr();
     auto It = std::find_if(Adapters.begin(), Adapters.end(),
-                           [&Platform = MPlatform](AdapterPtr &Adapter) {
-                             return Adapter->containsUrPlatform(Platform);
+                           [&Platform = MPlatform](Adapter* adapter) {
+                             return adapter->containsUrPlatform(Platform);
                            });
     if (It != Adapters.end()) {
-      AdapterPtr &Adapter = *It;
-      std::lock_guard<std::mutex> Guard(*Adapter->getAdapterMutex());
-      Adapter->adjustLastDeviceId(MPlatform);
+      Adapter* adapter = *It;
+      std::lock_guard<std::mutex> Guard(*adapter->getAdapterMutex());
+      adapter->adjustLastDeviceId(MPlatform);
     }
     return Res;
   }
@@ -514,7 +514,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
-    applyAllowList(UrDevices, MPlatform, MAdapter);
+    applyAllowList(UrDevices, MPlatform, *MAdapter);
 
   // The first step is to filter out devices that are not compatible with
   // ONEAPI_DEVICE_SELECTOR. This is also the mechanism by which top level
@@ -527,7 +527,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // The next step is to inflate the filtered UrDevices into SYCL Device
   // objects.
-  platform_impl &PlatformImpl = getOrMakePlatformImpl(MPlatform, MAdapter);
+  platform_impl &PlatformImpl = getOrMakePlatformImpl(MPlatform, *MAdapter);
   std::transform(UrDevices.begin(), UrDevices.end(), std::back_inserter(Res),
                  [&PlatformImpl](const ur_device_handle_t UrDevice) -> device {
                    return detail::createSyclObjFromImpl<device>(
@@ -564,9 +564,9 @@ bool platform_impl::supports_usm() const {
 }
 
 ur_native_handle_t platform_impl::getNative() const {
-  const auto &Adapter = getAdapter();
+  const auto& adapter = getAdapter();
   ur_native_handle_t Handle = 0;
-  Adapter->call<UrApiKind::urPlatformGetNativeHandle>(getHandleRef(), &Handle);
+  adapter.call<UrApiKind::urPlatformGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
 }
 

@@ -19,11 +19,11 @@ using namespace sycl::detail;
 
 __SYCL_EXPORT device make_device(const platform &Platform,
                                  ur_native_handle_t NativeHandle) {
-  const auto &Adapter = ur::getAdapter<backend::ext_oneapi_level_zero>();
+  auto& adapter = ur::getAdapter<backend::ext_oneapi_level_zero>();
   // Create UR device first.
   ur_device_handle_t UrDevice;
-  Adapter->call<UrApiKind::urDeviceCreateWithNativeHandle>(
-      NativeHandle, Adapter->getUrAdapter(), nullptr, &UrDevice);
+  adapter.call<UrApiKind::urDeviceCreateWithNativeHandle>(
+      NativeHandle, adapter.getUrAdapter(), nullptr, &UrDevice);
 
   return detail::createSyclObjFromImpl<device>(
       getSyclObjImpl(Platform)->getOrMakeDeviceImpl(UrDevice));

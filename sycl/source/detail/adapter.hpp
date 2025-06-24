@@ -107,14 +107,14 @@ public:
     return UrPlatforms;
   }
 
-  ur_adapter_handle_t getUrAdapter() { return MAdapter; }
+  ur_adapter_handle_t getUrAdapter() const { return MAdapter; }
 
   /// Calls the UR Api, traces the call, and returns the result.
   ///
   /// Usage:
   /// \code{cpp}
-  /// ur_result_t Err = Adapter->call<UrApiKind::urEntryPoint>(Args);
-  /// Adapter->checkUrResult(Err); // Checks Result and throws a runtime_error
+  /// ur_result_t Err = adapter.call<UrApiKind::urEntryPoint>(Args);
+  /// adapter.checkUrResult(Err); // Checks Result and throws a runtime_error
   /// // exception.
   /// \endcode
   ///

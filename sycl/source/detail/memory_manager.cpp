@@ -122,18 +122,18 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   // Assuming all events will be on the same device or
   // devices associated with the same Backend.
   if (!Events.empty()) {
-    const AdapterPtr &Adapter = Events[0]->getAdapter();
+    const Adapter& adapter = Events[0]->getAdapter();
     std::vector<ur_event_handle_t> UrEvents(Events.size());
     std::transform(
         Events.begin(), Events.end(), UrEvents.begin(),
         [](const EventImplPtr &EventImpl) { return EventImpl->getHandle(); });
     if (!UrEvents.empty() && UrEvents[0]) {
-      Adapter->call<UrApiKind::urEventWait>(UrEvents.size(), &UrEvents[0]);
+      adapter.call<UrApiKind::urEventWait>(UrEvents.size(), &UrEvents[0]);
     }
   }
 }
 
-void memBufferCreateHelper(const AdapterPtr &Adapter, ur_context_handle_t Ctx,
+void memBufferCreateHelper(const Adapter& AAdapter, ur_context_handle_t Ctx,
                            ur_mem_flags_t Flags, size_t Size,
                            ur_mem_handle_t *RetMem,
                            const ur_buffer_properties_t *Props) {
@@ -155,19 +155,19 @@ void memBufferCreateHelper(const AdapterPtr &Adapter, ur_context_handle_t Ctx,
       // When doing buffer interop we don't know what device the memory should
       // be resident on, so pass nullptr for Device param. Buffer interop may
       // not be supported by all backends.
-      Adapter->call_nocheck<UrApiKind::urMemGetNativeHandle>(
+      AAdapter.call_nocheck<UrApiKind::urMemGetNativeHandle>(
           *RetMem, /*Dev*/ nullptr, &Ptr);
       emitMemAllocEndTrace(MemObjID, (uintptr_t)(Ptr), Size, 0 /* guard zone */,
                            CorrID);
     }};
 #endif
     if (Size)
-      Adapter->call<UrApiKind::urMemBufferCreate>(Ctx, Flags, Size, Props,
+      AAdapter.call<UrApiKind::urMemBufferCreate>(Ctx, Flags, Size, Props,
                                                   RetMem);
   }
 }
 
-void memReleaseHelper(const AdapterPtr &Adapter, ur_mem_handle_t Mem) {
+void memReleaseHelper(const Adapter& AAdapter, ur_mem_handle_t Mem) {
   // FIXME urMemRelease does not guarante memory release. It is only true if
   // reference counter is 1. However, SYCL runtime currently only calls
   // urMemRetain only for OpenCL interop
@@ -182,7 +182,7 @@ void memReleaseHelper(const AdapterPtr &Adapter, ur_mem_handle_t Mem) {
     // When doing buffer interop we don't know what device the memory should be
     // resident on, so pass nullptr for Device param. Buffer interop may not be
     // supported by all backends.
-    Adapter->call_nocheck<UrApiKind::urMemGetNativeHandle>(Mem, /*Dev*/ nullptr,
+    AAdapter.call_nocheck<UrApiKind::urMemGetNativeHandle>(Mem, /*Dev*/ nullptr,
                                                            &PtrHandle);
     Ptr = (uintptr_t)(PtrHandle);
   }
@@ -194,11 +194,11 @@ void memReleaseHelper(const AdapterPtr &Adapter, ur_mem_handle_t Mem) {
     xpti::utils::finally _{
         [&] { emitMemReleaseEndTrace(MemObjID, Ptr, CorrID); }};
 #endif
-    Adapter->call<UrApiKind::urMemRelease>(Mem);
+    AAdapter.call<UrApiKind::urMemRelease>(Mem);
   }
 }
 
-void memBufferMapHelper(const AdapterPtr &Adapter, ur_queue_handle_t Queue,
+void memBufferMapHelper(const Adapter& AAdapter, ur_queue_handle_t Queue,
                         ur_mem_handle_t Buffer, bool Blocking,
                         ur_map_flags_t Flags, size_t Offset, size_t Size,
                         uint32_t NumEvents, const ur_event_handle_t *WaitList,
@@ -216,12 +216,12 @@ void memBufferMapHelper(const AdapterPtr &Adapter, ur_queue_handle_t Queue,
                          0 /* guard zone */, CorrID);
   }};
 #endif
-  Adapter->call<UrApiKind::urEnqueueMemBufferMap>(
+  AAdapter.call<UrApiKind::urEnqueueMemBufferMap>(
       Queue, Buffer, Blocking, Flags, Offset, Size, NumEvents, WaitList, Event,
       RetMap);
 }
 
-void memUnmapHelper(const AdapterPtr &Adapter, ur_queue_handle_t Queue,
+void memUnmapHelper(const Adapter& AAdapter, ur_queue_handle_t Queue,
                     ur_mem_handle_t Mem, void *MappedPtr, uint32_t NumEvents,
                     const ur_event_handle_t *WaitList,
                     ur_event_handle_t *Event) {
@@ -241,11 +241,11 @@ void memUnmapHelper(const AdapterPtr &Adapter, ur_queue_handle_t Queue,
       // Always use call_nocheck here, because call may throw an exception,
       // and this lambda will be called from destructor, which in combination
       // rewards us with UB.
-      Adapter->call_nocheck<UrApiKind::urEventWait>(1, Event);
+      AAdapter.call_nocheck<UrApiKind::urEventWait>(1, Event);
       emitMemReleaseEndTrace(MemObjID, Ptr, CorrID);
     }};
 #endif
-    Adapter->call<UrApiKind::urEnqueueMemUnmap>(Queue, Mem, MappedPtr,
+    AAdapter.call<UrApiKind::urEnqueueMemUnmap>(Queue, Mem, MappedPtr,
                                                 NumEvents, WaitList, Event);
   }
 }
@@ -275,8 +275,7 @@ void MemoryManager::releaseMemObj(context_impl *TargetContext,
     return;
   }
 
-  const AdapterPtr &Adapter = TargetContext->getAdapter();
-  memReleaseHelper(Adapter, ur::cast<ur_mem_handle_t>(MemAllocation));
+  memReleaseHelper(TargetContext->getAdapter(), ur::cast<ur_mem_handle_t>(MemAllocation));
 }
 
 void *MemoryManager::allocate(context_impl *TargetContext, SYCLMemObjI *MemObj,
@@ -318,8 +317,7 @@ void *MemoryManager::allocateInteropMemObject(
   // Retain the event since it will be released during alloca command
   // destruction
   if (nullptr != OutEventToWait) {
-    const AdapterPtr &Adapter = InteropEvent->getAdapter();
-    Adapter->call<UrApiKind::urEventRetain>(OutEventToWait);
+    InteropEvent->getAdapter().call<UrApiKind::urEventRetain>(OutEventToWait);
   }
   return UserPtr;
 }
@@ -343,8 +341,7 @@ void *MemoryManager::allocateImageObject(context_impl *TargetContext,
       getMemObjCreationFlags(UserPtr, HostPtrReadOnly);
 
   ur_mem_handle_t NewMem = nullptr;
-  const AdapterPtr &Adapter = TargetContext->getAdapter();
-  Adapter->call<UrApiKind::urMemImageCreate>(TargetContext->getHandleRef(),
+  TargetContext->getAdapter().call<UrApiKind::urMemImageCreate>(TargetContext->getHandleRef(),
                                              CreationFlags, &Format, &Desc,
                                              UserPtr, &NewMem);
   return NewMem;
@@ -361,8 +358,6 @@ MemoryManager::allocateBufferObject(context_impl *TargetContext, void *UserPtr,
     CreationFlags |= UR_MEM_FLAG_ALLOC_HOST_POINTER;
 
   ur_mem_handle_t NewMem = nullptr;
-  const AdapterPtr &Adapter = TargetContext->getAdapter();
-
   ur_buffer_properties_t AllocProps = {UR_STRUCTURE_TYPE_BUFFER_PROPERTIES,
                                        nullptr, UserPtr};
 
@@ -386,7 +381,7 @@ MemoryManager::allocateBufferObject(context_impl *TargetContext, void *UserPtr,
     *Next = &ChannelProperties;
   }
 
-  memBufferCreateHelper(Adapter, TargetContext->getHandleRef(), CreationFlags,
+  memBufferCreateHelper(TargetContext->getAdapter(), TargetContext->getHandleRef(), CreationFlags,
                         Size, &NewMem, &AllocProps);
   return NewMem;
 }
@@ -448,8 +443,8 @@ void *MemoryManager::allocateMemSubBuffer(context_impl *TargetContext,
   ur_buffer_region_t Region = {UR_STRUCTURE_TYPE_BUFFER_REGION, nullptr, Offset,
                                SizeInBytes};
   ur_mem_handle_t NewMem;
-  const AdapterPtr &Adapter = TargetContext->getAdapter();
-  Error = Adapter->call_nocheck<UrApiKind::urMemBufferPartition>(
+  const Adapter& adapter = TargetContext->getAdapter();
+  Error = adapter.call_nocheck<UrApiKind::urMemBufferPartition>(
       ur::cast<ur_mem_handle_t>(ParentMemObj), UR_MEM_FLAG_READ_WRITE,
       UR_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
   if (Error == UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
@@ -459,7 +454,7 @@ void *MemoryManager::allocateMemSubBuffer(context_impl *TargetContext,
                   "a multiple of the memory base address alignment"),
         Error);
 
-  Adapter->checkUrResult(Error);
+  adapter.checkUrResult(Error);
 
   return NewMem;
 }
@@ -506,7 +501,7 @@ void copyH2D(queue_impl &TgtQueue, SYCLMemObjI *SYCLMemObj, char *SrcMem,
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const ur_queue_handle_t Queue = TgtQueue.getHandleRef();
-  const AdapterPtr &Adapter = TgtQueue.getAdapter();
+  const Adapter& adapter = TgtQueue.getAdapter();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   TermPositions SrcPos, DstPos;
@@ -521,7 +516,7 @@ void copyH2D(queue_impl &TgtQueue, SYCLMemObjI *SYCLMemObj, char *SrcMem,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
-      Adapter->call<UrApiKind::urEnqueueMemBufferWrite>(
+      adapter.call<UrApiKind::urEnqueueMemBufferWrite>(
           Queue, DstMem,
           /*blocking_write=*/false, DstXOffBytes, DstAccessRangeWidthBytes,
           SrcMem + SrcXOffBytes, DepEvents.size(), DepEvents.data(), &OutEvent);
@@ -540,7 +535,7 @@ void copyH2D(queue_impl &TgtQueue, SYCLMemObjI *SYCLMemObj, char *SrcMem,
       ur_rect_region_t RectRegion{DstAccessRangeWidthBytes,
                                   DstAccessRange[DstPos.YTerm],
                                   DstAccessRange[DstPos.ZTerm]};
-      Adapter->call<UrApiKind::urEnqueueMemBufferWriteRect>(
+      adapter.call<UrApiKind::urEnqueueMemBufferWriteRect>(
           Queue, DstMem,
           /*blocking_write=*/false, BufferOffset, HostOffset, RectRegion,
           BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
@@ -556,7 +551,7 @@ void copyH2D(queue_impl &TgtQueue, SYCLMemObjI *SYCLMemObj, char *SrcMem,
     ur_rect_region_t Region{DstAccessRange[DstPos.XTerm],
                             DstAccessRange[DstPos.YTerm],
                             DstAccessRange[DstPos.ZTerm]};
-    Adapter->call<UrApiKind::urEnqueueMemImageWrite>(
+    adapter.call<UrApiKind::urEnqueueMemImageWrite>(
         Queue, DstMem,
         /*blocking_write=*/false, Origin, Region, InputRowPitch,
         InputSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(), &OutEvent);
@@ -575,7 +570,7 @@ void copyD2H(queue_impl &SrcQueue, SYCLMemObjI *SYCLMemObj,
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const ur_queue_handle_t Queue = SrcQueue.getHandleRef();
-  const AdapterPtr &Adapter = SrcQueue.getAdapter();
+  const Adapter& adapter = SrcQueue.getAdapter();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   TermPositions SrcPos, DstPos;
@@ -596,7 +591,7 @@ void copyD2H(queue_impl &SrcQueue, SYCLMemObjI *SYCLMemObj,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
-      Adapter->call<UrApiKind::urEnqueueMemBufferRead>(
+      adapter.call<UrApiKind::urEnqueueMemBufferRead>(
           Queue, SrcMem,
           /*blocking_read=*/false, SrcXOffBytes, SrcAccessRangeWidthBytes,
           DstMem + DstXOffBytes, DepEvents.size(), DepEvents.data(), &OutEvent);
@@ -615,7 +610,7 @@ void copyD2H(queue_impl &SrcQueue, SYCLMemObjI *SYCLMemObj,
       ur_rect_region_t RectRegion{SrcAccessRangeWidthBytes,
                                   SrcAccessRange[SrcPos.YTerm],
                                   SrcAccessRange[SrcPos.ZTerm]};
-      Adapter->call<UrApiKind::urEnqueueMemBufferReadRect>(
+      adapter.call<UrApiKind::urEnqueueMemBufferReadRect>(
           Queue, SrcMem,
           /*blocking_read=*/false, BufferOffset, HostOffset, RectRegion,
           BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
@@ -631,7 +626,7 @@ void copyD2H(queue_impl &SrcQueue, SYCLMemObjI *SYCLMemObj,
     ur_rect_region_t Region{SrcAccessRange[SrcPos.XTerm],
                             SrcAccessRange[SrcPos.YTerm],
                             SrcAccessRange[SrcPos.ZTerm]};
-    Adapter->call<UrApiKind::urEnqueueMemImageRead>(
+    adapter.call<UrApiKind::urEnqueueMemImageRead>(
         Queue, SrcMem, false, Offset, Region, RowPitch, SlicePitch, DstMem,
         DepEvents.size(), DepEvents.data(), &OutEvent);
   }
@@ -650,7 +645,7 @@ void copyD2D(queue_impl &SrcQueue, SYCLMemObjI *SYCLMemObj,
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const ur_queue_handle_t Queue = SrcQueue.getHandleRef();
-  const AdapterPtr &Adapter = SrcQueue.getAdapter();
+  const Adapter& adapter = SrcQueue.getAdapter();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   TermPositions SrcPos, DstPos;
@@ -665,7 +660,7 @@ void copyD2D(queue_impl &SrcQueue, SYCLMemObjI *SYCLMemObj,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
-      Adapter->call<UrApiKind::urEnqueueMemBufferCopy>(
+      adapter.call<UrApiKind::urEnqueueMemBufferCopy>(
           Queue, SrcMem, DstMem, SrcXOffBytes, DstXOffBytes,
           SrcAccessRangeWidthBytes, DepEvents.size(), DepEvents.data(),
           &OutEvent);
@@ -689,7 +684,7 @@ void copyD2D(queue_impl &SrcQueue, SYCLMemObjI *SYCLMemObj,
       ur_rect_region_t Region{SrcAccessRangeWidthBytes,
                               SrcAccessRange[SrcPos.YTerm],
                               SrcAccessRange[SrcPos.ZTerm]};
-      Adapter->call<UrApiKind::urEnqueueMemBufferCopyRect>(
+      adapter.call<UrApiKind::urEnqueueMemBufferCopyRect>(
           Queue, SrcMem, DstMem, SrcOrigin, DstOrigin, Region, SrcRowPitch,
           SrcSlicePitch, DstRowPitch, DstSlicePitch, DepEvents.size(),
           DepEvents.data(), &OutEvent);
@@ -702,7 +697,7 @@ void copyD2D(queue_impl &SrcQueue, SYCLMemObjI *SYCLMemObj,
     ur_rect_region_t Region{SrcAccessRange[SrcPos.XTerm],
                             SrcAccessRange[SrcPos.YTerm],
                             SrcAccessRange[SrcPos.ZTerm]};
-    Adapter->call<UrApiKind::urEnqueueMemImageCopy>(
+    adapter.call<UrApiKind::urEnqueueMemImageCopy>(
         Queue, SrcMem, DstMem, SrcOrigin, DstOrigin, Region, DepEvents.size(),
         DepEvents.data(), &OutEvent);
   }
@@ -782,7 +777,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, queue_impl &Queue,
                          ur_event_handle_t &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  const AdapterPtr &Adapter = Queue.getAdapter();
+  const Adapter& adapter = Queue.getAdapter();
 
   if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::Buffer) {
 
@@ -795,7 +790,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, queue_impl &Queue,
     size_t RangeMultiplier = AccRange[0] * AccRange[1] * AccRange[2];
 
     if (RangesUsable && OffsetUsable) {
-      Adapter->call<UrApiKind::urEnqueueMemBufferFill>(
+      adapter.call<UrApiKind::urEnqueueMemBufferFill>(
           Queue.getHandleRef(), ur::cast<ur_mem_handle_t>(Mem), Pattern,
           PatternSize, Offset[0] * ElementSize, RangeMultiplier * ElementSize,
           DepEvents.size(), DepEvents.data(), &OutEvent);
@@ -847,8 +842,8 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, queue_impl &Queue,
 
   void *MappedPtr = nullptr;
   const size_t BytesToMap = AccessRange[0] * AccessRange[1] * AccessRange[2];
-  const AdapterPtr &Adapter = Queue.getAdapter();
-  memBufferMapHelper(Adapter, Queue.getHandleRef(),
+  const Adapter& adapter = Queue.getAdapter();
+  memBufferMapHelper(adapter, Queue.getHandleRef(),
                      ur::cast<ur_mem_handle_t>(Mem), false, Flags,
                      AccessOffset[0], BytesToMap, DepEvents.size(),
                      DepEvents.data(), &OutEvent, &MappedPtr);
@@ -862,8 +857,8 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, queue_impl &Queue,
   // All DepEvents are to the same Context.
   // Using the adapter of the Queue.
 
-  const AdapterPtr &Adapter = Queue.getAdapter();
-  memUnmapHelper(Adapter, Queue.getHandleRef(), ur::cast<ur_mem_handle_t>(Mem),
+  const Adapter& adapter = Queue.getAdapter();
+  memUnmapHelper(adapter, Queue.getHandleRef(), ur::cast<ur_mem_handle_t>(Mem),
                  MappedPtr, DepEvents.size(), DepEvents.data(), &OutEvent);
 }
 
@@ -871,10 +866,10 @@ void MemoryManager::copy_usm(const void *SrcMem, queue_impl &SrcQueue,
                              size_t Len, void *DstMem,
                              std::vector<ur_event_handle_t> DepEvents,
                              ur_event_handle_t *OutEvent) {
-  const AdapterPtr &Adapter = SrcQueue.getAdapter();
+  const Adapter& adapter = SrcQueue.getAdapter();
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      Adapter->call<UrApiKind::urEnqueueEventsWait>(SrcQueue.getHandleRef(),
+      adapter.call<UrApiKind::urEnqueueEventsWait>(SrcQueue.getHandleRef(),
                                                     DepEvents.size(),
                                                     DepEvents.data(), OutEvent);
     }
@@ -885,7 +880,7 @@ void MemoryManager::copy_usm(const void *SrcMem, queue_impl &SrcQueue,
     throw exception(make_error_code(errc::invalid),
                     "NULL pointer argument in memory copy operation.");
 
-  Adapter->call<UrApiKind::urEnqueueUSMMemcpy>(SrcQueue.getHandleRef(),
+  adapter.call<UrApiKind::urEnqueueUSMMemcpy>(SrcQueue.getHandleRef(),
                                                /* blocking */ false, DstMem,
                                                SrcMem, Len, DepEvents.size(),
                                                DepEvents.data(), OutEvent);
@@ -896,8 +891,8 @@ void MemoryManager::context_copy_usm(const void *SrcMem, context_impl *Context,
   if (!SrcMem || !DstMem)
     throw exception(make_error_code(errc::invalid),
                     "NULL pointer argument in memory copy operation.");
-  const AdapterPtr &Adapter = Context->getAdapter();
-  Adapter->call<UrApiKind::urUSMContextMemcpyExp>(Context->getHandleRef(),
+  const Adapter& adapter = Context->getAdapter();
+  adapter.call<UrApiKind::urUSMContextMemcpyExp>(Context->getHandleRef(),
                                                   DstMem, SrcMem, Len);
 }
 
@@ -907,7 +902,7 @@ void MemoryManager::fill_usm(void *Mem, queue_impl &Queue, size_t Length,
                              ur_event_handle_t *OutEvent) {
   if (!Length) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      Queue.getAdapter()->call<UrApiKind::urEnqueueEventsWait>(
+      Queue.getAdapter().call<UrApiKind::urEnqueueEventsWait>(
           Queue.getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
@@ -916,8 +911,8 @@ void MemoryManager::fill_usm(void *Mem, queue_impl &Queue, size_t Length,
   if (!Mem)
     throw exception(make_error_code(errc::invalid),
                     "NULL pointer argument in memory fill operation.");
-  const AdapterPtr &Adapter = Queue.getAdapter();
-  Adapter->call<UrApiKind::urEnqueueUSMFill>(
+  const Adapter& adapter = Queue.getAdapter();
+  adapter.call<UrApiKind::urEnqueueUSMFill>(
       Queue.getHandleRef(), Mem, Pattern.size(), Pattern.data(), Length,
       DepEvents.size(), DepEvents.data(), OutEvent);
 }
@@ -925,8 +920,8 @@ void MemoryManager::fill_usm(void *Mem, queue_impl &Queue, size_t Length,
 void MemoryManager::prefetch_usm(void *Mem, queue_impl &Queue, size_t Length,
                                  std::vector<ur_event_handle_t> DepEvents,
                                  ur_event_handle_t *OutEvent) {
-  const AdapterPtr &Adapter = Queue.getAdapter();
-  Adapter->call<UrApiKind::urEnqueueUSMPrefetch>(Queue.getHandleRef(), Mem,
+  const Adapter& adapter = Queue.getAdapter();
+  adapter.call<UrApiKind::urEnqueueUSMPrefetch>(Queue.getHandleRef(), Mem,
                                                  Length, 0, DepEvents.size(),
                                                  DepEvents.data(), OutEvent);
 }
@@ -935,8 +930,8 @@ void MemoryManager::advise_usm(const void *Mem, queue_impl &Queue,
                                size_t Length, ur_usm_advice_flags_t Advice,
                                std::vector<ur_event_handle_t> /*DepEvents*/,
                                ur_event_handle_t *OutEvent) {
-  const AdapterPtr &Adapter = Queue.getAdapter();
-  Adapter->call<UrApiKind::urEnqueueUSMAdvise>(Queue.getHandleRef(), Mem,
+  const Adapter& adapter = Queue.getAdapter();
+  adapter.call<UrApiKind::urEnqueueUSMAdvise>(Queue.getHandleRef(), Mem,
                                                Length, Advice, OutEvent);
 }
 
@@ -948,7 +943,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      Queue.getAdapter()->call<UrApiKind::urEnqueueEventsWait>(
+      Queue.getAdapter().call<UrApiKind::urEnqueueEventsWait>(
           Queue.getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
@@ -958,17 +953,17 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "NULL pointer argument in 2D memory copy operation.");
 
-  const AdapterPtr &Adapter = Queue.getAdapter();
+  const Adapter& adapter = Queue.getAdapter();
 
   bool SupportsUSMMemcpy2D = false;
-  Adapter->call<UrApiKind::urContextGetInfo>(
+  adapter.call<UrApiKind::urContextGetInfo>(
       Queue.getContextImpl().getHandleRef(),
       UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT, sizeof(bool), &SupportsUSMMemcpy2D,
       nullptr);
 
   if (SupportsUSMMemcpy2D) {
     // Direct memcpy2D is supported so we use this function.
-    Adapter->call<UrApiKind::urEnqueueUSMMemcpy2D>(
+    adapter.call<UrApiKind::urEnqueueUSMMemcpy2D>(
         Queue.getHandleRef(),
         /*blocking=*/false, DstMem, DstPitch, SrcMem, SrcPitch, Width, Height,
         DepEvents.size(), DepEvents.data(), OutEvent);
@@ -997,15 +992,15 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
   for (size_t I = 0; I < Height; ++I) {
     char *DstItBegin = static_cast<char *>(DstMem) + I * DstPitch;
     const char *SrcItBegin = static_cast<const char *>(SrcMem) + I * SrcPitch;
-    Adapter->call<UrApiKind::urEnqueueUSMMemcpy>(
+    adapter.call<UrApiKind::urEnqueueUSMMemcpy>(
         Queue.getHandleRef(),
         /* blocking */ false, DstItBegin, SrcItBegin, Width, DepEvents.size(),
         DepEvents.data(), CopyEvents.data() + I);
-    CopyEventsManaged.emplace_back(CopyEvents[I], Adapter,
+    CopyEventsManaged.emplace_back(CopyEvents[I], adapter,
                                    /*TakeOwnership=*/true);
   }
   // Then insert a wait to coalesce the copy events.
-  Queue.getAdapter()->call<UrApiKind::urEnqueueEventsWait>(
+  Queue.getAdapter().call<UrApiKind::urEnqueueEventsWait>(
       Queue.getHandleRef(), CopyEvents.size(), CopyEvents.data(), OutEvent);
 }
 
@@ -1017,7 +1012,7 @@ void MemoryManager::fill_2d_usm(void *DstMem, queue_impl &Queue, size_t Pitch,
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      Queue.getAdapter()->call<UrApiKind::urEnqueueEventsWait>(
+      Queue.getAdapter().call<UrApiKind::urEnqueueEventsWait>(
           Queue.getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
@@ -1026,8 +1021,8 @@ void MemoryManager::fill_2d_usm(void *DstMem, queue_impl &Queue, size_t Pitch,
   if (!DstMem)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "NULL pointer argument in 2D memory fill operation.");
-  const AdapterPtr &Adapter = Queue.getAdapter();
-  Adapter->call<UrApiKind::urEnqueueUSMFill2D>(
+  const Adapter& adapter = Queue.getAdapter();
+  adapter.call<UrApiKind::urEnqueueUSMFill2D>(
       Queue.getHandleRef(), DstMem, Pitch, Pattern.size(), Pattern.data(),
       Width, Height, DepEvents.size(), DepEvents.data(), OutEvent);
 }
@@ -1039,7 +1034,7 @@ void MemoryManager::memset_2d_usm(void *DstMem, queue_impl &Queue, size_t Pitch,
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      Queue.getAdapter()->call<UrApiKind::urEnqueueEventsWait>(
+      Queue.getAdapter().call<UrApiKind::urEnqueueEventsWait>(
           Queue.getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
@@ -1163,8 +1158,8 @@ memcpyToDeviceGlobalDirect(queue_impl &Queue,
                            ur_event_handle_t *OutEvent) {
   ur_program_handle_t Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
-  const AdapterPtr &Adapter = Queue.getAdapter();
-  Adapter->call<UrApiKind::urEnqueueDeviceGlobalVariableWrite>(
+  const Adapter& adapter = Queue.getAdapter();
+  adapter.call<UrApiKind::urEnqueueDeviceGlobalVariableWrite>(
       Queue.getHandleRef(), Program, DeviceGlobalEntry->MUniqueId.c_str(),
       false, NumBytes, Offset, Src, DepEvents.size(), DepEvents.data(),
       OutEvent);
@@ -1176,8 +1171,8 @@ static void memcpyFromDeviceGlobalDirect(
     ur_event_handle_t *OutEvent) {
   ur_program_handle_t Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
-  const AdapterPtr &Adapter = Queue.getAdapter();
-  Adapter->call<UrApiKind::urEnqueueDeviceGlobalVariableRead>(
+  const Adapter& adapter = Queue.getAdapter();
+  adapter.call<UrApiKind::urEnqueueDeviceGlobalVariableRead>(
       Queue.getHandleRef(), Program, DeviceGlobalEntry->MUniqueId.c_str(),
       false, NumBytes, Offset, Dest, DepEvents.size(), DepEvents.data(),
       OutEvent);
@@ -1241,7 +1236,7 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
   (void)DstAccessRange;
 
-  const AdapterPtr &Adapter = Context->getAdapter();
+  const Adapter& adapter = Context->getAdapter();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   TermPositions SrcPos, DstPos;
@@ -1260,7 +1255,7 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
   }
 
   if (1 == DimDst && 1 == DimSrc) {
-    Adapter->call<UrApiKind::urCommandBufferAppendMemBufferCopyExp>(
+    adapter.call<UrApiKind::urCommandBufferAppendMemBufferCopyExp>(
         CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
         sycl::detail::ur::cast<ur_mem_handle_t>(DstMem), SrcXOffBytes,
         DstXOffBytes, SrcAccessRangeWidthBytes, Deps.size(), Deps.data(), 0,
@@ -1286,7 +1281,7 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
                             SrcAccessRange[SrcPos.YTerm],
                             SrcAccessRange[SrcPos.ZTerm]};
 
-    Adapter->call<UrApiKind::urCommandBufferAppendMemBufferCopyRectExp>(
+    adapter.call<UrApiKind::urCommandBufferAppendMemBufferCopyRectExp>(
         CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
         sycl::detail::ur::cast<ur_mem_handle_t>(DstMem), SrcOrigin, DstOrigin,
         Region, SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
@@ -1305,7 +1300,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  const AdapterPtr &Adapter = Context->getAdapter();
+  const Adapter& adapter = Context->getAdapter();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   TermPositions SrcPos, DstPos;
@@ -1325,7 +1320,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
 
   if (1 == DimDst && 1 == DimSrc) {
     ur_result_t Result =
-        Adapter->call_nocheck<UrApiKind::urCommandBufferAppendMemBufferReadExp>(
+        adapter.call_nocheck<UrApiKind::urCommandBufferAppendMemBufferReadExp>(
             CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
             SrcXOffBytes, SrcAccessRangeWidthBytes, DstMem + DstXOffBytes,
             Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr,
@@ -1336,7 +1331,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Device-to-host buffer copy command not supported by graph backend");
     } else {
-      Adapter->checkUrResult(Result);
+      adapter.checkUrResult(Result);
     }
   } else {
     size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
@@ -1354,7 +1349,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
                                 SrcAccessRange[SrcPos.YTerm],
                                 SrcAccessRange[SrcPos.ZTerm]};
 
-    ur_result_t Result = Adapter->call_nocheck<
+    ur_result_t Result = adapter.call_nocheck<
         UrApiKind::urCommandBufferAppendMemBufferReadRectExp>(
         CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
         BufferOffset, HostOffset, RectRegion, BufferRowPitch, BufferSlicePitch,
@@ -1365,7 +1360,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Device-to-host buffer copy command not supported by graph backend");
     } else {
-      Adapter->checkUrResult(Result);
+      adapter.checkUrResult(Result);
     }
   }
 }
@@ -1381,7 +1376,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  const AdapterPtr &Adapter = Context->getAdapter();
+  const Adapter& adapter = Context->getAdapter();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   TermPositions SrcPos, DstPos;
@@ -1401,8 +1396,8 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
 
   if (1 == DimDst && 1 == DimSrc) {
     ur_result_t Result =
-        Adapter
-            ->call_nocheck<UrApiKind::urCommandBufferAppendMemBufferWriteExp>(
+        adapter
+            .call_nocheck<UrApiKind::urCommandBufferAppendMemBufferWriteExp>(
                 CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(DstMem),
                 DstXOffBytes, DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes,
                 Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr,
@@ -1413,7 +1408,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Host-to-device buffer copy command not supported by graph backend");
     } else {
-      Adapter->checkUrResult(Result);
+      adapter.checkUrResult(Result);
     }
   } else {
     size_t BufferRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
@@ -1431,7 +1426,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
                                 DstAccessRange[DstPos.YTerm],
                                 DstAccessRange[DstPos.ZTerm]};
 
-    ur_result_t Result = Adapter->call_nocheck<
+    ur_result_t Result = adapter.call_nocheck<
         UrApiKind::urCommandBufferAppendMemBufferWriteRectExp>(
         CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(DstMem),
         BufferOffset, HostOffset, RectRegion, BufferRowPitch, BufferSlicePitch,
@@ -1443,7 +1438,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Host-to-device buffer copy command not supported by graph backend");
     } else {
-      Adapter->checkUrResult(Result);
+      adapter.checkUrResult(Result);
     }
   }
 }
@@ -1457,9 +1452,9 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
     throw exception(make_error_code(errc::invalid),
                     "NULL pointer argument in memory copy operation.");
 
-  const AdapterPtr &Adapter = Context->getAdapter();
+  const Adapter& adapter = Context->getAdapter();
   ur_result_t Result =
-      Adapter->call_nocheck<UrApiKind::urCommandBufferAppendUSMMemcpyExp>(
+      adapter.call_nocheck<UrApiKind::urCommandBufferAppendUSMMemcpyExp>(
           CommandBuffer, DstMem, SrcMem, Len, Deps.size(), Deps.data(), 0,
           nullptr, OutSyncPoint, nullptr, nullptr);
   if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
@@ -1467,7 +1462,7 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "USM copy command not supported by graph backend");
   } else {
-    Adapter->checkUrResult(Result);
+    adapter.checkUrResult(Result);
   }
 }
 
@@ -1482,9 +1477,9 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
     throw exception(make_error_code(errc::invalid),
                     "NULL pointer argument in memory fill operation.");
 
-  const AdapterPtr &Adapter = Context->getAdapter();
+  const Adapter& adapter = Context->getAdapter();
   ur_result_t Result =
-      Adapter->call_nocheck<UrApiKind::urCommandBufferAppendUSMFillExp>(
+      adapter.call_nocheck<UrApiKind::urCommandBufferAppendUSMFillExp>(
           CommandBuffer, DstMem, Pattern.data(), Pattern.size(), Len,
           Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
   if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
@@ -1492,7 +1487,7 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "USM fill command not supported by graph backend");
   } else {
-    Adapter->checkUrResult(Result);
+    adapter.checkUrResult(Result);
   }
 }
 
@@ -1506,7 +1501,7 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  const AdapterPtr &Adapter = Context->getAdapter();
+  const Adapter& adapter = Context->getAdapter();
   if (SYCLMemObj->getType() != detail::SYCLMemObjI::MemObjType::Buffer) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Images are not supported in Graphs");
@@ -1521,7 +1516,7 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
   size_t RangeMultiplier = AccessRange[0] * AccessRange[1] * AccessRange[2];
 
   if (RangesUsable && OffsetUsable) {
-    Adapter->call<UrApiKind::urCommandBufferAppendMemBufferFillExp>(
+    adapter.call<UrApiKind::urCommandBufferAppendMemBufferFillExp>(
         CommandBuffer, ur::cast<ur_mem_handle_t>(Mem), Pattern, PatternSize,
         AccessOffset[0] * ElementSize, RangeMultiplier * ElementSize,
         Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
@@ -1538,8 +1533,8 @@ void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
     ur_exp_command_buffer_handle_t CommandBuffer, void *Mem, size_t Length,
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
-  const AdapterPtr &Adapter = Context->getAdapter();
-  Adapter->call<UrApiKind::urCommandBufferAppendUSMPrefetchExp>(
+  const Adapter& adapter = Context->getAdapter();
+  adapter.call<UrApiKind::urCommandBufferAppendUSMPrefetchExp>(
       CommandBuffer, Mem, Length, ur_usm_migration_flags_t(0), Deps.size(),
       Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
 }
@@ -1550,8 +1545,8 @@ void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
     size_t Length, ur_usm_advice_flags_t Advice,
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
-  const AdapterPtr &Adapter = Context->getAdapter();
-  Adapter->call<UrApiKind::urCommandBufferAppendUSMAdviseExp>(
+  const Adapter& adapter = Context->getAdapter();
+  adapter.call<UrApiKind::urCommandBufferAppendUSMAdviseExp>(
       CommandBuffer, Mem, Length, Advice, Deps.size(), Deps.data(), 0, nullptr,
       OutSyncPoint, nullptr, nullptr);
 }
@@ -1574,7 +1569,7 @@ void MemoryManager::copy_image_bindless(
         sycl::make_error_code(errc::invalid),
         "NULL pointer argument in bindless image copy operation.");
 
-  const detail::AdapterPtr &Adapter = Queue.getAdapter();
+  const detail::Adapter& adapter = Queue.getAdapter();
 
   ur_exp_image_copy_region_t CopyRegion{};
   CopyRegion.stype = UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION;
@@ -1582,7 +1577,7 @@ void MemoryManager::copy_image_bindless(
   CopyRegion.srcOffset = SrcOffset;
   CopyRegion.dstOffset = DstOffset;
 
-  Adapter->call<UrApiKind::urBindlessImagesImageCopyExp>(
+  adapter.call<UrApiKind::urBindlessImagesImageCopyExp>(
       Queue.getHandleRef(), Src, Dst, &SrcDesc, &DstDesc, &SrcFormat,
       &DstFormat, &CopyRegion, Flags, DepEvents.size(), DepEvents.data(),
       OutEvent);

@@ -25,17 +25,16 @@ inline namespace _V1 {
 enum class backend : char;
 namespace detail {
 class Adapter;
-using AdapterPtr = Adapter *;
 
 namespace ur {
 void *getURLoaderLibrary();
 
 // Performs UR one-time initialization.
-std::vector<AdapterPtr>
+std::vector<Adapter*>
 initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
 
 // Get the adapter serving given backend.
-template <backend BE> AdapterPtr &getAdapter();
+template <backend BE> Adapter& getAdapter();
 } // namespace ur
 
 // Convert from UR backend to SYCL backend enum
@@ -44,10 +43,10 @@ backend convertUrBackend(ur_backend_t UrBackend);
 template <auto ApiKind, typename SyclImplTy, typename DescTy>
 std::string urGetInfoString(SyclImplTy &SyclImpl, DescTy Desc) {
   // Avoid explicit type to keep template-type-dependent.
-  auto &Adapter = SyclImpl.getAdapter();
+  auto &adapter = SyclImpl.getAdapter();
   size_t ResultSize = 0;
   auto Handle = SyclImpl.getHandleRef();
-  Adapter->template call<ApiKind>(Handle, Desc,
+  adapter.template call<ApiKind>(Handle, Desc,
                                   /*propSize=*/0,
                                   /*pPropValue=*/nullptr, &ResultSize);
   if (ResultSize == 0)
@@ -59,7 +58,7 @@ std::string urGetInfoString(SyclImplTy &SyclImpl, DescTy Desc) {
   // UR counts null terminator in the size, std::string doesn't. Adjust by "-1"
   // for that.
   Result.resize(ResultSize - 1);
-  Adapter->template call<ApiKind>(Handle, Desc, ResultSize, Result.data(),
+  adapter.template call<ApiKind>(Handle, Desc, ResultSize, Result.data(),
                                   nullptr);
 
   return Result;

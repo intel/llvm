@@ -26,16 +26,16 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
 
 sampler_impl::sampler_impl(cl_sampler clSampler,
                            const ContextImplPtr &syclContext) {
-  const AdapterPtr &Adapter = syclContext->getAdapter();
+  const Adapter& adapter = syclContext->getAdapter();
   ur_sampler_handle_t Sampler{};
-  Adapter->call<UrApiKind::urSamplerCreateWithNativeHandle>(
+  adapter.call<UrApiKind::urSamplerCreateWithNativeHandle>(
       reinterpret_cast<ur_native_handle_t>(clSampler),
       syclContext->getHandleRef(), nullptr, &Sampler);
 
   MContextToSampler[syclContext] = Sampler;
   bool NormalizedCoords;
 
-  Adapter->call<UrApiKind::urSamplerGetInfo>(
+  adapter.call<UrApiKind::urSamplerGetInfo>(
       Sampler, UR_SAMPLER_INFO_NORMALIZED_COORDS, sizeof(ur_bool_t),
       &NormalizedCoords, nullptr);
   MCoordNormMode = NormalizedCoords
@@ -43,7 +43,7 @@ sampler_impl::sampler_impl(cl_sampler clSampler,
                        : coordinate_normalization_mode::unnormalized;
 
   ur_sampler_addressing_mode_t AddrMode;
-  Adapter->call<UrApiKind::urSamplerGetInfo>(
+  adapter.call<UrApiKind::urSamplerGetInfo>(
       Sampler, UR_SAMPLER_INFO_ADDRESSING_MODE,
       sizeof(ur_sampler_addressing_mode_t), &AddrMode, nullptr);
   switch (AddrMode) {
@@ -66,7 +66,7 @@ sampler_impl::sampler_impl(cl_sampler clSampler,
   }
 
   ur_sampler_filter_mode_t FiltMode;
-  Adapter->call<UrApiKind::urSamplerGetInfo>(
+  adapter.call<UrApiKind::urSamplerGetInfo>(
       Sampler, UR_SAMPLER_INFO_FILTER_MODE, sizeof(ur_sampler_filter_mode_t),
       &FiltMode, nullptr);
   switch (FiltMode) {
@@ -86,8 +86,8 @@ sampler_impl::~sampler_impl() {
     for (auto &Iter : MContextToSampler) {
       // TODO catch an exception and add it to the list of asynchronous
       // exceptions
-      const AdapterPtr &Adapter = Iter.first->getAdapter();
-      Adapter->call<UrApiKind::urSamplerRelease>(Iter.second);
+      const Adapter& adapter = Iter.first->getAdapter();
+      adapter.call<UrApiKind::urSamplerRelease>(Iter.second);
     }
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~sample_impl", e);
@@ -135,16 +135,16 @@ sampler_impl::getOrCreateSampler(const ContextImplPtr &ContextImpl) {
 
   ur_result_t errcode_ret = UR_RESULT_SUCCESS;
   ur_sampler_handle_t resultSampler = nullptr;
-  const AdapterPtr &Adapter = ContextImpl->getAdapter();
+  const Adapter& adapter = ContextImpl->getAdapter();
 
-  errcode_ret = Adapter->call_nocheck<UrApiKind::urSamplerCreate>(
+  errcode_ret = adapter.call_nocheck<UrApiKind::urSamplerCreate>(
       ContextImpl->getHandleRef(), &desc, &resultSampler);
 
   if (errcode_ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
     throw sycl::exception(sycl::errc::feature_not_supported,
                           "Images are not supported by this device.");
 
-  Adapter->checkUrResult(errcode_ret);
+  adapter.checkUrResult(errcode_ret);
   std::lock_guard<std::mutex> Lock(MMutex);
   MContextToSampler[ContextImpl] = resultSampler;
 

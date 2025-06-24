@@ -62,13 +62,13 @@ public:
   /// \param OwnedByRuntime is the flag if ownership is kept by user or
   /// transferred to runtime
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               const AdapterPtr &Adapter,
+               const Adapter& AAdapter,
                const std::vector<sycl::device> &DeviceList, bool OwnedByRuntime,
                private_tag);
 
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               const AdapterPtr &Adapter, private_tag tag)
-      : context_impl(UrContext, AsyncHandler, Adapter,
+               const Adapter& AAdapter, private_tag tag)
+      : context_impl(UrContext, AsyncHandler, AAdapter,
                      std::vector<sycl::device>{},
                      /*OwnedByRuntime*/ true, tag) {}
 
@@ -94,7 +94,7 @@ public:
   const async_handler &get_async_handler() const;
 
   /// \return the Adapter associated with the platform of this context.
-  const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
+  const Adapter &getAdapter() const { return MPlatform->getAdapter(); }
 
   /// \return the PlatformImpl associated with this context.
   platform_impl &getPlatformImpl() const { return *MPlatform; }
@@ -294,7 +294,7 @@ private:
     }
 
     /// Clears all events of the initializer. This will not acquire the lock.
-    void ClearEvents(const AdapterPtr &Adapter);
+    void ClearEvents(const Adapter& AAdapter);
 
     /// The binary image of the program.
     const RTDeviceBinaryImage *MBinImage = nullptr;
@@ -366,7 +366,7 @@ void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
 // convenient to be able to reference them without extra `detail::`.
 inline auto get_ur_handles(sycl::detail::context_impl &Ctx) {
   ur_context_handle_t urCtx = Ctx.getHandleRef();
-  return std::tuple{urCtx, Ctx.getAdapter()};
+  return std::tuple{urCtx, &Ctx.getAdapter()};
 }
 inline auto get_ur_handles(const sycl::context &syclContext) {
   return get_ur_handles(*sycl::detail::getSyclObjImpl(syclContext));

@@ -62,7 +62,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
   if (Size == 0)
     return nullptr;
 
-  auto [urCtx, Adapter] = get_ur_handles(Ctxt);
+  auto [urCtx, adapter] = get_ur_handles(Ctxt);
   ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
 
     ur_usm_desc_t UsmDesc{};
@@ -83,7 +83,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
       UsmDesc.pNext = &UsmLocationDesc;
     }
 
-    Error = Adapter->call_nocheck<sycl::detail::UrApiKind::urUSMHostAlloc>(
+    Error = adapter->call_nocheck<sycl::detail::UrApiKind::urUSMHostAlloc>(
         urCtx, &UsmDesc,
         /* pool= */ nullptr, Size, &RetVal);
 
@@ -129,7 +129,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     return nullptr;
 
   ur_context_handle_t C = CtxImpl->getHandleRef();
-  const AdapterPtr &Adapter = CtxImpl->getAdapter();
+  const Adapter& adapter = CtxImpl->getAdapter();
   ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
   ur_device_handle_t Dev;
 
@@ -155,7 +155,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       UsmDesc.pNext = &UsmLocationDesc;
     }
 
-    Error = Adapter->call_nocheck<detail::UrApiKind::urUSMDeviceAlloc>(
+    Error = adapter.call_nocheck<detail::UrApiKind::urUSMDeviceAlloc>(
         C, Dev, &UsmDesc,
         /*pool=*/nullptr, Size, &RetVal);
 
@@ -192,7 +192,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       UsmDeviceDesc.pNext = &UsmLocationDesc;
     }
 
-    Error = Adapter->call_nocheck<detail::UrApiKind::urUSMSharedAlloc>(
+    Error = adapter.call_nocheck<detail::UrApiKind::urUSMSharedAlloc>(
         C, Dev, &UsmDesc,
         /*pool=*/nullptr, Size, &RetVal);
 
@@ -249,8 +249,8 @@ void freeInternal(void *Ptr, const context_impl *CtxImpl) {
   if (Ptr == nullptr)
     return;
   ur_context_handle_t C = CtxImpl->getHandleRef();
-  const AdapterPtr &Adapter = CtxImpl->getAdapter();
-  Adapter->call<detail::UrApiKind::urUSMFree>(C, Ptr);
+  const Adapter& adapter = CtxImpl->getAdapter();
+  adapter.call<detail::UrApiKind::urUSMFree>(C, Ptr);
 }
 
 void free(void *Ptr, const context &Ctxt,
@@ -523,12 +523,12 @@ alloc get_pointer_type(const void *Ptr, context_impl &Ctxt) {
   if (!Ptr)
     return alloc::unknown;
 
-  auto [urCtx, Adapter] = get_ur_handles(Ctxt);
+  auto [urCtx, adapter] = get_ur_handles(Ctxt);
   ur_usm_type_t AllocTy;
 
   // query type using UR function
   ur_result_t Err =
-      Adapter->call_nocheck<detail::UrApiKind::urUSMGetMemAllocInfo>(
+      adapter->call_nocheck<detail::UrApiKind::urUSMGetMemAllocInfo>(
           urCtx, Ptr, UR_USM_ALLOC_INFO_TYPE, sizeof(ur_usm_type_t), &AllocTy,
           nullptr);
 
@@ -577,7 +577,7 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
     throw exception(make_error_code(errc::invalid),
                     "Ptr not a valid USM allocation!");
 
-  auto [urCtx, Adapter] = get_ur_handles(Ctxt);
+  auto [urCtx, adapter] = get_ur_handles(Ctxt);
 
   // Check if ptr is a host allocation
   if (get_pointer_type(Ptr, Ctxt) == alloc::host) {
@@ -593,7 +593,7 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   ur_device_handle_t DeviceId;
 
   // query device using UR function
-  Adapter->call<detail::UrApiKind::urUSMGetMemAllocInfo>(
+  adapter->call<detail::UrApiKind::urUSMGetMemAllocInfo>(
       urCtx, Ptr, UR_USM_ALLOC_INFO_DEVICE, sizeof(ur_device_handle_t),
       &DeviceId, nullptr);
 
@@ -611,16 +611,16 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 
 static void prepare_for_usm_device_copy(const void *Ptr, size_t Size,
                                         const context &Ctxt) {
-  auto [urCtx, Adapter] = get_ur_handles(Ctxt);
+  auto [urCtx, adapter] = get_ur_handles(Ctxt);
   // Call the UR function
-  Adapter->call<detail::UrApiKind::urUSMImportExp>(
+  adapter->call<detail::UrApiKind::urUSMImportExp>(
       urCtx, const_cast<void *>(Ptr), Size);
 }
 
 static void release_from_usm_device_copy(const void *Ptr, const context &Ctxt) {
-  auto [urCtx, Adapter] = get_ur_handles(Ctxt);
+  auto [urCtx, adapter] = get_ur_handles(Ctxt);
   // Call the UR function
-  Adapter->call<detail::UrApiKind::urUSMReleaseExp>(urCtx,
+  adapter->call<detail::UrApiKind::urUSMReleaseExp>(urCtx,
                                                     const_cast<void *>(Ptr));
 }
 

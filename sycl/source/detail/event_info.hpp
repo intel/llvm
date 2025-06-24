@@ -21,24 +21,24 @@ namespace detail {
 
 template <typename Param>
 typename Param::return_type
-get_event_profiling_info(ur_event_handle_t Event, const AdapterPtr &Adapter) {
+get_event_profiling_info(ur_event_handle_t Event, const Adapter& AAdapter) {
   static_assert(is_event_profiling_info_desc<Param>::value,
                 "Unexpected event profiling info descriptor");
   typename Param::return_type Result{0};
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Adapter->call<UrApiKind::urEventGetProfilingInfo>(
+  AAdapter.call<UrApiKind::urEventGetProfilingInfo>(
       Event, UrInfoCode<Param>::value, sizeof(Result), &Result, nullptr);
   return Result;
 }
 
 template <typename Param>
 typename Param::return_type get_event_info(ur_event_handle_t Event,
-                                           const AdapterPtr &Adapter) {
+                                           const Adapter& AAdapter) {
   static_assert(is_event_info_desc<Param>::value,
                 "Unexpected event info descriptor");
   typename Param::return_type Result{0};
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Adapter->call<UrApiKind::urEventGetInfo>(Event, UrInfoCode<Param>::value,
+  AAdapter.call<UrApiKind::urEventGetInfo>(Event, UrInfoCode<Param>::value,
                                            sizeof(Result), &Result, nullptr);
 
   // If the status is UR_EVENT_STATUS_QUEUED We need to change it since QUEUE is

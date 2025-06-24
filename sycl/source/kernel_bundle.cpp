@@ -416,7 +416,7 @@ bool is_source_kernel_bundle_supported(
     if (DeviceImplVec.empty())
       return false;
 
-    const AdapterPtr &Adapter = DeviceImplVec[0]->getAdapter();
+    const Adapter& adapter = DeviceImplVec[0]->getAdapter();
     std::vector<uint32_t> IPVersionVec;
     IPVersionVec.reserve(DeviceImplVec.size());
 
@@ -424,7 +424,7 @@ bool is_source_kernel_bundle_supported(
                    std::back_inserter(IPVersionVec), [&](device_impl *Dev) {
                      uint32_t ipVersion = 0;
                      ur_device_handle_t DeviceHandle = Dev->getHandleRef();
-                     Adapter->call<UrApiKind::urDeviceGetInfo>(
+                     adapter.call<UrApiKind::urDeviceGetInfo>(
                          DeviceHandle, UR_DEVICE_INFO_IP_VERSION,
                          sizeof(uint32_t), &ipVersion, nullptr);
                      return ipVersion;

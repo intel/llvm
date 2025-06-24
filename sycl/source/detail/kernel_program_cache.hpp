@@ -112,11 +112,11 @@ public:
   };
 
   struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
-    AdapterPtr adapter;
-    ProgramBuildResult(const AdapterPtr &_adapter) : adapter(_adapter) {
+    const Adapter& adapter;
+    ProgramBuildResult(const Adapter& _adapter) : adapter(_adapter) {
       Val = nullptr;
     }
-    ProgramBuildResult(const AdapterPtr &_adapter, BuildState InitialState)
+    ProgramBuildResult(const Adapter& _adapter, BuildState InitialState)
         : adapter(_adapter) {
       Val = nullptr;
       this->State.store(InitialState);
@@ -125,8 +125,8 @@ public:
       try {
         if (Val) {
           ur_result_t Err =
-              adapter->call_nocheck<UrApiKind::urProgramRelease>(Val);
-          __SYCL_CHECK_UR_CODE_NO_EXC(Err, adapter->getBackend());
+              adapter.call_nocheck<UrApiKind::urProgramRelease>(Val);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err, adapter.getBackend());
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
@@ -198,16 +198,16 @@ public:
   using KernelArgMaskPairT =
       std::pair<ur_kernel_handle_t, const KernelArgMask *>;
   struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
-    AdapterPtr adapter;
-    KernelBuildResult(const AdapterPtr &_adapter) : adapter(_adapter) {
+    const Adapter& adapter;
+    KernelBuildResult(const Adapter& _adapter) : adapter(_adapter) {
       Val.first = nullptr;
     }
     ~KernelBuildResult() {
       try {
         if (Val.first) {
           ur_result_t Err =
-              adapter->call_nocheck<UrApiKind::urKernelRelease>(Val.first);
-          __SYCL_CHECK_UR_CODE_NO_EXC(Err, adapter->getBackend());
+              adapter.call_nocheck<UrApiKind::urKernelRelease>(Val.first);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err, adapter.getBackend());
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
@@ -668,18 +668,18 @@ public:
       // Store size of the program and check if we need to evict some entries.
       // Get Size of the program.
       size_t ProgramSize = 0;
-      auto Adapter = getAdapter();
+      auto& adapter = getAdapter();
 
       try {
         // Get number of devices this program was built for.
         unsigned int DeviceNum = 0;
-        Adapter->call<UrApiKind::urProgramGetInfo>(
+        adapter.call<UrApiKind::urProgramGetInfo>(
             Program, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
             nullptr);
 
         // Get binary sizes for each device.
         std::vector<size_t> BinarySizes(DeviceNum);
-        Adapter->call<UrApiKind::urProgramGetInfo>(
+        adapter.call<UrApiKind::urProgramGetInfo>(
             Program, UR_PROGRAM_INFO_BINARY_SIZES,
             sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
@@ -868,7 +868,7 @@ private:
 
   friend class ::MockKernelProgramCache;
 
-  const AdapterPtr &getAdapter();
+  const Adapter& getAdapter();
   ur_context_handle_t getURContext() const;
 };
 } // namespace detail

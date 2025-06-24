@@ -43,9 +43,9 @@ interop_handle::getNativeMem(detail::Requirement *Req) const {
                     "Invalid memory object used inside interop");
   }
 
-  auto Adapter = MQueue->getAdapter();
+  auto& adapter = MQueue->getAdapter();
   ur_native_handle_t Handle;
-  Adapter->call<detail::UrApiKind::urMemGetNativeHandle>(
+  adapter.call<detail::UrApiKind::urMemGetNativeHandle>(
       Iter->second, MDevice->getHandleRef(), &Handle);
   return Handle;
 }
@@ -78,9 +78,9 @@ ur_native_handle_t interop_handle::getNativeGraph() const {
         "No backend graph object is available for the command-group");
   }
 
-  auto Adapter = MQueue->getAdapter();
+  auto& adapter = MQueue->getAdapter();
   ur_native_handle_t Handle = 0;
-  Adapter->call<detail::UrApiKind::urCommandBufferGetNativeHandleExp>(Graph,
+  adapter.call<detail::UrApiKind::urCommandBufferGetNativeHandleExp>(Graph,
                                                                       &Handle);
   return Handle;
 }

@@ -75,13 +75,13 @@ public:
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
     ur_native_handle_t nativeHandle = 0;
-    getAdapter()->call<UrApiKind::urKernelGetNativeHandle>(MKernel,
+    getAdapter().call<UrApiKind::urKernelGetNativeHandle>(MKernel,
                                                            &nativeHandle);
     __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(nativeHandle));
     return ur::cast<cl_kernel>(nativeHandle);
   }
 
-  const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
+  const Adapter& getAdapter() const { return MContext->getAdapter(); }
 
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.
@@ -216,10 +216,9 @@ public:
   const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
 
   ur_native_handle_t getNative() const {
-    const AdapterPtr &Adapter = MContext->getAdapter();
-
     ur_native_handle_t NativeKernel = 0;
-    Adapter->call<UrApiKind::urKernelGetNativeHandle>(MKernel, &NativeKernel);
+    MContext->getAdapter().call<UrApiKind::urKernelGetNativeHandle>(MKernel,
+      &NativeKernel);
 
     if (MContext->getBackend() == backend::opencl)
       __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeKernel));
@@ -360,7 +359,7 @@ kernel_impl::queryMaxNumWorkGroups(queue Queue,
     throw exception(sycl::make_error_code(errc::invalid),
                     "The launch work-group size cannot be zero.");
 
-  const auto &Adapter = getAdapter();
+  const auto &adapter = getAdapter();
   const auto &Handle = getHandleRef();
   auto Device = Queue.get_device();
   auto DeviceHandleRef = sycl::detail::getSyclObjImpl(Device)->getHandleRef();
@@ -373,7 +372,7 @@ kernel_impl::queryMaxNumWorkGroups(queue Queue,
     WG[2] = WorkGroupSize[2];
 
   uint32_t GroupCount{0};
-  if (auto Result = Adapter->call_nocheck<
+  if (auto Result = adapter.call_nocheck<
                     UrApiKind::urKernelSuggestMaxCooperativeGroupCount>(
           Handle, DeviceHandleRef, Dimensions, WG, DynamicLocalMemorySize,
           &GroupCount);
@@ -381,7 +380,7 @@ kernel_impl::queryMaxNumWorkGroups(queue Queue,
       Result != UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE) {
     // The feature is supported and the group size is valid. Check for other
     // errors and throw if any.
-    Adapter->checkUrResult(Result);
+    adapter.checkUrResult(Result);
     return GroupCount;
   }
 
@@ -452,12 +451,12 @@ inline typename syclex::info::kernel_queue_specific::max_work_group_size::
     kernel_impl::ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::max_work_group_size>(
         queue Queue) const {
-  const auto &Adapter = getAdapter();
+  const auto &adapter = getAdapter();
   const auto DeviceNativeHandle =
       getSyclObjImpl(Queue.get_device())->getHandleRef();
 
   size_t KernelWGSize = 0;
-  Adapter->call<UrApiKind::urKernelGetGroupInfo>(
+  adapter.call<UrApiKind::urKernelGetGroupInfo>(
       MKernel, DeviceNativeHandle, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
       sizeof(size_t), &KernelWGSize, nullptr);
   return KernelWGSize;
@@ -508,11 +507,10 @@ ADD_TEMPLATE_METHOD_SPEC(3)
     if (WG.size() == 0)                                                        \
       throw exception(sycl::make_error_code(errc::invalid),                    \
                       "The work-group size cannot be zero.");                  \
-    const auto &Adapter = getAdapter();                                        \
     const auto DeviceNativeHandle =                                            \
         getSyclObjImpl(Queue.get_device())->getHandleRef();                    \
     uint32_t KernelSubWGSize = 0;                                              \
-    Adapter->call<UrApiKind::Kind>(MKernel, DeviceNativeHandle, Reg,           \
+    getAdapter().call<UrApiKind::Kind>(MKernel, DeviceNativeHandle, Reg,       \
                                    sizeof(uint32_t), &KernelSubWGSize,         \
                                    nullptr);                                   \
     return KernelSubWGSize;                                                    \

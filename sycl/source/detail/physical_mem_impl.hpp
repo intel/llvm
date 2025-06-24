@@ -41,9 +41,9 @@ public:
                     size_t NumBytes)
       : MDevice(DeviceImpl), MContext(getSyclObjImpl(SyclContext)),
         MNumBytes(NumBytes) {
-    const AdapterPtr &Adapter = MContext->getAdapter();
+    const Adapter& adapter = MContext->getAdapter();
 
-    auto Err = Adapter->call_nocheck<UrApiKind::urPhysicalMemCreate>(
+    auto Err = adapter.call_nocheck<UrApiKind::urPhysicalMemCreate>(
         MContext->getHandleRef(), MDevice.getHandleRef(), MNumBytes, nullptr,
         &MPhysicalMem);
 
@@ -51,21 +51,21 @@ public:
         Err == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY)
       throw sycl::exception(make_error_code(errc::memory_allocation),
                             "Failed to allocate physical memory.");
-    Adapter->checkUrResult(Err);
+    adapter.checkUrResult(Err);
   }
 
   ~physical_mem_impl() noexcept(false) {
-    const AdapterPtr &Adapter = MContext->getAdapter();
-    Adapter->call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);
+    const Adapter& adapter = MContext->getAdapter();
+    adapter.call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);
   }
 
   void *map(uintptr_t Ptr, size_t NumBytes,
             ext::oneapi::experimental::address_access_mode Mode,
             size_t Offset) const {
     auto AccessFlags = AccessModeToVirtualAccessFlags(Mode);
-    const AdapterPtr &Adapter = MContext->getAdapter();
+    const Adapter& adapter = MContext->getAdapter();
     void *ResultPtr = reinterpret_cast<void *>(Ptr);
-    Adapter->call<UrApiKind::urVirtualMemMap>(MContext->getHandleRef(),
+    adapter.call<UrApiKind::urVirtualMemMap>(MContext->getHandleRef(),
                                               ResultPtr, NumBytes, MPhysicalMem,
                                               Offset, AccessFlags);
     return ResultPtr;

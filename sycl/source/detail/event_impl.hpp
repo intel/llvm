@@ -177,7 +177,7 @@ public:
 
   /// \return the Adapter associated with the context of this event.
   /// Should be called when this is not a Host Event.
-  const AdapterPtr &getAdapter();
+  const Adapter& getAdapter();
 
   /// Associate event with the context.
   ///

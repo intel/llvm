@@ -18,12 +18,12 @@ inline namespace _V1 {
 
 // TODO(pi2ur): Don't cast straight from cl_kernel below
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
-  auto Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
+  auto& adapter = sycl::detail::ur::getAdapter<backend::opencl>();
   ur_kernel_handle_t hKernel = nullptr;
   ur_native_handle_t nativeHandle =
       reinterpret_cast<ur_native_handle_t>(ClKernel);
-  Adapter
-      ->call<errc::invalid, detail::UrApiKind::urKernelCreateWithNativeHandle>(
+  adapter
+      .call<errc::invalid, detail::UrApiKind::urKernelCreateWithNativeHandle>(
           nativeHandle, detail::getSyclObjImpl(SyclContext)->getHandleRef(),
           nullptr, nullptr, &hKernel);
   impl = std::make_shared<detail::kernel_impl>(

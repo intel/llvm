@@ -50,8 +50,8 @@ void contextSetExtendedDeleter(const sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
   const auto &impl = getSyclObjImpl(context);
-  const auto &Adapter = impl->getAdapter();
-  Adapter->call<UrApiKind::urContextSetExtendedDeleter>(
+  const auto &adapter = impl->getAdapter();
+  adapter.call<UrApiKind::urContextSetExtendedDeleter>(
       impl->getHandleRef(),
       reinterpret_cast<ur_context_extended_deleter_t>(func), user_data);
 }
@@ -96,7 +96,7 @@ static void initializeAdapters(std::vector<std::unique_ptr<Adapter>> &Adapters,
 bool XPTIInitDone = false;
 
 // Initializes all available Adapters.
-std::vector<AdapterPtr> initializeUr(ur_loader_config_handle_t LoaderConfig) {
+std::vector<Adapter*> initializeUr(ur_loader_config_handle_t LoaderConfig) {
   // This uses static variable initialization to work around a gcc bug with
   // std::call_once and exceptions.
   // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
@@ -114,7 +114,7 @@ std::vector<AdapterPtr> initializeUr(ur_loader_config_handle_t LoaderConfig) {
   static bool Initialized = initializeHelper();
   std::ignore = Initialized;
 
-  return GlobalHandler::instance().getAdapterRawPtrs();
+  return GlobalHandler::instance().getAdapterPtrs();
 }
 
 static void initializeAdapters(std::vector<std::unique_ptr<Adapter>> &Adapters,
@@ -284,25 +284,25 @@ static void initializeAdapters(std::vector<std::unique_ptr<Adapter>> &Adapters,
 }
 
 // Get the adapter serving given backend.
-template <backend BE> AdapterPtr &getAdapter() {
-  static AdapterPtr adapterPtr = nullptr;
+template <backend BE> Adapter& getAdapter() {
+  static Adapter* adapterPtr = nullptr;
   if (adapterPtr)
-    return adapterPtr;
+    return *adapterPtr;
 
-  std::vector<AdapterPtr> Adapters = ur::initializeUr();
+  std::vector<Adapter*> Adapters = ur::initializeUr();
   for (auto &P : Adapters)
     if (P->hasBackend(BE)) {
       adapterPtr = P;
-      return adapterPtr;
+      return *adapterPtr;
     }
 
   throw exception(errc::runtime, "ur::getAdapter couldn't find adapter");
 }
 
-template AdapterPtr &getAdapter<backend::opencl>();
-template AdapterPtr &getAdapter<backend::ext_oneapi_level_zero>();
-template AdapterPtr &getAdapter<backend::ext_oneapi_cuda>();
-template AdapterPtr &getAdapter<backend::ext_oneapi_hip>();
+template Adapter &getAdapter<backend::opencl>();
+template Adapter &getAdapter<backend::ext_oneapi_level_zero>();
+template Adapter &getAdapter<backend::ext_oneapi_cuda>();
+template Adapter &getAdapter<backend::ext_oneapi_hip>();
 
 // Reads an integer value from ELF data.
 template <typename ResT>

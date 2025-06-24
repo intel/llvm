@@ -20,12 +20,12 @@ namespace detail {
 
 template <typename Param>
 typename Param::return_type get_context_info(ur_context_handle_t Ctx,
-                                             const AdapterPtr &Adapter) {
+                                             const Adapter& adapter) {
   static_assert(is_context_info_desc<Param>::value,
                 "Invalid context information descriptor");
   typename Param::return_type Result = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Adapter->call<UrApiKind::urContextGetInfo>(Ctx, UrInfoCode<Param>::value,
+  adapter.call<UrApiKind::urContextGetInfo>(Ctx, UrInfoCode<Param>::value,
                                              sizeof(Result), &Result, nullptr);
   return Result;
 }

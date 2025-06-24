@@ -202,7 +202,7 @@ void DX12SYCLDevice::getDX12Adapter(IDXGIFactory2 *pFactory,
   HRESULT adapterFound = pFactory->EnumAdapters1(adapterIndex, &adapter);
   while (adapterFound != DXGI_ERROR_NOT_FOUND) {
     DXGI_ADAPTER_DESC1 desc;
-    adapter->GetDesc1(&desc);
+    adapter.GetDesc1(&desc);
 
     if (!(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
       // We don't want a software adapter.

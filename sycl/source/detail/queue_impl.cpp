@@ -63,7 +63,7 @@ getUrEvents(const std::vector<sycl::event> &DepEvents) {
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   ur_result_t result = UR_RESULT_SUCCESS;
-  getAdapter()->call<UrApiKind::urQueueGetInfo>(
+  getAdapter().call<UrApiKind::urQueueGetInfo>(
       MQueue, UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result, nullptr);
   return result;
 }
@@ -650,8 +650,8 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     LastEvent->wait(LastEvent);
   }
 
-  const AdapterPtr &Adapter = getAdapter();
-  Adapter->call<UrApiKind::urQueueFinish>(getHandleRef());
+  const Adapter& adapter = getAdapter();
+  adapter.call<UrApiKind::urQueueFinish>(getHandleRef());
 
   std::vector<EventImplPtr> StreamsServiceEvents;
   {
@@ -726,13 +726,13 @@ void queue_impl::destructorNotification() {
 }
 
 ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
-  const AdapterPtr &Adapter = getAdapter();
+  const Adapter& adapter = getAdapter();
   ur_native_handle_t Handle{};
   ur_queue_native_desc_t UrNativeDesc{UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC,
                                       nullptr, nullptr};
   UrNativeDesc.pNativeData = &NativeHandleDesc;
 
-  Adapter->call<UrApiKind::urQueueGetNativeHandle>(MQueue, &UrNativeDesc,
+  adapter.call<UrApiKind::urQueueGetNativeHandle>(MQueue, &UrNativeDesc,
                                                    &Handle);
   if (getContextImplPtr()->getBackend() == backend::opencl)
     __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(Handle));
@@ -757,7 +757,7 @@ bool queue_impl::queue_empty() const {
 
   // Check the status of the backend queue if this is not a host queue.
   ur_bool_t IsReady = false;
-  getAdapter()->call<UrApiKind::urQueueGetInfo>(
+  getAdapter().call<UrApiKind::urQueueGetInfo>(
       MQueue, UR_QUEUE_INFO_EMPTY, sizeof(IsReady), &IsReady, nullptr);
   if (!IsReady)
     return false;

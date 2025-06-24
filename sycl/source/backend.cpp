@@ -30,7 +30,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-static const AdapterPtr &getAdapter(backend Backend) {
+static const Adapter& getAdapter(backend Backend) {
   switch (Backend) {
   case backend::opencl:
     return ur::getAdapter<backend::opencl>();
@@ -71,28 +71,28 @@ backend convertUrBackend(ur_backend_t UrBackend) {
 }
 
 platform make_platform(ur_native_handle_t NativeHandle, backend Backend) {
-  const auto &Adapter = getAdapter(Backend);
+  auto& adapter = getAdapter(Backend);
 
   // Create UR platform first.
   ur_platform_handle_t UrPlatform = nullptr;
-  Adapter->call<UrApiKind::urPlatformCreateWithNativeHandle>(
-      NativeHandle, Adapter->getUrAdapter(), nullptr, &UrPlatform);
+  adapter.call<UrApiKind::urPlatformCreateWithNativeHandle>(
+      NativeHandle, adapter.getUrAdapter(), nullptr, &UrPlatform);
 
   return detail::createSyclObjFromImpl<platform>(
-      platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter));
+      platform_impl::getOrMakePlatformImpl(UrPlatform, adapter));
 }
 
 __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
                                  backend Backend) {
-  const auto &Adapter = getAdapter(Backend);
+  auto& adapter = getAdapter(Backend);
 
   ur_device_handle_t UrDevice = nullptr;
-  Adapter->call<UrApiKind::urDeviceCreateWithNativeHandle>(
-      NativeHandle, Adapter->getUrAdapter(), nullptr, &UrDevice);
+  adapter.call<UrApiKind::urDeviceCreateWithNativeHandle>(
+      NativeHandle, adapter.getUrAdapter(), nullptr, &UrDevice);
 
   // Construct the SYCL device from UR device.
   return detail::createSyclObjFromImpl<device>(
-      platform_impl::getPlatformFromUrDevice(UrDevice, Adapter)
+      platform_impl::getPlatformFromUrDevice(UrDevice, adapter)
           .getOrMakeDeviceImpl(UrDevice));
 }
 
@@ -100,7 +100,7 @@ __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
                                    const async_handler &Handler,
                                    backend Backend, bool KeepOwnership,
                                    const std::vector<device> &DeviceList) {
-  const auto &Adapter = getAdapter(Backend);
+  auto &adapter = getAdapter(Backend);
 
   ur_context_handle_t UrContext = nullptr;
   ur_context_native_properties_t Properties{};
@@ -110,12 +110,12 @@ __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
   for (const auto &Dev : DeviceList) {
     DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
   }
-  Adapter->call<UrApiKind::urContextCreateWithNativeHandle>(
-      NativeHandle, Adapter->getUrAdapter(), DeviceHandles.size(),
+  adapter.call<UrApiKind::urContextCreateWithNativeHandle>(
+      NativeHandle, adapter.getUrAdapter(), DeviceHandles.size(),
       DeviceHandles.data(), &Properties, &UrContext);
   // Construct the SYCL context from UR context.
   return detail::createSyclObjFromImpl<context>(context_impl::create(
-      UrContext, Handler, Adapter, DeviceList, !KeepOwnership));
+      UrContext, Handler, adapter, DeviceList, !KeepOwnership));
 }
 
 __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
@@ -125,7 +125,7 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
                                const async_handler &Handler, backend Backend) {
   ur_device_handle_t UrDevice =
       Device ? getSyclObjImpl(*Device)->getHandleRef() : nullptr;
-  const auto &Adapter = getAdapter(Backend);
+  const auto &adapter = getAdapter(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
 
   if (PropList.has_property<ext::intel::property::queue::compute_index>()) {
@@ -155,7 +155,7 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
   // Create UR queue first.
   ur_queue_handle_t UrQueue = nullptr;
 
-  Adapter->call<UrApiKind::urQueueCreateWithNativeHandle>(
+  adapter.call<UrApiKind::urQueueCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), UrDevice, &NativeProperties,
       &UrQueue);
   // Construct the SYCL queue from UR queue.
@@ -171,7 +171,7 @@ __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
 __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
                                const context &Context, bool KeepOwnership,
                                backend Backend) {
-  const auto &Adapter = getAdapter(Backend);
+  const auto &adapter = getAdapter(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
 
   ur_event_handle_t UrEvent = nullptr;
@@ -179,7 +179,7 @@ __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
   Properties.stype = UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES;
   Properties.isNativeHandleOwned = !KeepOwnership;
 
-  Adapter->call<UrApiKind::urEventCreateWithNativeHandle>(
+  adapter.call<UrApiKind::urEventCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), &Properties, &UrEvent);
   event Event = detail::createSyclObjFromImpl<event>(
       event_impl::create_from_handle(UrEvent, Context));
@@ -193,7 +193,7 @@ std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(ur_native_handle_t NativeHandle,
                    const context &TargetContext, bool KeepOwnership,
                    bundle_state State, backend Backend) {
-  const auto &Adapter = getAdapter(Backend);
+  const auto &adapter = getAdapter(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
 
   ur_program_handle_t UrProgram = nullptr;
@@ -201,7 +201,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES;
   Properties.isNativeHandleOwned = !KeepOwnership;
 
-  Adapter->call<UrApiKind::urProgramCreateWithNativeHandle>(
+  adapter.call<UrApiKind::urProgramCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), &Properties, &UrProgram);
   if (UrProgram == nullptr)
     throw sycl::exception(
@@ -214,39 +214,39 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   std::vector<ur_device_handle_t> ProgramDevices;
   uint32_t NumDevices = 0;
 
-  Adapter->call<UrApiKind::urProgramGetInfo>(
+  adapter.call<UrApiKind::urProgramGetInfo>(
       UrProgram, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(NumDevices), &NumDevices,
       nullptr);
   ProgramDevices.resize(NumDevices);
-  Adapter->call<UrApiKind::urProgramGetInfo>(
+  adapter.call<UrApiKind::urProgramGetInfo>(
       UrProgram, UR_PROGRAM_INFO_DEVICES,
       sizeof(ur_device_handle_t) * NumDevices, ProgramDevices.data(), nullptr);
 
   for (auto &Dev : ProgramDevices) {
     ur_program_binary_type_t BinaryType;
-    Adapter->call<UrApiKind::urProgramGetBuildInfo>(
+    adapter.call<UrApiKind::urProgramGetBuildInfo>(
         UrProgram, Dev, UR_PROGRAM_BUILD_INFO_BINARY_TYPE,
         sizeof(ur_program_binary_type_t), &BinaryType, nullptr);
     switch (BinaryType) {
     case (UR_PROGRAM_BINARY_TYPE_NONE):
       if (State == bundle_state::object) {
-        auto Res = Adapter->call_nocheck<UrApiKind::urProgramCompileExp>(
+        auto Res = adapter.call_nocheck<UrApiKind::urProgramCompileExp>(
             UrProgram, 1, &Dev, nullptr);
         if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-          Res = Adapter->call_nocheck<UrApiKind::urProgramCompile>(
+          Res = adapter.call_nocheck<UrApiKind::urProgramCompile>(
               ContextImpl->getHandleRef(), UrProgram, nullptr);
         }
-        Adapter->checkUrResult<errc::build>(Res);
+        adapter.checkUrResult<errc::build>(Res);
       }
 
       else if (State == bundle_state::executable) {
-        auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
+        auto Res = adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
             UrProgram, 1, &Dev, nullptr);
         if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-          Res = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
+          Res = adapter.call_nocheck<UrApiKind::urProgramBuild>(
               ContextImpl->getHandleRef(), UrProgram, nullptr);
         }
-        Adapter->checkUrResult<errc::build>(Res);
+        adapter.checkUrResult<errc::build>(Res);
       }
 
       break;
@@ -259,15 +259,15 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
                 detail::codeToString(UR_RESULT_ERROR_INVALID_VALUE));
       if (State == bundle_state::executable) {
         ur_program_handle_t UrLinkedProgram = nullptr;
-        auto Res = Adapter->call_nocheck<UrApiKind::urProgramLinkExp>(
+        auto Res = adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
             ContextImpl->getHandleRef(), 1, &Dev, 1, &UrProgram, nullptr,
             &UrLinkedProgram);
         if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-          Res = Adapter->call_nocheck<UrApiKind::urProgramLink>(
+          Res = adapter.call_nocheck<UrApiKind::urProgramLink>(
               ContextImpl->getHandleRef(), 1, &UrProgram, nullptr,
               &UrLinkedProgram);
         }
-        Adapter->checkUrResult<errc::build>(Res);
+        adapter.checkUrResult<errc::build>(Res);
         if (UrLinkedProgram != nullptr) {
           UrProgram = UrLinkedProgram;
         }
@@ -289,9 +289,9 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   Devices.reserve(ProgramDevices.size());
   std::transform(
       ProgramDevices.begin(), ProgramDevices.end(), std::back_inserter(Devices),
-      [&Adapter](const auto &Dev) {
+      [&adapter](const auto &Dev) {
         return createSyclObjFromImpl<device>(
-            detail::platform_impl::getPlatformFromUrDevice(Dev, Adapter)
+            detail::platform_impl::getPlatformFromUrDevice(Dev, adapter)
                 .getOrMakeDeviceImpl(Dev));
       });
 
@@ -321,7 +321,7 @@ kernel make_kernel(const context &TargetContext,
                    const kernel_bundle<bundle_state::executable> &KernelBundle,
                    ur_native_handle_t NativeHandle, bool KeepOwnership,
                    backend Backend) {
-  const auto &Adapter = getAdapter(Backend);
+  const auto &adapter = getAdapter(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
   const auto &KernelBundleImpl = getSyclObjImpl(KernelBundle);
 
@@ -351,7 +351,7 @@ kernel make_kernel(const context &TargetContext,
   ur_kernel_native_properties_t Properties{};
   Properties.stype = UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES;
   Properties.isNativeHandleOwned = !KeepOwnership;
-  Adapter->call<UrApiKind::urKernelCreateWithNativeHandle>(
+  adapter.call<UrApiKind::urKernelCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), UrProgram, &Properties,
       &UrKernel);
 

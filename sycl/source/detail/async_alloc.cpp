@@ -67,7 +67,7 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Only device backed asynchronous allocations are supported!");
 
-  auto &Adapter = h.getContextImplPtr()->getAdapter();
+  auto& adapter = h.getContextImplPtr()->getAdapter();
 
   // Get CG event dependencies for this allocation.
   const auto &DepEvents = h.impl->CGData.MEvents;
@@ -83,7 +83,7 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
     alloc = Graph->getMemPool().malloc(size, kind, DepNodes);
   } else {
     ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
-    Adapter->call<sycl::errc::runtime,
+    adapter.call<sycl::errc::runtime,
                   sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
         Q, (ur_usm_pool_handle_t)0, size, nullptr, UREvents.size(),
         UREvents.data(), &alloc, &Event);
@@ -117,7 +117,7 @@ __SYCL_EXPORT void *async_malloc(const sycl::queue &q, sycl::usm::alloc kind,
 __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
                                            const memory_pool &pool) {
 
-  auto &Adapter = h.getContextImplPtr()->getAdapter();
+  auto& adapter = h.getContextImplPtr()->getAdapter();
   auto &memPoolImpl = sycl::detail::getSyclObjImpl(pool);
 
   // Get CG event dependencies for this allocation.
@@ -137,7 +137,7 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
                                        sycl::detail::getSyclObjImpl(pool));
   } else {
     ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
-    Adapter->call<sycl::errc::runtime,
+    adapter.call<sycl::errc::runtime,
                   sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
         Q, memPoolImpl.get()->get_handle(), size, nullptr, UREvents.size(),
         UREvents.data(), &alloc, &Event);
