@@ -47,7 +47,6 @@
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
-#include "llvm/SYCLLowerIR/LowerSPIRVAddressSpaceCasts.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/SYCLLowerIR/RecordSYCLAspectNames.h"
@@ -1090,10 +1089,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
     // Add the InferAddressSpaces pass for all the SPIR[V] targets
     if (TargetTriple.isSPIR() || TargetTriple.isSPIRV()) {
-      PB.registerScalarOptimizerLateEPCallback(
-          [&](FunctionPassManager &FPM, OptimizationLevel Level) {
-            FPM.addPass(LowerSPIRVAddressSpaceCastsPass());
-          });
       PB.registerOptimizerLastEPCallback(
           [](ModulePassManager &MPM, OptimizationLevel Level,
              ThinOrFullLTOPhase) {

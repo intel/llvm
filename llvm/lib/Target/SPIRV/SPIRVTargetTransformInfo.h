@@ -58,6 +58,10 @@ public:
     // we can return -1, but we might want to fix this.
     return -1;
   }
+  bool collectFlatAddressOperands(SmallVectorImpl<int> &OpIndexes,
+                                  Intrinsic::ID IID) const override;
+  Value *rewriteIntrinsicWithAddressSpace(IntrinsicInst *II, Value *OldV,
+                                          Value *NewV) const override;
 };
 
 } // namespace llvm

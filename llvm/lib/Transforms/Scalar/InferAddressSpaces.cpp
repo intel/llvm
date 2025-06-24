@@ -1429,8 +1429,14 @@ FunctionPass *llvm::createInferAddressSpacesPass(unsigned AddressSpace) {
   return new InferAddressSpaces(AddressSpace);
 }
 
+static cl::opt<int> OptFlatAddressSpace(
+    "infer-address-spaces-flat-address-space",
+    cl::desc("Specify the flat address space to use for address space "
+             "inference. If not specified, the default is 0."),
+    cl::Hidden, cl::init(UninitializedAddressSpace));
+
 InferAddressSpacesPass::InferAddressSpacesPass()
-    : FlatAddrSpace(UninitializedAddressSpace) {}
+    : FlatAddrSpace(OptFlatAddressSpace) {}
 InferAddressSpacesPass::InferAddressSpacesPass(unsigned AddressSpace)
     : FlatAddrSpace(AddressSpace) {}
 
