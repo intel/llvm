@@ -40,6 +40,7 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 // Forward declarations
+enum class graph_state;
 template <graph_state State> class command_graph;
 
 namespace detail {

@@ -10,7 +10,7 @@
 
 #include <detail/accessor_impl.hpp> // for LocalAccessorImplHost
 #include <sycl/detail/cg_types.hpp> // for CGType
-#include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph_state
+#include <sycl/ext/oneapi/experimental/graph/common.hpp>   // for graph_state
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp> // for raw_kernel_arg
 
 #include <cstring> // for memcpy

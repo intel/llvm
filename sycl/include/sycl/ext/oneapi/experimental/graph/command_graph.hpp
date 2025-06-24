@@ -8,9 +8,9 @@
 
 #pragma once
 
+#include "common.hpp" // for graph_state
 #include "executable_graph.hpp"
 #include "modifiable_graph.hpp"
-#include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph_state
 
 #include <functional> // for function
 #include <memory>     // for shared_ptr

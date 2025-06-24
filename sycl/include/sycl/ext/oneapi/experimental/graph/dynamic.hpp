@@ -9,10 +9,10 @@
 #pragma once
 
 #include "command_graph.hpp"
+#include "common.hpp"                  // for graph_state
 #include <sycl/accessor.hpp>           // for local_accessor
 #include <sycl/detail/export.hpp>      // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
-#include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph_state
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp> // for work_group_memory
 #include <sycl/ext/oneapi/properties/properties.hpp> // for empty_properties_t
 

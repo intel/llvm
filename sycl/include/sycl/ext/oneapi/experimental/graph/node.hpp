@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "common.hpp"             // for graph_state
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 #include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl, createSyclObjFromImpl...
 #include <sycl/detail/property_helper.hpp> // for PropertyWith...

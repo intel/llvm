@@ -16,6 +16,7 @@
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for checkGraphPropertiesAndThrow
 #include <sycl/ext/oneapi/experimental/graph/command_graph.hpp> // for command_graph
+#include <sycl/ext/oneapi/experimental/graph/common.hpp> // for graph_state
 #include <sycl/ext/oneapi/experimental/graph/dynamic.hpp> // for dynamic parameters
 
 namespace sycl {

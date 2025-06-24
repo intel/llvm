@@ -25,6 +25,7 @@
 #include <sycl/detail/string_view.hpp> // for string_view
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for checking graph properties
 #include <sycl/ext/oneapi/experimental/graph/command_graph.hpp> // for command_graph
+#include <sycl/ext/oneapi/experimental/graph/common.hpp> // for graph_state
 #include <sycl/ext/oneapi/experimental/graph/executable_graph.hpp> // for executable_command_graph
 #include <sycl/ext/oneapi/experimental/graph/modifiable_graph.hpp> // for modifiable_command_graph
 #include <sycl/feature_test.hpp> // for testing

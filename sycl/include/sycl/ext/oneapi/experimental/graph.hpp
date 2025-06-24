@@ -9,6 +9,7 @@
 #pragma once
 
 #include "graph/command_graph.hpp"
+#include "graph/common.hpp"
 #include "graph/dynamic.hpp"
 #include "graph/executable_graph.hpp"
 #include "graph/modifiable_graph.hpp"

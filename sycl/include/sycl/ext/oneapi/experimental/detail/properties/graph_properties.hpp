@@ -38,12 +38,7 @@ namespace property::node {
 class depends_on;
 } // namespace property::node
 
-/// State to template the command_graph class on.
-enum class graph_state {
-  modifiable, ///< In modifiable state, commands can be added to graph.
-  executable, ///< In executable state, the graph is ready to execute.
-};
-
+enum class graph_state;
 template <graph_state State> class command_graph;
 
 namespace detail {
