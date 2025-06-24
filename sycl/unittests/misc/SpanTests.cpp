@@ -47,25 +47,26 @@ TEST_F(SpanTest, CanConstructFromNullptrWithSize) {
 }
 
 TEST_F(SpanTest, AccessElementsByIndexAndFrontBack) {
-  int arr[] = {1, 2, 3};
+  size_t arr[] = {1, 2, 3};
   sycl::span sp(arr, std::size(arr));
   const auto size = sp.size();
 
-  for (auto i{0u}; i != size; ++i)
+  for (size_t i{}; i != size; ++i)
     EXPECT_EQ(sp[i], i + 1);
 
-  EXPECT_EQ(sp.front(), 1);
-  EXPECT_EQ(sp.back(), 3);
+  EXPECT_EQ(sp.front(), arr[0]);
+  EXPECT_EQ(sp.back(), arr[size - 1]);
 }
 
 TEST_F(SpanTest, BeginEndAndReverseIteratorsWork) {
   int arr[] = {1, 2, 3, 4, 5};
-  sycl::span sp(arr, std::size(arr));
+  const auto size = std::size(arr);
+  sycl::span sp(arr, size);
 
   auto it = sp.begin();
   EXPECT_EQ(*it, 1);
   EXPECT_EQ(*(it + 1), 2);
-  EXPECT_EQ(sp.end() - sp.begin(), 5);
+  EXPECT_EQ(sp.end() - sp.begin(), arr[size - 1]);
 
   auto rit = sp.rbegin();
   EXPECT_EQ(*rit, 5);
