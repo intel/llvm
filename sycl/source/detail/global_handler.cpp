@@ -230,9 +230,8 @@ std::mutex &GlobalHandler::getFilterMutex() {
   return FilterMutex;
 }
 
-std::vector<Adapter*> &GlobalHandler::getAdapters() {
-  static std::vector<Adapter*> &adapters =
-      getOrCreate(MAdapters);
+std::vector<Adapter *> &GlobalHandler::getAdapters() {
+  static std::vector<Adapter *> &adapters = getOrCreate(MAdapters);
   enableOnCrashStackPrinting();
   return adapters;
 }

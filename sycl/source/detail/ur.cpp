@@ -90,7 +90,7 @@ bool trace(TraceLevel Level) {
   return (TraceLevelMask & Level) == Level;
 }
 
-static void initializeAdapters(std::vector<Adapter*> &Adapters,
+static void initializeAdapters(std::vector<Adapter *> &Adapters,
                                ur_loader_config_handle_t LoaderConfig);
 
 bool XPTIInitDone = false;
@@ -117,7 +117,7 @@ std::vector<AdapterPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
   return GlobalHandler::instance().getAdapters();
 }
 
-static void initializeAdapters(std::vector<Adapter*> &Adapters,
+static void initializeAdapters(std::vector<Adapter *> &Adapters,
                                ur_loader_config_handle_t LoaderConfig) {
 #define CHECK_UR_SUCCESS(Call)                                                 \
   {                                                                            \
