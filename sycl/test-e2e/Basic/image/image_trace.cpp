@@ -6,7 +6,12 @@
 // UNSUPPORTED: level_zero
 //
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=-1 %{run} %t.out | FileCheck %s
+//
+// This test should be allowed to exit early if the image doesn't use a host
+// ptr, but it should pipe stdout to FileCheck otherwise. A portable way to
+// allow an early exit without any output to pipe to FileCheck logic is to use
+// Python.
+// RUN: env SYCL_UR_TRACE=-1 %{run} python -c "import subprocess, sys; p = subprocess.run(['%t.out'], stdout=subprocess.PIPE, test=True); o = p.stdout.strip(); sys.exit(0) if not o else subprocess.run(['FileCheck', '%s'], input=o, text=True).returncode"
 
 //==------------------- image_trace.cpp - SYCL image trace test ------------==//
 //
@@ -49,8 +54,9 @@ int main() {
     sycl::image<2> Img2(Img2HostData.data(), ChanOrder, ChanType, Img2Size);
 
     // Trace will be different depending on whether host ptr is used or not
-    if (!Img1.has_property<sycl::property::image::use_host_ptr>())
+    if (!Img1.has_property<sycl::property::image::use_host_ptr>()) {
       return 0;
+    }
 
     TestQueue Q{sycl::default_selector_v};
     Q.submit([&](sycl::handler &CGH) {
