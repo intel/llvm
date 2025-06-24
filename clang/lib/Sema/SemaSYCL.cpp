@@ -5899,8 +5899,11 @@ void SemaSYCL::ProcessFreeFunctionDeclaration(FunctionDecl *FD) {
   // FD represents a forward declaration of a free function kernel.
   // Save them for the end of the translation unit action. This makes it easier
   // to handle the case where a definition is defined later.
-  if (isFreeFunction(FD))
+  if (isFreeFunction(FD)) {
+    if (CheckFreeFunctionDiagnostics(SemaRef, FD))
+      return;
     FreeFunctionDeclarations.emplace_back(FD);
+  }   
 }
 
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
