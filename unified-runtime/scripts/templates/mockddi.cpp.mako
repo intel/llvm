@@ -162,9 +162,7 @@ namespace driver
     %endfor
 } // namespace driver
 
-#if defined(__cplusplus)
 extern "C" {
-#endif
 
 %for tbl in th.get_pfntables(specs, meta, n, tags):
 %if 'guard' in tbl:
@@ -218,6 +216,4 @@ try {
 %endif
 
 %endfor
-#if defined(__cplusplus)
 }
-#endif
