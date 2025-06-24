@@ -1,4 +1,5 @@
-//===- SPIRVBuiltInToNVVM.cpp - SPIRVBuiltIn to NVVM Patterns ---------------------------===//
+//===- SPIRVBuiltInToNVVM.cpp - SPIRVBuiltIn to NVVM Patterns
+//---------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -42,24 +43,23 @@ using namespace mlir::sycl;
 namespace {
 /// A pass converting MLIR SPIRVBuiltIn operations into NVVM calls.
 class ConvertSPIRVBuiltInToNVVMPass
-    : public impl::ConvertSPIRVBuiltInToNVVMBase<ConvertSPIRVBuiltInToNVVMPass> {
+    : public impl::ConvertSPIRVBuiltInToNVVMBase<
+          ConvertSPIRVBuiltInToNVVMPass> {
   void runOnOperation() override;
 };
 } // namespace
 
-/// Inserts or retrieves an NVVM intrinsic function from the module.
-/// This function checks if the function with the given name already exists in the
-/// module. If it does, it returns the existing function. If not, it creates a new
-/// function with the specified name, return type, and argument types, and inserts it
-/// into the module.
+/// This function checks if the function with the given name already exists in
+/// the module. If it does, it returns the existing function. If not, it creates
+/// a new function with the specified name, return type, and argument types, and
+/// inserts it into the module.
 LLVM::LLVMFuncOp getOrInsertNVVMIntrinsic(OpBuilder &builder, ModuleOp module,
                                           StringRef name, Type retType,
                                           ArrayRef<Type> argTypes) {
   if (auto func = module.lookupSymbol<LLVM::LLVMFuncOp>(name))
     return func;
 
-  auto funcType =
-      LLVM::LLVMFunctionType::get(retType, argTypes, false);
+  auto funcType = LLVM::LLVMFunctionType::get(retType, argTypes, false);
   OpBuilder::InsertionGuard guard(builder);           
   builder.setInsertionPointToStart(module.getBody()); 
 
@@ -74,9 +74,7 @@ LLVM::LLVMFuncOp getOrInsertNVVMIntrinsic(OpBuilder &builder, ModuleOp module,
 /// Marks NVVM kernel functions in the module.
 void markNVVMKernelFunctions(ModuleOp module) {
   module.walk([&](LLVM::LLVMFuncOp funcOp) {
-
     if (funcOp->hasAttr("gpu.kernel")) {
-
       if (!funcOp->hasAttr("nvvm.kernel")) {
         funcOp->setAttr("nvvm.kernel", UnitAttr::get(funcOp->getContext()));
       }
@@ -89,7 +87,7 @@ using RewriteHandlerFn =
 
 /// Rewrites SPIRV built-in functions to NVVM intrinsics.
 /// This function creates a set of handlers for each SPIRV built-in function
-/// that needs to be rewritten. 
+/// that needs to be rewritten.
 void rewriteSPIRVBuiltinFunctions(ModuleOp module, MLIRContext *context) {
   OpBuilder builder(context);
 
@@ -104,7 +102,8 @@ void rewriteSPIRVBuiltinFunctions(ModuleOp module, MLIRContext *context) {
     const std::string &suffixStr = suffixes[i];
 
     std::string globalSizeKey = "__spirv_GlobalSize_" + suffixStr;
-    std::string globalInvocationIdKey = "__spirv_GlobalInvocationId_" + suffixStr;
+    std::string globalInvocationIdKey =
+        "__spirv_GlobalInvocationId_" + suffixStr;
     std::string globalOffsetKey = "__spirv_GlobalOffset_" + suffixStr;
 
     std::string nctaidName = "llvm.nvvm.read.ptx.sreg.nctaid." + dimStr;
@@ -118,12 +117,11 @@ void rewriteSPIRVBuiltinFunctions(ModuleOp module, MLIRContext *context) {
       auto i32Ty = builder.getI32Type();
       auto i64Ty = builder.getI64Type();
 
-      
-      auto nctaidFunc = getOrInsertNVVMIntrinsic(
-          builder, module, nctaidName, i32Ty, {});
-      
-      auto ntidFunc = getOrInsertNVVMIntrinsic(
-          builder, module, ntidName, i32Ty, {});
+      auto nctaidFunc =
+          getOrInsertNVVMIntrinsic(builder, module, nctaidName, i32Ty, {});
+
+      auto ntidFunc =
+          getOrInsertNVVMIntrinsic(builder, module, ntidName, i32Ty, {});
 
       auto nctaid = builder.create<LLVM::CallOp>(
           loc, i32Ty,
@@ -152,11 +150,11 @@ void rewriteSPIRVBuiltinFunctions(ModuleOp module, MLIRContext *context) {
       auto tidFunc =
           getOrInsertNVVMIntrinsic(builder, module, tidName, i32Ty, {});
 
-      auto bdimFunc = getOrInsertNVVMIntrinsic(
-          builder, module, ntidName, i32Ty, {});
-      
-      auto bidFunc = getOrInsertNVVMIntrinsic(builder, module,
-                                              ctaidName, i32Ty, {});
+      auto bdimFunc =
+          getOrInsertNVVMIntrinsic(builder, module, ntidName, i32Ty, {});
+
+      auto bidFunc =
+          getOrInsertNVVMIntrinsic(builder, module, ctaidName, i32Ty, {});
 
       auto tid = builder.create<LLVM::CallOp>(
           loc, i32Ty,
@@ -181,29 +179,23 @@ void rewriteSPIRVBuiltinFunctions(ModuleOp module, MLIRContext *context) {
       builder.create<LLVM::ReturnOp>(loc, gid.getResult());
     };
 
-    handlers[globalOffsetKey] =
-        [=](OpBuilder &builder, LLVM::LLVMFuncOp, ModuleOp module) {
-          auto loc = builder.getUnknownLoc();
-          auto i64Ty = builder.getI64Type();
-          auto zero = builder.create<LLVM::ConstantOp>(
-              loc, i64Ty, builder.getI64IntegerAttr(0));
-          builder.create<LLVM::ReturnOp>(loc, zero);
-        };
+    handlers[globalOffsetKey] = [=](OpBuilder &builder, LLVM::LLVMFuncOp,
+                                    ModuleOp module) {
+      auto loc = builder.getUnknownLoc();
+      auto i64Ty = builder.getI64Type();
+      auto zero = builder.create<LLVM::ConstantOp>(
+          loc, i64Ty, builder.getI64IntegerAttr(0));
+      builder.create<LLVM::ReturnOp>(loc, zero);
+    };
   }
 
   static const std::array<std::string, 4> builtinBases = {
-      "__spirv_LocalInvocationId_",
-      "__spirv_WorkgroupId_",
-      "__spirv_NumWorkgroups_",
-      "__spirv_WorkgroupSize_"
-  };
+      "__spirv_LocalInvocationId_", "__spirv_WorkgroupId_",
+      "__spirv_NumWorkgroups_", "__spirv_WorkgroupSize_"};
 
   static const std::array<std::string, 4> nvvmPrefixes = {
-      "llvm.nvvm.read.ptx.sreg.tid.",
-      "llvm.nvvm.read.ptx.sreg.ctaid.",
-      "llvm.nvvm.read.ptx.sreg.nctaid.",
-      "llvm.nvvm.read.ptx.sreg.ntid."
-  };
+      "llvm.nvvm.read.ptx.sreg.tid.", "llvm.nvvm.read.ptx.sreg.ctaid.",
+      "llvm.nvvm.read.ptx.sreg.nctaid.", "llvm.nvvm.read.ptx.sreg.ntid."};
 
   static const std::array<std::string, 3> dimSuffixes = {"xv", "yv", "zv"};
   static const std::array<std::string, 3> dimLetters = {"x", "y", "z"};
@@ -243,10 +235,11 @@ void rewriteSPIRVBuiltinFunctions(ModuleOp module, MLIRContext *context) {
   }
 }
 
-/// Replace accesses to SPIRVBuiltIn variables with calls to the rewritten functions.
-/// This function scans through the module for `LLVM::ExtractElementOp` operations
-/// that extract elements from vectors representing SPIRVBuiltIn variables.
-/// It replaces these operations with calls to the corresponding NVVM functions
+/// Replace accesses to SPIRVBuiltIn variables with calls to the rewritten
+/// functions. This function scans through the module for
+/// `LLVM::ExtractElementOp` operations that extract elements from vectors
+/// representing SPIRVBuiltIn variables. It replaces these operations with calls
+/// to the corresponding NVVM functions.
 void replaceBuiltinAccessWithCalls(ModuleOp module, MLIRContext *context) {
   OpBuilder builder(context);
 
@@ -339,10 +332,11 @@ void replaceBuiltinAccessWithCalls(ModuleOp module, MLIRContext *context) {
 }
 
 /// Create a pass to convert SPIRVBuiltIn operations to NVVM calls.
-/// This pass will 
+/// This pass will
 /// 1.Mark the nvvm kernel function.
 /// 2.rewrite SPIRVBuiltIn functions to NVVM intrinsic calls
-/// 3.replace accesses to SPIRVBuiltIn variables with calls to the rewritten functions.
+/// 3.replace accesses to SPIRVBuiltIn variables with calls to the rewritten
+/// functions.
 void ConvertSPIRVBuiltInToNVVMPass::runOnOperation() {
   auto *context = &getContext();
   auto module = getOperation();
