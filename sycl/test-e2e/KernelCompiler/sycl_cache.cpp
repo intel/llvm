@@ -29,7 +29,7 @@
 // RUN: %{run} %if cuda %{ echo "WOOF run CUDA"; %}
 // RUN: %{run} %if hip %{ echo "WOOF run HIP"; %}
 // RUN: %{run} %if (cuda || hip) %{ echo "WOOF run CUDA || HIP"; %}
-// RUN: %{run} %if !(cuda || hip) %{ echo "WOOF run !CUDA || HIP"; %}
+// RUN: %{run} %if !(cuda || hip) %{ echo "WOOF run NOT CUDA || HIP"; %}
 //
 // RUN: %{run-aux} rm -rf %t/cache_dir
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-UNLIM
