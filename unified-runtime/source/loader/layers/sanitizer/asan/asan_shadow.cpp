@@ -333,6 +333,7 @@ ur_result_t ShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
       UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnDeviceAlloc(
           Context, Device, nullptr, nullptr, NewPrivateShadowSize,
           (void **)&PrivateShadowOffset));
+      LastPrivateShadowAllocedSize = NewPrivateShadowSize;
       UR_CALL_THROWS(EnqueueUSMSet(Queue, (void *)PrivateShadowOffset, (char)0,
                                    NewPrivateShadowSize));
       ContextInfo->Stats.UpdateShadowMalloced(NewPrivateShadowSize);
