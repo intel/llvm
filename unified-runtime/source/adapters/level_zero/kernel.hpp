@@ -39,7 +39,7 @@ struct ur_kernel_handle_t_ : ur_object {
   // Map of L0 kernels created for all the devices for which a UR Program
   // has been built. It may contain duplicated kernel entries for a root
   // device and its sub-devices.
-  std::unordered_map<ze_device_handle_t, ze_kernel_handle_t> ZeKernelMap;
+  std::unordered_map<ur_device_handle_t, ze_kernel_handle_t> ZeKernelMap;
 
   // Vector of L0 kernels. Each entry is unique, so this is used for
   // destroying the kernels instead of ZeKernelMap
@@ -108,5 +108,5 @@ struct ur_kernel_handle_t_ : ur_object {
   ZeCache<std::string> ZeKernelName;
 };
 
-ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,
+ur_result_t getZeKernel(ur_device_handle_t hDevice, ur_kernel_handle_t hKernel,
                         ze_kernel_handle_t *phZeKernel);

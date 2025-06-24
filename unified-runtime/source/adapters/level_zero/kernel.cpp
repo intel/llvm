@@ -15,7 +15,7 @@
 
 #include "helpers/kernel_helpers.hpp"
 
-ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,
+ur_result_t getZeKernel(ur_device_handle_t hDevice, ur_kernel_handle_t hKernel,
                         ze_kernel_handle_t *phZeKernel) {
   if (hKernel->ZeKernelMap.empty()) {
     *phZeKernel = hKernel->ZeKernel;
@@ -47,7 +47,7 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
   std::copy(pGlobalWorkSize, pGlobalWorkSize + workDim, GlobalWorkSize3D);
 
   ze_kernel_handle_t ZeKernel{};
-  UR_CALL(getZeKernel(hQueue->Device->ZeDevice, hKernel, &ZeKernel));
+  UR_CALL(getZeKernel(hQueue->Device, hKernel, &ZeKernel));
 
   UR_CALL(getSuggestedLocalWorkSize(hQueue->Device, ZeKernel, GlobalWorkSize3D,
                                     LocalWorkSize));
@@ -89,13 +89,11 @@ inline ur_result_t EnqueueCooperativeKernelLaunchHelper(
   UR_ASSERT(WorkDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(WorkDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  auto ZeDevice = Queue->Device->ZeDevice;
-
   ze_kernel_handle_t ZeKernel{};
   if (Kernel->ZeKernelMap.empty()) {
     ZeKernel = Kernel->ZeKernel;
   } else {
-    auto It = Kernel->ZeKernelMap.find(ZeDevice);
+    auto It = Kernel->ZeKernelMap.find(Queue->Device);
     if (It == Kernel->ZeKernelMap.end()) {
       /* kernel and queue don't match */
       return UR_RESULT_ERROR_INVALID_QUEUE;
@@ -368,7 +366,7 @@ ur_result_t urEnqueueKernelLaunch(
   UR_ASSERT(WorkDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
   ze_kernel_handle_t ZeKernel{};
-  UR_CALL(getZeKernel(Queue->Device->ZeDevice, Kernel, &ZeKernel));
+  UR_CALL(getZeKernel(Queue->Device, Kernel, &ZeKernel));
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
@@ -638,18 +636,14 @@ ur_result_t urKernelCreate(
     // Store the kernel in the ZeKernelMap so the correct
     // kernel can be retrieved later for a specific device
     // where a queue is being submitted.
-    (*RetKernel)->ZeKernelMap[ZeDevice] = ZeKernel;
+    (*RetKernel)->ZeKernelMap[Dev] = ZeKernel;
     (*RetKernel)->ZeKernels.push_back(ZeKernel);
 
     // If the device used to create the module's kernel is a root-device
     // then store the kernel also using the sub-devices, since application
     // could submit the root-device's kernel to a sub-device's queue.
-    uint32_t SubDevicesCount = 0;
-    zeDeviceGetSubDevices(ZeDevice, &SubDevicesCount, nullptr);
-    std::vector<ze_device_handle_t> ZeSubDevices(SubDevicesCount);
-    zeDeviceGetSubDevices(ZeDevice, &SubDevicesCount, ZeSubDevices.data());
-    for (auto ZeSubDevice : ZeSubDevices) {
-      (*RetKernel)->ZeKernelMap[ZeSubDevice] = ZeKernel;
+    for (auto SubDevice : Dev->SubDevices) {
+      (*RetKernel)->ZeKernelMap[SubDevice] = ZeKernel;
     }
   }
   // There is no any successfully built executable for program.
@@ -663,18 +657,12 @@ ur_result_t urKernelCreate(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urKernelSetArgValue(
-    /// [in] handle of the kernel object
+static ur_result_t setArgHelper(
     ur_kernel_handle_t Kernel,
-    /// [in] argument index in range [0, num args - 1]
+    ze_device_handle_t AllocationZeDevice,
     uint32_t ArgIndex,
-    /// [in] size of argument type
     size_t ArgSize,
-    /// [in][optional] argument properties
-    const ur_kernel_arg_value_properties_t * /*Properties*/,
-    /// [in] argument value represented as matching arg type.
     const void *PArgValue) {
-
   UR_ASSERT(Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
@@ -699,6 +687,19 @@ ur_result_t urKernelSetArgValue(
     auto ZeKernel = Kernel->ZeKernel;
     ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
                                (ZeKernel, ArgIndex, ArgSize, PArgValue));
+  } else if (AllocationZeDevice) {
+    ur_device_handle_t AllocationDevice =
+        Kernel->Program->Context->getPlatform()->getDeviceFromNativeHandle(AllocationZeDevice);
+    if (!AllocationDevice)
+      return UR_RESULT_ERROR_INVALID_DEVICE;
+  
+    // Allocation on a device can be used on the device or its sub-devices.
+    for (auto [KernelDevice, ZeKernel] : Kernel->ZeKernelMap) {
+      if (AllocationDevice == KernelDevice || AllocationDevice == KernelDevice->RootDevice) {
+        ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
+                                (ZeKernel, ArgIndex, ArgSize, PArgValue));
+      }
+    }
   } else {
     for (auto It : Kernel->ZeKernelMap) {
       auto ZeKernel = It.second;
@@ -714,6 +715,20 @@ ur_result_t urKernelSetArgValue(
   return ze2urResult(ZeResult);
 }
 
+ur_result_t urKernelSetArgValue(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t ArgIndex,
+    /// [in] size of argument type
+    size_t ArgSize,
+    /// [in][optional] argument properties
+    const ur_kernel_arg_value_properties_t * /*Properties*/,
+    /// [in] argument value represented as matching arg type.
+    const void *PArgValue) {
+  return setArgHelper(Kernel, nullptr /* ZeDevice */, ArgIndex, ArgSize, PArgValue);
+}
+
 ur_result_t urKernelSetArgLocal(
     /// [in] handle of the kernel object
     ur_kernel_handle_t Kernel,
@@ -723,11 +738,8 @@ ur_result_t urKernelSetArgLocal(
     size_t ArgSize,
     /// [in][optional] argument properties
     const ur_kernel_arg_local_properties_t * /*Properties*/) {
-
-  UR_CALL(ur::level_zero::urKernelSetArgValue(Kernel, ArgIndex, ArgSize,
-                                              nullptr, nullptr));
-
-  return UR_RESULT_SUCCESS;
+  return setArgHelper(Kernel, nullptr /* ZeDevice */, ArgIndex, ArgSize,
+                    nullptr /*PArgValue*/);
 }
 
 ur_result_t urKernelGetInfo(
@@ -854,9 +866,9 @@ ur_result_t urKernelGetGroupInfo(
     // This makes the assumption that this device is the same device where this
     // kernel was created.
     auto ZeKernelDevice = Kernel->ZeKernel;
-    auto It = Kernel->ZeKernelMap.find(Device->ZeDevice);
+    auto It = Kernel->ZeKernelMap.find(Device);
     if (It != Kernel->ZeKernelMap.end()) {
-      ZeKernelDevice = Kernel->ZeKernelMap[Device->ZeDevice];
+      ZeKernelDevice = Kernel->ZeKernelMap[Device];
     }
     if (ZeKernelDevice) {
       auto ZeResult = ZE_CALL_NOCHECK(zeKernelGetProperties,
@@ -987,11 +999,20 @@ ur_result_t urKernelSetArgPointer(
     /// [in][optional] SVM pointer to memory location holding the argument
     /// value. If null then argument value is considered null.
     const void *ArgValue) {
+  // Get device associated with the pointer.
+  ze_device_handle_t ZeDevice = nullptr;
+  // If multi-device context then need to know the device of the allocation.
+  if (ArgValue && Kernel->Program->Context->NumDevices > 1) {
+    ZeStruct<ze_memory_allocation_properties_t> Dummy;
+    ZE2UR_CALL(zeMemGetAllocProperties,
+              (Kernel->Program->Context->ZeContext, ArgValue, &Dummy,
+                &ZeDevice));
+  }
 
-  // KernelSetArgValue is expecting a pointer to the argument
-  UR_CALL(ur::level_zero::urKernelSetArgValue(
-      Kernel, ArgIndex, sizeof(const void *), nullptr, &ArgValue));
-  return UR_RESULT_SUCCESS;
+  // setArgHelper is expecting a pointer to the argument
+  return setArgHelper(
+      Kernel, ZeDevice, ArgIndex,
+      sizeof(const void *), &ArgValue);
 }
 
 ur_result_t urKernelSetExecInfo(
@@ -1122,8 +1143,8 @@ ur_result_t urKernelSuggestMaxCooperativeGroupCount(
   (void)dynamicSharedMemorySize;
   std::shared_lock<ur_shared_mutex> Guard(hKernel->Mutex);
 
-  ze_kernel_handle_t ZeKernel;
-  UR_CALL(getZeKernel(hDevice->ZeDevice, hKernel, &ZeKernel));
+  ze_kernel_handle_t ZeKernel = nullptr;
+  UR_CALL(getZeKernel(hDevice, hKernel, &ZeKernel));
 
   uint32_t WG[3];
   WG[0] = ur_cast<uint32_t>(pLocalWorkSize[0]);
