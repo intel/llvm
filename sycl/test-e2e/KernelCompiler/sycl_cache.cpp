@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_device_allocations
 
 // UNSUPPORTED: accelerator
@@ -14,11 +13,19 @@
 
 // DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=7 SYCL_CACHE_DIR=%t/cache_dir
 // DEFINE: %{max_cache_size} = SYCL_CACHE_MAX_SIZE=30000
+//
 // RUN: %{build} -o %t.out
+//
+// RUN: %if cuda %{ echo "CUDA"; %}
+// RUN: %if hip %{ echo "HIP"; %}
+// RUN: %if (cuda || hip) %{ echo "CUDA || HIP"; %}
+// RUN: %if !(cuda || hip) %{ echo "!CUDA || HIP"; %}
+//
 // RUN: %{run-aux} rm -rf %t/cache_dir
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-UNLIM
 // RUN: %{run-aux} rm -rf %t/cache_dir
-// RUN: %{cache_vars} %{max_cache_size} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-EVICT
+// RUN: %{run-aux} ls %t/cache_dir
+// RUN: %if !(cuda || hip) %{ %{cache_vars} %{max_cache_size} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-EVICT %}
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
