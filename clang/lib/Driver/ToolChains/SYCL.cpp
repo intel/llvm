@@ -6,20 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
-#include "CommonArgs.h"
-#include "clang/Driver/Action.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
-#include "clang/Driver/InputInfo.h"
-#include "clang/Driver/Options.h"
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/Option/Option.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
-#include <algorithm>
 #include <sstream>
 
 using namespace clang::driver;
@@ -248,16 +240,16 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
         C.getArgs().MakeArgString("--out-dir=" + OutputDirName));
   }
 
-  // If fsycl-dump-device-code is passed, put the PTX files
-  // into the path provided in fsycl-dump-device-code.
+  // If save-offload-code is passed, put the PTX files
+  // into the path provided in save-offload-code.
   if (T->getToolChain().getTriple().isNVPTX() &&
-      C.getDriver().isDumpDeviceCodeEnabled() && Ext == "s") {
+      C.getDriver().isSaveOffloadCodeEnabled() && Ext == "s") {
     SmallString<128> OutputDir;
 
-    Arg *DumpDeviceCodeArg =
-        C.getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+    Arg *SaveOffloadCodeArg =
+        C.getArgs().getLastArg(options::OPT_save_offload_code_EQ);
 
-    OutputDir = (DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "");
+    OutputDir = (SaveOffloadCodeArg ? SaveOffloadCodeArg->getValue() : "");
 
     // If the output directory path is empty, put the PTX files in the
     // current directory.

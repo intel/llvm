@@ -51,7 +51,7 @@ public:
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
   kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
               DeviceImageImplPtr DeviceImageImpl,
-              KernelBundleImplPtr KernelBundleImpl,
+              KernelBundleImplPtr &&KernelBundleImpl,
               const KernelArgMask *ArgMask, ur_program_handle_t Program,
               std::mutex *CacheMutex);
 
