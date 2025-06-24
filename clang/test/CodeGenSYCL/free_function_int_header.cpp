@@ -259,6 +259,8 @@ void ff_20(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
 void ff_21(int arg);
 
 // Forward declaration of ff_22 followed by a definition just after.
+// Note that ff_22 appears earlier than ff_21 in the integration header because kernels which
+// only declared and not defined are handled at the end of the translation unit to wait for a definition if it appears.
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void ff_22(int arg);
 
