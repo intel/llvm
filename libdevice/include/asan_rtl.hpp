@@ -8,6 +8,7 @@
 #pragma once
 
 #include "sanitizer_defs.hpp"
+#include "sanitizer_utils.hpp"
 #include "spir_global_var.hpp"
 #include <cstdint>
 

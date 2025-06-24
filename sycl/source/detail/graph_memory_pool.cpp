@@ -144,7 +144,6 @@ graph_mem_pool::tryReuseExistingAllocation(
 
   while (!NodesToCheck.empty()) {
     auto CurrentNode = NodesToCheck.front().lock();
-    NodesToCheck.pop();
 
     if (CurrentNode->MTotalVisitedEdges > 0) {
       continue;
@@ -176,6 +175,7 @@ graph_mem_pool::tryReuseExistingAllocation(
 
     // Mark node as visited
     CurrentNode->MTotalVisitedEdges = 1;
+    NodesToCheck.pop();
   }
 
   return std::nullopt;

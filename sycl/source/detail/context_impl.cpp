@@ -412,7 +412,7 @@ context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
 
     // Device global map entry pointers will not die before the end of the
     // program and the pointers will stay the same, so we do not need
-    // m_DeviceGlobalsMutex here.
+    // to lock the device global map here.
     // The lifetimes of device global map entries representing globals in
     // runtime-compiled code will be tied to the kernel bundle, so the
     // assumption holds in that setting as well.
