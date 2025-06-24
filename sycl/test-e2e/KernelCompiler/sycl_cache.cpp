@@ -71,7 +71,7 @@ int test_persistent_cache() {
       ctx, syclex::source_language::sycl, SYCLSource);
 
   // Bundle is entered into cache on first build.
-  // CHECK: [kernel_compiler Persistent Cache]: cache miss: [[KEY1:.*]]
+  // CHECK: [kernel_compiler Persistent Cache]: cache miss: [[KEY1:.*]] WOOF
   // CHECK: [kernel_compiler Persistent Cache]: storing device code IR: {{.*}}/[[KEY1]]
   exe_kb kbExe1a = syclex::build(kbSrc1);
 
