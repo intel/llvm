@@ -8,21 +8,22 @@
 #include <cassert>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 
+using namespace sycl;
 using rAccType = sycl::accessor<int, 1, sycl::access::mode::read>;
 using wAccType = sycl::accessor<int, 1, sycl::access::mode::write>;
 using rwAccType = sycl::accessor<int, 1, sycl::access::mode::read_write>;
 
 using flagType = sycl::accessor<bool, 1>;
 
-template <typename T, int Dims, sycl::access::mode modeT>
+template <typename T, int Dims, access::mode modeT>
 bool hasAccessorMode(sycl::accessor<T, Dims, modeT> acc,
-                     sycl::access::mode mode) {
+                     access::mode mode) {
   return modeT == mode;
 }
 
 template <typename AccType>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
-void verifyAccessorMode(AccType acc, sycl::access::mode accMode,
+void verifyAccessorMode(AccType acc, access::mode accMode,
                         flagType flagAcc) {
   flagAcc[0] = hasAccessorMode(acc, accMode);
 }
