@@ -1188,8 +1188,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   ArchName = ArchName.substr(0, ArchName.find_first_of(":"));
 
   for (uint32_t i = 0; i < NumBinaries; i++) {
-    if (strcmp(pBinaries[i].pDeviceTargetSpec, BinaryType) != 0)
+    if (strcmp(pBinaries[i].pDeviceTargetSpec, BinaryType) != 0) {
       continue;
+    }
     // If we've been given the actual binary by the SYCL runtime to inspect,
     // attempt to parse it as a clang offload bundle.
     using BinaryBlobTy = std::pair<const unsigned char *, size_t>;
