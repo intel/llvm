@@ -14,6 +14,18 @@
     Derived from libcxx span.
     Original _LIBCPP macros replaced with _SYCL_SPAN to avoid collisions.
 
+    C++20 Features Added (within C++17 constraints):
+    - sized_sentinel_for emulation for iterator constructors
+    - borrowed_range concept emulation for range constructors
+    - Improved range compatibility checks
+    - Better deduction guides with maybe-static-extent
+
+    C++20 Features Missing (due to C++17 limitations):
+    - explicit(bool) for conditional explicitness
+    - Real concepts (contiguous_iterator, sized_sentinel_for, borrowed_range)
+    - ranges::data/ranges::size support
+    - Complete range-v3 compatibility
+    - contiguous_iterator_tag support
 
     span synopsis
 
@@ -90,6 +102,7 @@ size_type count = dynamic_extent) const;
 
     // [span.elem], span element access
     constexpr reference operator[](size_type idx) const;
+    constexpr reference at(size_type idx) const;
     constexpr reference front() const;
     constexpr reference back() const;
     constexpr pointer data() const noexcept;
@@ -124,13 +137,15 @@ template<class Container>
 
 */
 
-#include <array>       // for array
-#include <cassert>     // for assert
-#include <cstddef>     // for size_t, nullptr_t, ptrdiff_t
-#include <cstdint>     // for SIZE_MAX
-#include <iterator>    // for size, data, distance, reverse_iterator
-#include <type_traits> // for enable_if_t, enable_if, remove_cv_t, false_type
-#include <utility>     // for declval
+#include <array>            // for array
+#include <cassert>          // for assert
+#include <cstddef>          // for size_t, nullptr_t, ptrdiff_t
+#include <cstdint>          // for SIZE_MAX
+#include <initializer_list> // for initializer_list
+#include <iterator>         // for size, data, distance, reverse_iterator
+#include <stdexcept>        // for out_of_range
+#include <type_traits>      // for enable_if_t, enable_if, remove_cv_t, false_type
+#include <utility>          // for declval
 
 #define _SYCL_SPAN_TEMPLATE_VIS
 #define _SYCL_SPAN_INLINE_VISIBILITY inline
@@ -149,8 +164,57 @@ using byte = unsigned char;
 #define _SYCL_SPAN_ASSERT(x, m) assert(((x) && m))
 #endif
 
+// C++20 Feature Emulation for C++17
+// Note: These are simplified versions of C++20 concepts/features
+
+// Emulate sized_sentinel_for concept
+template <class _Sent, class _It, class = void>
+struct __is_sized_sentinel_for : std::false_type {};
+
+template <class _Sent, class _It>
+struct __is_sized_sentinel_for<
+    _Sent, _It,
+    std::void_t<decltype(std::declval<const _Sent &>() -
+                         std::declval<const _It &>())>>
+    : std::is_convertible<decltype(std::declval<const _Sent &>() -
+                                   std::declval<const _It &>()),
+                          typename std::iterator_traits<_It>::difference_type> {
+};
+
+// Emulate borrowed_range detection (simplified)
+template <class _Range> struct __is_borrowed_range : std::false_type {};
+
+// Arrays are borrowed ranges
+template <class _Tp, size_t _Sz>
+struct __is_borrowed_range<_Tp[_Sz]> : std::true_type {};
+
+// Helper to detect if a type has data() and size() that return appropriate
+// types
+template <class _Range, class _ElementType, class = void>
+struct __is_compatible_range : std::false_type {};
+
+template <class _Range, class _ElementType>
+struct __is_compatible_range<
+    _Range, _ElementType,
+    std::void_t<decltype(std::data(std::declval<_Range &>())),
+                decltype(std::size(std::declval<_Range &>())),
+                typename std::enable_if<std::is_convertible_v<
+                    std::remove_pointer_t<decltype(std::data(
+                        std::declval<_Range &>()))> (*)[],
+                    _ElementType (*)[]>>::type>> : std::true_type {};
+
 inline constexpr size_t dynamic_extent = SIZE_MAX;
 template <typename _Tp, size_t _Extent = dynamic_extent> class span;
+
+// Helper for deduction guides (C++20 feature)
+template <class _EndOrSize> struct __maybe_static_ext {
+  static constexpr size_t value = dynamic_extent;
+};
+
+template <size_t _Sz>
+struct __maybe_static_ext<std::integral_constant<size_t, _Sz>> {
+  static constexpr size_t value = _Sz;
+};
 
 template <class _Tp> struct __is_span_impl : public std::false_type {};
 
@@ -193,6 +257,12 @@ struct __is_span_compatible_container<
                                   _ElementType (*)[]>,
             std::nullptr_t>::type>> : public std::true_type {};
 
+template <class _It>
+using __is_contiguous_iterator = std::bool_constant<
+    std::is_pointer_v<_It> ||
+    std::is_same_v<typename std::iterator_traits<_It>::iterator_category,
+                   std::random_access_iterator_tag>>;
+
 template <typename _Tp, size_t _Extent> class _SYCL_SPAN_TEMPLATE_VIS span {
 public:
   //  constants and types
@@ -219,27 +289,61 @@ public:
   constexpr span(const span &) noexcept = default;
   constexpr span &operator=(const span &) noexcept = default;
 
-  template <size_t _Sz = _Extent>
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
-      element_type (&__arr)[_Sz])
+  template <size_t _Sz>
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(element_type (&__arr)[_Sz])
       : __data{__arr} {
     (void)_Sz;
     _SYCL_SPAN_ASSERT(_Extent == _Sz,
                       "size mismatch in span's constructor (&_arr)[_Sz]");
   }
 
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(pointer __ptr,
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(pointer __ptr,
                                                        size_type __count)
       : __data{__ptr} {
     (void)__count;
     _SYCL_SPAN_ASSERT(_Extent == __count,
                       "size mismatch in span's constructor (ptr, len)");
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(pointer __f, pointer __l)
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(pointer __f, pointer __l)
       : __data{__f} {
     (void)__l;
     _SYCL_SPAN_ASSERT(_Extent == std::distance(__f, __l),
                       "size mismatch in span's constructor (ptr, ptr)");
+  }
+
+  // Iterator constructors
+  template <class _It,
+            std::enable_if_t<
+                __is_contiguous_iterator<_It>::value &&
+                    std::is_convertible_v<
+                        std::remove_reference_t<typename std::iterator_traits<
+                            _It>::reference> (*)[],
+                        element_type (*)[]>,
+                std::nullptr_t> = nullptr>
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(_It __first,
+                                                       size_type __count)
+      : __data{std::addressof(*__first)} {
+    (void)__count;
+    _SYCL_SPAN_ASSERT(_Extent == __count,
+                      "size mismatch in span's constructor (iterator, count)");
+  }
+
+  template <class _It, class _End,
+            std::enable_if_t<
+                __is_contiguous_iterator<_It>::value &&
+                    !std::is_convertible_v<_End, size_t> &&
+                    __is_sized_sentinel_for<_End, _It>::value &&
+                    std::is_convertible_v<
+                        std::remove_reference_t<typename std::iterator_traits<
+                            _It>::reference> (*)[],
+                        element_type (*)[]>,
+                std::nullptr_t> = nullptr>
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(_It __first, _End __last)
+      : __data{std::addressof(*__first)} {
+    (void)__last;
+    _SYCL_SPAN_ASSERT(
+        _Extent == (__last - __first),
+        "size mismatch in span's constructor (iterator, sentinel)");
   }
 
   template <class _OtherElementType,
@@ -259,6 +363,7 @@ public:
       const std::array<_OtherElementType, _Extent> &__arr) noexcept
       : __data{__arr.data()} {}
 
+  // Container constructors: always explicit for fixed extent
   template <class _Container>
   _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(
       _Container &__c,
@@ -280,15 +385,51 @@ public:
                       "size mismatch in span's constructor (range)");
   }
 
-  template <class _OtherElementType>
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
-      const span<_OtherElementType, _Extent> &__other,
+  // C++20 Range constructor with borrowed_range check
+  template <class _Range>
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(
+      _Range &&__r,
       std::enable_if_t<
-          std::is_convertible_v<_OtherElementType (*)[], element_type (*)[]>,
+          !std::is_same_v<std::remove_cv_t<std::remove_reference_t<_Range>>,
+                          span> &&
+              !__is_std_array<
+                  std::remove_cv_t<std::remove_reference_t<_Range>>>::value &&
+              !std::is_array_v<
+                  std::remove_cv_t<std::remove_reference_t<_Range>>> &&
+              __is_compatible_range<_Range, _Tp>::value &&
+              (__is_borrowed_range<
+                   std::remove_cv_t<std::remove_reference_t<_Range>>>::value ||
+               std::is_const_v<element_type>),
           std::nullptr_t> = nullptr)
+      : __data{std::data(__r)} {
+    _SYCL_SPAN_ASSERT(_Extent == std::size(__r),
+                      "size mismatch in span's constructor (range)");
+  }
+
+  template <typename U = element_type,
+            std::enable_if_t<std::is_const_v<U>, int> = 0>
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(
+      std::initializer_list<value_type> __il)
+      : __data{__il.begin()} {
+    _SYCL_SPAN_ASSERT(_Extent == __il.size(),
+                      "size mismatch in span's constructor (initializer_list)");
+  }
+
+  template <class _OtherElementType, size_t _OtherExtent>
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
+      const span<_OtherElementType, _OtherExtent> &__other,
+      std::enable_if_t<(_Extent == dynamic_extent ||
+                        _OtherExtent == dynamic_extent ||
+                        _Extent == _OtherExtent) &&
+                           std::is_convertible_v<_OtherElementType (*)[],
+                                                 element_type (*)[]>,
+                       std::nullptr_t> = nullptr)
       : __data{__other.data()} {}
 
-  //  ~span() noexcept = default;
+  /* ~span() noexcept = default;
+     Note: C++20's explicit(bool) would allow marking the above converting
+     constructor explicit when appropriate. Since SYCL uses C++17, it's
+     always implicit (per C++17 constraints). */
 
   template <size_t _Count>
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span<element_type, _Count>
@@ -367,6 +508,17 @@ public:
     return __data[__idx];
   }
 
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reference at(size_type __idx) const {
+#if !defined(__SYCL_DEVICE_ONLY__)
+    if (__idx >= size()) {
+      throw std::out_of_range("span::at");
+    }
+#else
+    _SYCL_SPAN_ASSERT(__idx < size(), "span<T,N>::at index out of bounds");
+#endif
+    return __data[__idx];
+  }
+
   _SYCL_SPAN_INLINE_VISIBILITY constexpr reference front() const noexcept {
     _SYCL_SPAN_ASSERT(!empty(), "span<T, N>::front() on empty span");
     return __data[0];
@@ -388,23 +540,28 @@ public:
   _SYCL_SPAN_INLINE_VISIBILITY constexpr iterator end() const noexcept {
     return iterator(data() + size());
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_iterator cbegin() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_iterator
+  cbegin() const noexcept {
     return const_iterator(data());
   }
   _SYCL_SPAN_INLINE_VISIBILITY constexpr const_iterator cend() const noexcept {
     return const_iterator(data() + size());
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr reverse_iterator rbegin() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reverse_iterator
+  rbegin() const noexcept {
     return reverse_iterator(end());
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr reverse_iterator rend() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reverse_iterator
+  rend() const noexcept {
     return reverse_iterator(begin());
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_reverse_iterator crbegin() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_reverse_iterator
+  crbegin() const noexcept {
     return const_reverse_iterator(end());
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_reverse_iterator crend() const noexcept {
-    return const_reverse_iterator(data() + size());
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_reverse_iterator
+  crend() const noexcept {
+    return const_reverse_iterator(begin());
   }
 
   _SYCL_SPAN_INLINE_VISIBILITY span<const byte, _Extent * sizeof(element_type)>
@@ -455,6 +612,32 @@ public:
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span(pointer __f, pointer __l)
       : __data{__f}, __size{static_cast<size_t>(std::distance(__f, __l))} {}
 
+  // Iterator constructors
+  template <class _It,
+            std::enable_if_t<
+                __is_contiguous_iterator<_It>::value &&
+                    std::is_convertible_v<
+                        std::remove_reference_t<typename std::iterator_traits<
+                            _It>::reference> (*)[],
+                        element_type (*)[]>,
+                std::nullptr_t> = nullptr>
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(_It __first, size_type __count)
+      : __data{std::addressof(*__first)}, __size{__count} {}
+
+  template <class _It, class _End,
+            std::enable_if_t<
+                __is_contiguous_iterator<_It>::value &&
+                    !std::is_convertible_v<_End, size_t> &&
+                    __is_sized_sentinel_for<_End, _It>::value &&
+                    std::is_convertible_v<
+                        std::remove_reference_t<typename std::iterator_traits<
+                            _It>::reference> (*)[],
+                        element_type (*)[]>,
+                std::nullptr_t> = nullptr>
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(_It __first, _End __last)
+      : __data{std::addressof(*__first)},
+        __size{static_cast<size_t>(__last - __first)} {}
+
   template <size_t _Sz>
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
       element_type (&__arr)[_Sz]) noexcept
@@ -478,19 +661,43 @@ public:
       : __data{__arr.data()}, __size{_Sz} {}
 
   template <class _Container>
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
       _Container &__c,
       std::enable_if_t<__is_span_compatible_container<_Container, _Tp>::value,
                        std::nullptr_t> = nullptr)
       : __data{std::data(__c)}, __size{(size_type)std::size(__c)} {}
 
   template <class _Container>
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
       const _Container &__c,
       std::enable_if_t<
           __is_span_compatible_container<const _Container, _Tp>::value,
           std::nullptr_t> = nullptr)
       : __data{std::data(__c)}, __size{(size_type)std::size(__c)} {}
+
+  // C++20 Range constructor with borrowed_range check
+  template <class _Range>
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
+      _Range &&__r,
+      std::enable_if_t<
+          !std::is_same_v<std::remove_cv_t<std::remove_reference_t<_Range>>,
+                          span> &&
+              !__is_std_array<
+                  std::remove_cv_t<std::remove_reference_t<_Range>>>::value &&
+              !std::is_array_v<
+                  std::remove_cv_t<std::remove_reference_t<_Range>>> &&
+              __is_compatible_range<_Range, _Tp>::value &&
+              (__is_borrowed_range<
+                   std::remove_cv_t<std::remove_reference_t<_Range>>>::value ||
+               std::is_const_v<element_type>),
+          std::nullptr_t> = nullptr)
+      : __data{std::data(__r)}, __size{(size_type)std::size(__r)} {}
+
+  template <typename U = element_type,
+            std::enable_if_t<std::is_const_v<U>, int> = 0>
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
+      std::initializer_list<value_type> __il)
+      : __data{__il.begin()}, __size{__il.size()} {}
 
   template <class _OtherElementType, size_t _OtherExtent>
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
@@ -499,8 +706,6 @@ public:
           std::is_convertible_v<_OtherElementType (*)[], element_type (*)[]>,
           std::nullptr_t> = nullptr) noexcept
       : __data{__other.data()}, __size{__other.size()} {}
-
-  //    ~span() noexcept = default;
 
   template <size_t _Count>
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span<element_type, _Count>
@@ -574,6 +779,17 @@ public:
     return __data[__idx];
   }
 
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reference at(size_type __idx) const {
+#if !defined(__SYCL_DEVICE_ONLY__)
+    if (__idx >= size()) {
+      throw std::out_of_range("span::at");
+    }
+#else
+    _SYCL_SPAN_ASSERT(__idx < size(), "span<T>::at index out of bounds");
+#endif
+    return __data[__idx];
+  }
+
   _SYCL_SPAN_INLINE_VISIBILITY constexpr reference front() const noexcept {
     _SYCL_SPAN_ASSERT(!empty(), "span<T>[].front() on empty span");
     return __data[0];
@@ -595,22 +811,27 @@ public:
   _SYCL_SPAN_INLINE_VISIBILITY constexpr iterator end() const noexcept {
     return iterator(data() + size());
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_iterator cbegin() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_iterator
+  cbegin() const noexcept {
     return const_iterator(data());
   }
   _SYCL_SPAN_INLINE_VISIBILITY constexpr const_iterator cend() const noexcept {
     return const_iterator(data() + size());
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr reverse_iterator rbegin() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reverse_iterator
+  rbegin() const noexcept {
     return reverse_iterator(end());
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr reverse_iterator rend() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr reverse_iterator
+  rend() const noexcept {
     return reverse_iterator(begin());
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_reverse_iterator crbegin() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_reverse_iterator
+  crbegin() const noexcept {
     return const_reverse_iterator(end());
   }
-  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_reverse_iterator crend() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY constexpr const_reverse_iterator
+  crend() const noexcept {
     return const_reverse_iterator(begin());
   }
 
@@ -644,22 +865,34 @@ as_writable_bytes(span<_Tp, _Extent> __s) noexcept
   return __s.__as_writable_bytes();
 }
 
-//  Deduction guides
+// Deduction guides
+// C++20 improved deduction guide for iterator+EndOrSize
+template <class _It, class _EndOrSize>
+span(_It, _EndOrSize) -> span<
+    std::remove_reference_t<typename std::iterator_traits<_It>::reference>,
+    __maybe_static_ext<_EndOrSize>::value>;
 
 // array arg deduction guide
-template <class _Tp, size_t _Sz>
-span(_Tp (&)[_Sz]) -> span<_Tp, _Sz>;
+template <class _Tp, size_t _Sz> span(_Tp (&)[_Sz]) -> span<_Tp, _Sz>;
 
 template <class _Tp, size_t _Sz> span(std::array<_Tp, _Sz> &) -> span<_Tp, _Sz>;
 
 template <class _Tp, size_t _Sz>
 span(const std::array<_Tp, _Sz> &) -> span<const _Tp, _Sz>;
 
+template <class _Range>
+span(_Range &&) -> span<
+    std::remove_reference_t<decltype(*std::data(std::declval<_Range>()))>>;
+
 template <class _Container>
 span(_Container &) -> span<typename _Container::value_type>;
 
 template <class _Container>
 span(const _Container &) -> span<const typename _Container::value_type>;
+
+// Mark span as a borrowed range (after span is defined)
+template <class _Tp, size_t _Extent>
+struct __is_borrowed_range<span<_Tp, _Extent>> : std::true_type {};
 
 } // namespace _V1
 } // namespace sycl

@@ -1,5 +1,6 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
-// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes -fsyntax-only %s  %}
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl
+// -fpreview-breaking-changes -fsyntax-only %s  %}
 
 #include <sycl/sycl.hpp>
 #include <variant>
@@ -27,8 +28,13 @@ int main() {
   static_assert(sycl::is_device_copyable_v<std::string_view>);
 #if __cpp_lib_span >= 202002
   static_assert(sycl::is_device_copyable_v<std::span<int>>);
+  static_assert(sycl::is_device_copyable_v<std::span<int, 10>>);
+  static_assert(sycl::is_device_copyable_v<std::span<const int>>);
 #endif
   static_assert(sycl::is_device_copyable_v<const sycl::span<int>>);
+  static_assert(sycl::is_device_copyable_v<sycl::span<int, 10>>);
+  static_assert(sycl::is_device_copyable_v<sycl::span<const int>>);
+  static_assert(sycl::is_device_copyable_v<sycl::span<ACopyable>>);
 
   // const
   static_assert(sycl::is_device_copyable_v<const std::pair<int, float>>);
@@ -46,8 +52,13 @@ int main() {
   static_assert(sycl::is_device_copyable_v<const std::string_view>);
 #if __cpp_lib_span >= 202002
   static_assert(sycl::is_device_copyable_v<const std::span<int>>);
+  static_assert(sycl::is_device_copyable_v<const std::span<int, 10>>);
+  static_assert(sycl::is_device_copyable_v<const std::span<const int>>);
 #endif
   static_assert(sycl::is_device_copyable_v<const sycl::span<int>>);
+  static_assert(sycl::is_device_copyable_v<const sycl::span<int, 10>>);
+  static_assert(sycl::is_device_copyable_v<const sycl::span<const int>>);
+  static_assert(sycl::is_device_copyable_v<const sycl::span<ACopyable>>);
 
   // volatile
   static_assert(sycl::is_device_copyable_v<volatile std::pair<int, float>>);
@@ -68,8 +79,13 @@ int main() {
   static_assert(sycl::is_device_copyable_v<volatile std::string_view>);
 #if __cpp_lib_span >= 202002
   static_assert(sycl::is_device_copyable_v<volatile std::span<int>>);
+  static_assert(sycl::is_device_copyable_v<volatile std::span<int, 10>>);
+  static_assert(sycl::is_device_copyable_v<volatile std::span<const int>>);
 #endif
   static_assert(sycl::is_device_copyable_v<volatile sycl::span<int>>);
+  static_assert(sycl::is_device_copyable_v<volatile sycl::span<int, 10>>);
+  static_assert(sycl::is_device_copyable_v<volatile sycl::span<const int>>);
+  static_assert(sycl::is_device_copyable_v<volatile sycl::span<ACopyable>>);
 
   // const volatile
   static_assert(
@@ -94,8 +110,16 @@ int main() {
   static_assert(sycl::is_device_copyable_v<const volatile std::string_view>);
 #if __cpp_lib_span >= 202002
   static_assert(sycl::is_device_copyable_v<const volatile std::span<int>>);
+  static_assert(sycl::is_device_copyable_v<const volatile std::span<int, 10>>);
+  static_assert(
+      sycl::is_device_copyable_v<const volatile std::span<const int>>);
 #endif
   static_assert(sycl::is_device_copyable_v<const volatile sycl::span<int>>);
+  static_assert(sycl::is_device_copyable_v<const volatile sycl::span<int, 10>>);
+  static_assert(
+      sycl::is_device_copyable_v<const volatile sycl::span<const int>>);
+  static_assert(
+      sycl::is_device_copyable_v<const volatile sycl::span<ACopyable>>);
 
   // Extra checks
   static_assert(sycl::is_device_copyable_v<sycl::vec<int, 4>>);

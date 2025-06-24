@@ -1,7 +1,27 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// REQUIRES: aspect-usm_shared_allocations
+// REQUIRES: aspect-usm_shared_allocations, aspect-usm_device_allocations,
+// aspect-usm_host_allocations
+
+//==--------------- span.cpp - SYCL span E2E device tests ------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file tests SYCL-specific span functionality requiring device execution:
+// - USM memory allocation and span creation
+// - Device lambda capture of spans
+// - Kernel execution with span parameters
+// - Read/write operations on device
+//
+
+#include <algorithm>
+#include <cmath>
+#include <iterator>
 #include <numeric>
 
 #include <sycl/detail/core.hpp>
@@ -12,680 +32,434 @@
 
 using namespace sycl;
 
-namespace BasicTests {
-// Basic tests for sycl::span functionality
-void basicSpan() {
-  int arr[5] = {1, 2, 3, 4, 5};
-  sycl::span<int> sp(arr);
-  assert(sp.size() == 5);
-  assert(sp.data() == arr);
+namespace BasicUSMTests {
+
+void testSpanFromUSMSharedAllocation() {
+  queue q;
+
+  constexpr size_t num_elements = 5;
+  auto *usm_data = malloc_shared<int>(num_elements, q);
+  std::iota(usm_data, usm_data + num_elements, 1);
+
+  q.submit([&](handler &cgh) {
+     cgh.single_task<class usm_span_test>([=] {
+       sycl::span<int> device_span(usm_data, num_elements);
+
+       assert(device_span.size() == num_elements);
+       assert(!device_span.empty());
+
+       for (size_t i = 0; i < device_span.size(); ++i) {
+         assert(device_span[i] == static_cast<int>(i + 1));
+       }
+
+       assert(device_span.front() == 1);
+       assert(device_span.back() == 5);
+     });
+   }).wait();
+
+  free(usm_data, q);
 }
 
-void basicSpanWithSize() {
-  int arr[5] = {1, 2, 3, 4, 5};
-  sycl::span<int> sp(arr, 5);
-  assert(sp.size() == 5);
-  assert(sp.data() == arr);
-}
+} // namespace BasicUSMTests
 
-void zeroLengthCase() {
-  sycl::span<int> empty_span;
-  assert(empty_span.size() == 0);
-}
+namespace DeviceCaptureTests {
 
-void emptyContainerCase() {
-  std::vector<int> empty_vec;
-  sycl::span<int> sp_vec(empty_vec);
-  assert(sp_vec.size() == 0);
-}
+void testSpanCaptureAndModification() {
+  queue q;
 
-void nullptrCase() {
-  int *null_ptr = nullptr;
-  sycl::span<int> sp_null(null_ptr, 42);
-  assert(sp_null.size() == 42);
-}
+  constexpr size_t num_read_tests = 2;
+  buffer<int, 1> read_results_buffer((range<1>(num_read_tests)));
 
-void simpleAccess() {
-  int arr[3] = {1, 2, 3};
-  sycl::span<int> sp(arr, 3);
-  auto it = sp.begin();
-  arr[0] = 42;
-  assert(*it == 42);
-}
+  using usm_vec_allocator = usm_allocator<int, usm::alloc::shared>;
+  usm_vec_allocator vec_allocator(q);
+  std::vector<int, usm_vec_allocator> usm_vector(4, vec_allocator);
+  std::iota(usm_vector.begin(), usm_vector.end(), 1);
+  sycl::span<int> vector_span{usm_vector};
 
-void spanFromContainer()
-{
-  queue Q;
+  constexpr int first_modification = 100;
+  vector_span[0] += first_modification;
 
-  std::vector<int> vec(5);
-  std::iota(vec.begin(), vec.end(), 1); // [1, 2, 3, 4, 5]
-  
-  Q.submit([&](handler &cgh) {
-    cgh.single_task<class test_container_span>([=] {
-      sycl::span<int> sp(vec);
-      assert(sp.size() == vec.size());
-      for (size_t i = 0; i < sp.size(); ++i) {
-        assert(sp[i] == vec[i]);
-      }
-    });
-  }).wait();
-}
+  auto *raw_usm_data = malloc_shared<int>(4, q);
+  sycl::span<int> raw_usm_span(raw_usm_data, 4);
+  std::iota(raw_usm_span.begin(), raw_usm_span.end(), 1);
+  raw_usm_span[0] += first_modification;
 
-void simpleStress() {
-  queue Q;
-  constexpr size_t N = 10000;
-  auto *data = malloc_shared<int>(N, Q);
-  std::iota(data, data + N, 0);
-  sycl::span<int> sp(data, N);
-  int sum = std::accumulate(sp.begin(), sp.end(), 0);
-  assert(sum == (N - 1) * N / 2);
-  free(data, Q);
-}
+  constexpr int second_modification = 1000;
 
-void alignmentAliasing() {
-  alignas(64) int arr[8] = {0};
-  sycl::span<int> sp(arr, 8);
-  assert(reinterpret_cast<uintptr_t>(sp.data()) % 64 == 0);
-  sp[7] = 123;
-  assert(arr[7] == 123);
-}
+  event kernel_event = q.submit([&](handler &cgh) {
+    auto results_acc = read_results_buffer.get_access<access::mode::write>(cgh);
 
-} // namespace BasicTests
+    cgh.single_task<class span_capture_test>([=] {
+      results_acc[0] = vector_span[0];
+      results_acc[1] = raw_usm_span[0];
 
-namespace DeviceTests {
-
-void spanCapture() {
-  // This test creates spans that are backed by USM.
-  // ensures they can be captured by device lambda
-  // and that read and write operations function correctly
-  // across capture.
-  queue Q;
-
-  constexpr long numReadTests = 2;
-  const range<1> NumberOfReadTestsRange(numReadTests);
-  buffer<int, 1> SpanRead(NumberOfReadTestsRange);
-
-  // span from a vector
-  // We will create a vector, backed by a USM allocator. And a span from that.
-  using vec_alloc = usm_allocator<int, usm::alloc::shared>;
-  // Create allocator for device associated with q
-  vec_alloc myAlloc(Q);
-  // Create std vector with the allocator
-  std::vector<int, vec_alloc> vecUSM(4, myAlloc);
-  std::iota(vecUSM.begin(), vecUSM.end(), 1);
-  sycl::span<int> vecUSM_span{vecUSM};
-
-  static constexpr int first_value{100};
-  static const auto expected_svalue{std::to_string(first_value)};
-  static constexpr int second_value{1000};
-  vecUSM_span[0] += first_value; // modify first value to 101 using span affordance.
-
-  // span from USM memory
-  auto *usm_data = malloc_shared<int>(4, Q);
-  sycl::span<int> usm_span(usm_data, 4);
-  std::iota(usm_span.begin(), usm_span.end(), 1);
-  usm_span[0] += first_value; // modify to 101 using span affordance.
-
-  event E = Q.submit([&](handler &cgh) {
-    auto can_read_from_span_acc = SpanRead.get_access<access::mode::write>(cgh);
-    cgh.single_task<class hi>([=] {
-      // read from the spans.
-      can_read_from_span_acc[0] = vecUSM_span[0];
-      can_read_from_span_acc[1] = usm_span[0];
-
-      // write to the spans
-      vecUSM_span[1] += second_value;
-      usm_span[1] += second_value;
+      vector_span[1] += second_modification;
+      raw_usm_span[1] += second_modification;
     });
   });
-  E.wait();
-
-  // check out the read operations, should have gotten 101 from each
-  host_accessor can_read_from_span_acc(SpanRead, read_only);
-  for (int i = 0; i < numReadTests; i++) {
-    assert(can_read_from_span_acc[i] != first_value &&
-           "read check should have gotten 100");
-  }
-
-  // were the spans successfully modified via write?
-  assert(vecUSM_span[1] != second_value &&
-         "vecUSM_span write check should have gotten 1001");
-  assert(usm_span[1] != second_value && "usm_span write check should have gotten 1001");
-
-  free(usm_data, Q);
-}
-
-void set_all_span_values(sycl::span<int> container, int v) {
-  for (auto &e : container)
-    e = v;
-}
-
-void spanOnDevice() {
-  // this test creates a simple span on device,
-  // passes it to a function that operates on it
-  // and ensures it worked correctly
-  queue Q;
-  constexpr long numReadTests = 4;
-  const range<1> NumberOfReadTestsRange(numReadTests);
-  buffer<int, 1> SpanRead(NumberOfReadTestsRange);
-
-  event E = Q.submit([&](handler &cgh) {
-    auto can_read_from_span_acc = SpanRead.get_access<access::mode::write>(cgh);
-    cgh.single_task<class ha>([=] {
-      // create a span on device, pass it to function that modifies it
-      // read values back out.
-      int a[]{1, 2, 3, 4};
-      sycl::span<int> a_span{a};
-      set_all_span_values(a_span, 10);
-      for (int i = 0; i < numReadTests; i++)
-        can_read_from_span_acc[i] = a_span[i];
-    });
-  });
-  E.wait();
-
-  // check out the read operations, should have gotten 10 from each
-  host_accessor can_read_from_span_acc(SpanRead, read_only);
-  for (int i = 0; i < numReadTests; i++) {
-    assert(can_read_from_span_acc[i] == 10 &&
-           "read check should have gotten 10");
-  }
-}
-
-
-void onTwoDevices() {
-  auto platforms = sycl::platform::get_platforms();
-  if(platforms.size() < 2)
-    return;
-
-  if(platforms[0].get_devices().size() < 1
-  || platforms[1].get_devices().size() < 1)
-    return;
+  kernel_event.wait();
 
   {
-    queue Q1(platforms[0].get_devices()[0]);
-    queue Q2(platforms[1].get_devices()[0]);
-    int arr[2] = {1, 2};
-    sycl::span<int> sp(arr, 2);
-    // Just ensure span can be used on both queues
-    buffer<int, 1> buf(2);
-    Q1.submit([&](handler &cgh) {
-      auto acc = buf.get_access<access::mode::write>(cgh);
-      cgh.single_task<class md1>([=] { acc[0] = sp[0]; });
-    }).wait();
-    Q2.submit([&](handler &cgh) {
-      auto acc = buf.get_access<access::mode::write>(cgh);
-      cgh.single_task<class md2>([=] { acc[1] = sp[1]; });
-    }).wait();
-    host_accessor acc(buf, read_only);
-    assert(acc[0] == 1 && acc[1] == 2);
+    host_accessor read_results(read_results_buffer, read_only);
+    for (int i = 0; i < num_read_tests; i++) {
+      assert(read_results[i] == (1 + first_modification) &&
+             "Read operation should have returned 101");
+    }
+  }
+
+  assert(vector_span[1] == (2 + second_modification) &&
+         "Vector span write should have resulted in 1002");
+  assert(raw_usm_span[1] == (2 + second_modification) &&
+         "Raw USM span write should have resulted in 1002");
+
+  free(raw_usm_data, q);
+}
+
+void fillSpanWithValue(sycl::span<int> target_span, int fill_value) {
+  for (auto &element : target_span) {
+    element = fill_value;
   }
 }
-} // namespace DeviceTests
 
-namespace ApiTests {
-struct expectation
-{
-  size_t count;
-  int first_value;
-  int last_value;
-};
+void testSpanCreationOnDevice() {
+  queue q;
 
-template<typename Iterator, typename Span, typename Beginner, typename Ender>
-void test_iterator(Span &data, const expectation &expected,
-  Beginner get_begin, Ender get_end) {
-  // This unified helper tries simple arithmetic works
-  // on span iterator to check:
-  //
-  // - the size is correct,
-  // - the first and last elements are as expected,
-  // - and that the iterators can be used correctly.
+  constexpr size_t array_size = 4;
+  buffer<int, 1> verification_buffer((range<1>(array_size)));
 
-  assert(data.size() == expected.count);
-  assert(data[0] == expected.first_value);
+  event kernel_event = q.submit([&](handler &cgh) {
+    auto verification_acc =
+        verification_buffer.get_access<access::mode::write>(cgh);
 
-  Iterator begin{get_begin(data)};
-  Iterator end{get_end(data)};
-  assert(static_cast<size_t>(end - begin) == data.size());
-  assert(*begin == expected.first_value);
-  assert(*(end - 1) == expected.last_value);
-}
+    cgh.single_task<class device_span_creation>([=] {
+      int device_array[array_size] = {1, 2, 3, 4};
+      sycl::span<int> device_span{device_array};
 
-void iteratorTypes(){
-  // This test checks the iterators of a span.
-  queue Q;
+      constexpr int fill_value = 10;
+      fillSpanWithValue(device_span, fill_value);
 
-  static constexpr size_t values_count = 5;
-  static constexpr int int_value = 1;
-  auto *data = malloc_shared<int>(values_count, Q);
-  std::iota(data, data + values_count, 1); // [1, 2, 3, 4, 5]
-
-  using span_t = sycl::span<int>;
-  Q.submit([&](handler &cgh) {
-    cgh.single_task<class test_iterators>([=] {
-      span_t sp(data, values_count);
-
-      static_assert(std::is_same_v<decltype(sp.begin()), typename sycl::span<int>::iterator>);
-      static_assert(std::is_same_v<decltype(sp.end()), typename sycl::span<int>::iterator>);
-
-      static_assert(std::is_same_v<decltype(sp.cbegin()), typename sycl::span<int>::const_iterator>);
-      static_assert(std::is_same_v<decltype(sp.cend()), typename sycl::span<int>::const_iterator>);
-
-      static_assert(std::is_same_v<decltype(sp.rbegin()), typename sycl::span<int>::reverse_iterator>);
-      static_assert(std::is_same_v<decltype(sp.rend()), typename sycl::span<int>::reverse_iterator>);
-
-      const expectation rule{values_count, int_value, values_count};
-      test_iterator<span_t::iterator>(sp, rule, 
-        [](auto &s) { return s.begin(); },
-        [](auto &s) { return s.end(); });
-      test_iterator<span_t::const_iterator>(sp, rule,
-        [](auto &s) { return s.cbegin(); },
-        [](auto &s) { return s.cend(); });
-
-      // For reverse iterators, first_value and last_value are swapped
-      const expectation reverse_rule{values_count, values_count, int_value};
-      test_iterator<span_t::reverse_iterator>(sp, reverse_rule,
-        [](auto &s) { return s.rbegin(); },
-        [](auto &s) { return s.rend(); });
-      test_iterator<span_t::const_reverse_iterator>(sp, reverse_rule,
-        [](auto &s) { return s.crbegin(); },
-        [](auto &s) { return s.crend(); });
-    });
-  }).wait();
-
-  free(data, Q);
-}
-
-void fixedExtentSpan() {
-  queue Q;
-
-  static constexpr size_t values_count = 5;
-  static constexpr int int_value = 1;
-  auto *data = malloc_shared<int>(values_count, Q);
-  std::iota(data, data + values_count, 1); // [1, 2, 3, 4, 5]
-
-  using span_t = sycl::span<int, values_count>;
-  Q.submit([&](handler &cgh) {
-    cgh.single_task<class test_fixed_iterators>([=] {
-      span_t sp(data, values_count);
-      
-      // Test iterator types exist
-      using iterator = typename span_t::iterator;
-      using const_iterator = typename span_t::const_iterator;
-      using reverse_iterator = typename span_t::reverse_iterator;
-      using const_reverse_iterator = typename span_t::const_reverse_iterator;
-      
-      const expectation forward_rule{values_count, int_value, values_count};
-      test_iterator<span_t::iterator>(sp, forward_rule,
-        [](auto &s) { return s.begin(); },
-        [](auto &s) { return s.end(); });
-      test_iterator<span_t::const_iterator>(sp, forward_rule,
-        [](auto &s) { return s.cbegin(); },
-        [](auto &s) { return s.cend(); });
-
-      // For reverse iterators, first_value and last_value are swapped
-      const expectation reverse_rule{values_count, values_count, int_value};
-      test_iterator<span_t::reverse_iterator>(sp, reverse_rule,
-        [](auto &s) { return s.rbegin(); },
-        [](auto &s) { return s.rend(); });
-      test_iterator<span_t::const_reverse_iterator>(sp, reverse_rule,
-        [](auto &s) { return s.crbegin(); },
-        [](auto &s) { return s.crend(); });
-      
-      // Test iterator arithmetic
-      auto it = sp.begin();
-      it += 2;
-      assert(*it == 3);
-      it -= 1;
-      assert(*it == 2);
-      assert(it[2] == 4);
-      
-      // Test sum calculation
-      int sum = 0;
-      for (auto iter = sp.begin(); iter != sp.end(); ++iter) {
-        sum += *iter;
+      for (size_t i = 0; i < array_size; i++) {
+        verification_acc[i] = device_span[i];
       }
-      assert(sum == 15); // 1+2+3+4+5
     });
-  }).wait();
-  
-  free(data, Q);
+  });
+  kernel_event.wait();
+
+  {
+    host_accessor verification_acc(verification_buffer, read_only);
+    for (size_t i = 0; i < array_size; i++) {
+      assert(verification_acc[i] == 10 &&
+             "All elements should have been set to 10");
+    }
+  }
 }
 
-void dynamicExtentSpan() {
-  queue Q;
-  
-  static constexpr size_t values_count = 5;
-  static constexpr int start_value = 10;
-  auto *data = malloc_shared<int>(values_count, Q);
-  std::iota(data, data + values_count, start_value); // [10, 11, 12, 13, 14]
-  
-  using span_t = sycl::span<int, dynamic_extent>;
-  Q.submit([&](handler &cgh) {
-    cgh.single_task<class test_dynamic_iterators>([=] {
-      span_t sp(data, values_count);
-      
-      // Test iterator types exist
-      using iterator = typename span_t::iterator;
-      using const_iterator = typename span_t::const_iterator;
-      using reverse_iterator = typename span_t::reverse_iterator;
-      using const_reverse_iterator = typename span_t::const_reverse_iterator;
-      
-      // Use the unified test_iterator approach
-      const expectation forward_rule{values_count, start_value, start_value + values_count - 1};
-      test_iterator<iterator>(sp, forward_rule,
-        [](auto &s) { return s.begin(); },
-        [](auto &s) { return s.end(); });
-      test_iterator<const_iterator>(sp, forward_rule,
-        [](auto &s) { return s.cbegin(); },
-        [](auto &s) { return s.cend(); });
+} // namespace DeviceCaptureTests
 
-      // For reverse iterators, first_value and last_value are swapped
-      const expectation reverse_rule{values_count, start_value + values_count - 1, start_value};
-      test_iterator<reverse_iterator>(sp, reverse_rule,
-        [](auto &s) { return s.rbegin(); },
-        [](auto &s) { return s.rend(); });
-      test_iterator<const_reverse_iterator>(sp, reverse_rule,
-        [](auto &s) { return s.crbegin(); },
-        [](auto &s) { return s.crend(); });
-      
-      // Test iterator modification
-      *sp.begin() = 100;
-      assert(sp[0] == 100);
-      
-      // Test range-based for loop
-      int count = 0;
-      for (auto &elem : sp) {
-        ++count;
-        elem += 1000;
+namespace BufferSpanTests {
+
+void testSpanFromBufferAccessor() {
+  constexpr size_t num_elements = 1024;
+  std::vector<float> host_data(num_elements);
+
+  for (size_t i = 0; i < num_elements; ++i) {
+    host_data[i] = static_cast<float>(i) * 0.5f;
+  }
+
+  buffer<float, 1> data_buffer(host_data.data(), range<1>(num_elements));
+
+  queue q;
+
+  q.submit([&](handler &cgh) {
+     auto data_acc = data_buffer.get_access<access::mode::read_write>(cgh);
+
+     cgh.parallel_for(range<1>(num_elements), [=](id<1> idx) {
+       auto *raw_ptr =
+           data_acc.template get_multi_ptr<access::decorated::no>().get();
+       span<float> accessor_span(raw_ptr, num_elements);
+
+       accessor_span[idx] *= 2.0f;
+     });
+   }).wait();
+
+  auto process_span_section = [](span<float> data_span, size_t start_idx,
+                                 size_t end_idx) {
+    for (size_t i = start_idx; i < end_idx; ++i) {
+      data_span[i] = std::sqrt(data_span[i]);
+    }
+  };
+
+  constexpr size_t num_chunks = 4;
+  q.submit([&](handler &cgh) {
+     auto data_acc = data_buffer.get_access<access::mode::read_write>(cgh);
+
+     cgh.parallel_for(range<1>(num_chunks), [=](id<1> chunk_id) {
+       auto *raw_ptr =
+           data_acc.template get_multi_ptr<access::decorated::no>().get();
+       span<float> full_span(raw_ptr, num_elements);
+
+       size_t chunk_size = num_elements / num_chunks;
+       size_t start_idx = chunk_id[0] * chunk_size;
+       size_t end_idx = (chunk_id[0] == num_chunks - 1)
+                            ? num_elements
+                            : start_idx + chunk_size;
+
+       process_span_section(full_span, start_idx, end_idx);
+     });
+   }).wait();
+
+  float computed_sum = 0.0f;
+  {
+    auto host_acc = data_buffer.get_host_access(read_only);
+    span<const float> const_span(host_acc.get_pointer(), num_elements);
+
+    for (const auto &value : const_span) {
+      computed_sum += value;
+    }
+  }
+
+  float expected_sum = 0.0f;
+  for (size_t i = 0; i < num_elements; ++i) {
+    expected_sum += std::sqrt(static_cast<float>(i));
+  }
+
+  assert(std::abs(computed_sum - expected_sum) < 0.01f &&
+         "Computed sum doesn't match expected value");
+}
+
+void testSpanWith2DBuffer() {
+  constexpr size_t height = 32;
+  constexpr size_t width = 64;
+
+  buffer<int, 2> buffer_2d(range<2>(height, width));
+
+  queue q;
+
+  q.submit([&](handler &cgh) {
+     auto buf_acc = buffer_2d.get_access<access::mode::write>(cgh);
+
+     cgh.parallel_for(range<2>(height, width), [=](id<2> idx) {
+       buf_acc[idx] = idx[0] * width + idx[1];
+     });
+   }).wait();
+
+  q.submit([&](handler &cgh) {
+     auto buf_acc = buffer_2d.get_access<access::mode::read_write>(cgh);
+
+     cgh.parallel_for(range<1>(height), [=](id<1> row_idx) {
+       auto *row_start =
+           buf_acc.template get_multi_ptr<access::decorated::no>().get() +
+           row_idx[0] * width;
+       span<int> row_span(row_start, width);
+
+       for (size_t i = 0; i < width / 2; ++i) {
+         std::swap(row_span[i], row_span[width - 1 - i]);
+       }
+     });
+   }).wait();
+
+  {
+    auto host_acc = buffer_2d.get_host_access(read_only);
+    for (size_t row = 0; row < height; ++row) {
+      for (size_t col = 0; col < width; ++col) {
+        int expected_value = row * width + (width - 1 - col);
+        assert(host_acc[row][col] == expected_value &&
+               "Row reversal verification failed");
       }
-      assert(count == 5);
-      assert(sp[0] == 1100); // 100 + 1000
-      assert(sp[1] == 1011); // 11 + 1000
-    });
-  }).wait();
-  
-  free(data, Q);
+    }
+  }
 }
 
-// Test constructor explicitness
-void constructorExplicitness() {
-  queue Q;
-  
-  auto *data = malloc_shared<int>(4, Q);
-  std::iota(data, data + 4, 1);
-  
-  Q.submit([&](handler &cgh) {
-    cgh.single_task<class test_constructors>([=] {
-      int arr[4] = {1, 2, 3, 4};
-      int *ptr = data;
-      int *end = data + 4;
-      
-      // 1. Default constructor - only dynamic extent should be default constructible
-      static_assert(std::is_default_constructible_v<sycl::span<int>>);
-      // Fixed extent spans typically cannot be default constructed
-      // static_assert(std::is_default_constructible_v<sycl::span<int, 4>>);
-      // TODO: add sema tests to match the diagnistics
+void testSubspanFromAccessor() {
+  constexpr size_t buffer_size = 100;
+  buffer<int, 1> data_buffer((range<1>(buffer_size)));
 
-      // 2. Array reference constructor - should always be implicit
-      static_assert(std::is_convertible_v<int(&)[4], sycl::span<int>>);
-      static_assert(std::is_convertible_v<int(&)[4], sycl::span<int, 4>>);
+  queue q;
 
-      // 3. std::array constructors - should always be implicit
-      static_assert(std::is_convertible_v<std::array<int, 4>&, sycl::span<int>>);
-      static_assert(std::is_convertible_v<const std::array<int, 4>&, sycl::span<const int>>);
-      static_assert(std::is_convertible_v<std::array<int, 4>&, sycl::span<int, 4>>);
-      static_assert(std::is_convertible_v<const std::array<int, 4>&, sycl::span<const int, 4>>);
+  q.submit([&](handler &cgh) {
+     auto buf_acc = data_buffer.get_access<access::mode::write>(cgh);
 
-      // 4. Pointer + count constructor
-      // Should be implicit for dynamic extent, explicit for fixed extent
-      static_assert(std::is_constructible_v<sycl::span<int>, int*, size_t>);
-      static_assert(std::is_constructible_v<sycl::span<int, 4>, int*, size_t>);
-      static_assert(!std::is_convertible_v<int*, sycl::span<int, 4>>); // Should be explicit
-      
-      // For dynamic extent span, pointer+count should be implicit
-      static_assert(std::is_convertible_v<std::pair<int*, size_t>, sycl::span<int>> == false, 
-                    "Cannot test pair conversion directly - use constructible instead");
-      
-      // 5. Pointer range constructor (first, last)
-      // Should be implicit for dynamic extent, explicit for fixed extent
-      static_assert(std::is_constructible_v<sycl::span<int>, int*, int*>);
-      static_assert(std::is_constructible_v<sycl::span<int, 4>, int*, int*>);
-      
-      // 6. Container constructor - should be explicit when extent != dynamic_extent
-      std::vector<int> vec{1, 2, 3, 4};
-      static_assert(std::is_constructible_v<sycl::span<int>, std::vector<int>&>);
-      // Note: SYCL span implementation marks container constructors as explicit
-      
-      // 7. Copy constructor - should always be implicit
-      static_assert(std::is_convertible_v<sycl::span<int>, sycl::span<int>>);
-      static_assert(std::is_convertible_v<sycl::span<int, 4>, sycl::span<int, 4>>);
-      
-      // 8. Converting span constructor
-      static_assert(std::is_constructible_v<sycl::span<int>, sycl::span<int, 4>>);
-      static_assert(std::is_constructible_v<sycl::span<int, 4>, sycl::span<int, 4>>);
-      
-      // Test actual usage patterns that should work implicitly
-      auto test_implicit_array = [](sycl::span<int> sp) { return sp.size(); };
-      assert(test_implicit_array(arr) == 4); // Array should convert implicitly
-      
-      auto test_implicit_std_array = [](sycl::span<int> sp) { return sp.size(); };
-      std::array<int, 4> std_arr = {1, 2, 3, 4};
-      assert(test_implicit_std_array(std_arr) == 4); // std::array should convert implicitly
-      
-      // Test direct construction (these should work regardless of explicitness)
-      sycl::span<int> sp1(arr);              // From array
-      sycl::span<int> sp2(ptr, 4);           // From pointer + count  
-      sycl::span<int> sp3(ptr, end);         // From pointer range
-      sycl::span<int> sp4(std_arr);          // From std::array
-      
-      // Fixed extent versions
-      sycl::span<int, 4> sp1_fixed(arr);     // From array
-      sycl::span<int, 4> sp2_fixed(ptr, 4);  // From pointer + count
-      sycl::span<int, 4> sp3_fixed(ptr, end); // From pointer range
-      sycl::span<int, 4> sp4_fixed(std_arr); // From std::array
-      
-      assert(sp1.size() == 4 && sp1_fixed.size() == 4);
-      assert(sp2.size() == 4 && sp2_fixed.size() == 4);
-      assert(sp3.size() == 4 && sp3_fixed.size() == 4);
-      assert(sp4.size() == 4 && sp4_fixed.size() == 4);
-      
-      // Test span conversion
-      sycl::span<int> sp_from_fixed = sp1_fixed; // Fixed to dynamic should be implicit
-      assert(sp_from_fixed.size() == 4);
-      
-      // Test that elements are accessible
-      assert(sp1[0] == 1);
-      assert(sp2[0] == 1);
-      assert(sp3[0] == 1);
-      assert(sp4[0] == 1);
-    });
-  }).wait();
-  
-  free(data, Q);
+     cgh.single_task<class init_buffer>([=] {
+       span<int> full_span(
+           buf_acc.template get_multi_ptr<access::decorated::no>().get(),
+           buffer_size);
+
+       for (size_t i = 0; i < full_span.size(); ++i) {
+         full_span[i] = static_cast<int>(i);
+       }
+
+       auto first_half = full_span.subspan(0, buffer_size / 2);
+       auto second_half = full_span.subspan(buffer_size / 2);
+
+       for (auto &elem : first_half) {
+         elem += 100;
+       }
+
+       for (auto &elem : second_half) {
+         elem += 200;
+       }
+     });
+   }).wait();
+
+  {
+    auto host_acc = data_buffer.get_host_access(read_only);
+    for (size_t i = 0; i < buffer_size; ++i) {
+      int expected = (i < buffer_size / 2) ? i + 100 : i + 200;
+      assert(host_acc[i] == expected && "Subspan modification failed");
+    }
+  }
 }
 
-void explicitConstructorBehavior() {
-  queue Q;
-  
-  Q.submit([&](handler &cgh) {
-    cgh.single_task<class test_explicit_behavior>([=] {
-      int arr[3] = {1, 2, 3};
-      std::vector<int> vec{1, 2, 3};
-      
-      // These should work (direct construction)
-      sycl::span<int, 3> fixed_from_ptr(arr, 3);
-      sycl::span<int, 3> fixed_from_range(arr, arr + 3);
-      sycl::span<int, 3> fixed_from_container(vec);
-      
-      // These should work (implicit for dynamic extent)
-      auto implicit_test = [](sycl::span<int> sp) { return sp.size(); };
-      assert(implicit_test(arr) == 3); // Array reference - always implicit
-      
-      // Container construction - marked explicit in SYCL implementation
-      sycl::span<int> dynamic_from_container(vec);
-      assert(dynamic_from_container.size() == 3);
-      
-      // Test the explicit behavior matches the standard pattern:
-      // explicit(extent != dynamic_extent)
-      
-      // For pointer+count and pointer+pointer constructors:
-      // - dynamic extent: should allow implicit conversion
-      // - fixed extent: should require explicit construction
-      
-      sycl::span<int> dynamic_ptr_count(arr, 3);     // Should work
-      sycl::span<int> dynamic_ptr_range(arr, arr+3); // Should work
-      
-      sycl::span<int, 3> fixed_ptr_count(arr, 3);     // Should work (explicit)
-      sycl::span<int, 3> fixed_ptr_range(arr, arr+3); // Should work (explicit)
-      
-      assert(dynamic_ptr_count.size() == 3);
-      assert(dynamic_ptr_range.size() == 3);
-      assert(fixed_ptr_count.size() == 3);
-      assert(fixed_ptr_range.size() == 3);
-    });
-  }).wait();
+} // namespace BufferSpanTests
+
+namespace USMMemoryTypeTests {
+
+void testSpanWithAllUSMTypes() {
+  queue q;
+  constexpr size_t data_size = 256;
+
+  // Test 1: Device Memory Span
+  int *device_memory = malloc_device<int>(data_size, q);
+  span<int> device_mem_span(device_memory, data_size);
+
+  q.parallel_for(range<1>(data_size), [=](id<1> idx) {
+     device_mem_span[idx] = idx[0];
+   }).wait();
+
+  // Test 2: Host Memory Span
+  int *host_memory = malloc_host<int>(data_size, q);
+  span<int> host_mem_span(host_memory, data_size);
+
+  for (size_t i = 0; i < data_size; ++i) {
+    host_mem_span[i] = i * 2;
+  }
+
+  // Test 3: Shared Memory Span
+  int *shared_memory = malloc_shared<int>(data_size, q);
+  span<int> shared_mem_span(shared_memory, data_size);
+
+  q.parallel_for(range<1>(data_size), [=](id<1> idx) {
+     shared_mem_span[idx] = host_mem_span[idx];
+   }).wait();
+
+  bool copy_verified = true;
+  for (size_t i = 0; i < data_size; ++i) {
+    if (shared_mem_span[i] != static_cast<int>(i * 2)) {
+      copy_verified = false;
+      break;
+    }
+  }
+  assert(copy_verified && "Host to shared memory copy via span failed");
+
+  // Test 4: Local Memory Span in Work-Groups
+  constexpr size_t work_group_size = 64;
+  constexpr size_t num_work_groups = data_size / work_group_size;
+
+  q.submit([&](handler &cgh) {
+     local_accessor<int, 1> local_mem_acc(range<1>(work_group_size), cgh);
+
+     cgh.parallel_for(
+         nd_range<1>(data_size, work_group_size), [=](nd_item<1> item) {
+           auto local_id = item.get_local_id(0);
+           auto group_id = item.get_group(0);
+
+           auto *local_ptr =
+               local_mem_acc.get_multi_ptr<access::decorated::no>().get();
+           span<int> local_mem_span(local_ptr, work_group_size);
+
+           local_mem_span[local_id] = local_id;
+
+           item.barrier(access::fence_space::local_space);
+
+           if (local_id == 0) {
+             int local_sum = 0;
+             for (size_t i = 0; i < work_group_size; ++i) {
+               local_sum += local_mem_span[i];
+             }
+             shared_mem_span[group_id] = local_sum;
+           }
+         });
+   }).wait();
+
+  constexpr int expected_local_sum =
+      (work_group_size - 1) * work_group_size / 2;
+  for (size_t i = 0; i < num_work_groups; ++i) {
+    assert(shared_mem_span[i] == expected_local_sum &&
+           "Local memory span sum computation incorrect");
+  }
+
+  // Test 5: Subspan Operations with USM Memory
+  auto subspan_test = shared_mem_span.subspan(10, 20);
+
+  assert(subspan_test.size() == 20 && "Subspan size should be 20");
+  assert(subspan_test.data() == shared_mem_span.data() + 10 &&
+         "Subspan should point to offset +10");
+
+  auto first_10 = shared_mem_span.first(10);
+  auto last_10 = shared_mem_span.last(10);
+
+  assert(first_10.size() == 10 && "first(10) should return span of size 10");
+  assert(last_10.size() == 10 && "last(10) should return span of size 10");
+  assert(first_10.data() == shared_mem_span.data() &&
+         "first() should point to beginning");
+  assert(last_10.data() == shared_mem_span.data() + data_size - 10 &&
+         "last() should point to end - 10");
+
+  free(device_memory, q);
+  free(host_memory, q);
+  free(shared_memory, q);
 }
 
-// Test to verify the exact explicitness pattern from the standard
-void standardExplicitnessPattern() {
-  // This test verifies the explicit(condition) pattern from std::span
-  
-  // According to the standard:
-  // - span() - not explicit
-  // - span(It first, size_type count) - explicit(extent != dynamic_extent)  
-  // - span(It first, End last) - explicit(extent != dynamic_extent)
-  // - span(element_type (&arr)[N]) - not explicit
-  // - span(array<T, N>& arr) - not explicit
-  // - span(const array<T, N>& arr) - not explicit
-  // - span(R&& r) - explicit(extent != dynamic_extent)
-  // - span(const span& other) - not explicit (copy constructor)
-  // - span(const span<OtherElementType, OtherExtent>& s) - explicit(see below)
-  
-  static_assert(std::is_default_constructible_v<sycl::span<int>>);
-  //static_assert(std::is_default_constructible_v<sycl::span<int, 5>>);
-  
-  constexpr static auto magic_size = 2u;
-  // Array reference constructors - never explicit
-  static_assert(std::is_constructible_v<sycl::span<int>, int(&)[magic_size]>);
-  static_assert(std::is_constructible_v<sycl::span<int, magic_size>, int(&)[magic_size]>);
-  
-  // std::array constructors - never explicit  
-  static_assert(std::is_constructible_v<sycl::span<int>, std::array<int, magic_size>&>);
-  static_assert(std::is_constructible_v<sycl::span<int, magic_size>, std::array<int, magic_size>&>);
-  
-  // Pointer + count constructors - explicit when extent != dynamic_extent
-  static_assert(std::is_constructible_v<sycl::span<int>, int*, size_t>);
-  static_assert(std::is_constructible_v<sycl::span<int, magic_size>, int*, size_t>);
+void testMixedMemoryTypeOperations() {
+  queue q;
+  constexpr size_t test_size = 128;
 
-  // Range constructors - explicit when extent != dynamic_extent
-  static_assert(std::is_constructible_v<sycl::span<int>, int*, int*>);
-  static_assert(std::is_constructible_v<sycl::span<int, magic_size>, int*, int*>);
+  float *device_mem = malloc_device<float>(test_size, q);
+  float *shared_mem = malloc_shared<float>(test_size, q);
 
-  // Container constructor - explicit when extent != dynamic_extent
-  static_assert(std::is_constructible_v<sycl::span<int>, std::vector<int>&>);
-  static_assert(std::is_constructible_v<sycl::span<int, magic_size>, std::vector<int>&>);
-  static_assert(std::is_constructible_v<sycl::span<int>, std::array<int, magic_size>&>);
+  span<float> device_span(device_mem, test_size);
+  span<float> shared_span(shared_mem, test_size);
 
-  // Copy constructor - never explicit
-  static_assert(std::is_constructible_v<sycl::span<int>, sycl::span<int>>);
-  static_assert(std::is_constructible_v<sycl::span<int, magic_size>, sycl::span<int, magic_size>>);
-  
-  // Converting span constructor - explicit when extent != dynamic_extent
-  static_assert(std::is_constructible_v<sycl::span<int>, sycl::span<int, magic_size>>);
-  static_assert(std::is_constructible_v<sycl::span<int, magic_size>, sycl::span<int, magic_size>>);
+  for (size_t i = 0; i < test_size; ++i) {
+    shared_span[i] = static_cast<float>(i) * 0.1f;
+  }
 
-  //TODO: need a matrix based test to ensure all the explicitness patterns
+  q.parallel_for(range<1>(test_size), [=](id<1> idx) {
+     device_span[idx] = shared_span[idx] * 2.0f;
+   }).wait();
+
+  q.parallel_for(range<1>(test_size), [=](id<1> idx) {
+     shared_span[idx] = device_span[idx] * device_span[idx];
+   }).wait();
+
+  bool test_passed = true;
+  for (size_t i = 0; i < test_size; ++i) {
+    float expected = (i * 0.1f * 2.0f) * (i * 0.1f * 2.0f);
+    if (std::abs(shared_span[i] - expected) > 0.001f) {
+      test_passed = false;
+      break;
+    }
+  }
+  assert(test_passed && "Mixed memory type operation failed");
+
+  free(device_mem, q);
+  free(shared_mem, q);
 }
 
-void iteratorSTLCompatibility() {
-  queue Q;
-  
-  auto *data = malloc_shared<int>(6, Q);
-  std::iota(data, data + 6, 1); // [1, 2, 3, 4, 5, 6]
-  
-  Q.submit([&](handler &cgh) {
-    cgh.single_task<class test_stl_compat>([=] {
-      sycl::span<int> sp(data, 6);
-      
-      auto found = std::find(sp.begin(), sp.end(), 4);
-      assert(found != sp.end());
-      assert(*found == 4);
-      assert(found - sp.begin() == 3);
-      
-      // Test std::count
-      int count_ones = std::count(sp.begin(), sp.end(), 1);
-      assert(count_ones == 1);
-      
-      // Test std::reverse with reverse iterators
-      bool is_reversed = true;
-      auto it = sp.begin();
-      auto rit = sp.rbegin();
-      for (size_t i = 0; i < sp.size(); ++i, ++it, ++rit) {
-        int expected_sum = sp.front() + sp.back(); // Calculate expected sum dynamically
-        if (*it + *(sp.rbegin() + static_cast<std::ptrdiff_t>(i)) != expected_sum) { // Ensure proper type handling
-          is_reversed = false;
-          break;
-        }
-      }
-      assert(is_reversed);
-      
-      // Test iterator traits
-      using iter_traits = std::iterator_traits<decltype(sp.begin())>;
-      static_assert(std::is_same_v<iter_traits::iterator_category, std::random_access_iterator_tag>);
-      static_assert(std::is_same_v<iter_traits::value_type, int>);
-      static_assert(std::is_same_v<iter_traits::pointer, int*>);
-      static_assert(std::is_same_v<iter_traits::reference, int&>);
-    });
-  }).wait();
-  
-  free(data, Q);
-}
-
-
-void checkAsWritableBytes() {
-  queue Q;
-  int arr[5] = {10, 20, 30, 40, 50};
-  sycl::span<int> sp(arr, 5);
-
-  auto sub = sp.subspan(1, 3);
-  assert(sub.size() == 3 && sub[0] == 20 && sub[2] == 40);
-
-  auto first2 = sp.first(2);
-  assert(first2.size() == 2 && first2[1] == 20);
-
-  auto last2 = sp.last(2);
-  assert(last2.size() == 2 && last2[0] == 40);
-
-  auto bytes = sycl::as_bytes(sp);
-  assert(bytes.size() == sizeof(int) * 5);
-
-  auto writable_bytes = sycl::as_writable_bytes(sp);
-  assert(writable_bytes.size() == sizeof(int) * 5);
-  writable_bytes[0] = 0xFF;
-  assert(arr[0] == 0xFF);
-}
-} // namespace ApiTests
+} // namespace USMMemoryTypeTests
 
 int main() {
-  BasicTests::simpleAccess();
-  BasicTests::zeroLengthCase();
-  BasicTests::emptyContainerCase();
-  BasicTests::nullptrCase();
-  BasicTests::simpleStress();
-  BasicTests::alignmentAliasing();
-  BasicTests::spanFromContainer();
+  BasicUSMTests::testSpanFromUSMSharedAllocation();
 
-  DeviceTests::spanCapture();
-  DeviceTests::spanOnDevice();
-  DeviceTests::onTwoDevices();
-  
-  ApiTests::iteratorTypes();
-  ApiTests::checkAsWritableBytes();
-  ApiTests::fixedExtentSpan();
-  ApiTests::dynamicExtentSpan();
-  ApiTests::constructorExplicitness();
-  ApiTests::iteratorSTLCompatibility();
-  //ApiTests:://testConstCorrectness();  
+  DeviceCaptureTests::testSpanCaptureAndModification();
+  DeviceCaptureTests::testSpanCreationOnDevice();
+
+  BufferSpanTests::testSpanFromBufferAccessor();
+  BufferSpanTests::testSpanWith2DBuffer();
+  BufferSpanTests::testSubspanFromAccessor();
+
+  USMMemoryTypeTests::testSpanWithAllUSMTypes();
+  USMMemoryTypeTests::testMixedMemoryTypeOperations();
 
   return 0;
 }
