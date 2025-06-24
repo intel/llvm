@@ -93,7 +93,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
     //  case UR_KERNEL_INFO_PROGRAM:
     //    return ReturnValue(ur_program_handle_t{ Kernel->Program });
   case UR_KERNEL_INFO_FUNCTION_NAME:
-    return ReturnValue(hKernel->_name);
+    return ReturnValue(hKernel->_name.c_str());
   case UR_KERNEL_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{hKernel->getReferenceCount()});
   case UR_KERNEL_INFO_ATTRIBUTES:
@@ -283,5 +283,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     [[maybe_unused]] const size_t *pGlobalWorkOffset,
     [[maybe_unused]] const size_t *pGlobalWorkSize,
     [[maybe_unused]] size_t *pSuggestedLocalWorkSize) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
+    [[maybe_unused]] ur_kernel_handle_t hKernel,
+    [[maybe_unused]] ur_device_handle_t hDevice,
+    [[maybe_unused]] uint32_t workDim,
+    [[maybe_unused]] const size_t *pLocalWorkSize,
+    [[maybe_unused]] size_t dynamicSharedMemorySize,
+    [[maybe_unused]] uint32_t *pGroupCountRet) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

@@ -18,7 +18,7 @@
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
-static constexpr int WorkGroupSize = 16;
+static constexpr int WorkGroupSize = 32;
 
 static constexpr int VL = 16;
 
@@ -33,20 +33,18 @@ template <bool UseThisWorkItemAPI> bool test(sycl::queue &q) {
   auto Bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(q.get_context());
   auto Kernel = Bundle.template get_kernel<MyKernel<UseThisWorkItemAPI>>();
-  sycl::range<1> LocalRange{WorkGroupSize};
+  sycl::range<3> LocalRange{WorkGroupSize, 1, 1};
   auto MaxWGs = Kernel.template ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::max_num_work_groups>(q, LocalRange,
                                                                 0);
   auto GlobalRange = LocalRange;
-  GlobalRange[0] *= MaxWGs / VL;
   size_t WorkItemCount = GlobalRange.size() * VL;
   sycl::buffer<int> DataBuf{WorkItemCount};
-  const auto Range = sycl::nd_range<1>{GlobalRange, LocalRange};
-
+  const auto Range = sycl::nd_range<3>{GlobalRange, LocalRange};
   q.submit([&](sycl::handler &h) {
      sycl::accessor Data{DataBuf, h};
      h.parallel_for<MyKernel<UseThisWorkItemAPI>>(
-         Range, Props, [=](sycl::nd_item<1> it) SYCL_ESIMD_KERNEL {
+         Range, Props, [=](sycl::nd_item<3> it) SYCL_ESIMD_KERNEL {
            int ID = it.get_global_linear_id();
            __ESIMD_NS::simd<int, VL> V(ID, 1);
            // Write data to another kernel's data to verify the barrier works.

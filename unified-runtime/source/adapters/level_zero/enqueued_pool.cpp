@@ -9,15 +9,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "enqueued_pool.hpp"
-#include "event.hpp"
 
 #include <ur_api.h>
 
 EnqueuedPool::~EnqueuedPool() { cleanup(); }
 
 std::optional<EnqueuedPool::Allocation>
-EnqueuedPool::getBestFit(size_t Size, size_t Alignment,
-                         ur_queue_handle_t Queue) {
+EnqueuedPool::getBestFit(size_t Size, size_t Alignment, void *Queue) {
   auto Lock = std::lock_guard(Mutex);
 
   Allocation Alloc = {nullptr, Size, nullptr, Queue, Alignment};
@@ -47,12 +45,11 @@ EnqueuedPool::getBestFit(size_t Size, size_t Alignment,
 }
 
 void EnqueuedPool::insert(void *Ptr, size_t Size, ur_event_handle_t Event,
-                          ur_queue_handle_t Queue) {
+                          void *Queue) {
   auto Lock = std::lock_guard(Mutex);
 
   uintptr_t Address = (uintptr_t)Ptr;
   size_t Alignment = Address & (~Address + 1);
-  Event->RefCount.increment();
 
   Freelist.emplace(Allocation{Ptr, Size, Event, Queue, Alignment});
 }
@@ -67,14 +64,15 @@ bool EnqueuedPool::cleanup() {
     auto umfRet [[maybe_unused]] = umfPoolFree(hPool, It.Ptr);
     assert(umfRet == UMF_RESULT_SUCCESS);
 
-    urEventReleaseInternal(It.Event);
+    if (It.Event)
+      eventRelease(It.Event);
   }
   Freelist.clear();
 
   return FreedAllocations;
 }
 
-bool EnqueuedPool::cleanupForQueue(ur_queue_handle_t Queue) {
+bool EnqueuedPool::cleanupForQueue(void *Queue) {
   auto Lock = std::lock_guard(Mutex);
 
   Allocation Alloc = {nullptr, 0, nullptr, Queue, 0};
@@ -90,7 +88,8 @@ bool EnqueuedPool::cleanupForQueue(ur_queue_handle_t Queue) {
     auto umfRet [[maybe_unused]] = umfPoolFree(hPool, It->Ptr);
     assert(umfRet == UMF_RESULT_SUCCESS);
 
-    urEventReleaseInternal(It->Event);
+    if (It->Event)
+      eventRelease(It->Event);
 
     // Erase the current allocation and move to the next one
     It = Freelist.erase(It);

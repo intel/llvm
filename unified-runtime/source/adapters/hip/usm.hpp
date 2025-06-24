@@ -62,7 +62,7 @@ public:
   umf_result_t alloc(size_t Size, size_t Align, void **Ptr);
   umf_result_t free(void *Ptr, size_t Size);
   void get_last_native_error(const char **ErrMsg, int32_t *ErrCode);
-  umf_result_t get_min_page_size(void *, size_t *);
+  umf_result_t get_min_page_size(const void *, size_t *);
   umf_result_t get_recommended_page_size(size_t, size_t *) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };

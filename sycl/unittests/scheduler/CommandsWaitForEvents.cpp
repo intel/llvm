@@ -182,7 +182,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
 
     ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-    auto EventImpl = std::make_shared<sycl::detail::event_impl>(QueueImpl);
+    auto EventImpl = sycl::detail::event_impl::create_device_event(*QueueImpl);
     EventImpl->setHandle(UREvent);
 
     QueueImplProxy->registerStreamServiceEvent(EventImpl);
@@ -209,10 +209,12 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
 
   TestContext.reset(new TestCtx(Q1, Q2));
 
-  std::shared_ptr<detail::event_impl> E1(
-      new detail::event_impl(TestContext->EventCtx1, Q1.get_context()));
-  std::shared_ptr<detail::event_impl> E2(
-      new detail::event_impl(TestContext->EventCtx2, Q2.get_context()));
+  std::shared_ptr<detail::event_impl> E1 =
+      detail::event_impl::create_from_handle(TestContext->EventCtx1,
+                                             Q1.get_context());
+  std::shared_ptr<detail::event_impl> E2 =
+      detail::event_impl::create_from_handle(TestContext->EventCtx2,
+                                             Q2.get_context());
 
   MockCommand Cmd(nullptr);
 

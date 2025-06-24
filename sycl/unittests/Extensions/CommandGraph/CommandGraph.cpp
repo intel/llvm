@@ -417,11 +417,11 @@ TEST_F(CommandGraphTest, GraphPartitionsMerging) {
   auto GraphExecImpl = sycl::detail::getSyclObjImpl(GraphExec);
   auto PartitionsList = GraphExecImpl->getPartitions();
   ASSERT_EQ(PartitionsList.size(), 5ul);
-  ASSERT_FALSE(PartitionsList[0]->isHostTask());
-  ASSERT_TRUE(PartitionsList[1]->isHostTask());
-  ASSERT_FALSE(PartitionsList[2]->isHostTask());
-  ASSERT_TRUE(PartitionsList[3]->isHostTask());
-  ASSERT_FALSE(PartitionsList[4]->isHostTask());
+  ASSERT_FALSE(PartitionsList[0]->MIsHostTask);
+  ASSERT_TRUE(PartitionsList[1]->MIsHostTask);
+  ASSERT_FALSE(PartitionsList[2]->MIsHostTask);
+  ASSERT_TRUE(PartitionsList[3]->MIsHostTask);
+  ASSERT_FALSE(PartitionsList[4]->MIsHostTask);
 }
 
 TEST_F(CommandGraphTest, GetNodeFromEvent) {
@@ -686,6 +686,21 @@ TEST_F(CommandGraphTest, DynamicWorkGroupMemoryGet) {
                                                  Queue.get_device()};
 
   ext::oneapi::experimental::dynamic_work_group_memory<int[]> DynLocalMem{
+      Graph, LocalSize};
+  ASSERT_ANY_THROW(DynLocalMem.get());
+}
+
+// Tests that dynamic_local_accessor.get() will throw on the host side.
+TEST_F(CommandGraphTest, DynamicLocalAccessorGet) {
+  device Dev;
+  context Ctx{{Dev}};
+  queue Queue{Ctx, Dev};
+  constexpr int LocalSize{32};
+
+  ext::oneapi::experimental::command_graph Graph{Queue.get_context(),
+                                                 Queue.get_device()};
+
+  ext::oneapi::experimental::dynamic_local_accessor<int, 1> DynLocalMem{
       Graph, LocalSize};
   ASSERT_ANY_THROW(DynLocalMem.get());
 }

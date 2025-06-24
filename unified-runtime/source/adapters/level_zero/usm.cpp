@@ -507,7 +507,7 @@ ur_result_t urUSMPoolCreate(
     *Pool = reinterpret_cast<ur_usm_pool_handle_t>(
         new ur_usm_pool_handle_t_(Context, PoolDesc));
 
-    std::shared_lock<ur_shared_mutex> ContextLock(Context->Mutex);
+    std::scoped_lock<ur_shared_mutex> ContextLock(Context->Mutex);
     Context->UsmPoolHandles.insert(Context->UsmPoolHandles.cend(), *Pool);
 
   } catch (const UsmAllocationException &Ex) {
@@ -531,7 +531,7 @@ ur_result_t
 /// [in] pointer to USM memory pool
 urUSMPoolRelease(ur_usm_pool_handle_t Pool) {
   if (Pool->RefCount.decrementAndTest()) {
-    std::shared_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
+    std::scoped_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
     Pool->Context->UsmPoolHandles.remove(Pool);
     delete Pool;
   }
@@ -610,7 +610,7 @@ ur_result_t UR_APICALL urUSMPoolCreateExp(
     *Pool = reinterpret_cast<ur_usm_pool_handle_t>(
         new ur_usm_pool_handle_t_(Context, Device, PoolDesc));
 
-    std::shared_lock<ur_shared_mutex> ContextLock(Context->Mutex);
+    std::scoped_lock<ur_shared_mutex> ContextLock(Context->Mutex);
     Context->UsmPoolHandles.insert(Context->UsmPoolHandles.cend(), *Pool);
 
   } catch (const UsmAllocationException &Ex) {
@@ -627,7 +627,7 @@ ur_result_t UR_APICALL urUSMPoolCreateExp(
 ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t /*Context*/,
                                            ur_device_handle_t /*Device*/,
                                            ur_usm_pool_handle_t Pool) {
-  std::shared_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
+  std::scoped_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
   Pool->Context->UsmPoolHandles.remove(Pool);
   delete Pool;
 
@@ -672,6 +672,17 @@ ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
                                           ur_device_handle_t,
                                           ur_usm_pool_handle_t, size_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t Context,
+                                             void *pDst, const void *pSrc,
+                                             size_t Size) {
+  // zeCommandListAppendMemoryCopy must not be called from simultaneous
+  // threads with the same command list handle, so we need exclusive lock.
+  std::scoped_lock<ur_mutex> Lock(Context->ImmediateCommandListMutex);
+  ZE2UR_CALL(zeCommandListAppendMemoryCopy, (Context->ZeCommandListInit, pDst,
+                                             pSrc, Size, nullptr, 0, nullptr));
+  return UR_RESULT_SUCCESS;
 }
 } // namespace ur::level_zero
 
@@ -730,9 +741,10 @@ enum umf_result_t L0MemoryProvider::free(void *Ptr, size_t Size) {
   return UMF_RESULT_SUCCESS;
 }
 
-umf_result_t L0MemoryProvider::GetL0MinPageSize(void *Mem, size_t *PageSize) {
+umf_result_t L0MemoryProvider::GetL0MinPageSize(const void *Mem,
+                                                size_t *PageSize) {
   ur_result_t Res = UR_RESULT_SUCCESS;
-  void *Ptr = Mem;
+  void *Ptr = const_cast<void *>(Mem);
 
   if (!Mem) {
     Res = allocateImpl(&Ptr, 1, 0);
@@ -765,7 +777,8 @@ err_set_status:
   return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
 }
 
-umf_result_t L0MemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
+umf_result_t L0MemoryProvider::get_min_page_size(const void *Ptr,
+                                                 size_t *PageSize) {
 
   // Query L0 for min page size. Use provided 'Ptr'.
   if (Ptr) {

@@ -7,6 +7,9 @@
 
 // REQUIRES: ocloc && level_zero
 
+// XFAIL: preview-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18911
+
 // Tests updating a raw_kernel_arg with 32-bit sized scalars.
 
 #include "../graph_common.hpp"

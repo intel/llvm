@@ -226,6 +226,8 @@ template <> inline void SPIRVMap<SPIRVCapabilityKind, SPIRVCapVec>::init() {
   ADD_VEC_INIT(CapabilityBFloat16DotProductKHR, {CapabilityBFloat16TypeKHR});
   ADD_VEC_INIT(CapabilityBFloat16CooperativeMatrixKHR,
                {CapabilityBFloat16TypeKHR, CapabilityCooperativeMatrixKHR});
+  ADD_VEC_INIT(CapabilityInt4CooperativeMatrixINTEL,
+               {CapabilityInt4TypeINTEL, CapabilityCooperativeMatrixKHR});
 }
 
 template <> inline void SPIRVMap<SPIRVExecutionModelKind, SPIRVCapVec>::init() {
@@ -288,8 +290,6 @@ template <> inline void SPIRVMap<SPIRVExecutionModeKind, SPIRVCapVec>::init() {
                {CapabilityFloatingPointModeINTEL});
   ADD_VEC_INIT(ExecutionModeSharedLocalMemorySizeINTEL,
                {CapabilityVectorComputeINTEL});
-  ADD_VEC_INIT(internal::ExecutionModeFastCompositeKernelINTEL,
-               {internal::CapabilityFastCompositeINTEL});
   ADD_VEC_INIT(ExecutionModeRegisterMapInterfaceINTEL,
                {CapabilityFPGAKernelAttributesv2INTEL});
   ADD_VEC_INIT(ExecutionModeStreamingInterfaceINTEL,
@@ -471,8 +471,6 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
   ADD_VEC_INIT(DecorationAliasScopeINTEL,
                {CapabilityMemoryAccessAliasingINTEL});
   ADD_VEC_INIT(DecorationNoAliasINTEL, {CapabilityMemoryAccessAliasingINTEL});
-  ADD_VEC_INIT(internal::DecorationCallableFunctionINTEL,
-               {internal::CapabilityFastCompositeINTEL});
   ADD_VEC_INIT(DecorationMediaBlockIOINTEL, {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(DecorationStallEnableINTEL,
                {CapabilityFPGAClusterAttributesINTEL});

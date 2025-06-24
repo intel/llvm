@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <sycl/builtins.hpp>       // for assert
 #include <sycl/detail/helpers.hpp> // for Builder
 #include <sycl/detail/memcpy.hpp>  // detail::memcpy
 #include <sycl/exception.hpp>      // for errc, exception
@@ -321,10 +320,14 @@ private:
 
   sub_group_mask(BitsType rhs, size_t bn)
       : Bits(rhs & valuable_bits(bn)), bits_num(bn) {
+#ifndef __SYCL_DEVICE_ONLY__
     assert(bits_num <= max_bits);
+#endif
   }
   inline BitsType valuable_bits(size_t bn) const {
+#ifndef __SYCL_DEVICE_ONLY__
     assert(bn <= max_bits);
+#endif
     BitsType one = 1;
     if (bn == max_bits)
       return -one;

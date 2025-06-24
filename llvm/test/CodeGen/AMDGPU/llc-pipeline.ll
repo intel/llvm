@@ -192,7 +192,6 @@
 ; GCN-O1-NEXT:    AMDGPU Software lowering of LDS
 ; GCN-O1-NEXT:    Lower uses of LDS variables from non-kernel functions
 ; GCN-O1-NEXT:    FunctionPass Manager
-; GCN-O1-NEXT:      Infer address spaces
 ; GCN-O1-NEXT:      Dominator Tree Construction
 ; GCN-O1-NEXT:      Cycle Info Analysis
 ; GCN-O1-NEXT:      Uniformity Analysis
@@ -236,6 +235,8 @@
 ; GCN-O1-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O1-NEXT:    FunctionPass Manager
 ; GCN-O1-NEXT:      FPBuiltin Function Selection
+; GCN-O1-NEXT:    AMDGPU Preload Kernel Arguments
+; GCN-O1-NEXT:    FunctionPass Manager
 ; GCN-O1-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O1-NEXT:    Lower buffer fat pointer operations to buffer resources
 ; GCN-O1-NEXT:    CallGraph Construction
@@ -477,7 +478,6 @@
 ; GCN-O1-OPTS-NEXT:    AMDGPU Software lowering of LDS
 ; GCN-O1-OPTS-NEXT:    Lower uses of LDS variables from non-kernel functions
 ; GCN-O1-OPTS-NEXT:    FunctionPass Manager
-; GCN-O1-OPTS-NEXT:      Infer address spaces
 ; GCN-O1-OPTS-NEXT:      Dominator Tree Construction
 ; GCN-O1-OPTS-NEXT:      Cycle Info Analysis
 ; GCN-O1-OPTS-NEXT:      Uniformity Analysis
@@ -535,6 +535,8 @@
 ; GCN-O1-OPTS-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O1-OPTS-NEXT:    FunctionPass Manager
 ; GCN-O1-OPTS-NEXT:      FPBuiltin Function Selection
+; GCN-O1-OPTS-NEXT:    AMDGPU Preload Kernel Arguments
+; GCN-O1-OPTS-NEXT:    FunctionPass Manager
 ; GCN-O1-OPTS-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O1-OPTS-NEXT:    Lower buffer fat pointer operations to buffer resources
 ; GCN-O1-OPTS-NEXT:    CallGraph Construction
@@ -792,7 +794,6 @@
 ; GCN-O2-NEXT:    AMDGPU Software lowering of LDS
 ; GCN-O2-NEXT:    Lower uses of LDS variables from non-kernel functions
 ; GCN-O2-NEXT:    FunctionPass Manager
-; GCN-O2-NEXT:      Infer address spaces
 ; GCN-O2-NEXT:      Dominator Tree Construction
 ; GCN-O2-NEXT:      Cycle Info Analysis
 ; GCN-O2-NEXT:      Uniformity Analysis
@@ -852,6 +853,8 @@
 ; GCN-O2-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O2-NEXT:    FunctionPass Manager
 ; GCN-O2-NEXT:      FPBuiltin Function Selection
+; GCN-O2-NEXT:    AMDGPU Preload Kernel Arguments
+; GCN-O2-NEXT:    FunctionPass Manager
 ; GCN-O2-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O2-NEXT:    Lower buffer fat pointer operations to buffer resources
 ; GCN-O2-NEXT:    CallGraph Construction
@@ -1111,7 +1114,6 @@
 ; GCN-O3-NEXT:    AMDGPU Software lowering of LDS
 ; GCN-O3-NEXT:    Lower uses of LDS variables from non-kernel functions
 ; GCN-O3-NEXT:    FunctionPass Manager
-; GCN-O3-NEXT:      Infer address spaces
 ; GCN-O3-NEXT:      Dominator Tree Construction
 ; GCN-O3-NEXT:      Cycle Info Analysis
 ; GCN-O3-NEXT:      Uniformity Analysis
@@ -1184,6 +1186,8 @@
 ; GCN-O3-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O3-NEXT:    FunctionPass Manager
 ; GCN-O3-NEXT:      FPBuiltin Function Selection
+; GCN-O3-NEXT:    AMDGPU Preload Kernel Arguments
+; GCN-O3-NEXT:    FunctionPass Manager
 ; GCN-O3-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O3-NEXT:    Lower buffer fat pointer operations to buffer resources
 ; GCN-O3-NEXT:    CallGraph Construction

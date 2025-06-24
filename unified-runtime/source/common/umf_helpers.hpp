@@ -130,7 +130,7 @@ umf_memory_pool_ops_t poolMakeUniqueOps() {
   umf_memory_pool_ops_t ops = {};
 
   ops.version = UMF_VERSION_CURRENT;
-  ops.initialize = [](umf_memory_provider_handle_t provider, void *params,
+  ops.initialize = [](umf_memory_provider_handle_t provider, const void *params,
                       void **obj) {
     try {
       *obj = new T;
@@ -168,7 +168,7 @@ auto memoryProviderMakeUnique(Args &&...args) {
   auto argsTuple = std::make_tuple(std::forward<Args>(args)...);
 
   ops.version = UMF_VERSION_CURRENT;
-  ops.initialize = [](void *params, void **obj) {
+  ops.initialize = [](const void *params, void **obj) {
     try {
       *obj = new T;
     } catch (...) {
@@ -177,7 +177,7 @@ auto memoryProviderMakeUnique(Args &&...args) {
 
     return detail::initialize<T>(
         reinterpret_cast<T *>(*obj),
-        *reinterpret_cast<decltype(argsTuple) *>(params));
+        *reinterpret_cast<decltype(argsTuple) *>(const_cast<void *>(params)));
   };
   ops.finalize = [](void *obj) { delete reinterpret_cast<T *>(obj); };
 
@@ -222,7 +222,7 @@ auto poolMakeUnique(provider_unique_handle_t provider, Args &&...args) {
       ret, pool_unique_handle_t(hPool, umfPoolDestroy)};
 }
 
-static inline auto poolMakeUniqueFromOps(umf_memory_pool_ops_t *ops,
+static inline auto poolMakeUniqueFromOps(const umf_memory_pool_ops_t *ops,
                                          provider_unique_handle_t provider,
                                          void *params) {
   umf_memory_pool_handle_t hPool;
@@ -240,7 +240,7 @@ static inline auto poolMakeUniqueFromOps(umf_memory_pool_ops_t *ops,
 }
 
 static inline auto
-poolMakeUniqueFromOpsProviderHandle(umf_memory_pool_ops_t *ops,
+poolMakeUniqueFromOpsProviderHandle(const umf_memory_pool_ops_t *ops,
                                     umf_memory_provider_handle_t provider,
                                     void *params) {
   umf_memory_pool_handle_t hPool;
@@ -254,8 +254,9 @@ poolMakeUniqueFromOpsProviderHandle(umf_memory_pool_ops_t *ops,
       UMF_RESULT_SUCCESS, pool_unique_handle_t(hPool, umfPoolDestroy)};
 }
 
-static inline auto providerMakeUniqueFromOps(umf_memory_provider_ops_t *ops,
-                                             void *params) {
+static inline auto
+providerMakeUniqueFromOps(const umf_memory_provider_ops_t *ops,
+                          const void *params) {
   umf_memory_provider_handle_t hProvider;
   auto ret = umfMemoryProviderCreate(ops, params, &hProvider);
   if (ret != UMF_RESULT_SUCCESS) {

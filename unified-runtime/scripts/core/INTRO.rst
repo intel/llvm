@@ -62,11 +62,11 @@ Error Handling
 
 The following design philosophies are adopted to reduce Host-side overhead:
 
-  - By default, the driver implementation may not perform parameter validation of any kind
+  - By default, the adapter implementation may not perform parameter validation of any kind
 
     + This should be handled by validation layer(s)
 
-  - By default, the driver or device may not provide any protection against the following:
+  - By default, the adapter or device may not provide any protection against the following:
 
     + Invalid API programming
     + Invalid function arguments
@@ -75,10 +75,10 @@ The following design philosophies are adopted to reduce Host-side overhead:
     + Non-visible memory access by the Host or device
     + Non-resident memory access by the device
 
-  - The driver implementation is **not** required to perform API validation of any kind
+  - The adapter implementation is **not** required to perform API validation of any kind
 
-    + The driver should ensure well-behaved applications are not burdened with the overhead needed for non-behaving applications
-    + Unless otherwise specified, the driver behavior is undefined when APIs are improperly used
+    + The adapter should ensure well-behaved applications are not burdened with the overhead needed for non-behaving applications
+    + Unless otherwise specified, the adapter behavior is undefined when APIs are improperly used
     + For debug purposes, API validation can be enabled via the loader's validation layer(s)
 
   - All API functions return ${x}_result_t

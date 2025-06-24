@@ -12,6 +12,8 @@
 // RUN: | FileCheck --check-prefix=CHECK-NVPTX-NEG %s
 // RUN: %clang_cc1 %s -fsycl-is-device -triple amdgcn-amdhsa-amdhsa -E -dM \
 // RUN: | FileCheck --check-prefix=CHECK-NVPTX-NEG %s
+// RUN: %clang_cc1 %s -fsycl-is-device -triple spir64-unknown-unknown -aux-triple aarch64-pc-windows-msvc -E -dM \
+// RUN: | FileCheck --check-prefixes=CHECK-NVPTX-NEG,CHECK-ARM64 %s
 // CHECK-NVPTX: #define __NVPTX__
 // CHECK-NVPTX-NEG-NOT: #define __NVPTX__
 
@@ -27,6 +29,8 @@
 // RUN: | FileCheck --check-prefix=CHECK-AMDGPU-NEG %s
 // RUN: %clang_cc1 %s -fsycl-is-device -triple spir64_fpga-unknown-unknown -E -dM \
 // RUN: | FileCheck --check-prefix=CHECK-AMDGPU-NEG %s
+// RUN: %clang_cc1 %s -fsycl-is-device -triple spir64-unknown-unknown -aux-triple aarch64-pc-windows-msvc -E -dM \
+// RUN: | FileCheck --check-prefixes=CHECK-AMDGPU-NEG,CHECK-ARM64 %s
 // CHECK-AMDGPU: #define __AMDGPU__
 // CHECK-AMDGPU-NEG-NOT: #define __AMDGPU__
 
@@ -72,3 +76,5 @@
 // RUN: | FileCheck --check-prefix=CHECK-DISABLE-FALLBACK-ASSERT-NEG %s
 // CHECK-DISABLE-FALLBACK-ASSERT: #define SYCL_DISABLE_FALLBACK_ASSERT
 // CHECK-DISABLE-FALLBACK-ASSERT-NEG-NOT: #define SYCL_DISABLE_FALLBACK_ASSERT
+//
+// CHECK-ARM64: #define _M_ARM64

@@ -62,6 +62,8 @@ backend convertUrBackend(ur_backend_t UrBackend) {
     return backend::ext_oneapi_hip;
   case UR_BACKEND_NATIVE_CPU:
     return backend::ext_oneapi_native_cpu;
+  case UR_BACKEND_OFFLOAD:
+    return backend::ext_oneapi_offload;
   default:
     throw exception(make_error_code(errc::runtime),
                     "convertBackend: Unsupported backend");
@@ -112,7 +114,7 @@ __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
       NativeHandle, Adapter->getUrAdapter(), DeviceHandles.size(),
       DeviceHandles.data(), &Properties, &UrContext);
   // Construct the SYCL context from UR context.
-  return detail::createSyclObjFromImpl<context>(std::make_shared<context_impl>(
+  return detail::createSyclObjFromImpl<context>(context_impl::create(
       UrContext, Handler, Adapter, DeviceList, !KeepOwnership));
 }
 
@@ -158,7 +160,7 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
       &UrQueue);
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<queue>(
-      std::make_shared<queue_impl>(UrQueue, ContextImpl, Handler, PropList));
+      queue_impl::create(UrQueue, ContextImpl, Handler, PropList));
 }
 
 __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
@@ -180,7 +182,7 @@ __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
   Adapter->call<UrApiKind::urEventCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), &Properties, &UrEvent);
   event Event = detail::createSyclObjFromImpl<event>(
-      std::make_shared<event_impl>(UrEvent, Context));
+      event_impl::create_from_handle(UrEvent, Context));
 
   if (Backend == backend::opencl)
     __SYCL_OCL_CALL(clRetainEvent, ur::cast<cl_event>(NativeHandle));
@@ -304,7 +306,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
       ImageOriginInterop);
   device_image_plain DevImg{DevImgImpl};
 
-  return std::make_shared<kernel_bundle_impl>(TargetContext, Devices, DevImg);
+  return kernel_bundle_impl::create(TargetContext, Devices, DevImg);
 }
 
 // TODO: Unused. Remove when allowed.
@@ -358,7 +360,7 @@ kernel make_kernel(const context &TargetContext,
 
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<kernel>(
-      std::make_shared<kernel_impl>(UrKernel, ContextImpl, KernelBundleImpl));
+      std::make_shared<kernel_impl>(UrKernel, *ContextImpl, KernelBundleImpl));
 }
 
 kernel make_kernel(ur_native_handle_t NativeHandle,

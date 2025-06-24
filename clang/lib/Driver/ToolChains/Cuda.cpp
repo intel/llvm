@@ -13,15 +13,12 @@
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Distro.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/llvm-config.h" // for LLVM_HOST_TRIPLE
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/FormatAdapters.h"
-#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
@@ -718,7 +715,7 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
 
   if (C.getDriver().isUsingLTO())
-    addLTOOptions(getToolChain(), Args, CmdArgs, Output, Inputs[0],
+    addLTOOptions(getToolChain(), Args, CmdArgs, Output, Inputs,
                   C.getDriver().getLTOMode() == LTOK_Thin);
 
   // Forward the PTX features if the nvlink-wrapper needs it.
@@ -966,6 +963,13 @@ void CudaToolChain::addClangTargetOptions(
     if (FastRelaxedMath || UnsafeMathOpt)
       CC1Args.append({"-mllvm", "--nvptx-prec-divf32=0", "-mllvm",
                       "--nvptx-prec-sqrtf32=0"});
+
+    CC1Args.append({"-mllvm", "-enable-memcpyopt-without-libcalls"});
+
+    if (DriverArgs.hasFlag(options::OPT_fsycl_id_queries_fit_in_int,
+                           options::OPT_fno_sycl_id_queries_fit_in_int, false))
+      CC1Args.append(
+          {"-mllvm", "-nvvm-reflect-add=__CUDA_ID_QUERIES_FIT_IN_INT=1"});
   } else {
     CC1Args.append({"-fcuda-is-device", "-mllvm",
                     "-enable-memcpyopt-without-libcalls",

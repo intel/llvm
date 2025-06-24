@@ -9918,6 +9918,17 @@ and https://microsoft.github.io/hlsl-specs/proposals/0013-wave-size-range.html
   }];
 }
 
+def RootSignatureDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+The ``RootSignature`` attribute applies to HLSL entry functions to define what
+types of resources are bound to the graphics pipeline.
+
+For details about the use and specification of Root Signatures please see here:
+https://learn.microsoft.com/en-us/windows/win32/direct3d12/root-signatures
+  }];
+}
+
 def NumThreadsDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -10220,6 +10231,29 @@ and copied back to the argument after the callee returns.
   }];
 }
 
+def HLSLVkExtBuiltinInputDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+Vulkan shaders have `Input` builtins. Those variables are externally
+initialized by the driver/pipeline, but each copy is private to the current
+lane.
+
+Those builtins can be declared using the `[[vk::ext_builtin_input]]` attribute
+like follows:
+
+.. code-block:: c++
+
+  [[vk::ext_builtin_input(/* WorkgroupId */ 26)]]
+  static const uint3 groupid;
+
+This variable will be lowered into a module-level variable, with the `Input`
+storage class, and the `BuiltIn 26` decoration.
+
+The full documentation for this inline SPIR-V attribute can be found here:
+https://github.com/microsoft/hlsl-specs/blob/main/proposals/0011-inline-spirv.md
+  }];
+}
+
 def AnnotateTypeDocs : Documentation {
   let Category = DocCatType;
   let Heading = "annotate_type";
@@ -10392,6 +10426,7 @@ its underlying representation to be a WebAssembly ``funcref``.
 
 def PreferredTypeDocumentation : Documentation {
   let Category = DocCatField;
+  let Label = "langext-preferred_type_documentation";
   let Content = [{
 This attribute allows adjusting the type of a bit-field in debug information.
 This can be helpful when a bit-field is intended to store an enumeration value,

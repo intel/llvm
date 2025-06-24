@@ -50,7 +50,6 @@
 #include "clang/Sema/TemplateDeduction.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/STLForwardCompat.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/SaveAndRestore.h"
@@ -971,9 +970,8 @@ static bool CheckBindingsCount(Sema &S, DecompositionDecl *DD,
                                QualType DecompType,
                                ArrayRef<BindingDecl *> Bindings,
                                unsigned MemberCount) {
-  auto BindingWithPackItr =
-      std::find_if(Bindings.begin(), Bindings.end(),
-                   [](BindingDecl *D) -> bool { return D->isParameterPack(); });
+  auto BindingWithPackItr = llvm::find_if(
+      Bindings, [](BindingDecl *D) -> bool { return D->isParameterPack(); });
   bool HasPack = BindingWithPackItr != Bindings.end();
   bool IsValid;
   if (!HasPack) {
@@ -6302,7 +6300,7 @@ static void ReferenceDllExportedMembers(Sema &S, CXXRecordDecl *Class) {
     }
   } MarkingDllexportedContext(S, Class, ClassAttr->getLocation());
 
-  if (S.Context.getTargetInfo().getTriple().isWindowsGNUEnvironment())
+  if (S.Context.getTargetInfo().getTriple().isOSCygMing())
     S.MarkVTableUsed(Class->getLocation(), Class, true);
 
   for (Decl *Member : Class->decls()) {
@@ -6604,7 +6602,7 @@ void Sema::checkClassLevelDLLAttribute(CXXRecordDecl *Class) {
   // declarations, except in MinGW mode.
   if (ClassExported && !ClassAttr->isInherited() &&
       TSK == TSK_ExplicitInstantiationDeclaration &&
-      !Context.getTargetInfo().getTriple().isWindowsGNUEnvironment()) {
+      !Context.getTargetInfo().getTriple().isOSCygMing()) {
     Class->dropAttr<DLLExportAttr>();
     return;
   }
@@ -8408,6 +8406,18 @@ private:
                "builtin comparison for different types?");
         assert(Best->BuiltinParamTypes[2].isNull() &&
                "invalid builtin comparison");
+
+        // FIXME: If the type we deduced is a vector type, we mark the
+        // comparison as deleted because we don't yet support this.
+        if (isa<VectorType>(T)) {
+          if (Diagnose == ExplainDeleted) {
+            S.Diag(FD->getLocation(),
+                   diag::note_defaulted_comparison_vector_types)
+                << FD;
+            S.Diag(Subobj.Decl->getLocation(), diag::note_declared_at);
+          }
+          return Result::deleted();
+        }
 
         if (NeedsDeducing) {
           std::optional<ComparisonCategoryType> Cat =
@@ -10646,7 +10656,7 @@ void Sema::checkIllFormedTrivialABIStruct(CXXRecordDecl &RD) {
       return;
     }
 
-    // Ill-formed if the field is an address-discriminated pointer.
+    // Ill-formed if the field is an address-discriminated value.
     if (FT.hasAddressDiscriminatedPointerAuth()) {
       PrintDiagAndRemoveAttr(6);
       return;
@@ -13219,6 +13229,7 @@ NamedDecl *Sema::BuildUsingDeclaration(
     if (getLangOpts().CPlusPlus14 && II && II->isStr("gets") &&
         CurContext->isStdNamespace() &&
         isa<TranslationUnitDecl>(LookupContext) &&
+        PP.NeedsStdLibCxxWorkaroundBefore(2016'12'21) &&
         getSourceManager().isInSystemHeader(UsingLoc))
       return nullptr;
     UsingValidatorCCC CCC(HasTypenameKeyword, IsInstantiation, SS.getScopeRep(),
@@ -17714,6 +17725,8 @@ void Sema::DiagnoseStaticAssertDetails(const Expr *E) {
           << DiagSide[0].ValueString << Op->getOpcodeStr()
           << DiagSide[1].ValueString << Op->getSourceRange();
     }
+  } else {
+    DiagnoseTypeTraitDetails(E);
   }
 }
 
@@ -18498,7 +18511,7 @@ NamedDecl *Sema::ActOnFriendFunctionDecl(Scope *S, Declarator &D,
         // a template-id, the function name is not unqualified because these is
         // no name. While the wording requires some reading in-between the
         // lines, GCC, MSVC, and EDG all consider a friend function
-        // specialization definitions // to be de facto explicit specialization
+        // specialization definitions to be de facto explicit specialization
         // and diagnose them as such.
       } else if (isTemplateId) {
         Diag(NameInfo.getBeginLoc(), diag::err_friend_specialization_def);

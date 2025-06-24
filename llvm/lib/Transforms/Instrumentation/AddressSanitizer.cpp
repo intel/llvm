@@ -120,7 +120,7 @@ static const uint64_t kNetBSD_ShadowOffset64 = 1ULL << 46;
 static const uint64_t kNetBSDKasan_ShadowOffset64 = 0xdfff900000000000;
 static const uint64_t kPS_ShadowOffset64 = 1ULL << 40;
 static const uint64_t kWindowsShadowOffset32 = 3ULL << 28;
-static const uint64_t kEmscriptenShadowOffset = 0;
+static const uint64_t kWebAssemblyShadowOffset = 0;
 
 // The shadow memory space is dynamically allocated.
 static const uint64_t kWindowsShadowOffset64 = kDynamicShadowSentinel;
@@ -527,9 +527,9 @@ static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
   bool IsRISCV64 = TargetTriple.getArch() == Triple::riscv64;
   bool IsWindows = TargetTriple.isOSWindows();
   bool IsFuchsia = TargetTriple.isOSFuchsia();
-  bool IsEmscripten = TargetTriple.isOSEmscripten();
   bool IsAMDGPU = TargetTriple.isAMDGPU();
   bool IsHaiku = TargetTriple.isOSHaiku();
+  bool IsWasm = TargetTriple.isWasm();
 
   ShadowMapping Mapping;
 
@@ -553,8 +553,8 @@ static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
       Mapping.Offset = kDynamicShadowSentinel;
     else if (IsWindows)
       Mapping.Offset = kWindowsShadowOffset32;
-    else if (IsEmscripten)
-      Mapping.Offset = kEmscriptenShadowOffset;
+    else if (IsWasm)
+      Mapping.Offset = kWebAssemblyShadowOffset;
     else
       Mapping.Offset = kDefaultShadowOffset32;
   } else {  // LongSize == 64
@@ -1402,6 +1402,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
                                  bool HasESIMD) {
   SmallVector<Function *> SpirFixupKernels;
   SmallVector<Constant *, 8> SpirKernelsMetadata;
+  SmallVector<uint8_t, 256> KernelNamesBytes;
 
   const auto &DL = M.getDataLayout();
   Type *IntptrTy = DL.getIntPtrType(M.getContext());
@@ -1438,6 +1439,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
       SpirFixupKernels.emplace_back(&F);
 
       auto KernelName = F.getName();
+      KernelNamesBytes.append(KernelName.begin(), KernelName.end());
       auto *KernelNameGV = GetOrCreateGlobalString(
           M, "__asan_kernel", KernelName, kSpirOffloadConstantAS);
       SpirKernelsMetadata.emplace_back(ConstantStruct::get(
@@ -1459,8 +1461,9 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
       "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
   AsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
   AsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
-  AsanSpirKernelMetadata->addAttribute("sycl-unique-id",
-                                       "_Z20__AsanKernelMetadata");
+  AsanSpirKernelMetadata->addAttribute(
+      "sycl-unique-id",
+      computeKernelMetadataUniqueId("__AsanKernelMetadata", KernelNamesBytes));
   AsanSpirKernelMetadata->setDSOLocal(true);
 
   // Handle SpirFixupKernels
@@ -2968,15 +2971,6 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
     G->eraseFromParent();
 }
 
-static void getFunctionsOfUser(User *User, DenseSet<Function *> &Functions) {
-  if (Instruction *Inst = dyn_cast<Instruction>(User)) {
-    Functions.insert(Inst->getFunction());
-  } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(User)) {
-    for (auto *U : CE->users())
-      getFunctionsOfUser(U, Functions);
-  }
-}
-
 void ModuleAddressSanitizer::initializeRetVecMap(Function *F) {
   if (KernelToRetVecMap.find(F) != KernelToRetVecMap.end())
     return;
@@ -3109,19 +3103,23 @@ void ModuleAddressSanitizer::instrumentSyclStaticLocalMemory(IRBuilder<> &IRB) {
   // We only instrument on spir_kernel, because local variables are
   // kind of global variable
   for (auto *G : LocalGlobals) {
-    DenseSet<Function *> InstrumentedFunc;
+    SmallVector<Function *> WorkList;
+    DenseSet<Function *> InstrumentedKernel;
     for (auto *User : G->users())
-      getFunctionsOfUser(User, InstrumentedFunc);
-    for (Function *F : InstrumentedFunc) {
+      getFunctionsOfUser(User, WorkList);
+    while (!WorkList.empty()) {
+      Function *F = WorkList.pop_back_val();
       if (F->getCallingConv() == CallingConv::SPIR_KERNEL) {
-        Instrument(G, F);
+        if (!InstrumentedKernel.contains(F)) {
+          Instrument(G, F);
+          InstrumentedKernel.insert(F);
+        }
         continue;
       }
       // Get root spir_kernel of spir_func
       initializeKernelCallerMap(F);
-      for (Function *Kernel : FuncToKernelCallerMap[F])
-        if (!InstrumentedFunc.contains(Kernel))
-          Instrument(G, Kernel);
+      for (auto *F : FuncToKernelCallerMap[F])
+        WorkList.push_back(F);
     }
   }
 }

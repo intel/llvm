@@ -239,13 +239,21 @@ struct ur_kernel_handle_t_ : ur::hip::handle_base {
       : handle_base(), Function{Func},
         FunctionWithOffsetParam{FuncWithOffsetParam}, Name{Name}, Context{Ctxt},
         Program{Program}, RefCount{1} {
-    assert(Program->getDevice());
-    UR_CHECK_ERROR(urKernelGetGroupInfo(
-        this, Program->getDevice(),
-        UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(ReqdThreadsPerBlock), ReqdThreadsPerBlock, nullptr));
     urProgramRetain(Program);
     urContextRetain(Context);
+
+    const auto &ReqdWGSizeMDMap = Program->KernelReqdWorkGroupSizeMD;
+    const auto ReqdWGSizeMD = ReqdWGSizeMDMap.find(Name);
+    if (ReqdWGSizeMD != ReqdWGSizeMDMap.end()) {
+      const auto ReqdWGSize = ReqdWGSizeMD->second;
+      ReqdThreadsPerBlock[0] = std::get<0>(ReqdWGSize);
+      ReqdThreadsPerBlock[1] = std::get<1>(ReqdWGSize);
+      ReqdThreadsPerBlock[2] = std::get<2>(ReqdWGSize);
+    } else {
+      ReqdThreadsPerBlock[0] = 0;
+      ReqdThreadsPerBlock[1] = 0;
+      ReqdThreadsPerBlock[2] = 0;
+    }
   }
 
   ur_kernel_handle_t_(hipFunction_t Func, const char *Name,

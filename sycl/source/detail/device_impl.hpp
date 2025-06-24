@@ -15,19 +15,53 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
+#include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/platform.hpp>
 
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <utility>
 
 namespace sycl {
 inline namespace _V1 {
 
-// Forward declaration
-class platform;
-
 namespace detail {
+
+inline info::partition_property
+ConvertPartitionProperty(const ur_device_partition_t &Partition) {
+  switch (Partition) {
+  case UR_DEVICE_PARTITION_EQUALLY:
+    return info::partition_property::partition_equally;
+  case UR_DEVICE_PARTITION_BY_COUNTS:
+    return info::partition_property::partition_by_counts;
+  case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
+    return info::partition_property::partition_by_affinity_domain;
+  case UR_DEVICE_PARTITION_BY_CSLICE:
+    return info::partition_property::ext_intel_partition_by_cslice;
+  default:
+    return info::partition_property::no_partition;
+  }
+}
+
+inline info::partition_affinity_domain
+ConvertAffinityDomain(const ur_device_affinity_domain_flags_t Domain) {
+  switch (Domain) {
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA:
+    return info::partition_affinity_domain::numa;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE:
+    return info::partition_affinity_domain::L1_cache;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE:
+    return info::partition_affinity_domain::L2_cache;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE:
+    return info::partition_affinity_domain::L3_cache;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE:
+    return info::partition_affinity_domain::L4_cache;
+  default:
+    return info::partition_affinity_domain::not_applicable;
+  }
+}
 
 // Note that UR's enums have weird *_FORCE_UINT32 values, we ignore them in the
 // callers. But we also can't write a fully-covered switch without mentioning it
@@ -504,10 +538,6 @@ public:
   /// Queries this SYCL device for information requested by the template
   /// parameter param
   ///
-  /// Specializations of info::param_traits must be defined in accordance
-  /// with the info parameters in Table 4.20 of SYCL Spec to facilitate
-  /// returning the type associated with the param parameter.
-  ///
   /// \return device info of type described in Table 4.20.
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -729,7 +759,7 @@ public:
       for (auto &entry : ur_dev_partitions) {
         // OpenCL extensions may have partition_properties that
         // are not yet defined for SYCL (eg. CL_DEVICE_PARTITION_BY_NAMES_INTEL)
-        info::partition_property pp(info::ConvertPartitionProperty(entry));
+        info::partition_property pp(detail::ConvertPartitionProperty(entry));
         switch (pp) {
         case info::partition_property::no_partition:
         case info::partition_property::partition_equally:
@@ -768,7 +798,7 @@ public:
         return info::partition_property::no_partition;
       // The old UR implementation also just checked the first element, is that
       // correct?
-      return info::ConvertPartitionProperty(PartitionProperties[0].type);
+      return detail::ConvertPartitionProperty(PartitionProperties[0].type);
     }
     CASE(info::device::partition_type_affinity_domain) {
       std::vector<ur_device_partition_property_t> PartitionProperties =
@@ -777,7 +807,7 @@ public:
         return info::partition_affinity_domain::not_applicable;
       for (const auto &PartitionProp : PartitionProperties) {
         if (PartitionProp.type == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN)
-          return info::ConvertAffinityDomain(
+          return detail::ConvertAffinityDomain(
               PartitionProp.value.affinity_domain);
       }
 
@@ -885,11 +915,10 @@ public:
     }
 
     CASE(info::device::ext_oneapi_cuda_cluster_group) {
-      if (getBackend() != backend::ext_oneapi_cuda)
-        return false;
-
-      return get_info_impl_nocheck<UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP>()
-                 .value_or(0) != 0;
+      auto SupportFlags =
+          get_info_impl<UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES>();
+      return static_cast<bool>(
+          SupportFlags & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION);
     }
 
     // ext_codeplay_device_traits.def
@@ -1467,8 +1496,6 @@ public:
         return false;
       }
 
-      /* The kernel handle update capability is not yet required for the
-       * ext_oneapi_graph aspect */
       ur_device_command_buffer_update_capability_flags_t RequiredCapabilities =
           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS |
           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE |
@@ -1821,6 +1848,7 @@ public:
         {0x05004000, oneapi_exp_arch::intel_gpu_bmg_g21}, // A0
         {0x05004001, oneapi_exp_arch::intel_gpu_bmg_g21}, // A1
         {0x05004004, oneapi_exp_arch::intel_gpu_bmg_g21}, // B0
+        {0x05008000, oneapi_exp_arch::intel_gpu_bmg_g31}, // A0
         {0x05010000, oneapi_exp_arch::intel_gpu_lnl_m},   // A0
         {0x05010001, oneapi_exp_arch::intel_gpu_lnl_m},   // A1
         {0x05010004, oneapi_exp_arch::intel_gpu_lnl_m},   // B0
@@ -1828,6 +1856,7 @@ public:
         {0x07800004, oneapi_exp_arch::intel_gpu_ptl_h},   // B0
         {0x07804000, oneapi_exp_arch::intel_gpu_ptl_u},   // A0
         {0x07804001, oneapi_exp_arch::intel_gpu_ptl_u},   // A1
+        {0x0780c000, oneapi_exp_arch::intel_gpu_wcl},     // A0
     };
 
     // Only for Intel CPU architectures
@@ -2203,7 +2232,7 @@ private:
   // This is used for getAdapter so should be above other properties.
   std::shared_ptr<platform_impl> MPlatform;
 
-  // TODO: Does this have a race?
+  std::shared_mutex MDeviceHostBaseTimeMutex;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
 
   const ur_device_handle_t MRootDevice;
@@ -2217,12 +2246,39 @@ private:
   mutable JointCache<
       UREagerCache<UR_DEVICE_INFO_TYPE, UR_DEVICE_INFO_USE_NATIVE_ASSERT,
                    UR_DEVICE_INFO_EXTENSIONS>, //
-      URCallOnceCache<UR_DEVICE_INFO_NAME>,    //
-      EagerCache<InfoInitializer>,             //
+      URCallOnceCache<UR_DEVICE_INFO_NAME,
+                      // USM:
+                      UR_DEVICE_INFO_USM_DEVICE_SUPPORT,
+                      UR_DEVICE_INFO_USM_HOST_SUPPORT,
+                      UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT,
+                      UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT,
+                      UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT,
+                      //
+                      UR_DEVICE_INFO_ATOMIC_64>, //
+      EagerCache<InfoInitializer>,               //
       CallOnceCache<InfoInitializer,
                     ext::oneapi::experimental::info::device::architecture>, //
       AspectCache<EagerCache, aspect::fp16, aspect::fp64,
-                  aspect::int64_base_atomics, aspect::int64_extended_atomics>>
+                  aspect::int64_base_atomics, aspect::int64_extended_atomics,
+                  aspect::ext_oneapi_atomic16>,
+      AspectCache<
+          CallOnceCache,
+          // Slow, >100ns (for baseline cached ~30..40ns):
+          aspect::ext_intel_pci_address, aspect::ext_intel_gpu_eu_count,
+          aspect::ext_intel_free_memory, aspect::ext_intel_fan_speed,
+          aspect::ext_intel_power_limits,
+          // medium-slow, 60-90ns (for baseline cached ~30..40ns):
+          aspect::ext_intel_gpu_eu_simd_width, aspect::ext_intel_gpu_slices,
+          aspect::ext_intel_gpu_subslices_per_slice,
+          aspect::ext_intel_gpu_eu_count_per_subslice,
+          aspect::ext_intel_device_info_uuid,
+          aspect::ext_intel_gpu_hw_threads_per_eu,
+          aspect::ext_intel_memory_clock_rate,
+          aspect::ext_intel_memory_bus_width,
+          aspect::ext_oneapi_bindless_images,
+          aspect::ext_oneapi_bindless_images_1d_usm,
+          aspect::ext_oneapi_bindless_images_2d_usm,
+          aspect::ext_oneapi_is_composite, aspect::ext_oneapi_is_component>>
       MCache;
 
 }; // class device_impl

@@ -197,8 +197,30 @@ def CIR_PointerType : CIR_Type<"Pointer", "ptr",
   let skipDefaultBuilders = 1;
 
   let extraClassDeclaration = [{
+    template <typename ...Types>
+    bool isPtrTo() const {
+      return mlir::isa< Types... >(getPointee());
+    }
+
     bool isVoidPtr() const {
-      return mlir::isa<cir::VoidType>(getPointee());
+      return isPtrTo<cir::VoidType>();
+    }
+
+    template <typename ...Types>
+    bool isPtrToPtrTo() const {
+      if (auto ptrType = mlir::dyn_cast<cir::PointerType>(getPointee()))
+        return ptrType.isPtrTo<Types...>();
+      return false;
+    }
+
+    bool isPtrTo(mlir::Type type) const {
+      return getPointee() == type;
+    }
+
+    bool isPtrToPtrTo(mlir::Type type) const {
+      if (auto ptrType = mlir::dyn_cast<cir::PointerType>(getPointee()))
+        return ptrType.isPtrTo(type);
+      return false;
     }
   }];
 }
@@ -253,18 +275,31 @@ def CIR_VectorType : CIR_Type<"Vector", "vector",
 
   let summary = "CIR vector type";
   let description = [{
-   `!cir.vector' represents fixed-size vector types, parameterized
-    by the element type and the number of elements.
+    The `!cir.vector` type represents a fixed-size, one-dimensional vector.
+    It takes two parameters: the element type and the number of elements.
 
-    Example:
+    Syntax:
 
     ```mlir
-    !cir.vector<!u64i x 2>
-    !cir.vector<!cir.float x 4>
+    vector-type ::= !cir.vector<size x element-type>
+    element-type ::= float-type | integer-type | pointer-type
+    ```
+
+    The `element-type` must be a scalar CIR type. Zero-sized vectors are not
+    allowed. The `size` must be a positive integer.
+
+    Examples:
+
+    ```mlir
+    !cir.vector<4 x !cir.int<u, 8>>
+    !cir.vector<2 x !cir.float>
     ```
   }];
 
-  let parameters = (ins "mlir::Type":$elementType, "uint64_t":$size);
+  let parameters = (ins
+    CIR_VectorElementType:$elementType,
+    "uint64_t":$size
+  );
 
   let assemblyFormat = [{
     `<` $size `x` $elementType `>`
@@ -366,20 +401,6 @@ def CIR_VoidType : CIR_Type<"Void", "void"> {
   let extraClassDeclaration = [{
     std::string getAlias() const { return "void"; };
   }];
-}
-
-// Constraints
-
-// Pointer to void
-def VoidPtr : Type<
-    And<[
-      CPred<"::mlir::isa<::cir::PointerType>($_self)">,
-      CPred<"::mlir::isa<::cir::VoidType>("
-            "::mlir::cast<::cir::PointerType>($_self).getPointee())">,
-    ]>, "void*">,
-    BuildableType<
-      "cir::PointerType::get($_builder.getContext(),"
-      "cir::VoidType::get($_builder.getContext()))"> {
 }
 
 //===----------------------------------------------------------------------===//
