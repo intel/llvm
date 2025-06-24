@@ -34,7 +34,7 @@ class queue_impl;
 class event_impl;
 using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
-class event_impl : public std::enable_shared_from_this<event_impl> {
+class event_impl {
   struct private_tag {
     explicit private_tag() = default;
   };
