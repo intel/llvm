@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp>
+
 // FIXME Check for  __SYCL_DEVICE_ONLY__ can be removed if implementation of
 // __has_attribute is fixed to consider LangOpts when generating attributes in
 // tablegen.
