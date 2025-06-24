@@ -22,10 +22,6 @@
 
     C++20 Features Missing (due to C++17 limitations):
     - explicit(bool) for conditional explicitness
-    - Real concepts (contiguous_iterator, sized_sentinel_for, borrowed_range)
-    - ranges::data/ranges::size support
-    - Complete range-v3 compatibility
-    - contiguous_iterator_tag support
 
     span synopsis
 
