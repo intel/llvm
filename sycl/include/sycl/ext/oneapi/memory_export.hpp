@@ -28,13 +28,11 @@ enum class export_external_mem_handle_type {
 template <export_external_mem_handle_type ExternalMemHandleType>
 struct exported_mem;
 
-template <>
-struct exported_mem<export_external_mem_handle_type::opaque_fd> {
+template <> struct exported_mem<export_external_mem_handle_type::opaque_fd> {
   using type = int;
 };
 
-template <>
-struct exported_mem<export_external_mem_handle_type::win32_nt> {
+template <> struct exported_mem<export_external_mem_handle_type::win32_nt> {
   using type = void *;
 };
 
