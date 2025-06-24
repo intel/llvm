@@ -90,13 +90,13 @@ bool trace(TraceLevel Level) {
   return (TraceLevelMask & Level) == Level;
 }
 
-static void initializeAdapters(std::vector<std::unique_ptr<Adapter>> &Adapters,
+static void initializeAdapters(std::vector<Adapter*> &Adapters,
                                ur_loader_config_handle_t LoaderConfig);
 
 bool XPTIInitDone = false;
 
 // Initializes all available Adapters.
-std::vector<AdapterPtr> initializeUr(ur_loader_config_handle_t LoaderConfig) {
+std::vector<AdapterPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
   // This uses static variable initialization to work around a gcc bug with
   // std::call_once and exceptions.
   // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
@@ -114,10 +114,10 @@ std::vector<AdapterPtr> initializeUr(ur_loader_config_handle_t LoaderConfig) {
   static bool Initialized = initializeHelper();
   std::ignore = Initialized;
 
-  return GlobalHandler::instance().getAdapterRawPtrs();
+  return GlobalHandler::instance().getAdapters();
 }
 
-static void initializeAdapters(std::vector<std::unique_ptr<Adapter>> &Adapters,
+static void initializeAdapters(std::vector<Adapter*> &Adapters,
                                ur_loader_config_handle_t LoaderConfig) {
 #define CHECK_UR_SUCCESS(Call)                                                 \
   {                                                                            \
@@ -238,7 +238,7 @@ static void initializeAdapters(std::vector<std::unique_ptr<Adapter>> &Adapters,
                                     sizeof(adapterBackend), &adapterBackend,
                                     nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
-    Adapters.emplace_back(std::make_unique<Adapter>(UrAdapter, syclBackend));
+    Adapters.emplace_back(new Adapter(UrAdapter, syclBackend));
 
     const char *env_value = std::getenv("UR_LOG_CALLBACK");
     if (env_value == nullptr || std::string(env_value) != "disabled") {

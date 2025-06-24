@@ -230,20 +230,11 @@ std::mutex &GlobalHandler::getFilterMutex() {
   return FilterMutex;
 }
 
-std::vector<std::unique_ptr<Adapter>> &GlobalHandler::getAdapters() {
-  static std::vector<std::unique_ptr<Adapter>> &adapters =
+std::vector<Adapter*> &GlobalHandler::getAdapters() {
+  static std::vector<Adapter*> &adapters =
       getOrCreate(MAdapters);
   enableOnCrashStackPrinting();
   return adapters;
-}
-
-// Get vector of raw pointers to adapters.
-std::vector<Adapter *> GlobalHandler::getAdapterRawPtrs() {
-  std::vector<Adapter *> RawPtrs;
-  for (const auto &Adapter : getAdapters()) {
-    RawPtrs.push_back(Adapter.get());
-  }
-  return RawPtrs;
 }
 
 ods_target_list &
@@ -324,6 +315,7 @@ void GlobalHandler::unloadAdapters() {
   if (MAdapters.Inst) {
     for (const auto &Adapter : getAdapters()) {
       Adapter->release();
+      delete Adapter;
     }
   }
 
