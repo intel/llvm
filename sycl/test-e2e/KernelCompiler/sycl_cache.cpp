@@ -16,10 +16,20 @@
 //
 // RUN: %{build} -o %t.out
 //
-// RUN: %if cuda %{ echo "CUDA"; %}
-// RUN: %if hip %{ echo "HIP"; %}
-// RUN: %if (cuda || hip) %{ echo "CUDA || HIP"; %}
-// RUN: %if !(cuda || hip) %{ echo "!CUDA || HIP"; %}
+// RUN: %if cuda %{ echo "WOOF CUDA"; %}
+// RUN: %if hip %{ echo "WOOF HIP"; %}
+// RUN: %if (cuda || hip) %{ echo "WOOF CUDA || HIP"; %}
+// RUN: %if !(cuda || hip) %{ echo "WOOF !CUDA || HIP"; %}
+//
+// RUN: %{run-aux} %if cuda %{ echo "WOOF run-aux CUDA"; %}
+// RUN: %{run-aux} %if hip %{ echo "WOOF run-aux HIP"; %}
+// RUN: %{run-aux} %if (cuda || hip) %{ echo "WOOF run-aux CUDA || HIP"; %}
+// RUN: %{run-aux} %if !(cuda || hip) %{ echo "WOOF run-aux !CUDA || HIP"; %}
+//
+// RUN: %{run} %if cuda %{ echo "WOOF run CUDA"; %}
+// RUN: %{run} %if hip %{ echo "WOOF run HIP"; %}
+// RUN: %{run} %if (cuda || hip) %{ echo "WOOF run CUDA || HIP"; %}
+// RUN: %{run} %if !(cuda || hip) %{ echo "WOOF run !CUDA || HIP"; %}
 //
 // RUN: %{run-aux} rm -rf %t/cache_dir
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-UNLIM
