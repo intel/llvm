@@ -135,7 +135,6 @@ ur_result_t ShadowMemoryGPU::Destory() {
   }
 
   if (PrivateBasePtr != 0) {
-
     UR_CALL(
         getContext()->urDdiTable.USM.pfnFree(Context, (void *)PrivateBasePtr));
     PrivateBasePtr = 0;
