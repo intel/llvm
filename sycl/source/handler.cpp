@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "sycl/detail/cg_types.hpp"
 #include "sycl/detail/helpers.hpp"
 #include "ur_api.h"
 #include <algorithm>
@@ -419,6 +420,17 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
   setHandlerKernelBundle(std::move(KernelBundleImpl));
 }
 
+extern "C" void hostTaskCallback(void *pUserData) noexcept {
+  auto Task = static_cast<detail::HostTask *>(pUserData);
+  assert(Task->Queue != nullptr);
+  try {
+    Task->call(nullptr);
+  } catch (...) {
+    Task->Queue->reportAsyncException(std::current_exception());
+  }
+  delete Task;
+}
+
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 detail::EventImplPtr handler::finalize() {
 #else
@@ -657,6 +669,45 @@ event handler::finalize() {
       }
       return MLastEvent;
     }
+  }
+
+  bool HasNativeHostTasks =
+      Queue->get_device().has(sycl::aspect::ext_oneapi_native_host_tasks);
+  if (HasNativeHostTasks && type == detail::CGType::CodeplayHostTask &&
+      detail::Scheduler::areEventsSafeForSchedulerBypass(
+          impl->CGData.MEvents, Queue->getContextImplPtr())) {
+    auto Adapter = Queue->getAdapter();
+    std::vector<ur_event_handle_t> RawEvents =
+        detail::Command::getUrEvents(impl->CGData.MEvents, Queue, false);
+    ur_event_handle_t UREvent = nullptr;
+
+    impl->MHostTask->Queue = Queue;
+
+    // This gets deallocated inside of the host task itself
+    auto Task = new detail::HostTask(*impl->MHostTask.get());
+
+    ur_result_t Result =
+        Adapter->call_nocheck<detail::UrApiKind::urEnqueueHostTaskExp>(
+            Queue->getHandleRef(), hostTaskCallback, Task, nullptr,
+            RawEvents.size(), RawEvents.data(), &UREvent);
+    if (Result == UR_RESULT_SUCCESS) {
+      auto NewEvent = std::make_shared<sycl::detail::event_impl>();
+      NewEvent->setContextImpl(Queue->getContextImplPtr());
+      NewEvent->setStateIncomplete();
+      NewEvent->setHandle(UREvent);
+      NewEvent->setSubmittedQueue(Queue->weak_from_this());
+
+      auto e = sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      MLastEvent = getSyclObjImpl(e);
+#else
+      MLastEvent = e;
+#endif
+      return MLastEvent;
+    } else {
+      delete Task;
+    }
+    return MLastEvent;
   }
 
   std::unique_ptr<detail::CG> CommandGroup;
