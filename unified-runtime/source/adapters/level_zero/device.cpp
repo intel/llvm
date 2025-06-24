@@ -273,6 +273,22 @@ ur_result_t urDeviceGetInfo(
     const auto &UUID = Device->ZeDeviceProperties->uuid.id;
     return ReturnValue(UUID, sizeof(UUID));
   }
+  case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH: {
+    // ZeDeviceMemoryProperties should be set already by initialization
+    if (Device->ZeDeviceMemoryProperties->second.empty())
+      return ReturnValue(uint64_t{0});
+
+    uint32_t maxBandwidth = 0;
+    for (const auto &extProp : Device->ZeDeviceMemoryProperties->second) {
+      // Only consider bandwidth if the unit is BYTES_PER_NANOSEC
+      if (extProp.bandwidthUnit == ZE_BANDWIDTH_UNIT_BYTES_PER_NANOSEC) {
+        maxBandwidth = std::max(
+            {maxBandwidth, extProp.readBandwidth, extProp.writeBandwidth});
+      }
+    }
+    // Convert to Bytes/sec from Bytes/nanosec
+    return ReturnValue(static_cast<uint64_t>(maxBandwidth * 1e9));
+  }
   case UR_DEVICE_INFO_ATOMIC_64:
     return ReturnValue(
         static_cast<ur_bool_t>(Device->ZeDeviceModuleProperties->flags &
@@ -514,8 +530,6 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(*Device->SubDeviceCreationProperty);
   }
   // Everything under here is not supported yet
-  case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
-    return ReturnValue("");
   case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
     return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE:
@@ -1149,8 +1163,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP: {
-    // L0 does not support fetching 1D non-USM sampled image data.
-    return ReturnValue(false);
+    // L0 does support fetching 1D non-USM sampled image data.
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP: {
     // L0 does support fetching 2D USM sampled image data.

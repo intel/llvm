@@ -672,6 +672,25 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
 }
 
 /**
+ * Waits for any ongoing executions of the command-buffer to finish
+ * @param CommandBuffer The command-buffer to wait for.
+ * @return UR_RESULT_SUCCESS or an error code on failure
+ */
+ur_result_t
+waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
+
+  if (ur_event_handle_t &CurrentSubmissionEvent =
+          CommandBuffer->CurrentSubmissionEvent) {
+    ZE2UR_CALL(zeEventHostSynchronize,
+               (CurrentSubmissionEvent->ZeEvent, UINT64_MAX));
+    UR_CALL(urEventReleaseInternal(CurrentSubmissionEvent));
+    CurrentSubmissionEvent = nullptr;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+/**
  * Checks whether the command-buffer can be constructed using in order
  * command-lists.
  * @param[in] Context The Context associated with the command-buffer.
@@ -832,6 +851,7 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t CommandBuffer) {
   if (!CommandBuffer->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
+  UR_CALL(waitForOngoingExecution(CommandBuffer));
   CommandBuffer->cleanupCommandBufferResources();
   delete CommandBuffer;
   return UR_RESULT_SUCCESS;
@@ -1454,25 +1474,6 @@ ur_result_t getZeCommandQueue(ur_queue_handle_t Queue, bool UseCopyEngine,
 }
 
 /**
- * Waits for any ongoing executions of the command-buffer to finish.
- * @param CommandBuffer The command-buffer to wait for.
- * @return UR_RESULT_SUCCESS or an error code on failure
- */
-ur_result_t
-waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
-
-  if (ur_event_handle_t &CurrentSubmissionEvent =
-          CommandBuffer->CurrentSubmissionEvent) {
-    ZE2UR_CALL(zeEventHostSynchronize,
-               (CurrentSubmissionEvent->ZeEvent, UINT64_MAX));
-    UR_CALL(urEventReleaseInternal(CurrentSubmissionEvent));
-    CurrentSubmissionEvent = nullptr;
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
-/**
  * Waits for the all the dependencies of the command-buffer
  * @param[in] CommandBuffer The command-buffer.
  * @param[in] Queue The UR queue used to submit the command-buffer.
@@ -1487,34 +1488,33 @@ ur_result_t waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
   std::scoped_lock<ur_shared_mutex> Guard(CommandBuffer->Mutex);
   const bool UseCopyEngine = false;
   bool MustSignalWaitEvent = true;
-  if (NumEventsInWaitList) {
-    ur_ze_event_list_t TmpWaitList;
-    UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
-        NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
-    // Update the WaitList of the Wait Event
-    // Events are appended to the WaitList if the WaitList is not empty
-    if (CommandBuffer->WaitEvent->WaitList.isEmpty())
-      CommandBuffer->WaitEvent->WaitList = TmpWaitList;
-    else
-      CommandBuffer->WaitEvent->WaitList.insert(TmpWaitList);
+  ur_ze_event_list_t TmpWaitList;
+  UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
+      NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
-    if (!CommandBuffer->WaitEvent->WaitList.isEmpty()) {
-      // Create command-list to execute before `CommandListPtr` and will signal
-      // when `EventWaitList` dependencies are complete.
-      ur_command_list_ptr_t WaitCommandList{};
-      UR_CALL(Queue->Context->getAvailableCommandList(
-          Queue, WaitCommandList, false /*UseCopyEngine*/, NumEventsInWaitList,
-          EventWaitList, false /*AllowBatching*/, nullptr /*ForcedCmdQueue*/));
+  // Update the WaitList of the Wait Event
+  // Events are appended to the WaitList if the WaitList is not empty
+  if (CommandBuffer->WaitEvent->WaitList.isEmpty())
+    CommandBuffer->WaitEvent->WaitList = TmpWaitList;
+  else
+    CommandBuffer->WaitEvent->WaitList.insert(TmpWaitList);
 
-      ZE2UR_CALL(zeCommandListAppendBarrier,
-                 (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent,
-                  CommandBuffer->WaitEvent->WaitList.Length,
-                  CommandBuffer->WaitEvent->WaitList.ZeEventList));
-      Queue->executeCommandList(WaitCommandList, false /*IsBlocking*/,
-                                false /*OKToBatchCommand*/);
-      MustSignalWaitEvent = false;
-    }
+  if (!CommandBuffer->WaitEvent->WaitList.isEmpty()) {
+    // Create command-list to execute before `CommandListPtr` and will signal
+    // when `EventWaitList` dependencies are complete.
+    ur_command_list_ptr_t WaitCommandList{};
+    UR_CALL(Queue->Context->getAvailableCommandList(
+        Queue, WaitCommandList, false /*UseCopyEngine*/, NumEventsInWaitList,
+        EventWaitList, false /*AllowBatching*/, nullptr /*ForcedCmdQueue*/));
+
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent,
+                CommandBuffer->WaitEvent->WaitList.Length,
+                CommandBuffer->WaitEvent->WaitList.ZeEventList));
+    Queue->executeCommandList(WaitCommandList, false /*IsBlocking*/,
+                              false /*OKToBatchCommand*/);
+    MustSignalWaitEvent = false;
   }
   // Given WaitEvent was created without specifying Counting Events, then this
   // event can be signalled on the host.

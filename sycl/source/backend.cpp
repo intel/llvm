@@ -182,7 +182,7 @@ __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
   Adapter->call<UrApiKind::urEventCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), &Properties, &UrEvent);
   event Event = detail::createSyclObjFromImpl<event>(
-      std::make_shared<event_impl>(UrEvent, Context));
+      event_impl::create_from_handle(UrEvent, Context));
 
   if (Backend == backend::opencl)
     __SYCL_OCL_CALL(clRetainEvent, ur::cast<cl_event>(NativeHandle));
@@ -306,7 +306,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
       ImageOriginInterop);
   device_image_plain DevImg{DevImgImpl};
 
-  return std::make_shared<kernel_bundle_impl>(TargetContext, Devices, DevImg);
+  return kernel_bundle_impl::create(TargetContext, Devices, DevImg);
 }
 
 // TODO: Unused. Remove when allowed.
@@ -360,7 +360,7 @@ kernel make_kernel(const context &TargetContext,
 
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<kernel>(
-      std::make_shared<kernel_impl>(UrKernel, ContextImpl, KernelBundleImpl));
+      std::make_shared<kernel_impl>(UrKernel, *ContextImpl, KernelBundleImpl));
 }
 
 kernel make_kernel(ur_native_handle_t NativeHandle,

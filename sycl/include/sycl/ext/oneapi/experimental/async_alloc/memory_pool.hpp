@@ -24,38 +24,20 @@ class memory_pool_impl;
 
 /// Memory pool
 class __SYCL_EXPORT memory_pool {
-
 public:
-  // NOT SUPPORTED: Host side pools unsupported.
-  memory_pool(const sycl::context &, sycl::usm::alloc kind,
-              const property_list & = {}) {
-    if (kind == sycl::usm::alloc::device || kind == sycl::usm::alloc::shared)
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "Device and shared allocation kinds are disallowed "
-                            "without specifying a device!");
-    if (kind == sycl::usm::alloc::unknown)
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "Unknown allocation kinds are disallowed!");
-
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Host allocated pools are unsupported!");
-  }
-
+  template <typename Properties = empty_properties_t,
+            typename = std::enable_if_t<
+                detail::all_are_properties_of_v<memory_pool, Properties>>>
   memory_pool(const sycl::context &ctx, const sycl::device &dev,
-              sycl::usm::alloc kind, const property_list &props = {});
+              sycl::usm::alloc kind, Properties props = {})
+      : memory_pool(ctx, dev, kind, stripProps(props)) {}
 
+  template <typename Properties = empty_properties_t,
+            typename = std::enable_if_t<
+                detail::all_are_properties_of_v<memory_pool, Properties>>>
   memory_pool(const sycl::queue &q, sycl::usm::alloc kind,
-              const property_list &props = {})
+              Properties props = {})
       : memory_pool(q.get_context(), q.get_device(), kind, props) {}
-
-  // NOT SUPPORTED: Creating a pool from an existing allocation is unsupported.
-  memory_pool(const sycl::context &, void *, size_t,
-              const property_list & = {}) {
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Creating a pool from an existing allocation is unsupported!");
-  }
 
   ~memory_pool() = default;
 
@@ -79,18 +61,20 @@ public:
 
   void increase_threshold_to(size_t newThreshold);
 
-  // Property getters.
-  template <typename PropertyT> bool has_property() const noexcept {
-    return getPropList().template has_property<PropertyT>();
-  }
-  template <typename PropertyT> PropertyT get_property() const {
-    return getPropList().template get_property<PropertyT>();
-  }
-
 protected:
+  struct pool_properties {
+    size_t initial_threshold;
+    size_t maximum_size;
+    bool zero_init;
+  };
+
   std::shared_ptr<detail::memory_pool_impl> impl;
 
-  memory_pool(std::shared_ptr<detail::memory_pool_impl> Impl) : impl(Impl) {}
+  memory_pool(std::shared_ptr<detail::memory_pool_impl> Impl)
+      : impl(std::move(Impl)) {}
+
+  memory_pool(const sycl::context &ctx, const sycl::device &dev,
+              sycl::usm::alloc kind, pool_properties props);
 
   template <class Obj>
   friend const decltype(Obj::impl) &
@@ -103,7 +87,23 @@ protected:
   friend T sycl::detail::createSyclObjFromImpl(
       std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
-  const property_list &getPropList() const;
+  template <typename Properties> pool_properties stripProps(Properties props) {
+    pool_properties poolProps{};
+    if constexpr (decltype(props)::template has_property<initial_threshold>()) {
+      poolProps.initial_threshold =
+          props.template get_property<initial_threshold>().value;
+    }
+
+    if constexpr (decltype(props)::template has_property<maximum_size>()) {
+      poolProps.maximum_size =
+          props.template get_property<maximum_size>().value;
+    }
+
+    if constexpr (decltype(props)::template has_property<zero_init>()) {
+      poolProps.zero_init = true;
+    }
+    return poolProps;
+  }
 };
 
 } // namespace ext::oneapi::experimental

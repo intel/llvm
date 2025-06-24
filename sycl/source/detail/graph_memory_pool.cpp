@@ -33,12 +33,9 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
   AllocInfo.Kind = AllocType;
   // Collect relevant properties from memory pool
   if (MemPool) {
-    const auto &PropList = MemPool->getPropList();
-    if (PropList.has_property<property::memory_pool::zero_init>()) {
+    auto Props = MemPool->getProps();
+    if (Props.zero_init) {
       AllocInfo.ZeroInit = true;
-    }
-    if (PropList.has_property<property::memory_pool::read_only>()) {
-      AllocInfo.ReadOnly = true;
     }
   }
 
@@ -147,7 +144,6 @@ graph_mem_pool::tryReuseExistingAllocation(
 
   while (!NodesToCheck.empty()) {
     auto CurrentNode = NodesToCheck.front().lock();
-    NodesToCheck.pop();
 
     if (CurrentNode->MTotalVisitedEdges > 0) {
       continue;
@@ -179,6 +175,7 @@ graph_mem_pool::tryReuseExistingAllocation(
 
     // Mark node as visited
     CurrentNode->MTotalVisitedEdges = 1;
+    NodesToCheck.pop();
   }
 
   return std::nullopt;
