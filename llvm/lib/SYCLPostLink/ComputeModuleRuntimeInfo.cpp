@@ -271,6 +271,14 @@ PropSetRegTy computeModuleProperties(const Module &M,
       }
     }
   }
+  if (GlobProps.EmitKernelNames) {
+    for (const auto *F : EntryPoints) {
+      if (F->getCallingConv() == CallingConv::SPIR_KERNEL) {
+        PropSet.add(PropSetRegTy::SYCL_KERNEL_NAMES, F->getName(),
+                    /*PropVal=*/true);
+      }
+    }
+  }
 
   if (GlobProps.EmitImportedSymbols) {
     // record imported functions in the property set

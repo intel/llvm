@@ -14,6 +14,7 @@
 
 #include "msan_interceptor.hpp"
 #include "msan_ddi.hpp"
+#include "msan_origin.hpp"
 #include "msan_report.hpp"
 #include "msan_shadow.hpp"
 #include "sanitizer_common/sanitizer_stacktrace.hpp"
@@ -33,7 +34,6 @@ MsanInterceptor::~MsanInterceptor() {
   }
 
   m_MemBufferMap.clear();
-  m_AllocationMap.clear();
   m_KernelMap.clear();
   m_ContextMap.clear();
 
@@ -50,68 +50,86 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             void **ResultPtr) {
 
   auto ContextInfo = getContextInfo(Context);
-  std::shared_ptr<DeviceInfo> DeviceInfo =
-      Device ? getDeviceInfo(Device) : nullptr;
+  std::shared_ptr<DeviceInfo> DI = Device ? getDeviceInfo(Device) : nullptr;
+
+  uint32_t Alignment = Properties ? Properties->align : MSAN_ORIGIN_GRANULARITY;
+  // Alignment must be zero or a power-of-two
+  if (0 != (Alignment & (Alignment - 1))) {
+    return UR_RESULT_ERROR_INVALID_ARGUMENT;
+  }
+  if (Alignment < MSAN_ORIGIN_GRANULARITY) {
+    Alignment = MSAN_ORIGIN_GRANULARITY;
+  }
+
+  ur_usm_desc_t NewProperties;
+  if (Properties) {
+    NewProperties = *Properties;
+    NewProperties.align = Alignment;
+  } else {
+    NewProperties = {UR_STRUCTURE_TYPE_USM_DESC, nullptr,
+                     UR_USM_ADVICE_FLAG_DEFAULT, Alignment};
+  }
 
   void *Allocated = nullptr;
-
-  if (Type == AllocType::DEVICE_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, Properties, Pool, Size, &Allocated));
-  } else if (Type == AllocType::HOST_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnHostAlloc(Context, Properties, Pool,
-                                                      Size, &Allocated));
-  } else if (Type == AllocType::SHARED_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
-        Context, Device, Properties, Pool, Size, &Allocated));
-  }
+  UR_CALL(
+      SafeAllocate(Context, Device, Size, Properties, Pool, Type, &Allocated));
 
   *ResultPtr = Allocated;
 
-  if (Type != AllocType::DEVICE_USM) {
-    ContextInfo->CleanShadowSize = std::max(ContextInfo->CleanShadowSize, Size);
+  ContextInfo->CleanShadowSize = std::max(ContextInfo->CleanShadowSize, Size);
+
+  bool IsHostOrSharedUSM =
+      Type == AllocType::HOST_USM || Type == AllocType::SHARED_USM;
+  bool DontCheckHostOrSharedUSM =
+      IsHostOrSharedUSM && !getContext()->Options.MsanCheckHostAndSharedUSM;
+
+  // For origin tracking
+  HeapType HeapType;
+  switch (Type) {
+  case AllocType::DEVICE_USM:
+    HeapType = HeapType::DeviceUSM;
+    break;
+  case AllocType::HOST_USM:
+    HeapType = HeapType::HostUSM;
+    break;
+  case AllocType::SHARED_USM:
+    HeapType = HeapType::SharedUSM;
+    break;
+  default:
+    UR_LOG_L(getContext()->logger, ERR, "Unknown heap type");
+    return UR_RESULT_ERROR_UNKNOWN;
   }
 
-  // For host/shared usm, we only record the alloc size.
-  if (Type != AllocType::DEVICE_USM) {
-    return UR_RESULT_SUCCESS;
-  }
-  assert(Device);
-
-  auto AI = std::make_shared<MsanAllocInfo>(MsanAllocInfo{(uptr)Allocated,
-                                                          Size,
-                                                          false,
-                                                          Context,
-                                                          Device,
-                                                          GetCurrentBacktrace(),
-                                                          {}});
-
-  AI->print();
-
-  // For memory release
-  {
-    std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-    m_AllocationMap.emplace(AI->AllocBegin, AI);
-  }
+  StackTrace Stack = GetCurrentBacktrace();
+  Origin HeapOrigin = DontCheckHostOrSharedUSM
+                          ? Origin::FromRawId(0)
+                          : Origin::CreateHeapOrigin(Stack, HeapType);
 
   // Update shadow memory
-  ManagedQueue Queue(Context, Device);
-  DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, AI->AllocBegin, AI->AllocSize,
-                                          0xff);
+  auto EnqueuePoison = [&](const std::vector<ur_device_handle_t> &Devices) {
+    u8 Value = DontCheckHostOrSharedUSM ? 0 : 0xff;
+    for (ur_device_handle_t Device : Devices) {
+      ManagedQueue Queue(Context, Device);
+      std::shared_ptr<DeviceInfo> DI = getDeviceInfo(Device);
+      DI->Shadow->EnqueuePoisonShadowWithOrigin(Queue, (uptr)Allocated, Size,
+                                                Value, HeapOrigin.rawId());
+    }
+  };
+  if (Device) { // shared/device USM
+    EnqueuePoison({Device});
+  } else { // host USM
+    EnqueuePoison(ContextInfo->DeviceList);
+  }
+
+  UR_LOG_L(getContext()->logger, INFO,
+           "AllocInfo {} (Size={}, Type={}, Origin={})", (void *)Allocated,
+           Size, ToString(Type), (void *)(uptr)HeapOrigin.rawId());
 
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t MsanInterceptor::releaseMemory(ur_context_handle_t Context,
                                            void *Ptr) {
-  auto Addr = reinterpret_cast<uptr>(Ptr);
-  auto AddrInfoItOp = findAllocInfoByAddress(Addr);
-
-  if (AddrInfoItOp) {
-    std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-    m_AllocationMap.erase(*AddrInfoItOp);
-  }
-
   return getContext()->urDdiTable.USM.pfnFree(Context, Ptr);
 }
 
@@ -149,9 +167,9 @@ ur_result_t MsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
       return Result;
     }
 
-    ReportUsesUninitializedValue(LaunchInfo.Data.Host.Report, Kernel);
-
-    exitWithErrors();
+    if (ReportUsesUninitializedValue(LaunchInfo.Data.Host.Report, Kernel)) {
+      exitWithErrors();
+    }
   }
 
   return Result;
@@ -227,15 +245,17 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
 
       std::string KernelName =
           std::string(KernelNameV.begin(), KernelNameV.end());
+      bool CheckLocals = SKI.Flags & SanitizedKernelFlags::CHECK_LOCALS;
+      bool CheckPrivates = SKI.Flags & SanitizedKernelFlags::CHECK_PRIVATES;
+      bool TrackOrigins = SKI.Flags & SanitizedKernelFlags::MSAN_TRACK_ORIGINS;
 
       UR_LOG_L(getContext()->logger, INFO,
                "SpirKernel(name='{}', isInstrumented={}, "
-               "checkLocals={}, checkPrivates={})",
-               KernelName, true, (bool)SKI.CheckLocals,
-               (bool)SKI.CheckPrivates);
+               "checkLocals={}, checkPrivates={}, trackOrigins={})",
+               KernelName, true, CheckLocals, CheckPrivates, TrackOrigins);
 
-      PI->KernelMetadataMap[KernelName] = ProgramInfo::KernelMetada{
-          (bool)SKI.CheckLocals, (bool)SKI.CheckPrivates};
+      PI->KernelMetadataMap[KernelName] =
+          ProgramInfo::KernelMetada{CheckLocals, CheckPrivates, TrackOrigins};
     }
     UR_LOG_L(getContext()->logger, INFO, "Number of sanitized kernel: {}",
              PI->KernelMetadataMap.size());
@@ -391,6 +411,7 @@ KernelInfo &MsanInterceptor::getOrCreateKernelInfo(ur_kernel_handle_t Kernel) {
     auto &KM = PI->getKernelMetadata(Kernel);
     KI->IsCheckLocals = KM.CheckLocals;
     KI->IsCheckPrivates = KM.CheckPrivates;
+    KI->IsTrackOrigins = KM.TrackOrigins;
   }
 
   std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
@@ -440,9 +461,10 @@ ur_result_t MsanInterceptor::prepareLaunch(
   auto &KernelInfo = getOrCreateKernelInfo(Kernel);
   UR_LOG_L(getContext()->logger, INFO,
            "KernelInfo {} (Name=<{}>, IsInstrumented={}, "
-           "IsCheckLocals={}, IsCheckPrivates={})",
+           "CheckLocals={}, CheckPrivates={}, TrackOrigins={})",
            (void *)Kernel, GetKernelName(Kernel), KernelInfo.IsInstrumented,
-           KernelInfo.IsCheckLocals, KernelInfo.IsCheckPrivates);
+           KernelInfo.IsCheckLocals, KernelInfo.IsCheckPrivates,
+           KernelInfo.IsTrackOrigins);
 
   std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
 
@@ -478,9 +500,9 @@ ur_result_t MsanInterceptor::prepareLaunch(
       ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
       ContextInfo->CleanShadowSize,
       (void **)&LaunchInfo.Data.Host.CleanShadow));
-  UR_CALL(EnqueueUSMBlockingSet(Queue, (void *)LaunchInfo.Data.Host.CleanShadow,
-                                0, ContextInfo->CleanShadowSize, 0, nullptr,
-                                nullptr));
+  UR_CALL(EnqueueUSMSet(Queue, (void *)LaunchInfo.Data.Host.CleanShadow,
+                        (char)0, ContextInfo->CleanShadowSize, 0, nullptr,
+                        nullptr));
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
@@ -596,38 +618,6 @@ ur_result_t MsanInterceptor::prepareLaunch(
   }
 
   return UR_RESULT_SUCCESS;
-}
-
-std::optional<MsanAllocationIterator>
-MsanInterceptor::findAllocInfoByAddress(uptr Address) {
-  std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-  auto It = m_AllocationMap.upper_bound(Address);
-  if (It == m_AllocationMap.begin()) {
-    return std::nullopt;
-  }
-  --It;
-
-  // Since we haven't intercepted all USM APIs, we can't make sure the found
-  // AllocInfo is correct.
-  if (Address < It->second->AllocBegin ||
-      Address >= It->second->AllocBegin + It->second->AllocSize) {
-    return std::nullopt;
-  }
-
-  return It;
-}
-
-std::vector<MsanAllocationIterator>
-MsanInterceptor::findAllocInfoByContext(ur_context_handle_t Context) {
-  std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-  std::vector<MsanAllocationIterator> AllocInfos;
-  for (auto It = m_AllocationMap.begin(); It != m_AllocationMap.end(); It++) {
-    const auto &[_, AI] = *It;
-    if (AI->Context == Context) {
-      AllocInfos.emplace_back(It);
-    }
-  }
-  return AllocInfos;
 }
 
 ur_result_t DeviceInfo::allocShadowMemory(ur_context_handle_t Context) {
