@@ -136,6 +136,13 @@ if(NOT MSVC)
     endif()
 endif()
 
+if(NOT UR_STANDALONE_BUILD AND
+    UR_ENABLE_TRACING AND
+    DEFINED LLVM_EXTERNAL_PROJECTS AND
+    (NOT "xpti" IN_LIST LLVM_EXTERNAL_PROJECTS OR NOT "xptifw" IN_LIST LLVM_EXTERNAL_PROJECTS))
+  message(FATAL_ERROR "UR_ENABLE_TRACING=ON but XPTI is not going to be built")
+endif()
+
 if(UR_ENABLE_TRACING)
     add_compile_definitions(UR_ENABLE_TRACING)
 

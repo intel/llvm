@@ -29,9 +29,9 @@ option(SYCL_UMF_DISABLE_HWLOC
 # Here we override the defaults to disable building tests from unified-runtime
 set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
-set(UR_BUILD_XPTI_LIBS OFF)
+set(UR_BUILD_XPTI_LIBS OFF CACHE BOOL "")
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
-set(UR_ENABLE_TRACING ON)
+set(UR_ENABLE_TRACING ON CACHE BOOL "")
 
 set(UR_EXTERNAL_DEPENDENCIES "sycl-headers" CACHE LIST
   "List of external CMake targets for executables/libraries to depend on" FORCE)
