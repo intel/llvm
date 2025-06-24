@@ -94,10 +94,10 @@
 // CHECK-NEXT: DeprecatedFeatures/DiscardEvents/discard_events_using_assert.cpp
 // CHECK-NEXT: DeviceLib/built-ins/printf.cpp
 // CHECK-NEXT: DeviceLib/cmath-aot.cpp
-// CHECK-NEXT: DeviceLib/imf/imf_bfloat16_integeral_convesions.cpp
-// CHECK-NEXT: DeviceLib/imf/imf_fp16_trivial_test.cpp
-// CHECK-NEXT: DeviceLib/imf/imf_fp32_test.cpp
-// CHECK-NEXT: DeviceLib/imf/imf_half_type_cast.cpp
+// CHECK-NEXT: DeviceLib/imf/bfloat16_integeral_convesions.cpp
+// CHECK-NEXT: DeviceLib/imf/fp16_trivial_test.cpp
+// CHECK-NEXT: DeviceLib/imf/fp32_test.cpp
+// CHECK-NEXT: DeviceLib/imf/half_type_cast.cpp
 // CHECK-NEXT: DeviceLib/separate_compile_test.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortK.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortKv2.cpp
