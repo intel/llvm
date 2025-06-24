@@ -136,23 +136,24 @@ using exported_mem_t = typename exported_mem<ExportMemHandleType>::type;
 
 The `export_external_mem_handle_type` enum class defines the types of external
 memory resource handles that can be exported by this extension. The `opaque_fd`
-and `win32_nt_handle` values are used during allocation of exportable memory to
+and `win32_nt` values are used during allocation of exportable memory to
 indicate the type of handle that will later be returned by the
 `export_device_mem_handle` function.
 
 The `opaque_fd` handle type corresponds to a POSIX file descriptor, which is
 represented by an `int`.
 
-The `win32_nt_handle` handle type corresponds to a Windows NT handle, which is
+The `win32_nt` handle type corresponds to a Windows NT handle, which is
 represented by a `void *`.
 
 The `exported_mem` template struct is specialized for each of the
 `export_external_mem_handle_type` values. Each specialization defines a `type`
-member that represents the type of the exported memory handle for that specific
+alias that represents the type of the exported memory handle for that specific
 handle.
 
 The `exported_mem_t` type alias allows the user to easily obtain the type of
-the exported memory handle based on the `export_external_mem_handle_type`.
+the exported memory handle based on the `export_external_mem_handle_type`
+template parameter.
 
 === API of the extension
 
