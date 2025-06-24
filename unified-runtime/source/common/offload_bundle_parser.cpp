@@ -24,29 +24,26 @@ HipOffloadBundleParser::load(const uint8_t *Buff, size_t Length) {
 ur_result_t HipOffloadBundleParser::extract(std::string_view SearchTargetId,
                                             const uint8_t *&OutBinary,
                                             size_t &OutLength) {
-  const char *Limit = reinterpret_cast<const char *>(&Buff[Length]);
-  auto Entry = containsBundle(SearchTargetId);
-  if (!Entry) {
-    return UR_RESULT_ERROR_INVALID_PROGRAM;
-  }
-  OutBinary = reinterpret_cast<const uint8_t *>(&Buff[Entry->ObjectOffset]);
-  OutLength = Entry->ObjectSize;
+  if (auto Entry = containsBundle(SearchTargetId)) {
+    OutBinary = &Buff[Entry->ObjectOffset];
+    OutLength = Entry->ObjectSize;
 
-  if (reinterpret_cast<const char *>(&OutBinary[OutLength]) > Limit) {
-    return UR_RESULT_ERROR_INVALID_PROGRAM;
+    if (const uint8_t *Limit = &Buff[Length]; &OutBinary[OutLength] <= Limit) {
+      return UR_RESULT_SUCCESS;
+    }
   }
-  return UR_RESULT_SUCCESS;
+  return UR_RESULT_ERROR_INVALID_PROGRAM;
 }
 
 std::optional<HipOffloadBundleParser::BundleEntry>
 HipOffloadBundleParser::containsBundle(std::string_view SearchTargetId) {
-  const char *Limit = reinterpret_cast<const char *>(&Buff[Length]);
+  const uint8_t *Limit = &Buff[Length];
 
   // The different check here means that a binary consisting of only the magic
   // bytes (but nothing else) will result in INVALID_PROGRAM rather than being
   // treated as a non-bundle
   auto *Header = reinterpret_cast<const BundleHeader *>(Buff);
-  if (reinterpret_cast<const char *>(&Header->FirstEntry) > Limit) {
+  if (reinterpret_cast<const uint8_t *>(&Header->FirstEntry) > Limit) {
     return std::nullopt;
   }
 
@@ -59,14 +56,13 @@ HipOffloadBundleParser::containsBundle(std::string_view SearchTargetId) {
 
   const auto *CurrentEntry = &Header->FirstEntry;
   for (uint64_t I = 0; I < Header->EntryCount; I++) {
-    if (&CurrentEntry->EntryIdStart > Limit) {
+    const uint8_t *EntryBytes = &CurrentEntry->EntryIdStart;
+    if (EntryBytes > Limit ||
+        (EntryBytes + CurrentEntry->EntryIdSize) > Limit) {
       return std::nullopt;
     }
-    auto EntryId = std::string_view(&CurrentEntry->EntryIdStart,
+    auto EntryId = std::string_view(reinterpret_cast<const char *>(EntryBytes),
                                     CurrentEntry->EntryIdSize);
-    if (EntryId.end() > Limit) {
-      return std::nullopt;
-    }
 
     // Will match either "hip" or "hipv4"
     bool isHip = EntryId.find("hip") == 0;

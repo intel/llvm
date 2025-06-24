@@ -31,7 +31,7 @@ class HipOffloadBundleParser {
     uint64_t ObjectOffset;
     uint64_t ObjectSize;
     uint64_t EntryIdSize;
-    char EntryIdStart;
+    uint8_t EntryIdStart;
   });
 
   PACKED(struct BundleHeader {
