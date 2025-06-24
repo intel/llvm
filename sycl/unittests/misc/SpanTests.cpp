@@ -47,7 +47,7 @@ TEST_F(SpanTest, CanConstructFromNullptrWithSize) {
 }
 
 TEST_F(SpanTest, AccessElementsByIndexAndFrontBack) {
-  auto arr[] = {1, 2, 3};
+  int arr[] = {1, 2, 3};
   sycl::span sp(arr, std::size(arr));
   const auto size = sp.size();
 
@@ -59,7 +59,7 @@ TEST_F(SpanTest, AccessElementsByIndexAndFrontBack) {
 }
 
 TEST_F(SpanTest, BeginEndAndReverseIteratorsWork) {
-  auto arr[] = {1, 2, 3, 4, 5};
+  int arr[] = {1, 2, 3, 4, 5};
   sycl::span sp(arr, std::size(arr));
 
   auto it = sp.begin();
@@ -73,7 +73,7 @@ TEST_F(SpanTest, BeginEndAndReverseIteratorsWork) {
 }
 
 TEST_F(SpanTest, ConstBeginEndIteratorsOnConstSpan) {
-  auto arr[] = {10, 20, 30};
+  int arr[] = {10, 20, 30};
   const sycl::span sp(arr, std::size(arr));
 
   auto cit = sp.cbegin();
@@ -84,7 +84,7 @@ TEST_F(SpanTest, ConstBeginEndIteratorsOnConstSpan) {
 }
 
 TEST_F(SpanTest, SubspanReturnsCorrectSlice) {
-  auto arr[] = {10, 20, 30, 40, 50};
+  int arr[] = {10, 20, 30, 40, 50};
   sycl::span sp(arr, std::size(arr));
 
   auto sub = sp.subspan(1, 3);
@@ -95,7 +95,7 @@ TEST_F(SpanTest, SubspanReturnsCorrectSlice) {
 }
 
 TEST_F(SpanTest, FirstAndLastReturnCorrectSubspans) {
-  auto arr[] = {10, 20, 30, 40, 50};
+  int arr[] = {10, 20, 30, 40, 50};
   sycl::span sp(arr, std::size(arr));
 
   auto first2 = sp.first(2);
@@ -110,7 +110,7 @@ TEST_F(SpanTest, FirstAndLastReturnCorrectSubspans) {
 }
 
 TEST_F(SpanTest, AsBytesReturnsReadOnlyByteView) {
-  auto arr[] = {10, 20, 30, 40, 50};
+  int arr[] = {10, 20, 30, 40, 50};
   sycl::span sp(arr, std::size(arr));
 
   auto bytes = sycl::as_bytes(sp);
@@ -120,7 +120,7 @@ TEST_F(SpanTest, AsBytesReturnsReadOnlyByteView) {
 }
 
 TEST_F(SpanTest, AsWritableBytesAllowsByteWiseModification) {
-  auto arr[] = {10, 20, 30, 40, 50};
+  int arr[] = {10, 20, 30, 40, 50};
   sycl::span sp(arr, std::size(arr));
 
   auto writable_bytes = sycl::as_writable_bytes(sp);
@@ -134,14 +134,14 @@ TEST_F(SpanTest, AsWritableBytesAllowsByteWiseModification) {
 }
 
 TEST_F(SpanTest, SizeBytesReturnsCorrectByteCount) {
-  auto arr[] = {1, 2, 3, 4, 5};
+  int arr[] = {1, 2, 3, 4, 5};
   sycl::span sp(arr, std::size(arr));
 
   EXPECT_EQ(sp.size_bytes(), sizeof(int) * 5);
 }
 
 TEST_F(SpanTest, EmptyMethodDetectsEmptySpans) {
-  auto arr[] = {1, 2, 3, 4, 5};
+  int arr[] = {1, 2, 3, 4, 5};
   sycl::span sp(arr, std::size(arr));
   sycl::span<int> empty_sp;
 
@@ -150,7 +150,7 @@ TEST_F(SpanTest, EmptyMethodDetectsEmptySpans) {
 }
 
 TEST_F(SpanTest, RangeBasedForLoopIteratesAllElements) {
-  auto arr[] = {1, 2, 3, 4, 5};
+  int arr[] = {1, 2, 3, 4, 5};
   sycl::span sp(arr, std::size(arr));
 
   int sum = 0;
@@ -161,7 +161,7 @@ TEST_F(SpanTest, RangeBasedForLoopIteratesAllElements) {
 }
 
 TEST_F(SpanTest, ModifyingSpanElementsModifiesUnderlying) {
-  auto arr[] = {1, 2, 3};
+  int arr[] = {1, 2, 3};
   sycl::span sp(arr, std::size(arr));
 
   sp[0] = 10;
@@ -174,14 +174,14 @@ TEST_F(SpanTest, ModifyingSpanElementsModifiesUnderlying) {
 }
 
 TEST_F(SpanTest, SpanPreservesOriginalAlignment) {
-  alignas(16) auto aligned_arr[] = {1, 2, 3, 4};
+  alignas(16) int aligned_arr[] = {1, 2, 3, 4};
   sycl::span sp(aligned_arr, std::size(aligned_arr));
 
   EXPECT_EQ(reinterpret_cast<std::uintptr_t>(sp.data()) % 16, 0u);
 }
 
 TEST_F(SpanTest, IteratorReflectsUnderlyingDataChanges) {
-  auto arr[] = {1, 2, 3};
+  int arr[] = {1, 2, 3};
   sycl::span sp(arr, std::size(arr));
   auto it = sp.begin();
   arr[0] = 42;
@@ -189,7 +189,7 @@ TEST_F(SpanTest, IteratorReflectsUnderlyingDataChanges) {
 }
 
 TEST_F(SpanTest, ConstReverseIteratorsProvideReverseAccess) {
-  auto arr[] = {1, 2, 3, 4, 5};
+  int arr[] = {1, 2, 3, 4, 5};
   sycl::span sp(arr, std::size(arr));
 
   auto crit = sp.crbegin();
@@ -199,7 +199,7 @@ TEST_F(SpanTest, ConstReverseIteratorsProvideReverseAccess) {
 }
 
 TEST_F(SpanTest, SpanWorksWithSTLAlgorithms) {
-  auto arr[] = {1, 2, 3, 4, 5, 6};
+  int arr[] = {1, 2, 3, 4, 5, 6};
   sycl::span sp(arr, std::size(arr));
 
   auto found = std::find(sp.begin(), sp.end(), 4);
@@ -232,7 +232,7 @@ TEST_F(SpanTest, SpanWorksWithSTLAlgorithms) {
 }
 
 TEST_F(SpanTest, IteratorSupportsFullArithmeticOperations) {
-  auto arr[] = {10, 20, 30, 40, 50};
+  int arr[] = {10, 20, 30, 40, 50};
   sycl::span sp(arr, std::size(arr));
 
   auto it = sp.begin();
@@ -267,7 +267,7 @@ TEST_F(SpanTest, IteratorSupportsFullArithmeticOperations) {
 // C++20 spec tests missing from other test files
 
 TEST_F(SpanTest, AtMethodThrowsOutOfRange) {
-  auto arr[] = {1, 2, 3};
+  int arr[] = {1, 2, 3};
   sycl::span sp(arr, std::size(arr));
 
   // Valid access
@@ -299,7 +299,7 @@ TEST_F(SpanTest, InitializerListConstructor) {
 // Note: These are C++20 template versions of first/last/subspan:
 // If not supported, tests will use runtime versions instead
 TEST_F(SpanTest, CompileTimeFirstAndLast) {
-  auto arr[] = {10, 20, 30, 40, 50};
+  int arr[] = {10, 20, 30, 40, 50};
   sycl::span sp(arr, std::size(arr));
 
   // Runtime versions (always available)
@@ -312,19 +312,19 @@ TEST_F(SpanTest, CompileTimeFirstAndLast) {
   EXPECT_EQ(last2.size(), 2u);
   EXPECT_EQ(last2[0], 40);
   EXPECT_EQ(last2[1], 50);
-  auto first3_template = sp.first<3>();
+  auto first3_template = sp.template first<3>();
   static_assert(decltype(first3_template)::extent == 3);
   EXPECT_EQ(first3_template.size(), 3u);
   EXPECT_EQ(first3_template[0], 10);
 
-  auto last2_template = sp.last<2>();
+  auto last2_template = sp.template last<2>();
   static_assert(decltype(last2_template)::extent == 2);
   EXPECT_EQ(last2_template.size(), 2u);
   EXPECT_EQ(last2_template[0], 40);
 }
 
 TEST_F(SpanTest, CompileTimeSubspan) {
-  auto arr[] = {1, 2, 3, 4, 5, 6};
+  int arr[] = {1, 2, 3, 4, 5, 6};
   sycl::span sp(arr, std::size(arr));
 
   // Runtime version (always available)
@@ -338,12 +338,12 @@ TEST_F(SpanTest, CompileTimeSubspan) {
   EXPECT_EQ(sub2[0], 5);
   EXPECT_EQ(sub2[1], 6);
 
-  auto sub1_template = sp.subspan<2, 3>();
+  auto sub1_template = sp.template subspan<2, 3>();
   static_assert(decltype(sub1_template)::extent == 3);
   EXPECT_EQ(sub1_template.size(), 3u);
   EXPECT_EQ(sub1_template[0], 3);
 
-  auto sub2_template = sp.subspan<4>();
+  auto sub2_template = sp.template subspan<4>();
   static_assert(decltype(sub2_template)::extent == sycl::dynamic_extent);
   EXPECT_EQ(sub2_template.size(), 2u);
   EXPECT_EQ(sub2_template[0], 5);
