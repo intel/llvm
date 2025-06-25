@@ -12,6 +12,7 @@
 #include "helpers/kernel_helpers.hpp"
 #include "helpers/mutable_helpers.hpp"
 #include "logger/ur_logger.hpp"
+#include "ur/ur.hpp"
 #include "ur_api.h"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
@@ -488,8 +489,8 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       IsUpdatable(Desc->isUpdatable), IsProfilingEnabled(Desc->enableProfiling),
       InOrderRequested(Desc->isInOrder), IsInOrderCmdList(IsInOrderCmdList),
       UseImmediateAppendPath(UseImmediateAppendPath) {
-  UR_CALL(ur::level_zero::urContextRetain(Context));
-  UR_CALL(ur::level_zero::urDeviceRetain(Device));
+  UR_CALL_NOCHECK(ur::level_zero::urContextRetain(Context));
+  UR_CALL_NOCHECK(ur::level_zero::urDeviceRetain(Device));
 }
 
 void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
@@ -503,8 +504,8 @@ void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
   // command_buffer
   if (ZeComputeCommandList && checkL0LoaderTeardown()) {
     ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeComputeCommandList));
-    if (useCopyEngine() && ZeCopyCommandList && checkL0LoaderTeardown()) {
-    }
+  }
+  if (useCopyEngine() && ZeCopyCommandList && checkL0LoaderTeardown()) {
     ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCopyCommandList));
   }
 
