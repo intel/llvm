@@ -155,13 +155,10 @@ ur_result_t ShadowMemoryGPU::Destory() {
     }
     UR_CALL(getContext()->urDdiTable.VirtualMem.pfnFree(
         Context, (const void *)ShadowBegin, GetShadowSize()));
-
-    if (ShadowBegin != 0) {
-      UR_CALL(getContext()->urDdiTable.VirtualMem.pfnFree(
-          Context, (const void *)ShadowBegin, GetShadowSize()));
-      ShadowBegin = ShadowEnd = 0;
-    }
+    ShadowBegin = ShadowEnd = 0;
   }
+
+  UR_CALL(getContext()->urDdiTable.Context.pfnRelease(Context));
 
   return UR_RESULT_SUCCESS;
 }
