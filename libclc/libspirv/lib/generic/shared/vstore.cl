@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
 #include <clc/shared/clc_vstore.h>
+#include <libspirv/spirv.h>
 
 #define __CLC_BODY "vstore.inc"
 #include <clc/integer/gentype.inc>
