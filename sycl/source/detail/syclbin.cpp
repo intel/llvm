@@ -100,10 +100,6 @@ std::pair<const char *, size_t> getImageInOffloadBinary(const char *Data,
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unsupported Offload Binary version number.");
 
-  if (Header->Version != 1)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unsupported Offload Binary version number.");
-
   if (Header->EntrySize != sizeof(OffloadBinaryEntryType))
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unexpected number of offload entries.");
