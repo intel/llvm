@@ -7,12 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "include/msan_rtl.hpp"
-#include "atomic.hpp"
-#include "device.h"
-#include "include/sanitizer_defs.hpp"
-#include "include/sanitizer_utils.hpp"
 #include "msan/msan_libdevice.hpp"
-#include "spirv_vars.h"
 
 DeviceGlobal<void *> __MsanLaunchInfo;
 #define GetMsanLaunchInfo                                                      \
@@ -339,7 +334,7 @@ inline void CopyShadowAndOrigin(uptr dst, uint32_t dst_as, uptr src,
   CopyOrigin(dst, dst_as, src, src_as, size);
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_copy_shadow, dst, dst_as, src,
-                                src_as, shadow_dst, shadow_src));
+                                src_as, shadow_dst, shadow_src, size));
 }
 
 static __SYCL_CONSTANT__ const char __msan_print_move_shadow[] =
@@ -365,7 +360,7 @@ inline void MoveShadowAndOrigin(uptr dst, uint32_t dst_as, uptr src,
   Memmove(shadow_dst, shadow_src, size);
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_move_shadow, dst, dst_as, src,
-                                src_as, shadow_dst, shadow_src));
+                                src_as, shadow_dst, shadow_src, size));
 }
 
 inline void UnpoisonShadow(uptr addr, uint32_t as, size_t size) {

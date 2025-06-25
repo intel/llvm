@@ -169,6 +169,7 @@ private:
 
   uptr LocalShadowOffset = 0;
   uptr PrivateShadowOffset = 0;
+  uptr PrivateBasePtr = 0;
 };
 
 // clang-format off
