@@ -317,7 +317,9 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   endif()
 endif()
 
-install(TARGETS umf
-  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
-  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
-  RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)
+if(NOT UR_USE_EXTERNAL_UMF)
+  install(TARGETS umf
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+    RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)
+endif()

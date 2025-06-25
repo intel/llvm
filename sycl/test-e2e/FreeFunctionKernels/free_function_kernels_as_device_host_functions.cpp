@@ -1,5 +1,5 @@
 // REQUIRES: aspect-usm_shared_allocations
-// RUN: %{build} -o %t.out
+// RUN: %{build} --save-temps -o %t.out
 // RUN: %{run} %t.out
 
 // This test verifies whether free function kernel can be used as device

@@ -84,6 +84,7 @@ ur_exp_command_buffer_handle_t_::getSyncPoint(ur_event_handle_t event) {
     throw UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
   syncPoints.push_back(event);
+  usedSyncPoints.push_back(false);
   return static_cast<ur_exp_command_buffer_sync_point_t>(syncPoints.size() - 1);
 }
 
@@ -99,6 +100,7 @@ ur_event_handle_t *ur_exp_command_buffer_handle_t_::getWaitListFromSyncPoints(
       UR_LOG(ERR, "Invalid sync point");
       throw UR_RESULT_ERROR_INVALID_VALUE;
     }
+    usedSyncPoints[pSyncPointWaitList[i]] = true;
     syncPointWaitList[i] = syncPoints[pSyncPointWaitList[i]];
   }
   return syncPointWaitList.data();
@@ -132,9 +134,13 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   if (!isInOrder) {
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (commandListLocked->getZeCommandList(), nullptr, 0, nullptr));
-    for (auto &event : syncPoints) {
-      ZE2UR_CALL(zeCommandListAppendEventReset,
-                 (commandListLocked->getZeCommandList(), event->getZeEvent()));
+    for (size_t i = 0; i < usedSyncPoints.size(); ++i) {
+      if (!usedSyncPoints[i]) {
+        continue;
+      }
+      ZE2UR_CALL(
+          zeCommandListAppendEventReset,
+          (commandListLocked->getZeCommandList(), syncPoints[i]->getZeEvent()));
     }
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (commandListLocked->getZeCommandList(), nullptr, 0, nullptr));
