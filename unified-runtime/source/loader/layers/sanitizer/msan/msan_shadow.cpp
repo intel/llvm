@@ -259,9 +259,9 @@ ur_result_t ShadowMemoryGPU::Destory() {
       ShadowBegin = ShadowEnd = 0;
     }
 
-    ReleaseCleanShadow();
+    UR_CALL(ReleaseCleanShadow());
 
-    getContext()->urDdiTable.Context.pfnRelease(Context);
+    UR_CALL(getContext()->urDdiTable.Context.pfnRelease(Context));
 
     return Result;
   }();
@@ -489,7 +489,7 @@ ur_result_t ShadowMemoryGPU::AllocCleanShadow(ur_queue_handle_t Queue,
   }
 
   if (CleanShadowPtr) {
-    ReleaseCleanShadow();
+    UR_CALL(ReleaseCleanShadow());
   }
 
   CleanShadowSize = RoundUpTo(Size, PageSize);
