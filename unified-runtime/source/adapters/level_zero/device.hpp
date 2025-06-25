@@ -223,6 +223,8 @@ struct ur_device_handle_t_ : ur_object {
   ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
       ZeDeviceMemoryAccessProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
+  ZeCache<ZeStruct<ze_device_cache_line_size_ext_t>>
+      ZeDeviceCacheLinePropertiesExt;
   ZeCache<ZeStruct<ze_device_ip_version_ext_t>> ZeDeviceIpVersionExt;
   ZeCache<struct ze_global_memsize> ZeGlobalMemSize;
   ZeCache<ZeStruct<ze_mutable_command_list_exp_properties_t>>
