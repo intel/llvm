@@ -497,14 +497,12 @@ ur_result_t ShadowMemoryGPU::AllocCleanShadow(ur_queue_handle_t Queue,
   ur_result_t Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
       Context, Device, CleanShadowSize, (void **)&CleanShadowPtr);
   if (Result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERR, "VirtualMem.pfnReserve: {}", Result);
     return Result;
   }
 
   Result = getContext()->urDdiTable.PhysicalMem.pfnCreate(
       Context, Device, CleanShadowSize, nullptr, &CleanShadowPhysicalMem);
   if (Result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERR, "PhysicalMem.pfnCreate: {}", Result);
     return Result;
   }
 
@@ -512,7 +510,6 @@ ur_result_t ShadowMemoryGPU::AllocCleanShadow(ur_queue_handle_t Queue,
       Context, (void *)CleanShadowPtr, CleanShadowSize, CleanShadowPhysicalMem,
       0, UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
   if (Result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERR, "VirtualMem.pfnMap: {}", Result);
     return Result;
   }
 
@@ -520,7 +517,6 @@ ur_result_t ShadowMemoryGPU::AllocCleanShadow(ur_queue_handle_t Queue,
   Result =
       EnqueueUSMSet(Queue, (void *)CleanShadowPtr, (char)0, CleanShadowSize);
   if (Result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERR, "EnqueueUSMSet: {}", Result);
     return Result;
   }
 
@@ -528,7 +524,6 @@ ur_result_t ShadowMemoryGPU::AllocCleanShadow(ur_queue_handle_t Queue,
       Context, (void *)CleanShadowPtr, CleanShadowSize,
       UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY);
   if (Result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERR, "VirtualMem.pfnMap2: {}", Result);
     return Result;
   }
 
@@ -540,21 +535,18 @@ ur_result_t ShadowMemoryGPU::ReleaseCleanShadow() {
   ur_result_t Result = getContext()->urDdiTable.VirtualMem.pfnUnmap(
       Context, (void *)CleanShadowPtr, CleanShadowSize);
   if (Result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERR, "VirtualMem.pfnUnmap: {}", Result);
     return Result;
   }
 
   Result =
       getContext()->urDdiTable.PhysicalMem.pfnRelease(CleanShadowPhysicalMem);
   if (Result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERR, "PhysicalMem.pfnRelease: {}", Result);
     return Result;
   }
 
   Result = getContext()->urDdiTable.VirtualMem.pfnFree(
       Context, (void *)CleanShadowPtr, CleanShadowSize);
   if (Result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERR, "VirtualMem.pfnFree: {}", Result);
     return Result;
   }
 

@@ -496,8 +496,13 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   // Clean shadow
   // Its content is always zero, and is used for unsupport memory types
-  UR_CALL(DeviceInfo->Shadow->AllocCleanShadow(
-      Queue, ContextInfo->CleanShadowSize, LaunchInfo.Data.Host.CleanShadow));
+  auto URes = DeviceInfo->Shadow->AllocCleanShadow(
+      Queue, ContextInfo->CleanShadowSize, LaunchInfo.Data.Host.CleanShadow);
+  if (URes != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, ERR, "Failed to allocate clean shadow: {}",
+             URes);
+    return URes;
+  }
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
