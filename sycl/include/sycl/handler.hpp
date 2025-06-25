@@ -349,6 +349,16 @@ public:
       KernelFunc(item);
     }
   }
+
+  // Copy the properties_tag getter from the original kernel to propagate
+  // property(s)
+  template <
+      typename T = KernelType,
+      typename = std::enable_if_t<ext::oneapi::experimental::detail::
+                                      HasKernelPropertiesGetMethod<T>::value>>
+  auto get(ext::oneapi::experimental::properties_tag) const {
+    return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
+  }
 };
 
 template <typename TransformedArgType, int Dims, typename KernelType>
@@ -363,6 +373,16 @@ public:
       auto item = Gen.template getItem<KernelType>();
       KernelFunc(item, KH);
     }
+  }
+
+  // Copy the properties_tag getter from the original kernel to propagate
+  // property(s)
+  template <
+      typename T = KernelType,
+      typename = std::enable_if_t<ext::oneapi::experimental::detail::
+                                      HasKernelPropertiesGetMethod<T>::value>>
+  auto get(ext::oneapi::experimental::properties_tag) const {
+    return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
   }
 };
 
@@ -551,6 +571,9 @@ private:
   /// object destruction.
   ///
   /// \return a SYCL event object representing the command group
+  ///
+  /// Note: in preview mode, handler.finalize() is expected to return
+  /// nullptr if the event is not needed (discarded).
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::EventImplPtr finalize();
 #else
@@ -872,7 +895,7 @@ private:
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
     if constexpr (IsCallableWithKernelHandler) {
-      getOrInsertHandlerKernelBundle(/*Insert=*/true);
+      getOrInsertHandlerKernelBundlePtr(/*Insert=*/true);
     }
   }
 
@@ -1294,8 +1317,8 @@ private:
       KernelWrapper<WrapAs::parallel_for, KName, decltype(Wrapper),
                     TransformedArgType, PropertiesT>::wrap(this, Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
-      verifyUsedKernelBundleInternal(
-          detail::string_view{detail::getKernelName<NameT>()});
+      constexpr detail::string_view Name{detail::getKernelName<NameT>()};
+      verifyUsedKernelBundleInternal(Name);
       // We are executing over the rounded range, but there are still
       // items/ids that are are constructed in ther range rounded
       // kernel use items/ids in the user range, which means that
@@ -1319,9 +1342,9 @@ private:
       KernelWrapper<WrapAs::parallel_for, NameT, KernelType, TransformedArgType,
                     PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-      constexpr std::string_view Name{detail::getKernelName<NameT>()};
+      constexpr detail::string_view Name{detail::getKernelName<NameT>()};
 
-      verifyUsedKernelBundleInternal(detail::string_view{Name});
+      verifyUsedKernelBundleInternal(Name);
       processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
@@ -1612,8 +1635,8 @@ private:
       throwOnKernelParameterMisuse<KernelName, KernelType>();
     }
     throwIfActionIsCreated();
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
+    constexpr detail::string_view Name{detail::getKernelName<NameT>()};
+    verifyUsedKernelBundleInternal(Name);
     setType(detail::CGType::Kernel);
 
     detail::checkValueRange<Dims>(params...);
@@ -1656,8 +1679,8 @@ private:
     // Ignore any set kernel bundles and use the one associated with the
     // kernel.
     setHandlerKernelBundle(Kernel);
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
+    constexpr detail::string_view Name{detail::getKernelName<NameT>()};
+    verifyUsedKernelBundleInternal(Name);
     setType(detail::CGType::Kernel);
 
     detail::checkValueRange<Dims>(params...);
@@ -1687,13 +1710,26 @@ private:
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::kernel_bundle_impl>
   getOrInsertHandlerKernelBundle(bool Insert) const;
+#endif
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Rename to just getOrInsertHandlerKernelBundle
+#endif
+  detail::kernel_bundle_impl *
+  getOrInsertHandlerKernelBundlePtr(bool Insert) const;
 
   void setHandlerKernelBundle(kernel Kernel);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setHandlerKernelBundle(
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
+#endif
+
+  template <typename SharedPtrT>
+  void setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr);
 
   void SetHostTask(std::function<void()> &&Func);
   void SetHostTask(std::function<void(interop_handle)> &&Func);
@@ -1740,6 +1776,8 @@ private:
   /// @param Type The actual type based on what handler functions the user
   /// called.
   void setUserFacingNodeType(ext::oneapi::experimental::node_type Type);
+
+  kernel_bundle<bundle_state::input> getKernelBundle() const;
 
 public:
   handler(const handler &) = delete;
@@ -2109,8 +2147,8 @@ public:
     kernel_single_task<NameT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
+    constexpr detail::string_view Name{detail::getKernelName<NameT>()};
+    verifyUsedKernelBundleInternal(Name);
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     setNDRangeDescriptor(range<1>{1});
@@ -3509,6 +3547,7 @@ private:
   }
 
   const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;
+  detail::context_impl &getContextImpl() const;
 
   // Checks if 2D memory operations are supported by the underlying platform.
   bool supportsUSMMemcpy2D();

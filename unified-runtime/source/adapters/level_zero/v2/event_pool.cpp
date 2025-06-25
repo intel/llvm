@@ -20,7 +20,7 @@ static constexpr size_t EVENTS_BURST = 64;
 ur_event_handle_t event_pool::allocate() {
   TRACK_SCOPE_LATENCY("event_pool::allocate");
 
-  std::unique_lock<std::mutex> lock(*mutex);
+  std::unique_lock<ur_mutex> lock(mutex);
 
   if (freelist.empty()) {
     auto start = events.size();
@@ -46,7 +46,7 @@ ur_event_handle_t event_pool::allocate() {
 void event_pool::free(ur_event_handle_t event) {
   TRACK_SCOPE_LATENCY("event_pool::free");
 
-  std::unique_lock<std::mutex> lock(*mutex);
+  std::unique_lock<ur_mutex> lock(mutex);
 
   event->reset();
   freelist.push_back(event);

@@ -254,8 +254,8 @@ public:
     std::abort();
   }
 
-  void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr, ur_event_handle_t &OutEventToWait) override;
+  void *allocateMem(context_impl *Context, bool InitFromUserData, void *HostPtr,
+                    ur_event_handle_t &OutEventToWait) override;
 
   MemObjType getType() const override { return MemObjType::Image; }
 
@@ -298,7 +298,7 @@ public:
   void unsampledImageDestructorNotification(void *UserObj);
 
 private:
-  std::vector<device> getDevices(const ContextImplPtr Context);
+  std::vector<device> getDevices(context_impl *Context);
 
   ur_mem_type_t getImageType() {
     if (MDimensions == 1)
@@ -330,7 +330,7 @@ private:
     return Desc;
   }
 
-  bool checkImageDesc(const ur_image_desc_t &Desc, ContextImplPtr Context,
+  bool checkImageDesc(const ur_image_desc_t &Desc, context_impl *Context,
                       void *UserPtr);
 
   ur_image_format_t getImageFormat() {
@@ -340,8 +340,7 @@ private:
     return Format;
   }
 
-  bool checkImageFormat(const ur_image_format_t &Format,
-                        ContextImplPtr Context);
+  bool checkImageFormat(const ur_image_format_t &Format, context_impl *Context);
 
   uint8_t MDimensions = 0;
   bool MIsArrayImage = false;

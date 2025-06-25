@@ -9,6 +9,7 @@
 #pragma once
 #include <detail/cg.hpp>
 #include <detail/device_binary_image.hpp>
+#include <detail/device_global_map.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_arg_mask.hpp>
@@ -56,15 +57,15 @@ inline namespace _V1 {
 class context;
 namespace detail {
 
-bool doesDevSupportDeviceRequirements(const device &Dev,
+bool doesDevSupportDeviceRequirements(const device_impl &Dev,
                                       const RTDeviceBinaryImage &BinImages);
 std::optional<sycl::exception>
-checkDevSupportDeviceRequirements(const device &Dev,
+checkDevSupportDeviceRequirements(const device_impl &Dev,
                                   const RTDeviceBinaryImage &BinImages,
                                   const NDRDescT &NDRDesc = {});
 
 bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
-                                const device_impl *DevImpl);
+                                const device_impl &DevImpl);
 
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
@@ -136,11 +137,11 @@ public:
 
   RTDeviceBinaryImage &getDeviceImage(KernelNameStrRefT KernelName,
                                       context_impl &ContextImpl,
-                                      const device_impl *DeviceImpl);
+                                      const device_impl &DeviceImpl);
 
   RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
-      context_impl &ContextImpl, const device_impl *DeviceImpl);
+      context_impl &ContextImpl, const device_impl &DeviceImpl);
 
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
                                       context_impl &ContextImpl,
@@ -379,11 +380,11 @@ public:
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
   std::set<RTDeviceBinaryImage *>
-  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev,
+  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device_impl &Dev,
                          bool ErrorOnUnresolvableImport = true);
   std::set<RTDeviceBinaryImage *>
   collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
-                                           const device &Dev,
+                                           const device_impl &Dev,
                                            bool ErrorOnUnresolvableImport);
 
 private:
@@ -411,11 +412,11 @@ private:
 
   std::set<RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
-      const RTDeviceBinaryImage &Img, const device &Dev);
+      const RTDeviceBinaryImage &Img, const device_impl &Dev);
 
-  bool isSpecialDeviceImage(RTDeviceBinaryImage *BinImage);
-  bool isSpecialDeviceImageShouldBeUsed(RTDeviceBinaryImage *BinImage,
-                                        const device_impl &DeviceImpl);
+  bool isBfloat16DeviceImage(RTDeviceBinaryImage *BinImage);
+  bool shouldBF16DeviceImageBeUsed(RTDeviceBinaryImage *BinImage,
+                                   const device_impl &DeviceImpl);
 
 protected:
   /// The three maps below are used during kernel resolution. Any kernel is
@@ -534,12 +535,7 @@ protected:
   SanitizerType m_SanitizerFoundInImage;
 
   // Maps between device_global identifiers and associated information.
-  std::unordered_map<KernelNameStrT, std::unique_ptr<DeviceGlobalMapEntry>>
-      m_DeviceGlobals;
-  std::unordered_map<const void *, DeviceGlobalMapEntry *> m_Ptr2DeviceGlobal;
-
-  /// Protects m_DeviceGlobals and m_Ptr2DeviceGlobal.
-  std::mutex m_DeviceGlobalsMutex;
+  DeviceGlobalMap m_DeviceGlobals;
 
   // Maps between host_pipe identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>
