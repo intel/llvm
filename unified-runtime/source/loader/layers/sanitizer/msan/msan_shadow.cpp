@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
+ * Copyright (C) 2025 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions. See LICENSE.TXT
@@ -14,7 +14,6 @@
 #include "msan_shadow.hpp"
 #include "msan_interceptor.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
-#include "ur_api.h"
 #include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {
@@ -60,20 +59,20 @@ const uptr kMemoryLayoutSize = sizeof(kMemoryLayout) / sizeof(kMemoryLayout[0]);
 
 } // namespace
 
-std::shared_ptr<MsanShadowMemory>
-GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
-                    DeviceType Type) {
+std::shared_ptr<ShadowMemory> GetMsanShadowMemory(ur_context_handle_t Context,
+                                                  ur_device_handle_t Device,
+                                                  DeviceType Type) {
   if (Type == DeviceType::CPU) {
-    static std::shared_ptr<MsanShadowMemory> ShadowCPU =
-        std::make_shared<MsanShadowMemoryCPU>(Context, Device);
+    static std::shared_ptr<ShadowMemory> ShadowCPU =
+        std::make_shared<ShadowMemoryCPU>(Context, Device);
     return ShadowCPU;
   } else if (Type == DeviceType::GPU_PVC) {
-    static std::shared_ptr<MsanShadowMemory> ShadowPVC =
-        std::make_shared<MsanShadowMemoryPVC>(Context, Device);
+    static std::shared_ptr<ShadowMemory> ShadowPVC =
+        std::make_shared<ShadowMemoryPVC>(Context, Device);
     return ShadowPVC;
   } else if (Type == DeviceType::GPU_DG2) {
-    static std::shared_ptr<MsanShadowMemory> ShadowDG2 =
-        std::make_shared<MsanShadowMemoryDG2>(Context, Device);
+    static std::shared_ptr<ShadowMemory> ShadowDG2 =
+        std::make_shared<ShadowMemoryDG2>(Context, Device);
     return ShadowDG2;
   } else {
     UR_LOG_L(getContext()->logger, ERR, "Unsupport device type");
@@ -81,7 +80,7 @@ GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
   }
 }
 
-ur_result_t MsanShadowMemoryCPU::Setup() {
+ur_result_t ShadowMemoryCPU::Setup() {
   static ur_result_t Result = [this]() {
     for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
       uptr Start = kMemoryLayout[i].start;
@@ -114,7 +113,7 @@ ur_result_t MsanShadowMemoryCPU::Setup() {
   return Result;
 }
 
-ur_result_t MsanShadowMemoryCPU::Destory() {
+ur_result_t ShadowMemoryCPU::Destory() {
   if (ShadowBegin == 0 && ShadowEnd == 0) {
     return UR_RESULT_SUCCESS;
   }
@@ -139,21 +138,21 @@ ur_result_t MsanShadowMemoryCPU::Destory() {
   return Result;
 }
 
-uptr MsanShadowMemoryCPU::MemToShadow(uptr Ptr) { return MEM_TO_SHADOW(Ptr); }
+uptr ShadowMemoryCPU::MemToShadow(uptr Ptr) { return MEM_TO_SHADOW(Ptr); }
 
-uptr MsanShadowMemoryCPU::MemToOrigin(uptr Ptr) {
+uptr ShadowMemoryCPU::MemToOrigin(uptr Ptr) {
   uptr AlignedPtr = RoundDownTo(Ptr, MSAN_ORIGIN_GRANULARITY);
   return SHADOW_TO_ORIGIN(MEM_TO_SHADOW(AlignedPtr));
 }
 
-ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadow(
+ur_result_t ShadowMemoryCPU::EnqueuePoisonShadow(
     ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t NumEvents,
     const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
   return EnqueuePoisonShadowWithOrigin(Queue, Ptr, Size, Value, 0, NumEvents,
                                        EventWaitList, OutEvent);
 }
 
-ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
+ur_result_t ShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
     ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t Origin,
     uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *OutEvent) {
@@ -189,7 +188,12 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t MsanShadowMemoryGPU::Setup() {
+ShadowMemoryGPU::ShadowMemoryGPU(ur_context_handle_t Context,
+                                 ur_device_handle_t Device)
+    : ShadowMemory(Context, Device),
+      PageSize(GetVirtualMemGranularity(Context, Device)) {}
+
+ur_result_t ShadowMemoryGPU::Setup() {
   // Currently, Level-Zero doesn't create independent VAs for each contexts, if
   // we reserve shadow memory for each contexts, this will cause out-of-resource
   // error when user uses multiple contexts. Therefore, we just create one
@@ -217,7 +221,7 @@ ur_result_t MsanShadowMemoryGPU::Setup() {
   return Result;
 }
 
-ur_result_t MsanShadowMemoryGPU::Destory() {
+ur_result_t ShadowMemoryGPU::Destory() {
   if (ShadowBegin == 0) {
     return UR_RESULT_SUCCESS;
   }
@@ -242,17 +246,37 @@ ur_result_t MsanShadowMemoryGPU::Destory() {
                                                    (void *)LocalShadowOffset));
       LocalShadowOffset = 0;
     }
+
+    {
+      const size_t PageSize = GetVirtualMemGranularity(Context, Device);
+      for (auto [MappedPtr, PhysicalMem] : VirtualMemMaps) {
+        UR_CALL(getContext()->urDdiTable.VirtualMem.pfnUnmap(
+            Context, (void *)MappedPtr, PageSize));
+        UR_CALL(getContext()->urDdiTable.PhysicalMem.pfnRelease(PhysicalMem));
+      }
+      UR_CALL(getContext()->urDdiTable.VirtualMem.pfnFree(
+          Context, (const void *)ShadowBegin, GetShadowSize()));
+
+      if (ShadowBegin != 0) {
+        UR_CALL(getContext()->urDdiTable.VirtualMem.pfnFree(
+            Context, (const void *)ShadowBegin, GetShadowSize()));
+        ShadowBegin = ShadowEnd = 0;
+      }
+    }
+
+    ReleaseCleanShadow();
+
     getContext()->urDdiTable.Context.pfnRelease(Context);
+
     return Result;
   }();
   return Result;
 }
 
-ur_result_t MsanShadowMemoryGPU::EnqueueVirtualMemMap(
+ur_result_t ShadowMemoryGPU::EnqueueVirtualMemMap(
     uptr VirtualBegin, uptr VirtualEnd,
     std::vector<ur_event_handle_t> &EventWaitList,
     ur_event_handle_t *OutEvent) {
-  const size_t PageSize = GetVirtualMemGranularity(Context, Device);
   // Make sure [Ptr, Ptr + Size] is mapped to physical memory
   for (auto MappedPtr = RoundDownTo(VirtualBegin, PageSize);
        MappedPtr <= VirtualEnd; MappedPtr += PageSize) {
@@ -283,21 +307,21 @@ ur_result_t MsanShadowMemoryGPU::EnqueueVirtualMemMap(
         EventWaitList.push_back(*OutEvent);
       }
 
-      VirtualMemMaps[MappedPtr].first = PhysicalMem;
+      VirtualMemMaps[MappedPtr] = PhysicalMem;
     }
   }
 
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadow(
+ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(
     ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t NumEvents,
     const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
   return EnqueuePoisonShadowWithOrigin(Queue, Ptr, Size, Value, 0, NumEvents,
                                        EventWaitList, OutEvent);
 }
 
-ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
+ur_result_t ShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
     ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t Origin,
     uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *OutEvent) {
@@ -346,37 +370,9 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-MsanShadowMemoryGPU::ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) {
-  uptr ShadowBegin = MemToShadow(AI->AllocBegin);
-  uptr ShadowEnd = MemToShadow(AI->AllocBegin + AI->AllocSize);
-  assert(ShadowBegin <= ShadowEnd);
-
-  static const size_t PageSize = GetVirtualMemGranularity(Context, Device);
-
-  for (auto MappedPtr = RoundDownTo(ShadowBegin, PageSize);
-       MappedPtr <= ShadowEnd; MappedPtr += PageSize) {
-    std::scoped_lock<ur_mutex> Guard(VirtualMemMapsMutex);
-    if (VirtualMemMaps.find(MappedPtr) == VirtualMemMaps.end()) {
-      continue;
-    }
-    VirtualMemMaps[MappedPtr].second.erase(AI);
-    if (VirtualMemMaps[MappedPtr].second.empty()) {
-      UR_CALL(getContext()->urDdiTable.VirtualMem.pfnUnmap(
-          Context, (void *)MappedPtr, PageSize));
-      UR_CALL(getContext()->urDdiTable.PhysicalMem.pfnRelease(
-          VirtualMemMaps[MappedPtr].first));
-      UR_LOG_L(getContext()->logger, DEBUG, "urVirtualMemUnmap: {} ~ {}",
-               (void *)MappedPtr, (void *)(MappedPtr + PageSize - 1));
-    }
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t MsanShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
-                                                  uint32_t NumWG, uptr &Begin,
-                                                  uptr &End) {
+ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
+                                              uint32_t NumWG, uptr &Begin,
+                                              uptr &End) {
   const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
   const size_t RequiredShadowSize = NumWG * LocalMemorySize;
   static size_t LastAllocedSize = 0;
@@ -413,10 +409,10 @@ ur_result_t MsanShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
-                                                    uint64_t NumWI,
-                                                    uint32_t NumWG, uptr *&Base,
-                                                    uptr &Begin, uptr &End) {
+ur_result_t ShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
+                                                uint64_t NumWI, uint32_t NumWG,
+                                                uptr *&Base, uptr &Begin,
+                                                uptr &End) {
   // Trying to allocate private base array and private shadow, and any one of
   // them fail to allocate would be a failure
   static size_t LastPrivateBaseAllocedSize = 0;
@@ -490,8 +486,92 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
   return UR_RESULT_SUCCESS;
 }
 
-uptr MsanShadowMemoryPVC::MemToShadow(uptr Ptr) {
-  if (MsanShadowMemoryPVC::IsDeviceUSM(Ptr)) {
+ur_result_t ShadowMemoryGPU::AllocCleanShadow(ur_queue_handle_t Queue,
+                                              size_t Size, uptr &Ptr) {
+  if (Size < CleanShadowSize) {
+    Ptr = CleanShadowPtr;
+    return UR_RESULT_SUCCESS;
+  }
+
+  if (CleanShadowPtr) {
+    ReleaseCleanShadow();
+  }
+
+  CleanShadowSize = RoundUpTo(Size, PageSize);
+
+  ur_result_t Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
+      Context, Device, CleanShadowSize, (void **)&CleanShadowPtr);
+  if (Result != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, ERR, "VirtualMem.pfnReserve: {}", Result);
+    return Result;
+  }
+
+  Result = getContext()->urDdiTable.PhysicalMem.pfnCreate(
+      Context, Device, CleanShadowSize, nullptr, &CleanShadowPhysicalMem);
+  if (Result != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, ERR, "PhysicalMem.pfnCreate: {}", Result);
+    return Result;
+  }
+
+  Result = getContext()->urDdiTable.VirtualMem.pfnMap(
+      Context, (void *)CleanShadowPtr, CleanShadowSize, CleanShadowPhysicalMem,
+      0, UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
+  if (Result != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, ERR, "VirtualMem.pfnMap: {}", Result);
+    return Result;
+  }
+
+  // Initialize it to zeros
+  Result =
+      EnqueueUSMSet(Queue, (void *)CleanShadowPtr, (char)0, CleanShadowSize);
+  if (Result != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, ERR, "EnqueueUSMSet: {}", Result);
+    return Result;
+  }
+
+  Result = getContext()->urDdiTable.VirtualMem.pfnSetAccess(
+      Context, (void *)CleanShadowPtr, CleanShadowSize,
+      UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY);
+  if (Result != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, ERR, "VirtualMem.pfnMap2: {}", Result);
+    return Result;
+  }
+
+  Ptr = CleanShadowPtr;
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ShadowMemoryGPU::ReleaseCleanShadow() {
+  ur_result_t Result = getContext()->urDdiTable.VirtualMem.pfnUnmap(
+      Context, (void *)CleanShadowPtr, CleanShadowSize);
+  if (Result != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, ERR, "VirtualMem.pfnUnmap: {}", Result);
+    return Result;
+  }
+
+  Result =
+      getContext()->urDdiTable.PhysicalMem.pfnRelease(CleanShadowPhysicalMem);
+  if (Result != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, ERR, "PhysicalMem.pfnRelease: {}", Result);
+    return Result;
+  }
+
+  Result = getContext()->urDdiTable.VirtualMem.pfnFree(
+      Context, (void *)CleanShadowPtr, CleanShadowSize);
+  if (Result != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, ERR, "VirtualMem.pfnFree: {}", Result);
+    return Result;
+  }
+
+  CleanShadowSize = 0;
+  CleanShadowPhysicalMem = nullptr;
+  CleanShadowPtr = 0;
+
+  return UR_RESULT_SUCCESS;
+}
+
+uptr ShadowMemoryPVC::MemToShadow(uptr Ptr) {
+  if (ShadowMemoryPVC::IsDeviceUSM(Ptr)) {
     return Ptr - 0x5000'0000'0000ULL;
   }
   // host/shared USM
@@ -499,9 +579,9 @@ uptr MsanShadowMemoryPVC::MemToShadow(uptr Ptr) {
          ShadowBegin;
 }
 
-uptr MsanShadowMemoryPVC::MemToOrigin(uptr Ptr) {
+uptr ShadowMemoryPVC::MemToOrigin(uptr Ptr) {
   uptr AlignedPtr = RoundDownTo(Ptr, MSAN_ORIGIN_GRANULARITY);
-  if (MsanShadowMemoryPVC::IsDeviceUSM(AlignedPtr)) {
+  if (ShadowMemoryPVC::IsDeviceUSM(AlignedPtr)) {
     return AlignedPtr - 0xA000'0000'0000ULL;
   }
   // host/shared USM
@@ -510,8 +590,8 @@ uptr MsanShadowMemoryPVC::MemToOrigin(uptr Ptr) {
          0x2000'0000'0000ULL;
 }
 
-uptr MsanShadowMemoryDG2::MemToShadow(uptr Ptr) {
-  assert(MsanShadowMemoryDG2::IsDeviceUSM(Ptr) && "Ptr must be device USM");
+uptr ShadowMemoryDG2::MemToShadow(uptr Ptr) {
+  assert(ShadowMemoryDG2::IsDeviceUSM(Ptr) && "Ptr must be device USM");
   if (Ptr < ShadowBegin) {
     return Ptr + (ShadowBegin - 0xffff'8000'0000'0000ULL);
   } else {
@@ -519,8 +599,8 @@ uptr MsanShadowMemoryDG2::MemToShadow(uptr Ptr) {
   }
 }
 
-uptr MsanShadowMemoryDG2::MemToOrigin(uptr Ptr) {
-  assert(MsanShadowMemoryDG2::IsDeviceUSM(Ptr) && "Ptr must be device USM");
+uptr ShadowMemoryDG2::MemToOrigin(uptr Ptr) {
+  assert(ShadowMemoryDG2::IsDeviceUSM(Ptr) && "Ptr must be device USM");
   if (Ptr < ShadowBegin) {
     return Ptr + (ShadowBegin - 0xffff'8000'0000'0000ULL);
   } else {

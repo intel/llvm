@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
+ * Copyright (C) 2025 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions. See LICENSE.TXT
@@ -13,19 +13,18 @@
 
 #pragma once
 
-#include "msan_allocator.hpp"
+#include "sanitizer_common/sanitizer_common.hpp"
 #include "sanitizer_common/sanitizer_libdevice.hpp"
-
-#include <unordered_set>
+#include "ur_api.h"
 
 namespace ur_sanitizer_layer {
 namespace msan {
 
-struct MsanShadowMemory {
-  MsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device)
+struct ShadowMemory {
+  ShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device)
       : Context(Context), Device(Device) {}
 
-  virtual ~MsanShadowMemory() {}
+  virtual ~ShadowMemory() {}
 
   virtual ur_result_t Setup() = 0;
 
@@ -45,10 +44,6 @@ struct MsanShadowMemory {
       uint32_t NumEvents = 0, const ur_event_handle_t *EventWaitList = nullptr,
       ur_event_handle_t *OutEvent = nullptr) = 0;
 
-  virtual ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo>) {
-    return UR_RESULT_SUCCESS;
-  }
-
   virtual ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
                                        uptr &Begin, uptr &End) = 0;
 
@@ -56,6 +51,9 @@ struct MsanShadowMemory {
                                          uint64_t NumWI, uint32_t NumWG,
                                          uptr *&Base, uptr &Begin,
                                          uptr &End) = 0;
+
+  virtual ur_result_t AllocCleanShadow(ur_queue_handle_t Queue, size_t Size,
+                                       uptr &Ptr) = 0;
 
   ur_context_handle_t Context{};
 
@@ -84,9 +82,9 @@ struct MsanShadowMemory {
 /// 0x740000000000 ~ 0x800000000000 "app-3"
 ///
 // clang-format on
-struct MsanShadowMemoryCPU final : public MsanShadowMemory {
-  MsanShadowMemoryCPU(ur_context_handle_t Context, ur_device_handle_t Device)
-      : MsanShadowMemory(Context, Device) {}
+struct ShadowMemoryCPU final : public ShadowMemory {
+  ShadowMemoryCPU(ur_context_handle_t Context, ur_device_handle_t Device)
+      : ShadowMemory(Context, Device) {}
 
   ur_result_t Setup() override;
 
@@ -121,11 +119,16 @@ struct MsanShadowMemoryCPU final : public MsanShadowMemory {
     End = ShadowEnd;
     return UR_RESULT_SUCCESS;
   }
+
+  ur_result_t AllocCleanShadow([[maybe_unused]] ur_queue_handle_t Queue,
+                               [[maybe_unused]] size_t Size,
+                               [[maybe_unused]] uptr &Ptr) override {
+    return UR_RESULT_SUCCESS;
+  }
 };
 
-struct MsanShadowMemoryGPU : public MsanShadowMemory {
-  MsanShadowMemoryGPU(ur_context_handle_t Context, ur_device_handle_t Device)
-      : MsanShadowMemory(Context, Device) {}
+struct ShadowMemoryGPU : public ShadowMemory {
+  ShadowMemoryGPU(ur_context_handle_t Context, ur_device_handle_t Device);
 
   ur_result_t Setup() override;
 
@@ -142,14 +145,15 @@ struct MsanShadowMemoryGPU : public MsanShadowMemory {
       uint32_t NumEvents = 0, const ur_event_handle_t *EventWaitList = nullptr,
       ur_event_handle_t *OutEvent = nullptr) override;
 
-  ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) override final;
-
   ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
                                uptr &Begin, uptr &End) override final;
 
   ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue, uint64_t NumWI,
                                  uint32_t NumWG, uptr *&Base, uptr &Begin,
                                  uptr &End) override final;
+
+  ur_result_t AllocCleanShadow(ur_queue_handle_t Queue, size_t Size,
+                               uptr &Ptr) override final;
 
   virtual size_t GetShadowSize() = 0;
 
@@ -161,15 +165,20 @@ private:
                        std::vector<ur_event_handle_t> &EventWaitList,
                        ur_event_handle_t *OutEvent);
 
-  std::unordered_map<
-      uptr, std::pair<ur_physical_mem_handle_t,
-                      std::unordered_set<std::shared_ptr<MsanAllocInfo>>>>
-      VirtualMemMaps;
+  ur_result_t ReleaseCleanShadow();
+
+  const size_t PageSize;
+
+  std::unordered_map<uptr, ur_physical_mem_handle_t> VirtualMemMaps;
   ur_mutex VirtualMemMapsMutex;
 
   uptr LocalShadowOffset = 0;
   uptr PrivateShadowOffset = 0;
   uptr PrivateBasePtr = 0;
+
+  size_t CleanShadowSize = 0;
+  uptr CleanShadowPtr = 0;
+  ur_physical_mem_handle_t CleanShadowPhysicalMem = nullptr;
 };
 
 // clang-format off
@@ -196,9 +205,9 @@ private:
 ///    - "app" is device USM, the size of "app" is less than 0x5000_0000_0000_0000, so that it can be fully mapped to its shadow
 ///    - "gap" is necessary, so that "app" can be mapped to its shadow
 // clang-format on
-struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
-  MsanShadowMemoryPVC(ur_context_handle_t Context, ur_device_handle_t Device)
-      : MsanShadowMemoryGPU(Context, Device) {}
+struct ShadowMemoryPVC final : public ShadowMemoryGPU {
+  ShadowMemoryPVC(ur_context_handle_t Context, ur_device_handle_t Device)
+      : ShadowMemoryGPU(Context, Device) {}
 
   static bool IsDeviceUSM(uptr Ptr) { return Ptr >> 52 == 0xff0; }
 
@@ -220,9 +229,9 @@ struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
 /// Shadow Memory Mapping is similar to PVC
 ///
 // clang-format on
-struct MsanShadowMemoryDG2 final : public MsanShadowMemoryGPU {
-  MsanShadowMemoryDG2(ur_context_handle_t Context, ur_device_handle_t Device)
-      : MsanShadowMemoryGPU(Context, Device) {}
+struct ShadowMemoryDG2 final : public ShadowMemoryGPU {
+  ShadowMemoryDG2(ur_context_handle_t Context, ur_device_handle_t Device)
+      : ShadowMemoryGPU(Context, Device) {}
 
   static bool IsDeviceUSM(uptr Ptr) { return Ptr >> 48; }
 
@@ -232,9 +241,9 @@ struct MsanShadowMemoryDG2 final : public MsanShadowMemoryGPU {
   size_t GetShadowSize() override { return 0x4000'0000'0000ULL; }
 };
 
-std::shared_ptr<MsanShadowMemory>
-GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
-                    DeviceType Type);
+std::shared_ptr<ShadowMemory> GetMsanShadowMemory(ur_context_handle_t Context,
+                                                  ur_device_handle_t Device,
+                                                  DeviceType Type);
 
 } // namespace msan
 } // namespace ur_sanitizer_layer

@@ -306,9 +306,9 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
       // Only support device global USM
       if (DeviceInfo->Type == DeviceType::CPU ||
           (DeviceInfo->Type == DeviceType::GPU_PVC &&
-           MsanShadowMemoryPVC::IsDeviceUSM(GVInfo.Addr)) ||
+           ShadowMemoryPVC::IsDeviceUSM(GVInfo.Addr)) ||
           (DeviceInfo->Type == DeviceType::GPU_DG2 &&
-           MsanShadowMemoryDG2::IsDeviceUSM(GVInfo.Addr))) {
+           ShadowMemoryDG2::IsDeviceUSM(GVInfo.Addr))) {
         UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
                                                         GVInfo.Size, 0));
         ContextInfo->CleanShadowSize =
@@ -496,13 +496,8 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   // Clean shadow
   // Its content is always zero, and is used for unsupport memory types
-  UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-      ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
-      ContextInfo->CleanShadowSize,
-      (void **)&LaunchInfo.Data.Host.CleanShadow));
-  UR_CALL(EnqueueUSMSet(Queue, (void *)LaunchInfo.Data.Host.CleanShadow,
-                        (char)0, ContextInfo->CleanShadowSize, 0, nullptr,
-                        nullptr));
+  UR_CALL(DeviceInfo->Shadow->AllocCleanShadow(
+      Queue, ContextInfo->CleanShadowSize, LaunchInfo.Data.Host.CleanShadow));
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
@@ -654,11 +649,6 @@ ur_result_t USMLaunchInfo::initialize() {
 }
 
 MsanRuntimeDataWrapper::~MsanRuntimeDataWrapper() {
-  if (Host.CleanShadow) {
-    [[maybe_unused]] auto Result =
-        getContext()->urDdiTable.USM.pfnFree(Context, (void *)Host.CleanShadow);
-    assert(Result == UR_RESULT_SUCCESS);
-  }
   if (DevicePtr) {
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.USM.pfnFree(Context, (void *)DevicePtr);
