@@ -14,7 +14,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-struct KernelNameBasedCacheT;
+class KernelNameBasedCacheT;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT KernelNameBasedCacheT *createKernelNameBasedCache();

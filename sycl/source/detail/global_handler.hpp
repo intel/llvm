@@ -29,7 +29,7 @@ class Adapter;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
-struct KernelNameBasedCacheT;
+class KernelNameBasedCacheT;
 
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using AdapterPtr = std::shared_ptr<Adapter>;
