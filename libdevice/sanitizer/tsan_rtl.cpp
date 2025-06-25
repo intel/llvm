@@ -70,7 +70,7 @@ inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
     // FIXME: I'm not sure if we need to check ADDRESS_SPACE_CONSTANT,
     // but this can really simplify the generic pointer conversion logic
     as = ADDRESS_SPACE_GLOBAL;
-    addr = old;
+    addr = (uptr)ToGlobal((void *)old);
   }
   TSAN_DEBUG(__spirv_ocl_printf(__tsan_print_generic_to, old, addr, as));
 }
@@ -320,10 +320,10 @@ inline bool ContainsSameAccess(__SYCL_GLOBAL__ RawShadow *s, Shadow cur,
 
 } // namespace
 
-#define TSAN_CHECK(type, is_write, size)                                       \
-  DEVICE_EXTERN_C_NOINLINE void __tsan_##type##size(                           \
-      uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,              \
-      uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
+#define TSAN_CHECK_BASE(type, is_write, size, as)                              \
+  DEVICE_EXTERN_C_NOINLINE void __tsan_##type##size##_p##as(                   \
+      uptr addr, const char __SYCL_CONSTANT__ *file, uint32_t line,            \
+      const char __SYCL_CONSTANT__ *func) {                                    \
     __SYCL_GLOBAL__ RawShadow *shadow_mem = MemToShadow(addr, as);             \
     if (!shadow_mem)                                                           \
       return;                                                                  \
@@ -344,6 +344,11 @@ inline bool ContainsSameAccess(__SYCL_GLOBAL__ RawShadow *s, Shadow cur,
     CheckRace(shadow_mem, cur, type, addr, size, as, file, line, func);        \
   }
 
+#define TSAN_CHECK(type, is_write, size)                                       \
+  TSAN_CHECK_BASE(type, is_write, size, 1)                                     \
+  TSAN_CHECK_BASE(type, is_write, size, 3)                                     \
+  TSAN_CHECK_BASE(type, is_write, size, 4)
+
 TSAN_CHECK(read, false, 1)
 TSAN_CHECK(read, false, 2)
 TSAN_CHECK(read, false, 4)
@@ -353,24 +358,26 @@ TSAN_CHECK(write, true, 2)
 TSAN_CHECK(write, true, 4)
 TSAN_CHECK(write, true, 8)
 
-DEVICE_EXTERN_C_NOINLINE void
-__tsan_write16(uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,
-               uint32_t line, const char __SYCL_CONSTANT__ *func) {
-  __tsan_write8(addr, as, file, line, func);
-  __tsan_write8(addr + 8, as, file, line, func);
-}
+#define TSAN_CHECK16_BASE(type, as)                                            \
+  DEVICE_EXTERN_C_NOINLINE void __tsan_##type##16_p##as(                       \
+      uptr addr, const char __SYCL_CONSTANT__ *file, uint32_t line,            \
+      const char __SYCL_CONSTANT__ *func) {                                    \
+    __tsan_##type##8_p##as(addr, file, line, func);                            \
+    __tsan_##type##8_p##as(addr + 8, file, line, func);                        \
+  }
 
-DEVICE_EXTERN_C_NOINLINE void
-__tsan_read16(uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,
-              uint32_t line, const char __SYCL_CONSTANT__ *func) {
-  __tsan_read8(addr, as, file, line, func);
-  __tsan_read8(addr + 8, as, file, line, func);
-}
+#define TSAN_CHECK16(type)                                                     \
+  TSAN_CHECK16_BASE(type, 1)                                                   \
+  TSAN_CHECK16_BASE(type, 3)                                                   \
+  TSAN_CHECK16_BASE(type, 4)
 
-#define TSAN_UNALIGNED_CHECK(type, is_write, size)                             \
-  DEVICE_EXTERN_C_NOINLINE void __tsan_unaligned_##type##size(                 \
-      uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,              \
-      uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
+TSAN_CHECK16(read)
+TSAN_CHECK16(write)
+
+#define TSAN_UNALIGNED_CHECK_BASE(type, is_write, size, as)                    \
+  DEVICE_EXTERN_C_NOINLINE void __tsan_unaligned_##type##size##_p##as(         \
+      uptr addr, const char __SYCL_CONSTANT__ *file, uint32_t line,            \
+      const char __SYCL_CONSTANT__ *func) {                                    \
     __SYCL_GLOBAL__ RawShadow *shadow_mem = MemToShadow(addr, as);             \
     if (!shadow_mem)                                                           \
       return;                                                                  \
@@ -413,6 +420,11 @@ __tsan_read16(uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,
     }                                                                          \
   }
 
+#define TSAN_UNALIGNED_CHECK(type, is_write, size)                             \
+  TSAN_UNALIGNED_CHECK_BASE(type, is_write, size, 1)                           \
+  TSAN_UNALIGNED_CHECK_BASE(type, is_write, size, 3)                           \
+  TSAN_UNALIGNED_CHECK_BASE(type, is_write, size, 4)
+
 TSAN_UNALIGNED_CHECK(read, false, 1)
 TSAN_UNALIGNED_CHECK(read, false, 2)
 TSAN_UNALIGNED_CHECK(read, false, 4)
@@ -422,21 +434,21 @@ TSAN_UNALIGNED_CHECK(write, true, 2)
 TSAN_UNALIGNED_CHECK(write, true, 4)
 TSAN_UNALIGNED_CHECK(write, true, 8)
 
-DEVICE_EXTERN_C_NOINLINE void
-__tsan_unaligned_write16(uptr addr, uint32_t as,
-                         const char __SYCL_CONSTANT__ *file, uint32_t line,
-                         const char __SYCL_CONSTANT__ *func) {
-  __tsan_unaligned_write8(addr, as, file, line, func);
-  __tsan_unaligned_write8(addr + 8, as, file, line, func);
-}
+#define TSAN_UNALIGNED_CHECK16_BASE(type, as)                                  \
+  DEVICE_EXTERN_C_NOINLINE void __tsan_unaligned_##type##16_p##as(             \
+      uptr addr, const char __SYCL_CONSTANT__ *file, uint32_t line,            \
+      const char __SYCL_CONSTANT__ *func) {                                    \
+    __tsan_unaligned_##type##8_p##as(addr, file, line, func);                  \
+    __tsan_unaligned_##type##8_p##as(addr + 8, file, line, func);              \
+  }
 
-DEVICE_EXTERN_C_NOINLINE void
-__tsan_unaligned_read16(uptr addr, uint32_t as,
-                        const char __SYCL_CONSTANT__ *file, uint32_t line,
-                        const char __SYCL_CONSTANT__ *func) {
-  __tsan_unaligned_read8(addr, as, file, line, func);
-  __tsan_unaligned_read8(addr + 8, as, file, line, func);
-}
+#define TSAN_UNALIGNED_CHECK16(type)                                           \
+  TSAN_UNALIGNED_CHECK16_BASE(type, 1)                                         \
+  TSAN_UNALIGNED_CHECK16_BASE(type, 3)                                         \
+  TSAN_UNALIGNED_CHECK16_BASE(type, 4)
+
+TSAN_UNALIGNED_CHECK16(read)
+TSAN_UNALIGNED_CHECK16(write)
 
 static inline void __tsan_cleanup_private_cpu_impl(uptr addr, uint32_t size) {
   if (size) {
