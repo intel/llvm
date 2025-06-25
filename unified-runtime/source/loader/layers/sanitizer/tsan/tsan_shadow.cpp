@@ -31,7 +31,7 @@ std::shared_ptr<ShadowMemory> GetShadowMemory(ur_context_handle_t Context,
     return std::make_shared<ShadowMemoryPVC>(Context, Device);
   }
 
-  die("GetMsanShadowMemory: Unsupport device type");
+  die("GetShadowMemory: Unsupport device type");
   return nullptr;
 }
 
