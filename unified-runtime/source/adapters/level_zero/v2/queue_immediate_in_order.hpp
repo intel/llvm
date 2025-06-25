@@ -12,6 +12,7 @@
 #include "../common.hpp"
 #include "../device.hpp"
 
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 #include "event.hpp"
 #include "event_pool_cache.hpp"
@@ -32,6 +33,7 @@ private:
   lockable<ur_command_list_manager> commandListManager;
   ur_queue_flags_t flags;
   v2::raii::cache_borrowed_event_pool eventPool;
+  URRefCount RefCount;
 
 public:
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
@@ -451,6 +453,8 @@ public:
         numEventsInWaitList, phEventWaitList,
         createEventIfRequested(eventPool.get(), phEvent, this));
   }
+
+  URRefCount &getRefCount() noexcept { return RefCount; }
 };
 
 } // namespace v2

@@ -301,7 +301,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   ZeInitResult = ZE_RESULT_ERROR_UNINITIALIZED;
   ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
 
-  resetRefCount(0);
+  RefCount.reset(0);
 
 #ifdef UR_STATIC_LEVEL_ZERO
   // Given static linking of the L0 Loader, we must delay the loader's
@@ -677,7 +677,7 @@ ur_result_t urAdapterGet(
     }
     *Adapters = GlobalAdapter;
 
-    if (GlobalAdapter->incrementRefCount() == 0) {
+    if (GlobalAdapter->getRefCount().increment() == 0) {
       adapterStateInit();
     }
   }
@@ -694,7 +694,7 @@ ur_result_t urAdapterRelease([[maybe_unused]] ur_adapter_handle_t Adapter) {
 
   // NOTE: This does not require guarding with a mutex; the instant the ref
   // count hits zero, both Get and Retain are UB.
-  if (GlobalAdapter->decrementRefCount() == 0) {
+  if (GlobalAdapter->getRefCount().decrementAndTest()) {
     auto result = adapterStateTeardown();
 #ifdef UR_STATIC_LEVEL_ZERO
     // Given static linking of the L0 Loader, we must delay the loader's
@@ -711,9 +711,9 @@ ur_result_t urAdapterRelease([[maybe_unused]] ur_adapter_handle_t Adapter) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urAdapterRetain(ur_adapter_handle_t) {
+ur_result_t urAdapterRetain([[maybe_unused]] ur_adapter_handle_t Adapter) {
   assert(GlobalAdapter && GlobalAdapter == Adapter);
-  GlobalAdapter->incrementRefCount();
+  GlobalAdapter->getRefCount().increment();
 
   return UR_RESULT_SUCCESS;
 }
@@ -742,12 +742,12 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
   case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_LEVEL_ZERO);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
-    return ReturnValue(GlobalAdapter->getRefCount());
+    return ReturnValue(GlobalAdapter->getRefCount().getCount());
   case UR_ADAPTER_INFO_VERSION: {
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
     uint32_t adapterVersion = 2;
 #else
-      uint32_t adapterVersion = 1;
+    uint32_t adapterVersion = 1;
 #endif
     return ReturnValue(adapterVersion);
   }

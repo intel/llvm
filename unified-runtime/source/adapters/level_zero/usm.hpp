@@ -9,13 +9,14 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include "common.hpp"
+#include <set>
 
+#include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "enqueued_pool.hpp"
 #include "event.hpp"
 #include "ur_api.h"
 #include "ur_pool_manager.hpp"
-#include <set>
 #include <umf_helpers.hpp>
 
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
@@ -53,9 +54,13 @@ struct ur_usm_pool_handle_t_ : ur_object {
 
   ur_context_handle_t Context;
 
+  URRefCount &getRefCount() noexcept { return RefCount; }
+
 private:
   UsmPool *getPool(const usm::pool_descriptor &Desc);
   usm::pool_manager<usm::pool_descriptor, UsmPool> PoolManager;
+
+  URRefCount RefCount;
 };
 
 // Exception type to pass allocation errors

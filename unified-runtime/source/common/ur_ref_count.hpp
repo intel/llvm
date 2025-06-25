@@ -1,0 +1,29 @@
+/*
+ *
+ * Copyright (C) 2025 Intel Corporation
+ *
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT
+ *
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ */
+#ifndef URREFCOUNT_HPP
+#define URREFCOUNT_HPP 1
+
+#include <atomic>
+#include <cstdint>
+
+class URRefCount {
+public:
+  uint32_t getCount() const noexcept { return Count.load(); }
+  uint32_t increment() { return ++Count; }
+  uint32_t decrement() { return --Count; }
+  bool decrementAndTest() { return --Count == 0; }
+  void reset(uint32_t value = 1) { Count = value; }
+
+private:
+  std::atomic_uint32_t Count{1};
+};
+
+#endif // URREFCOUNT_HPP

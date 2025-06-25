@@ -26,6 +26,7 @@
 #include "queue.hpp"
 #include "usm.hpp"
 
+#include "common/ur_ref_count.hpp"
 #include <umf_helpers.hpp>
 
 struct l0_command_list_cache_info {
@@ -358,6 +359,8 @@ struct ur_context_handle_t_ : ur_object {
   // Get handle to the L0 context
   ze_context_handle_t getZeHandle() const;
 
+  URRefCount &getRefCount() noexcept { return RefCount; }
+
 private:
   enum EventFlags {
     EVENT_FLAG_HOST_VISIBLE = UR_BIT(0),
@@ -404,6 +407,8 @@ private:
 
     return &EventCaches[index];
   }
+
+  URRefCount RefCount;
 };
 
 // Helper function to release the context, a caller must lock the platform-level

@@ -80,12 +80,12 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
       defaultUSMPool(this, nullptr), asyncPool(this, nullptr) {}
 
 ur_result_t ur_context_handle_t_::retain() {
-  incrementRefCount();
+  RefCount.increment();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_context_handle_t_::release() {
-  if (!decrementAndTest())
+  if (!RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   delete this;
@@ -201,7 +201,7 @@ ur_result_t urContextGetInfo(ur_context_handle_t hContext,
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(uint32_t(hContext->getDevices().size()));
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{hContext->getRefCount()});
+    return ReturnValue(uint32_t{hContext->getRefCount().getCount()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // TODO: this is currently not implemented
     return ReturnValue(uint8_t{false});
