@@ -255,9 +255,7 @@ TEST_F(xptiCorrectnessTest, xptiTracePointTest) {
 
 void nestedScopeTest(xpti::payload_t *p, std::vector<uint64_t> &uids) {
   xpti::framework::tracepoint_scope_t t(p->name, p->source_file, p->line_no,
-                                        p->column_no, false);
-  xpti::hash_t Hash;
-
+                                        p->column_no, nullptr, false);
   auto Tuid = t.uid64();
   uids.push_back(Tuid);
 
@@ -298,7 +296,7 @@ TEST_F(xptiCorrectnessTest, xptiTracePointScopeTest) {
     uint64_t uid;
     {
       xpti::framework::tracepoint_scope_t t(p1.name, p1.source_file, p1.line_no,
-                                            p1.column_no, false);
+                                            p1.column_no, nullptr, false);
       uid = t.uid64();
       EXPECT_NE(t.traceEvent(), nullptr);
       auto ScopeData = xptiGetTracepointScopeData();

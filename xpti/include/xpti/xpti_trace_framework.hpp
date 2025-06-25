@@ -56,6 +56,8 @@ typedef void *xpti_plugin_function_t;
 #endif
 
 namespace xpti {
+constexpr const char *g_unknown_function = "<unknown-function>";
+constexpr const char *g_unknown_file = "<unknown-file>";
 namespace utils {
 /// @class StringHelper
 /// @brief A helper class for string manipulations.
@@ -580,7 +582,9 @@ inline bool is_valid_payload(const xpti::payload_t *Payload) {
            ((Payload->flags &
                  static_cast<uint64_t>(payload_flag_t::SourceFileAvailable) ||
              (Payload->flags &
-              static_cast<uint64_t>(payload_flag_t::NameAvailable))));
+              static_cast<uint64_t>(payload_flag_t::NameAvailable)))) &&
+           (Payload->line_no != xpti::invalid_id<uint32_t> ||
+            Payload->column_no != xpti::invalid_id<uint32_t>);
 }
 
 /// @brief Generates a default payload object with unknown details.
@@ -595,11 +599,11 @@ inline bool is_valid_payload(const xpti::payload_t *Payload) {
 ///
 /// @return A `xpti::payload_t` object with its members set to represent an
 /// unknown or unspecified payload. This includes setting the function name and
-/// file name to "unknown", line and column numbers to 0, and the module handle
-/// to nullptr.
+/// file name to "<unknown-function>" and "<unknown-file>" respectively, line
+/// and column numbers to 0, and the module handle to nullptr.
 ///
 inline xpti::payload_t unknown_payload() {
-  xpti::payload_t Payload("unknown", "unknown-file", 0, 0, nullptr);
+  xpti::payload_t Payload(g_unknown_function, g_unknown_file, 0, 0, nullptr);
   return Payload;
 }
 
@@ -951,7 +955,8 @@ public:
   /// @note MSFT compiler 2019/2022 support __builtin_FUNCTION() macro
   ///
   tracepoint_scope_t(const char *fileName, const char *funcName, int line,
-                     int column, bool selfNotify = false,
+                     int column, void *codePtrVa = nullptr,
+                     bool selfNotify = false,
                      const char *callerFuncName = __builtin_FUNCTION())
       : MTop(false), MSelfNotify(selfNotify), MCallerFuncName(callerFuncName) {
     if (!xptiTraceEnabled())
@@ -962,9 +967,9 @@ public:
     if (!MData) {
       if (funcName && fileName)
         init(funcName, fileName, static_cast<uint32_t>(line),
-             static_cast<uint32_t>(column));
+             static_cast<uint32_t>(column), codePtrVa);
       else
-        init(callerFuncName, nullptr, 0u, 0u);
+        init(callerFuncName, nullptr, 0u, 0u, codePtrVa);
     } else {
       MTraceEvent = MData->event_ref();
     }
@@ -1014,11 +1019,11 @@ public:
   /// tracepoint data.
   ///
   void init(const char *FuncName, const char *FileName, uint32_t LineNo,
-            uint32_t ColumnNo) {
+            uint32_t ColumnNo, void *CodePtrVa) {
     // Register the payload and prepare the tracepoint data. The function
     // returns a UID, associated payload and trace event
-    MData = const_cast<xpti_tracepoint_t *>(
-        xptiRegisterTracepointScope(FuncName, FileName, LineNo, ColumnNo));
+    MData = const_cast<xpti_tracepoint_t *>(xptiRegisterTracepointScope(
+        FuncName, FileName, LineNo, ColumnNo, CodePtrVa));
     if (MData) {
       // Set the tracepoint scope with the prepared data so all nested functions
       // will have access to it; this call also sets the Universal ID separately

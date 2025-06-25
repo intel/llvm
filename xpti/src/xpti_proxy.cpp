@@ -588,10 +588,10 @@ XPTI_EXPORT_API bool xptiCheckTracepointScopeNotification() {
   return false;
 }
 
-XPTI_EXPORT_API xpti_tracepoint_t *xptiCreateTracepoint(const char *name,
-                                                        const char *source_file,
-                                                        uint32_t line_no,
-                                                        uint32_t column_no) {
+XPTI_EXPORT_API xpti_tracepoint_t *
+xptiCreateTracepoint(const char *name, const char *source_file,
+                     uint32_t line_no, uint32_t column_no,
+                     void *code_ptr_va = nullptr) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f =
         xpti::ProxyLoader::instance().functionByIndex(XPTI_CREATE_TRACEPOINT);
@@ -669,13 +669,14 @@ XPTI_EXPORT_API void xptiUnsetTracepointScopeData() {
 
 XPTI_EXPORT_API const xpti_tracepoint_t *
 xptiRegisterTracepointScope(const char *FuncName, const char *FileName,
-                            uint32_t LineNo, uint32_t ColumnNo) {
+                            uint32_t LineNo, uint32_t ColumnNo,
+                            void *CodePtrVa = nullptr) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f = xpti::ProxyLoader::instance().functionByIndex(
         XPTI_REGISTER_TRACEPOINT_SCOPE);
     if (f) {
       return (*(xpti_register_tracepoint_scope_t)f)(FuncName, FileName, LineNo,
-                                                    ColumnNo);
+                                                    ColumnNo, CodePtrVa);
     }
   }
   return nullptr;

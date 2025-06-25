@@ -120,7 +120,8 @@ TEST_F(xptiApiTest, xptiPayloadBadInput) {
 
   EXPECT_NE(NewEv, nullptr);
   EXPECT_NE(NewEv->reserved.payload->name, nullptr);
-  EXPECT_EQ(std::string(NewEv->reserved.payload->name), std::string("unknown"));
+  EXPECT_EQ(std::string(NewEv->reserved.payload->name),
+            std::string("<unknown-function>"));
 }
 
 TEST_F(xptiApiTest, xptiGetUniqueId) {
@@ -376,8 +377,8 @@ TEST_F(xptiApiTest, xptiCreateTracepointBadInput) {
   EXPECT_NE(Result, nullptr);
   auto Payload = Result->payload_ref();
   EXPECT_NE(Payload->name, nullptr);
-  EXPECT_EQ(std::string(Payload->name), std::string("unknown"));
-  EXPECT_EQ(std::string(Payload->source_file), std::string("unknown-file"));
+  EXPECT_EQ(std::string(Payload->name), std::string("<unknown-function>"));
+  EXPECT_EQ(std::string(Payload->source_file), std::string("<unknown-file>"));
   EXPECT_EQ(Payload->line_no, 0);
   EXPECT_EQ(Payload->column_no, 0);
 }
