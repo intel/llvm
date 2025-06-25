@@ -996,7 +996,7 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
     : MSchedule(), MGraphImpl(GraphImpl), MSyncPoints(),
       MQueueImpl(sycl::detail::queue_impl::create(
           *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
-          sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
+          *sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
           sycl::property_list{})),
       MDevice(GraphImpl->getDevice()), MContext(Context), MRequirements(),
       MSchedulerDependencies(),
