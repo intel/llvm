@@ -56,7 +56,7 @@ public:
     // default=4=Generic, and one with default=0=Function. This depends on the
     // environment. For OpenCL, we don't need to run the InferAddrSpace pass, so
     // we can return -1, but we might want to fix this.
-    return -1;
+    return 4;
   }
   bool collectFlatAddressOperands(SmallVectorImpl<int> &OpIndexes,
                                   Intrinsic::ID IID) const override;

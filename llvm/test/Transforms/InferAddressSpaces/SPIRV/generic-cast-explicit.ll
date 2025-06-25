@@ -1,7 +1,6 @@
 ; This test checks that the address space casts for SPIR-V generic pointer casts
 ; are lowered correctly by the infer-address-spaces pass.
-; RUN: opt < %s -passes=infer-address-spaces -S --mtriple=spirv64-unknown-unknown \
-; RUN:  -infer-address-spaces-flat-address-space=4 | FileCheck %s
+; RUN: opt < %s -passes=infer-address-spaces -S --mtriple=spirv64-unknown-unknown | FileCheck %s
 
 ; Casting a global pointer to a global pointer. 
 ; The uses of c2 will be replaced with %global.
