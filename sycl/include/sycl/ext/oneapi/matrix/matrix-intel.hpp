@@ -276,7 +276,6 @@ public:
     };
     floatValue = *ExtractP;
     return __spirv_ConvertBF16ToFINTEL(intStorage);
-
 #else
     throw exception(make_error_code(errc::runtime),
                     "joint matrix is not supported on host.");
