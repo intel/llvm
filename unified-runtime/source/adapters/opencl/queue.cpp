@@ -173,8 +173,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   if (propName == UR_QUEUE_INFO_EMPTY) {
     if (!hQueue->LastEvent) {
-      // OpenCL doesn't provide API to check the status of the queue.
-      // return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      // Check the status of the queue under OpenCL backend.
       cl_event Event;
       CL_RETURN_ON_FAILURE(
           clEnqueueMarkerWithWaitList(hQueue->CLQueue, 0, nullptr, &Event));
