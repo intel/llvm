@@ -119,6 +119,8 @@ private:
   ur_event_handle_t_(ur_context_handle_t hContext, event_variant hZeEvent,
                      v2::event_flags_t flags, v2::event_pool *pool);
 
+  URRefCount RefCount;
+
 protected:
   ur_context_handle_t hContext;
 
