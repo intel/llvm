@@ -488,23 +488,23 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       IsUpdatable(Desc->isUpdatable), IsProfilingEnabled(Desc->enableProfiling),
       InOrderRequested(Desc->isInOrder), IsInOrderCmdList(IsInOrderCmdList),
       UseImmediateAppendPath(UseImmediateAppendPath) {
-  ur::level_zero::urContextRetain(Context);
-  ur::level_zero::urDeviceRetain(Device);
+  UR_CALL(ur::level_zero::urContextRetain(Context));
+  UR_CALL(ur::level_zero::urDeviceRetain(Device));
 }
 
 void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
   // Release the memory allocated to the Context stored in the command_buffer
-  ur::level_zero::urContextRelease(Context);
+  UR_CALL_NOCHECK(ur::level_zero::urContextRelease(Context));
 
   // Release the device
-  ur::level_zero::urDeviceRelease(Device);
+  UR_CALL_NOCHECK(ur::level_zero::urDeviceRelease(Device));
 
   // Release the memory allocated to the CommandList stored in the
   // command_buffer
   if (ZeComputeCommandList && checkL0LoaderTeardown()) {
     ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeComputeCommandList));
-  }
-  if (useCopyEngine() && ZeCopyCommandList && checkL0LoaderTeardown()) {
+    if (useCopyEngine() && ZeCopyCommandList && checkL0LoaderTeardown()) {
+    }
     ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCopyCommandList));
   }
 
@@ -589,7 +589,7 @@ void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
 
   for (auto &AssociatedKernel : KernelsList) {
     ReleaseIndirectMem(AssociatedKernel);
-    ur::level_zero::urKernelRelease(AssociatedKernel);
+    UR_CALL_NOCHECK(ur::level_zero::urKernelRelease(AssociatedKernel));
   }
 }
 
@@ -1071,10 +1071,10 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     CommandBuffer->KernelsList.push_back(KernelAlternatives[i]);
   }
 
-  ur::level_zero::urKernelRetain(Kernel);
+  UR_CALL(ur::level_zero::urKernelRetain(Kernel));
   // Retain alternative kernels if provided
   for (size_t i = 0; i < NumKernelAlternatives; i++) {
-    ur::level_zero::urKernelRetain(KernelAlternatives[i]);
+    UR_CALL(ur::level_zero::urKernelRetain(KernelAlternatives[i]));
   }
 
   if (Command) {
