@@ -185,7 +185,6 @@ class event_impl;
 class context_impl;
 class DispatchHostTask;
 
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
@@ -214,6 +213,10 @@ struct MemObjRecord {
 
   // The context which has the latest state of the memory object.
   std::shared_ptr<context_impl> MCurContext;
+  context_impl *getCurContext() { return MCurContext.get(); }
+  void setCurContext(context_impl *Ctx) {
+    MCurContext = Ctx ? Ctx->shared_from_this() : nullptr;
+  }
 
   // The mode this object can be accessed from the host (host_accessor).
   // Valid only if the current usage is on host.
@@ -688,7 +691,7 @@ protected:
     /// Finds dependencies for the requirement.
     std::set<Command *> findDepsForReq(MemObjRecord *Record,
                                        const Requirement *Req,
-                                       const ContextImplPtr &Context);
+                                       context_impl *Context);
 
     EmptyCommand *addEmptyCmd(Command *Cmd,
                               const std::vector<Requirement *> &Req,
@@ -702,7 +705,7 @@ protected:
     /// Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
                                         const Requirement *Req,
-                                        const ContextImplPtr &Context,
+                                        context_impl *Context,
                                         bool AllowConst = true);
 
     friend class Command;

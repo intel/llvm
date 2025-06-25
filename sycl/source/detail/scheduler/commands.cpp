@@ -429,7 +429,7 @@ public:
                "Host task submissions should have an associated queue");
         interop_handle IH{MReqToMem, HostTask.MQueue,
                           HostTask.MQueue->getDeviceImpl().shared_from_this(),
-                          HostTask.MQueue->getContextImplPtr()};
+                          HostTask.MQueue->getContextImpl().shared_from_this()};
         // TODO: should all the backends that support this entry point use this
         // for host task?
         auto &Queue = HostTask.MQueue;
@@ -2677,7 +2677,7 @@ void enqueueImpKernel(
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
     bool KernelHasSpecialCaptures) {
   // Run OpenCL kernel
-  auto &ContextImpl = Queue.getContextImplPtr();
+  context_impl &ContextImpl = Queue.getContextImpl();
   device_impl &DeviceImpl = Queue.getDeviceImpl();
   ur_kernel_handle_t Kernel = nullptr;
   std::mutex *KernelMutex = nullptr;
@@ -2715,7 +2715,7 @@ void enqueueImpKernel(
     KernelMutex = SyclKernelImpl->getCacheMutex();
   } else {
     KernelCacheVal = detail::ProgramManager::getInstance().getOrCreateKernel(
-        *ContextImpl, DeviceImpl, KernelName, KernelNameBasedCachePtr, NDRDesc);
+        ContextImpl, DeviceImpl, KernelName, KernelNameBasedCachePtr, NDRDesc);
     Kernel = KernelCacheVal->MKernelHandle;
     KernelMutex = KernelCacheVal->MMutex;
     Program = KernelCacheVal->MProgramHandle;
@@ -2727,7 +2727,7 @@ void enqueueImpKernel(
 
   // Initialize device globals associated with this.
   std::vector<ur_event_handle_t> DeviceGlobalInitEvents =
-      ContextImpl->initializeDeviceGlobals(Program, Queue);
+      ContextImpl.initializeDeviceGlobals(Program, Queue);
   if (!DeviceGlobalInitEvents.empty()) {
     std::vector<ur_event_handle_t> EventsWithDeviceGlobalInits;
     EventsWithDeviceGlobalInits.reserve(RawEvents.size() +
@@ -2784,9 +2784,9 @@ ur_result_t enqueueReadWriteHostPipe(queue_impl &Queue,
 
   ur_program_handle_t Program = nullptr;
   device Device = Queue.get_device();
-  ContextImplPtr ContextImpl = Queue.getContextImplPtr();
+  context_impl &ContextImpl = Queue.getContextImpl();
   std::optional<ur_program_handle_t> CachedProgram =
-      ContextImpl->getProgramForHostPipe(Device, hostPipeEntry);
+      ContextImpl.getProgramForHostPipe(Device, hostPipeEntry);
   if (CachedProgram)
     Program = *CachedProgram;
   else {
@@ -3004,7 +3004,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     // Queue is created by graph_impl before creating command to submit to
     // scheduler.
     const AdapterPtr &Adapter = MQueue->getAdapter();
-    auto ContextImpl = MQueue->getContextImplPtr();
+    context_impl &ContextImpl = MQueue->getContextImpl();
     device_impl &DeviceImpl = MQueue->getDeviceImpl();
 
     // The CUDA & HIP backends don't have the equivalent of barrier
@@ -3033,7 +3033,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
           false /* profilable*/
       };
       Adapter->call<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
-          ContextImpl->getHandleRef(), DeviceImpl.getHandleRef(), &Desc,
+          ContextImpl.getHandleRef(), DeviceImpl.getHandleRef(), &Desc,
           &ChildCommandBuffer);
     }
 
@@ -3043,12 +3043,12 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     // available if a user asks for them inside the interop task scope
     std::vector<interop_handle::ReqToMem> ReqToMem;
     const std::vector<Requirement *> &HandlerReq = HostTask->getRequirements();
-    auto ReqToMemConv = [&ReqToMem, ContextImpl](Requirement *Req) {
+    auto ReqToMemConv = [&ReqToMem, &ContextImpl](Requirement *Req) {
       const std::vector<AllocaCommandBase *> &AllocaCmds =
           Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
       for (AllocaCommandBase *AllocaCmd : AllocaCmds)
-        if (ContextImpl.get() == getContext(AllocaCmd->getQueue())) {
+        if (&ContextImpl == getContext(AllocaCmd->getQueue())) {
           auto MemArg =
               reinterpret_cast<ur_mem_handle_t>(AllocaCmd->getMemAllocation());
           ReqToMem.emplace_back(std::make_pair(Req, MemArg));
@@ -3068,8 +3068,8 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     ur_exp_command_buffer_handle_t InteropCommandBuffer =
         ChildCommandBuffer ? ChildCommandBuffer : MCommandBuffer;
     interop_handle IH{std::move(ReqToMem), MQueue,
-                      DeviceImpl.shared_from_this(), ContextImpl,
-                      InteropCommandBuffer};
+                      DeviceImpl.shared_from_this(),
+                      ContextImpl.shared_from_this(), InteropCommandBuffer};
     CommandBufferNativeCommandData CustomOpData{
         std::move(IH), HostTask->MHostTask->MInteropTask};
 
@@ -3471,7 +3471,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     EnqueueNativeCommandData CustomOpData{
         interop_handle{std::move(ReqToMem), HostTask->MQueue,
                        HostTask->MQueue->getDeviceImpl().shared_from_this(),
-                       HostTask->MQueue->getContextImplPtr()},
+                       HostTask->MQueue->getContextImpl().shared_from_this()},
         HostTask->MHostTask->MInteropTask};
 
     ur_bool_t NativeCommandSupport = false;
