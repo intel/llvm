@@ -5900,7 +5900,6 @@ void SemaSYCL::finalizeFreeFunctionKernels() {
   }
 }
 
-
 void SemaSYCL::ProcessFreeFunctionDeclaration(FunctionDecl *FD) {
   // FD represents a forward declaration of a free function kernel.
   // Save them for the end of the translation unit action. This makes it easier
