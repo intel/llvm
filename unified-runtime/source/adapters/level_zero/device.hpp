@@ -231,6 +231,8 @@ struct ur_device_handle_t_ : ur_object {
   ZeCache<ZeStruct<ze_intel_device_block_array_exp_properties_t>>
       ZeDeviceBlockArrayProperties;
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
+  ZeCache<ZeStruct<ze_device_vector_width_properties_ext_t>>
+      ZeDeviceVectorWidthPropertiesExt;
 
   // Map device bindless image offset to corresponding host image handle.
   std::unordered_map<ur_exp_image_native_handle_t, ze_image_handle_t>
