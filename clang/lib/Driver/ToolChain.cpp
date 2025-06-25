@@ -390,10 +390,9 @@ ToolChain::getSanitizerArgs(const llvm::opt::ArgList &JobArgs) const {
   return SanArgs;
 }
 
-const XRayArgs& ToolChain::getXRayArgs() const {
-  if (!XRayArguments)
-    XRayArguments.reset(new XRayArgs(*this, Args));
-  return *XRayArguments;
+const XRayArgs ToolChain::getXRayArgs(const llvm::opt::ArgList &JobArgs) const {
+  XRayArgs XRayArguments(*this, JobArgs);
+  return XRayArguments;
 }
 
 namespace {
@@ -503,8 +502,7 @@ ToolChain::getTargetAndModeFromProgramName(StringRef PN) {
   StringRef Prefix(ProgName);
   Prefix = Prefix.slice(0, LastComponent);
   std::string IgnoredError;
-  bool IsRegistered =
-      llvm::TargetRegistry::lookupTarget(std::string(Prefix), IgnoredError);
+  bool IsRegistered = llvm::TargetRegistry::lookupTarget(Prefix, IgnoredError);
   return ParsedClangName{std::string(Prefix), ModeSuffix, DS->ModeFlag,
                          IsRegistered};
 }
@@ -1013,6 +1011,20 @@ ToolChain::getTargetSubDirPath(StringRef BaseDir) const {
   if (auto Path = getPathForTriple(T))
     return *Path;
 
+  if (T.isOSAIX()) {
+    llvm::Triple AIXTriple;
+    if (T.getEnvironment() == Triple::UnknownEnvironment) {
+      // Strip unknown environment and the OS version from the triple.
+      AIXTriple = llvm::Triple(T.getArchName(), T.getVendorName(),
+                               llvm::Triple::getOSTypeName(T.getOS()));
+    } else {
+      // Strip the OS version from the triple.
+      AIXTriple = getTripleWithoutOSVersion();
+    }
+    if (auto Path = getPathForTriple(AIXTriple))
+      return *Path;
+  }
+
   if (T.isOSzOS() &&
       (!T.getOSVersion().empty() || !T.getEnvironmentVersion().empty())) {
     // Build the triple without version information
@@ -1058,14 +1070,6 @@ std::optional<std::string> ToolChain::getRuntimePath() const {
   if (Triple.isOSDarwin())
     return {};
 
-  // For AIX, get the triple without the OS version.
-  if (Triple.isOSAIX()) {
-    const llvm::Triple &TripleWithoutVersion = getTripleWithoutOSVersion();
-    llvm::sys::path::append(P, TripleWithoutVersion.str());
-    if (getVFS().exists(P))
-      return std::string(P);
-    return {};
-  }
   llvm::sys::path::append(P, Triple.str());
   return std::string(P);
 }

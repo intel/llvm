@@ -282,7 +282,7 @@ public:
   ClangDiagnosticWrapper(std::string &LogString, DiagnosticOptions *DiagOpts)
       : LogStream(LogString),
         LogPrinter(
-            std::make_unique<TextDiagnosticPrinter>(LogStream, DiagOpts)) {}
+            std::make_unique<TextDiagnosticPrinter>(LogStream, *DiagOpts)) {}
 
   clang::TextDiagnosticPrinter *consumer() { return LogPrinter.get(); }
 
@@ -438,8 +438,8 @@ Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
   FixedCompilationDatabase DB{".", CommandLine};
   ClangTool Tool{DB, {SourceFile.Path}};
 
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts{new DiagnosticOptions};
-  ClangDiagnosticWrapper Wrapper(BuildLog, DiagOpts.get());
+  DiagnosticOptions DiagOpts;
+  ClangDiagnosticWrapper Wrapper(BuildLog, &DiagOpts);
 
   setupTool(Tool, DPCPPRoot, SourceFile, IncludeFiles, Wrapper.consumer());
 
@@ -581,8 +581,8 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   }
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID{new DiagnosticIDs};
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts{new DiagnosticOptions};
-  ClangDiagnosticWrapper Wrapper(BuildLog, DiagOpts.get());
+  DiagnosticOptions DiagOpts;
+  ClangDiagnosticWrapper Wrapper(BuildLog, &DiagOpts);
   DiagnosticsEngine Diags(DiagID, DiagOpts, Wrapper.consumer(),
                           /* ShouldOwnClient=*/false);
 
