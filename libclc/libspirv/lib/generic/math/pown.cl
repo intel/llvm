@@ -11,5 +11,5 @@
 
 #define FUNCTION __spirv_ocl_pown
 #define __CLC_FUNCTION(x) __clc_pown
-#define __CLC_BODY <clc/math/binary_def_with_int_second_arg.inc>
+#define __CLC_BODY <clc/shared/binary_def_with_int_second_arg.inc>
 #include <clc/math/gentype.inc>
