@@ -1,13 +1,12 @@
-//===--------- host_allocator.hpp - CUDA Adapter
-//-----------------------------------===//
+//===--------- host_allocator.hpp - CUDA Adapter --------------------------===//
 //
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2023 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
+//===---------------------------------------------------------------------===//
 #pragma once
 
 #include <cuda.h>
@@ -22,14 +21,14 @@
 /*
 The Allocator works by allocating memory on the host lazily when it is needed.
 When a user asks for allocation, the allocator would search the past memories
-that was freed for a free memory with a suitable size and return it to the user.
-If there was no free memory available with a suitable size, it will allocate a
-new memory on the host and add it to the allocations list. When a user asks to
-deallocate a memory, the allocator would just mark this memory as a free to use
-memory by won't release it to the OS until the program exits. The allocator
-would also check the memory surronding the memory that is requested to be freed,
-and if the surronding memory was also free, it will merge all the consecutive
-free memories together in one big free memory.
+that were freed for a free memory with a suitable size and return it to the
+user. If there was no free memory available with a suitable size, it will
+allocate a new memory on the host and add it to the allocations list. When a
+user asks to deallocate a memory, the allocator would just mark this memory as a
+free to use memory but won't release it to the OS until the program exits. The
+allocator would also check the memory surrounding the memory that is requested
+to be freed, and if the surrounding memory was also free, it will merge all the
+consecutive free memories together in one big free memory.
 
 For a step by step guide how the allocator works refer to sycl-e2e test:
 sycl/test-e2e/AsyncAlloc/host/host_allocator_cuda_example.cpp
@@ -66,16 +65,13 @@ public:
         uint64_t CurFreeMemAddress =
             reinterpret_cast<uint64_t>(FreeMemoriesIt->first);
         size_t RemainingSize = FreeMemoriesIt->second - size;
-        if (RemainingSize == 0) {
-          Allocations.insert({FreeMemoriesIt->first, size});
-          FreeMemories.erase(FreeMemoriesIt);
-        } else {
-          Allocations.insert({FreeMemoriesIt->first, size});
+        if (RemainingSize != 0) {
           FreeMemories.insert(
               {reinterpret_cast<void *>(CurFreeMemAddress + size),
                RemainingSize});
-          FreeMemories.erase(FreeMemoriesIt);
         }
+        Allocations.insert({FreeMemoriesIt->first, size});
+        FreeMemories.erase(FreeMemoriesIt);
         return UR_RESULT_SUCCESS;
       }
     }
