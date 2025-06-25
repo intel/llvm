@@ -125,6 +125,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
+  std::cout << ".. Native CPU deviceGetInfo has been hit\n";
+
   switch (static_cast<uint32_t>(propName)) {
   case UR_DEVICE_INFO_TYPE:
     return ReturnValue(UR_DEVICE_TYPE_CPU);
@@ -456,6 +458,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
 
   default:
+    std::cout << ".. Native CPU deviceGetInfo is dying...\n";
     DIE_NO_IMPLEMENTATION;
   }
   return UR_RESULT_SUCCESS;
