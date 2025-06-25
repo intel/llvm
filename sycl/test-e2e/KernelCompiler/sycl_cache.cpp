@@ -24,7 +24,7 @@
 // RUN: %{run-aux} %if cuda %{ echo "WOOF run-aux CUDA"; %}
 // RUN: %{run-aux} %if hip %{ echo "WOOF run-aux HIP"; %}
 // RUN: %{run-aux} %if (cuda || hip) %{ echo "WOOF run-aux CUDA or HIP"; %}
-// RUN: %{run-aux} %if !(cuda || hip) %{ echo "WOOF run-aux NOT CUDA or HIP"; %}
+// RUN: %{run-aux} %if !hip %{ echo "WOOF run-aux NOT HIP"; %}
 //
 // RUN: %{run} %if cuda %{ echo "WOOF run CUDA"; %}
 // RUN: %{run} %if hip %{ echo "WOOF run HIP"; %}
