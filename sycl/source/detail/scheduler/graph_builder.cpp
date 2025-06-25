@@ -9,7 +9,8 @@
 #include "detail/config.hpp"
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
-#include <detail/graph_impl.hpp>
+#include <detail/graph/graph_impl.hpp>
+#include <detail/graph/node_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>

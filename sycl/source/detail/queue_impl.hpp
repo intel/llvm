@@ -14,6 +14,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/graph/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -31,8 +32,6 @@
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
 
-#include "detail/graph_impl.hpp"
-
 #include <memory>
 #include <utility>
 
@@ -47,8 +46,8 @@ inline namespace _V1 {
 // forward declaration
 
 namespace ext::oneapi::experimental::detail {
-class graph_impl;
-}
+class node_impl;
+} // namespace ext::oneapi::experimental::detail
 
 namespace detail {
 
