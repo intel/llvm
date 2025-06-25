@@ -253,12 +253,14 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
   return TP;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 KernelNameBasedCacheT *GlobalHandler::createKernelNameBasedCache() {
   static std::deque<KernelNameBasedCacheT> &KernelNameBasedCaches =
       getOrCreate(MKernelNameBasedCaches);
   LockGuard LG{MKernelNameBasedCaches.Lock};
   return &KernelNameBasedCaches.emplace_back();
 }
+#endif
 
 void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
