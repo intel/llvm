@@ -1222,7 +1222,7 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
 
   const uint32_t TypeSize = DL.getTypeStoreSizeInBits(OrigTy);
   const unsigned int AS = cast<PointerType>(Addr->getType()->getScalarType())
-                        ->getPointerAddressSpace();
+                              ->getPointerAddressSpace();
   FunctionCallee OnAccessFunc = nullptr;
   if (Alignment >= Align(8) || (Alignment.value() % (TypeSize / 8)) == 0) {
     if (IsCompoundRW)
