@@ -13,15 +13,15 @@ inline namespace _V1 {
 namespace detail {
 
 KernelNameBasedCacheT::KernelNameBasedCacheT(KernelNameStrRefT KernelName) {
-    init(KernelName);
+  init(KernelName);
 }
 
 void KernelNameBasedCacheT::init(KernelNameStrRefT KernelName) {
-    auto &PM = detail::ProgramManager::getInstance();
-    MUsesAssert = PM.kernelUsesAssert(KernelName);
-    MImplicitLocalArgPos = PM.kernelImplicitLocalArgPos(KernelName);
+  auto &PM = detail::ProgramManager::getInstance();
+  MUsesAssert = PM.kernelUsesAssert(KernelName);
+  MImplicitLocalArgPos = PM.kernelImplicitLocalArgPos(KernelName);
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    MInitialized.store(true);
+  MInitialized.store(true);
 #endif
 }
 
@@ -36,7 +36,7 @@ FastKernelSubcacheT &KernelNameBasedCacheT::getKernelSubcache() {
   assertInitialized();
   return MFastKernelSubcache;
 }
-bool KernelNameBasedCacheT::usesAssert(){
+bool KernelNameBasedCacheT::usesAssert() {
   assertInitialized();
   return MUsesAssert;
 }
@@ -49,7 +49,7 @@ void KernelNameBasedCacheT::assertInitialized() {
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   assert(MInitialized.load() && "Cache needs to be initialized before use");
 #endif
- }
+}
 
 } // namespace detail
 } // namespace _V1
