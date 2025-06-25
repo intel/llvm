@@ -81,11 +81,7 @@ template <> uint32_t inline ur_cast(uint64_t Value) {
   return CastedValue;
 }
 
-// TODO: promote all of the below extensions to the Unified Runtime
-//       and get rid of these ZER_EXT constants.
-const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
-    (ur_device_info_t)0x103D;
-
+// TODO: Promote the below extensions to the Unified Runtime?
 const ur_command_t UR_EXT_COMMAND_TYPE_USER =
     (ur_command_t)((uint32_t)UR_COMMAND_FORCE_UINT32 - 1);
 
@@ -183,27 +179,6 @@ public:
       Lock = std::unique_lock<std::mutex>(Mutex.Mutex);
     }
   }
-};
-
-/// SpinLock is a synchronization primitive, that uses atomic variable and
-/// causes thread trying acquire lock wait in loop while repeatedly check if
-/// the lock is available.
-///
-/// One important feature of this implementation is that std::atomic<bool> can
-/// be zero-initialized. This allows SpinLock to have trivial constructor and
-/// destructor, which makes it possible to use it in global context (unlike
-/// std::mutex, that doesn't provide such guarantees).
-class SpinLock {
-public:
-  void lock() {
-    while (MLock.test_and_set(std::memory_order_acquire)) {
-      std::this_thread::yield();
-    }
-  }
-  void unlock() { MLock.clear(std::memory_order_release); }
-
-private:
-  std::atomic_flag MLock = ATOMIC_FLAG_INIT;
 };
 
 // The wrapper for immutable data.

@@ -2,7 +2,7 @@
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 
-// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t2.out
+// RUN: %{build} -fno-builtin %if target-spir %{ -fsycl-device-lib-jit-link -Wno-deprecated %} -o %t2.out
 // RUN: %{run} %t2.out
 //
 // UNSUPPORTED: target-nvidia || target-amd

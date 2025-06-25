@@ -221,7 +221,7 @@ public:
 
   /// Get the context of the queue this command will be submitted to. Could
   /// differ from the context of MQueue for memory copy commands.
-  virtual ContextImplPtr getWorkerContext() const;
+  virtual context_impl *getWorkerContext() const;
 
   /// Returns true iff the command produces a UR event on non-host devices.
   virtual bool producesPiEvent() const;
@@ -584,7 +584,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  ContextImplPtr getWorkerContext() const final;
+  context_impl *getWorkerContext() const final;
   bool producesPiEvent() const final;
 
 private:
@@ -608,7 +608,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  ContextImplPtr getWorkerContext() const final;
+  context_impl *getWorkerContext() const final;
 
 private:
   ur_result_t enqueueImp() final;
