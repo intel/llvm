@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../thread_safety/ThreadUtils.h"
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
@@ -402,5 +403,80 @@ TEST_F(BarrierHandlingWithHostTask,
     EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0u);
   }
 }
+
+TEST_F(BarrierHandlingWithHostTask, ConcurentHostTaskSubmission) {
+
+  size_t ThreadCount = 20;
+
+  Barrier b(ThreadCount);
+  {
+    auto testLambda = [&](std::size_t threadId) {
+      b.wait();
+
+      // Subit host tasks with no barrier.
+      sycl::event HTEvent = AddTask(TestCGType::HOST_TASK);
+      EventImplPtr HostTaskEventImpl = sycl::detail::getSyclObjImpl(HTEvent);
+      auto HostTaskWaitList = HostTaskEventImpl->getWaitList();
+      EXPECT_EQ(HostTaskWaitList.size(), 0u);
+      EXPECT_EQ(HostTaskEventImpl->isEnqueued(), true);
+    };
+
+    ThreadPool MPool(ThreadCount, testLambda);
+  }
+
+  MainLock.unlock();
+  QueueDevImpl->wait();
+}
+
+TEST_F(BarrierHandlingWithHostTask, ConcurentHostAndKernelTaskSubmission) {
+
+  size_t ThreadCount = 1;
+
+  Barrier b(ThreadCount);
+  {
+    auto testLambda = [&](std::size_t threadId) {
+
+      if (threadId == 0) {
+        // Thread 0 will execute this.
+        sycl::event HTEvent = AddTask(TestCGType::HOST_TASK, false);
+        EventImplPtr HostTaskEventImpl = sycl::detail::getSyclObjImpl(HTEvent);
+        auto HostTaskWaitList = HostTaskEventImpl->getWaitList();
+        EXPECT_EQ(HostTaskWaitList.size(), 0u);
+        EXPECT_EQ(HostTaskEventImpl->isEnqueued(), true);
+
+        sycl::event BarrierEvent = AddTask(TestCGType::BARRIER);
+        EventImplPtr BarrierEventImpl = sycl::detail::getSyclObjImpl(BarrierEvent);
+        auto BarrierWaitList = BarrierEventImpl->getWaitList();
+        ASSERT_EQ(BarrierWaitList.size(), 1u);
+        EXPECT_EQ(BarrierEventImpl->isEnqueued(), false);
+
+        MainLock.unlock();
+        QueueDevImpl->wait();
+
+        sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);
+        EventImplPtr KernelEventImpl = sycl::detail::getSyclObjImpl(KernelEvent);
+        auto KernelWaitList = KernelEventImpl->getWaitList();
+        ASSERT_EQ(KernelWaitList.size(), 0u);
+        EXPECT_EQ(KernelEventImpl->isEnqueued(), true);
+      }
+
+      // Sync all threads.
+      b.wait();
+
+      // Submit host tasks with no barrier.
+      sycl::event HTEvent = AddTask(TestCGType::HOST_TASK, false);
+      EventImplPtr HostTaskEventImpl = sycl::detail::getSyclObjImpl(HTEvent);
+      auto HostTaskWaitList = HostTaskEventImpl->getWaitList();
+      EXPECT_EQ(HostTaskWaitList.size(), 0u);
+      EXPECT_EQ(HostTaskEventImpl->isEnqueued(), true);
+
+    };
+
+    ThreadPool MPool(ThreadCount, testLambda);
+  }
+
+  QueueDevImpl->wait();
+}
+
 
 } // namespace
