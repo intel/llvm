@@ -699,6 +699,7 @@ private:
 
   // These arrays are indexed by log2(AccessSize).
   FunctionCallee MaybeWarningFn[kNumberOfAccessSizes];
+  FunctionCallee MaybeWarningVarSizeFn;
   FunctionCallee MaybeStoreOriginFn[kNumberOfAccessSizes];
 
   /// Run-time helper that generates a new origin value for a stack
@@ -1551,6 +1552,10 @@ void MemorySanitizer::createUserspaceApi(Module &M,
           IRB.getInt8PtrTy(kSpirOffloadConstantAS), IRB.getInt32Ty(),
           IRB.getInt8PtrTy(kSpirOffloadConstantAS));
 
+      MaybeWarningVarSizeFn = M.getOrInsertFunction(
+          "__msan_maybe_warning_N", TLI.getAttrList(C, {}, /*Signed=*/false),
+          IRB.getVoidTy(), PtrTy, IRB.getInt64Ty(), IRB.getInt32Ty());
+
       // __msan_maybe_store_origin_N(
       //   intN_t status,
       //   uptr addr,
@@ -2048,7 +2053,6 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     // Constants likely will be eliminated by follow-up passes.
     if (isa<Constant>(V))
       return false;
-
     ++SplittableBlocksCount;
     return ClInstrumentationWithCallThreshold >= 0 &&
            SplittableBlocksCount > ClInstrumentationWithCallThreshold;
@@ -2294,22 +2298,37 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     const DataLayout &DL = F.getDataLayout();
     TypeSize TypeSizeInBits = DL.getTypeSizeInBits(ConvertedShadow->getType());
     unsigned SizeIndex = TypeSizeToSizeIndex(TypeSizeInBits);
-    if (instrumentWithCalls(ConvertedShadow) &&
-        SizeIndex < kNumberOfAccessSizes && !MS.CompileKernel) {
-      FunctionCallee Fn = MS.MaybeWarningFn[SizeIndex];
+    if (instrumentWithCalls(ConvertedShadow) && !MS.CompileKernel) {
       // ZExt cannot convert between vector and scalar
       ConvertedShadow = convertShadowToScalar(ConvertedShadow, IRB);
       Value *ConvertedShadow2 =
           IRB.CreateZExt(ConvertedShadow, IRB.getIntNTy(8 * (1 << SizeIndex)));
       if (!SpirOrSpirv) {
-        CallBase *CB = IRB.CreateCall(
-            Fn,
-            {ConvertedShadow2,
-             MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0)});
-        CB->addParamAttr(0, Attribute::ZExt);
-        CB->addParamAttr(1, Attribute::ZExt);
+        if (SizeIndex < kNumberOfAccessSizes) {
+          FunctionCallee Fn = MS.MaybeWarningFn[SizeIndex];
+          CallBase *CB = IRB.CreateCall(
+              Fn,
+              {ConvertedShadow2,
+               MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0)});
+          CB->addParamAttr(0, Attribute::ZExt);
+          CB->addParamAttr(1, Attribute::ZExt);
+        } else {
+          FunctionCallee Fn = MS.MaybeWarningVarSizeFn;
+          Value *ShadowAlloca =
+              IRB.CreateAlloca(ConvertedShadow2->getType(), 0u);
+          IRB.CreateStore(ConvertedShadow2, ShadowAlloca);
+          unsigned ShadowSize =
+              DL.getTypeAllocSize(ConvertedShadow2->getType());
+          CallBase *CB = IRB.CreateCall(
+              Fn,
+              {ShadowAlloca, ConstantInt::get(IRB.getInt64Ty(), ShadowSize),
+               MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0)});
+          CB->addParamAttr(1, Attribute::ZExt);
+          CB->addParamAttr(2, Attribute::ZExt);
+        }
       } else { // SPIR or SPIR-V
         // Pass the pointer of shadow memory to the report function
+        FunctionCallee Fn = MS.MaybeWarningFn[SizeIndex];
         SmallVector<Value *, 5> Args = {
             ConvertedShadow2,
             MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0)};
