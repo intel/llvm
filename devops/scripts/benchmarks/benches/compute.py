@@ -280,7 +280,7 @@ class ComputeBenchmark(Benchmark):
     def description(self) -> str:
         return ""
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, unitrace_timestamp: str = None) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
             f"--test={self.test}",
@@ -291,7 +291,9 @@ class ComputeBenchmark(Benchmark):
         command += self.bin_args()
         env_vars.update(self.extra_env_vars())
 
-        result = self.run_bench(command, env_vars)
+        result = self.run_bench(
+            command, env_vars, unitrace_timestamp=unitrace_timestamp
+        )
         parsed_results = self.parse_output(result)
         ret = []
         for label, median, stddev, unit in parsed_results:

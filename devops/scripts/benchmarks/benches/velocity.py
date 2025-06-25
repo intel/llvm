@@ -130,7 +130,7 @@ class VelocityBase(Benchmark):
     def get_tags(self):
         return ["SYCL", "application"]
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, unitrace_timestamp: str = None) -> list[Result]:
         env_vars.update(self.extra_env_vars())
 
         command = [
@@ -138,7 +138,12 @@ class VelocityBase(Benchmark):
         ]
         command += self.bin_args()
 
-        result = self.run_bench(command, env_vars, ld_library=self.ld_libraries())
+        result = self.run_bench(
+            command,
+            env_vars,
+            ld_library=self.ld_libraries(),
+            unitrace_timestamp=unitrace_timestamp,
+        )
 
         return [
             Result(

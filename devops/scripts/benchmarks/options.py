@@ -41,6 +41,7 @@ class DetectVersionsOptions:
     # Max amount of api calls permitted on each run of the benchmark scripts
     max_api_calls = 4
 
+
 @dataclass
 class Options:
     workdir: str = None
@@ -70,6 +71,9 @@ class Options:
     current_run_name: str = "This PR"
     preset: str = "Full"
     build_jobs: int = multiprocessing.cpu_count()
+    unitrace: bool = False
+    unitrace_inclusive: bool = False
+    unitrace_res_dir: str = None
 
     # Options intended for CI:
     regression_threshold: float = 0.05

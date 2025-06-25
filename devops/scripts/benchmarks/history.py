@@ -149,7 +149,7 @@ class BenchmarkHistory:
             compute_runtime=compute_runtime,
         )
 
-    def save(self, save_name, results: list[Result], to_file=True):
+    def save(self, save_name, timestamp, results: list[Result], to_file=True):
         benchmark_data = self.create_run(save_name, results)
         self.runs.append(benchmark_data)
 
@@ -160,12 +160,12 @@ class BenchmarkHistory:
         results_dir = Path(os.path.join(self.dir, "results"))
         os.makedirs(results_dir, exist_ok=True)
 
-        # Use formatted timestamp for the filename
-        timestamp = (
-            datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
-            if options.timestamp_override is None
-            else options.timestamp_override
-        )
+        # # Use formatted timestamp for the filename
+        # timestamp = (
+        #     datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+        #     if options.timestamp_override is None
+        #     else options.timestamp_override
+        # )
         file_path = Path(os.path.join(results_dir, f"{save_name}_{timestamp}.json"))
         with file_path.open("w") as file:
             json.dump(serialized, file, indent=4)

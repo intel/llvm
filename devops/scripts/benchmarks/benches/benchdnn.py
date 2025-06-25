@@ -73,6 +73,8 @@ class OneDnnBench(Suite):
             f"-B {self.build_dir}",
             f"-DCMAKE_PREFIX_PATH={options.sycl}",
             "-DCMAKE_BUILD_TYPE=Release",
+            "-DCMAKE_CXX_COMPILER=clang++",
+            "-DCMAKE_C_COMPILER=clang",
             "-DDNNL_BUILD_TESTS=ON",
             "-DDNNL_BUILD_EXAMPLES=OFF",
             "-DDNNL_CPU_RUNTIME=NONE",  # Disable SYCL support
@@ -87,6 +89,7 @@ class OneDnnBench(Suite):
             f"cmake --build {self.build_dir} --target benchdnn -j {options.build_jobs}",
             add_sycl=True,
             ld_library=[str(self.build_dir) + "/src"] + self.oneapi.ld_libraries(),
+            timeout=60 * 30,
         )
 
     def teardown(self):
@@ -126,7 +129,7 @@ class OneDnnBenchmark(Benchmark):
         if not self.bench_bin.exists():
             raise FileNotFoundError(f"Benchmark binary not found: {self.bench_bin}")
 
-    def run(self, env_vars):
+    def run(self, env_vars, unitrace_timestamp: str = None) -> list[Result]:
         command = [
             str(self.bench_bin),
             *self.bench_args.split(),
@@ -145,6 +148,8 @@ class OneDnnBenchmark(Benchmark):
             add_sycl=True,
             ld_library=ld_library,
             use_stdout=True,
+            unitrace_timestamp=unitrace_timestamp,
+            extra_unitrace_opt=["--chrome-dnn-logging"],
         )
         result_value = self._extract_time(output)
 
