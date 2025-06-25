@@ -605,11 +605,10 @@ ur_result_t MsanInterceptor::prepareLaunch(
            LaunchInfo.Data.Host.NumLocalArgs,
            ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug);
 
-  ur_result_t URes =
-      getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
-          Queue, Program, "__MsanLaunchInfo", false,
-          sizeof(LaunchInfo.Data.DevicePtr), 0, &LaunchInfo.Data.DevicePtr, 0,
-          nullptr, nullptr);
+  URes = getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
+      Queue, Program, "__MsanLaunchInfo", false,
+      sizeof(LaunchInfo.Data.DevicePtr), 0, &LaunchInfo.Data.DevicePtr, 0,
+      nullptr, nullptr);
   if (URes != UR_RESULT_SUCCESS) {
     UR_LOG_L(getContext()->logger, INFO,
              "EnqueueWriteGlobal(__MsanLaunchInfo) "
