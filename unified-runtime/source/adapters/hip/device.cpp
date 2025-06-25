@@ -12,6 +12,7 @@
 #include "adapter.hpp"
 #include "context.hpp"
 #include "event.hpp"
+#include "offload_bundle_parser.hpp"
 
 #include <array>
 #include <hip/hip_runtime.h>
@@ -1158,11 +1159,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 
 /// \return UR_RESULT_SUCCESS If available, the first binary that is PTX
 ///
-UR_APIEXPORT ur_result_t UR_APICALL
-urDeviceSelectBinary(ur_device_handle_t, const ur_device_binary_t *pBinaries,
-                     uint32_t NumBinaries, uint32_t *pSelectedBinary) {
-  // Look for an image for the HIP target, and return the first one that is
-  // found
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
+    ur_device_handle_t hDevice, const ur_device_binary_t *pBinaries,
+    uint32_t NumBinaries, uint32_t *pSelectedBinary) {
+  // Look for an image for the HIP target. If we have a clang offload bundle,
+  // try to return an exact match on the architecture to ensure we select the
+  // correct binary in a multi-architecture bundle. If we can't find an exact
+  // match, we return the first one that is found.
 #if defined(__HIP_PLATFORM_AMD__)
   const char *BinaryType = UR_DEVICE_BINARY_TARGET_AMDGCN;
 #elif defined(__HIP_PLATFORM_NVIDIA__)
@@ -1170,11 +1173,41 @@ urDeviceSelectBinary(ur_device_handle_t, const ur_device_binary_t *pBinaries,
 #else
 #error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
+  std::optional<uint32_t> FirstBackupCandidate;
+
+  hipDeviceProp_t Props;
+  UR_CHECK_ERROR(hipGetDeviceProperties(&Props, hDevice->get()));
+
+  // The arch name is the 'gfxABC' architecture, and occasionally ends with
+  // architecture feature strings separated by colons. We're only interested in
+  // the first part, so take up until the (optional) first colon.
+  std::string_view ArchName = Props.gcnArchName;
+  ArchName = ArchName.substr(0, ArchName.find_first_of(":"));
+
   for (uint32_t i = 0; i < NumBinaries; i++) {
-    if (strcmp(pBinaries[i].pDeviceTargetSpec, BinaryType) == 0) {
-      *pSelectedBinary = i;
-      return UR_RESULT_SUCCESS;
+    if (strcmp(pBinaries[i].pDeviceTargetSpec, BinaryType) != 0) {
+      continue;
     }
+    // If we've been given the actual binary by the SYCL runtime to inspect,
+    // attempt to parse it as a clang offload bundle.
+    using BinaryBlobTy = std::pair<const unsigned char *, size_t>;
+    if (auto *const BinaryBlob = (const BinaryBlobTy *)pBinaries[i].pNext) {
+      if (auto Parser = HipOffloadBundleParser::load(BinaryBlob->first,
+                                                     BinaryBlob->second)) {
+        if (Parser->containsBundle(ArchName)) {
+          *pSelectedBinary = i;
+          return UR_RESULT_SUCCESS;
+        }
+      }
+    }
+    if (!FirstBackupCandidate) {
+      FirstBackupCandidate = i;
+    }
+  }
+
+  if (FirstBackupCandidate) {
+    *pSelectedBinary = *FirstBackupCandidate;
+    return UR_RESULT_SUCCESS;
   }
 
   // No image can be loaded for the given device
