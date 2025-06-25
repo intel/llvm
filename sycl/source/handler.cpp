@@ -936,7 +936,7 @@ event handler::finalize() {
                       CommandGroup->getRequirements().size() == 0;
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), Queue->shared_from_this(), !DiscardEvent);
+      std::move(CommandGroup), *Queue, !DiscardEvent);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   MLastEvent = DiscardEvent ? nullptr : Event;
