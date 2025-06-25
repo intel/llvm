@@ -3,17 +3,16 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import random
-from utils.utils import git_clone
-from .base import Benchmark, Suite
-from utils.result import Result
-from utils.utils import run, create_build_path
-from options import options
-from utils.oneapi import get_oneapi
 import os
 import csv
 import io
 import re
+
+from .base import Benchmark, Suite
+from utils.result import Result
+from options import options
+from utils.oneapi import get_oneapi
+from utils.logger import log
 
 
 def isUMFAvailable():
@@ -93,7 +92,7 @@ class GBench(Benchmark):
 
     def setup(self):
         if not isUMFAvailable():
-            print("UMF prefix path not provided")
+            log.warning("UMF prefix path not provided")
             return
 
         self.oneapi = get_oneapi()

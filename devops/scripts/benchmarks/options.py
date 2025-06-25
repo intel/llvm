@@ -52,7 +52,6 @@ class Options:
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
     iterations: int = 3
-    verbose: bool = False
     compare: Compare = Compare.LATEST
     compare_max: int = 10  # average/median over how many results
     output_markdown: MarkdownSize = MarkdownSize.SHORT
