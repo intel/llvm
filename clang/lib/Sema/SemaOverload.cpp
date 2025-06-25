@@ -11030,8 +11030,7 @@ bool clang::isBetterOverloadCandidate(
 
   // In SYCL device compilation mode prefer the overload with the
   // SYCLDeviceOnly attribute.
-  if (S.getLangOpts().isSYCL() && S.getLangOpts().SYCLIsDevice &&
-      Cand1.Function && Cand2.Function) {
+  if (S.getLangOpts().SYCLIsDevice && Cand1.Function && Cand2.Function) {
     if (Cand1.Function->hasAttr<SYCLDeviceOnlyAttr>() !=
         Cand2.Function->hasAttr<SYCLDeviceOnlyAttr>()) {
       return Cand1.Function->hasAttr<SYCLDeviceOnlyAttr>();
@@ -11393,7 +11392,7 @@ OverloadingResult OverloadCandidateSet::BestViableFunctionImpl(
     CudaExcludeWrongSideCandidates(S, Candidates);
 
   // In SYCL host compilation remove candidates marked SYCLDeviceOnly.
-  if (S.getLangOpts().isSYCL() && !S.getLangOpts().SYCLIsDevice) {
+  if (S.getLangOpts().SYCLIsHost) {
     auto IsDeviceCand = [&](const OverloadCandidate *Cand) {
       return Cand->Viable && Cand->Function &&
              Cand->Function->hasAttr<SYCLDeviceOnlyAttr>();
