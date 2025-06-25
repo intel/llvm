@@ -21,15 +21,7 @@ ur_command_list_manager::ur_command_list_manager(
     ur_context_handle_t context, ur_device_handle_t device,
     v2::raii::command_list_unique_handle &&commandList)
     : hContext(context), hDevice(device),
-      zeCommandList(std::move(commandList)) {
-  UR_CALL_THROWS(ur::level_zero::urContextRetain(context));
-  UR_CALL_THROWS(ur::level_zero::urDeviceRetain(device));
-}
-
-ur_command_list_manager::~ur_command_list_manager() {
-  ur::level_zero::urContextRelease(hContext);
-  ur::level_zero::urDeviceRelease(hDevice);
-}
+      zeCommandList(std::move(commandList)) {}
 
 ur_result_t ur_command_list_manager::appendGenericFillUnlocked(
     ur_mem_buffer_t *dst, size_t offset, size_t patternSize,
@@ -41,8 +33,8 @@ ur_result_t ur_command_list_manager::appendGenericFillUnlocked(
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
-      hDevice, ur_mem_buffer_t::device_access_mode_t::read_only, offset, size,
-      zeCommandList.get(), waitListView));
+      hDevice.get(), ur_mem_buffer_t::device_access_mode_t::read_only, offset,
+      size, zeCommandList.get(), waitListView));
 
   // PatternSize must be a power of two for zeCommandListAppendMemoryFill.
   // When it's not, the fill is emulated with zeCommandListAppendMemoryCopy.
@@ -78,12 +70,12 @@ ur_result_t ur_command_list_manager::appendGenericCopyUnlocked(
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   auto pSrc = ur_cast<char *>(src->getDevicePtr(
-      hDevice, ur_mem_buffer_t::device_access_mode_t::read_only, srcOffset,
-      size, zeCommandList.get(), waitListView));
+      hDevice.get(), ur_mem_buffer_t::device_access_mode_t::read_only,
+      srcOffset, size, zeCommandList.get(), waitListView));
 
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
-      hDevice, ur_mem_buffer_t::device_access_mode_t::write_only, dstOffset,
-      size, zeCommandList.get(), waitListView));
+      hDevice.get(), ur_mem_buffer_t::device_access_mode_t::write_only,
+      dstOffset, size, zeCommandList.get(), waitListView));
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (zeCommandList.get(), pDst, pSrc, size, zeSignalEvent,
@@ -110,10 +102,10 @@ ur_result_t ur_command_list_manager::appendRegionCopyUnlocked(
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   auto pSrc = ur_cast<char *>(src->getDevicePtr(
-      hDevice, ur_mem_buffer_t::device_access_mode_t::read_only, 0,
+      hDevice.get(), ur_mem_buffer_t::device_access_mode_t::read_only, 0,
       src->getSize(), zeCommandList.get(), waitListView));
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
-      hDevice, ur_mem_buffer_t::device_access_mode_t::write_only, 0,
+      hDevice.get(), ur_mem_buffer_t::device_access_mode_t::write_only, 0,
       dst->getSize(), zeCommandList.get(), waitListView));
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
@@ -168,22 +160,22 @@ ur_result_t ur_command_list_manager::appendKernelLaunchUnlocked(
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice);
+  ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice.get());
 
   std::scoped_lock<ur_shared_mutex> Lock(hKernel->Mutex);
 
   ze_group_count_t zeThreadGroupDimensions{1, 1, 1};
   uint32_t WG[3]{};
-  UR_CALL(calculateKernelWorkDimensions(hZeKernel, hDevice,
+  UR_CALL(calculateKernelWorkDimensions(hZeKernel, hDevice.get(),
                                         zeThreadGroupDimensions, WG, workDim,
                                         pGlobalWorkSize, pLocalWorkSize));
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_KERNEL_LAUNCH);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
-  UR_CALL(hKernel->prepareForSubmission(hContext, hDevice, pGlobalWorkOffset,
-                                        workDim, WG[0], WG[1], WG[2],
-                                        getZeCommandList(), waitListView));
+  UR_CALL(hKernel->prepareForSubmission(
+      hContext.get(), hDevice.get(), pGlobalWorkOffset, workDim, WG[0], WG[1],
+      WG[2], getZeCommandList(), waitListView));
 
   if (cooperative) {
     TRACK_SCOPE_LATENCY("ur_command_list_manager::"
@@ -284,7 +276,7 @@ ur_result_t ur_command_list_manager::appendUSMFill(
     ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMFill");
 
-  ur_usm_handle_t dstHandle(hContext, size, pMem);
+  ur_usm_handle_t dstHandle(hContext.get(), size, pMem);
   return appendGenericFillUnlocked(&dstHandle, 0, patternSize, pPattern, size,
                                    numEventsInWaitList, phEventWaitList,
                                    phEvent, UR_COMMAND_USM_FILL);
@@ -351,7 +343,7 @@ ur_result_t ur_command_list_manager::appendMemBufferRead(
   auto hBuffer = hMem->getBuffer();
   UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
 
-  ur_usm_handle_t dstHandle(hContext, size, pDst);
+  ur_usm_handle_t dstHandle(hContext.get(), size, pDst);
 
   std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
@@ -369,7 +361,7 @@ ur_result_t ur_command_list_manager::appendMemBufferWrite(
   auto hBuffer = hMem->getBuffer();
   UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
 
-  ur_usm_handle_t srcHandle(hContext, size, pSrc);
+  ur_usm_handle_t srcHandle(hContext.get(), size, pSrc);
 
   std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
@@ -410,7 +402,7 @@ ur_result_t ur_command_list_manager::appendMemBufferReadRect(
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferReadRect");
 
   auto hBuffer = hMem->getBuffer();
-  ur_usm_handle_t dstHandle(hContext, 0, pDst);
+  ur_usm_handle_t dstHandle(hContext.get(), 0, pDst);
 
   std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
@@ -430,7 +422,7 @@ ur_result_t ur_command_list_manager::appendMemBufferWriteRect(
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendMemBufferWriteRect");
 
   auto hBuffer = hMem->getBuffer();
-  ur_usm_handle_t srcHandle(hContext, 0, pSrc);
+  ur_usm_handle_t srcHandle(hContext.get(), 0, pSrc);
 
   std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
@@ -470,8 +462,8 @@ ur_result_t ur_command_list_manager::appendUSMMemcpy2D(
   ur_rect_offset_t zeroOffset{0, 0, 0};
   ur_rect_region_t region{width, height, 0};
 
-  ur_usm_handle_t srcHandle(hContext, 0, pSrc);
-  ur_usm_handle_t dstHandle(hContext, 0, pDst);
+  ur_usm_handle_t srcHandle(hContext.get(), 0, pSrc);
+  ur_usm_handle_t dstHandle(hContext.get(), 0, pDst);
 
   return appendRegionCopyUnlocked(&srcHandle, &dstHandle, blocking, zeroOffset,
                                   zeroOffset, region, srcPitch, 0, dstPitch, 0,
@@ -784,13 +776,14 @@ ur_result_t ur_command_list_manager::appendUSMAllocHelper(
     pPool = hContext->getAsyncPool();
   }
 
-  auto device = (type == UR_USM_TYPE_HOST) ? nullptr : hDevice;
+  auto device = (type == UR_USM_TYPE_HOST) ? nullptr : hDevice.get();
 
   ur_event_handle_t originAllocEvent = nullptr;
-  auto asyncAlloc = pPool->allocateEnqueued(hContext, Queue, true, device,
+  auto asyncAlloc = pPool->allocateEnqueued(hContext.get(), Queue, true, device,
                                             nullptr, type, size);
   if (!asyncAlloc) {
-    auto Ret = pPool->allocate(hContext, device, nullptr, type, size, ppMem);
+    auto Ret =
+        pPool->allocate(hContext.get(), device, nullptr, type, size, ppMem);
     if (Ret) {
       return Ret;
     }
