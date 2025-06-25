@@ -1995,7 +1995,7 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
   if (Queue && EventGraph) {
     auto QueueGraph = Queue->getCommandGraph();
 
-    if (EventGraph->getContextImplPtr().get() != &impl->get_context()) {
+    if (&EventGraph->getContextImpl() != &impl->get_context()) {
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Cannot submit to a queue with a dependency from a graph that is "
@@ -2213,6 +2213,7 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
   });
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 const std::shared_ptr<detail::context_impl> &
 handler::getContextImplPtr() const {
   if (auto *Graph = impl->get_graph_or_null()) {
@@ -2220,10 +2221,11 @@ handler::getContextImplPtr() const {
   }
   return impl->get_queue().getContextImplPtr();
 }
+#endif
 
 detail::context_impl &handler::getContextImpl() const {
   if (auto *Graph = impl->get_graph_or_null()) {
-    return *Graph->getContextImplPtr();
+    return Graph->getContextImpl();
   }
   return impl->get_queue().getContextImpl();
 }

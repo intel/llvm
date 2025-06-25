@@ -80,7 +80,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
 template <>
 typename info::platform::version::return_type
 queue_impl::get_backend_info<info::platform::version>() const {
-  if (getContextImplPtr()->getBackend() != backend::opencl) {
+  if (getContextImpl().getBackend() != backend::opencl) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::platform::version info descriptor can "
                           "only be queried with an OpenCL backend");
@@ -93,7 +93,7 @@ queue_impl::get_backend_info<info::platform::version>() const {
 template <>
 typename info::device::version::return_type
 queue_impl::get_backend_info<info::device::version>() const {
-  if (getContextImplPtr()->getBackend() != backend::opencl) {
+  if (getContextImpl().getBackend() != backend::opencl) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::device::version info descriptor can only "
                           "be queried with an OpenCL backend");
@@ -106,7 +106,7 @@ queue_impl::get_backend_info<info::device::version>() const {
 template <>
 typename info::device::backend_version::return_type
 queue_impl::get_backend_info<info::device::backend_version>() const {
-  if (getContextImplPtr()->getBackend() != backend::ext_oneapi_level_zero) {
+  if (getContextImpl().getBackend() != backend::ext_oneapi_level_zero) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::device::backend_version info descriptor "
                           "can only be queried with a Level Zero backend");
@@ -734,7 +734,7 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
 
   Adapter->call<UrApiKind::urQueueGetNativeHandle>(MQueue, &UrNativeDesc,
                                                    &Handle);
-  if (getContextImplPtr()->getBackend() == backend::opencl)
+  if (getContextImpl().getBackend() == backend::opencl)
     __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(Handle));
 
   return Handle;

@@ -2018,7 +2018,7 @@ void instrumentationAddExtraKernelMetadata(
     //       by graph API, when a modifiable graph is finalized.
     FastKernelCacheValPtr FastKernelCacheVal =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            *Queue->getContextImplPtr(), Queue->getDeviceImpl(), KernelName,
+            Queue->getContextImpl(), Queue->getDeviceImpl(), KernelName,
             KernelNameBasedCachePtr);
     EliminatedArgMask = FastKernelCacheVal->MKernelArgMask;
   }
