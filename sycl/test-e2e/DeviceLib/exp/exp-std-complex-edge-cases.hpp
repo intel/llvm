@@ -1,9 +1,10 @@
 // This test checks edge cases handling for std::exp(std::complex<T>) used
 // in SYCL kernels.
 
+#include <cmath>
+
 #include <sycl/detail/core.hpp>
 
-#include <cmath>
 #include <complex>
 #include <type_traits>
 

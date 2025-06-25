@@ -10,7 +10,7 @@
 
 #include <sycl/detail/array.hpp>              // for array
 #include <sycl/detail/common.hpp>             // for InitializedVal
-#include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
+#include <sycl/detail/assume_int.hpp>            // for __SYCL_ASSUME_INT
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED, __SYCL_A...
 #include <sycl/exception.hpp> // for make_error_code, errc, exce...
 #include <sycl/range.hpp>     // for range
