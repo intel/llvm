@@ -34,7 +34,7 @@ class queue_impl;
 class event_impl;
 using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
-class event_impl : public std::enable_shared_from_this<event_impl> {
+class event_impl {
   struct private_tag {
     explicit private_tag() = default;
   };
@@ -377,6 +377,9 @@ public:
     // queue and command, as well as the fact that it is not in enqueued state.
     return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand;
   }
+
+  // Initializes the host profiling info for the event.
+  void initHostProfilingInfo();
 
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and

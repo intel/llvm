@@ -759,7 +759,6 @@ void Command::makeTraceEventEpilog() {
 
 Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
                                   std::vector<Command *> &ToCleanUp) {
-  const ContextImplPtr &WorkerContext = getWorkerContext();
 
   // 1. Non-host events can be ignored if they are not fully initialized.
   // 2. Some types of commands do not produce UR events after they are
@@ -780,8 +779,9 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   Command *ConnectionCmd = nullptr;
 
   context_impl &DepEventContext = DepEvent->getContextImpl();
+  context_impl *WorkerContext = getWorkerContext();
   // If contexts don't match we'll connect them using host task
-  if (&DepEventContext != WorkerContext.get() && WorkerContext) {
+  if (&DepEventContext != WorkerContext && WorkerContext) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
   } else
@@ -790,10 +790,10 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   return ConnectionCmd;
 }
 
-ContextImplPtr Command::getWorkerContext() const {
+context_impl *Command::getWorkerContext() const {
   if (!MQueue)
     return nullptr;
-  return MQueue->getContextImplPtr();
+  return &MQueue->getContextImpl();
 }
 
 bool Command::producesPiEvent() const { return true; }
@@ -1547,10 +1547,10 @@ void MemCpyCommand::emitInstrumentationData() {
 #endif
 }
 
-ContextImplPtr MemCpyCommand::getWorkerContext() const {
+context_impl *MemCpyCommand::getWorkerContext() const {
   if (!MWorkerQueue)
     return nullptr;
-  return MWorkerQueue->getContextImplPtr();
+  return &MWorkerQueue->getContextImpl();
 }
 
 bool MemCpyCommand::producesPiEvent() const {
@@ -1720,10 +1720,10 @@ void MemCpyCommandHost::emitInstrumentationData() {
 #endif
 }
 
-ContextImplPtr MemCpyCommandHost::getWorkerContext() const {
+context_impl *MemCpyCommandHost::getWorkerContext() const {
   if (!MWorkerQueue)
     return nullptr;
-  return MWorkerQueue->getContextImplPtr();
+  return &MWorkerQueue->getContextImpl();
 }
 
 ur_result_t MemCpyCommandHost::enqueueImp() {
@@ -1954,8 +1954,15 @@ ExecCGCommand::ExecCGCommand(
     : Command(CommandType::RUN_CG, Queue, CommandBuffer, Dependencies),
       MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CGType::CodeplayHostTask) {
-    MEvent->setSubmittedQueue(
-        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
+    queue_impl *SubmitQueue =
+        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue.get();
+    assert(SubmitQueue &&
+           "Host task command group must have a valid submit queue");
+
+    MEvent->setSubmittedQueue(SubmitQueue->weak_from_this());
+    // Initialize host profiling info if the queue has profiling enabled.
+    if (SubmitQueue->MIsProfilingEnabled)
+      MEvent->initHostProfilingInfo();
   }
   if (MCommandGroup->getType() == detail::CGType::ProfilingTag)
     MEvent->markAsProfilingTagEvent();
