@@ -39,8 +39,7 @@ class platform_impl : public std::enable_shared_from_this<platform_impl> {
   //
   // Platforms can only be created under `GlobalHandler`'s ownership via
   // `platform_impl::getOrMakePlatformImpl` method.
-  explicit platform_impl(ur_platform_handle_t APlatform,
-                         const std::shared_ptr<Adapter> &AAdapter)
+  explicit platform_impl(ur_platform_handle_t APlatform, Adapter *AAdapter)
       : MPlatform(APlatform), MAdapter(AAdapter) {
     // Find out backend of the platform
     ur_backend_t UrBackend = UR_BACKEND_UNKNOWN;
@@ -202,6 +201,8 @@ public:
   /// \return the platform_impl that contains the input device
   static platform_impl &getPlatformFromUrDevice(ur_device_handle_t UrDevice,
                                                 const AdapterPtr &Adapter);
+
+  context_impl &khr_get_default_context();
 
   // when getting sub-devices for ONEAPI_DEVICE_SELECTOR we may temporarily
   // ensure every device is a root one.

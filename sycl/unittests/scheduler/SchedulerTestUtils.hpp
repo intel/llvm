@@ -75,10 +75,10 @@ public:
   ur_result_t MRetVal = UR_RESULT_SUCCESS;
 
   void waitForEventsCall(
-      std::shared_ptr<sycl::detail::queue_impl> Queue,
+      sycl::detail::queue_impl *Queue,
       std::vector<std::shared_ptr<sycl::detail::event_impl>> &RawEvents,
       ur_event_handle_t &Event) {
-    Command::waitForEvents(Queue.get(), RawEvents, Event);
+    Command::waitForEvents(Queue, RawEvents, Event);
   }
 
   std::shared_ptr<sycl::detail::event_impl> getEvent() { return MEvent; }
@@ -109,7 +109,7 @@ public:
   using sycl::detail::Scheduler::MDeferredMemObjRelease;
 
   sycl::detail::MemObjRecord *
-  getOrInsertMemObjRecord(const sycl::detail::QueueImplPtr &Queue,
+  getOrInsertMemObjRecord(sycl::detail::queue_impl *Queue,
                           sycl::detail::Requirement *Req) {
     return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req);
   }
@@ -153,7 +153,7 @@ public:
   sycl::detail::AllocaCommandBase *
   getOrCreateAllocaForReq(sycl::detail::MemObjRecord *Record,
                           const sycl::detail::Requirement *Req,
-                          sycl::detail::QueueImplPtr Queue,
+                          sycl::detail::queue_impl *Queue,
                           std::vector<sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   }
@@ -167,7 +167,7 @@ public:
   sycl::detail::Command *
   insertMemoryMove(sycl::detail::MemObjRecord *Record,
                    sycl::detail::Requirement *Req,
-                   const sycl::detail::QueueImplPtr &Queue,
+                   sycl::detail::queue_impl *Queue,
                    std::vector<sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.insertMemoryMove(Record, Req, Queue, ToEnqueue);
   }
@@ -181,7 +181,7 @@ public:
   sycl::detail::UpdateHostRequirementCommand *
   insertUpdateHostReqCmd(sycl::detail::MemObjRecord *Record,
                          sycl::detail::Requirement *Req,
-                         const sycl::detail::QueueImplPtr &Queue,
+                         sycl::detail::queue_impl *Queue,
                          std::vector<sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.insertUpdateHostReqCmd(Record, Req, Queue, ToEnqueue);
   }
@@ -195,7 +195,7 @@ public:
   }
 
   sycl::detail::Command *addCG(std::unique_ptr<sycl::detail::CG> CommandGroup,
-                               sycl::detail::QueueImplPtr Queue,
+                               sycl::detail::queue_impl *Queue,
                                std::vector<sycl::detail::Command *> &ToEnqueue,
                                bool EventNeeded) {
     return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue,
@@ -220,9 +220,8 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
 
 class MockHandler : public sycl::handler {
 public:
-  MockHandler(std::shared_ptr<sycl::detail::queue_impl> &Queue,
-              bool CallerNeedsEvent)
-      : sycl::handler(Queue, CallerNeedsEvent) {}
+  MockHandler(sycl::detail::queue_impl &Queue, bool CallerNeedsEvent)
+      : sycl::handler(Queue.shared_from_this(), CallerNeedsEvent) {}
   // Methods
   using sycl::handler::addReduction;
   using sycl::handler::getType;
@@ -260,9 +259,7 @@ public:
   std::shared_ptr<sycl::detail::HostTask> &getHostTask() {
     return impl->MHostTask;
   }
-  const std::shared_ptr<sycl::detail::queue_impl> getQueue() {
-    return impl->get_queue().shared_from_this();
-  }
+  sycl::detail::queue_impl *getQueue() { return impl->get_queue_or_null(); }
 
   void setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 
@@ -291,7 +288,7 @@ public:
 
 class MockHandlerCustomFinalize : public MockHandler {
 public:
-  MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> &Queue,
+  MockHandlerCustomFinalize(sycl::detail::queue_impl &Queue,
                             bool CallerNeedsEvent)
       : MockHandler(Queue, CallerNeedsEvent) {}
 
@@ -313,9 +310,8 @@ public:
     }
     case sycl::detail::CGType::CodeplayHostTask: {
       CommandGroup.reset(new sycl::detail::CGHostTask(
-          std::move(getHostTask()), getQueue().get(),
-          getQueue()->getContextImplPtr(), getArgs(), std::move(CGData),
-          getType(), getCodeLoc()));
+          std::move(getHostTask()), getQueue(), getQueue()->getContextImplPtr(),
+          getArgs(), std::move(CGData), getType(), getCodeLoc()));
       break;
     }
     default:

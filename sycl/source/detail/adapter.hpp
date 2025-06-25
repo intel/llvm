@@ -239,8 +239,6 @@ private:
   UrFuncPtrMapT UrFuncPtrs;
 }; // class Adapter
 
-using AdapterPtr = std::shared_ptr<Adapter>;
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

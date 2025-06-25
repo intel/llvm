@@ -61,7 +61,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}
       ${sycl_inc_dir}
-      ${BOOST_UNORDERED_INCLUDE_DIRS}
   )
 
   # Object libraries are not linked, so these "libraries" are in fact include
@@ -276,7 +275,9 @@ set(SYCL_COMMON_SOURCES
     "detail/filter_selector_impl.cpp"
     "detail/fusion/fusion_wrapper.cpp"
     "detail/global_handler.cpp"
-    "detail/graph_impl.cpp"
+    "detail/graph/graph_impl.cpp"
+    "detail/graph/dynamic_impl.cpp"
+    "detail/graph/node_impl.cpp"
     "detail/helpers.cpp"
     "detail/handler_proxy.cpp"
     "detail/image_accessor_util.cpp"
@@ -335,7 +336,7 @@ set(SYCL_COMMON_SOURCES
     "detail/memory_pool_impl.cpp"
     "detail/async_alloc.cpp"
     "detail/memory_pool.cpp"
-    "detail/graph_memory_pool.cpp"
+    "detail/graph/memory_pool.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_ur.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_ur.cpp>"
 )

@@ -1186,7 +1186,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     // nullptr for the mutex.
     auto [Kernel, ArgMask] = BuildF();
     return std::make_shared<FastKernelCacheVal>(
-        Kernel, nullptr, ArgMask, Program, *ContextImpl.getAdapter().get());
+        Kernel, nullptr, ArgMask, Program, *ContextImpl.getAdapter());
   }
 
   auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
@@ -1195,7 +1195,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
   const KernelArgMaskPairT &KernelArgMaskPair = BuildResult->Val;
   auto ret_val = std::make_shared<FastKernelCacheVal>(
       KernelArgMaskPair.first, &(BuildResult->MBuildResultMutex),
-      KernelArgMaskPair.second, Program, *ContextImpl.getAdapter().get());
+      KernelArgMaskPair.second, Program, *ContextImpl.getAdapter());
   // If caching is enabled, one copy of the kernel handle will be
   // stored in FastKernelCacheVal, and one is in
   // KernelProgramCache::MKernelsPerProgramCache. To cover
@@ -1529,11 +1529,24 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   if (DeviceFilteredImgs.empty())
     return nullptr;
 
-  std::vector<ur_device_binary_t> UrBinaries(DeviceFilteredImgs.size());
-  for (uint32_t BinaryCount = 0; BinaryCount < DeviceFilteredImgs.size();
-       BinaryCount++) {
-    UrBinaries[BinaryCount].pDeviceTargetSpec = getUrDeviceTarget(
-        getRawImg(DeviceFilteredImgs[BinaryCount])->DeviceTargetSpec);
+  const size_t NumImgs = DeviceFilteredImgs.size();
+  // Pass extra information to the HIP adapter to aid in binary selection. We
+  // pass it the raw binary as a {ptr, length} pair.
+  std::vector<std::pair<const unsigned char *, size_t>> UrBinariesStorage;
+  if (DeviceImpl.getBackend() == backend::ext_oneapi_hip)
+    UrBinariesStorage.reserve(NumImgs);
+
+  std::vector<ur_device_binary_t> UrBinaries(NumImgs);
+  for (uint32_t BinaryCount = 0; BinaryCount < NumImgs; BinaryCount++) {
+    sycl_device_binary RawImg = getRawImg(DeviceFilteredImgs[BinaryCount]);
+    UrBinaries[BinaryCount].pDeviceTargetSpec =
+        getUrDeviceTarget(RawImg->DeviceTargetSpec);
+    if (DeviceImpl.getBackend() == backend::ext_oneapi_hip) {
+      UrBinariesStorage.emplace_back(
+          RawImg->BinaryStart,
+          std::distance(RawImg->BinaryStart, RawImg->BinaryEnd));
+      UrBinaries[BinaryCount].pNext = &UrBinariesStorage[BinaryCount];
+    }
   }
 
   uint32_t ImgInd = 0;
