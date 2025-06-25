@@ -30,7 +30,7 @@ MsanInterceptor::~MsanInterceptor() {
   // We must release these objects before releasing adapters, since
   // they may use the adapter in their destructor
   for (const auto &[_, DeviceInfo] : m_DeviceMap) {
-    DeviceInfo->Shadow->Destory();
+    DeviceInfo->Shadow->Destroy();
   }
 
   m_MemBufferMap.clear();

@@ -113,7 +113,7 @@ ur_result_t ShadowMemoryCPU::Setup() {
   return Result;
 }
 
-ur_result_t ShadowMemoryCPU::Destory() {
+ur_result_t ShadowMemoryCPU::Destroy() {
   if (ShadowBegin == 0 && ShadowEnd == 0) {
     return UR_RESULT_SUCCESS;
   }
@@ -221,7 +221,7 @@ ur_result_t ShadowMemoryGPU::Setup() {
   return Result;
 }
 
-ur_result_t ShadowMemoryGPU::Destory() {
+ur_result_t ShadowMemoryGPU::Destroy() {
   if (ShadowBegin == 0) {
     return UR_RESULT_SUCCESS;
   }
