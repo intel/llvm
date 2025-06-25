@@ -17,11 +17,12 @@ from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
 from history import BenchmarkHistory
-from utils.utils import prepare_workdir
+from utils.utils import prepare_workdir, git_clone, run
 from utils.compute_runtime import *
 from utils.validate import Validate
 from utils.detect_versions import DetectVersion
 from presets import enabled_suites, presets
+from utils.oneapi import get_oneapi
 
 import argparse
 import re
@@ -32,16 +33,58 @@ import os
 INTERNAL_WORKDIR_VERSION = "2.0"
 
 
+def download_and_build_unitrace(workdir):
+    repo_dir = git_clone(
+        workdir,
+        "pti-gpu-repo",
+        "https://github.com/intel/pti-gpu.git",
+        "master",
+    )
+    build_dir = os.path.join(workdir, "unitrace-build")
+    unitrace_src = os.path.join(repo_dir, "tools", "unitrace")
+    os.makedirs(build_dir, exist_ok=True)
+
+    unitrace_exe = os.path.join(build_dir, "unitrace")
+    if not os.path.isfile(unitrace_exe):
+        run(
+            [
+                "cmake",
+                f"-S {unitrace_src}",
+                f"-B {build_dir}",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_CXX_COMPILER=clang++",
+                "-DCMAKE_C_COMPILER=clang",
+                "-DBUILD_WITH_L0=1",
+                "-DBUILD_WITH_OPENCL=0",
+                "-DBUILD_WITH_ITT=1",
+                "-DBUILD_WITH_XPTI=1",
+                "-DBUILD_WITH_MPI=0",
+            ],
+            ld_library=get_oneapi().ld_libraries() + [f"{options.sycl}/lib"],
+            add_sycl=True,
+        )
+        run(
+            ["cmake", "--build", build_dir, "-j"],
+            ld_library=get_oneapi().ld_libraries() + [f"{options.sycl}/lib"],
+            add_sycl=True,
+        )
+    print("Unitrace built successfully.")
+
+
 def run_iterations(
     benchmark: Benchmark,
     env_vars,
     iters: int,
     results: dict[str, list[Result]],
     failures: dict[str, str],
+    with_unitrace: bool = False,
 ):
     for iter in range(iters):
-        print(f"running {benchmark.name()}, iteration {iter}... ", flush=True)
-        bench_results = benchmark.run(env_vars)
+        if with_unitrace:
+            print(f"running {benchmark.name()} with Unitrace", flush=True)
+        else:
+            print(f"running {benchmark.name()}, iteration {iter}... ", flush=True)
+        bench_results = benchmark.run(env_vars, with_unitrace=with_unitrace)
         if bench_results is None:
             failures[benchmark.name()] = "benchmark produced no results!"
             break
@@ -158,6 +201,14 @@ def collect_metadata(suites):
 def main(directory, additional_env_vars, save_name, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
+    if options.unitrace or options.unitrace_inclusive:
+        print("Downloading and building Unitrace...")
+        download_and_build_unitrace(options.workdir)
+        if options.results_directory_override == None:
+            options.unitrace_res_dir = os.path.join(directory, "results")
+        else:
+            options.unitrace_res_dir = options.results_directory_override
+
     if options.build_compute_runtime:
         print(f"Setting up Compute Runtime {options.compute_runtime_tag}")
         cr = get_compute_runtime()
@@ -234,19 +285,30 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             merged_env_vars = {**additional_env_vars}
             intermediate_results: dict[str, list[Result]] = {}
             processed: list[Result] = []
-            for _ in range(options.iterations_stddev):
+            if not options.unitrace:
+                for _ in range(options.iterations_stddev):
+                    run_iterations(
+                        benchmark,
+                        merged_env_vars,
+                        options.iterations,
+                        intermediate_results,
+                        failures,
+                    )
+                    valid, processed = process_results(
+                        intermediate_results, benchmark.stddev_threshold()
+                    )
+                    if valid:
+                        break
+            if options.unitrace_inclusive or options.unitrace:
+                # run the benchmark with unitrace
                 run_iterations(
                     benchmark,
                     merged_env_vars,
-                    options.iterations,
+                    1,
                     intermediate_results,
                     failures,
+                    with_unitrace=True,
                 )
-                valid, processed = process_results(
-                    intermediate_results, benchmark.stddev_threshold()
-                )
-                if valid:
-                    break
             results += processed
         except Exception as e:
             if options.exit_on_failure:
@@ -500,6 +562,17 @@ if __name__ == "__main__":
         help="HIP device architecture",
         default=None,
     )
+    parser.add_argument(
+        "--unitrace",
+        action="store_true",
+        help="Unitrace tracing for sigle iteration of benchmarks",
+    )
+
+    parser.add_argument(
+        "--unitrace-inclusive",
+        action="store_true",
+        help="Regular run of benchmarks iterations and unitrace tracing in single additional run",
+    )
 
     # Options intended for CI:
     parser.add_argument(
@@ -589,6 +662,8 @@ if __name__ == "__main__":
     options.results_directory_override = args.results_dir
     options.build_jobs = args.build_jobs
     options.hip_arch = args.hip_arch
+    options.unitrace = args.unitrace
+    options.unitrace_inclusive = args.unitrace_inclusive
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
@@ -599,6 +674,10 @@ if __name__ == "__main__":
         if not os.path.isdir(args.output_dir):
             parser.error("Specified --output-dir is not a valid path")
         options.output_directory = os.path.abspath(args.output_dir)
+    if args.unitrace_inclusive and args.unitrace:
+        parser.error(
+            "--unitrace-inclusive and --unitrace are mutually exclusive, please specify only one of them"
+        )
 
     # Options intended for CI:
     options.timestamp_override = args.timestamp_override

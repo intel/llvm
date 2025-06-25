@@ -56,7 +56,9 @@ def run(
             command_str = " ".join(command)
             env_str = " ".join(f"{key}={value}" for key, value in env_vars.items())
             full_command_str = f"{env_str} {command_str}".strip()
-            print(f"Running: {full_command_str}")
+            print(
+                f"Running: {full_command_str}\nLD_LIBRARY_PATH: {env.get('LD_LIBRARY_PATH', '')}"
+            )
 
         result = subprocess.run(
             command,

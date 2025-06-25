@@ -70,7 +70,7 @@ class Benchmark(ABC):
         pass
 
     @abstractmethod
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, with_unitrace: bool = False) -> list[Result]:
         pass
 
     @staticmethod
@@ -86,7 +86,14 @@ class Benchmark(ABC):
         ), f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
     def run_bench(
-        self, command, env_vars, ld_library=[], add_sycl=True, use_stdout=True
+        self,
+        command,
+        env_vars,
+        ld_library=[],
+        add_sycl=True,
+        use_stdout=True,
+        with_unitrace: bool = False,
+        extra_unitrace_opt=[],
     ):
         env_vars = env_vars.copy()
         if options.ur is not None:
@@ -99,6 +106,29 @@ class Benchmark(ABC):
         ld_libraries = options.extra_ld_libraries.copy()
         ld_libraries.extend(ld_library)
 
+        if with_unitrace:
+            unitrace_bin = os.path.join(options.workdir, "unitrace-build", "unitrace")
+            if not os.path.exists(unitrace_bin):
+                raise FileNotFoundError(f"Unitrace binary not found: {unitrace_bin}. ")
+            if not os.path.exists(options.unitrace_res_dir):
+                os.makedirs(options.unitrace_res_dir)
+            os.makedirs(f"{options.unitrace_res_dir}/{self.name()}", exist_ok=True)
+            command = (
+                [
+                    str(unitrace_bin),
+                    "--call-logging",
+                    "--host-timing",
+                    "--chrome-sycl-logging",
+                    "--chrome-call-logging",
+                    "--chrome-kernel-logging",
+                    "--output",
+                    f"{options.unitrace_res_dir}/{self.name()}/{self.name()}.log",
+                ]
+                + extra_unitrace_opt
+                + command
+            )
+            if options.verbose:
+                print(f"Unitrace cmd: {' '.join(command)}")
         result = run(
             command=command,
             env_vars=env_vars,

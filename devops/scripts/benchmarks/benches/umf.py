@@ -138,7 +138,7 @@ class GBench(Benchmark):
 
         return all_names
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, with_unitrace: bool = False) -> list[Result]:
         command = [f"{self.benchmark_bin}"]
 
         all_names = self.get_names_of_benchmarks_to_be_run(command, env_vars)
@@ -152,7 +152,11 @@ class GBench(Benchmark):
             specific_benchmark = command + ["--benchmark_filter=^" + name + "$"]
 
             result = self.run_bench(
-                specific_benchmark, env_vars, add_sycl=False, ld_library=[self.umf_lib]
+                specific_benchmark,
+                env_vars,
+                add_sycl=False,
+                ld_library=[self.umf_lib],
+                with_unitrace=with_unitrace,
             )
 
             parsed = self.parse_output(result)
