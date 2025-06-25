@@ -11,7 +11,7 @@
 // ptr, but it should pipe stdout to FileCheck otherwise. A portable way to
 // allow an early exit without any output to pipe to FileCheck logic is to use
 // Python.
-// RUN: env SYCL_UR_TRACE=-1 %{run} python -c "import subprocess, sys; p = subprocess.run(['%t.out'], stdout=subprocess.PIPE, test=True); o = p.stdout.strip(); sys.exit(0) if not o else subprocess.run(['FileCheck', '%s'], input=o, text=True).returncode"
+// RUN: env SYCL_UR_TRACE=-1 %{run} python -c "import subprocess, sys; p = subprocess.run(['%t.out'], stdout=subprocess.PIPE, check=True); o = p.stdout.strip(); sys.exit(0) if not o else subprocess.run(['FileCheck', '%s'], input=o, text=True).returncode"
 
 //==------------------- image_trace.cpp - SYCL image trace test ------------==//
 //
