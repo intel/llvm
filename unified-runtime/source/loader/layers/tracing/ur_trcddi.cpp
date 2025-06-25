@@ -631,8 +631,10 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urDeviceGetInfo\n");
 
+  std::cout << "< TRACE\n";
   ur_result_t result =
       pfnGetInfo(hDevice, propName, propSize, pPropValue, pPropSizeRet);
+  std::cout << "> TRACE\n";
 
   getContext()->notify_end(UR_FUNCTION_DEVICE_GET_INFO, "urDeviceGetInfo",
                            &params, &result, instance);

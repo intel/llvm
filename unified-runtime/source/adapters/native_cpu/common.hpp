@@ -14,14 +14,14 @@
 #include "ur/ur.hpp"
 #include <chrono>
 
-constexpr size_t MaxMessageSize = 256;
+constexpr size_t MaxMessageSize = 512;
 
 extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 #define DIE_NO_IMPLEMENTATION                                                  \
   do {                                                                         \
-    UR_LOG(ERR, "Not Implemented : {}", __FUNCTION__)                          \
+    /*UR_LOG(ERR, "Not Implemented : {}", __FUNCTION__)                          */\
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;                                \
   } while (false)
 

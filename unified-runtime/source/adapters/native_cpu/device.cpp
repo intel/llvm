@@ -459,7 +459,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
   default:
     std::cout << ".. Native CPU deviceGetInfo is dying...\n";
-    DIE_NO_IMPLEMENTATION;
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
   return UR_RESULT_SUCCESS;
 }
