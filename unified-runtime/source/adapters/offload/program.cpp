@@ -14,6 +14,7 @@
 
 #include "context.hpp"
 #include "device.hpp"
+#include "offload_bundle_parser.hpp"
 #include "platform.hpp"
 #include "program.hpp"
 #include "ur2offload.hpp"
@@ -69,85 +70,6 @@ ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t, const uint8_t *,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 #endif
-
-// https://clang.llvm.org/docs/ClangOffloadBundler.html#bundled-binary-file-layout
-class HipOffloadBundleParser {
-  static constexpr std::string_view Magic = "__CLANG_OFFLOAD_BUNDLE__";
-  const uint8_t *Buff;
-  size_t Length;
-
-  struct __attribute__((packed)) BundleEntry {
-    uint64_t ObjectOffset;
-    uint64_t ObjectSize;
-    uint64_t EntryIdSize;
-    char EntryIdStart;
-  };
-
-  struct __attribute__((packed)) BundleHeader {
-    const char HeaderMagic[Magic.size()];
-    uint64_t EntryCount;
-    BundleEntry FirstEntry;
-  };
-
-  HipOffloadBundleParser() = delete;
-  HipOffloadBundleParser(const uint8_t *Buff, size_t Length)
-      : Buff(Buff), Length(Length) {}
-
-public:
-  static std::optional<HipOffloadBundleParser> load(const uint8_t *Buff,
-                                                    size_t Length) {
-    if (std::string_view{reinterpret_cast<const char *>(Buff), Length}.find(
-            Magic) != 0) {
-      return std::nullopt;
-    }
-    return HipOffloadBundleParser(Buff, Length);
-  }
-
-  ur_result_t extract(std::string_view SearchTargetId,
-                      const uint8_t *&OutBinary, size_t &OutLength) {
-    const char *Limit = reinterpret_cast<const char *>(&Buff[Length]);
-
-    // The different check here means that a binary consisting of only the magic
-    // bytes (but nothing else) will result in INVALID_PROGRAM rather than being
-    // treated as a non-bundle
-    auto *Header = reinterpret_cast<const BundleHeader *>(Buff);
-    if (reinterpret_cast<const char *>(&Header->FirstEntry) > Limit) {
-      return UR_RESULT_ERROR_INVALID_PROGRAM;
-    }
-
-    const auto *CurrentEntry = &Header->FirstEntry;
-    for (uint64_t I = 0; I < Header->EntryCount; I++) {
-      if (&CurrentEntry->EntryIdStart > Limit) {
-        return UR_RESULT_ERROR_INVALID_PROGRAM;
-      }
-      auto EntryId = std::string_view(&CurrentEntry->EntryIdStart,
-                                      CurrentEntry->EntryIdSize);
-      if (EntryId.end() > Limit) {
-        return UR_RESULT_ERROR_INVALID_PROGRAM;
-      }
-
-      // Will match either "hip" or "hipv4"
-      bool isHip = EntryId.find("hip") == 0;
-      bool VersionMatches =
-          EntryId.find_last_of(SearchTargetId) == EntryId.size() - 1;
-
-      if (isHip && VersionMatches) {
-        OutBinary = reinterpret_cast<const uint8_t *>(
-            &Buff[CurrentEntry->ObjectOffset]);
-        OutLength = CurrentEntry->ObjectSize;
-
-        if (reinterpret_cast<const char *>(&OutBinary[OutLength]) > Limit) {
-          return UR_RESULT_ERROR_INVALID_PROGRAM;
-        }
-        return UR_RESULT_SUCCESS;
-      }
-
-      CurrentEntry = reinterpret_cast<const BundleEntry *>(EntryId.end());
-    }
-
-    return UR_RESULT_ERROR_INVALID_PROGRAM;
-  }
-};
 
 } // namespace
 

@@ -61,7 +61,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}
       ${sycl_inc_dir}
-      ${BOOST_UNORDERED_INCLUDE_DIRS}
   )
 
   # Object libraries are not linked, so these "libraries" are in fact include

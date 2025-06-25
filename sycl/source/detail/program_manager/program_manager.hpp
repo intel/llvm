@@ -9,6 +9,7 @@
 #pragma once
 #include <detail/cg.hpp>
 #include <detail/device_binary_image.hpp>
+#include <detail/device_global_map.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_arg_mask.hpp>
@@ -532,12 +533,7 @@ protected:
   SanitizerType m_SanitizerFoundInImage;
 
   // Maps between device_global identifiers and associated information.
-  std::unordered_map<KernelNameStrT, std::unique_ptr<DeviceGlobalMapEntry>>
-      m_DeviceGlobals;
-  std::unordered_map<const void *, DeviceGlobalMapEntry *> m_Ptr2DeviceGlobal;
-
-  /// Protects m_DeviceGlobals and m_Ptr2DeviceGlobal.
-  std::mutex m_DeviceGlobalsMutex;
+  DeviceGlobalMap m_DeviceGlobals;
 
   // Maps between host_pipe identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>
