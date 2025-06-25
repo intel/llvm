@@ -124,14 +124,14 @@ ur_result_t urSamplerCreate(
 ur_result_t urSamplerRetain(
     /// [in] handle of the sampler object to get access
     ur_sampler_handle_t Sampler) {
-  Sampler->incrementRefCount();
+  Sampler->getRefCount().increment();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urSamplerRelease(
     /// [in] handle of the sampler object to release
     ur_sampler_handle_t Sampler) {
-  if (!Sampler->decrementAndTest())
+  if (!Sampler->getRefCount().decrementAndTest())
     return UR_RESULT_SUCCESS;
 
   if (checkL0LoaderTeardown()) {

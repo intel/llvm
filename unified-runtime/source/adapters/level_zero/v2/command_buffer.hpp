@@ -9,15 +9,18 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <unordered_set>
+
 #include "../helpers/mutable_helpers.hpp"
 #include "command_list_manager.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 #include "kernel.hpp"
 #include "lockable.hpp"
 #include "queue_api.hpp"
-#include <unordered_set>
 #include <ze_api.h>
+
 struct kernel_command_handle;
 
 struct ur_exp_command_buffer_handle_t_ : public ur_object {
@@ -62,6 +65,8 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   ur_event_handle_t
   createEventIfRequested(ur_exp_command_buffer_sync_point_t *retSyncPoint);
 
+  URRefCount &getRefCount() noexcept { return RefCount; }
+
 private:
   // Stores all sync points that are created by the command buffer.
   std::vector<ur_event_handle_t> syncPoints;
@@ -85,4 +90,6 @@ private:
   ur_event_handle_t currentExecution = nullptr;
 
   v2::raii::cache_borrowed_event_pool eventPool;
+
+  URRefCount RefCount;
 };

@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "device.hpp"
 
 struct ur_program_handle_t_ : ur_object {
@@ -226,6 +227,8 @@ struct ur_program_handle_t_ : ur_object {
   // UR_PROGRAM_INFO_BINARY_SIZES.
   const std::vector<ur_device_handle_t> AssociatedDevices;
 
+  URRefCount &getRefCount() noexcept { return RefCount; }
+
 private:
   struct DeviceData {
     // Log from the result of building the program for the device using
@@ -264,4 +267,6 @@ private:
   // handle from the program.
   // TODO: Currently interoparability UR API does not support multiple devices.
   ze_module_handle_t InteropZeModule = nullptr;
+
+  URRefCount RefCount;
 };

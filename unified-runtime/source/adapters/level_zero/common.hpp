@@ -34,6 +34,7 @@
 #include <level_zero/ze_intel_gpu.h>
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
+#include "common/ur_ref_count.hpp"
 #include "logger/ur_logger.hpp"
 #include "ur_interface_loader.hpp"
 
@@ -257,6 +258,11 @@ struct MemAllocRecord : ur_object {
   // TODO: this should go away when memory isolation issue is fixed in the Level
   // Zero runtime.
   ur_context_handle_t Context;
+
+  URRefCount &getRefCount() noexcept { return RefCount; }
+
+private:
+  URRefCount RefCount;
 };
 
 extern usm::DisjointPoolAllConfigs DisjointPoolConfigInstance;

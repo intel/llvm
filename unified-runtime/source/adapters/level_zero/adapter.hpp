@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "common/ur_ref_count.hpp"
 #include "logger/ur_logger.hpp"
 #include "ur_interface_loader.hpp"
 #include <loader/ur_loader.hpp>
@@ -43,6 +44,11 @@ struct ur_adapter_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   ZeCache<Result<PlatformVec>> PlatformCache;
   logger::Logger &logger;
   HMODULE processHandle = nullptr;
+
+  URRefCount &getRefCount() noexcept { return RefCount; }
+
+private:
+  URRefCount RefCount;
 };
 
 extern ur_adapter_handle_t_ *GlobalAdapter;

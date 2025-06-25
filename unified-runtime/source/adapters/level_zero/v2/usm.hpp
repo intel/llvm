@@ -14,6 +14,7 @@
 
 #include "../enqueued_pool.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "event.hpp"
 #include "ur_pool_manager.hpp"
 
@@ -49,9 +50,13 @@ struct ur_usm_pool_handle_t_ : ur_object {
   void cleanupPools();
   void cleanupPoolsForQueue(void *hQueue);
 
+  URRefCount &getRefCount() noexcept { return RefCount; }
+
 private:
   ur_context_handle_t hContext;
   usm::pool_manager<usm::pool_descriptor, UsmPool> poolManager;
 
   UsmPool *getPool(const usm::pool_descriptor &desc);
+
+  URRefCount RefCount;
 };
