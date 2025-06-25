@@ -126,7 +126,7 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
   ur_device_handle_t UrDevice =
       Device ? getSyclObjImpl(*Device)->getHandleRef() : nullptr;
   const auto &Adapter = getAdapter(Backend);
-  const auto &ContextImpl = getSyclObjImpl(Context);
+  context_impl &ContextImpl = *getSyclObjImpl(Context);
 
   if (PropList.has_property<ext::intel::property::queue::compute_index>()) {
     throw sycl::exception(
@@ -156,7 +156,7 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
   ur_queue_handle_t UrQueue = nullptr;
 
   Adapter->call<UrApiKind::urQueueCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), UrDevice, &NativeProperties,
+      NativeHandle, ContextImpl.getHandleRef(), UrDevice, &NativeProperties,
       &UrQueue);
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<queue>(
