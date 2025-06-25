@@ -9,7 +9,8 @@
 #include "detail/config.hpp"
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
-#include <detail/graph_impl.hpp>
+#include <detail/graph/graph_impl.hpp>
+#include <detail/graph/node_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -206,7 +207,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(queue_impl *Queue,
           cleanupCommand(Cmd);
       };
 
-  const ContextImplPtr &InteropCtxPtr = Req->MSYCLMemObj->getInteropContext();
+  context_impl *InteropCtxPtr = Req->MSYCLMemObj->getInteropContext();
   if (InteropCtxPtr) {
     // The memory object has been constructed using interoperability constructor
     // which means that there is already an allocation(cl_mem) in some context.
@@ -221,10 +222,10 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(queue_impl *Queue,
     // here, we need to create a dummy queue bound to the context and one of the
     // devices from the context.
     std::shared_ptr<queue_impl> InteropQueuePtr = queue_impl::create(
-        Dev, InteropCtxPtr, async_handler{}, property_list{});
+        Dev, *InteropCtxPtr, async_handler{}, property_list{});
 
     MemObject->MRecord.reset(
-        new MemObjRecord{InteropCtxPtr.get(), LeafLimit, AllocateDependency});
+        new MemObjRecord{InteropCtxPtr, LeafLimit, AllocateDependency});
     std::vector<Command *> ToEnqueue;
     getOrCreateAllocaForReq(MemObject->MRecord.get(), Req,
                             InteropQueuePtr.get(), ToEnqueue);
@@ -1217,7 +1218,7 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
 Command *Scheduler::GraphBuilder::connectDepEvent(
     Command *const Cmd, const EventImplPtr &DepEvent, const DepDesc &Dep,
     std::vector<Command *> &ToCleanUp) {
-  assert(Cmd->getWorkerContext().get() != &DepEvent->getContextImpl());
+  assert(Cmd->getWorkerContext() != &DepEvent->getContextImpl());
 
   // construct Host Task type command manually and make it depend on DepEvent
   ExecCGCommand *ConnectCmd = nullptr;

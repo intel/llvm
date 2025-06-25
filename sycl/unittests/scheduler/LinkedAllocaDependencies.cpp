@@ -38,8 +38,7 @@ public:
   bool isHostPointerReadOnly() const override { return false; }
   bool usesPinnedHostMemory() const override { return false; }
 
-  std::shared_ptr<sycl::detail::context_impl>
-  getInteropContext() const override {
+  sycl::detail::context_impl *getInteropContext() const override {
     return nullptr;
   }
 };
