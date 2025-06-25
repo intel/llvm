@@ -2302,44 +2302,6 @@ as described in <<buffer-limitations, Buffer Limitations>>.
 
 === Features Still in Development
 
-==== Memory Allocation Nodes
-
-There is no provided interface for users to define a USM allocation/free
-operation belonging to the scope of the graph. It would be error prone and
-non-performant to allocate or free memory as a node executed during graph
-submission. Instead, such a memory allocation API needs to provide a way to
-return a pointer which won't be valid until the allocation is made on graph
-finalization, as allocating at finalization is the only way to benefit from
-the known graph scope for optimal memory allocation, and even optimize to
-eliminate some allocations entirely.
-
-Such a deferred allocation strategy presents challenges however, and as a result
-we recommend instead that prior to graph construction users perform core SYCL
-USM allocations to be used in the graph submission. Before to coming to this
-recommendation we considered the following explicit graph building interfaces
-for adding a memory allocation owned by the graph:
-
-1. Allocation function returning a reference to the raw pointer, i.e. `void*&`,
-   which will be instantiated on graph finalization with the location of the
-   allocated USM memory.
-
-2. Allocation function returning a handle to the allocation. Applications use
-   the handle in node command-group functions to access memory when allocated.
-
-3. Allocation function returning a pointer to a virtual allocation, only backed
-   with an actual allocation when graph is finalized or submitted.
-
-Design 1) has the drawback of forcing users to keep the user pointer variable
-alive so that the reference is valid, which is unintuitive and is likely to
-result in bugs.
-
-Design 2) introduces a handle object which has the advantages of being a less
-error prone way to provide the pointer to the deferred allocation. However, it
-requires kernel changes and introduces an overhead above the raw pointers that
-are the advantage of USM.
-
-Design 3) needs specific backend support for deferred allocation.
-
 ==== Device Specific Graph
 
 A modifiable state `command_graph` contains nodes targeting specific devices,
@@ -2396,16 +2358,6 @@ Allow an executable graph to contain nodes targeting different devices.
 introducing into the extension in later revisions. It has been planned for to the
 extent that the definition of a graph node is device specific.
 
-=== Memory Allocation API
-
-We would like to provide an API that allows graph scope memory to be
-allocated and used in nodes, such that optimizations can be done on
-the allocation. No mechanism is currently provided, but see the
-section on <<memory-allocation-nodes, Memory Allocation Nodes>> for
-some designs being considered.
-
-**UNRESOLVED:** Trending "yes". Design is under consideration.
-
 === Device Agnostic Graph
 
 Explicit API could support device-agnostic graphs that can be submitted
@@ -2434,6 +2386,24 @@ block size.
 **UNRESOLVED:** Trending "yes". A new property could be added to
 the finalize call either extending the basic command graph proposal
 or layered as a separate extension proposal.
+
+=== Graph-owned allocations as USM pointers
+
+Currently we describe graph-owned memory allocations as being able to be used
+inside graph nodes in the same way as normal USM pointers and are not valid for
+used out of graphs. However, they may not be implemented with actual USM
+allocations (could be virtual memory or some other approach).
+
+It would simplify things if we could say that they are USM pointers but it is
+not clear that they would function exactly the same.
+
+**UNRESOLVED:** 
+Potential unknowns/issues:
+
+* Would a virtual address work/be reported as a USM pointer for queries such
+as `get_pointer_device` or `get_pointer_type`?
+* It is expected to be able to deallocate a USM pointer via `sycl::free` but
+this would likely not be valid for other implementation approaches.
 
 == Non-implemented features and known issues
 
