@@ -4430,25 +4430,29 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
       auto *PreviousGlobal =
           cast<ValueDecl>(DeferredDecls[MangledName].getDecl());
 
+      // If the host declaration was already processed and the device only
+      // declaration is also a sycl external declaration, remove the host
+      // variant and skip. The device only variant will be generated later
+      // as it's marked sycl external.
       if (!PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
           Global->hasAttr<SYCLDeviceOnlyAttr>() &&
           Global->hasAttr<SYCLDeviceAttr>()) {
-        // If the host declaration was already processed and the device only
-        // declaration is also a sycl external declaration, remove the host
-        // variant and skip. The device only variant will be generated later
-        // as it's marked sycl external.
         DeferredDecls.erase(DDI);
         return;
-      } else if (!PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
-                 Global->hasAttr<SYCLDeviceOnlyAttr>()) {
-        // If the host declaration was already processed, replace it with the
-        // device only declaration.
+      }
+
+      // If the host declaration was already processed, replace it with the
+      // device only declaration.
+      if (!PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
+          Global->hasAttr<SYCLDeviceOnlyAttr>()) {
         DeferredDecls[MangledName] = GD;
         return;
-      } else if (PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
-                 !Global->hasAttr<SYCLDeviceOnlyAttr>()) {
-        // If the device only declaration was already processed, skip the
-        // host declaration.
+      }
+
+      // If the device only declaration was already processed, skip the
+      // host declaration.
+      if (PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
+          !Global->hasAttr<SYCLDeviceOnlyAttr>()) {
         return;
       }
     }
