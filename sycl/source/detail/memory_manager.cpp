@@ -1050,8 +1050,8 @@ void MemoryManager::memset_2d_usm(void *DstMem, queue_impl &Queue, size_t Pitch,
         sycl::make_error_code(errc::invalid),
         "NULL pointer argument in 2D memory memset operation.");
   MemoryManager::fill_2d_usm(DstMem, Queue, Pitch, Width, Height,
-                             {static_cast<unsigned char>(Value)}, std::move(DepEvents),
-                             OutEvent);
+                             {static_cast<unsigned char>(Value)},
+                             std::move(DepEvents), OutEvent);
 }
 
 static void
