@@ -31,7 +31,7 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include <level_zero/include/level_zero/ze_intel_gpu.h>
+#include <level_zero/ze_intel_gpu.h>
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
 #include "logger/ur_logger.hpp"
