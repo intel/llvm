@@ -153,11 +153,9 @@ ur_result_t ShadowMemoryGPU::Destroy() {
           Context, (void *)MappedPtr, PageSize));
       UR_CALL(getContext()->urDdiTable.PhysicalMem.pfnRelease(PhysicalMem));
     }
-    if (ShadowBegin != 0) {
-      UR_CALL(getContext()->urDdiTable.VirtualMem.pfnFree(
-          Context, (const void *)ShadowBegin, GetShadowSize()));
-      ShadowBegin = ShadowEnd = 0;
-    }
+    UR_CALL(getContext()->urDdiTable.VirtualMem.pfnFree(
+        Context, (const void *)ShadowBegin, GetShadowSize()));
+    ShadowBegin = ShadowEnd = 0;
   }
 
   // NOTE: Context is managed by base class, so it needn't release here
