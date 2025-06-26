@@ -194,6 +194,9 @@ TEST_P(urEnqueueCommandBufferExpTest, SerializeInOrOutOfOrderQueue) {
 // Tests releasing command-buffer while it is still executing relying
 // on synchronization during urCommandBufferReleaseExp call.
 TEST_P(urEnqueueCommandBufferExpTest, EnqueueAndRelease) {
+  // https://github.com/intel/llvm/issues/19139
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   ASSERT_SUCCESS(urEnqueueCommandBufferExp(
       in_or_out_of_order_queue, cmd_buf_handle, 0, nullptr, nullptr));
 

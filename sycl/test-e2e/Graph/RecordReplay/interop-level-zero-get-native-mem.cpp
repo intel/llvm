@@ -9,9 +9,6 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out %}
 
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19034
-
 #define GRAPH_E2E_RECORD_REPLAY
 
 #include "../Inputs/interop-level-zero-get-native-mem.cpp"
