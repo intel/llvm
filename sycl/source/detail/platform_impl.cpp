@@ -172,21 +172,23 @@ std::vector<platform> platform_impl::get_platforms() {
   std::vector<std::pair<platform, AdapterPtr>> PlatformsWithAdapter;
 
   // Then check backend-specific adapters
+  std::vector<platform> Platforms;
   for (auto &Adapter : Adapters) {
     const auto &AdapterPlatforms = getAdapterPlatforms(Adapter);
     for (const auto &P : AdapterPlatforms) {
+      Platforms.push_back(P);
       PlatformsWithAdapter.push_back({P, Adapter});
     }
   }
 
   // For the selected platforms register them with their adapters
-  std::vector<platform> Platforms;
-  for (auto &Platform : PlatformsWithAdapter) {
-    auto &Adapter = Platform.second;
-    std::lock_guard<std::mutex> Guard(*Adapter->getAdapterMutex());
-    Adapter->getPlatformId(getSyclObjImpl(Platform.first)->getHandleRef());
-    Platforms.push_back(Platform.first);
-  }
+  // std::vector<platform> Platforms;
+  // for (auto &Platform : PlatformsWithAdapter) {
+  //   auto &Adapter = Platform.second;
+  //   std::lock_guard<std::mutex> Guard(*Adapter->getAdapterMutex());
+  //   Adapter->getPlatformId(getSyclObjImpl(Platform.first)->getHandleRef());
+  //   Platforms.push_back(Platform.first);
+  // }
 
   // This initializes a function-local variable whose destructor is invoked as
   // the SYCL shared library is first being unloaded.
