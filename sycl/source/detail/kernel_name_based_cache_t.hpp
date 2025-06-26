@@ -29,10 +29,10 @@ struct FastKernelCacheVal {
   const KernelArgMask *MKernelArgMask; /* Eliminated kernel argument mask. */
   ur_program_handle_t MProgramHandle;  /* UR program handle corresponding to
                                      this kernel. */
-  const adapter_impl &MAdapterPtr;          /* We can keep reference to the adapter
-                                     because during 2-stage shutdown the kernel
-                                     cache is destroyed deliberately before the
-                                     adapter. */
+  const adapter_impl &MAdapterPtr;     /* We can keep reference to the adapter
+                                because during 2-stage shutdown the kernel
+                                cache is destroyed deliberately before the
+                                adapter. */
 
   FastKernelCacheVal(ur_kernel_handle_t KernelHandle, std::mutex *Mutex,
                      const KernelArgMask *KernelArgMask,
