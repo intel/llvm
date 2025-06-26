@@ -497,8 +497,10 @@ struct payload_t {
   ///
   payload_t(const char *func_name) {
     code_ptr_va = nullptr;
-    name = func_name;      ///< Invalid name string pointer
-    source_file = nullptr; ///< Invalid source file string pointer
+    name = func_name;         ///< Invalid name string pointer
+    source_file = nullptr;    ///< Invalid source file string pointer
+    line_no = invalid_id<>;   ///< Invalid line number
+    column_no = invalid_id<>; ///< Invalid column number
     if (func_name) {
       flags = (uint64_t)(payload_flag_t::NameAvailable);
     }
@@ -518,8 +520,10 @@ struct payload_t {
   ///
   payload_t(const char *func_name, const void *codeptr) {
     code_ptr_va = codeptr;
-    name = func_name;      ///< Invalid name string pointer
-    source_file = nullptr; ///< Invalid source file string pointer
+    name = func_name;         ///< Invalid name string pointer
+    source_file = nullptr;    ///< Invalid source file string pointer
+    line_no = invalid_id<>;   ///< Invalid line number
+    column_no = invalid_id<>; ///< Invalid column number
     if (func_name) {
       flags = (uint64_t)(payload_flag_t::NameAvailable);
     }
@@ -561,6 +565,8 @@ struct payload_t {
       stack_trace = caller_callee;
       flags |= (uint64_t)payload_flag_t::StackTraceAvailable;
     }
+    line_no = invalid_id<>;   ///< Invalid line number
+    column_no = invalid_id<>; ///< Invalid column number
   }
 
   ///

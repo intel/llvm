@@ -2481,8 +2481,6 @@ public:
           auto strict_hash =
               g_helper.getEnvironmentVariable("XPTI_USE_STRICT_HASH");
           g_use_strict_hash = strict_hash.size() > 0;
-          std::cout << "XPTI_USE_STRICT_HASH: "
-                    << (g_use_strict_hash ? "true" : "false") << std::endl;
         });
       }
     }

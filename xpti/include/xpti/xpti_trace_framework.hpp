@@ -577,14 +577,29 @@ inline std::string readMetadata(const metadata_t::value_type &MD) {
 inline bool is_valid_payload(const xpti::payload_t *Payload) {
   if (!Payload)
     return false;
-  else
-    return (Payload->flags != 0) &&
-           ((Payload->flags &
-                 static_cast<uint64_t>(payload_flag_t::SourceFileAvailable) ||
-             (Payload->flags &
-              static_cast<uint64_t>(payload_flag_t::NameAvailable)))) &&
-           (Payload->line_no != xpti::invalid_id<uint32_t> ||
-            Payload->column_no != xpti::invalid_id<uint32_t>);
+  else {
+    bool isValid = false;
+    bool hasSourceFile =
+        (Payload->flags &
+         static_cast<uint64_t>(payload_flag_t::SourceFileAvailable)) &&
+        Payload->source_file;
+    bool hasName = (Payload->flags &
+                    static_cast<uint64_t>(payload_flag_t::NameAvailable)) &&
+                   Payload->name;
+    bool hasCodePtrVa =
+        (Payload->flags &
+         static_cast<uint64_t>(payload_flag_t::CodePointerAvailable)) &&
+        Payload->code_ptr_va;
+    bool hasLineInfo =
+        (Payload->flags &
+         static_cast<uint64_t>(payload_flag_t::LineInfoAvailable)) &&
+        Payload->line_no != xpti::invalid_id<uint32_t>;
+    // We ignore checking for column info as it may not always be available
+    isValid = ((hasSourceFile && hasLineInfo) || hasName || hasCodePtrVa) &&
+              (Payload->flags != 0);
+
+    return isValid;
+  }
 }
 
 /// @brief Generates a default payload object with unknown details.
