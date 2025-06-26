@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <JITBinaryInfo.h>
 #include <detail/jit_device_binaries.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
@@ -45,7 +46,8 @@ public:
   std::pair<sycl_device_binaries, std::string> compileSYCL(
       const std::string &CompilationID, const std::string &SYCLSource,
       const std::vector<std::pair<std::string, std::string>> &IncludePairs,
-      const std::vector<std::string> &UserArgs, std::string *LogPtr);
+      const std::vector<std::string> &UserArgs, std::string *LogPtr,
+      ::jit_compiler::BinaryFormat Format);
 
   void destroyDeviceBinaries(sycl_device_binaries Binaries);
 
