@@ -9,7 +9,7 @@
 #pragma once
 
 #include <sycl/detail/array.hpp>               // for array
-#include <sycl/detail/common.hpp>              // for InitializedVal, NDLoop
+#include <sycl/detail/common.hpp>              // for InitializedVal
 #include <sycl/detail/helpers.hpp>             // for Builder
 #include <sycl/detail/host_profiling_info.hpp> // for HostProfilingInfo
 #include <sycl/detail/item_base.hpp>           // for id

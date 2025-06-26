@@ -36,6 +36,17 @@ class handler;
 
 namespace detail {
 
+constexpr size_t getNextPowerOfTwoHelper(size_t Var, size_t Offset) {
+  return Offset != 64
+             ? getNextPowerOfTwoHelper(Var | (Var >> Offset), Offset * 2)
+             : Var;
+}
+
+// Returns the smallest power of two not less than Var
+constexpr size_t getNextPowerOfTwo(size_t Var) {
+  return getNextPowerOfTwoHelper(Var - 1, 1) + 1;
+}
+
 // utility functions and typedefs for image_impl
 using image_allocator = aligned_allocator<byte>;
 

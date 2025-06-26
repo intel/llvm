@@ -18,6 +18,10 @@
 //
 #include <sycl/sycl.hpp>
 
+// Comes from sycl/source to share definition of get_backend_name_no_vendor with
+// the SYCL RT
+#include <detail/adapter.hpp>
+
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
