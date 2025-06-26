@@ -567,9 +567,13 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE:
     return ReturnValue(UR_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE:
-    return ReturnValue(
-        // TODO[1.0]: how to query cache line-size?
-        uint32_t{1});
+    if (Device->Platform->zeDriverExtensionMap.count(
+            ZE_CACHELINE_SIZE_EXT_NAME)) {
+      return ReturnValue(uint32_t{static_cast<uint32_t>(
+          Device->ZeDeviceCacheLinePropertiesExt->cacheLineSize)});
+    } else {
+      return ReturnValue(uint32_t{1});
+    }
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE:
     return ReturnValue(uint64_t{Device->ZeDeviceCacheProperties->cacheSize});
   case UR_DEVICE_INFO_IP_VERSION:
@@ -1855,6 +1859,28 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         ZE_CALL_NOCHECK(zeDeviceGetCacheProperties,
                         (ZeDevice, &Count, &Properties));
       };
+
+  if (this->Platform->zeDriverExtensionMap.count(ZE_CACHELINE_SIZE_EXT_NAME)) {
+    ZeDeviceCacheLinePropertiesExt.Compute =
+        [ZeDevice](ze_device_cache_line_size_ext_t &Properties) {
+          // TODO: Since v1.0 there can be multiple cache properties.
+          // For now remember the first one, if any.
+          uint32_t Count = 0;
+          ZE_CALL_NOCHECK(zeDeviceGetCacheProperties,
+                          (ZeDevice, &Count, nullptr));
+          if (Count > 0)
+            Count = 1;
+          ze_device_cache_properties_t P;
+          P.stype = ZE_STRUCTURE_TYPE_DEVICE_CACHE_PROPERTIES;
+          P.pNext = &Properties;
+          ZE_CALL_NOCHECK(zeDeviceGetCacheProperties, (ZeDevice, &Count, &P));
+          if (Properties.cacheLineSize == 0) {
+            // If cache line size is not set, use the default value.
+            Properties.cacheLineSize =
+                1; // Default cache line size property value.
+          }
+        };
+  }
 
   ZeDeviceMutableCmdListsProperties.Compute =
       [ZeDevice](

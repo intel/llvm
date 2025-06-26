@@ -345,6 +345,10 @@ template <> zes_structure_type_t getZesStructureType<zes_freq_properties_t>() {
 template <> zes_structure_type_t getZesStructureType<zes_power_properties_t>() {
   return ZES_STRUCTURE_TYPE_POWER_PROPERTIES;
 }
+template <>
+ze_structure_type_t getZeStructureType<ze_device_cache_line_size_ext_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_CACHELINE_SIZE_EXT;
+}
 
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 template <>
