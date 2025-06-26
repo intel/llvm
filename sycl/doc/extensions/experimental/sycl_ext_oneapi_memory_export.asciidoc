@@ -279,10 +279,12 @@ This extension is currently limited to exporting memory with a linear layout. It
 does not support exporting memory with a non-linear layout, such as the
 "optimal" layout which would have an equivalent in Vulkan as
 `VK_IMAGE_LAYOUT_OPTIMAL`, or in CUDA as `cudaArray`. These "optimal" layouts
-are typically optimized for texture access. The reason for this limitation is
-that currently, no backend supported by {dpcpp} supports exporting memory with
-a non-linear layout. This may change in the future, and if it does, we could
-then amend the extension to support exporting memory with a non-linear layout.
+are typically optimized for texture access.
+
+The reason for this limitation is that currently, no backend supported by
+{dpcpp} supports exporting memory with a non-linear layout. This may change in
+the future, and if it does, we could then amend the extension to support
+exporting memory with a non-linear layout.
 
 === Closing OS Handles
 
@@ -293,8 +295,10 @@ this is not always respected by the Level Zero driver. For this reason, if the
 user wishes to close the OS handle returned by `export_device_mem_handle`
 without freeing the memory, they must call the appropriate OS specific API to
 close the type of handle returned by the function.
+
 When exporting a file descriptor handle on Linux, our testing has shown that the
 `close` Linux API should work.
+
 On Windows systems, the type of OS handle returned by `export_device_mem_handle`
 may not be an NT handle (e.g. it may be a KMT handle), and therefore the user
 may experience issues when trying to close the handle using the `CloseHandle`
