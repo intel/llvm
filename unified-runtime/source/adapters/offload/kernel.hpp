@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "common.hpp"
+#include "memory.hpp"
 
 struct ur_kernel_handle_t_ : RefCounted {
 
@@ -56,7 +57,12 @@ struct ur_kernel_handle_t_ : RefCounted {
     }
 
     void addMemObjArg(int Index, ur_mem_handle_t hMem, ur_mem_flags_t Flags) {
-      assert(hMem && "Invalid mem handle");
+      // Handle zero-sized buffers
+      if (hMem == nullptr) {
+        addArg(Index, 0, nullptr);
+        return;
+      }
+
       // If a memobj is already set at this index, update the entry rather
       // than adding a duplicate one
       for (auto &Arg : MemObjArgs) {
@@ -66,6 +72,9 @@ struct ur_kernel_handle_t_ : RefCounted {
         }
       }
       MemObjArgs.push_back(MemObjArg{hMem, Index, Flags});
+
+      auto Ptr = std::get<BufferMem>(hMem->Mem).Ptr;
+      addArg(Index, sizeof(void *), &Ptr);
     }
 
     const args_ptr_t &getPointers() const noexcept { return Pointers; }

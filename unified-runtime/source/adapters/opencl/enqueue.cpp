@@ -529,8 +529,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
-  // TODO: search arg list for pointer args real quick to see if we need to do
-  // this
   clSetKernelArgMemPointerINTEL_fn SetKernelArgMemPointerPtr = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
