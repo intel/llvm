@@ -132,8 +132,10 @@ public:
       : NDRDescT(Range, /*SetNumWorkGroups=*/false) {}
 
   template <int Dims_> void setClusterDimensions(sycl::range<Dims_> N) {
-    assert(this->Dims == size_t(Dims_) &&
-           "Dimensionality of cluster, global and local ranges must be same");
+    if (this->Dims != size_t(Dims_)) {
+      throw std::runtime_error(
+          "Dimensionality of cluster, global and local ranges must be same");
+    }
 
     for (int I = 0; I < Dims_; ++I)
       ClusterDimensions[I] = N[I];
