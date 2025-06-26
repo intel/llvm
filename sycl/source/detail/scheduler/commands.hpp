@@ -745,7 +745,7 @@ ur_result_t enqueueImpCommandBufferKernel(
 // Refactored from SetKernelParamsAndLaunch to allow it to be used in the graphs
 // extension.
 void SetArgBasedOnType(
-    const detail::Adapter& AAdapter, ur_kernel_handle_t Kernel,
+    const detail::Adapter &AAdapter, ur_kernel_handle_t Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     context_impl &ContextImpl, detail::ArgDesc &Arg, size_t NextTrueIndex);

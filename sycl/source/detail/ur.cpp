@@ -96,7 +96,7 @@ static void initializeAdapters(std::vector<Adapter *> &Adapters,
 bool XPTIInitDone = false;
 
 // Initializes all available Adapters.
-std::vector<Adapter*>& initializeUr(ur_loader_config_handle_t LoaderConfig) {
+std::vector<Adapter *> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
   // This uses static variable initialization to work around a gcc bug with
   // std::call_once and exceptions.
   // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
@@ -284,12 +284,12 @@ static void initializeAdapters(std::vector<Adapter *> &Adapters,
 }
 
 // Get the adapter serving given backend.
-template <backend BE> Adapter& getAdapter() {
-  static Adapter* adapterPtr = nullptr;
+template <backend BE> Adapter &getAdapter() {
+  static Adapter *adapterPtr = nullptr;
   if (adapterPtr)
     return *adapterPtr;
 
-  std::vector<Adapter*> Adapters = ur::initializeUr();
+  std::vector<Adapter *> Adapters = ur::initializeUr();
   for (auto &P : Adapters)
     if (P->hasBackend(BE)) {
       adapterPtr = P;

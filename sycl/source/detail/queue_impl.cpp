@@ -650,7 +650,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     LastEvent->wait(LastEvent);
   }
 
-  const Adapter& adapter = getAdapter();
+  const Adapter &adapter = getAdapter();
   adapter.call<UrApiKind::urQueueFinish>(getHandleRef());
 
   std::vector<EventImplPtr> StreamsServiceEvents;
@@ -726,14 +726,14 @@ void queue_impl::destructorNotification() {
 }
 
 ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
-  const Adapter& adapter = getAdapter();
+  const Adapter &adapter = getAdapter();
   ur_native_handle_t Handle{};
   ur_queue_native_desc_t UrNativeDesc{UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC,
                                       nullptr, nullptr};
   UrNativeDesc.pNativeData = &NativeHandleDesc;
 
   adapter.call<UrApiKind::urQueueGetNativeHandle>(MQueue, &UrNativeDesc,
-                                                   &Handle);
+                                                  &Handle);
   if (getContextImpl().getBackend() == backend::opencl)
     __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(Handle));
 

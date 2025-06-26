@@ -422,7 +422,7 @@ bool is_source_kernel_bundle_supported(
     if (DeviceImplVec.empty())
       return false;
 
-    const Adapter& adapter = DeviceImplVec[0]->getAdapter();
+    const Adapter &adapter = DeviceImplVec[0]->getAdapter();
     std::vector<uint32_t> IPVersionVec;
     IPVersionVec.reserve(DeviceImplVec.size());
 

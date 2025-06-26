@@ -25,7 +25,7 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
 }
 
 sampler_impl::sampler_impl(cl_sampler clSampler, context_impl &syclContext) {
-  const Adapter& adapter = syclContext.getAdapter();
+  const Adapter &adapter = syclContext.getAdapter();
   ur_sampler_handle_t Sampler{};
   adapter.call<UrApiKind::urSamplerCreateWithNativeHandle>(
       reinterpret_cast<ur_native_handle_t>(clSampler),
@@ -85,7 +85,7 @@ sampler_impl::~sampler_impl() {
     for (auto &Iter : MContextToSampler) {
       // TODO catch an exception and add it to the list of asynchronous
       // exceptions
-      const Adapter& adapter = Iter.first->getAdapter();
+      const Adapter &adapter = Iter.first->getAdapter();
       adapter.call<UrApiKind::urSamplerRelease>(Iter.second);
     }
   } catch (std::exception &e) {
@@ -138,7 +138,7 @@ sampler_impl::getOrCreateSampler(context_impl &ContextImpl) {
 
   ur_result_t errcode_ret = UR_RESULT_SUCCESS;
   ur_sampler_handle_t resultSampler = nullptr;
-  const Adapter& adapter = ContextImpl.getAdapter();
+  const Adapter &adapter = ContextImpl.getAdapter();
 
   errcode_ret = adapter.call_nocheck<UrApiKind::urSamplerCreate>(
       ContextImpl.getHandleRef(), &desc, &resultSampler);

@@ -196,12 +196,12 @@ public:
              private_tag)
       : MDevice([&]() -> device_impl & {
           ur_device_handle_t DeviceUr{};
-          const Adapter& adapter = Context.getAdapter();
+          const Adapter &adapter = Context.getAdapter();
           // TODO catch an exception and put it to list of asynchronous
           // exceptions
-          adapter.call<UrApiKind::urQueueGetInfo>(
-              UrQueue, UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr,
-              nullptr);
+          adapter.call<UrApiKind::urQueueGetInfo>(UrQueue, UR_QUEUE_INFO_DEVICE,
+                                                  sizeof(DeviceUr), &DeviceUr,
+                                                  nullptr);
           device_impl *Device = Context.findMatchingDeviceImpl(DeviceUr);
           if (Device == nullptr) {
             throw sycl::exception(
@@ -277,7 +277,7 @@ public:
   cl_command_queue get() {
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
-                                                          &nativeHandle);
+                                                         &nativeHandle);
     __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
   }
@@ -287,7 +287,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  const Adapter& getAdapter() const { return MContext->getAdapter(); }
+  const Adapter &getAdapter() const { return MContext->getAdapter(); }
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
@@ -485,7 +485,7 @@ public:
     ur_queue_handle_t Queue{};
     ur_context_handle_t Context = MContext->getHandleRef();
     ur_device_handle_t Device = MDevice.getHandleRef();
-    const Adapter& adapter = getAdapter();
+    const Adapter &adapter = getAdapter();
     /*
         sycl::detail::pi::PiQueueProperties Properties[] = {
             PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
@@ -502,7 +502,7 @@ public:
       Properties.pNext = &IndexProperties;
     }
     adapter.call<UrApiKind::urQueueCreate>(Context, Device, &Properties,
-                                            &Queue);
+                                           &Queue);
 
     return Queue;
   }
@@ -664,7 +664,7 @@ public:
     auto ResEvent = detail::event_impl::create_device_event(*this);
     ur_event_handle_t UREvent = nullptr;
     getAdapter().call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
-                                                       nullptr, &UREvent);
+                                                      nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;
   }

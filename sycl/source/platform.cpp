@@ -25,7 +25,7 @@ inline namespace _V1 {
 platform::platform() : platform(default_selector_v) {}
 
 platform::platform(cl_platform_id PlatformId) {
-  auto& adapter = sycl::detail::ur::getAdapter<backend::opencl>();
+  auto &adapter = sycl::detail::ur::getAdapter<backend::opencl>();
   ur_platform_handle_t UrPlatform = nullptr;
   adapter.call<detail::UrApiKind::urPlatformCreateWithNativeHandle>(
       detail::ur::cast<ur_native_handle_t>(PlatformId), adapter.getUrAdapter(),

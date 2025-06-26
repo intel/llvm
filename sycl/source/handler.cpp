@@ -2047,11 +2047,11 @@ void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
 
 static bool checkContextSupports(detail::context_impl &ContextImpl,
                                  ur_context_info_t InfoQuery) {
-  auto& adapter = ContextImpl.getAdapter();
+  auto &adapter = ContextImpl.getAdapter();
   ur_bool_t SupportsOp = false;
   adapter.call<UrApiKind::urContextGetInfo>(ContextImpl.getHandleRef(),
-                                             InfoQuery, sizeof(ur_bool_t),
-                                             &SupportsOp, nullptr);
+                                            InfoQuery, sizeof(ur_bool_t),
+                                            &SupportsOp, nullptr);
   return SupportsOp;
 }
 

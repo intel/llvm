@@ -148,7 +148,7 @@ context_impl &event_impl::getContextImpl() {
   return *MContext;
 }
 
-const Adapter& event_impl::getAdapter() {
+const Adapter &event_impl::getAdapter() {
   initContextIfNeeded();
   return MContext->getAdapter();
 }
@@ -519,7 +519,7 @@ ur_native_handle_t event_impl::getNative() {
     return {};
   initContextIfNeeded();
 
-  auto& adapter = getAdapter();
+  auto &adapter = getAdapter();
   auto Handle = getHandle();
   if (MIsDefaultConstructed && !Handle) {
     auto TempContext = MContext.get()->getHandleRef();

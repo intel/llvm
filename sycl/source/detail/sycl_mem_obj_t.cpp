@@ -36,7 +36,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
       MSharedPtrStorage(nullptr), MHostPtrProvided(true),
       MOwnNativeHandle(OwnNativeHandle) {
   ur_context_handle_t Context = nullptr;
-  const Adapter& adapter = getAdapter();
+  const Adapter &adapter = getAdapter();
 
   ur_mem_native_properties_t MemProperties = {
       UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
@@ -46,11 +46,10 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
 
   // Get the size of the buffer in bytes
   adapter.call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_SIZE,
-                                         sizeof(size_t), &MSizeInBytes,
-                                         nullptr);
+                                        sizeof(size_t), &MSizeInBytes, nullptr);
 
   adapter.call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_CONTEXT,
-                                         sizeof(Context), &Context, nullptr);
+                                        sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::exception(
@@ -84,7 +83,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
       MSharedPtrStorage(nullptr), MHostPtrProvided(true),
       MOwnNativeHandle(OwnNativeHandle) {
   ur_context_handle_t Context = nullptr;
-  const Adapter& adapter = getAdapter();
+  const Adapter &adapter = getAdapter();
 
   ur_image_desc_t Desc = {};
   Desc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
@@ -106,7 +105,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
       &NativeProperties, &MInteropMemObject);
 
   adapter.call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_CONTEXT,
-                                         sizeof(Context), &Context, nullptr);
+                                        sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::exception(
@@ -157,11 +156,11 @@ void SYCLMemObjT::updateHostMemory() {
   releaseHostMem(MShadowCopy);
 
   if (MOpenCLInterop) {
-    const Adapter& adapter = getAdapter();
+    const Adapter &adapter = getAdapter();
     adapter.call<UrApiKind::urMemRelease>(MInteropMemObject);
   }
 }
-const Adapter& SYCLMemObjT::getAdapter() const {
+const Adapter &SYCLMemObjT::getAdapter() const {
   assert((MInteropContext != nullptr) &&
          "Trying to get Adapter from SYCLMemObjT with nullptr ContextImpl.");
   return (MInteropContext->getAdapter());

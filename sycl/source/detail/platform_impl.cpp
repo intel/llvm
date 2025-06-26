@@ -32,7 +32,7 @@ namespace detail {
 
 platform_impl &
 platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
-                                    const Adapter& AAAdapter) {
+                                     const Adapter &AAAdapter) {
   std::shared_ptr<platform_impl> Result;
   {
     const std::lock_guard<std::mutex> Guard(
@@ -50,7 +50,7 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
     // Otherwise make the impl. Our ctor/dtor are private, so std::make_shared
     // needs a bit of help...
     struct creator : platform_impl {
-      creator(ur_platform_handle_t APlatform, const Adapter& AAdapter)
+      creator(ur_platform_handle_t APlatform, const Adapter &AAdapter)
           : platform_impl(APlatform, AAdapter) {}
     };
     Result = std::make_shared<creator>(UrPlatform, AAAdapter);
@@ -62,7 +62,7 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
 
 platform_impl &
 platform_impl::getPlatformFromUrDevice(ur_device_handle_t UrDevice,
-                                       const Adapter& AAdapter) {
+                                       const Adapter &AAdapter) {
   ur_platform_handle_t Plt =
       nullptr; // TODO catch an exception and put it to list
   // of asynchronous exceptions
@@ -119,7 +119,7 @@ static bool IsBannedPlatform(platform Platform) {
 // replace uses of this with a helper in adapter object, the adapter
 // objects will own the ur adapter handles and they'll need to pass them to
 // urPlatformsGet - so urPlatformsGet will need to be wrapped with a helper
-std::vector<platform> platform_impl::getAdapterPlatforms(Adapter& AAdapter,
+std::vector<platform> platform_impl::getAdapterPlatforms(Adapter &AAdapter,
                                                          bool Supported) {
   std::vector<platform> Platforms;
 
@@ -169,8 +169,8 @@ std::vector<platform> platform_impl::get_platforms() {
   // See which platform we want to be served by which adapter.
   // There should be just one adapter serving each backend.
 
-  std::vector<Adapter*> &Adapters = ur::initializeUr();
-  std::vector<std::pair<platform, Adapter*>> PlatformsWithAdapter;
+  std::vector<Adapter *> &Adapters = ur::initializeUr();
+  std::vector<std::pair<platform, Adapter *>> PlatformsWithAdapter;
 
   // Then check backend-specific adapters
   for (auto &Adapter : Adapters) {
@@ -505,13 +505,13 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // analysis. Doing adjustment by simple copy of last device num from
     // previous platform.
     // Needs non const adapter reference.
-    std::vector<Adapter*> &Adapters = ur::initializeUr();
+    std::vector<Adapter *> &Adapters = ur::initializeUr();
     auto It = std::find_if(Adapters.begin(), Adapters.end(),
-                           [&Platform = MPlatform](Adapter* adapter) {
+                           [&Platform = MPlatform](Adapter *adapter) {
                              return adapter->containsUrPlatform(Platform);
                            });
     if (It != Adapters.end()) {
-      Adapter* adapter = *It;
+      Adapter *adapter = *It;
       std::lock_guard<std::mutex> Guard(*adapter->getAdapterMutex());
       adapter->adjustLastDeviceId(MPlatform);
     }
@@ -581,7 +581,7 @@ bool platform_impl::supports_usm() const {
 }
 
 ur_native_handle_t platform_impl::getNative() const {
-  const auto& adapter = getAdapter();
+  const auto &adapter = getAdapter();
   ur_native_handle_t Handle = 0;
   adapter.call<UrApiKind::urPlatformGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;

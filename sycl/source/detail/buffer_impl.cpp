@@ -52,12 +52,12 @@ void buffer_impl::addInteropObject(
     if (std::find(Handles.begin(), Handles.end(),
                   ur::cast<ur_native_handle_t>(MInteropMemObject)) ==
         Handles.end()) {
-      const Adapter& adapter = getAdapter();
+      const Adapter &adapter = getAdapter();
       adapter.call<UrApiKind::urMemRetain>(
           ur::cast<ur_mem_handle_t>(MInteropMemObject));
       ur_native_handle_t NativeHandle = 0;
       adapter.call<UrApiKind::urMemGetNativeHandle>(MInteropMemObject, nullptr,
-                                                     &NativeHandle);
+                                                    &NativeHandle);
       Handles.push_back(NativeHandle);
     }
   }
@@ -83,14 +83,14 @@ buffer_impl::getNativeVector(backend BackendName) const {
     if (Platform.getBackend() != BackendName)
       continue;
 
-    auto& adapter = Platform.getAdapter();
+    auto &adapter = Platform.getAdapter();
 
     ur_native_handle_t Handle = 0;
     // When doing buffer interop we don't know what device the memory should be
     // resident on, so pass nullptr for Device param. Buffer interop may not be
     // supported by all backends.
     adapter.call<UrApiKind::urMemGetNativeHandle>(NativeMem, /*Dev*/ nullptr,
-                                                   &Handle);
+                                                  &Handle);
     Handles.push_back(Handle);
 
     if (Platform.getBackend() == backend::opencl) {

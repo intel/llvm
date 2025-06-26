@@ -364,8 +364,7 @@ bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
 }
 
 void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
-                    ur_platform_handle_t UrPlatform,
-                    const Adapter& adapter) {
+                    ur_platform_handle_t UrPlatform, const Adapter &adapter) {
 
   AllowListParsedT AllowListParsed =
       parseAllowList(SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get());

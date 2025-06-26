@@ -129,7 +129,7 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
                      const std::vector<device> &Devices) {
   assert(!Devices.empty() && "At least one device is expected");
   // We expect all devices to be from the same platform/adpater.
-  auto& adapter = detail::getSyclObjImpl(Devices[0])->getAdapter();
+  auto &adapter = detail::getSyclObjImpl(Devices[0])->getAdapter();
   unsigned int DeviceNum = 0;
   adapter.call<UrApiKind::urProgramGetInfo>(
       NativePrg, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
@@ -152,9 +152,9 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
     Pointers.push_back(Binaries[I].data());
   }
 
-  adapter.call<UrApiKind::urProgramGetInfo>(
-      NativePrg, UR_PROGRAM_INFO_BINARIES, sizeof(char *) * Pointers.size(),
-      Pointers.data(), nullptr);
+  adapter.call<UrApiKind::urProgramGetInfo>(NativePrg, UR_PROGRAM_INFO_BINARIES,
+                                            sizeof(char *) * Pointers.size(),
+                                            Pointers.data(), nullptr);
 
   // Select only binaries for the input devices preserving one to one
   // correpsondence.

@@ -574,11 +574,10 @@ public:
   ur_native_handle_t getNative() const {
     assert(MProgram);
     context_impl &ContextImpl = *detail::getSyclObjImpl(MContext);
-    const Adapter& adapter = ContextImpl.getAdapter();
+    const Adapter &adapter = ContextImpl.getAdapter();
 
     ur_native_handle_t NativeProgram = 0;
-    adapter.call<UrApiKind::urProgramGetNativeHandle>(MProgram,
-                                                       &NativeProgram);
+    adapter.call<UrApiKind::urProgramGetNativeHandle>(MProgram, &NativeProgram);
     if (ContextImpl.getBackend() == backend::opencl)
       __SYCL_OCL_CALL(clRetainProgram, ur::cast<cl_program>(NativeProgram));
 
@@ -588,11 +587,14 @@ public:
   ~device_image_impl() {
     try {
       if (MProgram) {
-        getSyclObjImpl(MContext)->getAdapter().call<UrApiKind::urProgramRelease>(MProgram);
+        getSyclObjImpl(MContext)
+            ->getAdapter()
+            .call<UrApiKind::urProgramRelease>(MProgram);
       }
       if (MSpecConstsBuffer) {
         std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
-        memReleaseHelper(getSyclObjImpl(MContext)->getAdapter(), MSpecConstsBuffer);
+        memReleaseHelper(getSyclObjImpl(MContext)->getAdapter(),
+                         MSpecConstsBuffer);
       }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_image_impl", e);
@@ -718,7 +720,7 @@ public:
           Devices, BuildOptions, *SourceStrPtr, UrProgram);
     }
 
-    const Adapter& adapter = ContextImpl.getAdapter();
+    const Adapter &adapter = ContextImpl.getAdapter();
 
     if (!FetchedFromCache)
       UrProgram = createProgramFromSource(Devices, BuildOptions, LogPtr);
@@ -850,7 +852,7 @@ private:
       const std::string &SourceStr, ur_program_handle_t &UrProgram) const {
 
     sycl::detail::context_impl &ContextImpl = *getSyclObjImpl(MContext);
-    const Adapter& adapter = ContextImpl.getAdapter();
+    const Adapter &adapter = ContextImpl.getAdapter();
 
     std::string UserArgs = syclex::detail::userArgsAsString(BuildOptions);
 
@@ -1172,7 +1174,7 @@ private:
                           const std::vector<sycl::detail::string_view> &Options,
                           std::string *LogPtr) const {
     sycl::detail::context_impl &ContextImpl = *getSyclObjImpl(MContext);
-    const Adapter& adapter = ContextImpl.getAdapter();
+    const Adapter &adapter = ContextImpl.getAdapter();
     const auto spirv = [&]() -> std::vector<uint8_t> {
       switch (MRTCBinInfo->MLanguage) {
       case syclex::source_language::opencl: {
@@ -1210,8 +1212,8 @@ private:
 
     ur_program_handle_t UrProgram = nullptr;
     adapter.call<UrApiKind::urProgramCreateWithIL>(ContextImpl.getHandleRef(),
-                                                    spirv.data(), spirv.size(),
-                                                    nullptr, &UrProgram);
+                                                   spirv.data(), spirv.size(),
+                                                   nullptr, &UrProgram);
     // program created by urProgramCreateWithIL is implicitly retained.
     if (UrProgram == nullptr)
       throw sycl::exception(
@@ -1222,7 +1224,7 @@ private:
   }
 
   static std::vector<std::string>
-  getKernelNamesFromURProgram(const Adapter& AAdapter,
+  getKernelNamesFromURProgram(const Adapter &AAdapter,
                               ur_program_handle_t UrProgram) {
     // Get the kernel names.
     size_t KernelNamesSize;

@@ -152,9 +152,8 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
       static_assert(
           !check_type_in_v<typename ur_ret_t::value_type, bool, std::string>);
       size_t ResultSize = 0;
-      ur_result_t Error =
-          getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
-              getHandleRef(), Desc, 0, nullptr, &ResultSize);
+      ur_result_t Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getHandleRef(), Desc, 0, nullptr, &ResultSize);
       if (Error != UR_RESULT_SUCCESS)
         return {Error};
       if (ResultSize == 0)
@@ -168,9 +167,8 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
       return {Result};
     } else {
       ur_ret_t Result;
-      ur_result_t Error =
-          getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
-              getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
+      ur_result_t Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
       if (Error == UR_RESULT_SUCCESS)
         return {Result};
       else
@@ -189,7 +187,7 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
       } else if constexpr (is_std_vector_v<ur_ret_t>) {
         size_t ResultSize = 0;
         getAdapter().call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0,
-                                                       nullptr, &ResultSize);
+                                                      nullptr, &ResultSize);
         if (ResultSize == 0)
           return ur_ret_t{};
 
@@ -468,7 +466,7 @@ public:
   platform get_platform() const;
 
   /// \return the associated adapter with this device.
-  const Adapter& getAdapter() const { return MPlatform->getAdapter(); }
+  const Adapter &getAdapter() const { return MPlatform->getAdapter(); }
 
   /// Check SYCL extension support by device
   ///

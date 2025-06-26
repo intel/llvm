@@ -30,11 +30,11 @@ namespace ur {
 void *getURLoaderLibrary();
 
 // Performs UR one-time initialization.
-std::vector<Adapter*>&
+std::vector<Adapter *> &
 initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
 
 // Get the adapter serving given backend.
-template <backend BE> Adapter& getAdapter();
+template <backend BE> Adapter &getAdapter();
 } // namespace ur
 
 // Convert from UR backend to SYCL backend enum
@@ -47,8 +47,8 @@ std::string urGetInfoString(SyclImplTy &SyclImpl, DescTy Desc) {
   size_t ResultSize = 0;
   auto Handle = SyclImpl.getHandleRef();
   adapter.template call<ApiKind>(Handle, Desc,
-                                  /*propSize=*/0,
-                                  /*pPropValue=*/nullptr, &ResultSize);
+                                 /*propSize=*/0,
+                                 /*pPropValue=*/nullptr, &ResultSize);
   if (ResultSize == 0)
     return std::string{};
 
@@ -59,7 +59,7 @@ std::string urGetInfoString(SyclImplTy &SyclImpl, DescTy Desc) {
   // for that.
   Result.resize(ResultSize - 1);
   adapter.template call<ApiKind>(Handle, Desc, ResultSize, Result.data(),
-                                  nullptr);
+                                 nullptr);
 
   return Result;
 }

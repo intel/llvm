@@ -62,12 +62,12 @@ public:
   /// \param OwnedByRuntime is the flag if ownership is kept by user or
   /// transferred to runtime
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               const Adapter& AAdapter,
+               const Adapter &AAdapter,
                const std::vector<sycl::device> &DeviceList, bool OwnedByRuntime,
                private_tag);
 
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               const Adapter& AAdapter, private_tag tag)
+               const Adapter &AAdapter, private_tag tag)
       : context_impl(UrContext, AsyncHandler, AAdapter,
                      std::vector<sycl::device>{},
                      /*OwnedByRuntime*/ true, tag) {}
@@ -294,7 +294,7 @@ private:
     }
 
     /// Clears all events of the initializer. This will not acquire the lock.
-    void ClearEvents(const Adapter& AAdapter);
+    void ClearEvents(const Adapter &AAdapter);
 
     /// The binary image of the program.
     const RTDeviceBinaryImage *MBinImage = nullptr;

@@ -20,8 +20,8 @@ inline namespace _V1 {
 namespace detail {
 
 template <typename Param>
-typename Param::return_type
-get_event_profiling_info(ur_event_handle_t Event, const Adapter& AAdapter) {
+typename Param::return_type get_event_profiling_info(ur_event_handle_t Event,
+                                                     const Adapter &AAdapter) {
   static_assert(is_event_profiling_info_desc<Param>::value,
                 "Unexpected event profiling info descriptor");
   typename Param::return_type Result{0};
@@ -33,7 +33,7 @@ get_event_profiling_info(ur_event_handle_t Event, const Adapter& AAdapter) {
 
 template <typename Param>
 typename Param::return_type get_event_info(ur_event_handle_t Event,
-                                           const Adapter& AAdapter) {
+                                           const Adapter &AAdapter) {
   static_assert(is_event_info_desc<Param>::value,
                 "Unexpected event info descriptor");
   typename Param::return_type Result{0};

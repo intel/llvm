@@ -345,11 +345,11 @@ class DispatchHostTask {
   std::vector<ur_mem_handle_t> MReqUrMem;
 
   bool waitForEvents() const {
-    std::map<const Adapter*, std::vector<EventImplPtr>>
+    std::map<const Adapter *, std::vector<EventImplPtr>>
         RequiredEventsPerAdapter;
 
     for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {
-      const Adapter& adapter = Event->getAdapter();
+      const Adapter &adapter = Event->getAdapter();
       RequiredEventsPerAdapter[&adapter].push_back(Event);
     }
 
@@ -548,7 +548,7 @@ void Command::waitForEvents(queue_impl *Queue,
     } else {
       std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
       flushCrossQueueDeps(EventImpls);
-      const Adapter& adapter = Queue->getAdapter();
+      const Adapter &adapter = Queue->getAdapter();
 
       adapter.call<UrApiKind::urEnqueueEventsWait>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
@@ -2310,7 +2310,7 @@ ur_mem_flags_t AccessModeToUr(access::mode AccessorMode) {
 }
 
 void SetArgBasedOnType(
-    const Adapter& AAdapter, ur_kernel_handle_t Kernel,
+    const Adapter &AAdapter, ur_kernel_handle_t Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     context_impl &ContextImpl, detail::ArgDesc &Arg, size_t NextTrueIndex) {
@@ -2403,7 +2403,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
     bool KernelHasSpecialCaptures = true) {
-  const Adapter& adapter = Queue.getAdapter();
+  const Adapter &adapter = Queue.getAdapter();
 
   if (SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
     std::vector<unsigned char> Empty;
@@ -2422,13 +2422,13 @@ static ur_result_t SetKernelParamsAndLaunch(
       case kernel_param_kind_t::kind_std_layout: {
         int Size = ParamDesc.info;
         adapter.call<UrApiKind::urKernelSetArgValue>(Kernel, NextTrueIndex,
-                                                      Size, nullptr, ArgPtr);
+                                                     Size, nullptr, ArgPtr);
         break;
       }
       case kernel_param_kind_t::kind_pointer: {
         const void *Ptr = *static_cast<const void *const *>(ArgPtr);
         adapter.call<UrApiKind::urKernelSetArgPointer>(Kernel, NextTrueIndex,
-                                                        nullptr, Ptr);
+                                                       nullptr, Ptr);
         break;
       }
       default:
@@ -2751,7 +2751,7 @@ void enqueueImpKernel(
     // provided.
     if (KernelCacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_SLM ||
         KernelCacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_DATA) {
-      const Adapter& adapter = Queue.getAdapter();
+      const Adapter &adapter = Queue.getAdapter();
       adapter.call<UrApiKind::urKernelSetExecInfo>(
           Kernel, UR_KERNEL_EXEC_INFO_CACHE_CONFIG,
           sizeof(ur_kernel_cache_config_t), nullptr, &KernelCacheConfig);
@@ -2799,7 +2799,7 @@ ur_result_t enqueueReadWriteHostPipe(queue_impl &Queue,
   }
   assert(Program && "Program for this hostpipe is not compiled.");
 
-  const Adapter& adapter = Queue.getAdapter();
+  const Adapter &adapter = Queue.getAdapter();
 
   ur_queue_handle_t ur_q = Queue.getHandleRef();
   ur_result_t Error;
@@ -2846,7 +2846,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   if (!RawEvents.empty()) {
     MQueue->getAdapter().call<UrApiKind::urEventWait>(RawEvents.size(),
-                                                       &RawEvents[0]);
+                                                      &RawEvents[0]);
   }
 
   ur_exp_command_buffer_sync_point_t OutSyncPoint{};
@@ -3002,7 +3002,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   case CGType::EnqueueNativeCommand: {
     // Queue is created by graph_impl before creating command to submit to
     // scheduler.
-    const Adapter& adapter = MQueue->getAdapter();
+    const Adapter &adapter = MQueue->getAdapter();
     context_impl &ContextImpl = MQueue->getContextImpl();
     device_impl &DeviceImpl = MQueue->getDeviceImpl();
 
@@ -3092,9 +3092,10 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
 #endif
 
     if (ChildCommandBuffer) {
-      ur_result_t Res = adapter.call_nocheck<
-          sycl::detail::UrApiKind::urCommandBufferReleaseExp>(
-          ChildCommandBuffer);
+      ur_result_t Res =
+          adapter
+              .call_nocheck<sycl::detail::UrApiKind::urCommandBufferReleaseExp>(
+                  ChildCommandBuffer);
       (void)Res;
       assert(Res == UR_RESULT_SUCCESS);
     }
@@ -3475,7 +3476,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     ur_bool_t NativeCommandSupport = false;
     assert(MQueue && "Native command should have an associated queue");
-    auto& adapter = MQueue->getAdapter();
+    auto &adapter = MQueue->getAdapter();
     adapter.call<UrApiKind::urDeviceGetInfo>(
         detail::getSyclObjImpl(MQueue->get_device())->getHandleRef(),
         UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP,
@@ -3506,7 +3507,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         ext::oneapi::experimental::event_mode_enum::low_power)
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
-    const Adapter& adapter = MQueue->getAdapter();
+    const Adapter &adapter = MQueue->getAdapter();
     // User can specify explicit dependencies via depends_on call that we should
     // honor here. It is very important for cross queue dependencies. We wait
     // them explicitly since barrier w/o wait list waits for all commands
@@ -3550,7 +3551,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         ext::oneapi::experimental::event_mode_enum::low_power)
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
-    const Adapter& adapter = MQueue->getAdapter();
+    const Adapter &adapter = MQueue->getAdapter();
     // User can specify explicit dependencies via depends_on call that we should
     // honor here. It is very important for cross queue dependencies. Adding
     // them to the barrier wait list since barrier w/ wait list waits only for
@@ -3569,7 +3570,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   }
   case CGType::ProfilingTag: {
     assert(MQueue && "Profiling tag requires a valid queue");
-    const auto& adapter = MQueue->getAdapter();
+    const auto &adapter = MQueue->getAdapter();
 
     bool IsInOrderQueue = MQueue->isInOrder();
     ur_event_handle_t *TimestampDeps = nullptr;
@@ -3696,7 +3697,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     assert(MQueue &&
            "Semaphore wait submissions should have an associated queue");
     CGSemaphoreWait *SemWait = (CGSemaphoreWait *)MCommandGroup.get();
-    const detail::Adapter& adapter = MQueue->getAdapter();
+    const detail::Adapter &adapter = MQueue->getAdapter();
     auto OptWaitValue = SemWait->getWaitValue();
     uint64_t WaitValue = OptWaitValue.has_value() ? OptWaitValue.value() : 0;
 
@@ -3709,7 +3710,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     assert(MQueue &&
            "Semaphore signal submissions should have an associated queue");
     CGSemaphoreSignal *SemSignal = (CGSemaphoreSignal *)MCommandGroup.get();
-    const detail::Adapter& adapter = MQueue->getAdapter();
+    const detail::Adapter &adapter = MQueue->getAdapter();
     auto OptSignalValue = SemSignal->getSignalValue();
     uint64_t SignalValue =
         OptSignalValue.has_value() ? OptSignalValue.value() : 0;
@@ -3735,7 +3736,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::AsyncFree: {
     assert(MQueue && "Async free submissions should have an associated queue");
     CGAsyncFree *AsyncFree = (CGAsyncFree *)MCommandGroup.get();
-    const detail::Adapter& adapter = MQueue->getAdapter();
+    const detail::Adapter &adapter = MQueue->getAdapter();
     void *ptr = AsyncFree->getPtr();
 
     if (auto Result =
@@ -3757,7 +3758,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       return UR_RESULT_SUCCESS;
     }
     assert(MQueue && "Empty node should have an associated queue");
-    const detail::Adapter& adapter = MQueue->getAdapter();
+    const detail::Adapter &adapter = MQueue->getAdapter();
     ur_event_handle_t Event;
     if (auto Result = adapter.call_nocheck<UrApiKind::urEnqueueEventsWait>(
             MQueue->getHandleRef(), RawEvents.size(),

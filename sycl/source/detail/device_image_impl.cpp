@@ -42,10 +42,10 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
   }
 
   ur_program_handle_t UrProgram = get_ur_program_ref();
-  const Adapter& adapter = getSyclObjImpl(Context)->getAdapter();
+  const Adapter &adapter = getSyclObjImpl(Context)->getAdapter();
   ur_kernel_handle_t UrKernel = nullptr;
   adapter.call<UrApiKind::urKernelCreate>(UrProgram, AdjustedName.c_str(),
-                                           &UrKernel);
+                                          &UrKernel);
   // Kernel created by urKernelCreate is implicitly retained.
 
   return std::make_shared<kernel_impl>(

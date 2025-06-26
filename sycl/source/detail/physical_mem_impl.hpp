@@ -41,7 +41,7 @@ public:
                     size_t NumBytes)
       : MDevice(DeviceImpl), MContext(getSyclObjImpl(SyclContext)),
         MNumBytes(NumBytes) {
-    const Adapter& adapter = MContext->getAdapter();
+    const Adapter &adapter = MContext->getAdapter();
 
     auto Err = adapter.call_nocheck<UrApiKind::urPhysicalMemCreate>(
         MContext->getHandleRef(), MDevice.getHandleRef(), MNumBytes, nullptr,
@@ -55,7 +55,7 @@ public:
   }
 
   ~physical_mem_impl() noexcept(false) {
-    const Adapter& adapter = MContext->getAdapter();
+    const Adapter &adapter = MContext->getAdapter();
     adapter.call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);
   }
 
@@ -63,11 +63,11 @@ public:
             ext::oneapi::experimental::address_access_mode Mode,
             size_t Offset) const {
     auto AccessFlags = AccessModeToVirtualAccessFlags(Mode);
-    const Adapter& adapter = MContext->getAdapter();
+    const Adapter &adapter = MContext->getAdapter();
     void *ResultPtr = reinterpret_cast<void *>(Ptr);
     adapter.call<UrApiKind::urVirtualMemMap>(MContext->getHandleRef(),
-                                              ResultPtr, NumBytes, MPhysicalMem,
-                                              Offset, AccessFlags);
+                                             ResultPtr, NumBytes, MPhysicalMem,
+                                             Offset, AccessFlags);
     return ResultPtr;
   }
 

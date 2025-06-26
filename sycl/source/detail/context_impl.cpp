@@ -61,8 +61,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
 }
 
 context_impl::context_impl(ur_context_handle_t UrContext,
-                           async_handler AsyncHandler,
-                           const Adapter& adapter,
+                           async_handler AsyncHandler, const Adapter &adapter,
                            const std::vector<sycl::device> &DeviceList,
                            bool OwnedByRuntime, private_tag)
     : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
@@ -113,7 +112,7 @@ cl_context context_impl::get() const {
   getAdapter().call<UrApiKind::urContextRetain>(MContext);
   ur_native_handle_t nativeHandle = 0;
   getAdapter().call<UrApiKind::urContextGetNativeHandle>(MContext,
-                                                          &nativeHandle);
+                                                         &nativeHandle);
   return ur::cast<cl_context>(nativeHandle);
 }
 
@@ -346,7 +345,7 @@ context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
   if (!MDeviceGlobalNotInitializedCnt.load(std::memory_order_acquire))
     return {};
 
-  const Adapter& adapter = getAdapter();
+  const Adapter &adapter = getAdapter();
   device_impl &DeviceImpl = QueueImpl.getDeviceImpl();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
   auto ImgIt = MDeviceGlobalInitializers.find(
@@ -445,7 +444,7 @@ context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
 }
 
 void context_impl::DeviceGlobalInitializer::ClearEvents(
-    const Adapter& adapter) {
+    const Adapter &adapter) {
   for (const ur_event_handle_t &Event : MDeviceGlobalInitEvents)
     adapter.call<UrApiKind::urEventRelease>(Event);
   MDeviceGlobalInitEvents.clear();
@@ -584,9 +583,10 @@ context_impl::get_default_memory_pool(const context &Context,
 
   // The memory_pool_impl does not exist for this device yet.
   ur_usm_pool_handle_t PoolHandle;
-  this->getAdapter().call<sycl::errc::runtime,
-                sycl::detail::UrApiKind::urUSMPoolGetDefaultDevicePoolExp>(
-      this->getHandleRef(), DeviceHandle, &PoolHandle);
+  this->getAdapter()
+      .call<sycl::errc::runtime,
+            sycl::detail::UrApiKind::urUSMPoolGetDefaultDevicePoolExp>(
+          this->getHandleRef(), DeviceHandle, &PoolHandle);
 
   auto MemPoolImplPtr = std::make_shared<
       sycl::ext::oneapi::experimental::detail::memory_pool_impl>(

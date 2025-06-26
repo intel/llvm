@@ -112,11 +112,11 @@ public:
   };
 
   struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
-    const Adapter& MAdapter;
-    ProgramBuildResult(const Adapter& AAdapter) : MAdapter(AAdapter) {
+    const Adapter &MAdapter;
+    ProgramBuildResult(const Adapter &AAdapter) : MAdapter(AAdapter) {
       Val = nullptr;
     }
-    ProgramBuildResult(const Adapter& AAdapter, BuildState InitialState)
+    ProgramBuildResult(const Adapter &AAdapter, BuildState InitialState)
         : MAdapter(AAdapter) {
       Val = nullptr;
       this->State.store(InitialState);
@@ -198,8 +198,8 @@ public:
   using KernelArgMaskPairT =
       std::pair<ur_kernel_handle_t, const KernelArgMask *>;
   struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
-    const Adapter& MAdapter;
-    KernelBuildResult(const Adapter& AAdapter) : MAdapter(AAdapter) {
+    const Adapter &MAdapter;
+    KernelBuildResult(const Adapter &AAdapter) : MAdapter(AAdapter) {
       Val.first = nullptr;
     }
     ~KernelBuildResult() {
@@ -668,7 +668,7 @@ public:
       // Store size of the program and check if we need to evict some entries.
       // Get Size of the program.
       size_t ProgramSize = 0;
-      auto& adapter = getAdapter();
+      auto &adapter = getAdapter();
 
       try {
         // Get number of devices this program was built for.
@@ -868,7 +868,7 @@ private:
 
   friend class ::MockKernelProgramCache;
 
-  const Adapter& getAdapter();
+  const Adapter &getAdapter();
   ur_context_handle_t getURContext() const;
 };
 } // namespace detail

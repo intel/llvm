@@ -37,11 +37,11 @@ void handleOutOfResources(const device_impl &DeviceImpl,
     const size_t TotalNumberOfWIs =
         NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
 
-    const Adapter& adapter = DeviceImpl.getAdapter();
+    const Adapter &adapter = DeviceImpl.getAdapter();
     uint32_t NumRegisters = 0;
     adapter.call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_NUM_REGS,
-                                              sizeof(NumRegisters),
-                                              &NumRegisters, nullptr);
+                                             sizeof(NumRegisters),
+                                             &NumRegisters, nullptr);
 
     uint32_t MaxRegistersPerBlock =
         DeviceImpl.get_info<ext::codeplay::experimental::info::device::
@@ -96,7 +96,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
     IsLevelZero = true;
   }
 
-  const Adapter& adapter = DeviceImpl.getAdapter();
+  const Adapter &adapter = DeviceImpl.getAdapter();
   ur_device_handle_t Device = DeviceImpl.getHandleRef();
 
   size_t CompileWGSize[3] = {0};
@@ -121,9 +121,9 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
   }
 
   size_t MaxWGSize = 0;
-  adapter.call<UrApiKind::urDeviceGetInfo>(
-      Device, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE, sizeof(size_t), &MaxWGSize,
-      nullptr);
+  adapter.call<UrApiKind::urDeviceGetInfo>(Device,
+                                           UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                                           sizeof(size_t), &MaxWGSize, nullptr);
 
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
@@ -351,7 +351,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
 void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
                                const NDRDescT &NDRDesc) {
 
-  const Adapter& adapter = DeviceImpl.getAdapter();
+  const Adapter &adapter = DeviceImpl.getAdapter();
   ur_device_handle_t Device = DeviceImpl.getHandleRef();
 
   size_t MaxWISize[] = {0, 0, 0};
@@ -371,13 +371,13 @@ void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
 
 void handleInvalidValue(const device_impl &DeviceImpl,
                         const NDRDescT &NDRDesc) {
-  const Adapter& adapter = DeviceImpl.getAdapter();
+  const Adapter &adapter = DeviceImpl.getAdapter();
   ur_device_handle_t Device = DeviceImpl.getHandleRef();
 
   size_t MaxNWGs[] = {0, 0, 0};
   adapter.call<UrApiKind::urDeviceGetInfo>(Device,
-                                            UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
-                                            sizeof(MaxNWGs), &MaxNWGs, nullptr);
+                                           UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
+                                           sizeof(MaxNWGs), &MaxNWGs, nullptr);
   for (unsigned int I = 0; I < NDRDesc.Dims; I++) {
     size_t NWgs = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     if (NWgs > MaxNWGs[I])
@@ -469,7 +469,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
 
 namespace detail::kernel_get_group_info {
 void handleErrorOrWarning(ur_result_t Error, ur_kernel_group_info_t Descriptor,
-                          const Adapter& AAdapter) {
+                          const Adapter &AAdapter) {
   assert(Error != UR_RESULT_SUCCESS &&
          "Success is expected to be handled on caller side");
   switch (Error) {
