@@ -646,8 +646,8 @@ public:
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
-  static ContextImplPtr getContext(queue_impl *Queue) {
-    return Queue ? Queue->getContextImplPtr() : nullptr;
+  static context_impl *getContext(queue_impl *Queue) {
+    return Queue ? &Queue->getContextImpl() : nullptr;
   }
 
   // Must be called under MMutex protection

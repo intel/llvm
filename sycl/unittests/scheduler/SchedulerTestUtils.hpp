@@ -310,7 +310,7 @@ public:
     }
     case sycl::detail::CGType::CodeplayHostTask: {
       CommandGroup.reset(new sycl::detail::CGHostTask(
-          std::move(getHostTask()), getQueue(), getQueue()->getContextImplPtr(),
+          std::move(getHostTask()), getQueue(), &getQueue()->getContextImpl(),
           getArgs(), std::move(CGData), getType(), getCodeLoc()));
       break;
     }
