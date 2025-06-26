@@ -3874,13 +3874,13 @@ void UpdateCommandBufferCommand::emitInstrumentationData() {}
 bool UpdateCommandBufferCommand::producesPiEvent() const { return false; }
 
 CGHostTask::CGHostTask(std::shared_ptr<HostTask> HostTask,
-                       detail::queue_impl *Queue,
-                       std::shared_ptr<detail::context_impl> Context,
+                       detail::queue_impl *Queue, detail::context_impl *Context,
                        std::vector<ArgDesc> Args, CG::StorageInitHelper CGData,
                        CGType Type, detail::code_location loc)
     : CG(Type, std::move(CGData), std::move(loc)),
       MHostTask(std::move(HostTask)),
-      MQueue(Queue ? Queue->shared_from_this() : nullptr), MContext(Context),
+      MQueue(Queue ? Queue->shared_from_this() : nullptr),
+      MContext(Context ? Context->shared_from_this() : nullptr),
       MArgs(std::move(Args)) {}
 } // namespace detail
 } // namespace _V1
