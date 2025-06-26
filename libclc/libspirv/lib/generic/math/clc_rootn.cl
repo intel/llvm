@@ -323,6 +323,15 @@ _CLC_DEF _CLC_OVERLOAD double __clc_rootn(double x, int ny) {
     const double lnof2_by_64_head = 0.010830424260348081;
     const double lnof2_by_64_tail = -4.359010638708991e-10;
 
+    // If v is so large that we need to return INFINITY, or so small that we
+    // need to return 0, set v to known values that will produce that result. Do
+    // not try to continue the computation with the original v and patch it up
+    // afterwards because v may be so large that temp is out of range of int, in
+    // which case that conversion, and a value based on that conversion being
+    // passed to __spirv_ocl_ldexp, results in undefined behavior.
+    v = v > max_exp_arg ? 1000.0 : v;
+    v = v < min_exp_arg ? -1000.0 : v;
+
     double temp = v * sixtyfour_by_lnof2;
     int n = (int)(long)temp;
     double dn = (double)n;
@@ -354,9 +363,6 @@ _CLC_DEF _CLC_OVERLOAD double __clc_rootn(double x, int ny) {
 
     expv = __spirv_ocl_fma(f, q, f2) + f1;
     expv = __spirv_ocl_ldexp(expv, m);
-
-    expv = v > max_exp_arg ? __clc_as_double(0x7FF0000000000000L) : expv;
-    expv = v < min_exp_arg ? 0.0 : expv;
   }
 
   // See whether y is an integer.

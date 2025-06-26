@@ -14,6 +14,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/graph/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -31,8 +32,6 @@
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
 
-#include "detail/graph_impl.hpp"
-
 #include <memory>
 #include <utility>
 
@@ -47,8 +46,8 @@ inline namespace _V1 {
 // forward declaration
 
 namespace ext::oneapi::experimental::detail {
-class graph_impl;
-}
+class node_impl;
+} // namespace ext::oneapi::experimental::detail
 
 namespace detail {
 
@@ -84,17 +83,17 @@ protected:
 public:
   // \return a default context for the platform if it includes the device
   // passed and default contexts are enabled, a new context otherwise.
-  static ContextImplPtr getDefaultOrNew(device_impl &Device) {
-    if (!SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
-      return detail::getSyclObjImpl(
-          context{createSyclObjFromImpl<device>(Device), {}, {}});
+  static std::shared_ptr<context_impl> getDefaultOrNew(device_impl &Device) {
+    if (SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get()) {
+      context_impl &CtxImpl =
+          Device.getPlatformImpl().khr_get_default_context();
+      if (CtxImpl.isDeviceValid(Device))
+        return CtxImpl.shared_from_this();
+    }
 
-    ContextImplPtr DefaultContext =
-        detail::getSyclObjImpl(Device.get_platform().khr_get_default_context());
-    if (DefaultContext->isDeviceValid(Device))
-      return DefaultContext;
-    return detail::getSyclObjImpl(
-        context{createSyclObjFromImpl<device>(Device), {}, {}});
+    return context_impl::create(
+        std::vector<device>{createSyclObjFromImpl<device>(Device)},
+        async_handler{}, property_list{});
   }
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
@@ -650,9 +649,6 @@ public:
   static ContextImplPtr getContext(queue_impl *Queue) {
     return Queue ? Queue->getContextImplPtr() : nullptr;
   }
-  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
-    return getContext(Queue.get());
-  }
 
   // Must be called under MMutex protection
   void doUnenqueuedCommandCleanup(
@@ -689,7 +685,7 @@ public:
 protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
-    auto &Queue = Handler.impl->get_queue();
+    queue_impl &Queue = Handler.impl->get_queue();
     auto ResEvent = detail::event_impl::create_device_event(Queue);
     ur_event_handle_t UREvent = nullptr;
     getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
