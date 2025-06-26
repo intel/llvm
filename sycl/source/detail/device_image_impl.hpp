@@ -84,20 +84,15 @@ public:
   bool hasDeviceGlobalName(const std::string &Name) const noexcept {
     return !MDeviceGlobalNames.empty() &&
            std::find(MDeviceGlobalNames.begin(), MDeviceGlobalNames.end(),
-                     mangleDeviceGlobalName(Name)) != MDeviceGlobalNames.end();
+                     Name) != MDeviceGlobalNames.end();
   }
 
   DeviceGlobalMapEntry *tryGetDeviceGlobalEntry(const std::string &Name) const {
     auto &PM = detail::ProgramManager::getInstance();
-    return PM.tryGetDeviceGlobalEntry(MPrefix + mangleDeviceGlobalName(Name));
+    return PM.tryGetDeviceGlobalEntry(MPrefix + Name);
   }
 
 private:
-  static std::string mangleDeviceGlobalName(const std::string &Name) {
-    // TODO: Support device globals declared in namespaces.
-    return "_Z" + std::to_string(Name.length()) + Name;
-  }
-
   void unregisterDeviceGlobalsFromContext() {
     if (MDeviceGlobalNames.empty())
       return;
@@ -1125,11 +1120,12 @@ private:
       // imports.
       // TODO: Consider making a collectDeviceImageDeps variant that takes a
       //       set reference and inserts into that instead.
-      std::set<RTDeviceBinaryImage *> ImgDeps;
+      std::set<const RTDeviceBinaryImage *> ImgDeps;
       for (const device &Device : DevImgImpl->get_devices()) {
-        std::set<RTDeviceBinaryImage *> DevImgDeps = PM.collectDeviceImageDeps(
-            *NewImage, *getSyclObjImpl(Device),
-            /*ErrorOnUnresolvableImport=*/State == bundle_state::executable);
+        std::set<const RTDeviceBinaryImage *> DevImgDeps =
+            PM.collectDeviceImageDeps(*NewImage, *getSyclObjImpl(Device),
+                                      /*ErrorOnUnresolvableImport=*/State ==
+                                          bundle_state::executable);
         ImgDeps.insert(DevImgDeps.begin(), DevImgDeps.end());
       }
 
@@ -1144,13 +1140,13 @@ private:
       if (State == bundle_state::executable) {
         // If target is executable we bundle the image and dependencies together
         // and bring it into state.
-        for (RTDeviceBinaryImage *ImgDep : ImgDeps)
+        for (const RTDeviceBinaryImage *ImgDep : ImgDeps)
           NewImageAndDeps.push_back(PM.createDependencyImage(
               MContext, SupportingDevsRef, ImgDep, bundle_state::input));
       } else if (State == bundle_state::object) {
         // If the target is object, we bring the dependencies into object state
         // individually and put them in the bundle.
-        for (RTDeviceBinaryImage *ImgDep : ImgDeps) {
+        for (const RTDeviceBinaryImage *ImgDep : ImgDeps) {
           DevImgPlainWithDeps ImgDepWithDeps{PM.createDependencyImage(
               MContext, SupportingDevsRef, ImgDep, bundle_state::input)};
           PM.bringSYCLDeviceImageToState(ImgDepWithDeps, State);

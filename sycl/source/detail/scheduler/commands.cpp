@@ -2726,7 +2726,7 @@ void enqueueImpKernel(
 
   // Initialize device globals associated with this.
   std::vector<ur_event_handle_t> DeviceGlobalInitEvents =
-      ContextImpl->initializeDeviceGlobals(Program, Queue);
+      ContextImpl->initializeDeviceGlobals(Program, Queue, KernelBundleImplPtr);
   if (!DeviceGlobalInitEvents.empty()) {
     std::vector<ur_event_handle_t> EventsWithDeviceGlobalInits;
     EventsWithDeviceGlobalInits.reserve(RawEvents.size() +
