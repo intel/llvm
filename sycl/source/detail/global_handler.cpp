@@ -230,8 +230,8 @@ std::mutex &GlobalHandler::getFilterMutex() {
   return FilterMutex;
 }
 
-std::vector<AdapterPtr> &GlobalHandler::getAdapters() {
-  static std::vector<AdapterPtr> &adapters = getOrCreate(MAdapters);
+std::vector<Adapter *> &GlobalHandler::getAdapters() {
+  static std::vector<Adapter *> &adapters = getOrCreate(MAdapters);
   enableOnCrashStackPrinting();
   return adapters;
 }
@@ -314,6 +314,7 @@ void GlobalHandler::unloadAdapters() {
   if (MAdapters.Inst) {
     for (const auto &Adapter : getAdapters()) {
       Adapter->release();
+      delete Adapter;
     }
   }
 
@@ -386,6 +387,10 @@ void shutdown_late() {
   Handler->MPlatformCache.Inst.reset(nullptr);
   Handler->MScheduler.Inst.reset(nullptr);
   Handler->MProgramManager.Inst.reset(nullptr);
+
+  // Cache stores handles to the adapter, so clear it before
+  // releasing adapters.
+  Handler->MKernelNameBasedCaches.Inst.reset(nullptr);
 
   // Clear the adapters and reset the instance if it was there.
   Handler->unloadAdapters();
