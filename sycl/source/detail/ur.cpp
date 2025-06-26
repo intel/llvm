@@ -90,7 +90,7 @@ bool trace(TraceLevel Level) {
   return (TraceLevelMask & Level) == Level;
 }
 
-static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
+static void initializeAdapters(std::vector<Adapter *> &Adapters,
                                ur_loader_config_handle_t LoaderConfig);
 
 bool XPTIInitDone = false;
@@ -117,7 +117,7 @@ std::vector<AdapterPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
   return GlobalHandler::instance().getAdapters();
 }
 
-static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
+static void initializeAdapters(std::vector<Adapter *> &Adapters,
                                ur_loader_config_handle_t LoaderConfig) {
 #define CHECK_UR_SUCCESS(Call)                                                 \
   {                                                                            \
@@ -238,7 +238,7 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
                                     sizeof(adapterBackend), &adapterBackend,
                                     nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
-    Adapters.emplace_back(std::make_shared<Adapter>(UrAdapter, syclBackend));
+    Adapters.emplace_back(new Adapter(UrAdapter, syclBackend));
 
     const char *env_value = std::getenv("UR_LOG_CALLBACK");
     if (env_value == nullptr || std::string(env_value) != "disabled") {
@@ -284,25 +284,25 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
 }
 
 // Get the adapter serving given backend.
-template <backend BE> const AdapterPtr &getAdapter() {
-  static AdapterPtr *Adapter = nullptr;
-  if (Adapter)
-    return *Adapter;
+template <backend BE> AdapterPtr &getAdapter() {
+  static AdapterPtr adapterPtr = nullptr;
+  if (adapterPtr)
+    return adapterPtr;
 
-  std::vector<AdapterPtr> &Adapters = ur::initializeUr();
+  std::vector<AdapterPtr> Adapters = ur::initializeUr();
   for (auto &P : Adapters)
     if (P->hasBackend(BE)) {
-      Adapter = &P;
-      return *Adapter;
+      adapterPtr = P;
+      return adapterPtr;
     }
 
   throw exception(errc::runtime, "ur::getAdapter couldn't find adapter");
 }
 
-template const AdapterPtr &getAdapter<backend::opencl>();
-template const AdapterPtr &getAdapter<backend::ext_oneapi_level_zero>();
-template const AdapterPtr &getAdapter<backend::ext_oneapi_cuda>();
-template const AdapterPtr &getAdapter<backend::ext_oneapi_hip>();
+template AdapterPtr &getAdapter<backend::opencl>();
+template AdapterPtr &getAdapter<backend::ext_oneapi_level_zero>();
+template AdapterPtr &getAdapter<backend::ext_oneapi_cuda>();
+template AdapterPtr &getAdapter<backend::ext_oneapi_hip>();
 
 // Reads an integer value from ELF data.
 template <typename ResT>

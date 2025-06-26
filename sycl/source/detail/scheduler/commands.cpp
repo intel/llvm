@@ -759,7 +759,6 @@ void Command::makeTraceEventEpilog() {
 
 Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
                                   std::vector<Command *> &ToCleanUp) {
-  const ContextImplPtr &WorkerContext = getWorkerContext();
 
   // 1. Non-host events can be ignored if they are not fully initialized.
   // 2. Some types of commands do not produce UR events after they are
@@ -780,8 +779,9 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   Command *ConnectionCmd = nullptr;
 
   context_impl &DepEventContext = DepEvent->getContextImpl();
+  context_impl *WorkerContext = getWorkerContext();
   // If contexts don't match we'll connect them using host task
-  if (&DepEventContext != WorkerContext.get() && WorkerContext) {
+  if (&DepEventContext != WorkerContext && WorkerContext) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
   } else
@@ -790,10 +790,10 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   return ConnectionCmd;
 }
 
-ContextImplPtr Command::getWorkerContext() const {
+context_impl *Command::getWorkerContext() const {
   if (!MQueue)
     return nullptr;
-  return MQueue->getContextImplPtr();
+  return &MQueue->getContextImpl();
 }
 
 bool Command::producesPiEvent() const { return true; }
@@ -1547,10 +1547,10 @@ void MemCpyCommand::emitInstrumentationData() {
 #endif
 }
 
-ContextImplPtr MemCpyCommand::getWorkerContext() const {
+context_impl *MemCpyCommand::getWorkerContext() const {
   if (!MWorkerQueue)
     return nullptr;
-  return MWorkerQueue->getContextImplPtr();
+  return &MWorkerQueue->getContextImpl();
 }
 
 bool MemCpyCommand::producesPiEvent() const {
@@ -1720,10 +1720,10 @@ void MemCpyCommandHost::emitInstrumentationData() {
 #endif
 }
 
-ContextImplPtr MemCpyCommandHost::getWorkerContext() const {
+context_impl *MemCpyCommandHost::getWorkerContext() const {
   if (!MWorkerQueue)
     return nullptr;
-  return MWorkerQueue->getContextImplPtr();
+  return &MWorkerQueue->getContextImpl();
 }
 
 ur_result_t MemCpyCommandHost::enqueueImp() {
@@ -2312,8 +2312,8 @@ ur_mem_flags_t AccessModeToUr(access::mode AccessorMode) {
 void GetUrArgsBasedOnType(
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const ContextImplPtr &ContextImpl, detail::ArgDesc &Arg,
-    size_t NextTrueIndex, std::vector<ur_exp_kernel_arg_properties_t> &UrArgs) {
+    context_impl &ContextImpl, detail::ArgDesc &Arg, size_t NextTrueIndex,
+    std::vector<ur_exp_kernel_arg_properties_t> &UrArgs) {
   switch (Arg.MType) {
   case kernel_param_kind_t::kind_dynamic_work_group_memory:
     break;
@@ -2459,8 +2459,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     auto setFunc = [&DeviceImageImpl, &getMemAllocationFunc, &Queue,
                     &UrArgs](detail::ArgDesc &Arg, size_t NextTrueIndex) {
       GetUrArgsBasedOnType(DeviceImageImpl, getMemAllocationFunc,
-                           Queue.getContextImplPtr(), Arg, NextTrueIndex,
-                           UrArgs);
+                           Queue.getContextImpl(), Arg, NextTrueIndex, UrArgs);
     };
     applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
   }
@@ -2556,8 +2555,7 @@ void SetArgBasedOnType(
     const AdapterPtr &Adapter, ur_kernel_handle_t Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const ContextImplPtr &ContextImpl, detail::ArgDesc &Arg,
-    size_t NextTrueIndex) {
+    context_impl &ContextImpl, detail::ArgDesc &Arg, size_t NextTrueIndex) {
   switch (Arg.MType) {
   case kernel_param_kind_t::kind_dynamic_work_group_memory:
     break;
@@ -2635,7 +2633,7 @@ void SetArgBasedOnType(
 
 static std::tuple<ur_kernel_handle_t, std::shared_ptr<device_image_impl>,
                   const KernelArgMask *>
-getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
+getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
                 device_impl &DeviceImpl,
                 std::vector<FastKernelCacheValPtr> &KernelCacheValsToRelease) {
 
@@ -2657,7 +2655,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
   } else {
     FastKernelCacheValPtr FastKernelCacheVal =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            *ContextImpl, DeviceImpl, CommandGroup.MKernelName,
+            ContextImpl, DeviceImpl, CommandGroup.MKernelName,
             CommandGroup.MKernelNameBasedCachePtr);
     UrKernel = FastKernelCacheVal->MKernelHandle;
     EliminatedArgMask = FastKernelCacheVal->MKernelArgMask;
@@ -2684,7 +2682,7 @@ ur_result_t enqueueImpCommandBufferKernel(
   std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
-  auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
+  context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(Ctx);
   std::tie(UrKernel, DeviceImageImpl, EliminatedArgMask) = getCGKernelInfo(
       CommandGroup, ContextImpl, DeviceImpl, FastKernelCacheValsToRelease);
 
@@ -2704,7 +2702,7 @@ ur_result_t enqueueImpCommandBufferKernel(
     AltUrKernels.push_back(AltUrKernel);
   }
 
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl.getAdapter();
   auto SetFunc = [&Adapter, &UrKernel, &DeviceImageImpl, &ContextImpl,
                   &getMemAllocationFunc](sycl::detail::ArgDesc &Arg,
                                          size_t NextTrueIndex) {
