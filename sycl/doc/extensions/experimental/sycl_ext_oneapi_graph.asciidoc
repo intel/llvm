@@ -1391,7 +1391,7 @@ _Returns:_ A new executable graph object which can be submitted to a queue.
 
 _Throws:_ 
 
-* Synchronously `exception` with error code `feature_not_supported` if
+* Synchronous `exception` with error code `feature_not_supported` if
   the graph contains a command that is not supported by the device.
 * An `exception` with error code `invalid` if the graph contains
   <<graph-memory-allocations, graph-owned memory allocations>> and any instance
@@ -1882,11 +1882,12 @@ are automatically added by the runtime to prevent concurrent executions of
 an identical graph.
 
 _Throws:_ 
-* Synchronously `exception` with error code `invalid` if the handler
+* Synchronous `exception` with error code `invalid` if the handler
 is submitted to a queue which is associated with a device or context that is
 different from the device and context used on creation of the graph.
 * Synchronous `exception` with error code `invalid` if `graph` contains
-any <<graph-memory-allocations, graph-owned memory allocations>>.
+any <<graph-memory-allocations, graph-owned memory allocations>> and is being
+added as a subgraph.
 
 [source,c++]
 ----
