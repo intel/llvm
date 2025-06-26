@@ -104,12 +104,6 @@ constexpr uint32_t CalculateMatrixOperand() {
   if constexpr (std::is_unsigned<Ta>::value && std::is_signed<Tb>::value)
     returnValue += static_cast<uint32_t>(
         __spv::MatrixOperands::MatrixBSignedComponentsKHR);
-  if constexpr (std::is_signed<Ta>::value && std::is_signed<Tb>::value) {
-    returnValue += static_cast<uint32_t>(
-                       __spv::MatrixOperands::MatrixASignedComponentsKHR) +
-                   static_cast<uint32_t>(
-                       __spv::MatrixOperands::MatrixBSignedComponentsKHR);
-  }
   return returnValue;
 }
 
