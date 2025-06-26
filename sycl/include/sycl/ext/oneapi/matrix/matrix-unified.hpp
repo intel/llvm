@@ -495,7 +495,11 @@ void joint_matrix_copy(
   auto wi_data_c = sycl::ext::oneapi::detail::get_wi_data(sg, src);
   auto wi_data_dst = sycl::ext::oneapi::detail::get_wi_data(sg, dst);
   for (int i = 0; i < wi_data_c.length(); i++) {
-    if constexpr (std::is_same_v<T1, half>) {
+    if constexpr (std::is_same_v<T1, sycl::half>) {
+      // Special case for SRC type sycl:half since we can't 
+      // cast direvtly from wi_element(typed half) to other type.
+      // first cast is from wi_element to half (T1).
+      // second cast is from half to dst type (T2).
       wi_data_dst[i] = static_cast<storage_element_type>(
           static_cast<src_storage_element_type>(wi_data_c[i]));
     } else {
