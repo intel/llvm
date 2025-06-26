@@ -20,6 +20,7 @@
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/split_string.hpp>
+#include <detail/syclbin.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/ur.hpp>
@@ -53,6 +54,7 @@ using include_pairs_t =
 constexpr uint8_t ImageOriginSYCLOffline = 1;
 constexpr uint8_t ImageOriginInterop = 1 << 1;
 constexpr uint8_t ImageOriginKernelCompiler = 1 << 2;
+constexpr uint8_t ImageOriginSYCLBIN = 1 << 3;
 
 // Helper class to track and unregister shared SYCL device_globals.
 class ManagedDeviceGlobalsRegistry {
@@ -160,16 +162,11 @@ struct KernelCompilerBinaryInfo {
                            include_pairs_t &&IncludePairsVec)
       : MLanguage{Lang}, MIncludePairs{std::move(IncludePairsVec)} {}
 
-  KernelCompilerBinaryInfo(syclex::source_language Lang,
-                           KernelNameSetT &&KernelNames)
-      : MLanguage{Lang}, MKernelNames{std::move(KernelNames)} {}
-
   KernelCompilerBinaryInfo(
-      syclex::source_language Lang, KernelNameSetT &&KernelNames,
-      MangledKernelNameMapT &&MangledKernelNames, std::string &&Prefix,
+      syclex::source_language Lang, MangledKernelNameMapT &&MangledKernelNames,
+      std::string &&Prefix,
       std::shared_ptr<ManagedDeviceGlobalsRegistry> &&DeviceGlobalRegistry)
-      : MLanguage{Lang}, MKernelNames{std::move(KernelNames)},
-        MMangledKernelNames{std::move(MangledKernelNames)},
+      : MLanguage{Lang}, MMangledKernelNames{std::move(MangledKernelNames)},
         MPrefixes{std::move(Prefix)},
         MDeviceGlobalRegistries{std::move(DeviceGlobalRegistry)} {}
 
@@ -192,9 +189,6 @@ struct KernelCompilerBinaryInfo {
         throw sycl::exception(make_error_code(errc::invalid),
                               "Linking binaries with different source "
                               "languages is not currently supported.");
-
-      for (const std::string &KernelName : RTCInfo->MKernelNames)
-        Result->MKernelNames.insert(KernelName);
 
       Result->MMangledKernelNames.insert(RTCInfo->MMangledKernelNames.begin(),
                                          RTCInfo->MMangledKernelNames.end());
@@ -226,7 +220,6 @@ struct KernelCompilerBinaryInfo {
   }
 
   syclex::source_language MLanguage;
-  KernelNameSetT MKernelNames;
   MangledKernelNameMapT MMangledKernelNames;
   std::set<std::string> MPrefixes;
   include_pairs_t MIncludePairs;
@@ -263,6 +256,12 @@ public:
         MKernelIDs(std::move(KernelIDs)),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()), MOrigins(Origins) {
     updateSpecConstSymMap();
+    // SYCLBIN files have the kernel names embedded in the binaries, so we
+    // collect them.
+    if (BinImage && (MOrigins & ImageOriginSYCLBIN))
+      for (const sycl_device_binary_property &KNProp :
+           BinImage->getKernelNames())
+        MKernelNames.insert(KNProp->Name);
   }
 
   device_image_impl(
@@ -272,10 +271,12 @@ public:
       ur_program_handle_t Program, const SpecConstMapT &SpecConstMap,
       const std::vector<unsigned char> &SpecConstsBlob, uint8_t Origins,
       std::optional<KernelCompilerBinaryInfo> &&RTCInfo,
+      KernelNameSetT &&KernelNames,
       std::unique_ptr<DynRTDeviceBinaryImage> &&MergedImageStorage = nullptr)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
-        MKernelIDs(std::move(KernelIDs)), MSpecConstsBlob(SpecConstsBlob),
+        MKernelIDs(std::move(KernelIDs)), MKernelNames{std::move(KernelNames)},
+        MSpecConstsBlob(SpecConstsBlob),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MSpecConstSymMap(SpecConstMap), MOrigins(Origins),
         MRTCBinInfo(std::move(RTCInfo)),
@@ -288,9 +289,10 @@ public:
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
         MKernelIDs(std::make_shared<std::vector<kernel_id>>()),
+        MKernelNames{std::move(KernelNames)},
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
-        MRTCBinInfo(KernelCompilerBinaryInfo{Lang, std::move(KernelNames)}) {
+        MRTCBinInfo(KernelCompilerBinaryInfo{Lang}) {
     updateSpecConstSymMap();
   }
 
@@ -303,12 +305,12 @@ public:
       std::shared_ptr<ManagedDeviceGlobalsRegistry> &&DeviceGlobalRegistry)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(nullptr),
-        MKernelIDs(std::move(KernelIDs)),
+        MKernelIDs(std::move(KernelIDs)), MKernelNames{std::move(KernelNames)},
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
         MRTCBinInfo(KernelCompilerBinaryInfo{
-            Lang, std::move(KernelNames), std::move(MangledKernelNames),
-            std::move(Prefix), std::move(DeviceGlobalRegistry)}) {
+            Lang, std::move(MangledKernelNames), std::move(Prefix),
+            std::move(DeviceGlobalRegistry)}) {
     updateSpecConstSymMap();
   }
 
@@ -347,9 +349,10 @@ public:
         MContext(std::move(Context)), MDevices(std::move(Devices)),
         MState(State), MProgram(Program),
         MKernelIDs(std::make_shared<std::vector<kernel_id>>()),
+        MKernelNames{std::move(KernelNames)},
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
-        MRTCBinInfo(KernelCompilerBinaryInfo{Lang, std::move(KernelNames)}) {}
+        MRTCBinInfo(KernelCompilerBinaryInfo{Lang}) {}
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
     return std::binary_search(MKernelIDs->begin(), MKernelIDs->end(),
@@ -599,6 +602,14 @@ public:
   }
 
   std::string adjustKernelName(std::string_view Name) const {
+    if (MOrigins & ImageOriginSYCLBIN) {
+      constexpr std::string_view KernelPrefix = "__sycl_kernel_";
+      if (Name.size() > KernelPrefix.size() &&
+          Name.substr(0, KernelPrefix.size()) == KernelPrefix)
+        return Name.data();
+      return std::string{KernelPrefix} + Name.data();
+    }
+
     if (!MRTCBinInfo.has_value())
       return Name.data();
 
@@ -611,16 +622,17 @@ public:
     return Name.data();
   }
 
-  bool hasKernelName(const std::string &Name) const {
-    return MRTCBinInfo.has_value() && !Name.empty() &&
-           MRTCBinInfo->MKernelNames.find(adjustKernelName(Name)) !=
-               MRTCBinInfo->MKernelNames.end();
+  bool hasKernelName(std::string_view Name) const {
+    return (getOriginMask() &
+            (ImageOriginKernelCompiler | ImageOriginSYCLBIN)) &&
+           !Name.empty() &&
+           MKernelNames.find(adjustKernelName(Name)) != MKernelNames.end();
   }
 
   std::shared_ptr<kernel_impl>
-  tryGetSourceBasedKernel(std::string_view Name, const context &Context,
-                          const kernel_bundle_impl &OwnerBundle,
-                          const std::shared_ptr<device_image_impl> &Self) const;
+  tryGetExtensionKernel(std::string_view Name, const context &Context,
+                        const kernel_bundle_impl &OwnerBundle,
+                        const std::shared_ptr<device_image_impl> &Self) const;
 
   bool hasDeviceGlobalName(const std::string &Name) const noexcept {
     if (!MRTCBinInfo.has_value())
@@ -648,6 +660,8 @@ public:
   const std::optional<KernelCompilerBinaryInfo> &getRTCInfo() const noexcept {
     return MRTCBinInfo;
   }
+
+  const KernelNameSetT &getKernelNames() const noexcept { return MKernelNames; }
 
   bool isNonSYCLSourceBased() const noexcept {
     return (getOriginMask() & ImageOriginKernelCompiler) &&
@@ -1226,7 +1240,7 @@ private:
   }
 
   const std::variant<std::string, std::vector<std::byte>,
-                     const RTDeviceBinaryImage *>
+                     const RTDeviceBinaryImage *, SYCLBINBinaries>
       MBinImage = static_cast<const RTDeviceBinaryImage *>(nullptr);
   context MContext;
   std::vector<device> MDevices;
@@ -1237,6 +1251,9 @@ private:
   // List of kernel ids available in this image, elements should be sorted
   // according to LessByNameComp
   std::shared_ptr<std::vector<kernel_id>> MKernelIDs;
+
+  // List of known kernel names.
+  KernelNameSetT MKernelNames;
 
   // A mutex for sycnhronizing access to spec constants blob. Mutable because
   // needs to be locked in the const method for getting spec constant value.
