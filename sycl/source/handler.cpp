@@ -12,7 +12,9 @@
 
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
-#include <detail/graph_impl.hpp>
+#include <detail/graph/dynamic_impl.hpp>
+#include <detail/graph/graph_impl.hpp>
+#include <detail/graph/node_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/helpers.hpp>
 #include <detail/host_task.hpp>
@@ -33,8 +35,8 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
-#include "sycl/ext/oneapi/experimental/graph.hpp"
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 
@@ -798,15 +800,20 @@ event handler::finalize() {
           nullptr, impl->MExecGraph, std::move(impl->CGData)));
 
     } else {
-      event GraphCompletionEvent =
-          impl->MExecGraph->enqueue(impl->get_queue(), std::move(impl->CGData));
-
+      detail::queue_impl &Queue = impl->get_queue();
+      bool DiscardEvent = !impl->MEventNeeded &&
+                          Queue.supportsDiscardingPiEvents() &&
+                          !impl->MExecGraph->containsHostTask();
+      detail::EventImplPtr GraphCompletionEvent = impl->MExecGraph->enqueue(
+          Queue, std::move(impl->CGData), !DiscardEvent);
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      MLastEvent = getSyclObjImpl(GraphCompletionEvent);
+      return GraphCompletionEvent;
 #else
-      MLastEvent = GraphCompletionEvent;
+      return sycl::detail::createSyclObjFromImpl<sycl::event>(
+          GraphCompletionEvent
+              ? GraphCompletionEvent
+              : sycl::detail::event_impl::create_discarded_event());
 #endif
-      return MLastEvent;
     }
   } break;
   case detail::CGType::CopyImage:
@@ -929,7 +936,7 @@ event handler::finalize() {
                       CommandGroup->getRequirements().size() == 0;
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), Queue->shared_from_this(), !DiscardEvent);
+      std::move(CommandGroup), *Queue, !DiscardEvent);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   MLastEvent = DiscardEvent ? nullptr : Event;
@@ -2217,6 +2224,13 @@ handler::getContextImplPtr() const {
     return Graph->getContextImplPtr();
   }
   return impl->get_queue().getContextImplPtr();
+}
+
+detail::context_impl &handler::getContextImpl() const {
+  if (auto *Graph = impl->get_graph_or_null()) {
+    return *Graph->getContextImplPtr();
+  }
+  return impl->get_queue().getContextImpl();
 }
 
 void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {

@@ -13,14 +13,14 @@
 
 template <typename T> struct locked {
 public:
-  locked(T *object, std::unique_lock<std::mutex> &&lock)
+  locked(T *object, std::unique_lock<ur_mutex> &&lock)
       : lock_(std::move(lock)) {
     object_ = object;
   }
   T *operator->() { return object_; }
 
 private:
-  std::unique_lock<std::mutex> lock_;
+  std::unique_lock<ur_mutex> lock_;
   T *object_;
 };
 
@@ -54,5 +54,5 @@ public:
 
 private:
   T object_;
-  std::mutex mut_;
+  ur_mutex mut_;
 };

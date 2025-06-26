@@ -3546,6 +3546,7 @@ private:
   }
 
   const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;
+  detail::context_impl &getContextImpl() const;
 
   // Checks if 2D memory operations are supported by the underlying platform.
   bool supportsUSMMemcpy2D();

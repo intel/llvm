@@ -273,8 +273,10 @@ private:
       const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent,
       ur_command_t commandType);
 
-  ur_context_handle_t hContext;
-  ur_device_handle_t hDevice;
+  // Context needs to be a first member - it needs to be alive
+  // until all other members are destroyed.
+  v2::raii::ur_context_handle_t hContext;
+  v2::raii::ur_device_handle_t hDevice;
 
   std::vector<ur_kernel_handle_t> submittedKernels;
   v2::raii::command_list_unique_handle zeCommandList;
