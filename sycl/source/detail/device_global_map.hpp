@@ -70,7 +70,6 @@ public:
             DeviceGlobal->Name, Img, TypeSize, DeviceImageScopeDecorated);
         MDeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
       }
-      std::cout << DeviceGlobal->Name << std::endl;
     }
   }
 
