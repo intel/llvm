@@ -18,11 +18,28 @@
 #include <ur_api.h>
 
 struct ur_context_handle_t_ : RefCounted {
-  ur_context_handle_t_(ur_device_handle_t hDevice) : Device{hDevice} {
-    urDeviceRetain(Device);
+  ur_context_handle_t_(const ur_device_handle_t *Devs, size_t NumDevices)
+      : Devices{Devs, Devs + NumDevices} {
+    for (auto Device : Devices) {
+      urDeviceRetain(Device);
+    }
   }
-  ~ur_context_handle_t_() { urDeviceRelease(Device); }
+  ~ur_context_handle_t_() {
+    for (auto Device : Devices) {
+      urDeviceRelease(Device);
+    }
+  }
 
-  ur_device_handle_t Device;
-  std::unordered_map<void *, ol_alloc_type_t> AllocTypeMap;
+  std::vector<ur_device_handle_t> Devices;
+
+  // Gets the index of the device relative to other devices in the context
+  size_t getDeviceIndex(ur_device_handle_t hDevice) {
+    auto It = std::find(Devices.begin(), Devices.end(), hDevice);
+    assert(It != Devices.end());
+    return std::distance(Devices.begin(), It);
+  }
+
+  bool containsDevice(ur_device_handle_t Device) {
+    return std::find(Devices.begin(), Devices.end(), Device) != Devices.end();
+  }
 };

@@ -19,6 +19,45 @@
 #include "memory.hpp"
 #include "ur2offload.hpp"
 
+void *BufferMem::getPtr(ur_device_handle_t Device) const noexcept {
+  // Create the allocation for this device if needed
+  OuterMemStruct->prepareDeviceAllocation(Device);
+  return Ptrs[OuterMemStruct->Context->getDeviceIndex(Device)];
+}
+
+ur_result_t enqueueMigrateBufferToDevice(ur_mem_handle_t Mem,
+                                         ur_device_handle_t Device,
+                                         ol_queue_handle_t Queue) {
+  auto &Buffer = std::get<BufferMem>(Mem->Mem);
+  if (Mem->LastQueueWritingToMemObj == nullptr) {
+    // Device allocation being initialized from host for the first time
+    if (Buffer.HostPtr) {
+      OL_RETURN_ON_ERR(olMemcpy(Queue, Buffer.getPtr(Device),
+                                Device->OffloadDevice, Buffer.HostPtr,
+                                Adapter->HostDevice, Buffer.Size, nullptr));
+    }
+  } else if (Mem->LastQueueWritingToMemObj->Device != Device) {
+    auto LastDevice = Mem->LastQueueWritingToMemObj->Device;
+    OL_RETURN_ON_ERR(olMemcpy(Queue, Buffer.getPtr(Device),
+                              Device->OffloadDevice, Buffer.getPtr(LastDevice),
+                              LastDevice->OffloadDevice, Buffer.Size, nullptr));
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+// TODO: Check lock in cuda adapter
+ur_result_t ur_mem_handle_t_::enqueueMigrateMemoryToDeviceIfNeeded(
+    const ur_device_handle_t Device, ol_queue_handle_t Queue) {
+  UR_ASSERT(Device, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  // Device allocation has already been initialized with most up to date
+  // data in buffer
+  if (DeviceIsUpToDate[getContext()->getDeviceIndex(Device)]) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  return enqueueMigrateBufferToDevice(this, Device, Queue);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size,
     const ur_buffer_properties_t *pProperties, ur_mem_handle_t *phBuffer) {
@@ -29,23 +68,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
       (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) ||
       (flags & UR_MEM_FLAG_USE_HOST_POINTER);
 
-  void *Ptr = nullptr;
   auto HostPtr = pProperties ? pProperties->pHost : nullptr;
-  auto OffloadDevice = hContext->Device->OffloadDevice;
   auto AllocMode = BufferMem::AllocMode::Default;
 
   if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
-    OL_RETURN_ON_ERR(
-        olMemAlloc(OffloadDevice, OL_ALLOC_TYPE_HOST, size, &HostPtr));
+    // Allocate on the first device, which will be valid on all devices in the
+    // context
+    OL_RETURN_ON_ERR(olMemAlloc(hContext->Devices[0]->OffloadDevice,
+                                OL_ALLOC_TYPE_HOST, size, &HostPtr));
 
     // TODO: We (probably) need something like cuMemHostGetDevicePointer
     // for this to work everywhere. For now assume the managed host pointer is
     // device-accessible.
-    Ptr = HostPtr;
     AllocMode = BufferMem::AllocMode::AllocHostPtr;
   } else {
-    OL_RETURN_ON_ERR(
-        olMemAlloc(OffloadDevice, OL_ALLOC_TYPE_DEVICE, size, &Ptr));
     if (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) {
       AllocMode = BufferMem::AllocMode::CopyIn;
     }
@@ -53,11 +89,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 
   ur_mem_handle_t ParentBuffer = nullptr;
   auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
-      hContext, ParentBuffer, flags, AllocMode, Ptr, HostPtr, size});
+      hContext, ParentBuffer, flags, AllocMode, HostPtr, size});
 
-  if (PerformInitialCopy) {
-    OL_RETURN_ON_ERR(olMemcpy(nullptr, Ptr, OffloadDevice, HostPtr,
-                              Adapter->HostDevice, size, nullptr));
+  if (PerformInitialCopy && HostPtr) {
+    // Copy per device
+    for (auto Device : hContext->Devices) {
+      const auto &Ptr = std::get<BufferMem>(URMemObj->Mem).getPtr(Device);
+      OL_RETURN_ON_ERR(olMemcpy(nullptr, Ptr, Device->OffloadDevice, HostPtr,
+                                Adapter->HostDevice, size, nullptr));
+    }
   }
 
   *phBuffer = URMemObj.release();
@@ -79,7 +119,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
   if (hMem->MemType == ur_mem_handle_t_::Type::Buffer) {
     // TODO: Handle registered host memory
     auto &BufferImpl = std::get<BufferMem>(MemObjPtr->Mem);
-    OL_RETURN_ON_ERR(olMemFree(BufferImpl.Ptr));
+    for (auto *Ptr : BufferImpl.Ptrs) {
+      if (Ptr) {
+        OL_RETURN_ON_ERR(olMemFree(Ptr));
+      }
+    }
   }
 
   return UR_RESULT_SUCCESS;
