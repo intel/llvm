@@ -303,6 +303,11 @@ ze_structure_type_t getZeStructureType<ze_device_ip_version_ext_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT;
 }
 template <>
+ze_structure_type_t
+getZeStructureType<ze_device_vector_width_properties_ext_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_VECTOR_WIDTH_PROPERTIES_EXT;
+}
+template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
 }
