@@ -12,6 +12,11 @@
 #include <sycl/properties/all_properties.hpp>
 
 int main() {
+
+  using namespace std::chrono;
+
+
+
   queue InOrderQueue{property::queue::in_order{}};
 
   using T = int;
@@ -43,12 +48,24 @@ int main() {
 
   auto GraphExec = Graph.finalize();
 
+  // Start time
+  auto start = high_resolution_clock::now();
   exp_ext::execute_graph(InOrderQueue, GraphExec);
+
+  auto end = high_resolution_clock::now();
+
+  // Calculatce duration
+  auto duration = duration_cast<nanoseconds>(end - start);
+
+  std::cout << "Time taken by function: " << duration.count() << " ns\n";
+
   InOrderQueue.wait_and_throw();
 
   free(PtrA, InOrderQueue);
   free(PtrB, InOrderQueue);
   free(PtrC, InOrderQueue);
+
+
 
   for (size_t i = 0; i < Size; i++) {
     T Ref = Pattern * i;

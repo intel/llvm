@@ -3044,9 +3044,9 @@ public:
   /// Executes a command_graph.
   ///
   /// \param Graph Executable command_graph to run
-  void ext_oneapi_graph(ext::oneapi::experimental::command_graph<
-                        ext::oneapi::experimental::graph_state::executable>
-                            Graph);
+  void
+  ext_oneapi_graph(const ext::oneapi::experimental::command_graph<
+                   ext::oneapi::experimental::graph_state::executable> &Graph);
 
   /// Copies data from host to device, where \p Src is a USM pointer and \p Dest
   /// is an opaque image memory handle. An exception is thrown if either \p Src

@@ -330,9 +330,6 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
   const CGType Type = HandlerImpl->MCGType;
-  std::vector<StreamImplPtr> Streams;
-  if (Type == CGType::Kernel)
-    Streams = std::move(Handler.MStreamStorage);
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
@@ -340,7 +337,8 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                     (Type == CGType::ExecCommandBuffer &&
                      HandlerImpl->MExecGraph->containsHostTask());
 
-  auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
+  auto requiresPostProcess =
+      SubmitInfo.PostProcessorFunc() || Handler.MStreamStorage.size();
   auto noLastEventPath = !isHostTask &&
                          MNoLastEventMode.load(std::memory_order_acquire) &&
                          !requiresPostProcess;
@@ -382,21 +380,24 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     handlerPostProcess(Handler, SubmitInfo.PostProcessorFunc(), Event);
   }
 
-  for (auto &Stream : Streams) {
-    // We don't want stream flushing to be blocking operation that is why submit
-    // a host task to print stream buffer. It will fire up as soon as the kernel
-    // finishes execution.
-    auto L = [&](handler &ServiceCGH) {
-      Stream->generateFlushCommand(ServiceCGH);
-    };
-    detail::type_erased_cgfo_ty CGF{L};
-    detail::EventImplPtr FlushEvent = submit_impl(
-        CGF, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc, IsTopCodeLoc, {});
-    if (EventImpl)
-      EventImpl->attachEventToCompleteWeak(FlushEvent);
-    if (!isInOrder()) {
-      // For in-order queue, the dependencies will be tracked by LastEvent
-      registerStreamServiceEvent(FlushEvent);
+  if (Type == CGType::Kernel) {
+    for (auto &Stream : Handler.MStreamStorage) {
+      // We don't want stream flushing to be blocking operation that is why
+      // submit a host task to print stream buffer. It will fire up as soon as
+      // the kernel finishes execution.
+      auto L = [&](handler &ServiceCGH) {
+        Stream->generateFlushCommand(ServiceCGH);
+      };
+      detail::type_erased_cgfo_ty CGF{L};
+      detail::EventImplPtr FlushEvent =
+          submit_impl(CGF, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc,
+                      IsTopCodeLoc, {});
+      if (EventImpl)
+        EventImpl->attachEventToCompleteWeak(FlushEvent);
+      if (!isInOrder()) {
+        // For in-order queue, the dependencies will be tracked by LastEvent
+        registerStreamServiceEvent(FlushEvent);
+      }
     }
   }
 

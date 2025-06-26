@@ -61,8 +61,7 @@ public:
     handler_impl(std::shared_ptr<MockQueueImpl> Queue) : MQueue(Queue) {}
     std::shared_ptr<MockQueueImpl> MQueue;
     MockQueueImpl &get_queue() { return *MQueue; }
-    std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
-        MExecGraph;
+    ext::oneapi::experimental::detail::exec_graph_impl* MExecGraph;
   };
   std::shared_ptr<handler_impl> impl;
   std::shared_ptr<detail::kernel_impl> MKernel;

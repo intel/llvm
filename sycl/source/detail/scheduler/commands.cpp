@@ -3850,8 +3850,7 @@ ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   auto Device = MQueue->get_device();
   auto &Partitions = MGraph->getPartitions();
   for (auto &[PartitionIndex, NodeImpl] : PartitionedNodes) {
-    auto CommandBuffer = Partitions[PartitionIndex]->MCommandBuffers[Device];
-    MGraph->updateURImpl(CommandBuffer, NodeImpl);
+    MGraph->updateURImpl(Partitions[PartitionIndex]->MCommandBuffer, NodeImpl);
   }
 
   return UR_RESULT_SUCCESS;
