@@ -7,6 +7,7 @@
 //===-----------------------------------------------------------------===//
 
 #include "queue.hpp"
+#include "CL/cl.h"
 #include "common.hpp"
 #include "context.hpp"
 #include "device.hpp"
