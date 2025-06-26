@@ -11,7 +11,7 @@
 #include "llvm/Support/Signals.h"
 #endif
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/kernel_name_based_cache_t.hpp>

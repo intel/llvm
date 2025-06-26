@@ -13,7 +13,7 @@
 /// \ingroup sycl_ur
 
 #include "ur.hpp"
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>

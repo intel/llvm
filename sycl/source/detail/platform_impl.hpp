@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/split_string.hpp>
 #include <detail/ur.hpp>
 #include <detail/ur_info_code.hpp>
