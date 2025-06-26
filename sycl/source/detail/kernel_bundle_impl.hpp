@@ -412,10 +412,9 @@ public:
     removeDuplicateImages();
 
     for (const kernel_bundle<bundle_state::object> &Bundle : ObjectBundles) {
-      const KernelBundleImplPtr &BundlePtr = getSyclObjImpl(Bundle);
-      for (const std::pair<const std::string, std::vector<unsigned char>>
-               &SpecConst : BundlePtr->MSpecConstValues) {
-        MSpecConstValues[SpecConst.first] = SpecConst.second;
+      kernel_bundle_impl &BundleImpl = *getSyclObjImpl(Bundle);
+      for (const auto &[Name, Values] : BundleImpl.MSpecConstValues) {
+        MSpecConstValues[Name] = Values;
       }
     }
   }
@@ -567,7 +566,8 @@ public:
 
   // SYCLBIN constructor
   kernel_bundle_impl(const context &Context, const std::vector<device> &Devs,
-                     const sycl::span<char> &Bytes, bundle_state State)
+                     const sycl::span<char> Bytes, bundle_state State,
+                     private_tag)
       : MContext(Context), MDevices(Devs), MState(State) {
     common_ctor_checks();
 
@@ -994,9 +994,8 @@ public:
             SelectedImage->get_ur_program_ref());
 
     return std::make_shared<kernel_impl>(
-        Kernel, *detail::getSyclObjImpl(MContext), SelectedImage,
-        shared_from_this(), ArgMask, SelectedImage->get_ur_program_ref(),
-        CacheMutex);
+        Kernel, *detail::getSyclObjImpl(MContext), SelectedImage, *this,
+        ArgMask, SelectedImage->get_ur_program_ref(), CacheMutex);
   }
 
   std::shared_ptr<kernel_impl>

@@ -35,8 +35,8 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
           PM.getOrCreateKernel(Context, AdjustedName,
                                /*PropList=*/{}, UrProgram);
       return std::make_shared<kernel_impl>(UrKernel, *getSyclObjImpl(Context),
-                                           Self, OwnerBundle.shared_from_this(),
-                                           ArgMask, UrProgram, CacheMutex);
+                                           Self, OwnerBundle, ArgMask,
+                                           UrProgram, CacheMutex);
     }
     return nullptr;
   }
@@ -49,8 +49,7 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
   // Kernel created by urKernelCreate is implicitly retained.
 
   return std::make_shared<kernel_impl>(
-      UrKernel, *detail::getSyclObjImpl(Context), Self,
-      OwnerBundle.shared_from_this(),
+      UrKernel, *detail::getSyclObjImpl(Context), Self, OwnerBundle,
       /*ArgMask=*/nullptr, UrProgram, /*CacheMutex=*/nullptr);
 }
 
