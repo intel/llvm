@@ -248,15 +248,16 @@ ur_result_t ShadowMemoryGPU::Destroy() {
     }
 
     {
-      const size_t PageSize = GetVirtualMemGranularity(Context, Device);
       for (auto [MappedPtr, PhysicalMem] : VirtualMemMaps) {
         UR_CALL(getContext()->urDdiTable.VirtualMem.pfnUnmap(
             Context, (void *)MappedPtr, PageSize));
         UR_CALL(getContext()->urDdiTable.PhysicalMem.pfnRelease(PhysicalMem));
       }
-      UR_CALL(getContext()->urDdiTable.VirtualMem.pfnFree(
-          Context, (const void *)ShadowBegin, GetShadowSize()));
-      ShadowBegin = ShadowEnd = 0;
+      if (ShadowBegin != 0) {
+        UR_CALL(getContext()->urDdiTable.VirtualMem.pfnFree(
+            Context, (const void *)ShadowBegin, GetShadowSize()));
+        ShadowBegin = ShadowEnd = 0;
+      }
     }
 
     UR_CALL(ReleaseCleanShadow());
