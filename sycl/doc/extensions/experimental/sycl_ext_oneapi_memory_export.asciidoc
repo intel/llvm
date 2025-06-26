@@ -306,6 +306,20 @@ extension. Once we have a solution, we will update this specification with a
 SYCL API that will close the OS handles returned by `export_device_mem_handle`
 without freeing the memory.
 
+=== Using `sycl::malloc_device ` and `sycl::free` for exportable memory
+
+As this is an initial draft of an experimental extension, we provide explicit
+APIs for the allocation and deallocation of exportable memory. However, there
+is nothing in principle that should prevent this extensions from using
+`sycl::malloc_device` with a `sycl::property` to allocate exportable memory,
+and `sycl::free` to deallocate it. While the implementation of this in {dpcpp}
+would involve minor overhead, it would allow the user to use the same
+allocation and deallocation APIs for both exportable and non-exportable memory.
+
+We are considering this approach for future versions of this extension, but for
+this initial draft we've have decided to provide explicit APIs to simplify the
+implementation and gather early feedback.
+
 == Revision History
 
 [frame="none",options="header"]
