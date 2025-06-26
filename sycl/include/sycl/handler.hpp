@@ -730,7 +730,7 @@ private:
     // Set the arg in the handler as normal
     setArgHelper(ArgIndex, std::move(ArgValue));
 
-// Register the dynamic paramete  r with the handler for later association
+// Register the dynamic parameter with the handler for later association
 // with the node being added
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     registerDynamicParameter(detail::getSyclObjImpl(DynamicParam).get(),
