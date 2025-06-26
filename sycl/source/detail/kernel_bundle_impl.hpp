@@ -245,26 +245,6 @@ public:
     // TODO: Unify with c'tor for sycl::compile and sycl::build by calling
     // sycl::join on vector of kernel_bundles
 
-    // Due to a bug in L0, specializations with conflicting IDs will overwrite
-    // each other when linked together, so to avoid this issue we link
-    // regular offline-compiled SYCL device images in separation.
-    // TODO: Remove when spec const overwriting issue has been fixed in L0.
-    std::vector<const DevImgPlainWithDeps *> OfflineDeviceImages;
-    std::unordered_set<std::shared_ptr<device_image_impl>>
-        OfflineDeviceImageSet;
-    for (const kernel_bundle<bundle_state::object> &ObjectBundle :
-         ObjectBundles) {
-      for (const DevImgPlainWithDeps &DeviceImageWithDeps :
-           getSyclObjImpl(ObjectBundle)->MDeviceImages) {
-        if (getSyclObjImpl(DeviceImageWithDeps.getMain())->getOriginMask() &
-            ImageOriginSYCLOffline) {
-          OfflineDeviceImages.push_back(&DeviceImageWithDeps);
-          for (const device_image_plain &DevImg : DeviceImageWithDeps)
-            OfflineDeviceImageSet.insert(getSyclObjImpl(DevImg));
-        }
-      }
-    }
-
     // Collect all unique images.
     std::vector<device_image_plain> DevImages;
     {
@@ -273,9 +253,7 @@ public:
            ObjectBundles)
         for (const device_image_plain &DevImg :
              getSyclObjImpl(ObjectBundle)->MUniqueDeviceImages)
-          if (OfflineDeviceImageSet.find(getSyclObjImpl(DevImg)) ==
-              OfflineDeviceImageSet.end())
-            DevImagesSet.insert(getSyclObjImpl(DevImg));
+          DevImagesSet.insert(getSyclObjImpl(DevImg));
       DevImages.reserve(DevImagesSet.size());
       for (auto It = DevImagesSet.begin(); It != DevImagesSet.end();)
         DevImages.push_back(createSyclObjFromImpl<device_image_plain>(
@@ -388,25 +366,6 @@ public:
                                  LinkedResults.begin(), LinkedResults.end());
       // TODO: Kernels may be in multiple device images, so mapping should be
       //       added.
-    }
-
-    // ... And link the offline images in separation. (Workaround.)
-    for (const DevImgPlainWithDeps *DeviceImageWithDeps : OfflineDeviceImages) {
-      // Skip images which are not compatible with devices provided
-      if (std::none_of(MDevices.begin(), MDevices.end(),
-                       [DeviceImageWithDeps](const device &Dev) {
-                         return getSyclObjImpl(DeviceImageWithDeps->getMain())
-                             ->compatible_with_device(Dev);
-                       }))
-        continue;
-
-      std::vector<device_image_plain> LinkedResults =
-          detail::ProgramManager::getInstance().link(
-              DeviceImageWithDeps->getAll(), MDevices, PropList);
-      MDeviceImages.insert(MDeviceImages.end(), LinkedResults.begin(),
-                           LinkedResults.end());
-      MUniqueDeviceImages.insert(MUniqueDeviceImages.end(),
-                                 LinkedResults.begin(), LinkedResults.end());
     }
 
     removeDuplicateImages();
