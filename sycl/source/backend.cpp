@@ -71,7 +71,7 @@ backend convertUrBackend(ur_backend_t UrBackend) {
 }
 
 platform make_platform(ur_native_handle_t NativeHandle, backend Backend) {
-  auto& adapter = getAdapter(Backend);
+  const auto& adapter = getAdapter(Backend);
 
   // Create UR platform first.
   ur_platform_handle_t UrPlatform = nullptr;
@@ -84,7 +84,7 @@ platform make_platform(ur_native_handle_t NativeHandle, backend Backend) {
 
 __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
                                  backend Backend) {
-  auto& adapter = getAdapter(Backend);
+  const auto& adapter = getAdapter(Backend);
 
   ur_device_handle_t UrDevice = nullptr;
   adapter.call<UrApiKind::urDeviceCreateWithNativeHandle>(
@@ -100,7 +100,7 @@ __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
                                    const async_handler &Handler,
                                    backend Backend, bool KeepOwnership,
                                    const std::vector<device> &DeviceList) {
-  auto &adapter = getAdapter(Backend);
+  const auto& adapter = getAdapter(Backend);
 
   ur_context_handle_t UrContext = nullptr;
   ur_context_native_properties_t Properties{};
