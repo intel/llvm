@@ -75,5 +75,8 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  sycl::free(Args.FuncPtr, Q);
+  sycl::free(Args.Ptr, Q);
+
   return Failed;
 }
