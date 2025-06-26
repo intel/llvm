@@ -9,6 +9,7 @@
 // UNSUPPORTED: gpu-intel-dg2
 
 // REQUIRES: target-spir
+
 // REQUIRES: aspect-fp16
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943

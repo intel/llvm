@@ -14,7 +14,6 @@
 // RUN: %{run} %t.out
 
 #include "common.hpp"
-
 #include "joint_matrix_16bit_impl.hpp"
 
 int main() {
