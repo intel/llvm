@@ -4,9 +4,8 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
 //
-// This file tests sycl::span functionality not covered by other test files:
+// The sycl::span functionality not covered by other test files:
 // - STL algorithm compatibility
 // - Iterator arithmetic operations
 // - Byte span conversions (as_bytes, as_writable_bytes)
@@ -155,23 +154,22 @@ TEST_F(SpanTest, RangeBasedForLoopIteratesAllElements) {
   sycl::span sp(arr, std::size(arr));
 
   int sum = 0;
-  for (const auto &elem : sp) {
+  for (const auto &elem : sp)
     sum += elem;
-  }
+
   EXPECT_EQ(sum, 15);
 }
 
 TEST_F(SpanTest, ModifyingSpanElementsModifiesUnderlying) {
   int arr[] = {1, 2, 3};
-  sycl::span sp(arr, std::size(arr));
+  auto size{std::size(arr)};
+  sycl::span sp(arr, size);
 
-  sp[0] = 10;
-  sp[1] = 20;
-  sp[2] = 30;
+  for (int i{}; i!= size; ++i)
+    sp[i] = (i+1)*10;
 
-  EXPECT_EQ(arr[0], 10);
-  EXPECT_EQ(arr[1], 20);
-  EXPECT_EQ(arr[2], 30);
+  for (int i{}; i!= size; ++i)
+    EXPECT_EQ(arr[i], (i+1)*10);
 }
 
 TEST_F(SpanTest, SpanPreservesOriginalAlignment) {
@@ -184,6 +182,7 @@ TEST_F(SpanTest, SpanPreservesOriginalAlignment) {
 TEST_F(SpanTest, IteratorReflectsUnderlyingDataChanges) {
   int arr[] = {1, 2, 3};
   sycl::span sp(arr, std::size(arr));
+
   auto it = sp.begin();
   arr[0] = 42;
   EXPECT_EQ(*it, 42); // Iterator should see the change
@@ -191,11 +190,12 @@ TEST_F(SpanTest, IteratorReflectsUnderlyingDataChanges) {
 
 TEST_F(SpanTest, ConstReverseIteratorsProvideReverseAccess) {
   int arr[] = {1, 2, 3, 4, 5};
-  sycl::span sp(arr, std::size(arr));
+  auto size{std::size(arr)};
+  sycl::span sp(arr, size);
 
   auto crit = sp.crbegin();
   auto crend = sp.crend();
-  EXPECT_EQ(*crit, 5);
+  EXPECT_EQ(*crit, arr[size - 1]);
   EXPECT_EQ(*(crend - 1), 1);
 }
 
@@ -257,6 +257,8 @@ TEST_F(SpanTest, IteratorSupportsFullArithmeticOperations) {
   EXPECT_EQ(*it2, 40);
   EXPECT_EQ(it2 - it, 2);
 
+// and comparizon operations:
+
   EXPECT_TRUE(it < it2);
   EXPECT_TRUE(it <= it2);
   EXPECT_TRUE(it2 > it);
@@ -266,7 +268,6 @@ TEST_F(SpanTest, IteratorSupportsFullArithmeticOperations) {
 }
 
 // C++20 spec tests missing from other test files
-
 TEST_F(SpanTest, AtMethodThrowsOutOfRange) {
   int arr[] = {1, 2, 3};
   sycl::span sp(arr, std::size(arr));
