@@ -98,10 +98,10 @@ constexpr uint32_t CalculateMatrixOperand() {
   if constexpr (std::is_same<Td, sycl::ext::oneapi::bfloat16>::value)
     returnValue += static_cast<uint32_t>(
         __spv::MatrixOperands::MatrixResultBFloat16ComponentsINTEL);
-  if constexpr (std::is_signed<Ta>::value && std::is_unsigned<Tb>::value)
+  if constexpr (std::is_signed<Ta>::value)
     returnValue += static_cast<uint32_t>(
         __spv::MatrixOperands::MatrixASignedComponentsKHR);
-  if constexpr (std::is_unsigned<Ta>::value && std::is_signed<Tb>::value)
+  if constexpr (std::is_signed<Tb>::value)
     returnValue += static_cast<uint32_t>(
         __spv::MatrixOperands::MatrixBSignedComponentsKHR);
   return returnValue;
