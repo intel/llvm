@@ -1,10 +1,10 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
-// RUN: %{build} %device_msan_flags -Xarch_device -fsanitize-memory-track-origins=1 -O0 -g -o %t2.out
-// RUN: %{run} %t2.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_msan_flags -Xarch_device -fsanitize-memory-track-origins=1 -O0 -g -o %t1.out
+// RUN: env UR_LAYER_MSAN_OPTIONS=msan_check_host_and_shared_usm:1 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes CHECK,CHECK-ORIGIN-STACK
 // RUN: %{build} %device_msan_flags -Xarch_device -fsanitize-memory-track-origins=1 -O1 -g -o %t2.out
-// RUN: %{run} %t2.out 2>&1 | FileCheck %s
+// RUN: env UR_LAYER_MSAN_OPTIONS=msan_check_host_and_shared_usm:1 %{run} %t2.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_msan_flags -Xarch_device -fsanitize-memory-track-origins=1 -O2 -g -o %t3.out
-// RUN: %{run} %t3.out 2>&1 | FileCheck %s
+// RUN: env UR_LAYER_MSAN_OPTIONS=msan_check_host_and_shared_usm:1 %{run} %t3.out 2>&1 | FileCheck %s
 // RUN: env UR_LAYER_MSAN_OPTIONS=msan_check_host_and_shared_usm:0 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes CHECK-SHAREDUSM
 
 #include <sycl/detail/core.hpp>
@@ -25,7 +25,7 @@ int main() {
   // CHECK: kernel <{{.*MyKernel}}>
   // CHECK: #{{.*}} {{.*check_shared_usm.cpp}}:[[@LINE-6]]
   // CHECK: ORIGIN: Shared USM allocation
-  // CHECK: #{{.*}} {{.*check_shared_usm.cpp}}:[[@LINE-11]]
+  // CHECK-ORIGIN-STACK: #{{.*}} {{.*check_shared_usm.cpp}}:[[@LINE-11]]
   // CHECK-SHAREDUSM-NOT: use-of-uninitialized-value
 
   sycl::free(array, Q);
