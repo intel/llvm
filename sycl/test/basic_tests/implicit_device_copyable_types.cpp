@@ -1,6 +1,7 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
-// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl
-// -fpreview-breaking-changes -fsyntax-only %s  %}
+// clang-format off
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes -fsyntax-only %s %}
+// clang-format on
 
 #include <sycl/sycl.hpp>
 #include <variant>
