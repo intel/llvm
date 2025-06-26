@@ -22,7 +22,7 @@ public:
   explicit DynArray(size_t Size) { init(Size); }
 
   template <typename InputIt> DynArray(InputIt Begin, InputIt End) {
-    init(End - Begin);
+    init(static_cast<size_t>(End - Begin));
     std::copy(Begin, End, this->begin());
   }
 
