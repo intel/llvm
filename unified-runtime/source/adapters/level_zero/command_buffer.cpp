@@ -1513,8 +1513,8 @@ ur_result_t waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
                (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent,
                 CommandBuffer->WaitEvent->WaitList.Length,
                 CommandBuffer->WaitEvent->WaitList.ZeEventList));
-    Queue->executeCommandList(WaitCommandList, false /*IsBlocking*/,
-                              false /*OKToBatchCommand*/);
+    UR_CALL(Queue->executeCommandList(WaitCommandList, false /*IsBlocking*/,
+                                      false /*OKToBatchCommand*/));
     MustSignalWaitEvent = false;
   }
   // Given WaitEvent was created without specifying Counting Events, then this
