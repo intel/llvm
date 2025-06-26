@@ -1290,9 +1290,6 @@ public:
     LineNo = Payload->line_no;
     ColNo = Payload->column_no;
     UId = xpti::make_uid128(FileId, FuncId, LineNo, ColNo);
-    xpti::framework::uid_object_t UidHelper(UId);
-    auto temp_file_id = UidHelper.fileId();
-    auto temp_func_id = UidHelper.functionId();
     // Update the fields of Payload that will remain invariant and is for use
     // by legacy API that deals with 64-bit universal IDs
     Payload->uid.p1 = XPTI_PACK32_RET64(FileId, LineNo);
@@ -2295,7 +2292,7 @@ public:
   }
 
   const char *lookupString(string_id_t ID) {
-    if (ID < 0)
+    if (ID == xpti::invalid_id<string_id_t>)
       return nullptr;
     return MStringTableRef.query(ID);
   }
