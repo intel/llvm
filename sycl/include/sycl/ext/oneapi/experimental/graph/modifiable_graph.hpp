@@ -210,6 +210,13 @@ protected:
   static void checkNodePropertiesAndThrow(const property_list &Properties);
 };
 
+#ifndef ___INTEL_PREVIEW_BREAKING_CHANGES
+inline void modifiable_command_graph::print_graph(const std::string path,
+                                                  bool verbose) const {
+  print_graph(sycl::detail::string_view{path}, verbose);
+}
+#endif
+
 } // namespace detail
 } // namespace experimental
 } // namespace oneapi
