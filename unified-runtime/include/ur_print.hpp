@@ -274,6 +274,8 @@ printFlag<ur_exp_enqueue_native_command_flag_t>(std::ostream &os,
 
 } // namespace ur::details
 
+inline std::ostream &operator<<(std::ostream &os,
+                                [[maybe_unused]] const ur_bool_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_structure_type_t value);
