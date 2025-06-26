@@ -231,7 +231,7 @@ public:
   bool isInterop() const { return MIsInterop; }
 
   ur_program_handle_t getProgramRef() const { return MProgram; }
-  ContextImplPtr getContextImplPtr() const { return MContext; }
+  context_impl &getContextImpl() const { return *MContext; }
 
   std::mutex &getNoncacheableEnqueueMutex() const {
     return MNoncacheableEnqueueMutex;

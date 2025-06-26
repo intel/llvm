@@ -14,6 +14,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/graph/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -31,8 +32,6 @@
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
 
-#include "detail/graph_impl.hpp"
-
 #include <memory>
 #include <utility>
 
@@ -47,8 +46,8 @@ inline namespace _V1 {
 // forward declaration
 
 namespace ext::oneapi::experimental::detail {
-class graph_impl;
-}
+class node_impl;
+} // namespace ext::oneapi::experimental::detail
 
 namespace detail {
 
@@ -84,17 +83,17 @@ protected:
 public:
   // \return a default context for the platform if it includes the device
   // passed and default contexts are enabled, a new context otherwise.
-  static ContextImplPtr getDefaultOrNew(device_impl &Device) {
-    if (!SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
-      return detail::getSyclObjImpl(
-          context{createSyclObjFromImpl<device>(Device), {}, {}});
+  static std::shared_ptr<context_impl> getDefaultOrNew(device_impl &Device) {
+    if (SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get()) {
+      context_impl &CtxImpl =
+          Device.getPlatformImpl().khr_get_default_context();
+      if (CtxImpl.isDeviceValid(Device))
+        return CtxImpl.shared_from_this();
+    }
 
-    ContextImplPtr DefaultContext =
-        detail::getSyclObjImpl(Device.get_platform().khr_get_default_context());
-    if (DefaultContext->isDeviceValid(Device))
-      return DefaultContext;
-    return detail::getSyclObjImpl(
-        context{createSyclObjFromImpl<device>(Device), {}, {}});
+    return context_impl::create(
+        std::vector<device>{createSyclObjFromImpl<device>(Device)},
+        async_handler{}, property_list{});
   }
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
@@ -117,11 +116,11 @@ public:
   /// constructed.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties to use for queue construction.
-  queue_impl(device_impl &Device, const ContextImplPtr &Context,
+  queue_impl(device_impl &Device, std::shared_ptr<context_impl> &&Context,
              const async_handler &AsyncHandler, const property_list &PropList,
              private_tag)
-      : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
-        MPropList(PropList),
+      : MDevice(Device), MContext(std::move(Context)),
+        MAsyncHandler(AsyncHandler), MPropList(PropList),
         MIsInorder(has_property<property::queue::in_order>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
@@ -146,8 +145,8 @@ public:
             "Queue compute index must be a non-negative number less than "
             "device's number of available compute queue indices.");
     }
-    if (!Context->isDeviceValid(Device)) {
-      if (Context->getBackend() == backend::opencl)
+    if (!MContext->isDeviceValid(Device)) {
+      if (MContext->getBackend() == backend::opencl)
         throw sycl::exception(
             make_error_code(errc::invalid),
             "Queue cannot be constructed with the given context and device "
@@ -177,6 +176,12 @@ public:
     trySwitchingToNoEventsMode();
   }
 
+  queue_impl(device_impl &Device, context_impl &Context,
+             const async_handler &AsyncHandler, const property_list &PropList,
+             private_tag Tag)
+      : queue_impl(Device, Context.shared_from_this(), AsyncHandler, PropList,
+                   Tag) {}
+
   sycl::detail::optional<event> getLastEvent();
 
   /// Constructs a SYCL queue from adapter interoperability handle.
@@ -185,29 +190,19 @@ public:
   /// \param Context is a SYCL context to associate with the queue being
   /// constructed.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  queue_impl(ur_queue_handle_t UrQueue, const ContextImplPtr &Context,
-             const async_handler &AsyncHandler, private_tag tag)
-      : queue_impl(UrQueue, Context, AsyncHandler, {}, tag) {}
-
-  /// Constructs a SYCL queue from adapter interoperability handle.
-  ///
-  /// \param UrQueue is a raw UR queue handle.
-  /// \param Context is a SYCL context to associate with the queue being
-  /// constructed.
-  /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is the queue properties.
-  queue_impl(ur_queue_handle_t UrQueue, const ContextImplPtr &Context,
+  queue_impl(ur_queue_handle_t UrQueue, context_impl &Context,
              const async_handler &AsyncHandler, const property_list &PropList,
              private_tag)
       : MDevice([&]() -> device_impl & {
           ur_device_handle_t DeviceUr{};
-          const Adapter& adapter = Context->getAdapter();
+          const Adapter& adapter = Context.getAdapter();
           // TODO catch an exception and put it to list of asynchronous
           // exceptions
           adapter.call<UrApiKind::urQueueGetInfo>(
               UrQueue, UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr,
               nullptr);
-          device_impl *Device = Context->findMatchingDeviceImpl(DeviceUr);
+          device_impl *Device = Context.findMatchingDeviceImpl(DeviceUr);
           if (Device == nullptr) {
             throw sycl::exception(
                 make_error_code(errc::invalid),
@@ -215,8 +210,9 @@ public:
           }
           return *Device;
         }()),
-        MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
-        MQueue(UrQueue), MIsInorder(has_property<property::queue::in_order>()),
+        MContext(Context.shared_from_this()), MAsyncHandler(AsyncHandler),
+        MPropList(PropList), MQueue(UrQueue),
+        MIsInorder(has_property<property::queue::in_order>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
@@ -650,11 +646,8 @@ public:
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
-  static ContextImplPtr getContext(queue_impl *Queue) {
-    return Queue ? Queue->getContextImplPtr() : nullptr;
-  }
-  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
-    return getContext(Queue.get());
+  static context_impl *getContext(queue_impl *Queue) {
+    return Queue ? &Queue->getContextImpl() : nullptr;
   }
 
   // Must be called under MMutex protection
@@ -692,7 +685,7 @@ public:
 protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
-    auto &Queue = Handler.impl->get_queue();
+    queue_impl &Queue = Handler.impl->get_queue();
     auto ResEvent = detail::event_impl::create_device_event(Queue);
     ur_event_handle_t UREvent = nullptr;
     getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
@@ -988,7 +981,7 @@ protected:
   mutable std::mutex MMutex;
 
   device_impl &MDevice;
-  const ContextImplPtr MContext;
+  const std::shared_ptr<context_impl> MContext;
 
   /// These events are tracked, but not owned, by the queue.
   std::vector<std::weak_ptr<event_impl>> MEventsWeak;

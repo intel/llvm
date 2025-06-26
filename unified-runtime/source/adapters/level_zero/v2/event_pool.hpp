@@ -31,11 +31,10 @@ public:
   // store weak reference to the queue as event_pool is part of the queue
   event_pool(ur_context_handle_t hContext,
              std::unique_ptr<event_provider> Provider)
-      : hContext(hContext), provider(std::move(Provider)),
-        mutex(std::make_unique<std::mutex>()) {};
+      : hContext(hContext), provider(std::move(Provider)) {};
 
-  event_pool(event_pool &&other) = default;
-  event_pool &operator=(event_pool &&other) = default;
+  event_pool(event_pool &&other) = delete;
+  event_pool &operator=(event_pool &&other) = delete;
 
   event_pool(const event_pool &) = delete;
   event_pool &operator=(const event_pool &) = delete;
@@ -58,7 +57,7 @@ private:
   std::deque<ur_event_handle_t_> events;
   std::vector<ur_event_handle_t> freelist;
 
-  std::unique_ptr<std::mutex> mutex;
+  ur_mutex mutex;
 };
 
 } // namespace v2

@@ -230,20 +230,10 @@ std::mutex &GlobalHandler::getFilterMutex() {
   return FilterMutex;
 }
 
-std::vector<std::unique_ptr<Adapter>> &GlobalHandler::getAdapters() {
-  static std::vector<std::unique_ptr<Adapter>> &adapters =
-      getOrCreate(MAdapters);
+std::vector<Adapter *> &GlobalHandler::getAdapters() {
+  static std::vector<Adapter *> &adapters = getOrCreate(MAdapters);
   enableOnCrashStackPrinting();
   return adapters;
-}
-
-// Get vector of raw pointers to adapters.
-std::vector<Adapter*> GlobalHandler::getAdapterPtrs() {
-  std::vector<Adapter*> RawPtrs;
-  for (const auto &Adapter : getAdapters()) {
-    RawPtrs.push_back(Adapter.get());
-  }
-  return RawPtrs;
 }
 
 ods_target_list &
@@ -324,6 +314,7 @@ void GlobalHandler::unloadAdapters() {
   if (MAdapters.Inst) {
     for (const auto &Adapter : getAdapters()) {
       Adapter->release();
+      delete Adapter;
     }
   }
 
@@ -396,6 +387,10 @@ void shutdown_late() {
   Handler->MPlatformCache.Inst.reset(nullptr);
   Handler->MScheduler.Inst.reset(nullptr);
   Handler->MProgramManager.Inst.reset(nullptr);
+
+  // Cache stores handles to the adapter, so clear it before
+  // releasing adapters.
+  Handler->MKernelNameBasedCaches.Inst.reset(nullptr);
 
   // Clear the adapters and reset the instance if it was there.
   Handler->unloadAdapters();

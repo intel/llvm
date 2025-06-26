@@ -9,7 +9,8 @@
 #include "sycl/accessor.hpp"
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
-#include <detail/graph_impl.hpp>
+#include <detail/graph/graph_impl.hpp>
+#include <detail/graph/node_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/async_alloc.hpp>
@@ -67,7 +68,7 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Only device backed asynchronous allocations are supported!");
 
-  auto& adapter = h.getContextImplPtr()->getAdapter();
+  auto& adapter = h.getContextImpl().getAdapter();
 
   // Get CG event dependencies for this allocation.
   const auto &DepEvents = h.impl->CGData.MEvents;
@@ -117,7 +118,7 @@ __SYCL_EXPORT void *async_malloc(const sycl::queue &q, sycl::usm::alloc kind,
 __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
                                            const memory_pool &pool) {
 
-  auto& adapter = h.getContextImplPtr()->getAdapter();
+  auto& adapter = h.getContextImpl().getAdapter();
   auto &memPoolImpl = sycl::detail::getSyclObjImpl(pool);
 
   // Get CG event dependencies for this allocation.

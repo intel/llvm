@@ -13,6 +13,7 @@ let layerComparisonsData;
 let latestRunsLookup = new Map();
 let pendingCharts = new Map(); // Store chart data for lazy loading
 let chartObserver; // Intersection observer for lazy loading charts
+let annotationsOptions = new Map(); // Global options map for annotations
 
 // DOM Elements
 let runSelect, selectedRunsDiv, suiteFiltersContainer, tagFiltersContainer;
@@ -61,6 +62,16 @@ const colorPalette = [
     'rgb(80, 115, 230)',
     'rgb(210, 190, 0)',
 ];
+
+const annotationPalette = [
+    'rgba(167, 109, 59, 0.8)',
+    'rgba(185, 185, 60, 0.8)',
+    'rgba(58, 172, 58, 0.8)',
+    'rgba(158, 59, 158, 0.8)',
+    'rgba(167, 93, 63, 0.8)',
+    'rgba(163, 60, 81, 0.8)',
+    'rgba(51, 148, 155, 0.8)',
+]
 
 const nameColorMap = {};
 let colorIndex = 0;
@@ -132,6 +143,8 @@ function createChart(data, containerId, type) {
                                 `Stddev: ${point.stddev.toFixed(2)} ${data.unit}`,
                                 `Git Hash: ${point.gitHash}`,
                                 `Compute Runtime: ${point.compute_runtime}`,
+                                `Bench hash: ${point.gitBenchHash?.substring(0, 7)}`,
+                                `Bench URL: ${point.gitBenchUrl}`,
                             ];
                         } else {
                             return [`${context.dataset.label}:`,
@@ -140,7 +153,10 @@ function createChart(data, containerId, type) {
                         }
                     }
                 }
-            }
+            },
+            annotation: type === 'time' ? {
+                annotations: {}
+            } : undefined
         },
         scales: {
             y: {
@@ -158,7 +174,7 @@ function createChart(data, containerId, type) {
     if (type === 'time') {
         options.interaction = {
             mode: 'nearest',
-            intersect: false
+            intersect: true // Require to hover directly over a point
         };
         options.onClick = (event, elements) => {
             if (elements.length > 0) {
@@ -180,6 +196,11 @@ function createChart(data, containerId, type) {
                 maxTicksLimit: 10
             }
         };
+        
+        // Add dependencies version change annotations
+        if (Object.keys(data.runs).length > 0) {
+            ChartAnnotations.addVersionChangeAnnotations(data, options);
+        }
     }
 
     const chartConfig = {
@@ -202,27 +223,13 @@ function createChart(data, containerId, type) {
 
     const chart = new Chart(ctx, chartConfig);
     chartInstances.set(containerId, chart);
+    
+    // Add annotation interaction handlers for time-series charts
+    if (type === 'time') {
+        ChartAnnotations.setupAnnotationListeners(chart, ctx, options);
+    }
+    
     return chart;
-}
-
-function createTimeseriesDatasets(data) {
-    return Object.entries(data.runs).map(([name, runData], index) => ({
-        label: runData.runName, // Use run name for legend
-        data: runData.points.map(p => ({
-            seriesName: runData.runName, // Use run name for tooltips
-            x: p.date,
-            y: p.value,
-            gitHash: p.git_hash,
-            gitRepo: p.github_repo,
-            stddev: p.stddev
-        })),
-        borderColor: colorPalette[index % colorPalette.length],
-        backgroundColor: colorPalette[index % colorPalette.length],
-        borderWidth: 1,
-        pointRadius: 3,
-        pointStyle: 'circle',
-        pointHoverRadius: 5
-    }));
 }
 
 function updateCharts() {
@@ -815,7 +822,9 @@ function addRunDataPoint(group, run, result, comparison, name = null) {
         stddev: result.stddev,
         gitHash: run.git_hash,
         gitRepo: run.github_repo,
-        compute_runtime: run.compute_runtime
+        compute_runtime: run.compute_runtime,
+        gitBenchUrl: result.git_url,
+        gitBenchHash: result.git_hash,
     });
 
     return group;
@@ -997,6 +1006,11 @@ function initializeCharts() {
     allRunNames = [...new Set(benchmarkRuns.map(run => run.name))];
     latestRunsLookup = createLatestRunsLookup(benchmarkRuns);
 
+    // Create global options map for annotations
+    annotationsOptions = createAnnotationsOptions(benchmarkRuns);
+    // Make it available to the ChartAnnotations module
+    window.annotationsOptions = annotationsOptions;
+
     // Set up active runs
     const runsParam = getQueryParam('runs');
     if (runsParam) {
@@ -1109,3 +1123,30 @@ function loadData() {
 document.addEventListener('DOMContentLoaded', () => {
     loadData();
 });
+
+// Process all benchmark runs to create a global options map for annotations
+function createAnnotationsOptions(benchmarkRuns) {
+    const repoMap = new Map();
+
+    benchmarkRuns.forEach(run => {
+        run.results.forEach(result => {
+            if (result.git_url && !repoMap.has(result.git_url)) {
+                const suiteName = result.suite;
+                const colorIndex = repoMap.size % annotationPalette.length;
+                const backgroundColor = annotationPalette[colorIndex].replace('0.8', '0.9');
+                const color = {
+                    border: annotationPalette[colorIndex],
+                    background: backgroundColor
+                };
+
+                repoMap.set(result.git_url, {
+                    name: suiteName,
+                    url: result.git_url,
+                    color: color,
+                });
+            }
+        });
+    });
+
+    return repoMap;
+}

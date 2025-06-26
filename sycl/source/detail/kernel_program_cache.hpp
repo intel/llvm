@@ -112,12 +112,12 @@ public:
   };
 
   struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
-    const Adapter& adapter;
-    ProgramBuildResult(const Adapter& _adapter) : adapter(_adapter) {
+    const Adapter& MAdapter;
+    ProgramBuildResult(const Adapter& AAdapter) : MAdapter(AAdapter) {
       Val = nullptr;
     }
-    ProgramBuildResult(const Adapter& _adapter, BuildState InitialState)
-        : adapter(_adapter) {
+    ProgramBuildResult(const Adapter& AAdapter, BuildState InitialState)
+        : MAdapter(AAdapter) {
       Val = nullptr;
       this->State.store(InitialState);
     }
@@ -125,8 +125,8 @@ public:
       try {
         if (Val) {
           ur_result_t Err =
-              adapter.call_nocheck<UrApiKind::urProgramRelease>(Val);
-          __SYCL_CHECK_UR_CODE_NO_EXC(Err, adapter.getBackend());
+              MAdapter.call_nocheck<UrApiKind::urProgramRelease>(Val);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err, MAdapter.getBackend());
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
@@ -198,16 +198,16 @@ public:
   using KernelArgMaskPairT =
       std::pair<ur_kernel_handle_t, const KernelArgMask *>;
   struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
-    const Adapter& adapter;
-    KernelBuildResult(const Adapter& _adapter) : adapter(_adapter) {
+    const Adapter& MAdapter;
+    KernelBuildResult(const Adapter& AAdapter) : MAdapter(AAdapter) {
       Val.first = nullptr;
     }
     ~KernelBuildResult() {
       try {
         if (Val.first) {
           ur_result_t Err =
-              adapter.call_nocheck<UrApiKind::urKernelRelease>(Val.first);
-          __SYCL_CHECK_UR_CODE_NO_EXC(Err, adapter.getBackend());
+              MAdapter.call_nocheck<UrApiKind::urKernelRelease>(Val.first);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err, MAdapter.getBackend());
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);

@@ -8,6 +8,7 @@
 
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
+#include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/ur.hpp>
@@ -89,22 +90,8 @@ platform::get_backend_info() const {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 context platform::khr_get_default_context() const {
-  // Keeping the default context for platforms in the global cache to avoid
-  // shared_ptr based circular dependency between platform and context classes
-  std::unordered_map<detail::platform_impl *, detail::ContextImplPtr>
-      &PlatformToDefaultContextCache =
-          detail::GlobalHandler::instance().getPlatformToDefaultContextCache();
-
-  std::lock_guard<std::mutex> Lock{
-      detail::GlobalHandler::instance()
-          .getPlatformToDefaultContextCacheMutex()};
-
-  auto It = PlatformToDefaultContextCache.find(impl.get());
-  if (PlatformToDefaultContextCache.end() == It)
-    std::tie(It, std::ignore) = PlatformToDefaultContextCache.insert(
-        {impl.get(), detail::getSyclObjImpl(context{get_devices()})});
-
-  return detail::createSyclObjFromImpl<context>(It->second);
+  return detail::createSyclObjFromImpl<context>(
+      impl->khr_get_default_context());
 }
 
 context platform::ext_oneapi_get_default_context() const {

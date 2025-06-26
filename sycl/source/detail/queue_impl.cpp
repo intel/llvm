@@ -80,7 +80,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
 template <>
 typename info::platform::version::return_type
 queue_impl::get_backend_info<info::platform::version>() const {
-  if (getContextImplPtr()->getBackend() != backend::opencl) {
+  if (getContextImpl().getBackend() != backend::opencl) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::platform::version info descriptor can "
                           "only be queried with an OpenCL backend");
@@ -93,7 +93,7 @@ queue_impl::get_backend_info<info::platform::version>() const {
 template <>
 typename info::device::version::return_type
 queue_impl::get_backend_info<info::device::version>() const {
-  if (getContextImplPtr()->getBackend() != backend::opencl) {
+  if (getContextImpl().getBackend() != backend::opencl) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::device::version info descriptor can only "
                           "be queried with an OpenCL backend");
@@ -106,7 +106,7 @@ queue_impl::get_backend_info<info::device::version>() const {
 template <>
 typename info::device::backend_version::return_type
 queue_impl::get_backend_info<info::device::backend_version>() const {
-  if (getContextImplPtr()->getBackend() != backend::ext_oneapi_level_zero) {
+  if (getContextImpl().getBackend() != backend::ext_oneapi_level_zero) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::device::backend_version info descriptor "
                           "can only be queried with a Level Zero backend");
@@ -118,10 +118,10 @@ queue_impl::get_backend_info<info::device::backend_version>() const {
 }
 #endif
 
-static event prepareSYCLEventAssociatedWithQueue(
-    const std::shared_ptr<detail::queue_impl> &QueueImpl) {
-  auto EventImpl = detail::event_impl::create_device_event(*QueueImpl);
-  EventImpl->setContextImpl(QueueImpl->getContextImpl());
+static event
+prepareSYCLEventAssociatedWithQueue(detail::queue_impl &QueueImpl) {
+  auto EventImpl = detail::event_impl::create_device_event(QueueImpl);
+  EventImpl->setContextImpl(QueueImpl.getContextImpl());
   EventImpl->setStateIncomplete();
   return detail::createSyclObjFromImpl<event>(EventImpl);
 }
@@ -464,7 +464,7 @@ event queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
             event_impl::create_discarded_event());
       }
 
-      event ResEvent = prepareSYCLEventAssociatedWithQueue(shared_from_this());
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(*this);
       const auto &EventImpl = detail::getSyclObjImpl(ResEvent);
       {
         NestedCallsTracker tracker;
@@ -734,7 +734,7 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
 
   adapter.call<UrApiKind::urQueueGetNativeHandle>(MQueue, &UrNativeDesc,
                                                    &Handle);
-  if (getContextImplPtr()->getBackend() == backend::opencl)
+  if (getContextImpl().getBackend() == backend::opencl)
     __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(Handle));
 
   return Handle;

@@ -204,6 +204,8 @@ public:
   static platform_impl &getPlatformFromUrDevice(ur_device_handle_t UrDevice,
                                                 const Adapter& AAdapter);
 
+  context_impl &khr_get_default_context();
+
   // when getting sub-devices for ONEAPI_DEVICE_SELECTOR we may temporarily
   // ensure every device is a root one.
   bool MAlwaysRootDevice = false;

@@ -35,7 +35,6 @@ class context_impl;
 class event_impl;
 class Adapter;
 
-using ContextImplPtr = std::shared_ptr<context_impl>;
 using EventImplPtr = std::shared_ptr<event_impl>;
 
 // The class serves as a base for all SYCL memory objects.
@@ -280,7 +279,9 @@ public:
 
   MemObjType getType() const override { return MemObjType::Undefined; }
 
-  ContextImplPtr getInteropContext() const override { return MInteropContext; }
+  context_impl *getInteropContext() const override {
+    return MInteropContext.get();
+  }
 
   bool isInterop() const override;
 
@@ -338,7 +339,7 @@ protected:
   // Should wait on this event before start working with such memory object.
   EventImplPtr MInteropEvent;
   // Context passed by user to interoperability constructor.
-  ContextImplPtr MInteropContext;
+  std::shared_ptr<context_impl> MInteropContext;
   // Native backend memory object handle passed by user to interoperability
   // constructor.
   ur_mem_handle_t MInteropMemObject;
