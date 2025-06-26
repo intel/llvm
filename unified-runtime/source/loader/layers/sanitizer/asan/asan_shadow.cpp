@@ -56,7 +56,7 @@ ur_result_t ShadowMemoryCPU::Setup() {
   return URes;
 }
 
-ur_result_t ShadowMemoryCPU::Destory() {
+ur_result_t ShadowMemoryCPU::Destroy() {
   if (ShadowBegin == 0) {
     return UR_RESULT_SUCCESS;
   }
@@ -127,7 +127,7 @@ ur_result_t ShadowMemoryGPU::Setup() {
   return Result;
 }
 
-ur_result_t ShadowMemoryGPU::Destory() {
+ur_result_t ShadowMemoryGPU::Destroy() {
   if (PrivateShadowOffset != 0) {
     UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
                                                  (void *)PrivateShadowOffset));
@@ -160,7 +160,7 @@ ur_result_t ShadowMemoryGPU::Destory() {
     }
   }
 
-  UR_CALL(getContext()->urDdiTable.Context.pfnRelease(Context));
+  // NOTE: Context is managed by base class, so it needn't release here
 
   return UR_RESULT_SUCCESS;
 }

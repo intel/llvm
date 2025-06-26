@@ -36,14 +36,11 @@ struct ShadowMemory {
     [[maybe_unused]] ur_result_t URes =
         getContext()->urDdiTable.Context.pfnRelease(Context);
     assert(URes == UR_RESULT_SUCCESS);
-
-    URes = getContext()->urDdiTable.Device.pfnRelease(Device);
-    assert(URes == UR_RESULT_SUCCESS);
   }
 
   virtual ur_result_t Setup() = 0;
 
-  virtual ur_result_t Destory() = 0;
+  virtual ur_result_t Destroy() = 0;
 
   virtual uptr MemToShadow(uptr Ptr) = 0;
 
@@ -74,7 +71,7 @@ struct ShadowMemoryCPU final : public ShadowMemory {
 
   ur_result_t Setup() override;
 
-  ur_result_t Destory() override;
+  ur_result_t Destroy() override;
 
   uptr MemToShadow(uptr Ptr) override;
 
@@ -103,7 +100,7 @@ struct ShadowMemoryGPU : public ShadowMemory {
 
   ur_result_t Setup() override;
 
-  ur_result_t Destory() override;
+  ur_result_t Destroy() override;
   ur_result_t EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size,
                                   u8 Value) override final;
 

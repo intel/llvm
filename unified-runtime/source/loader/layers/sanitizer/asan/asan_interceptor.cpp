@@ -48,7 +48,7 @@ AsanInterceptor::~AsanInterceptor() {
   m_AllocationMap.clear();
 
   for (auto &[_, ShadowMemory] : m_ShadowMap) {
-    ShadowMemory->Destory();
+    ShadowMemory->Destroy();
   }
   m_ShadowMap.clear();
 
