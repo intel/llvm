@@ -42,7 +42,7 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
   case usm::alloc::device: {
 
     auto &CtxImpl = sycl::detail::getSyclObjImpl(MContext);
-    auto &Adapter = CtxImpl->getAdapter();
+    auto &adapter = CtxImpl->getAdapter();
 
     size_t Granularity = get_mem_granularity(MDevice, MContext);
     uintptr_t StartPtr = 0;
@@ -58,8 +58,8 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
     }
 
     // If no allocation could be reused, do a new virtual reservation
-    Adapter->call<sycl::errc::runtime,
-                  sycl::detail::UrApiKind::urVirtualMemReserve>(
+    adapter.call<sycl::errc::runtime,
+                 sycl::detail::UrApiKind::urVirtualMemReserve>(
         CtxImpl->getHandleRef(), reinterpret_cast<void *>(StartPtr),
         AlignedSize, &Alloc);
 

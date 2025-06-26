@@ -906,10 +906,10 @@ void exec_graph_impl::createCommandBuffers(
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, MIsUpdatable,
       Partition->MIsInOrderGraph && !MEnableProfiling, MEnableProfiling};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  const sycl::detail::Adapter &adapter = ContextImpl->getAdapter();
   sycl::detail::device_impl &DeviceImpl = *sycl::detail::getSyclObjImpl(Device);
   ur_result_t Res =
-      Adapter->call_nocheck<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
+      adapter.call_nocheck<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
           ContextImpl->getHandleRef(), DeviceImpl.getHandleRef(), &Desc,
           &OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
@@ -940,9 +940,9 @@ void exec_graph_impl::createCommandBuffers(
     }
   }
 
-  Res = Adapter
-            ->call_nocheck<sycl::detail::UrApiKind::urCommandBufferFinalizeExp>(
-                OutCommandBuffer);
+  Res =
+      adapter.call_nocheck<sycl::detail::UrApiKind::urCommandBufferFinalizeExp>(
+          OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid,
                           "Failed to finalize UR command-buffer");
@@ -982,7 +982,7 @@ exec_graph_impl::~exec_graph_impl() {
   try {
     MGraphImpl->markExecGraphDestroyed();
 
-    const sycl::detail::AdapterPtr &Adapter =
+    const sycl::detail::Adapter &adapter =
         sycl::detail::getSyclObjImpl(MContext)->getAdapter();
     MSchedule.clear();
 
@@ -993,7 +993,7 @@ exec_graph_impl::~exec_graph_impl() {
       Partition->MSchedule.clear();
       for (const auto &Iter : Partition->MCommandBuffers) {
         if (auto CmdBuf = Iter.second; CmdBuf) {
-          ur_result_t Res = Adapter->call_nocheck<
+          ur_result_t Res = adapter.call_nocheck<
               sycl::detail::UrApiKind::urCommandBufferReleaseExp>(CmdBuf);
           (void)Res;
           assert(Res == UR_RESULT_SUCCESS);
@@ -1107,10 +1107,9 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
       UrEnqueueWaitListSize == 0 ? nullptr : UrEventHandles.data();
 
   if (!EventNeeded) {
-    Queue.getAdapter()
-        ->call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-            Queue.getHandleRef(), CommandBuffer, UrEnqueueWaitListSize,
-            UrEnqueueWaitList, nullptr);
+    Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
+        Queue.getHandleRef(), CommandBuffer, UrEnqueueWaitListSize,
+        UrEnqueueWaitList, nullptr);
     return nullptr;
   } else {
     auto NewEvent = sycl::detail::event_impl::create_device_event(Queue);
@@ -1118,10 +1117,9 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     NewEvent->setStateIncomplete();
     NewEvent->setSubmissionTime();
     ur_event_handle_t UrEvent = nullptr;
-    Queue.getAdapter()
-        ->call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-            Queue.getHandleRef(), CommandBuffer, UrEventHandles.size(),
-            UrEnqueueWaitList, &UrEvent);
+    Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
+        Queue.getHandleRef(), CommandBuffer, UrEventHandles.size(),
+        UrEnqueueWaitList, &UrEvent);
     NewEvent->setHandle(UrEvent);
     NewEvent->setEventFromSubmittedExecCommandBuffer(true);
     return NewEvent;
@@ -1637,7 +1635,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     sycl::detail::NDRDescT &NDRDesc,
     ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const {
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  const sycl::detail::Adapter &adapter = ContextImpl->getAdapter();
   sycl::detail::device_impl &DeviceImpl =
       *sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
 
@@ -1690,7 +1688,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   if (NDRDesc.LocalSize[0] != 0)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
-    Adapter->call<sycl::detail::UrApiKind::urKernelGetGroupInfo>(
+    adapter.call<sycl::detail::UrApiKind::urKernelGetGroupInfo>(
         UrKernel, DeviceImpl.getHandleRef(),
         UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
         RequiredWGSize,
@@ -1885,8 +1883,8 @@ void exec_graph_impl::updateURImpl(
   }
 
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
-  Adapter->call<sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
+  const sycl::detail::Adapter &adapter = ContextImpl->getAdapter();
+  adapter.call<sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
       CommandBuffer, UpdateDescList.size(), UpdateDescList.data());
 }
 

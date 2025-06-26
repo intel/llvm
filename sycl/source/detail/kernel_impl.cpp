@@ -26,7 +26,7 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
       MIsInterop(true), MKernelArgMaskPtr{ArgMask} {
   ur_context_handle_t UrContext = nullptr;
   // Using the adapter from the passed ContextImpl
-  getAdapter()->call<UrApiKind::urKernelGetInfo>(
+  getAdapter().call<UrApiKind::urKernelGetInfo>(
       MKernel, UR_KERNEL_INFO_CONTEXT, sizeof(UrContext), &UrContext, nullptr);
   if (Context.getHandleRef() != UrContext)
     throw sycl::exception(
@@ -59,7 +59,7 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
 kernel_impl::~kernel_impl() {
   try {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getAdapter()->call<UrApiKind::urKernelRelease>(MKernel);
+    getAdapter().call<UrApiKind::urKernelRelease>(MKernel);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
   }
@@ -133,7 +133,7 @@ void kernel_impl::enableUSMIndirectAccess() const {
   // Some UR Adapters (like OpenCL) require this call to enable USM
   // For others, UR will turn this into a NOP.
   bool EnableAccess = true;
-  getAdapter()->call<UrApiKind::urKernelSetExecInfo>(
+  getAdapter().call<UrApiKind::urKernelSetExecInfo>(
       MKernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),
       nullptr, &EnableAccess);
 }

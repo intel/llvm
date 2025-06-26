@@ -196,12 +196,12 @@ public:
              private_tag)
       : MDevice([&]() -> device_impl & {
           ur_device_handle_t DeviceUr{};
-          const AdapterPtr &Adapter = Context.getAdapter();
+          const Adapter &adapter = Context.getAdapter();
           // TODO catch an exception and put it to list of asynchronous
           // exceptions
-          Adapter->call<UrApiKind::urQueueGetInfo>(
-              UrQueue, UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr,
-              nullptr);
+          adapter.call<UrApiKind::urQueueGetInfo>(UrQueue, UR_QUEUE_INFO_DEVICE,
+                                                  sizeof(DeviceUr), &DeviceUr,
+                                                  nullptr);
           device_impl *Device = Context.findMatchingDeviceImpl(DeviceUr);
           if (Device == nullptr) {
             throw sycl::exception(
@@ -257,7 +257,7 @@ public:
 #endif
       throw_asynchronous();
       auto status =
-          getAdapter()->call_nocheck<UrApiKind::urQueueRelease>(MQueue);
+          getAdapter().call_nocheck<UrApiKind::urQueueRelease>(MQueue);
       // If loader is already closed, it'll return a not-initialized status
       // which the UR should convert to SUCCESS code. But that isn't always
       // working on Windows. This is a temporary workaround until that is fixed.
@@ -265,7 +265,7 @@ public:
       // ->call<>() instead of ->call_nocheck<>() above.
       if (status != UR_RESULT_SUCCESS &&
           status != UR_RESULT_ERROR_UNINITIALIZED) {
-        __SYCL_CHECK_UR_CODE_NO_EXC(status, getAdapter()->getBackend());
+        __SYCL_CHECK_UR_CODE_NO_EXC(status, getAdapter().getBackend());
       }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
@@ -276,8 +276,8 @@ public:
 
   cl_command_queue get() {
     ur_native_handle_t nativeHandle = 0;
-    getAdapter()->call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
-                                                          &nativeHandle);
+    getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
+                                                         &nativeHandle);
     __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
   }
@@ -287,7 +287,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
+  const Adapter &getAdapter() const { return MContext->getAdapter(); }
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
@@ -323,7 +323,7 @@ public:
                             "flush cannot be called for a queue which is "
                             "recording to a command graph.");
     }
-    getAdapter()->call<UrApiKind::urQueueFlush>(MQueue);
+    getAdapter().call<UrApiKind::urQueueFlush>(MQueue);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -485,7 +485,7 @@ public:
     ur_queue_handle_t Queue{};
     ur_context_handle_t Context = MContext->getHandleRef();
     ur_device_handle_t Device = MDevice.getHandleRef();
-    const AdapterPtr &Adapter = getAdapter();
+    const Adapter &adapter = getAdapter();
     /*
         sycl::detail::pi::PiQueueProperties Properties[] = {
             PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
@@ -501,8 +501,8 @@ public:
               .get_index();
       Properties.pNext = &IndexProperties;
     }
-    Adapter->call<UrApiKind::urQueueCreate>(Context, Device, &Properties,
-                                            &Queue);
+    adapter.call<UrApiKind::urQueueCreate>(Context, Device, &Properties,
+                                           &Queue);
 
     return Queue;
   }
@@ -663,8 +663,8 @@ public:
   EventImplPtr insertMarkerEvent() {
     auto ResEvent = detail::event_impl::create_device_event(*this);
     ur_event_handle_t UREvent = nullptr;
-    getAdapter()->call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
-                                                       nullptr, &UREvent);
+    getAdapter().call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
+                                                      nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;
   }
@@ -688,7 +688,7 @@ protected:
     queue_impl &Queue = Handler.impl->get_queue();
     auto ResEvent = detail::event_impl::create_device_event(Queue);
     ur_event_handle_t UREvent = nullptr;
-    getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+    getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
         Queue.getHandleRef(), 0, nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;
