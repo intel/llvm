@@ -175,7 +175,8 @@ const char *SYCLInstallationDetector::findLibspirvPath(
     return nullptr;
   }
 
-  const SmallString<64> Basename = getLibSpirvBasename(DeviceTriple, HostTriple);
+  const SmallString<64> Basename =
+      getLibSpirvBasename(DeviceTriple, HostTriple);
   auto searchAt = [&](StringRef Path, const Twine &a = "", const Twine &b = "",
                       const Twine &c = "", const Twine &d = "",
                       const Twine &e = "") -> const char * {
