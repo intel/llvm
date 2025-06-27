@@ -366,7 +366,7 @@ context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
           InitEventsRef.begin(), InitEventsRef.end(),
           [&Adapter](const ur_event_handle_t &Event) {
             return get_event_info<info::event::command_execution_status>(
-                       Event, Adapter) == info::event_command_status::complete;
+                       Event, *Adapter) == info::event_command_status::complete;
           });
       // Release the removed events.
       for (auto EventIt = NewEnd; EventIt != InitEventsRef.end(); ++EventIt)

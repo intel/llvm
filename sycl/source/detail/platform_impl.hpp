@@ -35,19 +35,20 @@ class platform_impl : public std::enable_shared_from_this<platform_impl> {
   /// Constructs platform_impl from a UR platform handle.
   ///
   /// \param APlatform is a raw plug-in platform handle.
-  /// \param AAdapter is a plug-in handle.
+  /// \param Adapter is a plug-in handle.
   //
   // Platforms can only be created under `GlobalHandler`'s ownership via
   // `platform_impl::getOrMakePlatformImpl` method.
   explicit platform_impl(ur_platform_handle_t APlatform,
-                         const adapter_impl *AAdapter)
+                         const adapter_impl &Adapter)
       : MPlatform(APlatform) {
 
-    MAdapter = const_cast<AdapterPtr>(AAdapter);
-
+    // Temporary workaround. Remove it after making MAdapter const and
+    // make platform_impl::getAdapter return adapter_impl.
+    MAdapter = const_cast<adapter_impl *>(&Adapter);
     // Find out backend of the platform
     ur_backend_t UrBackend = UR_BACKEND_UNKNOWN;
-    AAdapter->call_nocheck<UrApiKind::urPlatformGetInfo>(
+    Adapter.call_nocheck<UrApiKind::urPlatformGetInfo>(
         APlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_backend_t), &UrBackend,
         nullptr);
     MBackend = convertUrBackend(UrBackend);

@@ -51,7 +51,7 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
     // needs a bit of help...
     struct creator : platform_impl {
       creator(ur_platform_handle_t APlatform, const adapter_impl &AAdapter)
-          : platform_impl(APlatform, &AAdapter) {}
+          : platform_impl(APlatform, AAdapter) {}
     };
     Result = std::make_shared<creator>(UrPlatform, Adapter);
     PlatformCache.emplace_back(Result);

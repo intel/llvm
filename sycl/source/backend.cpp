@@ -33,13 +33,13 @@ namespace detail {
 static const adapter_impl &getAdapter(backend Backend) {
   switch (Backend) {
   case backend::opencl:
-    return *ur::getAdapter<backend::opencl>();
+    return ur::getAdapter<backend::opencl>();
   case backend::ext_oneapi_level_zero:
-    return *ur::getAdapter<backend::ext_oneapi_level_zero>();
+    return ur::getAdapter<backend::ext_oneapi_level_zero>();
   case backend::ext_oneapi_cuda:
-    return *ur::getAdapter<backend::ext_oneapi_cuda>();
+    return ur::getAdapter<backend::ext_oneapi_cuda>();
   case backend::ext_oneapi_hip:
-    return *ur::getAdapter<backend::ext_oneapi_hip>();
+    return ur::getAdapter<backend::ext_oneapi_hip>();
   default:
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::runtime),
