@@ -11172,6 +11172,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
 
   // Handle free functions.
   if (LangOpts.SYCLIsDevice && !NewFD->isDependentContext() &&
+      !D.isRedeclaration() &&
       D.getFunctionDefinitionKind() == FunctionDefinitionKind::Declaration)
     SYCL().processFreeFunctionDeclaration(NewFD);
 
