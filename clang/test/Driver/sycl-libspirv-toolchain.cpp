@@ -5,9 +5,13 @@
 
 // RUN: %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -target x86_64-unknown-windows-msvc %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-WINDOWS
+// RUN: %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -target x86_64-unknown-windows-gnu %s 2>&1 \
+// RUN: | FileCheck %s --check-prefixes=CHECK-WINDOWS
 // CHECK-WINDOWS: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "{{.*[\\/]}}remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc"
 //
 // RUN: %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -target x86_64-unknown-linux-gnu %s 2>&1 \
+// RUN: | FileCheck %s --check-prefixes=CHECK-LINUX
+// RUN: %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -target x86_64-unknown-windows-cygnus %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-LINUX
 // CHECK-LINUX: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "{{.*[\\/]}}remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc"
 //

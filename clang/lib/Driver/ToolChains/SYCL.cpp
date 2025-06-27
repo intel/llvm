@@ -152,8 +152,12 @@ SYCLInstallationDetector::SYCLInstallationDetector(
 static llvm::SmallString<64>
 getLibSpirvBasename(const llvm::Triple &DeviceTriple,
                     const llvm::Triple &HostTriple) {
-  // Select remangled libclc variant
-  llvm::SmallString<64> Result(HostTriple.isWindowsMSVCEnvironment()
+  // Select remangled libclc variant.
+  // Decide long size based on host triple, because offloading targets are going
+  // to match that.
+  // All known windows environments except Cygwin use 32-bit long.
+  llvm::SmallString<64> Result(HostTriple.isOSWindows() &&
+                                       !HostTriple.isWindowsCygwinEnvironment()
                                    ? "remangled-l32-signed_char.libspirv-"
                                    : "remangled-l64-signed_char.libspirv-");
 
