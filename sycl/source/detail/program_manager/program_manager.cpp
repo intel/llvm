@@ -49,8 +49,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
-
 static constexpr int DbgProgMgr = 0;
 
 static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");

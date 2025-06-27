@@ -72,7 +72,6 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
 static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
 
 class context_impl;
-using ContextImplPtr = std::shared_ptr<context_impl>;
 class device_impl;
 class queue_impl;
 class event_impl;
