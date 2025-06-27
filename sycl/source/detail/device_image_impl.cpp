@@ -15,8 +15,7 @@ namespace detail {
 
 std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
     std::string_view Name, const context &Context,
-    const kernel_bundle_impl &OwnerBundle,
-    const std::shared_ptr<device_image_impl> &Self) const {
+    const kernel_bundle_impl &OwnerBundle) {
   if (!(getOriginMask() & ImageOriginKernelCompiler) &&
       !((getOriginMask() & ImageOriginSYCLBIN) && hasKernelName(Name)))
     return nullptr;
@@ -35,8 +34,8 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
           PM.getOrCreateKernel(Context, AdjustedName,
                                /*PropList=*/{}, UrProgram);
       return std::make_shared<kernel_impl>(UrKernel, *getSyclObjImpl(Context),
-                                           Self, OwnerBundle, ArgMask,
-                                           UrProgram, CacheMutex);
+                                           shared_from_this(), OwnerBundle,
+                                           ArgMask, UrProgram, CacheMutex);
     }
     return nullptr;
   }
@@ -49,7 +48,8 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
   // Kernel created by urKernelCreate is implicitly retained.
 
   return std::make_shared<kernel_impl>(
-      UrKernel, *detail::getSyclObjImpl(Context), Self, OwnerBundle,
+      UrKernel, *detail::getSyclObjImpl(Context), shared_from_this(),
+      OwnerBundle,
       /*ArgMask=*/nullptr, UrProgram, /*CacheMutex=*/nullptr);
 }
 

@@ -394,7 +394,10 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
         CGF, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc, IsTopCodeLoc, {});
     if (EventImpl)
       EventImpl->attachEventToCompleteWeak(FlushEvent);
-    registerStreamServiceEvent(FlushEvent);
+    if (!isInOrder()) {
+      // For in-order queue, the dependencies will be tracked by LastEvent
+      registerStreamServiceEvent(FlushEvent);
+    }
   }
 
   return EventImpl;
@@ -615,51 +618,57 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     }
   }
 
-  std::vector<std::weak_ptr<event_impl>> WeakEvents;
-  EventImplPtr LastEvent;
-  {
-    std::lock_guard<std::mutex> Lock(MMutex);
-    WeakEvents.swap(MEventsWeak);
-    LastEvent = MDefaultGraphDeps.LastEventPtr;
+  if (isInOrder() && !MNoLastEventMode.load(std::memory_order_relaxed)) {
+    // if MLastEvent is not null, we need to wait for it
+    EventImplPtr LastEvent;
+    {
+      std::lock_guard<std::mutex> Lock(MMutex);
+      LastEvent = MDefaultGraphDeps.LastEventPtr;
+    }
+    if (LastEvent) {
+      LastEvent->wait(LastEvent);
+    }
+  } else if (!isInOrder()) {
+    std::vector<std::weak_ptr<event_impl>> WeakEvents;
+    {
+      std::lock_guard<std::mutex> Lock(MMutex);
+      WeakEvents.swap(MEventsWeak);
+      MMissedCleanupRequests.unset(
+          [&](MissedCleanupRequestsType &MissedCleanupRequests) {
+            for (auto &UpdatedGraph : MissedCleanupRequests)
+              doUnenqueuedCommandCleanup(UpdatedGraph);
+            MissedCleanupRequests.clear();
+          });
+    }
 
-    MMissedCleanupRequests.unset(
-        [&](MissedCleanupRequestsType &MissedCleanupRequests) {
-          for (auto &UpdatedGraph : MissedCleanupRequests)
-            doUnenqueuedCommandCleanup(UpdatedGraph);
-          MissedCleanupRequests.clear();
-        });
-  }
-  // If the queue is either a host one or does not support OOO (and we use
-  // multiple in-order queues as a result of that), wait for each event
-  // directly. Otherwise, only wait for unenqueued or host task events, starting
-  // from the latest submitted task in order to minimize total amount of calls,
-  // then handle the rest with urQueueFinish.
-  for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
-       EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
-    if (std::shared_ptr<event_impl> EventImplSharedPtr =
-            EventImplWeakPtrIt->lock()) {
-      // A nullptr UR event indicates that urQueueFinish will not cover it,
-      // either because it's a host task event or an unenqueued one.
-      if (nullptr == EventImplSharedPtr->getHandle()) {
-        EventImplSharedPtr->wait(EventImplSharedPtr);
+    // Wait for unenqueued or host task events, starting
+    // from the latest submitted task in order to minimize total amount of
+    // calls, then handle the rest with urQueueFinish.
+    for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
+         EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
+      if (std::shared_ptr<event_impl> EventImplSharedPtr =
+              EventImplWeakPtrIt->lock()) {
+        // A nullptr UR event indicates that urQueueFinish will not cover it,
+        // either because it's a host task event or an unenqueued one.
+        if (nullptr == EventImplSharedPtr->getHandle()) {
+          EventImplSharedPtr->wait(EventImplSharedPtr);
+        }
       }
     }
-  }
-
-  if (LastEvent) {
-    LastEvent->wait(LastEvent);
   }
 
   const AdapterPtr &Adapter = getAdapter();
   Adapter->call<UrApiKind::urQueueFinish>(getHandleRef());
 
-  std::vector<EventImplPtr> StreamsServiceEvents;
-  {
-    std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
-    StreamsServiceEvents.swap(MStreamsServiceEvents);
+  if (!isInOrder()) {
+    std::vector<EventImplPtr> StreamsServiceEvents;
+    {
+      std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
+      StreamsServiceEvents.swap(MStreamsServiceEvents);
+    }
+    for (const EventImplPtr &Event : StreamsServiceEvents)
+      Event->wait(Event);
   }
-  for (const EventImplPtr &Event : StreamsServiceEvents)
-    Event->wait(Event);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiEnabled) {

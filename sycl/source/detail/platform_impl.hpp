@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/split_string.hpp>
 #include <detail/ur.hpp>
 #include <detail/ur_info_code.hpp>
@@ -39,7 +39,7 @@ class platform_impl : public std::enable_shared_from_this<platform_impl> {
   //
   // Platforms can only be created under `GlobalHandler`'s ownership via
   // `platform_impl::getOrMakePlatformImpl` method.
-  explicit platform_impl(ur_platform_handle_t APlatform, Adapter *AAdapter)
+  explicit platform_impl(ur_platform_handle_t APlatform, adapter_impl *AAdapter)
       : MPlatform(APlatform), MAdapter(AAdapter) {
     // Find out backend of the platform
     ur_backend_t UrBackend = UR_BACKEND_UNKNOWN;
