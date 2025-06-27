@@ -1,3 +1,5 @@
+include(CheckCXXCompilerFlag)
+
 add_llvm_component_library(LLVMSYCLNativeCPUUtils
   PipelineSYCLNativeCPU.cpp
   PrepareSYCLNativeCPU.cpp
@@ -25,6 +27,11 @@ set(OCK_GIT_REPO "" CACHE STRING "Git repository for the oneAPI Construction Kit
 set(OCK_GIT_TAG "" CACHE STRING "Git tag for the oneAPI Construction Kit FetchContent")
 option(NATIVECPU_OCK_USE_FETCHCONTENT "Use FetchContent to acquire oneAPI Construction Kit source code" On)
 option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
+
+check_cxx_compiler_flag("-Wno-error -Wno-unused-parameter" SUPPORTS_WNO_ERROR_UNUSED_PARAM_FLAG)
+if(SUPPORTS_WNO_ERROR_UNUSED_PARAM_FLAG)
+  target_compile_options(LLVMSYCLNativeCPUUtils PRIVATE -Wno-error -Wno-unused-parameter)
+endif()
 
 # Don't fetch OCK if Native CPU is not enabled.
 if(NOT "native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -76,6 +83,11 @@ if(NATIVECPU_USE_OCK)
     ${OCK_SOURCE_DIR_INTERNAL}
     ${OCK_BINARY_DIR_INTERNAL} EXCLUDE_FROM_ALL)
 
+  if(SUPPORTS_WNO_ERROR_UNUSED_PARAM_FLAG)
+    target_compile_options(compiler-pipeline PRIVATE -Wno-error -Wno-unused-parameter)
+    target_compile_options(vecz PRIVATE -Wno-error -Wno-unused-parameter)
+  endif()
+
   install(TARGETS compiler-pipeline
   EXPORT;LLVMExports
           LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT compiler-pipeline
@@ -91,7 +103,7 @@ if(NATIVECPU_USE_OCK)
   install(TARGETS multi_llvm EXPORT;LLVMExports)
   set_property(GLOBAL APPEND PROPERTY LLVM_EXPORTS multi_llvm)
   target_compile_definitions(LLVMSYCLNativeCPUUtils PRIVATE  NATIVECPU_USE_OCK)
-  target_include_directories(LLVMSYCLNativeCPUUtils PRIVATE 
+  target_include_directories(LLVMSYCLNativeCPUUtils PRIVATE SYSTEM
     ${oneapi-ck_SOURCE_DIR}/modules/compiler/multi_llvm/include
     ${oneapi-ck_SOURCE_DIR}/modules/cargo/include
     ${oneapi-ck_SOURCE_DIR}/modules/compiler/vecz/include
