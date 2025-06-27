@@ -9,6 +9,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/context_info.hpp>
 #include <detail/event_info.hpp>
+#include <detail/memory_pool_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/detail/common.hpp>
@@ -16,6 +17,7 @@
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/property_list.hpp>
@@ -410,7 +412,7 @@ context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
 
     // Device global map entry pointers will not die before the end of the
     // program and the pointers will stay the same, so we do not need
-    // m_DeviceGlobalsMutex here.
+    // to lock the device global map here.
     // The lifetimes of device global map entries representing globals in
     // runtime-compiled code will be tied to the kernel bundle, so the
     // assumption holds in that setting as well.
@@ -590,7 +592,7 @@ context_impl::get_default_memory_pool(const context &Context,
   auto MemPoolImplPtr = std::make_shared<
       sycl::ext::oneapi::experimental::detail::memory_pool_impl>(
       Context, Device, sycl::usm::alloc::device, PoolHandle,
-      true /*Default pool*/, property_list{});
+      true /*Default pool*/);
 
   // Hold onto a weak_ptr of the memory_pool_impl. Prevents circular
   // dependencies between the context_impl and memory_pool_impl.
