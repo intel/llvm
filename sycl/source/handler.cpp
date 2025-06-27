@@ -559,7 +559,6 @@ event handler::finalize() {
       std::vector<ur_event_handle_t> RawEvents = detail::Command::getUrEvents(
           impl->CGData.MEvents, impl->get_queue_or_null(), false);
 
-
       bool DiscardEvent =
           !impl->MEventNeeded && impl->get_queue().supportsDiscardingPiEvents();
       if (DiscardEvent) {
