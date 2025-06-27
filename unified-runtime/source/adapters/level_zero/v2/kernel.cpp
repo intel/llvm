@@ -97,7 +97,7 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(
 }
 
 ur_result_t ur_kernel_handle_t_::release() {
-  if (!RefCount.decrementAndTest())
+  if (!RefCount.release())
     return UR_RESULT_SUCCESS;
 
   // manually release kernels to allow errors to be propagated
@@ -370,7 +370,7 @@ urKernelCreateWithNativeHandle(ur_native_handle_t hNativeKernel,
 ur_result_t urKernelRetain(
     /// [in] handle for the Kernel to retain
     ur_kernel_handle_t hKernel) try {
-  hKernel->getRefCount().increment();
+  hKernel->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());

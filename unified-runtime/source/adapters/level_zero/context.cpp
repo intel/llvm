@@ -61,7 +61,7 @@ ur_result_t urContextRetain(
 
     /// [in] handle of the context to get a reference of.
     ur_context_handle_t Context) {
-  Context->getRefCount().increment();
+  Context->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 }
 
@@ -251,7 +251,7 @@ ur_device_handle_t ur_context_handle_t_::getRootDevice() const {
 // from the list of tracked contexts.
 ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
 
-  if (!Context->getRefCount().decrementAndTest())
+  if (!Context->getRefCount().release())
     return UR_RESULT_SUCCESS;
 
   if (IndirectAccessTrackingEnabled) {

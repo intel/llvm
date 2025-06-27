@@ -53,7 +53,7 @@ void event_pool::free(ur_event_handle_t event) {
 
   // The event is still in the pool, so we need to increment the refcount
   assert(event->getRefCount().getCount() == 0);
-  event->getRefCount().increment();
+  event->getRefCount().retain();
 }
 
 event_provider *event_pool::getProvider() const { return provider.get(); }

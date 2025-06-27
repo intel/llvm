@@ -684,14 +684,14 @@ ur_result_t urMemGetInfo(ur_mem_handle_t hMem, ur_mem_info_t propName,
 }
 
 ur_result_t urMemRetain(ur_mem_handle_t hMem) try {
-  hMem->getRefCount().increment();
+  hMem->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urMemRelease(ur_mem_handle_t hMem) try {
-  if (!hMem->getRefCount().decrementAndTest())
+  if (!hMem->getRefCount().release())
     return UR_RESULT_SUCCESS;
 
   delete hMem;

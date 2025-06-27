@@ -1666,7 +1666,7 @@ ur_result_t urDeviceGetGlobalTimestamps(
 ur_result_t urDeviceRetain(ur_device_handle_t Device) {
   // The root-device ref-count remains unchanged (always 1).
   if (Device->isSubDevice()) {
-    Device->getRefCount().increment();
+    Device->getRefCount().retain();
   }
   return UR_RESULT_SUCCESS;
 }
@@ -1674,7 +1674,7 @@ ur_result_t urDeviceRetain(ur_device_handle_t Device) {
 ur_result_t urDeviceRelease(ur_device_handle_t Device) {
   // Root devices are destroyed during the piTearDown process.
   if (Device->isSubDevice()) {
-    if (Device->getRefCount().decrementAndTest()) {
+    if (Device->getRefCount().release()) {
       delete Device;
     }
   }

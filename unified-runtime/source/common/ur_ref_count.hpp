@@ -23,9 +23,8 @@ public:
   RefCount &operator=(const RefCount &) = delete;
 
   uint32_t getCount() const noexcept { return Count.load(); }
-  uint32_t increment() { return ++Count; }
-  uint32_t decrement() { return --Count; }
-  bool decrementAndTest() { return --Count == 0; }
+  uint32_t retain() { return ++Count; }
+  bool release() { return --Count == 0; }
   void reset(uint32_t value = 1) { Count = value; }
 
 private:

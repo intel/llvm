@@ -938,7 +938,7 @@ ur_result_t urKernelGetSubGroupInfo(
 ur_result_t urKernelRetain(
     /// [in] handle for the Kernel to retain
     ur_kernel_handle_t Kernel) {
-  Kernel->getRefCount().increment();
+  Kernel->getRefCount().retain();
 
   return UR_RESULT_SUCCESS;
 }
@@ -946,7 +946,7 @@ ur_result_t urKernelRetain(
 ur_result_t urKernelRelease(
     /// [in] handle for the Kernel to release
     ur_kernel_handle_t Kernel) {
-  if (!Kernel->getRefCount().decrementAndTest())
+  if (!Kernel->getRefCount().release())
     return UR_RESULT_SUCCESS;
 
   auto KernelProgram = Kernel->Program;

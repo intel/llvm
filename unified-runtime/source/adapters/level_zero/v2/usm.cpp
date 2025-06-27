@@ -332,7 +332,7 @@ ur_result_t urUSMPoolCreate(
 ur_result_t
 /// [in] pointer to USM memory pool
 urUSMPoolRetain(ur_usm_pool_handle_t hPool) try {
-  hPool->getRefCount().increment();
+  hPool->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 } catch (umf_result_t e) {
   return umf::umf2urResult(e);
@@ -343,7 +343,7 @@ urUSMPoolRetain(ur_usm_pool_handle_t hPool) try {
 ur_result_t
 /// [in] pointer to USM memory pool
 urUSMPoolRelease(ur_usm_pool_handle_t hPool) try {
-  if (hPool->getRefCount().decrementAndTest()) {
+  if (hPool->getRefCount().release()) {
     hPool->getContextHandle()->removeUsmPool(hPool);
     delete hPool;
   }

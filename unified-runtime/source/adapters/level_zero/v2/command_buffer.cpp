@@ -258,7 +258,7 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
 
 ur_result_t
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
-  hCommandBuffer->getRefCount().increment();
+  hCommandBuffer->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -266,7 +266,7 @@ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
 
 ur_result_t
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
-  if (!hCommandBuffer->getRefCount().decrementAndTest())
+  if (!hCommandBuffer->getRefCount().release())
     return UR_RESULT_SUCCESS;
 
   if (auto executionEvent = hCommandBuffer->getExecutionEventUnlocked()) {
