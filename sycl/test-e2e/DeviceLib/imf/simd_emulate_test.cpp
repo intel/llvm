@@ -3,9 +3,6 @@
 
 // RUN: %{build} -fno-builtin %if target-spir %{ -fsycl-device-lib-jit-link -Wno-deprecated %} -o %t2.out
 // RUN: %{run} %t2.out
-//
-// UNSUPPORTED: target-nvidia || target-amd
-// UNSUPPORTED-INTENDED: imf device library is not used by NV and AMD backend.
 
 // UNSUPPORTED: igc-dev
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17008

@@ -3,16 +3,13 @@
 
 // RUN: %{build} -fno-builtin %if target-spir %{ -fsycl-device-lib-jit-link -Wno-deprecated %} -o %t2.out
 // RUN: %{run} %t2.out
-//
-// UNSUPPORTED: target-nvidia || target-amd
-// UNSUPPORTED-INTENDED: imf device library is not used by NV and AMD backend.
 
+// Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
-// UNSUPPORTED-INTENDED: Windows doesn't yet have full shutdown().
 
 #include "imf_utils.hpp"
-#include <sycl/ext/intel/math.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/math.hpp>
 
 int main() {
   sycl::queue device_queue(sycl::default_selector_v);

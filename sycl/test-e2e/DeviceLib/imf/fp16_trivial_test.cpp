@@ -8,12 +8,8 @@
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} %t1.o %t2.o  -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: target-nvidia, target-amd
-// UNSUPPORTED-INTENDED: imf device library is not used by NV and AMD backend.
-
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
-// UNSUPPORTED-INTENDED: Windows doesn't yet have full shutdown().
 
 #include "imf_utils.hpp"
 #include <cmath>
@@ -419,7 +415,6 @@ void run_imf_fp16_test() {
           F3(sycl_imf::hcmadd));
     std::cout << "hcmadd passes." << std::endl;
   }
-
 }
 #endif
 
