@@ -2481,6 +2481,9 @@ __SYCL_EXPORT void HandlerAccess::postProcess(handler &CGH,
   handler PostProcessHandler{
       std::make_unique<handler_impl>(Q, nullptr, EventNeeded)};
   PostProcessHandler.copyCodeLoc(CGH);
+  // Extend lifetimes of auxiliary resources till the last kernel in the chain
+  // finishes:
+  PostProcessHandler.impl->MAuxiliaryResources = CGH.impl->MAuxiliaryResources;
   auto E = CGH.finalize();
   if (!InOrder)
     PostProcessHandler.depends_on(E);
