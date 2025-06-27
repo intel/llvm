@@ -1,3 +1,4 @@
+include(CheckCXXCompilerFlag)
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(obj-new-offload_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (MSVC)
