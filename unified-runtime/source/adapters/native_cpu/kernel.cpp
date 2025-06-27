@@ -61,21 +61,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
   // TODO: error checking
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
 
-  hKernel->addArg(pArgValue, argIndex, argSize);
-
-  return UR_RESULT_SUCCESS;
+  return hKernel->addArg(pArgValue, argIndex, argSize);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
     const ur_kernel_arg_local_properties_t * /*pProperties*/) {
-  // emplace a placeholder kernel arg, gets replaced with a pointer to the
-  // memory pool before enqueueing the kernel.
-  hKernel->addPtrArg(nullptr, argIndex);
-  hKernel->_localArgInfo.emplace_back(argIndex, argSize);
-  return UR_RESULT_SUCCESS;
+  return hKernel->addLocalArg(argIndex, argSize);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
@@ -211,11 +204,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
     const void *pArgValue) {
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pArgValue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  hKernel->addPtrArg(const_cast<void *>(pArgValue), argIndex);
-
-  return UR_RESULT_SUCCESS;
+  return hKernel->addPtrArg(const_cast<void *>(pArgValue), argIndex);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -242,16 +232,7 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  // Taken from ur/adapters/cuda/kernel.cpp
-  // zero-sized buffers are expected to be null.
-  if (hArgValue == nullptr) {
-    hKernel->addPtrArg(nullptr, argIndex);
-    return UR_RESULT_SUCCESS;
-  }
-
-  hKernel->addArgReference(hArgValue);
-  hKernel->addPtrArg(hArgValue->_mem, argIndex);
-  return UR_RESULT_SUCCESS;
+  return hKernel->addMemObjArg(hArgValue, argIndex);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
