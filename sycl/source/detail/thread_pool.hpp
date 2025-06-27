@@ -52,7 +52,7 @@ class ThreadPool {
   private:
     std::mutex MWorkerExitMutex;
     std::condition_variable MWorkerExitCV;
-    size_t MWorkerExitCount;
+    size_t MWorkerExitCount{};
   } WinThreadExitTracker;
 #endif
 
