@@ -4427,8 +4427,7 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
     // If we have an existing declaration with the same mangling for this
     // symbol it may be a SYCLDeviceOnlyAttr case.
     if (DDI != DeferredDecls.end()) {
-      auto *PreviousGlobal =
-          cast<ValueDecl>(DeferredDecls[MangledName].getDecl());
+      auto *PreviousGlobal = cast<ValueDecl>(DDI->second.getDecl());
 
       // If the host declaration was already processed and the device only
       // declaration is also a sycl external declaration, remove the host
