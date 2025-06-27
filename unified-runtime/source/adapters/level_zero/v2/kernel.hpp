@@ -92,7 +92,7 @@ public:
                                    ze_command_list_handle_t cmdList,
                                    wait_list_view &waitListView);
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
   // Keep the program of the kernel.
@@ -120,5 +120,5 @@ private:
   // pointer to any non-null kernel in deviceKernels
   ur_single_device_kernel_t *nonEmptyKernel;
 
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };

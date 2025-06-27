@@ -244,10 +244,10 @@ struct ur_device_handle_t_ : ur_object {
   // unique ephemeral identifer of the device in the adapter
   std::optional<DeviceId> Id;
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };
 
 inline std::vector<ur_device_handle_t>

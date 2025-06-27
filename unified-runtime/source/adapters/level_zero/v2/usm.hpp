@@ -50,7 +50,7 @@ struct ur_usm_pool_handle_t_ : ur_object {
   void cleanupPools();
   void cleanupPoolsForQueue(void *hQueue);
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
   ur_context_handle_t hContext;
@@ -58,5 +58,5 @@ private:
 
   UsmPool *getPool(const usm::pool_descriptor &desc);
 
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };
