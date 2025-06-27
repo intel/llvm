@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/host_profiling_info.hpp>
@@ -27,7 +27,7 @@ class graph_impl;
 }
 class context;
 namespace detail {
-class Adapter;
+class adapter_impl;
 class context_impl;
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
@@ -311,12 +311,6 @@ public:
   }
 
   bool isDefaultConstructed() const noexcept { return MIsDefaultConstructed; }
-
-  ContextImplPtr getContextImplPtr() {
-    if (MIsDefaultConstructed)
-      initContextIfNeeded();
-    return MContext;
-  }
 
   // Sets a sync point which is used when this event represents an enqueue to a
   // Command Buffer.

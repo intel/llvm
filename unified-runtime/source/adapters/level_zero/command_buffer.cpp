@@ -312,9 +312,6 @@ ur_result_t createSyncPointAndGetZeEvents(
   if (CommandBuffer->IsInOrderCmdList) {
     UR_CALL(createSyncPointBetweenCopyAndCompute(CommandBuffer, ZeCommandList,
                                                  ZeEventList));
-    if (!ZeEventList.empty()) {
-      NumSyncPointsInWaitList = ZeEventList.size();
-    }
     return UR_RESULT_SUCCESS;
   }
 
@@ -1330,9 +1327,9 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
       CommandBuffer->ZeComputeCommandList, NumSyncPointsInWaitList,
       SyncPointWaitList, true, RetSyncPoint, ZeEventList, ZeLaunchEvent));
 
-  if (NumSyncPointsInWaitList) {
+  if (!ZeEventList.empty()) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (CommandBuffer->ZeComputeCommandList, NumSyncPointsInWaitList,
+               (CommandBuffer->ZeComputeCommandList, ZeEventList.size(),
                 ZeEventList.data()));
   }
 
@@ -1394,9 +1391,9 @@ ur_result_t urCommandBufferAppendUSMAdviseExp(
       NumSyncPointsInWaitList, SyncPointWaitList, true, RetSyncPoint,
       ZeEventList, ZeLaunchEvent));
 
-  if (NumSyncPointsInWaitList) {
+  if (!ZeEventList.empty()) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (CommandBuffer->ZeComputeCommandList, NumSyncPointsInWaitList,
+               (CommandBuffer->ZeComputeCommandList, ZeEventList.size(),
                 ZeEventList.data()));
   }
 
