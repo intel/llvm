@@ -37,8 +37,8 @@
 // RUN: | FileCheck %s     -DDIR=%{nonexistent_dir} --check-prefixes=CHECK-HHH-NONEXISTENT
 // CHECK-HHH-NONEXISTENT: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "[[DIR]]{{.*[\\/]}}remangled-{{.*}}.libspirv-nvptx64-nvidia-cuda.bc"
 //
-// RUN: %clang -###     -resource-dir %{nonexistent_dir} -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx908 -nogpulib %s 2>&1 \
-// RUN: | FileCheck %s          -DDIR=%{nonexistent_dir} --check-prefixes=CHECK-AMDGCN-HHH-NONEXISTENT
+// RUN: %clang -### -resource-dir %{nonexistent_dir} -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx908 -nogpulib %s 2>&1 \
+// RUN: | FileCheck %s      -DDIR=%{nonexistent_dir} --check-prefixes=CHECK-AMDGCN-HHH-NONEXISTENT
 // CHECK-AMDGCN-HHH-NONEXISTENT: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "[[DIR]]{{.*[\\/]}}remangled-{{.*}}.libspirv-amdgcn-amd-amdhsa.bc"
 //
 // `-fdriver-only` has no such special handling, so it will not find the file
