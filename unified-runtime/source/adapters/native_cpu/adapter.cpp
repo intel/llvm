@@ -10,17 +10,22 @@
 
 #include "adapter.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "ur_api.h"
 
 struct ur_adapter_handle_t_ : ur::native_cpu::handle_base {
-  std::atomic<uint32_t> RefCount = 0;
   logger::Logger &logger = logger::get_logger("native_cpu");
+
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
+
+private:
+  ur::RefCount RefCount;
 } Adapter;
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
     uint32_t, ur_adapter_handle_t *phAdapters, uint32_t *pNumAdapters) {
   if (phAdapters) {
-    Adapter.RefCount++;
+    Adapter.getRefCount().retain();
     *phAdapters = &Adapter;
   }
   if (pNumAdapters) {
@@ -30,12 +35,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
-  Adapter.RefCount--;
+  Adapter.getRefCount().release();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
-  Adapter.RefCount++;
+  Adapter.getRefCount().retain();
   return UR_RESULT_SUCCESS;
 }
 
@@ -57,7 +62,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
   case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_NATIVE_CPU);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
-    return ReturnValue(Adapter.RefCount.load());
+    return ReturnValue(Adapter.getRefCount().getCount());
   case UR_ADAPTER_INFO_VERSION:
     return ReturnValue(uint32_t{1});
   default:
