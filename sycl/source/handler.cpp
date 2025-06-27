@@ -318,7 +318,12 @@ fill_copy_args(detail::handler_impl *impl,
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 handler::handler(detail::handler_impl &HandlerImpl) : impl(&HandlerImpl) {}
+handler::handler(std::unique_ptr<detail::handler_impl> &&HandlerImpl)
+    : implOwner(std::move(HandlerImpl)), impl(implOwner.get()) {}
 #else
+handler::handler(std::unique_ptr<detail::handler_impl> &&HandlerImpl)
+    : impl(std::move(HandlerImpl)) {}
+
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
     : impl(std::make_shared<detail::handler_impl>(*Queue, nullptr,
@@ -344,6 +349,7 @@ handler::handler(
     : impl(std::make_shared<detail::handler_impl>(*Graph)) {}
 
 #endif
+handler::~handler() = default;
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
@@ -426,12 +432,6 @@ detail::EventImplPtr handler::finalize() {
 #else
 event handler::finalize() {
 #endif
-  // This block of code is needed only for reduction implementation.
-  // It is harmless (does nothing) for everything else.
-  if (MIsFinalized)
-    return MLastEvent;
-  MIsFinalized = true;
-
   const auto &type = getType();
   detail::queue_impl *Queue = impl->get_queue_or_null();
   ext::oneapi::experimental::detail::graph_impl *Graph =
@@ -559,12 +559,6 @@ event handler::finalize() {
       std::vector<ur_event_handle_t> RawEvents = detail::Command::getUrEvents(
           impl->CGData.MEvents, impl->get_queue_or_null(), false);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      detail::EventImplPtr &LastEventImpl = MLastEvent;
-#else
-      const detail::EventImplPtr &LastEventImpl =
-          detail::getSyclObjImpl(MLastEvent);
-#endif
 
       bool DiscardEvent =
           !impl->MEventNeeded && impl->get_queue().supportsDiscardingPiEvents();
@@ -577,11 +571,10 @@ event handler::finalize() {
         DiscardEvent = !KernelUsesAssert;
       }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      if (!DiscardEvent) {
-        LastEventImpl = detail::event_impl::create_completed_host_event();
-      }
-#endif
+      std::shared_ptr<detail::event_impl> ResultEvent =
+          DiscardEvent
+              ? nullptr
+              : detail::event_impl::create_device_event(impl->get_queue());
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
       const bool xptiEnabled = xptiTraceEnabled();
@@ -612,9 +605,8 @@ event handler::finalize() {
         enqueueImpKernel(
             impl->get_queue(), impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
             MKernel.get(), toKernelNameStrT(MKernelName),
-            impl->MKernelNameBasedCachePtr, RawEvents,
-            DiscardEvent ? nullptr : LastEventImpl.get(), nullptr,
-            impl->MKernelCacheConfig, impl->MKernelIsCooperative,
+            impl->MKernelNameBasedCachePtr, RawEvents, ResultEvent.get(),
+            nullptr, impl->MKernelCacheConfig, impl->MKernelIsCooperative,
             impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
             BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
             impl->MKernelParamDescGetter, impl->MKernelHasSpecialCaptures);
@@ -624,7 +616,7 @@ event handler::finalize() {
           if (!DiscardEvent) {
             detail::emitInstrumentationGeneral(
                 StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
-                static_cast<const void *>(LastEventImpl->getHandle()));
+                static_cast<const void *>(ResultEvent->getHandle()));
           }
           detail::emitInstrumentationGeneral(StreamID, InstanceID,
                                              CmdTraceEvent,
@@ -635,29 +627,32 @@ event handler::finalize() {
 
       if (DiscardEvent) {
         EnqueueKernel();
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-        LastEventImpl->setStateDiscarded();
-#endif
       } else {
         detail::queue_impl &Queue = impl->get_queue();
-        LastEventImpl->setQueue(Queue);
-        LastEventImpl->setWorkerQueue(Queue.weak_from_this());
-        LastEventImpl->setContextImpl(impl->get_context());
-        LastEventImpl->setStateIncomplete();
-        LastEventImpl->setSubmissionTime();
+        ResultEvent->setQueue(Queue);
+        ResultEvent->setWorkerQueue(Queue.weak_from_this());
+        ResultEvent->setContextImpl(impl->get_context());
+        ResultEvent->setStateIncomplete();
+        ResultEvent->setSubmissionTime();
 
         EnqueueKernel();
-        LastEventImpl->setEnqueued();
+        ResultEvent->setEnqueued();
         // connect returned event with dependent events
         if (!Queue.isInOrder()) {
           // MEvents is not used anymore, so can move.
-          LastEventImpl->getPreparedDepsEvents() =
+          ResultEvent->getPreparedDepsEvents() =
               std::move(impl->CGData.MEvents);
-          // LastEventImpl is local for current thread, no need to lock.
-          LastEventImpl->cleanDepEventsThroughOneLevelUnlocked();
+          // ResultEvent is local for current thread, no need to lock.
+          ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
         }
       }
-      return MLastEvent;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      return ResultEvent;
+#else
+      return detail::createSyclObjFromImpl<event>(
+          ResultEvent ? ResultEvent
+                      : detail::event_impl::create_discarded_event());
+#endif
     }
   }
 
@@ -939,11 +934,10 @@ event handler::finalize() {
       std::move(CommandGroup), *Queue, !DiscardEvent);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  MLastEvent = DiscardEvent ? nullptr : Event;
+  return DiscardEvent ? nullptr : Event;
 #else
-  MLastEvent = detail::createSyclObjFromImpl<event>(Event);
+  return detail::createSyclObjFromImpl<event>(Event);
 #endif
-  return MLastEvent;
 }
 
 void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
@@ -2474,58 +2468,25 @@ __SYCL_EXPORT void HandlerAccess::preProcess(handler &CGH,
   AuxHandler.copyCodeLoc(CGH);
   F(AuxHandler);
   auto E = AuxHandler.finalize();
-  assert(!CGH.MIsFinalized &&
-         "Can't do pre-processing if the command has been enqueued already!");
   if (EventNeeded)
     CGH.depends_on(E);
 }
 __SYCL_EXPORT void HandlerAccess::postProcess(handler &CGH,
                                               type_erased_cgfo_ty F) {
-  // The "hacky" `handler`s manipulation mentioned near the declaration in
-  // `handler.hpp` and implemented here is far from perfect. A better approach
-  // would be
-  //
-  //    bool OrigNeedsEvent = CGH.needsEvent()
-  //    assert(CGH.not_finalized/enqueued());
-  //    if (!InOrderQueue)
-  //      CGH.setNeedsEvent()
-  //
-  //    handler PostProcessHandler(Queue, OrigNeedsEvent)
-  //    auto E = CGH.finalize(); // enqueue original or current last
-  //                             // post-process
-  //    if (!InOrder)
-  //      PostProcessHandler.depends_on(E)
-  //
-  //    swap_impls(CGH, PostProcessHandler)
-  //    return; // queue::submit finalizes PostProcessHandler and returns its
-  //            // event if necessary.
-  //
-  // Still hackier than "real" `queue::submit` but at least somewhat sane.
-  // That, however hasn't been tried yet and we have an even hackier approach
-  // copied from what's been done in an old reductions implementation before
-  // eventless submission work has started. Not sure how feasible the approach
-  // above is at this moment.
-
-  // This `finalize` is wrong (at least logically) if
-  //   `assert(!CGH.eventNeeded())`
-  auto E = CGH.finalize();
+  bool EventNeeded = CGH.impl->MEventNeeded;
   queue_impl &Q = CGH.impl->get_queue();
   bool InOrder = Q.isInOrder();
-  // Cannot use `CGH.eventNeeded()` alone as there might be subsequent
-  // `postProcess` calls and we cannot address them properly similarly to the
-  // `finalize` issue described above. `swap_impls` suggested above might be
-  // able to handle this scenario naturally.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  handler_impl HandlerImpl{Q, nullptr, CGH.eventNeeded() || !InOrder};
-  handler AuxHandler{HandlerImpl};
-#else
-  handler AuxHandler{Q.shared_from_this(), CGH.eventNeeded() || !InOrder};
-#endif
   if (!InOrder)
-    AuxHandler.depends_on(E);
-  AuxHandler.copyCodeLoc(CGH);
-  F(AuxHandler);
-  CGH.MLastEvent = AuxHandler.finalize();
+    CGH.impl->MEventNeeded = true;
+
+  handler PostProcessHandler{
+      std::make_unique<handler_impl>(Q, nullptr, EventNeeded)};
+  PostProcessHandler.copyCodeLoc(CGH);
+  auto E = CGH.finalize();
+  if (!InOrder)
+    PostProcessHandler.depends_on(E);
+  F(PostProcessHandler);
+  swap(CGH, PostProcessHandler);
 }
 } // namespace detail
 } // namespace _V1
