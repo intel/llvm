@@ -60,7 +60,7 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
   case UR_QUEUE_INFO_DEVICE:
     return ReturnValue(hDevice);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{RefCount.load()});
+    return ReturnValue(uint32_t{RefCount.getCount()});
   case UR_QUEUE_INFO_FLAGS:
     return ReturnValue(flags);
   case UR_QUEUE_INFO_SIZE:
