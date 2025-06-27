@@ -5560,8 +5560,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Adjust for SYCL NativeCPU compilations.  When compiling in device mode, the
   // first compilation uses the NativeCPU target for LLVM IR generation, the
   // second compilation uses the host target for machine code generation.
-  const bool IsSYCLNativeCPU = isSYCLNativeCPU(Triple);
-  if (IsSYCL && IsSYCLDevice && IsSYCLNativeCPU && AuxTriple &&
+  if (IsSYCL && IsSYCLDevice && Triple.isNativeCPU() && AuxTriple &&
       isa<AssembleJobAction>(JA)) {
     Triple = *AuxTriple;
     TripleStr = Triple.getTriple();
@@ -5696,7 +5695,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-mllvm");
         CmdArgs.push_back("-sycl-opt");
       }
-      if (IsSYCLNativeCPU) {
+      if (RawTriple.isNativeCPU()) {
         CmdArgs.push_back("-fsycl-is-native-cpu");
         CmdArgs.push_back("-D");
         CmdArgs.push_back("__SYCL_NATIVE_CPU__");
@@ -6077,14 +6076,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fdirectives-only");
     }
   } else if (isa<AssembleJobAction>(JA)) {
-    if (IsSYCLDevice && !IsSYCLNativeCPU) {
+    if (IsSYCLDevice && !RawTriple.isNativeCPU()) {
       CmdArgs.push_back("-emit-llvm-bc");
     } else {
       CmdArgs.push_back("-emit-obj");
       CollectArgsForIntegratedAssembler(C, Args, CmdArgs, D);
     }
-    if (IsSYCLDevice && IsSYCLNativeCPU) {
-      // NativeCPU generates an initial LLVM module for an unknown target, then
+    if (IsSYCLDevice && RawTriple.isNativeCPU()) {
+      // NativeCPU generates an initial LLVM module for a dummy target, then
       // compiles that for host. Avoid generating a warning for that.
       CmdArgs.push_back("-Wno-override-module");
       CmdArgs.push_back("-mllvm");
@@ -10886,7 +10885,7 @@ static bool shouldEmitOnlyKernelsAsEntryPoints(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
                      options::OPT_fsycl_remove_unused_external_funcs, false))
     return false;
-  if (isSYCLNativeCPU(Triple))
+  if (Triple.isNativeCPU())
     return true;
   // When supporting dynamic linking, non-kernels in a device image can be
   // called.
@@ -10944,7 +10943,7 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (!Triple.isAMDGCN())
     addArgs(PostLinkArgs, TCArgs, {"-emit-param-info"});
   // Enable program metadata
-  if (Triple.isNVPTX() || Triple.isAMDGCN() || isSYCLNativeCPU(Triple))
+  if (Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isNativeCPU())
     addArgs(PostLinkArgs, TCArgs, {"-emit-program-metadata"});
   if (OutputType != types::TY_LLVM_BC) {
     assert(OutputType == types::TY_Tempfiletable);
