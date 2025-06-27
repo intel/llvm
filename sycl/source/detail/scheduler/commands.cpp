@@ -2540,7 +2540,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
   ur_kernel_handle_t UrKernel = nullptr;
   std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
-  auto &KernelBundleImplPtr = CommandGroup.MKernelBundle;
+  kernel_bundle_impl *KernelBundleImplPtr = CommandGroup.MKernelBundle.get();
 
   if (auto Kernel = CommandGroup.MSyclKernel; Kernel != nullptr) {
     UrKernel = Kernel->getHandleRef();

@@ -323,7 +323,7 @@ kernel make_kernel(const context &TargetContext,
                    backend Backend) {
   const auto &Adapter = getAdapter(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
-  const auto &KernelBundleImpl = getSyclObjImpl(KernelBundle);
+  kernel_bundle_impl &KernelBundleImpl = *getSyclObjImpl(KernelBundle);
 
   // For Level-Zero expect exactly one device image in the bundle. This is
   // natural for interop kernel to get created out of a single native
@@ -334,7 +334,7 @@ kernel make_kernel(const context &TargetContext,
   //
   ur_program_handle_t UrProgram = nullptr;
   if (Backend == backend::ext_oneapi_level_zero) {
-    if (KernelBundleImpl->size() != 1)
+    if (KernelBundleImpl.size() != 1)
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::runtime),
           "make_kernel: kernel_bundle must have single program image " +
@@ -360,7 +360,7 @@ kernel make_kernel(const context &TargetContext,
 
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<kernel>(
-      std::make_shared<kernel_impl>(UrKernel, *ContextImpl, KernelBundleImpl));
+      std::make_shared<kernel_impl>(UrKernel, *ContextImpl, &KernelBundleImpl));
 }
 
 kernel make_kernel(ur_native_handle_t NativeHandle,
