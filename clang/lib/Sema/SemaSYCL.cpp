@@ -1649,7 +1649,7 @@ public:
   // A visitor function that dispatches to functions as defined in
   // SyclKernelFieldHandler by iterating over a free function parameter list.
   template <typename... HandlerTys>
-  void VisitFunctionParameters(FunctionDecl *FreeFunc,
+  void VisitFunctionParameters(const FunctionDecl *FreeFunc,
                                HandlerTys &...Handlers) {
     for (ParmVarDecl *Param : FreeFunc->parameters())
       visitParam(Param, Param->getType(), Handlers...);
@@ -4822,7 +4822,7 @@ public:
   }
 
   SyclKernelIntHeaderCreator(SemaSYCL &S, SYCLIntegrationHeader &H,
-                             QualType NameType, FunctionDecl *FreeFunc)
+                             QualType NameType, const FunctionDecl *FreeFunc)
       : SyclKernelFieldHandler(S), Header(H) {
     Header.startKernel(FreeFunc, NameType, FreeFunc->getLocation(),
                        false /*IsESIMD*/, true /*IsSYCLUnnamedKernel*/,
@@ -5849,7 +5849,7 @@ void SemaSYCL::MarkDevices() {
   }
 }
 
-static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
+static bool CheckFreeFunctionDiagnostics(Sema &S, const FunctionDecl *FD) {
   if (FD->isVariadic()) {
     return S.Diag(FD->getLocation(), diag::err_free_function_variadic_args);
   }
@@ -5882,7 +5882,7 @@ void SemaSYCL::finalizeFreeFunctionKernels() {
   // their names manually. The other steps in constructing the kernel cannot be
   // done because potentially nothing is known about the arguments of the kernel
   // except that they exist.
-  for (FunctionDecl *kernel : FreeFunctionDeclarations) {
+  for (const FunctionDecl *kernel : FreeFunctionDeclarations) {
     if (CheckFreeFunctionDiagnostics(SemaRef, kernel))
       return;
 
@@ -5899,7 +5899,7 @@ void SemaSYCL::finalizeFreeFunctionKernels() {
   }
 }
 
-void SemaSYCL::processFreeFunctionDeclaration(FunctionDecl *FD) {
+void SemaSYCL::processFreeFunctionDeclaration(const FunctionDecl *FD) {
   // FD represents a forward declaration of a free function kernel.
   // Save them for the end of the translation unit action. This makes it easier
   // to handle the case where a definition is defined later.
