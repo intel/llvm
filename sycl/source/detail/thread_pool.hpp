@@ -64,7 +64,9 @@ class ThreadPool {
                          [this]() { return !MJobQueue.empty() || MStop; });
 
       if (MStop) {
+#ifdef _WIN32
         WinThreadExitTracker.signalAboutExit();
+#endif
         return;
       }
 
