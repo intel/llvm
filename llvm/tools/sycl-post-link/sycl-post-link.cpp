@@ -283,7 +283,7 @@ void saveModuleIR(Module &M, const StringRef Filename) {
   MPM.run(M, MAM);
 }
 
-void saveModuleProperties(module_split::ModuleDesc &MD,
+void saveModuleProperties(const module_split::ModuleDesc &MD,
                           const GlobalBinImageProps &GlobProps,
                           const StringRef Filename, StringRef Target = "") {
 
@@ -336,21 +336,22 @@ bool isTargetCompatibleWithModule(const std::string &Target,
 void addTableRow(util::SimpleTable &Table,
                  const IrPropSymFilenameTriple &RowData);
 
-// @param OutTables List of tables (one for each target) to output results
-// @param MD Module descriptor to save
-// @param OutputPrefix Prefix for the all generated outputs.
-// @param IRFilename filename of already available IR component. If not empty,
-//   IR component saving is skipped, and this file name is recorded as such in
-//   the result.
-void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
-                module_split::ModuleDesc &MD, int I, const Twine &OutputPrefix,
-                const StringRef IRFilename) {
+/// \param OutTables List of tables (one for each target) to output results
+/// \param MD Module descriptor to save
+/// \param OutputPrefix Prefix for the all generated outputs.
+/// \param IRFilename filename of already available IR component. If not empty,
+///   IR component saving is skipped, and this file name is recorded as such in
+///   the result.
+void saveModule(
+    const std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
+    module_split::ModuleDesc &MD, const int I, const Twine &OutputPrefix,
+    const StringRef IRFilename) {
   IrPropSymFilenameTriple BaseTriple;
   StringRef Suffix = getModuleSuffix(MD);
   MD.saveSplitInformationAsMetadata();
 
   if (!IRFilename.empty()) {
-    // don't save IR, just record the filename
+    // Don't save IR, just record the filename.
     BaseTriple.Ir = IRFilename.str();
   } else {
     if (!MD.isSYCLDeviceLib()) {
@@ -366,9 +367,8 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
     saveModuleIR(MD.getModule(), BaseTriple.Ir);
   }
 
-  // save the names of the entry points - the symbol table
   if (DoSymGen) {
-    // save the names of the entry points - the symbol table
+    // Save the names of the entry points - the symbol table.
     BaseTriple.Sym = (OutputPrefix + Suffix + "_" + Twine(I) + ".sym").str();
     saveModuleSymbolTable(MD, BaseTriple.Sym);
   }
@@ -395,8 +395,9 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
 }
 
 void saveDeviceLibModule(
-    std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
-    const Twine &OutputPrefix, int I, const std::string &DeviceLibFileName) {
+    const std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
+    const Twine &OutputPrefix, const int I,
+    const std::string &DeviceLibFileName) {
   assert(!DeviceLibFileName.empty() &&
          "DeviceLibFileName is expected to be non-empty.");
   SMDiagnostic Err;
@@ -751,18 +752,6 @@ std::string getOutputPrefix() {
 }
 
 } // namespace
-
-std::string getOutputPrefix() {
-  StringRef Dir0 = OutputDir.getNumOccurrences() > 0
-                       ? OutputDir
-                       : sys::path::parent_path(OutputFiles[0].Filename);
-  StringRef Sep = sys::path::get_separator();
-  std::string Dir = Dir0.str();
-  if (!Dir0.empty() && !Dir0.ends_with(Sep))
-    Dir += Sep.str();
-
-  return (Dir + sys::path::stem(OutputFiles[0].Filename)).str();
-}
 
 int main(int argc, char **argv) {
   InitLLVM X{argc, argv};
