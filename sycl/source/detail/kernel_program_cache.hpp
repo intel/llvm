@@ -116,8 +116,8 @@ public:
     ProgramBuildResult(const adapter_impl &Adapter) : MAdapter(Adapter) {
       Val = nullptr;
     }
-    ProgramBuildResult(const adapter_impl &AAdapter, BuildState InitialState)
-        : MAdapter(AAdapter) {
+    ProgramBuildResult(const adapter_impl &Adapter, BuildState InitialState)
+        : MAdapter(Adapter) {
       Val = nullptr;
       this->State.store(InitialState);
     }
