@@ -595,8 +595,7 @@ inline bool is_valid_payload(const xpti::payload_t *Payload) {
          static_cast<uint64_t>(payload_flag_t::LineInfoAvailable)) &&
         Payload->line_no != xpti::invalid_id<uint32_t>;
     // We ignore checking for column info as it may not always be available
-    isValid = ((hasSourceFile && hasLineInfo) || hasName || hasCodePtrVa) &&
-              (Payload->flags != 0);
+    isValid = ((hasSourceFile && hasLineInfo) || hasName || hasCodePtrVa);
 
     return isValid;
   }

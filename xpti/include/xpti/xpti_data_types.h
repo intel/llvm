@@ -472,11 +472,9 @@ struct payload_t {
   /// @param codeptr Pointer to the code location associated with this payload.
   ///
   payload_t(const void *codeptr) {
-    code_ptr_va = codeptr;
-    name = nullptr;           ///< Invalid name string pointer
-    source_file = nullptr;    ///< Invalid source file string pointer
-    line_no = invalid_id<>;   ///< Invalid line number
-    column_no = invalid_id<>; ///< Invalid column number
+    code_ptr_va = codeptr; ///< Override the default initialization
+    // If the incoming code ptr is null, we ensure that the flags are set
+    // correctly
     if (codeptr) {
       flags = (uint64_t)payload_flag_t::CodePointerAvailable;
     }
@@ -496,11 +494,8 @@ struct payload_t {
   /// @param func_name Name of the function, kernel, or user-defined entity.
   ///
   payload_t(const char *func_name) {
-    code_ptr_va = nullptr;
-    name = func_name;         ///< Invalid name string pointer
-    source_file = nullptr;    ///< Invalid source file string pointer
-    line_no = invalid_id<>;   ///< Invalid line number
-    column_no = invalid_id<>; ///< Invalid column number
+    name = func_name; ///< Override the default initialization
+    // If the incoming name is null, we ensure that the flags are set correctly
     if (func_name) {
       flags = (uint64_t)(payload_flag_t::NameAvailable);
     }
@@ -519,14 +514,14 @@ struct payload_t {
   /// @param codeptr Pointer to the code location associated with this payload.
   ///
   payload_t(const char *func_name, const void *codeptr) {
-    code_ptr_va = codeptr;
-    name = func_name;         ///< Invalid name string pointer
-    source_file = nullptr;    ///< Invalid source file string pointer
-    line_no = invalid_id<>;   ///< Invalid line number
-    column_no = invalid_id<>; ///< Invalid column number
+    code_ptr_va = codeptr; ///< Override the default initialization
+    name = func_name;      ///< Override the default initialization
+    // If the incoming name is null, we ensure that the flags are set correctly
     if (func_name) {
       flags = (uint64_t)(payload_flag_t::NameAvailable);
     }
+    // If the incoming code ptr is null, we ensure that the flags are set
+    // correctly
     if (codeptr) {
       flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
     }
@@ -553,20 +548,18 @@ struct payload_t {
   ///
   payload_t(const char *kname, const char *caller_callee, const void *codeptr) {
     if (codeptr) {
-      code_ptr_va = codeptr;
+      code_ptr_va = codeptr; ///< Override the default initialization
       flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
     }
-    /// Capture the rest of the parameters
+    // If the incoming name is null, we ensure that the flags are set correctly
     if (kname) {
-      name = kname;
+      name = kname; ///< Override the default initialization
       flags |= (uint64_t)payload_flag_t::NameAvailable;
     }
     if (caller_callee) {
       stack_trace = caller_callee;
       flags |= (uint64_t)payload_flag_t::StackTraceAvailable;
     }
-    line_no = invalid_id<>;   ///< Invalid line number
-    column_no = invalid_id<>; ///< Invalid column number
   }
 
   ///
@@ -587,20 +580,26 @@ struct payload_t {
   ///
   payload_t(const char *kname, const char *sf, int line, int col,
             const void *codeptr = nullptr) {
-    code_ptr_va = codeptr;
-    /// Capture the rest of the parameters
-    name = kname;
-    source_file = sf;
-    line_no = static_cast<uint32_t>(line);
-    column_no = static_cast<uint32_t>(col);
+    code_ptr_va = codeptr; ///< Override the default initialization
+    name = kname;          ///< Override the default initialization
+    source_file = sf;      ///< Override the default initialization
+    line_no =
+        static_cast<uint32_t>(line); ///< Override the default initialization
+    column_no =
+        static_cast<uint32_t>(col); ///< Override the default initialization
+    // If the incoming name is null, we ensure that the flags are set correctly
     if (kname && kname[0] != '\0') {
       flags = (uint64_t)payload_flag_t::NameAvailable;
     }
+    // If the incoming source file name is null, we ensure that the flags are
+    // set correctly
     if (sf && sf[0] != '\0') {
       flags |= (uint64_t)payload_flag_t::SourceFileAvailable |
                (uint64_t)payload_flag_t::LineInfoAvailable |
                (uint64_t)payload_flag_t::ColumnInfoAvailable;
     }
+    // If the incoming code ptr is null, we ensure that the flags are set
+    // correctly
     if (codeptr) {
       flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
     }

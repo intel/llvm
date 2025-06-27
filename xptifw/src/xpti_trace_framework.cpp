@@ -1248,8 +1248,7 @@ public:
       }
 
       // If the payload's source file is available, add it to the string table
-      // and get its id Also, get the line number and column number from the
-      // payload
+      // and get its id
       if ((Payload->flags &
            static_cast<uint64_t>(xpti::payload_flag_t::SourceFileAvailable))) {
         // Add source file information ot string table
@@ -1257,8 +1256,9 @@ public:
             MStringTableRef.add(Payload->source_file, &Payload->source_file);
       }
     } else {
-      // If the payload's function name is available, add it to the string table
-      // and get its id
+      // If the payload's function name is available, generate a fast hash as
+      // its ID; Since reverse lookup is not necessary for callback functions,
+      // we have avoided using the string tables
       if ((Payload->flags &
            static_cast<uint64_t>(xpti::payload_flag_t::NameAvailable))) {
         // Add the kernel name/function name to the string table
@@ -1271,9 +1271,9 @@ public:
         FuncId = xpti::hash::fnv1a(Payload->name);
       }
 
-      // If the payload's source file is available, add it to the string table
-      // and get its id Also, get the line number and column number from the
-      // payload
+      // If the payload's source file is available, generate a fast hash as its
+      // ID; Since reverse lookup is not necessary for callback functions, we
+      // have avoided using the string tables
       if ((Payload->flags &
            static_cast<uint64_t>(xpti::payload_flag_t::SourceFileAvailable))) {
         // Add source file information ot string table
@@ -1286,7 +1286,7 @@ public:
         FileId = xpti::hash::fnv1a(Payload->source_file);
       }
     }
-
+    // Get the line number and column number from the payload
     LineNo = Payload->line_no;
     ColNo = Payload->column_no;
     UId = xpti::make_uid128(FileId, FuncId, LineNo, ColNo);
