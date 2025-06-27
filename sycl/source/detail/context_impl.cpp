@@ -62,7 +62,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
 
 context_impl::context_impl(ur_context_handle_t UrContext,
                            async_handler AsyncHandler,
-                           const AdapterPtr &Adapter,
+                           const adapter_impl &Adapter,
                            const std::vector<sycl::device> &DeviceList,
                            bool OwnedByRuntime, private_tag)
     : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
@@ -74,12 +74,12 @@ context_impl::context_impl(ur_context_handle_t UrContext,
     std::vector<ur_device_handle_t> DeviceIds;
     uint32_t DevicesNum = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Adapter->call<UrApiKind::urContextGetInfo>(
+    Adapter.call<UrApiKind::urContextGetInfo>(
         MContext, UR_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
         nullptr);
     DeviceIds.resize(DevicesNum);
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Adapter->call<UrApiKind::urContextGetInfo>(
+    Adapter.call<UrApiKind::urContextGetInfo>(
         MContext, UR_CONTEXT_INFO_DEVICES,
         sizeof(ur_device_handle_t) * DevicesNum, &DeviceIds[0], nullptr);
 
