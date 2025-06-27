@@ -107,7 +107,7 @@ public:
     return UrPlatforms;
   }
 
-  ur_adapter_handle_t getUrAdapter() const { return MAdapter; }
+  ur_adapter_handle_t getUrAdapter() { return MAdapter; }
 
   /// Calls the UR Api, traces the call, and returns the result.
   ///

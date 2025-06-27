@@ -35,7 +35,7 @@ std::vector<AdapterPtr> &
 initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
 
 // Get the adapter serving given backend.
-template <backend BE> AdapterPtr &getAdapter();
+template <backend BE> adapter_impl &getAdapter();
 } // namespace ur
 
 // Convert from UR backend to SYCL backend enum

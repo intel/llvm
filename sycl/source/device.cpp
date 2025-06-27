@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/adapter_impl.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
@@ -33,14 +34,15 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 device::device() : device(default_selector_v) {}
 
 device::device(cl_device_id DeviceId) {
-  auto Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
+  detail::adapter_impl &Adapter =
+      sycl::detail::ur::getAdapter<backend::opencl>();
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
   ur_device_handle_t Device;
-  Adapter->call<detail::UrApiKind::urDeviceCreateWithNativeHandle>(
-      detail::ur::cast<ur_native_handle_t>(DeviceId), Adapter->getUrAdapter(),
+  Adapter.call<detail::UrApiKind::urDeviceCreateWithNativeHandle>(
+      detail::ur::cast<ur_native_handle_t>(DeviceId), Adapter.getUrAdapter(),
       nullptr, &Device);
-  impl = detail::platform_impl::getPlatformFromUrDevice(Device, *Adapter)
+  impl = detail::platform_impl::getPlatformFromUrDevice(Device, Adapter)
              .getOrMakeDeviceImpl(Device)
              .shared_from_this();
   __SYCL_OCL_CALL(clRetainDevice, DeviceId);

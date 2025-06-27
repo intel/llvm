@@ -122,13 +122,13 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   // Assuming all events will be on the same device or
   // devices associated with the same Backend.
   if (!Events.empty()) {
-    const AdapterPtr &Adapter = Events[0]->getAdapter();
+    adapter_impl &Adapter = Events[0]->getAdapter();
     std::vector<ur_event_handle_t> UrEvents(Events.size());
     std::transform(
         Events.begin(), Events.end(), UrEvents.begin(),
         [](const EventImplPtr &EventImpl) { return EventImpl->getHandle(); });
     if (!UrEvents.empty() && UrEvents[0]) {
-      Adapter->call<UrApiKind::urEventWait>(UrEvents.size(), &UrEvents[0]);
+      Adapter.call<UrApiKind::urEventWait>(UrEvents.size(), &UrEvents[0]);
     }
   }
 }
@@ -318,8 +318,8 @@ void *MemoryManager::allocateInteropMemObject(
   // Retain the event since it will be released during alloca command
   // destruction
   if (nullptr != OutEventToWait) {
-    const AdapterPtr &Adapter = InteropEvent->getAdapter();
-    Adapter->call<UrApiKind::urEventRetain>(OutEventToWait);
+    adapter_impl &Adapter = InteropEvent->getAdapter();
+    Adapter.call<UrApiKind::urEventRetain>(OutEventToWait);
   }
   return UserPtr;
 }

@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/adapter_impl.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
@@ -25,12 +26,13 @@ inline namespace _V1 {
 platform::platform() : platform(default_selector_v) {}
 
 platform::platform(cl_platform_id PlatformId) {
-  auto Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
+  detail::adapter_impl &Adapter =
+      sycl::detail::ur::getAdapter<backend::opencl>();
   ur_platform_handle_t UrPlatform = nullptr;
-  Adapter->call<detail::UrApiKind::urPlatformCreateWithNativeHandle>(
-      detail::ur::cast<ur_native_handle_t>(PlatformId), Adapter->getUrAdapter(),
+  Adapter.call<detail::UrApiKind::urPlatformCreateWithNativeHandle>(
+      detail::ur::cast<ur_native_handle_t>(PlatformId), Adapter.getUrAdapter(),
       /* pProperties = */ nullptr, &UrPlatform);
-  impl = detail::platform_impl::getOrMakePlatformImpl(UrPlatform, *Adapter)
+  impl = detail::platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter)
              .shared_from_this();
 }
 
