@@ -1557,6 +1557,11 @@ public:
                  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_memory_export_linear) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_MEMORY_EXPORT_LINEAR_MEMORY_EXPORT_SUPPORT_EXP>()
+          .value_or(0);
+    }
     else {
       return false; // This device aspect has not been implemented yet.
     }

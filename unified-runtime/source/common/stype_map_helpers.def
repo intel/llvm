@@ -92,9 +92,6 @@ template <>
 struct stype_map<ur_kernel_arg_mem_obj_properties_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES> {};
 template <>
-struct stype_map<ur_physical_mem_properties_t>
-    : stype_map_impl<UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES> {};
-template <>
 struct stype_map<ur_kernel_arg_pointer_properties_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES> {};
 template <>
@@ -115,6 +112,9 @@ struct stype_map<ur_usm_alloc_location_desc_t>
 template <>
 struct stype_map<ur_usm_pool_buffer_desc_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC> {};
+template <>
+struct stype_map<ur_physical_mem_properties_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES> {};
 template <>
 struct stype_map<ur_exp_command_buffer_desc_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC> {};

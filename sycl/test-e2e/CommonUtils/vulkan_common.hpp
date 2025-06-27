@@ -650,6 +650,68 @@ VkDeviceMemory allocateDeviceMemory(size_t size, uint32_t memoryTypeIndex,
 }
 
 /*
+Import device memory from a file descriptor.
+*/
+template <typename InteropHandleT>
+VkDeviceMemory importDeviceMemory(size_t size, uint32_t memoryTypeIndex,
+                                  InteropHandleT fd);
+
+#ifndef _WIN32
+// Specialization for importing device memory from file descriptors.
+template <>
+VkDeviceMemory importDeviceMemory<int>(size_t size, uint32_t memoryTypeIndex,
+                                       int fd) {
+
+  VkMemoryAllocateInfo mai{};
+  mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  mai.allocationSize = size;
+  mai.memoryTypeIndex = memoryTypeIndex;
+
+  VkImportMemoryFdInfoKHR importInfo{};
+  importInfo.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR;
+  importInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+  importInfo.fd = fd;
+  mai.pNext = &importInfo;
+
+  VkDeviceMemory memory;
+  if (vkAllocateMemory(vk_device, &mai, nullptr, &memory) != VK_SUCCESS) {
+    std::cerr << "importDeviceMemoryFD -- Could not allocate device memory!\n";
+    return VK_NULL_HANDLE;
+  }
+
+  return memory;
+}
+
+#else
+
+// Specialization for importing device memory from win32 handles.
+template <>
+VkDeviceMemory importDeviceMemory<void *>(size_t size, uint32_t memoryTypeIndex,
+                                          void *winHandle) {
+
+  VkMemoryAllocateInfo mai{};
+  mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  mai.allocationSize = size;
+  mai.memoryTypeIndex = memoryTypeIndex;
+
+  VkImportMemoryWin32HandleInfoKHR importInfo{};
+  importInfo.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_WIN32_HANDLE_INFO_KHR;
+  importInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+  importInfo.handle = winHandle;
+  mai.pNext = &importInfo;
+
+  VkDeviceMemory memory;
+  if (vkAllocateMemory(vk_device, &mai, nullptr, &memory) != VK_SUCCESS) {
+    std::cerr << "importDeviceMemoryFD -- Could not allocate device memory!\n";
+    return VK_NULL_HANDLE;
+  }
+
+  return memory;
+}
+
+#endif // _WIN32
+
+/*
 Retrieve the image memory type index for the Vulkan device based on the memory
 property flags passed.
 */

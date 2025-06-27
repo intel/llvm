@@ -57,6 +57,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/enqueued_pool.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
     )
     install_ur_library(ur_adapter_level_zero)
 
@@ -148,6 +149,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
         # v2-only sources
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_buffer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.hpp
