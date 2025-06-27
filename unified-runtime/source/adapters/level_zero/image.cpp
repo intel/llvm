@@ -723,8 +723,6 @@ ur_result_t urBindlessImagesMapExternalArrayExp(
              (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
   UR_CALL(createUrMemFromZeImage(hContext, ZeImage, /*OwnZeMemHandle*/ true,
                                  ZeImageDesc, phImageMem));
-  externalMemoryData->urMemoryHandle =
-      reinterpret_cast<ur_mem_handle_t>(*phImageMem);
   return UR_RESULT_SUCCESS;
 }
 
@@ -733,7 +731,7 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
     uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **phRetMem) {
   UR_ASSERT(hContext && hDevice && hExternalMem,
             UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(offset && size, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
+  UR_ASSERT(size, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
 
   struct ur_ze_external_memory_data *externalMemoryData =
       reinterpret_cast<ur_ze_external_memory_data *>(hExternalMem);
@@ -746,8 +744,9 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
   allocDesc.pNext = externalMemoryData->importExtensionDesc;
   void *mappedMemory;
 
-  ze_result_t zeResult = zeMemAllocDevice(hContext->ZeContext, &allocDesc, size,
-                                          1, hDevice->ZeDevice, &mappedMemory);
+  ze_result_t zeResult = ZE_CALL_NOCHECK(
+      zeMemAllocDevice, (hContext->getZeHandle(), &allocDesc, size, 0,
+                         hDevice->ZeDevice, &mappedMemory));
   if (zeResult != ZE_RESULT_SUCCESS) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
@@ -755,14 +754,11 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
   zeResult = zeContextMakeMemoryResident(hContext->ZeContext, hDevice->ZeDevice,
                                          mappedMemory, size);
   if (zeResult != ZE_RESULT_SUCCESS) {
-    zeMemFree(hContext->ZeContext, mappedMemory);
+    ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), mappedMemory));
     return UR_RESULT_ERROR_UNKNOWN;
   }
   *phRetMem = reinterpret_cast<void *>(
       reinterpret_cast<uintptr_t>(mappedMemory) + offset);
-
-  externalMemoryData->urMemoryHandle =
-      reinterpret_cast<ur_mem_handle_t>(*phRetMem);
 
   return UR_RESULT_SUCCESS;
 }
@@ -786,8 +782,6 @@ ur_result_t urBindlessImagesReleaseExternalMemoryExp(
 
   struct ur_ze_external_memory_data *externalMemoryData =
       reinterpret_cast<ur_ze_external_memory_data *>(hExternalMem);
-
-  UR_CALL(ur::level_zero::urMemRelease(externalMemoryData->urMemoryHandle));
 
   switch (externalMemoryData->type) {
   case UR_ZE_EXTERNAL_OPAQUE_FD:
