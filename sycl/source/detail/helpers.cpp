@@ -49,7 +49,7 @@ retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
         ProgramManager::getInstance().getRawDeviceImages(KernelIds);
     auto DeviceImage = std::find_if(
         DeviceImages.begin(), DeviceImages.end(),
-        [isNvidia](RTDeviceBinaryImage *DI) {
+        [isNvidia](const RTDeviceBinaryImage *DI) {
           const std::string &TargetSpec = isNvidia ? std::string("llvm_nvptx64")
                                                    : std::string("llvm_amdgcn");
           return DI->getFormat() == SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&

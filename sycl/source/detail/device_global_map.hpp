@@ -23,7 +23,7 @@ namespace detail {
 
 class DeviceGlobalMap {
 public:
-  void initializeEntries(RTDeviceBinaryImage *Img) {
+  void initializeEntries(const RTDeviceBinaryImage *Img) {
     const auto &DeviceGlobals = Img->getDeviceGlobals();
     std::lock_guard<std::mutex> DeviceGlobalsGuard(MDeviceGlobalsMutex);
     for (const sycl_device_binary_property &DeviceGlobal : DeviceGlobals) {
