@@ -113,7 +113,7 @@ public:
 
   struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
     const adapter_impl &MAdapter;
-    ProgramBuildResult(const adapter_impl &AAdapter) : MAdapter(AAdapter) {
+    ProgramBuildResult(const adapter_impl &Adapter) : MAdapter(Adapter) {
       Val = nullptr;
     }
     ProgramBuildResult(const adapter_impl &AAdapter, BuildState InitialState)
@@ -199,7 +199,7 @@ public:
       std::pair<ur_kernel_handle_t, const KernelArgMask *>;
   struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
     const adapter_impl &MAdapter;
-    KernelBuildResult(const adapter_impl &AAdapter) : MAdapter(AAdapter) {
+    KernelBuildResult(const adapter_impl &Adapter) : MAdapter(Adapter) {
       Val.first = nullptr;
     }
     ~KernelBuildResult() {
