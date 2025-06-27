@@ -69,8 +69,8 @@ struct ur_exp_command_buffer_handle_t_ : ur::opencl::handle_base {
 
   ~ur_exp_command_buffer_handle_t_();
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };

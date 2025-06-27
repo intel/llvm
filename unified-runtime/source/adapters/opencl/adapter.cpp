@@ -78,7 +78,7 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
     }
 
     auto &adapter = *phAdapters;
-    adapter->getRefCount().increment();
+    adapter->getRefCount().retain();
   }
 
   if (pNumAdapters) {
@@ -90,13 +90,13 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterRetain(ur_adapter_handle_t hAdapter) {
-  hAdapter->getRefCount().increment();
+  hAdapter->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterRelease(ur_adapter_handle_t hAdapter) {
-  if (hAdapter->getRefCount().decrementAndTest()) {
+  if (hAdapter->getRefCount().release()) {
     delete hAdapter;
   }
   return UR_RESULT_SUCCESS;

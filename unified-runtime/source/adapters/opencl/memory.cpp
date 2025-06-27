@@ -569,12 +569,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
-  hMem->getRefCount().increment();
+  hMem->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
-  if (hMem->getRefCount().decrementAndTest()) {
+  if (hMem->getRefCount().release()) {
     delete hMem;
   }
   return UR_RESULT_SUCCESS;

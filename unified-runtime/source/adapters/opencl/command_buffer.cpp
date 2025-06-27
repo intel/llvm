@@ -108,13 +108,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  hCommandBuffer->getRefCount().increment();
+  hCommandBuffer->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  if (hCommandBuffer->getRefCount().decrementAndTest()) {
+  if (hCommandBuffer->getRefCount().release()) {
     delete hCommandBuffer;
   }
 

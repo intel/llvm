@@ -343,13 +343,13 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
-  hKernel->getRefCount().increment();
+  hKernel->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRelease(ur_kernel_handle_t hKernel) {
-  if (hKernel->getRefCount().decrementAndTest()) {
+  if (hKernel->getRefCount().release()) {
     delete hKernel;
   }
   return UR_RESULT_SUCCESS;

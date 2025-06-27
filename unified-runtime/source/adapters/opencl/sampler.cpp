@@ -221,13 +221,13 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRetain(ur_sampler_handle_t hSampler) {
-  hSampler->getRefCount().increment();
+  hSampler->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRelease(ur_sampler_handle_t hSampler) {
-  if (hSampler->getRefCount().decrementAndTest()) {
+  if (hSampler->getRefCount().release()) {
     delete hSampler;
   }
   return UR_RESULT_SUCCESS;

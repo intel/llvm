@@ -289,12 +289,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
-  hQueue->getRefCount().increment();
+  hQueue->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  if (hQueue->getRefCount().decrementAndTest()) {
+  if (hQueue->getRefCount().release()) {
     delete hQueue;
   }
   return UR_RESULT_SUCCESS;

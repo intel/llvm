@@ -117,7 +117,7 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  if (hContext->getRefCount().decrementAndTest()) {
+  if (hContext->getRefCount().release()) {
     delete hContext;
   }
 
@@ -126,7 +126,7 @@ urContextRelease(ur_context_handle_t hContext) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRetain(ur_context_handle_t hContext) {
-  hContext->getRefCount().increment();
+  hContext->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 }
 

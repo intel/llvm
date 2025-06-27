@@ -54,10 +54,10 @@ struct ur_event_handle_t_ : ur::opencl::handle_base {
     return UR_RESULT_SUCCESS;
   }
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };
 
 inline cl_event *ifUrEvent(ur_event_handle_t *ReturnedEvent, cl_event &Event) {
