@@ -2883,7 +2883,7 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
         InputImpl.get_spec_const_data_ref(),
         InputImpl.get_spec_const_blob_ref(), InputImpl.getOriginMask(),
         std::move(RTCInfo), std::move(KernelNames),
-        std::move(EliminatedKernelArgMasks));
+        std::move(EliminatedKernelArgMasks), nullptr);
 
     std::string CompileOptions;
     applyCompileOptionsFromEnvironment(CompileOptions);
