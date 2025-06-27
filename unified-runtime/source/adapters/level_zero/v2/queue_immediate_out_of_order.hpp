@@ -50,6 +50,8 @@ private:
            numCommandLists;
   }
 
+  ur::RefCount RefCount;
+
 public:
   ur_queue_immediate_out_of_order_t(ur_context_handle_t, ur_device_handle_t,
                                     uint32_t ordinal,
