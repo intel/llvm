@@ -838,14 +838,13 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
   return DeviceImagesToLink;
 }
 
-static void
-setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
-                           ur_program_handle_t Prog,
-                           const AdapterPtr &Adapter) {
-  std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
+static void setSpecializationConstants(device_image_impl &InputImpl,
+                                       ur_program_handle_t Prog,
+                                       const AdapterPtr &Adapter) {
+  std::lock_guard<std::mutex> Lock{InputImpl.get_spec_const_data_lock()};
   const std::map<std::string, std::vector<device_image_impl::SpecConstDescT>>
-      &SpecConstData = InputImpl->get_spec_const_data_ref();
-  const SerializedObj &SpecConsts = InputImpl->get_spec_const_blob_ref();
+      &SpecConstData = InputImpl.get_spec_const_data_ref();
+  const SerializedObj &SpecConsts = InputImpl.get_spec_const_blob_ref();
 
   // Set all specialization IDs from descriptors in the input device image.
   for (const auto &[SpecConstNames, SpecConstDescs] : SpecConstData) {
@@ -941,7 +940,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     if (!DeviceCodeWasInCache && MainImg.supportsSpecConstants()) {
       enableITTAnnotationsIfNeeded(NativePrg, Adapter);
       if (DevImgWithDeps)
-        setSpecializationConstants(getSyclObjImpl(DevImgWithDeps->getMain()),
+        setSpecializationConstants(*getSyclObjImpl(DevImgWithDeps->getMain()),
                                    NativePrg, Adapter);
     }
 
@@ -982,7 +981,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
           enableITTAnnotationsIfNeeded(NativePrg, Adapter);
           if (DevImgWithDeps)
             setSpecializationConstants(
-                getSyclObjImpl(DevImgWithDeps->getAll()[I]), NativePrg,
+                *getSyclObjImpl(DevImgWithDeps->getAll()[I]), NativePrg,
                 Adapter);
         }
         ProgramsToLink.push_back(NativePrg);
@@ -2508,9 +2507,9 @@ device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
     KernelIDs = m_BinImg2KernelIDs[BinImage];
   }
 
-  DeviceImageImplPtr Impl = std::make_shared<detail::device_image_impl>(
+  DeviceImageImplPtr Impl = device_image_impl::create(
       BinImage, Ctx, std::vector<device>{Dev}, ImgState, KernelIDs,
-      /*PIProgram=*/nullptr);
+      /*PIProgram=*/nullptr, ImageOriginSYCLOffline);
 
   return createSyclObjFromImpl<device_image_plain>(std::move(Impl));
 }
@@ -2668,9 +2667,10 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     if (ImgInfoPair.second.RequirementCounter == 0)
       continue;
 
-    DeviceImageImplPtr MainImpl = std::make_shared<detail::device_image_impl>(
+    DeviceImageImplPtr MainImpl = device_image_impl::create(
         ImgInfoPair.first, Ctx, Devs, ImgInfoPair.second.State,
-        ImgInfoPair.second.KernelIDs, /*PIProgram=*/nullptr);
+        ImgInfoPair.second.KernelIDs, /*PIProgram=*/nullptr,
+        ImageOriginSYCLOffline);
 
     std::vector<device_image_plain> Images;
     const std::set<RTDeviceBinaryImage *> &Deps = ImgInfoPair.second.Deps;
@@ -2701,8 +2701,9 @@ device_image_plain ProgramManager::createDependencyImage(
 
   assert(DepState == getBinImageState(DepImage) &&
          "State mismatch between main image and its dependency");
-  DeviceImageImplPtr DepImpl = std::make_shared<detail::device_image_impl>(
-      DepImage, Ctx, Devs, DepState, DepKernelIDs, /*PIProgram=*/nullptr);
+  DeviceImageImplPtr DepImpl =
+      device_image_impl::create(DepImage, Ctx, Devs, DepState, DepKernelIDs,
+                                /*PIProgram=*/nullptr, ImageOriginSYCLOffline);
 
   return createSyclObjFromImpl<device_image_plain>(std::move(DepImpl));
 }
@@ -2857,45 +2858,44 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
   std::vector<device_image_plain> CompiledImages;
   CompiledImages.reserve(ImgWithDeps.size());
   for (const device_image_plain &DeviceImage : ImgWithDeps.getAll()) {
-    const std::shared_ptr<device_image_impl> &InputImpl =
-        getSyclObjImpl(DeviceImage);
+    device_image_impl &InputImpl = *getSyclObjImpl(DeviceImage);
 
     const AdapterPtr &Adapter =
-        getSyclObjImpl(InputImpl->get_context())->getAdapter();
+        getSyclObjImpl(InputImpl.get_context())->getAdapter();
 
     ur_program_handle_t Prog =
-        createURProgram(*InputImpl->get_bin_image_ref(),
-                        *getSyclObjImpl(InputImpl->get_context()), Devs);
+        createURProgram(*InputImpl.get_bin_image_ref(),
+                        *getSyclObjImpl(InputImpl.get_context()), Devs);
 
-    if (InputImpl->get_bin_image_ref()->supportsSpecConstants())
+    if (InputImpl.get_bin_image_ref()->supportsSpecConstants())
       setSpecializationConstants(InputImpl, Prog, Adapter);
 
-    KernelNameSetT KernelNames = InputImpl->getKernelNames();
+    KernelNameSetT KernelNames = InputImpl.getKernelNames();
     std::unordered_map<std::string, KernelArgMask> EliminatedKernelArgMasks =
-        InputImpl->getEliminatedKernelArgMasks();
+        InputImpl.getEliminatedKernelArgMasks();
 
     std::optional<detail::KernelCompilerBinaryInfo> RTCInfo =
-        InputImpl->getRTCInfo();
-    DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
-        InputImpl->get_bin_image_ref(), InputImpl->get_context(),
+        InputImpl.getRTCInfo();
+    DeviceImageImplPtr ObjectImpl = device_image_impl::create(
+        InputImpl.get_bin_image_ref(), InputImpl.get_context(),
         std::vector<device>{Devs}, bundle_state::object,
-        InputImpl->get_kernel_ids_ptr(), Prog,
-        InputImpl->get_spec_const_data_ref(),
-        InputImpl->get_spec_const_blob_ref(), InputImpl->getOriginMask(),
+        InputImpl.get_kernel_ids_ptr(), Prog,
+        InputImpl.get_spec_const_data_ref(),
+        InputImpl.get_spec_const_blob_ref(), InputImpl.getOriginMask(),
         std::move(RTCInfo), std::move(KernelNames),
         std::move(EliminatedKernelArgMasks));
 
     std::string CompileOptions;
     applyCompileOptionsFromEnvironment(CompileOptions);
     appendCompileOptionsFromImage(
-        CompileOptions, *(InputImpl->get_bin_image_ref()), Devs, Adapter);
+        CompileOptions, *(InputImpl.get_bin_image_ref()), Devs, Adapter);
     // Should always come last!
     appendCompileEnvironmentVariablesThatAppend(CompileOptions);
-    ur_result_t Error = doCompile(
-        Adapter, ObjectImpl->get_ur_program_ref(), Devs.size(),
-        URDevices.data(),
-        getSyclObjImpl(InputImpl->get_context()).get()->getHandleRef(),
-        CompileOptions.c_str());
+    ur_result_t Error =
+        doCompile(Adapter, ObjectImpl->get_ur_program_ref(), Devs.size(),
+                  URDevices.data(),
+                  getSyclObjImpl(InputImpl.get_context()).get()->getHandleRef(),
+                  CompileOptions.c_str());
     if (Error != UR_RESULT_SUCCESS)
       throw sycl::exception(
           make_error_code(errc::build),
@@ -3081,15 +3081,12 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
   }
   auto MergedRTCInfo = detail::KernelCompilerBinaryInfo::Merge(RTCInfoPtrs);
 
-  DeviceImageImplPtr ExecutableImpl =
-      std::make_shared<detail::device_image_impl>(
-          NewBinImg, Context, std::vector<device>{Devs},
-          bundle_state::executable, std::move(KernelIDs), LinkedProg,
-          std::move(NewSpecConstMap), std::move(NewSpecConstBlob),
-          CombinedOrigins, std::move(MergedRTCInfo),
-          std::move(MergedKernelNames),
-          std::move(MergedEliminatedKernelArgMasks),
-          std::move(MergedImageStorage));
+  DeviceImageImplPtr ExecutableImpl = device_image_impl::create(
+      NewBinImg, Context, std::vector<device>{Devs}, bundle_state::executable,
+      std::move(KernelIDs), LinkedProg, std::move(NewSpecConstMap),
+      std::move(NewSpecConstBlob), CombinedOrigins, std::move(MergedRTCInfo),
+      std::move(MergedKernelNames), std::move(MergedEliminatedKernelArgMasks),
+      std::move(MergedImageStorage));
 
   // TODO: Make multiple sets of device images organized by devices they are
   // compiled for.
@@ -3169,7 +3166,7 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
   }
   auto MergedRTCInfo = detail::KernelCompilerBinaryInfo::Merge(RTCInfoPtrs);
 
-  DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
+  DeviceImageImplPtr ExecImpl = device_image_impl::create(
       ResultBinImg, Context, std::vector<device>{Devs},
       bundle_state::executable, std::move(KernelIDs), ResProgram,
       std::move(SpecConstMap), std::move(SpecConstBlob), CombinedOrigins,

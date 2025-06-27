@@ -3,8 +3,6 @@
 
 // RUN: %{build} -fno-builtin %if target-spir %{ -fsycl-device-lib-jit-link -Wno-deprecated %} -o %t2.out
 // RUN: %{run} %t2.out
-//
-// UNSUPPORTED: target-nvidia || target-amd
 
 // All __imf_* bf16 functions are implemented via fp32 emulation, so we don't
 // need to check whether underlying device supports bf16 or not.

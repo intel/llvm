@@ -3,8 +3,6 @@
 
 // RUN: %{build} -fno-builtin %if target-spir %{ -fsycl-device-lib-jit-link -Wno-deprecated %} -o %t2.out
 // RUN: %{run} %t2.out
-//
-// UNSUPPORTED: target-nvidia || target-amd
 
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>

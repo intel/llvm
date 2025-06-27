@@ -16,8 +16,7 @@ namespace detail {
 
 std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
     std::string_view Name, const context &Context,
-    const kernel_bundle_impl &OwnerBundle,
-    const std::shared_ptr<device_image_impl> &Self) const {
+    const kernel_bundle_impl &OwnerBundle) {
   if (!(getOriginMask() & ImageOriginKernelCompiler) &&
       !((getOriginMask() & ImageOriginSYCLBIN) && hasKernelName(Name)))
     return nullptr;
@@ -35,9 +34,9 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
       auto [UrKernel, CacheMutex, ArgMask] =
           PM.getOrCreateKernel(Context, AdjustedName,
                                /*PropList=*/{}, UrProgram);
-      return std::make_shared<kernel_impl>(UrKernel, *getSyclObjImpl(Context),
-                                           Self, OwnerBundle.shared_from_this(),
-                                           ArgMask, UrProgram, CacheMutex);
+      return std::make_shared<kernel_impl>(
+          UrKernel, *getSyclObjImpl(Context), shared_from_this(),
+          OwnerBundle.shared_from_this(), ArgMask, UrProgram, CacheMutex);
     }
     return nullptr;
   }
@@ -54,10 +53,10 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
       ArgMaskIt != MEliminatedKernelArgMasks.end())
     ArgMask = &ArgMaskIt->second;
 
-  return std::make_shared<kernel_impl>(UrKernel,
-                                       *detail::getSyclObjImpl(Context), Self,
-                                       OwnerBundle.shared_from_this(), ArgMask,
-                                       UrProgram, /*CacheMutex=*/nullptr);
+  return std::make_shared<kernel_impl>(
+      UrKernel, *detail::getSyclObjImpl(Context), shared_from_this(),
+      OwnerBundle.shared_from_this(), ArgMask, UrProgram,
+      /*CacheMutex=*/nullptr);
 }
 
 } // namespace detail
