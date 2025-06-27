@@ -102,6 +102,9 @@ int main() {
 
     h.single_task<class kernel_name24>(
         []() [[sycl::reqd_work_group_size(1)]]{});
+    // Test invalid group size
+    h.single_task<class kernel_name26>(
+        []() [[sycl::reqd_work_group_size(18446744073709551615UL)]]{});
   });
   return 0;
 }
@@ -122,6 +125,7 @@ int main() {
 // CHECK: define {{.*}} void @{{.*}}kernel_name21() #0 {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE2D2_or_WGSIZE1D8]]
 // CHECK: define {{.*}} void @{{.*}}kernel_name22() #0 {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE1D22:[0-9]+]]
 // CHECK: define {{.*}} void @{{.*}}kernel_name24() #0 {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE1D2:[0-9]+]]
+// CHECK: define {{.*}} void @{{.*}}kernel_name26() #0 {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE1D26:[0-9]+]]
 
 // CHECK: ![[NDRWGS3D]] = !{i32 3}
 // CHECK: ![[WGSIZE3D32]] = !{i32 16, i32 16, i32 32}
@@ -137,3 +141,4 @@ int main() {
 // CHECK: ![[WGSIZE1D32]] = !{i32 32, i32 1, i32 1}
 // CHECK: ![[WGSIZE1D22]] = !{i32 2, i32 1, i32 1}
 // CHECK: ![[WGSIZE1D2]] = !{i32 1, i32 1, i32 1}
+// CHECK: ![[WGSIZE1D26]] = !{i32 -1, i32 1, i32 1}

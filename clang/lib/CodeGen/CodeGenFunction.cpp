@@ -715,13 +715,13 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
     // On SYCL target the dimensions are reversed if present.
     if (ZDimVal)
-      AttrMDArgs.push_back(
-          llvm::ConstantAsMetadata::get(Builder.getInt(*ZDimVal)));
+      AttrMDArgs.push_back(llvm::ConstantAsMetadata::get(
+          Builder.getInt32(ZDimVal->getLimitedValue())));
     if (YDimVal)
-      AttrMDArgs.push_back(
-          llvm::ConstantAsMetadata::get(Builder.getInt(*YDimVal)));
-    AttrMDArgs.push_back(
-        llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
+      AttrMDArgs.push_back(llvm::ConstantAsMetadata::get(
+          Builder.getInt32(YDimVal->getLimitedValue())));
+    AttrMDArgs.push_back(llvm::ConstantAsMetadata::get(
+        Builder.getInt32(XDimVal->getLimitedValue())));
 
     for (auto i = AttrMDArgs.size(); i < 3; ++i)
       AttrMDArgs.push_back(
@@ -752,17 +752,17 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     llvm::APInt NumDims(32, 1); // X
     // On SYCL target the dimensions are reversed if present.
     if (ZDimVal) {
-      AttrMDArgs.push_back(
-          llvm::ConstantAsMetadata::get(Builder.getInt(*ZDimVal)));
+      AttrMDArgs.push_back(llvm::ConstantAsMetadata::get(
+          Builder.getInt32(ZDimVal->getLimitedValue())));
       ++NumDims;
     }
     if (YDimVal) {
-      AttrMDArgs.push_back(
-          llvm::ConstantAsMetadata::get(Builder.getInt(*YDimVal)));
+      AttrMDArgs.push_back(llvm::ConstantAsMetadata::get(
+          Builder.getInt32(YDimVal->getLimitedValue())));
       ++NumDims;
     }
-    AttrMDArgs.push_back(
-        llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
+    AttrMDArgs.push_back(llvm::ConstantAsMetadata::get(
+        Builder.getInt32(XDimVal->getLimitedValue())));
 
     for (auto i = NumDims.getZExtValue(); i < 3; ++i)
       AttrMDArgs.push_back(
