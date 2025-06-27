@@ -50,8 +50,8 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
     }
   }
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };

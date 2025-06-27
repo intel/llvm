@@ -1561,7 +1561,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
 // Root devices ref count are unchanged through out the program lifetime.
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
   if (hDevice->ParentDevice) {
-    hDevice->getRefCount().increment();
+    hDevice->getRefCount().retain();
   }
 
   return UR_RESULT_SUCCESS;
@@ -1571,7 +1571,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceRelease(ur_device_handle_t hDevice) {
   if (hDevice->ParentDevice) {
-    if (hDevice->getRefCount().decrementAndTest()) {
+    if (hDevice->getRefCount().release()) {
       delete hDevice;
     }
   }

@@ -37,8 +37,8 @@ struct ur_mem_handle_t_ : ur::opencl::handle_base {
                                     ur_context_handle_t Ctx,
                                     ur_mem_handle_t &Mem);
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };

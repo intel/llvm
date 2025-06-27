@@ -38,10 +38,10 @@ struct ur_adapter_handle_t_ : ur::opencl::handle_base {
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };
 
 namespace ur {

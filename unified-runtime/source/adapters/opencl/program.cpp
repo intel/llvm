@@ -383,13 +383,13 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(ur_program_handle_t hProgram) {
-  hProgram->getRefCount().increment();
+  hProgram->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(ur_program_handle_t hProgram) {
-  if (hProgram->getRefCount().decrementAndTest()) {
+  if (hProgram->getRefCount().release()) {
     delete hProgram;
   }
   return UR_RESULT_SUCCESS;
