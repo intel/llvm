@@ -91,7 +91,7 @@ struct ur_mem_handle_t_ : ur_object {
   // Method to get type of the derived object (image or buffer)
   bool isImage() const { return mem_type == mem_type_t::image; }
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 protected:
   ur_mem_handle_t_(mem_type_t type, ur_context_handle_t Context)
@@ -106,7 +106,7 @@ protected:
   ~ur_mem_handle_t_() {};
 
 private:
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };
 
 struct ur_buffer final : ur_mem_handle_t_ {

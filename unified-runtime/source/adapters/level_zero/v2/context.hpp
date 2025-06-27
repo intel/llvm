@@ -65,7 +65,7 @@ struct ur_context_handle_t_ : ur_object {
   // For that the Device or its root devices need to be in the context.
   bool isValidDevice(ur_device_handle_t Device) const;
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
   const v2::raii::ze_context_handle_t hContext;
@@ -85,5 +85,5 @@ private:
   ur_usm_pool_handle_t_ asyncPool;
   std::list<ur_usm_pool_handle_t> usmPoolHandles;
 
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };

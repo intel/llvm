@@ -151,8 +151,8 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
       CommandHandles;
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };

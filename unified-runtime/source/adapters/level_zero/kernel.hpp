@@ -109,10 +109,10 @@ struct ur_kernel_handle_t_ : ur_object {
   ZeCache<ZeStruct<ze_kernel_properties_t>> ZeKernelProperties;
   ZeCache<std::string> ZeKernelName;
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };
 
 ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,

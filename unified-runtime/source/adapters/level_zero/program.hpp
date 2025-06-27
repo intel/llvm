@@ -227,7 +227,7 @@ struct ur_program_handle_t_ : ur_object {
   // UR_PROGRAM_INFO_BINARY_SIZES.
   const std::vector<ur_device_handle_t> AssociatedDevices;
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
   struct DeviceData {
@@ -268,5 +268,5 @@ private:
   // TODO: Currently interoparability UR API does not support multiple devices.
   ze_module_handle_t InteropZeModule = nullptr;
 
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };

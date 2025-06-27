@@ -65,7 +65,7 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   ur_event_handle_t
   createEventIfRequested(ur_exp_command_buffer_sync_point_t *retSyncPoint);
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
   // Stores all sync points that are created by the command buffer.
@@ -91,5 +91,5 @@ private:
 
   v2::raii::cache_borrowed_event_pool eventPool;
 
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };

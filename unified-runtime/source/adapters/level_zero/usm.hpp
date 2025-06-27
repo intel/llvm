@@ -54,13 +54,13 @@ struct ur_usm_pool_handle_t_ : ur_object {
 
   ur_context_handle_t Context;
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
   UsmPool *getPool(const usm::pool_descriptor &Desc);
   usm::pool_manager<usm::pool_descriptor, UsmPool> PoolManager;
 
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };
 
 // Exception type to pass allocation errors

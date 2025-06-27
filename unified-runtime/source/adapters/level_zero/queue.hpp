@@ -694,10 +694,10 @@ struct ur_queue_handle_t_ : ur_object {
   // Pointer to the unified handle.
   ur_queue_handle_t_ *UnifiedHandle;
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };
 
 // This helper function creates a ur_event_handle_t and associate a

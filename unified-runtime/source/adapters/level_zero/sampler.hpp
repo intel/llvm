@@ -20,10 +20,10 @@ struct ur_sampler_handle_t_ : ur_object {
 
   ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };
 
 // Construct ZE sampler desc from UR sampler desc.

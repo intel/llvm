@@ -45,10 +45,10 @@ struct ur_adapter_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   logger::Logger &logger;
   HMODULE processHandle = nullptr;
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };
 
 extern ur_adapter_handle_t_ *GlobalAdapter;

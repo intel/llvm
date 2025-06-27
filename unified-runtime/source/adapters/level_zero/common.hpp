@@ -259,10 +259,10 @@ struct MemAllocRecord : ur_object {
   // Zero runtime.
   ur_context_handle_t Context;
 
-  URRefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 
 private:
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };
 
 extern usm::DisjointPoolAllConfigs DisjointPoolConfigInstance;
