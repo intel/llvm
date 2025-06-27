@@ -28,7 +28,7 @@ namespace sycl {
 /// happens and the result is written in \p NewModuleDescs.
 /// Otherwise, \p NewModuleDescs is expected to be nullptr.
 ///
-/// Returns boolean value indicating whether the lowering has changed the input
+/// \returns Boolean value indicating whether the lowering has changed the input
 /// modules.
 bool handleSpecializationConstants(
     llvm::SmallVectorImpl<module_split::ModuleDesc> &MDs,

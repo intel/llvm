@@ -1,4 +1,4 @@
-//= SpecializationConstants.h - Processing of SYCL Specialization Constants ==//
+//= SpecializationConstants.cpp - Processing of SYCL Specialization Constants //
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -30,11 +30,11 @@ bool lowerSpecConstants(module_split::ModuleDesc &MD,
   ModulePassManager RunSpecConst;
   ModuleAnalysisManager MAM;
   SpecConstantsPass SCP(Mode);
-  // Register required analysis
+  // Register required analysis.
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   RunSpecConst.addPass(std::move(SCP));
 
-  // Perform the spec constant intrinsics transformation on resulting module
+  // Perform the spec constant intrinsics transformation on resulting module.
   PreservedAnalyses Res = RunSpecConst.run(MD.getModule(), MAM);
   MD.Props.SpecConstsMet = !Res.areAllPreserved();
   return MD.Props.SpecConstsMet;
@@ -77,7 +77,10 @@ bool llvm::sycl::handleSpecializationConstants(
     std::optional<SpecConstantsPass::HandlingMode> Mode,
     bool GenerateModuleDescWithDefaultSpecConsts,
     SmallVectorImpl<module_split::ModuleDesc> *NewModuleDescs) {
-  assert((GenerateModuleDescWithDefaultSpecConsts ^ !NewModuleDescs) &&
+  [[maybe_unused]] bool AreArgumentsCompatible =
+      (GenerateModuleDescWithDefaultSpecConsts && NewModuleDescs) ||
+      (!GenerateModuleDescWithDefaultSpecConsts && !NewModuleDescs);
+  assert(AreArgumentsCompatible &&
          "NewModuleDescs pointer is nullptr iff "
          "GenerateModuleDescWithDefaultSpecConsts is false.");
 
