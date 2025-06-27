@@ -11844,9 +11844,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 
 } // namespace driver
 
-#if defined(__cplusplus)
 extern "C" {
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Adapter table
@@ -12826,7 +12824,4 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-
-#if defined(__cplusplus)
 }
-#endif

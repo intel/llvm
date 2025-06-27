@@ -38,7 +38,7 @@ static ur_result_t validateProcInputs(ur_api_version_t version, void *pDdiTable)
 
 #ifdef UR_STATIC_ADAPTER_${Adapter}
 namespace ${n}::${adapter} {
-#elif defined(__cplusplus)
+#else
 extern "C" {
 #endif
 
@@ -77,7 +77,7 @@ ${X}_APIEXPORT ${x}_result_t ${X}_APICALL ${tbl['export']['name']}(
 
 #ifdef UR_STATIC_ADAPTER_${Adapter}
 } // namespace ur::${adapter}
-#elif defined(__cplusplus)
+#else
 } // extern "C"
 #endif
 
