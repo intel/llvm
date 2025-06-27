@@ -15,6 +15,7 @@
 #include <cstring>
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 
 struct ur_mem_handle_t_ : ur_object {
@@ -43,8 +44,11 @@ struct ur_mem_handle_t_ : ur_object {
   char *_mem;
   bool _ownsMem;
 
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
+
 private:
   const bool IsImage;
+  ur::RefCount RefCount;
 };
 
 struct ur_buffer final : ur_mem_handle_t_ {
