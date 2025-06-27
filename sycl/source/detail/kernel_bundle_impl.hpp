@@ -528,7 +528,7 @@ public:
                      const std::string &Src, include_pairs_t IncludePairsVec,
                      private_tag)
       : MContext(Context), MDevices(Context.get_devices()),
-        MDeviceImages{device_image_plain{std::make_shared<device_image_impl>(
+        MDeviceImages{device_image_plain{device_image_impl::create(
             Src, MContext, MDevices, Lang, std::move(IncludePairsVec))}},
         MUniqueDeviceImages{MDeviceImages[0].getMain()},
         MState(bundle_state::ext_oneapi_source) {
@@ -540,8 +540,8 @@ public:
   kernel_bundle_impl(const context &Context, syclex::source_language Lang,
                      const std::vector<std::byte> &Bytes, private_tag)
       : MContext(Context), MDevices(Context.get_devices()),
-        MDeviceImages{device_image_plain{std::make_shared<device_image_impl>(
-            Bytes, MContext, MDevices, Lang)}},
+        MDeviceImages{device_image_plain{
+            device_image_impl::create(Bytes, MContext, MDevices, Lang)}},
         MUniqueDeviceImages{MDeviceImages[0].getMain()},
         MState(bundle_state::ext_oneapi_source) {
     common_ctor_checks();
@@ -583,7 +583,7 @@ public:
         SYCLBIN->getBestCompatibleImages(Devs);
     MDeviceImages.reserve(BestImages.size());
     for (const detail::RTDeviceBinaryImage *Image : BestImages)
-      MDeviceImages.emplace_back(std::make_shared<detail::device_image_impl>(
+      MDeviceImages.emplace_back(device_image_impl::create(
           Image, Context, Devs, ProgramManager::getBinImageState(Image),
           /*KernelIDs=*/nullptr, /*URProgram=*/nullptr, ImageOriginSYCLBIN));
     ProgramManager::getInstance().bringSYCLDeviceImagesToState(MDeviceImages,
@@ -669,8 +669,7 @@ public:
       const std::shared_ptr<device_image_impl> &DevImgImpl =
           getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> PotentialKernelImpl =
-              DevImgImpl->tryGetExtensionKernel(Name, MContext, *this,
-                                                DevImgImpl))
+              DevImgImpl->tryGetExtensionKernel(Name, MContext, *this))
         return detail::createSyclObjFromImpl<kernel>(
             std::move(PotentialKernelImpl));
     }
@@ -1008,8 +1007,7 @@ public:
       const std::shared_ptr<device_image_impl> &DevImgImpl =
           getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> SourceBasedKernel =
-              DevImgImpl->tryGetExtensionKernel(Name, MContext, *this,
-                                                DevImgImpl))
+              DevImgImpl->tryGetExtensionKernel(Name, MContext, *this))
         return SourceBasedKernel;
     }
 

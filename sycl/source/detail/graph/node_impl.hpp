@@ -287,8 +287,8 @@ public:
       return std::make_unique<sycl::detail::CGHostTask>(
           sycl::detail::CGHostTask(
               std::move(HostTaskSPtr), CommandGroupPtr->MQueue.get(),
-              CommandGroupPtr->MContext, std::move(NewArgs), std::move(Data),
-              CommandGroupPtr->getType(), Loc));
+              CommandGroupPtr->MContext.get(), std::move(NewArgs),
+              std::move(Data), CommandGroupPtr->getType(), Loc));
     }
     case sycl::detail::CGType::Barrier:
     case sycl::detail::CGType::BarrierWaitlist:

@@ -312,12 +312,6 @@ public:
 
   bool isDefaultConstructed() const noexcept { return MIsDefaultConstructed; }
 
-  ContextImplPtr getContextImplPtr() {
-    if (MIsDefaultConstructed)
-      initContextIfNeeded();
-    return MContext;
-  }
-
   // Sets a sync point which is used when this event represents an enqueue to a
   // Command Buffer.
   void setSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint) {

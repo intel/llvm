@@ -68,14 +68,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   LaunchArgs.DynSharedMemory = 0;
 
   ol_event_handle_t EventOut;
-  auto Ret =
+  OL_RETURN_ON_ERR(
       olLaunchKernel(hQueue->OffloadQueue, hQueue->OffloadDevice,
                      hKernel->OffloadKernel, hKernel->Args.getStorage(),
-                     hKernel->Args.getStorageSize(), &LaunchArgs, &EventOut);
-
-  if (Ret != OL_SUCCESS) {
-    return offloadResultToUR(Ret);
-  }
+                     hKernel->Args.getStorageSize(), &LaunchArgs, &EventOut));
 
   if (phEvent) {
     auto *Event = new ur_event_handle_t_();
@@ -112,11 +108,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
   char *DevPtr =
       reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
 
-  olMemcpy(hQueue->OffloadQueue, pDst, Adapter->HostDevice, DevPtr + offset,
-           hQueue->OffloadDevice, size, phEvent ? &EventOut : nullptr);
+  OL_RETURN_ON_ERR(olMemcpy(hQueue->OffloadQueue, pDst, Adapter->HostDevice,
+                            DevPtr + offset, hQueue->OffloadDevice, size,
+                            phEvent ? &EventOut : nullptr));
 
   if (blockingRead) {
-    olWaitQueue(hQueue->OffloadQueue);
+    OL_RETURN_ON_ERR(olWaitQueue(hQueue->OffloadQueue));
   }
 
   if (phEvent) {
@@ -143,18 +140,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   char *DevPtr =
       reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
 
-  auto Res =
-      olMemcpy(hQueue->OffloadQueue, DevPtr + offset, hQueue->OffloadDevice,
-               pSrc, Adapter->HostDevice, size, phEvent ? &EventOut : nullptr);
-  if (Res) {
-    return offloadResultToUR(Res);
-  }
+  OL_RETURN_ON_ERR(olMemcpy(hQueue->OffloadQueue, DevPtr + offset,
+                            hQueue->OffloadDevice, pSrc, Adapter->HostDevice,
+                            size, phEvent ? &EventOut : nullptr));
 
   if (blockingWrite) {
-    auto Res = olWaitQueue(hQueue->OffloadQueue);
-    if (Res) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(olWaitQueue(hQueue->OffloadQueue));
   }
 
   if (phEvent) {
