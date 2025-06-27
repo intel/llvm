@@ -1162,10 +1162,6 @@ auto make_reduction(RedOutVar RedVar, RestTy &&...Rest) {
       RedVar, std::forward<RestTy>(Rest)...};
 }
 
-namespace reduction {
-inline void finalizeHandler(handler &CGH) { CGH.finalize(); }
-} // namespace reduction
-
 // This method is used for implementation of parallel_for accepting 1 reduction.
 // TODO: remove this method when everything is switched to general algorithm
 // implementing arbitrary number of reductions in parallel_for().
@@ -1723,8 +1719,6 @@ struct NDRangeReduction<
       }
     });
 
-    reduction::finalizeHandler(CGH);
-
     // Run the additional kernel as many times as needed to reduce all partial
     // sums into one scalar.
 
@@ -1900,8 +1894,6 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
       First(KernelOneWGTag{});
     else
       First(KernelMultipleWGTag{});
-
-    reduction::finalizeHandler(CGH);
 
     // 2. Run the additional kernel as many times as needed to reduce
     // all partial sums into one scalar.
@@ -2598,7 +2590,6 @@ template <> struct NDRangeReduction<reduction::strategy::multi> {
 
     reduCGFuncMulti<KernelName>(CGH, KernelFunc, NDRange, Properties, ReduTuple,
                                 ReduIndices);
-    reduction::finalizeHandler(CGH);
 
     size_t NWorkItems = NDRange.get_group_range().size();
     while (NWorkItems > 1) {
