@@ -301,8 +301,6 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   ZeInitResult = ZE_RESULT_ERROR_UNINITIALIZED;
   ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
 
-  RefCount.reset(0);
-
 #ifdef UR_STATIC_LEVEL_ZERO
   // Given static linking of the L0 Loader, we must delay the loader's
   // destruction of its context until after the UR Adapter is destroyed.

@@ -106,7 +106,7 @@ protected:
   ~ur_mem_handle_t_() {};
 
 private:
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };
 
 struct ur_buffer final : ur_mem_handle_t_ {

@@ -60,7 +60,7 @@ private:
   UsmPool *getPool(const usm::pool_descriptor &Desc);
   usm::pool_manager<usm::pool_descriptor, UsmPool> PoolManager;
 
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };
 
 // Exception type to pass allocation errors

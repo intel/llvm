@@ -91,5 +91,5 @@ private:
 
   v2::raii::cache_borrowed_event_pool eventPool;
 
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };

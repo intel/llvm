@@ -85,5 +85,5 @@ private:
   ur_usm_pool_handle_t_ asyncPool;
   std::list<ur_usm_pool_handle_t> usmPoolHandles;
 
-  URRefCount RefCount;
+  ur::RefCount RefCount;
 };
