@@ -37,6 +37,12 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
     }
   },
+  "windows": {
+    "compute_runtime": {
+      "version": "101.6881",
+      "url": "https://downloadmirror.intel.com/857041/gfx_win_101.6881.exe",
+      "root": ""
+    },    
     "tbb": {
       "github_tag": "v2022.1.0",
       "version": "2022.1.0",
