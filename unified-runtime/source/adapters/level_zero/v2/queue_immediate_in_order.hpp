@@ -463,7 +463,8 @@ public:
     return commandListManager.lock()->appendKernelLaunchWithArgsExp(
         hKernel, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, numArgs,
         pArgs, numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
-        phEventWaitList, createEventIfRequested(phEvent));
+        phEventWaitList,
+        createEventIfRequested(eventPool.get(), phEvent, this));
   }
 };
 
