@@ -112,25 +112,21 @@ public:
   };
 
   struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
-    std::weak_ptr<Adapter> AdapterWeakPtr;
-    ProgramBuildResult(const AdapterPtr &Adapter) : AdapterWeakPtr(Adapter) {
+    AdapterPtr MAdapter;
+    ProgramBuildResult(const AdapterPtr &AAdapter) : MAdapter(AAdapter) {
       Val = nullptr;
     }
-    ProgramBuildResult(const AdapterPtr &Adapter, BuildState InitialState)
-        : AdapterWeakPtr(Adapter) {
+    ProgramBuildResult(const AdapterPtr &AAdapter, BuildState InitialState)
+        : MAdapter(AAdapter) {
       Val = nullptr;
       this->State.store(InitialState);
     }
     ~ProgramBuildResult() {
       try {
         if (Val) {
-          AdapterPtr AdapterSharedPtr = AdapterWeakPtr.lock();
-          if (AdapterSharedPtr) {
-            ur_result_t Err =
-                AdapterSharedPtr->call_nocheck<UrApiKind::urProgramRelease>(
-                    Val);
-            __SYCL_CHECK_UR_CODE_NO_EXC(Err, AdapterSharedPtr->getBackend());
-          }
+          ur_result_t Err =
+              MAdapter->call_nocheck<UrApiKind::urProgramRelease>(Val);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err, MAdapter->getBackend());
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
@@ -202,20 +198,16 @@ public:
   using KernelArgMaskPairT =
       std::pair<ur_kernel_handle_t, const KernelArgMask *>;
   struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
-    std::weak_ptr<Adapter> AdapterWeakPtr;
-    KernelBuildResult(const AdapterPtr &Adapter) : AdapterWeakPtr(Adapter) {
+    AdapterPtr MAdapter;
+    KernelBuildResult(const AdapterPtr &AAdapter) : MAdapter(AAdapter) {
       Val.first = nullptr;
     }
     ~KernelBuildResult() {
       try {
         if (Val.first) {
-          AdapterPtr AdapterSharedPtr = AdapterWeakPtr.lock();
-          if (AdapterSharedPtr) {
-            ur_result_t Err =
-                AdapterSharedPtr->call_nocheck<UrApiKind::urKernelRelease>(
-                    Val.first);
-            __SYCL_CHECK_UR_CODE_NO_EXC(Err, AdapterSharedPtr->getBackend());
-          }
+          ur_result_t Err =
+              MAdapter->call_nocheck<UrApiKind::urKernelRelease>(Val.first);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err, MAdapter->getBackend());
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
@@ -818,7 +810,9 @@ public:
             BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
           reset();
           BuildResult->updateAndNotify(BuildState::BS_Initial);
-          continue;
+          if (AttemptCounter + 1 < MaxAttempts) {
+            continue;
+          }
         }
 
         BuildResult->updateAndNotify(BuildState::BS_Failed);

@@ -81,7 +81,7 @@ void SplitDebugInfo(const ToolChain &TC, Compilation &C, const Tool &T,
 
 void addLTOOptions(const ToolChain &ToolChain, const llvm::opt::ArgList &Args,
                    llvm::opt::ArgStringList &CmdArgs, const InputInfo &Output,
-                   const InputInfo &Input, bool IsThinLTO);
+                   const InputInfoList &Inputs, bool IsThinLTO);
 
 const char *RelocationModelName(llvm::Reloc::Model Model);
 
@@ -265,6 +265,10 @@ void renderCommonIntegerOverflowOptions(const llvm::opt::ArgList &Args,
 
 bool shouldEnableVectorizerAtOLevel(const llvm::opt::ArgList &Args,
                                     bool isSlpVec);
+
+/// Enable -floop-interchange based on the optimization level selected.
+void handleInterchangeLoopsArgs(const llvm::opt::ArgList &Args,
+                                llvm::opt::ArgStringList &CmdArgs);
 
 /// Enable -fvectorize based on the optimization level selected.
 void handleVectorizeLoopsArgs(const llvm::opt::ArgList &Args,
