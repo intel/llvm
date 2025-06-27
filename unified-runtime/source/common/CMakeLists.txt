@@ -76,6 +76,12 @@ else()
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
   set(UMF_BUILD_SHARED_LIBRARY ${UMF_BUILD_SHARED_LIBRARY} CACHE INTERNAL "Build UMF shared library")
 
+  if (CMAKE_SYSTEM_NAME STREQUAL Windows)
+    if(CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL)
+      set(UMF_USE_DEBUG_POSTFIX ON)
+    endif()
+  endif()
+
   FetchContent_MakeAvailable(unified-memory-framework)
   FetchContent_GetProperties(unified-memory-framework)
 endif()
@@ -130,3 +136,8 @@ target_link_libraries(ur_umf INTERFACE
     umf::umf
     umf::headers
 )
+
+if (CMAKE_SYSTEM_NAME STREQUAL Windows AND
+    (CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL))
+    set_target_properties(ur_umf PROPERTIES OUTPUT_NAME "ur_umfd")
+endif()

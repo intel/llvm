@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o /dev/null
+// RUN: %clangxx %fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o /dev/null
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 #include <sycl/sycl.hpp>

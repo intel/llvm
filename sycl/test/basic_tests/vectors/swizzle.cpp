@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t_default.out
+// RUN: %clangxx %fsycl %s -o %t_default.out
 // RUN: %t_default.out
 
 #include <sycl/vector.hpp>
