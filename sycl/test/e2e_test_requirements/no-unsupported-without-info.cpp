@@ -54,7 +54,11 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
+<<<<<<< HEAD
 // NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 236
+=======
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 247
+>>>>>>> 5278dc4d7834 (Update no-unsupported-without-info.cpp)
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -191,11 +195,9 @@
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache_unroll.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache_unroll_init.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_accumulator.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_array.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_down_convert.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_half.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_half_accumulator.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_int8_rowmajorA_rowmajorB.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_prefetch.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_rowmajorA_rowmajorB.cpp
