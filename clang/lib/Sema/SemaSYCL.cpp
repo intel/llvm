@@ -5880,17 +5880,16 @@ void SemaSYCL::finalizeFreeFunctionKernels() {
   // in this list are kernels that have been declared but not defined. Their
   // construction consists only of generating the integration header and setting
   // their names manually. The other steps in constructing the kernel cannot be
-  // done because
-  // potentially nothing is known about the arguments of the kernel except that
-  // they exist.
+  // done because potentially nothing is known about the arguments of the kernel
+  // except that they exist.
   for (FunctionDecl *kernel : FreeFunctionDeclarations) {
     if (CheckFreeFunctionDiagnostics(SemaRef, kernel))
       return;
 
-    SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
+    SyclKernelIntHeaderCreator IntHeader(*this, getSyclIntegrationHeader(),
                                           kernel->getType(), kernel);
     KernelObjVisitor Visitor{*this};
-    Visitor.VisitFunctionParameters(kernel, int_header);
+    Visitor.VisitFunctionParameters(kernel, IntHeader);
     std::unique_ptr<MangleContext> MangleCtx(
         getASTContext().createMangleContext());
     std::string Name, MangledName;
@@ -5900,13 +5899,12 @@ void SemaSYCL::finalizeFreeFunctionKernels() {
   }
 }
 
-void SemaSYCL::ProcessFreeFunctionDeclaration(FunctionDecl *FD) {
+void SemaSYCL::processFreeFunctionDeclaration(FunctionDecl *FD) {
   // FD represents a forward declaration of a free function kernel.
   // Save them for the end of the translation unit action. This makes it easier
   // to handle the case where a definition is defined later.
-  if (isFreeFunction(FD)) {
-    FreeFunctionDeclarations.emplace_back(FD);
-  }
+  if (isFreeFunction(FD))
+    FreeFunctionDeclarations.insert(FD->getCanonicalDecl());
 }
 
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
@@ -5916,9 +5914,7 @@ void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
 
     // In case the free function kernel has already been seen by way of a
     // forward declaration, flush it out because a definition takes priority.
-    llvm::erase_if(FreeFunctionDeclarations, [FD](FunctionDecl *decl) {
-      return decl->getCanonicalDecl() == FD->getCanonicalDecl();
-    });
+    FreeFunctionDeclarations.erase(FD->getCanonicalDecl());
 
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);

@@ -265,7 +265,7 @@ private:
 
   llvm::DenseSet<const FunctionDecl *> SYCLKernelFunctions;
 
-  llvm::SmallVector<FunctionDecl *, 8> FreeFunctionDeclarations;
+  llvm::SmallSet<FunctionDecl *, 8> FreeFunctionDeclarations;
 
 public:
   SemaSYCL(Sema &S);
@@ -359,7 +359,7 @@ public:
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void SetSYCLKernelNames();
   void MarkDevices();
-  void ProcessFreeFunctionDeclaration(FunctionDecl *FD);
+  void processFreeFunctionDeclaration(FunctionDecl *FD);
   void ProcessFreeFunction(FunctionDecl *FD);
   void finalizeFreeFunctionKernels();
 
