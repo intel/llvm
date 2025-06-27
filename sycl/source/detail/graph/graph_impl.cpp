@@ -2101,13 +2101,6 @@ void modifiable_command_graph::checkNodePropertiesAndThrow(
       Properties, CheckDataLessProperties, CheckPropertiesWithData);
 }
 
-#ifndef ___INTEL_PREVIEW_BREAKING_CHANGES
-void modifiable_command_graph::print_graph(const std::string path,
-                                           bool verbose) const {
-  print_graph(sycl::detail::string_view{path}, verbose);
-}
-#endif
-
 executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx,
     const property_list &PropList)
