@@ -6,8 +6,10 @@
 // RUN: %{build} -sycl-std=2020 -o %t2.out
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t2.out | FileCheck %s --check-prefix CHECK-ENABLED
 
-#include <iostream>
+#include <sycl/atomic.hpp>
 #include <sycl/detail/core.hpp>
+
+#include <iostream>
 using namespace sycl;
 
 range<1> Range1 = {0};
