@@ -6,6 +6,7 @@
 // RUN: %{run} %t2.out
 //
 // UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: imf device library is not used by NV and AMD backend.
 
 // Depends on SPIR-V Backend & run-time drivers version.
 // XFAIL: spirv-backend && run-mode

@@ -5,6 +5,7 @@
 // RUN: %{run} %t2.out
 //
 // UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: imf device library is not used by NV and AMD backend.
 
 // All __imf_* bf16 functions are implemented via fp32 emulation, so we don't
 // need to check whether underlying device supports bf16 or not.

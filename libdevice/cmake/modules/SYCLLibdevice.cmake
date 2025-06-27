@@ -1,4 +1,3 @@
-include(CheckCXXCompilerFlag)
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(obj-new-offload_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (MSVC)
@@ -377,13 +376,19 @@ add_devicelibs(libsycl-cmath-fp64
   DEPENDENCIES ${cmath_obj_deps} )
 add_devicelibs(libsycl-imf
   SRC imf_wrapper.cpp
-  DEPENDENCIES ${imf_obj_deps})
+  DEPENDENCIES ${imf_obj_deps}
+  SKIP_ARCHS nvptx64-nvidia-cuda
+             amdgcn-amd-amdhsa)
 add_devicelibs(libsycl-imf-fp64
   SRC imf_wrapper_fp64.cpp
-  DEPENDENCIES ${imf_obj_deps})
+  DEPENDENCIES ${imf_obj_deps}
+  SKIP_ARCHS nvptx64-nvidia-cuda
+             amdgcn-amd-amdhsa)
 add_devicelibs(libsycl-imf-bf16
   SRC imf_wrapper_bf16.cpp
-  DEPENDENCIES ${imf_obj_deps})
+  DEPENDENCIES ${imf_obj_deps}
+  SKIP_ARCHS nvptx64-nvidia-cuda
+             amdgcn-amd-amdhsa)
 add_devicelibs(libsycl-bfloat16
   SRC bfloat16_wrapper.cpp
   DEPENDENCIES ${cmath_obj_deps})
@@ -648,26 +653,6 @@ foreach(dtype IN ITEMS bf16 fp32 fp64)
       DTYPE ${dtype}
       EXTRA_OPTS ${${ftype}_device_compile_opts}
       TGT_NAME ${tgt_name})
-  endforeach()
-endforeach()
-
-# Add device fallback imf libraries for the NVPTX and AMD targets.
-# The output files are bitcode.
-foreach(arch IN LISTS devicelib_arch)
-  foreach(dtype IN ITEMS bf16 fp32 fp64)
-    set(tgt_name imf_fallback_${dtype}_bc_${arch})
-
-    add_lib_imf(libsycl-fallback-imf-${arch}-${dtype}
-      ARCH ${arch}
-      DIR ${bc_binary_dir}
-      FTYPE bc
-      DTYPE ${dtype}
-      EXTRA_OPTS ${bc_device_compile_opts} ${compile_opts_${arch}}
-      TGT_NAME ${tgt_name})
-
-    append_to_property(
-      ${bc_binary_dir}/libsycl-fallback-imf-${arch}-${dtype}.${bc-suffix}
-      PROPERTY_NAME BC_DEVICE_LIBS_${arch})
   endforeach()
 endforeach()
 
