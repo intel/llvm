@@ -21,13 +21,13 @@ namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 74
+#define TEST_NUM 75
 
 double ref[TEST_NUM] = {
-    6, 100, 0.5, 1.0, 0, 0, -2, 1, 2, 1,   1,   1,   0,   1, 1, 0, 0, 0, 0,
-    0, 1,   1,   0.5, 0, 2, 0,  0, 1, 0,   2,   0,   0,   0, 0, 0, 1, 0, 1,
-    2, 0,   1,   2,   5, 0, 0,  0, 0, 0.5, 0.5, NAN, NAN, 2, 0, 0, 0, 0, 0,
-    0, 0,   0,   0,   0, 0, 0,  0, 0, 0,   0,   0,   0,   0, 0, 0, 0};
+    1.0, 6, 100, 0.5, 1.0, 0, 0, -2, 1, 2, 1,   1,   1,   0,   1, 1, 0, 0, 0,
+    0,   0, 1,   1,   0.5, 0, 2, 0,  0, 1, 0,   2,   0,   0,   0, 0, 0, 1, 0,
+    1,   2, 0,   1,   2,   5, 0, 0,  0, 0, 0.5, 0.5, NAN, NAN, 2, 0, 0, 0, 0,
+    0,   0, 0,   0,   0,   0, 0, 0,  0, 0, 0,   0,   0,   0,   0, 0, 0, 0};
 
 double refIptr = 1;
 
@@ -62,6 +62,8 @@ template <class T> void device_cmath_test(s::queue &deviceQueue) {
         T minus_infinity = -INFINITY;
         double subnormal;
         *((uint64_t *)&subnormal) = 0xFFFFFFFFFFFFFULL;
+
+        res_access[i++] = std::rint(0.9);
         res_access[i++] = std::scalbln(1.5, 2);
         res_access[i++] = sycl::exp10(2.0);
         res_access[i++] = sycl::rsqrt(4.0);
