@@ -37,12 +37,6 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
     }
   },
-  "windows": {
-    "compute_runtime": {
-      "version": "101.1191",
-      "url": "https://downloadmirror.intel.com/691496/igfx_win_101.1191.zip",
-      "root": ""
-    },
     "tbb": {
       "github_tag": "v2022.1.0",
       "version": "2022.1.0",
