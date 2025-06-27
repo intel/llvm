@@ -80,7 +80,7 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
   Adapter->call<detail::UrApiKind::urContextCreateWithNativeHandle>(
       nativeHandle, Adapter->getUrAdapter(), 0, nullptr, nullptr, &hContext);
 
-  impl = detail::context_impl::create(hContext, AsyncHandler, Adapter);
+  impl = detail::context_impl::create(hContext, AsyncHandler, *Adapter);
 }
 
 template <typename Param>
