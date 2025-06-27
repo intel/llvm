@@ -5887,7 +5887,7 @@ void SemaSYCL::finalizeFreeFunctionKernels() {
       return;
 
     SyclKernelIntHeaderCreator IntHeader(*this, getSyclIntegrationHeader(),
-                                          kernel->getType(), kernel);
+                                         kernel->getType(), kernel);
     KernelObjVisitor Visitor{*this};
     Visitor.VisitFunctionParameters(kernel, IntHeader);
     std::unique_ptr<MangleContext> MangleCtx(
