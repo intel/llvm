@@ -24,7 +24,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 namespace detail {
 void waitEvents(std::vector<sycl::event> DepEvents) {
   for (auto SyclEvent : DepEvents) {
@@ -59,10 +58,10 @@ retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
     if (DeviceImage == DeviceImages.end()) {
       return {nullptr, nullptr};
     }
-    auto ContextImpl = Queue.getContextImplPtr();
+    context_impl &ContextImpl = Queue.getContextImpl();
     ur_program_handle_t Program =
         detail::ProgramManager::getInstance().createURProgram(
-            **DeviceImage, *ContextImpl, {createSyclObjFromImpl<device>(Dev)});
+            **DeviceImage, ContextImpl, {createSyclObjFromImpl<device>(Dev)});
     return {*DeviceImage, Program};
   }
 
@@ -73,18 +72,17 @@ retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
     DeviceImage = KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
     Program = KernelCG->MSyclKernel->getDeviceImage()->get_ur_program_ref();
   } else if (auto SyclKernelImpl =
-                 KernelBundleImpl ? KernelBundleImpl->tryGetKernel(
-                                        KernelName, KernelBundleImpl)
+                 KernelBundleImpl ? KernelBundleImpl->tryGetKernel(KernelName)
                                   : std::shared_ptr<kernel_impl>{nullptr}) {
     // Retrieve the device image from the kernel bundle.
     DeviceImage = SyclKernelImpl->getDeviceImage()->get_bin_image_ref();
     Program = SyclKernelImpl->getDeviceImage()->get_ur_program_ref();
   } else {
-    auto ContextImpl = Queue.getContextImplPtr();
+    context_impl &ContextImpl = Queue.getContextImpl();
     DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
-        KernelName, *ContextImpl, Dev);
+        KernelName, ContextImpl, Dev);
     Program = detail::ProgramManager::getInstance().createURProgram(
-        *DeviceImage, *ContextImpl, {createSyclObjFromImpl<device>(Dev)});
+        *DeviceImage, ContextImpl, {createSyclObjFromImpl<device>(Dev)});
   }
   return {DeviceImage, Program};
 }

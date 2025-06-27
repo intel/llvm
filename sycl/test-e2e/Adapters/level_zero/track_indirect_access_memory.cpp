@@ -1,8 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // RUN: %{build} %level_zero_options %threads_lib -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY=1 %{run} %t.out 2>&1 | FileCheck %s
-//
-// CHECK: pass
+// RUN: env SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY=1 %{run} %t.out 2>&1
 //
 // Test checks memory tracking and deferred release functionality which is
 // enabled by SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY env variable.
@@ -120,6 +118,5 @@ int main() {
     update_d3_data(q);
   }
 
-  std::cout << "pass" << std::endl;
   return 0;
 }

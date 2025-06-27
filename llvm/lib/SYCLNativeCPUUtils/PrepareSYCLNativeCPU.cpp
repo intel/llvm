@@ -114,10 +114,16 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
 
   fixCallingConv(F);
   fixCallingConv(SubhF);
-  // Add sycl-module-id attribute
+  // Add sycl-module-id and target attributes
   // Todo: we may want to copy other attributes to the subhandler,
   // but we can't simply use setAttributes(F->getAttributes) since
   // the function signatures are different
+  if (F->hasFnAttribute("target-features")) {
+    SubhF->addFnAttr(F->getFnAttribute("target-features"));
+  }
+  if (F->hasFnAttribute("target-cpu")) {
+    SubhF->addFnAttr(F->getFnAttribute("target-cpu"));
+  }
   if (F->hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID)) {
     Attribute MId = F->getFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID);
     SubhF->addFnAttr("sycl-module-id", MId.getValueAsString());

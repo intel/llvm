@@ -1,6 +1,7 @@
 #include <sycl/sycl.hpp>
 
 #include <detail/device_binary_image.hpp>
+#include <detail/device_global_map.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <helpers/MockDeviceImage.hpp>
@@ -85,16 +86,7 @@ public:
     return m_Ptr2HostPipe;
   }
 
-  std::unordered_map<sycl::detail::KernelNameStrT,
-                     std::unique_ptr<sycl::detail::DeviceGlobalMapEntry>> &
-  getDeviceGlobals() {
-    return m_DeviceGlobals;
-  }
-
-  std::unordered_map<const void *, sycl::detail::DeviceGlobalMapEntry *> &
-  getPtrToDeviceGlobal() {
-    return m_Ptr2DeviceGlobal;
-  }
+  sycl::detail::DeviceGlobalMap &getDeviceGlobals() { return m_DeviceGlobals; }
 };
 
 namespace {
@@ -312,15 +304,14 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM, size_t ExpectedCount,
   EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), ExpectedCount) << Comment;
 
   {
-    EXPECT_EQ(PM.getDeviceGlobals().size(), ExpectedCount) << Comment;
-    EXPECT_TRUE(
-        PM.getDeviceGlobals().count(generateRefName("A", "DeviceGlobal")) > 0)
+    sycl::detail::DeviceGlobalMap &DeviceGlobalMap = PM.getDeviceGlobals();
+    EXPECT_EQ(DeviceGlobalMap.size(), ExpectedCount) << Comment;
+    EXPECT_TRUE(DeviceGlobalMap.count(generateRefName("A", "DeviceGlobal")) > 0)
         << Comment;
-    EXPECT_TRUE(
-        PM.getDeviceGlobals().count(generateRefName("B", "DeviceGlobal")) > 0)
+    EXPECT_TRUE(DeviceGlobalMap.count(generateRefName("B", "DeviceGlobal")) > 0)
         << Comment;
+    EXPECT_EQ(DeviceGlobalMap.getPointerMap().size(), ExpectedCount) << Comment;
   }
-  EXPECT_EQ(PM.getPtrToDeviceGlobal().size(), ExpectedCount) << Comment;
 
   {
     EXPECT_EQ(PM.getHostPipes().size(), ExpectedCount) << Comment;

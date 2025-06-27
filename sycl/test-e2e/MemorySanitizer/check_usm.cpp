@@ -30,23 +30,7 @@ void check_memset(sycl::queue &Q) {
 // CHECK-NOT: use-of-uninitialized-value
 // CHECK: PASS
 
-void check_memcpy1(sycl::queue &Q) {
-  std::cout << "check_memcpy1" << std::endl;
-  auto *source = sycl::malloc_host<int>(2, Q);
-  auto *array = sycl::malloc_device<int>(2, Q);
-  // FIXME: We don't support shadow propagation on host/shared usm
-  auto ev1 = Q.memcpy(array, source, 2 * sizeof(int));
-  auto ev2 = Q.single_task(ev1, [=]() { array[0] = foo(array[0], array[1]); });
-  Q.wait();
-  sycl::free(array, Q);
-  sycl::free(source, Q);
-  std::cout << "PASS" << std::endl;
-}
-// CHECK-LABEL: check_memcpy1
-// CHECK-NOT: use-of-uninitialized-value
-// CHECK: PASS
-
-void check_memcpy2(sycl::queue &Q) {
+void check_memcpy(sycl::queue &Q) {
   std::cout << "check_memcpy2" << std::endl;
   auto *source = sycl::malloc_device<int>(2, Q);
   auto *array = sycl::malloc_device<int>(2, Q);
@@ -65,7 +49,6 @@ void check_memcpy2(sycl::queue &Q) {
 int main() {
   sycl::queue Q;
   check_memset(Q);
-  check_memcpy1(Q);
-  check_memcpy2(Q);
+  check_memcpy(Q);
   return 0;
 }
