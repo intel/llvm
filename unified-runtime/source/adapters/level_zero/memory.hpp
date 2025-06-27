@@ -122,7 +122,7 @@ struct ur_buffer final : ur_mem_handle_t_ {
       : ur_mem_handle_t_(mem_type_t::buffer, Parent->UrContext), Size(Size),
         SubBuffer{{Parent, Origin}} {
     // Retain the Parent Buffer due to the Creation of the SubBuffer.
-    Parent->getRefCount().increment();
+    Parent->getRefCount().retain();
   }
 
   // Interop-buffer constructor

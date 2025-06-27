@@ -558,14 +558,14 @@ ur_result_t urProgramLinkExp(
 ur_result_t urProgramRetain(
     /// [in] handle for the Program to retain
     ur_program_handle_t Program) {
-  Program->getRefCount().increment();
+  Program->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urProgramRelease(
     /// [in] handle for the Program to release
     ur_program_handle_t Program) {
-  if (!Program->getRefCount().decrementAndTest())
+  if (!Program->getRefCount().release())
     return UR_RESULT_SUCCESS;
 
   delete Program;
@@ -1115,7 +1115,7 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
   // must be destroyed before the Module can be destroyed.  So, be sure
   // to destroy build log before destroying the module.
   if (!deletion) {
-    if (!RefCount.decrementAndTest()) {
+    if (!RefCount.release()) {
       return;
     }
   }

@@ -11,6 +11,7 @@
 
 #include "../common.hpp"
 #include "../device.hpp"
+#include "common/ur_ref_count.hpp"
 
 #include "context.hpp"
 #include "event.hpp"
@@ -48,6 +49,8 @@ private:
     return commandListIndex.fetch_add(1, std::memory_order_relaxed) %
            numCommandLists;
   }
+
+  ur::RefCount RefCount;
 
 public:
   ur_queue_immediate_out_of_order_t(ur_context_handle_t, ur_device_handle_t,
@@ -503,6 +506,8 @@ public:
         numEventsInWaitList, phEventWaitList,
         createEventIfRequested(eventPool.get(), phEvent, this));
   }
+
+  ur::RefCount &getRefCount() noexcept { return RefCount; }
 };
 
 } // namespace v2

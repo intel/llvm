@@ -80,12 +80,12 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
       defaultUSMPool(this, nullptr), asyncPool(this, nullptr) {}
 
 ur_result_t ur_context_handle_t_::retain() {
-  RefCount.increment();
+  RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_context_handle_t_::release() {
-  if (!RefCount.decrementAndTest())
+  if (!RefCount.release())
     return UR_RESULT_SUCCESS;
 
   delete this;

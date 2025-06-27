@@ -247,7 +247,7 @@ ur_result_t urEnqueueUSMFreeExp(
   }
 
   size_t size = umfPoolMallocUsableSize(hPool, Mem);
-  (*Event)->getRefCount().increment();
+  (*Event)->getRefCount().retain();
   usmPool->AsyncPool.insert(Mem, size, *Event, Queue);
 
   // Signal that USM free event was finished

@@ -840,13 +840,13 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
 
 ur_result_t
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t CommandBuffer) {
-  CommandBuffer->getRefCount().increment();
+  CommandBuffer->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t CommandBuffer) {
-  if (!CommandBuffer->getRefCount().decrementAndTest())
+  if (!CommandBuffer->getRefCount().release())
     return UR_RESULT_SUCCESS;
 
   UR_CALL(waitForOngoingExecution(CommandBuffer));
@@ -1641,7 +1641,7 @@ ur_result_t enqueueImmediateAppendPath(
   if (CommandBuffer->CurrentSubmissionEvent) {
     UR_CALL(urEventReleaseInternal(CommandBuffer->CurrentSubmissionEvent));
   }
-  (*Event)->getRefCount().increment();
+  (*Event)->getRefCount().retain();
   CommandBuffer->CurrentSubmissionEvent = *Event;
 
   UR_CALL(Queue->executeCommandList(CommandListHelper, false, false));
@@ -1724,7 +1724,7 @@ ur_result_t enqueueWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer,
   if (CommandBuffer->CurrentSubmissionEvent) {
     UR_CALL(urEventReleaseInternal(CommandBuffer->CurrentSubmissionEvent));
   }
-  (*Event)->getRefCount().increment();
+  (*Event)->getRefCount().retain();
   CommandBuffer->CurrentSubmissionEvent = *Event;
 
   UR_CALL(Queue->executeCommandList(SignalCommandList, false /*IsBlocking*/,

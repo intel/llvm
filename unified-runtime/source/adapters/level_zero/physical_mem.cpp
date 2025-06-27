@@ -42,12 +42,12 @@ ur_result_t urPhysicalMemCreate(
 }
 
 ur_result_t urPhysicalMemRetain(ur_physical_mem_handle_t hPhysicalMem) {
-  hPhysicalMem->getRefCount().increment();
+  hPhysicalMem->getRefCount().retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
-  if (!hPhysicalMem->getRefCount().decrementAndTest())
+  if (!hPhysicalMem->getRefCount().release())
     return UR_RESULT_SUCCESS;
 
   if (checkL0LoaderTeardown()) {
