@@ -209,9 +209,18 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 void SYCLInstallationDetector::addLibspirvLinkArgs(
     const llvm::Triple &DeviceTriple, const llvm::opt::ArgList &DriverArgs,
     const llvm::Triple &HostTriple, llvm::opt::ArgStringList &CC1Args) const {
-  if (DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||
-      D.offloadDeviceOnly())
+  DriverArgs.claimAllArgs(options::OPT_fno_sycl_libspirv);
+
+  if (D.offloadDeviceOnly())
     return;
+
+  if (DriverArgs.hasArg(options::OPT_fno_sycl_libspirv)) {
+    // -fno-sycl-libspirv flag is reserved for very unusual cases where the
+    // libspirv library is not linked when required by the device: so output appropriate
+    // warnings.
+    D.Diag(diag::warn_flag_no_sycl_libspirv) << DeviceTriple.str();
+    return;
+  }
 
   if (const char *LibSpirvFile =
           findLibspirvPath(DeviceTriple, DriverArgs, HostTriple)) {
