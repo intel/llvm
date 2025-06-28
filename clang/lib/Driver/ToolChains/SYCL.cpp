@@ -182,11 +182,9 @@ const char *SYCLInstallationDetector::findLibspirvPath(
   const SmallString<64> Basename =
       getLibSpirvBasename(DeviceTriple, HostTriple);
   auto searchAt = [&](StringRef Path, const Twine &a = "", const Twine &b = "",
-                      const Twine &c = "", const Twine &d = "",
-                      const Twine &e = "") -> const char * {
+                      const Twine &c = "") -> const char * {
     SmallString<128> LibraryPath(Path);
-    llvm::sys::path::append(LibraryPath, a, b, c, d);
-    llvm::sys::path::append(LibraryPath, e, Basename);
+    llvm::sys::path::append(LibraryPath, a, b, c, Basename);
 
     if (Args.hasArgNoClaim(options::OPT__HASH_HASH_HASH) ||
         llvm::sys::fs::exists(LibraryPath))
@@ -195,14 +193,15 @@ const char *SYCLInstallationDetector::findLibspirvPath(
     return nullptr;
   };
 
-  // Otherwise, assume libclc is installed at the same prefix as clang
-  // Expected path w/out install.
-  if (const char *R = searchAt(D.ResourceDir, "..", "..", "clc"))
-    return R;
+  for (const auto &IC : InstallationCandidates) {
+    // Expected path w/out install.
+    if (const char *R = searchAt(IC, "lib", "clc"))
+      return R;
 
-  // Expected path w/ install.
-  if (const char *R = searchAt(D.ResourceDir, "..", "..", "..", "share", "clc"))
-    return R;
+    // Expected path w/ install.
+    if (const char *R = searchAt(IC, "share", "clc"))
+      return R;
+  }
 
   return nullptr;
 }
