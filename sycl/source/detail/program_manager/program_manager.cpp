@@ -2598,7 +2598,10 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
           std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
           ImgInfo.KernelIDs = m_BinImg2KernelIDs[BinImage];
         }
-        ImgInfo.Deps = collectDeviceImageDeps(*BinImage, {DevImpl});
+        ImgInfo.Deps =
+            collectDeviceImageDeps(*BinImage, {DevImpl},
+                                   /*ErrorOnUnresolvableImport=*/TargetState ==
+                                       bundle_state::executable);
       }
       const bundle_state ImgState = ImgInfo.State;
       const std::shared_ptr<std::vector<sycl::kernel_id>> &ImageKernelIDs =
