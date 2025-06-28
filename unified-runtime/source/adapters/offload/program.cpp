@@ -89,7 +89,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     size_t DevNameLength;
     OL_RETURN_ON_ERR(olGetDeviceInfoSize(phDevices[0]->OffloadDevice,
                                          OL_DEVICE_INFO_NAME, &DevNameLength));
-    DevName.resize(DevNameLength);
+    DevName.resize(DevNameLength - 1);
     OL_RETURN_ON_ERR(olGetDeviceInfo(phDevices[0]->OffloadDevice,
                                      OL_DEVICE_INFO_NAME, DevNameLength,
                                      DevName.data()));
