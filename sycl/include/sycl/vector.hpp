@@ -33,7 +33,7 @@
 
 #include <sycl/access/access.hpp>              // for decorated, address_space
 #include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
-#include <sycl/detail/common.hpp>              // for ArrayCreator, RepeatV...
+#include <sycl/detail/common.hpp>              // for ArrayCreator
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/detail/memcpy.hpp>              // for memcpy
@@ -195,6 +195,10 @@ protected:
   alignas(alignment) DataType m_Data;
 
   template <size_t... Is>
+  constexpr vec_base(const DataT &Val, std::index_sequence<Is...>)
+      : m_Data{((void)Is, Val)...} {}
+
+  template <size_t... Is>
   constexpr vec_base(const std::array<DataT, NumElements> &Arr,
                      std::index_sequence<Is...>)
       : m_Data{Arr[Is]...} {}
@@ -262,8 +266,7 @@ public:
   constexpr vec_base &operator=(vec_base &&) = default;
 
   explicit constexpr vec_base(const DataT &arg)
-      : vec_base(RepeatValue<NumElements>(arg),
-                 std::make_index_sequence<NumElements>()) {}
+      : vec_base(arg, std::make_index_sequence<NumElements>()) {}
 
   template <typename... argTN,
             typename = std::enable_if_t<

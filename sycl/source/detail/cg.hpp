@@ -726,9 +726,9 @@ public:
   std::vector<ArgDesc> MArgs;
 
   CGHostTask(std::shared_ptr<HostTask> HostTask, detail::queue_impl *Queue,
-             std::shared_ptr<detail::context_impl> Context,
-             std::vector<ArgDesc> Args, CG::StorageInitHelper CGData,
-             CGType Type, detail::code_location loc = {});
+             detail::context_impl *Context, std::vector<ArgDesc> Args,
+             CG::StorageInitHelper CGData, CGType Type,
+             detail::code_location loc = {});
 };
 
 } // namespace detail

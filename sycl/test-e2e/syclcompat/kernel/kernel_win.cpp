@@ -1,5 +1,11 @@
 // REQUIRES: windows
 
+// Currently disabled due to flaky failures caused by Windows runtime not
+// unregistering the binaries when runtime-loaded .dll files with SYCL binaries
+// are unloaded.
+// UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: CMPLRLLVM-68687
+
 // DEFINE: %{sharedflag} = %if cl_options %{/clang:-shared%} %else %{-shared%}
 
 // This test is sensitive to the absolute path of the dll file produced, so we

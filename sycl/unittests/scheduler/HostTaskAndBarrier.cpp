@@ -20,15 +20,15 @@
 namespace {
 using namespace sycl;
 using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
-using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 
 constexpr auto DisableCleanupName = "SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP";
 
 class TestQueueImpl : public sycl::detail::queue_impl {
 public:
-  TestQueueImpl(ContextImplPtr SyclContext, sycl::detail::device_impl &Dev)
+  TestQueueImpl(sycl::detail::context_impl &SyclContext,
+                sycl::detail::device_impl &Dev)
       : sycl::detail::queue_impl(Dev, SyclContext,
-                                 SyclContext->get_async_handler(), {},
+                                 SyclContext.get_async_handler(), {},
                                  sycl::detail::queue_impl::private_tag{}) {}
   using sycl::detail::queue_impl::MDefaultGraphDeps;
   using sycl::detail::queue_impl::MExtGraphDeps;
@@ -46,7 +46,7 @@ protected:
     sycl::device SyclDev =
         sycl::detail::select_device(sycl::default_selector_v, SyclContext);
     QueueDevImpl.reset(
-        new TestQueueImpl(sycl::detail::getSyclObjImpl(SyclContext),
+        new TestQueueImpl(*sycl::detail::getSyclObjImpl(SyclContext),
                           *sycl::detail::getSyclObjImpl(SyclDev)));
 
     MainLock.lock();

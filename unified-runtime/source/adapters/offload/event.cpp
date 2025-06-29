@@ -43,10 +43,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   for (uint32_t i = 0; i < numEvents; i++) {
     if (phEventWaitList[i]->OffloadEvent) {
-      auto Res = olWaitEvent(phEventWaitList[i]->OffloadEvent);
-      if (Res) {
-        return offloadResultToUR(Res);
-      }
+      OL_RETURN_ON_ERR(olWaitEvent(phEventWaitList[i]->OffloadEvent));
     }
   }
   return UR_RESULT_SUCCESS;

@@ -26,7 +26,7 @@ TEST_F(SchedulerTest, MemObjCommandCleanupAllocaUsers) {
   detail::Requirement MockReqA = getMockRequirement(BufA);
   detail::Requirement MockReqB = getMockRequirement(BufB);
   detail::MemObjRecord *RecA =
-      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Q), &MockReqA);
+      MS.getOrInsertMemObjRecord(&QueueImpl, &MockReqA);
 
   // Create 2 fake allocas, one of which will be cleaned up
   detail::AllocaCommand *MockAllocaA =
@@ -68,7 +68,7 @@ TEST_F(SchedulerTest, MemObjCommandCleanupAllocaDeps) {
   buffer<int, 1> Buf(range<1>(1));
   detail::Requirement MockReq = getMockRequirement(Buf);
   detail::MemObjRecord *MemObjRec =
-      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Q), &MockReq);
+      MS.getOrInsertMemObjRecord(&QueueImpl, &MockReq);
 
   // Create a fake alloca.
   detail::AllocaCommand *MockAllocaCmd =

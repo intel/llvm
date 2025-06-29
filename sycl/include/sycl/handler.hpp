@@ -3545,7 +3545,9 @@ private:
         UserRange, KernelFunc};
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;
+#endif
   detail::context_impl &getContextImpl() const;
 
   // Checks if 2D memory operations are supported by the underlying platform.

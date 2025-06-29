@@ -665,24 +665,19 @@ ur_result_t urAdapterGet(
     ur_adapter_handle_t *Adapters,
     /// [out][optional] returns the total number of adapters available.
     uint32_t *NumAdapters) {
+  static std::mutex AdapterConstructionMutex{};
+
   if (NumEntries > 0 && Adapters) {
-    if (GlobalAdapter) {
-      std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
-      if (GlobalAdapter->RefCount++ == 0) {
-        adapterStateInit();
-      }
-    } else {
-      // If the GetAdapter is called after the Library began or was torndown,
-      // then temporarily create a new Adapter handle and register a new
-      // cleanup.
+    std::lock_guard<std::mutex> Lock{AdapterConstructionMutex};
+
+    if (!GlobalAdapter) {
       GlobalAdapter = new ur_adapter_handle_t_();
-      std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
-      if (GlobalAdapter->RefCount++ == 0) {
-        adapterStateInit();
-      }
-      std::atexit(globalAdapterOnDemandCleanup);
     }
     *Adapters = GlobalAdapter;
+
+    if (GlobalAdapter->RefCount++ == 0) {
+      adapterStateInit();
+    }
   }
 
   if (NumAdapters) {
@@ -692,29 +687,31 @@ ur_result_t urAdapterGet(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urAdapterRelease(ur_adapter_handle_t) {
-  // Check first if the Adapter pointer is valid
-  if (GlobalAdapter) {
-    std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
-    if (--GlobalAdapter->RefCount == 0) {
-      auto result = adapterStateTeardown();
+ur_result_t urAdapterRelease([[maybe_unused]] ur_adapter_handle_t Adapter) {
+  assert(GlobalAdapter && GlobalAdapter == Adapter);
+
+  // NOTE: This does not require guarding with a mutex; the instant the ref
+  // count hits zero, both Get and Retain are UB.
+  if (--GlobalAdapter->RefCount == 0) {
+    auto result = adapterStateTeardown();
 #ifdef UR_STATIC_LEVEL_ZERO
-      // Given static linking of the L0 Loader, we must delay the loader's
-      // destruction of its context until after the UR Adapter is destroyed.
-      zelLoaderContextTeardown();
+    // Given static linking of the L0 Loader, we must delay the loader's
+    // destruction of its context until after the UR Adapter is destroyed.
+    zelLoaderContextTeardown();
 #endif
-      return result;
-    }
+
+    delete GlobalAdapter;
+    GlobalAdapter = nullptr;
+
+    return result;
   }
 
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urAdapterRetain(ur_adapter_handle_t) {
-  if (GlobalAdapter) {
-    std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
-    GlobalAdapter->RefCount++;
-  }
+ur_result_t urAdapterRetain([[maybe_unused]] ur_adapter_handle_t Adapter) {
+  assert(GlobalAdapter && GlobalAdapter == Adapter);
+  GlobalAdapter->RefCount++;
 
   return UR_RESULT_SUCCESS;
 }

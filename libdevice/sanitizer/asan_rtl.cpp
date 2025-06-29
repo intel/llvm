@@ -8,9 +8,6 @@
 
 #include "include/asan_rtl.hpp"
 #include "asan/asan_libdevice.hpp"
-#include "atomic.hpp"
-#include "device.h"
-#include "spirv_vars.h"
 
 // Save the pointer to LaunchInfo
 __SYCL_GLOBAL__ uptr *__SYCL_LOCAL__ __AsanLaunchInfo;

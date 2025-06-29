@@ -6,9 +6,6 @@
 // Intended - Mem advise command not supported for OpenCL
 // UNSUPPORTED: opencl
 
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19034
-
 // Since Mem advise is only a memory hint that doesn't
 // impact results but only performances, we verify
 // that a node is correctly added by checking UR function calls.

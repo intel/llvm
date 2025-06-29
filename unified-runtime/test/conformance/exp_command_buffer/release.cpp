@@ -12,6 +12,8 @@ using urCommandBufferReleaseExpTest =
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCommandBufferReleaseExpTest);
 
 TEST_P(urCommandBufferReleaseExpTest, Success) {
+  // https://github.com/intel/llvm/issues/19139
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
   EXPECT_SUCCESS(urCommandBufferRetainExp(cmd_buf_handle));
 
   uint32_t prev_ref_count = 0;

@@ -10,16 +10,16 @@
 
 #include "sycl/handler.hpp"
 #include <detail/cg.hpp>
-#include <detail/graph_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <memory>
-#include <sycl/ext/oneapi/experimental/graph.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental::detail {
+class graph_impl;
+class exec_graph_impl;
 class dynamic_parameter_impl;
-}
+} // namespace ext::oneapi::experimental::detail
 namespace detail {
 
 using KernelBundleImplPtr = std::shared_ptr<detail::kernel_bundle_impl>;
@@ -199,9 +199,9 @@ public:
   template <typename Self = handler_impl> context_impl &get_context() {
     Self *self = this;
     if (auto *Queue = self->get_queue_or_null())
-      return *Queue->getContextImplPtr();
+      return Queue->getContextImpl();
     else
-      return *self->get_graph().getContextImplPtr();
+      return self->get_graph().getContextImpl();
   }
 
   /// If we are submitting a graph using ext_oneapi_graph this will be the graph

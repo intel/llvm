@@ -62,6 +62,7 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
     ${PROJECT_NAME}::umf
+    ur_common
     ${UR_OFFLOAD_INSTALL_DIR}/lib/libLLVMOffload.so
     ${ADDITIONAL_LINK_LIBS}
 )

@@ -1607,9 +1607,9 @@ def CudaUnknownVersion: DiagGroup<"unknown-cuda-version">;
 // ignored by CUDA.
 def HIPOnly : DiagGroup<"hip-only">;
 
-// A warning generated when compiling SYCL applications for HIP or CUDA backends
-// without linking LIBSPIRV.
-def NoLibspirvHipCuda : DiagGroup<"no-libspirv-hip-cuda">;
+// A warning generated when compiling SYCL applications without linking LIBSPIRV
+// for targets that require it.
+def UnsafeLibspirvNotLinked : DiagGroup<"unsafe-libspirv-not-linked">;
 
 // Warning about mixed HIP and OpenMP compilation / target offloading.
 def HIPOpenMPOffloading: DiagGroup<"hip-omp-target-directives">;

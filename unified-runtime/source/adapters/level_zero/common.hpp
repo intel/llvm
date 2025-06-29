@@ -78,6 +78,13 @@ const int UrL0LeaksDebug = [] {
   return std::atoi(UrRet);
 }();
 
+const int UrL0VectorWidth = [] {
+  const char *UrRet = std::getenv("UR_L0_VECTOR_WIDTH_SIZE");
+  if (!UrRet)
+    return 0;
+  return std::atoi(UrRet);
+}();
+
 // Enable for UR L0 Adapter to Init all L0 Drivers on the system with filtering
 // in place for only currently used Drivers.
 const int UrL0InitAllDrivers = [] {

@@ -12,6 +12,7 @@ from benches.syclbench import *
 from benches.llamacpp import *
 from benches.umf import *
 from benches.test import TestSuite
+from benches.benchdnn import OneDnnBench
 from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
@@ -171,6 +172,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         LlamaCppBench(directory),
         UMFSuite(directory),
         GromacsBench(directory),
+        OneDnnBench(directory),
         TestSuite(),
     ]
 
@@ -316,7 +318,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         if options.output_directory is None:
             html_path = os.path.join(os.path.dirname(__file__), "html")
 
-        generate_html(history.runs, compare_names, html_path, metadata)
+        generate_html(history, compare_names, html_path, metadata)
 
 
 def validate_and_parse_env_args(env_args):
@@ -557,6 +559,22 @@ if __name__ == "__main__":
         type=Path,
         help="Location of detect_version.cpp used to query e.g. DPC++, L0",
         default=None,
+    )
+    parser.add_argument(
+        "--archive-baseline-after",
+        type=int,
+        help="Archive baseline results (runs starting with 'Baseline_') older than this many days. "
+        "Archived results are stored separately and can be viewed in the HTML UI by enabling "
+        "'Include archived runs'. This helps manage the size of the primary dataset.",
+        default=options.archive_baseline_days,
+    )
+    parser.add_argument(
+        "--archive-pr-after",
+        type=int,
+        help="Archive PR and other non-baseline results older than this many days. "
+        "Archived results are stored separately and can be viewed in the HTML UI by enabling "
+        "'Include archived runs'. PR runs typically have a shorter retention period than baselines.",
+        default=options.archive_pr_days,
     )
 
     args = parser.parse_args()

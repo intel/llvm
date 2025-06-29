@@ -17,7 +17,7 @@ TEST_F(SchedulerTest, AccDefaultCtorDoesntAffectDepGraph) {
   queue QueueDev(context(Plt), default_selector_v);
   MockScheduler MS;
 
-  detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
+  detail::queue_impl &QueueDevImpl = *detail::getSyclObjImpl(QueueDev);
 
   std::vector<detail::Command *> ToEnqueue;
 
@@ -35,7 +35,7 @@ TEST_F(SchedulerTest, AccDefaultCtorDoesntAffectDepGraph) {
 
   std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
 
-  detail::Command *NewCmd = MS.addCG(std::move(CmdGroup), QueueDevImpl,
+  detail::Command *NewCmd = MS.addCG(std::move(CmdGroup), &QueueDevImpl,
                                      ToEnqueue, /*EventNeeded=*/true);
 
   // if MDeps is empty, accessor built from default ctor does not affect

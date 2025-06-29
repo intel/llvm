@@ -68,17 +68,13 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   }
 
   if (pPropSizeRet) {
-    if (auto Res = olGetPlatformInfoSize(hPlatform->OffloadPlatform, olInfo,
-                                         pPropSizeRet)) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(olGetPlatformInfoSize(hPlatform->OffloadPlatform, olInfo,
+                                           pPropSizeRet));
   }
 
   if (pPropValue) {
-    if (auto Res = olGetPlatformInfo(hPlatform->OffloadPlatform, olInfo,
-                                     propSize, pPropValue)) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(olGetPlatformInfo(hPlatform->OffloadPlatform, olInfo,
+                                       propSize, pPropValue));
   }
 
   return UR_RESULT_SUCCESS;
