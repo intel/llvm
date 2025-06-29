@@ -192,7 +192,6 @@
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache_unroll_init.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_array.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_packedB.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_down_convert.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_half.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_int8_rowmajorA_rowmajorB.cpp
