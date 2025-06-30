@@ -15,6 +15,9 @@
 // %{sycl_target_opts} should be added to the SYCLBIN generation run-line.
 // REQUIRES: target-spir
 
+// UNSUPPORTED: opencl && gpu
+// UNSUPPORTED-TRACKER: GSD-4287
+
 // RUN: %clangxx --offload-new-driver -fsyclbin=object %S/Inputs/dg_kernel.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out %t.syclbin
