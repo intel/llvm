@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
 
 namespace jit_compiler {
 
@@ -22,7 +23,7 @@ public:
   explicit DynArray(size_t Size) { init(Size); }
 
   template <typename InputIt> DynArray(InputIt Begin, InputIt End) {
-    init(static_cast<size_t>(End - Begin));
+    init(std:distance(Begin, End));
     std::copy(Begin, End, this->begin());
   }
 
