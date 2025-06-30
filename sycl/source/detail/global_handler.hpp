@@ -23,7 +23,7 @@ class context_impl;
 class Scheduler;
 class ProgramManager;
 class Sync;
-class Adapter;
+class adapter_impl;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
@@ -70,7 +70,7 @@ public:
   std::mutex &getPlatformToDefaultContextCacheMutex();
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
-  std::vector<Adapter *> &getAdapters();
+  std::vector<adapter_impl *> &getAdapters();
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
@@ -125,7 +125,7 @@ private:
   InstWithLock<std::mutex> MPlatformToDefaultContextCacheMutex;
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
-  InstWithLock<std::vector<Adapter *>> MAdapters;
+  InstWithLock<std::vector<adapter_impl *>> MAdapters;
   InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution

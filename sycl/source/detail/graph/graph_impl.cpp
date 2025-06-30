@@ -681,7 +681,7 @@ graph_impl::getLastInorderNode(sycl::detail::queue_impl *Queue) {
 
 void graph_impl::setLastInorderNode(sycl::detail::queue_impl &Queue,
                                     std::shared_ptr<node_impl> Node) {
-  MInorderQueueMap[Queue.weak_from_this()] = Node;
+  MInorderQueueMap[Queue.weak_from_this()] = std::move(Node);
 }
 
 void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
@@ -1043,7 +1043,7 @@ EventImplPtr exec_graph_impl::enqueueHostTaskPartition(
   // dependencies for the current execution.
   std::unique_ptr<sycl::detail::CG> CommandGroup =
       std::make_unique<sycl::detail::CGHostTask>(sycl::detail::CGHostTask(
-          NodeCommandGroup->MHostTask, &Queue, NodeCommandGroup->MContext,
+          NodeCommandGroup->MHostTask, &Queue, NodeCommandGroup->MContext.get(),
           NodeCommandGroup->MArgs, std::move(CGData),
           NodeCommandGroup->getType()));
 
@@ -2100,13 +2100,6 @@ void modifiable_command_graph::checkNodePropertiesAndThrow(
   sycl::detail::PropertyValidator::checkPropsAndThrow(
       Properties, CheckDataLessProperties, CheckPropertiesWithData);
 }
-
-#ifndef ___INTEL_PREVIEW_BREAKING_CHANGES
-void modifiable_command_graph::print_graph(const std::string path,
-                                           bool verbose) const {
-  print_graph(sycl::detail::string_view{path}, verbose);
-}
-#endif
 
 executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx,
