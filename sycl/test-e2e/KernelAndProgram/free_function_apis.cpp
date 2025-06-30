@@ -216,7 +216,8 @@ bool test_bundle_apis(queue Queue) {
                                                  info::kernel::function_name>(
           Context) == Bundle_ff2.ext_oneapi_get_kernel<ff_2>()
                           .get_info<info::kernel::function_name>();
-  std::cout << "PassS=" << PassS << std::endl;
+  std::cout << "Test retrieving function_name using context: " << PassS
+            << std::endl;
   Pass &= PassS;
 
   kernel_bundle Bundle_ff3 = ext::oneapi::experimental::get_kernel_bundle<
@@ -228,7 +229,8 @@ bool test_bundle_apis(queue Queue) {
                                                                     Device) ==
       Bundle_ff3.ext_oneapi_get_kernel<ff_3<int>>()
           .get_info<info::kernel_device_specific::work_group_size>(Device);
-  std::cout << "PassT=" << PassT << std::endl;
+  std::cout << "Test retrieving work_group_size using context and device"
+            << PassT << std::endl;
   Pass &= PassT;
 
   bool PassU =
@@ -237,7 +239,8 @@ bool test_bundle_apis(queue Queue) {
       Bundle_ff3.ext_oneapi_get_kernel<ff_3<int>>()
           .get_info<info::kernel_device_specific::work_group_size>(
               Queue.get_device());
-  std::cout << "PassU=" << PassU << std::endl;
+  std::cout << "Test retrieving work_group_size using queue: " << PassU
+            << std::endl;
   Pass &= PassU;
 
   std::cout << "Test bundle APIs: " << (Pass ? "PASS" : "FAIL") << std::endl;

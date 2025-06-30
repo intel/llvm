@@ -51,4 +51,5 @@ int main() {
     auto FoundId = std::find(KernelIds.begin(), KernelIds.end(), KernelId);
     assert(FoundId != KernelIds.end());
   }
+  return 0;
 }
