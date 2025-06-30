@@ -103,7 +103,7 @@ class Options:
     # Valid values for this smoothing factor ranges from (0, 1). Note that no
     # value of smothing factor will result in older elements having more weight
     # than newer elements.
-    EWMA_smoothing_factor: float = 0.1
+    EWMA_smoothing_factor: float = 0.2
 
     detect_versions: DetectVersionsOptions = field(
         default_factory=DetectVersionsOptions
