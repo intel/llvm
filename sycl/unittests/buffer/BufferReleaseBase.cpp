@@ -218,19 +218,19 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   sycl::buffer<int, 1> Buf(1);
   sycl::detail::Requirement MockReq = getMockRequirement(Buf);
   sycl::detail::MemObjRecord *Rec = MockSchedulerPtr->getOrInsertMemObjRecord(
-      sycl::detail::getSyclObjImpl(Q), &MockReq);
+      sycl::detail::getSyclObjImpl(Q).get(), &MockReq);
 
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(Context);
   MockCmdWithReleaseTracking *ReadCmd = nullptr;
   MockCmdWithReleaseTracking *WriteCmd = nullptr;
   ReadCmd =
-      new MockCmdWithReleaseTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
+      new MockCmdWithReleaseTracking(*sycl::detail::getSyclObjImpl(Q), MockReq);
   // These dummy handles are automatically cleaned up by the runtime
   ReadCmd->getEvent()->setHandle(reinterpret_cast<ur_event_handle_t>(
       mock::createDummyHandle<ur_event_handle_t>()));
   WriteCmd =
-      new MockCmdWithReleaseTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
+      new MockCmdWithReleaseTracking(*sycl::detail::getSyclObjImpl(Q), MockReq);
   WriteCmd->getEvent()->setHandle(reinterpret_cast<ur_event_handle_t>(
       mock::createDummyHandle<ur_event_handle_t>()));
   ReadCmd->MEnqueueStatus = sycl::detail::EnqueueResultT::SyclEnqueueSuccess;

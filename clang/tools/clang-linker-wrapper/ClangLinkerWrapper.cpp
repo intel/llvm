@@ -694,6 +694,9 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
                    OPT_no_sycl_device_code_split_esimd, SplitEsimdByDefault);
   if (!Args.hasArg(OPT_sycl_thin_lto))
     PostLinkArgs.push_back("-symbols");
+  // Emit kernel names if we are producing SYCLBIN.
+  if (Args.hasArg(OPT_syclbin_EQ))
+    PostLinkArgs.push_back("-emit-kernel-names");
   // Specialization constant info generation is mandatory -
   // add options unconditionally
   PostLinkArgs.push_back("-emit-exported-symbols");
@@ -1688,7 +1691,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::ppc64:
   case Triple::ppc64le:
   case Triple::systemz:
-    return generic::clang(InputFiles, Args);
+    return generic::clang(InputFiles, Args, IsSYCLKind);
   case Triple::spirv32:
   case Triple::spirv64:
   case Triple::spir:
@@ -1721,7 +1724,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     return generic::clang(InputFiles, Args, IsSYCLKind);
   default:
     if (Triple.str() == "native_cpu" && IsSYCLKind)
-      return generic::clang(InputFiles, Args);
+      return generic::clang(InputFiles, Args, IsSYCLKind);
 
     return createStringError(Triple.getArchName() +
                              " linking is not supported");

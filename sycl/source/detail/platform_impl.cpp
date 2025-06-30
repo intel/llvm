@@ -71,6 +71,23 @@ platform_impl::getPlatformFromUrDevice(ur_device_handle_t UrDevice,
   return getOrMakePlatformImpl(Plt, Adapter);
 }
 
+context_impl &platform_impl::khr_get_default_context() {
+  GlobalHandler &GH = GlobalHandler::instance();
+  // Keeping the default context for platforms in the global cache to avoid
+  // shared_ptr based circular dependency between platform and context classes
+  std::unordered_map<platform_impl *, std::shared_ptr<context_impl>>
+      &PlatformToDefaultContextCache = GH.getPlatformToDefaultContextCache();
+
+  std::lock_guard<std::mutex> Lock{GH.getPlatformToDefaultContextCacheMutex()};
+
+  auto It = PlatformToDefaultContextCache.find(this);
+  if (PlatformToDefaultContextCache.end() == It)
+    std::tie(It, std::ignore) = PlatformToDefaultContextCache.insert(
+        {this, detail::getSyclObjImpl(context{get_devices()})});
+
+  return *It->second;
+}
+
 static bool IsBannedPlatform(platform Platform) {
   // The NVIDIA OpenCL platform is currently not compatible with DPC++
   // since it is only 1.2 but gets selected by default in many systems
@@ -151,7 +168,7 @@ std::vector<platform> platform_impl::get_platforms() {
 
   // See which platform we want to be served by which adapter.
   // There should be just one adapter serving each backend.
-  std::vector<AdapterPtr> &Adapters = sycl::detail::ur::initializeUr();
+  std::vector<AdapterPtr> &Adapters = ur::initializeUr();
   std::vector<std::pair<platform, AdapterPtr>> PlatformsWithAdapter;
 
   // Then check backend-specific adapters
@@ -487,7 +504,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // analysis. Doing adjustment by simple copy of last device num from
     // previous platform.
     // Needs non const adapter reference.
-    std::vector<AdapterPtr> &Adapters = sycl::detail::ur::initializeUr();
+    std::vector<AdapterPtr> &Adapters = ur::initializeUr();
     auto It = std::find_if(Adapters.begin(), Adapters.end(),
                            [&Platform = MPlatform](AdapterPtr &Adapter) {
                              return Adapter->containsUrPlatform(Platform);
