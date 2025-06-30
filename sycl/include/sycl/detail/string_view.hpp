@@ -70,6 +70,7 @@ public:
 
   constexpr explicit operator std::string_view() const noexcept {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    auto len = strlen(str);
     return std::string_view(str, len);
 #else
     return std::string_view(str);
