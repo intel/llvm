@@ -657,12 +657,10 @@ ur_result_t urKernelCreate(
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t setArgHelper(
-    ur_kernel_handle_t Kernel,
-    ze_device_handle_t AllocationZeDevice,
-    uint32_t ArgIndex,
-    size_t ArgSize,
-    const void *PArgValue) {
+static ur_result_t setArgHelper(ur_kernel_handle_t Kernel,
+                                ze_device_handle_t AllocationZeDevice,
+                                uint32_t ArgIndex, size_t ArgSize,
+                                const void *PArgValue) {
   UR_ASSERT(Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
@@ -689,15 +687,17 @@ static ur_result_t setArgHelper(
                                (ZeKernel, ArgIndex, ArgSize, PArgValue));
   } else if (AllocationZeDevice) {
     ur_device_handle_t AllocationDevice =
-        Kernel->Program->Context->getPlatform()->getDeviceFromNativeHandle(AllocationZeDevice);
+        Kernel->Program->Context->getPlatform()->getDeviceFromNativeHandle(
+            AllocationZeDevice);
     if (!AllocationDevice)
       return UR_RESULT_ERROR_INVALID_DEVICE;
-  
+
     // Allocation on a device can be used on the device or its sub-devices.
     for (auto [KernelDevice, ZeKernel] : Kernel->ZeKernelMap) {
-      if (AllocationDevice == KernelDevice || AllocationDevice == KernelDevice->RootDevice) {
+      if (AllocationDevice == KernelDevice ||
+          AllocationDevice == KernelDevice->RootDevice) {
         ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
-                                (ZeKernel, ArgIndex, ArgSize, PArgValue));
+                                   (ZeKernel, ArgIndex, ArgSize, PArgValue));
       }
     }
   } else {
@@ -726,7 +726,8 @@ ur_result_t urKernelSetArgValue(
     const ur_kernel_arg_value_properties_t * /*Properties*/,
     /// [in] argument value represented as matching arg type.
     const void *PArgValue) {
-  return setArgHelper(Kernel, nullptr /* ZeDevice */, ArgIndex, ArgSize, PArgValue);
+  return setArgHelper(Kernel, nullptr /* ZeDevice */, ArgIndex, ArgSize,
+                      PArgValue);
 }
 
 ur_result_t urKernelSetArgLocal(
@@ -739,7 +740,7 @@ ur_result_t urKernelSetArgLocal(
     /// [in][optional] argument properties
     const ur_kernel_arg_local_properties_t * /*Properties*/) {
   return setArgHelper(Kernel, nullptr /* ZeDevice */, ArgIndex, ArgSize,
-                    nullptr /*PArgValue*/);
+                      nullptr /*PArgValue*/);
 }
 
 ur_result_t urKernelGetInfo(
@@ -1004,15 +1005,13 @@ ur_result_t urKernelSetArgPointer(
   // If multi-device context then need to know the device of the allocation.
   if (ArgValue && Kernel->Program->Context->NumDevices > 1) {
     ZeStruct<ze_memory_allocation_properties_t> Dummy;
-    ZE2UR_CALL(zeMemGetAllocProperties,
-              (Kernel->Program->Context->ZeContext, ArgValue, &Dummy,
-                &ZeDevice));
+    ZE2UR_CALL(zeMemGetAllocProperties, (Kernel->Program->Context->ZeContext,
+                                         ArgValue, &Dummy, &ZeDevice));
   }
 
   // setArgHelper is expecting a pointer to the argument
-  return setArgHelper(
-      Kernel, ZeDevice, ArgIndex,
-      sizeof(const void *), &ArgValue);
+  return setArgHelper(Kernel, ZeDevice, ArgIndex, sizeof(const void *),
+                      &ArgValue);
 }
 
 ur_result_t urKernelSetExecInfo(
