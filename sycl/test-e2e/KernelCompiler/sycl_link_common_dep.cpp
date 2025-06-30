@@ -9,9 +9,6 @@
 // REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_shared_allocations
 
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
-
 // -- Test for linking where two kernels use the same imported symbols.
 
 // RUN: %{build} -o %t.out

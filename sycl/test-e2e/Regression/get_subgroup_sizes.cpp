@@ -1,8 +1,6 @@
-// UNSUPPORTED: accelerator
-// TODO: FPGAs currently report `sub_group_sizes` as non-empty list,
-// despite not having extension `cl_intel_required_subgroup_size`
 // UNSUPPORTED: cuda || hip
-// TODO: Similar issue to FPGAs
+// TODO: CUDA/HIP currently report `sub_group_sizes` as non-empty list,
+// despite not having extension `cl_intel_required_subgroup_size`
 
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
