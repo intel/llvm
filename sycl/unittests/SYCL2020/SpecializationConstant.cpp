@@ -74,8 +74,9 @@ TEST(SpecializationConstant, DefaultValuesAreSet) {
                    [&](auto Image) { return Image.has_kernel(TestKernelID); });
   EXPECT_NE(DevImage, KernelBundle.end());
 
-  auto DevImageImpl = sycl::detail::getSyclObjImpl(*DevImage);
-  const auto &Blob = DevImageImpl->get_spec_const_blob_ref();
+  sycl::detail::device_image_impl &DevImageImpl =
+      *sycl::detail::getSyclObjImpl(*DevImage);
+  const auto &Blob = DevImageImpl.get_spec_const_blob_ref();
 
   int SpecConstVal1 = *reinterpret_cast<const int *>(Blob.data());
   int SpecConstVal2 = *(reinterpret_cast<const int *>(Blob.data()) + 1);
@@ -103,8 +104,9 @@ TEST(SpecializationConstant, DefaultValuesAreOverriden) {
                    [&](auto Image) { return Image.has_kernel(TestKernelID); });
   EXPECT_NE(DevImage, KernelBundle.end());
 
-  auto DevImageImpl = sycl::detail::getSyclObjImpl(*DevImage);
-  auto &Blob = DevImageImpl->get_spec_const_blob_ref();
+  sycl::detail::device_image_impl &DevImageImpl =
+      *sycl::detail::getSyclObjImpl(*DevImage);
+  auto &Blob = DevImageImpl.get_spec_const_blob_ref();
   int SpecConstVal1 = *reinterpret_cast<int *>(Blob.data());
   int SpecConstVal2 = *(reinterpret_cast<int *>(Blob.data()) + 1);
 
