@@ -13,7 +13,7 @@
 #include "error_handling.hpp"
 #include "sycl/detail/common.hpp"
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/ur.hpp>
 

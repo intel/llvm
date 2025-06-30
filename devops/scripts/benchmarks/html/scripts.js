@@ -7,13 +7,15 @@
 let activeRuns = new Set(defaultCompareNames);
 let chartInstances = new Map();
 let suiteNames = new Set();
-let timeseriesData, barChartsData, allRunNames;
 let activeTags = new Set();
+let timeseriesData, barChartsData, allRunNames;
 let layerComparisonsData;
 let latestRunsLookup = new Map();
 let pendingCharts = new Map(); // Store chart data for lazy loading
 let chartObserver; // Intersection observer for lazy loading charts
 let annotationsOptions = new Map(); // Global options map for annotations
+let archivedDataLoaded = false;
+let loadedBenchmarkRuns = []; // Loaded results from the js/json files
 
 // DOM Elements
 let runSelect, selectedRunsDiv, suiteFiltersContainer, tagFiltersContainer;
@@ -21,7 +23,7 @@ let runSelect, selectedRunsDiv, suiteFiltersContainer, tagFiltersContainer;
 // Observer for lazy loading charts
 function initChartObserver() {
     if (chartObserver) return;
-    
+
     chartObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
@@ -196,7 +198,7 @@ function createChart(data, containerId, type) {
                 maxTicksLimit: 10
             }
         };
-        
+
         // Add dependencies version change annotations
         if (Object.keys(data.runs).length > 0) {
             ChartAnnotations.addVersionChangeAnnotations(data, options);
@@ -210,8 +212,8 @@ function createChart(data, containerId, type) {
                 ...runData,
                 // For timeseries (historical results charts) use runName,
                 // otherwise use displayLabel (for layer comparison charts)
-                label: containerId.startsWith('timeseries') ? 
-                    runData.runName : 
+                label: containerId.startsWith('timeseries') ?
+                    runData.runName :
                     (runData.displayLabel || runData.label)
             }))
         } : {
@@ -223,12 +225,12 @@ function createChart(data, containerId, type) {
 
     const chart = new Chart(ctx, chartConfig);
     chartInstances.set(containerId, chart);
-    
+
     // Add annotation interaction handlers for time-series charts
     if (type === 'time') {
         ChartAnnotations.setupAnnotationListeners(chart, ctx, options);
     }
-    
+
     return chart;
 }
 
@@ -263,7 +265,7 @@ function drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayer
     chartInstances.forEach(chart => chart.destroy());
     chartInstances.clear();
     pendingCharts.clear();
-    
+
     initChartObserver(); // For lazy loading charts
 
     // Create timeseries charts
@@ -394,7 +396,7 @@ function metadataForLabel(label, type) {
     if (benchmarkMetadata[label]?.type === type) {
         return benchmarkMetadata[label];
     }
-    
+
     // Then fall back to prefix match for backward compatibility
     for (const [key, metadata] of Object.entries(benchmarkMetadata)) {
         if (metadata.type === type && label.startsWith(key)) {
@@ -405,10 +407,10 @@ function metadataForLabel(label, type) {
 }
 
 // Pre-compute a lookup for the latest run per label
-function createLatestRunsLookup(benchmarkRuns) {
+function createLatestRunsLookup() {
     const latestRunsMap = new Map();
 
-    benchmarkRuns.forEach(run => {
+    loadedBenchmarkRuns.forEach(run => {
         const runDate = run.date;
         run.results.forEach(result => {
             const label = result.label;
@@ -578,6 +580,12 @@ function updateURL() {
         url.searchParams.set('customRange', 'true');
     }
 
+    if (!isArchivedDataEnabled()) {
+        url.searchParams.delete('archived');
+    } else {
+        url.searchParams.set('archived', 'true');
+    }
+
     history.replaceState(null, '', url);
 }
 
@@ -615,10 +623,10 @@ function getActiveSuites() {
 }
 
 // Data processing
-function processTimeseriesData(benchmarkRuns) {
+function processTimeseriesData() {
     const resultsByLabel = {};
 
-    benchmarkRuns.forEach(run => {
+    loadedBenchmarkRuns.forEach(run => {
         run.results.forEach(result => {
             const metadata = metadataForLabel(result.label, 'benchmark');
 
@@ -641,10 +649,10 @@ function processTimeseriesData(benchmarkRuns) {
     return Object.values(resultsByLabel);
 }
 
-function processBarChartsData(benchmarkRuns) {
+function processBarChartsData() {
     const groupedResults = {};
 
-    benchmarkRuns.forEach(run => {
+    loadedBenchmarkRuns.forEach(run => {
         run.results.forEach(result => {
             const resultMetadata = metadataForLabel(result.label, 'benchmark');
             const explicitGroup = resultMetadata?.explicit_group || result?.explicit_group;
@@ -718,11 +726,11 @@ function getLayerTags(metadata) {
     return layerTags;
 }
 
-function processLayerComparisonsData(benchmarkRuns) {
+function processLayerComparisonsData() {
     const groupedResults = {};
     const labelsByGroup = {};
 
-    benchmarkRuns.forEach(run => {
+    loadedBenchmarkRuns.forEach(run => {
         run.results.forEach(result => {
             const resultMetadata = metadataForLabel(result.label, 'benchmark');
             const explicitGroup = resultMetadata?.explicit_group || result.explicit_group;
@@ -735,7 +743,7 @@ function processLayerComparisonsData(benchmarkRuns) {
         });
     });
 
-    benchmarkRuns.forEach(run => {
+    loadedBenchmarkRuns.forEach(run => {
         run.results.forEach(result => {
             // Get explicit_group from metadata
             const resultMetadata = metadataForLabel(result.label, 'benchmark');
@@ -835,6 +843,9 @@ function setupRunSelector() {
     runSelect = document.getElementById('run-select');
     selectedRunsDiv = document.getElementById('selected-runs');
 
+    // Clear existing options first to prevent duplicates when reloading with archived data
+    runSelect.innerHTML = '';
+
     allRunNames.forEach(name => {
         const option = document.createElement('option');
         option.value = name;
@@ -848,7 +859,10 @@ function setupRunSelector() {
 function setupSuiteFilters() {
     suiteFiltersContainer = document.getElementById('suite-filters');
 
-    benchmarkRuns.forEach(run => {
+    // Clear existing suite filters before adding new ones
+    suiteFiltersContainer.innerHTML = '';
+
+    loadedBenchmarkRuns.forEach(run => {
         run.results.forEach(result => {
             suiteNames.add(result.suite);
         });
@@ -883,10 +897,16 @@ function isCustomRangesEnabled() {
     return rangesToggle.checked;
 }
 
+function isArchivedDataEnabled() {
+    const archivedDataToggle = document.getElementById('show-archived-data');
+    return archivedDataToggle.checked;
+}
+
 function setupToggles() {
     const notesToggle = document.getElementById('show-notes');
     const unstableToggle = document.getElementById('show-unstable');
     const customRangeToggle = document.getElementById('custom-range');
+    const archivedDataToggle = document.getElementById('show-archived-data');
 
     notesToggle.addEventListener('change', function () {
         // Update all note elements visibility
@@ -909,9 +929,25 @@ function setupToggles() {
         updateCharts();
     });
 
+    // Add event listener for archived data toggle
+    if (archivedDataToggle) {
+        archivedDataToggle.addEventListener('change', function() {
+            if (archivedDataToggle.checked) {
+                loadArchivedData();
+            } else {
+                if (archivedDataLoaded) {
+                    // Reload the page to reset
+                    location.reload();
+                }
+            }
+            updateURL();
+        });
+    }
+
     // Initialize from URL params if present
     const notesParam = getQueryParam('notes');
     const unstableParam = getQueryParam('unstable');
+    const archivedParam = getQueryParam('archived');
 
     if (notesParam !== null) {
         let showNotes = notesParam === 'true';
@@ -927,10 +963,21 @@ function setupToggles() {
     if (customRangesParam !== null) {
         customRangeToggle.checked = customRangesParam === 'true';
     }
+
+    if (archivedDataToggle && archivedParam !== null) {
+        archivedDataToggle.checked = archivedParam === 'true';
+
+        if (archivedDataToggle.checked) {
+            loadArchivedData();
+        }
+    }
 }
 
 function setupTagFilters() {
     tagFiltersContainer = document.getElementById('tag-filters');
+
+    // Clear existing tag filters before adding new ones
+    tagFiltersContainer.innerHTML = '';
 
     const allTags = [];
 
@@ -1000,14 +1047,14 @@ function toggleAllTags(select) {
 
 function initializeCharts() {
     // Process raw data
-    timeseriesData = processTimeseriesData(benchmarkRuns);
-    barChartsData = processBarChartsData(benchmarkRuns);
-    layerComparisonsData = processLayerComparisonsData(benchmarkRuns);
-    allRunNames = [...new Set(benchmarkRuns.map(run => run.name))];
-    latestRunsLookup = createLatestRunsLookup(benchmarkRuns);
+    timeseriesData = processTimeseriesData();
+    barChartsData = processBarChartsData();
+    layerComparisonsData = processLayerComparisonsData();
+    allRunNames = [...new Set(loadedBenchmarkRuns.map(run => run.name))];
+    latestRunsLookup = createLatestRunsLookup();
 
     // Create global options map for annotations
-    annotationsOptions = createAnnotationsOptions(benchmarkRuns);
+    annotationsOptions = createAnnotationsOptions();
     // Make it available to the ChartAnnotations module
     window.annotationsOptions = annotationsOptions;
 
@@ -1087,6 +1134,42 @@ window.addSelectedRun = addSelectedRun;
 window.removeRun = removeRun;
 window.toggleAllTags = toggleAllTags;
 
+// Helper function to fetch and process benchmark data
+function fetchAndProcessData(url, isArchived = false) {
+    const loadingIndicator = document.getElementById('loading-indicator');
+
+    return fetch(url)
+        .then(response => {
+            if (!response.ok) { throw new Error(`Got response status ${response.status}.`) }
+            return response.json();
+        })
+        .then(data => {
+            const newRuns = data.runs || data;
+
+            if (isArchived) {
+                // Merge with existing data for archived data
+                loadedBenchmarkRuns = loadedBenchmarkRuns.concat(newRuns);
+                archivedDataLoaded = true;
+            } else {
+                // Replace existing data for current data
+                loadedBenchmarkRuns = newRuns;
+            }
+            // The following variables have same values regardless of whether
+            // we load archived or current data
+            benchmarkMetadata = data.metadata || benchmarkMetadata || {};
+            benchmarkTags = data.tags || benchmarkTags || {};
+
+            initializeCharts();
+        })
+        .catch(error => {
+            console.error(`Error fetching ${isArchived ? 'archived' : 'remote'} data:`, error);
+            loadingIndicator.textContent = 'Fetching remote data failed.';
+        })
+        .finally(() => {
+            loadingIndicator.style.display = 'none';
+        });
+}
+
 // Load data based on configuration
 function loadData() {
     const loadingIndicator = document.getElementById('loading-indicator');
@@ -1094,28 +1177,51 @@ function loadData() {
 
     if (typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== '') {
         // Fetch data from remote URL
-        fetch(remoteDataUrl)
-            .then(response => {
-                if (!response.ok) { throw new Error(`Got response status ${response.status}.`) }
-                return response.json();
-            })
-            .then(data => {
-                benchmarkRuns = data.runs || data;
-                benchmarkMetadata = data.metadata || benchmarkMetadata || {};
-                benchmarkTags = data.tags || benchmarkTags || {};
-                initializeCharts();
-            })
-            .catch(error => {
-                console.error('Error fetching remote data:', error);
-                loadingIndicator.textContent = 'Fetching remote data failed.';
-            })
-            .finally(() => {
-                loadingIndicator.style.display = 'none'; // Hide loading indicator
-            });
+        const url = remoteDataUrl.endsWith('/') ? remoteDataUrl + 'data.json' : remoteDataUrl + '/data.json';
+        fetchAndProcessData(url);
     } else {
-        // Use local data (benchmarkRuns and benchmarkMetadata should be defined in data.js)
+        // Use local data
+        loadedBenchmarkRuns = benchmarkRuns;
         initializeCharts();
         loadingIndicator.style.display = 'none'; // Hide loading indicator
+    }
+}
+
+// Function to load archived data and merge with current data
+// Archived data consists of older benchmark results that have been separated from
+// the primary dataset but are still available for historical analysis.
+function loadArchivedData() {
+    const loadingIndicator = document.getElementById('loading-indicator');
+    loadingIndicator.style.display = 'block';
+
+    if (archivedDataLoaded) {
+        updateCharts();
+        loadingIndicator.style.display = 'none';
+        return;
+    }
+
+    if (typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== '') {
+        // Fetch data from remote URL
+        const url = remoteDataUrl.endsWith('/') ? remoteDataUrl + 'data_archive.json' : remoteDataUrl + '/data_archive.json';
+        fetchAndProcessData(url, true);
+    } else {
+        // For local data use a static js file
+        const script = document.createElement('script');
+        script.src = 'data_archive.js';
+        script.onload = () => {
+            // Merge the archived runs with current runs
+            loadedBenchmarkRuns = loadedBenchmarkRuns.concat(benchmarkRuns);
+            archivedDataLoaded = true;
+            initializeCharts();
+            loadingIndicator.style.display = 'none';
+        };
+
+        script.onerror = () => {
+            console.error('Failed to load data_archive.js');
+            loadingIndicator.style.display = 'none';
+        };
+
+        document.head.appendChild(script);
     }
 }
 
@@ -1125,10 +1231,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Process all benchmark runs to create a global options map for annotations
-function createAnnotationsOptions(benchmarkRuns) {
+function createAnnotationsOptions() {
     const repoMap = new Map();
 
-    benchmarkRuns.forEach(run => {
+    loadedBenchmarkRuns.forEach(run => {
         run.results.forEach(result => {
             if (result.git_url && !repoMap.has(result.git_url)) {
                 const suiteName = result.suite;

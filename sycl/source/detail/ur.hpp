@@ -24,8 +24,8 @@ namespace sycl {
 inline namespace _V1 {
 enum class backend : char;
 namespace detail {
-class Adapter;
-using AdapterPtr = Adapter *;
+class adapter_impl;
+using AdapterPtr = adapter_impl *;
 
 namespace ur {
 void *getURLoaderLibrary();

@@ -11,7 +11,7 @@
 #include "llvm/Support/Signals.h"
 #endif
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/kernel_name_based_cache_t.hpp>
@@ -230,8 +230,8 @@ std::mutex &GlobalHandler::getFilterMutex() {
   return FilterMutex;
 }
 
-std::vector<Adapter *> &GlobalHandler::getAdapters() {
-  static std::vector<Adapter *> &adapters = getOrCreate(MAdapters);
+std::vector<adapter_impl *> &GlobalHandler::getAdapters() {
+  static std::vector<adapter_impl *> &adapters = getOrCreate(MAdapters);
   enableOnCrashStackPrinting();
   return adapters;
 }

@@ -13,7 +13,7 @@
 /// \ingroup sycl_ur
 
 #include "ur.hpp"
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
@@ -90,7 +90,7 @@ bool trace(TraceLevel Level) {
   return (TraceLevelMask & Level) == Level;
 }
 
-static void initializeAdapters(std::vector<Adapter *> &Adapters,
+static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
                                ur_loader_config_handle_t LoaderConfig);
 
 bool XPTIInitDone = false;
@@ -117,7 +117,7 @@ std::vector<AdapterPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
   return GlobalHandler::instance().getAdapters();
 }
 
-static void initializeAdapters(std::vector<Adapter *> &Adapters,
+static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
                                ur_loader_config_handle_t LoaderConfig) {
 #define CHECK_UR_SUCCESS(Call)                                                 \
   {                                                                            \
@@ -238,7 +238,7 @@ static void initializeAdapters(std::vector<Adapter *> &Adapters,
                                     sizeof(adapterBackend), &adapterBackend,
                                     nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
-    Adapters.emplace_back(new Adapter(UrAdapter, syclBackend));
+    Adapters.emplace_back(new adapter_impl(UrAdapter, syclBackend));
 
     const char *env_value = std::getenv("UR_LOG_CALLBACK");
     if (env_value == nullptr || std::string(env_value) != "disabled") {

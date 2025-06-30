@@ -364,19 +364,6 @@ struct ArrayCreator<DataT, FlattenF> {
   static constexpr auto Create() { return std::array<DataT, 0>{}; }
 };
 
-// Helper function for creating an arbitrary sized array with the same value
-// repeating.
-template <typename T, size_t... Is>
-static constexpr std::array<T, sizeof...(Is)>
-RepeatValueHelper(const T &Arg, std::index_sequence<Is...>) {
-  auto ReturnArg = [&](size_t) { return Arg; };
-  return {ReturnArg(Is)...};
-}
-template <size_t N, typename T>
-static constexpr std::array<T, N> RepeatValue(const T &Arg) {
-  return RepeatValueHelper(Arg, std::make_index_sequence<N>());
-}
-
 // to output exceptions caught in ~destructors
 #ifndef NDEBUG
 #define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)                              \
