@@ -6,13 +6,12 @@
 
 #include "../helpers/common.hpp"
 #include "../helpers/dx_interop_common.hpp"
-using namespace dx_helpers;
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 #include <sycl/properties/queue_properties.hpp>
 
-using Microsoft::WRL::ComPtr;
+using namespace dx_helpers;
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 class DX12SYCLDevice {

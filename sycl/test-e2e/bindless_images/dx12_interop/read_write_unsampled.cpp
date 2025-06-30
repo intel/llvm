@@ -1,4 +1,4 @@
-// REQUIRES: aspect-ext_oneapi_bindless_images
+// REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
 // RUN: %{build} %link-directx -o %t.out
@@ -519,8 +519,8 @@ void DX12InteropTest<NDims, DType, NChannels>::cleanupDX12() {
 
   // Clean up opened handles
   if (m_sharedSemaphoreHandle != INVALID_HANDLE_VALUE)
-    CloseHandle(m_sharedSemaphoreHandle);
-  CloseHandle(m_sharedMemoryHandle);
+    CloseNTHandle(m_sharedSemaphoreHandle);
+  CloseNTHandle(m_sharedMemoryHandle);
   CloseHandle(m_dx12FenceEvent);
 
   // ComPtr handles will be destroyed automatically.

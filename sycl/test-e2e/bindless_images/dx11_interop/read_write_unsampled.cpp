@@ -1,8 +1,8 @@
-// REQUIRES: aspect-ext_oneapi_bindless_images
+// REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
 // RUN: %{build} %link-directx -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
+// RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include "dx11_interop.h"
 
@@ -233,7 +233,7 @@ int runTest(D3D11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
   D3D11_TEXTURE2D_DESC texDesc{};
   texDesc.Width = texWidth;
   texDesc.Height = texHeight;   // if height is 1, we can mimic sharing 1D mem
-  texDesc.MipLevels = 1;        // 1 for a multisampled texture, so no mips
+  texDesc.MipLevels = 1;        // one mip level, so no sub-textures
   texDesc.ArraySize = texDepth; // array slices used for sharing 3D memory
   texDesc.Format = texFormat;
   texDesc.SampleDesc = {.Count = 1, .Quality = 0};
@@ -254,7 +254,7 @@ int runTest(D3D11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
   d3d11ProgramState->key = 0;
 
   // Create an NT handle to a shared resource referring to our texture.
-  // Opening the that shared resource gives access to it on the device.
+  // Opening the shared resource gives access to it for use on the SYCL device.
   ComPtr<IDXGIResource1> sharedResource;
   ThrowIfFailed(texture.As(&sharedResource));
   HANDLE sharedHandle = nullptr;
