@@ -229,7 +229,7 @@ bool test_bundle_apis(queue Queue) {
                                                                     Device) ==
       Bundle_ff3.ext_oneapi_get_kernel<ff_3<int>>()
           .get_info<info::kernel_device_specific::work_group_size>(Device);
-  std::cout << "Test retrieving work_group_size using context and device"
+  std::cout << "Test retrieving work_group_size using context and device: "
             << PassT << std::endl;
   Pass &= PassT;
 
