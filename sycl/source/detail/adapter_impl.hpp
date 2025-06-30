@@ -1,4 +1,4 @@
-//==- adapter.hpp ----------------------------------------------------------==//
+//==- adapter_impl.hpp ----------------------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -42,11 +42,11 @@ namespace detail {
 /// runtimes for the device-agnostic SYCL runtime.
 ///
 /// \ingroup sycl_ur
-class Adapter {
+class adapter_impl {
 public:
-  Adapter() = delete;
+  adapter_impl() = delete;
 
-  Adapter(ur_adapter_handle_t adapter, backend UseBackend)
+  adapter_impl(ur_adapter_handle_t adapter, backend UseBackend)
       : MAdapter(adapter), MBackend(UseBackend),
         MAdapterMutex(std::make_shared<std::mutex>()) {
 
@@ -57,12 +57,12 @@ public:
   }
 
   // Disallow accidental copies of adapters
-  Adapter &operator=(const Adapter &) = delete;
-  Adapter(const Adapter &) = delete;
-  Adapter &operator=(Adapter &&other) noexcept = delete;
-  Adapter(Adapter &&other) noexcept = delete;
+  adapter_impl &operator=(const adapter_impl &) = delete;
+  adapter_impl(const adapter_impl &) = delete;
+  adapter_impl &operator=(adapter_impl &&other) noexcept = delete;
+  adapter_impl(adapter_impl &&other) noexcept = delete;
 
-  ~Adapter() = default;
+  ~adapter_impl() = default;
 
   /// \throw SYCL 2020 exception(errc) if ur_result is not UR_RESULT_SUCCESS
   template <sycl::errc errc = sycl::errc::runtime>
@@ -237,7 +237,7 @@ private:
   void *UrLoaderHandle = nullptr;
 #endif
   UrFuncPtrMapT UrFuncPtrs;
-}; // class Adapter
+}; // class adapter_impl
 
 } // namespace detail
 } // namespace _V1
