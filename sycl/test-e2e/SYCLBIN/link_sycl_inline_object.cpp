@@ -16,6 +16,9 @@
 // %{sycl_target_opts} should be added to the SYCLBIN generation run-line.
 // REQUIRES: target-spir
 
+// XFAIL: opencl && cpu
+// XFAIL-TRACKER: CMPLRLLVM-68800
+
 // RUN: %clangxx --offload-new-driver -fsyclbin=object -fsycl-allow-device-image-dependencies -Xclang -fsycl-allow-func-ptr %S/Inputs/link_sycl_inline.cpp -o %t.syclbin
 // RUN: %{build} -fsycl-allow-device-image-dependencies -o %t.out
 // RUN: %{l0_leak_check} %{run}  %t.out %t.syclbin
