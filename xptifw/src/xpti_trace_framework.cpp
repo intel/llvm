@@ -1275,7 +1275,7 @@ public:
             static_cast<uint64_t>(xpti::payload_flag_t::NameAvailable);
         // If the function name is not available, we will use the global unknown
         FuncId = xpti::hash::fnv1a(Payload->name);
-      
+      }
 
       // If the payload's source file is available, generate a fast hash as its
       // ID; Since reverse lookup is not necessary for callback functions, we
