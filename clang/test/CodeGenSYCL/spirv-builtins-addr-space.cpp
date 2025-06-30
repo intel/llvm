@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsycl-is-device -fdeclare-spirv-builtins -emit-llvm -o - -O0 | FileCheck %s
+// RUN: %clang_cc1 %s -triple spir64 -fsycl-is-device -fdeclare-spirv-builtins -emit-llvm -o - -O0 | FileCheck %s
 //
 // Check that SPIR-V builtins are declared with SYCL address spaces rather
 // than OpenCL address spaces when using them with SYCL. OpenCL address spaces
@@ -7,25 +7,22 @@
 //
 // The opencl_global, opencl_local, and opencl_private attributes get turned
 // into sycl_global, sycl_local and sycl_private address spaces by clang.
-//
-// XFAIL: *
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19497
 
 #include "Inputs/sycl.hpp"
 
-// CHECK: __spirv_ocl_modf{{.*}}SYglobal
+// CHECK: __spirv_ocl_modf{{.*}}AS1f
 void modf_global(float a) {
   __attribute__((opencl_global)) float *ptr = nullptr;
   sycl::kernel_single_task<class fake_kernel>([=]() { __spirv_ocl_modf(a, ptr); });
 }
 
-// CHECK: __spirv_ocl_modf{{.*}}SYlocal
+// CHECK: __spirv_ocl_modf{{.*}}AS3f
 void modf_local(float a) {
   __attribute__((opencl_local)) float *ptr = nullptr;
   sycl::kernel_single_task<class fake_kernel>([=]() { __spirv_ocl_modf(a, ptr); });
 }
 
-// CHECK: __spirv_ocl_modf{{.*}}SYprivate
+// CHECK: __spirv_ocl_modf{{.*}}AS0f
 void modf_private(float a) {
   __attribute__((opencl_private)) float *ptr = nullptr;
   sycl::kernel_single_task<class fake_kernel>([=]() { __spirv_ocl_modf(a, ptr); });
