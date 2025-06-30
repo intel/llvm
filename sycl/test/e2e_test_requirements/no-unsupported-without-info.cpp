@@ -54,11 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-<<<<<<< HEAD
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 236
-=======
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 247
->>>>>>> 5278dc4d7834 (Update no-unsupported-without-info.cpp)
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 235
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
