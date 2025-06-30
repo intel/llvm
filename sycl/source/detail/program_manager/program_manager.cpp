@@ -2193,46 +2193,6 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // Drop the kernel argument mask map
     m_EliminatedKernelArgMasks.erase(Img);
 
-    // Unmap the unique kernel IDs for the offload entries
-    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
-         EntriesIt = EntriesIt->Increment()) {
-
-      // Drop entry for service kernel
-      if (std::strstr(EntriesIt->GetName(), "__sycl_service_kernel__")) {
-        m_ServiceKernels.erase(EntriesIt->GetName());
-        continue;
-      }
-
-      // Exported device functions won't have a kernel ID
-      if (m_ExportedSymbolImages.find(EntriesIt->GetName()) !=
-          m_ExportedSymbolImages.end()) {
-        continue;
-      }
-
-      // remove everything associated with this KernelName
-      m_KernelUsesAssert.erase(EntriesIt->GetName());
-      m_KernelImplicitLocalArgPos.erase(EntriesIt->GetName());
-
-      if (auto It = m_KernelName2KernelIDs.find(EntriesIt->GetName());
-          It != m_KernelName2KernelIDs.end()) {
-        m_KernelIDs2BinImage.erase(It->second);
-        m_KernelName2KernelIDs.erase(It);
-      }
-      if (auto It = m_KernelNameBasedCaches.find(EntriesIt->GetName());
-          It != m_KernelNameBasedCaches.end()) {
-        m_KernelNameBasedCaches.erase(It);
-      }
-    }
-
-    // Drop reverse mapping
-    m_BinImg2KernelIDs.erase(Img);
-
-    // Unregister exported symbols (needs to happen after the ID unmap loop)
-    for (const sycl_device_binary_property &ESProp :
-         Img->getExportedSymbols()) {
-      m_ExportedSymbolImages.erase(ESProp->Name);
-    }
-
     for (const sycl_device_binary_property &VFProp :
          Img->getVirtualFunctions()) {
       std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
@@ -2277,6 +2237,46 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
           NativePrograms.erase(CurIt);
         }
       }
+    }
+
+    // Unmap the unique kernel IDs for the offload entries
+    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+         EntriesIt = EntriesIt->Increment()) {
+
+      // Drop entry for service kernel
+      if (std::strstr(EntriesIt->GetName(), "__sycl_service_kernel__")) {
+        m_ServiceKernels.erase(EntriesIt->GetName());
+        continue;
+      }
+
+      // Exported device functions won't have a kernel ID
+      if (m_ExportedSymbolImages.find(EntriesIt->GetName()) !=
+          m_ExportedSymbolImages.end()) {
+        continue;
+      }
+
+      // remove everything associated with this KernelName
+      m_KernelUsesAssert.erase(EntriesIt->GetName());
+      m_KernelImplicitLocalArgPos.erase(EntriesIt->GetName());
+
+      if (auto It = m_KernelName2KernelIDs.find(EntriesIt->GetName());
+          It != m_KernelName2KernelIDs.end()) {
+        m_KernelIDs2BinImage.erase(It->second);
+        m_KernelName2KernelIDs.erase(It);
+      }
+      if (auto It = m_KernelNameBasedCaches.find(EntriesIt->GetName());
+          It != m_KernelNameBasedCaches.end()) {
+        m_KernelNameBasedCaches.erase(It);
+      }
+    }
+
+    // Drop reverse mapping
+    m_BinImg2KernelIDs.erase(Img);
+
+    // Unregister exported symbols (needs to happen after the ID unmap loop)
+    for (const sycl_device_binary_property &ESProp :
+         Img->getExportedSymbols()) {
+      m_ExportedSymbolImages.erase(ESProp->Name);
     }
 
     m_DeviceImages.erase(DevImgIt);
