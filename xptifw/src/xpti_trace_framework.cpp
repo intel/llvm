@@ -1195,8 +1195,7 @@ public:
       // Add source file information ot string table
 
       // MStringTableRef.add returns a string_id_t which is an int32_t and can
-      // be negative. If it's negative, it indicates an error and we should
-      // throw.
+      // be negative, but negative values are unexpected in this context.
       int32_t PFileId =
           MStringTableRef.add(Payload->source_file, &Payload->source_file);
 
