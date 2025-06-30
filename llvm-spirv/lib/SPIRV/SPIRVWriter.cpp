@@ -465,11 +465,13 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
             ConstantInt::get(getSizetType(), ArraySize, false), nullptr)));
     mapType(T, TransType);
     if (ElTy->isPointerTy()) {
-      mapType(
+      Type *ArrTy =
           ArrayType::get(TypedPointerType::get(Type::getInt8Ty(*Ctx),
                                                ElTy->getPointerAddressSpace()),
-                         ArraySize),
-          TransType);
+                         ArraySize);
+      LLVMToSPIRVTypeMap::iterator Loc = TypeMap.find(ArrTy);
+      if (Loc == TypeMap.end())
+        mapType(ArrTy, TransType);
     }
     return TransType;
   }
@@ -1021,11 +1023,6 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
     assert(!isKernel(F) &&
            "kernel function was marked as referenced-indirectly");
     BF->addDecorate(DecorationReferencedIndirectlyINTEL);
-  }
-
-  if (Attrs.hasFnAttr(kVCMetadata::VCCallable) &&
-      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite)) {
-    BF->addDecorate(internal::DecorationCallableFunctionINTEL);
   }
 
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
@@ -6277,11 +6274,6 @@ bool LLVMToSPIRVBase::transExecutionMode() {
                 ExtensionID::SPV_INTEL_float_controls2))
           break;
         AddSingleArgExecutionMode(static_cast<ExecutionMode>(EMode));
-      } break;
-      case spv::internal::ExecutionModeFastCompositeKernelINTEL: {
-        if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite))
-          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-              OpExecutionMode, BF, static_cast<ExecutionMode>(EMode))));
       } break;
       case spv::internal::ExecutionModeNamedSubgroupSizeINTEL: {
         if (!BM->isAllowedToUseExtension(

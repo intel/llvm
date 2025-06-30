@@ -1,6 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <sycl/atomic.hpp>
 #include <sycl/detail/core.hpp>
+
 using namespace sycl;
 
 template <typename T> class foo;
