@@ -1145,7 +1145,7 @@ getOrBuildProgramForDeviceGlobal(queue_impl &Queue,
   // If there was no cached program, build one.
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
   ProgramManager &PM = ProgramManager::getInstance();
-  RTDeviceBinaryImage &Img = PM.getDeviceImage(
+  const RTDeviceBinaryImage &Img = PM.getDeviceImage(
       DeviceGlobalEntry->MImages, ContextImpl, *getSyclObjImpl(Device));
 
   device_image_plain DeviceImage =
