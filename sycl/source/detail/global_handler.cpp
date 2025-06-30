@@ -390,7 +390,6 @@ void shutdown_late() {
   Handler->MScheduler.Inst.reset(nullptr);
   Handler->MProgramManager.Inst.reset(nullptr);
 
-
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Cache stores handles to the adapter, so clear it before
   // releasing adapters.
