@@ -1533,6 +1533,10 @@ void MemorySanitizer::createUserspaceApi(Module &M,
           FunctionName, TLI.getAttrList(C, {0, 1}, /*Signed=*/false),
           IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IRB.getInt32Ty());
 
+      MaybeWarningVarSizeFn = M.getOrInsertFunction(
+          "__msan_maybe_warning_N", TLI.getAttrList(C, {}, /*Signed=*/false),
+          IRB.getVoidTy(), PtrTy, IRB.getInt64Ty(), IRB.getInt32Ty());
+
       FunctionName = "__msan_maybe_store_origin_" + itostr(AccessSize);
       MaybeStoreOriginFn[AccessSizeIndex] = M.getOrInsertFunction(
           FunctionName, TLI.getAttrList(C, {0, 2}, /*Signed=*/false),
@@ -1551,10 +1555,6 @@ void MemorySanitizer::createUserspaceApi(Module &M,
           IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IRB.getInt32Ty(),
           IRB.getInt8PtrTy(kSpirOffloadConstantAS), IRB.getInt32Ty(),
           IRB.getInt8PtrTy(kSpirOffloadConstantAS));
-
-      MaybeWarningVarSizeFn = M.getOrInsertFunction(
-          "__msan_maybe_warning_N", TLI.getAttrList(C, {}, /*Signed=*/false),
-          IRB.getVoidTy(), PtrTy, IRB.getInt64Ty(), IRB.getInt32Ty());
 
       // __msan_maybe_store_origin_N(
       //   intN_t status,
@@ -2298,7 +2298,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     const DataLayout &DL = F.getDataLayout();
     TypeSize TypeSizeInBits = DL.getTypeSizeInBits(ConvertedShadow->getType());
     unsigned SizeIndex = TypeSizeToSizeIndex(TypeSizeInBits);
-    if (instrumentWithCalls(ConvertedShadow) && !MS.CompileKernel) {
+    if (instrumentWithCalls(ConvertedShadow) && !MS.CompileKernel &&
+        // SpirOrSpirv does not handle !(SizeIndex < kNumberOfAccessSizes) cases
+        (!SpirOrSpirv || SizeIndex < kNumberOfAccessSizes)) {
       // ZExt cannot convert between vector and scalar
       ConvertedShadow = convertShadowToScalar(ConvertedShadow, IRB);
       Value *ConvertedShadow2 =
