@@ -416,7 +416,7 @@ void saveDeviceLibModule(
   }
   llvm::module_split::ModuleDesc DeviceLibMD(std::move(DeviceLibIR),
                                              DeviceLibFileName);
-  saveModule(OutTables, DeviceLibMD, I, OutputPrefix, DeviceLibFileName);
+  saveModule(OutTables, DeviceLibMD, I, OutputPrefix, "");
 }
 
 module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
