@@ -3043,6 +3043,10 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
   const RTDeviceBinaryImage *NewBinImg = mergeImageData(
       Imgs, *KernelIDs, NewSpecConstBlob, NewSpecConstMap, MergedImageStorage);
 
+  // With both the new program and the merged image data, initailize associated
+  // device_global variables.
+  ContextImpl.addDeviceGlobalInitializer(LinkedProg, Devs, NewBinImg);
+
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     // NativePrograms map does not intend to keep reference to program handle,
