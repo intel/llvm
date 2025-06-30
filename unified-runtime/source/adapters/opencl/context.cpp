@@ -117,9 +117,6 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  static std::mutex contextReleaseMutex;
-
-  std::lock_guard<std::mutex> lock(contextReleaseMutex);
   if (hContext->decrementReferenceCount() == 0) {
     delete hContext;
   }

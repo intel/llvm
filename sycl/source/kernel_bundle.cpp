@@ -211,6 +211,12 @@ get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
 }
 
 detail::KernelBundleImplPtr
+get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+                       const sycl::span<char> &Bytes, bundle_state State) {
+  return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs, Bytes, State);
+}
+
+detail::KernelBundleImplPtr
 get_empty_interop_kernel_bundle_impl(const context &Ctx,
                                      const std::vector<device> &Devs) {
   return detail::kernel_bundle_impl::create(Ctx, Devs);
@@ -368,7 +374,7 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   // the device and whose target matches the device.
   detail::device_impl &DevImpl = *getSyclObjImpl(Dev);
   for (const auto &KernelID : KernelIDs) {
-    std::set<detail::RTDeviceBinaryImage *> BinImages =
+    std::set<const detail::RTDeviceBinaryImage *> BinImages =
         detail::ProgramManager::getInstance().getRawDeviceImages({KernelID});
 
     if (std::none_of(BinImages.begin(), BinImages.end(),

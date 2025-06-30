@@ -12,7 +12,9 @@
 
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
-#include <detail/graph_impl.hpp>
+#include <detail/graph/dynamic_impl.hpp>
+#include <detail/graph/graph_impl.hpp>
+#include <detail/graph/node_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/helpers.hpp>
 #include <detail/host_task.hpp>
@@ -33,8 +35,8 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
-#include "sycl/ext/oneapi/experimental/graph.hpp"
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 
@@ -739,8 +741,8 @@ event handler::finalize() {
     detail::context_impl &Context = impl->get_context();
     detail::queue_impl *Queue = impl->get_queue_or_null();
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(impl->MHostTask), Queue, Context.shared_from_this(),
-        std::move(impl->MArgs), std::move(impl->CGData), getType(), MCodeLoc));
+        std::move(impl->MHostTask), Queue, &Context, std::move(impl->MArgs),
+        std::move(impl->CGData), getType(), MCodeLoc));
     break;
   }
   case detail::CGType::Barrier:
@@ -942,7 +944,7 @@ event handler::finalize() {
                       CommandGroup->getRequirements().size() == 0;
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), Queue->shared_from_this(), !DiscardEvent);
+      std::move(CommandGroup), *Queue, !DiscardEvent);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   MLastEvent = DiscardEvent ? nullptr : Event;
@@ -2001,7 +2003,7 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
   if (Queue && EventGraph) {
     auto QueueGraph = Queue->getCommandGraph();
 
-    if (EventGraph->getContextImplPtr().get() != &impl->get_context()) {
+    if (&EventGraph->getContextImpl() != &impl->get_context()) {
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Cannot submit to a queue with a dependency from a graph that is "
@@ -2219,6 +2221,7 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
   });
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 const std::shared_ptr<detail::context_impl> &
 handler::getContextImplPtr() const {
   if (auto *Graph = impl->get_graph_or_null()) {
@@ -2226,10 +2229,11 @@ handler::getContextImplPtr() const {
   }
   return impl->get_queue().getContextImplPtr();
 }
+#endif
 
 detail::context_impl &handler::getContextImpl() const {
   if (auto *Graph = impl->get_graph_or_null()) {
-    return *Graph->getContextImplPtr();
+    return Graph->getContextImpl();
   }
   return impl->get_queue().getContextImpl();
 }

@@ -11,7 +11,7 @@
 #include "llvm/Support/Signals.h"
 #endif
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/kernel_name_based_cache_t.hpp>
@@ -230,8 +230,8 @@ std::mutex &GlobalHandler::getFilterMutex() {
   return FilterMutex;
 }
 
-std::vector<AdapterPtr> &GlobalHandler::getAdapters() {
-  static std::vector<AdapterPtr> &adapters = getOrCreate(MAdapters);
+std::vector<adapter_impl *> &GlobalHandler::getAdapters() {
+  static std::vector<adapter_impl *> &adapters = getOrCreate(MAdapters);
   enableOnCrashStackPrinting();
   return adapters;
 }
@@ -316,6 +316,7 @@ void GlobalHandler::unloadAdapters() {
   if (MAdapters.Inst) {
     for (const auto &Adapter : getAdapters()) {
       Adapter->release();
+      delete Adapter;
     }
   }
 
@@ -388,6 +389,13 @@ void shutdown_late() {
   Handler->MPlatformCache.Inst.reset(nullptr);
   Handler->MScheduler.Inst.reset(nullptr);
   Handler->MProgramManager.Inst.reset(nullptr);
+
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Cache stores handles to the adapter, so clear it before
+  // releasing adapters.
+  Handler->MKernelNameBasedCaches.Inst.reset(nullptr);
+#endif
 
   // Clear the adapters and reset the instance if it was there.
   Handler->unloadAdapters();

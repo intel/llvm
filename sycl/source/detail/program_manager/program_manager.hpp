@@ -135,12 +135,12 @@ public:
   // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
 
-  RTDeviceBinaryImage &getDeviceImage(KernelNameStrRefT KernelName,
-                                      context_impl &ContextImpl,
-                                      const device_impl &DeviceImpl);
+  const RTDeviceBinaryImage &getDeviceImage(KernelNameStrRefT KernelName,
+                                            context_impl &ContextImpl,
+                                            const device_impl &DeviceImpl);
 
-  RTDeviceBinaryImage &getDeviceImage(
-      const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
+  const RTDeviceBinaryImage &getDeviceImage(
+      const std::unordered_set<const RTDeviceBinaryImage *> &ImagesToVerify,
       context_impl &ContextImpl, const device_impl &DeviceImpl);
 
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
@@ -287,7 +287,7 @@ public:
   HostPipeMapEntry *getHostPipeEntry(const void *HostPipePtr);
 
   device_image_plain
-  getDeviceImageFromBinaryImage(RTDeviceBinaryImage *BinImage,
+  getDeviceImageFromBinaryImage(const RTDeviceBinaryImage *BinImage,
                                 const context &Ctx, const device &Dev);
 
   // The function returns a vector of SYCL device images that are compiled with
@@ -299,7 +299,7 @@ public:
   // Creates a new dependency image for a given dependency binary image.
   device_image_plain createDependencyImage(const context &Ctx,
                                            const std::vector<device> &Devs,
-                                           RTDeviceBinaryImage *DepImage,
+                                           const RTDeviceBinaryImage *DepImage,
                                            bundle_state DepState);
 
   // Bring image to the required state. Does it inplace
@@ -376,16 +376,18 @@ public:
   getOrCreateKernelNameBasedCache(KernelNameStrRefT KernelName);
 #endif
 
-  std::set<RTDeviceBinaryImage *>
+  std::set<const RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
-  std::set<RTDeviceBinaryImage *>
+  std::set<const RTDeviceBinaryImage *>
   collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device_impl &Dev,
                          bool ErrorOnUnresolvableImport = true);
-  std::set<RTDeviceBinaryImage *>
+  std::set<const RTDeviceBinaryImage *>
   collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
                                            const device_impl &Dev,
                                            bool ErrorOnUnresolvableImport);
+
+  static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage);
 
 private:
   ProgramManager(ProgramManager const &) = delete;
@@ -405,17 +407,17 @@ private:
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
 
   /// Add info on kernels using assert into cache
-  void cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img);
+  void cacheKernelUsesAssertInfo(const RTDeviceBinaryImage &Img);
 
   /// Add info on kernels using local arg into cache
-  void cacheKernelImplicitLocalArg(RTDeviceBinaryImage &Img);
+  void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
 
-  std::set<RTDeviceBinaryImage *>
+  std::set<const RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
       const RTDeviceBinaryImage &Img, const device_impl &Dev);
 
-  bool isBfloat16DeviceImage(RTDeviceBinaryImage *BinImage);
-  bool shouldBF16DeviceImageBeUsed(RTDeviceBinaryImage *BinImage,
+  bool isBfloat16DeviceImage(const RTDeviceBinaryImage *BinImage);
+  bool shouldBF16DeviceImageBeUsed(const RTDeviceBinaryImage *BinImage,
                                    const device_impl &DeviceImpl);
 
 protected:
@@ -434,7 +436,7 @@ protected:
   // in case of SPIRV + AOT.
   // Using shared_ptr to avoid expensive copy of the vector.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_multimap<kernel_id, RTDeviceBinaryImage *>
+  std::unordered_multimap<kernel_id, const RTDeviceBinaryImage *>
       m_KernelIDs2BinImage;
 
   // Maps device binary image to a vector of kernel ids in this image.
@@ -442,7 +444,7 @@ protected:
   // The vector is initialized in addImages function and is supposed to be
   // immutable afterwards.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_map<RTDeviceBinaryImage *,
+  std::unordered_map<const RTDeviceBinaryImage *,
                      std::shared_ptr<std::vector<kernel_id>>>
       m_BinImg2KernelIDs;
 
@@ -458,13 +460,13 @@ protected:
   /// in the sycl::detail::__sycl_service_kernel__ namespace which is
   /// exclusively used for this purpose.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_multimap<KernelNameStrT, RTDeviceBinaryImage *>
+  std::unordered_multimap<KernelNameStrT, const RTDeviceBinaryImage *>
       m_ServiceKernels;
 
   /// Caches all exported symbols to allow faster lookup when excluding these
   // from kernel bundles.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_multimap<KernelNameStrT, RTDeviceBinaryImage *>
+  std::unordered_multimap<KernelNameStrT, const RTDeviceBinaryImage *>
       m_ExportedSymbolImages;
 
   /// Keeps all device images we are refering to during program lifetime. Used
@@ -480,7 +482,7 @@ protected:
   /// Caches list of device images that use or provide virtual functions from
   /// the same set. Used to simplify access.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_map<std::string, std::set<RTDeviceBinaryImage *>>
+  std::unordered_map<std::string, std::set<const RTDeviceBinaryImage *>>
       m_VFSet2BinImage;
 
   /// Protects built-in kernel ID cache.
