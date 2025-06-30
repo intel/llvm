@@ -20,6 +20,9 @@
 // UNSUPPORTED: cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14053
 
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19116
+
 #include "common.hpp"
 
 int main() {

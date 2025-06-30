@@ -7,9 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "include/tsan_rtl.hpp"
-#include "atomic.hpp"
-#include "device.h"
-#include "spirv_vars.h"
 
 DeviceGlobal<void *> __TsanLaunchInfo;
 
@@ -144,9 +141,21 @@ inline __SYCL_GLOBAL__ RawShadow *MemToShadow(uptr addr, uint32_t as) {
   return shadow_ptr;
 }
 
-inline Sid GetCurrentSid() {
-  const auto lid = __spirv_BuiltInGlobalLinearId;
-  return lid % kThreadSlotCount;
+// We selected up to 4 work items in each work group to do detection, the whole
+// number of selected work items no more than kThreadSlotCount. This may cause
+// some false negtive cases in non-uniform memory access which has data race.
+// Since the cases are very rare and the change will greatly reduce runtime
+// overhead, it should be worthwhile.
+inline int GetCurrentSid() {
+  const size_t lid = LocalLinearId();
+  const size_t ThreadPerWorkGroup =
+      Min(4, __spirv_BuiltInWorkgroupSize.x * __spirv_BuiltInWorkgroupSize.y *
+                 __spirv_BuiltInWorkgroupSize.z);
+  if (lid >= ThreadPerWorkGroup)
+    return -1;
+
+  const size_t Id = lid + WorkGroupLinearId() * ThreadPerWorkGroup;
+  return Id < kThreadSlotCount ? Id : -1;
 }
 
 inline RawShadow LoadShadow(const __SYCL_GLOBAL__ RawShadow *p) {
@@ -315,7 +324,9 @@ inline bool ContainsSameAccess(__SYCL_GLOBAL__ RawShadow *s, Shadow cur,
     __SYCL_GLOBAL__ RawShadow *shadow_mem = MemToShadow(addr, as);             \
     if (!shadow_mem)                                                           \
       return;                                                                  \
-    Sid sid = GetCurrentSid();                                                 \
+    int sid = GetCurrentSid();                                                 \
+    if (sid == -1)                                                             \
+      return;                                                                  \
     uint16_t current_clock = IncrementEpoch(sid) + 1;                          \
     TSAN_DEBUG(__spirv_ocl_printf(__tsan_print_raw_shadow, (void *)addr, as,   \
                                   (void *)shadow_mem, shadow_mem[0],           \
@@ -360,7 +371,9 @@ __tsan_read16(uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,
     __SYCL_GLOBAL__ RawShadow *shadow_mem = MemToShadow(addr, as);             \
     if (!shadow_mem)                                                           \
       return;                                                                  \
-    Sid sid = GetCurrentSid();                                                 \
+    int sid = GetCurrentSid();                                                 \
+    if (sid == -1)                                                             \
+      return;                                                                  \
     uint16_t current_clock = IncrementEpoch(sid) + 1;                          \
     AccessType type = is_write ? kAccessWrite : kAccessRead;                   \
     uptr size1 = Min(size, RoundUpTo(addr + 1, kShadowCell) - addr);           \
@@ -499,39 +512,47 @@ DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_dynamic_local(uptr ptr,
 }
 
 DEVICE_EXTERN_C_INLINE void __tsan_device_barrier() {
-  Sid sid = GetCurrentSid();
+  int sid = GetCurrentSid();
 
-  // sync current thread clock to global state
-  TsanLaunchInfo->Clock[kThreadSlotCount].clk_[sid] =
-      TsanLaunchInfo->Clock[sid].clk_[sid];
+  if (sid != -1) {
+    // sync current thread clock to global state
+    TsanLaunchInfo->Clock[kThreadSlotCount].clk_[sid] =
+        TsanLaunchInfo->Clock[sid].clk_[sid];
+  }
 
   __spirv_ControlBarrier(__spv::Scope::Device, __spv::Scope::Device,
                          __spv::MemorySemanticsMask::SequentiallyConsistent |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory);
 
-  // sync global state back
-  for (uptr i = 0; i < kThreadSlotCount; i++)
-    TsanLaunchInfo->Clock[sid].clk_[i] =
-        TsanLaunchInfo->Clock[kThreadSlotCount].clk_[i];
+  if (sid != -1) {
+    // sync global state back
+    for (uptr i = 0; i < kThreadSlotCount; i++)
+      TsanLaunchInfo->Clock[sid].clk_[i] =
+          TsanLaunchInfo->Clock[kThreadSlotCount].clk_[i];
+  }
 }
 
 DEVICE_EXTERN_C_INLINE void __tsan_group_barrier() {
-  Sid sid = GetCurrentSid();
+  int sid = GetCurrentSid();
 
-  // sync current thread clock to global state
-  TsanLaunchInfo->Clock[kThreadSlotCount].clk_[sid] =
-      TsanLaunchInfo->Clock[sid].clk_[sid];
+  if (sid != -1) {
+    // sync current thread clock to global state
+    TsanLaunchInfo->Clock[kThreadSlotCount].clk_[sid] =
+        TsanLaunchInfo->Clock[sid].clk_[sid];
+  }
 
   __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
                          __spv::MemorySemanticsMask::SequentiallyConsistent |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory);
 
-  // sync global state back
-  for (uptr i = 0; i < kThreadSlotCount; i++)
-    TsanLaunchInfo->Clock[sid].clk_[i] =
-        TsanLaunchInfo->Clock[kThreadSlotCount].clk_[i];
+  if (sid != -1) {
+    // sync global state back
+    for (uptr i = 0; i < kThreadSlotCount; i++)
+      TsanLaunchInfo->Clock[sid].clk_[i] =
+          TsanLaunchInfo->Clock[kThreadSlotCount].clk_[i];
+  }
 }
 
 #endif // __SPIR__ || __SPIRV__

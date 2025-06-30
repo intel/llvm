@@ -30,9 +30,6 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
       Devices.emplace_back(phDevices[i]);
       urDeviceRetain(phDevices[i]);
     }
-    // The context retains a reference to the adapter so it can clear the
-    // function ptr cache on destruction
-    urAdapterRetain(ur::cl::getAdapter());
     RefCount = 1;
   }
 
@@ -51,7 +48,6 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
     // should drastically reduce the chances of the pathological case described
     // in the comments in common.hpp.
     ur::cl::getAdapter()->fnCache.clearCache(CLContext);
-    urAdapterRelease(ur::cl::getAdapter());
 
     for (uint32_t i = 0; i < DeviceCount; i++) {
       urDeviceRelease(Devices[i]);
