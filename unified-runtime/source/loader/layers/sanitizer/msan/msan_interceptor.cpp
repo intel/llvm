@@ -229,6 +229,7 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
     }
 
     auto PI = getProgramInfo(Program);
+    assert(PI != nullptr && "unregistered program!");
     for (const auto &SKI : SKInfo) {
       if (SKI.Size == 0) {
         continue;
@@ -404,6 +405,7 @@ KernelInfo &MsanInterceptor::getOrCreateKernelInfo(ur_kernel_handle_t Kernel) {
 
   // Create new KernelInfo
   auto PI = getProgramInfo(GetProgram(Kernel));
+  assert(PI != nullptr && "unregistered program!");
   auto KI = std::make_unique<KernelInfo>(Kernel);
 
   KI->IsInstrumented = PI->isKernelInstrumented(Kernel);

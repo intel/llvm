@@ -75,10 +75,10 @@ GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
     static std::shared_ptr<MsanShadowMemory> ShadowDG2 =
         std::make_shared<MsanShadowMemoryDG2>(Context, Device);
     return ShadowDG2;
-  } else {
-    UR_LOG_L(getContext()->logger, ERR, "Unsupport device type");
-    return nullptr;
   }
+
+  die("GetMsanShadowMemory: Unsupport device type");
+  return nullptr;
 }
 
 ur_result_t MsanShadowMemoryCPU::Setup() {
