@@ -23,10 +23,8 @@ constexpr size_t SIZE = 16;
 int main() {
   int data[SIZE];
   int result[SIZE];
-  for (int i = 0; i < SIZE; ++i) {
-    data[i] = i;
-  }
-  queue Q;
+std::iota(data, data + SIZE, 0);  
+queue Q;
   kernel_bundle bundle =
       get_kernel_bundle<bundle_state::executable>(Q.get_context());
   kernel_id sumId = ext::oneapi::experimental::get_kernel_id<SumKernel::sum>();
@@ -35,8 +33,8 @@ int main() {
   kernel productKernel = bundle.get_kernel(productId);
 
   {
-    buffer<int, 1> databuf{&data[0], SIZE};
-    buffer<int, 1> resultbuf{&result[0], SIZE};
+    buffer<int, 1> databuf{data, SIZE};
+    buffer<int, 1> resultbuf{result, SIZE};
 
     Q.submit([&](handler &h) {
       accessor<int, 1> accdata(databuf, h);
@@ -46,13 +44,18 @@ int main() {
     });
   }
 
+  int failed = 0;
   for (int i = 0; i < SIZE; ++i) {
-    assert(result[i] == 2 * data[i]);
+    if (result[i] != 2 * data[i]) {
+      std::cout << "Failed at index " << i << ": " << result[i]
+                << "!=" << (2 * data[i]) << std::endl;
+      ++failed;
+    }
   }
 
   {
-    buffer<int, 1> databuf{&data[0], SIZE};
-    buffer<int, 1> resultbuf{&result[0], SIZE};
+    buffer<int, 1> databuf{data, SIZE};
+    buffer<int, 1> resultbuf{result, SIZE};
 
     Q.submit([&](handler &h) {
       accessor<int, 1> accdata(databuf, h);
@@ -63,8 +66,12 @@ int main() {
   }
 
   for (int i = 0; i < SIZE; ++i) {
-    assert(result[i] == data[i] * data[i]);
+    if (result[i] != data[i] * data[i]) {
+      std::cout << "Failed at index " << i << ": " << result[i]
+                << "!=" << (data[i] * data[i]) << std::endl;
+      ++failed;
+    }
   }
 
-  return 0;
+  return failed;
 }

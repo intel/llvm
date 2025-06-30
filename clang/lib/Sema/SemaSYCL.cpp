@@ -5884,7 +5884,7 @@ void SemaSYCL::finalizeFreeFunctionKernels() {
   // except that they exist.
   for (const FunctionDecl *kernel : FreeFunctionDeclarations) {
     if (CheckFreeFunctionDiagnostics(SemaRef, kernel))
-      return;
+      continue; // Continue in order to diagnose errors in all kernels
 
     SyclKernelIntHeaderCreator IntHeader(*this, getSyclIntegrationHeader(),
                                          kernel->getType(), kernel);
