@@ -74,9 +74,5 @@ int main() {
     ExceptionThrown = true;
   }
 
-  // Feature is not supported for OpenCL, exception must be thrown.
-  if (Q.get_device().get_backend() == backend::opencl)
-    return ExceptionThrown ? 0 : -1;
-
-  return 0;
+  return ExceptionThrown ? -1 : 0;
 }
