@@ -1932,8 +1932,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     // Implicit copy-assignment gets the same special treatment as implicit
     // copy-constructors.
     emitImplicitAssignmentOperatorBody(Args);
-  } else if (getLangOpts().OpenCL &&
-             FD->hasAttr<OpenCLKernelAttr>() &&
+  } else if (getLangOpts().OpenCL && FD->hasAttr<OpenCLKernelAttr>() &&
              GD.getKernelReferenceKind() == KernelReferenceKind::Kernel) {
     CallArgList CallArgs;
     for (unsigned i = 0; i < Args.size(); ++i) {
