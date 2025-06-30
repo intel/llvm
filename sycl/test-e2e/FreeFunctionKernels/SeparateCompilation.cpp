@@ -23,8 +23,8 @@ constexpr size_t SIZE = 16;
 int main() {
   int data[SIZE];
   int result[SIZE];
-std::iota(data, data + SIZE, 0);  
-queue Q;
+  std::iota(data, data + SIZE, 0);
+  queue Q;
   kernel_bundle bundle =
       get_kernel_bundle<bundle_state::executable>(Q.get_context());
   kernel_id sumId = ext::oneapi::experimental::get_kernel_id<SumKernel::sum>();
