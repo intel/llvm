@@ -329,6 +329,9 @@ void CopyOrigin(uptr dst, uint32_t dst_as, uptr src, uint32_t src_as,
 inline void CopyShadowAndOrigin(uptr dst, uint32_t dst_as, uptr src,
                                 uint32_t src_as, size_t size) {
   auto *shadow_dst = (__SYCL_GLOBAL__ char *)MemToShadow(dst, dst_as);
+  if ((uptr)shadow_dst == GetMsanLaunchInfo->CleanShadow) {
+    return;
+  }
   auto *shadow_src = (__SYCL_GLOBAL__ char *)MemToShadow(src, src_as);
   Memcpy(shadow_dst, shadow_src, size);
   CopyOrigin(dst, dst_as, src, src_as, size);
@@ -344,10 +347,13 @@ static __SYCL_CONSTANT__ const char __msan_print_move_shadow[] =
 // FIXME: The original implemention only moves the origin of poisoned memories
 void MoveOrigin(uptr dst, uint32_t dst_as, uptr src, uint32_t src_as,
                 uptr size) {
+  auto *dst_beg = (__SYCL_GLOBAL__ char *)MemToOrigin(dst, dst_as);
+  if ((uptr)dst_beg == GetMsanLaunchInfo->CleanShadow) {
+    return;
+  }
   auto *src_beg = (__SYCL_GLOBAL__ char *)MemToOrigin(src, src_as);
   auto *src_end = (__SYCL_GLOBAL__ char *)MemToOrigin(src + size - 1, src_as) +
                   MSAN_ORIGIN_GRANULARITY;
-  auto *dst_beg = (__SYCL_GLOBAL__ char *)MemToOrigin(dst, dst_as);
   Memmove(dst_beg, src_beg, src_end - src_beg);
 }
 
@@ -365,7 +371,17 @@ inline void MoveShadowAndOrigin(uptr dst, uint32_t dst_as, uptr src,
 
 inline void UnpoisonShadow(uptr addr, uint32_t as, size_t size) {
   auto *shadow_ptr = (__SYCL_GLOBAL__ char *)MemToShadow(addr, as);
+  if ((uptr)shadow_ptr == GetMsanLaunchInfo->CleanShadow) {
+    return;
+  }
   Memset(shadow_ptr, 0, size);
+}
+
+// Check if the current work item is the first one in the work group
+inline bool IsFirstWorkItemWthinWorkGroup() {
+  return __spirv_LocalInvocationId_x() + __spirv_LocalInvocationId_y() +
+             __spirv_LocalInvocationId_z() ==
+         0;
 }
 
 } // namespace
@@ -525,41 +541,40 @@ static __SYCL_CONSTANT__ const char __mem_set_shadow_local[] =
 DEVICE_EXTERN_C_NOINLINE void __msan_poison_shadow_static_local(uptr ptr,
                                                                 size_t size) {
   // Update shadow memory of local memory only on first work-item
-  if (__spirv_LocalInvocationId_x() + __spirv_LocalInvocationId_y() +
-          __spirv_LocalInvocationId_z() ==
-      0) {
-    if (!GetMsanLaunchInfo)
-      return;
+  if (!IsFirstWorkItemWthinWorkGroup())
+    return;
 
-    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
-                                  "__msan_poison_shadow_static_local"));
+  if (!GetMsanLaunchInfo || GetMsanLaunchInfo->LocalShadowOffset == 0)
+    return;
 
-    auto shadow_address = MemToShadow(ptr, ADDRESS_SPACE_LOCAL);
-    if (shadow_address == GetMsanLaunchInfo->CleanShadow)
-      return;
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
+                                "__msan_poison_shadow_static_local"));
+
+  auto shadow_address = MemToShadow(ptr, ADDRESS_SPACE_LOCAL);
+  if (shadow_address != GetMsanLaunchInfo->CleanShadow) {
     Memset((__SYCL_GLOBAL__ char *)shadow_address, 0xff, size);
-
     MSAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_local, shadow_address,
                                   shadow_address + size, 0xff));
-    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
-                                  "__msan_poison_shadow_static_local"));
   }
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
+                                "__msan_poison_shadow_static_local"));
 }
 
 DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_shadow_static_local(uptr ptr,
                                                                   size_t size) {
   // Update shadow memory of local memory only on first work-item
-  if (__spirv_LocalInvocationId_x() + __spirv_LocalInvocationId_y() +
-          __spirv_LocalInvocationId_z() ==
-      0) {
-    if (!GetMsanLaunchInfo || GetMsanLaunchInfo->LocalShadowOffset == 0)
-      return;
-    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
-                                  "__msan_unpoison_shadow_static_local"));
-    UnpoisonShadow(ptr, ADDRESS_SPACE_LOCAL, size);
-    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
-                                  "__msan_unpoison_shadow_static_local"));
-  }
+  if (!IsFirstWorkItemWthinWorkGroup())
+    return;
+
+  if (!GetMsanLaunchInfo || GetMsanLaunchInfo->LocalShadowOffset == 0)
+    return;
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
+                                "__msan_unpoison_shadow_static_local"));
+  UnpoisonShadow(ptr, ADDRESS_SPACE_LOCAL, size);
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
+                                "__msan_unpoison_shadow_static_local"));
 }
 
 DEVICE_EXTERN_C_INLINE void __msan_barrier() {
@@ -583,7 +598,11 @@ static __SYCL_CONSTANT__ const char __msan_print_report_arg_count_incorrect[] =
 
 DEVICE_EXTERN_C_NOINLINE void
 __msan_poison_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
-  if (!GetMsanLaunchInfo)
+  // Update shadow memory of local memory only on first work-item
+  if (!IsFirstWorkItemWthinWorkGroup())
+    return;
+
+  if (!GetMsanLaunchInfo || GetMsanLaunchInfo->LocalShadowOffset == 0)
     return;
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
@@ -601,7 +620,12 @@ __msan_poison_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
     auto *local_arg = &GetMsanLaunchInfo->LocalArgs[i];
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_local_arg, i, local_arg->Size));
 
-    __msan_poison_shadow_static_local(args[i], local_arg->Size);
+    auto shadow_address = MemToShadow(args[i], ADDRESS_SPACE_LOCAL);
+    if (shadow_address != GetMsanLaunchInfo->CleanShadow) {
+      Memset((__SYCL_GLOBAL__ char *)shadow_address, 0xff, local_arg->Size);
+      MSAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_local, shadow_address,
+                                    shadow_address + local_arg->Size, 0xff));
+    }
   }
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
@@ -616,15 +640,17 @@ static __SYCL_CONSTANT__ const char __mem_unpoison_shadow_dynamic_local_end[] =
 
 DEVICE_EXTERN_C_NOINLINE void
 __msan_unpoison_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
-  if (!GetMsanLaunchInfo)
+  // Update shadow memory of local memory only on first work-item
+  if (!IsFirstWorkItemWthinWorkGroup())
+    return;
+
+  if (!GetMsanLaunchInfo || GetMsanLaunchInfo->LocalShadowOffset == 0)
     return;
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
                                 "__msan_unpoison_shadow_dynamic_local"));
 
   if (num_args != GetMsanLaunchInfo->NumLocalArgs) {
-    __spirv_ocl_printf(__msan_print_report_arg_count_incorrect, num_args,
-                       GetMsanLaunchInfo->NumLocalArgs);
     return;
   }
 
@@ -634,7 +660,7 @@ __msan_unpoison_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
     auto *local_arg = &GetMsanLaunchInfo->LocalArgs[i];
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_local_arg, i, local_arg->Size));
 
-    __msan_unpoison_shadow_static_local(args[i], local_arg->Size);
+    UnpoisonShadow(args[i], ADDRESS_SPACE_LOCAL, local_arg->Size);
   }
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
@@ -658,7 +684,9 @@ DEVICE_EXTERN_C_NOINLINE void __msan_poison_stack(__SYCL_PRIVATE__ void *ptr,
                                 (void *)shadow_address,
                                 (void *)(shadow_address + size), 0xff));
 
-  Memset((__SYCL_GLOBAL__ char *)shadow_address, 0xff, size);
+  if (shadow_address != GetMsanLaunchInfo->CleanShadow) {
+    Memset((__SYCL_GLOBAL__ char *)shadow_address, 0xff, size);
+  }
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end, "__msan_poison_stack"));
 }
@@ -676,7 +704,9 @@ DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_stack(__SYCL_PRIVATE__ void *ptr,
                                 (void *)shadow_address,
                                 (void *)(shadow_address + size), 0x0));
 
-  Memset((__SYCL_GLOBAL__ char *)shadow_address, 0, size);
+  if (shadow_address != GetMsanLaunchInfo->CleanShadow) {
+    Memset((__SYCL_GLOBAL__ char *)shadow_address, 0, size);
+  }
 
   MSAN_DEBUG(
       __spirv_ocl_printf(__msan_print_func_end, "__msan_unpoison_stack"));
@@ -713,23 +743,26 @@ __msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
                                 "__msan_unpoison_strided_copy"));
 
   uptr shadow_dest = (uptr)__msan_get_shadow(dest, dest_as);
-  uptr shadow_src = (uptr)__msan_get_shadow(src, src_as);
+  if (shadow_dest != GetMsanLaunchInfo->CleanShadow) {
+    uptr shadow_src = (uptr)__msan_get_shadow(src, src_as);
 
-  switch (element_size) {
-  case 1:
-    GroupAsyncCopy<int8_t>(shadow_dest, shadow_src, counts, stride);
-    break;
-  case 2:
-    GroupAsyncCopy<int16_t>(shadow_dest, shadow_src, counts, stride);
-    break;
-  case 4:
-    GroupAsyncCopy<int32_t>(shadow_dest, shadow_src, counts, stride);
-    break;
-  case 8:
-    GroupAsyncCopy<int64_t>(shadow_dest, shadow_src, counts, stride);
-    break;
-  default:
-    __spirv_ocl_printf(__msan_print_strided_copy_unsupport_type, element_size);
+    switch (element_size) {
+    case 1:
+      GroupAsyncCopy<int8_t>(shadow_dest, shadow_src, counts, stride);
+      break;
+    case 2:
+      GroupAsyncCopy<int16_t>(shadow_dest, shadow_src, counts, stride);
+      break;
+    case 4:
+      GroupAsyncCopy<int32_t>(shadow_dest, shadow_src, counts, stride);
+      break;
+    case 8:
+      GroupAsyncCopy<int64_t>(shadow_dest, shadow_src, counts, stride);
+      break;
+    default:
+      __spirv_ocl_printf(__msan_print_strided_copy_unsupport_type,
+                         element_size);
+    }
   }
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
