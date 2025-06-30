@@ -4,8 +4,6 @@
 
 // RUN: %{build} -fno-builtin %if target-spir %{ -fsycl-device-lib-jit-link -Wno-deprecated %} -o %t2.out
 // RUN: %{run} %t2.out
-//
-// UNSUPPORTED: target-nvidia || target-amd
 
 // Depends on SPIR-V Backend & run-time drivers version.
 // XFAIL: spirv-backend && run-mode
