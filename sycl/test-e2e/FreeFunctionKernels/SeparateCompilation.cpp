@@ -4,6 +4,7 @@
 #include "ProductKernel.hpp"
 #include "SumKernel.hpp"
 #include <cassert>
+#include <numeric>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/kernel_bundle.hpp>
