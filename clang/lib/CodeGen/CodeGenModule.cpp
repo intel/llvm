@@ -117,9 +117,8 @@ static bool SYCLCUDAIsSYCLDevice(const clang::LangOptions &LangOpts) {
 }
 
 static std::unique_ptr<TargetCodeGenInfo>
-createTargetCodeGenInfo(CodeGenModule &CGM) {
-  const TargetInfo &Target = CGM.getTarget();
-  const llvm::Triple &Triple = Target.getTriple();
+createTargetCodeGenInfo(CodeGenModule &CGM, const TargetInfo &Target,
+                        const llvm::Triple &Triple) {
   const CodeGenOptions &CodeGenOpts = CGM.getCodeGenOpts();
 
   switch (Triple.getArch()) {
@@ -335,7 +334,45 @@ createTargetCodeGenInfo(CodeGenModule &CGM) {
     return createLoongArchTargetCodeGenInfo(
         CGM, Target.getPointerWidth(LangAS::Default), ABIFRLen);
   }
+
+  case llvm::Triple::native_cpu: {
+    std::unique_ptr<TargetCodeGenInfo> HostTargetCodeGenInfo;
+    const auto &TargetOpts = Target.getTargetOpts();
+
+    // Normally we will be compiling in SYCL mode, in which the options have
+    // been overwritten with the host options, we get the host triple in
+    // TargetOpts.Triple, and TargetOpts.HostTriple is meaningless. However,
+    // during the libclc build, this is not the case and we need to figure it
+    // out from TargetOpts.HostTriple.
+    llvm::Triple HostTriple(TargetOpts.Triple);
+    if (HostTriple.isNativeCPU()) {
+      // This should be kept in sync with NativeCPUTargetInfo's constructor.
+      // Ideally we would cast to NativeCPUTargetInfo and just access the host
+      // target directly but ASTContext does not guarantee that it is a
+      // NativeCPUTargetInfo.
+      HostTriple = [&] {
+        if (TargetOpts.HostTriple.empty())
+          return llvm::Triple(llvm::sys::getDefaultTargetTriple());
+
+        return llvm::Triple(TargetOpts.HostTriple);
+      }();
+    }
+    if (!HostTriple.isNativeCPU()) {
+      HostTargetCodeGenInfo =
+          createTargetCodeGenInfo(CGM, Target, HostTriple);
+    }
+
+    return createNativeCPUTargetCodeGenInfo(CGM,
+                                            std::move(HostTargetCodeGenInfo));
   }
+  }
+}
+
+static std::unique_ptr<TargetCodeGenInfo>
+createTargetCodeGenInfo(CodeGenModule &CGM) {
+  const TargetInfo &Target = CGM.getTarget();
+  const llvm::Triple &Triple = Target.getTriple();
+  return createTargetCodeGenInfo(CGM, Target, Triple);
 }
 
 const TargetCodeGenInfo &CodeGenModule::getTargetCodeGenInfo() {
