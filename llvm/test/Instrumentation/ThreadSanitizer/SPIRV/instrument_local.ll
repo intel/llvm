@@ -7,7 +7,7 @@ target triple = "spir64-unknown-unknown"
 define spir_func void @foo() #0 {
 entry:
 ; CHECK-LABEL: define spir_func void @foo()
-; CHECK: call void @__tsan_write4(i64 ptrtoint (ptr addrspace(3) @WGLocalMem.0 to i64), i32 3
+; CHECK: call void @__tsan_write4_p3(i64 ptrtoint (ptr addrspace(3) @WGLocalMem.0 to i64)
   store i32 1, ptr addrspace(3) @WGLocalMem.0, align 4
   br label %exit
 

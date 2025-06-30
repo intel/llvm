@@ -158,15 +158,17 @@ private:
 
   // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
   static const size_t kNumberOfAccessSizes = 5;
+  static const size_t kNumberOfAddressSpace = 5;
   FunctionCallee TsanCleanupPrivate;
   FunctionCallee TsanCleanupStaticLocal;
   FunctionCallee TsanCleanupDynamicLocal;
   FunctionCallee TsanDeviceBarrier;
   FunctionCallee TsanGroupBarrier;
-  FunctionCallee TsanRead[kNumberOfAccessSizes];
-  FunctionCallee TsanWrite[kNumberOfAccessSizes];
-  FunctionCallee TsanUnalignedRead[kNumberOfAccessSizes];
-  FunctionCallee TsanUnalignedWrite[kNumberOfAccessSizes];
+  FunctionCallee TsanRead[kNumberOfAccessSizes][kNumberOfAddressSpace];
+  FunctionCallee TsanWrite[kNumberOfAccessSizes][kNumberOfAddressSpace];
+  FunctionCallee TsanUnalignedRead[kNumberOfAccessSizes][kNumberOfAddressSpace];
+  FunctionCallee TsanUnalignedWrite[kNumberOfAccessSizes]
+                                   [kNumberOfAddressSpace];
 
   friend struct ThreadSanitizer;
 };
@@ -313,34 +315,40 @@ void ThreadSanitizerOnSpirv::initialize() {
       "__tsan_group_barrier", Attr.addFnAttribute(C, Attribute::Convergent),
       IRB.getVoidTy());
 
-  for (size_t i = 0; i < kNumberOfAccessSizes; ++i) {
-    const unsigned ByteSize = 1U << i;
-    std::string ByteSizeStr = utostr(ByteSize);
-    // __tsan_readX/__tsan_writeX(
-    //   ...
-    //   char* file,
-    //   unsigned int line,
-    //   char* func
-    // )
-    SmallString<32> ReadName("__tsan_read" + ByteSizeStr);
-    TsanRead[i] = M.getOrInsertFunction(ReadName, Attr, IRB.getVoidTy(),
-                                        IntptrTy, IRB.getInt32Ty(), Int8PtrTy,
-                                        IRB.getInt32Ty(), Int8PtrTy);
+  for (size_t AddressSpaceIndex = 0; AddressSpaceIndex < kNumberOfAddressSpace;
+       AddressSpaceIndex++) {
+    for (size_t i = 0; i < kNumberOfAccessSizes; ++i) {
+      const unsigned ByteSize = 1U << i;
+      std::string ByteSizeStr = utostr(ByteSize);
+      std::string Suffix = "_p" + itostr(AddressSpaceIndex);
+      // __tsan_readX/__tsan_writeX(
+      //   ...
+      //   char* file,
+      //   unsigned int line,
+      //   char* func
+      // )
+      SmallString<32> ReadName("__tsan_read" + ByteSizeStr + Suffix);
+      TsanRead[i][AddressSpaceIndex] =
+          M.getOrInsertFunction(ReadName, Attr, IRB.getVoidTy(), IntptrTy,
+                                Int8PtrTy, IRB.getInt32Ty(), Int8PtrTy);
 
-    SmallString<32> WriteName("__tsan_write" + ByteSizeStr);
-    TsanWrite[i] = M.getOrInsertFunction(WriteName, Attr, IRB.getVoidTy(),
-                                         IntptrTy, IRB.getInt32Ty(), Int8PtrTy,
-                                         IRB.getInt32Ty(), Int8PtrTy);
+      SmallString<32> WriteName("__tsan_write" + ByteSizeStr + Suffix);
+      TsanWrite[i][AddressSpaceIndex] =
+          M.getOrInsertFunction(WriteName, Attr, IRB.getVoidTy(), IntptrTy,
+                                Int8PtrTy, IRB.getInt32Ty(), Int8PtrTy);
 
-    SmallString<32> UnalignedReadName("__tsan_unaligned_read" + ByteSizeStr);
-    TsanUnalignedRead[i] = M.getOrInsertFunction(
-        UnalignedReadName, Attr, IRB.getVoidTy(), IntptrTy, IRB.getInt32Ty(),
-        Int8PtrTy, IRB.getInt32Ty(), Int8PtrTy);
+      SmallString<32> UnalignedReadName("__tsan_unaligned_read" + ByteSizeStr +
+                                        Suffix);
+      TsanUnalignedRead[i][AddressSpaceIndex] = M.getOrInsertFunction(
+          UnalignedReadName, Attr, IRB.getVoidTy(), IntptrTy, Int8PtrTy,
+          IRB.getInt32Ty(), Int8PtrTy);
 
-    SmallString<32> UnalignedWriteName("__tsan_unaligned_write" + ByteSizeStr);
-    TsanUnalignedWrite[i] = M.getOrInsertFunction(
-        UnalignedWriteName, Attr, IRB.getVoidTy(), IntptrTy, IRB.getInt32Ty(),
-        Int8PtrTy, IRB.getInt32Ty(), Int8PtrTy);
+      SmallString<32> UnalignedWriteName("__tsan_unaligned_write" +
+                                         ByteSizeStr + Suffix);
+      TsanUnalignedWrite[i][AddressSpaceIndex] = M.getOrInsertFunction(
+          UnalignedWriteName, Attr, IRB.getVoidTy(), IntptrTy, Int8PtrTy,
+          IRB.getInt32Ty(), Int8PtrTy);
+    }
   }
 }
 
@@ -1213,6 +1221,8 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
   assert((!IsVolatile || !IsCompoundRW) && "Compound volatile invalid!");
 
   const uint32_t TypeSize = DL.getTypeStoreSizeInBits(OrigTy);
+  const unsigned int AS = cast<PointerType>(Addr->getType()->getScalarType())
+                              ->getPointerAddressSpace();
   FunctionCallee OnAccessFunc = nullptr;
   if (Alignment >= Align(8) || (Alignment.value() % (TypeSize / 8)) == 0) {
     if (IsCompoundRW)
@@ -1220,7 +1230,8 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
     else if (IsVolatile)
       OnAccessFunc = IsWrite ? TsanVolatileWrite[Idx] : TsanVolatileRead[Idx];
     else if (Spirv)
-      OnAccessFunc = IsWrite ? Spirv->TsanWrite[Idx] : Spirv->TsanRead[Idx];
+      OnAccessFunc =
+          IsWrite ? Spirv->TsanWrite[Idx][AS] : Spirv->TsanRead[Idx][AS];
     else
       OnAccessFunc = IsWrite ? TsanWrite[Idx] : TsanRead[Idx];
   } else {
@@ -1230,17 +1241,14 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
       OnAccessFunc = IsWrite ? TsanUnalignedVolatileWrite[Idx]
                              : TsanUnalignedVolatileRead[Idx];
     else if (Spirv)
-      OnAccessFunc = IsWrite ? Spirv->TsanUnalignedWrite[Idx]
-                             : Spirv->TsanUnalignedRead[Idx];
+      OnAccessFunc = IsWrite ? Spirv->TsanUnalignedWrite[Idx][AS]
+                             : Spirv->TsanUnalignedRead[Idx][AS];
     else
       OnAccessFunc = IsWrite ? TsanUnalignedWrite[Idx] : TsanUnalignedRead[Idx];
   }
   if (Spirv) {
     SmallVector<Value *, 5> Args;
     Args.push_back(IRB.CreatePointerCast(Addr, IntptrTy));
-    unsigned int AS = cast<PointerType>(Addr->getType()->getScalarType())
-                          ->getPointerAddressSpace();
-    Args.push_back(ConstantInt::get(IRB.getInt32Ty(), AS));
     Spirv->appendDebugInfoToArgs(II.Inst, Args);
     IRB.CreateCall(OnAccessFunc, Args);
   } else
