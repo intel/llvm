@@ -5849,6 +5849,43 @@ void SemaSYCL::MarkDevices() {
   }
 }
 
+static bool hasVirtuals(Sema &S, ParmVarDecl *Param) {
+  const clang::CXXRecordDecl *ParamType =
+      Param->getType()->getAsCXXRecordDecl();
+  if (!ParamType || !ParamType->isThisDeclarationADefinition())
+    return false;
+
+  llvm::SmallVector<const clang::CXXRecordDecl *, 8> WorkList;
+  llvm::SmallPtrSet<const clang::CXXRecordDecl *, 8> Visited;
+  WorkList.push_back(ParamType);
+
+  while (!WorkList.empty()) {
+    const clang::CXXRecordDecl *Cur = WorkList.pop_back_val();
+    if (!Visited.insert(Cur).second)
+      continue;
+
+    // Check for virtual bases
+    for (const clang::CXXBaseSpecifier &Base : Cur->bases()) {
+      if (Base.isVirtual())
+        return S.Diag(Param->getLocation(), diag::err_free_function_virtual_arg)
+               << ParamType->getNameAsString() << 0 << Param->getSourceRange();
+      const clang::CXXRecordDecl *BaseDecl =
+          Base.getType()->getAsCXXRecordDecl();
+      if (BaseDecl && BaseDecl->isThisDeclarationADefinition())
+        WorkList.push_back(BaseDecl);
+    }
+
+    // Check for virtual member functions
+    for (const auto *Method : Cur->methods()) {
+      if (Method->isVirtual()) {
+        return S.Diag(Param->getLocation(), diag::err_free_function_virtual_arg)
+               << ParamType->getNameAsString() << 1 << Param->getSourceRange();
+      }
+    }
+  }
+  return false;
+}
+
 static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
   if (FD->isVariadic()) {
     return S.Diag(FD->getLocation(), diag::err_free_function_variadic_args);
@@ -5871,6 +5908,8 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, FunctionDecl *FD) {
                     diag::err_free_function_with_default_arg)
              << Param->getSourceRange();
     }
+    if (hasVirtuals(S, Param))
+      return true;
   }
   return false;
 }
