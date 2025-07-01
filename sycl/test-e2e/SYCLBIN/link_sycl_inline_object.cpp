@@ -11,9 +11,10 @@
 
 // -- Test for linking between inline SYCL code and SYCLBIN code.
 
-// Due to the regression in https://github.com/intel/llvm/issues/18432 it will
-// fail to build the SYCLBIN with nvptx targets. Once this is fixed,
-// %{sycl_target_opts} should be added to the SYCLBIN generation run-line.
+// ptxas currently fails to compile images with unresolved symbols. Disable for
+// other targets than SPIR-V until this has been resolved. (CMPLRLLVM-68810)
+// Note: %{sycl_target_opts} should be added to the SYCLBIN compilation lines
+// once fixed.
 // REQUIRES: target-spir
 
 // XFAIL: opencl && cpu
