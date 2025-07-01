@@ -78,15 +78,15 @@ endforeach()
 # file and all files created this way are linked into one large bitcode
 # library.
 # Additional compilation options are needed for compiling each device library.
-set(common_build_archs)
+set(full_build_archs)
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
-  list(APPEND common_build_archs nvptx64-nvidia-cuda)
+  list(APPEND full_build_archs nvptx64-nvidia-cuda)
   set(compile_opts_nvptx64-nvidia-cuda "-fsycl-targets=nvptx64-nvidia-cuda"
   "-Xsycl-target-backend" "--cuda-gpu-arch=sm_50" "-nocudalib")
   set(opt_flags_nvptx64-nvidia-cuda "-O3" "--nvvm-reflect-enable=false")
 endif()
 if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
-  list(APPEND common_build_archs amdgcn-amd-amdhsa)
+  list(APPEND full_build_archs amdgcn-amd-amdhsa)
   set(compile_opts_amdgcn-amd-amdhsa "-nogpulib" "-fsycl-targets=amdgcn-amd-amdhsa"
   "-Xsycl-target-backend" "--offload-arch=gfx942")
   set(opt_flags_amdgcn-amd-amdhsa "-O3" "--amdgpu-oclc-reflect-enable=false")
@@ -348,38 +348,38 @@ check_cxx_compiler_flag(-Wno-invalid-noreturn HAS_NO_INVALID_NORETURN_WARN_FLAG)
 # ones.
 add_devicelibs(libsycl-itt-stubs
   SRC itt_stubs.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${itt_obj_deps})
 add_devicelibs(libsycl-itt-compiler-wrappers
   SRC itt_compiler_wrappers.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${itt_obj_deps})
 add_devicelibs(libsycl-itt-user-wrappers
   SRC itt_user_wrappers.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${itt_obj_deps})
 
 add_devicelibs(libsycl-crt
   SRC crt_wrapper.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${crt_obj_deps}
   EXTRA_OPTS $<$<BOOL:${HAS_NO_INVALID_NORETURN_WARN_FLAG}>:-Wno-invalid-noreturn>)
 
 add_devicelibs(libsycl-complex
   SRC complex_wrapper.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${complex_obj_deps})
 add_devicelibs(libsycl-complex-fp64
   SRC complex_wrapper_fp64.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${complex_obj_deps} )
 add_devicelibs(libsycl-cmath
   SRC cmath_wrapper.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps})
 add_devicelibs(libsycl-cmath-fp64
   SRC cmath_wrapper_fp64.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps} )
 set(imf_build_archs)
 add_devicelibs(libsycl-imf
@@ -396,12 +396,12 @@ add_devicelibs(libsycl-imf-bf16
   BUILD_ARCHS ${imf_build_archs})
 add_devicelibs(libsycl-bfloat16
   SRC bfloat16_wrapper.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps})
 if(MSVC)
   add_devicelibs(libsycl-msvc-math
     SRC msvc_math.cpp
-    BUILD_ARCHS ${common_build_archs}
+    BUILD_ARCHS ${full_build_archs}
     DEPENDENCIES ${cmath_obj_deps})
 else()
   if(UR_SANITIZER_INCLUDE_DIR)
@@ -479,38 +479,38 @@ endif()
 
 add_devicelibs(libsycl-fallback-cassert
   SRC fallback-cassert.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${crt_obj_deps}
   EXTRA_OPTS -fno-sycl-instrument-device-code)
 add_devicelibs(libsycl-fallback-cstring
   SRC fallback-cstring.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${crt_obj_deps})
 add_devicelibs(libsycl-fallback-complex
   SRC fallback-complex.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${complex_obj_deps})
 add_devicelibs(libsycl-fallback-complex-fp64
   SRC fallback-complex-fp64.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${complex_obj_deps})
 add_devicelibs(libsycl-fallback-cmath
   SRC fallback-cmath.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps})
 add_devicelibs(libsycl-fallback-cmath-fp64
   SRC fallback-cmath-fp64.cpp
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps})
 add_devicelibs(libsycl-fallback-bfloat16
   SRC fallback-bfloat16.cpp
   FILETYPES "${filetypes_no_spv}"
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${bfloat16_obj_deps})
 add_devicelibs(libsycl-native-bfloat16
   SRC bfloat16_wrapper.cpp
   FILETYPES "${filetypes_no_spv}"
-  BUILD_ARCHS ${common_build_archs}
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${bfloat16_obj_deps})
 
 # Create dependency and source lists for Intel math function libraries.
@@ -671,7 +671,7 @@ endforeach()
 
 # Create one large bitcode file for the NVPTX and AMD targets.
 # Use all the files collected in the respective global properties.
-foreach(arch IN LISTS common_build_archs)
+foreach(arch IN LISTS full_build_archs)
   get_property(BC_DEVICE_LIBS_${arch} GLOBAL PROPERTY BC_DEVICE_LIBS_${arch})
   # Link the bitcode files together.
   link_bc(TARGET device_lib_device_${arch}
