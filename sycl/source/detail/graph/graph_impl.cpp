@@ -681,7 +681,7 @@ graph_impl::getLastInorderNode(sycl::detail::queue_impl *Queue) {
 
 void graph_impl::setLastInorderNode(sycl::detail::queue_impl &Queue,
                                     std::shared_ptr<node_impl> Node) {
-  MInorderQueueMap[Queue.weak_from_this()] = Node;
+  MInorderQueueMap[Queue.weak_from_this()] = std::move(Node);
 }
 
 void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
