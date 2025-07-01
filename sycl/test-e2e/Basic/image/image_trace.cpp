@@ -1,18 +1,8 @@
-// REQUIRES: aspect-ext_intel_legacy_image
-//
-// l0 may use createUrMemFromZeImage instead of the usual urMemImageCreate
-// depending on the arch
-//
-// UNSUPPORTED: level_zero
+// REQUIRES: aspect-ext_intel_legacy_image, cpu
 //
 // RUN: %{build} -o %t.out
+// RUN: %{run} %t.out | FileCheck %s
 //
-// This test should be allowed to exit early if the image doesn't use a host
-// ptr, but it should pipe stdout to FileCheck otherwise. A portable way to
-// allow an early exit without any output to pipe to FileCheck logic is to use
-// Python.
-// RUN: env SYCL_UR_TRACE=-1 %{run} python -c "import subprocess, sys; p = subprocess.run(['%t.out'], stdout=subprocess.PIPE, check=True); o = p.stdout.strip(); sys.exit(0) if not o else subprocess.run(['FileCheck', '%s'], input=o, text=True).returncode"
-
 //==------------------- image_trace.cpp - SYCL image trace test ------------==//
 //
 // Ensures the correct params are being passed to urMemImageCreate
@@ -53,11 +43,6 @@ int main() {
     sycl::image<2> Img1(Img1HostData.data(), ChanOrder, ChanType, Img1Size);
     sycl::image<2> Img2(Img2HostData.data(), ChanOrder, ChanType, Img2Size);
 
-    // Trace will be different depending on whether host ptr is used or not
-    if (!Img1.has_property<sycl::property::image::use_host_ptr>()) {
-      return 0;
-    }
-
     TestQueue Q{sycl::default_selector_v};
     Q.submit([&](sycl::handler &CGH) {
       auto Img1Acc = Img1.get_access<sycl::float4, SYCLRead>(CGH);
@@ -67,8 +52,8 @@ int main() {
         sycl::float4 Data = Img1Acc.read(sycl::int2{Item[0], Item[1]});
         Img2Acc.write(sycl::int2{Item[0], Item[1]}, Data);
       });
-      // CHECK: urMemImageCreate({{.*}} .pImageFormat = {{.*}} ((struct ur_image_format_t){.channelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA, .channelType = UR_IMAGE_CHANNEL_TYPE_FLOAT}), .pImageDesc = {{.*}} ((struct ur_image_desc_t){.stype = UR_STRUCTURE_TYPE_IMAGE_DESC, .pNext = nullptr, .type = UR_MEM_TYPE_IMAGE2D, .width = 4, .height = 4, .depth = 1, .arraySize = 0, .rowPitch = 64, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0}), .pHost = {{.*}}, .phMem = {{.*}}) -> UR_RESULT_SUCCESS;
-      // CHECK: urMemImageCreate({{.*}} .pImageFormat = {{.*}} ((struct ur_image_format_t){.channelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA, .channelType = UR_IMAGE_CHANNEL_TYPE_FLOAT}), .pImageDesc = {{.*}} ((struct ur_image_desc_t){.stype = UR_STRUCTURE_TYPE_IMAGE_DESC, .pNext = nullptr, .type = UR_MEM_TYPE_IMAGE2D, .width = 4, .height = 4, .depth = 1, .arraySize = 0, .rowPitch = 64, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0}), {{.*}}) -> UR_RESULT_SUCCESS;
+      // CHECK: urMemImageCreate({{.*}} .pImageFormat = {{.*}} UR_MEM_IMAGE_USE_HOST_POINTER {{.*}} ((struct ur_image_format_t){.channelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA, .channelType = UR_IMAGE_CHANNEL_TYPE_FLOAT}), .pImageDesc = {{.*}} ((struct ur_image_desc_t){.stype = UR_STRUCTURE_TYPE_IMAGE_DESC, .pNext = nullptr, .type = UR_MEM_TYPE_IMAGE2D, .width = 4, .height = 4, .depth = 1, .arraySize = 0, .rowPitch = 64, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0}), .pHost = {{.*}}, .phMem = {{.*}}) -> UR_RESULT_SUCCESS;
+      // CHECK: urMemImageCreate({{.*}} .pImageFormat = {{.*}} UR_MEM_IMAGE_USE_HOST_POINTER {{.*}} ((struct ur_image_format_t){.channelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA, .channelType = UR_IMAGE_CHANNEL_TYPE_FLOAT}), .pImageDesc = {{.*}} ((struct ur_image_desc_t){.stype = UR_STRUCTURE_TYPE_IMAGE_DESC, .pNext = nullptr, .type = UR_MEM_TYPE_IMAGE2D, .width = 4, .height = 4, .depth = 1, .arraySize = 0, .rowPitch = 64, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0}), {{.*}}) -> UR_RESULT_SUCCESS;
     });
   }
 
