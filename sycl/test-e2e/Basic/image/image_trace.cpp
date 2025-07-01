@@ -1,4 +1,4 @@
-// REQUIRES: aspect-ext_intel_legacy_image
+// REQUIRES: aspect-ext_intel_legacy_image, cpu
 //
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=-1 %{run} %t.out | FileCheck %s
