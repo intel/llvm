@@ -99,11 +99,8 @@ TEST_F(QueueApiFailures, QueueSubmit) {
   sycl::queue Q;
   bool ExceptionCaught = false;
   try {
-    Q.submit(
-        [&](handler &Cgh) {
-          Cgh.single_task<TestKernel>([=]() {});
-        },
-        TestCodeLocation);
+    Q.submit([&](handler &Cgh) { Cgh.single_task<TestKernel>([=]() {}); },
+             TestCodeLocation);
   } catch (sycl::exception &e) {
     std::ignore = e;
     ExceptionCaught = true;
@@ -361,8 +358,7 @@ TEST_F(QueueApiFailures, QueueHostTaskWaitFail) {
   bool ExceptionCaught = false;
   event EventToDepend;
   try {
-    EventToDepend =
-        Q.single_task<TestKernel>([=]() {}, TestCodeLocation);
+    EventToDepend = Q.single_task<TestKernel>([=]() {}, TestCodeLocation);
   } catch (sycl::exception &e) {
     std::ignore = e;
     ExceptionCaught = true;
@@ -402,8 +398,7 @@ TEST_F(QueueApiFailures, QueueHostTaskFail) {
     event EventToDepend;
     const std::string HostTaskExeptionStr = "Host task exception";
     try {
-      EventToDepend =
-          Q.single_task<TestKernel>([=]() {}, TestCodeLocation);
+      EventToDepend = Q.single_task<TestKernel>([=]() {}, TestCodeLocation);
     } catch (sycl::exception &e) {
       std::ignore = e;
       ExceptionCaught = true;

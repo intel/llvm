@@ -14,13 +14,11 @@
 class TestKernel;
 class TestKernelWithAcc;
 
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 template <>
-struct KernelInfo<TestKernel>
-    : public unittest::MockKernelInfoBase {
+struct KernelInfo<TestKernel> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "TestKernel"; }
   static constexpr int64_t getKernelSize() { return 1; }
   static constexpr const char *getFileName() { return "TestKernel.hpp"; }
@@ -32,10 +30,12 @@ struct KernelInfo<TestKernel>
 };
 
 template <>
-struct KernelInfo<TestKernelWithAcc>
-    : public unittest::MockKernelInfoBase {
+struct KernelInfo<TestKernelWithAcc> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "TestKernelWithAcc"; }
-  static constexpr int64_t getKernelSize() { return sizeof(sycl::accessor<int, 0, sycl::access::mode::read_write, sycl::target::device>); }
+  static constexpr int64_t getKernelSize() {
+    return sizeof(sycl::accessor<int, 0, sycl::access::mode::read_write,
+                                 sycl::target::device>);
+  }
   static constexpr const char *getFileName() { return "TestKernel.hpp"; }
   static constexpr const char *getFunctionName() {
     return "TestKernelWithAccFunctionName";
@@ -48,6 +48,7 @@ struct KernelInfo<TestKernelWithAcc>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::MockDeviceImage Imgs[] = {sycl::unittest::generateDefaultImage({"TestKernel"}),
-                                          sycl::unittest::generateDefaultImage({"TestKernelWithAcc"})};
+static sycl::unittest::MockDeviceImage Imgs[] = {
+    sycl::unittest::generateDefaultImage({"TestKernel"}),
+    sycl::unittest::generateDefaultImage({"TestKernelWithAcc"})};
 static sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};

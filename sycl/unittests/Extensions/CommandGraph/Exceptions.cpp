@@ -653,8 +653,8 @@ TEST_F(CommandGraphTest, ClusterLaunchException) {
     Graph.begin_recording(Queue);
     auto Event1 = Queue.submit([&](sycl::handler &cgh) {
       cgh.parallel_for<TestKernel>(sycl::nd_range<1>({4096}, {32}),
-                                     cluster_launch_property,
-                                     [&](sycl::nd_item<1> it) {});
+                                   cluster_launch_property,
+                                   [&](sycl::nd_item<1> it) {});
     });
     Queue.wait();
     Graph.end_recording(Queue);
@@ -750,9 +750,7 @@ TEST_F(CommandGraphTest, RecordingWrongGraphDep) {
 TEST_F(CommandGraphTest, DynamicCommandGroupWrongGraph) {
   experimental::command_graph Graph1{Queue.get_context(), Queue.get_device()};
   experimental::command_graph Graph2{Queue.get_context(), Queue.get_device()};
-  auto CGF = [&](sycl::handler &CGH) {
-    CGH.single_task<TestKernel>([]() {});
-  };
+  auto CGF = [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); };
 
   experimental::dynamic_command_group DynCG(Graph2, {CGF});
   ASSERT_THROW(Graph1.add(DynCG), sycl::exception);

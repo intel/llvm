@@ -28,10 +28,8 @@ TEST(Queue, HandlerBarrier) {
 
   sycl::queue Q;
 
-  Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
-  Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
+  Q.submit([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
+  Q.submit([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
 
   Q.submit([&](sycl::handler &cgh) { cgh.ext_oneapi_barrier(); });
 
@@ -47,10 +45,8 @@ TEST(Queue, ExtOneAPISubmitBarrier) {
 
   sycl::queue Q;
 
-  Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
-  Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
+  Q.submit([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
+  Q.submit([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
 
   Q.ext_oneapi_submit_barrier();
 

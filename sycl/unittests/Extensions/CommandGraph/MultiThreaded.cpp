@@ -63,8 +63,8 @@ void runKernelsInOrder(queue Q) {
 /// @param G Modifiable graph to add commands to.
 void addKernels(
     experimental::command_graph<experimental::graph_state::modifiable> G) {
-  auto NodeA = G.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
+  auto NodeA =
+      G.add([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto NodeB =
       G.add([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
             {experimental::property::node::depends_on(NodeA)});

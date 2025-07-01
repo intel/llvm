@@ -96,8 +96,7 @@ ur_result_t redefinedEnqueueEventsWaitWithBarrierExt(void *pParams) {
 }
 
 sycl::event submitKernel(sycl::queue &Q) {
-  return Q.submit(
-      [&](handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
+  return Q.submit([&](handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 }
 
 TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {

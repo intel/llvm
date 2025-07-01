@@ -172,7 +172,7 @@ TEST_F(EnqueueFunctionsEventsTests, NDLaunchShortcutNoEvent) {
                                             &redefined_urEnqueueKernelLaunch);
 
   oneapiext::nd_launch<TestKernel>(Q, nd_range<1>{range<1>{32}, range<1>{32}},
-                                     [](nd_item<1>) {});
+                                   [](nd_item<1>) {});
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
 }

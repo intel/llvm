@@ -311,8 +311,8 @@ TEST(GetProfilingInfo,
   queue Queue{Ctx, Dev};
   DeviceTimerCalled = false;
 
-  event E = Queue.submit(
-      [&](handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
+  event E =
+      Queue.submit([&](handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   EXPECT_FALSE(DeviceTimerCalled);
 }
 
