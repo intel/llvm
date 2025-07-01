@@ -158,7 +158,7 @@ entangle(ParentGroup parent) {
   return tangle<ParentGroup>(mask);
 #elif defined(__NVPTX__)
   // TODO: CUDA devices will report false for the tangle
-  //       support aspect so kernels launch should ensure this is never run. 
+  //       support aspect so kernels launch should ensure this is never run.
   return tangle<ParentGroup>(0);
 #endif
 #else

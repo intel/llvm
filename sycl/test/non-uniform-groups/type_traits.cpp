@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
 
-#include <sycl/ext/oneapi/experimental/fragment.hpp>
 #include <sycl/ext/oneapi/experimental/chunk.hpp>
+#include <sycl/ext/oneapi/experimental/fragment.hpp>
 #include <sycl/ext/oneapi/experimental/tangle.hpp>
 
 namespace syclex = sycl::ext::oneapi::experimental;

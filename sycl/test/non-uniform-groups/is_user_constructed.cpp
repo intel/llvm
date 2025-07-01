@@ -6,7 +6,8 @@
 namespace syclex = sycl::ext::oneapi::experimental;
 
 template <typename Group>
-inline constexpr bool is_user_constructed_group = syclex::is_user_constructed_group_v<Group>;
+inline constexpr bool is_user_constructed_group =
+    syclex::is_user_constructed_group_v<Group>;
 
 // is recognized as user-constructed
 static_assert(is_user_constructed_group<syclex::fragment<sycl::sub_group>>);
