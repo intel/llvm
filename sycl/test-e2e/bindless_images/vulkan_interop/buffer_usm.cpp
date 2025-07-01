@@ -333,6 +333,7 @@ int main() {
       runTest<syclexp::external_mem_handle_type::win32_nt_handle>(
           syclDevice, globalSize, localSize);
   constexpr bool dmaBufTestPassed = true;
+  // No check for opaqueTestPassed here, there is a common check later
 #else
   const bool opaqueTestPassed =
       runTest<syclexp::external_mem_handle_type::opaque_fd>(
