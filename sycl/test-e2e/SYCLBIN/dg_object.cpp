@@ -10,11 +10,6 @@
 
 // -- Test for using device globals in SYCLBIN.
 
-// Due to the regression in https://github.com/intel/llvm/issues/18432 it will
-// fail to build the SYCLBIN with nvptx targets. Once this is fixed,
-// %{sycl_target_opts} should be added to the SYCLBIN generation run-line.
-// REQUIRES: target-spir
-
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
 

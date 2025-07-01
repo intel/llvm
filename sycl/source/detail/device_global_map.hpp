@@ -160,7 +160,7 @@ public:
 
 private:
   // Indicates whether the owner will explicitly cleanup the entries. If false
-  // the dtor of DeviceGlobalMap will cleanup the enties.
+  // the dtor of DeviceGlobalMap will cleanup the entries.
   // Note: This lets the global device global map avoid overhead at shutdown and
   //       instead let the contexts own the associated entries.
   bool MOwnerControlledCleanup = true;
