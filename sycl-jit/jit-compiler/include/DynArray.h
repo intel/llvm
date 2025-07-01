@@ -23,7 +23,7 @@ public:
   explicit DynArray(size_t Size) { init(Size); }
 
   template <typename InputIt> DynArray(InputIt Begin, InputIt End) {
-    init(std:distance(Begin, End));
+    init(std::distance(Begin, End));
     std::copy(Begin, End, this->begin());
   }
 
