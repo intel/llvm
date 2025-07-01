@@ -1,7 +1,7 @@
-// REQUIRES: aspect-ext_intel_legacy_image, cpu
+// REQUIRES: aspect-ext_intel_legacy_image
 //
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out | FileCheck %s
+// RUN: env SYCL_UR_TRACE=-1 %{run} %t.out | FileCheck %s
 //
 //==------------------- image_trace.cpp - SYCL image trace test ------------==//
 //
