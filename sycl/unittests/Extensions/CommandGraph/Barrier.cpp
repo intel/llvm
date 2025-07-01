@@ -882,7 +882,7 @@ TEST_F(CommandGraphTest, BarrierWithInOrderCommands) {
     ASSERT_EQ(RootNode->MSuccessors.size(), 1lu);
     if (GraphImpl.getEventForNode(RootNode).get() == &*getSyclObjImpl(Node2)) {
       EvenPath = true;
-    } else if (GraphImpl.getEventForNode(RootNode).get(),
+    } else if (GraphImpl.getEventForNode(RootNode).get() ==
                &*getSyclObjImpl(Node1)) {
       EvenPath = false;
     } else {
