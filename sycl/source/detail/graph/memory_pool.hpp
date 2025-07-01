@@ -116,7 +116,7 @@ public:
 
       // Create physical memory
       auto PhysicalMem = std::make_shared<physical_mem_impl>(
-          *getSyclObjImpl(MDevice), MContext, AllocInfo.Size);
+          getSyclObjImpl(MDevice), MContext, AllocInfo.Size);
       // Map the virtual reservation to it
       PhysicalMem->map(reinterpret_cast<uintptr_t>(Ptr), AllocInfo.Size,
                        AccessMode, 0);

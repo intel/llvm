@@ -270,7 +270,7 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
             std::move(Allocator)),
       MDimensions(Dimensions), MRange({0, 0, 0}) {
   ur_mem_handle_t Mem = ur::cast<ur_mem_handle_t>(BaseT::MInteropMemObject);
-  detail::context_impl &Context = *getSyclObjImpl(SyclContext);
+  detail::context_impl &Context = getSyclObjImpl(SyclContext);
   adapter_impl &Adapter = Context.getAdapter();
   Adapter.call<UrApiKind::urMemGetInfo>(Mem, UR_MEM_INFO_SIZE, sizeof(size_t),
                                         &(BaseT::MSizeInBytes), nullptr);

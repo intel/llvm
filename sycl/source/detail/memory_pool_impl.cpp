@@ -61,7 +61,7 @@ memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
                                    const sycl::device &dev,
                                    const sycl::usm::alloc kind,
                                    const pool_properties props)
-    : MContextImplPtr(sycl::detail::getSyclObjImpl(ctx)), MDevice(dev),
+    : MContextImplPtr(sycl::detail::getSyclObjImplPtr(ctx)), MDevice(dev),
       MKind(kind), MProps(props) {
 
   if (kind == sycl::usm::alloc::device)
@@ -80,7 +80,7 @@ memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
                                    ur_usm_pool_handle_t poolHandle,
                                    const bool isDefaultPool,
                                    const pool_properties props)
-    : MContextImplPtr(sycl::detail::getSyclObjImpl(ctx)), MDevice(dev),
+    : MContextImplPtr(sycl::detail::getSyclObjImplPtr(ctx)), MDevice(dev),
       MKind(kind), MPoolHandle(poolHandle), MIsDefaultPool(isDefaultPool),
       MProps(props) {}
 

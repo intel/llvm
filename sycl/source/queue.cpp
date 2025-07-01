@@ -30,35 +30,35 @@ queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
 
   const device &SyclDevice = *std::max_element(Devs.begin(), Devs.end(), Comp);
 
-  impl = detail::queue_impl::create(*detail::getSyclObjImpl(SyclDevice),
-                                    *detail::getSyclObjImpl(SyclContext),
+  impl = detail::queue_impl::create(detail::getSyclObjImpl(SyclDevice),
+                                    detail::getSyclObjImpl(SyclContext),
                                     AsyncHandler, PropList);
 }
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
              const async_handler &AsyncHandler, const property_list &PropList) {
-  impl = detail::queue_impl::create(*detail::getSyclObjImpl(SyclDevice),
-                                    *detail::getSyclObjImpl(SyclContext),
+  impl = detail::queue_impl::create(detail::getSyclObjImpl(SyclDevice),
+                                    detail::getSyclObjImpl(SyclContext),
                                     AsyncHandler, PropList);
 }
 
 queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
              const property_list &PropList) {
-  impl = detail::queue_impl::create(*detail::getSyclObjImpl(SyclDevice),
+  impl = detail::queue_impl::create(detail::getSyclObjImpl(SyclDevice),
                                     AsyncHandler, PropList);
 }
 
 queue::queue(const context &SyclContext, const device_selector &deviceSelector,
              const property_list &PropList)
     : queue(SyclContext, deviceSelector,
-            detail::getSyclObjImpl(SyclContext)->get_async_handler(),
-            PropList) {}
+            detail::getSyclObjImpl(SyclContext).get_async_handler(), PropList) {
+}
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
              const property_list &PropList)
     : queue(SyclContext, SyclDevice,
-            detail::getSyclObjImpl(SyclContext)->get_async_handler(),
-            PropList) {}
+            detail::getSyclObjImpl(SyclContext).get_async_handler(), PropList) {
+}
 
 queue::queue(cl_command_queue clQueue, const context &SyclContext,
              const async_handler &AsyncHandler) {
@@ -66,7 +66,7 @@ queue::queue(cl_command_queue clQueue, const context &SyclContext,
   impl = detail::queue_impl::create(
       // TODO(pi2ur): Don't cast straight from cl_command_queue
       reinterpret_cast<ur_queue_handle_t>(clQueue),
-      *detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
+      detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }
 
 cl_command_queue queue::get() const { return impl->get(); }
@@ -212,7 +212,7 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
   // them.
   bool AllEventsEmptyOrNop = std::all_of(
       begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
-        detail::event_impl &EventImpl = *detail::getSyclObjImpl(Event);
+        detail::event_impl &EventImpl = detail::getSyclObjImpl(Event);
         return (EventImpl.isDefaultConstructed() || EventImpl.isNOP()) &&
                !EventImpl.hasCommandGraph();
       });
@@ -313,7 +313,7 @@ event submit_kernel_direct_with_event_impl(
     sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-  return getSyclObjImpl(Queue)->submit_kernel_direct_with_event(
+  return getSyclObjImpl(Queue).submit_kernel_direct_with_event(
       RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
       IsTopCodeLoc);
 }
@@ -325,7 +325,7 @@ void submit_kernel_direct_without_event_impl(
     sycl::span<const event> DepEvents,
     const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-  getSyclObjImpl(Queue)->submit_kernel_direct_without_event(
+  getSyclObjImpl(Queue).submit_kernel_direct_without_event(
       RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
       IsTopCodeLoc);
 }
@@ -336,8 +336,8 @@ event submit_graph_direct_with_event_impl(
         ext::oneapi::experimental::graph_state::executable> &G,
     sycl::span<const event> DepEvents, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return getSyclObjImpl(Queue)->submit_graph_direct_with_event(
-      getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
+  return getSyclObjImpl(Queue).submit_graph_direct_with_event(
+      getSyclObjImplPtr(G), DepEvents, TlsCodeLocCapture.query(),
       TlsCodeLocCapture.isToplevel());
 }
 
@@ -347,8 +347,8 @@ void submit_graph_direct_without_event_impl(
         ext::oneapi::experimental::graph_state::executable> &G,
     sycl::span<const event> DepEvents, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  getSyclObjImpl(Queue)->submit_graph_direct_without_event(
-      getSyclObjImpl(G), DepEvents, TlsCodeLocCapture.query(),
+  getSyclObjImpl(Queue).submit_graph_direct_without_event(
+      getSyclObjImplPtr(G), DepEvents, TlsCodeLocCapture.query(),
       TlsCodeLocCapture.isToplevel());
 }
 
@@ -359,5 +359,5 @@ size_t std::hash<sycl::queue>::operator()(const sycl::queue &Q) const {
   // Compared to using the impl pointer, the unique ID helps avoid hash
   // collisions with previously destroyed queues.
   return std::hash<unsigned long long>()(
-      sycl::detail::getSyclObjImpl(Q)->getQueueID());
+      sycl::detail::getSyclObjImpl(Q).getQueueID());
 }

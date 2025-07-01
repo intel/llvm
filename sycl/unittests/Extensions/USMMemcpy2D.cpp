@@ -281,7 +281,7 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
   sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
-  sycl::detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = sycl::detail::getSyclObjImpl(Q);
 
   mock::getCallbacks().set_after_callback(
       "urContextGetInfo", &after_urContextGetInfo<true, true, true>);
@@ -382,7 +382,7 @@ TEST(USMMemcpy2DTest, USMFillSupportedOnly) {
   sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
-  sycl::detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = sycl::detail::getSyclObjImpl(Q);
 
   mock::getCallbacks().set_after_callback(
       "urContextGetInfo", &after_urContextGetInfo<true, false, false>);
@@ -428,7 +428,7 @@ TEST(USMMemcpy2DTest, USMMemsetSupportedOnly) {
   sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
-  sycl::detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = sycl::detail::getSyclObjImpl(Q);
 
   // Enable fill + set, they are implemented with the same entry point in the
   // backend so supporting one means supporting both.
@@ -476,7 +476,7 @@ TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
   sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
-  sycl::detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = sycl::detail::getSyclObjImpl(Q);
 
   mock::getCallbacks().set_after_callback(
       "urContextGetInfo", &after_urContextGetInfo<false, false, true>);

@@ -54,9 +54,9 @@ protected:
   MockCmdWithReleaseTracking *addCommandToBuffer(Buffer &Buf, sycl::queue &Q) {
     sycl::detail::Requirement MockReq = getMockRequirement(Buf);
     sycl::detail::MemObjRecord *Rec = MockSchedulerPtr->getOrInsertMemObjRecord(
-        &*sycl::detail::getSyclObjImpl(Q), &MockReq);
+        &sycl::detail::getSyclObjImpl(Q), &MockReq);
     MockCmdWithReleaseTracking *MockCmd = new MockCmdWithReleaseTracking(
-        *sycl::detail::getSyclObjImpl(Q), MockReq);
+        sycl::detail::getSyclObjImpl(Q), MockReq);
     std::vector<sycl::detail::Command *> ToEnqueue;
     MockSchedulerPtr->addNodeToLeaves(Rec, MockCmd, sycl::access::mode::write,
                                       ToEnqueue);

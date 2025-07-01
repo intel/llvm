@@ -39,34 +39,34 @@ queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
   const device &SyclDevice = *std::max_element(Devs.begin(), Devs.end(), Comp);
 
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
-      AsyncHandler, PropList, true);
+      detail::getSyclObjImplPtr(SyclDevice),
+      detail::getSyclObjImplPtr(SyclContext), AsyncHandler, PropList, true);
 }
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
              const async_handler &AsyncHandler, const property_list &PropList) {
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
-      AsyncHandler, PropList, true);
+      detail::getSyclObjImplPtr(SyclDevice),
+      detail::getSyclObjImplPtr(SyclContext), AsyncHandler, PropList, true);
 }
 
 queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
              const property_list &PropList) {
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList, true);
+      detail::getSyclObjImplPtr(SyclDevice), AsyncHandler, PropList, true);
 }
 
 queue::queue(const context &SyclContext, const device_selector &deviceSelector,
              const property_list &PropList)
     : queue(SyclContext, deviceSelector,
-            detail::getSyclObjImpl(SyclContext)->get_async_handler(),
-            PropList) {}
+            detail::getSyclObjImpl(SyclContext).get_async_handler(), PropList) {
+}
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
              const property_list &PropList)
     : queue(SyclContext, SyclDevice,
-            detail::getSyclObjImpl(SyclContext)->get_async_handler(),
-            PropList) {}
+            detail::getSyclObjImpl(SyclContext).get_async_handler(), PropList) {
+}
 
 } // namespace _V1
 } // namespace sycl

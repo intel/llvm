@@ -128,8 +128,8 @@ TEST_F(MultiThreadGraphTest, BeginEndRecording) {
     GraphRef.end_recording(MyQueue);
   }
 
-  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
-  experimental::detail::graph_impl &GraphRefImpl = *getSyclObjImpl(GraphRef);
+  experimental::detail::graph_impl &GraphImpl = getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphRefImpl = getSyclObjImpl(GraphRef);
   ASSERT_EQ(GraphImpl.hasSimilarStructure(GraphRefImpl), true);
 }
 
@@ -158,8 +158,8 @@ TEST_F(MultiThreadGraphTest, ExplicitAddNodes) {
     addKernels(GraphRef);
   }
 
-  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
-  experimental::detail::graph_impl &GraphRefImpl = *getSyclObjImpl(GraphRef);
+  experimental::detail::graph_impl &GraphImpl = getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphRefImpl = getSyclObjImpl(GraphRef);
   ASSERT_EQ(GraphImpl.hasSimilarStructure(GraphRefImpl), true);
 }
 
@@ -192,8 +192,8 @@ TEST_F(MultiThreadGraphTest, RecordAddNodes) {
   }
   GraphRef.end_recording(QueueRef);
 
-  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
-  experimental::detail::graph_impl &GraphRefImpl = *getSyclObjImpl(GraphRef);
+  experimental::detail::graph_impl &GraphImpl = getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphRefImpl = getSyclObjImpl(GraphRef);
   ASSERT_EQ(GraphImpl.hasSimilarStructure(GraphRefImpl), true);
 }
 
@@ -233,9 +233,9 @@ TEST_F(MultiThreadGraphTest, RecordAddNodesInOrderQueue) {
   }
   InOrderGraphRef.end_recording(InOrderQueueRef);
 
-  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(InOrderGraph);
+  experimental::detail::graph_impl &GraphImpl = getSyclObjImpl(InOrderGraph);
   experimental::detail::graph_impl &GraphRefImpl =
-      *getSyclObjImpl(InOrderGraphRef);
+      getSyclObjImpl(InOrderGraphRef);
   ASSERT_EQ(GraphImpl.getNumberOfNodes(), GraphRefImpl.getNumberOfNodes());
 
   // In-order graph must have only a single root
@@ -297,9 +297,9 @@ TEST_F(MultiThreadGraphTest, Finalize) {
     QueueRef.submit(
         [&](sycl::handler &CGH) { CGH.ext_oneapi_graph(GraphExecRef); });
     experimental::detail::exec_graph_impl &GraphExecImpl =
-        *getSyclObjImpl(GraphsExecMap.find(i)->second);
+        getSyclObjImpl(GraphsExecMap.find(i)->second);
     experimental::detail::exec_graph_impl &GraphExecRefImpl =
-        *getSyclObjImpl(GraphExecRef);
+        getSyclObjImpl(GraphExecRef);
     ASSERT_EQ(checkExecGraphSchedule(GraphExecImpl, GraphExecRefImpl), true);
   }
 }

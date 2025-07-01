@@ -23,7 +23,7 @@ using namespace sycl::detail;
 // some hacks to emulate the lifetime management done by the `global_handler`.
 inline std::weak_ptr<device_impl> &get_current_device_impl() {
   static thread_local std::weak_ptr<device_impl> current_device{
-      getSyclObjImpl(sycl::device{sycl::default_selector_v})};
+      getSyclObjImplPtr(sycl::device{sycl::default_selector_v})};
   return current_device;
 }
 } // namespace detail
@@ -44,7 +44,7 @@ inline sycl::device get_current_device() {
 /// @pre The function is called from a host thread, executing outside of a host
 /// task or an asynchronous error handler.
 inline void set_current_device(sycl::device dev) {
-  detail::get_current_device_impl() = detail::getSyclObjImpl(dev);
+  detail::get_current_device_impl() = detail::getSyclObjImplPtr(dev);
 }
 
 } // namespace ext::oneapi::experimental::this_thread

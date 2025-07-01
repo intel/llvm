@@ -35,14 +35,14 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
           PM.getOrCreateKernel(Context, AdjustedName,
                                /*PropList=*/{}, UrProgram);
       return std::make_shared<kernel_impl>(
-          std::move(UrKernel), *getSyclObjImpl(Context), shared_from_this(),
+          std::move(UrKernel), getSyclObjImpl(Context), shared_from_this(),
           OwnerBundle, ArgMask, UrProgram, CacheMutex);
     }
     return nullptr;
   }
 
   ur_program_handle_t UrProgram = get_ur_program();
-  detail::adapter_impl &Adapter = getSyclObjImpl(Context)->getAdapter();
+  detail::adapter_impl &Adapter = getSyclObjImpl(Context).getAdapter();
   Managed<ur_kernel_handle_t> UrKernel{Adapter};
   Adapter.call<UrApiKind::urKernelCreate>(UrProgram, AdjustedName.data(),
                                           &UrKernel);
@@ -53,7 +53,7 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
     ArgMask = &ArgMaskIt->second;
 
   return std::make_shared<kernel_impl>(
-      std::move(UrKernel), *detail::getSyclObjImpl(Context), shared_from_this(),
+      std::move(UrKernel), detail::getSyclObjImpl(Context), shared_from_this(),
       OwnerBundle, ArgMask, UrProgram, /*CacheMutex=*/nullptr);
 }
 

@@ -60,11 +60,11 @@ markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
 // TODO: Check if two ABI exports below are still necessary.
 #endif
 device_impl &getDeviceImplFromHandler(handler &CGH) {
-  return getSyclObjImpl(CGH)->get_device();
+  return getSyclObjImpl(CGH).get_device();
 }
 
 device getDeviceFromHandler(handler &CGH) {
-  return createSyclObjFromImpl<device>(getSyclObjImpl(CGH)->get_device());
+  return createSyclObjFromImpl<device>(getSyclObjImpl(CGH).get_device());
 }
 
 bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
@@ -104,7 +104,7 @@ getUrImageCopyFlags(sycl::usm::alloc SrcPtrType, sycl::usm::alloc DstPtrType) {
 void *getValueFromDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_base
         &DynamicParamBase) {
-  return sycl::detail::getSyclObjImpl(DynamicParamBase)->getValue();
+  return sycl::detail::getSyclObjImpl(DynamicParamBase).getValue();
 }
 
 // Bindless image helpers
@@ -403,7 +403,7 @@ handler::getOrInsertHandlerKernelBundlePtr(bool Insert) const {
 
   context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
   impl->MKernelBundle =
-      detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
+      detail::getSyclObjImplPtr(get_kernel_bundle<bundle_state::input>(
           Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
           {}));
   return impl->MKernelBundle.get();
@@ -420,7 +420,7 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
   // program. As such, apply getSyclObjImpl directly on the kernel, i.e. not
   //  the other way around: getSyclObjImp(Kernel->get_kernel_bundle()).
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpl =
-      detail::getSyclObjImpl(Kernel)->get_kernel_bundle();
+      detail::getSyclObjImpl(Kernel).get_kernel_bundle();
   setHandlerKernelBundle(std::move(KernelBundleImpl));
 }
 
@@ -518,7 +518,7 @@ detail::EventImplPtr handler::finalize() {
                   *KernelBundleImpPtr);
           kernel_bundle<bundle_state::executable> ExecKernelBundle =
               build(KernelBundle);
-          KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle).get();
+          KernelBundleImpPtr = &detail::getSyclObjImpl(ExecKernelBundle);
           // Raw ptr KernelBundleImpPtr is valid, because we saved the
           // shared_ptr to the handler
           setHandlerKernelBundle(KernelBundleImpPtr->shared_from_this());
@@ -537,7 +537,7 @@ detail::EventImplPtr handler::finalize() {
         kernel_bundle<bundle_state::executable> ExecBundle = build(
             detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
                 *KernelBundleImpPtr));
-        KernelBundleImpPtr = detail::getSyclObjImpl(ExecBundle).get();
+        KernelBundleImpPtr = &detail::getSyclObjImpl(ExecBundle);
         // Raw ptr KernelBundleImpPtr is valid, because we saved the shared_ptr
         // to the handler
         setHandlerKernelBundle(KernelBundleImpPtr->shared_from_this());
@@ -828,19 +828,19 @@ void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
 
 void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
                                    access::target AccTarget) {
-  associateWithHandlerCommon(detail::getSyclObjImpl(*AccBase),
+  associateWithHandlerCommon(detail::getSyclObjImplPtr(*AccBase),
                              static_cast<int>(AccTarget));
 }
 
 void handler::associateWithHandler(
     detail::UnsampledImageAccessorBaseHost *AccBase, image_target AccTarget) {
-  associateWithHandlerCommon(detail::getSyclObjImpl(*AccBase),
+  associateWithHandlerCommon(detail::getSyclObjImplPtr(*AccBase),
                              static_cast<int>(AccTarget));
 }
 
 void handler::associateWithHandler(
     detail::SampledImageAccessorBaseHost *AccBase, image_target AccTarget) {
-  associateWithHandlerCommon(detail::getSyclObjImpl(*AccBase),
+  associateWithHandlerCommon(detail::getSyclObjImplPtr(*AccBase),
                              static_cast<int>(AccTarget));
 }
 
@@ -893,7 +893,7 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   setType(detail::CGType::BarrierWaitlist);
   impl->MEventsWaitWithBarrier.reserve(WaitList.size());
   for (auto &Event : WaitList) {
-    auto EventImpl = detail::getSyclObjImpl(Event);
+    auto EventImpl = detail::getSyclObjImplPtr(Event);
     // We could not wait for host task events in backend.
     // Adding them as dependency to enable proper scheduling.
     if (EventImpl->isHost()) {
@@ -1469,19 +1469,18 @@ void handler::ext_oneapi_signal_external_semaphore(
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
 
-  if (&impl->get_context() !=
-      detail::getSyclObjImpl(ExecBundle.get_context()).get())
+  if (&impl->get_context() != &detail::getSyclObjImpl(ExecBundle.get_context()))
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Context associated with the primary queue is different from the "
         "context associated with the kernel bundle");
 
   setStateExplicitKernelBundle();
-  setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
+  setHandlerKernelBundle(detail::getSyclObjImplPtr(ExecBundle));
 }
 
 void handler::depends_on(event Event) {
-  auto EventImpl = detail::getSyclObjImpl(Event);
+  auto EventImpl = detail::getSyclObjImplPtr(Event);
   depends_on(EventImpl);
 }
 
@@ -1645,7 +1644,7 @@ void handler::ext_oneapi_graph(
         ext::oneapi::experimental::graph_state::executable>
         Graph) {
   setType(detail::CGType::ExecCommandBuffer);
-  impl->MExecGraph = detail::getSyclObjImpl(Graph);
+  impl->MExecGraph = detail::getSyclObjImplPtr(Graph);
 }
 
 std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -1758,7 +1757,7 @@ void handler::setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 sycl::detail::CGType handler::getType() const { return impl->MCGType; }
 
 void handler::setDeviceKernelInfo(kernel &&Kernel) {
-  MKernel = detail::getSyclObjImpl(std::move(Kernel));
+  MKernel = detail::getSyclObjImplPtr(std::move(Kernel));
   MKernelName = MKernel->getName();
   setDeviceKernelInfoPtr(&MKernel->getDeviceKernelInfo());
   setType(detail::CGType::Kernel);

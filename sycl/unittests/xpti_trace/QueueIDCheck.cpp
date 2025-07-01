@@ -87,7 +87,7 @@ TEST_F(QueueID, QueueID_QueueCreationAndDestroy) {
   std::string Queue1IDSTr;
   {
     sycl::queue Q0{Context, sycl::default_selector{}};
-    sycl::detail::queue_impl &Queue0Impl = *sycl::detail::getSyclObjImpl(Q0);
+    sycl::detail::queue_impl &Queue0Impl = sycl::detail::getSyclObjImpl(Q0);
     Queue0IDSTr = std::to_string(Queue0Impl.getQueueID());
     ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
     EXPECT_EQ(TraceType, xpti::trace_queue_create);
@@ -97,7 +97,7 @@ TEST_F(QueueID, QueueID_QueueCreationAndDestroy) {
                                    std::to_string(size_t(QueueHandle))));
 
     sycl::queue Q1{Context, sycl::default_selector{}};
-    sycl::detail::queue_impl &Queue1Impl = *sycl::detail::getSyclObjImpl(Q1);
+    sycl::detail::queue_impl &Queue1Impl = sycl::detail::getSyclObjImpl(Q1);
     Queue1IDSTr = std::to_string(Queue1Impl.getQueueID());
     ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
     EXPECT_EQ(TraceType, xpti::trace_queue_create);
@@ -118,8 +118,8 @@ TEST_F(QueueID, QueueID_QueueCreationAndDestroy) {
 TEST_F(QueueID, QueueCreationAndKernelWithDeps) {
   sycl::queue Q0;
   sycl::queue Q1;
-  sycl::detail::queue_impl &Queue0Impl = *sycl::detail::getSyclObjImpl(Q0);
-  sycl::detail::queue_impl &Queue1Impl = *sycl::detail::getSyclObjImpl(Q1);
+  sycl::detail::queue_impl &Queue0Impl = sycl::detail::getSyclObjImpl(Q0);
+  sycl::detail::queue_impl &Queue1Impl = sycl::detail::getSyclObjImpl(Q1);
   sycl::buffer<int, 1> buf(sycl::range<1>(1));
   Q1.submit(
         [&](handler &Cgh) {
@@ -138,7 +138,7 @@ TEST_F(QueueID, QueueCreationAndKernelWithDeps) {
 
 TEST_F(QueueID, QueueCreationUSMOperations) {
   sycl::queue Q0;
-  sycl::detail::queue_impl &Queue0Impl = *sycl::detail::getSyclObjImpl(Q0);
+  sycl::detail::queue_impl &Queue0Impl = sycl::detail::getSyclObjImpl(Q0);
   auto QueueIDSTr = std::to_string(Queue0Impl.getQueueID());
 
   unsigned char *AllocSrc = (unsigned char *)sycl::malloc_device(1, Q0);
@@ -163,10 +163,10 @@ TEST_F(QueueID, QueueCreationAndKernelNoDeps) {
   sycl::queue Q0;
   sycl::queue Q1;
 
-  sycl::detail::queue_impl &Queue0Impl = *sycl::detail::getSyclObjImpl(Q0);
+  sycl::detail::queue_impl &Queue0Impl = sycl::detail::getSyclObjImpl(Q0);
   auto Queue0IDSTr = std::to_string(Queue0Impl.getQueueID());
 
-  sycl::detail::queue_impl &Queue1Impl = *sycl::detail::getSyclObjImpl(Q1);
+  sycl::detail::queue_impl &Queue1Impl = sycl::detail::getSyclObjImpl(Q1);
   auto Queue1IDSTr = std::to_string(Queue1Impl.getQueueID());
 
   Q0.submit(

@@ -25,9 +25,14 @@ struct ImplUtils {
   // Helper function for extracting implementation from SYCL's interface
   // objects.
   template <class Obj>
-  static const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObj) {
+  static const decltype(Obj::impl) &getSyclObjImplPtr(const Obj &SyclObj) {
     assert(SyclObj.impl && "every constructor should create an impl");
     return SyclObj.impl;
+  }
+  template <class Obj>
+  static const decltype(*Obj::impl) &getSyclObjImpl(const Obj &SyclObj) {
+    assert(SyclObj.impl && "every constructor should create an impl");
+    return *SyclObj.impl;
   }
 
   // Helper function for creation SYCL interface objects from implementations.
@@ -46,6 +51,11 @@ auto getSyclObjImpl(const Obj &SyclObj)
     -> decltype(ImplUtils::getSyclObjImpl(SyclObj)) {
   return ImplUtils::getSyclObjImpl(SyclObj);
 }
+template <class Obj>
+auto getSyclObjImplPtr(const Obj &SyclObj)
+    -> decltype(ImplUtils::getSyclObjImplPtr(SyclObj)) {
+  return ImplUtils::getSyclObjImplPtr(SyclObj);
+}
 
 template <typename SyclObject, typename From>
 SyclObject createSyclObjFromImpl(From &&from) {
@@ -55,14 +65,14 @@ SyclObject createSyclObjFromImpl(From &&from) {
 template <typename T, bool SupportedOnDevice = true> struct sycl_obj_hash {
   size_t operator()(const T &Obj) const {
     if constexpr (SupportedOnDevice) {
-      auto &Impl = sycl::detail::getSyclObjImpl(Obj);
+      auto &Impl = sycl::detail::getSyclObjImplPtr(Obj);
       return std::hash<std::decay_t<decltype(Impl)>>{}(Impl);
     } else {
 #ifdef __SYCL_DEVICE_ONLY__
       (void)Obj;
       return 0;
 #else
-      auto &Impl = sycl::detail::getSyclObjImpl(Obj);
+      auto &Impl = sycl::detail::getSyclObjImplPtr(Obj);
       return std::hash<std::decay_t<decltype(Impl)>>{}(Impl);
 #endif
     }

@@ -780,7 +780,7 @@ protected:
     assert(isInOrder());
     assert(Handler.getType() == CGType::CodeplayHostTask ||
            (Handler.getType() == CGType::ExecCommandBuffer &&
-            getSyclObjImpl(Handler)->MExecGraph->containsHostTask()));
+            getSyclObjImpl(Handler).MExecGraph->containsHostTask()));
 
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;
@@ -815,7 +815,7 @@ protected:
     // this is handled by finalizeHandlerInOrderHostTask
     assert(Handler.getType() != CGType::CodeplayHostTask);
     assert(!(Handler.getType() == CGType::ExecCommandBuffer &&
-             getSyclObjImpl(Handler)->MExecGraph->containsHostTask()));
+             getSyclObjImpl(Handler).MExecGraph->containsHostTask()));
 
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;
@@ -848,7 +848,7 @@ protected:
 
   template <typename HandlerType = handler>
   detail::EventImplPtr finalizeHandlerOutOfOrder(HandlerType &Handler) {
-    const CGType Type = getSyclObjImpl(Handler)->MCGType;
+    const CGType Type = getSyclObjImpl(Handler).MCGType;
     std::lock_guard<std::mutex> Lock{MMutex};
 
     MEmpty.store(false, std::memory_order_release);

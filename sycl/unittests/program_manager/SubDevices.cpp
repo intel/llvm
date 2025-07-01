@@ -142,9 +142,9 @@ TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
   // Create 2 sub-devices and use first platform device as a root device
   const sycl::device device = Plt.get_devices()[0];
   // Initialize root device
-  rootDevice = sycl::detail::getSyclObjImpl(device)->getHandleRef();
+  rootDevice = sycl::detail::getSyclObjImpl(device).getHandleRef();
   // Initialize sub-devices
-  sycl::detail::platform_impl &PltImpl = *sycl::detail::getSyclObjImpl(Plt);
+  sycl::detail::platform_impl &PltImpl = sycl::detail::getSyclObjImpl(Plt);
   sycl::detail::device_impl &subDev1 = PltImpl.getOrMakeDeviceImpl(urSubDev1);
   sycl::detail::device_impl &subDev2 = PltImpl.getOrMakeDeviceImpl(urSubDev2);
   sycl::context Ctx{
@@ -159,12 +159,12 @@ TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
 
   // Build program via getBuiltPIProgram API
   sycl::detail::ProgramManager::getInstance().getBuiltURProgram(
-      *sycl::detail::getSyclObjImpl(Ctx), subDev1,
+      sycl::detail::getSyclObjImpl(Ctx), subDev1,
       sycl::detail::KernelInfo<TestKernel>::getName());
   // This call should re-use built binary from the cache. If urProgramBuild is
   // called again, the test will fail as second call of redefinedProgramBuild
   sycl::detail::ProgramManager::getInstance().getBuiltURProgram(
-      *sycl::detail::getSyclObjImpl(Ctx), subDev2,
+      sycl::detail::getSyclObjImpl(Ctx), subDev2,
       sycl::detail::KernelInfo<TestKernel>::getName());
 }
 
@@ -178,7 +178,7 @@ TEST(SubDevices, BuildProgramForSubSubDevices) {
                                           &redefinedProgramBuildExp);
   sycl::platform Plt = sycl::platform();
   sycl::device root = Plt.get_devices()[0];
-  sycl::detail::platform_impl &PltImpl = *sycl::detail::getSyclObjImpl(Plt);
+  sycl::detail::platform_impl &PltImpl = sycl::detail::getSyclObjImpl(Plt);
   // Initialize sub-sub-devices
   sycl::detail::device_impl &SubSub1 =
       PltImpl.getOrMakeDeviceImpl(urSubSubDev1);
@@ -188,10 +188,10 @@ TEST(SubDevices, BuildProgramForSubSubDevices) {
   sycl::context Ctx{root};
   buildCallCount = 0;
   sycl::detail::ProgramManager::getInstance().getBuiltURProgram(
-      *sycl::detail::getSyclObjImpl(Ctx), SubSub1,
+      sycl::detail::getSyclObjImpl(Ctx), SubSub1,
       sycl::detail::KernelInfo<TestKernel>::getName());
   sycl::detail::ProgramManager::getInstance().getBuiltURProgram(
-      *sycl::detail::getSyclObjImpl(Ctx), SubSub2,
+      sycl::detail::getSyclObjImpl(Ctx), SubSub2,
       sycl::detail::KernelInfo<TestKernel>::getName());
 
   // Check that program is built only once.

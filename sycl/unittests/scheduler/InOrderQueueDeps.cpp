@@ -59,7 +59,7 @@ TEST_P(SchedulerTest, InOrderQueueDeps) {
 
   context Ctx{Plt.get_devices()[0]};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
-  detail::queue_impl &InOrderQueueImpl = *detail::getSyclObjImpl(InOrderQueue);
+  detail::queue_impl &InOrderQueueImpl = detail::getSyclObjImpl(InOrderQueue);
 
   MockScheduler MS;
 
@@ -121,7 +121,7 @@ TEST_P(SchedulerTest, InOrderQueueIsolatedDeps) {
         UseShortcutFunction, Q1, []() {});
     event E2 = sycl::unittest::single_task_wrapper<TestKernel>(
         UseShortcutFunction, Q2, []() {});
-    ExpectedEvent = detail::getSyclObjImpl(E2)->getHandle();
+    ExpectedEvent = detail::getSyclObjImpl(E2).getHandle();
     Q1.ext_oneapi_submit_barrier({E1, E2});
     EXPECT_TRUE(BarrierCalled);
   }

@@ -46,8 +46,8 @@ protected:
     sycl::device SyclDev =
         sycl::detail::select_device(sycl::default_selector_v, SyclContext);
     QueueDevImpl.reset(
-        new TestQueueImpl(*sycl::detail::getSyclObjImpl(SyclContext),
-                          *sycl::detail::getSyclObjImpl(SyclDev)));
+        new TestQueueImpl(sycl::detail::getSyclObjImpl(SyclContext),
+                          sycl::detail::getSyclObjImpl(SyclDev)));
 
     MainLock.lock();
   }
@@ -90,39 +90,36 @@ protected:
       EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0u);
     }
 
-    using sycl::detail::event_impl;
-    using sycl::detail::getSyclObjImpl;
-
     sycl::event BlockedHostTask = AddTask(TestCGType::HOST_TASK);
-    event_impl &BlockedHostTaskImpl = *getSyclObjImpl(BlockedHostTask);
+    EventImplPtr BlockedHostTaskImpl =
+        sycl::detail::getSyclObjImplPtr(BlockedHostTask);
     Events.push_back(BlockedHostTask);
     {
       std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
       EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
       EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1u);
-      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0].get(),
-                &BlockedHostTaskImpl);
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0],
+                BlockedHostTaskImpl);
     }
 
     sycl::event BarrierEvent = AddTask(TestCGType::BARRIER);
-    event_impl &BarrierEventImpl = *getSyclObjImpl(BarrierEvent);
+    EventImplPtr BarrierEventImpl =
+        sycl::detail::getSyclObjImplPtr(BarrierEvent);
     {
       std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
-      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.get(),
-                &BarrierEventImpl);
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, BarrierEventImpl);
       EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0u);
     }
     Events.push_back(BarrierEvent);
 
     sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);
-    event_impl &KernelEventImpl = *getSyclObjImpl(KernelEvent);
+    EventImplPtr KernelEventImpl = sycl::detail::getSyclObjImplPtr(KernelEvent);
     {
       std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
-      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.get(),
-                &BarrierEventImpl);
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, BarrierEventImpl);
       EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1u);
-      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0].get(),
-                &KernelEventImpl);
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0],
+                KernelEventImpl);
     }
     Events.push_back(KernelEvent);
     return Events;
@@ -145,20 +142,20 @@ protected:
 TEST_F(BarrierHandlingWithHostTask, HostTaskBarrierKernel) {
   using namespace sycl::detail;
   sycl::event HTEvent = AddTask(TestCGType::HOST_TASK);
-  event_impl &HostTaskEventImpl = *getSyclObjImpl(HTEvent);
+  event_impl &HostTaskEventImpl = getSyclObjImpl(HTEvent);
   auto HostTaskWaitList = HostTaskEventImpl.getWaitList();
   EXPECT_EQ(HostTaskWaitList.size(), 0u);
   EXPECT_EQ(HostTaskEventImpl.isEnqueued(), true);
 
   sycl::event BarrierEvent = AddTask(TestCGType::BARRIER);
-  event_impl &BarrierEventImpl = *getSyclObjImpl(BarrierEvent);
+  event_impl &BarrierEventImpl = getSyclObjImpl(BarrierEvent);
   auto BarrierWaitList = BarrierEventImpl.getWaitList();
   ASSERT_EQ(BarrierWaitList.size(), 1u);
   EXPECT_EQ(BarrierWaitList[0].get(), &HostTaskEventImpl);
   EXPECT_EQ(BarrierEventImpl.isEnqueued(), false);
 
   sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);
-  event_impl &KernelEventImpl = *getSyclObjImpl(KernelEvent);
+  event_impl &KernelEventImpl = getSyclObjImpl(KernelEvent);
   auto KernelWaitList = KernelEventImpl.getWaitList();
   ASSERT_EQ(KernelWaitList.size(), 1u);
   EXPECT_EQ(KernelWaitList[0].get(), &BarrierEventImpl);
@@ -171,19 +168,19 @@ TEST_F(BarrierHandlingWithHostTask, HostTaskBarrierKernel) {
 TEST_F(BarrierHandlingWithHostTask, HostTaskKernelBarrier) {
   using namespace sycl::detail;
   sycl::event HTEvent = AddTask(TestCGType::HOST_TASK);
-  event_impl &HostTaskEventImpl = *getSyclObjImpl(HTEvent);
+  event_impl &HostTaskEventImpl = getSyclObjImpl(HTEvent);
   auto HostTaskWaitList = HostTaskEventImpl.getWaitList();
   EXPECT_EQ(HostTaskWaitList.size(), 0u);
   EXPECT_EQ(HostTaskEventImpl.isEnqueued(), true);
 
   sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);
-  event_impl &KernelEventImpl = *getSyclObjImpl(KernelEvent);
+  event_impl &KernelEventImpl = getSyclObjImpl(KernelEvent);
   auto KernelWaitList = KernelEventImpl.getWaitList();
   ASSERT_EQ(KernelWaitList.size(), 0u);
   EXPECT_EQ(KernelEventImpl.isEnqueued(), true);
 
   sycl::event BarrierEvent = AddTask(TestCGType::BARRIER);
-  event_impl &BarrierEventImpl = *getSyclObjImpl(BarrierEvent);
+  event_impl &BarrierEventImpl = getSyclObjImpl(BarrierEvent);
   auto BarrierWaitList = BarrierEventImpl.getWaitList();
   ASSERT_EQ(BarrierWaitList.size(), 1u);
   EXPECT_EQ(BarrierWaitList[0].get(), &HostTaskEventImpl);
@@ -196,20 +193,20 @@ TEST_F(BarrierHandlingWithHostTask, HostTaskKernelBarrier) {
 TEST_F(BarrierHandlingWithHostTask, BarrierHostTaskKernel) {
   using namespace sycl::detail;
   sycl::event BarrierEvent = AddTask(TestCGType::BARRIER);
-  event_impl &BarrierEventImpl = *getSyclObjImpl(BarrierEvent);
+  event_impl &BarrierEventImpl = getSyclObjImpl(BarrierEvent);
   auto BarrierWaitList = BarrierEventImpl.getWaitList();
   ASSERT_EQ(BarrierWaitList.size(), 0u);
   EXPECT_EQ(BarrierEventImpl.isEnqueued(), true);
 
   sycl::event HTEvent = AddTask(TestCGType::HOST_TASK);
-  event_impl &HostTaskEventImpl = *getSyclObjImpl(HTEvent);
+  event_impl &HostTaskEventImpl = getSyclObjImpl(HTEvent);
   auto HostTaskWaitList = HostTaskEventImpl.getWaitList();
   ASSERT_EQ(HostTaskWaitList.size(), 1u);
   EXPECT_EQ(HostTaskWaitList[0].get(), &BarrierEventImpl);
   EXPECT_EQ(HostTaskEventImpl.isEnqueued(), true);
 
   sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);
-  event_impl &KernelEventImpl = *getSyclObjImpl(KernelEvent);
+  event_impl &KernelEventImpl = getSyclObjImpl(KernelEvent);
   auto KernelWaitList = KernelEventImpl.getWaitList();
   ASSERT_EQ(KernelWaitList.size(), 0u);
   EXPECT_EQ(KernelEventImpl.isEnqueued(), true);
@@ -221,19 +218,19 @@ TEST_F(BarrierHandlingWithHostTask, BarrierHostTaskKernel) {
 TEST_F(BarrierHandlingWithHostTask, BarrierKernelHostTask) {
   using namespace sycl::detail;
   sycl::event BarrierEvent = AddTask(TestCGType::BARRIER);
-  event_impl &BarrierEventImpl = *getSyclObjImpl(BarrierEvent);
+  event_impl &BarrierEventImpl = getSyclObjImpl(BarrierEvent);
   auto BarrierWaitList = BarrierEventImpl.getWaitList();
   ASSERT_EQ(BarrierWaitList.size(), 0u);
   EXPECT_EQ(BarrierEventImpl.isEnqueued(), true);
 
   sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);
-  event_impl &KernelEventImpl = *getSyclObjImpl(KernelEvent);
+  event_impl &KernelEventImpl = getSyclObjImpl(KernelEvent);
   auto KernelWaitList = KernelEventImpl.getWaitList();
   ASSERT_EQ(KernelWaitList.size(), 0u);
   EXPECT_EQ(KernelEventImpl.isEnqueued(), true);
 
   sycl::event HTEvent = AddTask(TestCGType::HOST_TASK);
-  event_impl &HostTaskEventImpl = *getSyclObjImpl(HTEvent);
+  event_impl &HostTaskEventImpl = getSyclObjImpl(HTEvent);
   auto HostTaskWaitList = HostTaskEventImpl.getWaitList();
   ASSERT_EQ(HostTaskWaitList.size(), 1u);
   EXPECT_EQ(HostTaskWaitList[0].get(), &BarrierEventImpl);
@@ -246,19 +243,19 @@ TEST_F(BarrierHandlingWithHostTask, BarrierKernelHostTask) {
 TEST_F(BarrierHandlingWithHostTask, KernelHostTaskBarrier) {
   using namespace sycl::detail;
   sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);
-  event_impl &KernelEventImpl = *getSyclObjImpl(KernelEvent);
+  event_impl &KernelEventImpl = getSyclObjImpl(KernelEvent);
   auto KernelWaitList = KernelEventImpl.getWaitList();
   ASSERT_EQ(KernelWaitList.size(), 0u);
   EXPECT_EQ(KernelEventImpl.isEnqueued(), true);
 
   sycl::event HTEvent = AddTask(TestCGType::HOST_TASK);
-  event_impl &HostTaskEventImpl = *getSyclObjImpl(HTEvent);
+  event_impl &HostTaskEventImpl = getSyclObjImpl(HTEvent);
   auto HostTaskWaitList = HostTaskEventImpl.getWaitList();
   ASSERT_EQ(HostTaskWaitList.size(), 0u);
   EXPECT_EQ(HostTaskEventImpl.isEnqueued(), true);
 
   sycl::event BarrierEvent = AddTask(TestCGType::BARRIER);
-  event_impl &BarrierEventImpl = *getSyclObjImpl(BarrierEvent);
+  event_impl &BarrierEventImpl = getSyclObjImpl(BarrierEvent);
   auto BarrierWaitList = BarrierEventImpl.getWaitList();
   ASSERT_EQ(BarrierWaitList.size(), 1u);
   EXPECT_EQ(BarrierWaitList[0].get(), &HostTaskEventImpl);
@@ -271,19 +268,19 @@ TEST_F(BarrierHandlingWithHostTask, KernelHostTaskBarrier) {
 TEST_F(BarrierHandlingWithHostTask, KernelBarrierHostTask) {
   using namespace sycl::detail;
   sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);
-  event_impl &KernelEventImpl = *getSyclObjImpl(KernelEvent);
+  event_impl &KernelEventImpl = getSyclObjImpl(KernelEvent);
   auto KernelWaitList = KernelEventImpl.getWaitList();
   ASSERT_EQ(KernelWaitList.size(), 0u);
   EXPECT_EQ(KernelEventImpl.isEnqueued(), true);
 
   sycl::event BarrierEvent = AddTask(TestCGType::BARRIER);
-  event_impl &BarrierEventImpl = *getSyclObjImpl(BarrierEvent);
+  event_impl &BarrierEventImpl = getSyclObjImpl(BarrierEvent);
   auto BarrierWaitList = BarrierEventImpl.getWaitList();
   ASSERT_EQ(BarrierWaitList.size(), 0u);
   EXPECT_EQ(BarrierEventImpl.isEnqueued(), true);
 
   sycl::event HTEvent = AddTask(TestCGType::HOST_TASK);
-  event_impl &HostTaskEventImpl = *getSyclObjImpl(HTEvent);
+  event_impl &HostTaskEventImpl = getSyclObjImpl(HTEvent);
   auto HostTaskWaitList = HostTaskEventImpl.getWaitList();
   ASSERT_EQ(HostTaskWaitList.size(), 1u);
   EXPECT_EQ(HostTaskWaitList[0].get(), &BarrierEventImpl);
@@ -296,13 +293,13 @@ TEST_F(BarrierHandlingWithHostTask, KernelBarrierHostTask) {
 TEST_F(BarrierHandlingWithHostTask, HostTaskUnblockedWaitListBarrierKernel) {
   using namespace sycl::detail;
   sycl::event HTEvent = AddTask(TestCGType::HOST_TASK, false);
-  event_impl &HostTaskEventImpl = *getSyclObjImpl(HTEvent);
+  event_impl &HostTaskEventImpl = getSyclObjImpl(HTEvent);
   auto HostTaskWaitList = HostTaskEventImpl.getWaitList();
   EXPECT_EQ(HostTaskWaitList.size(), 0u);
   EXPECT_EQ(HostTaskEventImpl.isEnqueued(), true);
 
   sycl::event BlockedHostTask = AddTask(TestCGType::HOST_TASK);
-  event_impl &BlockedHostTaskImpl = *getSyclObjImpl(BlockedHostTask);
+  event_impl &BlockedHostTaskImpl = getSyclObjImpl(BlockedHostTask);
   auto BlockedHostTaskWaitList = BlockedHostTaskImpl.getWaitList();
   EXPECT_EQ(BlockedHostTaskWaitList.size(), 0u);
   EXPECT_EQ(BlockedHostTaskImpl.isEnqueued(), true);
@@ -311,7 +308,7 @@ TEST_F(BarrierHandlingWithHostTask, HostTaskUnblockedWaitListBarrierKernel) {
 
   std::vector<sycl::event> WaitList{HTEvent};
   sycl::event BarrierEvent = InsertBarrierWithWaitList(WaitList);
-  event_impl &BarrierEventImpl = *getSyclObjImpl(BarrierEvent);
+  event_impl &BarrierEventImpl = getSyclObjImpl(BarrierEvent);
   auto BarrierWaitList = BarrierEventImpl.getWaitList();
   // Events to wait by barrier are stored in a separated vector. Here we are
   // interested in implicit deps only.
@@ -321,7 +318,7 @@ TEST_F(BarrierHandlingWithHostTask, HostTaskUnblockedWaitListBarrierKernel) {
   EXPECT_EQ(BarrierEventImpl.isEnqueued(), true);
 
   sycl::event KernelEvent = AddTask(TestCGType::KERNEL_TASK);
-  event_impl &KernelEventImpl = *getSyclObjImpl(KernelEvent);
+  event_impl &KernelEventImpl = getSyclObjImpl(KernelEvent);
   auto KernelWaitList = KernelEventImpl.getWaitList();
   ASSERT_EQ(KernelWaitList.size(), 0u);
   EXPECT_EQ(KernelEventImpl.isEnqueued(), true);
@@ -365,10 +362,10 @@ TEST_F(BarrierHandlingWithHostTask,
   {
     std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
     EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.get(),
-              &*detail::getSyclObjImpl(SubmittedCmdEvents[1]));
+              &detail::getSyclObjImpl(SubmittedCmdEvents[1]));
     ASSERT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1u);
     EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0].get(),
-              &*detail::getSyclObjImpl(SubmittedCmdEvents[2]));
+              &detail::getSyclObjImpl(SubmittedCmdEvents[2]));
   }
   // Wait or new submission will do cleanup. Checks wait.
   QueueDevImpl->wait();
@@ -397,10 +394,10 @@ TEST_F(BarrierHandlingWithHostTask,
   {
     std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
     EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.get(),
-              &*detail::getSyclObjImpl(SubmittedCmdEvents[1]));
+              &detail::getSyclObjImpl(SubmittedCmdEvents[1]));
     ASSERT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1u);
     EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0].get(),
-              &*detail::getSyclObjImpl(SubmittedCmdEvents[2]));
+              &detail::getSyclObjImpl(SubmittedCmdEvents[2]));
   }
   // Wait or new submission will do cleanup. Checks new submission.
   std::ignore = AddTask(TestCGType::KERNEL_TASK);

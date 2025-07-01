@@ -43,8 +43,8 @@ template <typename SyclTy, typename... Iterators> class variadic_iterator {
 public:
   using iterator_category = std::forward_iterator_tag;
   using difference_type = std::ptrdiff_t;
-  using value_type = std::remove_reference_t<decltype(*getSyclObjImpl(
-      std::declval<SyclTy>()))>;
+  using value_type =
+      std::remove_reference_t<decltype(getSyclObjImpl(std::declval<SyclTy>()))>;
   using sycl_type = SyclTy;
   using pointer = value_type *;
   using reference = value_type &;
@@ -77,7 +77,7 @@ public:
           using Ty = std::decay_t<decltype(Elem)>;
           static_assert(!std::is_same_v<Ty, decltype(Elem)>);
           if constexpr (std::is_same_v<Ty, sycl_type>) {
-            return *getSyclObjImpl(Elem);
+            return getSyclObjImpl(Elem);
           } else if constexpr (std::is_same_v<Ty, value_type>) {
             return Elem;
           } else {
@@ -123,11 +123,11 @@ public:
 
   template <typename sycl_type,
             typename = std::void_t<decltype(iterator{
-                &*getSyclObjImpl(std::declval<sycl_type>())})>,
+                &getSyclObjImpl(std::declval<sycl_type>())})>,
             // To make it different from `ContainerTy` overload above:
             typename = void>
   iterator_range(const sycl_type &Obj)
-      : iterator_range(&*getSyclObjImpl(Obj), (&*getSyclObjImpl(Obj) + 1), 1) {}
+      : iterator_range(&getSyclObjImpl(Obj), (&getSyclObjImpl(Obj) + 1), 1) {}
 
   iterator begin() const { return Begin; }
   iterator end() const { return End; }

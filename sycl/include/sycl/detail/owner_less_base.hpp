@@ -28,7 +28,7 @@ public:
   bool ext_oneapi_owner_before(
       const ext::oneapi::detail::weak_object_base<SyclObjT> &Other)
       const noexcept {
-    return getSyclObjImpl(*static_cast<const SyclObjT *>(this))
+    return getSyclObjImplPtr(*static_cast<const SyclObjT *>(this))
         .owner_before(ext::oneapi::detail::getSyclWeakObjImpl(Other));
   }
 
@@ -38,8 +38,8 @@ public:
   /// \param Other is the object to compare ordering against.
   /// \return true if this object precedes \param Other and false otherwise.
   bool ext_oneapi_owner_before(const SyclObjT &Other) const noexcept {
-    return getSyclObjImpl(*static_cast<const SyclObjT *>(this))
-        .owner_before(getSyclObjImpl(Other));
+    return getSyclObjImplPtr(*static_cast<const SyclObjT *>(this))
+        .owner_before(getSyclObjImplPtr(Other));
   }
 #else
   // On device calls to these functions are disallowed, so declare them but

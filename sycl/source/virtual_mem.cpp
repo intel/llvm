@@ -67,7 +67,7 @@ __SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
                                          const context &SyclContext,
                                          granularity_mode Mode) {
   return get_mem_granularity_for_allocation_size(
-      *detail::getSyclObjImpl(SyclDevice), *detail::getSyclObjImpl(SyclContext),
+      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
       Mode, 1);
 }
 

@@ -119,7 +119,7 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(const context &Context) {
   assert(!MIsDeviceImageScopeDecorated &&
          "USM allocations should not be acquired for device_global with "
          "device_image_scope property.");
-  context_impl &CtxImpl = *getSyclObjImpl(Context);
+  context_impl &CtxImpl = getSyclObjImpl(Context);
   device_impl &DevImpl = CtxImpl.getDevices().front();
   std::lock_guard<std::mutex> Lock(MDeviceToUSMPtrMapMutex);
 

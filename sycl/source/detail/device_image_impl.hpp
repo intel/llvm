@@ -47,7 +47,7 @@ namespace detail {
 
 template <class T> struct LessByHash {
   bool operator()(const T &LHS, const T &RHS) const {
-    return getSyclObjImpl(LHS) < getSyclObjImpl(RHS);
+    return &getSyclObjImpl(LHS) < &getSyclObjImpl(RHS);
   }
 };
 
@@ -380,12 +380,12 @@ public:
                   const device &DeviceCand) const noexcept {
     // If the device is in the device list and the kernel ID is in the kernel
     // bundle, return true.
-    if (get_devices().contains(*getSyclObjImpl(DeviceCand)))
+    if (get_devices().contains(getSyclObjImpl(DeviceCand)))
       return has_kernel(KernelIDCand);
 
     // Otherwise, if the device candidate is a sub-device it is also valid if
     // its parent is valid.
-    if (!getSyclObjImpl(DeviceCand)->isRootDevice()) {
+    if (!getSyclObjImpl(DeviceCand).isRootDevice()) {
       try {
         return has_kernel(KernelIDCand,
                           DeviceCand.get_info<info::device::parent_device>());
@@ -560,7 +560,7 @@ public:
   ur_mem_handle_t &get_spec_const_buffer_ref() noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
-      adapter_impl &Adapter = getSyclObjImpl(MContext)->getAdapter();
+      adapter_impl &Adapter = getSyclObjImpl(MContext).getAdapter();
       //  Uses UR_MEM_FLAGS_HOST_PTR_COPY instead of UR_MEM_FLAGS_HOST_PTR_USE
       //  since post-enqueue cleanup might trigger destruction of
       //  device_image_impl and, as a result, destruction of MSpecConstsBlob
@@ -570,7 +570,7 @@ public:
                                            nullptr, MSpecConstsBlob.data()};
       try {
         memBufferCreateHelper(
-            Adapter, detail::getSyclObjImpl(MContext)->getHandleRef(),
+            Adapter, detail::getSyclObjImpl(MContext).getHandleRef(),
             UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
             MSpecConstsBlob.size(), &MSpecConstsBuffer, &Properties);
       } catch (std::exception &e) {
@@ -591,7 +591,7 @@ public:
 
   ur_native_handle_t getNative() const {
     assert(MProgram);
-    context_impl &ContextImpl = *detail::getSyclObjImpl(MContext);
+    context_impl &ContextImpl = detail::getSyclObjImpl(MContext);
     adapter_impl &Adapter = ContextImpl.getAdapter();
 
     ur_native_handle_t NativeProgram = 0;
@@ -611,7 +611,7 @@ public:
   ~device_image_impl() try {
     if (MSpecConstsBuffer) {
       std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
-      adapter_impl &Adapter = getSyclObjImpl(MContext)->getAdapter();
+      adapter_impl &Adapter = getSyclObjImpl(MContext).getAdapter();
       memReleaseHelper(Adapter, MSpecConstsBuffer);
     }
   } catch (std::exception &e) {
@@ -718,7 +718,7 @@ public:
     assert(MRTCBinInfo);
     assert(MOrigins & ImageOriginKernelCompiler);
 
-    sycl::detail::context_impl &ContextImpl = *getSyclObjImpl(MContext);
+    sycl::detail::context_impl &ContextImpl = getSyclObjImpl(MContext);
 
     for (device_impl &Dev : Devices) {
       if (!ContextImpl.hasDevice(Dev)) {
@@ -809,7 +809,7 @@ public:
           "compile is only available for kernel_bundle<bundle_state::source> "
           "when the source language was sycl.");
 
-    sycl::detail::context_impl &ContextImpl = *getSyclObjImpl(MContext);
+    sycl::detail::context_impl &ContextImpl = getSyclObjImpl(MContext);
 
     for (device_impl &Dev : Devices) {
       if (!ContextImpl.hasDevice(Dev)) {
@@ -917,7 +917,7 @@ private:
       devices_range Devices,
       const std::vector<sycl::detail::string_view> &BuildOptions,
       const std::string &SourceStr) const {
-    sycl::detail::context_impl &ContextImpl = *getSyclObjImpl(MContext);
+    sycl::detail::context_impl &ContextImpl = getSyclObjImpl(MContext);
     adapter_impl &Adapter = ContextImpl.getAdapter();
 
     std::string UserArgs = syclex::detail::userArgsAsString(BuildOptions);
@@ -1173,7 +1173,7 @@ private:
       }
 
       auto DGRegs = std::make_shared<ManagedDeviceGlobalsRegistry>(
-          *getSyclObjImpl(MContext), std::string{Prefix},
+          getSyclObjImpl(MContext), std::string{Prefix},
           std::move(DeviceGlobalNames), std::move(DeviceGlobalAllocations));
 
       // Mark the image as input so the program manager will bring it into
@@ -1205,7 +1205,7 @@ private:
       NewImageAndDeps.push_back(
           createSyclObjFromImpl<device_image_plain>(std::move(DevImgImpl)));
       devices_range SupportingDevsRef =
-          getSyclObjImpl(NewImageAndDeps[0])->get_devices();
+          getSyclObjImpl(NewImageAndDeps[0]).get_devices();
       if (State == bundle_state::executable) {
         // If target is executable we bundle the image and dependencies together
         // and bring it into state.
@@ -1219,13 +1219,13 @@ private:
           DevImgPlainWithDeps ImgDepWithDeps{PM.createDependencyImage(
               MContext, SupportingDevsRef, ImgDep, bundle_state::input)};
           PM.bringSYCLDeviceImageToState(ImgDepWithDeps, State);
-          Result.push_back(getSyclObjImpl(ImgDepWithDeps.getMain()));
+          Result.push_back(getSyclObjImplPtr(ImgDepWithDeps.getMain()));
         }
       }
 
       DevImgPlainWithDeps ImgWithDeps(std::move(NewImageAndDeps));
       PM.bringSYCLDeviceImageToState(ImgWithDeps, State);
-      Result.push_back(getSyclObjImpl(ImgWithDeps.getMain()));
+      Result.push_back(getSyclObjImplPtr(ImgWithDeps.getMain()));
     }
 
     OutDeviceBins.emplace_back(
@@ -1237,7 +1237,7 @@ private:
   createProgramFromSource(devices_range Devices,
                           const std::vector<sycl::detail::string_view> &Options,
                           std::string *LogPtr) const {
-    sycl::detail::context_impl &ContextImpl = *getSyclObjImpl(MContext);
+    sycl::detail::context_impl &ContextImpl = getSyclObjImpl(MContext);
     adapter_impl &Adapter = ContextImpl.getAdapter();
     const auto spirv = [&]() -> std::vector<uint8_t> {
       switch (MRTCBinInfo->MLanguage) {

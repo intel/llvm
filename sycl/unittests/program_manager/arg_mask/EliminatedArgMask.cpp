@@ -220,7 +220,7 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
 
   const sycl::detail::KernelArgMask *EliminatedArgMask =
       getKernelArgMaskFromBundle(KernelBundle,
-                                 *sycl::detail::getSyclObjImpl(Queue));
+                                 sycl::detail::getSyclObjImpl(Queue));
   assert(EliminatedArgMask && "EliminatedArgMask must be not null");
 
   sycl::detail::KernelArgMask ExpElimArgMask(EAMTestKernelNumArgs);
@@ -305,8 +305,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     const sycl::device Dev = Plt.get_devices()[0];
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
-    ProgBefore = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
-                                      *sycl::detail::getSyclObjImpl(Dev), Name)
+    ProgBefore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
+                                      sycl::detail::getSyclObjImpl(Dev), Name)
                      .release();
     auto Mask = PM.getEliminatedKernelArgMask(ProgBefore, Name);
     EXPECT_NE(Mask, nullptr);
@@ -331,8 +331,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     const sycl::device Dev = Plt.get_devices()[0];
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
-    ProgAfter = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
-                                     *sycl::detail::getSyclObjImpl(Dev), Name)
+    ProgAfter = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
+                                     sycl::detail::getSyclObjImpl(Dev), Name)
                     .release();
     auto Mask = PM.getEliminatedKernelArgMask(ProgAfter, Name);
     EXPECT_NE(Mask, nullptr);

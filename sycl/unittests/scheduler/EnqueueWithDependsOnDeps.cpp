@@ -20,7 +20,6 @@
 namespace {
 using namespace sycl;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
-using sycl::detail::getSyclObjImpl;
 
 constexpr auto DisableCleanupName = "SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP";
 
@@ -46,7 +45,7 @@ protected:
       GTEST_SKIP();
 
     queue QueueDev(context(Plt), default_selector_v);
-    QueueDevImpl = getSyclObjImpl(QueueDev);
+    QueueDevImpl = detail::getSyclObjImpl(QueueDev).shared_from_this();
   }
 
   void TearDown() {}
@@ -327,7 +326,7 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
   // Mock up an incomplete host task
   auto HostTaskEvent =
       Queue.submit([&](sycl::handler &cgh) { cgh.host_task([=]() {}); });
-  detail::event_impl &HostTaskEventImpl = *getSyclObjImpl(HostTaskEvent);
+  detail::event_impl &HostTaskEventImpl = detail::getSyclObjImpl(HostTaskEvent);
   HostTaskEvent.wait();
   auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl.getCommand());
   ASSERT_NE(Cmd, nullptr);
@@ -339,7 +338,8 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
     cgh.depends_on(HostTaskEvent);
     cgh.single_task<TestKernel>([] {});
   });
-  detail::event_impl &SingleTaskEventImpl = *getSyclObjImpl(SingleTaskEvent);
+  detail::event_impl &SingleTaskEventImpl =
+      detail::getSyclObjImpl(SingleTaskEvent);
   EXPECT_EQ(SingleTaskEventImpl.getHandle(), nullptr);
 
   // make HostTaskEvent completed, so SingleTaskEvent can be enqueued
@@ -371,7 +371,7 @@ TEST_F(DependsOnTests, BarrierWithWaitList) {
 
   auto HostTaskEvent =
       Queue.submit([&](sycl::handler &cgh) { cgh.host_task([=]() {}); });
-  detail::event_impl &HostTaskEventImpl = *getSyclObjImpl(HostTaskEvent);
+  detail::event_impl &HostTaskEventImpl = detail::getSyclObjImpl(HostTaskEvent);
   HostTaskEvent.wait();
   auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl.getCommand());
   ASSERT_NE(Cmd, nullptr);
@@ -383,7 +383,8 @@ TEST_F(DependsOnTests, BarrierWithWaitList) {
     cgh.depends_on(HostTaskEvent);
     cgh.single_task<TestKernel>([] {});
   });
-  detail::event_impl &SingleTaskEventImpl = *getSyclObjImpl(SingleTaskEvent);
+  detail::event_impl &SingleTaskEventImpl =
+      detail::getSyclObjImpl(SingleTaskEvent);
   EXPECT_EQ(SingleTaskEventImpl.getHandle(), nullptr);
 
   HostTaskEventImpl.setComplete();

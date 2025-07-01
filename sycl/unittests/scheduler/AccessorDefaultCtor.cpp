@@ -17,7 +17,7 @@ TEST_F(SchedulerTest, AccDefaultCtorDoesntAffectDepGraph) {
   queue QueueDev(context(Plt), default_selector_v);
   MockScheduler MS;
 
-  detail::queue_impl &QueueDevImpl = *detail::getSyclObjImpl(QueueDev);
+  detail::queue_impl &QueueDevImpl = detail::getSyclObjImpl(QueueDev);
 
   std::vector<detail::Command *> ToEnqueue;
 

@@ -224,7 +224,7 @@ public:
                              std::to_string(ThreadCount)};
     DeviceCodeID = ProgramID;
     std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-        *getSyclObjImpl(Dev), {&Img},
+        getSyclObjImpl(Dev), {&Img},
         {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID}, BuildOptions);
     ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
@@ -286,7 +286,7 @@ TEST_P(PersistentDeviceCodeCache, KeysWithNullTermSymbol) {
   std::string Key{'1', '\0', '3', '4', '\0'};
   std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      *getSyclObjImpl(Dev), {&Img}, SpecConst, Key);
+      getSyclObjImpl(Dev), {&Img}, SpecConst, Key);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, SpecConst,
@@ -336,7 +336,7 @@ TEST_P(PersistentDeviceCodeCache, MultipleImages) {
                                  B->getRawData().EntriesBegin->GetName()) < 0;
             });
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      *getSyclObjImpl(Dev), Imgs, {}, BuildOptions);
+      getSyclObjImpl(Dev), Imgs, {}, BuildOptions);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, Imgs, {},
@@ -389,7 +389,7 @@ TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
 TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
   std::string BuildOptions{"--corrupted-file"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
+      getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   // Only source file is present
@@ -474,7 +474,7 @@ TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
 TEST_P(PersistentDeviceCodeCache, LockFile) {
   std::string BuildOptions{"--obsolete-lock"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
+      getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   // Create 1st cahe item
@@ -524,7 +524,7 @@ TEST_P(PersistentDeviceCodeCache, LockFile) {
 TEST_P(PersistentDeviceCodeCache, AccessDeniedForCacheDir) {
   std::string BuildOptions{"--build-options"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
+      getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
@@ -580,7 +580,7 @@ TEST_P(PersistentDeviceCodeCache, BasicEviction) {
                                                    BuildOptions, NativeProg);
 
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
+      getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
   size_t SizeOfOneEntry = (size_t)(detail::getDirectorySize(ItemDir));
 
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},

@@ -26,7 +26,7 @@ __SYCL_EXPORT device make_device(const platform &Platform,
       NativeHandle, Adapter.getUrAdapter(), nullptr, &UrDevice);
 
   return detail::createSyclObjFromImpl<device>(
-      getSyclObjImpl(Platform)->getOrMakeDeviceImpl(UrDevice));
+      getSyclObjImpl(Platform).getOrMakeDeviceImpl(UrDevice));
 }
 
 } // namespace ext::oneapi::level_zero::detail

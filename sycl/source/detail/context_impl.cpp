@@ -47,7 +47,7 @@ context_impl::context_impl(devices_range Devices, async_handler AsyncHandler,
       std::vector<device> ComponentDevices = D.get_info<
           ext::oneapi::experimental::info::device::component_devices>();
       for (const auto &CD : ComponentDevices)
-        DeviceIds.push_back(getSyclObjImpl(CD)->getHandleRef());
+        DeviceIds.push_back(getSyclObjImpl(CD).getHandleRef());
     }
 
     DeviceIds.push_back(D.getHandleRef());
@@ -442,7 +442,7 @@ std::optional<ur_program_handle_t> context_impl::getProgramForDevImgs(
     auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
     auto &KeyMap = LockedCache.get().KeyMap;
     auto &Cache = LockedCache.get().Cache;
-    ur_device_handle_t &DevHandle = getSyclObjImpl(Device)->getHandleRef();
+    ur_device_handle_t &DevHandle = getSyclObjImpl(Device).getHandleRef();
     for (std::uintptr_t ImageIDs : ImgIdentifiers) {
       auto OuterKey =
           std::make_pair(ImageIDs, std::set<ur_device_handle_t>{DevHandle});
@@ -507,7 +507,7 @@ context_impl::get_default_memory_pool(const context &Context,
 
   assert(Kind == usm::alloc::device);
 
-  detail::device_impl &DevImpl = *detail::getSyclObjImpl(Device);
+  detail::device_impl &DevImpl = detail::getSyclObjImpl(Device);
   ur_device_handle_t DeviceHandle = DevImpl.getHandleRef();
   detail::adapter_impl &Adapter = this->getAdapter();
 

@@ -18,7 +18,7 @@ using namespace sycl;
 TEST_F(SchedulerTest, MemObjCommandCleanupAllocaUsers) {
   sycl::unittest::UrMock<> Mock;
   sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
-  sycl::detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = detail::getSyclObjImpl(Q);
 
   MockScheduler MS;
   buffer<int, 1> BufA(range<1>(1));
@@ -49,7 +49,7 @@ TEST_F(SchedulerTest, MemObjCommandCleanupAllocaUsers) {
   addEdge(MockIndirectUser, MockDirectUser.get(), MockAllocaA);
 
   MS.cleanupCommandsForRecord(RecA);
-  MS.removeRecordForMemObj(&*detail::getSyclObjImpl(BufA));
+  MS.removeRecordForMemObj(&detail::getSyclObjImpl(BufA));
 
   // Check that the direct user has been left with the second alloca
   // as the only dependency, while the indirect user has been cleaned up.
@@ -62,7 +62,7 @@ TEST_F(SchedulerTest, MemObjCommandCleanupAllocaUsers) {
 TEST_F(SchedulerTest, MemObjCommandCleanupAllocaDeps) {
   sycl::unittest::UrMock<> Mock;
   sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
-  sycl::detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = detail::getSyclObjImpl(Q);
 
   MockScheduler MS;
   buffer<int, 1> Buf(range<1>(1));
@@ -84,7 +84,7 @@ TEST_F(SchedulerTest, MemObjCommandCleanupAllocaDeps) {
   ASSERT_EQ(DepCmd.MUsers.count(MockAllocaCmd), 1U);
 
   MS.cleanupCommandsForRecord(MemObjRec);
-  MS.removeRecordForMemObj(&*detail::getSyclObjImpl(Buf));
+  MS.removeRecordForMemObj(&detail::getSyclObjImpl(Buf));
 
   // Check that DepCmd has its MUsers field cleared.
   ASSERT_EQ(DepCmd.MUsers.size(), 0U);

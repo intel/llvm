@@ -58,54 +58,53 @@ TEST_F(CommandGraphTest, OwnerLessGraph) {
 }
 
 TEST_F(CommandGraphTest, AddNode) {
-  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphImpl = getSyclObjImpl(Graph);
 
   ASSERT_TRUE(GraphImpl.MRoots.empty());
 
   auto Node1 = Graph.add(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
-  ASSERT_FALSE(getSyclObjImpl(Node1)->isEmpty());
+  ASSERT_FALSE(getSyclObjImpl(Node1).isEmpty());
   ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
-  ASSERT_EQ(*GraphImpl.MRoots.begin(), &*getSyclObjImpl(Node1));
-  ASSERT_TRUE(getSyclObjImpl(Node1)->MSuccessors.empty());
-  ASSERT_TRUE(getSyclObjImpl(Node1)->MPredecessors.empty());
+  ASSERT_EQ(*GraphImpl.MRoots.begin(), &getSyclObjImpl(Node1));
+  ASSERT_TRUE(getSyclObjImpl(Node1).MSuccessors.empty());
+  ASSERT_TRUE(getSyclObjImpl(Node1).MPredecessors.empty());
 
   // Add a node which depends on the first
   auto Node2Deps = experimental::property::node::depends_on(Node1);
-  ASSERT_EQ(&*getSyclObjImpl(Node2Deps.get_dependencies().front()),
-            &*getSyclObjImpl(Node1));
+  ASSERT_EQ(&getSyclObjImpl(Node2Deps.get_dependencies().front()),
+            &getSyclObjImpl(Node1));
   auto Node2 = Graph.add([&](sycl::handler &cgh) {}, {Node2Deps});
-  ASSERT_TRUE(getSyclObjImpl(Node2)->isEmpty());
+  ASSERT_TRUE(getSyclObjImpl(Node2).isEmpty());
   ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
-  ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.size(), 1lu);
-  ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.front(),
-            &*getSyclObjImpl(Node2));
-  ASSERT_TRUE(getSyclObjImpl(Node1)->MPredecessors.empty());
-  ASSERT_EQ(getSyclObjImpl(Node2)->MPredecessors.size(), 1lu);
+  ASSERT_EQ(getSyclObjImpl(Node1).MSuccessors.size(), 1lu);
+  ASSERT_EQ(getSyclObjImpl(Node1).MSuccessors.front(), &getSyclObjImpl(Node2));
+  ASSERT_TRUE(getSyclObjImpl(Node1).MPredecessors.empty());
+  ASSERT_EQ(getSyclObjImpl(Node2).MPredecessors.size(), 1lu);
 
   // Add a third node which depends on both
   auto Node3 =
       Graph.add([&](sycl::handler &cgh) {},
                 {experimental::property::node::depends_on(Node1, Node2)});
-  ASSERT_TRUE(getSyclObjImpl(Node3)->isEmpty());
+  ASSERT_TRUE(getSyclObjImpl(Node3).isEmpty());
   ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
-  ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.size(), 2lu);
-  ASSERT_EQ(getSyclObjImpl(Node2)->MSuccessors.size(), 1lu);
-  ASSERT_TRUE(getSyclObjImpl(Node1)->MPredecessors.empty());
-  ASSERT_EQ(getSyclObjImpl(Node2)->MPredecessors.size(), 1lu);
-  ASSERT_EQ(getSyclObjImpl(Node3)->MPredecessors.size(), 2lu);
+  ASSERT_EQ(getSyclObjImpl(Node1).MSuccessors.size(), 2lu);
+  ASSERT_EQ(getSyclObjImpl(Node2).MSuccessors.size(), 1lu);
+  ASSERT_TRUE(getSyclObjImpl(Node1).MPredecessors.empty());
+  ASSERT_EQ(getSyclObjImpl(Node2).MPredecessors.size(), 1lu);
+  ASSERT_EQ(getSyclObjImpl(Node3).MPredecessors.size(), 2lu);
 
   // Add a fourth node without any dependencies on the others
   auto Node4 = Graph.add([&](sycl::handler &cgh) {});
-  ASSERT_TRUE(getSyclObjImpl(Node4)->isEmpty());
+  ASSERT_TRUE(getSyclObjImpl(Node4).isEmpty());
   ASSERT_EQ(GraphImpl.MRoots.size(), 2lu);
-  ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.size(), 2lu);
-  ASSERT_EQ(getSyclObjImpl(Node2)->MSuccessors.size(), 1lu);
-  ASSERT_TRUE(getSyclObjImpl(Node3)->MSuccessors.empty());
-  ASSERT_TRUE(getSyclObjImpl(Node1)->MPredecessors.empty());
-  ASSERT_EQ(getSyclObjImpl(Node2)->MPredecessors.size(), 1lu);
-  ASSERT_EQ(getSyclObjImpl(Node3)->MPredecessors.size(), 2lu);
-  ASSERT_TRUE(getSyclObjImpl(Node4)->MPredecessors.empty());
+  ASSERT_EQ(getSyclObjImpl(Node1).MSuccessors.size(), 2lu);
+  ASSERT_EQ(getSyclObjImpl(Node2).MSuccessors.size(), 1lu);
+  ASSERT_TRUE(getSyclObjImpl(Node3).MSuccessors.empty());
+  ASSERT_TRUE(getSyclObjImpl(Node1).MPredecessors.empty());
+  ASSERT_EQ(getSyclObjImpl(Node2).MPredecessors.size(), 1lu);
+  ASSERT_EQ(getSyclObjImpl(Node3).MPredecessors.size(), 2lu);
+  ASSERT_TRUE(getSyclObjImpl(Node4).MPredecessors.empty());
 }
 
 TEST_F(CommandGraphTest, Finalize) {
@@ -130,42 +129,41 @@ TEST_F(CommandGraphTest, Finalize) {
 
   auto GraphExec = Graph.finalize();
   experimental::detail::exec_graph_impl &GraphExecImpl =
-      *getSyclObjImpl(GraphExec);
+      getSyclObjImpl(GraphExec);
 
   // The final schedule should contain three nodes in order: 2->1->3
   auto Schedule = GraphExecImpl.getSchedule();
   ASSERT_EQ(Schedule.size(), 3ul);
   auto ScheduleIt = Schedule.begin();
-  ASSERT_TRUE((*ScheduleIt)->isSimilar(*getSyclObjImpl(Node2)));
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(getSyclObjImpl(Node2)));
   ScheduleIt++;
-  ASSERT_TRUE((*ScheduleIt)->isSimilar(*getSyclObjImpl(Node1)));
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(getSyclObjImpl(Node1)));
   ScheduleIt++;
-  ASSERT_TRUE((*ScheduleIt)->isSimilar(*getSyclObjImpl(Node3)));
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(getSyclObjImpl(Node3)));
   ASSERT_EQ(Queue.get_context(), GraphExecImpl.getContext());
 }
 
 TEST_F(CommandGraphTest, MakeEdge) {
-  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphImpl = getSyclObjImpl(Graph);
 
   // Add two independent nodes
   auto Node1 = Graph.add(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node2 = Graph.add([&](sycl::handler &cgh) {});
   ASSERT_EQ(GraphImpl.MRoots.size(), 2ul);
-  ASSERT_TRUE(getSyclObjImpl(Node1)->MSuccessors.empty());
-  ASSERT_TRUE(getSyclObjImpl(Node1)->MPredecessors.empty());
-  ASSERT_TRUE(getSyclObjImpl(Node2)->MSuccessors.empty());
-  ASSERT_TRUE(getSyclObjImpl(Node2)->MPredecessors.empty());
+  ASSERT_TRUE(getSyclObjImpl(Node1).MSuccessors.empty());
+  ASSERT_TRUE(getSyclObjImpl(Node1).MPredecessors.empty());
+  ASSERT_TRUE(getSyclObjImpl(Node2).MSuccessors.empty());
+  ASSERT_TRUE(getSyclObjImpl(Node2).MPredecessors.empty());
 
   // Connect nodes and verify order
   Graph.make_edge(Node1, Node2);
   ASSERT_EQ(GraphImpl.MRoots.size(), 1ul);
-  ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.size(), 1lu);
-  ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.front(),
-            &*getSyclObjImpl(Node2));
-  ASSERT_TRUE(getSyclObjImpl(Node1)->MPredecessors.empty());
-  ASSERT_TRUE(getSyclObjImpl(Node2)->MSuccessors.empty());
-  ASSERT_EQ(getSyclObjImpl(Node2)->MPredecessors.size(), 1lu);
+  ASSERT_EQ(getSyclObjImpl(Node1).MSuccessors.size(), 1lu);
+  ASSERT_EQ(getSyclObjImpl(Node1).MSuccessors.front(), &getSyclObjImpl(Node2));
+  ASSERT_TRUE(getSyclObjImpl(Node1).MPredecessors.empty());
+  ASSERT_TRUE(getSyclObjImpl(Node2).MSuccessors.empty());
+  ASSERT_EQ(getSyclObjImpl(Node2).MPredecessors.size(), 1lu);
 }
 
 TEST_F(CommandGraphTest, BeginEndRecording) {
@@ -206,7 +204,7 @@ TEST_F(CommandGraphTest, GetCGCopy) {
       {experimental::property::node::depends_on(Node1)});
 
   // Get copy of CG of Node2 and check equality
-  experimental::detail::node_impl &Node2Imp = *getSyclObjImpl(Node2);
+  experimental::detail::node_impl &Node2Imp = getSyclObjImpl(Node2);
   auto Node2CGCopy = Node2Imp.getCGCopy();
   ASSERT_EQ(Node2CGCopy->getType(), Node2Imp.MCGType);
   ASSERT_EQ(Node2CGCopy->getType(), sycl::detail::CGType::Kernel);
@@ -234,7 +232,7 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword1) {
       Graph.add([&](sycl::handler &cgh) { /*empty node */ },
                 {experimental::property::node::depends_on_all_leaves()});
 
-  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphImpl = getSyclObjImpl(Graph);
 
   // Check the graph structure
   // (1) (2) (3)
@@ -242,17 +240,17 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword1) {
   //    \ | /
   //     (E)
   ASSERT_EQ(GraphImpl.MRoots.size(), 3lu);
-  experimental::detail::node_impl &EmptyImpl = *getSyclObjImpl(EmptyNode);
+  experimental::detail::node_impl &EmptyImpl = getSyclObjImpl(EmptyNode);
   ASSERT_EQ(EmptyImpl.MPredecessors.size(), 3lu);
   ASSERT_EQ(EmptyImpl.MSuccessors.size(), 0lu);
 
-  experimental::detail::node_impl &Node1Impl = *getSyclObjImpl(Node1Graph);
+  experimental::detail::node_impl &Node1Impl = getSyclObjImpl(Node1Graph);
   ASSERT_EQ(Node1Impl.MSuccessors.size(), 1lu);
   ASSERT_EQ(Node1Impl.MSuccessors[0], &EmptyImpl);
-  experimental::detail::node_impl &Node2Impl = *getSyclObjImpl(Node2Graph);
+  experimental::detail::node_impl &Node2Impl = getSyclObjImpl(Node2Graph);
   ASSERT_EQ(Node2Impl.MSuccessors.size(), 1lu);
   ASSERT_EQ(Node2Impl.MSuccessors[0], &EmptyImpl);
-  experimental::detail::node_impl &Node3Impl = *getSyclObjImpl(Node3Graph);
+  experimental::detail::node_impl &Node3Impl = getSyclObjImpl(Node3Graph);
   ASSERT_EQ(Node3Impl.MSuccessors.size(), 1lu);
   ASSERT_EQ(Node3Impl.MSuccessors[0], &EmptyImpl);
 }
@@ -272,7 +270,7 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword2) {
       Graph.add([&](sycl::handler &cgh) { /*empty node */ },
                 {experimental::property::node::depends_on_all_leaves()});
 
-  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphImpl = getSyclObjImpl(Graph);
 
   // Check the graph structure
   // (1) (2) (3)
@@ -281,20 +279,20 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword2) {
   //     \| /
   //     (E)
   ASSERT_EQ(GraphImpl.MRoots.size(), 3lu);
-  experimental::detail::node_impl &EmptyImpl = *getSyclObjImpl(EmptyNode);
+  experimental::detail::node_impl &EmptyImpl = getSyclObjImpl(EmptyNode);
   ASSERT_EQ(EmptyImpl.MPredecessors.size(), 3lu);
   ASSERT_EQ(EmptyImpl.MSuccessors.size(), 0lu);
 
-  experimental::detail::node_impl &Node1Impl = *getSyclObjImpl(Node1Graph);
+  experimental::detail::node_impl &Node1Impl = getSyclObjImpl(Node1Graph);
   ASSERT_EQ(Node1Impl.MSuccessors.size(), 1lu);
   ASSERT_EQ(Node1Impl.MSuccessors[0], &EmptyImpl);
-  experimental::detail::node_impl &Node2Impl = *getSyclObjImpl(Node2Graph);
+  experimental::detail::node_impl &Node2Impl = getSyclObjImpl(Node2Graph);
   ASSERT_EQ(Node2Impl.MSuccessors.size(), 1lu);
   ASSERT_EQ(Node2Impl.MSuccessors[0], &EmptyImpl);
-  experimental::detail::node_impl &Node3Impl = *getSyclObjImpl(Node3Graph);
+  experimental::detail::node_impl &Node3Impl = getSyclObjImpl(Node3Graph);
   ASSERT_EQ(Node3Impl.MSuccessors.size(), 1lu);
 
-  experimental::detail::node_impl &Node4Impl = *getSyclObjImpl(Node4Graph);
+  experimental::detail::node_impl &Node4Impl = getSyclObjImpl(Node4Graph);
   ASSERT_EQ(Node4Impl.MPredecessors.size(), 1lu);
   ASSERT_EQ(Node4Impl.MSuccessors.size(), 1lu);
   ASSERT_EQ(Node4Impl.MSuccessors[0], &EmptyImpl);
@@ -315,7 +313,7 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword3) {
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(EmptyNode)});
 
-  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphImpl = getSyclObjImpl(Graph);
 
   // Check the graph structure
   // (1)(2)
@@ -324,21 +322,21 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword3) {
   // (3) |
   //    (4)
   ASSERT_EQ(GraphImpl.MRoots.size(), 2lu);
-  experimental::detail::node_impl &EmptyImpl = *getSyclObjImpl(EmptyNode);
+  experimental::detail::node_impl &EmptyImpl = getSyclObjImpl(EmptyNode);
   ASSERT_EQ(EmptyImpl.MPredecessors.size(), 2lu);
   ASSERT_EQ(EmptyImpl.MSuccessors.size(), 1lu);
 
-  experimental::detail::node_impl &Node1Impl = *getSyclObjImpl(Node1Graph);
-  experimental::detail::node_impl &Node2Impl = *getSyclObjImpl(Node2Graph);
+  experimental::detail::node_impl &Node1Impl = getSyclObjImpl(Node1Graph);
+  experimental::detail::node_impl &Node2Impl = getSyclObjImpl(Node2Graph);
   ASSERT_EQ(Node1Impl.MSuccessors.size(), 2lu);
   ASSERT_EQ(Node2Impl.MSuccessors.size(), 1lu);
   ASSERT_EQ(Node2Impl.MSuccessors[0], &EmptyImpl);
 
-  experimental::detail::node_impl &Node3Impl = *getSyclObjImpl(Node3Graph);
+  experimental::detail::node_impl &Node3Impl = getSyclObjImpl(Node3Graph);
   ASSERT_EQ(Node3Impl.MPredecessors.size(), 1lu);
   ASSERT_EQ(Node3Impl.MPredecessors[0], &Node1Impl);
 
-  experimental::detail::node_impl &Node4Impl = *getSyclObjImpl(Node4Graph);
+  experimental::detail::node_impl &Node4Impl = getSyclObjImpl(Node4Graph);
   ASSERT_EQ(Node4Impl.MPredecessors.size(), 1lu);
   ASSERT_EQ(Node4Impl.MPredecessors[0], &EmptyImpl);
 }
@@ -357,7 +355,7 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword4) {
       Graph.add([&](sycl::handler &cgh) { /*empty node */ },
                 {experimental::property::node::depends_on_all_leaves()});
 
-  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphImpl = getSyclObjImpl(Graph);
 
   // Check the graph structure
   // (1)(2)
@@ -366,19 +364,19 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword4) {
   //    \  /
   //    (E2)
   ASSERT_EQ(GraphImpl.MRoots.size(), 3lu);
-  experimental::detail::node_impl &EmptyImpl = *getSyclObjImpl(EmptyNode);
+  experimental::detail::node_impl &EmptyImpl = getSyclObjImpl(EmptyNode);
   ASSERT_EQ(EmptyImpl.MPredecessors.size(), 2lu);
   ASSERT_EQ(EmptyImpl.MSuccessors.size(), 1lu);
 
-  experimental::detail::node_impl &Node1Impl = *getSyclObjImpl(Node1Graph);
+  experimental::detail::node_impl &Node1Impl = getSyclObjImpl(Node1Graph);
   ASSERT_EQ(Node1Impl.MSuccessors.size(), 1lu);
   ASSERT_EQ(Node1Impl.MSuccessors[0], &EmptyImpl);
-  experimental::detail::node_impl &Node2Impl = *getSyclObjImpl(Node2Graph);
+  experimental::detail::node_impl &Node2Impl = getSyclObjImpl(Node2Graph);
   ASSERT_EQ(Node2Impl.MSuccessors.size(), 1lu);
   ASSERT_EQ(Node2Impl.MSuccessors[0], &EmptyImpl);
 
-  experimental::detail::node_impl &EmptyImpl2 = *getSyclObjImpl(EmptyNode2);
-  experimental::detail::node_impl &Node3Impl = *getSyclObjImpl(Node3Graph);
+  experimental::detail::node_impl &EmptyImpl2 = getSyclObjImpl(EmptyNode2);
+  experimental::detail::node_impl &Node3Impl = getSyclObjImpl(Node3Graph);
   ASSERT_EQ(Node3Impl.MPredecessors.size(), 0lu);
   ASSERT_EQ(Node3Impl.MSuccessors.size(), 1lu);
   ASSERT_EQ(Node3Impl.MSuccessors[0], &EmptyImpl2);
@@ -416,7 +414,7 @@ TEST_F(CommandGraphTest, GraphPartitionsMerging) {
 
   auto GraphExec = Graph.finalize();
   experimental::detail::exec_graph_impl &GraphExecImpl =
-      *getSyclObjImpl(GraphExec);
+      getSyclObjImpl(GraphExec);
   auto PartitionsList = GraphExecImpl.getPartitions();
   ASSERT_EQ(PartitionsList.size(), 5ul);
   ASSERT_FALSE(PartitionsList[0]->MIsHostTask);
@@ -472,8 +470,8 @@ TEST_F(CommandGraphTest, FillMemsetNodes) {
       CGH.fill(Acc, Value);
     });
 
-    experimental::detail::node_impl &NodeAImpl = *getSyclObjImpl(NodeA);
-    experimental::detail::node_impl &NodeBImpl = *getSyclObjImpl(NodeB);
+    experimental::detail::node_impl &NodeAImpl = getSyclObjImpl(NodeA);
+    experimental::detail::node_impl &NodeBImpl = getSyclObjImpl(NodeB);
 
     EXPECT_NE(&NodeAImpl, &NodeBImpl);
   }
@@ -493,12 +491,12 @@ TEST_F(CommandGraphTest, FillMemsetNodes) {
     auto MemsetNodeB =
         Graph.add([&](handler &CGH) { CGH.memset(USMPtr, Value, 2); });
 
-    experimental::detail::node_impl &FillNodeAImpl = *getSyclObjImpl(FillNodeA);
-    experimental::detail::node_impl &FillNodeBImpl = *getSyclObjImpl(FillNodeB);
+    experimental::detail::node_impl &FillNodeAImpl = getSyclObjImpl(FillNodeA);
+    experimental::detail::node_impl &FillNodeBImpl = getSyclObjImpl(FillNodeB);
     experimental::detail::node_impl &MemsetNodeAImpl =
-        *getSyclObjImpl(MemsetNodeA);
+        getSyclObjImpl(MemsetNodeA);
     experimental::detail::node_impl &MemsetNodeBImpl =
-        *getSyclObjImpl(MemsetNodeB);
+        getSyclObjImpl(MemsetNodeB);
 
     EXPECT_NE(&FillNodeAImpl, &FillNodeBImpl);
     EXPECT_NE(&MemsetNodeAImpl, &MemsetNodeBImpl);

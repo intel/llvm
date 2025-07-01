@@ -52,7 +52,7 @@ static std::vector<ur_event_handle_t>
 getUrEvents(const std::vector<sycl::event> &DepEvents) {
   std::vector<ur_event_handle_t> RetUrEvents;
   for (const sycl::event &Event : DepEvents) {
-    event_impl &EventImpl = *detail::getSyclObjImpl(Event);
+    event_impl &EventImpl = detail::getSyclObjImpl(Event);
     auto Handle = EventImpl.getHandle();
     if (Handle != nullptr)
       RetUrEvents.push_back(Handle);
@@ -315,7 +315,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   // We might swap handlers as part of the CGH(Handler) call in the reduction
   // case, so need to retrieve the handler_impl reference after that.
-  detail::handler_impl &HandlerImpl = *detail::getSyclObjImpl(Handler);
+  detail::handler_impl &HandlerImpl = detail::getSyclObjImpl(Handler);
 
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
@@ -646,9 +646,9 @@ detail::EventImplPtr queue_impl::submit_direct(
   std::optional<event> ExternalEvent = popExternalEvent();
   if (ExternalEvent) {
     registerEventDependency</*LockQueue*/ false>(
-        getSyclObjImpl(*ExternalEvent), CGData.MEvents, this, getContextImpl(),
-        getDeviceImpl(), hasCommandGraph() ? getCommandGraph().get() : nullptr,
-        Type);
+        getSyclObjImplPtr(*ExternalEvent), CGData.MEvents, this,
+        getContextImpl(), getDeviceImpl(),
+        hasCommandGraph() ? getCommandGraph().get() : nullptr, Type);
   }
 
   auto &Deps = hasCommandGraph() ? MExtGraphDeps : MDefaultGraphDeps;
@@ -670,7 +670,7 @@ detail::EventImplPtr queue_impl::submit_direct(
 
   for (event e : DepEvents) {
     registerEventDependency</*LockQueue*/ false>(
-        getSyclObjImpl(e), CGData.MEvents, this, getContextImpl(),
+        getSyclObjImplPtr(e), CGData.MEvents, this, getContextImpl(),
         getDeviceImpl(), hasCommandGraph() ? getCommandGraph().get() : nullptr,
         Type);
   }
@@ -771,7 +771,7 @@ event queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(*this);
-      const auto &EventImpl = detail::getSyclObjImpl(ResEvent);
+      const auto &EventImpl = detail::getSyclObjImplPtr(ResEvent);
       {
         NestedCallsTracker tracker;
         ur_event_handle_t UREvent = nullptr;
@@ -787,7 +787,7 @@ event queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
           ExpandedDepEventImplPtrs.reserve(ExpandedDepEvents.size());
           for (const event &DepEvent : ExpandedDepEvents)
             ExpandedDepEventImplPtrs.push_back(
-                detail::getSyclObjImpl(DepEvent));
+                detail::getSyclObjImplPtr(DepEvent));
 
           // EventImpl is local for current thread, no need to lock.
           EventImpl->cleanDepEventsThroughOneLevelUnlocked();

@@ -39,7 +39,7 @@ class physical_mem_impl {
 public:
   physical_mem_impl(device_impl &DeviceImpl, const context &SyclContext,
                     size_t NumBytes)
-      : MDevice(DeviceImpl), MContext(getSyclObjImpl(SyclContext)),
+      : MDevice(DeviceImpl), MContext(getSyclObjImplPtr(SyclContext)),
         MNumBytes(NumBytes) {
     adapter_impl &Adapter = MContext->getAdapter();
 

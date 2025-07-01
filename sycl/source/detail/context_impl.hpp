@@ -174,7 +174,7 @@ public:
           // for a composite device they belong to.
           auto CompositeDevice = CurrDevice->get_info<
               ext::oneapi::experimental::info::device::composite_device>();
-          return hasDevice(*detail::getSyclObjImpl(CompositeDevice));
+          return hasDevice(detail::getSyclObjImpl(CompositeDevice));
         }
 
         return false;
@@ -185,9 +185,8 @@ public:
         // TODO remove once this limitation is lifted
         return false;
       }
-      CurrDevice = detail::getSyclObjImpl(
-                       CurrDevice->get_info<info::device::parent_device>())
-                       .get();
+      CurrDevice = &detail::getSyclObjImpl(
+          CurrDevice->get_info<info::device::parent_device>());
     }
 
     return true;
@@ -367,7 +366,7 @@ inline auto get_ur_handles(const detail::context_impl &Ctx) {
   return std::tuple{urCtx, &Ctx.getAdapter()};
 }
 inline auto get_ur_handles(const context &syclContext) {
-  return get_ur_handles(*detail::getSyclObjImpl(syclContext));
+  return get_ur_handles(detail::getSyclObjImpl(syclContext));
 }
 inline auto get_ur_handles(const detail::device_impl &syclDevice,
                            const detail::context_impl &syclContext) {
@@ -377,11 +376,11 @@ inline auto get_ur_handles(const detail::device_impl &syclDevice,
 }
 inline auto get_ur_handles(const device &syclDevice,
                            const context &syclContext) {
-  return get_ur_handles(*detail::getSyclObjImpl(syclDevice),
-                        *detail::getSyclObjImpl(syclContext));
+  return get_ur_handles(detail::getSyclObjImpl(syclDevice),
+                        detail::getSyclObjImpl(syclContext));
 }
 inline auto get_ur_handles(const device &syclDevice) {
-  auto &implDevice = *detail::getSyclObjImpl(syclDevice);
+  auto &implDevice = detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t urDevice = implDevice.getHandleRef();
   return std::tuple{urDevice, &implDevice.getAdapter()};
 }

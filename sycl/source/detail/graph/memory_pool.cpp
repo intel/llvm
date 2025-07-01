@@ -40,9 +40,9 @@ void *graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
   switch (AllocType) {
   case usm::alloc::device: {
 
-    const context_impl &CtxImpl = *getSyclObjImpl(MContext);
+    const context_impl &CtxImpl = getSyclObjImpl(MContext);
     const adapter_impl &Adapter = CtxImpl.getAdapter();
-    const device_impl &DeviceImpl = *getSyclObjImpl(MDevice);
+    const device_impl &DeviceImpl = getSyclObjImpl(MDevice);
 
     const size_t Granularity = get_mem_granularity_for_allocation_size(
         DeviceImpl, CtxImpl, granularity_mode::recommended, Size);

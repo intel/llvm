@@ -406,7 +406,7 @@ getImage(const sycl::kernel_bundle<State> &KernelBundle,
       std::find_if(KernelBundle.begin(), KernelBundle.end(),
                    [&](auto Image) { return Image.has_kernel(KernelID); });
   EXPECT_NE(It, KernelBundle.end());
-  return *sycl::detail::getSyclObjImpl(*It);
+  return sycl::detail::getSyclObjImpl(*It);
 }
 
 template <sycl::bundle_state State>

@@ -144,7 +144,7 @@ TEST(CompositeDeviceTest, PlatformExtOneAPIGetCompositeDevices) {
   // We don't expect to see COMPOSITE_DEVICE_1 here, because one of its
   // components (COMPONENT_DEVICE_D) is not available.
   ASSERT_EQ(Composites.size(), 1u);
-  ASSERT_EQ(sycl::detail::getSyclObjImpl(Composites.front())->getHandleRef(),
+  ASSERT_EQ(sycl::detail::getSyclObjImpl(Composites.front()).getHandleRef(),
             COMPOSITE_DEVICE_0);
 }
 
@@ -162,7 +162,7 @@ TEST(CompositeDeviceTest, SYCLExtOneAPIExperimentalGetCompositeDevices) {
   // We don't expect to see COMPOSITE_DEVICE_1 here, because one of its
   // components (COMPONENT_DEVICE_D) is not available.
   ASSERT_EQ(Composites.size(), 1u);
-  ASSERT_EQ(sycl::detail::getSyclObjImpl(Composites.front())->getHandleRef(),
+  ASSERT_EQ(sycl::detail::getSyclObjImpl(Composites.front()).getHandleRef(),
             COMPOSITE_DEVICE_0);
 }
 

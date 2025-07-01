@@ -86,7 +86,7 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
                                           &redefinedMemGetInfoAfter);
   mock::getCallbacks().set_before_callback("urMemBufferCreateWithNativeHandle",
                                            &redefinedMemCreateWithNativeHandle);
-  sycl::detail::queue_impl &QImpl = *detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QImpl = detail::getSyclObjImpl(Q);
 
   MockScheduler MS;
   // Check non-host alloca with non-discard access mode
@@ -192,7 +192,7 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
         mock::createDummyHandle<ur_mem_handle_t>();
 
     context InteropContext = Q.get_context();
-    InteropUrContext = detail::getSyclObjImpl(InteropContext)->getHandleRef();
+    InteropUrContext = detail::getSyclObjImpl(InteropContext).getHandleRef();
     auto BufI = std::make_shared<detail::buffer_impl>(
         detail::ur::cast<ur_native_handle_t>(MockInteropBuffer),
         Q.get_context(),

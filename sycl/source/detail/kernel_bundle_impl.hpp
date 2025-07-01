@@ -52,7 +52,7 @@ inline bool checkAllDevicesAreInContext(devices_range Devices,
                                         const context &Context) {
   return std::all_of(Devices.begin(), Devices.end(),
                      [&Context](device_impl &Dev) {
-                       return getSyclObjImpl(Context)->isDeviceValid(Dev);
+                       return getSyclObjImpl(Context).isDeviceValid(Dev);
                      });
 }
 
@@ -74,7 +74,7 @@ CreateLinkGraph(const std::vector<device_image_plain> &DevImages) {
   // images collection.
   std::map<std::string_view, size_t> ExportMap;
   for (size_t I = 0; I < DevImages.size(); ++I) {
-    device_image_impl &DevImageImpl = *getSyclObjImpl(DevImages[I]);
+    device_image_impl &DevImageImpl = getSyclObjImpl(DevImages[I]);
     if (DevImageImpl.get_bin_image_ref() == nullptr)
       continue;
     for (const sycl_device_binary_property &ESProp :
@@ -91,7 +91,7 @@ CreateLinkGraph(const std::vector<device_image_plain> &DevImages) {
   std::vector<std::vector<size_t>> Dependencies;
   Dependencies.resize(DevImages.size());
   for (size_t I = 0; I < DevImages.size(); ++I) {
-    device_image_impl &DevImageImpl = *getSyclObjImpl(DevImages[I]);
+    device_image_impl &DevImageImpl = getSyclObjImpl(DevImages[I]);
     if (DevImageImpl.get_bin_image_ref() == nullptr)
       continue;
     std::set<size_t> DeviceImageDepsSet;
@@ -208,7 +208,7 @@ public:
       : MContext(InputBundle.get_context()),
         MDevices(Devs.to<std::vector<device_impl *>>()), MState(TargetState) {
 
-    kernel_bundle_impl &InputBundleImpl = *getSyclObjImpl(InputBundle);
+    kernel_bundle_impl &InputBundleImpl = getSyclObjImpl(InputBundle);
     MSpecConstValues = InputBundleImpl.get_spec_const_map_ref();
 
     devices_range InputBundleDevices = InputBundleImpl.get_devices();
@@ -231,7 +231,7 @@ public:
          InputBundleImpl.MDeviceImages) {
       // Skip images which are not compatible with devices provided
       if (none_of(get_devices(),
-                  [&MainImg = *getSyclObjImpl(DevImgWithDeps.getMain())](
+                  [&MainImg = getSyclObjImpl(DevImgWithDeps.getMain())](
                       device_impl &Dev) {
                     return MainImg.compatible_with_device(Dev);
                   }))
@@ -302,7 +302,7 @@ public:
               ObjectBundles.begin(), ObjectBundles.end(),
               [&Dev](const kernel_bundle<bundle_state::object> &KernelBundle) {
                 devices_range BundleDevices =
-                    getSyclObjImpl(KernelBundle)->get_devices();
+                    getSyclObjImpl(KernelBundle).get_devices();
                 return BundleDevices.contains(Dev);
               });
         });
@@ -323,12 +323,12 @@ public:
     for (const kernel_bundle<bundle_state::object> &ObjectBundle :
          ObjectBundles) {
       for (const DevImgPlainWithDeps &DeviceImageWithDeps :
-           getSyclObjImpl(ObjectBundle)->MDeviceImages) {
-        if (getSyclObjImpl(DeviceImageWithDeps.getMain())->getOriginMask() &
+           getSyclObjImpl(ObjectBundle).MDeviceImages) {
+        if (getSyclObjImpl(DeviceImageWithDeps.getMain()).getOriginMask() &
             ImageOriginSYCLOffline) {
           OfflineDeviceImages.push_back(&DeviceImageWithDeps);
           for (const device_image_plain &DevImg : DeviceImageWithDeps)
-            OfflineDeviceImageSet.insert(&*getSyclObjImpl(DevImg));
+            OfflineDeviceImageSet.insert(&getSyclObjImpl(DevImg));
         }
       }
     }
@@ -352,7 +352,7 @@ public:
         for (const kernel_bundle<bundle_state::object> &ObjectBundle :
              ObjectBundles) {
           detail::kernel_bundle_impl &ObjectBundleImpl =
-              *getSyclObjImpl(ObjectBundle);
+              getSyclObjImpl(ObjectBundle);
 
           // Firstly find all suitable AOT binaries, if the object bundle was
           // made from SYCLBIN.
@@ -437,7 +437,7 @@ public:
         for (const kernel_bundle<bundle_state::object> &ObjectBundle :
              ObjectBundles)
           for (device_image_impl &DevImg :
-               getSyclObjImpl(ObjectBundle)->device_images())
+               getSyclObjImpl(ObjectBundle).device_images())
             if (OfflineDeviceImageSet.find(&DevImg) ==
                 OfflineDeviceImageSet.end())
               DevImagesSet.insert(&DevImg);
@@ -463,7 +463,7 @@ public:
     for (auto &GraphIt : DevImageLinkGraphs) {
       device_impl &Dev = *GraphIt.first;
       GraphIt.second.Poison([&Dev](const device_image_plain &DevImg) {
-        return !getSyclObjImpl(DevImg)->compatible_with_device(Dev);
+        return !getSyclObjImpl(DevImg).compatible_with_device(Dev);
       });
     }
 
@@ -488,13 +488,13 @@ public:
             [](const device_image_plain &LHS, const device_image_plain &RHS) {
               // Sort by state: That leaves objects (JIT) at the beginning and
               // executables (AOT) at the end.
-              return getSyclObjImpl(LHS)->get_state() <
-                     getSyclObjImpl(RHS)->get_state();
+              return getSyclObjImpl(LHS).get_state() <
+                     getSyclObjImpl(RHS).get_state();
             });
         auto AOTImgsBegin =
             std::find_if(GraphImgs.begin(), GraphImgs.end(),
                          [](const device_image_plain &Img) {
-                           return getSyclObjImpl(Img)->get_state() ==
+                           return getSyclObjImpl(Img).get_state() ==
                                   bundle_state::executable;
                          });
         size_t NumJITImgs = std::distance(GraphImgs.begin(), AOTImgsBegin);
@@ -529,7 +529,7 @@ public:
     for (const DevImgPlainWithDeps *DeviceImageWithDeps : OfflineDeviceImages) {
       // Skip images which are not compatible with devices provided
       if (none_of(get_devices(),
-                  [&MainImg = *getSyclObjImpl(DeviceImageWithDeps->getMain())](
+                  [&MainImg = getSyclObjImpl(DeviceImageWithDeps->getMain())](
                       device_impl &Dev) {
                     return MainImg.compatible_with_device(Dev);
                   }))
@@ -549,7 +549,7 @@ public:
     populateDeviceGlobalsForSYCLBIN();
 
     for (const kernel_bundle<bundle_state::object> &Bundle : ObjectBundles) {
-      kernel_bundle_impl &BundleImpl = *getSyclObjImpl(Bundle);
+      kernel_bundle_impl &BundleImpl = getSyclObjImpl(Bundle);
       for (const auto &[Name, Values] : BundleImpl.MSpecConstValues) {
         MSpecConstValues[Name] = Values;
       }
@@ -667,7 +667,7 @@ public:
                      const std::string &Src, include_pairs_t IncludePairsVec,
                      private_tag)
       : MContext(Context), MDevices(getSyclObjImpl(Context)
-                                        ->getDevices()
+                                        .getDevices()
                                         .to<std::vector<device_impl *>>()),
         MDeviceImages{device_image_plain{device_image_impl::create(
             Src, MContext, MDevices, Lang, std::move(IncludePairsVec))}},
@@ -681,7 +681,7 @@ public:
   kernel_bundle_impl(const context &Context, syclex::source_language Lang,
                      const std::vector<std::byte> &Bytes, private_tag)
       : MContext(Context), MDevices(getSyclObjImpl(Context)
-                                        ->getDevices()
+                                        .getDevices()
                                         .to<std::vector<device_impl *>>()),
         MDeviceImages{device_image_plain{
             device_image_impl::create(Bytes, MContext, MDevices, Lang)}},
@@ -853,7 +853,7 @@ public:
   void *ext_oneapi_get_device_global_address(const std::string &Name,
                                              const device &Dev) const {
     DeviceGlobalMapEntry *Entry = getDeviceGlobalEntry(Name);
-    device_impl &DeviceImpl = *getSyclObjImpl(Dev);
+    device_impl &DeviceImpl = getSyclObjImpl(Dev);
 
     if (!get_devices().contains(DeviceImpl)) {
       throw sycl::exception(make_error_code(errc::invalid),
@@ -876,7 +876,7 @@ public:
     } else {
       queue InitQueue{MContext, Dev};
       auto &USMMem =
-          Entry->getOrAllocateDeviceGlobalUSM(*getSyclObjImpl(InitQueue));
+          Entry->getOrAllocateDeviceGlobalUSM(getSyclObjImpl(InitQueue));
       InitQueue.wait_and_throw();
       return USMMem.getPtr();
     }
@@ -1033,7 +1033,7 @@ public:
     for (DevImgPlainWithDeps &DevImgWithDeps : NewDevImgs)
       for (device_image_plain &DevImg : DevImgWithDeps)
         for (auto SpecConst : MSpecConstValues)
-          getSyclObjImpl(DevImg)->set_specialization_constant_raw_value(
+          getSyclObjImpl(DevImg).set_specialization_constant_raw_value(
               SpecConst.first.c_str(), SpecConst.second.data());
 
     // Add the images to the collection
@@ -1085,7 +1085,7 @@ public:
       if (!DeviceImageWithDeps.getMain().has_kernel(KernelID))
         continue;
 
-      const auto DeviceImageImpl = detail::getSyclObjImpl(DeviceImage);
+      const auto DeviceImageImpl = detail::getSyclObjImplPtr(DeviceImage);
       SpecConstsSet |= DeviceImageImpl->is_any_specialization_constant_set();
 
       // Remember current image in corresponding variable depending on whether
@@ -1128,7 +1128,7 @@ public:
             MContext, KernelID.get_name(), /*PropList=*/{}, UrProgram);
 
     return std::make_shared<kernel_impl>(
-        std::move(Kernel), *detail::getSyclObjImpl(MContext),
+        std::move(Kernel), detail::getSyclObjImpl(MContext),
         std::move(SelectedImage), *this, ArgMask, UrProgram, CacheMutex);
   }
 

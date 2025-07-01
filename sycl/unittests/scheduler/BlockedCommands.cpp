@@ -25,7 +25,7 @@ TEST_F(SchedulerTest, DISABLED_BlockedCommands) {
 
   sycl::unittest::UrMock<> Mock;
   sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
-  sycl::detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = detail::getSyclObjImpl(Q);
   MockCommand MockCmd(&QueueImpl);
 
   MockCmd.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
@@ -65,7 +65,7 @@ TEST_F(SchedulerTest, DISABLED_BlockedCommands) {
 TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
   sycl::unittest::UrMock<> Mock;
   sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
-  sycl::detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = detail::getSyclObjImpl(Q);
 
   MockCommand A(&QueueImpl);
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
@@ -116,7 +116,7 @@ TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
 TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
   sycl::unittest::UrMock<> Mock;
   sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
-  sycl::detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = detail::getSyclObjImpl(Q);
 
   MockCommand A(&QueueImpl);
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
@@ -163,7 +163,7 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
 TEST_F(SchedulerTest, EnqueueHostDependency) {
   sycl::unittest::UrMock<> Mock;
   sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
-  sycl::detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = detail::getSyclObjImpl(Q);
 
   MockCommand A(&QueueImpl);
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;

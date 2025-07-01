@@ -26,6 +26,7 @@ using namespace sycl;
 using namespace sycl::ext::oneapi;
 
 using sycl::detail::getSyclObjImpl;
+using sycl::detail::getSyclObjImplPtr;
 
 // Implement the test friend class forward declared in graph_impl.hpp so tests
 // can access private members to analyze internal optimizations (partitions,

@@ -258,7 +258,7 @@ struct hash<sycl::ext::oneapi::experimental::dynamic_parameter<ValueT>> {
   size_t
   operator()(const sycl::ext::oneapi::experimental::dynamic_parameter<ValueT>
                  &DynamicParam) const {
-    auto ID = sycl::detail::getSyclObjImpl(DynamicParam)->getID();
+    auto ID = sycl::detail::getSyclObjImpl(DynamicParam).getID();
     return std::hash<decltype(ID)>()(ID);
   }
 };
@@ -269,7 +269,7 @@ struct hash<sycl::ext::oneapi::experimental::dynamic_work_group_memory<
   size_t
   operator()(const sycl::ext::oneapi::experimental::dynamic_work_group_memory<
              DataT, PropertyListT> &DynWorkGroupMem) const {
-    auto ID = sycl::detail::getSyclObjImpl(DynWorkGroupMem)->getID();
+    auto ID = sycl::detail::getSyclObjImpl(DynWorkGroupMem).getID();
     return std::hash<decltype(ID)>()(ID);
   }
 };

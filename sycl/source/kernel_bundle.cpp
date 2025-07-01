@@ -286,7 +286,7 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
   std::set<kernel_id, LessByNameComp> CombinedKernelIDs;
   for (const DevImgPlainWithDeps &DeviceImageWithDeps : DeviceImagesWithDeps) {
     for (const device_image_plain &DeviceImage : DeviceImageWithDeps) {
-      device_image_impl &DeviceImageImpl = *getSyclObjImpl(DeviceImage);
+      device_image_impl &DeviceImageImpl = getSyclObjImpl(DeviceImage);
 
       CombinedKernelIDs.insert(DeviceImageImpl.get_kernel_ids().begin(),
                                DeviceImageImpl.get_kernel_ids().end());
@@ -379,7 +379,7 @@ std::vector<kernel_id> get_kernel_ids() {
 }
 
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
-  return detail::is_compatible(KernelIDs, *getSyclObjImpl(Dev));
+  return detail::is_compatible(KernelIDs, getSyclObjImpl(Dev));
 }
 
 /////////////////////////
@@ -448,7 +448,7 @@ bool is_source_kernel_bundle_supported(
   std::transform(Devices.begin(), Devices.end(),
                  std::back_inserter(DeviceImplVec),
                  [](const sycl::device &dev) {
-                   return &*sycl::detail::getSyclObjImpl(dev);
+                   return &sycl::detail::getSyclObjImpl(dev);
                  });
 
   return is_source_kernel_bundle_supported(Language, DeviceImplVec);
@@ -520,7 +520,7 @@ obj_kb compile_from_source(
     LogPtr = &Log;
   std::vector<device> UniqueDevices =
       sycl::detail::removeDuplicateDevices(Devices);
-  kernel_bundle_impl &sourceImpl = *getSyclObjImpl(SourceKB);
+  kernel_bundle_impl &sourceImpl = getSyclObjImpl(SourceKB);
   std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl.compile_from_source(
       UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
   auto result = sycl::detail::createSyclObjFromImpl<obj_kb>(KBImpl);
@@ -544,7 +544,7 @@ exe_kb build_from_source(
     LogPtr = &Log;
   std::vector<device> UniqueDevices =
       sycl::detail::removeDuplicateDevices(Devices);
-  kernel_bundle_impl &sourceImpl = *getSyclObjImpl(SourceKB);
+  kernel_bundle_impl &sourceImpl = getSyclObjImpl(SourceKB);
   std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl.build_from_source(
       UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
   auto result = sycl::detail::createSyclObjFromImpl<exe_kb>(std::move(KBImpl));

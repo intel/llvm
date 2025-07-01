@@ -949,16 +949,15 @@ public:
             detail::convertToArrayOfN<3, 1>(
                 detail::GetZeroDimAccessRange(BufferRef)),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            getAdjustedMode(PropertyList),
-            detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
-            IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
-            PropertyList) {
+            getAdjustedMode(PropertyList), &detail::getSyclObjImpl(BufferRef),
+            AdjustedDim, sizeof(DataT), IsPlaceH, BufferRef.OffsetInBytes,
+            BufferRef.IsSubBuffer, PropertyList) {
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
+    detail::constructorNotification(&detail::getSyclObjImpl(BufferRef),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -990,16 +989,15 @@ public:
             detail::convertToArrayOfN<3, 1>(
                 detail::GetZeroDimAccessRange(BufferRef)),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            getAdjustedMode(PropertyList),
-            detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
-            IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
-            PropertyList) {
+            getAdjustedMode(PropertyList), &detail::getSyclObjImpl(BufferRef),
+            AdjustedDim, sizeof(DataT), IsPlaceH, BufferRef.OffsetInBytes,
+            BufferRef.IsSubBuffer, PropertyList) {
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
+    detail::constructorNotification(&detail::getSyclObjImpl(BufferRef),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -1028,14 +1026,14 @@ public:
             detail::convertToArrayOfN<3, 1>(
                 detail::GetZeroDimAccessRange(BufferRef)),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            getAdjustedMode(PropertyList),
-            detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+            getAdjustedMode(PropertyList), &detail::getSyclObjImpl(BufferRef),
+            Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
+            BufferRef.IsSubBuffer, PropertyList) {
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
+    detail::constructorNotification(&detail::getSyclObjImpl(BufferRef),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -1066,14 +1064,14 @@ public:
             detail::convertToArrayOfN<3, 1>(
                 detail::GetZeroDimAccessRange(BufferRef)),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            getAdjustedMode(PropertyList),
-            detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+            getAdjustedMode(PropertyList), &detail::getSyclObjImpl(BufferRef),
+            Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
+            BufferRef.IsSubBuffer, PropertyList) {
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
+    detail::constructorNotification(&detail::getSyclObjImpl(BufferRef),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -1099,16 +1097,15 @@ public:
             /*Offset=*/{0, 0, 0},
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            getAdjustedMode(PropertyList),
-            detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
-            PropertyList) {
+            getAdjustedMode(PropertyList), &detail::getSyclObjImpl(BufferRef),
+            Dimensions, sizeof(DataT), IsPlaceH, BufferRef.OffsetInBytes,
+            BufferRef.IsSubBuffer, PropertyList) {
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
+    detail::constructorNotification(&detail::getSyclObjImpl(BufferRef),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -1136,16 +1133,15 @@ public:
             /*Offset=*/{0, 0, 0},
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            getAdjustedMode(PropertyList),
-            detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
-            PropertyList) {
+            getAdjustedMode(PropertyList), &detail::getSyclObjImpl(BufferRef),
+            Dimensions, sizeof(DataT), IsPlaceH, BufferRef.OffsetInBytes,
+            BufferRef.IsSubBuffer, PropertyList) {
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
+    detail::constructorNotification(&detail::getSyclObjImpl(BufferRef),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -1201,14 +1197,14 @@ public:
             /*Offset=*/{0, 0, 0},
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            getAdjustedMode(PropertyList),
-            detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+            getAdjustedMode(PropertyList), &detail::getSyclObjImpl(BufferRef),
+            Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
+            BufferRef.IsSubBuffer, PropertyList) {
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
+    detail::constructorNotification(&detail::getSyclObjImpl(BufferRef),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -1237,14 +1233,14 @@ public:
             /*Offset=*/{0, 0, 0},
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            getAdjustedMode(PropertyList),
-            detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+            getAdjustedMode(PropertyList), &detail::getSyclObjImpl(BufferRef),
+            Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
+            BufferRef.IsSubBuffer, PropertyList) {
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
+    detail::constructorNotification(&detail::getSyclObjImpl(BufferRef),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -1414,7 +1410,7 @@ public:
                          detail::convertToArrayOfN<3, 1>(AccessRange),
                          detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
                          getAdjustedMode(PropertyList),
-                         detail::getSyclObjImpl(BufferRef).get(), Dimensions,
+                         &detail::getSyclObjImpl(BufferRef), Dimensions,
                          sizeof(DataT), IsPlaceH, BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
     throwIfUsedByGraph();
@@ -1428,7 +1424,7 @@ public:
                             "exceed the bounds of the buffer");
 
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
+    detail::constructorNotification(&detail::getSyclObjImpl(BufferRef),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -1457,7 +1453,7 @@ public:
                          detail::convertToArrayOfN<3, 1>(AccessRange),
                          detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
                          getAdjustedMode(PropertyList),
-                         detail::getSyclObjImpl(BufferRef).get(), Dimensions,
+                         &detail::getSyclObjImpl(BufferRef), Dimensions,
                          sizeof(DataT), IsPlaceH, BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
     throwIfUsedByGraph();
@@ -1471,7 +1467,7 @@ public:
                             "exceed the bounds of the buffer");
 
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
+    detail::constructorNotification(&detail::getSyclObjImpl(BufferRef),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -1529,7 +1525,7 @@ public:
                          detail::convertToArrayOfN<3, 1>(AccessRange),
                          detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
                          getAdjustedMode(PropertyList),
-                         detail::getSyclObjImpl(BufferRef).get(), Dimensions,
+                         &detail::getSyclObjImpl(BufferRef), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
     throwIfUsedByGraph();
@@ -1542,7 +1538,7 @@ public:
 
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
+    detail::constructorNotification(&detail::getSyclObjImpl(BufferRef),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -1572,7 +1568,7 @@ public:
                          detail::convertToArrayOfN<3, 1>(AccessRange),
                          detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
                          getAdjustedMode(PropertyList),
-                         detail::getSyclObjImpl(BufferRef).get(), Dimensions,
+                         &detail::getSyclObjImpl(BufferRef), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
     throwIfUsedByGraph();
@@ -1585,7 +1581,7 @@ public:
 
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
+    detail::constructorNotification(&detail::getSyclObjImpl(BufferRef),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();

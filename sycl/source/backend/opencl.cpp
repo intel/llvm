@@ -33,7 +33,7 @@ __SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
   }
 
   std::string ExtensionsString = urGetInfoString<UrApiKind::urPlatformGetInfo>(
-      *getSyclObjImpl(SyclPlatform), UR_PLATFORM_INFO_EXTENSIONS);
+      getSyclObjImpl(SyclPlatform), UR_PLATFORM_INFO_EXTENSIONS);
 
   return ExtensionsString.find(std::string_view{Extension}) !=
          std::string::npos;
@@ -48,7 +48,7 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
   }
 
   std::string ExtensionsString = urGetInfoString<UrApiKind::urDeviceGetInfo>(
-      *getSyclObjImpl(SyclDevice), UR_DEVICE_INFO_EXTENSIONS);
+      getSyclObjImpl(SyclDevice), UR_DEVICE_INFO_EXTENSIONS);
 
   return ExtensionsString.find(std::string_view{Extension}) !=
          std::string::npos;
