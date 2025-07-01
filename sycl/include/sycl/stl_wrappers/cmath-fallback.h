@@ -423,20 +423,20 @@ using ::erf;
 using ::erfc;
 using ::erfcf;
 using ::erff;
-using ::tgamma;
-using ::tgammaf;
 using ::lgamma;
 using ::lgammaf;
+using ::tgamma;
+using ::tgammaf;
 
 // Nearest integer floating-point operations
 using ::ceil;
 using ::ceilf;
 using ::floor;
 using ::floorf;
-using ::trunc;
-using ::truncf;
 using ::round;
 using ::roundf;
+using ::trunc;
+using ::truncf;
 // using ::lround;
 // using ::llround;
 using ::rint;
@@ -452,20 +452,20 @@ using ::nearbyintf;
 // Floating-point manipulation functions
 using ::frexp;
 using ::frexpf;
+using ::ilogb;
+using ::ilogbf;
 using ::ldexp;
 using ::ldexpf;
+using ::logb;
+using ::logbf;
 using ::modf;
 using ::modff;
+using ::nextafter;
+using ::nextafterf;
 using ::scalbln;
 using ::scalblnf;
 using ::scalbn;
 using ::scalbnf;
-using ::ilogb;
-using ::ilogbf;
-using ::logb;
-using ::logbf;
-using ::nextafter;
-using ::nextafterf;
 // using ::nextforward
 // using ::nextforwardf
 using ::copysign;
