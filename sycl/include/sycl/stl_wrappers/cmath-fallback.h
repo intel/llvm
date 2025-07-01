@@ -9,18 +9,37 @@
 #ifndef __CMATH_FALLBACK_H__
 #define __CMATH_FALLBACK_H__
 
+// This header defines device-side overloads of <cmath> functions based on
+// their equivalent __spirv_ built-ins.
+
 #ifdef __SYCL_DEVICE_ONLY__
 
+// The 'sycl_device_only' attribute enables device-side overloading.
 #define __DPCPP_SYCL_DEVICE __attribute__((sycl_device_only, always_inline))
 #define __DPCPP_SYCL_DEVICE_C                                                  \
   extern "C" __attribute__((sycl_device_only, always_inline))
 
+// For each math built-in we need to define float and double overloads, an
+// extern "C" float variant with the 'f' suffix, and a version that promotes to
+// double if any floating-point parameter passed is an integer.
+//
+// TODO: Consider targets that don't have double support
+// TODO: Enable long double support where possible
+//
+// The following two macros provide an easy way to define these overloads for
+// basic built-ins with one or two floating-point parameters.
 #define __DPCPP_SPIRV_MAP_UNARY(NAME)                                          \
   __DPCPP_SYCL_DEVICE_C float NAME##f(float x) {                               \
     return __spirv_ocl_##NAME(x);                                              \
   }                                                                            \
   __DPCPP_SYCL_DEVICE float NAME(float x) { return __spirv_ocl_##NAME(x); }    \
-  __DPCPP_SYCL_DEVICE double NAME(double x) { return __spirv_ocl_##NAME(x); }
+  __DPCPP_SYCL_DEVICE double NAME(double x) { return __spirv_ocl_##NAME(x); }  \
+  template <typename T>                                                        \
+  __DPCPP_SYCL_DEVICE                                                          \
+      typename std::enable_if<std::is_integral<T>::value, double>::type        \
+      NAME(T x) {                                                              \
+    return __spirv_ocl_##NAME((double)x);                                      \
+  }
 
 #define __DPCPP_SPIRV_MAP_BINARY(NAME)                                         \
   __DPCPP_SYCL_DEVICE_C float NAME##f(float x, float y) {                      \
@@ -31,118 +50,45 @@
   }                                                                            \
   __DPCPP_SYCL_DEVICE double NAME(double x, double y) {                        \
     return __spirv_ocl_##NAME(x, y);                                           \
+  }                                                                            \
+  template <typename T, typename U>                                            \
+  __DPCPP_SYCL_DEVICE typename std::enable_if<                                 \
+      std::is_integral<T>::value || std::is_integral<U>::value, double>::type  \
+  NAME(T x, U y) {                                                             \
+    return __spirv_ocl_##NAME((double)x, (double)y);                           \
   }
+
+/// <cstdlib>
+// FIXME: Move this to a cstdlib fallback header
+
+__DPCPP_SYCL_DEVICE div_t div(int x, int y) { return {x / y, x % y}; }
+__DPCPP_SYCL_DEVICE ldiv_t ldiv(long x, long y) { return {x / y, x % y}; }
+__DPCPP_SYCL_DEVICE lldiv_t ldiv(long long x, long long y) {
+  return {x / y, x % y};
+}
 
 __DPCPP_SYCL_DEVICE long long abs(long long n) { return n < 0 ? -n : n; }
 __DPCPP_SYCL_DEVICE_C long long llabs(long long n) { return n < 0 ? -n : n; }
 __DPCPP_SYCL_DEVICE long abs(long n) { return n < 0 ? -n : n; }
 __DPCPP_SYCL_DEVICE int abs(int n) { return n < 0 ? -n : n; }
 __DPCPP_SYCL_DEVICE_C long labs(long n) { return n < 0 ? -n : n; }
+
+/// Basic operations
+//
+
 __DPCPP_SYCL_DEVICE float abs(float x) { return x < 0 ? -x : x; }
 __DPCPP_SYCL_DEVICE double abs(double x) { return x < 0 ? -x : x; }
 __DPCPP_SYCL_DEVICE float fabs(float x) { return x < 0 ? -x : x; }
 __DPCPP_SYCL_DEVICE_C float fabsf(float x) { return x < 0 ? -x : x; }
 __DPCPP_SYCL_DEVICE double fabs(double x) { return x < 0 ? -x : x; }
-
-__DPCPP_SPIRV_MAP_BINARY(copysign);
-__DPCPP_SPIRV_MAP_UNARY(acos);
-__DPCPP_SPIRV_MAP_UNARY(acosh);
-__DPCPP_SPIRV_MAP_UNARY(asin);
-__DPCPP_SPIRV_MAP_UNARY(asinh);
-
-__DPCPP_SYCL_DEVICE_C float scalbnf(float x, int exp) {
-  return __spirv_ocl_ldexp(x, exp);
-}
-__DPCPP_SYCL_DEVICE float scalbn(float x, int exp) {
-  return __spirv_ocl_ldexp(x, exp);
-}
-__DPCPP_SYCL_DEVICE double scalbn(double x, int exp) {
-  return __spirv_ocl_ldexp(x, exp);
+template <typename T>
+__DPCPP_SYCL_DEVICE
+    typename std::enable_if<std::is_integral<T>::value, double>::type
+    fabs(T x) {
+  return x < 0 ? -x : x;
 }
 
-__DPCPP_SYCL_DEVICE_C float scalblnf(float x, long int exp) {
-  return __spirv_ocl_ldexp(x, (int)exp);
-}
-__DPCPP_SYCL_DEVICE float scalbln(float x, long int exp) {
-  return __spirv_ocl_ldexp(x, (int)exp);
-}
-__DPCPP_SYCL_DEVICE double scalbln(double x, long int exp) {
-  return __spirv_ocl_ldexp(x, (int)exp);
-}
-
-__DPCPP_SPIRV_MAP_BINARY(atan2);
-__DPCPP_SPIRV_MAP_UNARY(atan);
-__DPCPP_SPIRV_MAP_UNARY(atanh);
-__DPCPP_SPIRV_MAP_UNARY(cbrt);
-__DPCPP_SPIRV_MAP_UNARY(ceil);
-__DPCPP_SPIRV_MAP_UNARY(cos);
-__DPCPP_SPIRV_MAP_UNARY(cosh);
-__DPCPP_SPIRV_MAP_UNARY(erfc);
-__DPCPP_SPIRV_MAP_UNARY(erf);
-__DPCPP_SPIRV_MAP_UNARY(exp2);
-__DPCPP_SPIRV_MAP_UNARY(exp);
-__DPCPP_SPIRV_MAP_UNARY(expm1);
-__DPCPP_SPIRV_MAP_BINARY(fdim);
-__DPCPP_SPIRV_MAP_UNARY(floor);
-
-__DPCPP_SYCL_DEVICE_C float fmaf(float x, float y, float z) {
-  return __spirv_ocl_fma(x, y, z);
-}
-__DPCPP_SYCL_DEVICE float fma(float x, float y, float z) {
-  return __spirv_ocl_fma(x, y, z);
-}
-__DPCPP_SYCL_DEVICE double fma(double x, double y, double z) {
-  return __spirv_ocl_fma(x, y, z);
-}
-
-__DPCPP_SPIRV_MAP_BINARY(fmax);
-__DPCPP_SPIRV_MAP_BINARY(fmin);
 __DPCPP_SPIRV_MAP_BINARY(fmod);
-
-__DPCPP_SYCL_DEVICE_C float frexpf(float x, int *exp) {
-  return __spirv_ocl_frexp(x, exp);
-}
-__DPCPP_SYCL_DEVICE float frexp(float x, int *exp) {
-  return __spirv_ocl_frexp(x, exp);
-}
-__DPCPP_SYCL_DEVICE double frexp(double x, int *exp) {
-  return __spirv_ocl_frexp(x, exp);
-}
-
-__DPCPP_SPIRV_MAP_BINARY(hypot);
-__DPCPP_SYCL_DEVICE_C int ilogbf(float x) { return __spirv_ocl_ilogb(x); }
-__DPCPP_SYCL_DEVICE int ilogb(float x) { return __spirv_ocl_ilogb(x); }
-__DPCPP_SYCL_DEVICE int ilogb(double x) { return __spirv_ocl_ilogb(x); }
-
-__DPCPP_SYCL_DEVICE_C float ldexpf(float x, int exp) {
-  return __spirv_ocl_ldexp(x, exp);
-}
-__DPCPP_SYCL_DEVICE float ldexp(float x, int exp) {
-  return __spirv_ocl_ldexp(x, exp);
-}
-__DPCPP_SYCL_DEVICE double ldexp(double x, int exp) {
-  return __spirv_ocl_ldexp(x, exp);
-}
-
-__DPCPP_SPIRV_MAP_UNARY(lgamma);
-__DPCPP_SPIRV_MAP_UNARY(log10);
-__DPCPP_SPIRV_MAP_UNARY(log1p);
-__DPCPP_SPIRV_MAP_UNARY(log2);
-__DPCPP_SPIRV_MAP_UNARY(logb);
-__DPCPP_SPIRV_MAP_UNARY(log);
-
-__DPCPP_SYCL_DEVICE_C float modff(float x, float *intpart) {
-  return __spirv_ocl_modf(x, intpart);
-}
-__DPCPP_SYCL_DEVICE float modf(float x, float *intpart) {
-  return __spirv_ocl_modf(x, intpart);
-}
-__DPCPP_SYCL_DEVICE double modf(double x, double *intpart) {
-  return __spirv_ocl_modf(x, intpart);
-}
-
-__DPCPP_SPIRV_MAP_BINARY(nextafter);
-__DPCPP_SPIRV_MAP_BINARY(pow);
 __DPCPP_SPIRV_MAP_BINARY(remainder);
 
 __DPCPP_SYCL_DEVICE_C float remquof(float x, float y, int *q) {
@@ -154,24 +100,96 @@ __DPCPP_SYCL_DEVICE float remquo(float x, float y, int *q) {
 __DPCPP_SYCL_DEVICE double remquo(double x, double y, int *q) {
   return __spirv_ocl_remquo(x, y, q);
 }
-__DPCPP_SPIRV_MAP_UNARY(rint);
-__DPCPP_SPIRV_MAP_UNARY(round);
-__DPCPP_SPIRV_MAP_UNARY(sin);
-__DPCPP_SPIRV_MAP_UNARY(sinh);
-__DPCPP_SPIRV_MAP_UNARY(sqrt);
-__DPCPP_SPIRV_MAP_UNARY(tan);
-__DPCPP_SPIRV_MAP_UNARY(tanh);
-__DPCPP_SPIRV_MAP_UNARY(tgamma);
-__DPCPP_SPIRV_MAP_UNARY(trunc);
-
-__DPCPP_SYCL_DEVICE div_t div(int x, int y) { return {x / y, x % y}; }
-
-__DPCPP_SYCL_DEVICE ldiv_t ldiv(long x, long y) { return {x / y, x % y}; }
-
-__DPCPP_SYCL_DEVICE lldiv_t ldiv(long long x, long long y) {
-  return {x / y, x % y};
+template <typename T, typename U>
+__DPCPP_SYCL_DEVICE typename std::enable_if<
+    std::is_integral<T>::value || std::is_integral<U>::value, double>::type
+remquo(T x, U y, int *q) {
+  return __spirv_ocl_remquo((double)x, (double)y, q);
 }
 
+__DPCPP_SYCL_DEVICE_C float fmaf(float x, float y, float z) {
+  return __spirv_ocl_fma(x, y, z);
+}
+__DPCPP_SYCL_DEVICE float fma(float x, float y, float z) {
+  return __spirv_ocl_fma(x, y, z);
+}
+__DPCPP_SYCL_DEVICE double fma(double x, double y, double z) {
+  return __spirv_ocl_fma(x, y, z);
+}
+template <typename T, typename U, typename V>
+__DPCPP_SYCL_DEVICE typename std::enable_if<std::is_integral<T>::value ||
+                                                std::is_integral<U>::value ||
+                                                std::is_integral<V>::value,
+                                            double>::type
+fma(T x, U y, V z) {
+  return __spirv_ocl_fma((double)x, (double)y, (double)z);
+}
+
+__DPCPP_SPIRV_MAP_BINARY(fmax);
+__DPCPP_SPIRV_MAP_BINARY(fmin);
+__DPCPP_SPIRV_MAP_BINARY(fdim);
+// unsupported: nan
+
+/// Exponential functions
+//
+
+__DPCPP_SPIRV_MAP_UNARY(exp);
+__DPCPP_SPIRV_MAP_UNARY(exp2);
+__DPCPP_SPIRV_MAP_UNARY(expm1);
+__DPCPP_SPIRV_MAP_UNARY(log);
+__DPCPP_SPIRV_MAP_UNARY(log10);
+__DPCPP_SPIRV_MAP_UNARY(log2);
+__DPCPP_SPIRV_MAP_UNARY(log1p);
+
+/// Power functions
+//
+
+__DPCPP_SPIRV_MAP_BINARY(pow);
+__DPCPP_SPIRV_MAP_UNARY(sqrt);
+__DPCPP_SPIRV_MAP_UNARY(cbrt);
+__DPCPP_SPIRV_MAP_BINARY(hypot);
+
+/// Trigonometric functions
+//
+
+__DPCPP_SPIRV_MAP_UNARY(sin);
+__DPCPP_SPIRV_MAP_UNARY(cos);
+__DPCPP_SPIRV_MAP_UNARY(tan);
+__DPCPP_SPIRV_MAP_UNARY(asin);
+__DPCPP_SPIRV_MAP_UNARY(acos);
+__DPCPP_SPIRV_MAP_UNARY(atan);
+__DPCPP_SPIRV_MAP_BINARY(atan2);
+
+/// Hyperbolic functions
+//
+
+__DPCPP_SPIRV_MAP_UNARY(sinh);
+__DPCPP_SPIRV_MAP_UNARY(cosh);
+__DPCPP_SPIRV_MAP_UNARY(tanh);
+__DPCPP_SPIRV_MAP_UNARY(asinh);
+__DPCPP_SPIRV_MAP_UNARY(acosh);
+__DPCPP_SPIRV_MAP_UNARY(atanh);
+
+/// Error and gamma functions
+//
+
+__DPCPP_SPIRV_MAP_UNARY(erf);
+__DPCPP_SPIRV_MAP_UNARY(erfc);
+__DPCPP_SPIRV_MAP_UNARY(tgamma);
+__DPCPP_SPIRV_MAP_UNARY(lgamma);
+
+/// Nearest integer floating-point operations
+//
+
+__DPCPP_SPIRV_MAP_UNARY(ceil);
+__DPCPP_SPIRV_MAP_UNARY(floor);
+__DPCPP_SPIRV_MAP_UNARY(trunc);
+__DPCPP_SPIRV_MAP_UNARY(round);
+// unsupported: lround, llround (no spirv mapping)
+__DPCPP_SPIRV_MAP_UNARY(rint);
+// unsupported: lrint, llrint (no spirv mapping)
+
+// unsupported (partially, no spirv mapping): nearbyint
 #if defined(__NVPTX__)
 extern "C" SYCL_EXTERNAL float __nv_nearbyintf(float);
 extern "C" SYCL_EXTERNAL double __nv_nearbyint(double);
@@ -190,6 +208,123 @@ __DPCPP_SYCL_DEVICE double nearbyint(double x) {
 }
 #endif
 
+/// Floating-point manipulation functions
+//
+
+__DPCPP_SYCL_DEVICE_C float frexpf(float x, int *exp) {
+  return __spirv_ocl_frexp(x, exp);
+}
+__DPCPP_SYCL_DEVICE float frexp(float x, int *exp) {
+  return __spirv_ocl_frexp(x, exp);
+}
+__DPCPP_SYCL_DEVICE double frexp(double x, int *exp) {
+  return __spirv_ocl_frexp(x, exp);
+}
+template <typename T>
+__DPCPP_SYCL_DEVICE
+    typename std::enable_if<std::is_integral<T>::value, double>::type
+    frexp(T x, int *exp) {
+  return __spirv_ocl_frexp((double)x, exp);
+}
+
+__DPCPP_SYCL_DEVICE_C float ldexpf(float x, int exp) {
+  return __spirv_ocl_ldexp(x, exp);
+}
+__DPCPP_SYCL_DEVICE float ldexp(float x, int exp) {
+  return __spirv_ocl_ldexp(x, exp);
+}
+__DPCPP_SYCL_DEVICE double ldexp(double x, int exp) {
+  return __spirv_ocl_ldexp(x, exp);
+}
+template <typename T>
+__DPCPP_SYCL_DEVICE
+    typename std::enable_if<std::is_integral<T>::value, double>::type
+    ldexp(T x, int exp) {
+  return __spirv_ocl_ldexp((double)x, exp);
+}
+
+__DPCPP_SYCL_DEVICE_C float modff(float x, float *intpart) {
+  return __spirv_ocl_modf(x, intpart);
+}
+__DPCPP_SYCL_DEVICE float modf(float x, float *intpart) {
+  return __spirv_ocl_modf(x, intpart);
+}
+__DPCPP_SYCL_DEVICE double modf(double x, double *intpart) {
+  return __spirv_ocl_modf(x, intpart);
+}
+// modf only supports integer x when the intpart is double
+template <typename T>
+__DPCPP_SYCL_DEVICE
+    typename std::enable_if<std::is_integral<T>::value, double>::type
+    modf(T x, double *intpart) {
+  return __spirv_ocl_modf((double)x, intpart);
+}
+
+__DPCPP_SYCL_DEVICE_C float scalbnf(float x, int exp) {
+  return __spirv_ocl_ldexp(x, exp);
+}
+__DPCPP_SYCL_DEVICE float scalbn(float x, int exp) {
+  return __spirv_ocl_ldexp(x, exp);
+}
+__DPCPP_SYCL_DEVICE double scalbn(double x, int exp) {
+  return __spirv_ocl_ldexp(x, exp);
+}
+template <typename T>
+__DPCPP_SYCL_DEVICE
+    typename std::enable_if<std::is_integral<T>::value, double>::type
+    scalbn(T x, int exp) {
+  return __spirv_ocl_ldexp((double)x, exp);
+}
+
+__DPCPP_SYCL_DEVICE_C float scalblnf(float x, long exp) {
+  return __spirv_ocl_ldexp(x, (int)exp);
+}
+__DPCPP_SYCL_DEVICE float scalbln(float x, long exp) {
+  return __spirv_ocl_ldexp(x, (int)exp);
+}
+__DPCPP_SYCL_DEVICE double scalbln(double x, long exp) {
+  return __spirv_ocl_ldexp(x, (int)exp);
+}
+template <typename T>
+__DPCPP_SYCL_DEVICE
+    typename std::enable_if<std::is_integral<T>::value, double>::type
+    scalbln(T x, long exp) {
+  return __spirv_ocl_ldexp((double)x, (int)exp);
+}
+
+__DPCPP_SYCL_DEVICE_C int ilogbf(float x) { return __spirv_ocl_ilogb(x); }
+__DPCPP_SYCL_DEVICE int ilogb(float x) { return __spirv_ocl_ilogb(x); }
+__DPCPP_SYCL_DEVICE int ilogb(double x) { return __spirv_ocl_ilogb(x); }
+template <typename T, typename std::enable_if<std::is_integral<T>::value,
+                                              bool>::type = true>
+__DPCPP_SYCL_DEVICE double ilogb(T x) {
+  return __spirv_ocl_ilogb((double)x);
+}
+
+__DPCPP_SPIRV_MAP_UNARY(logb);
+__DPCPP_SPIRV_MAP_BINARY(nextafter);
+// unsupported: nextforward
+__DPCPP_SPIRV_MAP_BINARY(copysign);
+
+/// Classification and comparison
+//
+
+// unsupported: fpclassify
+// unsupported: isfinite
+// unsupported: isinf
+// unsupported: isnan
+// unsupported: isnormal
+// unsupported: signbit
+// unsupported: isgreater
+// unsupported: isgreaterequal
+// unsupported: isless
+// unsupported: islessequal
+// unsupported: islessgreated
+// unsupported: isunordered
+
+// Now drag all of the overloads we've just defined in the std namespace. For
+// the overloads to work properly we need to ensure our namespace matches
+// exactly the one of the system C++ library.
 #ifdef _LIBCPP_BEGIN_NAMESPACE_STD
 _LIBCPP_BEGIN_NAMESPACE_STD
 #else
@@ -199,68 +334,145 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
 #endif
 
-#if defined(__NVPTX__) || defined(__AMDGCN__)
-using ::nearbyint;
-using ::nearbyintf;
-#endif
-
-using ::abs;
-using ::acos;
-using ::acosf;
-using ::acosh;
-using ::acoshf;
-using ::asin;
-using ::asinf;
-using ::asinh;
-using ::asinhf;
-using ::atan;
-using ::atan2;
-using ::atan2f;
-using ::atanf;
-using ::atanh;
-using ::atanhf;
-using ::cbrt;
-using ::cbrtf;
-using ::ceil;
-using ::ceilf;
-using ::copysign;
-using ::copysignf;
-using ::cos;
-using ::cosf;
-using ::cosh;
-using ::coshf;
+// <cstdlib>
 using ::div;
-using ::erf;
-using ::erfc;
-using ::erfcf;
-using ::erff;
+using ::labs;
+using ::ldiv;
+using ::llabs;
+using ::lldiv;
+
+// Basic operations
+using ::abs;
+using ::fabs;
+using ::fabsf;
+using ::fdim;
+using ::fdimf;
+using ::fma;
+using ::fmaf;
+using ::fmax;
+using ::fmaxf;
+using ::fmin;
+using ::fminf;
+using ::fmod;
+using ::fmodf;
+using ::remainder;
+using ::remainderf;
+using ::remquo;
+using ::remquof;
+// using ::nan;
+// using ::nanf;
+
+// Exponential functions
 using ::exp;
 using ::exp2;
 using ::exp2f;
 using ::expf;
 using ::expm1;
 using ::expm1f;
-using ::fabs;
-using ::fabsf;
-using ::fdim;
-using ::fdimf;
-using ::floor;
-using ::floorf;
-using ::fmaf;
-using ::fmaxf;
-using ::fminf;
-using ::fmod;
-using ::fmodf;
-using ::labs;
-using ::ldiv;
-using ::llabs;
-using ::lldiv;
-// using ::fpclassify;
-using ::frexp;
+using ::log;
+using ::log10;
+using ::log10f;
+using ::log1p;
+using ::log1pf;
+using ::log2;
+using ::log2f;
+using ::logf;
+
+// Power functions
+using ::cbrt;
+using ::cbrtf;
 using ::hypot;
 using ::hypotf;
+using ::pow;
+using ::powf;
+using ::sqrt;
+using ::sqrtf;
+
+// Trigonometric functions
+using ::acos;
+using ::acosf;
+using ::asin;
+using ::asinf;
+using ::atan;
+using ::atan2;
+using ::atan2f;
+using ::atanf;
+using ::cos;
+using ::cosf;
+using ::sin;
+using ::sinf;
+using ::tan;
+using ::tanf;
+
+// Hyperbloic functions
+using ::acosh;
+using ::acoshf;
+using ::asinh;
+using ::asinhf;
+using ::atanh;
+using ::atanhf;
+using ::cosh;
+using ::coshf;
+using ::sinh;
+using ::sinhf;
+using ::tanh;
+using ::tanhf;
+
+// Error and gamma functions
+using ::erf;
+using ::erfc;
+using ::erfcf;
+using ::erff;
+using ::tgamma;
+using ::tgammaf;
+using ::lgamma;
+using ::lgammaf;
+
+// Nearest integer floating-point operations
+using ::ceil;
+using ::ceilf;
+using ::floor;
+using ::floorf;
+using ::trunc;
+using ::truncf;
+using ::round;
+using ::roundf;
+// using ::lround;
+// using ::llround;
+using ::rint;
+using ::rintf;
+// using ::lrint;
+// using ::llrint;
+
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+using ::nearbyint;
+using ::nearbyintf;
+#endif
+
+// Floating-point manipulation functions
+using ::frexp;
+using ::frexpf;
+using ::ldexp;
+using ::ldexpf;
+using ::modf;
+using ::modff;
+using ::scalbln;
+using ::scalblnf;
+using ::scalbn;
+using ::scalbnf;
 using ::ilogb;
 using ::ilogbf;
+using ::logb;
+using ::logbf;
+using ::nextafter;
+using ::nextafterf;
+// using ::nextforward
+// using ::nextforwardf
+using ::copysign;
+using ::copysignf;
+
+// Classification and comparison
+// using ::fpclassify;
 // using ::isfinite;
 // using ::isgreater;
 // using ::isgreaterequal;
@@ -271,62 +483,7 @@ using ::ilogbf;
 // using ::isnan;
 // using ::isnormal;
 // using ::isunordered;
-// using ::labs;
-using ::ldexp;
-using ::ldexpf;
-using ::lgamma;
-using ::lgammaf;
-// using ::llabs;
-// using ::llrint;
-using ::log;
-using ::log10;
-using ::log10f;
-using ::log1p;
-using ::log1pf;
-using ::log2;
-using ::log2f;
-using ::logb;
-using ::logbf;
-using ::logf;
-// using ::lrint;
-// using ::lround;
-// using ::llround;
-using ::modf;
-using ::modff;
-// using ::nan;
-// using ::nanf;
-// using ::nearbyint;
-using ::nextafter;
-using ::nextafterf;
-using ::pow;
-using ::powf;
-using ::remainder;
-using ::remainderf;
-using ::remquo;
-using ::remquof;
-using ::rint;
-using ::rintf;
-using ::round;
-using ::roundf;
-using ::scalbln;
-using ::scalblnf;
-using ::scalbn;
-using ::scalbnf;
 // using ::signbit;
-using ::sin;
-using ::sinf;
-using ::sinh;
-using ::sinhf;
-using ::sqrt;
-using ::sqrtf;
-using ::tan;
-using ::tanf;
-using ::tanh;
-using ::tanhf;
-using ::tgamma;
-using ::tgammaf;
-using ::trunc;
-using ::truncf;
 
 #ifdef _LIBCPP_END_NAMESPACE_STD
 _LIBCPP_END_NAMESPACE_STD
