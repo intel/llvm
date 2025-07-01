@@ -13,7 +13,7 @@
 class ProgramManagerExposed : public sycl::detail::ProgramManager {
 public:
   std::unordered_multimap<sycl::kernel_id,
-                          sycl::detail::RTDeviceBinaryImage *> &
+                          const sycl::detail::RTDeviceBinaryImage *> &
   getKernelID2BinImage() {
     return m_KernelIDs2BinImage;
   }
@@ -23,20 +23,20 @@ public:
     return m_KernelName2KernelIDs;
   }
 
-  std::unordered_map<sycl::detail::RTDeviceBinaryImage *,
+  std::unordered_map<const sycl::detail::RTDeviceBinaryImage *,
                      std::shared_ptr<std::vector<sycl::kernel_id>>> &
   getBinImage2KernelId() {
     return m_BinImg2KernelIDs;
   }
 
   std::unordered_multimap<sycl::detail::KernelNameStrT,
-                          sycl::detail::RTDeviceBinaryImage *> &
+                          const sycl::detail::RTDeviceBinaryImage *> &
   getServiceKernels() {
     return m_ServiceKernels;
   }
 
   std::unordered_multimap<sycl::detail::KernelNameStrT,
-                          sycl::detail::RTDeviceBinaryImage *> &
+                          const sycl::detail::RTDeviceBinaryImage *> &
   getExportedSymbolImages() {
     return m_ExportedSymbolImages;
   }
@@ -48,7 +48,7 @@ public:
   }
 
   std::unordered_map<std::string,
-                     std::set<sycl::detail::RTDeviceBinaryImage *>> &
+                     std::set<const sycl::detail::RTDeviceBinaryImage *>> &
   getVFSet2BinImage() {
     return m_VFSet2BinImage;
   }

@@ -1050,8 +1050,8 @@ void MemoryManager::memset_2d_usm(void *DstMem, queue_impl &Queue, size_t Pitch,
         sycl::make_error_code(errc::invalid),
         "NULL pointer argument in 2D memory memset operation.");
   MemoryManager::fill_2d_usm(DstMem, Queue, Pitch, Width, Height,
-                             {static_cast<unsigned char>(Value)}, DepEvents,
-                             OutEvent);
+                             {static_cast<unsigned char>(Value)},
+                             std::move(DepEvents), OutEvent);
 }
 
 static void
@@ -1145,13 +1145,13 @@ getOrBuildProgramForDeviceGlobal(queue_impl &Queue,
   // If there was no cached program, build one.
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
   ProgramManager &PM = ProgramManager::getInstance();
-  RTDeviceBinaryImage &Img = PM.getDeviceImage(
+  const RTDeviceBinaryImage &Img = PM.getDeviceImage(
       DeviceGlobalEntry->MImages, ContextImpl, *getSyclObjImpl(Device));
 
   device_image_plain DeviceImage =
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
   device_image_plain BuiltImage =
-      PM.build(std::move(DeviceImage), {Device}, {});
+      PM.build(std::move(DeviceImage), {std::move(Device)}, {});
   return getSyclObjImpl(BuiltImage)->get_ur_program_ref();
 }
 

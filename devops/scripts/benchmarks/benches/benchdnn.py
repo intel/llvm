@@ -72,6 +72,8 @@ class OneDnnBench(Suite):
             f"-S {self.src_dir}",
             f"-B {self.build_dir}",
             f"-DCMAKE_PREFIX_PATH={options.sycl}",
+            "-DCMAKE_CXX_COMPILER=clang++",
+            "-DCMAKE_C_COMPILER=clang",
             "-DCMAKE_BUILD_TYPE=Release",
             "-DCMAKE_CXX_COMPILER=clang++",
             "-DCMAKE_C_COMPILER=clang",
@@ -169,7 +171,7 @@ class OneDnnBenchmark(Benchmark):
         ]
 
     # example output:
-    # Output template: perf, %engine%,%-time%,%-ops%,%-MB%,%-pr
+    # Output template: perf,%engine%,%0time%,%-ops%,%-MB%,%-pr
     # perf,gpu,0.000000,0.000000,0.000000,0
     # perf,gpu,0.000000,0.000000,0.000000,0
     def _extract_time(self, output):
@@ -180,7 +182,7 @@ class OneDnnBenchmark(Benchmark):
             if line.startswith("Output template:"):
                 template = line.replace("Output template: ", "").strip().split(",")
                 try:
-                    idx_time = template.index("%-time%")
+                    idx_time = template.index("%0time%")
                 except ValueError:
                     return 0.0
                 continue

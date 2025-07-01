@@ -417,6 +417,7 @@
 ??0gpu_selector@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0gpu_selector@_V1@sycl@@QEAA@AEBV012@@Z
 ??0gpu_selector@_V1@sycl@@QEAA@XZ
+??0handler@_V1@sycl@@AEAA@$$QEAV?$unique_ptr@Vhandler_impl@detail@_V1@sycl@@U?$default_delete@Vhandler_impl@detail@_V1@sycl@@@std@@@std@@@Z
 ??0handler@_V1@sycl@@AEAA@V?$shared_ptr@Vgraph_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@@Z
 ??0handler@_V1@sycl@@AEAA@V?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@00_N@Z
 ??0handler@_V1@sycl@@AEAA@V?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@PEAVqueue_impl@detail@12@_N@Z
@@ -4180,6 +4181,7 @@
 ?get_kernel@kernel_bundle_plain@detail@_V1@sycl@@IEBA?AVkernel@34@AEBVkernel_id@34@@Z
 ?get_kernel_bundle@kernel@_V1@sycl@@QEBA?AV?$kernel_bundle@$01@23@XZ
 ?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBV?$vector@Vkernel_id@_V1@sycl@@V?$allocator@Vkernel_id@_V1@sycl@@@std@@@5@W4bundle_state@23@@Z
+?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBV?$span@D$0?0@23@W4bundle_state@23@@Z
 ?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@W4bundle_state@23@@Z
 ?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@W4bundle_state@23@AEBV?$function@$$A6A_NAEBV?$shared_ptr@Vdevice_image_impl@detail@_V1@sycl@@@std@@@Z@5@@Z
 ?get_kernel_id_impl@detail@_V1@sycl@@YA?AVkernel_id@23@Vstring_view@123@@Z
