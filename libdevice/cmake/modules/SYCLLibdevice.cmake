@@ -178,7 +178,7 @@ function(append_to_property list)
 endfunction()
 
 # Creates device libaries for all filetypes.
-# Adds bitcode library files additionally for each devicelib_arch target and
+# Adds bitcode library files additionally for each devicelib build arch and
 # adds the created file to an arch specific global property.
 #
 # Arguments:
@@ -671,7 +671,7 @@ endforeach()
 
 # Create one large bitcode file for the NVPTX and AMD targets.
 # Use all the files collected in the respective global properties.
-foreach(arch IN LISTS devicelib_arch)
+foreach(arch IN LISTS common_build_archs)
   get_property(BC_DEVICE_LIBS_${arch} GLOBAL PROPERTY BC_DEVICE_LIBS_${arch})
   # Link the bitcode files together.
   link_bc(TARGET device_lib_device_${arch}
