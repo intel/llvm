@@ -10,8 +10,8 @@
 
 // -- Test for linking two SYCLBIN kernel_bundle.
 
-// RUN: %clangxx --offload-new-driver -fsyclbin=input -fsycl-allow-device-image-dependencies %S/Inputs/exporting_function.cpp -o %t.export.syclbin
-// RUN: %clangxx --offload-new-driver -fsyclbin=input -fsycl-allow-device-image-dependencies %S/Inputs/importing_kernel.cpp -o %t.import.syclbin
+// RUN: %clangxx --offload-new-driver -fsyclbin=input -fsycl-allow-device-image-dependencies %{sycl_target_opts} %S/Inputs/exporting_function.cpp -o %t.export.syclbin
+// RUN: %clangxx --offload-new-driver -fsyclbin=input -fsycl-allow-device-image-dependencies %{sycl_target_opts} %S/Inputs/importing_kernel.cpp -o %t.import.syclbin
 // RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run}  %t.out %t.export.syclbin %t.import.syclbin
 
