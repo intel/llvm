@@ -145,7 +145,6 @@ math/sinh.cl
 math/sinpi.cl
 math/sqrt.cl
 math/rsqrt.cl
-math/tables.cl
 math/tan.cl
 math/tanh.cl
 math/tanpi.cl
