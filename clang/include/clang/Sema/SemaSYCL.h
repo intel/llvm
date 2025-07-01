@@ -353,7 +353,7 @@ public:
 
   bool isDeclAllowedInSYCLDeviceCode(const Decl *D);
   void checkSYCLDeviceVarDecl(VarDecl *Var);
-  void copySYCLKernelAttrs(CXXMethodDecl *CallOperator);
+  void copyDeviceKernelAttrs(CXXMethodDecl *CallOperator);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void SetSYCLKernelNames();
   void MarkDevices();

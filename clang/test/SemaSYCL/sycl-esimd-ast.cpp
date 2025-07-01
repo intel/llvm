@@ -14,7 +14,7 @@ int main() {
   deviceQueue.submit([&](sycl::handler &h) {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
     // CHECK:       SYCLSimdAttr {{.*}} Implicit
-    // CHECK-NEXT:  SYCLKernelAttr {{.*}} Implicit
+    // CHECK-NEXT:  DeviceKernelAttr {{.*}} Implicit
     // CHECK-NEXT:  AsmLabelAttr {{.*}} Implicit
     // CHECK-NEXT:  SYCLSimdAttr {{.*}}
     h.single_task<class test_kernel1>(
@@ -22,7 +22,7 @@ int main() {
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
     // CHECK:       SYCLSimdAttr {{.*}} Implicit
-    // CHECK-NEXT:  SYCLKernelAttr {{.*}} Implicit
+    // CHECK-NEXT:  DeviceKernelAttr {{.*}} Implicit
     // CHECK-NEXT:  AsmLabelAttr {{.*}} Implicit
     // CHECK-NEXT:  SYCLSimdAttr {{.*}}
     h.single_task<class test_kernel2>(
