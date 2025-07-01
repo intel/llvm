@@ -31,18 +31,18 @@ namespace {
 /// @param Q Queue to submit nodes to.
 void runKernels(queue Q) {
   auto NodeA = Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto NodeB = Q.submit([&](sycl::handler &cgh) {
     cgh.depends_on(NodeA);
-    cgh.single_task<TestKernel<>>([]() {});
+    cgh.single_task<TestKernel>([]() {});
   });
   auto NodeC = Q.submit([&](sycl::handler &cgh) {
     cgh.depends_on(NodeA);
-    cgh.single_task<TestKernel<>>([]() {});
+    cgh.single_task<TestKernel>([]() {});
   });
   auto NodeD = Q.submit([&](sycl::handler &cgh) {
     cgh.depends_on({NodeB, NodeC});
-    cgh.single_task<TestKernel<>>([]() {});
+    cgh.single_task<TestKernel>([]() {});
   });
 }
 
@@ -50,13 +50,13 @@ void runKernels(queue Q) {
 /// @param Q Queue to submit nodes to.
 void runKernelsInOrder(queue Q) {
   auto NodeA = Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto NodeB = Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto NodeC = Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto NodeD = Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 }
 
 /// Adds four kernels with diamond dependency to the Graph G
@@ -64,15 +64,15 @@ void runKernelsInOrder(queue Q) {
 void addKernels(
     experimental::command_graph<experimental::graph_state::modifiable> G) {
   auto NodeA = G.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto NodeB =
-      G.add([&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      G.add([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
             {experimental::property::node::depends_on(NodeA)});
   auto NodeC =
-      G.add([&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      G.add([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
             {experimental::property::node::depends_on(NodeA)});
   auto NodeD =
-      G.add([&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      G.add([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
             {experimental::property::node::depends_on(NodeB, NodeC)});
 }
 

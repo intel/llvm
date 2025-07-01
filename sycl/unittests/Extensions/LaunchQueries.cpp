@@ -13,7 +13,7 @@
 #include <detail/context_impl.hpp>
 
 namespace syclex = sycl::ext::oneapi::experimental;
-const auto KernelID = sycl::get_kernel_id<TestKernel<>>();
+const auto KernelID = sycl::get_kernel_id<TestKernel>();
 
 inline ur_result_t redefine_urKernelGetGroupInfo_Success(void *pParams) {
   auto params = reinterpret_cast<ur_kernel_get_group_info_params_t *>(pParams);

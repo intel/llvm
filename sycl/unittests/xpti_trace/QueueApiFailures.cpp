@@ -78,8 +78,7 @@ public:
       FileName, FunctionName, LineNumber, ColumnNumber};
   const sycl::detail::code_location ExtraTestCodeLocation = {
       FileName, ExtraFunctionName, ExtraLineNumber, ColumnNumber};
-  static constexpr size_t KernelSize = 1;
-  using TestKI = detail::KernelInfo<TestKernel<KernelSize>>;
+  using TestKI = detail::KernelInfo<TestKernel>;
 
   const std::string TestCodeLocationMessage = BuildCodeLocationMessage(
       FileName, FunctionName, LineNumber, ColumnNumber);
@@ -102,7 +101,7 @@ TEST_F(QueueApiFailures, QueueSubmit) {
   try {
     Q.submit(
         [&](handler &Cgh) {
-          Cgh.single_task<TestKernel<KernelSize>>([=]() {});
+          Cgh.single_task<TestKernel>([=]() {});
         },
         TestCodeLocation);
   } catch (sycl::exception &e) {
@@ -127,7 +126,7 @@ TEST_F(QueueApiFailures, QueueSingleTask) {
   sycl::queue Q;
   bool ExceptionCaught = false;
   try {
-    Q.single_task<TestKernel<KernelSize>>([=]() {}, TestCodeLocation);
+    Q.single_task<TestKernel>([=]() {}, TestCodeLocation);
   } catch (sycl::exception &e) {
     std::ignore = e;
     ExceptionCaught = true;
@@ -331,7 +330,7 @@ TEST_F(QueueApiFailures, QueueParallelFor) {
   bool ExceptionCaught = false;
   const int globalWIs{512};
   try {
-    Q.parallel_for<TestKernel<KernelSize>>(globalWIs, [=](sycl::id<1> idx) {});
+    Q.parallel_for<TestKernel>(globalWIs, [=](sycl::id<1> idx) {});
   } catch (sycl::exception &e) {
     std::ignore = e;
     ExceptionCaught = true;
@@ -363,7 +362,7 @@ TEST_F(QueueApiFailures, QueueHostTaskWaitFail) {
   event EventToDepend;
   try {
     EventToDepend =
-        Q.single_task<TestKernel<KernelSize>>([=]() {}, TestCodeLocation);
+        Q.single_task<TestKernel>([=]() {}, TestCodeLocation);
   } catch (sycl::exception &e) {
     std::ignore = e;
     ExceptionCaught = true;
@@ -404,7 +403,7 @@ TEST_F(QueueApiFailures, QueueHostTaskFail) {
     const std::string HostTaskExeptionStr = "Host task exception";
     try {
       EventToDepend =
-          Q.single_task<TestKernel<KernelSize>>([=]() {}, TestCodeLocation);
+          Q.single_task<TestKernel>([=]() {}, TestCodeLocation);
     } catch (sycl::exception &e) {
       std::ignore = e;
       ExceptionCaught = true;
@@ -488,7 +487,7 @@ TEST_F(QueueApiFailures, QueueKernelAsync) {
     Q.submit(
         [&](handler &Cgh) {
           Cgh.depends_on(EventToDepend);
-          Cgh.single_task<TestKernel<KernelSize>>([=]() {});
+          Cgh.single_task<TestKernel>([=]() {});
         },
         ExtraTestCodeLocation);
   } catch (sycl::exception &e) {
