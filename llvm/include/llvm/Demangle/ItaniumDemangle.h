@@ -1242,7 +1242,7 @@ public:
 
   template<typename Fn> void match(Fn F) const { F(Dimension); }
 
-  const Node *getDimension() const { return Dimension; } // INTEL
+  const Node *getDimension() const { return Dimension; }
 
   void printLeft(OutputBuffer &OB) const override {
     OB += "_Float";
@@ -2493,10 +2493,8 @@ public:
     if (Type.size() <= 3)
       OB += Type;
   }
-  std::string_view value() const { return Value; }
 
-  // Retrieves the string view of the integer value represented by this node.
-  const std::string_view &getValue() const { return Value; }
+  std::string_view value() const { return Value; }
 
   // Retrieves the string view of the type string of the integer value this node
   // represents.
