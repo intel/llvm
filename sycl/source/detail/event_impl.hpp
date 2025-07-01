@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/host_profiling_info.hpp>
@@ -27,15 +27,13 @@ class graph_impl;
 }
 class context;
 namespace detail {
-class Adapter;
+class adapter_impl;
 class context_impl;
-using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
-using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
 class event_impl;
 using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
-class event_impl : public std::enable_shared_from_this<event_impl> {
+class event_impl {
   struct private_tag {
     explicit private_tag() = default;
   };
@@ -174,9 +172,7 @@ public:
   void setHandle(const ur_event_handle_t &UREvent);
 
   /// Returns context that is associated with this event.
-  ///
-  /// \return a shared pointer to a valid context_impl.
-  const ContextImplPtr &getContextImpl();
+  context_impl &getContextImpl();
 
   /// \return the Adapter associated with the context of this event.
   /// Should be called when this is not a Host Event.
@@ -184,11 +180,9 @@ public:
 
   /// Associate event with the context.
   ///
-  /// Provided UrContext inside ContextImplPtr must be associated
+  /// Provided UrContext inside Context must be associated
   /// with the UrEvent object stored in this class
-  ///
-  /// @param Context is a shared pointer to an instance of valid context_impl.
-  void setContextImpl(const ContextImplPtr &Context);
+  void setContextImpl(context_impl &Context);
 
   /// Clear the event state
   void setStateIncomplete();
@@ -242,7 +236,7 @@ public:
   /// Performs a flush on the queue associated with this event if the user queue
   /// is different and the task associated with this event hasn't been submitted
   /// to the device yet.
-  void flushIfNeeded(const QueueImplPtr &UserQueue);
+  void flushIfNeeded(queue_impl *UserQueue);
 
   /// Cleans dependencies of this event_impl.
   void cleanupDependencyEvents();
@@ -262,7 +256,9 @@ public:
   ///
   /// @return shared_ptr to MWorkerQueue, please be aware it can be empty
   /// pointer
-  QueueImplPtr getWorkerQueue() { return MWorkerQueue.lock(); };
+  std::shared_ptr<sycl::detail::queue_impl> getWorkerQueue() {
+    return MWorkerQueue.lock();
+  };
 
   /// Sets worker queue for command.
   ///
@@ -289,7 +285,9 @@ public:
   /// @return Submission time for command associated with this event
   uint64_t getSubmissionTime();
 
-  QueueImplPtr getSubmittedQueue() const { return MSubmittedQueue.lock(); };
+  std::shared_ptr<sycl::detail::queue_impl> getSubmittedQueue() const {
+    return MSubmittedQueue.lock();
+  };
 
   /// Checks if this event is complete.
   ///
@@ -312,12 +310,6 @@ public:
   }
 
   bool isDefaultConstructed() const noexcept { return MIsDefaultConstructed; }
-
-  ContextImplPtr getContextImplPtr() {
-    if (MIsDefaultConstructed)
-      initContextIfNeeded();
-    return MContext;
-  }
 
   // Sets a sync point which is used when this event represents an enqueue to a
   // Command Buffer.
@@ -379,6 +371,9 @@ public:
     return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand;
   }
 
+  // Initializes the host profiling info for the event.
+  void initHostProfilingInfo();
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -392,7 +387,7 @@ protected:
   std::atomic<ur_event_handle_t> MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
-  ContextImplPtr MContext;
+  std::shared_ptr<context_impl> MContext;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;

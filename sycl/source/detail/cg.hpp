@@ -725,14 +725,10 @@ public:
   std::shared_ptr<detail::context_impl> MContext;
   std::vector<ArgDesc> MArgs;
 
-  CGHostTask(std::shared_ptr<HostTask> HostTask,
-             std::shared_ptr<detail::queue_impl> Queue,
-             std::shared_ptr<detail::context_impl> Context,
-             std::vector<ArgDesc> Args, CG::StorageInitHelper CGData,
-             CGType Type, detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MHostTask(std::move(HostTask)), MQueue(Queue), MContext(Context),
-        MArgs(std::move(Args)) {}
+  CGHostTask(std::shared_ptr<HostTask> HostTask, detail::queue_impl *Queue,
+             detail::context_impl *Context, std::vector<ArgDesc> Args,
+             CG::StorageInitHelper CGData, CGType Type,
+             detail::code_location loc = {});
 };
 
 } // namespace detail

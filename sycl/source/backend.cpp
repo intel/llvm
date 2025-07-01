@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "detail/adapter.hpp"
+#include "detail/adapter_impl.hpp"
 #include "detail/context_impl.hpp"
 #include "detail/event_impl.hpp"
 #include "detail/kernel_bundle_impl.hpp"
@@ -126,7 +126,7 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
   ur_device_handle_t UrDevice =
       Device ? getSyclObjImpl(*Device)->getHandleRef() : nullptr;
   const auto &Adapter = getAdapter(Backend);
-  const auto &ContextImpl = getSyclObjImpl(Context);
+  context_impl &ContextImpl = *getSyclObjImpl(Context);
 
   if (PropList.has_property<ext::intel::property::queue::compute_index>()) {
     throw sycl::exception(
@@ -156,7 +156,7 @@ __SYCL_EXPORT queue make_queue(ur_native_handle_t NativeHandle,
   ur_queue_handle_t UrQueue = nullptr;
 
   Adapter->call<UrApiKind::urQueueCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), UrDevice, &NativeProperties,
+      NativeHandle, ContextImpl.getHandleRef(), UrDevice, &NativeProperties,
       &UrQueue);
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<queue>(
@@ -301,12 +301,12 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   // do the same to user images, since they may contain references to undefined
   // symbols (e.g. when kernel_bundle is supposed to be joined with another).
   auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
-  auto DevImgImpl = std::make_shared<device_image_impl>(
-      nullptr, TargetContext, Devices, State, KernelIDs, UrProgram,
-      ImageOriginInterop);
+  auto DevImgImpl =
+      device_image_impl::create(nullptr, TargetContext, Devices, State,
+                                KernelIDs, UrProgram, ImageOriginInterop);
   device_image_plain DevImg{DevImgImpl};
 
-  return std::make_shared<kernel_bundle_impl>(TargetContext, Devices, DevImg);
+  return kernel_bundle_impl::create(TargetContext, Devices, DevImg);
 }
 
 // TODO: Unused. Remove when allowed.
@@ -323,7 +323,7 @@ kernel make_kernel(const context &TargetContext,
                    backend Backend) {
   const auto &Adapter = getAdapter(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
-  const auto &KernelBundleImpl = getSyclObjImpl(KernelBundle);
+  kernel_bundle_impl &KernelBundleImpl = *getSyclObjImpl(KernelBundle);
 
   // For Level-Zero expect exactly one device image in the bundle. This is
   // natural for interop kernel to get created out of a single native
@@ -334,7 +334,7 @@ kernel make_kernel(const context &TargetContext,
   //
   ur_program_handle_t UrProgram = nullptr;
   if (Backend == backend::ext_oneapi_level_zero) {
-    if (KernelBundleImpl->size() != 1)
+    if (KernelBundleImpl.size() != 1)
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::runtime),
           "make_kernel: kernel_bundle must have single program image " +
@@ -360,7 +360,7 @@ kernel make_kernel(const context &TargetContext,
 
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<kernel>(
-      std::make_shared<kernel_impl>(UrKernel, *ContextImpl, KernelBundleImpl));
+      std::make_shared<kernel_impl>(UrKernel, *ContextImpl, &KernelBundleImpl));
 }
 
 kernel make_kernel(ur_native_handle_t NativeHandle,
