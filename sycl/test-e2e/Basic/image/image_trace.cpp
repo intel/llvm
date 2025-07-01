@@ -16,15 +16,13 @@
 #include <sycl/accessor_image.hpp>
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/image.hpp>
 
 #include <iostream>
 #include <vector>
 
 #include "../../helpers.hpp"
 
-#include <sycl/accessor_image.hpp>
-#include <sycl/image.hpp>
-#include <sycl/properties/image_properties.hpp>
 
 int main() {
   const sycl::image_channel_order ChanOrder = sycl::image_channel_order::rgba;
