@@ -19,7 +19,8 @@ int main() {
   platform Platform = Device.get_info<info::device::platform>();
 
   // Initializing Level Zero driver is required if this test is linked
-  // statically with Level Zero loader, otherwise the driver will not be initialized.
+  // statically with Level Zero loader, otherwise the driver will not be
+  // initialized.
   ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
   if (result != ZE_RESULT_SUCCESS) {
     std::cout << "zeInit failed" << std::endl;

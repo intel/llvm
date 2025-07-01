@@ -62,7 +62,8 @@ std::vector<operation> old_ops;
 
 void init() {
   // Initializing Level Zero driver is required if this test is linked
-  // statically with Level Zero loader, otherwise the driver will not be initialized.
+  // statically with Level Zero loader, otherwise the driver will not be
+  // initialized.
   ze_result_t result = zeInit(0);
   assert(result == ZE_RESULT_SUCCESS);
 
