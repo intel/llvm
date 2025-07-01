@@ -1,5 +1,11 @@
 // REQUIRES: aspect-ext_intel_legacy_image, cpu
 //
+// This test ensures that the correct pitch is used for cases when
+// UR_MEM_FLAG_USE_HOST_POINTER is passed to the backend.
+// UR_MEM_FLAG_USE_HOST_POINTER is used for contexts where CPU virtual memory
+// is accessible on device, so restrict this test to CPU platforms, although
+// there may be other additional platforms that support this behavior.
+//
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=-1 %{run} %t.out | FileCheck %s
 //
@@ -50,8 +56,12 @@ int main() {
         sycl::float4 Data = Img1Acc.read(sycl::int2{Item[0], Item[1]});
         Img2Acc.write(sycl::int2{Item[0], Item[1]}, Data);
       });
-      // CHECK: urMemImageCreate({{.*}} .pImageFormat = {{.*}} UR_MEM_IMAGE_USE_HOST_POINTER {{.*}} ((struct ur_image_format_t){.channelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA, .channelType = UR_IMAGE_CHANNEL_TYPE_FLOAT}), .pImageDesc = {{.*}} ((struct ur_image_desc_t){.stype = UR_STRUCTURE_TYPE_IMAGE_DESC, .pNext = nullptr, .type = UR_MEM_TYPE_IMAGE2D, .width = 4, .height = 4, .depth = 1, .arraySize = 0, .rowPitch = 64, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0}), .pHost = {{.*}}, .phMem = {{.*}}) -> UR_RESULT_SUCCESS;
-      // CHECK: urMemImageCreate({{.*}} .pImageFormat = {{.*}} UR_MEM_IMAGE_USE_HOST_POINTER {{.*}} ((struct ur_image_format_t){.channelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA, .channelType = UR_IMAGE_CHANNEL_TYPE_FLOAT}), .pImageDesc = {{.*}} ((struct ur_image_desc_t){.stype = UR_STRUCTURE_TYPE_IMAGE_DESC, .pNext = nullptr, .type = UR_MEM_TYPE_IMAGE2D, .width = 4, .height = 4, .depth = 1, .arraySize = 0, .rowPitch = 64, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0}), {{.*}}) -> UR_RESULT_SUCCESS;
+      // CHECK: urMemImageCreate
+      // CHECK-SAME: UR_MEM_FLAG_USE_HOST_POINTER
+      // CHECK-SAME: .width = 4, .height = 4, .depth = 1, .arraySize = 0, .rowPitch = 64, .slicePitch = 256
+      // CHECK: urMemImageCreate
+      // CHECK-SAME: UR_MEM_FLAG_USE_HOST_POINTER
+      // CHECK-SAME: .width = 4, .height = 4, .depth = 1, .arraySize = 0, .rowPitch = 64, .slicePitch = 256
     });
   }
 
