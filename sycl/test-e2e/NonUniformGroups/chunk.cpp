@@ -11,7 +11,7 @@
 // REQUIRES: sg-32
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
+#include <sycl/ext/oneapi/experimental/chunk.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 
@@ -19,6 +19,12 @@ template <size_t PartitionSize> class TestKernel;
 
 template <size_t PartitionSize> void test() {
   sycl::queue Q;
+
+  if (!Q.get_device().has(sycl::aspect::ext_oneapi_chunk)) {
+    std::cout << "Device has no support for ext_oneapi_chunk aspect..."
+              << std::endl;
+    return;
+  }
 
   // Test for both the full sub-group size and a case with less work than a full
   // sub-group.
@@ -42,15 +48,15 @@ template <size_t PartitionSize> void test() {
             auto SG = item.get_sub_group();
             auto SGS = SG.get_local_linear_range();
 
-            auto Partition = syclex::get_fixed_size_group<PartitionSize>(SG);
+            auto ChunkGroup = syclex::chunked_partition<PartitionSize>(SG);
 
             bool Match = true;
-            Match &= (Partition.get_group_id() == (WI / PartitionSize));
-            Match &= (Partition.get_local_id() == (WI % PartitionSize));
-            Match &= (Partition.get_group_range() == (SGS / PartitionSize));
-            Match &= (Partition.get_local_range() == PartitionSize);
+            Match &= (ChunkGroup.get_group_id() == (WI / PartitionSize));
+            Match &= (ChunkGroup.get_local_id() == (WI % PartitionSize));
+            Match &= (ChunkGroup.get_group_range() == (SGS / PartitionSize));
+            Match &= (ChunkGroup.get_local_range() == PartitionSize);
             MatchAcc[WI] = Match;
-            LeaderAcc[WI] = Partition.leader();
+            LeaderAcc[WI] = ChunkGroup.leader();
           };
       CGH.parallel_for<TestKernel<PartitionSize>>(NDR, KernelFunc);
     });

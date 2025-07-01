@@ -8,10 +8,10 @@
 //
 // REQUIRES: cpu || gpu
 // REQUIRES: sg-32
-// REQUIRES: aspect-ext_oneapi_opportunistic_group
+// REQUIRES: aspect-ext_oneapi_fragment
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
+#include <sycl/ext/oneapi/experimental/fragment.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
 #include <vector>
@@ -68,7 +68,7 @@ int main() {
           // arbitrary group membership.
           if (OriginalLID == ArbitraryItem) {
             auto OpportunisticGroup =
-                syclex::this_kernel::get_opportunistic_group();
+                syclex::this_work_item::get_opportunistic_group();
 
             // This is trivial, but does test that group_barrier can be called.
             TmpAcc[WI] = 1;

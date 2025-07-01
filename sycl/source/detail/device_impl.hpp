@@ -1433,26 +1433,30 @@ public:
     CASE(ext_intel_esimd) {
       return get_info_impl_nocheck<UR_DEVICE_INFO_ESIMD_SUPPORT>().value_or(0);
     }
-    CASE(ext_oneapi_ballot_group) {
+    CASE(ext_oneapi_fragment) {
+      // check actual OpenCL extensions:
+      if (this->getBackend() == backend::opencl)
+        return has_extension("cl_khr_subgroup_non_uniform_vote") ||
+               has_extension("cl_khr_subgroup_ballot") ||
+               has_extension("cl_intel_spirv_subgroups");
+      // TODO: add corrcet checks for other backends
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||
-             (this->getBackend() == backend::opencl) ||
              (this->getBackend() == backend::ext_oneapi_cuda);
     }
-    CASE(ext_oneapi_fixed_size_group) {
+    CASE(ext_oneapi_chunk) {
+      // Check for Intel subgroups extension that provides block read/write
+      if (this->getBackend() == backend::opencl)
+        return has_extension("cl_intel_subgroups");
+      // TODO: add corrcet checks for other backends
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||
-             (this->getBackend() == backend::opencl) ||
              (this->getBackend() == backend::ext_oneapi_cuda);
     }
-    CASE(ext_oneapi_opportunistic_group) {
-      return (this->getBackend() == backend::ext_oneapi_level_zero) ||
-             (this->getBackend() == backend::opencl) ||
-             (this->getBackend() == backend::ext_oneapi_cuda);
-    }
-    CASE(ext_oneapi_tangle_group) {
-      // TODO: tangle_group is not currently supported for CUDA devices. Add
-      // when implemented.
-      return (this->getBackend() == backend::ext_oneapi_level_zero) ||
-             (this->getBackend() == backend::opencl);
+    CASE(ext_oneapi_tangle) {
+      // note: typically is available on newer GPUs - not on CPUs
+      if (this->getBackend() == backend::opencl)
+        return has_extension("cl_intel_subgroup_matrix_multiply_accumulate");
+      // TODO: add proper checks for other backends
+      return (this->getBackend() == backend::ext_oneapi_level_zero);
     }
     CASE(ext_intel_matrix) {
       using arch = sycl::ext::oneapi::experimental::architecture;

@@ -208,11 +208,11 @@
 // CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_prefetch.cpp
 // CHECK-NEXT: Matrix/joint_matrix_down_convert.cpp
 // CHECK-NEXT: Matrix/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: NonUniformGroups/ballot_group.cpp
-// CHECK-NEXT: NonUniformGroups/fixed_size_group.cpp
-// CHECK-NEXT: NonUniformGroups/opportunistic_group.cpp
-// CHECK-NEXT: NonUniformGroups/tangle_group.cpp
-// CHECK-NEXT: NonUniformGroups/tangle_group_algorithms.cpp
+// CHECK-NEXT: NonUniformGroups/chunk.cpp
+// CHECK-NEXT: NonUniformGroups/fragment.cpp
+// CHECK-NEXT: NonUniformGroups/opportunistic.cpp
+// CHECK-NEXT: NonUniformGroups/tangle.cpp
+// CHECK-NEXT: NonUniformGroups/tangle_algorithms.cpp
 // CHECK-NEXT: OptionalKernelFeatures/large-reqd-work-group-size.cpp
 // CHECK-NEXT: OptionalKernelFeatures/no-fp64-optimization-declared-aspects.cpp
 // CHECK-NEXT: Printf/char.cpp

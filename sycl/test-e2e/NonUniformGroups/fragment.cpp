@@ -1,16 +1,16 @@
-// RUN: %{build} -fno-sycl-early-optimizations -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
 // CPU AOT targets host isa, so we compile on the run system instead.
 // REQUIRES: opencl-aot
-// RUN: %if any-device-is-cpu && opencl-aot %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fno-sycl-early-optimizations -o %t.x86.out %s %}
+// RUN: %if any-device-is-cpu && opencl-aot %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s %}
 // RUN: %if cpu %{ %{run} %t.x86.out %}
 //
 // REQUIRES: cpu || gpu
-// UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED: hip
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/tangle_group.hpp>
+#include <sycl/ext/oneapi/experimental/fragment.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 
@@ -18,6 +18,12 @@ class TestKernel;
 
 int main() {
   sycl::queue Q;
+
+  if (!Q.get_device().has(sycl::aspect::ext_oneapi_fragment)) {
+    std::cout << "Device has no support for ext_oneapi_fragment aspect..."
+              << std::endl;
+    return 0;
+  }
 
   auto SGSizes = Q.get_device().get_info<sycl::info::device::sub_group_sizes>();
   if (std::find(SGSizes.begin(), SGSizes.end(), 32) == SGSizes.end()) {
@@ -43,32 +49,23 @@ int main() {
             auto WI = item.get_global_id();
             auto SG = item.get_sub_group();
 
-            // Split into odd and even work-items via control flow.
-            // Branches deliberately duplicated to test impact of optimizations.
-            // This only reliably works with optimizations disabled right now.
-            if (item.get_global_id() % 2 == 0) {
-              auto TangleGroup = syclex::get_tangle_group(SG);
+            // Split into odd and even work-items.
+            bool Predicate = WI % 2 == 0;
+            auto FragmentGroup = syclex::binary_partition(SG, Predicate);
 
-              bool Match = true;
-              Match &= (TangleGroup.get_group_id() == 0);
-              Match &= (TangleGroup.get_local_id() == SG.get_local_id() / 2);
-              Match &= (TangleGroup.get_group_range() == 1);
-              Match &= (TangleGroup.get_local_range() ==
-                        SG.get_local_linear_range() / 2);
-              MatchAcc[WI] = Match;
-              LeaderAcc[WI] = TangleGroup.leader();
-            } else {
-              auto TangleGroup = syclex::get_tangle_group(SG);
-
-              bool Match = true;
-              Match &= (TangleGroup.get_group_id() == 0);
-              Match &= (TangleGroup.get_local_id() == SG.get_local_id() / 2);
-              Match &= (TangleGroup.get_group_range() == 1);
-              Match &= (TangleGroup.get_local_range() ==
-                        SG.get_local_linear_range() / 2);
-              MatchAcc[WI] = Match;
-              LeaderAcc[WI] = TangleGroup.leader();
-            }
+            // Check function return values match Predicate.
+            // NB: Test currently uses exactly one sub-group, but we use SG
+            //     below in case this changes in future.
+            bool Match = true;
+            auto GroupID = (Predicate) ? 1 : 0;
+            auto LocalID = SG.get_local_id() / 2;
+            Match &= (FragmentGroup.get_group_id() == GroupID);
+            Match &= (FragmentGroup.get_local_id() == LocalID);
+            Match &= (FragmentGroup.get_group_range() == 2);
+            Match &= (FragmentGroup.get_local_range() ==
+                      SG.get_local_linear_range() / 2);
+            MatchAcc[WI] = Match;
+            LeaderAcc[WI] = FragmentGroup.leader();
           };
       CGH.parallel_for<TestKernel>(NDR, KernelFunc);
     });
@@ -80,5 +77,6 @@ int main() {
       assert(LeaderAcc[WI] == (WI < 2));
     }
   }
+
   return 0;
 }
