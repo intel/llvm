@@ -2454,8 +2454,11 @@ ProgramManager::tryGetDeviceGlobalEntry(const std::string &UniqueId,
 std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
     const std::vector<std::string> &UniqueIds,
     bool ExcludeDeviceImageScopeDecorated) {
-  return m_DeviceGlobals.getEntries(UniqueIds,
-                                    ExcludeDeviceImageScopeDecorated);
+  std::vector<DeviceGlobalMapEntry *> FoundEntries;
+  FoundEntries.reserve(UniqueIds.size());
+  m_DeviceGlobals.getEntries(UniqueIds, ExcludeDeviceImageScopeDecorated,
+                             FoundEntries);
+  return FoundEntries;
 }
 
 void ProgramManager::addOrInitHostPipeEntry(const void *HostPipePtr,
@@ -3038,6 +3041,10 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
   std::unique_ptr<DynRTDeviceBinaryImage> MergedImageStorage;
   const RTDeviceBinaryImage *NewBinImg = mergeImageData(
       Imgs, *KernelIDs, NewSpecConstBlob, NewSpecConstMap, MergedImageStorage);
+
+  // With both the new program and the merged image data, initialize associated
+  // device_global variables.
+  ContextImpl.addDeviceGlobalInitializer(LinkedProg, Devs, NewBinImg);
 
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
