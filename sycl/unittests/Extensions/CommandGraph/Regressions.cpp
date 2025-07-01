@@ -39,19 +39,19 @@ TEST_F(CommandGraphTest, AccessorModeRegression) {
       auto AccA = BufferA.get_access<access_mode::read>(CGH);
       auto AccB = BufferB.get_access<access_mode::read>(CGH);
       auto AccC = BufferC.get_access<access_mode::write>(CGH);
-      CGH.single_task<TestKernel<>>([]() {});
+      CGH.single_task<TestKernel>([]() {});
     });
     auto EventB = Queue.submit([&](handler &CGH) {
       auto AccA = BufferA.get_access<access_mode::read>(CGH);
       auto AccB = BufferB.get_access<access_mode::read>(CGH);
       auto AccD = BufferD.get_access<access_mode::write>(CGH);
-      CGH.single_task<TestKernel<>>([]() {});
+      CGH.single_task<TestKernel>([]() {});
     });
     auto EventC = Queue.submit([&](handler &CGH) {
       auto AccA = BufferA.get_access<access_mode::read>(CGH);
       auto AccB = BufferB.get_access<access_mode::read>(CGH);
       auto AccE = BufferE.get_access<access_mode::write>(CGH);
-      CGH.single_task<TestKernel<>>([]() {});
+      CGH.single_task<TestKernel>([]() {});
     });
 
     ScopedGraph.end_recording(Queue);
@@ -74,7 +74,7 @@ TEST_F(CommandGraphTest, QueueRecordBarrierMultipleGraph) {
 
   Graph.begin_recording(Queue);
   auto NodeKernel = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Queue.ext_oneapi_submit_barrier({NodeKernel});
   Graph.end_recording(Queue);
 
@@ -82,7 +82,7 @@ TEST_F(CommandGraphTest, QueueRecordBarrierMultipleGraph) {
       Queue};
   GraphB.begin_recording(Queue);
   auto NodeKernelB = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Queue.ext_oneapi_submit_barrier({NodeKernelB});
   GraphB.end_recording(Queue);
 
@@ -90,7 +90,7 @@ TEST_F(CommandGraphTest, QueueRecordBarrierMultipleGraph) {
       Queue};
   GraphC.begin_recording(Queue);
   auto NodeKernelC = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Queue.ext_oneapi_submit_barrier();
   GraphC.end_recording(Queue);
 }

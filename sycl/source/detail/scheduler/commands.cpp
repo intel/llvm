@@ -2016,10 +2016,11 @@ void instrumentationAddExtraKernelMetadata(
     // NOTE: Queue can be null when kernel is directly enqueued to a command
     // buffer
     //       by graph API, when a modifiable graph is finalized.
+    assert(KernelNameBasedCachePtr);
     FastKernelCacheValPtr FastKernelCacheVal =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             Queue->getContextImpl(), Queue->getDeviceImpl(), KernelName,
-            KernelNameBasedCachePtr);
+            *KernelNameBasedCachePtr);
     EliminatedArgMask = FastKernelCacheVal->MKernelArgMask;
   }
 
@@ -2453,9 +2454,8 @@ static ur_result_t SetKernelParamsAndLaunch(
     applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
   }
 
-  std::optional<int> ImplicitLocalArg =
-      ProgramManager::getInstance().kernelImplicitLocalArgPos(
-          KernelName, KernelNameBasedCachePtr);
+  const std::optional<int> &ImplicitLocalArg =
+      KernelNameBasedCachePtr->getImplicitLocalArgPos();
   // Set the implicit local memory buffer to support
   // get_work_group_scratch_memory. This is for backend not supporting
   // CUDA-style local memory setting. Note that we may have -1 as a position,
@@ -2556,10 +2556,11 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
+    assert(CommandGroup.MKernelNameBasedCachePtr);
     FastKernelCacheValPtr FastKernelCacheVal =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName,
-            CommandGroup.MKernelNameBasedCachePtr);
+            *CommandGroup.MKernelNameBasedCachePtr);
     UrKernel = FastKernelCacheVal->MKernelHandle;
     EliminatedArgMask = FastKernelCacheVal->MKernelArgMask;
     // To keep UrKernel valid, we return FastKernelCacheValPtr.
@@ -2721,8 +2722,9 @@ void enqueueImpKernel(
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
     KernelMutex = SyclKernelImpl->getCacheMutex();
   } else {
+    assert(KernelNameBasedCachePtr);
     KernelCacheVal = detail::ProgramManager::getInstance().getOrCreateKernel(
-        ContextImpl, DeviceImpl, KernelName, KernelNameBasedCachePtr, NDRDesc);
+        ContextImpl, DeviceImpl, KernelName, *KernelNameBasedCachePtr, NDRDesc);
     Kernel = KernelCacheVal->MKernelHandle;
     KernelMutex = KernelCacheVal->MMutex;
     Program = KernelCacheVal->MProgramHandle;
@@ -3249,8 +3251,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       // Kernel only uses assert if it's non interop one
       bool KernelUsesAssert =
           (!SyclKernel || SyclKernel->hasSYCLMetadata()) &&
-          ProgramManager::getInstance().kernelUsesAssert(
-              KernelName, ExecKernel->MKernelNameBasedCachePtr);
+          ExecKernel->MKernelNameBasedCachePtr->usesAssert();
       if (KernelUsesAssert) {
         EventImpl = MEvent.get();
       }

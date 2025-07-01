@@ -100,7 +100,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
 
   event Ev2 = InOrderQueue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel<>>([] {});
+    CGH.single_task<TestKernel>([] {});
   });
 
   {
@@ -146,7 +146,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
 
   event Ev1 = InOrderQueue.memset(buf, 0, sizeof(buf[0]));
 
-  event Ev2 = InOrderQueue.single_task<TestKernel<>>([] {});
+  event Ev2 = InOrderQueue.single_task<TestKernel>([] {});
 
   {
     std::unique_lock<std::mutex> lk(CvMutex);

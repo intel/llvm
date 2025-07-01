@@ -70,7 +70,7 @@ TEST_F(LargeBufferSizeTest, MoreThan32bit) {
             Subbuffer1.get_access<sycl::access::mode::read>(cgh);
         auto SubbufferAcc2 =
             Subbuffer2.get_access<sycl::access::mode::read>(cgh);
-        cgh.single_task<TestKernel<1>>([=]() {});
+        cgh.single_task<TestKernel>([=]() {});
       })
       .wait();
 

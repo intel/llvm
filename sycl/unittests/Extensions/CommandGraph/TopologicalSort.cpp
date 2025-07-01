@@ -29,19 +29,19 @@ TEST_F(CommandGraphTest, CheckTopologicalSort) {
   size_t NumNodes = 7;
   experimental::command_graph Graph{Queue.get_context(), Dev};
   auto Node6 = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node3 = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node0 = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node1 = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node2 = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node5 = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node4 = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   Graph.make_edge(Node6, Node3);
   Graph.make_edge(Node6, Node0);
