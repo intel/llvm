@@ -31,8 +31,6 @@ class XPTIRegistry;
 class ThreadPool;
 class KernelNameBasedCacheT;
 
-using ContextImplPtr = std::shared_ptr<context_impl>;
-
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
 /// As user code can call SYCL Runtime functions from destructor of global
@@ -66,7 +64,7 @@ public:
 
   void clearPlatforms();
 
-  std::unordered_map<platform_impl *, ContextImplPtr> &
+  std::unordered_map<platform_impl *, std::shared_ptr<context_impl>> &
   getPlatformToDefaultContextCache();
 
   std::mutex &getPlatformToDefaultContextCacheMutex();
@@ -124,7 +122,8 @@ private:
   InstWithLock<ProgramManager> MProgramManager;
   InstWithLock<Sync> MSync;
   InstWithLock<std::vector<std::shared_ptr<platform_impl>>> MPlatformCache;
-  InstWithLock<std::unordered_map<platform_impl *, ContextImplPtr>>
+  InstWithLock<
+      std::unordered_map<platform_impl *, std::shared_ptr<context_impl>>>
       MPlatformToDefaultContextCache;
   InstWithLock<std::mutex> MPlatformToDefaultContextCacheMutex;
   InstWithLock<std::mutex> MPlatformMapMutex;

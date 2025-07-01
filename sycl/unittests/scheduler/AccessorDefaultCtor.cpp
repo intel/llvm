@@ -27,8 +27,7 @@ TEST_F(SchedulerTest, AccDefaultCtorDoesntAffectDepGraph) {
   sycl::accessor<int, 0, sycl::access::mode::read_write, sycl::target::device>
       B;
 
-  constexpr size_t KernelSize = sizeof(B);
-  MockCGH.single_task<class TestKernel<KernelSize>>([=]() {
+  MockCGH.single_task<class TestKernelWithAcc>([=]() {
     int size = B.size();
     (void)size;
   });

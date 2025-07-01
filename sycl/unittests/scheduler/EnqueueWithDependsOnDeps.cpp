@@ -73,7 +73,7 @@ protected:
               QueueDevImpl->get_context());
       auto ExecBundle = sycl::build(KernelBundle);
       MockCGH.use_kernel_bundle(ExecBundle);
-      MockCGH.single_task<TestKernel<>>([] {});
+      MockCGH.single_task<TestKernel>([] {});
     }
 
     std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
@@ -337,7 +337,7 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
 
   auto SingleTaskEvent = Queue.submit([&](sycl::handler &cgh) {
     cgh.depends_on(HostTaskEvent);
-    cgh.single_task<TestKernel<>>([] {});
+    cgh.single_task<TestKernel>([] {});
   });
   std::shared_ptr<detail::event_impl> SingleTaskEventImpl =
       detail::getSyclObjImpl(SingleTaskEvent);
@@ -383,7 +383,7 @@ TEST_F(DependsOnTests, BarrierWithWaitList) {
 
   auto SingleTaskEvent = Queue.submit([&](sycl::handler &cgh) {
     cgh.depends_on(HostTaskEvent);
-    cgh.single_task<TestKernel<>>([] {});
+    cgh.single_task<TestKernel>([] {});
   });
   std::shared_ptr<detail::event_impl> SingleTaskEventImpl =
       detail::getSyclObjImpl(SingleTaskEvent);

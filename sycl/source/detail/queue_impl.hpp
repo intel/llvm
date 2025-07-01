@@ -51,8 +51,6 @@ class node_impl;
 
 namespace detail {
 
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
-
 /// Sets max number of queues supported by FPGA RT.
 static constexpr size_t MaxNumQueues = 256;
 
@@ -289,7 +287,11 @@ public:
 
   const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
 
-  const ContextImplPtr &getContextImplPtr() const { return MContext; }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  const std::shared_ptr<context_impl> &getContextImplPtr() const {
+    return MContext;
+  }
+#endif
 
   context_impl &getContextImpl() const { return *MContext; }
 

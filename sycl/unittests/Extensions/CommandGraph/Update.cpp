@@ -13,7 +13,7 @@ using namespace sycl::ext::oneapi;
 
 TEST_F(CommandGraphTest, UpdatableException) {
   auto Node = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   auto ExecGraphUpdatable =
       Graph.finalize(experimental::property::graph::updatable{});
@@ -36,7 +36,7 @@ TEST_F(CommandGraphTest, DynamicObjRegister) {
     auto Node = OtherGraph.add([&](sycl::handler &cgh) {
       // This should not throw
       EXPECT_NO_THROW(cgh.set_arg(0, DynObj));
-      cgh.single_task<TestKernel<>>([]() {});
+      cgh.single_task<TestKernel>([]() {});
     });
   };
 
@@ -59,7 +59,7 @@ TEST_F(CommandGraphTest, UpdateNodeNotInGraph) {
   auto OtherGraph =
       experimental::command_graph(Queue.get_context(), Queue.get_device());
   auto OtherNode = OtherGraph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   auto ExecGraph = Graph.finalize(experimental::property::graph::updatable{});
   EXPECT_ANY_THROW(ExecGraph.update(OtherNode));
@@ -70,7 +70,7 @@ TEST_F(CommandGraphTest, UpdateWithUnchangedNode) {
   // parameters is not an error
 
   auto Node = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   auto ExecGraph = Graph.finalize(experimental::property::graph::updatable{});
   EXPECT_NO_THROW(ExecGraph.update(Node));
@@ -87,7 +87,7 @@ TEST_F(CommandGraphTest, UpdateNodeTypeExceptions) {
 
     ASSERT_NO_THROW(auto NodeKernel = Graph.add([&](sycl::handler &cgh) {
       cgh.set_arg(0, DynObj);
-      cgh.single_task<TestKernel<>>([]() {});
+      cgh.single_task<TestKernel>([]() {});
     }));
 
     ASSERT_ANY_THROW(auto NodeMemcpy = Graph.add([&](sycl::handler &cgh) {
@@ -161,7 +161,7 @@ TEST_F(CommandGraphTest, UpdateRangeErrors) {
   nd_range<1> NDRange{range{128}, range{32}};
   range<1> Range{128};
   auto NodeNDRange = Graph.add([&](sycl::handler &cgh) {
-    cgh.parallel_for<TestKernel<>>(NDRange, [](nd_item<1>) {});
+    cgh.parallel_for<TestKernel>(NDRange, [](nd_item<1>) {});
   });
 
   // OK
@@ -174,7 +174,7 @@ TEST_F(CommandGraphTest, UpdateRangeErrors) {
   EXPECT_ANY_THROW(NodeNDRange.update_range(range<3>{32, 32, 1}));
 
   auto NodeRange = Graph.add([&](sycl::handler &cgh) {
-    cgh.parallel_for<TestKernel<>>(range<1>{128}, [](item<1>) {});
+    cgh.parallel_for<TestKernel>(range<1>{128}, [](item<1>) {});
   });
 
   // OK
@@ -202,7 +202,7 @@ protected:
       UpdateGraph;
 
   std::function<void(::sycl::_V1::handler &)> EmptyKernel = [&](handler &CGH) {
-    CGH.parallel_for<TestKernel<>>(range<1>(Size), [=](item<1> Id) {});
+    CGH.parallel_for<TestKernel>(range<1>(Size), [=](item<1> Id) {});
   };
 };
 
@@ -441,7 +441,7 @@ TEST_F(CommandGraphTest, CheckFinalizeBehavior) {
   // Check that both finalize with and without updatable property work as
   // expected
   auto Node = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   mock::getCallbacks().set_after_callback(
       "urCommandBufferGetInfoExp", &redefinedCommandBufferGetInfoExpAfter);
   mock::getCallbacks().set_after_callback(
