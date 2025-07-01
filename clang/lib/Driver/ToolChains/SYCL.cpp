@@ -216,8 +216,8 @@ void SYCLInstallationDetector::addLibspirvLinkArgs(
 
   if (DriverArgs.hasArg(options::OPT_fno_sycl_libspirv)) {
     // -fno-sycl-libspirv flag is reserved for very unusual cases where the
-    // libspirv library is not linked when required by the device: so output appropriate
-    // warnings.
+    // libspirv library is not linked when required by the device: so output
+    // appropriate warnings.
     D.Diag(diag::warn_flag_no_sycl_libspirv) << DeviceTriple.str();
     return;
   }
