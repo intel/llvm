@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_manager/program_manager.hpp>

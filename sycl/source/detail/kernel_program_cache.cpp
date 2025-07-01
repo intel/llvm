@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/kernel_program_cache.hpp>
 

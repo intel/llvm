@@ -13,9 +13,22 @@
 
 #include "sanitizer_utils.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
-#include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {
+
+namespace {
+
+ur_usm_type_t GetUSMType(ur_context_handle_t Context, const void *MemPtr) {
+  ur_usm_type_t USMType = UR_USM_TYPE_UNKNOWN;
+  [[maybe_unused]] auto Result =
+      getContext()->urDdiTable.USM.pfnGetMemAllocInfo(
+          Context, MemPtr, UR_USM_ALLOC_INFO_TYPE, sizeof(USMType), &USMType,
+          nullptr);
+  assert(Result == UR_RESULT_SUCCESS);
+  return USMType;
+}
+
+} // namespace
 
 ManagedQueue::ManagedQueue(ur_context_handle_t Context,
                            ur_device_handle_t Device) {
@@ -124,14 +137,32 @@ std::string GetKernelName(ur_kernel_handle_t Kernel) {
   return std::string(KernelNameBuf.data(), KernelNameSize - 1);
 }
 
+bool IsUSM(ur_context_handle_t Context, const void *MemPtr) {
+  ur_usm_type_t USMType = GetUSMType(Context, MemPtr);
+  return USMType != UR_USM_TYPE_UNKNOWN;
+}
+
+bool IsHostUSM(ur_context_handle_t Context, const void *MemPtr) {
+  ur_usm_type_t USMType = GetUSMType(Context, MemPtr);
+  return USMType == UR_USM_TYPE_HOST;
+}
+
 ur_device_handle_t GetUSMAllocDevice(ur_context_handle_t Context,
                                      const void *MemPtr) {
+  assert(IsUSM(Context, MemPtr));
   ur_device_handle_t Device{};
-  // if urGetMemAllocInfo failed, return nullptr
   getContext()->urDdiTable.USM.pfnGetMemAllocInfo(
       Context, MemPtr, UR_USM_ALLOC_INFO_DEVICE, sizeof(Device), &Device,
       nullptr);
   return Device;
+}
+
+ur_device_handle_t GetUSMAllocDevice(ur_queue_handle_t Queue,
+                                     const void *MemPtr) {
+  ur_context_handle_t Context = GetContext(Queue);
+  assert(Context && IsUSM(Context, MemPtr));
+  return IsHostUSM(Context, MemPtr) ? GetDevice(Queue)
+                                    : GetUSMAllocDevice(Context, MemPtr);
 }
 
 DeviceType GetDeviceType(ur_context_handle_t Context,
@@ -247,14 +278,6 @@ size_t GetVirtualMemGranularity(ur_context_handle_t Context,
           sizeof(Size), &Size, nullptr);
   assert(Result == UR_RESULT_SUCCESS);
   return Size;
-}
-
-ur_result_t EnqueueUSMBlockingSet(ur_queue_handle_t Queue, void *Ptr,
-                                  char Value, size_t Size, uint32_t NumEvents,
-                                  const ur_event_handle_t *EventWaitList,
-                                  ur_event_handle_t *OutEvent) {
-  return getContext()->urDdiTable.Enqueue.pfnUSMFill(
-      Queue, Ptr, 1, &Value, Size, NumEvents, EventWaitList, OutEvent);
 }
 
 void PrintUrBuildLogIfError(ur_result_t Result, ur_program_handle_t Program,

@@ -166,41 +166,21 @@ ur_result_t ze2urImageFormat(const ze_image_format_t &ZeImageFormat,
   ur_image_channel_type_t ChannelType;
   switch (ZeImageFormat.type) {
   case ZE_IMAGE_FORMAT_TYPE_UINT:
-    switch (ZeImageFormatTypeSize) {
-    case 8:
+    if (ZeImageFormatTypeSize == 8) {
       ChannelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8;
-      break;
-    case 16:
+    } else if (ZeImageFormatTypeSize == 16) {
       ChannelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16;
-      break;
-    case 32:
+    } else if (ZeImageFormatTypeSize == 32) {
       ChannelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32;
-      break;
-    default:
-      UR_LOG(ERR,
-             "ze2urImageFormat: unexpected image format type size: size "
-             "= {}",
-             ZeImageFormatTypeSize);
-      return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
   case ZE_IMAGE_FORMAT_TYPE_SINT:
-    switch (ZeImageFormatTypeSize) {
-    case 8:
+    if (ZeImageFormatTypeSize == 8) {
       ChannelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8;
-      break;
-    case 16:
+    } else if (ZeImageFormatTypeSize == 16) {
       ChannelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16;
-      break;
-    case 32:
+    } else if (ZeImageFormatTypeSize == 32) {
       ChannelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32;
-      break;
-    default:
-      UR_LOG(ERR,
-             "ze2urImageFormat: unexpected image format type size: size "
-             "= {}",
-             ZeImageFormatTypeSize);
-      return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
   case ZE_IMAGE_FORMAT_TYPE_UNORM:

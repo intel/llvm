@@ -19,7 +19,7 @@ _CLC_DEF _CLC_OVERLOAD bool __spirv_IsFinite(double x) {
   return __nv_isfinited(x);
 }
 
-_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(schar, __spirv_IsFinite, double)
+_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(char, __spirv_IsFinite, double)
 
 #endif
 
@@ -27,7 +27,7 @@ _CLC_DEF _CLC_OVERLOAD bool __spirv_IsFinite(float x) {
   return __nv_isfinited(x);
 }
 
-_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(schar, __spirv_IsFinite, float)
+_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(char, __spirv_IsFinite, float)
 
 #ifdef cl_khr_fp16
 
@@ -37,6 +37,6 @@ _CLC_DEF _CLC_OVERLOAD bool __spirv_IsFinite(half x) {
   return __nv_isfinited(x);
 }
 
-_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(schar, __spirv_IsFinite, half)
+_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(char, __spirv_IsFinite, half)
 
 #endif

@@ -12,14 +12,11 @@
 #include "HIPUtility.h"
 #include "SPIRV.h"
 #include "clang/Basic/Cuda.h"
-#include "clang/Basic/TargetID.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
-#include "llvm/Support/Alignment.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/TargetParser/TargetParser.h"
@@ -82,9 +79,8 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
 
   auto &TC = getToolChain();
   auto &D = TC.getDriver();
-  assert(!Inputs.empty() && "Must have at least one input.");
   bool IsThinLTO = D.getOffloadLTOMode() == LTOK_Thin;
-  addLTOOptions(TC, Args, LldArgs, Output, Inputs[0], IsThinLTO);
+  addLTOOptions(TC, Args, LldArgs, Output, Inputs, IsThinLTO);
 
   // Extract all the -m options
   std::vector<llvm::StringRef> Features;
@@ -226,10 +222,6 @@ HIPAMDToolChain::HIPAMDToolChain(const Driver &D, const llvm::Triple &Triple,
   diagnoseUnsupportedSanitizers(Args);
 }
 
-static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
-  return "remangled-l64-signed_char.libspirv-amdgcn-amd-amdhsa.bc";
-}
-
 void HIPAMDToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
     Action::OffloadKind DeviceOffloadingKind) const {
@@ -278,53 +270,8 @@ void HIPAMDToolChain::addClangTargetOptions(
 
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
     SYCLInstallation.addSYCLIncludeArgs(DriverArgs, CC1Args);
-  }
-
-  auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||
-                    getDriver().offloadDeviceOnly();
-  if (DeviceOffloadingKind == Action::OFK_SYCL && !NoLibSpirv) {
-    std::string LibSpirvFile;
-
-    if (DriverArgs.hasArg(clang::driver::options::OPT_fsycl_libspirv_path_EQ)) {
-      auto ProvidedPath =
-          DriverArgs
-              .getLastArgValue(
-                  clang::driver::options::OPT_fsycl_libspirv_path_EQ)
-              .str();
-      if (llvm::sys::fs::exists(ProvidedPath))
-        LibSpirvFile = ProvidedPath;
-    } else {
-      SmallVector<StringRef, 8> LibraryPaths;
-
-      // Expected path w/out install.
-      SmallString<256> WithoutInstallPath(getDriver().ResourceDir);
-      llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
-      LibraryPaths.emplace_back(WithoutInstallPath.c_str());
-
-      // Expected path w/ install.
-      SmallString<256> WithInstallPath(getDriver().ResourceDir);
-      llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
-      LibraryPaths.emplace_back(WithInstallPath.c_str());
-
-      std::string LibSpirvTargetName = getLibSpirvTargetName(HostTC);
-      for (StringRef LibraryPath : LibraryPaths) {
-        SmallString<128> LibSpirvTargetFile(LibraryPath);
-        llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
-        if (llvm::sys::fs::exists(LibSpirvTargetFile)) {
-          LibSpirvFile = std::string(LibSpirvTargetFile.str());
-          break;
-        }
-      }
-    }
-
-    if (LibSpirvFile.empty()) {
-      getDriver().Diag(diag::err_drv_no_sycl_libspirv)
-          << getLibSpirvTargetName(HostTC);
-      return;
-    }
-
-    CC1Args.push_back("-mlink-builtin-bitcode");
-    CC1Args.push_back(DriverArgs.MakeArgString(LibSpirvFile));
+    SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
+                                         HostTC.getTriple(), CC1Args);
   }
 
   for (auto BCFile : getDeviceLibs(DriverArgs, DeviceOffloadingKind)) {
