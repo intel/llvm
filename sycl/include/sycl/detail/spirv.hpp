@@ -206,7 +206,7 @@ bool GroupAll(ext::oneapi::experimental::tangle<ParentGroup>, bool pred) {
 template <size_t ChunkSize, typename ParentGroup>
 bool GroupAll(ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>,
               bool pred) {
-  // Using reduction becaue the GroupNonUniformAll have no support of cluster
+  // Using reduction because the GroupNonUniformAll have no support of cluster
   // size
   return __spirv_GroupNonUniformBitwiseAnd(
       group_scope<ParentGroup>::value,
