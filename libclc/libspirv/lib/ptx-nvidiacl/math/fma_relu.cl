@@ -9,7 +9,9 @@
 #include <libspirv/spirv.h>
 
 #include <libspirv/ptx-nvidiacl/libdevice.h>
-#include <clc/clcmacro.h>
+
+#define FUNCTION __clc_fma_relu
+#define __CLC_SCALAR
 
 extern int __clc_nvvm_reflect_arch();
 
@@ -32,8 +34,12 @@ _CLC_DEF _CLC_OVERLOAD half2 __clc_fma_relu(half2 x, half2 y, half2 z) {
   return (half2)(__clc_fma_relu(x.x, y.x, z.x),
                  __clc_fma_relu(x.y, y.y, z.y));
 }
-_CLC_TERNARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __clc_fma_relu,
-                             half, half, half)
+
+#define __CLC_MIN_VECSIZE 3
+#define __CLC_GENTYPE half
+#include <clc/shared/ternary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+#undef __CLC_MIN_VECSIZE
 
 #endif
 
@@ -49,8 +55,10 @@ _CLC_DEF _CLC_OVERLOAD ushort __clc_fma_relu(ushort x, ushort y,
   __builtin_trap();
   __builtin_unreachable();
 }
-_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_fma_relu,
-                       ushort, ushort, ushort)
+
+#define __CLC_GENTYPE ushort
+#include <clc/shared/ternary_def_scalarize.inc>
+#undef __CLC_GENTYPE
 
 _CLC_DEF _CLC_OVERLOAD uint __clc_fma_relu(uint x, uint y, uint z) {
   if (__clc_nvvm_reflect_arch() >= 800) {
@@ -63,5 +71,10 @@ _CLC_DEF _CLC_OVERLOAD uint __clc_fma_relu(uint x, uint y, uint z) {
   __builtin_trap();
   __builtin_unreachable();
 }
-_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uint, __clc_fma_relu, uint,
-                       uint, uint)
+
+#define __CLC_GENTYPE uint
+#include <clc/shared/ternary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+
+#undef __CLC_SCALAR
+#undef FUNCTION

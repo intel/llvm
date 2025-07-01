@@ -8,7 +8,6 @@
 
 #include <libspirv/spirv.h>
 
-#include <clc/clcmacro.h>
 #include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_asinpi(float x) {
@@ -77,8 +76,6 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_asinpi(float x) {
 
   return ret;
 }
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_asinpi, float)
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
@@ -159,8 +156,6 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_asinpi(double x) {
   return xneg ? -v : v;
 }
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_asinpi, double)
-
 #endif
 
 #ifdef cl_khr_fp16
@@ -171,6 +166,8 @@ _CLC_OVERLOAD _CLC_DEF half __spirv_ocl_asinpi(half x) {
   return __spirv_ocl_asinpi(t);
 }
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_asinpi, half)
-
 #endif
+
+#define FUNCTION __spirv_ocl_asinpi
+#define __CLC_BODY <clc/shared/unary_def_scalarize.inc>
+#include <clc/math/gentype.inc>

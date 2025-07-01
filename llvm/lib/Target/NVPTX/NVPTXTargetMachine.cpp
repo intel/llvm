@@ -128,6 +128,7 @@ extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   initializeGlobalOffsetLegacyPass(PR);
   initializeLocalAccessorToSharedMemoryLegacyPass(PR);
   initializeNVPTXTagInvariantLoadLegacyPassPass(PR);
+  initializeNVPTXPrologEpilogPassPass(PR);
 }
 
 static std::string computeDataLayout(bool is64Bit, bool UseShortPointers) {

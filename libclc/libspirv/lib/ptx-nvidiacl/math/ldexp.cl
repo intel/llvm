@@ -8,22 +8,38 @@
 
 #include <libspirv/spirv.h>
 
-#include <libspirv/ptx-nvidiacl/libdevice.h>
-#include <clc/clcmacro.h>
 #include <clc/math/clc_subnormal_config.h>
 #include <clc/math/math.h>
+#include <libspirv/ptx-nvidiacl/libdevice.h>
 
-_CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __nv_ldexpf, float, int)
-_CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __nv_ldexpf, float, uint)
+_CLC_OVERLOAD _CLC_INLINE static float nv_ldexp_helper(float x, int y) {
+  return __nv_ldexpf(x, y);
+}
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
-_CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_ldexp, __nv_ldexp, double, int)
-_CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_ldexp, __nv_ldexp, double, uint)
+_CLC_OVERLOAD _CLC_INLINE static double nv_ldexp_helper(double x, int y) {
+  return __nv_ldexp(x, y);
+}
 #endif
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
-_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_ldexp, __nv_ldexpf, half, int)
-_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_ldexp, __nv_ldexpf, half, uint)
+_CLC_OVERLOAD _CLC_INLINE static half nv_ldexp_helper(half x, int y) {
+  return __nv_ldexpf(x, y);
+}
 #endif
+
+#define FUNCTION __spirv_ocl_ldexp
+#define __IMPL_FUNCTION nv_ldexp_helper
+#define __CLC_MIN_VECSIZE 1
+
+#define __CLC_ARG2_TYPE int
+#define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __CLC_ARG2_TYPE
+
+#define __CLC_ARG2_TYPE uint
+#define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __CLC_ARG2_TYPE

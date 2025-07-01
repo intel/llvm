@@ -8,7 +8,6 @@
 
 #include <libspirv/spirv.h>
 
-#include <clc/clcmacro.h>
 #include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF int __spirv_ocl_ilogb(float x) {
@@ -21,8 +20,6 @@ _CLC_OVERLOAD _CLC_DEF int __spirv_ocl_ilogb(float x) {
   r = ax == EXPBITS_SP32 ? 0x7fffffff : r;
   return r;
 }
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, int, __spirv_ocl_ilogb, float);
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
@@ -38,8 +35,6 @@ _CLC_OVERLOAD _CLC_DEF int __spirv_ocl_ilogb(double x) {
   return r;
 }
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, int, __spirv_ocl_ilogb, double);
-
 #endif // cl_khr_fp64
 
 #ifdef cl_khr_fp16
@@ -51,7 +46,8 @@ _CLC_DEF _CLC_OVERLOAD int __spirv_ocl_ilogb(half x) {
   return __spirv_ocl_ilogb(f);
 }
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, int, __spirv_ocl_ilogb, half)
-
-
 #endif
+
+#define FUNCTION __spirv_ocl_ilogb
+#define __CLC_BODY <clc/shared/unary_def_scalarize.inc>
+#include <clc/math/gentype.inc>

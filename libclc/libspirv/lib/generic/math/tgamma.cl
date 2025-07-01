@@ -8,7 +8,6 @@
 
 #include <libspirv/spirv.h>
 
-#include <clc/clcmacro.h>
 #include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_tgamma(float x) {
@@ -27,8 +26,6 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_tgamma(float x) {
 
   return g;
 }
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_tgamma, float);
 
 #ifdef cl_khr_fp64
 
@@ -51,9 +48,6 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_tgamma(double x) {
   return g;
 }
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_tgamma,
-                     double);
-
 #endif
 
 #ifdef cl_khr_fp16
@@ -63,6 +57,8 @@ _CLC_DEF _CLC_OVERLOAD half __spirv_ocl_tgamma(half x) {
   return __spirv_ocl_tgamma((float)x);
 }
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_tgamma, half)
-
 #endif
+
+#define FUNCTION __spirv_ocl_tgamma
+#define __CLC_BODY <clc/shared/unary_def_scalarize.inc>
+#include <clc/math/gentype.inc>

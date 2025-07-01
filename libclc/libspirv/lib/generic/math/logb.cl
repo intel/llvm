@@ -8,8 +8,9 @@
 
 #include <libspirv/spirv.h>
 
-#include <clc/clcmacro.h>
 #include <clc/math/math.h>
+
+#define FUNCTION __spirv_ocl_logb
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_logb(float x) {
     int ax = __clc_as_int(x) & EXSIGNBIT_SP32;
@@ -21,7 +22,12 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_logb(float x) {
     return r;
 }
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_logb, float);
+#define __FLOAT_ONLY
+#define __IMPL_FUNCTION __spirv_ocl_logb
+#define __CLC_BODY <clc/shared/unary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __IMPL_FUNCTION
+#undef __FLOAT_ONLY
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
@@ -36,13 +42,28 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_logb(double x) {
     return r;
 }
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_logb, double)
+#define __DOUBLE_ONLY
+#define __IMPL_FUNCTION __spirv_ocl_logb
+#define __CLC_BODY <clc/shared/unary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __IMPL_FUNCTION
+#undef __DOUBLE_ONLY
+
 #endif
 
 #ifdef cl_khr_fp16
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_logb, __builtin_logbf, half)
+#define __CLC_MIN_VECSIZE 1
+#define __HALF_ONLY
+#define __IMPL_FUNCTION __builtin_logbf
+#define __CLC_BODY <clc/shared/unary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __IMPL_FUNCTION
+#undef __HALF_ONLY
+#undef __CLC_MIN_VECSIZE
 
 #endif
+
+#undef FUNCTION

@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
 #include <libspirv/ptx-nvidiacl/libdevice.h>
 #include <libspirv/spirv.h>
 
@@ -24,7 +23,6 @@ _CLC_DEF _CLC_OVERLOAD ushort __clc_fabs(ushort x) {
     __asm__("abs.bf16 %0, %1;" : "=h"(res) : "h"(x));
     return res;
 }
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_fabs, ushort)
 
 // Requires at least sm_80
 _CLC_DEF _CLC_OVERLOAD uint __clc_fabs(uint x) {
@@ -32,4 +30,17 @@ _CLC_DEF _CLC_OVERLOAD uint __clc_fabs(uint x) {
     __asm__("abs.bf16x2 %0, %1;" : "=r"(res) : "r"(x));
     return res;
 }
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uint, __clc_fabs, uint)
+
+#define FUNCTION __clc_fabs
+#define __CLC_SCALAR
+
+#define __CLC_GENTYPE ushort
+#include <clc/shared/unary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+
+#define __CLC_GENTYPE uint
+#include <clc/shared/unary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+
+#undef __CLC_SCALAR
+#undef FUNCTION
