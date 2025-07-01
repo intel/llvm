@@ -170,7 +170,7 @@ binary_partition(ParentGroup parent, bool predicate) {
 #if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(parent, predicate);
   id<1> group_id = predicate ? 1 : 0;
-  range<1> group_range = 2; // 2 groupds based on predicate by binary_partition
+  range<1> group_range = 2; // 2 groups based on predicate by binary_partition
 
   if (!predicate) {
     sub_group_mask::BitsType participant_filter =
