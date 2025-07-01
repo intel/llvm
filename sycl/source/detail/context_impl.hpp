@@ -381,8 +381,7 @@ inline auto get_ur_handles(const sycl::device &syclDevice,
 inline auto get_ur_handles(const sycl::device &syclDevice) {
   auto &implDevice = *sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t urDevice = implDevice.getHandleRef();
-  const sycl::detail::Adapter *Adapter = implDevice.getAdapter().get();
-  return std::tuple{urDevice, Adapter};
+  return std::tuple{urDevice, implDevice.getAdapter()};
 }
 
 } // namespace _V1
