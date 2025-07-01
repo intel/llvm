@@ -10,6 +10,10 @@
 
 // -- Test for linking two SYCLBIN kernel_bundle.
 
+// ptxas currently fails to compile images with unresolved symbols. Disable for
+// other targets than SPIR-V until this has been resolved. (CMPLRLLVM-68810)
+// REQUIRES: target-spir
+
 // RUN: %clangxx --offload-new-driver -fsyclbin=object -fsycl-allow-device-image-dependencies %{sycl_target_opts} %S/Inputs/exporting_function.cpp -o %t.export.syclbin
 // RUN: %clangxx --offload-new-driver -fsyclbin=object -fsycl-allow-device-image-dependencies %{sycl_target_opts} %S/Inputs/importing_kernel.cpp -o %t.import.syclbin
 // RUN: %{build} -o %t.out
