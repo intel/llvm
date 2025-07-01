@@ -9,9 +9,6 @@
 // REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_device_allocations
 
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
-
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s
 
