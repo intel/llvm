@@ -44,11 +44,10 @@ struct ur_mem_handle_t_ : ur_object {
   char *_mem;
   bool _ownsMem;
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount RefCount;
 
 private:
   const bool IsImage;
-  ur::RefCount RefCount;
 };
 
 struct ur_buffer final : ur_mem_handle_t_ {

@@ -136,10 +136,9 @@ struct ur_context_handle_t_ {
     return ptr;
   }
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount RefCount;
 
 private:
   std::mutex alloc_mutex;
   std::set<const void *> allocations;
-  ur::RefCount RefCount;
 };

@@ -58,7 +58,7 @@ struct ur_event_handle_t_ {
 
   uint64_t get_end_timestamp() const { return timestamp_end; }
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount RefCount;
 
 private:
   ur_queue_handle_t queue;
@@ -70,5 +70,4 @@ private:
   std::packaged_task<void()> callback;
   uint64_t timestamp_start = 0;
   uint64_t timestamp_end = 0;
-  ur::RefCount RefCount;
 };

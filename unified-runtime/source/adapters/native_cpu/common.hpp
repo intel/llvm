@@ -50,7 +50,7 @@ struct ur_object {
 };
 
 template <typename T> inline void decrementOrDelete(T *refC) {
-  if (refC->getRefCount().release() == 0)
+  if (refC->RefCount.release() == 0)
     delete refC;
 }
 
