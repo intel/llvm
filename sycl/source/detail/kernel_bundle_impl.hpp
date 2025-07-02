@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/device_global_map.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -137,12 +138,11 @@ public:
       : MContext(InputBundle.get_context()), MDevices(std::move(Devs)),
         MState(TargetState) {
 
-    const std::shared_ptr<kernel_bundle_impl> &InputBundleImpl =
-        getSyclObjImpl(InputBundle);
-    MSpecConstValues = InputBundleImpl->get_spec_const_map_ref();
+    kernel_bundle_impl &InputBundleImpl = *getSyclObjImpl(InputBundle);
+    MSpecConstValues = InputBundleImpl.get_spec_const_map_ref();
 
     const std::vector<device> &InputBundleDevices =
-        InputBundleImpl->get_devices();
+        InputBundleImpl.get_devices();
     const bool AllDevsAssociatedWithInputBundle =
         std::all_of(MDevices.begin(), MDevices.end(),
                     [&InputBundleDevices](const device &Dev) {
@@ -157,11 +157,11 @@ public:
           "devices for input bundle or vector of devices is empty");
 
     // Copy SYCLBINs to ensure lifetime is preserved by the executable bundle.
-    MSYCLBINs.insert(MSYCLBINs.end(), InputBundleImpl->MSYCLBINs.begin(),
-                     InputBundleImpl->MSYCLBINs.end());
+    MSYCLBINs.insert(MSYCLBINs.end(), InputBundleImpl.MSYCLBINs.begin(),
+                     InputBundleImpl.MSYCLBINs.end());
 
     for (const DevImgPlainWithDeps &DevImgWithDeps :
-         InputBundleImpl->MDeviceImages) {
+         InputBundleImpl.MDeviceImages) {
       // Skip images which are not compatible with devices provided
       if (std::none_of(MDevices.begin(), MDevices.end(),
                        [&DevImgWithDeps](const device &Dev) {
@@ -189,6 +189,7 @@ public:
                                                         MDevices, PropList);
         MDeviceImages.emplace_back(BuiltImg);
         MUniqueDeviceImages.emplace_back(BuiltImg);
+        populateDeviceGlobalsForSYCLBIN();
         break;
       }
       case bundle_state::input:
@@ -309,11 +310,11 @@ public:
     // images collection.
     std::map<std::string_view, size_t> ExportMap;
     for (size_t I = 0; I < DevImages.size(); ++I) {
-      auto DevImageImpl = getSyclObjImpl(DevImages[I]);
-      if (DevImageImpl->get_bin_image_ref() == nullptr)
+      device_image_impl &DevImageImpl = *getSyclObjImpl(DevImages[I]);
+      if (DevImageImpl.get_bin_image_ref() == nullptr)
         continue;
       for (const sycl_device_binary_property &ESProp :
-           DevImageImpl->get_bin_image_ref()->getExportedSymbols()) {
+           DevImageImpl.get_bin_image_ref()->getExportedSymbols()) {
         if (ExportMap.find(ESProp->Name) != ExportMap.end())
           throw sycl::exception(make_error_code(errc::invalid),
                                 "Duplicate exported symbol \"" +
@@ -327,12 +328,12 @@ public:
     std::vector<std::vector<size_t>> Dependencies;
     Dependencies.resize(DevImages.size());
     for (size_t I = 0; I < DevImages.size(); ++I) {
-      auto DevImageImpl = getSyclObjImpl(DevImages[I]);
-      if (DevImageImpl->get_bin_image_ref() == nullptr)
+      device_image_impl &DevImageImpl = *getSyclObjImpl(DevImages[I]);
+      if (DevImageImpl.get_bin_image_ref() == nullptr)
         continue;
       std::set<size_t> DeviceImageDepsSet;
       for (const sycl_device_binary_property &ISProp :
-           DevImageImpl->get_bin_image_ref()->getImportedSymbols()) {
+           DevImageImpl.get_bin_image_ref()->getImportedSymbols()) {
         auto ExportSymbolIt = ExportMap.find(ISProp->Name);
         if (ExportSymbolIt == ExportMap.end())
           throw sycl::exception(make_error_code(errc::invalid),
@@ -346,13 +347,12 @@ public:
     }
 
     // Create a link graph and clone it for each device.
-    const std::shared_ptr<device_impl> &FirstDevice =
-        getSyclObjImpl(MDevices[0]);
+    device_impl &FirstDevice = *getSyclObjImpl(MDevices[0]);
     std::map<std::shared_ptr<device_impl>, LinkGraph<device_image_plain>>
         DevImageLinkGraphs;
     const auto &FirstGraph =
         DevImageLinkGraphs
-            .emplace(FirstDevice,
+            .emplace(FirstDevice.shared_from_this(),
                      LinkGraph<device_image_plain>{DevImages, Dependencies})
             .first->second;
     for (size_t I = 1; I < MDevices.size(); ++I)
@@ -410,6 +410,8 @@ public:
     }
 
     removeDuplicateImages();
+
+    populateDeviceGlobalsForSYCLBIN();
 
     for (const kernel_bundle<bundle_state::object> &Bundle : ObjectBundles) {
       kernel_bundle_impl &BundleImpl = *getSyclObjImpl(Bundle);
@@ -488,15 +490,18 @@ public:
 
     fillUniqueDeviceImages();
 
+    if (get_bundle_state() == bundle_state::executable)
+      populateDeviceGlobalsForSYCLBIN();
+
     if (get_bundle_state() == bundle_state::input) {
       // Copy spec constants values from the device images.
       auto MergeSpecConstants = [this](const device_image_plain &Img) {
-        const detail::DeviceImageImplPtr &ImgImpl = getSyclObjImpl(Img);
+        detail::device_image_impl &ImgImpl = *getSyclObjImpl(Img);
         const std::map<std::string,
                        std::vector<device_image_impl::SpecConstDescT>>
-            &SpecConsts = ImgImpl->get_spec_const_data_ref();
+            &SpecConsts = ImgImpl.get_spec_const_data_ref();
         const std::vector<unsigned char> &Blob =
-            ImgImpl->get_spec_const_blob_ref();
+            ImgImpl.get_spec_const_blob_ref();
         for (const std::pair<const std::string,
                              std::vector<device_image_impl::SpecConstDescT>>
                  &SpecConst : SpecConsts) {
@@ -589,6 +594,8 @@ public:
     ProgramManager::getInstance().bringSYCLDeviceImagesToState(MDeviceImages,
                                                                State);
     fillUniqueDeviceImages();
+    if (State == bundle_state::executable)
+      populateDeviceGlobalsForSYCLBIN();
   }
 
   template <typename... Ts>
@@ -666,10 +673,9 @@ public:
     //       resulting kernel object should be able to map devices to their
     //       respective backend kernel objects.
     for (const device_image_plain &DevImg : MUniqueDeviceImages) {
-      const std::shared_ptr<device_image_impl> &DevImgImpl =
-          getSyclObjImpl(DevImg);
+      device_image_impl &DevImgImpl = *getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> PotentialKernelImpl =
-              DevImgImpl->tryGetExtensionKernel(Name, MContext, *this))
+              DevImgImpl.tryGetExtensionKernel(Name, MContext, *this))
         return detail::createSyclObjFromImpl<kernel>(
             std::move(PotentialKernelImpl));
     }
@@ -697,10 +703,14 @@ public:
   }
 
   bool ext_oneapi_has_device_global(const std::string &Name) const {
-    return std::any_of(
-        begin(), end(), [&Name](const device_image_plain &DeviceImage) {
-          return getSyclObjImpl(DeviceImage)->hasDeviceGlobalName(Name);
-        });
+    std::string MangledName = mangleDeviceGlobalName(Name);
+    return (MDeviceGlobals.size() &&
+            MDeviceGlobals.tryGetEntryLockless(MangledName)) ||
+           std::any_of(begin(), end(),
+                       [&MangledName](const device_image_plain &DeviceImage) {
+                         return getSyclObjImpl(DeviceImage)
+                             ->hasDeviceGlobalName(MangledName);
+                       });
   }
 
   void *ext_oneapi_get_device_global_address(const std::string &Name,
@@ -718,10 +728,10 @@ public:
                             "'device_image_scope' property");
     }
 
-    const auto &DeviceImpl = getSyclObjImpl(Dev);
+    device_impl &DeviceImpl = *getSyclObjImpl(Dev);
     bool SupportContextMemcpy = false;
-    DeviceImpl->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        DeviceImpl->getHandleRef(),
+    DeviceImpl.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        DeviceImpl.getHandleRef(),
         UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP,
         sizeof(SupportContextMemcpy), &SupportContextMemcpy, nullptr);
     if (SupportContextMemcpy) {
@@ -751,14 +761,14 @@ public:
     // Collect kernel ids from all device images, then remove duplicates
     std::vector<kernel_id> Result;
     for (const device_image_plain &DeviceImage : MUniqueDeviceImages) {
-      const auto &DevImgImpl = getSyclObjImpl(DeviceImage);
+      detail::device_image_impl &DevImgImpl = *getSyclObjImpl(DeviceImage);
 
       // RTC kernel bundles shouldn't have user-facing kernel ids, return an
       // empty vector when the bundle contains RTC kernels.
-      if (DevImgImpl->getRTCInfo())
+      if (DevImgImpl.getRTCInfo())
         continue;
 
-      const std::vector<kernel_id> &KernelIDs = DevImgImpl->get_kernel_ids();
+      const std::vector<kernel_id> &KernelIDs = DevImgImpl.get_kernel_ids();
 
       Result.insert(Result.end(), KernelIDs.begin(), KernelIDs.end());
     }
@@ -1003,10 +1013,9 @@ public:
     //       {kernel_name, device} and their corresponding image.
     // First look through the kernels registered in source-based images.
     for (const device_image_plain &DevImg : MUniqueDeviceImages) {
-      const std::shared_ptr<device_image_impl> &DevImgImpl =
-          getSyclObjImpl(DevImg);
+      device_image_impl &DevImgImpl = *getSyclObjImpl(DevImg);
       if (std::shared_ptr<kernel_impl> SourceBasedKernel =
-              DevImgImpl->tryGetExtensionKernel(Name, MContext, *this))
+              DevImgImpl.tryGetExtensionKernel(Name, MContext, *this))
         return SourceBasedKernel;
     }
 
@@ -1022,28 +1031,51 @@ public:
     return const_cast<kernel_bundle_impl *>(this)->Base::shared_from_this();
   }
 
+  DeviceGlobalMap &getDeviceGlobalMap() { return MDeviceGlobals; }
+
 private:
   DeviceGlobalMapEntry *getDeviceGlobalEntry(const std::string &Name) const {
-    if (!hasSourceBasedImages()) {
+    if (!hasSourceBasedImages() && !hasSYCLBINImages()) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Querying device globals by name is only available "
-                            "in kernel_bundles successfully built from "
+                            "in kernel_bundles created from SYCLBIN files and "
+                            "kernel_bundles successfully built from "
                             "kernel_bundle<bundle_state>::ext_oneapi_source> "
                             "with 'sycl' source language.");
     }
 
-    if (!ext_oneapi_has_device_global(Name)) {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "device global '" + Name +
-                                "' not found in kernel_bundle");
-    }
+    std::string MangledName = mangleDeviceGlobalName(Name);
+
+    if (MDeviceGlobals.size())
+      if (DeviceGlobalMapEntry *Entry =
+              MDeviceGlobals.tryGetEntryLockless(MangledName))
+        return Entry;
 
     for (const device_image_plain &DevImg : MUniqueDeviceImages)
       if (DeviceGlobalMapEntry *Entry =
-              getSyclObjImpl(DevImg)->tryGetDeviceGlobalEntry(Name))
+              getSyclObjImpl(DevImg)->tryGetDeviceGlobalEntry(MangledName))
         return Entry;
-    assert(false && "Device global should have been found.");
-    return nullptr;
+
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "device global '" + Name +
+                              "' not found in kernel_bundle");
+  }
+
+  static std::string mangleDeviceGlobalName(const std::string &Name) {
+    // TODO: Support device globals declared in namespaces.
+    return "_Z" + std::to_string(Name.length()) + Name;
+  }
+
+  void populateDeviceGlobalsForSYCLBIN() {
+    // This should only be called from ctors, so lockless initialization is
+    // safe.
+    for (const device_image_plain &DevImg : MUniqueDeviceImages) {
+      const auto &DevImgImpl = getSyclObjImpl(DevImg);
+      if (DevImgImpl->getOriginMask() & ImageOriginSYCLBIN)
+        if (const RTDeviceBinaryImage *DevBinImg =
+                DevImgImpl->get_bin_image_ref())
+          MDeviceGlobals.initializeEntriesLockless(DevBinImg);
+    }
   }
 
   void fillUniqueDeviceImages() {
@@ -1081,6 +1113,12 @@ private:
   // from any device image.
   SpecConstMapT MSpecConstValues;
   bundle_state MState;
+
+  // Map for isolating device_global variables owned by the SYCLBINs in the
+  // kernel_bundle. This map will ensure the cleanup of its entries, unlike the
+  // map in program_manager which has its entry cleanup managed by the
+  // corresponding owner contexts.
+  DeviceGlobalMap MDeviceGlobals{/*OwnerControlledCleanup=*/false};
 };
 
 } // namespace detail
