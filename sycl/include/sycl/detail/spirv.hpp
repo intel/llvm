@@ -16,6 +16,7 @@
 // Therefore, we need the following include to get forward-declarations of those
 // versions.
 #include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_types.hpp>
 
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
 
@@ -24,7 +25,7 @@
 #endif
 
 #include <sycl/detail/memcpy.hpp>      // sycl::detail::memcpy
-#include <sycl/detail/type_traits.hpp> // is_fixed_size_group traits
+#include <sycl/detail/type_traits.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -34,7 +35,7 @@ namespace oneapi {
 struct sub_group;
 namespace experimental {
 template <typename ParentGroup> class fragment;
-template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
+
 template <int Dimensions> class root_group;
 template <typename ParentGroup> class tangle;
 template <typename ParentGroup> class fragment;
@@ -74,12 +75,6 @@ struct is_tangle_group<sycl::ext::oneapi::experimental::tangle<ParentGroup>>
 
 template <typename Group> struct is_ballot_group : std::false_type {};
 
-template <size_t PartitionSize, typename ParentGroup>
-struct detail::is_fixed_size_group<
-    sycl::ext::oneapi::experimental::fixed_size_group<PartitionSize,
-                                                      ParentGroup>>
-    : std::true_type {};
-
 template <typename Group> struct is_fragment : std::false_type {};
 
 template <typename ParentGroup>
@@ -112,12 +107,6 @@ template <> struct group_scope<::sycl::sub_group> {
 
 template <typename ParentGroup>
 struct group_scope<sycl::ext::oneapi::experimental::fragment<ParentGroup>> {
-  static constexpr __spv::Scope::Flag value = group_scope<ParentGroup>::value;
-};
-
-template <size_t PartitionSize, typename ParentGroup>
-struct group_scope<sycl::ext::oneapi::experimental::fixed_size_group<
-    PartitionSize, ParentGroup>> {
   static constexpr __spv::Scope::Flag value = group_scope<ParentGroup>::value;
 };
 
@@ -194,16 +183,6 @@ bool GroupAll(ext::oneapi::experimental::fragment<ParentGroup> g, bool pred) {
   //          group_scope<ParentGroup>::value,
   //          pred);
 }
-template <size_t PartitionSize, typename ParentGroup>
-bool GroupAll(
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>,
-    bool pred) {
-  // GroupNonUniformAll doesn't support cluster size, so use a reduction
-  return __spirv_GroupNonUniformBitwiseAnd(
-      group_scope<ParentGroup>::value,
-      static_cast<uint32_t>(__spv::GroupOperation::ClusteredReduce),
-      static_cast<uint32_t>(pred), PartitionSize);
-}
 template <typename ParentGroup>
 bool GroupAll(ext::oneapi::experimental::tangle<ParentGroup>, bool pred) {
   return __spirv_GroupNonUniformAll(group_scope<ParentGroup>::value, pred);
@@ -243,16 +222,6 @@ bool GroupAny(ext::oneapi::experimental::fragment<ParentGroup> g, bool pred) {
   //        return __spirv_GroupNonUniformAny(
   //          group_scope<ParentGroup>::value,
   //          pred);
-}
-template <size_t PartitionSize, typename ParentGroup>
-bool GroupAny(
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>,
-    bool pred) {
-  // GroupNonUniformAny doesn't support cluster size, so use a reduction
-  return __spirv_GroupNonUniformBitwiseOr(
-      group_scope<ParentGroup>::value,
-      static_cast<uint32_t>(__spv::GroupOperation::ClusteredReduce),
-      static_cast<uint32_t>(pred), PartitionSize);
 }
 template <typename ParentGroup>
 bool GroupAny(ext::oneapi::experimental::tangle<ParentGroup>, bool pred) {
@@ -377,26 +346,6 @@ GroupBroadcast(sycl::ext::oneapi::experimental::fragment<ParentGroup> g, T x,
   //          group_scope<ParentGroup>::value,
   //          WideOCLX,
   //          OCLId);
-}
-template <size_t PartitionSize, typename ParentGroup, typename T, typename IdT>
-EnableIfNativeBroadcast<T, IdT> GroupBroadcast(
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup> g,
-    T x, IdT local_id) {
-  // Remap local_id to its original numbering in ParentGroup
-  auto LocalId = g.get_group_linear_id() * PartitionSize + local_id;
-
-  // TODO: Refactor to avoid duplication after design settles.
-  auto GroupLocalId = static_cast<typename GroupId<ParentGroup>::type>(LocalId);
-  auto OCLX = detail::convertToOpenCLType(x);
-  WidenOpenCLTypeTo32_t<decltype(OCLX)> WideOCLX = OCLX;
-  auto OCLId = detail::convertToOpenCLType(GroupLocalId);
-
-  // NonUniformBroadcast requires Id to be dynamically uniform, which does not
-  // hold here; each partition is broadcasting a separate index. We could
-  // fallback to either NonUniformShuffle or a NonUniformBroadcast per
-  // partition, and it's unclear which will be faster in practice.
-  return __spirv_GroupNonUniformShuffle(group_scope<ParentGroup>::value,
-                                        WideOCLX, OCLId);
 }
 template <typename ParentGroup, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT>
@@ -956,8 +905,7 @@ inline uint32_t MapShuffleID(GroupT g, id<1> local_id) {
   if constexpr (is_tangle_group<GroupT>::value ||
                 is_ballot_group<GroupT>::value || is_fragment<GroupT>::value)
     return detail::IdToMaskPosition(g, local_id);
-  else if constexpr (detail::is_fixed_size_group<GroupT>::value ||
-                     is_chunk<GroupT>::value)
+  else if constexpr (is_chunk<GroupT>::value)
     return g.get_group_linear_id() * g.get_local_range().size() + local_id;
   else
     return local_id.get(0);
@@ -1053,7 +1001,7 @@ EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
     auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
-    if constexpr (detail::is_fixed_size_group_v<GroupT>) {
+    if constexpr (is_chunk<GroupT>::value) {
       return cuda_shfl_sync_bfly_i32(MemberMask, x,
                                      static_cast<uint32_t>(mask.get(0)), 0x1f);
     } else {
@@ -1100,7 +1048,7 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
     auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
-    if constexpr (detail::is_fixed_size_group_v<GroupT>) {
+    if constexpr (is_chunk<GroupT>::value) {
       return cuda_shfl_sync_down_i32(MemberMask, x, delta, 31);
     } else {
       unsigned localSetBit = g.get_local_id()[0] + 1;
@@ -1144,7 +1092,7 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
     auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
-    if constexpr (detail::is_fixed_size_group_v<GroupT>) {
+    if constexpr (is_chunk<GroupT>::value) {
       return cuda_shfl_sync_up_i32(MemberMask, x, delta, 0);
     } else {
       unsigned localSetBit = g.get_local_id()[0] + 1;
@@ -1340,8 +1288,10 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
     OCLT Ret = __spirv_Group##Instruction##GroupExt(                           \
         group_scope<Group>::value, static_cast<unsigned int>(Op), Arg);        \
     return Ret;                                                                \
-  }                                                                            \
-                                                                               \
+  }
+
+// Define separate macros for each template to avoid nesting issues
+#define __SYCL_GROUP_COLLECTIVE_FRAGMENT(Instruction, GroupExt)                \
   template <__spv::GroupOperation Op, typename ParentGroup, typename T>        \
   inline T Group##Instruction(                                                 \
       ext::oneapi::experimental::fragment<ParentGroup> g, T x) {               \
@@ -1365,53 +1315,10 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
     } else {                                                                   \
       return __spirv_GroupNonUniform##Instruction(Scope, OpInt, Arg);          \
     }                                                                          \
-    // clang-format off                                                        \
-    /* TODO: add support for partitioning into more than two groups            \
-       rewrite as a loop over g.get_group_count().                             \
-       for (size_t i{}; i != group_count; ++i)                                 \
-          if (g.get_group_id() == i)                                           \
-            return __spirv_GroupNonUniform##Instruction(                       \
-              group_scope<ParentGroup>::value,                                 \
-              OpInt, Arg);*/                                                   \                                          
-    // clang-format on                                                         \
-  }                                                                            \
-                                                                               \
-  template <__spv::GroupOperation Op, size_t PartitionSize,                    \
-            typename ParentGroup, typename T>                                  \
-  inline T Group##Instruction(                                                 \
-      ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>  \
-          g,                                                                   \
-      T x) {                                                                   \
-    using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
-                                                                               \
-    using OCLT = std::conditional_t<                                           \
-        std::is_same<ConvertedT, opencl::cl_char>() ||                         \
-            std::is_same<ConvertedT, opencl::cl_short>(),                      \
-        opencl::cl_int,                                                        \
-        std::conditional_t<std::is_same<ConvertedT, opencl::cl_uchar>() ||     \
-                               std::is_same<ConvertedT, opencl::cl_ushort>(),  \
-                           opencl::cl_uint, ConvertedT>>;                      \
-    OCLT Arg = x;                                                              \
-    constexpr auto Scope = group_scope<ParentGroup>::value;                    \
-    /* SPIR-V only defines a ClusteredReduce, with no equivalents for scan. */ \
-    /* Emulate Clustered*Scan using control flow to separate clusters. */      \
-    if constexpr (Op == __spv::GroupOperation::Reduce) {                       \
-      constexpr auto OpInt =                                                   \
-          static_cast<unsigned int>(__spv::GroupOperation::ClusteredReduce);   \
-      return __spirv_GroupNonUniform##Instruction(Scope, OpInt, Arg,           \
-                                                  PartitionSize);              \
-    } else {                                                                   \
-      T tmp;                                                                   \
-      for (size_t Cluster = 0; Cluster < g.get_group_linear_range();           \
-           ++Cluster) {                                                        \
-        if (Cluster == g.get_group_linear_id()) {                              \
-          constexpr auto OpInt = static_cast<unsigned int>(Op);                \
-          tmp = __spirv_GroupNonUniform##Instruction(Scope, OpInt, Arg);       \
-        }                                                                      \
-      }                                                                        \
-      return tmp;                                                              \
-    }                                                                          \
-  }                                                                            \
+    /* TODO: add support for partitioning into more than two groups */         \
+  }
+
+#define __SYCL_GROUP_COLLECTIVE_CHUNK(Instruction, GroupExt)                    \
   template <__spv::GroupOperation Op, size_t ChunkSize, typename ParentGroup,  \
             typename T>                                                        \
   inline T Group##Instruction(                                                 \
@@ -1446,7 +1353,9 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
       }                                                                        \
       return tmp;                                                              \
     }                                                                          \
-  }                                                                            \
+  }
+
+#define __SYCL_GROUP_COLLECTIVE_TANGLE(Instruction, GroupExt)                  \
   template <__spv::GroupOperation Op, typename Group, typename T>              \
   inline typename std::enable_if_t<is_tangle_group<Group>::value, T>           \
   Group##Instruction(Group, T x) {                                             \
@@ -1465,27 +1374,40 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
     return Ret;                                                                \
   }
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(SMin, )
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(UMin, )
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMin, )
+// Now use all 4 macros together for each instruction
+#define __SYCL_GROUP_COLLECTIVE_ALL(Instruction, GroupExt) \
+  __SYCL_GROUP_COLLECTIVE_OVERLOAD(Instruction, GroupExt) \
+  __SYCL_GROUP_COLLECTIVE_FRAGMENT(Instruction, GroupExt) \
+  __SYCL_GROUP_COLLECTIVE_CHUNK(Instruction, GroupExt)    \
+  __SYCL_GROUP_COLLECTIVE_TANGLE(Instruction, GroupExt)
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(SMax, )
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(UMax, )
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMax, )
+__SYCL_GROUP_COLLECTIVE_ALL(SMin, )
+__SYCL_GROUP_COLLECTIVE_ALL(UMin, )
+__SYCL_GROUP_COLLECTIVE_ALL(FMin, )
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(IAdd, )
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(FAdd, )
+__SYCL_GROUP_COLLECTIVE_ALL(SMax, )
+__SYCL_GROUP_COLLECTIVE_ALL(UMax, )
+__SYCL_GROUP_COLLECTIVE_ALL(FMax, )
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(IMul, KHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMul, KHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(CMulINTEL, )
+__SYCL_GROUP_COLLECTIVE_ALL(IAdd, )
+__SYCL_GROUP_COLLECTIVE_ALL(FAdd, )
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseOr, KHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseXor, KHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseAnd, KHR)
+__SYCL_GROUP_COLLECTIVE_ALL(IMul, KHR)
+__SYCL_GROUP_COLLECTIVE_ALL(FMul, KHR)
+__SYCL_GROUP_COLLECTIVE_ALL(CMulINTEL, )
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalAnd, KHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalOr, KHR)
+__SYCL_GROUP_COLLECTIVE_ALL(BitwiseOr, KHR)
+__SYCL_GROUP_COLLECTIVE_ALL(BitwiseXor, KHR)
+__SYCL_GROUP_COLLECTIVE_ALL(BitwiseAnd, KHR)
+
+__SYCL_GROUP_COLLECTIVE_ALL(LogicalAnd, KHR)
+__SYCL_GROUP_COLLECTIVE_ALL(LogicalOr, KHR)
+
+#undef __SYCL_GROUP_COLLECTIVE_OVERLOAD
+#undef __SYCL_GROUP_COLLECTIVE_FRAGMENT
+#undef __SYCL_GROUP_COLLECTIVE_CHUNK
+#undef __SYCL_GROUP_COLLECTIVE_TANGLE
+#undef __SYCL_GROUP_COLLECTIVE_ALL
 
 } // namespace spirv
 } // namespace detail
