@@ -692,7 +692,7 @@ static ur_result_t setArgHelper(ur_kernel_handle_t Kernel,
     if (!AllocationDevice)
       return UR_RESULT_ERROR_INVALID_DEVICE;
 
-    auto setArgValue = [&](ur_device_handle_t Device) {
+    auto SetArgValue = [&](ur_device_handle_t Device) {
       auto It = Kernel->ZeKernelMap.find(Device);
       if (It != Kernel->ZeKernelMap.end()) {
         auto ZeKernel = It->second;
@@ -706,13 +706,13 @@ static ur_result_t setArgHelper(ur_kernel_handle_t Kernel,
     if (P2P != P2PCache.end()) {
       const auto &PeerDevices = P2PCache[AllocationDevice];
       for (auto PeerDevice : PeerDevices)
-        setArgValue(PeerDevice);
+        SetArgValue(PeerDevice);
     }
 
     for (auto SubDevice : AllocationDevice->SubDevices)
-      setArgValue(SubDevice);
+      SetArgValue(SubDevice);
 
-    setArgValue(AllocationDevice);
+    SetArgValue(AllocationDevice);
   } else {
     for (auto It : Kernel->ZeKernelMap) {
       auto ZeKernel = It.second;
