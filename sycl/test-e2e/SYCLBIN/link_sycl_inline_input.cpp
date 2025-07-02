@@ -19,6 +19,9 @@
 // XFAIL: opencl && cpu
 // XFAIL-TRACKER: CMPLRLLVM-68800
 
+// XFAIL: linux && arch-intel_gpu_bmg_g21
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19258
+
 // RUN: %clangxx --offload-new-driver -fsyclbin=input -fsycl-allow-device-image-dependencies -Xclang -fsycl-allow-func-ptr %S/Inputs/link_sycl_inline.cpp -o %t.syclbin
 // RUN: %{build} -fsycl-allow-device-image-dependencies -o %t.out
 // RUN: %{l0_leak_check} %{run}  %t.out %t.syclbin
