@@ -37,13 +37,18 @@ int main() {
       if (!IH.ext_codeplay_has_graph()) {
         assert(false && "Native Handle should have a graph");
       }
-      // Newly created stream for this node
-      auto NativeStream = IH.get_native_queue<backend::ext_oneapi_cuda>();
       // Graph already created with cuGraphCreate
       CUgraph NativeGraph =
           IH.ext_codeplay_get_native_graph<backend::ext_oneapi_cuda>();
 
       // Start stream capture
+      // After CUDA 12.3 we can use cuStreamBeginCaptureToGraph to capture
+      // the stream directly in the native graph, rather than needing to
+      // instantiate the stream capture as a new graph.
+#if CUDA_VERSION >= 12030
+      // Newly created stream for this node
+      auto NativeStream = IH.get_native_queue<backend::ext_oneapi_cuda>();
+
       auto Res = cuStreamBeginCaptureToGraph(NativeStream, NativeGraph, nullptr,
                                              nullptr, 0,
                                              CU_STREAM_CAPTURE_MODE_GLOBAL);
@@ -68,6 +73,53 @@ int main() {
 
       Res = cuStreamEndCapture(NativeStream, &NativeGraph);
       assert(Res == CUDA_SUCCESS);
+#else
+      // Use explicit graph building API to add alloc/free nodes when
+      // cuGraphAddMemFreeNode isn't available
+      auto Device = IH.get_native_device<backend::ext_oneapi_cuda>();
+      CUDA_MEM_ALLOC_NODE_PARAMS AllocParams{};
+      AllocParams.bytesize = Size * sizeof(int32_t);
+      AllocParams.poolProps.allocType = CU_MEM_ALLOCATION_TYPE_PINNED;
+      AllocParams.poolProps.location.id = Device;
+      AllocParams.poolProps.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+      CUgraphNode AllocNode;
+      auto Res = cuGraphAddMemAllocNode(&AllocNode, NativeGraph, nullptr, 0,
+                                        &AllocParams);
+      assert(Res == CUDA_SUCCESS);
+
+      CUdeviceptr PtrAsync = AllocParams.dptr;
+      CUDA_MEMSET_NODE_PARAMS MemsetParams{};
+      MemsetParams.dst = PtrAsync;
+      MemsetParams.elementSize = sizeof(int32_t);
+      MemsetParams.height = Size;
+      MemsetParams.pitch = sizeof(int32_t);
+      MemsetParams.value = Pattern;
+      MemsetParams.width = 1;
+      CUgraphNode MemsetNode;
+      CUcontext Context = IH.get_native_context<backend::ext_oneapi_cuda>();
+      Res = cuGraphAddMemsetNode(&MemsetNode, NativeGraph, &AllocNode, 1,
+                                 &MemsetParams, Context);
+      assert(Res == CUDA_SUCCESS);
+
+      CUDA_MEMCPY3D MemcpyParams{};
+      std::memset(&MemcpyParams, 0, sizeof(CUDA_MEMCPY3D));
+      MemcpyParams.srcMemoryType = CU_MEMORYTYPE_DEVICE;
+      MemcpyParams.srcDevice = PtrAsync;
+      MemcpyParams.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+      MemcpyParams.dstDevice = (CUdeviceptr)PtrX;
+      MemcpyParams.WidthInBytes = Size * sizeof(int32_t);
+      MemcpyParams.Height = 1;
+      MemcpyParams.Depth = 1;
+      CUgraphNode MemcpyNode;
+      Res = cuGraphAddMemcpyNode(&MemcpyNode, NativeGraph, &MemsetNode, 1,
+                                 &MemcpyParams, Context);
+      assert(Res == CUDA_SUCCESS);
+
+      CUgraphNode FreeNode;
+      Res = cuGraphAddMemFreeNode(&FreeNode, NativeGraph, &MemcpyNode, 1,
+                                  PtrAsync);
+      assert(Res == CUDA_SUCCESS);
+#endif
     });
   });
 
