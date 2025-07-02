@@ -20,6 +20,8 @@ SYCL_EXTERNAL void entry(float *fp, double *dp, int *ip, long *lp,
   rd[idx++] = std::fmod(dp[0], dp[1]);
   // CHECK: __spirv_ocl_fmoddd
   rd[idx++] = std::fmod(fp[0], ip[1]);
+  // CHECK: __spirv_ocl_fmoddd
+  rd[idx++] = std::fmod(fp[0], dp[1]);
 
   // CHECK: __spirv_ocl_remainderff
   rf[idx++] = std::remainder(fp[0], fp[1]);
@@ -29,6 +31,8 @@ SYCL_EXTERNAL void entry(float *fp, double *dp, int *ip, long *lp,
   rd[idx++] = std::remainder(dp[0], dp[1]);
   // CHECK: __spirv_ocl_remainderdd
   rd[idx++] = std::remainder(fp[0], ip[1]);
+  // CHECK: __spirv_ocl_remainderdd
+  rd[idx++] = std::remainder(fp[0], dp[1]);
 
   // CHECK: __spirv_ocl_remquoff
   rf[idx++] = std::remquo(fp[0], fp[1], ip);
@@ -38,6 +42,8 @@ SYCL_EXTERNAL void entry(float *fp, double *dp, int *ip, long *lp,
   rd[idx++] = std::remquo(dp[0], dp[1], ip);
   // CHECK: __spirv_ocl_remquodd
   rd[idx++] = std::remquo(fp[0], ip[1], ip);
+  // CHECK: __spirv_ocl_remquodd
+  rd[idx++] = std::remquo(fp[0], dp[1], ip);
 
   // CHECK: __spirv_ocl_fmaff
   rf[idx++] = std::fma(fp[0], fp[1], fp[2]);
@@ -47,6 +53,8 @@ SYCL_EXTERNAL void entry(float *fp, double *dp, int *ip, long *lp,
   rd[idx++] = std::fma(dp[0], dp[1], dp[2]);
   // CHECK: __spirv_ocl_fmadd
   rd[idx++] = std::fma(fp[0], ip[1], fp[2]);
+  // CHECK: __spirv_ocl_fmadd
+  rd[idx++] = std::fma(fp[0], dp[1], fp[2]);
 
   // CHECK: __spirv_ocl_fmaxff
   rf[idx++] = std::fmax(fp[0], fp[1]);
@@ -56,6 +64,8 @@ SYCL_EXTERNAL void entry(float *fp, double *dp, int *ip, long *lp,
   rd[idx++] = std::fmax(dp[0], dp[1]);
   // CHECK: __spirv_ocl_fmaxdd
   rd[idx++] = std::fmax(fp[0], ip[1]);
+  // CHECK: __spirv_ocl_fmaxdd
+  rd[idx++] = std::fmax(fp[0], dp[1]);
 
   // CHECK: __spirv_ocl_fminff
   rf[idx++] = std::fmin(fp[0], fp[1]);
@@ -65,6 +75,8 @@ SYCL_EXTERNAL void entry(float *fp, double *dp, int *ip, long *lp,
   rd[idx++] = std::fmin(dp[0], dp[1]);
   // CHECK: __spirv_ocl_fmindd
   rd[idx++] = std::fmin(fp[0], ip[1]);
+  // CHECK: __spirv_ocl_fmindd
+  rd[idx++] = std::fmin(fp[0], dp[1]);
 
   // CHECK: __spirv_ocl_fdimff
   rf[idx++] = std::fdim(fp[0], fp[1]);
@@ -74,6 +86,8 @@ SYCL_EXTERNAL void entry(float *fp, double *dp, int *ip, long *lp,
   rd[idx++] = std::fdim(dp[0], dp[1]);
   // CHECK: __spirv_ocl_fdimdd
   rd[idx++] = std::fdim(fp[0], ip[1]);
+  // CHECK: __spirv_ocl_fdimdd
+  rd[idx++] = std::fdim(fp[0], dp[1]);
 
   // CHECK: __spirv_ocl_expf
   rf[idx++] = std::exp(fp[0]);
@@ -146,6 +160,8 @@ SYCL_EXTERNAL void entry(float *fp, double *dp, int *ip, long *lp,
   rd[idx++] = std::pow(dp[0], dp[1]);
   // CHECK: __spirv_ocl_powdd
   rd[idx++] = std::pow(ip[0], fp[1]);
+  // CHECK: __spirv_ocl_powdd
+  rd[idx++] = std::pow(dp[0], fp[1]);
 
   // CHECK: __spirv_ocl_sqrtf
   rf[idx++] = std::sqrt(fp[0]);
@@ -173,6 +189,8 @@ SYCL_EXTERNAL void entry(float *fp, double *dp, int *ip, long *lp,
   rd[idx++] = std::hypot(dp[0], dp[1]);
   // CHECK: __spirv_ocl_hypotdd
   rd[idx++] = std::hypot(ip[0], fp[1]);
+  // CHECK: __spirv_ocl_hypotdd
+  rd[idx++] = std::hypot(dp[0], fp[1]);
 
   // CHECK: __spirv_ocl_sinf
   rf[idx++] = std::sin(fp[0]);
@@ -236,6 +254,8 @@ SYCL_EXTERNAL void entry(float *fp, double *dp, int *ip, long *lp,
   rd[idx++] = std::atan2(dp[0], dp[1]);
   // CHECK: __spirv_ocl_atan2dd
   rd[idx++] = std::atan2(ip[0], fp[1]);
+  // CHECK: __spirv_ocl_atan2dd
+  rd[idx++] = std::atan2(dp[0], fp[1]);
 
   // CHECK: __spirv_ocl_sinhf
   rf[idx++] = std::sinh(fp[0]);
@@ -434,6 +454,8 @@ SYCL_EXTERNAL void entry(float *fp, double *dp, int *ip, long *lp,
   rd[idx++] = std::nextafter(dp[0], dp[1]);
   // CHECK: __spirv_ocl_nextafterd
   rd[idx++] = std::nextafter(ip[0], fp[1]);
+  // CHECK: __spirv_ocl_nextafterd
+  rd[idx++] = std::nextafter(dp[0], fp[1]);
 
   // CHECK: __spirv_ocl_copysignf
   rf[idx++] = std::copysign(fp[0], fp[1]);
@@ -443,4 +465,6 @@ SYCL_EXTERNAL void entry(float *fp, double *dp, int *ip, long *lp,
   rd[idx++] = std::copysign(dp[0], dp[1]);
   // CHECK: __spirv_ocl_copysignd
   rd[idx++] = std::copysign(ip[0], fp[1]);
+  // CHECK: __spirv_ocl_copysignd
+  rd[idx++] = std::copysign(dp[0], fp[1]);
 }
