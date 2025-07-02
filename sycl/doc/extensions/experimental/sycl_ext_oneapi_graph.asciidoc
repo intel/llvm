@@ -1004,12 +1004,11 @@ functions inside a command-group:
 ----
 void* Ptr = nullptr;
 size_t AllocSize = 1024;
-auto CGF = [&](handler &CGH){
-  Ptr = async_malloc(CGH, usm::alloc::device, AllocSize);
-}
 
 // Explicit graph creation
-Graph.add(CGF);
+Graph.add([&](handler &CGH){
+  Ptr = async_malloc(CGH, usm::alloc::device, AllocSize);
+});
 
 Graph.add([&](handler &CGH){
   async_free(CGH, Ptr);
@@ -1017,7 +1016,9 @@ Graph.add([&](handler &CGH){
 
 // Queue recording
 Graph.begin_recording(Queue);
-Queue.submit(CGF);
+Queue.submit([&](handler &CGH){
+  Ptr = async_malloc(CGH, usm::alloc::device, AllocSize);
+});
 Queue.submit([&](handler &CGH){
   async_free(CGH, Ptr);
 });
@@ -1025,8 +1026,8 @@ Graph.end_recording(Queue);
 ----
 
 The `async_*` functions which take a queue can also be used with queue
-recording, particularly when recording an in-order queue to specify dependencies
-as no SYCL event is returned.
+recording, particularly when recording an in-order queue, to specify
+dependencies as no SYCL event is returned.
 
 [source,c++]
 ----
@@ -1083,7 +1084,7 @@ non-graph usage described in the
 {async_alloc_spec}[sycl_ext_oneapi_async_memory_alloc] extension.
 
 * Graph memory allocations are not made directly from any default or
-user-provided Memory Pool. Each graph containing async mlloc/free nodes
+user-provided Memory Pool. Each graph containing async malloc/free nodes
 maintains its own pool of memory from which allocations are made.
 The following properties of a default or user-provided memory pool provided in
 calls to `async_<malloc/malloc_from_pool>` will be respected for the associated
@@ -1841,7 +1842,8 @@ are the same as the device and context used on creation of the graph.
 _Returns:_ An event which represents the command which is submitted to the queue.
 
 _Throws:_ Synchronous `exception` with error code `invalid` if `graph` contains
-any <<graph-memory-allocations, graph-owned memory allocations>>.
+any <<graph-memory-allocations, graph-owned memory allocations>> and is being
+added as a subgraph.
 
 [source,c++]
 ----
@@ -1864,7 +1866,8 @@ are the same as the device and context used on creation of the graph.
 _Returns:_ An event which represents the command which is submitted to the queue.
 
 _Throws:_ Synchronous `exception` with error code `invalid` if `graph` contains
-any <<graph-memory-allocations, graph-owned memory allocations>>.
+any <<graph-memory-allocations, graph-owned memory allocations>> and is being
+added as a subgraph.
 
 ==== New Handler Member Functions
 
