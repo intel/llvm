@@ -109,8 +109,7 @@ device_impl::get_backend_info<info::device::backend_version>() const {
 bool device_impl::has_extension(const std::string &ExtensionName) const {
   std::string AllExtensionNames = get_info_impl<UR_DEVICE_INFO_EXTENSIONS>();
 
-  return ((" " + AllExtensionNames + " ").find(" " + ExtensionName + " ") !=
-          std::string::npos);
+  return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
 bool device_impl::is_partition_supported(info::partition_property Prop) const {
