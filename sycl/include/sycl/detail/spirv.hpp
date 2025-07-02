@@ -24,7 +24,7 @@
 #include <sycl/ext/oneapi/experimental/cuda/masked_shuffles.hpp>
 #endif
 
-#include <sycl/detail/memcpy.hpp>      // sycl::detail::memcpy
+#include <sycl/detail/memcpy.hpp> // sycl::detail::memcpy
 #include <sycl/detail/type_traits.hpp>
 
 namespace sycl {
@@ -1318,7 +1318,7 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
     /* TODO: add support for partitioning into more than two groups */         \
   }
 
-#define __SYCL_GROUP_COLLECTIVE_CHUNK(Instruction, GroupExt)                    \
+#define __SYCL_GROUP_COLLECTIVE_CHUNK(Instruction, GroupExt)                   \
   template <__spv::GroupOperation Op, size_t ChunkSize, typename ParentGroup,  \
             typename T>                                                        \
   inline T Group##Instruction(                                                 \
@@ -1375,10 +1375,10 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
   }
 
 // Now use all 4 macros together for each instruction
-#define __SYCL_GROUP_COLLECTIVE_ALL(Instruction, GroupExt) \
-  __SYCL_GROUP_COLLECTIVE_OVERLOAD(Instruction, GroupExt) \
-  __SYCL_GROUP_COLLECTIVE_FRAGMENT(Instruction, GroupExt) \
-  __SYCL_GROUP_COLLECTIVE_CHUNK(Instruction, GroupExt)    \
+#define __SYCL_GROUP_COLLECTIVE_ALL(Instruction, GroupExt)                     \
+  __SYCL_GROUP_COLLECTIVE_OVERLOAD(Instruction, GroupExt)                      \
+  __SYCL_GROUP_COLLECTIVE_FRAGMENT(Instruction, GroupExt)                      \
+  __SYCL_GROUP_COLLECTIVE_CHUNK(Instruction, GroupExt)                         \
   __SYCL_GROUP_COLLECTIVE_TANGLE(Instruction, GroupExt)
 
 __SYCL_GROUP_COLLECTIVE_ALL(SMin, )
