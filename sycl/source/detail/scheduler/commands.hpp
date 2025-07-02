@@ -44,7 +44,6 @@ class context_impl;
 class DispatchHostTask;
 
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
 class Command;
@@ -741,16 +740,6 @@ ur_result_t enqueueImpCommandBufferKernel(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint,
     ur_exp_command_buffer_command_handle_t *OutCommand,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
-
-// Sets arguments for a given kernel and device based on the argument type.
-// Refactored from SetKernelParamsAndLaunch to allow it to be used in the graphs
-// extension.
-void SetArgBasedOnType(
-    const detail::AdapterPtr &Adapter, ur_kernel_handle_t Kernel,
-    const std::shared_ptr<device_image_impl> &DeviceImageImpl,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const ContextImplPtr &ContextImpl, detail::ArgDesc &Arg,
-    size_t NextTrueIndex);
 
 template <typename FuncT>
 void applyFuncOnFilteredArgs(const KernelArgMask *EliminatedArgMask,

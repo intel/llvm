@@ -55,7 +55,7 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
       &redefineEnqueueEventsWaitWithBarrierExt);
 
   queue Queue{Plt.get_devices()[0]};
-  sycl::detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
+  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
 
   queue_global_context =
       detail::getSyclObjImpl(Queue.get_context())->getHandleRef();
