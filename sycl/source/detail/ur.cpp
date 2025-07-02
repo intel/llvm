@@ -13,7 +13,7 @@
 /// \ingroup sycl_ur
 
 #include "ur.hpp"
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
@@ -49,11 +49,11 @@ namespace pi {
 void contextSetExtendedDeleter(const sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
-  const auto &impl = getSyclObjImpl(context);
-  const auto &Adapter = impl->getAdapter();
-  Adapter->call<UrApiKind::urContextSetExtendedDeleter>(
-      impl->getHandleRef(),
-      reinterpret_cast<ur_context_extended_deleter_t>(func), user_data);
+  context_impl &Ctx = *getSyclObjImpl(context);
+  adapter_impl &Adapter = *Ctx.getAdapter();
+  Adapter.call<UrApiKind::urContextSetExtendedDeleter>(
+      Ctx.getHandleRef(), reinterpret_cast<ur_context_extended_deleter_t>(func),
+      user_data);
 }
 } // namespace pi
 
@@ -90,7 +90,7 @@ bool trace(TraceLevel Level) {
   return (TraceLevelMask & Level) == Level;
 }
 
-static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
+static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
                                ur_loader_config_handle_t LoaderConfig);
 
 bool XPTIInitDone = false;
@@ -117,7 +117,7 @@ std::vector<AdapterPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
   return GlobalHandler::instance().getAdapters();
 }
 
-static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
+static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
                                ur_loader_config_handle_t LoaderConfig) {
 #define CHECK_UR_SUCCESS(Call)                                                 \
   {                                                                            \
@@ -238,7 +238,7 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
                                     sizeof(adapterBackend), &adapterBackend,
                                     nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
-    Adapters.emplace_back(std::make_shared<Adapter>(UrAdapter, syclBackend));
+    Adapters.emplace_back(new adapter_impl(UrAdapter, syclBackend));
 
     const char *env_value = std::getenv("UR_LOG_CALLBACK");
     if (env_value == nullptr || std::string(env_value) != "disabled") {
@@ -284,25 +284,25 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
 }
 
 // Get the adapter serving given backend.
-template <backend BE> const AdapterPtr &getAdapter() {
-  static AdapterPtr *Adapter = nullptr;
-  if (Adapter)
-    return *Adapter;
+template <backend BE> AdapterPtr &getAdapter() {
+  static AdapterPtr adapterPtr = nullptr;
+  if (adapterPtr)
+    return adapterPtr;
 
-  std::vector<AdapterPtr> &Adapters = ur::initializeUr();
+  std::vector<AdapterPtr> Adapters = ur::initializeUr();
   for (auto &P : Adapters)
     if (P->hasBackend(BE)) {
-      Adapter = &P;
-      return *Adapter;
+      adapterPtr = P;
+      return adapterPtr;
     }
 
   throw exception(errc::runtime, "ur::getAdapter couldn't find adapter");
 }
 
-template const AdapterPtr &getAdapter<backend::opencl>();
-template const AdapterPtr &getAdapter<backend::ext_oneapi_level_zero>();
-template const AdapterPtr &getAdapter<backend::ext_oneapi_cuda>();
-template const AdapterPtr &getAdapter<backend::ext_oneapi_hip>();
+template AdapterPtr &getAdapter<backend::opencl>();
+template AdapterPtr &getAdapter<backend::ext_oneapi_level_zero>();
+template AdapterPtr &getAdapter<backend::ext_oneapi_cuda>();
+template AdapterPtr &getAdapter<backend::ext_oneapi_hip>();
 
 // Reads an integer value from ELF data.
 template <typename ResT>

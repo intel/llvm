@@ -1183,13 +1183,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   }
-  case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION: {
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
-                                         CL_DEVICE_OPENCL_C_VERSION, propSize,
-                                         pPropValue, pPropSizeRet));
-
-    return UR_RESULT_SUCCESS;
-  }
   case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
                                          CL_DEVICE_BUILT_IN_KERNELS, propSize,

@@ -165,13 +165,13 @@ public:
 
 const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
     const sycl::kernel_bundle<sycl::bundle_state::input> &KernelBundle,
-    std::shared_ptr<sycl::detail::queue_impl> QueueImpl) {
+    sycl::detail::queue_impl &QueueImpl) {
 
   auto ExecBundle = sycl::link(sycl::compile(KernelBundle));
   EXPECT_FALSE(ExecBundle.empty()) << "Expect non-empty exec kernel bundle";
 
   // Emulating processing of command group function
-  MockHandler MockCGH(*QueueImpl);
+  MockHandler MockCGH(QueueImpl);
   MockCGH.use_kernel_bundle(ExecBundle);
   MockCGH.single_task<EAMTestKernel>([] {}); // Actual kernel does not matter
 
@@ -218,7 +218,7 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
 
   const sycl::detail::KernelArgMask *EliminatedArgMask =
       getKernelArgMaskFromBundle(KernelBundle,
-                                 sycl::detail::getSyclObjImpl(Queue));
+                                 *sycl::detail::getSyclObjImpl(Queue));
   assert(EliminatedArgMask && "EliminatedArgMask must be not null");
 
   sycl::detail::KernelArgMask ExpElimArgMask(EAMTestKernelNumArgs);

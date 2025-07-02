@@ -69,10 +69,9 @@ TEST_F(SchedulerTest, BarrierWithDependsOn) {
 
   auto EventA =
       QueueA.submit([&](sycl::handler &h) { h.ext_oneapi_barrier(); });
-  std::shared_ptr<detail::event_impl> EventAImpl =
-      detail::getSyclObjImpl(EventA);
+  detail::event_impl &EventAImpl = *detail::getSyclObjImpl(EventA);
   // it means that command is enqueued
-  ASSERT_NE(EventAImpl->getHandle(), nullptr);
+  ASSERT_NE(EventAImpl.getHandle(), nullptr);
 
   ASSERT_FALSE(EventsWaitVisited);
   ASSERT_TRUE(BarrierEventsWaitVisited);
@@ -83,14 +82,13 @@ TEST_F(SchedulerTest, BarrierWithDependsOn) {
     h.depends_on(EventA);
     h.ext_oneapi_barrier();
   });
-  std::shared_ptr<detail::event_impl> EventBImpl =
-      detail::getSyclObjImpl(EventB);
+  detail::event_impl &EventBImpl = *detail::getSyclObjImpl(EventB);
   // it means that command is enqueued
-  ASSERT_NE(EventBImpl->getHandle(), nullptr);
+  ASSERT_NE(EventBImpl.getHandle(), nullptr);
 
   ASSERT_TRUE(EventsWaitVisited);
   ASSERT_EQ(EventsInWaitList.size(), 1u);
-  EXPECT_EQ(EventsInWaitList[0], EventAImpl->getHandle());
+  EXPECT_EQ(EventsInWaitList[0], EventAImpl.getHandle());
 
   ASSERT_TRUE(BarrierEventsWaitVisited);
   ASSERT_EQ(BarrierEventsInWaitList.size(), 0u);
@@ -118,13 +116,11 @@ TEST_F(SchedulerTest, BarrierWaitListWithDependsOn) {
       QueueA.submit([&](sycl::handler &h) { h.ext_oneapi_barrier(); });
   auto EventA2 =
       QueueA.submit([&](sycl::handler &h) { h.ext_oneapi_barrier(); });
-  std::shared_ptr<detail::event_impl> EventAImpl =
-      detail::getSyclObjImpl(EventA);
-  std::shared_ptr<detail::event_impl> EventA2Impl =
-      detail::getSyclObjImpl(EventA2);
+  detail::event_impl &EventAImpl = *detail::getSyclObjImpl(EventA);
+  detail::event_impl &EventA2Impl = *detail::getSyclObjImpl(EventA2);
   // it means that command is enqueued
-  ASSERT_NE(EventAImpl->getHandle(), nullptr);
-  ASSERT_NE(EventA2Impl->getHandle(), nullptr);
+  ASSERT_NE(EventAImpl.getHandle(), nullptr);
+  ASSERT_NE(EventA2Impl.getHandle(), nullptr);
 
   ASSERT_FALSE(EventsWaitVisited);
   ASSERT_TRUE(BarrierEventsWaitVisited);
@@ -135,16 +131,15 @@ TEST_F(SchedulerTest, BarrierWaitListWithDependsOn) {
     h.depends_on(EventA);
     h.ext_oneapi_barrier({EventA2});
   });
-  std::shared_ptr<detail::event_impl> EventBImpl =
-      detail::getSyclObjImpl(EventB);
+  detail::event_impl &EventBImpl = *detail::getSyclObjImpl(EventB);
   // it means that command is enqueued
-  ASSERT_NE(EventBImpl->getHandle(), nullptr);
+  ASSERT_NE(EventBImpl.getHandle(), nullptr);
 
   ASSERT_FALSE(EventsWaitVisited);
   ASSERT_TRUE(BarrierEventsWaitVisited);
   ASSERT_EQ(BarrierEventsInWaitList.size(), 2u);
-  EXPECT_EQ(BarrierEventsInWaitList[0], EventA2Impl->getHandle());
-  EXPECT_EQ(BarrierEventsInWaitList[1], EventAImpl->getHandle());
+  EXPECT_EQ(BarrierEventsInWaitList[0], EventA2Impl.getHandle());
+  EXPECT_EQ(BarrierEventsInWaitList[1], EventAImpl.getHandle());
 
   QueueA.wait();
   QueueB.wait();

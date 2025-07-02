@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/host_profiling_info.hpp>
@@ -27,14 +27,13 @@ class graph_impl;
 }
 class context;
 namespace detail {
-class Adapter;
+class adapter_impl;
 class context_impl;
-using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
 class event_impl;
 using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
-class event_impl : public std::enable_shared_from_this<event_impl> {
+class event_impl {
   struct private_tag {
     explicit private_tag() = default;
   };
@@ -312,12 +311,6 @@ public:
 
   bool isDefaultConstructed() const noexcept { return MIsDefaultConstructed; }
 
-  ContextImplPtr getContextImplPtr() {
-    if (MIsDefaultConstructed)
-      initContextIfNeeded();
-    return MContext;
-  }
-
   // Sets a sync point which is used when this event represents an enqueue to a
   // Command Buffer.
   void setSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint) {
@@ -394,7 +387,7 @@ protected:
   std::atomic<ur_event_handle_t> MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
-  ContextImplPtr MContext;
+  std::shared_ptr<context_impl> MContext;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
