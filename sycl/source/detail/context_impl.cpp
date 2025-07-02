@@ -62,7 +62,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
 
 context_impl::context_impl(ur_context_handle_t UrContext,
                            async_handler AsyncHandler,
-                           const AdapterPtr &Adapter,
+                           const adapter_impl &Adapter,
                            const std::vector<sycl::device> &DeviceList,
                            bool OwnedByRuntime, private_tag)
     : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
@@ -74,12 +74,12 @@ context_impl::context_impl(ur_context_handle_t UrContext,
     std::vector<ur_device_handle_t> DeviceIds;
     uint32_t DevicesNum = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Adapter->call<UrApiKind::urContextGetInfo>(
+    Adapter.call<UrApiKind::urContextGetInfo>(
         MContext, UR_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
         nullptr);
     DeviceIds.resize(DevicesNum);
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Adapter->call<UrApiKind::urContextGetInfo>(
+    Adapter.call<UrApiKind::urContextGetInfo>(
         MContext, UR_CONTEXT_INFO_DEVICES,
         sizeof(ur_device_handle_t) * DevicesNum, &DeviceIds[0], nullptr);
 
@@ -340,9 +340,9 @@ void context_impl::addDeviceGlobalInitializer(
   }
 }
 
-std::vector<ur_event_handle_t>
-context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
-                                      queue_impl &QueueImpl) {
+std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
+    ur_program_handle_t NativePrg, queue_impl &QueueImpl,
+    detail::kernel_bundle_impl *KernelBundleImplPtr) {
   if (!MDeviceGlobalNotInitializedCnt.load(std::memory_order_acquire))
     return {};
 
@@ -396,6 +396,12 @@ context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
         detail::ProgramManager::getInstance().getDeviceGlobalEntries(
             DeviceGlobalIds,
             /*ExcludeDeviceImageScopeDecorated=*/true);
+    // Kernel bundles may have isolated device globals. They need to be
+    // initialized too.
+    if (KernelBundleImplPtr && KernelBundleImplPtr->getDeviceGlobalMap().size())
+      KernelBundleImplPtr->getDeviceGlobalMap().getEntries(
+          DeviceGlobalIds, /*ExcludeDeviceImageScopeDecorated=*/true,
+          DeviceGlobalEntries);
 
     // If there were no device globals without device_image_scope the device
     // globals are trivially fully initialized and we can end early.
