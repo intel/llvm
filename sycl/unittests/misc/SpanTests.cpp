@@ -161,15 +161,15 @@ TEST_F(SpanTest, RangeBasedForLoopIteratesAllElements) {
 }
 
 TEST_F(SpanTest, ModifyingSpanElementsModifiesUnderlying) {
-  int arr[] = {1, 2, 3};
+  size_t arr[] = {1, 2, 3};
   auto size{std::size(arr)};
   sycl::span sp(arr, size);
 
-  for (int i{}; i!= size; ++i)
-    sp[i] = (i+1)*10;
+  for (size_t i{}; i != size; ++i)
+    sp[i] = (i + 1) * 10;
 
-  for (int i{}; i!= size; ++i)
-    EXPECT_EQ(arr[i], (i+1)*10);
+  for (size_t i{}; i != size; ++i)
+    EXPECT_EQ(arr[i], (i + 1) * 10);
 }
 
 TEST_F(SpanTest, SpanPreservesOriginalAlignment) {
@@ -257,7 +257,7 @@ TEST_F(SpanTest, IteratorSupportsFullArithmeticOperations) {
   EXPECT_EQ(*it2, 40);
   EXPECT_EQ(it2 - it, 2);
 
-// and comparizon operations:
+  // and comparizon operations:
 
   EXPECT_TRUE(it < it2);
   EXPECT_TRUE(it <= it2);
