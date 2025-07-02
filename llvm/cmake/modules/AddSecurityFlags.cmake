@@ -167,18 +167,18 @@ macro(append_common_extra_security_flags)
   if(LLVM_ON_UNIX)
     # Fortify Source (strongly recommended):
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-      message(WARNING "-D_FORTIFY_SOURCE=3 can only be used with optimization.")
-      message(WARNING "-D_FORTIFY_SOURCE=3 is not supported.")
+      message(WARNING "-D_FORTIFY_SOURCE=2 can only be used with optimization.")
+      message(WARNING "-D_FORTIFY_SOURCE=2 is not supported.")
     else()
       # Sanitizers do not work with checked memory functions, such as
       # __memset_chk. We do not build release packages with sanitizers, so just
-      # avoid -D_FORTIFY_SOURCE=3 under LLVM_USE_SANITIZER.
+      # avoid -D_FORTIFY_SOURCE=2 under LLVM_USE_SANITIZER.
       if(NOT LLVM_USE_SANITIZER)
-        message(STATUS "Building with -D_FORTIFY_SOURCE=3")
-        add_definitions(-D_FORTIFY_SOURCE=3)
+        message(STATUS "Building with -D_FORTIFY_SOURCE=2")
+        add_definitions(-D_FORTIFY_SOURCE=2)
       else()
         message(
-          WARNING "-D_FORTIFY_SOURCE=3 dropped due to LLVM_USE_SANITIZER.")
+          WARNING "-D_FORTIFY_SOURCE=2 dropped due to LLVM_USE_SANITIZER.")
       endif()
     endif()
 
