@@ -628,9 +628,7 @@ event handler::finalize() {
         EnqueueKernel();
       } else {
         detail::queue_impl &Queue = impl->get_queue();
-        ResultEvent->setQueue(Queue);
         ResultEvent->setWorkerQueue(Queue.weak_from_this());
-        ResultEvent->setContextImpl(impl->get_context());
         ResultEvent->setStateIncomplete();
         ResultEvent->setSubmissionTime();
 
