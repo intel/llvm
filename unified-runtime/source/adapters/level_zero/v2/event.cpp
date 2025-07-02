@@ -258,7 +258,7 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
     }
   }
   case UR_EVENT_INFO_REFERENCE_COUNT: {
-    return returnValue(hEvent->getRefCount().getCount());
+    return returnValue(hEvent->RefCount.getCount());
   }
   case UR_EVENT_INFO_COMMAND_QUEUE: {
     auto urQueueHandle = reinterpret_cast<uintptr_t>(hEvent->getQueue()) -

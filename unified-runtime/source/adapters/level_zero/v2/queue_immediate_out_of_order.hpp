@@ -50,8 +50,6 @@ private:
            numCommandLists;
   }
 
-  ur::RefCount RefCount;
-
 public:
   ur_queue_immediate_out_of_order_t(ur_context_handle_t, ur_device_handle_t,
                                     uint32_t ordinal,
@@ -507,7 +505,7 @@ public:
         createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount RefCount;
 };
 
 } // namespace v2

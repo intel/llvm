@@ -359,7 +359,7 @@ struct ur_context_handle_t_ : ur_object {
   // Get handle to the L0 context
   ze_context_handle_t getZeHandle() const;
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount RefCount;
 
 private:
   enum EventFlags {
@@ -407,8 +407,6 @@ private:
 
     return &EventCaches[index];
   }
-
-  ur::RefCount RefCount;
 };
 
 // Helper function to release the context, a caller must lock the platform-level

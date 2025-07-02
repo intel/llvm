@@ -20,9 +20,6 @@ struct ur_sampler_handle_t_ : ur_object {
 
   ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
   ur::RefCount RefCount;
 };
 

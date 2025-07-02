@@ -671,7 +671,7 @@ ur_result_t urMemGetInfo(ur_mem_handle_t hMem, ur_mem_info_t propName,
     return returnValue(size_t{hMem->getBuffer()->getSize()});
   }
   case UR_MEM_INFO_REFERENCE_COUNT: {
-    return returnValue(hMem->getRefCount().getCount());
+    return returnValue(hMem->RefCount.getCount());
   }
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -684,14 +684,14 @@ ur_result_t urMemGetInfo(ur_mem_handle_t hMem, ur_mem_info_t propName,
 }
 
 ur_result_t urMemRetain(ur_mem_handle_t hMem) try {
-  hMem->getRefCount().retain();
+  hMem->RefCount.retain();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urMemRelease(ur_mem_handle_t hMem) try {
-  if (!hMem->getRefCount().release())
+  if (!hMem->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   delete hMem;

@@ -91,7 +91,7 @@ struct ur_mem_handle_t_ : ur_object {
   // Method to get type of the derived object (image or buffer)
   bool isImage() const { return mem_type == mem_type_t::image; }
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount RefCount;
 
 protected:
   ur_mem_handle_t_(mem_type_t type, ur_context_handle_t Context)
@@ -104,9 +104,6 @@ protected:
   // Since the destructor isn't virtual, callers must destruct it via ur_buffer
   // or ur_image
   ~ur_mem_handle_t_() {};
-
-private:
-  ur::RefCount RefCount;
 };
 
 struct ur_buffer final : ur_mem_handle_t_ {
@@ -122,7 +119,7 @@ struct ur_buffer final : ur_mem_handle_t_ {
       : ur_mem_handle_t_(mem_type_t::buffer, Parent->UrContext), Size(Size),
         SubBuffer{{Parent, Origin}} {
     // Retain the Parent Buffer due to the Creation of the SubBuffer.
-    Parent->getRefCount().retain();
+    Parent->RefCount.retain();
   }
 
   // Interop-buffer constructor

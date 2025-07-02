@@ -558,14 +558,14 @@ ur_result_t urProgramLinkExp(
 ur_result_t urProgramRetain(
     /// [in] handle for the Program to retain
     ur_program_handle_t Program) {
-  Program->getRefCount().retain();
+  Program->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urProgramRelease(
     /// [in] handle for the Program to release
     ur_program_handle_t Program) {
-  if (!Program->getRefCount().release())
+  if (!Program->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   delete Program;
@@ -708,7 +708,7 @@ ur_result_t urProgramGetInfo(
 
   switch (PropName) {
   case UR_PROGRAM_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Program->getRefCount().getCount()});
+    return ReturnValue(uint32_t{Program->RefCount.getCount()});
   case UR_PROGRAM_INFO_CONTEXT:
     return ReturnValue(Program->Context);
   case UR_PROGRAM_INFO_NUM_DEVICES:

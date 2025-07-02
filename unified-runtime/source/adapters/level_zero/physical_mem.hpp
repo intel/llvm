@@ -23,8 +23,5 @@ struct ur_physical_mem_handle_t_ : ur_object {
   // Keeps the PI context of this memory handle.
   ur_context_handle_t Context;
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
   ur::RefCount RefCount;
 };

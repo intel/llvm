@@ -109,9 +109,6 @@ struct ur_kernel_handle_t_ : ur_object {
   ZeCache<ZeStruct<ze_kernel_properties_t>> ZeKernelProperties;
   ZeCache<std::string> ZeKernelName;
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
   ur::RefCount RefCount;
 };
 

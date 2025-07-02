@@ -282,7 +282,7 @@ struct ur_mem_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
 
   bool isImage() const { return std::holds_alternative<ur_mem_image_t>(mem); }
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount RefCount;
 
 private:
   template <typename T, typename... Args>
@@ -294,7 +294,4 @@ private:
                ur_discrete_buffer_handle_t, ur_shared_buffer_handle_t,
                ur_mem_sub_buffer_t, ur_mem_image_t>
       mem;
-
-private:
-  ur::RefCount RefCount;
 };

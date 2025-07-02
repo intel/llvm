@@ -370,7 +370,7 @@ urKernelCreateWithNativeHandle(ur_native_handle_t hNativeKernel,
 ur_result_t urKernelRetain(
     /// [in] handle for the Kernel to retain
     ur_kernel_handle_t hKernel) try {
-  hKernel->getRefCount().retain();
+  hKernel->RefCount.retain();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -634,7 +634,7 @@ ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
                        spills.size());
   }
   case UR_KERNEL_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{hKernel->getRefCount().getCount()});
+    return ReturnValue(uint32_t{hKernel->RefCount.getCount()});
   case UR_KERNEL_INFO_ATTRIBUTES: {
     auto attributes = hKernel->getSourceAttributes();
     return ReturnValue(static_cast<const char *>(attributes.data()));

@@ -45,9 +45,6 @@ struct ur_adapter_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   logger::Logger &logger;
   HMODULE processHandle = nullptr;
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
   ur::RefCount RefCount;
 };
 

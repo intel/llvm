@@ -694,9 +694,6 @@ struct ur_queue_handle_t_ : ur_object {
   // Pointer to the unified handle.
   ur_queue_handle_t_ *UnifiedHandle;
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
   ur::RefCount RefCount;
 };
 

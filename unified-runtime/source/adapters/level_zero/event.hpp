@@ -264,9 +264,6 @@ struct ur_event_handle_t_ : ur_object {
   // on async free to indicate when the allocation can be used again.
   ur_event_handle_t OriginAllocEvent = nullptr;
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
   ur::RefCount RefCount;
 };
 

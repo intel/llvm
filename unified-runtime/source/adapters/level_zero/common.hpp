@@ -259,9 +259,6 @@ struct MemAllocRecord : ur_object {
   // Zero runtime.
   ur_context_handle_t Context;
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
   ur::RefCount RefCount;
 };
 

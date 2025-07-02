@@ -201,7 +201,7 @@ ur_result_t urContextGetInfo(ur_context_handle_t hContext,
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(uint32_t(hContext->getDevices().size()));
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{hContext->getRefCount().getCount()});
+    return ReturnValue(uint32_t{hContext->RefCount.getCount()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // TODO: this is currently not implemented
     return ReturnValue(uint8_t{false});
