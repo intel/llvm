@@ -286,8 +286,10 @@ void PrintUrBuildLogIfError(ur_result_t Result, ur_program_handle_t Program,
       Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
     return;
 
-  if (!Program || !Devices || NumDevices == 0)
+  if (!Program || !Devices || NumDevices == 0) {
+    UR_LOG_L(getContext()->logger, ERR, "Failed to get build log.");
     return;
+  }
 
   UR_LOG_L(getContext()->logger, ERR, "Printing build log for program {}",
            (void *)Program);
