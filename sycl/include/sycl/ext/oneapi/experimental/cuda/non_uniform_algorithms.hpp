@@ -10,6 +10,7 @@
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 #include "masked_shuffles.hpp"
+#include "../non_uniform_groups.hpp"
 
 namespace sycl {
 inline namespace _V1 {
