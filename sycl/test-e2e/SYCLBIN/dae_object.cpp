@@ -10,10 +10,6 @@
 
 // -- Test for using a kernel from a SYCLBIN with a dead argument.
 
-// SYCLBIN currently only properly detects SPIR-V binaries.
-// XFAIL: !target-spir
-// XFAIL-TRACKER: CMPLRLLVM-68811
-
 // RUN: %clangxx --offload-new-driver -fsyclbin=object %{sycl_target_opts} %S/Inputs/dae_kernel.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out %t.syclbin
