@@ -178,8 +178,9 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
       return ReturnValue(Device);
     }
     case UR_USM_ALLOC_INFO_POOL: {
-      auto UMFPool = umfPoolByPtr(pMem);
-      if (!UMFPool) {
+      umf_memory_pool_handle_t UMFPool = nullptr;
+      auto UMFResult = umfPoolByPtr(pMem, &UMFPool);
+      if (UMFResult != UMF_RESULT_SUCCESS || !UMFPool) {
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
       ur_usm_pool_handle_t Pool = hContext->getOwningURPool(UMFPool);

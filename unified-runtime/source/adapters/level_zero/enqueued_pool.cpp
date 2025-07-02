@@ -57,11 +57,14 @@ void EnqueuedPool::insert(void *Ptr, size_t Size, ur_event_handle_t Event,
 bool EnqueuedPool::cleanup() {
   auto Lock = std::lock_guard(Mutex);
   auto FreedAllocations = !Freelist.empty();
+
+  auto umfRet [[maybe_unused]] = UMF_RESULT_SUCCESS;
   for (auto It : Freelist) {
-    auto hPool = umfPoolByPtr(It.Ptr);
+    umf_memory_pool_handle_t hPool = nullptr;
+    umfRet = umfPoolByPtr(It.Ptr, &hPool);
     assert(hPool != nullptr);
 
-    auto umfRet [[maybe_unused]] = umfPoolFree(hPool, It.Ptr);
+    umfRet = umfPoolFree(hPool, It.Ptr);
     assert(umfRet == UMF_RESULT_SUCCESS);
 
     if (It.Event)
@@ -81,11 +84,13 @@ bool EnqueuedPool::cleanupForQueue(void *Queue) {
 
   bool FreedAllocations = false;
 
+  auto umfRet [[maybe_unused]] = UMF_RESULT_SUCCESS;
   while (It != Freelist.end() && It->Queue == Queue) {
-    auto hPool = umfPoolByPtr(It->Ptr);
+    umf_memory_pool_handle_t hPool = nullptr;
+    umfRet = umfPoolByPtr(It->Ptr, &hPool);
     assert(hPool != nullptr);
 
-    auto umfRet [[maybe_unused]] = umfPoolFree(hPool, It->Ptr);
+    umfRet = umfPoolFree(hPool, It->Ptr);
     assert(umfRet == UMF_RESULT_SUCCESS);
 
     if (It->Event)

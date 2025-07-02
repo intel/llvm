@@ -44,34 +44,6 @@ ur_result_t getProviderNativeError(const char *providerName,
 usm::DisjointPoolAllConfigs DisjointPoolConfigInstance =
     InitializeDisjointPoolConfig();
 
-ur_result_t umf2urResult(umf_result_t umfResult) {
-  if (umfResult == UMF_RESULT_SUCCESS)
-    return UR_RESULT_SUCCESS;
-
-  switch (umfResult) {
-  case UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY:
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  case UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC: {
-    auto hProvider = umfGetLastFailedMemoryProvider();
-    if (hProvider == nullptr)
-      return UR_RESULT_ERROR_UNKNOWN;
-
-    ur_result_t Err = UR_RESULT_ERROR_UNKNOWN;
-    umfMemoryProviderGetLastNativeError(hProvider, nullptr,
-                                        reinterpret_cast<int32_t *>(&Err));
-    return Err;
-  }
-  case UMF_RESULT_ERROR_INVALID_ARGUMENT:
-    return UR_RESULT_ERROR_INVALID_ARGUMENT;
-  case UMF_RESULT_ERROR_INVALID_ALIGNMENT:
-    return UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT;
-  case UMF_RESULT_ERROR_NOT_SUPPORTED:
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  default:
-    return UR_RESULT_ERROR_UNKNOWN;
-  };
-}
-
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig() {
   const char *PoolUrTraceVal = std::getenv("UR_L0_USM_ALLOCATOR_TRACE");
   const char *PoolPiTraceVal =
@@ -472,8 +444,9 @@ ur_result_t urUSMGetMemAllocInfo(
     return ReturnValue(Size);
   }
   case UR_USM_ALLOC_INFO_POOL: {
-    auto UMFPool = umfPoolByPtr(Ptr);
-    if (!UMFPool) {
+    umf_memory_pool_handle_t UMFPool = nullptr;
+    auto umfRet = umfPoolByPtr(Ptr, &UMFPool);
+    if (umfRet != UMF_RESULT_SUCCESS || !UMFPool) {
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
@@ -513,7 +486,7 @@ ur_result_t urUSMPoolCreate(
   } catch (const UsmAllocationException &Ex) {
     return Ex.getError();
   } catch (umf_result_t e) {
-    return umf2urResult(e);
+    return umf::umf2urResult(e);
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
@@ -808,15 +781,16 @@ typedef struct ze_ipc_data_t {
   ze_ipc_mem_handle_t zeHandle;
 } ze_ipc_data_t;
 
-umf_result_t L0MemoryProvider::get_ipc_handle_size(size_t *Size) {
+umf_result_t L0MemoryProvider::ext_get_ipc_handle_size(size_t *Size) {
   UR_ASSERT(Size, UMF_RESULT_ERROR_INVALID_ARGUMENT);
   *Size = sizeof(ze_ipc_data_t);
 
   return UMF_RESULT_SUCCESS;
 }
 
-umf_result_t L0MemoryProvider::get_ipc_handle(const void *Ptr, size_t /*Size*/,
-                                              void *IpcData) {
+umf_result_t L0MemoryProvider::ext_get_ipc_handle(const void *Ptr,
+                                                  size_t /*Size*/,
+                                                  void *IpcData) {
 
   UR_ASSERT(Ptr && IpcData, UMF_RESULT_ERROR_INVALID_ARGUMENT);
   ze_ipc_data_t *zeIpcData = (ze_ipc_data_t *)IpcData;
@@ -831,7 +805,7 @@ umf_result_t L0MemoryProvider::get_ipc_handle(const void *Ptr, size_t /*Size*/,
   return UMF_RESULT_SUCCESS;
 }
 
-umf_result_t L0MemoryProvider::put_ipc_handle(void *IpcData) {
+umf_result_t L0MemoryProvider::ext_put_ipc_handle(void *IpcData) {
   UR_ASSERT(IpcData, UMF_RESULT_ERROR_INVALID_ARGUMENT);
 
   // zeMemPutIpcHandle was introduced in Level Zero 1.6. Before Level Zero 1.6,
@@ -849,7 +823,7 @@ umf_result_t L0MemoryProvider::put_ipc_handle(void *IpcData) {
   return UMF_RESULT_SUCCESS;
 }
 
-umf_result_t L0MemoryProvider::open_ipc_handle(void *IpcData, void **Ptr) {
+umf_result_t L0MemoryProvider::ext_open_ipc_handle(void *IpcData, void **Ptr) {
   UR_ASSERT(IpcData && Ptr, UMF_RESULT_ERROR_INVALID_ARGUMENT);
   ze_ipc_data_t *zeIpcData = (ze_ipc_data_t *)IpcData;
 
@@ -880,7 +854,8 @@ umf_result_t L0MemoryProvider::open_ipc_handle(void *IpcData, void **Ptr) {
   return UMF_RESULT_SUCCESS;
 }
 
-umf_result_t L0MemoryProvider::close_ipc_handle(void *Ptr, size_t /*Size*/) {
+umf_result_t L0MemoryProvider::ext_close_ipc_handle(void *Ptr,
+                                                    size_t /*Size*/) {
 
   UR_ASSERT(Ptr, UMF_RESULT_ERROR_INVALID_ARGUMENT);
   auto Ret = ZE_CALL_NOCHECK(zeMemCloseIpcHandle, (Context->ZeContext, Ptr));
@@ -1307,15 +1282,16 @@ ur_result_t USMFreeHelper(ur_context_handle_t Context, void *Ptr,
     Context->MemAllocs.erase(It);
   }
 
-  auto hPool = umfPoolByPtr(Ptr);
-  if (!hPool) {
+  umf_memory_pool_handle_t hPool = nullptr;
+  auto umfRet = umfPoolByPtr(Ptr, &hPool);
+  if (umfRet != UMF_RESULT_SUCCESS || !hPool) {
     if (IndirectAccessTrackingEnabled)
       UR_CALL(ContextReleaseHelper(Context));
     return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
   }
 
-  auto umfRet = umfPoolFree(hPool, Ptr);
+  umfRet = umfPoolFree(hPool, Ptr);
   if (IndirectAccessTrackingEnabled)
     UR_CALL(ContextReleaseHelper(Context));
-  return umf2urResult(umfRet);
+  return umf::umf2urResult(umfRet);
 }

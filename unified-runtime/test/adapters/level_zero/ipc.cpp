@@ -32,7 +32,9 @@ TEST_P(urL0IpcTest, SuccessHostL0Ipc) {
   ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, allocSize, &ptr));
   ASSERT_NE(ptr, nullptr);
 
-  umf_memory_pool_handle_t umfPool = umfPoolByPtr(ptr);
+  umf_memory_pool_handle_t umfPool = nullptr;
+  auto umfRet = umfPoolByPtr(ptr, &umfPool);
+  ASSERT_UMF_SUCCESS(umfRet);
   ASSERT_NE(umfPool, nullptr);
 
   umf_memory_provider_handle_t umfProvider = nullptr;
