@@ -16,7 +16,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-using syclex = ext::oneapi::experimental;
+using syclex = ::sycl::ext::oneapi::experimental;
 
 template <typename T, class BinaryOperation>
 using IsRedux = std::bool_constant<
