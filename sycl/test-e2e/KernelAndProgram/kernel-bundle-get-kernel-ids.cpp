@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 
 // This test checks that get_kernel_ids returns all the kernels defined
-// in the source regardless of whether they are expressed as lambdas, named
+// in the source regardless of whether they are expressed as lambdas,
 // function objects or free functions.
 
 #include <sycl/detail/core.hpp>
