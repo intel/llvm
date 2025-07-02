@@ -22,11 +22,6 @@ ur_result_t urMemoryExportAllocExportableMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t alignment,
     size_t size, ur_exp_external_mem_type_t handleTypeToExport, void **ppMem) {
 
-  UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(size != 0, UR_RESULT_ERROR_INVALID_USM_SIZE);
-  UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(alignment == 0 || (alignment & (alignment - 1)) == 0,
-            UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT);
   UR_ASSERT(handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD ||
                 handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT,
             UR_RESULT_ERROR_INVALID_ENUMERATION);
@@ -58,10 +53,6 @@ ur_result_t urMemoryExportAllocExportableMemoryExp(
 ur_result_t urMemoryExportFreeExportableMemoryExp(
     ur_context_handle_t hContext, [[maybe_unused]] ur_device_handle_t hDevice,
     void *pMem) {
-
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   ZE2UR_CALL(zeMemFree, (hContext->getZeHandle(), pMem));
   return UR_RESULT_SUCCESS;
 }
@@ -70,11 +61,6 @@ ur_result_t urMemoryExportExportMemoryHandleExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_external_mem_type_t handleTypeToExport, void *pMem,
     void *pMemHandleRet) {
-
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pMemHandleRet, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   ze_memory_allocation_properties_t MemAllocProps{};
   MemAllocProps.stype = ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES;
