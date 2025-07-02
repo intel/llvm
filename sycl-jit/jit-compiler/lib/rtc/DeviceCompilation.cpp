@@ -333,8 +333,9 @@ static void adjustArgs(const InputArgList &UserArgList,
   DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
 
   if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
-    auto [CPU, _] =
+    auto [CPU, Features] =
         Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
+    (void)Features;
     if (Format == BinaryFormat::AMDGCN) {
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ),
                        "amdgcn-amd-amdhsa");
@@ -631,8 +632,9 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   if (IsCudaHIP) {
     Triple T{Module.getTargetTriple()};
     Driver D{(Twine(DPCPPRoot) + "/bin/clang++").str(), T.getTriple(), Diags};
-    auto [CPU, _] =
+    auto [CPU, Features] =
         Translator::getTargetCPUAndFeatureAttrs(&Module, "", Format);
+    (void)Features;
     // Helper lambda to link modules.
     auto LinkInLib = [&](const StringRef LibDevice) -> Error {
       ModuleUPtr LibDeviceModule;
