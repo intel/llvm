@@ -813,7 +813,7 @@ ur_result_t urKernelGetInfo(
     }
   }
   case UR_KERNEL_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Kernel->RefCount.load()});
+    return ReturnValue(uint32_t{Kernel->RefCount.getCount()});
   case UR_KERNEL_INFO_ATTRIBUTES:
     try {
       uint32_t Size;
@@ -964,7 +964,7 @@ ur_result_t urKernelGetSubGroupInfo(
 ur_result_t urKernelRetain(
     /// [in] handle for the Kernel to retain
     ur_kernel_handle_t Kernel) {
-  Kernel->RefCount.increment();
+  Kernel->RefCount.retain();
 
   return UR_RESULT_SUCCESS;
 }
@@ -972,7 +972,7 @@ ur_result_t urKernelRetain(
 ur_result_t urKernelRelease(
     /// [in] handle for the Kernel to release
     ur_kernel_handle_t Kernel) {
-  if (!Kernel->RefCount.decrementAndTest())
+  if (!Kernel->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   auto KernelProgram = Kernel->Program;

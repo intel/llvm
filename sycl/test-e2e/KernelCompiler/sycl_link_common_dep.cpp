@@ -12,6 +12,8 @@
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
+// Note linking is not supported on CUDA/HIP.
+
 // -- Test for linking where two kernels use the same imported symbols.
 
 // RUN: %{build} -o %t.out

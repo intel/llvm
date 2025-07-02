@@ -154,9 +154,11 @@ class GromacsBenchmark(Benchmark):
             f"{str(model_dir)}/{self.type}.tpr",
         ]
 
+        env_vars = {"GMX_MAXBACKUP": "-1"}
         # Generate configuration files
         self.conf_result = run(
             cmd_list,
+            env_vars=env_vars,
             add_sycl=True,
             ld_library=self.suite.oneapi.ld_libraries(),
         )

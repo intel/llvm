@@ -409,8 +409,10 @@ bool is_source_kernel_bundle_supported(
     const std::vector<device_impl *> &DeviceImplVec) {
   backend BE = DeviceImplVec[0]->getBackend();
   // Support is limited to the opencl and level_zero backends.
-  bool BE_Acceptable = (BE == sycl::backend::ext_oneapi_level_zero) ||
-                       (BE == sycl::backend::opencl);
+  bool BE_Acceptable =
+      (BE == sycl::backend::ext_oneapi_level_zero) ||
+      (BE == sycl::backend::opencl || BE == sycl::backend::ext_oneapi_hip ||
+       BE == sycl::backend::ext_oneapi_cuda);
   if (!BE_Acceptable)
     return false;
 

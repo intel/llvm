@@ -7,6 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: (opencl || level_zero)
+// Unlike other RTC tests, don't run this one on Cuda/HIP. Eviction mechanism
+// is based on the size of compiled kernels, which in turns depends on the
+// target. Don't run eviction check for CUDA/HIP, so that we don't have to find
+// a magic number that works for all binaries (and by definition is flaky).
+
 // REQUIRES: aspect-usm_device_allocations
 
 // UNSUPPORTED: accelerator
