@@ -174,7 +174,7 @@ binary_partition(ParentGroup parent, bool predicate) {
 #endif
 #else
   (void)predicate;
-  return fragment<ParentGroup>();
+  return fragment<ParentGroup>(sub_group_mask(), id<1>(0), range<1>(1));
 #endif
 }
 

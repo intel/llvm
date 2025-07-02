@@ -1445,8 +1445,7 @@ public:
     }
     CASE(ext_oneapi_tangle) {
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||
-             (this->getBackend() == backend::opencl) ||
-             (this->getBackend() == backend::ext_oneapi_cuda);
+             (this->getBackend() == backend::opencl);
     }
     CASE(ext_intel_matrix) {
       using arch = sycl::ext::oneapi::experimental::architecture;
