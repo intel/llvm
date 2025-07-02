@@ -23,16 +23,6 @@ enum class external_mem_handle_type {
   win32_nt_dx12_resource = 2,
 };
 
-// External resource file descriptor type
-struct resource_fd {
-  int file_descriptor;
-};
-
-// Windows external handle type
-struct resource_win32_handle {
-  void *handle;
-};
-
 // Types of external semaphore handles
 enum class external_semaphore_handle_type {
   opaque_fd = 0,
@@ -53,6 +43,16 @@ struct external_semaphore {
   using raw_handle_type = ur_exp_external_semaphore_handle_t;
   raw_handle_type raw_handle;
   external_semaphore_handle_type handle_type;
+};
+
+// External resource file descriptor type
+struct resource_fd {
+  int file_descriptor;
+};
+
+// Windows external handle type
+struct resource_win32_handle {
+  void *handle;
 };
 
 // Windows external name type
