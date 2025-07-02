@@ -25,7 +25,9 @@
 // When multiple floating point arguments are available passing arguments with
 // different precision should promote to the larger type. The template helpers
 // below provide the machinery to define these promoting overloads.
-template <typename T> struct __dpcpp_promote {
+template <typename T, bool = (std::is_integral<T>::value ||
+                              std::is_floating_point<T>::value)>
+struct __dpcpp_promote {
 private:
   // Integer types are promoted to double.
   template <typename U>
@@ -42,6 +44,9 @@ public:
   // based on the input T.
   typedef decltype(test<T>()) type;
 };
+
+// Variant without ::type to allow SFINAE for non promotable types.
+template <typename T> struct __dpcpp_promote<T, false> {};
 
 // With a single paramter we only need to promote integers.
 template <typename T>
