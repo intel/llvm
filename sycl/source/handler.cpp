@@ -1077,24 +1077,21 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
 
     detail::AccessorBaseHost *GBufBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalBuf);
-    detail::AccessorImplPtr GBufImpl = detail::getSyclObjImpl(*GBufBase);
-    detail::Requirement *GBufReq = GBufImpl.get();
+    detail::Requirement *GBufReq = &*detail::getSyclObjImpl(*GBufBase);
     addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
                              IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GOffsetBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalOffset);
-    detail::AccessorImplPtr GOfssetImpl = detail::getSyclObjImpl(*GOffsetBase);
-    detail::Requirement *GOffsetReq = GOfssetImpl.get();
+    detail::Requirement *GOffsetReq = &*detail::getSyclObjImpl(*GOffsetBase);
     addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
                              IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GFlushBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
-    detail::AccessorImplPtr GFlushImpl = detail::getSyclObjImpl(*GFlushBase);
-    detail::Requirement *GFlushReq = GFlushImpl.get();
+    detail::Requirement *GFlushReq = &*detail::getSyclObjImpl(*GFlushBase);
 
     // If work group size wasn't set explicitly then it must be recieved
     // from kernel attribute or set to default values.
