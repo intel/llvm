@@ -20,6 +20,7 @@
 
 #include "adapters/level_zero/platform.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include <ur/ur.hpp>
 #include <ur_ddi.h>
 #include <ze_api.h>
@@ -242,6 +243,8 @@ struct ur_device_handle_t_ : ur_object {
 
   // unique ephemeral identifer of the device in the adapter
   std::optional<DeviceId> Id;
+
+  ur::RefCount RefCount;
 };
 
 inline std::vector<ur_device_handle_t>
