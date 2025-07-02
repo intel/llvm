@@ -724,7 +724,7 @@ public:
     CASE(info::device::platform) {
       return createSyclObjFromImpl<platform>(
           platform_impl::getOrMakePlatformImpl(
-              get_info_impl<UR_DEVICE_INFO_PLATFORM>(), getAdapter()));
+              get_info_impl<UR_DEVICE_INFO_PLATFORM>(), *getAdapter()));
     }
 
     CASE(info::device::profile) {

@@ -60,7 +60,7 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
   case UR_QUEUE_INFO_DEVICE:
     return ReturnValue(hDevice);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{RefCount.load()});
+    return ReturnValue(uint32_t{RefCount.getCount()});
   case UR_QUEUE_INFO_FLAGS:
     return ReturnValue(flags);
   case UR_QUEUE_INFO_SIZE:
@@ -140,10 +140,12 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
   // zeCommandListAppendWaitOnEvents
   if ((flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0) {
     return commandListManager.lock()->appendEventsWaitWithBarrier(
-        numEventsInWaitList, phEventWaitList, createEventIfRequested(phEvent));
+        numEventsInWaitList, phEventWaitList,
+        createEventIfRequested(eventPool.get(), phEvent, this));
   } else {
     return commandListManager.lock()->appendEventsWait(
-        numEventsInWaitList, phEventWaitList, createEventIfRequested(phEvent));
+        numEventsInWaitList, phEventWaitList,
+        createEventIfRequested(eventPool.get(), phEvent, this));
   }
 }
 

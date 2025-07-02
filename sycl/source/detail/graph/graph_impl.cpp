@@ -681,7 +681,7 @@ graph_impl::getLastInorderNode(sycl::detail::queue_impl *Queue) {
 
 void graph_impl::setLastInorderNode(sycl::detail::queue_impl &Queue,
                                     std::shared_ptr<node_impl> Node) {
-  MInorderQueueMap[Queue.weak_from_this()] = Node;
+  MInorderQueueMap[Queue.weak_from_this()] = std::move(Node);
 }
 
 void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
@@ -905,12 +905,12 @@ void exec_graph_impl::createCommandBuffers(
   ur_exp_command_buffer_desc_t Desc{
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, MIsUpdatable,
       Partition->MIsInOrderGraph && !MEnableProfiling, MEnableProfiling};
-  auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl.getAdapter();
   sycl::detail::device_impl &DeviceImpl = *sycl::detail::getSyclObjImpl(Device);
   ur_result_t Res =
       Adapter->call_nocheck<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
-          ContextImpl->getHandleRef(), DeviceImpl.getHandleRef(), &Desc,
+          ContextImpl.getHandleRef(), DeviceImpl.getHandleRef(), &Desc,
           &OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid, "Failed to create UR command-buffer");
@@ -1636,8 +1636,9 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     std::vector<ur_exp_command_buffer_update_value_arg_desc_t> &ValueDescs,
     sycl::detail::NDRDescT &NDRDesc,
     ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const {
-  auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  sycl::detail::context_impl &ContextImpl =
+      *sycl::detail::getSyclObjImpl(MContext);
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl.getAdapter();
   sycl::detail::device_impl &DeviceImpl =
       *sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
 
@@ -1665,7 +1666,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
     BundleObjs = sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-        *ContextImpl, DeviceImpl, ExecCG.MKernelName,
+        ContextImpl, DeviceImpl, ExecCG.MKernelName,
         ExecCG.MKernelNameBasedCachePtr);
     UrKernel = BundleObjs->MKernelHandle;
     EliminatedArgMask = BundleObjs->MKernelArgMask;
@@ -1884,8 +1885,8 @@ void exec_graph_impl::updateURImpl(
     StructListIndex++;
   }
 
-  auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl.getAdapter();
   Adapter->call<sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
       CommandBuffer, UpdateDescList.size(), UpdateDescList.data());
 }
@@ -2100,13 +2101,6 @@ void modifiable_command_graph::checkNodePropertiesAndThrow(
   sycl::detail::PropertyValidator::checkPropsAndThrow(
       Properties, CheckDataLessProperties, CheckPropertiesWithData);
 }
-
-#ifndef ___INTEL_PREVIEW_BREAKING_CHANGES
-void modifiable_command_graph::print_graph(const std::string path,
-                                           bool verbose) const {
-  print_graph(sycl::detail::string_view{path}, verbose);
-}
-#endif
 
 executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx,

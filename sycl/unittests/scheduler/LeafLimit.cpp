@@ -84,7 +84,7 @@ TEST_F(SchedulerTest, LeafLimit) {
       NewestLeaf->MDeps.begin(), NewestLeaf->MDeps.end(),
       [&](const detail::DepDesc &DD) { return DD.MDepCommand == OldestLeaf; }));
   MS.cleanupCommandsForRecord(Rec);
-  auto MemObj = static_cast<sycl::detail::SYCLMemObjI *>(
-      detail::getSyclObjImpl(Buf).get());
+  auto MemObj =
+      static_cast<sycl::detail::SYCLMemObjI *>(&*detail::getSyclObjImpl(Buf));
   MS.removeRecordForMemObj(MemObj);
 }

@@ -470,7 +470,7 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue((uint32_t)Device->SubDevices.size());
   }
   case UR_DEVICE_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Device->RefCount.load()});
+    return ReturnValue(uint32_t{Device->RefCount.getCount()});
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
     // SYCL spec says: if this SYCL device cannot be partitioned into at least
     // two sub devices then the returned vector must be empty.
@@ -567,9 +567,13 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE:
     return ReturnValue(UR_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE:
-    return ReturnValue(
-        // TODO[1.0]: how to query cache line-size?
-        uint32_t{1});
+    if (Device->Platform->zeDriverExtensionMap.count(
+            ZE_CACHELINE_SIZE_EXT_NAME)) {
+      return ReturnValue(uint32_t{static_cast<uint32_t>(
+          Device->ZeDeviceCacheLinePropertiesExt->cacheLineSize)});
+    } else {
+      return ReturnValue(uint32_t{1});
+    }
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE:
     return ReturnValue(uint64_t{Device->ZeDeviceCacheProperties->cacheSize});
   case UR_DEVICE_INFO_IP_VERSION:
@@ -690,23 +694,36 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
     return ReturnValue(
         size_t{Device->ZeDeviceImageProperties->maxImageArraySlices});
-  // Handle SIMD widths, matching compute-runtime OpenCL implementation:
-  // https://github.com/intel/compute-runtime/blob/291745cdf76d83f5dc40e7ef41d347366235ccdb/opencl/source/cl_device/cl_device_caps.cpp#L236
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_char);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
-    return ReturnValue(uint32_t{16});
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_char);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_short);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT:
-    return ReturnValue(uint32_t{8});
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_short);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_int);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT:
-    return ReturnValue(uint32_t{4});
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_int);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_long);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
-    return ReturnValue(uint32_t{1});
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_long);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_float);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
-    return ReturnValue(uint32_t{1});
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_float);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
     // Must return 0 for *vector_width_double* if the device does not have fp64.
@@ -714,11 +731,17 @@ ur_result_t urDeviceGetInfo(
       return ReturnValue(uint32_t{0});
     return ReturnValue(uint32_t{1});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
+    // Must return 0 for *vector_width_half* if the device does not have fp16.
+    if (!(Device->ZeDeviceModuleProperties->flags & ZE_DEVICE_MODULE_FLAG_FP16))
+      return ReturnValue(uint32_t{0});
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_half);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
     // Must return 0 for *vector_width_half* if the device does not have fp16.
     if (!(Device->ZeDeviceModuleProperties->flags & ZE_DEVICE_MODULE_FLAG_FP16))
       return ReturnValue(uint32_t{0});
-    return ReturnValue(uint32_t{8});
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_half);
   case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Max_num_sub_Groups = maxTotalGroupSize/min(set of subGroupSizes);
     uint32_t MinSubGroupSize =
@@ -1643,7 +1666,7 @@ ur_result_t urDeviceGetGlobalTimestamps(
 ur_result_t urDeviceRetain(ur_device_handle_t Device) {
   // The root-device ref-count remains unchanged (always 1).
   if (Device->isSubDevice()) {
-    Device->RefCount.increment();
+    Device->RefCount.retain();
   }
   return UR_RESULT_SUCCESS;
 }
@@ -1651,7 +1674,7 @@ ur_result_t urDeviceRetain(ur_device_handle_t Device) {
 ur_result_t urDeviceRelease(ur_device_handle_t Device) {
   // Root devices are destroyed during the piTearDown process.
   if (Device->isSubDevice()) {
-    if (Device->RefCount.decrementAndTest()) {
+    if (Device->RefCount.release()) {
       delete Device;
     }
   }
@@ -1837,6 +1860,28 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
                         (ZeDevice, &Count, &Properties));
       };
 
+  if (this->Platform->zeDriverExtensionMap.count(ZE_CACHELINE_SIZE_EXT_NAME)) {
+    ZeDeviceCacheLinePropertiesExt.Compute =
+        [ZeDevice](ze_device_cache_line_size_ext_t &Properties) {
+          // TODO: Since v1.0 there can be multiple cache properties.
+          // For now remember the first one, if any.
+          uint32_t Count = 0;
+          ZE_CALL_NOCHECK(zeDeviceGetCacheProperties,
+                          (ZeDevice, &Count, nullptr));
+          if (Count > 0)
+            Count = 1;
+          ze_device_cache_properties_t P;
+          P.stype = ZE_STRUCTURE_TYPE_DEVICE_CACHE_PROPERTIES;
+          P.pNext = &Properties;
+          ZE_CALL_NOCHECK(zeDeviceGetCacheProperties, (ZeDevice, &Count, &P));
+          if (Properties.cacheLineSize == 0) {
+            // If cache line size is not set, use the default value.
+            Properties.cacheLineSize =
+                1; // Default cache line size property value.
+          }
+        };
+  }
+
   ZeDeviceMutableCmdListsProperties.Compute =
       [ZeDevice](
           ZeStruct<ze_mutable_command_list_exp_properties_t> &Properties) {
@@ -1856,6 +1901,67 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
       };
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
+
+  auto UrPlatform = this->Platform;
+  ZeDeviceVectorWidthPropertiesExt.Compute =
+      [ZeDevice, UrPlatform](
+          ZeStruct<ze_device_vector_width_properties_ext_t> &Properties) {
+        // Set default vector width properties
+        Properties.preferred_vector_width_char = 16u;
+        Properties.preferred_vector_width_short = 8u;
+        Properties.preferred_vector_width_int = 4u;
+        Properties.preferred_vector_width_long = 1u;
+        Properties.preferred_vector_width_float = 1u;
+        Properties.preferred_vector_width_half = 8u;
+        Properties.native_vector_width_char = 16u;
+        Properties.native_vector_width_short = 8u;
+        Properties.native_vector_width_int = 4u;
+        Properties.native_vector_width_long = 1u;
+        Properties.native_vector_width_float = 1u;
+        Properties.native_vector_width_half = 8u;
+
+        if (UrPlatform->zeDriverExtensionMap.count(
+                ZE_DEVICE_VECTOR_SIZES_EXT_NAME)) {
+          uint32_t Count = 0;
+          ZE_CALL_NOCHECK(zeDeviceGetVectorWidthPropertiesExt,
+                          (ZeDevice, &Count, nullptr));
+
+          std::vector<ZeStruct<ze_device_vector_width_properties_ext_t>>
+              PropertiesVector;
+          PropertiesVector.reserve(Count);
+
+          ZeStruct<ze_device_vector_width_properties_ext_t>
+              MaxVectorWidthProperties;
+
+          ZE_CALL_NOCHECK(zeDeviceGetVectorWidthPropertiesExt,
+                          (ZeDevice, &Count, PropertiesVector.data()));
+          if (!PropertiesVector.empty()) {
+            // Find the largest vector_width_size property
+            uint32_t max_vector_width_size = 0;
+            for (const auto &prop : PropertiesVector) {
+              if (!max_vector_width_size) {
+                max_vector_width_size = prop.vector_width_size;
+                MaxVectorWidthProperties = prop;
+              } else if (prop.vector_width_size > max_vector_width_size) {
+                max_vector_width_size = prop.vector_width_size;
+                MaxVectorWidthProperties = prop;
+              }
+            }
+            Properties = MaxVectorWidthProperties;
+            // If the environment variable is set, use the specified vector
+            // width if it exists
+            if (UrL0VectorWidth) {
+              for (const auto &prop : PropertiesVector) {
+                if (prop.vector_width_size ==
+                    static_cast<uint32_t>(UrL0VectorWidth)) {
+                  Properties = prop;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      };
 
   ImmCommandListUsed = this->useImmediateCommandLists();
 

@@ -2276,8 +2276,11 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
   if (WGSize[0] == 0) {
     WGSize = {1, 1, 1};
   }
-  NDR = sycl::detail::NDRDescT{nd_range<3>(NDR.NumWorkGroups * WGSize, WGSize),
-                               static_cast<int>(NDR.Dims)};
+
+  for (size_t I = 0; I < NDR.Dims; ++I) {
+    NDR.GlobalSize[I] = WGSize[I] * NDR.NumWorkGroups[I];
+    NDR.LocalSize[I] = WGSize[I];
+  }
 }
 
 // We have the following mapping between dimensions with SPIR-V builtins:
@@ -2309,9 +2312,12 @@ ur_mem_flags_t AccessModeToUr(access::mode AccessorMode) {
   }
 }
 
-void SetArgBasedOnType(
+// Sets arguments for a given kernel and device based on the argument type.
+// Refactored from SetKernelParamsAndLaunch to allow it to be used in the graphs
+// extension.
+static void SetArgBasedOnType(
     const AdapterPtr &Adapter, ur_kernel_handle_t Kernel,
-    const std::shared_ptr<device_image_impl> &DeviceImageImpl,
+    device_image_impl *DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     context_impl &ContextImpl, detail::ArgDesc &Arg, size_t NextTrueIndex) {
   switch (Arg.MType) {
@@ -2440,8 +2446,9 @@ static ur_result_t SetKernelParamsAndLaunch(
   } else {
     auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                     &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
-      SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl, getMemAllocationFunc,
-                        Queue.getContextImpl(), Arg, NextTrueIndex);
+      SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl.get(),
+                        getMemAllocationFunc, Queue.getContextImpl(), Arg,
+                        NextTrueIndex);
     };
     applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
   }
@@ -2536,7 +2543,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
   ur_kernel_handle_t UrKernel = nullptr;
   std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
-  auto &KernelBundleImplPtr = CommandGroup.MKernelBundle;
+  kernel_bundle_impl *KernelBundleImplPtr = CommandGroup.MKernelBundle.get();
 
   if (auto Kernel = CommandGroup.MSyclKernel; Kernel != nullptr) {
     UrKernel = Kernel->getHandleRef();
@@ -2558,7 +2565,8 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
     // To keep UrKernel valid, we return FastKernelCacheValPtr.
     KernelCacheValsToRelease.push_back(std::move(FastKernelCacheVal));
   }
-  return std::make_tuple(UrKernel, DeviceImageImpl, EliminatedArgMask);
+  return std::make_tuple(UrKernel, std::move(DeviceImageImpl),
+                         EliminatedArgMask);
 }
 
 ur_result_t enqueueImpCommandBufferKernel(
@@ -2602,7 +2610,7 @@ ur_result_t enqueueImpCommandBufferKernel(
   auto SetFunc = [&Adapter, &UrKernel, &DeviceImageImpl, &ContextImpl,
                   &getMemAllocationFunc](sycl::detail::ArgDesc &Arg,
                                          size_t NextTrueIndex) {
-    sycl::detail::SetArgBasedOnType(Adapter, UrKernel, DeviceImageImpl,
+    sycl::detail::SetArgBasedOnType(Adapter, UrKernel, DeviceImageImpl.get(),
                                     getMemAllocationFunc, ContextImpl, Arg,
                                     NextTrueIndex);
   };
@@ -2726,7 +2734,7 @@ void enqueueImpKernel(
 
   // Initialize device globals associated with this.
   std::vector<ur_event_handle_t> DeviceGlobalInitEvents =
-      ContextImpl.initializeDeviceGlobals(Program, Queue);
+      ContextImpl.initializeDeviceGlobals(Program, Queue, KernelBundleImplPtr);
   if (!DeviceGlobalInitEvents.empty()) {
     std::vector<ur_event_handle_t> EventsWithDeviceGlobalInits;
     EventsWithDeviceGlobalInits.reserve(RawEvents.size() +
