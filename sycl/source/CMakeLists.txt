@@ -198,7 +198,7 @@ function(add_sycl_rt_library LIB_TARGET_NAME LIB_OBJ_NAME LIB_OUTPUT_NAME)
   if(LINKER_SUPPORTS_WL_GC_SECTIONS)
     # Reduces the size of the resulting library by having the linker perform
     # garbage collection.
-    target_link_options(${LIB_NAME} PRIVATE -Wl,--gc-sections)
+    target_link_options(${LIB_TARGET_NAME} PRIVATE -Wl,--gc-sections)
   endif()
 
   if(SYCL_ENABLE_EXTENSION_JIT)
