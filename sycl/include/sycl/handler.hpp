@@ -488,6 +488,9 @@ private:
   /// \param Graph is a SYCL command_graph
   handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
 #endif
+  handler(std::unique_ptr<detail::handler_impl> &&HandlerImpl);
+
+  ~handler();
 
   void *storeRawArg(const void *Ptr, size_t Size);
 
@@ -618,8 +621,6 @@ private:
     detail::markBufferAsInternal(getSyclObjImpl(*ReduBuf));
     addReduction(std::shared_ptr<const void>(ReduBuf));
   }
-
-  ~handler() = default;
 
 #ifdef __SYCL_DEVICE_ONLY__
   // In device compilation accessor isn't inherited from host base classes, so
@@ -3396,9 +3397,7 @@ public:
 
 private:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // TODO: Maybe make it a reference when non-preview branch is removed.
-  // On the other hand, see `HandlerAccess:postProcess` to how `swap_impl` might
-  // be useful in future, pointer here would make that possible/easier.
+  std::unique_ptr<detail::handler_impl> implOwner;
   detail::handler_impl *impl;
 #else
   std::shared_ptr<detail::handler_impl> impl;
@@ -3423,11 +3422,10 @@ private:
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
 
   detail::code_location MCodeLoc = {};
-  bool MIsFinalized = false;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::EventImplPtr MLastEvent;
-#else
-  event MLastEvent;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Was used for the previous reduction implementation (via `withAuxHandler`).
+  bool MIsFinalizedDoNotUse = false;
+  event MLastEventDoNotUse;
 #endif
 
   // Make queue_impl class friend to be able to call finalize method.
@@ -3451,8 +3449,6 @@ private:
   template <typename T, class BinaryOperation, int Dims, size_t Extent,
             bool ExplicitIdentity, typename RedOutVar>
   friend class detail::reduction_impl_algo;
-
-  friend inline void detail::reduction::finalizeHandler(handler &CGH);
 
   template <typename KernelName, detail::reduction::strategy Strategy, int Dims,
             typename PropertiesT, typename... RestT>
@@ -3545,7 +3541,9 @@ private:
         UserRange, KernelFunc};
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;
+#endif
   detail::context_impl &getContextImpl() const;
 
   // Checks if 2D memory operations are supported by the underlying platform.
@@ -3918,6 +3916,30 @@ public:
     Handler.parallel_for_impl(Range, Props, Kernel);
   }
 
+  static void swap(handler &LHS, handler &RHS) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    std::swap(LHS.implOwner, RHS.implOwner);
+#endif
+    std::swap(LHS.impl, RHS.impl);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    std::swap(LHS.MQueueDoNotUse, RHS.MQueueDoNotUse);
+#endif
+    std::swap(LHS.MLocalAccStorage, RHS.MLocalAccStorage);
+    std::swap(LHS.MStreamStorage, RHS.MStreamStorage);
+    std::swap(LHS.MKernelName, RHS.MKernelName);
+    std::swap(LHS.MKernel, RHS.MKernel);
+    std::swap(LHS.MSrcPtr, RHS.MSrcPtr);
+    std::swap(LHS.MDstPtr, RHS.MDstPtr);
+    std::swap(LHS.MLength, RHS.MLength);
+    std::swap(LHS.MPattern, RHS.MPattern);
+    std::swap(LHS.MHostKernel, RHS.MHostKernel);
+    std::swap(LHS.MCodeLoc, RHS.MCodeLoc);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    std::swap(LHS.MIsFinalizedDoNotUse, RHS.MIsFinalizedDoNotUse);
+    std::swap(LHS.MLastEventDoNotUse, RHS.MLastEventDoNotUse);
+#endif
+  }
+
   // pre/postProcess are used only for reductions right now, but the
   // abstractions they provide aren't reduction-specific. The main problem they
   // solve is
@@ -3930,9 +3952,8 @@ public:
   //
   // that needs to be implemented as multiple enqueues involving
   // pre-/post-processing internally. SYCL prohibits recursive submits from
-  // inside control group function object (lambda above) so we resort to a
-  // somewhat hacky way of creating multiple `handler`s and manual finalization
-  // of them (instead of the one in `queue::submit`).
+  // inside control group function object (lambda above) so we need some
+  // internal interface to implement that.
   __SYCL_EXPORT static void preProcess(handler &CGH, type_erased_cgfo_ty F);
   __SYCL_EXPORT static void postProcess(handler &CGH, type_erased_cgfo_ty F);
 

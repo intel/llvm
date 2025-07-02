@@ -140,10 +140,12 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
   // zeCommandListAppendWaitOnEvents
   if ((flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0) {
     return commandListManager.lock()->appendEventsWaitWithBarrier(
-        numEventsInWaitList, phEventWaitList, createEventIfRequested(phEvent));
+        numEventsInWaitList, phEventWaitList,
+        createEventIfRequested(eventPool.get(), phEvent, this));
   } else {
     return commandListManager.lock()->appendEventsWait(
-        numEventsInWaitList, phEventWaitList, createEventIfRequested(phEvent));
+        numEventsInWaitList, phEventWaitList,
+        createEventIfRequested(eventPool.get(), phEvent, this));
   }
 }
 

@@ -56,7 +56,7 @@ protected:
     std::vector<detail::Command *> ToEnqueue;
 
     // Emulating processing of command group function
-    MockHandlerCustomFinalize MockCGH(QueueDevImpl,
+    MockHandlerCustomFinalize MockCGH(*QueueDevImpl,
                                       /*CallerNeedsEvent=*/true);
 
     for (auto EventImpl : Events)
@@ -80,7 +80,7 @@ protected:
 
     detail::Command *NewCmd =
         MS.addCG(std::move(CmdGroup),
-                 Type == TestCGType::HOST_TASK ? nullptr : QueueDevImpl,
+                 Type == TestCGType::HOST_TASK ? nullptr : QueueDevImpl.get(),
                  ToEnqueue, /*EventNeeded=*/true);
     EXPECT_EQ(ToEnqueue.size(), 0u);
     return NewCmd;
@@ -154,7 +154,7 @@ protected:
       detail::SYCLConfig<detail::SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::reset};
   MockScheduler MS;
 
-  detail::QueueImplPtr QueueDevImpl;
+  std::shared_ptr<detail::queue_impl> QueueDevImpl;
 
   std::mutex m;
   std::function<void()> CustomHostLambda = [&]() {

@@ -43,7 +43,6 @@
 #include "ToolChains/PS4CPU.h"
 #include "ToolChains/RISCVToolchain.h"
 #include "ToolChains/SPIRV.h"
-#include "ToolChains/SYCL.h"
 #include "ToolChains/SPIRVOpenMP.h"
 #include "ToolChains/SYCL.h"
 #include "ToolChains/Solaris.h"
@@ -976,7 +975,10 @@ static bool isValidSYCLTriple(llvm::Triple T) {
     return true;
 
   // 'native_cpu' is valid for Native CPU.
-  if (isSYCLNativeCPU(T))
+  // TODO This checks for the exact spelling of the triple because other
+  // spellings would fail confusingly, trying to find nonexistent builtins. This
+  // should probably be done for NVidia and AMD too.
+  if (T.isNativeCPU() && T.str() == "native_cpu")
     return true;
 
   // Check for invalid SYCL device triple values.
@@ -5566,7 +5568,7 @@ class OffloadingActionBuilder final {
       auto IsAMDGCN = TargetTriple.isAMDGCN();
       auto IsSPIR = TargetTriple.isSPIROrSPIRV();
       bool IsSpirvAOT = TargetTriple.isSPIRAOT();
-      bool IsSYCLNativeCPU = isSYCLNativeCPU(TargetTriple);
+      bool IsNativeCPU = TargetTriple.isNativeCPU();
       for (const auto &Input : ListIndex) {
         // No need for any conversion if we are coming in from the
         // clang-offload-deps or regular compilation path.
@@ -5706,7 +5708,7 @@ class OffloadingActionBuilder final {
         // AOT compilation.
         bool SYCLDeviceLibLinked = false;
         Action *NativeCPULib = nullptr;
-        if (IsSPIR || IsNVPTX || IsAMDGCN || IsSYCLNativeCPU) {
+        if (IsSPIR || IsNVPTX || IsAMDGCN || IsNativeCPU) {
           bool UseJitLink =
               IsSPIR &&
               Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
@@ -5715,7 +5717,7 @@ class OffloadingActionBuilder final {
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
               TC, SYCLDeviceLibs, UseAOTLink,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment(),
-              IsSYCLNativeCPU, NativeCPULib, BoundArch);
+              IsNativeCPU, NativeCPULib, BoundArch);
         }
         JobAction *LinkSYCLLibs =
             C.MakeAction<LinkJobAction>(SYCLDeviceLibs, types::TY_LLVM_BC);
@@ -5782,11 +5784,11 @@ class OffloadingActionBuilder final {
 
           // reflects whether current target is ahead-of-time and can't
           // support runtime setting of specialization constants
-          bool IsAOT = IsNVPTX || IsAMDGCN || IsSpirvAOT || IsSYCLNativeCPU;
+          bool IsAOT = IsNVPTX || IsAMDGCN || IsSpirvAOT || IsNativeCPU;
 
           // post link is not optional - even if not splitting, always need to
           // process specialization constants
-          types::ID PostLinkOutType = IsSPIR || IsSYCLNativeCPU
+          types::ID PostLinkOutType = IsSPIR || IsNativeCPU
                                           ? types::TY_Tempfiletable
                                           : types::TY_LLVM_BC;
           auto createPostLinkAction = [&]() {
@@ -5797,7 +5799,7 @@ class OffloadingActionBuilder final {
             return TypedPostLinkAction;
           };
           Action *PostLinkAction = createPostLinkAction();
-          if (IsSYCLNativeCPU) {
+          if (IsNativeCPU) {
             if (NativeCPULib) {
               // The native cpu device lib is linked without --only-needed
               // as it contains builtins not referenced in source code but
@@ -5993,46 +5995,10 @@ class OffloadingActionBuilder final {
       // For NVPTX and NativeCPU we need to also link libclc at the same stage
       // that we link all of the unbundled SYCL libdevice objects together.
       if (TC->getTriple().isNVPTX() || isNativeCPU) {
-        std::string LibSpirvFile;
-        if (Args.hasArg(options::OPT_fsycl_libspirv_path_EQ)) {
-          auto ProvidedPath =
-              Args.getLastArgValue(options::OPT_fsycl_libspirv_path_EQ).str();
-          if (llvm::sys::fs::exists(ProvidedPath))
-            LibSpirvFile = ProvidedPath;
-        } else {
-          SmallVector<StringRef, 2> LibraryPaths;
-
-          // Expected path w/out install.
-          SmallString<256> WithoutInstallPath(C.getDriver().ResourceDir);
-          llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
-          LibraryPaths.emplace_back(WithoutInstallPath.c_str());
-
-          // Expected path w/ install.
-          SmallString<256> WithInstallPath(C.getDriver().ResourceDir);
-          llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
-          LibraryPaths.emplace_back(WithInstallPath.c_str());
-
-          // Select remangled libclc variant
-          StringRef LibSpirvTargetNamePref =
-              TC->getAuxTriple()->isOSWindows()
-                  ? "remangled-l32-signed_char.libspirv-"
-                  : "remangled-l64-signed_char.libspirv-";
-
-          for (StringRef LibraryPath : LibraryPaths) {
-            SmallString<128> LibSpirvTargetFile(LibraryPath);
-            llvm::sys::path::append(LibSpirvTargetFile,
-                                    LibSpirvTargetNamePref +
-                                        TC->getTripleString() + ".bc");
-            if (llvm::sys::fs::exists(LibSpirvTargetFile) ||
-                Args.hasArg(options::OPT__HASH_HASH_HASH)) {
-              LibSpirvFile = std::string(LibSpirvTargetFile.str());
-              break;
-            }
-          }
-        }
-        if (!LibSpirvFile.empty()) {
-          Arg *LibClcInputArg = MakeInputArg(Args, C.getDriver().getOpts(),
-                                             Args.MakeArgString(LibSpirvFile));
+        if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
+                TC->getTriple(), Args, *TC->getAuxTriple())) {
+          Arg *LibClcInputArg =
+              MakeInputArg(Args, C.getDriver().getOpts(), LibSpirvFile);
           auto *SYCLLibClcInputAction =
               C.MakeAction<InputAction>(*LibClcInputArg, types::TY_LLVM_BC);
           DeviceLinkObjects.push_back(SYCLLibClcInputAction);
@@ -9140,7 +9106,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       Action::OffloadKind DependentOffloadKind;
       if (UI.DependentOffloadKind == Action::OFK_SYCL &&
           TargetDeviceOffloadKind == Action::OFK_None &&
-          !(isSYCLNativeCPU(C.getDefaultToolChain().getTriple()) &&
+          !(C.getDefaultToolChain().getTriple().isNativeCPU() &&
             UA->getDependentActionsInfo().size() > 1))
         DependentOffloadKind = Action::OFK_Host;
       else
@@ -10037,7 +10003,7 @@ const ToolChain &Driver::getOffloadToolChain(
                                                            *HostTC, Args, Kind);
       break;
     default:
-      if (Kind == Action::OFK_SYCL && isSYCLNativeCPU(Target))
+      if (Kind == Action::OFK_SYCL && Target.isNativeCPU())
         TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target, *HostTC,
                                                          Args);
       break;

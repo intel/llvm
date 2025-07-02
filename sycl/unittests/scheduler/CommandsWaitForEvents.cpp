@@ -137,12 +137,10 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
     sycl::unittest::UrMock<> Mock;
     sycl::platform Plt = sycl::platform();
     sycl::queue Q(Plt.get_devices()[0]);
-    std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
-        detail::getSyclObjImpl(Q);
+    auto &QueueImpl =
+        static_cast<QueueImplProxyT &>(*detail::getSyclObjImpl(Q));
 
-    auto QueueImplProxy = std::static_pointer_cast<QueueImplProxyT>(QueueImpl);
-
-    ASSERT_TRUE(QueueImplProxy->MStreamsServiceEvents.empty())
+    ASSERT_TRUE(QueueImpl.MStreamsServiceEvents.empty())
         << "No stream service events are expected at the beggining";
 
     event Event = Q.submit([&](handler &CGH) {
@@ -151,7 +149,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
           [=]() { Out << "Hello, World!" << endl; });
     });
 
-    ASSERT_TRUE(QueueImplProxy->MStreamsServiceEvents.size() == 1)
+    ASSERT_TRUE(QueueImpl.MStreamsServiceEvents.size() == 1)
         << "Expected 1 service stream event";
 
     std::shared_ptr<sycl::detail::event_impl> EventImpl =
@@ -164,7 +162,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
 
     Q.wait();
 
-    ASSERT_TRUE(QueueImplProxy->MStreamsServiceEvents.empty())
+    ASSERT_TRUE(QueueImpl.MStreamsServiceEvents.empty())
         << "No stream service events are expected to left after wait";
   }
 
@@ -172,22 +170,19 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
     sycl::unittest::UrMock<> Mock;
     sycl::platform Plt = sycl::platform();
     sycl::queue Q(Plt.get_devices()[0]);
-    std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
-        detail::getSyclObjImpl(Q);
+    auto &QueueImpl =
+        static_cast<QueueImplProxyT &>(*detail::getSyclObjImpl(Q));
 
     mock::getCallbacks().set_before_callback("urEventWait",
                                              &urEventsWaitRedefineCheckCalled);
 
-    auto QueueImplProxy = std::static_pointer_cast<QueueImplProxyT>(QueueImpl);
-
     ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-    auto EventImpl = sycl::detail::event_impl::create_device_event(*QueueImpl);
+    auto EventImpl = sycl::detail::event_impl::create_device_event(QueueImpl);
     EventImpl->setHandle(UREvent);
 
-    QueueImplProxy->registerStreamServiceEvent(EventImpl);
-
-    QueueImplProxy->wait();
+    QueueImpl.registerStreamServiceEvent(EventImpl);
+    QueueImpl.wait();
 
     ASSERT_TRUE(GpiEventsWaitRedefineCalled)
         << "No stream service events are expected to left after wait";

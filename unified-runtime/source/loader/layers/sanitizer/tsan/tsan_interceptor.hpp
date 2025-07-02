@@ -133,6 +133,8 @@ struct TsanRuntimeDataWrapper {
 
   ur_result_t syncToDevice(ur_queue_handle_t Queue);
 
+  bool hasReport(ur_queue_handle_t Queue);
+
   ur_result_t
   importLocalArgsInfo(ur_queue_handle_t Queue,
                       const std::vector<TsanLocalArgsInfo> &LocalArgs);

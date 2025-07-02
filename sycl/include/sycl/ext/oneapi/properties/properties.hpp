@@ -48,7 +48,7 @@ using properties_t =
     properties<detail::properties_type_list<PropertyValueTs...>>;
 
 template <typename... property_tys>
-inline constexpr bool properties_are_unique = []() constexpr {
+inline constexpr bool properties_are_unique = []() constexpr -> bool {
   if constexpr (sizeof...(property_tys) == 0) {
     return true;
   } else {
@@ -64,7 +64,7 @@ inline constexpr bool properties_are_unique = []() constexpr {
 }();
 
 template <typename... property_tys>
-inline constexpr bool properties_are_sorted = []() constexpr {
+inline constexpr bool properties_are_sorted = []() constexpr -> bool {
   if constexpr (sizeof...(property_tys) == 0) {
     return true;
   } else {
