@@ -8,22 +8,17 @@
 //
 // REQUIRES: cpu || gpu
 // REQUIRES: sg-32
+// REQUIRES: aspect-ext_oneapi_chunk
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/chunk.hpp>
-#include <vector>
+
 namespace syclex = sycl::ext::oneapi::experimental;
 
 template <size_t PartitionSize> class TestKernel;
 
 template <size_t PartitionSize> void test() {
   sycl::queue Q;
-
-  if (!Q.get_device().has(sycl::aspect::ext_oneapi_chunk)) {
-    std::cout << "Device has no support for ext_oneapi_chunk aspect..."
-              << std::endl;
-    return;
-  }
 
   // Test for both the full sub-group size and a case with less work than a full
   // sub-group.

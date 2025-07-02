@@ -7,6 +7,7 @@
 // RUN: %if cpu %{ %{run} %t.x86.out %}
 //
 // REQUIRES: cpu || gpu
+// REQUIRES: aspect-ext_oneapi_tangle
 // UNSUPPORTED: target-nvidia || target-amd
 
 #include <sycl/detail/core.hpp>
@@ -18,12 +19,6 @@ class TestKernel;
 
 int main() {
   sycl::queue Q;
-
-  if (!Q.get_device().has(sycl::aspect::ext_oneapi_tangle)) {
-    std::cout << "Device has no support for ext_oneapi_tangle aspect..."
-              << std::endl;
-    return 0;
-  }
 
   auto SGSizes = Q.get_device().get_info<sycl::info::device::sub_group_sizes>();
   if (std::find(SGSizes.begin(), SGSizes.end(), 32) == SGSizes.end()) {

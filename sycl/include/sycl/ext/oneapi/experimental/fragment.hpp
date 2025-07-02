@@ -62,8 +62,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return GroupID;
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return id_type(0);
 #endif
   }
 
@@ -71,8 +70,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::CallerPositionInMask(Mask);
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return id_type(0);
 #endif
   }
 
@@ -80,8 +78,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return GroupRange;
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return range_type(0);
 #endif
   }
 
@@ -89,8 +86,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return Mask.count();
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return range_type(0);
 #endif
   }
 
@@ -98,8 +94,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_id()[0]);
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return linear_id_type(0);
 #endif
   }
 
@@ -107,8 +102,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_id()[0]);
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return linear_id_type(0);
 #endif
   }
 
@@ -116,8 +110,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_range()[0]);
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return linear_id_type(0);
 #endif
   }
 
@@ -125,8 +118,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_range()[0]);
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return linear_id_type(0);
 #endif
   }
 
@@ -135,8 +127,7 @@ public:
     uint32_t Lowest = static_cast<uint32_t>(Mask.find_low()[0]);
     return __spirv_SubgroupLocalInvocationId() == Lowest;
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return false;
 #endif
   }
 
@@ -183,8 +174,7 @@ binary_partition(ParentGroup parent, bool predicate) {
 #endif
 #else
   (void)predicate;
-  throw exception(make_error_code(errc::runtime),
-                  "Non-uniform groups are not supported on host.");
+  return fragment<ParentGroup>();
 #endif
 }
 
@@ -205,8 +195,7 @@ inline fragment<sycl::sub_group> get_opportunistic_group() {
   return fragment<sycl::sub_group>(mask, 0, 1);
 #endif
 #else
-  throw exception(make_error_code(errc::runtime),
-                  "Non-uniform groups are not supported on host.");
+  return fragment<sycl::sub_group>(sub_group_mask(), id<1>(0), range<1>(1));
 #endif
 }
 

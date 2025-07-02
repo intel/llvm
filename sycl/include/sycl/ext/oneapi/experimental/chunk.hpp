@@ -53,8 +53,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_SubgroupLocalInvocationId() / ChunkSize;
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return id_type(0);
 #endif
   }
 
@@ -62,8 +61,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_SubgroupLocalInvocationId() % ChunkSize;
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return id_type(0);
 #endif
   }
 
@@ -71,8 +69,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_SubgroupSize() / ChunkSize;
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return range_type(0);
 #endif
   }
 
@@ -80,8 +77,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return ChunkSize;
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return range_type(0);
 #endif
   }
 
@@ -89,8 +85,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_id()[0]);
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return linear_id_type(0);
 #endif
   }
 
@@ -98,8 +93,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_id()[0]);
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return linear_id_type(0);
 #endif
   }
 
@@ -107,8 +101,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_range()[0]);
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return linear_id_type(0);
 #endif
   }
 
@@ -116,8 +109,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_range()[0]);
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return linear_id_type(0);
 #endif
   }
 
@@ -125,8 +117,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return get_local_linear_id() == 0;
 #else
-    throw exception(make_error_code(errc::runtime),
-                    "Non-uniform groups are not supported on host.");
+    return linear_id_type(0);
 #endif
   }
 
@@ -173,8 +164,7 @@ chunked_partition(ParentGroup parent) {
   return chunk<ChunkSize, ParentGroup>();
 #endif
 #else
-  throw exception(make_error_code(errc::runtime),
-                  "Non-uniform groups are not supported on host.");
+  return chunk<ChunkSize, ParentGroup>();
 #endif
 }
 
@@ -221,8 +211,7 @@ inline chunk<ChunkSize, ParentGroup>::operator fragment<ParentGroup>() const {
   return fragment<ParentGroup>(mask, get_group_id(), get_group_range());
 #endif
 #else
-  throw exception(make_error_code(errc::runtime),
-                  "Non-uniform groups are not supported on host.");
+  return fragment<ParentGroup>();
 #endif
 }
 
