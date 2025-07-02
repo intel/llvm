@@ -16,6 +16,7 @@
 #include <stdarg.h>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "adapters/level_zero/platform.hpp"
@@ -250,12 +251,16 @@ struct ur_device_handle_t_ : ur_object {
 inline std::vector<ur_device_handle_t>
 CollectDevicesAndSubDevices(const std::vector<ur_device_handle_t> &Devices) {
   std::vector<ur_device_handle_t> DevicesAndSubDevices;
+  std::unordered_set<ur_device_handle_t> Seen;
   std::function<void(const std::vector<ur_device_handle_t> &)>
       CollectDevicesAndSubDevicesRec =
           [&](const std::vector<ur_device_handle_t> &Devices) {
             for (auto &Device : Devices) {
-              DevicesAndSubDevices.push_back(Device);
-              CollectDevicesAndSubDevicesRec(Device->SubDevices);
+              // Only add device if has not been seen before.
+              if (Seen.insert(Device).second) {
+                DevicesAndSubDevices.push_back(Device);
+                CollectDevicesAndSubDevicesRec(Device->SubDevices);
+              }
             }
           };
   CollectDevicesAndSubDevicesRec(Devices);
