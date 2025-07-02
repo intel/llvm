@@ -13,15 +13,12 @@
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Distro.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/llvm-config.h" // for LLVM_HOST_TRIPLE
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/FormatAdapters.h"
-#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
@@ -718,7 +715,7 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
 
   if (C.getDriver().isUsingLTO())
-    addLTOOptions(getToolChain(), Args, CmdArgs, Output, Inputs[0],
+    addLTOOptions(getToolChain(), Args, CmdArgs, Output, Inputs,
                   C.getDriver().getLTOMode() == LTOK_Thin);
 
   // Forward the PTX features if the nvlink-wrapper needs it.
@@ -864,14 +861,6 @@ NVPTXToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   return DAL;
 }
 
-// Select remangled libclc variant. 64-bit longs default, 32-bit longs on
-// Windows
-static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
-  if (HostTC.getTriple().isOSWindows())
-    return "remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc";
-  return "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc";
-}
-
 void NVPTXToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
     Action::OffloadKind DeviceOffloadingKind) const {}
@@ -968,6 +957,14 @@ void CudaToolChain::addClangTargetOptions(
                       "--nvptx-prec-sqrtf32=0"});
 
     CC1Args.append({"-mllvm", "-enable-memcpyopt-without-libcalls"});
+
+    if (DriverArgs.hasFlag(options::OPT_fsycl_id_queries_fit_in_int,
+                           options::OPT_fno_sycl_id_queries_fit_in_int, false))
+      CC1Args.append(
+          {"-mllvm", "-nvvm-reflect-add=__CUDA_ID_QUERIES_FIT_IN_INT=1"});
+
+    SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
+                                         HostTC.getTriple(), CC1Args);
   } else {
     CC1Args.append({"-fcuda-is-device", "-mllvm",
                     "-enable-memcpyopt-without-libcalls",
@@ -984,53 +981,6 @@ void CudaToolChain::addClangTargetOptions(
     if (DeviceOffloadingKind == Action::OFK_Cuda &&
         DriverArgs.hasArg(options::OPT_fsycl))
       CC1Args.append({"-std=c++17", "-fsycl-is-host"});
-  }
-
-  auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||
-                    getDriver().offloadDeviceOnly();
-  if (DeviceOffloadingKind == Action::OFK_SYCL && !NoLibSpirv) {
-    std::string LibSpirvFile;
-
-    if (DriverArgs.hasArg(clang::driver::options::OPT_fsycl_libspirv_path_EQ)) {
-      auto ProvidedPath =
-        DriverArgs.getLastArgValue(clang::driver::options::OPT_fsycl_libspirv_path_EQ).str();
-      if (llvm::sys::fs::exists(ProvidedPath))
-        LibSpirvFile = ProvidedPath;
-    } else {
-      SmallVector<StringRef, 8> LibraryPaths;
-
-      // Expected path w/out install.
-      SmallString<256> WithoutInstallPath(getDriver().ResourceDir);
-      llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
-      LibraryPaths.emplace_back(WithoutInstallPath.c_str());
-
-      // Expected path w/ install.
-      SmallString<256> WithInstallPath(getDriver().ResourceDir);
-      llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
-      LibraryPaths.emplace_back(WithInstallPath.c_str());
-
-      // Select remangled libclc variant
-      std::string LibSpirvTargetName = getLibSpirvTargetName(HostTC);
-
-      for (StringRef LibraryPath : LibraryPaths) {
-        SmallString<128> LibSpirvTargetFile(LibraryPath);
-        llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
-        if (llvm::sys::fs::exists(LibSpirvTargetFile) ||
-            DriverArgs.hasArg(options::OPT__HASH_HASH_HASH)) {
-          LibSpirvFile = std::string(LibSpirvTargetFile.str());
-          break;
-        }
-      }
-    }
-
-    if (LibSpirvFile.empty()) {
-      getDriver().Diag(diag::err_drv_no_sycl_libspirv)
-          << getLibSpirvTargetName(HostTC);
-      return;
-    }
-
-    CC1Args.push_back("-mlink-builtin-bitcode");
-    CC1Args.push_back(DriverArgs.MakeArgString(LibSpirvFile));
   }
 
   if (DriverArgs.hasFlag(options::OPT_fcuda_short_ptr,

@@ -46,7 +46,7 @@ class OneAPI:
 
     def install_package(self, name, version, url, checksum):
         if self.check_install(version):
-            print(f"{name} version {version} already installed, skipping.")
+            print(f"OneAPI {name} version {version} already installed, skipping.")
             return
         package_name = f"package_{name}_{version}.sh"
         package_path = os.path.join(self.oneapi_dir, f"{package_name}")

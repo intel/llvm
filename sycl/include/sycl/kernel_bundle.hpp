@@ -19,7 +19,8 @@
 #include <sycl/kernel.hpp>              // for kernel, kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/property_list.hpp>       // for property_list
-#include <ur_api.h>                     // for ur_native_handle_t
+#include <sycl/sycl_span.hpp>
+#include <ur_api.h>
 
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>     // PropertyT
@@ -638,6 +639,10 @@ namespace detail {
 __SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State);
+
+__SYCL_EXPORT detail::KernelBundleImplPtr
+get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+                       const sycl::span<char> &Bytes, bundle_state State);
 
 __SYCL_EXPORT const std::vector<device>
 removeDuplicateDevices(const std::vector<device> &Devs);
@@ -1330,12 +1335,7 @@ void handler::set_specialization_constant(
 
   setStateSpecConstSet();
 
-  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-      getOrInsertHandlerKernelBundle(/*Insert=*/true);
-
-  detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-      std::move(KernelBundleImplPtr))
-      .set_specialization_constant<SpecName>(Value);
+  getKernelBundle().set_specialization_constant<SpecName>(Value);
 }
 
 template <auto &SpecName>
@@ -1347,12 +1347,7 @@ handler::get_specialization_constant() const {
                           "Specialization constants cannot be read after "
                           "explicitly setting the used kernel bundle");
 
-  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-      getOrInsertHandlerKernelBundle(/*Insert=*/true);
-
-  return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-             std::move(KernelBundleImplPtr))
-      .get_specialization_constant<SpecName>();
+  return getKernelBundle().get_specialization_constant<SpecName>();
 }
 
 } // namespace _V1

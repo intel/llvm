@@ -12,9 +12,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
       if (NOT LLVMGenXIntrinsics_INCLUDE_DIR)
         set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-        # Date: Mar 7, 2025
-        # Update Triple usage after 979c275097
-        set(LLVMGenXIntrinsics_GIT_TAG 9e1935aedc2101deaab45b2f69f4b43ccf6f2b52)
+        # Date: May 29, 2025
+        # Use OneNthEltsVecArgument instead of HalfVecArguments to fix build failure.
+        set(LLVMGenXIntrinsics_GIT_TAG 60cea7590bd022d95f5cf336ee765033bd114d69)
 
         message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
         include(FetchContent)
