@@ -84,20 +84,15 @@ public:
   bool hasDeviceGlobalName(const std::string &Name) const noexcept {
     return !MDeviceGlobalNames.empty() &&
            std::find(MDeviceGlobalNames.begin(), MDeviceGlobalNames.end(),
-                     mangleDeviceGlobalName(Name)) != MDeviceGlobalNames.end();
+                     Name) != MDeviceGlobalNames.end();
   }
 
   DeviceGlobalMapEntry *tryGetDeviceGlobalEntry(const std::string &Name) const {
     auto &PM = detail::ProgramManager::getInstance();
-    return PM.tryGetDeviceGlobalEntry(MPrefix + mangleDeviceGlobalName(Name));
+    return PM.tryGetDeviceGlobalEntry(MPrefix + Name);
   }
 
 private:
-  static std::string mangleDeviceGlobalName(const std::string &Name) {
-    // TODO: Support device globals declared in namespaces.
-    return "_Z" + std::to_string(Name.length()) + Name;
-  }
-
   void unregisterDeviceGlobalsFromContext() {
     if (MDeviceGlobalNames.empty())
       return;
@@ -152,6 +147,7 @@ private:
 
 using MangledKernelNameMapT = std::map<std::string, std::string, std::less<>>;
 using KernelNameSetT = std::set<std::string, std::less<>>;
+using KernelNameToArgMaskMap = std::unordered_map<std::string, KernelArgMask>;
 
 // Information unique to images compiled at runtime through the
 // ext_oneapi_kernel_compiler extension.
@@ -260,12 +256,23 @@ public:
         MKernelIDs(std::move(KernelIDs)),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()), MOrigins(Origins) {
     updateSpecConstSymMap();
-    // SYCLBIN files have the kernel names embedded in the binaries, so we
-    // collect them.
-    if (BinImage && (MOrigins & ImageOriginSYCLBIN))
+    if (BinImage && (MOrigins & ImageOriginSYCLBIN)) {
+      // SYCLBIN files have the kernel names embedded in the binaries, so we
+      // collect them.
       for (const sycl_device_binary_property &KNProp :
            BinImage->getKernelNames())
         MKernelNames.insert(KNProp->Name);
+
+      KernelArgMask ArgMask;
+      if (BinImage->getKernelParamOptInfo().isAvailable()) {
+        // Extract argument mask from the image.
+        const RTDeviceBinaryImage::PropertyRange &KPOIRange =
+            BinImage->getKernelParamOptInfo();
+        for (const auto &Info : KPOIRange)
+          MEliminatedKernelArgMasks[Info->Name] =
+              createKernelArgMask(DeviceBinaryProperty(Info).asByteArray());
+      }
+    }
   }
 
   device_image_impl(
@@ -276,10 +283,12 @@ public:
       const std::vector<unsigned char> &SpecConstsBlob, uint8_t Origins,
       std::optional<KernelCompilerBinaryInfo> &&RTCInfo,
       KernelNameSetT &&KernelNames,
+      KernelNameToArgMaskMap &&EliminatedKernelArgMasks,
       std::unique_ptr<DynRTDeviceBinaryImage> &&MergedImageStorage, private_tag)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
         MKernelIDs(std::move(KernelIDs)), MKernelNames{std::move(KernelNames)},
+        MEliminatedKernelArgMasks{std::move(EliminatedKernelArgMasks)},
         MSpecConstsBlob(SpecConstsBlob),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MSpecConstSymMap(SpecConstMap), MOrigins(Origins),
@@ -289,11 +298,14 @@ public:
   device_image_impl(const RTDeviceBinaryImage *BinImage, const context &Context,
                     const std::vector<device> &Devices, bundle_state State,
                     ur_program_handle_t Program, syclex::source_language Lang,
-                    KernelNameSetT &&KernelNames, private_tag)
+                    KernelNameSetT &&KernelNames,
+                    KernelNameToArgMaskMap &&EliminatedKernelArgMasks,
+                    private_tag)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
         MKernelIDs(std::make_shared<std::vector<kernel_id>>()),
         MKernelNames{std::move(KernelNames)},
+        MEliminatedKernelArgMasks{std::move(EliminatedKernelArgMasks)},
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
         MRTCBinInfo(KernelCompilerBinaryInfo{Lang}) {
@@ -673,6 +685,10 @@ public:
   }
 
   const KernelNameSetT &getKernelNames() const noexcept { return MKernelNames; }
+
+  const KernelNameToArgMaskMap &getEliminatedKernelArgMasks() const noexcept {
+    return MEliminatedKernelArgMasks;
+  }
 
   bool isNonSYCLSourceBased() const noexcept {
     return (getOriginMask() & ImageOriginKernelCompiler) &&
@@ -1265,6 +1281,10 @@ private:
 
   // List of known kernel names.
   KernelNameSetT MKernelNames;
+
+  // Map for storing kernel argument masks for kernels. This is currently only
+  // used for images created from SYCLBIN.
+  KernelNameToArgMaskMap MEliminatedKernelArgMasks;
 
   // A mutex for sycnhronizing access to spec constants blob. Mutable because
   // needs to be locked in the const method for getting spec constant value.

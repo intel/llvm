@@ -182,11 +182,9 @@ const char *SYCLInstallationDetector::findLibspirvPath(
   const SmallString<64> Basename =
       getLibSpirvBasename(DeviceTriple, HostTriple);
   auto searchAt = [&](StringRef Path, const Twine &a = "", const Twine &b = "",
-                      const Twine &c = "", const Twine &d = "",
-                      const Twine &e = "") -> const char * {
+                      const Twine &c = "") -> const char * {
     SmallString<128> LibraryPath(Path);
-    llvm::sys::path::append(LibraryPath, a, b, c, d);
-    llvm::sys::path::append(LibraryPath, e, Basename);
+    llvm::sys::path::append(LibraryPath, a, b, c, Basename);
 
     if (Args.hasArgNoClaim(options::OPT__HASH_HASH_HASH) ||
         llvm::sys::fs::exists(LibraryPath))
@@ -195,14 +193,15 @@ const char *SYCLInstallationDetector::findLibspirvPath(
     return nullptr;
   };
 
-  // Otherwise, assume libclc is installed at the same prefix as clang
-  // Expected path w/out install.
-  if (const char *R = searchAt(D.ResourceDir, "..", "..", "clc"))
-    return R;
+  for (const auto &IC : InstallationCandidates) {
+    // Expected path w/out install.
+    if (const char *R = searchAt(IC, "lib", "clc"))
+      return R;
 
-  // Expected path w/ install.
-  if (const char *R = searchAt(D.ResourceDir, "..", "..", "..", "share", "clc"))
-    return R;
+    // Expected path w/ install.
+    if (const char *R = searchAt(IC, "share", "clc"))
+      return R;
+  }
 
   return nullptr;
 }
@@ -210,9 +209,18 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 void SYCLInstallationDetector::addLibspirvLinkArgs(
     const llvm::Triple &DeviceTriple, const llvm::opt::ArgList &DriverArgs,
     const llvm::Triple &HostTriple, llvm::opt::ArgStringList &CC1Args) const {
-  if (DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||
-      D.offloadDeviceOnly())
+  DriverArgs.claimAllArgs(options::OPT_fno_sycl_libspirv);
+
+  if (D.offloadDeviceOnly())
     return;
+
+  if (DriverArgs.hasArg(options::OPT_fno_sycl_libspirv)) {
+    // -fno-sycl-libspirv flag is reserved for very unusual cases where the
+    // libspirv library is not linked when required by the device: so output
+    // appropriate warnings.
+    D.Diag(diag::warn_flag_no_sycl_libspirv) << DeviceTriple.str();
+    return;
+  }
 
   if (const char *LibSpirvFile =
           findLibspirvPath(DeviceTriple, DriverArgs, HostTriple)) {
@@ -838,7 +846,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     addSingleLibrary(SYCLDeviceTsanLibs[sanitizer_lib_idx]);
 #endif
 
-  if (isSYCLNativeCPU(TargetTriple))
+  if (TargetTriple.isNativeCPU())
     addLibraries(SYCLNativeCpuDeviceLibs);
 
   return LibraryList;
@@ -1016,7 +1024,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
       const bool IsAMDGCN = this->getToolChain().getTriple().isAMDGCN();
       const bool IsSYCLNativeCPU =
-          isSYCLNativeCPU(this->getToolChain().getTriple());
+          this->getToolChain().getTriple().isNativeCPU();
       StringRef LibPostfix = ".bc";
       StringRef NewLibPostfix = ".new.o";
       if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
@@ -1160,7 +1168,7 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   assert((getToolChain().getTriple().isSPIROrSPIRV() ||
           getToolChain().getTriple().isNVPTX() ||
           getToolChain().getTriple().isAMDGCN() ||
-          isSYCLNativeCPU(getToolChain().getTriple())) &&
+          getToolChain().getTriple().isNativeCPU()) &&
          "Unsupported target");
 
   std::string SubArchName =
@@ -1552,7 +1560,7 @@ static ArrayRef<options::ID> getUnsupportedOpts() {
 // Currently supported options by SYCL NativeCPU device compilation
 static inline bool SupportedByNativeCPU(const llvm::Triple &Triple,
                                         const OptSpecifier &Opt) {
-  if (!isSYCLNativeCPU(Triple))
+  if (!Triple.isNativeCPU())
     return false;
 
   switch (Opt.getID()) {
@@ -2001,7 +2009,7 @@ Tool *SYCLToolChain::buildBackendCompiler() const {
 }
 
 Tool *SYCLToolChain::buildLinker() const {
-  assert(getTriple().isSPIROrSPIRV() || isSYCLNativeCPU(getTriple()));
+  assert(getTriple().isSPIROrSPIRV() || getTriple().isNativeCPU());
   return new tools::SYCL::Linker(*this);
 }
 

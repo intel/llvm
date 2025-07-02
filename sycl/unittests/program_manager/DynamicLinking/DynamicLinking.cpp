@@ -399,14 +399,14 @@ TEST(DynamicLinking, KernelBundleMutualDepBuildIndirect) {
 }
 
 template <sycl::bundle_state State>
-std::shared_ptr<sycl::detail::device_image_impl>
+sycl::detail::device_image_impl &
 getImage(const sycl::kernel_bundle<State> &KernelBundle,
          const sycl::kernel_id &KernelID) {
   auto It =
       std::find_if(KernelBundle.begin(), KernelBundle.end(),
                    [&](auto Image) { return Image.has_kernel(KernelID); });
   EXPECT_NE(It, KernelBundle.end());
-  return sycl::detail::getSyclObjImpl(*It);
+  return *sycl::detail::getSyclObjImpl(*It);
 }
 
 template <sycl::bundle_state State>
@@ -418,16 +418,16 @@ void runSpecConstChecksUnlinked(
             20);
   // Kernel bundles store spec constant values even if they're not part of any
   // images, check image spec const blobs.
-  std::shared_ptr<sycl::detail::device_image_impl> ImgA =
+  sycl::detail::device_image_impl &ImgA =
       getImage(KernelBundle,
                sycl::get_kernel_id<DynamicLinkingTest::MutualDepKernelA>());
-  std::vector<unsigned char> &BlobA = ImgA->get_spec_const_blob_ref();
+  std::vector<unsigned char> &BlobA = ImgA.get_spec_const_blob_ref();
   int SpecConstVal1 = *reinterpret_cast<int *>(BlobA.data());
   EXPECT_EQ(SpecConstVal1, 10);
-  std::shared_ptr<sycl::detail::device_image_impl> ImgB =
+  sycl::detail::device_image_impl &ImgB =
       getImage(KernelBundle,
                sycl::get_kernel_id<DynamicLinkingTest::MutualDepKernelB>());
-  std::vector<unsigned char> &BlobB = ImgB->get_spec_const_blob_ref();
+  std::vector<unsigned char> &BlobB = ImgB.get_spec_const_blob_ref();
   int SpecConstVal2 = *reinterpret_cast<int *>(BlobB.data());
   EXPECT_EQ(SpecConstVal2, 20);
 }
@@ -438,16 +438,16 @@ void runSpecConstChecksLinked(
   EXPECT_EQ(KernelBundle.get_specialization_constant<SpecConst2>(), 20);
   // Kernel bundles store spec constant values even if they're not part of any
   // images, check image spec const blobs.
-  std::shared_ptr<sycl::detail::device_image_impl> ImgA =
+  sycl::detail::device_image_impl &ImgA =
       getImage(KernelBundle,
                sycl::get_kernel_id<DynamicLinkingTest::MutualDepKernelA>());
-  std::shared_ptr<sycl::detail::device_image_impl> ImgB =
+  sycl::detail::device_image_impl &ImgB =
       getImage(KernelBundle,
                sycl::get_kernel_id<DynamicLinkingTest::MutualDepKernelB>());
-  EXPECT_EQ(ImgA, ImgB);
-  const std::vector<unsigned char> &Blob = ImgA->get_spec_const_blob_ref();
+  EXPECT_EQ(&ImgA, &ImgB);
+  const std::vector<unsigned char> &Blob = ImgA.get_spec_const_blob_ref();
   const sycl::detail::device_image_impl::SpecConstMapT &SpecConstMap =
-      ImgA->get_spec_const_data_ref();
+      ImgA.get_spec_const_data_ref();
 
   auto It = SpecConstMap.find("SC1");
   ASSERT_NE(It, SpecConstMap.end());
