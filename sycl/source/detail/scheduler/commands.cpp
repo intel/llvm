@@ -345,7 +345,7 @@ class DispatchHostTask {
   std::vector<ur_mem_handle_t> MReqUrMem;
 
   bool waitForEvents() const {
-    std::map<const adapter_impl *, std::vector<EventImplPtr>>
+    std::map<adapter_impl *, std::vector<EventImplPtr>>
         RequiredEventsPerAdapter;
 
     for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {

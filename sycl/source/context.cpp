@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/adapter_impl.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/ur.hpp>
