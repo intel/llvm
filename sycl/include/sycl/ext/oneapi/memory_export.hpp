@@ -82,7 +82,7 @@ template <export_external_mem_handle_type ExportMemHandleType,
           std::enable_if_t<ExportMemHandleType ==
                                export_external_mem_handle_type::opaque_fd,
                            bool> = true>
-__SYCL_EXPORT exported_mem_t<ExportMemHandleType>
+inline exported_mem_t<ExportMemHandleType>
 export_device_mem_handle(void *deviceMemory, const sycl::device &syclDevice,
                          const sycl::context &syclContext) {
   return detail::export_device_mem_opaque_fd(deviceMemory, syclDevice,
@@ -107,7 +107,7 @@ template <export_external_mem_handle_type ExportMemHandleType,
           std::enable_if_t<ExportMemHandleType ==
                                export_external_mem_handle_type::win32_nt,
                            bool> = true>
-__SYCL_EXPORT exported_mem_t<ExportMemHandleType>
+inline exported_mem_t<ExportMemHandleType>
 export_device_mem_handle(void *deviceMemory, const sycl::device &syclDevice,
                          const sycl::context &syclContext) {
   return detail::export_device_mem_win32_nt(deviceMemory, syclDevice,
