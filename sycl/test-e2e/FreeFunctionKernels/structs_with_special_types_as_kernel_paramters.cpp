@@ -14,6 +14,8 @@
 #include "helpers.hpp"
 
 namespace ns {
+// TODO: Need to remove explicit specified default template arguments for the
+// accessor when the relevant CMPLRLLVM-68249 issue is fixed.
 template <size_t Dims> struct StructWithAccessor {
   sycl::accessor<int, Dims, sycl::access::mode::read_write,
                  sycl::access::target::device,
@@ -22,14 +24,27 @@ template <size_t Dims> struct StructWithAccessor {
   int MValue;
 };
 
+template <size_t Dims> struct NestedStructWithAccessor {
+  StructWithAccessor<Dims> NestedStruct;
+};
+
 template <int Dims>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dims>))
 void nsNdRangeFreeFunc(StructWithAccessor<Dims> Type) {
   auto Item = syclext::this_work_item::get_nd_item<Dims>().get_global_id();
   Type.MAccessor[Item] = Type.MValue;
 }
+
+template <int Dims>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dims>))
+void nsNdRangeFreeFuncWithNestedStruct(NestedStructWithAccessor<Dims> Type) {
+  auto Item = syclext::this_work_item::get_nd_item<Dims>().get_global_id();
+  Type.NestedStruct.MAccessor[Item] = Type.NestedStruct.MValue;
+}
 } // namespace ns
 
+// TODO: Need to remove explicit specified default template arguments for the
+// accessor when the relevant CMPLRLLVM-68249 issue is fixed.
 template <size_t Dims> struct StructWithMultipleAccessors {
   sycl::accessor<int, Dims, sycl::access::mode::read,
                  sycl::access::target::device,
@@ -59,7 +74,7 @@ void ndRangeFreeFuncMultipleParameters(StructWithMultipleAccessors<Dims> Type) {
   Type.MResultAcc[Item] = Type.MInputAAcc[Item] + Type.MInputBAcc[Item];
 }
 
-template <auto Func, size_t Dims>
+template <auto Func, size_t Dims, bool IsNestedStruct = false>
 int runNdRangeTest(sycl::queue &Queue, sycl::context &Context,
                    sycl::nd_range<Dims> NdRange, std::string_view ErrorMessage,
                    const int ExpectedResultValue) {
@@ -69,8 +84,15 @@ int runNdRangeTest(sycl::queue &Queue, sycl::context &Context,
     sycl::buffer<int, Dims> Buffer(ResultData.data(),
                                    NdRange.get_global_range());
     Queue.submit([&](sycl::handler &Handler) {
-      Handler.set_args(ns::StructWithAccessor<Dims>{
-          sycl::accessor<int, Dims>{Buffer, Handler}, ExpectedResultValue});
+      if constexpr (IsNestedStruct) {
+        Handler.set_args(
+            ns::NestedStructWithAccessor<Dims>{ns::StructWithAccessor<Dims>{
+                sycl::accessor<int, Dims>{Buffer, Handler},
+                ExpectedResultValue}});
+      } else {
+        Handler.set_args(ns::StructWithAccessor<Dims>{
+            sycl::accessor<int, Dims>{Buffer, Handler}, ExpectedResultValue});
+      }
       Handler.parallel_for(NdRange, UsedKernel);
     });
   }
@@ -138,8 +160,16 @@ constexpr size_t NUM_BINS = 4;
 constexpr size_t INPUT_SIZE = 1024;
 
 struct StructWithLocalAccessor {
-  sycl::accessor<int, 1> MInputAccessor;
-  sycl::accessor<int, 1> MResultAccessor;
+  // TODO: Need to remove explicit specified default template arguments for the
+  // accessor when the relevant CMPLRLLVM-68249 issue is fixed.
+  sycl::accessor<int, 1, sycl::access::mode::read_write,
+                 sycl::access::target::device,
+                 sycl::access::placeholder::false_t>
+      MInputAccessor;
+  sycl::accessor<int, 1, sycl::access::mode::read_write,
+                 sycl::access::target::device,
+                 sycl::access::placeholder::false_t>
+      MResultAccessor;
   sycl::local_accessor<int, 1> MLocalAccessor;
 };
 
@@ -243,6 +273,27 @@ int main() {
             "ndRangeFreeFuncMultipleParameters with struct type that contains "
             "multiple sycl::accessor<3>",
             sycl::range{444, 444, 888});
+  }
+
+  {
+    // Check struct type that nests another struct which contains sycl::accessor
+    // is supported inside nd_range free function kernel
+    Failed += runNdRangeTest<ns::nsNdRangeFreeFuncWithNestedStruct<1>, 1, true>(
+        Queue, Context, sycl::nd_range{sycl::range{10}, sycl::range{2}},
+        "ns::nsNdRangeFreeFuncWithNestedStruct with a struct nesting another "
+        "struct that contains sycl::accessor<1>",
+        7);
+    Failed += runNdRangeTest<ns::nsNdRangeFreeFuncWithNestedStruct<2>, 2, true>(
+        Queue, Context, sycl::nd_range{sycl::range{16, 16}, sycl::range{4, 4}},
+        "ns::nsNdRangeFreeFuncWithNestedStruct with a struct nesting another "
+        "struct that contains sycl::accessor<2>",
+        8);
+    Failed += runNdRangeTest<ns::nsNdRangeFreeFuncWithNestedStruct<3>, 3, true>(
+        Queue, Context,
+        sycl::nd_range{sycl::range{10, 10, 10}, sycl::range{2, 2, 2}},
+        "ns::nsNdRangeFreeFuncWithNestedStruct with a struct nesting another "
+        "struct that contains sycl::accessor<3>",
+        9);
   }
 
   {
