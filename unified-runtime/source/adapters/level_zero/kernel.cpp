@@ -692,14 +692,27 @@ static ur_result_t setArgHelper(ur_kernel_handle_t Kernel,
     if (!AllocationDevice)
       return UR_RESULT_ERROR_INVALID_DEVICE;
 
-    // Allocation on a device can be used on the device or its sub-devices.
-    for (auto [KernelDevice, ZeKernel] : Kernel->ZeKernelMap) {
-      if (AllocationDevice == KernelDevice ||
-          AllocationDevice == KernelDevice->RootDevice) {
-        ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
-                                   (ZeKernel, ArgIndex, ArgSize, PArgValue));
+    auto setArgValue = [&](ur_device_handle_t Device) {
+      auto It = Kernel->ZeKernelMap.find(Device);
+      if (It != Kernel->ZeKernelMap.end()) {
+        auto ZeKernel = It->second;
+        return ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
+                               (ZeKernel, ArgIndex, ArgSize, PArgValue));
       }
+      return ZE_RESULT_SUCCESS;
+    };
+    auto &P2PCache = Kernel->Program->Context->P2PDeviceCache;
+    auto P2P = P2PCache.find(AllocationDevice);
+    if (P2P != P2PCache.end()) {
+      const auto &PeerDevices = P2PCache[AllocationDevice];
+      for (auto PeerDevice : PeerDevices)
+        setArgValue(PeerDevice);
     }
+
+    for (auto SubDevice : AllocationDevice->SubDevices)
+      setArgValue(SubDevice);
+
+    setArgValue(AllocationDevice);
   } else {
     for (auto It : Kernel->ZeKernelMap) {
       auto ZeKernel = It.second;
