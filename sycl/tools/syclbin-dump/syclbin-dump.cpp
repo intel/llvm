@@ -50,19 +50,6 @@ raw_ostream &operator<<(raw_ostream &OS, const ScopedIndent &) {
   return OS.indent(CurrentIndentationLevel);
 }
 
-std::string_view StateToString(llvm::object::SYCLBIN::BundleState State) {
-  switch (State) {
-  case llvm::object::SYCLBIN::BundleState::Input:
-    return "input";
-  case llvm::object::SYCLBIN::BundleState::Object:
-    return "object";
-  case llvm::object::SYCLBIN::BundleState::Executable:
-    return "executable";
-  default:
-    return "UNKNOWN";
-  }
-}
-
 std::string PropertyValueToString(const llvm::util::PropertyValue &PropVal) {
   switch (PropVal.getType()) {
   case llvm::util::PropertyValue::UINT32:
