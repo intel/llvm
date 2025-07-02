@@ -153,7 +153,12 @@ entangle(ParentGroup parent) {
   sycl::group_barrier(parent);
 
 #if defined(__SPIR__) || defined(__SPIRV__)
-  // mask is required to calculate IDs (not the group).
+  // All SPIR-V devices that we currently target execute in SIMD fashion,
+  // and so the group of work-items in converged control flow is implicit.
+  // We store the mask here because it is required to calculate IDs, not
+  // because it is required to construct the group.
+
+  // mask is required to calculate IDs (not the group)
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(parent, true);
   return tangle<ParentGroup>(mask);
 #elif defined(__NVPTX__)

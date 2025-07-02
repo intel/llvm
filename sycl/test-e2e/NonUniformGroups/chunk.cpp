@@ -7,7 +7,6 @@
 // RUN: %if cpu %{ %{run} %t.x86.out %}
 //
 // REQUIRES: cpu || gpu
-// UNSUPPORTED: hip
 // REQUIRES: sg-32
 
 #include <sycl/detail/core.hpp>

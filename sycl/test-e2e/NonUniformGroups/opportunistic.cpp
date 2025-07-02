@@ -7,7 +7,6 @@
 // RUN: %if cpu %{ %{run} %t.x86.out %}
 //
 // REQUIRES: cpu || gpu
-// UNSUPPORTED: hip
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/fragment.hpp>
