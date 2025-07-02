@@ -702,6 +702,10 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGPrefetchUSM(
         MDstPtr, MLength, std::move(impl->CGData), MCodeLoc));
     break;
+  case detail::CGType::PrefetchUSMExpD2H:
+    CommandGroup.reset(new detail::CGPrefetchUSMExpD2H(
+        MDstPtr, MLength, std::move(impl->CGData), MCodeLoc));
+    break;
   case detail::CGType::AdviseUSM:
     CommandGroup.reset(new detail::CGAdviseUSM(MDstPtr, MLength, impl->MAdvice,
                                                std::move(impl->CGData),
@@ -1448,6 +1452,13 @@ void handler::prefetch(const void *Ptr, size_t Count) {
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
   setType(detail::CGType::PrefetchUSM);
+}
+
+void handler::ext_oneapi_prefetch_d2h(const void *Ptr, size_t Count) {
+  throwIfActionIsCreated();
+  MDstPtr = const_cast<void *>(Ptr);
+  MLength = Count;
+  setType(detail::CGType::PrefetchUSMExpD2H);
 }
 
 void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {

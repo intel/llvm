@@ -154,6 +154,9 @@ namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
 template <typename, typename> class dynamic_work_group_memory;
 struct image_descriptor;
+enum class prefetch_type;
+void prefetch(handler &CGH, void *Ptr, size_t NumBytes, prefetch_type Type);
+
 __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr);
 __SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
                                  size_t size);
@@ -3681,6 +3684,15 @@ private:
   // Implementation of ext_oneapi_memset2d using command for native 2D memset.
   void ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
                                 size_t Width, size_t Height);
+
+  // Implementation of prefetch from device back to host
+  void ext_oneapi_prefetch_d2h(const void *Ptr, size_t Count);
+
+  // The enqueue_functions module's prefetch function is friended in order for
+  // it to be able to call private handler function ext_oneapi_prefetch_d2h.
+  friend void sycl::ext::oneapi::experimental::prefetch(
+    handler &CGH, void *Ptr, size_t NumBytes,
+    sycl::ext::oneapi::experimental::prefetch_type Type);
 
   // Implementation of memcpy to device_global.
   void memcpyToDeviceGlobal(const void *DeviceGlobalPtr, const void *Src,

@@ -408,6 +408,20 @@ public:
   size_t getLength() { return MLength; }
 };
 
+/// "Prefetch USM" command group class.
+class CGPrefetchUSMExpD2H : public CG {
+  void *MDst;
+  size_t MLength;
+
+public:
+  CGPrefetchUSMExpD2H(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
+                detail::code_location loc = {})
+      : CG(CGType::PrefetchUSMExpD2H, std::move(CGData), std::move(loc)),
+        MDst(DstPtr), MLength(Length) {}
+  void *getDst() { return MDst; }
+  size_t getLength() { return MLength; }
+};
+
 /// "Advise USM" command group class.
 class CGAdviseUSM : public CG {
   void *MDst;

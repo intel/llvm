@@ -924,7 +924,8 @@ void MemoryManager::fill_usm(void *Mem, queue_impl &Queue, size_t Length,
 
 void MemoryManager::prefetch_usm(void *Mem, queue_impl &Queue, size_t Length,
                                  std::vector<ur_event_handle_t> DepEvents,
-                                 ur_event_handle_t *OutEvent) {
+                                 ur_event_handle_t *OutEvent,
+                                 sycl::ext::oneapi::experimental::prefetch_type Dest) {
   const AdapterPtr &Adapter = Queue.getAdapter();
   Adapter->call<UrApiKind::urEnqueueUSMPrefetch>(Queue.getHandleRef(), Mem,
                                                  Length, 0, DepEvents.size(),
@@ -1537,7 +1538,8 @@ void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
     sycl::detail::context_impl *Context,
     ur_exp_command_buffer_handle_t CommandBuffer, void *Mem, size_t Length,
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,
-    ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
+    ur_exp_command_buffer_sync_point_t *OutSyncPoint, 
+    sycl::ext::oneapi::experimental::prefetch_type Dest) {
   const AdapterPtr &Adapter = Context->getAdapter();
   Adapter->call<UrApiKind::urCommandBufferAppendUSMPrefetchExp>(
       CommandBuffer, Mem, Length, ur_usm_migration_flags_t(0), Deps.size(),

@@ -1911,6 +1911,9 @@ static std::string_view cgTypeToString(detail::CGType Type) {
   case detail::CGType::PrefetchUSM:
     return "prefetch usm";
     break;
+  case detail::CGType::PrefetchUSMExpD2H:
+    return "prefetch usm (experimental, device to host)";
+    break;
   case detail::CGType::CodeplayHostTask:
     return "host task";
     break;
@@ -2987,7 +2990,21 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     if (auto Result = callMemOpHelper(
             MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer,
             &MQueue->getContextImpl(), MCommandBuffer, Prefetch->getDst(),
-            Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint);
+            Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint,
+            sycl::ext::oneapi::experimental::prefetch_type::device);
+        Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    MEvent->setSyncPoint(OutSyncPoint);
+    return UR_RESULT_SUCCESS;
+  }
+  case CGType::PrefetchUSMExpD2H: {
+    CGPrefetchUSMExpD2H *Prefetch = (CGPrefetchUSMExpD2H *)MCommandGroup.get();
+    if (auto Result = callMemOpHelper(
+            MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer,
+            &MQueue->getContextImpl(), MCommandBuffer, Prefetch->getDst(),
+            Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint,
+            sycl::ext::oneapi::experimental::prefetch_type::host);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3298,7 +3315,20 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::prefetch_usm, Prefetch->getDst(), *MQueue,
-            Prefetch->getLength(), std::move(RawEvents), Event);
+            Prefetch->getLength(), std::move(RawEvents), Event,
+            sycl::ext::oneapi::experimental::prefetch_type::device);
+        Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    SetEventHandleOrDiscard();
+    return UR_RESULT_SUCCESS;
+  }
+  case CGType::PrefetchUSMExpD2H: {
+    CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
+    if (auto Result = callMemOpHelper(
+            MemoryManager::prefetch_usm, Prefetch->getDst(), *MQueue,
+            Prefetch->getLength(), std::move(RawEvents), Event,
+            sycl::ext::oneapi::experimental::prefetch_type::host);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
