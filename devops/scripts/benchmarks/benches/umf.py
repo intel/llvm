@@ -97,7 +97,7 @@ class GBench(Benchmark):
             return
 
         self.oneapi = get_oneapi()
-        self.umf_lib = options.umf + "lib"
+        self.umf_lib = os.path.join(options.umf, "lib")
         self.benchmark_bin = os.path.join(options.umf, "benchmark", self.bench_name)
 
     def is_memory_statistics_included(self, data_row):
