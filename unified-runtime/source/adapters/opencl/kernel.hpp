@@ -24,6 +24,7 @@ struct ur_kernel_handle_t_ : ur::opencl::handle_base {
   ur_context_handle_t Context;
   bool IsNativeHandleOwned = true;
   clSetKernelArgMemPointerINTEL_fn clSetKernelArgMemPointerINTEL = nullptr;
+  ur::RefCount RefCount;
 
   ur_kernel_handle_t_(native_type Kernel, ur_program_handle_t Program,
                       ur_context_handle_t Context)
@@ -49,9 +50,4 @@ struct ur_kernel_handle_t_ : ur::opencl::handle_base {
                                     ur_program_handle_t Program,
                                     ur_context_handle_t Context,
                                     ur_kernel_handle_t &Kernel);
-
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
-  ur::RefCount RefCount;
 };

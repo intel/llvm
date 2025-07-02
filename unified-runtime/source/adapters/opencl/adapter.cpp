@@ -78,7 +78,7 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
     }
 
     auto &adapter = *phAdapters;
-    adapter->getRefCount().retain();
+    adapter->RefCount.retain();
   }
 
   if (pNumAdapters) {
@@ -90,13 +90,13 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterRetain(ur_adapter_handle_t hAdapter) {
-  hAdapter->getRefCount().retain();
+  hAdapter->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterRelease(ur_adapter_handle_t hAdapter) {
-  if (hAdapter->getRefCount().release()) {
+  if (hAdapter->RefCount.release()) {
     delete hAdapter;
   }
   return UR_RESULT_SUCCESS;
@@ -119,7 +119,7 @@ urAdapterGetInfo(ur_adapter_handle_t hAdapter, ur_adapter_info_t propName,
   case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_OPENCL);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
-    return ReturnValue(hAdapter->getRefCount().getCount());
+    return ReturnValue(hAdapter->RefCount.getCount());
   case UR_ADAPTER_INFO_VERSION:
     return ReturnValue(uint32_t{1});
   default:

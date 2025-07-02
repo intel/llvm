@@ -19,6 +19,7 @@ struct ur_sampler_handle_t_ : ur::opencl::handle_base {
   native_type CLSampler;
   ur_context_handle_t Context;
   bool IsNativeHandleOwned = false;
+  ur::RefCount RefCount;
 
   ur_sampler_handle_t_(native_type Sampler, ur_context_handle_t Ctx)
       : handle_base(), CLSampler(Sampler), Context(Ctx) {
@@ -31,9 +32,4 @@ struct ur_sampler_handle_t_ : ur::opencl::handle_base {
       clReleaseSampler(CLSampler);
     }
   }
-
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
-  ur::RefCount RefCount;
 };

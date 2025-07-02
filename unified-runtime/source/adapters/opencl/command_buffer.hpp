@@ -57,6 +57,8 @@ struct ur_exp_command_buffer_handle_t_ : ur::opencl::handle_base {
   /// Track last submission of the command-buffer
   cl_event LastSubmission;
 
+  ur::RefCount RefCount;
+
   ur_exp_command_buffer_handle_t_(ur_queue_handle_t hQueue,
                                   ur_context_handle_t hContext,
                                   ur_device_handle_t hDevice,
@@ -68,9 +70,4 @@ struct ur_exp_command_buffer_handle_t_ : ur::opencl::handle_base {
         LastSubmission(nullptr) {}
 
   ~ur_exp_command_buffer_handle_t_();
-
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
-  ur::RefCount RefCount;
 };

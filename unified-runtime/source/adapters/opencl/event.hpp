@@ -21,6 +21,7 @@ struct ur_event_handle_t_ : ur::opencl::handle_base {
   ur_context_handle_t Context;
   ur_queue_handle_t Queue;
   bool IsNativeHandleOwned = true;
+  ur::RefCount RefCount;
 
   ur_event_handle_t_(native_type Event, ur_context_handle_t Ctx,
                      ur_queue_handle_t Queue)
@@ -53,11 +54,6 @@ struct ur_event_handle_t_ : ur::opencl::handle_base {
 
     return UR_RESULT_SUCCESS;
   }
-
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
-  ur::RefCount RefCount;
 };
 
 inline cl_event *ifUrEvent(ur_event_handle_t *ReturnedEvent, cl_event &Event) {

@@ -21,6 +21,7 @@ struct ur_device_handle_t_ : ur::opencl::handle_base {
   cl_device_type Type = 0;
   ur_device_handle_t ParentDevice = nullptr;
   bool IsNativeHandleOwned = true;
+  ur::RefCount RefCount;
 
   ur_device_handle_t_(native_type Dev, ur_platform_handle_t Plat,
                       ur_device_handle_t Parent)
@@ -108,8 +109,4 @@ struct ur_device_handle_t_ : ur::opencl::handle_base {
     return UR_RESULT_SUCCESS;
   }
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
-  ur::RefCount RefCount;
 };

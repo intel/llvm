@@ -22,6 +22,7 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
   std::vector<ur_device_handle_t> Devices;
   uint32_t DeviceCount;
   bool IsNativeHandleOwned = true;
+  ur::RefCount RefCount;
 
   ur_context_handle_t_(native_type Ctx, uint32_t DevCount,
                        const ur_device_handle_t *phDevices)
@@ -50,8 +51,4 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
     }
   }
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
-  ur::RefCount RefCount;
 };

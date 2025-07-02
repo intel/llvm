@@ -20,6 +20,7 @@ struct ur_mem_handle_t_ : ur::opencl::handle_base {
   native_type CLMemory;
   ur_context_handle_t Context;
   bool IsNativeHandleOwned = true;
+  ur::RefCount RefCount;
 
   ur_mem_handle_t_(native_type Mem, ur_context_handle_t Ctx)
       : handle_base(), CLMemory(Mem), Context(Ctx) {
@@ -37,8 +38,4 @@ struct ur_mem_handle_t_ : ur::opencl::handle_base {
                                     ur_context_handle_t Ctx,
                                     ur_mem_handle_t &Mem);
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
-  ur::RefCount RefCount;
 };

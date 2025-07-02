@@ -31,17 +31,14 @@ struct ur_adapter_handle_t_ : ur::opencl::handle_base {
   std::vector<std::unique_ptr<ur_platform_handle_t_>> URPlatforms;
   uint32_t NumPlatforms = 0;
 
+  ur::RefCount RefCount;
+
   // Function pointers to core OpenCL entry points which may not exist in older
   // versions of the OpenCL-ICD-Loader are tracked here and initialized by
   // dynamically loading the symbol by name.
 #define CL_CORE_FUNCTION(FUNC) decltype(::FUNC) *FUNC = nullptr;
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
-
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
-  ur::RefCount RefCount;
 };
 
 namespace ur {
