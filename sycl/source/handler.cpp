@@ -1060,6 +1060,10 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
   using detail::kernel_param_kind_t;
+  size_t GlobalSize = impl->MNDRDesc.GlobalSize[0];
+  for (size_t I = 1; I < impl->MNDRDesc.Dims; ++I) {
+    GlobalSize *= impl->MNDRDesc.GlobalSize[I];
+  }
 
   switch (Kind) {
   case kernel_param_kind_t::kind_std_layout:
@@ -1075,32 +1079,33 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
         static_cast<detail::AccessorBaseHost *>(&S->GlobalBuf);
     detail::AccessorImplPtr GBufImpl = detail::getSyclObjImpl(*GBufBase);
     detail::Requirement *GBufReq = GBufImpl.get();
-    addArgsForGlobalAccessor(
-        GBufReq, Index, IndexShift, Size, IsKernelCreatedFromSource,
-        impl->MNDRDesc.GlobalSize.size(), impl->MArgs, IsESIMD);
+    addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
+                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
+                             IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GOffsetBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalOffset);
     detail::AccessorImplPtr GOfssetImpl = detail::getSyclObjImpl(*GOffsetBase);
     detail::Requirement *GOffsetReq = GOfssetImpl.get();
-    addArgsForGlobalAccessor(
-        GOffsetReq, Index, IndexShift, Size, IsKernelCreatedFromSource,
-        impl->MNDRDesc.GlobalSize.size(), impl->MArgs, IsESIMD);
+    addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
+                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
+                             IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GFlushBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
     detail::AccessorImplPtr GFlushImpl = detail::getSyclObjImpl(*GFlushBase);
     detail::Requirement *GFlushReq = GFlushImpl.get();
 
-    size_t GlobalSize = impl->MNDRDesc.GlobalSize.size();
     // If work group size wasn't set explicitly then it must be recieved
     // from kernel attribute or set to default values.
     // For now we can't get this attribute here.
     // So we just suppose that WG size is always default for stream.
     // TODO adjust MNDRDesc when device image contains kernel's attribute
     if (GlobalSize == 0) {
-      // Suppose that work group size is 1 for every dimension
-      GlobalSize = impl->MNDRDesc.NumWorkGroups.size();
+      GlobalSize = impl->MNDRDesc.NumWorkGroups[0];
+      for (size_t I = 1; I < impl->MNDRDesc.Dims; ++I) {
+        GlobalSize *= impl->MNDRDesc.NumWorkGroups[I];
+      }
     }
     addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
@@ -1120,9 +1125,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::device:
     case access::target::constant_buffer: {
       detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
-      addArgsForGlobalAccessor(
-          AccImpl, Index, IndexShift, Size, IsKernelCreatedFromSource,
-          impl->MNDRDesc.GlobalSize.size(), impl->MArgs, IsESIMD);
+      addArgsForGlobalAccessor(AccImpl, Index, IndexShift, Size,
+                               IsKernelCreatedFromSource, GlobalSize,
+                               impl->MArgs, IsESIMD);
       break;
     }
     case access::target::local: {
@@ -2241,12 +2246,28 @@ void handler::setKernelIsCooperative(bool KernelIsCooperative) {
   impl->MKernelIsCooperative = KernelIsCooperative;
 }
 
-void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
+void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_experimental_cuda_cluster_launch>();
   impl->MKernelUsesClusterLaunch = true;
-  impl->MNDRDesc.setClusterDimensions(ClusterSize, Dims);
+  impl->MNDRDesc.setClusterDimensions(ClusterSize);
+}
+
+void handler::setKernelClusterLaunch(sycl::range<2> ClusterSize) {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
+  impl->MKernelUsesClusterLaunch = true;
+  impl->MNDRDesc.setClusterDimensions(ClusterSize);
+}
+
+void handler::setKernelClusterLaunch(sycl::range<1> ClusterSize) {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
+  impl->MKernelUsesClusterLaunch = true;
+  impl->MNDRDesc.setClusterDimensions(ClusterSize);
 }
 
 void handler::setKernelWorkGroupMem(size_t Size) {
@@ -2401,18 +2422,43 @@ bool handler::HasAssociatedAccessor(detail::AccessorImplHost *Req,
 void handler::setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 sycl::detail::CGType handler::getType() const { return impl->MCGType; }
 
-void handler::setNDRangeDescriptorPadded(sycl::range<3> N,
-                                         bool SetNumWorkGroups, int Dims) {
-  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups, Dims};
+void handler::setNDRangeDescriptor(sycl::range<3> N, bool SetNumWorkGroups) {
+  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
 }
-void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
-                                         sycl::id<3> Offset, int Dims) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset, Dims};
+void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
+                                   sycl::id<3> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
 }
-void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
-                                         sycl::range<3> LocalSize,
-                                         sycl::id<3> Offset, int Dims) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset, Dims};
+void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
+                                   sycl::range<3> LocalSize,
+                                   sycl::id<3> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+}
+
+void handler::setNDRangeDescriptor(sycl::range<2> N, bool SetNumWorkGroups) {
+  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+}
+void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
+                                   sycl::id<2> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+}
+void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
+                                   sycl::range<2> LocalSize,
+                                   sycl::id<2> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+}
+
+void handler::setNDRangeDescriptor(sycl::range<1> N, bool SetNumWorkGroups) {
+  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+}
+void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
+                                   sycl::id<1> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+}
+void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
+                                   sycl::range<1> LocalSize,
+                                   sycl::id<1> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
 }
 
 void handler::setKernelNameBasedCachePtr(

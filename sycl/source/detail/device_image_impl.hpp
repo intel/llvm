@@ -84,20 +84,15 @@ public:
   bool hasDeviceGlobalName(const std::string &Name) const noexcept {
     return !MDeviceGlobalNames.empty() &&
            std::find(MDeviceGlobalNames.begin(), MDeviceGlobalNames.end(),
-                     mangleDeviceGlobalName(Name)) != MDeviceGlobalNames.end();
+                     Name) != MDeviceGlobalNames.end();
   }
 
   DeviceGlobalMapEntry *tryGetDeviceGlobalEntry(const std::string &Name) const {
     auto &PM = detail::ProgramManager::getInstance();
-    return PM.tryGetDeviceGlobalEntry(MPrefix + mangleDeviceGlobalName(Name));
+    return PM.tryGetDeviceGlobalEntry(MPrefix + Name);
   }
 
 private:
-  static std::string mangleDeviceGlobalName(const std::string &Name) {
-    // TODO: Support device globals declared in namespaces.
-    return "_Z" + std::to_string(Name.length()) + Name;
-  }
-
   void unregisterDeviceGlobalsFromContext() {
     if (MDeviceGlobalNames.empty())
       return;
