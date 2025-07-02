@@ -59,8 +59,6 @@ struct ur_usm_pool_handle_t_ : ur_object {
 private:
   UsmPool *getPool(const usm::pool_descriptor &Desc);
   usm::pool_manager<usm::pool_descriptor, UsmPool> PoolManager;
-
-  ur::RefCount RefCount;
 };
 
 // Exception type to pass allocation errors

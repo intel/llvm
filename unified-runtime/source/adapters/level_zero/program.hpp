@@ -267,6 +267,4 @@ private:
   // handle from the program.
   // TODO: Currently interoparability UR API does not support multiple devices.
   ze_module_handle_t InteropZeModule = nullptr;
-
-  ur::RefCount RefCount;
 };

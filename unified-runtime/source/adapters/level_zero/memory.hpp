@@ -104,9 +104,6 @@ protected:
   // Since the destructor isn't virtual, callers must destruct it via ur_buffer
   // or ur_image
   ~ur_mem_handle_t_() {};
-
-private:
-  ur::RefCount RefCount;
 };
 
 struct ur_buffer final : ur_mem_handle_t_ {
