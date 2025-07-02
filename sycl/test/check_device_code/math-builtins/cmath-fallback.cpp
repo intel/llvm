@@ -5,11 +5,11 @@
 // RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda -S -Xclang -emit-llvm -fsycl-device-only %s -o - | FileCheck %s
 
 #include <cmath>
-#include <sycl/sycl.hpp>
 
 // CHECK-LABEL: entry
-SYCL_EXTERNAL void entry(float *fp, double *dp, int *ip, long *lp,
-                         long long *llp, float *rf, double *rd, int *ri) {
+__attribute__((sycl_device)) void entry(float *fp, double *dp, int *ip,
+                                        long *lp, long long *llp, float *rf,
+                                        double *rd, int *ri) {
   int idx = 0;
 
   // CHECK: __spirv_ocl_fmodff
