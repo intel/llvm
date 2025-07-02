@@ -175,9 +175,9 @@ bool GroupAll(ext::oneapi::experimental::fragment<ParentGroup> g, bool pred) {
   // TODO: adding support for fragments have partitioning into more than two
   // groups such as labeled_partition:
   //
-  // 1. add size_t framgment::get_group_count() const definition
-  // 2. const auto group_count{g.get_group_count()};
-  // 3. for (size_t i{}; i != group_count; ++i)
+  // 1. add size_t framgment::get_group_range() const definition
+  // 2. const auto group_range{g.get_group_range()};
+  // 3. for (size_t i{}; i != group_range; ++i)
   //      if (g.get_group_id() == i)
   //        return __spirv_GroupNonUniformAll(
   //          group_scope<ParentGroup>::value,
@@ -215,9 +215,9 @@ bool GroupAny(ext::oneapi::experimental::fragment<ParentGroup> g, bool pred) {
   // TODO: adding support for fragments have partitioning into more than two
   // groups such as labeled_partition:
   //
-  // 1. add size_t framgment::get_group_count() const definition
-  // 2. const auto group_count{g.get_group_count()};
-  // 3. for (size_t i{}; i != group_count; ++i)
+  // 1. add size_t framgment::get_group_range() const definition
+  // 2. const auto group_range{g.get_group_range()};
+  // 3. for (size_t i{}; i != group_range; ++i)
   //      if (g.get_group_id() == i)
   //        return __spirv_GroupNonUniformAny(
   //          group_scope<ParentGroup>::value,
@@ -338,9 +338,9 @@ GroupBroadcast(sycl::ext::oneapi::experimental::fragment<ParentGroup> g, T x,
   // TODO: adding support for fragments have partitioning into more than two
   // groups such as labeled_partition:
   //
-  // 1. add size_t framgment::get_group_count() const definition
-  // 2. const auto group_count{g.get_group_count()};
-  // 3. for (size_t i{}; i != group_count; ++i)
+  // 1. add size_t framgment::get_group_range() const definition
+  // 2. const auto group_range{g.get_group_range()};
+  // 3. for (size_t i{}; i != group_range; ++i)
   //      if (g.get_group_id() == i)
   //        return __spirv_GroupNonUniformBroadcast(
   //          group_scope<ParentGroup>::value,

@@ -18,8 +18,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-namespace detail {
-} // namespace detail
 
 template <int Dimensions> class group;
 struct sub_group;
@@ -149,7 +147,7 @@ template <typename T, int N> struct get_elem_type_unqual<vec<T, N>> {
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 struct get_elem_type_unqual<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                               OperationCurrentT, Indexes...>> {
+                                      OperationCurrentT, Indexes...>> {
   using type = typename get_elem_type_unqual<std::remove_cv_t<VecT>>::type;
 };
 #else
