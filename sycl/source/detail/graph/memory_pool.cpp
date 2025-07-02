@@ -22,7 +22,7 @@ namespace detail {
 void *
 graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
                        const std::vector<std::shared_ptr<node_impl>> &DepNodes,
-                       const std::shared_ptr<memory_pool_impl> &MemPool) {
+                       memory_pool_impl *MemPool) {
   // We are potentially modifying contents of this memory pool and the owning
   // graph, so take a lock here.
   graph_impl::WriteLock Lock(MGraph.MMutex);
@@ -41,8 +41,8 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
   switch (AllocType) {
   case usm::alloc::device: {
 
-    auto &CtxImpl = sycl::detail::getSyclObjImpl(MContext);
-    auto &Adapter = CtxImpl->getAdapter();
+    context_impl &CtxImpl = *getSyclObjImpl(MContext);
+    auto &Adapter = CtxImpl.getAdapter();
 
     size_t Granularity = get_mem_granularity(MDevice, MContext);
     uintptr_t StartPtr = 0;
@@ -60,8 +60,8 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
     // If no allocation could be reused, do a new virtual reservation
     Adapter->call<sycl::errc::runtime,
                   sycl::detail::UrApiKind::urVirtualMemReserve>(
-        CtxImpl->getHandleRef(), reinterpret_cast<void *>(StartPtr),
-        AlignedSize, &Alloc);
+        CtxImpl.getHandleRef(), reinterpret_cast<void *>(StartPtr), AlignedSize,
+        &Alloc);
 
     AllocInfo.Size = AlignedSize;
     AllocInfo.Ptr = Alloc;
