@@ -287,8 +287,8 @@ public:
       return std::make_unique<sycl::detail::CGHostTask>(
           sycl::detail::CGHostTask(
               std::move(HostTaskSPtr), CommandGroupPtr->MQueue.get(),
-              CommandGroupPtr->MContext, std::move(NewArgs), std::move(Data),
-              CommandGroupPtr->getType(), Loc));
+              CommandGroupPtr->MContext.get(), std::move(NewArgs),
+              std::move(Data), CommandGroupPtr->getType(), Loc));
     }
     case sycl::detail::CGType::Barrier:
     case sycl::detail::CGType::BarrierWaitlist:
@@ -326,16 +326,15 @@ public:
   /// @param CompareContentOnly Skip comparisons related to graph structure,
   /// compare only the type and command groups of the nodes
   /// @return True if the two nodes are similar
-  bool isSimilar(const std::shared_ptr<node_impl> &Node,
-                 bool CompareContentOnly = false) const {
+  bool isSimilar(node_impl &Node, bool CompareContentOnly = false) const {
     if (!CompareContentOnly) {
-      if (MSuccessors.size() != Node->MSuccessors.size())
+      if (MSuccessors.size() != Node.MSuccessors.size())
         return false;
 
-      if (MPredecessors.size() != Node->MPredecessors.size())
+      if (MPredecessors.size() != Node.MPredecessors.size())
         return false;
     }
-    if (MCGType != Node->MCGType)
+    if (MCGType != Node.MCGType)
       return false;
 
     switch (MCGType) {
@@ -343,14 +342,14 @@ public:
       sycl::detail::CGExecKernel *ExecKernelA =
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
       sycl::detail::CGExecKernel *ExecKernelB =
-          static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
+          static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
       return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
     }
     case sycl::detail::CGType::CopyUSM: {
       sycl::detail::CGCopyUSM *CopyA =
           static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
       sycl::detail::CGCopyUSM *CopyB =
-          static_cast<sycl::detail::CGCopyUSM *>(Node->MCommandGroup.get());
+          static_cast<sycl::detail::CGCopyUSM *>(Node.MCommandGroup.get());
       return (CopyA->getSrc() == CopyB->getSrc()) &&
              (CopyA->getDst() == CopyB->getDst()) &&
              (CopyA->getLength() == CopyB->getLength());
@@ -361,7 +360,7 @@ public:
       sycl::detail::CGCopy *CopyA =
           static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
       sycl::detail::CGCopy *CopyB =
-          static_cast<sycl::detail::CGCopy *>(Node->MCommandGroup.get());
+          static_cast<sycl::detail::CGCopy *>(Node.MCommandGroup.get());
       return (CopyA->getSrc() == CopyB->getSrc()) &&
              (CopyA->getDst() == CopyB->getDst());
     }

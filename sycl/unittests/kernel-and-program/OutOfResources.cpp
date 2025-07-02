@@ -55,7 +55,7 @@ TEST_P(OutOfResourcesTestSuite, urProgramCreate) {
 
   sycl::platform Plt{sycl::platform()};
   sycl::context Ctx{Plt};
-  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
 
   int runningTotal = 0;
@@ -72,7 +72,7 @@ TEST_P(OutOfResourcesTestSuite, urProgramCreate) {
   EXPECT_EQ(nProgramCreate, runningTotal += 2);
   {
     detail::KernelProgramCache::ProgramCache &Cache =
-        CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
+        CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
     EXPECT_EQ(Cache.size(), 1U) << "Expected 1 program in the cache";
   }
 
@@ -92,7 +92,7 @@ TEST_P(OutOfResourcesTestSuite, urProgramCreate) {
   EXPECT_EQ(nProgramCreate, runningTotal += 2);
   {
     detail::KernelProgramCache::ProgramCache &Cache =
-        CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
+        CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
     EXPECT_EQ(Cache.size(), 1U) << "Expected 1 program in the cache";
   }
 
@@ -104,7 +104,7 @@ TEST_P(OutOfResourcesTestSuite, urProgramCreate) {
   EXPECT_EQ(nProgramCreate, runningTotal += 1);
   {
     detail::KernelProgramCache::ProgramCache &Cache =
-        CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
+        CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
     EXPECT_EQ(Cache.size(), 2U) << "Expected 2 program in the cache";
   }
 }
@@ -119,7 +119,6 @@ TEST_P(OutOfResourcesTestSuite, urProgramCreateAlwaysFail) {
 
   sycl::platform Plt{sycl::platform()};
   sycl::context Ctx{Plt};
-  auto CtxImpl = detail::getSyclObjImpl(Ctx);
   queue Q(Ctx, default_selector_v);
 
   bool ThrewException = false;
@@ -154,14 +153,14 @@ TEST_P(OutOfResourcesTestSuite, urProgramLink) {
 
   sycl::platform Plt{sycl::platform()};
   sycl::context Ctx{Plt};
-  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+  detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
   // Put some programs in the cache
   q.single_task<class OutOfResourcesKernel1>([] {});
   q.single_task<class OutOfResourcesKernel2>([] {});
   {
     detail::KernelProgramCache::ProgramCache &Cache =
-        CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
+        CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
     EXPECT_EQ(Cache.size(), 2U) << "Expect 2 programs in the cache";
   }
 
@@ -178,7 +177,7 @@ TEST_P(OutOfResourcesTestSuite, urProgramLink) {
   // no programs should be in the cache due to out of resources.
   {
     detail::KernelProgramCache::ProgramCache &Cache =
-        CtxImpl->getKernelProgramCache().acquireCachedPrograms().get();
+        CtxImpl.getKernelProgramCache().acquireCachedPrograms().get();
     EXPECT_EQ(Cache.size(), 0u) << "Expect no programs in the cache";
   }
 }
