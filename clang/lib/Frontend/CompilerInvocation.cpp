@@ -3695,6 +3695,22 @@ static StringRef GetInputKindName(InputKind IK) {
   llvm_unreachable("unknown input language");
 }
 
+static StringRef getExceptionHandlingName(unsigned EHK) {
+  switch (static_cast<LangOptions::ExceptionHandlingKind>(EHK)) {
+  case LangOptions::ExceptionHandlingKind::None:
+  default:
+    return "none";
+  case LangOptions::ExceptionHandlingKind::SjLj:
+    return "sjlj";
+  case LangOptions::ExceptionHandlingKind::DwarfCFI:
+    return "dwarf";
+  case LangOptions::ExceptionHandlingKind::Wasm:
+    return "wasm";
+  }
+
+  llvm_unreachable("covered switch");
+}
+
 void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
                                               ArgumentConsumer Consumer,
                                               const llvm::Triple &T,
@@ -3712,6 +3728,10 @@ void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
       GenerateArg(Consumer, OPT_fsanitize_EQ, Sanitizer);
     if (!Opts.OptRecordFile.empty())
       GenerateArg(Consumer, OPT_opt_record_file, Opts.OptRecordFile);
+    if (Opts.ExceptionHandling) {
+      GenerateArg(Consumer, OPT_exception_model,
+                  getExceptionHandlingName(Opts.ExceptionHandling));
+    }
 
     return;
   }
@@ -4137,6 +4157,24 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     if (Args.hasArg(OPT_opt_record_file))
       Opts.OptRecordFile =
           std::string(Args.getLastArgValue(OPT_opt_record_file));
+
+    if (const Arg *A = Args.getLastArg(options::OPT_exception_model)) {
+      std::optional<LangOptions::ExceptionHandlingKind> EMValue =
+          llvm::StringSwitch<std::optional<LangOptions::ExceptionHandlingKind>>(
+              A->getValue())
+              .Case("dwarf", LangOptions::ExceptionHandlingKind::DwarfCFI)
+              .Case("sjlj", LangOptions::ExceptionHandlingKind::SjLj)
+              .Case("wineh", LangOptions::ExceptionHandlingKind::WinEH)
+              .Case("wasm", LangOptions::ExceptionHandlingKind::Wasm)
+              .Case("none", LangOptions::ExceptionHandlingKind::None)
+              .Default(std::nullopt);
+      if (EMValue) {
+        Opts.ExceptionHandling = static_cast<unsigned>(*EMValue);
+      } else {
+        Diags.Report(diag::err_drv_invalid_value)
+            << A->getAsString(Args) << A->getValue();
+      }
+    }
 
     return Diags.getNumErrors() == NumErrorsBefore;
   }
