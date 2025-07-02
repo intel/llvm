@@ -4458,7 +4458,8 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
 
   // Ignore declarations, they will be emitted on their first use.
   if (const auto *FD = dyn_cast<FunctionDecl>(Global)) {
-    if (DeviceKernelAttr::isOpenCLSpelling(FD->getAttr<DeviceKernelAttr>()) &&
+    if (LangOpts.OpenCL &&
+        DeviceKernelAttr::isOpenCLSpelling(FD->getAttr<DeviceKernelAttr>()) &&
         FD->doesThisDeclarationHaveABody())
       addDeferredDeclToEmit(GlobalDecl(FD, KernelReferenceKind::Stub));
 
