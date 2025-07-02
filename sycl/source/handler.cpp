@@ -2484,10 +2484,12 @@ void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {
   MCodeLoc = CodeLoc;
   impl->MIsTopCodeLoc = IsTopCodeLoc;
 }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::saveCodeLoc(detail::code_location CodeLoc) {
   MCodeLoc = CodeLoc;
   impl->MIsTopCodeLoc = true;
 }
+#endif
 void handler::copyCodeLoc(const handler &other) {
   MCodeLoc = other.MCodeLoc;
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
