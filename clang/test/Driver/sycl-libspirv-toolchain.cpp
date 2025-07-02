@@ -24,9 +24,9 @@
 // CHECK-DEVICE-ONLY: "-cc1"{{.*}} "-fsycl-is-device"
 // CHECK-DEVICE-ONLY-NOT: "-mlink-builtin-bitcode" "{{.*}}.libspirv-{{.*}}.bc"
 //
-// Only link libspirv in SYCL language mode, but `-fno-sycl-libspirv` does not result in a warning
+// Only link libspirv in SYCL language mode, `-fno-sycl-libspirv` should result in a warning
 // RUN: %clang -### -x cu -fno-sycl-libspirv -nocudainc -nocudalib %s 2>&1 | FileCheck %s --check-prefixes=CHECK-CUDA
-// CHECK-CUDA-NOT: warning: argument unused during compilation: '-fno-sycl-libspirv' [-Wunused-command-line-argument]
+// CHECK-CUDA: warning: argument unused during compilation: '-fno-sycl-libspirv' [-Wunused-command-line-argument]
 // CHECK-CUDA: "-cc1"{{.*}} "-fcuda-is-device"
 // CHECK-CUDA-NOT: "-mlink-builtin-bitcode" "{{.*}}.libspirv-{{.*}}.bc"
 //
