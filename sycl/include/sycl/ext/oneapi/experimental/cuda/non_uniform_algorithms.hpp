@@ -9,8 +9,8 @@
 #pragma once
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-#include "../non_uniform_groups.hpp"
 #include "masked_shuffles.hpp"
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
 
 namespace sycl {
 inline namespace _V1 {
