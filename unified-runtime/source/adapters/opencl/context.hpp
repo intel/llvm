@@ -50,5 +50,4 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
       clReleaseContext(CLContext);
     }
   }
-
 };

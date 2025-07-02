@@ -43,5 +43,4 @@ struct ur_program_handle_t_ : ur::opencl::handle_base {
   static ur_result_t makeWithNative(native_type NativeProg,
                                     ur_context_handle_t Context,
                                     ur_program_handle_t &Program);
-
 };

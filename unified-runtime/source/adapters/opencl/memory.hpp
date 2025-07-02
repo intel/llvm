@@ -37,5 +37,4 @@ struct ur_mem_handle_t_ : ur::opencl::handle_base {
   static ur_result_t makeWithNative(native_type NativeMem,
                                     ur_context_handle_t Ctx,
                                     ur_mem_handle_t &Mem);
-
 };

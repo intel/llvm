@@ -108,5 +108,4 @@ struct ur_device_handle_t_ : ur::opencl::handle_base {
 
     return UR_RESULT_SUCCESS;
   }
-
 };
