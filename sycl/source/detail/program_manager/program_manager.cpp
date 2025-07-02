@@ -2452,8 +2452,11 @@ ProgramManager::tryGetDeviceGlobalEntry(const std::string &UniqueId,
 std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
     const std::vector<std::string> &UniqueIds,
     bool ExcludeDeviceImageScopeDecorated) {
-  return m_DeviceGlobals.getEntries(UniqueIds,
-                                    ExcludeDeviceImageScopeDecorated);
+  std::vector<DeviceGlobalMapEntry *> FoundEntries;
+  FoundEntries.reserve(UniqueIds.size());
+  m_DeviceGlobals.getEntries(UniqueIds, ExcludeDeviceImageScopeDecorated,
+                             FoundEntries);
+  return FoundEntries;
 }
 
 void ProgramManager::addOrInitHostPipeEntry(const void *HostPipePtr,
@@ -2866,6 +2869,8 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
       setSpecializationConstants(InputImpl, Prog, Adapter);
 
     KernelNameSetT KernelNames = InputImpl.getKernelNames();
+    std::unordered_map<std::string, KernelArgMask> EliminatedKernelArgMasks =
+        InputImpl.getEliminatedKernelArgMasks();
 
     std::optional<detail::KernelCompilerBinaryInfo> RTCInfo =
         InputImpl.getRTCInfo();
@@ -2876,7 +2881,7 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
         InputImpl.get_spec_const_data_ref(),
         InputImpl.get_spec_const_blob_ref(), InputImpl.getOriginMask(),
         std::move(RTCInfo), std::move(KernelNames),
-        /*MergedImageStorage = */ nullptr);
+        std::move(EliminatedKernelArgMasks), nullptr);
 
     std::string CompileOptions;
     applyCompileOptionsFromEnvironment(CompileOptions);
@@ -3035,6 +3040,10 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
   const RTDeviceBinaryImage *NewBinImg = mergeImageData(
       Imgs, *KernelIDs, NewSpecConstBlob, NewSpecConstMap, MergedImageStorage);
 
+  // With both the new program and the merged image data, initialize associated
+  // device_global variables.
+  ContextImpl.addDeviceGlobalInitializer(LinkedProg, Devs, NewBinImg);
+
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     // NativePrograms map does not intend to keep reference to program handle,
@@ -3057,12 +3066,16 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
       RTCInfoPtrs;
   RTCInfoPtrs.reserve(Imgs.size());
   KernelNameSetT MergedKernelNames;
+  std::unordered_map<std::string, KernelArgMask> MergedEliminatedKernelArgMasks;
   for (const device_image_plain &DevImg : Imgs) {
     device_image_impl &DevImgImpl = *getSyclObjImpl(DevImg);
     CombinedOrigins |= DevImgImpl.getOriginMask();
     RTCInfoPtrs.emplace_back(&(DevImgImpl.getRTCInfo()));
     MergedKernelNames.insert(DevImgImpl.getKernelNames().begin(),
                              DevImgImpl.getKernelNames().end());
+    MergedEliminatedKernelArgMasks.insert(
+        DevImgImpl.getEliminatedKernelArgMasks().begin(),
+        DevImgImpl.getEliminatedKernelArgMasks().end());
   }
   auto MergedRTCInfo = detail::KernelCompilerBinaryInfo::Merge(RTCInfoPtrs);
 
@@ -3070,7 +3083,8 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
       NewBinImg, Context, std::vector<device>{Devs}, bundle_state::executable,
       std::move(KernelIDs), LinkedProg, std::move(NewSpecConstMap),
       std::move(NewSpecConstBlob), CombinedOrigins, std::move(MergedRTCInfo),
-      std::move(MergedKernelNames), std::move(MergedImageStorage));
+      std::move(MergedKernelNames), std::move(MergedEliminatedKernelArgMasks),
+      std::move(MergedImageStorage));
 
   // TODO: Make multiple sets of device images organized by devices they are
   // compiled for.
@@ -3137,11 +3151,15 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
       RTCInfoPtrs;
   RTCInfoPtrs.reserve(DevImgWithDeps.size());
   KernelNameSetT MergedKernelNames;
+  std::unordered_map<std::string, KernelArgMask> MergedEliminatedKernelArgMasks;
   for (const device_image_plain &DevImg : DevImgWithDeps) {
     device_image_impl &DevImgImpl = *getSyclObjImpl(DevImg);
     RTCInfoPtrs.emplace_back(&(DevImgImpl.getRTCInfo()));
     MergedKernelNames.insert(DevImgImpl.getKernelNames().begin(),
                              DevImgImpl.getKernelNames().end());
+    MergedEliminatedKernelArgMasks.insert(
+        DevImgImpl.getEliminatedKernelArgMasks().begin(),
+        DevImgImpl.getEliminatedKernelArgMasks().end());
   }
   auto MergedRTCInfo = detail::KernelCompilerBinaryInfo::Merge(RTCInfoPtrs);
 
@@ -3150,7 +3168,7 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
       bundle_state::executable, std::move(KernelIDs), ResProgram,
       std::move(SpecConstMap), std::move(SpecConstBlob), CombinedOrigins,
       std::move(MergedRTCInfo), std::move(MergedKernelNames),
-      std::move(MergedImageStorage));
+      std::move(MergedEliminatedKernelArgMasks), std::move(MergedImageStorage));
   return createSyclObjFromImpl<device_image_plain>(std::move(ExecImpl));
 }
 
