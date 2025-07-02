@@ -201,6 +201,11 @@ is ignored and reserved for future use.
 If an invalid `exportMemHandleType` is passed, the function will throw a
 `sycl::exception` with the `errc::invalid` code.
 
+The passed `exportMemHandleType` must be supported by the operating system
+running the SYCL application. Passing an `exportMemHandleType` that is not
+supported by the operating system running the SYCL application results in
+undefined behavior.
+
 If any error occurs while allocating the memory, the function will throw a
 `sycl::exception` with the `errc::runtime` code.
 
