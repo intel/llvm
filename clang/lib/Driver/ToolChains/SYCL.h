@@ -258,11 +258,6 @@ public:
 } // end namespace SYCL
 } // end namespace tools
 
-inline bool isSYCLNativeCPU(const llvm::Triple &Triple) {
-  return Triple.getArch() == llvm::Triple::UnknownArch &&
-         Triple.str() == "native_cpu";
-}
-
 namespace toolchains {
 
 class LLVM_LIBRARY_VISIBILITY SYCLToolChain : public ToolChain {
@@ -303,12 +298,12 @@ public:
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override {
-    if (isSYCLNativeCPU(this->getTriple()))
+    if (this->getTriple().isNativeCPU())
       return this->HostTC.isPICDefault();
     return false;
   }
   llvm::codegenoptions::DebugInfoFormat getDefaultDebugFormat() const override {
-    if (isSYCLNativeCPU(this->getTriple()) &&
+    if (this->getTriple().isNativeCPU() &&
         this->HostTC.getTriple().isWindowsMSVCEnvironment())
       return this->HostTC.getDefaultDebugFormat();
     return ToolChain::getDefaultDebugFormat();
