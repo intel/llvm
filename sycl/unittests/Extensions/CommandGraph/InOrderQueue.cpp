@@ -22,18 +22,16 @@ TEST_F(CommandGraphTest, InOrderQueue) {
   auto Node1Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode1 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode1 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode1, nullptr);
   ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
   auto Node2Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode2 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode2 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -44,9 +42,8 @@ TEST_F(CommandGraphTest, InOrderQueue) {
   auto Node3Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode3 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode3 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
@@ -58,16 +55,17 @@ TEST_F(CommandGraphTest, InOrderQueue) {
 
   // Finalize main graph and check schedule
   auto GraphExec = InOrderGraph.finalize();
-  auto GraphExecImpl = sycl::detail::getSyclObjImpl(GraphExec);
-  auto Schedule = GraphExecImpl->getSchedule();
+  experimental::detail::exec_graph_impl &GraphExecImpl =
+      *getSyclObjImpl(GraphExec);
+  auto Schedule = GraphExecImpl.getSchedule();
   auto ScheduleIt = Schedule.begin();
   ASSERT_EQ(Schedule.size(), 3ul);
-  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode1));
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(*PtrNode1));
   ScheduleIt++;
-  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode2));
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(*PtrNode2));
   ScheduleIt++;
-  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode3));
-  ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(*PtrNode3));
+  ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl.getContext());
 }
 
 TEST_F(CommandGraphTest, InOrderQueueWithEmpty) {
@@ -82,17 +80,15 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmpty) {
   auto Node1Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode1 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode1 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode1, nullptr);
   ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
   auto Node2Graph = InOrderQueue.submit([&](sycl::handler &cgh) {});
 
-  auto PtrNode2 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode2 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -103,9 +99,8 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmpty) {
   auto Node3Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode3 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode3 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
@@ -118,17 +113,18 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmpty) {
   // Finalize main graph and check schedule
   // Note that empty nodes are not scheduled
   auto GraphExec = InOrderGraph.finalize();
-  auto GraphExecImpl = sycl::detail::getSyclObjImpl(GraphExec);
-  auto Schedule = GraphExecImpl->getSchedule();
+  experimental::detail::exec_graph_impl &GraphExecImpl =
+      *getSyclObjImpl(GraphExec);
+  auto Schedule = GraphExecImpl.getSchedule();
   auto ScheduleIt = Schedule.begin();
   // the schedule list contains all types of nodes (even empty nodes)
   ASSERT_EQ(Schedule.size(), 3ul);
-  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode1));
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(*PtrNode1));
   ScheduleIt++;
   ASSERT_TRUE((*ScheduleIt)->isEmpty());
   ScheduleIt++;
-  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode3));
-  ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(*PtrNode3));
+  ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl.getContext());
 }
 
 TEST_F(CommandGraphTest, InOrderQueueWithEmptyFirst) {
@@ -141,18 +137,16 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyFirst) {
   InOrderGraph.begin_recording(InOrderQueue);
   auto Node1Graph = InOrderQueue.submit([&](sycl::handler &cgh) {});
 
-  auto PtrNode1 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode1 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode1, nullptr);
   ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
   auto Node2Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode2 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode2 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -163,9 +157,8 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyFirst) {
   auto Node3Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode3 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode3 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
@@ -178,17 +171,18 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyFirst) {
   // Finalize main graph and check schedule
   // Note that empty nodes are not scheduled
   auto GraphExec = InOrderGraph.finalize();
-  auto GraphExecImpl = sycl::detail::getSyclObjImpl(GraphExec);
-  auto Schedule = GraphExecImpl->getSchedule();
+  experimental::detail::exec_graph_impl &GraphExecImpl =
+      *getSyclObjImpl(GraphExec);
+  auto Schedule = GraphExecImpl.getSchedule();
   auto ScheduleIt = Schedule.begin();
   // the schedule list contains all types of nodes (even empty nodes)
   ASSERT_EQ(Schedule.size(), 3ul);
   ASSERT_TRUE((*ScheduleIt)->isEmpty());
   ScheduleIt++;
-  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode2));
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(*PtrNode2));
   ScheduleIt++;
-  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode3));
-  ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(*PtrNode3));
+  ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl.getContext());
 }
 
 TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
@@ -202,18 +196,16 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
   auto Node1Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode1 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode1 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode1, nullptr);
   ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
   auto Node2Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode2 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode2 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -223,9 +215,8 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
 
   auto Node3Graph = InOrderQueue.submit([&](sycl::handler &cgh) {});
 
-  auto PtrNode3 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode3 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
@@ -238,17 +229,18 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
   // Finalize main graph and check schedule
   // Note that empty nodes are not scheduled
   auto GraphExec = InOrderGraph.finalize();
-  auto GraphExecImpl = sycl::detail::getSyclObjImpl(GraphExec);
-  auto Schedule = GraphExecImpl->getSchedule();
+  experimental::detail::exec_graph_impl &GraphExecImpl =
+      *getSyclObjImpl(GraphExec);
+  auto Schedule = GraphExecImpl.getSchedule();
   auto ScheduleIt = Schedule.begin();
   // the schedule list contains all types of nodes (even empty nodes)
   ASSERT_EQ(Schedule.size(), 3ul);
-  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode1));
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(*PtrNode1));
   ScheduleIt++;
-  ASSERT_TRUE((*ScheduleIt)->isSimilar(PtrNode2));
+  ASSERT_TRUE((*ScheduleIt)->isSimilar(*PtrNode2));
   ScheduleIt++;
   ASSERT_TRUE((*ScheduleIt)->isEmpty());
-  ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
+  ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl.getContext());
 }
 
 TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
@@ -267,25 +259,23 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
       std::lock_guard<std::mutex> HostTaskLock(HostTaskMutex);
     });
   });
-  auto EventInitialImpl = sycl::detail::getSyclObjImpl(EventInitial);
+  sycl::detail::event_impl &EventInitialImpl = *getSyclObjImpl(EventInitial);
 
   // Record in-order queue with three nodes.
   InOrderGraph.begin_recording(InOrderQueue);
   auto Node1Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode1 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode1 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode1, nullptr);
   ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
   auto Node2Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode2 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode2 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -296,9 +286,8 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
   auto Node3Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode3 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode3 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
@@ -311,13 +300,13 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
   auto EventLast = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
-  auto WaitList = EventLastImpl->getWaitList();
+  sycl::detail::event_impl &EventLastImpl = *getSyclObjImpl(EventLast);
+  auto WaitList = EventLastImpl.getWaitList();
   Lock.unlock();
   // Previous task is a host task. Explicit dependency is needed to enforce the
   // execution order.
   ASSERT_EQ(WaitList.size(), 1lu);
-  ASSERT_EQ(WaitList[0], EventInitialImpl);
+  ASSERT_EQ(WaitList[0].get(), &EventInitialImpl);
   InOrderQueue.wait();
 }
 
@@ -338,25 +327,22 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
         std::lock_guard<std::mutex> HostTaskLock(HostTaskMutex);
       });
     });
-    auto EventInitialImpl = sycl::detail::getSyclObjImpl(EventInitial);
 
     // Record in-order queue with three nodes.
     InOrderGraph.begin_recording(InOrderQueue);
     auto Node1Graph = InOrderQueue.submit(
         [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-    auto PtrNode1 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                        ->getLastInorderNode(
-                            sycl::detail::getSyclObjImpl(InOrderQueue).get());
+    auto PtrNode1 = getSyclObjImpl(InOrderGraph)
+                        ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
     ASSERT_NE(PtrNode1, nullptr);
     ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
     auto Node2Graph = InOrderQueue.submit(
         [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-    auto PtrNode2 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                        ->getLastInorderNode(
-                            sycl::detail::getSyclObjImpl(InOrderQueue).get());
+    auto PtrNode2 = getSyclObjImpl(InOrderGraph)
+                        ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
     ASSERT_NE(PtrNode2, nullptr);
     ASSERT_NE(PtrNode2, PtrNode1);
     ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -367,9 +353,8 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
     auto Node3Graph = InOrderQueue.submit(
         [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-    auto PtrNode3 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                        ->getLastInorderNode(
-                            sycl::detail::getSyclObjImpl(InOrderQueue).get());
+    auto PtrNode3 = getSyclObjImpl(InOrderGraph)
+                        ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
     ASSERT_NE(PtrNode3, nullptr);
     ASSERT_NE(PtrNode3, PtrNode2);
     ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
@@ -386,11 +371,10 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
     auto EventGraph = InOrderQueue.submit(
         [&](sycl::handler &CGH) { CGH.ext_oneapi_graph(InOrderGraphExec); });
 
-    auto EventGraphImpl = sycl::detail::getSyclObjImpl(EventGraph);
     auto EventLast = InOrderQueue.submit(
         [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
-    auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
-    auto EventLastWaitList = EventLastImpl->getWaitList();
+    sycl::detail::event_impl &EventLastImpl = *getSyclObjImpl(EventLast);
+    auto EventLastWaitList = EventLastImpl.getWaitList();
     // Previous task is not a host task. Explicit dependency is still needed
     // to properly handle blocked tasks (the event will be filtered out before
     // submission to the backend).
@@ -420,25 +404,22 @@ TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
   int *TestData = sycl::malloc_shared<int>(Size, InOrderQueue);
 
   auto EventInitial = InOrderQueue.memset(TestData, 1, Size * sizeof(int));
-  auto EventInitialImpl = sycl::detail::getSyclObjImpl(EventInitial);
 
   // Record in-order queue with three nodes.
   InOrderGraph.begin_recording(InOrderQueue);
   auto Node1Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode1 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode1 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode1, nullptr);
   ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
   auto Node2Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode2 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode2 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -449,9 +430,8 @@ TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
   auto Node3Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode3 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode3 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
@@ -484,25 +464,22 @@ TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
 
   auto EventInitial =
       InOrderQueue.memcpy(TestData, TestDataHost.data(), Size * sizeof(int));
-  auto EventInitialImpl = sycl::detail::getSyclObjImpl(EventInitial);
 
   // Record in-order queue with three nodes.
   InOrderGraph.begin_recording(InOrderQueue);
   auto Node1Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode1 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode1 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode1, nullptr);
   ASSERT_TRUE(PtrNode1->MPredecessors.empty());
 
   auto Node2Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode2 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode2 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
@@ -513,9 +490,8 @@ TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
   auto Node3Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
-  auto PtrNode3 = sycl::detail::getSyclObjImpl(InOrderGraph)
-                      ->getLastInorderNode(
-                          sycl::detail::getSyclObjImpl(InOrderQueue).get());
+  auto PtrNode3 = getSyclObjImpl(InOrderGraph)
+                      ->getLastInorderNode(&*getSyclObjImpl(InOrderQueue));
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);

@@ -89,8 +89,7 @@ TEST_F(CommandGraphTest, GetNodeQueries) {
 
   // Check ordering of all nodes is correct
   for (size_t i = 0; i < GraphNodes.size(); i++) {
-    ASSERT_EQ(sycl::detail::getSyclObjImpl(GraphNodes[i]),
-              sycl::detail::getSyclObjImpl(NodeList[i]));
+    ASSERT_EQ(&*getSyclObjImpl(GraphNodes[i]), &*getSyclObjImpl(NodeList[i]));
   }
 }
 

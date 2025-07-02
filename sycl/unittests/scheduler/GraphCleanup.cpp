@@ -159,7 +159,7 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
   MS.addCopyBack(&MockReq);
   verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
 
-  MS.removeRecordForMemObj(detail::getSyclObjImpl(Buf).get());
+  MS.removeRecordForMemObj(&*detail::getSyclObjImpl(Buf));
 }
 
 static void checkCleanupOnLeafUpdate(
@@ -191,7 +191,7 @@ static void checkCleanupOnLeafUpdate(
   EXPECT_FALSE(CommandDeleted);
   SchedulerCall(Record);
   EXPECT_TRUE(CommandDeleted);
-  MS.removeRecordForMemObj(detail::getSyclObjImpl(Buf).get());
+  MS.removeRecordForMemObj(&*detail::getSyclObjImpl(Buf));
 }
 
 TEST_F(SchedulerTest, PostEnqueueCleanup) {
@@ -214,10 +214,9 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
   MockScheduler MS;
 
   buffer<int, 1> Buf{range<1>(1)};
-  std::shared_ptr<detail::buffer_impl> BufImpl = detail::getSyclObjImpl(Buf);
   detail::Requirement MockReq = getMockRequirement(Buf);
   MockReq.MDims = 1;
-  MockReq.MSYCLMemObj = BufImpl.get();
+  MockReq.MSYCLMemObj = &*detail::getSyclObjImpl(Buf);
 
   checkCleanupOnEnqueue(MS, QueueImpl, Buf, MockReq);
   std::vector<detail::Command *> ToEnqueue;
@@ -279,11 +278,11 @@ TEST_F(SchedulerTest, HostTaskCleanup) {
   event Event = Queue.submit([&](sycl::handler &cgh) {
     cgh.host_task([&]() { std::unique_lock<std::mutex> Lock{Mutex}; });
   });
-  detail::EventImplPtr EventImpl = detail::getSyclObjImpl(Event);
+  detail::event_impl &EventImpl = *detail::getSyclObjImpl(Event);
 
   // Unlike other commands, host task should be kept alive until its
   // completion.
-  auto *Cmd = static_cast<detail::Command *>(EventImpl->getCommand());
+  auto *Cmd = static_cast<detail::Command *>(EventImpl.getCommand());
   ASSERT_NE(Cmd, nullptr);
   EXPECT_TRUE(Cmd->isSuccessfullyEnqueued());
 
@@ -293,7 +292,7 @@ TEST_F(SchedulerTest, HostTaskCleanup) {
   // submitted to the thread pool, shortly after the event is marked
   // as complete.
   detail::GlobalHandler::instance().drainThreadPool();
-  ASSERT_EQ(EventImpl->getCommand(), nullptr);
+  ASSERT_EQ(EventImpl.getCommand(), nullptr);
 }
 
 struct AttachSchedulerWrapper {
