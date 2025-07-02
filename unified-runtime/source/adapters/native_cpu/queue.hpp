@@ -46,7 +46,7 @@ struct ur_queue_handle_t_ {
       auto ev = *events.begin();
       // ur_event_handle_t_::wait removes itself from the events set in the
       // queue.
-      ev->getRefCount().retain();
+      ev->RefCount.retain();
       // Unlocking mutex for removeEvent and for event callbacks that may need
       // to acquire it.
       lock.unlock();
@@ -67,7 +67,7 @@ struct ur_queue_handle_t_ {
     return events.size() == 0;
   }
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount RefCount;
 
 private:
   ur_device_handle_t device;
@@ -76,5 +76,4 @@ private:
   const bool inOrder;
   const bool profilingEnabled;
   std::mutex mutex;
-  ur::RefCount RefCount;
 };

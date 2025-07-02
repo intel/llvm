@@ -190,11 +190,11 @@ struct ur_kernel_handle_t_ {
   void addPtrArg(void *Ptr, size_t Index) { Args.addPtrArg(Index, Ptr); }
 
   void addArgReference(ur_mem_handle_t Arg) {
-    Arg->getRefCount().getCount();
+    Arg->RefCount.getCount();
     ReferencedArgs.push_back(Arg);
   }
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
+  ur::RefCount RefCount;
 
 private:
   void removeArgReferences() {
@@ -213,5 +213,4 @@ private:
   std::optional<native_cpu::WGSize_t> MaxWGSize = std::nullopt;
   std::optional<uint64_t> MaxLinearWGSize = std::nullopt;
   std::vector<ur_mem_handle_t> ReferencedArgs;
-  ur::RefCount RefCount;
 };

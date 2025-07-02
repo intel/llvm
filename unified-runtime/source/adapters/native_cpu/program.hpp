@@ -41,9 +41,6 @@ struct ur_program_handle_t_ {
       KernelMaxWorkGroupSizeMD;
   std::unordered_map<std::string, uint64_t> KernelMaxLinearWorkGroupSizeMD;
 
-  ur::RefCount &getRefCount() noexcept { return RefCount; }
-
-private:
   ur::RefCount RefCount;
 };
 
