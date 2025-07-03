@@ -61,7 +61,7 @@ protected:
 
 TEST_F(HasExtensionWordBoundaryTest, ExactMatchWorks) {
   MockExtensions = "cl_khr_fp64 cl_intel_subgroups cl_khr_subgroups";
-  
+
   sycl::platform Plt{sycl::platform()};
   sycl::device Dev = Plt.get_devices()[0];
   auto DevImpl = detail::getSyclObjImpl(Dev);
@@ -73,7 +73,7 @@ TEST_F(HasExtensionWordBoundaryTest, ExactMatchWorks) {
 
 TEST_F(HasExtensionWordBoundaryTest, SubstringDoesNotMatch) {
   MockExtensions = "cl_intel_subgroups cl_khr_fp64_extended";
-  
+
   sycl::platform Plt{sycl::platform()};
   sycl::device Dev = Plt.get_devices()[0];
   auto DevImpl = detail::getSyclObjImpl(Dev);
@@ -89,32 +89,32 @@ TEST_F(HasExtensionWordBoundaryTest, SubstringDoesNotMatch) {
 
 TEST_F(HasExtensionWordBoundaryTest, EmptyExtensions) {
   MockExtensions = "";
-  
+
   sycl::platform Plt{sycl::platform()};
   sycl::device Dev = Plt.get_devices()[0];
   auto DevImpl = detail::getSyclObjImpl(Dev);
-  
+
   EXPECT_FALSE(DevImpl->has_extension("cl_khr_fp64"));
 }
 
 TEST_F(HasExtensionWordBoundaryTest, SingleExtension) {
   MockExtensions = "cl_khr_fp64";
-  
+
   sycl::platform Plt{sycl::platform()};
   sycl::device Dev = Plt.get_devices()[0];
   auto DevImpl = detail::getSyclObjImpl(Dev);
-  
+
   EXPECT_TRUE(DevImpl->has_extension("cl_khr_fp64"));
   EXPECT_FALSE(DevImpl->has_extension("cl_khr_fp6")); // a substring
 }
 
 TEST_F(HasExtensionWordBoundaryTest, FirstMiddleLastExtensions) {
   MockExtensions = "cl_first_ext cl_middle_ext cl_last_ext";
-  
+
   sycl::platform Plt{sycl::platform()};
   sycl::device Dev = Plt.get_devices()[0];
   auto DevImpl = detail::getSyclObjImpl(Dev);
-  
+
   EXPECT_TRUE(DevImpl->has_extension("cl_first_ext"));
   EXPECT_TRUE(DevImpl->has_extension("cl_middle_ext"));
   EXPECT_TRUE(DevImpl->has_extension("cl_last_ext"));
@@ -126,7 +126,7 @@ TEST_F(HasExtensionWordBoundaryTest, NonUniformGroupExtensions) {
                    "cl_intel_subgroups "
                    "cl_intel_spirv_subgroups "
                    "cl_intel_subgroup_matrix_multiply_accumulate";
-  
+
   sycl::platform Plt{sycl::platform()};
   sycl::device Dev = Plt.get_devices()[0];
   auto DevImpl = detail::getSyclObjImpl(Dev);
