@@ -16,10 +16,6 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/12904
 
-// FPGA emulator seems to return unexpected start time for the fallback barrier.
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14315
-
 // Flaky on CUDA
 // UNSUPPORTED: cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14053

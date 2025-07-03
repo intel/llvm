@@ -9,9 +9,6 @@
 // REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_shared_allocations
 
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
-
 // -- Test for a simple linking case with source files compiled from SYCL source
 // -- at runtime.
 

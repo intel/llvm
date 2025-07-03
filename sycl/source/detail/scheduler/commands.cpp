@@ -345,12 +345,12 @@ class DispatchHostTask {
   std::vector<ur_mem_handle_t> MReqUrMem;
 
   bool waitForEvents() const {
-    std::map<const AdapterPtr, std::vector<EventImplPtr>>
+    std::map<adapter_impl *, std::vector<EventImplPtr>>
         RequiredEventsPerAdapter;
 
     for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {
-      const AdapterPtr &Adapter = Event->getAdapter();
-      RequiredEventsPerAdapter[Adapter].push_back(Event);
+      adapter_impl &Adapter = Event->getAdapter();
+      RequiredEventsPerAdapter[&Adapter].push_back(Event);
     }
 
     // wait for dependency device events
