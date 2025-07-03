@@ -181,6 +181,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
       CL_RETURN_ON_FAILURE(
           clGetEventInfo(Event, CL_EVENT_COMMAND_EXECUTION_STATUS,
                          sizeof(QueryResult), &QueryResult, nullptr));
+      CL_RETURN_ON_FAILURE(clReleaseEvent(Event));
       if (QueryResult == CL_COMPLETE) {
         return ReturnValue(true);
       }
