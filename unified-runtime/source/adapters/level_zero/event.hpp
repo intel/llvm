@@ -29,7 +29,8 @@
 #include "ur_api.h"
 
 extern "C" {
-ur_result_t urEventReleaseInternal(ur_event_handle_t Event);
+ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
+                                   bool *isEventDeleted = nullptr);
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         bool IsMultiDevice, bool HostVisible,
                         ur_event_handle_t *RetEvent,
@@ -68,7 +69,7 @@ const bool FilterEventWaitList = [] {
   return RetVal;
 }();
 
-struct _ur_ze_event_list_t {
+struct ur_ze_event_list_t {
   // List of level zero events for this event list.
   ze_event_handle_t *ZeEventList = {nullptr};
 
@@ -95,7 +96,7 @@ struct _ur_ze_event_list_t {
                                            bool UseCopyEngine);
 
   // Add all the events in this object's UrEventList to the end
-  // of the list EventsToBeReleased. Destroy ur_ze_event_list_t data
+  // of the list EventsToBeReleased. Destroy ur_ze_event_list_t_t data
   // structure fields making it look empty.
   ur_result_t collectEventsForReleaseAndDestroyUrZeEventList(
       std::list<ur_event_handle_t> &EventsToBeReleased);
@@ -103,7 +104,7 @@ struct _ur_ze_event_list_t {
   // Had to create custom assignment operator because the mutex is
   // not assignment copyable. Just field by field copy of the other
   // fields.
-  _ur_ze_event_list_t &operator=(const _ur_ze_event_list_t &other) {
+  ur_ze_event_list_t &operator=(const ur_ze_event_list_t &other) {
     if (this != &other) {
       this->ZeEventList = other.ZeEventList;
       this->UrEventList = other.UrEventList;
@@ -112,19 +113,19 @@ struct _ur_ze_event_list_t {
     return *this;
   }
 
-  // This function allows to merge two _ur_ze_event_lists
+  // This function allows to merge two ur_ze_event_lists
   // The ur_ze_event_list "other" is added to the caller list.
   // Note that new containers are allocated to contains the additional elements.
   // Elements are moved to the new containers.
   // other list can not be used after the call to this function.
-  ur_result_t insert(_ur_ze_event_list_t &Other);
+  ur_result_t insert(ur_ze_event_list_t &Other);
 
   bool isEmpty() const { return (this->ZeEventList == nullptr); }
 };
 
-void printZeEventList(const _ur_ze_event_list_t &PiZeEventList);
+void printZeEventList(const ur_ze_event_list_t &PiZeEventList);
 
-struct ur_event_handle_t_ : _ur_object {
+struct ur_event_handle_t_ : ur_object {
   ur_event_handle_t_(ze_event_handle_t ZeEvent,
                      ze_event_pool_handle_t ZeEventPool,
                      ur_context_handle_t Context, ur_command_t CommandType,
@@ -179,7 +180,7 @@ struct ur_event_handle_t_ : _ur_object {
   // signal this event.  These events must be retained when the command is
   // enqueued, and must then be released when this event has signalled.
   // This list must be destroyed once the event has signalled.
-  _ur_ze_event_list_t WaitList;
+  ur_ze_event_list_t WaitList;
 
   // Tracks if the needed cleanup was already performed for
   // a completed event. This allows to control that some cleanup
@@ -220,7 +221,7 @@ struct ur_event_handle_t_ : _ur_object {
   uint64_t RecordEventEndTimestamp = 0;
 
   // Besides each PI object keeping a total reference count in
-  // _ur_object::RefCount we keep special track of the event *external*
+  // ur_object::RefCount we keep special track of the event *external*
   // references. This way we are able to tell when the event is not referenced
   // externally anymore, i.e. it can't be passed as a dependency event to
   // piEnqueue* functions and explicitly waited meaning that we can do some

@@ -45,11 +45,13 @@ and not recommended to use in production environment.
     currently overrides all the other specified SYCL targets when enabled.)
 
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
-    support are accepted, providing a streamlined interface for AOT. Only one of
-    these values at a time is supported.
+    support are accepted, providing a streamlined interface for AOT.
+    A comma-separated list of valid Intel, NVIDIA and AMD Processor Graphics values are supported.
+    * intel_gpu_wcl, intel_gpu_30_3_0 - Wildcat Lake Intel graphics architecture
     * intel_gpu_ptl_u, intel_gpu_30_1_1 - Panther Lake U Intel graphics architecture
     * intel_gpu_ptl_h, intel_gpu_30_0_4 - Panther Lake H Intel graphics architecture
     * intel_gpu_lnl_m, intel_gpu_20_4_4 - Lunar Lake Intel graphics architecture
+    * intel_gpu_bmg_g31, intel_gpu_20_2_0 - Battlemage G31 Intel graphics architecture
     * intel_gpu_bmg_g21, intel_gpu_20_1_4 - Battlemage G21 Intel graphics architecture
     * intel_gpu_arl_h, intel_gpu_12_74_4 - Arrow Lake H Intel graphics architecture
     * intel_gpu_mtl_h, intel_gpu_12_71_4 - Meteor Lake H Intel graphics architecture
@@ -203,13 +205,15 @@ and not recommended to use in production environment.
 **`--offload-compress`**
 
     Enables device image compression for SYCL offloading. Device images
-    are compressed using `zstd` compression algorithm and only if their size
+    are compressed using zstd compression algorithm and only if their size
     exceeds 512 bytes.
+    To use this option, DPC++ must be built with zstd support. Otherwise,
+    the compiler will throw an error during compilation.
     Default value is false.
 
 **`--offload-compression-level=<int>`**
 
-    `zstd` compression level used to compress device images when `--offload-
+    zstd compression level used to compress device images when `--offload-
     compress` is enabled.
     The default value is 10.
 
@@ -348,7 +352,8 @@ and not recommended to use in production environment.
 **`-fsycl-device-obj=<arg>`** [EXPERIMENTAL]
 
     Specify format of device code stored in the resulting object. The <arg> can
-    be one of the following:  "spirv" - SPIR-V is emitted, "llvmir" - LLVM-IR
+    be one of the following:  "spirv" - SPIR-V, "asm" - assembly output when
+    possible (PTX, when targetting Nvidia devices) , or "llvmir" - LLVM-IR
     bitcode format is emitted (default).
 
 **`-fsycl-help[=backend]`**
@@ -386,6 +391,23 @@ and not recommended to use in production environment.
     This option is replaced with -foffload-fp32-prec-sqrt.
 
     NOTE: This flag is currently only supported with the CUDA and HIP targets.
+
+**`-fsycl-dump-device-code=<path-to-device-build-artifacts-directory>`** [DEPRECATED]
+
+    Enable dumping of device object files (SPIR-V and PTX files) during SYCL
+    offload compilation.
+    This option is replaced with -save-offload-code.
+
+    NOTE: This flag is currently only supported in SYCL offloading to the CUDA
+    and SPIR-V targets.
+
+**`-save-offload-code=<path-to-device-build-artifacts-directory>`**
+
+    Save offload code generated during compilation into the user provided
+    directory.
+
+    NOTE: This flag is currently only supported in SYCL offloading to the CUDA
+    and SPIR-V targets.
 
 **`-f[no-]sycl-esimd-force-stateless-mem`** [EXPERIMENTAL]
 

@@ -196,7 +196,7 @@ int main(int argc, const char **argv) {
     StringRef FileName = Outputs[I];
 
     Module Mod{"offload-deps", Context};
-    Mod.setTargetTriple(Triples[I]);
+    Mod.setTargetTriple(Triple(Triples[I]));
 
     SmallVector<Constant *, 8u> Used;
     Used.reserve(Target2Symbols[Targets[I]].size());
@@ -211,7 +211,9 @@ int main(int argc, const char **argv) {
       // global variable llvm.used to represent a reference to a symbol. But for
       // other targets we have to create a real reference since llvm.used may
       // not be representable in the object file.
-      if (Kinds[I] == "sycl" || Triple(Triples[I]).isSPIR()) {
+      if (Triple(Triples[I]).isNativeCPU()) {
+        // SYCL Native CPU doesn't need deps from clang-offload-deps.
+      } else if (Kinds[I] == "sycl" || Triple(Triples[I]).isSPIR()) {
         auto *GV = new GlobalVariable(
             Mod, ArrayTy, false, GlobalValue::AppendingLinkage,
             ConstantArray::get(ArrayTy, Used), "llvm.used");

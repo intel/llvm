@@ -138,18 +138,6 @@ TEST(QueueWait, QueueWaitTest) {
     ASSERT_EQ(TestContext.NEventsWaitedFor, 1);
     ASSERT_TRUE(TestContext.UrQueueFinishCalled);
   }
-
-  // Test behaviour for emulating an OOO queue with multiple in-order ones.
-  TestContext = {};
-  TestContext.SupportOOO = false;
-  Q = queue{Ctx, default_selector()};
-  Q.memset(HostAlloc, 42, 1);
-  // The event is kept alive in this case to call wait.
-  ASSERT_EQ(TestContext.EventReferenceCount, 1);
-  Q.wait();
-  ASSERT_EQ(TestContext.EventReferenceCount, 0);
-  ASSERT_EQ(TestContext.NEventsWaitedFor, 1);
-  ASSERT_FALSE(TestContext.UrQueueFinishCalled);
 }
 
 } // namespace

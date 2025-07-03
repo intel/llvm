@@ -5,12 +5,14 @@
 //
 #pragma once
 
-#include "hash_table7.hpp"
+#include "parallel_hashmap/phmap.h"
 #include "xpti/xpti_data_types.h"
+#include <emhash/hash_table7.hpp>
 
 #include <atomic>
 #include <shared_mutex>
 #include <unordered_map>
+#include <vector>
 
 #ifdef XPTI_STATISTICS
 #include <cstdio>
@@ -25,8 +27,14 @@ namespace xpti {
 /// implementation used STL containers protected with std::mutex.
 class StringTable {
 public:
-  using st_forward_t = std::unordered_map<std::string, int32_t>;
+  using st_forward_t = phmap::node_hash_map<std::string, int32_t>;
+  /// Performance tests were conducted to determine if std::vector was faster
+  /// than emhash7::HashMap and so far emhash appears to be better
+#ifndef XPTI_USE_VECTOR_LOOKUP
   using st_reverse_t = emhash7::HashMap<int32_t, const char *>;
+#else
+  using st_reverse_t = std::vector<const char *>;
+#endif
 
   StringTable(int size = 65536) : MStringToID(size), MIDToString(size) {
     MIds = 1;
@@ -61,7 +69,7 @@ public:
   // in the string table is returned through the default argument
   xpti::string_id_t add(const char *str, const char **ref_str = nullptr) {
     if (!str)
-      return xpti::invalid_id;
+      return xpti::invalid_id<xpti::string_id_t>;
 
     std::string LocalStr = str;
     return add(LocalStr, ref_str);
@@ -69,7 +77,7 @@ public:
 
   xpti::string_id_t add(std::string str, const char **ref_str = nullptr) {
     if (str.empty())
-      return xpti::invalid_id;
+      return xpti::invalid_id<xpti::string_id_t>;
 
     //  Lock-free lookup to see if the string exists in the table; XPTI has
     //  always had this as lock-free, but if instability occurs, we can use a
@@ -111,6 +119,9 @@ public:
         //  When we insert a new entry into the table, we also need to build
         //  the reverse lookup;
         {
+#ifdef XPTI_USE_VECTOR_LOOKUP
+          MIDToString[StrID] = Entry.first->first.c_str();
+#else
           auto IDLoc = MIDToString.find(StrID);
           if (IDLoc == MIDToString.end()) {
             //  An entry does not exist, so we will add it to the reverse
@@ -126,8 +137,9 @@ public:
             if (ref_str)
               *ref_str = nullptr;
 
-            return xpti::invalid_id;
+            return xpti::invalid_id<xpti::string_id_t>;
           }
+#endif
         }
 
       } else {
@@ -142,13 +154,14 @@ public:
       }
       // The MMutex will be released here!
     }
-    return xpti::invalid_id;
+    return xpti::invalid_id<xpti::string_id_t>;
   }
 
   //  The reverse query allows one to get the string from the string_id_t that
   //  may have been cached somewhere.
   const char *query(xpti::string_id_t id) {
     std::shared_lock<std::shared_mutex> lock(MMutex);
+#ifndef XPTI_USE_VECTOR_LOOKUP
     auto Loc = MIDToString.find(id);
     if (Loc != MIDToString.end()) {
 #ifdef XPTI_STATISTICS
@@ -157,6 +170,15 @@ public:
       return Loc->second;
     } else
       return nullptr;
+#else
+    if (id > 0 && id < MIDToString.size()) {
+#ifdef XPTI_STATISTICS
+      MRetrievals++;
+#endif
+      return MIDToString[id];
+    } else
+      return nullptr;
+#endif
   }
 
   int32_t count() { return (int32_t)MStrings; }
@@ -187,7 +209,7 @@ public:
   }
 
 private:
-  safe_int32_t MIds;                ///< Thread-safe ID generator
+  safe_uint32_t MIds;               ///< Thread-safe ID generator
   st_forward_t MStringToID;         ///< Forward lookup hash map
   st_reverse_t MIDToString;         ///< Reverse lookup hash map
   mutable std::shared_mutex MMutex; ///< Mutex required for double-check pattern

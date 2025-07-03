@@ -53,6 +53,7 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   case mips:           return "mips";
   case mipsel:         return "mipsel";
   case msp430:         return "msp430";
+  case native_cpu:     return "native_cpu";
   case nvptx64:        return "nvptx64";
   case nvptx:          return "nvptx";
   case ppc64:          return "powerpc64";
@@ -251,6 +252,8 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
   case dxil:        return "dx";
 
   case xtensa:      return "xtensa";
+
+  case native_cpu:  return "native_cpu";
   }
 }
 
@@ -301,6 +304,8 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case Linux: return "linux";
   case Lv2: return "lv2";
   case MacOSX: return "macosx";
+  case Managarm:
+    return "managarm";
   case Mesa3D: return "mesa3d";
   case NVCL: return "nvcl";
   case NaCl: return "nacl";
@@ -386,6 +391,8 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
     return "pauthtest";
   case LLVM:
     return "llvm";
+  case Mlibc:
+    return "mlibc";
   }
 
   llvm_unreachable("Invalid EnvironmentType!");
@@ -489,6 +496,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
     .Case("loongarch64", loongarch64)
     .Case("dxil", dxil)
     .Case("xtensa", xtensa)
+    .Case("native_cpu", native_cpu)
     .Default(UnknownArch);
 }
 
@@ -638,6 +646,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
                  "dxilv1.4", "dxilv1.5", "dxilv1.6", "dxilv1.7", "dxilv1.8",
                  Triple::dxil)
           .Case("xtensa", Triple::xtensa)
+          .Case("native_cpu", Triple::native_cpu)
           .Default(Triple::UnknownArch);
 
   // Some architectures require special parsing logic just to compute the
@@ -684,6 +693,7 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("linux", Triple::Linux)
     .StartsWith("lv2", Triple::Lv2)
     .StartsWith("macos", Triple::MacOSX)
+    .StartsWith("managarm", Triple::Managarm)
     .StartsWith("netbsd", Triple::NetBSD)
     .StartsWith("openbsd", Triple::OpenBSD)
     .StartsWith("solaris", Triple::Solaris)
@@ -772,6 +782,7 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
       .StartsWith("ohos", Triple::OpenHOS)
       .StartsWith("pauthtest", Triple::PAuthTest)
       .StartsWith("llvm", Triple::LLVM)
+      .StartsWith("mlibc", Triple::Mlibc)
       .Default(Triple::UnknownEnvironment);
 }
 
@@ -1029,6 +1040,9 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
 
   case Triple::dxil:
     return Triple::DXContainer;
+
+  case Triple::native_cpu:
+    return Triple::UnknownObjectFormat;
   }
   llvm_unreachable("unknown architecture");
 }
@@ -1175,7 +1189,8 @@ std::string Triple::normalize(StringRef Str, CanonicalForm Form) {
   OSType OS = UnknownOS;
   if (Components.size() > 2) {
     OS = parseOS(Components[2]);
-    IsCygwin = Components[2].starts_with("cygwin");
+    IsCygwin = Components[2].starts_with("cygwin") ||
+               Components[2].starts_with("msys");
     IsMinGW32 = Components[2].starts_with("mingw");
   }
   EnvironmentType Environment = UnknownEnvironment;
@@ -1220,7 +1235,7 @@ std::string Triple::normalize(StringRef Str, CanonicalForm Form) {
         break;
       case 2:
         OS = parseOS(Comp);
-        IsCygwin = Comp.starts_with("cygwin");
+        IsCygwin = Comp.starts_with("cygwin") || Comp.starts_with("msys");
         IsMinGW32 = Comp.starts_with("mingw");
         Valid = OS != UnknownOS || IsCygwin || IsMinGW32;
         break;
@@ -1666,6 +1681,7 @@ void Triple::setOSAndEnvironmentName(StringRef Str) {
 unsigned Triple::getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   switch (Arch) {
   case llvm::Triple::UnknownArch:
+  case llvm::Triple::native_cpu:
     return 0;
 
   case llvm::Triple::avr:
@@ -1778,6 +1794,7 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::bpfeb:
   case Triple::bpfel:
   case Triple::msp430:
+  case Triple::native_cpu:
   case Triple::systemz:
   case Triple::ve:
     T.setArch(UnknownArch);
@@ -1863,6 +1880,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::lanai:
   case Triple::m68k:
   case Triple::msp430:
+  case Triple::native_cpu:
   case Triple::r600:
   case Triple::shave:
   case Triple::sparcel:
@@ -1969,6 +1987,7 @@ Triple Triple::getBigEndianArchVariant() const {
   case Triple::ve:
   case Triple::csky:
   case Triple::xtensa:
+  case Triple::native_cpu:
 
   // ARM is intentionally unsupported here, changing the architecture would
   // drop any arch suffixes.
@@ -2053,6 +2072,7 @@ bool Triple::isLittleEndian() const {
   case Triple::mips64el:
   case Triple::mipsel:
   case Triple::msp430:
+  case Triple::native_cpu:
   case Triple::nvptx64:
   case Triple::nvptx:
   case Triple::ppcle:

@@ -15,7 +15,13 @@
 #include "ur_util.hpp"
 #include <algorithm>
 #include <climits>
+#if defined(__linux__)
+#include <ctime>
+#elif defined(_WIN32)
+#include <windows.h>
+#endif
 #include <optional>
+#include <vector>
 
 // UR_L0_USE_COPY_ENGINE can be set to an integer value, or
 // a pair of integer values of the form "lower_index:upper_index".
@@ -52,8 +58,8 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
   if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
       (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
-    logger::error("UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
-                  "default set.");
+    UR_LOG(ERR, "UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
+                "default set.");
     LowerCopyEngineIndex = 0;
     UpperCopyEngineIndex = INT_MAX;
   }
@@ -141,7 +147,7 @@ ur_result_t urDeviceGet(
       break;
     default:
       Matched = false;
-      logger::warning("Unknown device type");
+      UR_LOG(WARN, "Unknown device type");
       break;
     }
 
@@ -194,8 +200,8 @@ static std::tuple<zes_device_handle_t, ur_zes_device_handle_data_t, ur_result_t>
 getZesDeviceData(ur_device_handle_t Device) {
   bool SysManEnv = getenv_tobool("ZES_ENABLE_SYSMAN", false);
   if ((Device->Platform->ZedeviceToZesDeviceMap.size() == 0) && !SysManEnv) {
-    logger::error("SysMan support is unavailable on this system. Please "
-                  "check your level zero driver installation.");
+    UR_LOG(ERR, "SysMan support is unavailable on this system. Please "
+                "check your level zero driver installation.");
     return {nullptr, {}, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION};
   }
 
@@ -250,7 +256,7 @@ ur_result_t urDeviceGetInfo(
     case ZE_DEVICE_TYPE_FPGA:
       return ReturnValue(UR_DEVICE_TYPE_FPGA);
     default:
-      logger::error("This device type is not supported");
+      UR_LOG(ERR, "This device type is not supported");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -266,6 +272,22 @@ ur_result_t urDeviceGetInfo(
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
     const auto &UUID = Device->ZeDeviceProperties->uuid.id;
     return ReturnValue(UUID, sizeof(UUID));
+  }
+  case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH: {
+    // ZeDeviceMemoryProperties should be set already by initialization
+    if (Device->ZeDeviceMemoryProperties->second.empty())
+      return ReturnValue(uint64_t{0});
+
+    uint32_t maxBandwidth = 0;
+    for (const auto &extProp : Device->ZeDeviceMemoryProperties->second) {
+      // Only consider bandwidth if the unit is BYTES_PER_NANOSEC
+      if (extProp.bandwidthUnit == ZE_BANDWIDTH_UNIT_BYTES_PER_NANOSEC) {
+        maxBandwidth = std::max(
+            {maxBandwidth, extProp.readBandwidth, extProp.writeBandwidth});
+      }
+    }
+    // Convert to Bytes/sec from Bytes/nanosec
+    return ReturnValue(static_cast<uint64_t>(maxBandwidth * 1e9));
   }
   case UR_DEVICE_INFO_ATOMIC_64:
     return ReturnValue(
@@ -508,8 +530,6 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(*Device->SubDeviceCreationProperty);
   }
   // Everything under here is not supported yet
-  case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
-    return ReturnValue("");
   case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
     return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE:
@@ -547,9 +567,13 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE:
     return ReturnValue(UR_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE:
-    return ReturnValue(
-        // TODO[1.0]: how to query cache line-size?
-        uint32_t{1});
+    if (Device->Platform->zeDriverExtensionMap.count(
+            ZE_CACHELINE_SIZE_EXT_NAME)) {
+      return ReturnValue(uint32_t{static_cast<uint32_t>(
+          Device->ZeDeviceCacheLinePropertiesExt->cacheLineSize)});
+    } else {
+      return ReturnValue(uint32_t{1});
+    }
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE:
     return ReturnValue(uint64_t{Device->ZeDeviceCacheProperties->cacheSize});
   case UR_DEVICE_INFO_IP_VERSION:
@@ -670,23 +694,36 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
     return ReturnValue(
         size_t{Device->ZeDeviceImageProperties->maxImageArraySlices});
-  // Handle SIMD widths, matching compute-runtime OpenCL implementation:
-  // https://github.com/intel/compute-runtime/blob/291745cdf76d83f5dc40e7ef41d347366235ccdb/opencl/source/cl_device/cl_device_caps.cpp#L236
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_char);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
-    return ReturnValue(uint32_t{16});
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_char);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_short);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT:
-    return ReturnValue(uint32_t{8});
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_short);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_int);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT:
-    return ReturnValue(uint32_t{4});
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_int);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_long);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
-    return ReturnValue(uint32_t{1});
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_long);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_float);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
-    return ReturnValue(uint32_t{1});
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_float);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
     // Must return 0 for *vector_width_double* if the device does not have fp64.
@@ -694,11 +731,17 @@ ur_result_t urDeviceGetInfo(
       return ReturnValue(uint32_t{0});
     return ReturnValue(uint32_t{1});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
+    // Must return 0 for *vector_width_half* if the device does not have fp16.
+    if (!(Device->ZeDeviceModuleProperties->flags & ZE_DEVICE_MODULE_FLAG_FP16))
+      return ReturnValue(uint32_t{0});
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_half);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
     // Must return 0 for *vector_width_half* if the device does not have fp16.
     if (!(Device->ZeDeviceModuleProperties->flags & ZE_DEVICE_MODULE_FLAG_FP16))
       return ReturnValue(uint32_t{0});
-    return ReturnValue(uint32_t{8});
+    return ReturnValue(
+        Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_half);
   case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Max_num_sub_Groups = maxTotalGroupSize/min(set of subGroupSizes);
     uint32_t MinSubGroupSize =
@@ -1086,29 +1129,26 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
-                       Device->ZeDeviceImageProperties->maxImageDims1D > 0 &&
-                       Device->ZeDeviceImageProperties->maxImageDims2D > 0 &&
-                       Device->ZeDeviceImageProperties->maxImageDims3D > 0);
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
     // On L0 bindless images can not be backed by shared (managed) USM.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
                        Device->ZeDeviceImageProperties->maxImageDims1D > 0);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
-    return ReturnValue(Device->isIntelDG2OrNewer() &&
+    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
                        Device->ZeDeviceImageProperties->maxImageDims2D > 0);
   }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
-    logger::error("Unsupported ParamName in urGetDeviceInfo");
-    logger::error("ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
+    UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
+    UR_LOG(ERR, "ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
     // L0 does not support mipmaps.
@@ -1119,8 +1159,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP:
-    logger::error("Unsupported ParamName in urGetDeviceInfo");
-    logger::error("ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
+    UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
+    UR_LOG(ERR, "ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP: {
     // L0 does not support creation of images from individual mipmap levels.
@@ -1146,8 +1186,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP: {
-    // L0 does not support fetching 1D non-USM sampled image data.
-    return ReturnValue(false);
+    // L0 does support fetching 1D non-USM sampled image data.
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP: {
     // L0 does support fetching 2D USM sampled image data.
@@ -1217,15 +1257,15 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    return ReturnValue(false);
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
-    return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
     ur_device_throttle_reasons_flags_t ThrottleReasons = 0;
@@ -1313,19 +1353,27 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:
   case UR_DEVICE_INFO_MAX_POWER_LIMIT: {
-    if (!ParamValue) {
-      // If ParamValue is nullptr, then we are only interested in the size of
-      // the value.
-      return ReturnValue(int32_t{0});
-    }
-
     [[maybe_unused]] auto [ZesDevice, Ignored, Result] =
         getZesDeviceData(Device);
     if (Result != UR_RESULT_SUCCESS)
       return Result;
 
     zes_pwr_handle_t ZesPwrHandle = nullptr;
-    ZE2UR_CALL(zesDeviceGetCardPowerDomain, (ZesDevice, &ZesPwrHandle));
+    auto DomainResult = zesDeviceGetCardPowerDomain(ZesDevice, &ZesPwrHandle);
+    if (DomainResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    } else if (DomainResult != ZE_RESULT_SUCCESS) {
+      return ze2urResult(DomainResult);
+    }
+
+    if (!ParamValue) {
+      // If ParamValue is nullptr, then we are only interested in the size of
+      // the value.
+      // Do this after calling getCardPowerDomain so that UNSUPPORTED is
+      // returned correctly if required
+      return ReturnValue(int32_t{0});
+    }
+
     ZesStruct<zes_power_properties_t> PowerProperties;
     ZE2UR_CALL(zesPowerGetProperties, (ZesPwrHandle, &PowerProperties));
 
@@ -1335,10 +1383,12 @@ ur_result_t urDeviceGetInfo(
       return ReturnValue(int32_t{PowerProperties.maxLimit});
     }
   }
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
   default:
-    logger::error("Unsupported ParamName in urGetDeviceInfo");
-    logger::error("ParamNameParamName={}(0x{})", ParamName,
-                  logger::toHex(ParamName));
+    UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
+    UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
+           logger::toHex(ParamName));
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
 
@@ -1446,7 +1496,7 @@ ur_result_t urDevicePartition(
 
 ur_result_t urDeviceSelectBinary(
     /// [in] handle of the device to select binary for.
-    ur_device_handle_t Device,
+    [[maybe_unused]] ur_device_handle_t Device,
     /// [in] the array of binaries to select from.
     const ur_device_binary_t *Binaries,
     /// [in] the number of binaries passed in ppBinaries. Must greater than or
@@ -1456,7 +1506,6 @@ ur_result_t urDeviceSelectBinary(
     /// binaries. If a suitable binary was not found the function returns
     /// ${X}_INVALID_BINARY.
     uint32_t *SelectedBinary) {
-  std::ignore = Device;
   // TODO: this is a bare-bones implementation for choosing a device image
   // that would be compatible with the targeted device. An AOT-compiled
   // image is preferred over SPIR-V for known devices (i.e. Intel devices)
@@ -1477,21 +1526,34 @@ ur_result_t urDeviceSelectBinary(
 
   uint32_t *SelectedBinaryInd = SelectedBinary;
 
-  // Find the appropriate device image, fallback to spirv if not found
-  constexpr uint32_t InvalidInd = (std::numeric_limits<uint32_t>::max)();
-  uint32_t Spirv = InvalidInd;
+  // Find the appropriate device image
+  // The order of elements is important, as it defines the priority:
+  std::vector<const char *> FallbackTargets = {UR_DEVICE_BINARY_TARGET_SPIRV64};
+
+  constexpr uint32_t InvalidInd = std::numeric_limits<uint32_t>::max();
+  uint32_t FallbackInd = InvalidInd;
+  uint32_t FallbackPriority = InvalidInd;
 
   for (uint32_t i = 0; i < NumBinaries; ++i) {
     if (strcmp(Binaries[i].pDeviceTargetSpec, BinaryTarget) == 0) {
       *SelectedBinaryInd = i;
       return UR_RESULT_SUCCESS;
     }
-    if (strcmp(Binaries[i].pDeviceTargetSpec,
-               UR_DEVICE_BINARY_TARGET_SPIRV64) == 0)
-      Spirv = i;
+    for (uint32_t j = 0; j < FallbackTargets.size(); ++j) {
+      // We have a fall-back with the same or higher priority already
+      // no need to check the rest
+      if (FallbackPriority <= j)
+        break;
+
+      if (strcmp(Binaries[i].pDeviceTargetSpec, FallbackTargets[j]) == 0) {
+        FallbackInd = i;
+        FallbackPriority = j;
+        break;
+      }
+    }
   }
-  // Points to a spirv image, if such indeed was found
-  if ((*SelectedBinaryInd = Spirv) != InvalidInd)
+  // We didn't find a primary target, try the highest-priority fall-back
+  if ((*SelectedBinaryInd = FallbackInd) != InvalidInd)
     return UR_RESULT_SUCCESS;
 
   // No image can be loaded for the given device
@@ -1536,7 +1598,6 @@ ur_result_t urDeviceCreateWithNativeHandle(
   if (Dev == nullptr)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
-  Dev->IsInteropNativeHandle = true;
   *Device = Dev;
   return UR_RESULT_SUCCESS;
 }
@@ -1550,6 +1611,40 @@ ur_result_t urDeviceGetGlobalTimestamps(
     /// [out][optional] pointer to the Host's global timestamp that correlates
     /// with the Device's global timestamp value
     uint64_t *HostTimestamp) {
+  if (!DeviceTimestamp && HostTimestamp) {
+    // If only HostTimestamp is requested, we need to avoid making a call to
+    // zeDeviceGetGlobalTimestamps which has higher latency. This is a
+    // workaround for the fact that Level Zero does not provide a way to get the
+    // host timestamp directly. It is known that current implementation of L0
+    // runtime uses CLOCK_MONOTONIC_RAW on Linux and QueryPerformanceCounter on
+    // Windows.
+#if defined(__linux__)
+    timespec Monotonic;
+    if (clock_gettime(CLOCK_MONOTONIC_RAW, &Monotonic) != 0) {
+      UR_LOG(ERR, "Failed to get CLOCK_MONOTONIC time");
+      return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+    *HostTimestamp = static_cast<uint64_t>(Monotonic.tv_sec) * 1'000'000'000 +
+                     static_cast<uint64_t>(Monotonic.tv_nsec);
+    return UR_RESULT_SUCCESS;
+#elif defined(_WIN32)
+    // Use QueryPerformanceCounter on Windows
+    uint64_t Counter;
+    if (!QueryPerformanceCounter((LARGE_INTEGER *)&Counter)) {
+      UR_LOG(ERR, "Failed to get performance counter");
+      return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+    LARGE_INTEGER Frequency;
+    if (!QueryPerformanceFrequency(&Frequency)) {
+      UR_LOG(ERR, "Failed to get performance frequency");
+      return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+    *HostTimestamp = static_cast<uint64_t>(
+        (static_cast<double>(Counter) * 1'000'000'000 / Frequency.QuadPart));
+    return UR_RESULT_SUCCESS;
+#endif
+  }
+
   const uint64_t &ZeTimerResolution =
       Device->ZeDeviceProperties->timerResolution;
   const uint64_t TimestampMaxCount = Device->getTimestampMask();
@@ -1651,8 +1746,8 @@ ur_device_handle_t_::useImmediateCommandLists() {
     }
   }
 
-  logger::info("NOTE: L0 Immediate CommandList Setting: {}",
-               ImmediateCommandlistsSetting);
+  UR_LOG(INFO, "NOTE: L0 Immediate CommandList Setting: {}",
+         ImmediateCommandlistsSetting);
 
   switch (ImmediateCommandlistsSetting) {
   case 0:
@@ -1765,6 +1860,28 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
                         (ZeDevice, &Count, &Properties));
       };
 
+  if (this->Platform->zeDriverExtensionMap.count(ZE_CACHELINE_SIZE_EXT_NAME)) {
+    ZeDeviceCacheLinePropertiesExt.Compute =
+        [ZeDevice](ze_device_cache_line_size_ext_t &Properties) {
+          // TODO: Since v1.0 there can be multiple cache properties.
+          // For now remember the first one, if any.
+          uint32_t Count = 0;
+          ZE_CALL_NOCHECK(zeDeviceGetCacheProperties,
+                          (ZeDevice, &Count, nullptr));
+          if (Count > 0)
+            Count = 1;
+          ze_device_cache_properties_t P;
+          P.stype = ZE_STRUCTURE_TYPE_DEVICE_CACHE_PROPERTIES;
+          P.pNext = &Properties;
+          ZE_CALL_NOCHECK(zeDeviceGetCacheProperties, (ZeDevice, &Count, &P));
+          if (Properties.cacheLineSize == 0) {
+            // If cache line size is not set, use the default value.
+            Properties.cacheLineSize =
+                1; // Default cache line size property value.
+          }
+        };
+  }
+
   ZeDeviceMutableCmdListsProperties.Compute =
       [ZeDevice](
           ZeStruct<ze_mutable_command_list_exp_properties_t> &Properties) {
@@ -1785,6 +1902,67 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
       };
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 
+  auto UrPlatform = this->Platform;
+  ZeDeviceVectorWidthPropertiesExt.Compute =
+      [ZeDevice, UrPlatform](
+          ZeStruct<ze_device_vector_width_properties_ext_t> &Properties) {
+        // Set default vector width properties
+        Properties.preferred_vector_width_char = 16u;
+        Properties.preferred_vector_width_short = 8u;
+        Properties.preferred_vector_width_int = 4u;
+        Properties.preferred_vector_width_long = 1u;
+        Properties.preferred_vector_width_float = 1u;
+        Properties.preferred_vector_width_half = 8u;
+        Properties.native_vector_width_char = 16u;
+        Properties.native_vector_width_short = 8u;
+        Properties.native_vector_width_int = 4u;
+        Properties.native_vector_width_long = 1u;
+        Properties.native_vector_width_float = 1u;
+        Properties.native_vector_width_half = 8u;
+
+        if (UrPlatform->zeDriverExtensionMap.count(
+                ZE_DEVICE_VECTOR_SIZES_EXT_NAME)) {
+          uint32_t Count = 0;
+          ZE_CALL_NOCHECK(zeDeviceGetVectorWidthPropertiesExt,
+                          (ZeDevice, &Count, nullptr));
+
+          std::vector<ZeStruct<ze_device_vector_width_properties_ext_t>>
+              PropertiesVector;
+          PropertiesVector.reserve(Count);
+
+          ZeStruct<ze_device_vector_width_properties_ext_t>
+              MaxVectorWidthProperties;
+
+          ZE_CALL_NOCHECK(zeDeviceGetVectorWidthPropertiesExt,
+                          (ZeDevice, &Count, PropertiesVector.data()));
+          if (!PropertiesVector.empty()) {
+            // Find the largest vector_width_size property
+            uint32_t max_vector_width_size = 0;
+            for (const auto &prop : PropertiesVector) {
+              if (!max_vector_width_size) {
+                max_vector_width_size = prop.vector_width_size;
+                MaxVectorWidthProperties = prop;
+              } else if (prop.vector_width_size > max_vector_width_size) {
+                max_vector_width_size = prop.vector_width_size;
+                MaxVectorWidthProperties = prop;
+              }
+            }
+            Properties = MaxVectorWidthProperties;
+            // If the environment variable is set, use the specified vector
+            // width if it exists
+            if (UrL0VectorWidth) {
+              for (const auto &prop : PropertiesVector) {
+                if (prop.vector_width_size ==
+                    static_cast<uint32_t>(UrL0VectorWidth)) {
+                  Properties = prop;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      };
+
   ImmCommandListUsed = this->useImmediateCommandLists();
 
   uint32_t numQueueGroups = 0;
@@ -1793,8 +1971,10 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
   if (numQueueGroups == 0) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
-  logger::info(logger::LegacyMessage("NOTE: Number of queue groups = {}"),
-               "Number of queue groups = {}", numQueueGroups);
+  UR_LOG_LEGACY(INFO,
+                logger::LegacyMessage("NOTE: Number of queue groups = {}"),
+                "Number of queue groups = {}", numQueueGroups);
+
   std::vector<ZeStruct<ze_command_queue_group_properties_t>>
       QueueGroupProperties(numQueueGroups);
   ZE2UR_CALL(zeDeviceGetCommandQueueGroupProperties,
@@ -1847,22 +2027,26 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         }
       }
       if (QueueGroup[queue_group_info_t::MainCopy].ZeOrdinal < 0)
-        logger::info(logger::LegacyMessage(
-                         "NOTE: main blitter/copy engine is not available"),
-                     "main blitter/copy engine is not available");
+        UR_LOG_LEGACY(INFO,
+                      logger::LegacyMessage(
+                          "NOTE: main blitter/copy engine is not available"),
+                      "main blitter/copy engine is not available")
       else
-        logger::info(logger::LegacyMessage(
-                         "NOTE: main blitter/copy engine is available"),
-                     "main blitter/copy engine is available");
+        UR_LOG_LEGACY(INFO,
+                      logger::LegacyMessage(
+                          "NOTE: main blitter/copy engine is available"),
+                      "main blitter/copy engine is available")
 
       if (QueueGroup[queue_group_info_t::LinkCopy].ZeOrdinal < 0)
-        logger::info(logger::LegacyMessage(
-                         "NOTE: link blitter/copy engines are not available"),
-                     "link blitter/copy engines are not available");
+        UR_LOG_LEGACY(INFO,
+                      logger::LegacyMessage(
+                          "NOTE: link blitter/copy engines are not available"),
+                      "link blitter/copy engines are not available")
       else
-        logger::info(logger::LegacyMessage(
-                         "NOTE: link blitter/copy engines are available"),
-                     "link blitter/copy engines are available");
+        UR_LOG_LEGACY(INFO,
+                      logger::LegacyMessage(
+                          "NOTE: link blitter/copy engines are available"),
+                      "link blitter/copy engines are available")
     }
   }
 

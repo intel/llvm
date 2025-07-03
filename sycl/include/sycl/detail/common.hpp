@@ -8,6 +8,9 @@
 
 #pragma once
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/exception.hpp> // for sycl::exception, sycl::errc
+#endif                        // #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
@@ -139,6 +142,15 @@ public:
   // Used to maintain global state (GCodeLocTLS), so we do not want to copy
   tls_code_loc_t(const tls_code_loc_t &) = delete;
   tls_code_loc_t &operator=(const tls_code_loc_t &) = delete;
+#else
+  tls_code_loc_t &operator=(const tls_code_loc_t &) {
+    // Should never be called. In PREVIEW we marked it as deleted, but
+    // before ABI breaking change we need to keep it for backward compatibility.
+    assert(false && "tls_code_loc_t should not be copied");
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "tls_code_loc_t should not be copied");
+    return *this;
+  }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// If the code location is set up by this instance, reset it.
@@ -152,6 +164,10 @@ public:
   bool isToplevel() const { return !MLocalScope; }
 
 private:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Cache the TLS location to decrease amount of TLS accesses.
+  detail::code_location &CodeLocTLSRef;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   // The flag that is used to determine if the object is in a local scope or in
   // the top level scope.
   bool MLocalScope = true;
@@ -168,11 +184,9 @@ private:
 #define __SYCL_ASSERT(x) assert(x)
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 
-#define __SYCL_UR_ERROR_REPORT                                                 \
-  "Native API failed. " /*__FILE__*/                                           \
-  /* TODO: replace __FILE__ to report only relative path*/                     \
-  /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
-                          "Native API returns: "
+#define __SYCL_UR_ERROR_REPORT(backend)                                        \
+  std::string(sycl::detail::get_backend_name_no_vendor(backend)) +             \
+      " backend failed with error: "
 
 #include <sycl/exception.hpp>
 
@@ -349,19 +363,6 @@ template <typename DataT, template <typename, typename> typename FlattenF>
 struct ArrayCreator<DataT, FlattenF> {
   static constexpr auto Create() { return std::array<DataT, 0>{}; }
 };
-
-// Helper function for creating an arbitrary sized array with the same value
-// repeating.
-template <typename T, size_t... Is>
-static constexpr std::array<T, sizeof...(Is)>
-RepeatValueHelper(const T &Arg, std::index_sequence<Is...>) {
-  auto ReturnArg = [&](size_t) { return Arg; };
-  return {ReturnArg(Is)...};
-}
-template <size_t N, typename T>
-static constexpr std::array<T, N> RepeatValue(const T &Arg) {
-  return RepeatValueHelper(Arg, std::make_index_sequence<N>());
-}
 
 // to output exceptions caught in ~destructors
 #ifndef NDEBUG

@@ -1,0 +1,16 @@
+RUN: UR_LOG_ADAPTER_TEST="" logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+RUN: UR_LOG_ADAPTER_TEST="output:stdout" logger-test | FileCheck --allow-empty %s
+RUN: UR_LOG_ADAPTER_TEST="output:stderr" logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+RUN: UR_LOG_ADAPTER_TEST="output:file,%t" logger-test
+RUN: FileCheck --allow-empty --input-file %t %s
+
+RUN: UR_LOG_ADAPTER_TEST="" logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+RUN: UR_LOG_ADAPTER_TEST="output:stdout" logger-test | FileCheck --allow-empty %s
+RUN: UR_LOG_ADAPTER_TEST="output:stderr" logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+RUN: UR_LOG_ADAPTER_TEST="output:file,%t" logger-test
+RUN: FileCheck --allow-empty --input-file %t %s
+
+CHECK-NOT: <ADAPTER_TEST>[DEBUG]: Test message: success
+CHECK-NOT: <ADAPTER_TEST>[INFO]: Test message: success
+CHECK-NOT: <ADAPTER_TEST>[WARNING]: Test message: success
+CHECK-NOT: <ADAPTER_TEST>[ERROR]: Test message: success

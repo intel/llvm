@@ -23,8 +23,6 @@ union U {
   float f;
 };
 
-using accType = accessor<int, 1, access::mode::read_write>;
-
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::single_task_kernel))
 void ff(struct S s) {}
@@ -33,11 +31,6 @@ void ff(struct S s) {}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::single_task_kernel))
 void ff(union U u) {}
-
-// expected-error@+3 {{'accType' (aka 'accessor<int, 1, access::mode::read_write>') cannot be used as the type of a kernel parameter}}
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    (ext::oneapi::experimental::single_task_kernel))
-void ff(accType acc) {}
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::single_task_kernel))

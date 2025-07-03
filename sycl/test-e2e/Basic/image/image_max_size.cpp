@@ -127,12 +127,12 @@ int main() {
   // Using max sizes in one image may require too much memory.
   // Check them one by one.
   bool HasError = false;
-  HasError |= testND<2>(Q, MaxWidth2D, 2);
-  HasError |= testND<2>(Q, 2, MaxHeight2D);
+  HasError |= testND<2>(Q, MaxWidth2D, 1);
+  HasError |= testND<2>(Q, 1, MaxHeight2D);
 
-  HasError |= testND<3>(Q, MaxWidth3D, 2, 3);
-  HasError |= testND<3>(Q, 2, MaxHeight3D, 3);
-  HasError |= testND<3>(Q, 2, 3, MaxDepth3D);
+  HasError |= testND<3>(Q, MaxWidth3D, 1, 1);
+  HasError |= testND<3>(Q, 1, MaxHeight3D, 1);
+  HasError |= testND<3>(Q, 1, 1, MaxDepth3D);
 
   // This test requires a significant amount of host memory.
   // It has been observed that sometimes the test may fail with

@@ -121,19 +121,34 @@ llvm_config.with_system_environment(
     ]
 )
 
+# Take into account extra system environment variables if provided via parameter.
+if config.extra_system_environment:
+    lit_config.note(
+        "Extra system variables to propagate value from: "
+        + config.extra_system_environment
+    )
+    extra_env_vars = config.extra_system_environment.split(",")
+    for var in extra_env_vars:
+        if var in os.environ:
+            llvm_config.with_system_environment(var)
+
 llvm_config.with_environment("PATH", config.lit_tools_dir, append_path=True)
 
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
     config.available_features.add("linux")
-    llvm_config.with_system_environment(["LD_LIBRARY_PATH", "LIBRARY_PATH", "CPATH"])
+    llvm_config.with_system_environment(
+        ["LD_LIBRARY_PATH", "LIBRARY_PATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH"]
+    )
     llvm_config.with_environment(
         "LD_LIBRARY_PATH", config.sycl_libs_dir, append_path=True
     )
 
 elif platform.system() == "Windows":
     config.available_features.add("windows")
-    llvm_config.with_system_environment(["LIB", "CPATH", "INCLUDE"])
+    llvm_config.with_system_environment(
+        ["LIB", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH", "INCLUDE"]
+    )
     llvm_config.with_environment("LIB", config.sycl_libs_dir, append_path=True)
     llvm_config.with_environment("PATH", config.sycl_libs_dir, append_path=True)
     llvm_config.with_environment(
@@ -142,14 +157,19 @@ elif platform.system() == "Windows":
 
 elif platform.system() == "Darwin":
     # FIXME: surely there is a more elegant way to instantiate the Xcode directories.
-    llvm_config.with_system_environment("CPATH")
+    llvm_config.with_system_environment(["C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH"])
     llvm_config.with_environment(
-        "CPATH",
+        "CPLUS_INCLUDE_PATH",
         "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1",
         append_path=True,
     )
     llvm_config.with_environment(
-        "CPATH",
+        "C_INCLUDE_PATH",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/",
+        append_path=True,
+    )
+    llvm_config.with_environment(
+        "CPLUS_INCLUDE_PATH",
         "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/",
         append_path=True,
     )
@@ -167,6 +187,9 @@ if config.extra_environment:
         else:
             lit_config.note("\tUnset " + var)
             llvm_config.with_environment(var, "")
+
+# Disable the UR logger callback sink during test runs as output to SYCL RT can interfere with some tests relying on standard input/output
+llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
 
 
 # Temporarily modify environment to be the same that we use when running tests
@@ -248,9 +271,12 @@ def check_igc_tag_and_add_feature():
 
 
 def quote_path(path):
+    if not path:
+        return ""
     if platform.system() == "Windows":
         return f'"{path}"'
     return shlex.quote(path)
+
 
 # Call the function to perform the check and add the feature
 check_igc_tag_and_add_feature()
@@ -271,6 +297,7 @@ if lit_config.params.get("enable-perf-tests", False):
 if lit_config.params.get("spirv-backend", False):
     config.available_features.add("spirv-backend")
 
+
 # Use this to make sure that any dynamic checks below are done in the build
 # directory and not where the sources are located. This is important for the
 # in-tree configuration (as opposite to the standalone one).
@@ -289,9 +316,8 @@ with test_env():
 # check if the compiler was built in NDEBUG configuration
 has_ndebug = False
 ps = subprocess.Popen(
-    [config.dpcpp_compiler, "-mllvm", "-debug", "-x", "c", "-", "-S", "-o", "-"],
+    [config.dpcpp_compiler, "-mllvm", "-debug", "-x", "c", "-", "-S", "-o", os.devnull],
     stdin=subprocess.PIPE,
-    stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
 )
 _ = ps.communicate(input=b"int main(){}\n")
@@ -355,7 +381,7 @@ with test_env():
     else:
         config.substitutions.append(("%level_zero_options", ""))
 
-if lit_config.params.get("test-preview-mode", False):
+if lit_config.params.get("test-preview-mode", "False") != "False":
     config.available_features.add("preview-mode")
 else:
     # Check for sycl-preview library
@@ -399,10 +425,9 @@ ps = subprocess.Popen(
         "c++",
         "-",
         "-o",
-        "-",
+        os.devnull,
     ],
     stdin=subprocess.PIPE,
-    stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
 )
 op = ps.communicate(input=b"")
@@ -432,7 +457,7 @@ config.cuda_include = quote_path(
     )
 )
 
-cuda_options = cuda_options = (
+cuda_options = (
     (" -L" + config.cuda_libs_dir if config.cuda_libs_dir else "")
     + " -lcuda "
     + " -I"
@@ -444,6 +469,10 @@ if cl_options:
         + (config.cuda_libs_dir + "/cuda.lib " if config.cuda_libs_dir else "cuda.lib")
         + " /I"
         + config.cuda_include
+    )
+if platform.system() == "Windows":
+    cuda_options += (
+        " --cuda-path=" + os.path.dirname(os.path.dirname(config.cuda_libs_dir)) + f'"'
     )
 
 config.substitutions.append(("%cuda_options", cuda_options))
@@ -481,7 +510,7 @@ config.hip_include = quote_path(
     )
 )
 
-hip_options = hip_options = (
+hip_options = (
     (" -L" + config.hip_libs_dir if config.hip_libs_dir else "")
     + " -lamdhip64 "
     + " -I"
@@ -498,7 +527,8 @@ if cl_options:
         + " /I"
         + config.hip_include
     )
-
+if platform.system() == "Windows":
+    hip_options += " --rocm-path=" + os.path.dirname(config.hip_libs_dir) + f'"'
 with test_env():
     sp = subprocess.getstatusoutput(
         config.dpcpp_compiler + " -fsycl  " + check_hip_file + hip_options
@@ -508,6 +538,10 @@ with test_env():
         config.substitutions.append(("%hip_options", hip_options))
     else:
         config.substitutions.append(("%hip_options", ""))
+
+# Add ROCM_PATH from system environment, this is used by clang to find ROCm
+# libraries in non-standard installation locations.
+llvm_config.with_system_environment("ROCM_PATH")
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
@@ -530,15 +564,15 @@ if cl_options:
             "%sycl_options",
             " "
             + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl8.lib"))
-            + " /I"
+            + " -Xclang -isystem -Xclang "
             + config.sycl_include
-            + " /I"
+            + " -Xclang -isystem -Xclang "
             + os.path.join(config.sycl_include, "sycl"),
         )
     )
     config.substitutions.append(("%include_option", "/FI"))
     config.substitutions.append(("%debug_option", "/Zi /DEBUG"))
-    config.substitutions.append(("%cxx_std_option", "/std:"))
+    config.substitutions.append(("%cxx_std_option", "/clang:-std="))
     config.substitutions.append(("%fPIC", ""))
     config.substitutions.append(("%shared_lib", "/LD"))
     config.substitutions.append(("%O0", "/Od"))
@@ -548,9 +582,9 @@ else:
         (
             "%sycl_options",
             (" -lsycl8" if platform.system() == "Windows" else " -lsycl")
-            + " -I"
+            + " -isystem "
             + config.sycl_include
-            + " -I"
+            + " -isystem "
             + os.path.join(config.sycl_include, "sycl")
             + " -L"
             + config.sycl_libs_dir,
@@ -576,22 +610,7 @@ if "verbose-print" in lit_config.params:
 else:
     config.substitutions.append(("%verbose_print", ""))
 
-config.substitutions.append(("%vulkan_include_dir", config.vulkan_include_dir))
-config.substitutions.append(("%vulkan_lib", config.vulkan_lib))
-
-if platform.system() == "Windows":
-    config.substitutions.append(
-        ("%link-vulkan", "-l %s -I %s" % (config.vulkan_lib, config.vulkan_include_dir))
-    )
-else:
-    vulkan_lib_path = os.path.dirname(config.vulkan_lib)
-    config.substitutions.append(
-        (
-            "%link-vulkan",
-            "-L %s -lvulkan -I %s" % (vulkan_lib_path, config.vulkan_include_dir),
-        )
-    )
-
+# Enable `vulkan` feature if Vulkan was found.
 if config.vulkan_found == "TRUE":
     config.available_features.add("vulkan")
 
@@ -605,7 +624,9 @@ if config.dump_ir_supported:
 
 lit_config.note("Targeted devices: {}".format(", ".join(config.sycl_devices)))
 
-sycl_ls = FindTool("sycl-ls").resolve(llvm_config, config.llvm_tools_dir)
+sycl_ls = FindTool("sycl-ls").resolve(
+    llvm_config, os.pathsep.join([config.dpcpp_bin_dir, config.llvm_tools_dir])
+)
 if not sycl_ls:
     lit_config.fatal("can't find `sycl-ls`")
 
@@ -620,18 +641,25 @@ if (
     if "amdgcn" in sp[1]:
         config.sycl_build_targets.add("target-amd")
 
-if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
-    devices = set()
+with test_env():
     cmd = (
         "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
     )
-    sp = subprocess.check_output(cmd, text=True, shell=True)
-    for line in sp.splitlines():
-        if not line.startswith("["):
-            continue
-        (backend, device) = line[1:].split("]")[0].split(":")
-        devices.add("{}:{}".format(backend, device))
-    config.sycl_devices = list(devices)
+    sycl_ls_output = subprocess.check_output(cmd, text=True, shell=True)
+
+    # In contrast to `cpu` feature this is a compile-time feature, which is needed
+    # to check if we can build cpu AOT tests.
+    if "opencl:cpu" in sycl_ls_output:
+        config.available_features.add("opencl-cpu-rt")
+
+    if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
+        devices = set()
+        for line in sycl_ls_output.splitlines():
+            if not line.startswith("["):
+                continue
+            (backend, device) = line[1:].split("]")[0].split(":")
+            devices.add("{}:{}".format(backend, device))
+        config.sycl_devices = list(devices)
 
 if len(config.sycl_devices) > 1:
     lit_config.note(
@@ -652,7 +680,11 @@ available_devices = {
 }
 for d in remove_level_zero_suffix(config.sycl_devices):
     be, dev = d.split(":")
-    if be not in available_devices or dev not in available_devices[be]:
+    # Verify platform
+    if be not in available_devices:
+        lit_config.error("Unsupported device {}".format(d))
+    # Verify device from available_devices or accept if contains "arch-"
+    if dev not in available_devices[be] and not "arch-" in dev:
         lit_config.error("Unsupported device {}".format(d))
 
 if "cuda:gpu" in config.sycl_devices:
@@ -777,12 +809,14 @@ tools = [
     ToolSubst("sycl-ls", command=sycl_ls, unresolved="ignore"),
 ] + feature_tools
 
-# Try and find each of these tools in the llvm tools directory or the PATH, in
-# that order. If found, they will be added as substitutions with the full path
+# Try and find each of these tools in the DPC++ bin directory, in the llvm tools directory
+# or the PATH, in that order. If found, they will be added as substitutions with the full path
 # to the tool. This allows us to support both in-tree builds and standalone
 # builds, where the tools may be externally defined.
+# The DPC++ bin directory is different from the LLVM bin directory when using
+# the Intel Compiler (icx), which puts tools into $dpcpp_root_dir/bin/compiler
 llvm_config.add_tool_substitutions(
-    tools, [config.llvm_tools_dir, os.environ.get("PATH", "")]
+    tools, [config.dpcpp_bin_dir, config.llvm_tools_dir, os.environ.get("PATH", "")]
 )
 for tool in feature_tools:
     if tool.was_resolved:
@@ -810,6 +844,81 @@ for aot_tool in aot_tools:
 if config.test_mode != "build-only":
     config.sycl_build_targets = set()
 
+
+def get_sycl_ls_verbose(sycl_device, env):
+    with test_env():
+        # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
+        # prints warnings that might derail a user thinking something is wrong
+        # with their test run. It's just us filtering here, so silence them unless
+        # we get an exit status.
+        try:
+            cmd = "{} {} --verbose".format(config.run_launcher or "", sycl_ls)
+            sp = subprocess.run(
+                cmd, env=env, text=True, shell=True, capture_output=True
+            )
+            sp.check_returncode()
+        except subprocess.CalledProcessError as e:
+            # capturing e allows us to see path resolution errors / system
+            # permissions errors etc
+            lit_config.fatal(
+                f"Cannot find devices under {sycl_device}\n"
+                f"{e}\n"
+                f"stdout:{sp.stdout}\n"
+                f"stderr:{sp.stderr}\n"
+            )
+        return sp
+
+
+# A device filter such as level_zero:gpu can have multiple devices under it and
+# the order is not guaranteed. The aspects enabled are also restricted to what
+# is supported on all devices under the label. It is possible for level_zero:gpu
+# and level_zero:0 to select different devices on different machines with the
+# same hardware. It is not currently possible to pass the device architecture to
+# ONEAPI_DEVICE_SELECTOR. Instead, if "BACKEND:arch-DEVICE_ARCH" is provided to
+# "sycl_devices", giving the desired device architecture, select a device that
+# matches that architecture using the backend:device-num device selection
+# scheme.
+filtered_sycl_devices = []
+for sycl_device in config.sycl_devices:
+    backend, device_arch = sycl_device.split(":", 1)
+
+    if not "arch-" in device_arch:
+        filtered_sycl_devices.append(sycl_device)
+        continue
+
+    env = copy.copy(llvm_config.config.environment)
+
+    # Find all available devices under the backend
+    env["ONEAPI_DEVICE_SELECTOR"] = backend + ":*"
+
+    detected_architectures = []
+
+    platform_devices = remove_level_zero_suffix(backend + ":*")
+
+    for line in get_sycl_ls_verbose(platform_devices, env).stdout.splitlines():
+        if re.match(r" *Architecture:", line):
+            _, architecture = line.strip().split(":", 1)
+            detected_architectures.append(architecture.strip())
+
+    device = device_arch.replace("arch-", "")
+
+    if device in detected_architectures:
+        device_num = detected_architectures.index(device)
+        filtered_sycl_devices.append(backend + ":" + str(device_num))
+    else:
+        lit_config.warning(
+            "Couldn't find device with architecture {}"
+            " under {} device selector! Skipping device "
+            "{}".format(device, backend + ":*", sycl_device)
+        )
+
+if not filtered_sycl_devices and not config.test_mode == "build-only":
+    lit_config.error(
+        "No sycl devices selected! Check your device architecture filters."
+    )
+
+config.sycl_devices = filtered_sycl_devices
+
 for sycl_device in remove_level_zero_suffix(config.sycl_devices):
     be, dev = sycl_device.split(":")
     config.available_features.add("any-device-is-" + dev)
@@ -821,6 +930,18 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
 
 for target in config.sycl_build_targets:
     config.available_features.add("any-target-is-" + target.replace("target-", ""))
+
+if config.llvm_main_include_dir:
+    lit_config.note("Using device config file built from LLVM")
+    config.available_features.add("device-config-file")
+    config.substitutions.append(
+        ("%device_config_file_include_flag", f"-I {config.llvm_main_include_dir}")
+    )
+elif os.path.exists(f"{config.sycl_include}/llvm/SYCLLowerIR/DeviceConfigFile.hpp"):
+    lit_config.note("Using installed device config file")
+    config.available_features.add("device-config-file")
+    config.substitutions.append(("%device_config_file_include_flag", ""))
+
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}
@@ -838,23 +959,6 @@ for full_name, sycl_device in zip(
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
         env["SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
-    # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
-    # prints warnings that might derail a user thinking something is wrong
-    # with their test run. It's just us filtering here, so silence them unless
-    # we get an exit status.
-    try:
-        cmd = "{} {} --verbose".format(config.run_launcher or "", sycl_ls)
-        sp = subprocess.run(cmd, env=env, text=True, shell=True, capture_output=True)
-        sp.check_returncode()
-    except subprocess.CalledProcessError as e:
-        # capturing e allows us to see path resolution errors / system
-        # permissions errors etc
-        lit_config.fatal(
-            f"Cannot list device aspects for {sycl_device}\n"
-            f"{e}\n"
-            f"stdout:{sp.stdout}\n"
-            f"stderr:{sp.stderr}\n"
-        )
 
     dev_aspects = []
     dev_sg_sizes = []
@@ -862,7 +966,8 @@ for full_name, sycl_device in zip(
     # See format.py's parse_min_intel_driver_req for explanation.
     is_intel_driver = False
     intel_driver_ver = {}
-    for line in sp.stdout.splitlines():
+    sycl_ls_sp = get_sycl_ls_verbose(sycl_device, env)
+    for line in sycl_ls_sp.stdout.splitlines():
         if re.match(r" *Vendor *: Intel\(R\) Corporation", line):
             is_intel_driver = True
         if re.match(r" *Driver *:", line):
@@ -899,7 +1004,7 @@ for full_name, sycl_device in zip(
     if dev_aspects == []:
         lit_config.error(
             "Cannot detect device aspect for {}\nstdout:\n{}\nstderr:\n{}".format(
-                sycl_device, sp.stdout, sp.stderr
+                sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
             )
         )
         dev_aspects.append(set())
@@ -911,7 +1016,7 @@ for full_name, sycl_device in zip(
     if dev_sg_sizes == []:
         lit_config.error(
             "Cannot detect device SG sizes for {}\nstdout:\n{}\nstderr:\n{}".format(
-                sycl_device, sp.stdout, sp.stderr
+                sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
             )
         )
         dev_sg_sizes.append(set())
@@ -934,7 +1039,7 @@ for full_name, sycl_device in zip(
             if not config.allow_unknown_arch:
                 lit_config.error(
                     "Cannot detect architecture for {}\nstdout:\n{}\nstderr:\n{}".format(
-                        sycl_device, sp.stdout, sp.stderr
+                        sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
                     )
                 )
             architectures = set()
@@ -991,7 +1096,7 @@ for full_name, sycl_device in zip(
     else:
         config.intel_driver_ver[full_name] = {}
 
-if lit_config.params.get("compatibility_testing", False):
+if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))
     config.substitutions.append(("%clang", " true "))
 else:
@@ -1006,6 +1111,12 @@ else:
         clangxx += "-fpreview-breaking-changes "
     clangxx += config.cxx_flags
     config.substitutions.append(("%clangxx", clangxx))
+
+# Check that no runtime features are available when in build-only
+from E2EExpr import E2EExpr
+
+if config.test_mode == "build-only":
+    E2EExpr.check_build_features(config.available_features)
 
 if lit_config.params.get("print_features", False):
     lit_config.note(

@@ -643,6 +643,12 @@ ur_result_t GetTimestampRecordingSupport(ur_device_handle_t device,
       device, UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP, support);
 }
 
+ur_result_t GetUSMContextMemcpyExpSupport(ur_device_handle_t device,
+                                          bool &support) {
+  return GetDeviceInfo<bool>(
+      device, UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP, support);
+}
+
 ur_device_partition_property_t makePartitionByCountsDesc(uint32_t count) {
   ur_device_partition_property_t desc;
   desc.type = UR_DEVICE_PARTITION_BY_COUNTS;
@@ -684,7 +690,7 @@ ur_result_t MakeUSMAllocationByType(ur_usm_type_t type,
 }
 
 std::string GetAdapterBackendName(ur_adapter_handle_t hAdapter) {
-  ur_adapter_backend_t backend = UR_ADAPTER_BACKEND_UNKNOWN;
+  ur_backend_t backend = UR_BACKEND_UNKNOWN;
   urAdapterGetInfo(hAdapter, UR_ADAPTER_INFO_BACKEND, sizeof(backend), &backend,
                    nullptr);
   std::stringstream ss;

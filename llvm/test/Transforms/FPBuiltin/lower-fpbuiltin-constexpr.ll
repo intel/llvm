@@ -1,4 +1,5 @@
 ; RUN: llc -mtriple=spirv64-unknown-unknown -o - %s
+; REQUIRES: spirv-registered-target
 ; Test that codegen doesn't crash for fpbuiltin intrinsic lowering.
 
 define float @test() {

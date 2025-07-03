@@ -21,7 +21,7 @@ namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 uint8_t GBufferStreamID;
 #endif
-void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
+void *buffer_impl::allocateMem(context_impl *Context, bool InitFromUserData,
                                void *HostPtr,
                                ur_event_handle_t &OutEventToWait) {
   bool HostPtrReadOnly = false;
@@ -30,9 +30,9 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
          "Internal error. Allocating memory on the host "
          "while having use_host_ptr property");
   return MemoryManager::allocateMemBuffer(
-      std::move(Context), this, HostPtr, HostPtrReadOnly,
-      BaseT::getSizeInBytes(), BaseT::MInteropEvent, BaseT::MInteropContext,
-      MProps, OutEventToWait);
+      Context, this, HostPtr, HostPtrReadOnly, BaseT::getSizeInBytes(),
+      BaseT::MInteropEvent, BaseT::MInteropContext.get(), MProps,
+      OutEventToWait);
 }
 void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
                                           void *UserObj, const void *HostObj,
@@ -79,12 +79,11 @@ buffer_impl::getNativeVector(backend BackendName) const {
     // doesn't have context and platform
     if (!Ctx)
       continue;
-    PlatformImplPtr Platform = Ctx->getPlatformImpl();
-    assert(Platform && "Platform must be present for device context");
-    if (Platform->getBackend() != BackendName)
+    const platform_impl &Platform = Ctx->getPlatformImpl();
+    if (Platform.getBackend() != BackendName)
       continue;
 
-    auto Adapter = Platform->getAdapter();
+    auto Adapter = Platform.getAdapter();
 
     ur_native_handle_t Handle = 0;
     // When doing buffer interop we don't know what device the memory should be
@@ -94,7 +93,7 @@ buffer_impl::getNativeVector(backend BackendName) const {
                                                    &Handle);
     Handles.push_back(Handle);
 
-    if (Platform->getBackend() == backend::opencl) {
+    if (Platform.getBackend() == backend::opencl) {
       __SYCL_OCL_CALL(clRetainMemObject, ur::cast<cl_mem>(Handle));
     }
   }

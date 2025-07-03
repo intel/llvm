@@ -9,10 +9,11 @@ import shutil
 import subprocess
 
 import tarfile
-import urllib  # nosec B404
 from options import options
 from pathlib import Path
 import hashlib
+from urllib.request import urlopen  # nosec B404
+from shutil import copyfileobj
 
 
 def run(
@@ -33,7 +34,12 @@ def run(
         env = os.environ.copy()
 
         for ldlib in ld_library:
-            env["LD_LIBRARY_PATH"] = ldlib + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+            if os.path.isdir(ldlib):
+                env["LD_LIBRARY_PATH"] = (
+                    ldlib + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+                )
+            else:
+                print(f"Warning: LD_LIBRARY_PATH component does not exist: {ldlib}")
 
         # order is important, we want provided sycl rt libraries to be first
         if add_sycl:
@@ -147,7 +153,9 @@ def download(dir, url, file, untar=False, unzip=False, checksum=""):
     data_file = os.path.join(dir, file)
     if not Path(data_file).exists():
         print(f"{data_file} does not exist, downloading")
-        urllib.request.urlretrieve(url, data_file)
+        with urlopen(url) as in_stream, open(data_file, "wb") as out_file:
+            copyfileobj(in_stream, out_file)
+
         calculated_checksum = calculate_checksum(data_file)
         if calculated_checksum != checksum:
             print(

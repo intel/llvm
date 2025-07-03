@@ -51,12 +51,11 @@ enum ur_ze_external_memory_desc_type {
 
 struct ur_ze_external_memory_data {
   void *importExtensionDesc;
-  ur_mem_handle_t urMemoryHandle;
   enum ur_ze_external_memory_desc_type type;
   size_t size;
 };
 
-struct ur_device_handle_t_ : _ur_object {
+struct ur_device_handle_t_ : ur_object {
   ur_device_handle_t_(ze_device_handle_t Device, ur_platform_handle_t Plt,
                       ur_device_handle_t ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
@@ -224,6 +223,8 @@ struct ur_device_handle_t_ : _ur_object {
   ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
       ZeDeviceMemoryAccessProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
+  ZeCache<ZeStruct<ze_device_cache_line_size_ext_t>>
+      ZeDeviceCacheLinePropertiesExt;
   ZeCache<ZeStruct<ze_device_ip_version_ext_t>> ZeDeviceIpVersionExt;
   ZeCache<struct ze_global_memsize> ZeGlobalMemSize;
   ZeCache<ZeStruct<ze_mutable_command_list_exp_properties_t>>
@@ -232,6 +233,8 @@ struct ur_device_handle_t_ : _ur_object {
   ZeCache<ZeStruct<ze_intel_device_block_array_exp_properties_t>>
       ZeDeviceBlockArrayProperties;
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
+  ZeCache<ZeStruct<ze_device_vector_width_properties_ext_t>>
+      ZeDeviceVectorWidthPropertiesExt;
 
   // Map device bindless image offset to corresponding host image handle.
   std::unordered_map<ur_exp_image_native_handle_t, ze_image_handle_t>

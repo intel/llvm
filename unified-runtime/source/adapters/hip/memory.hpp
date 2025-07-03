@@ -249,7 +249,7 @@ public:
       break;
     default:
       // urMemImageCreate given unsupported image_channel_data_type
-      die("Bad image format given to ur_image_ constructor");
+      throw UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
     }
   }
 
@@ -307,7 +307,7 @@ public:
 /// Migrations will occur in both cases if the most recent version of data
 /// is on a different device, marked by LastQueueWritingToMemObj->getDevice().
 ///
-struct ur_mem_handle_t_ {
+struct ur_mem_handle_t_ : ur::hip::handle_base {
 
   // TODO: Move as much shared data up as possible
   using ur_context = ur_context_handle_t_ *;
@@ -355,9 +355,9 @@ struct ur_mem_handle_t_ {
 
   // Subbuffer constructor
   ur_mem_handle_t_(ur_mem Parent, size_t SubBufferOffset)
-      : Context{Parent->Context}, RefCount{1}, MemFlags{Parent->MemFlags},
-        HaveMigratedToDeviceSinceLastWrite(Parent->Context->Devices.size(),
-                                           false),
+      : handle_base(), Context{Parent->Context}, RefCount{1},
+        MemFlags{Parent->MemFlags}, HaveMigratedToDeviceSinceLastWrite(
+                                        Parent->Context->Devices.size(), false),
         Mem{BufferMem{std::get<BufferMem>(Parent->Mem)}} {
     auto &SubBuffer = std::get<BufferMem>(Mem);
     SubBuffer.Parent = Parent;

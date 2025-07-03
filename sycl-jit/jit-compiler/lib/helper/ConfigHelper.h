@@ -1,4 +1,4 @@
-//==---- ConfigHelper.h - Helper to manage compilation options for JIT -----==//
+//===- ConfigHelper.h - Helper to manage compilation options for JIT ------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_JIT_COMPILER_HELPER_CONFIGHELPER_H
-#define SYCL_FUSION_JIT_COMPILER_HELPER_CONFIGHELPER_H
+#pragma once
 
 #include "Options.h"
 
@@ -59,5 +58,3 @@ private:
   static thread_local Config Cfg;
 };
 } // namespace jit_compiler
-
-#endif // SYCL_FUSION_JIT_COMPILER_HELPER_CONFIGHELPER_H

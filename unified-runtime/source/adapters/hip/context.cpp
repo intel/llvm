@@ -106,8 +106,6 @@ urContextRetain(ur_context_handle_t hContext) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetNativeHandle([[maybe_unused]] ur_context_handle_t hContext,
                          [[maybe_unused]] ur_native_handle_t *phNativeContext) {
-  std::ignore = hContext;
-  std::ignore = phNativeContext;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

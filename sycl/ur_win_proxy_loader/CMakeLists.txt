@@ -57,6 +57,7 @@ if (MSVC)
   add_library(ur_win_proxy_loaderd SHARED ur_win_proxy_loader.cpp ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc)
   target_compile_options(ur_win_proxy_loaderd PRIVATE ${WINUNLOAD_CXX_FLAGS_DEBUG})
   target_compile_options(ur_win_proxy_loader PRIVATE ${WINUNLOAD_CXX_FLAGS_RELEASE})
+  target_compile_definitions(ur_win_proxy_loaderd PRIVATE UR_WIN_PROXY_LOADER_DEBUG)
   target_link_libraries(ur_win_proxy_loaderd PRIVATE shlwapi)
   target_link_libraries(ur_win_proxy_loader PRIVATE shlwapi)
   # 0x2000: LOAD_LIBRARY_SAFE_CURRENT_DIRS flag. Using this flag means that loading dependency DLLs

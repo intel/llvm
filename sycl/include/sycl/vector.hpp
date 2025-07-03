@@ -24,11 +24,7 @@
 
 // See vec::DataType definitions for more details
 #ifndef __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 1
-#else
-#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 0
-#endif
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE !__SYCL_USE_LIBSYCL8_VEC_IMPL
 #endif
 
 #if !defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
@@ -37,7 +33,7 @@
 
 #include <sycl/access/access.hpp>              // for decorated, address_space
 #include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
-#include <sycl/detail/common.hpp>              // for ArrayCreator, RepeatV...
+#include <sycl/detail/common.hpp>              // for ArrayCreator
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/detail/memcpy.hpp>              // for memcpy
@@ -199,6 +195,10 @@ protected:
   alignas(alignment) DataType m_Data;
 
   template <size_t... Is>
+  constexpr vec_base(const DataT &Val, std::index_sequence<Is...>)
+      : m_Data{((void)Is, Val)...} {}
+
+  template <size_t... Is>
   constexpr vec_base(const std::array<DataT, NumElements> &Arr,
                      std::index_sequence<Is...>)
       : m_Data{Arr[Is]...} {}
@@ -266,8 +266,7 @@ public:
   constexpr vec_base &operator=(vec_base &&) = default;
 
   explicit constexpr vec_base(const DataT &arg)
-      : vec_base(RepeatValue<NumElements>(arg),
-                 std::make_index_sequence<NumElements>()) {}
+      : vec_base(arg, std::make_index_sequence<NumElements>()) {}
 
   template <typename... argTN,
             typename = std::enable_if_t<
@@ -291,7 +290,7 @@ template <typename DataT> class vec_base<DataT, 1> {
 
 protected:
   static constexpr int alignment = (std::min)((size_t)64, sizeof(DataType));
-  alignas(alignment) DataType m_Data{};
+  alignas(alignment) DataType m_Data;
 
 public:
   constexpr vec_base() = default;
@@ -309,8 +308,13 @@ template <typename Self> class ConversionToVecMixin {
 
 public:
   operator vec_ty() const {
-    vec_ty res{*static_cast<const Self *>(this)};
-    return res;
+    auto &self = *static_cast<const Self *>(this);
+    if constexpr (vec_ty::size() == 1)
+      // Avoid recursion by explicitly going through `vec(const DataT &)` ctor.
+      return vec_ty{static_cast<typename vec_ty::element_type>(self)};
+    else
+      // Uses `vec`'s variadic ctor.
+      return vec_ty{self};
   }
 };
 
@@ -398,9 +402,8 @@ class __SYCL_EBO Swizzle
       public ApplyIf<sizeof...(Indexes) == 1,
                      ScalarConversionOperatorsMixIn<
                          Swizzle<IsConstVec, DataT, VecSize, Indexes...>>>,
-      public ApplyIf<sizeof...(Indexes) != 1,
-                     ConversionToVecMixin<
-                         Swizzle<IsConstVec, DataT, VecSize, Indexes...>>>,
+      public ConversionToVecMixin<
+          Swizzle<IsConstVec, DataT, VecSize, Indexes...>>,
       public NamedSwizzlesMixinBoth<
           Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
   using Base = SwizzleBase<Swizzle<IsConstVec, DataT, VecSize, Indexes...>>;
@@ -423,9 +426,11 @@ public:
   using element_type = DataT;
   using value_type = DataT;
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 #ifdef __SYCL_DEVICE_ONLY__
   using vector_t = typename vec<DataT, NumElements>::vector_t;
 #endif // __SYCL_DEVICE_ONLY__
+#endif
 
   Swizzle() = delete;
   Swizzle(const Swizzle &) = delete;
@@ -497,6 +502,7 @@ class __SYCL_EBO vec :
 
   using Base = detail::vec_base<DataT, NumElements>;
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 #ifdef __SYCL_DEVICE_ONLY__
   using element_type_for_vector_t = typename detail::map_type<
       DataT,
@@ -524,12 +530,15 @@ public:
   // `vector_t` is the same as `DataT`. Not that the other ctor isn't a template
   // so we don't even need a smart `enable_if` condition here, the mere fact of
   // this being a template makes the other ctor preferred.
+  // For vectors of length 3, make sure to only copy 3 elements, not 4, to work
+  // around code generation issues, see LLVM #144454.
   template <
       typename vector_t_ = vector_t,
       typename = typename std::enable_if_t<std::is_same_v<vector_t_, vector_t>>>
   constexpr vec(vector_t_ openclVector) {
     sycl::detail::memcpy_no_adl(&this->m_Data, &openclVector,
-                                sizeof(openclVector));
+                                NumElements *
+                                    sizeof(element_type_for_vector_t));
   }
 
   /* @SYCL2020
@@ -541,6 +550,7 @@ public:
 
 private:
 #endif // __SYCL_DEVICE_ONLY__
+#endif
 
 #if __SYCL_USE_LIBSYCL8_VEC_IMPL
   template <int... Indexes>
@@ -618,6 +628,7 @@ public:
   static constexpr size_t get_size() { return byte_size(); }
   static constexpr size_t byte_size() noexcept { return sizeof(Base); }
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 private:
   // getValue should be able to operate on different underlying
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
@@ -640,6 +651,8 @@ private:
   }
 
 public:
+#endif
+
   // Out-of-class definition is in `sycl/detail/vector_convert.hpp`
   template <typename convertT,
             rounding_mode roundingMode = rounding_mode::automatic>

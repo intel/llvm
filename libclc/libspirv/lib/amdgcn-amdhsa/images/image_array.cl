@@ -88,18 +88,18 @@ _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_FETCH_32_BUILTIN(2, float4, Dv4_f, int2, Dv2_i,
 // Half
 #ifdef cl_khr_fp16
 // return 1-channel color data
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_FETCH_16_BUILTIN(1, half, DF16_, int, i, 2)
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_FETCH_16_BUILTIN(2, half, DF16_, int2, Dv2_i,
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_FETCH_16_BUILTIN(1, half, Dh, int, i, 2)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_FETCH_16_BUILTIN(2, half, Dh, int2, Dv2_i,
                                                   4)
 // return 2-channel color data
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_FETCH_16_BUILTIN(1, half2, Dv2_DF16_, int, i,
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_FETCH_16_BUILTIN(1, half2, Dv2_Dh, int, i,
                                                   2)
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_FETCH_16_BUILTIN(2, half2, Dv2_DF16_, int2,
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_FETCH_16_BUILTIN(2, half2, Dv2_Dh, int2,
                                                   Dv2_i, 4)
 // return 4-channel color data
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_FETCH_16_BUILTIN(1, half4, Dv4_DF16_, int, i,
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_FETCH_16_BUILTIN(1, half4, Dv4_Dh, int, i,
                                                   2)
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_FETCH_16_BUILTIN(2, half4, Dv4_DF16_, int2,
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_FETCH_16_BUILTIN(2, half4, Dv4_Dh, int2,
                                                   Dv2_i, 4)
 #endif
 
@@ -237,18 +237,18 @@ _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_32_BUILTIN(2, float4, Dv4_f, int2, Dv2_i,
 // Half
 #ifdef cl_khr_fp16
 // write 1-channel color data
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_16_BUILTIN(1, half, DF16_, int, i, 2)
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_16_BUILTIN(2, half, DF16_, int2, Dv2_i,
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_16_BUILTIN(1, half, Dh, int, i, 2)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_16_BUILTIN(2, half, Dh, int2, Dv2_i,
                                                   4)
 // write 2-channel color data
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_16_BUILTIN(1, half2, Dv2_DF16_, int, i,
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_16_BUILTIN(1, half2, Dv2_Dh, int, i,
                                                   2)
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_16_BUILTIN(2, half2, Dv2_DF16_, int2,
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_16_BUILTIN(2, half2, Dv2_Dh, int2,
                                                   Dv2_i, 4)
 // write 4-channel color data
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_16_BUILTIN(1, half4, Dv4_DF16_, int, i,
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_16_BUILTIN(1, half4, Dv4_Dh, int, i,
                                                   2)
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_16_BUILTIN(2, half4, Dv4_DF16_, int2,
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_16_BUILTIN(2, half4, Dv4_Dh, int2,
                                                   Dv2_i, 4)
 #endif
 
@@ -395,19 +395,19 @@ _CLC_DEFINE_SAMPLEDIMAGE_ARRAY_BINDLESS_READ_32_BUILTIN(2, float4, Dv4_f,
 // Half
 #ifdef cl_khr_fp16
 // return 1 channel color data
-_CLC_DEFINE_SAMPLEDIMAGE_ARRAY_BINDLESS_READ_16_BUILTIN(1, half, DF16_, float,
+_CLC_DEFINE_SAMPLEDIMAGE_ARRAY_BINDLESS_READ_16_BUILTIN(1, half, Dh, float,
                                                         f, 2)
-_CLC_DEFINE_SAMPLEDIMAGE_ARRAY_BINDLESS_READ_16_BUILTIN(2, half, DF16_, float2,
+_CLC_DEFINE_SAMPLEDIMAGE_ARRAY_BINDLESS_READ_16_BUILTIN(2, half, Dh, float2,
                                                         Dv2_f, 4)
 // return 2 channel color data
-_CLC_DEFINE_SAMPLEDIMAGE_ARRAY_BINDLESS_READ_16_BUILTIN(1, half2, Dv2_DF16_,
+_CLC_DEFINE_SAMPLEDIMAGE_ARRAY_BINDLESS_READ_16_BUILTIN(1, half2, Dv2_Dh,
                                                         float, f, 2)
-_CLC_DEFINE_SAMPLEDIMAGE_ARRAY_BINDLESS_READ_16_BUILTIN(2, half2, Dv2_DF16_,
+_CLC_DEFINE_SAMPLEDIMAGE_ARRAY_BINDLESS_READ_16_BUILTIN(2, half2, Dv2_Dh,
                                                         float2, Dv2_f, 4)
 // return 4 channel color data
-_CLC_DEFINE_SAMPLEDIMAGE_ARRAY_BINDLESS_READ_16_BUILTIN(1, half4, Dv4_DF16_,
+_CLC_DEFINE_SAMPLEDIMAGE_ARRAY_BINDLESS_READ_16_BUILTIN(1, half4, Dv4_Dh,
                                                         float, f, 2)
-_CLC_DEFINE_SAMPLEDIMAGE_ARRAY_BINDLESS_READ_16_BUILTIN(2, half4, Dv4_DF16_,
+_CLC_DEFINE_SAMPLEDIMAGE_ARRAY_BINDLESS_READ_16_BUILTIN(2, half4, Dv4_Dh,
                                                         float2, Dv2_f, 4)
 #endif
 

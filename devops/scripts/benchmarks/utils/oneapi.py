@@ -8,6 +8,7 @@ from utils.utils import download, run
 from options import options
 import os
 import hashlib
+import glob
 
 
 class OneAPI:
@@ -16,16 +17,11 @@ class OneAPI:
         Path(self.oneapi_dir).mkdir(parents=True, exist_ok=True)
         self.oneapi_instance_id = self.generate_unique_oneapi_id(self.oneapi_dir)
 
-        # can we just hardcode these links?
         self.install_package(
-            "dnnl",
-            "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/87e117ab-039b-437d-9c80-dcd5c9e675d5/intel-onednn-2025.0.0.862_offline.sh",
-            "6866feb5b8dfefd6ff45d6bfabed44f01d7fba8fd452480ae1fd86b92e9481ae052c24842da14f112f672f5c4859945b",
-        )
-        self.install_package(
-            "mkl",
-            "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/79153e0f-74d7-45af-b8c2-258941adf58a/intel-onemkl-2025.0.0.940_offline.sh",
-            "122bb84cf943ea27753cb399c81ab2ae218ebd51b789c74d273240157722925ab4d5a43cb0b5de41b854f2c5a59a4002",
+            "base",
+            "2025.1.0+627",
+            "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/cca951e1-31e7-485e-b300-fe7627cb8c08/intel-oneapi-base-toolkit-2025.1.0.651_offline.sh",
+            "98cad2489f2c90a2b328568a59371cf35855a3338643f61a9fc2d16a265d29f22feb2d673916dd7be18fa12a5e6d2475",
         )
         return
 
@@ -33,26 +29,41 @@ class OneAPI:
         hash_object = hashlib.md5(path.encode())
         return hash_object.hexdigest()
 
-    def install_package(self, name, url, checksum):
-        package_path = os.path.join(self.oneapi_dir, name)
-        if Path(package_path).exists():
-            print(
-                f"{package_path} exists, skipping installing oneAPI package {name}..."
-            )
-            return
+    def check_install(self, version):
+        logs_dir = os.path.join(self.oneapi_dir, "logs")
+        pattern = f"{logs_dir}/installer.install.intel.oneapi.lin.basekit.product,v={version}*.log"
+        log_files = glob.glob(pattern)
+        success_line = f"Operation 'intel.oneapi.lin.basekit.product,v={version}' execution is finished with status Success."
+        for log_file in log_files:
+            try:
+                with open(log_file, "r") as f:
+                    for line in f:
+                        if success_line in line:
+                            return True
+            except Exception:
+                continue
+        return False
 
-        package = download(
-            self.oneapi_dir, url, f"package_{name}.sh", checksum=checksum
-        )
+    def install_package(self, name, version, url, checksum):
+        if self.check_install(version):
+            print(f"OneAPI {name} version {version} already installed, skipping.")
+            return
+        package_name = f"package_{name}_{version}.sh"
+        package_path = os.path.join(self.oneapi_dir, f"{package_name}")
+        if Path(package_path).exists():
+            print(f"{package_path} exists, skipping download of oneAPI package...")
+        else:
+            package = download(
+                self.oneapi_dir, url, f"{package_name}", checksum=checksum
+            )
         try:
-            print(f"installing {name}")
             run(
-                f"sh {package} -a -s --eula accept --install-dir {self.oneapi_dir} --instance {self.oneapi_instance_id}"
+                f"sh {package_path} -a -s --eula accept --install-dir {self.oneapi_dir} --instance {self.oneapi_instance_id}"
             )
         except:
-            print("oneAPI installation likely exists already")
+            print(f"OneAPI {name} version {version} installation likely exists already")
             return
-        print(f"{name} installation complete")
+        print(f"OneAPI {name} version {version} installation complete")
 
     def package_dir(self, package, dir):
         return os.path.join(self.oneapi_dir, package, "latest", dir)
@@ -60,6 +71,9 @@ class OneAPI:
     def package_cmake(self, package):
         package_lib = self.package_dir(package, "lib")
         return os.path.join(package_lib, "cmake", package)
+
+    def mkl_dir(self):
+        return self.package_dir("mkl", "")
 
     def mkl_lib(self):
         return self.package_dir("mkl", "lib")

@@ -36,18 +36,36 @@ template <>
 struct KernelInfo<EAMTestKernel> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs; }
   static constexpr const char *getName() { return EAMTestKernelName; }
+  static constexpr const kernel_param_desc_t &getParamDesc(int i) {
+    return Dummy;
+  }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 
 template <>
 struct KernelInfo<EAMTestKernel2> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return 0; }
   static constexpr const char *getName() { return EAMTestKernel2Name; }
+  static constexpr const kernel_param_desc_t &getParamDesc(int i) {
+    return Dummy;
+  }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 
 template <>
 struct KernelInfo<EAMTestKernel3> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs; }
   static constexpr const char *getName() { return EAMTestKernel3Name; }
+  static constexpr const kernel_param_desc_t &getParamDesc(int i) {
+    return Dummy;
+  }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 
 } // namespace detail
@@ -117,8 +135,8 @@ class MockHandler : public sycl::handler {
 public:
   using sycl::handler::impl;
 
-  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue)
-      : sycl::handler(Queue, /*CallerNeedsEvent*/ true) {}
+  MockHandler(sycl::detail::queue_impl &Queue)
+      : sycl::handler(Queue.shared_from_this(), /*CallerNeedsEvent*/ true) {}
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     auto CGH = static_cast<sycl::handler *>(this);
@@ -129,10 +147,11 @@ public:
           std::move(impl->MNDRDesc), std::move(CGH->MHostKernel),
           std::move(CGH->MKernel), std::move(impl->MKernelBundle),
           std::move(impl->CGData), std::move(impl->MArgs),
-          CGH->MKernelName.c_str(), std::move(CGH->MStreamStorage),
-          std::move(impl->MAuxiliaryResources), impl->MCGType, {},
-          impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
-          impl->MKernelWorkGroupMemorySize, CGH->MCodeLoc));
+          CGH->MKernelName.data(), impl->MKernelNameBasedCachePtr,
+          std::move(CGH->MStreamStorage), std::move(impl->MAuxiliaryResources),
+          impl->MCGType, {}, impl->MKernelIsCooperative,
+          impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
+          CGH->MCodeLoc));
       break;
     }
     default:
@@ -146,7 +165,7 @@ public:
 
 const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
     const sycl::kernel_bundle<sycl::bundle_state::input> &KernelBundle,
-    std::shared_ptr<sycl::detail::queue_impl> QueueImpl) {
+    sycl::detail::queue_impl &QueueImpl) {
 
   auto ExecBundle = sycl::link(sycl::compile(KernelBundle));
   EXPECT_FALSE(ExecBundle.empty()) << "Expect non-empty exec kernel bundle";
@@ -163,8 +182,8 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
   EXPECT_TRUE(KernelBundleImplPtr)
       << "Expect command group to contain kernel bundle";
 
-  auto SyclKernelImpl = KernelBundleImplPtr->tryGetKernel(
-      ExecKernel->MKernelName, KernelBundleImplPtr);
+  auto SyclKernelImpl =
+      KernelBundleImplPtr->tryGetKernel(ExecKernel->MKernelName);
   EXPECT_TRUE(SyclKernelImpl != nullptr);
   std::shared_ptr<sycl::detail::device_image_impl> DeviceImageImpl =
       SyclKernelImpl->getDeviceImage();
@@ -199,7 +218,7 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
 
   const sycl::detail::KernelArgMask *EliminatedArgMask =
       getKernelArgMaskFromBundle(KernelBundle,
-                                 sycl::detail::getSyclObjImpl(Queue));
+                                 *sycl::detail::getSyclObjImpl(Queue));
   assert(EliminatedArgMask && "EliminatedArgMask must be not null");
 
   sycl::detail::KernelArgMask ExpElimArgMask(EAMTestKernelNumArgs);
@@ -284,8 +303,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     const sycl::device Dev = Plt.get_devices()[0];
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
-    ProgBefore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                      sycl::detail::getSyclObjImpl(Dev), Name);
+    ProgBefore = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
+                                      *sycl::detail::getSyclObjImpl(Dev), Name);
     auto Mask = PM.getEliminatedKernelArgMask(ProgBefore, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 1);
@@ -309,8 +328,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     const sycl::device Dev = Plt.get_devices()[0];
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
-    ProgAfter = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                     sycl::detail::getSyclObjImpl(Dev), Name);
+    ProgAfter = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
+                                     *sycl::detail::getSyclObjImpl(Dev), Name);
     auto Mask = PM.getEliminatedKernelArgMask(ProgAfter, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 0);

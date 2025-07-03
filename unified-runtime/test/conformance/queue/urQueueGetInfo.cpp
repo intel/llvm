@@ -121,14 +121,7 @@ TEST_P(urQueueGetInfoTest, SuccessRoundtripNullDevice) {
   ASSERT_SUCCESS(urQueueGetInfo(from_native_queue, property_name, property_size,
                                 &property_value, nullptr));
 
-  // We can't assume that the two device handles are equal (since creating the
-  // link to the UR structures has been severed by going through native handle,
-  // so just check the underlying native pointers
-  ur_native_handle_t original_device;
-  ur_native_handle_t new_device;
-  ASSERT_SUCCESS(urDeviceGetNativeHandle(device, &original_device));
-  ASSERT_SUCCESS(urDeviceGetNativeHandle(property_value, &new_device));
-  ASSERT_EQ(original_device, new_device);
+  ASSERT_EQ(property_value, device);
 }
 
 TEST_P(urQueueGetInfoTest, SuccessFlags) {
@@ -227,9 +220,9 @@ TEST_P(urQueueGetInfoTest, InvalidNullPointerPropSizeRet) {
 }
 
 struct urQueueGetInfoDeviceQueueTestWithInfoParam : public uur::urQueueTest {
-  void SetUp() {
+  void SetUp() override {
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-    urQueueGetInfoTest::SetUp();
+    UUR_RETURN_ON_FATAL_FAILURE(urQueueGetInfoTest::SetUp());
     ur_queue_flags_t deviceQueueCapabilities = 0;
     ASSERT_SUCCESS(urDeviceGetInfo(
         device, UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES,
@@ -240,7 +233,7 @@ struct urQueueGetInfoDeviceQueueTestWithInfoParam : public uur::urQueueTest {
     ASSERT_SUCCESS(urQueueCreate(context, device, &queueProperties, &queue));
   }
 
-  void TearDown() {
+  void TearDown() override {
     if (queue) {
       ASSERT_SUCCESS(urQueueRelease(queue));
     }

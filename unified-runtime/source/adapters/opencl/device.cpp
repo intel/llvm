@@ -1183,13 +1183,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   }
-  case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION: {
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
-                                         CL_DEVICE_OPENCL_C_VERSION, propSize,
-                                         pPropValue, pPropSizeRet));
-
-    return UR_RESULT_SUCCESS;
-  }
   case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
                                          CL_DEVICE_BUILT_IN_KERNELS, propSize,
@@ -1317,7 +1310,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     const cl_device_info info_name = CL_DEVICE_SUB_GROUP_SIZES_INTEL;
-    bool isExtensionSupported;
+    bool isExtensionSupported = false;
     if (hDevice->checkDeviceExtensions({"cl_intel_required_subgroup_size"},
                                        isExtensionSupported) !=
             UR_RESULT_SUCCESS ||
@@ -1421,12 +1414,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(false);
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    return ReturnValue(false);
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
-    return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
-    return ReturnValue(false);
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    return ReturnValue(0);
   // TODO: We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
@@ -1435,7 +1426,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP:
@@ -1457,6 +1447,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP:
+  case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
@@ -1598,13 +1589,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t hNativeDevice, ur_adapter_handle_t,
     const ur_device_native_properties_t *pProperties,
     ur_device_handle_t *phDevice) {
+
+  auto SetDeviceProps = [&]() {
+    (*phDevice)->IsNativeHandleOwned =
+        pProperties ? pProperties->isNativeHandleOwned : false;
+  };
+
   cl_device_id NativeHandle = reinterpret_cast<cl_device_id>(hNativeDevice);
 
   uint32_t NumPlatforms = 0;
-  UR_RETURN_ON_FAILURE(urPlatformGet(nullptr, 0, 0, nullptr, &NumPlatforms));
+  UR_RETURN_ON_FAILURE(urPlatformGet(nullptr, 0, nullptr, &NumPlatforms));
   std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
   UR_RETURN_ON_FAILURE(
-      urPlatformGet(nullptr, 0, NumPlatforms, Platforms.data(), nullptr));
+      urPlatformGet(nullptr, NumPlatforms, Platforms.data(), nullptr));
 
   for (uint32_t i = 0; i < NumPlatforms; i++) {
     uint32_t NumDevices = 0;
@@ -1617,12 +1614,43 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     for (auto &Device : Devices) {
       if (Device->CLDevice == NativeHandle) {
         *phDevice = Device;
-        (*phDevice)->IsNativeHandleOwned =
-            pProperties ? pProperties->isNativeHandleOwned : false;
+        SetDeviceProps();
         return UR_RESULT_SUCCESS;
       }
     }
   }
+
+  // Handle sub-devices by storing/querying a map stored in the platform
+  cl_device_id Parent = nullptr;
+  CL_RETURN_ON_FAILURE(clGetDeviceInfo(NativeHandle, CL_DEVICE_PARENT_DEVICE,
+                                       sizeof(Parent), &Parent, nullptr));
+  if (Parent != nullptr) {
+    ur_device_handle_t ParentUrHandle;
+    // This will either create a new device handle, or return an existing one
+    UR_RETURN_ON_FAILURE(urDeviceCreateWithNativeHandle(
+        reinterpret_cast<ur_native_handle_t>(Parent), nullptr, nullptr,
+        &ParentUrHandle));
+
+    ur_platform_handle_t PlatformHandle = ParentUrHandle->Platform;
+    assert(PlatformHandle);
+
+    {
+      std::lock_guard lock{PlatformHandle->SubDevicesLock};
+
+      if (PlatformHandle->SubDevices.count(NativeHandle)) {
+        *phDevice = PlatformHandle->SubDevices[NativeHandle];
+      } else {
+        *phDevice = std::make_unique<ur_device_handle_t_>(
+                        NativeHandle, PlatformHandle, ParentUrHandle)
+                        .release();
+        PlatformHandle->SubDevices[NativeHandle] = *phDevice;
+      }
+    }
+
+    SetDeviceProps();
+    return UR_RESULT_SUCCESS;
+  }
+
   return UR_RESULT_ERROR_INVALID_DEVICE;
 }
 

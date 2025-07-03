@@ -15,10 +15,9 @@
 #include "clang/AST/QualTypeNames.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/AST/TemplateArgumentVisitor.h"
-#include "clang/AST/Mangle.h"
 #include "clang/AST/SYCLKernelInfo.h"
 #include "clang/AST/StmtSYCL.h"
+#include "clang/AST/TemplateArgumentVisitor.h"
 #include "clang/AST/TypeOrdering.h"
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Analysis/CallGraph.h"
@@ -27,7 +26,6 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/Version.h"
-#include "clang/AST/SYCLKernelInfo.h"
 #include "clang/Sema/Attr.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/ParsedAttr.h"
@@ -75,6 +73,8 @@ static constexpr llvm::StringLiteral InitSpecConstantsBuffer =
 static constexpr llvm::StringLiteral FinalizeMethodName = "__finalize";
 static constexpr llvm::StringLiteral LibstdcxxFailedAssertion =
     "__failed_assertion";
+static constexpr llvm::StringLiteral GlibcxxAssertFail =
+    "__glibcxx_assert_fail";
 constexpr unsigned MaxKernelArgsSize = 2048;
 
 bool SemaSYCL::isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
@@ -96,7 +96,8 @@ bool SemaSYCL::isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
 
 static bool isSyclAccessorType(QualType Ty) {
   return SemaSYCL::isSyclType(Ty, SYCLTypeAttr::accessor) ||
-         SemaSYCL::isSyclType(Ty, SYCLTypeAttr::local_accessor);
+         SemaSYCL::isSyclType(Ty, SYCLTypeAttr::local_accessor) ||
+         SemaSYCL::isSyclType(Ty, SYCLTypeAttr::dynamic_local_accessor);
 }
 
 // FIXME: Accessor property lists should be modified to use compile-time
@@ -600,14 +601,33 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
   if (!Callee->getIdentifier())
     return false;
 
+  bool IsAllowed = false;
   // libstdc++-11 introduced an undefined function "void __failed_assertion()"
   // which may lead to SemaSYCL check failure. However, this undefined function
   // is used to trigger some compilation error when the check fails at compile
   // time and will be ignored when the check succeeds. We allow calls to this
   // function to support some important std functions in SYCL device.
-  return (Callee->getName() == LibstdcxxFailedAssertion) &&
-         Callee->getNumParams() == 0 && Callee->getReturnType()->isVoidType() &&
-         SrcMgr.isInSystemHeader(Callee->getLocation());
+  IsAllowed = (Callee->getName() == LibstdcxxFailedAssertion) &&
+              Callee->getNumParams() == 0 &&
+              Callee->getReturnType()->isVoidType() &&
+              SrcMgr.isInSystemHeader(Callee->getLocation());
+
+  if (IsAllowed)
+    return true;
+
+  // GCC-15 introduced "std::__glibcxx_assert_fail" declared c++config.h and
+  // extensively used in STL to do runtime check in debug mode. The behavior
+  // is similar to "assert", we have supported it in libdevice in the same way
+  // as "assert". However, Sema check will report "undefined function without
+  // SYCL_EXTERNAL attribute" error in some cases. We have to allow it just as
+  // what we did to "__failed_assertion". The prototype is following:
+  // void __glibcxx_assert_fail(const char *, int, const char *, const char*);
+  IsAllowed = (Callee->getName() == GlibcxxAssertFail) &&
+              Callee->getNumParams() == 4 &&
+              Callee->getReturnType()->isVoidType() &&
+              SrcMgr.isInSystemHeader(Callee->getLocation());
+
+  return IsAllowed;
 }
 
 // Helper function to report conflicting function attributes.
@@ -826,7 +846,7 @@ static bool isDeclaredInSYCLNamespace(const Decl *D) {
     ND = cast<NamespaceDecl>(Parent);
   }
 
-  return ND && ND->getName() == "sycl";
+  return ND->getName() == "sycl";
 }
 
 static bool isSYCLPrivateMemoryVar(VarDecl *VD) {
@@ -1082,8 +1102,7 @@ static ParamDesc makeParamDesc(ASTContext &Ctx, StringRef Name, QualType Ty) {
 }
 
 static void unsupportedFreeFunctionParamType() {
-  llvm::report_fatal_error("Only scalars and pointers are permitted as "
-                           "free function parameters");
+  llvm::report_fatal_error("Unsupported free kernel parameter type!");
 }
 
 class MarkWIScopeFnVisitor : public RecursiveASTVisitor<MarkWIScopeFnVisitor> {
@@ -1154,30 +1173,44 @@ static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
 /// \return the target of given SYCL accessor type
 static target getAccessTarget(QualType FieldTy,
                               const ClassTemplateSpecializationDecl *AccTy) {
-  if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::local_accessor))
+  if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::local_accessor) ||
+      SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor))
     return local;
 
   return static_cast<target>(
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
 
-// FIXME: Free functions must have void return type and be declared at file
-// scope, outside any namespaces.
 bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
-  for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
-    SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
-        IRAttr->getAttributeNameValuePairs(getASTContext());
-    for (const auto &NameValuePair : NameValuePairs) {
-      if (NameValuePair.first == "sycl-nd-range-kernel" ||
-          NameValuePair.first == "sycl-single-task-kernel") {
-        if (!FD->getReturnType()->isVoidType()) {
-          llvm::report_fatal_error(
-              "Only functions at file scope with void return "
-              "type are permitted as free functions");
-          return false;
-        }
+  SourceLocation Loc = FD->getLocation();
+  bool NextDeclaredWithAttr = false;
+  for (FunctionDecl *Redecl : FD->redecls()) {
+    bool IsFreeFunctionAttr = false;
+    for (auto *IRAttr :
+         Redecl->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+      SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+          IRAttr->getAttributeNameValuePairs(getASTContext());
+      const auto it = std::find_if(
+          NameValuePairs.begin(), NameValuePairs.end(),
+          [](const auto &NameValuePair) {
+            return NameValuePair.first == "sycl-nd-range-kernel" ||
+                   NameValuePair.first == "sycl-single-task-kernel";
+          });
+      IsFreeFunctionAttr = it != NameValuePairs.end();
+      if (IsFreeFunctionAttr)
+        break;
+    }
+    if (Redecl->isFirstDecl()) {
+      if (IsFreeFunctionAttr)
         return true;
+      if (NextDeclaredWithAttr) {
+        Diag(Loc, diag::err_free_function_first_occurrence_missing_attr);
+        Diag(Redecl->getLocation(), diag::note_previous_declaration);
+        return false;
       }
+    } else {
+      Loc = Redecl->getLocation();
+      NextDeclaredWithAttr = IsFreeFunctionAttr;
     }
   }
   return false;
@@ -1616,7 +1649,7 @@ public:
   // A visitor function that dispatches to functions as defined in
   // SyclKernelFieldHandler by iterating over a free function parameter list.
   template <typename... HandlerTys>
-  void VisitFunctionParameters(FunctionDecl *FreeFunc,
+  void VisitFunctionParameters(const FunctionDecl *FreeFunc,
                                HandlerTys &...Handlers) {
     for (ParmVarDecl *Param : FreeFunc->parameters())
       visitParam(Param, Param->getType(), Handlers...);
@@ -2090,13 +2123,7 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (!SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) &&
-        !SemaSYCL::isSyclType(ParamTy,
-                              SYCLTypeAttr::dynamic_work_group_memory)) {
-      Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
-          << ParamTy;
-      IsInvalid = true;
-    }
+    IsInvalid |= checkSyclSpecialType(ParamTy, PD->getLocation());
     return isValid();
   }
 
@@ -2248,10 +2275,7 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (!SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) &&
-        !SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::dynamic_work_group_memory))
-      unsupportedFreeFunctionParamType(); // TODO
-    return true;
+    return checkType(PD->getLocation(), ParamTy);
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
@@ -2789,7 +2813,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   void handleNoAliasProperty(ParmVarDecl *Param, QualType PropTy,
                              SourceLocation Loc) {
     ASTContext &Ctx = SemaSYCLRef.getASTContext();
-    Param->addAttr(RestrictAttr::CreateImplicit(Ctx, Loc));
+    Param->addAttr(
+        RestrictAttr::CreateImplicit(Ctx, nullptr, ParamIdx(1, Param), Loc));
   }
 
   // Obtain an integer value stored in a template parameter of buffer_location
@@ -2839,14 +2864,17 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   // kernel parameters from __init method parameters. We will use __init method
   // and kernel parameters which we build here to initialize special objects in
   // the kernel body.
-  bool handleSpecialType(FieldDecl *FD, QualType FieldTy) {
-    const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
-    assert(RecordDecl && "The type must be a RecordDecl");
+  // ParentDecl parameterizes whether we are in a free function kernel or a
+  // lambda kernel by taking the value ParmVarDecl or FieldDecl respectively.
+  template <typename ParentDecl>
+  bool handleSpecialType(ParentDecl *decl, QualType Ty) {
+    const auto *RD = Ty->getAsCXXRecordDecl();
+    assert(RD && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
-        KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(FieldTy)
+        KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(Ty)
             ? InitESIMDMethodName
             : InitMethodName;
-    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
+    CXXMethodDecl *InitMethod = getMethodByName(RD, MethodName);
     assert(InitMethod && "The type must have the __init method");
 
     // Don't do -1 here because we count on this to be the first parameter added
@@ -2854,8 +2882,16 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     size_t ParamIndex = Params.size();
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
-      addParam(FD, ParamTy.getCanonicalType());
-
+      // For lambda kernels the arguments to the OpenCL kernel are named
+      // based on the position they have as fields in the definition of the
+      // special type structure i.e __arg_field1, __arg_field2 and so on.
+      // For free function kernels the arguments are named in direct mapping
+      // with the names they have in the __init method i.e __arg_Ptr for work
+      // group memory since its init function takes a parameter with Ptr name.
+      if constexpr (std::is_same_v<ParentDecl, FieldDecl>)
+        addParam(decl, ParamTy.getCanonicalType());
+      else
+        addParam(Param, ParamTy.getCanonicalType());
       // Propagate add_ir_attributes_kernel_parameter attribute.
       if (const auto *AddIRAttr =
               Param->getAttr<SYCLAddIRAttributesKernelParameterAttr>())
@@ -2867,8 +2903,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       // handleAccessorPropertyList. If new classes with property list are
       // added, this code needs to be refactored to call
       // handleAccessorPropertyList for each class which requires it.
-      if (ParamTy.getTypePtr()->isPointerType() && isSyclAccessorType(FieldTy))
-        handleAccessorType(FieldTy, RecordDecl, FD->getBeginLoc());
+      if (ParamTy.getTypePtr()->isPointerType() && isSyclAccessorType(Ty))
+        handleAccessorType(Ty, RD, decl->getBeginLoc());
     }
     LastParamIndex = ParamIndex;
     return true;
@@ -3035,28 +3071,7 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) ||
-        SemaSYCL::isSyclType(ParamTy,
-                             SYCLTypeAttr::dynamic_work_group_memory)) {
-      const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
-      assert(RecordDecl && "The type must be a RecordDecl");
-      CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
-      assert(InitMethod && "The type must have the __init method");
-      // Don't do -1 here because we count on this to be the first parameter
-      // added (if any).
-      size_t ParamIndex = Params.size();
-      for (const ParmVarDecl *Param : InitMethod->parameters()) {
-        QualType ParamTy = Param->getType();
-        addParam(Param, ParamTy.getCanonicalType());
-        // Propagate add_ir_attributes_kernel_parameter attribute.
-        if (const auto *AddIRAttr =
-                Param->getAttr<SYCLAddIRAttributesKernelParameterAttr>())
-          Params.back()->addAttr(AddIRAttr->clone(SemaSYCLRef.getASTContext()));
-      }
-      LastParamIndex = ParamIndex;
-    } else // TODO
-      unsupportedFreeFunctionParamType();
-    return true;
+    return handleSpecialType(PD, ParamTy);
   }
 
   RecordDecl *wrapField(FieldDecl *Field, QualType FieldTy) {
@@ -4549,47 +4564,48 @@ public:
   // TODO: Revisit this approach once https://github.com/intel/llvm/issues/16061
   // is closed.
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) ||
-        SemaSYCL::isSyclType(ParamTy,
-                             SYCLTypeAttr::dynamic_work_group_memory)) {
-      const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
-      AccessSpecifier DefaultConstructorAccess;
-      auto DefaultConstructor =
-          std::find_if(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
-                       [](auto it) { return it->isDefaultConstructor(); });
-      DefaultConstructorAccess = DefaultConstructor->getAccess();
-      DefaultConstructor->setAccess(AS_public);
+    // The code produced looks like this in the case of a work group memory
+    // parameter:
+    // void auto_generated_kernel(__local int * arg) {
+    //    work_group_memory wgm;
+    //    wgm.__init(arg);
+    //    user_kernel(some arguments..., wgm, some arguments...);
+    // }
+    const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
+    AccessSpecifier DefaultConstructorAccess;
+    auto DefaultConstructor =
+        std::find_if(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
+                     [](auto it) { return it->isDefaultConstructor(); });
+    DefaultConstructorAccess = DefaultConstructor->getAccess();
+    DefaultConstructor->setAccess(AS_public);
 
-      QualType Ty = PD->getOriginalType();
-      ASTContext &Ctx = SemaSYCLRef.SemaRef.getASTContext();
-      VarDecl *WorkGroupMemoryClone = VarDecl::Create(
-          Ctx, DeclCreator.getKernelDecl(), FreeFunctionSrcLoc,
-          FreeFunctionSrcLoc, PD->getIdentifier(), PD->getType(),
-          Ctx.getTrivialTypeSourceInfo(Ty), SC_None);
-      InitializedEntity VarEntity =
-          InitializedEntity::InitializeVariable(WorkGroupMemoryClone);
-      InitializationKind InitKind =
-          InitializationKind::CreateDefault(FreeFunctionSrcLoc);
-      InitializationSequence InitSeq(SemaSYCLRef.SemaRef, VarEntity, InitKind,
-                                     std::nullopt);
-      ExprResult Init = InitSeq.Perform(SemaSYCLRef.SemaRef, VarEntity,
-                                        InitKind, std::nullopt);
-      WorkGroupMemoryClone->setInit(
-          SemaSYCLRef.SemaRef.MaybeCreateExprWithCleanups(Init.get()));
-      WorkGroupMemoryClone->setInitStyle(VarDecl::CallInit);
-      DefaultConstructor->setAccess(DefaultConstructorAccess);
+    ASTContext &Ctx = SemaSYCLRef.SemaRef.getASTContext();
+    VarDecl *SpecialObjectClone =
+        VarDecl::Create(Ctx, DeclCreator.getKernelDecl(), FreeFunctionSrcLoc,
+                        FreeFunctionSrcLoc, PD->getIdentifier(), ParamTy,
+                        Ctx.getTrivialTypeSourceInfo(ParamTy), SC_None);
+    InitializedEntity VarEntity =
+        InitializedEntity::InitializeVariable(SpecialObjectClone);
+    InitializationKind InitKind =
+        InitializationKind::CreateDefault(FreeFunctionSrcLoc);
+    InitializationSequence InitSeq(SemaSYCLRef.SemaRef, VarEntity, InitKind,
+                                   std::nullopt);
+    ExprResult Init =
+        InitSeq.Perform(SemaSYCLRef.SemaRef, VarEntity, InitKind, std::nullopt);
+    SpecialObjectClone->setInit(
+        SemaSYCLRef.SemaRef.MaybeCreateExprWithCleanups(Init.get()));
+    SpecialObjectClone->setInitStyle(VarDecl::CallInit);
+    DefaultConstructor->setAccess(DefaultConstructorAccess);
 
-      Stmt *DS = new (SemaSYCLRef.getASTContext())
-          DeclStmt(DeclGroupRef(WorkGroupMemoryClone), FreeFunctionSrcLoc,
-                   FreeFunctionSrcLoc);
-      BodyStmts.push_back(DS);
-      Expr *MemberBaseExpr = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-          WorkGroupMemoryClone, Ty, VK_PRValue, FreeFunctionSrcLoc);
-      createSpecialMethodCall(RecordDecl, InitMethodName, MemberBaseExpr,
-                              BodyStmts);
-      ArgExprs.push_back(MemberBaseExpr);
-    } else // TODO
-      unsupportedFreeFunctionParamType();
+    Stmt *DS = new (SemaSYCLRef.getASTContext())
+        DeclStmt(DeclGroupRef(SpecialObjectClone), FreeFunctionSrcLoc,
+                 FreeFunctionSrcLoc);
+    BodyStmts.push_back(DS);
+    Expr *MemberBaseExpr = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+        SpecialObjectClone, ParamTy, VK_PRValue, FreeFunctionSrcLoc);
+    createSpecialMethodCall(RecordDecl, InitMethodName, MemberBaseExpr,
+                            BodyStmts);
+    ArgExprs.push_back(MemberBaseExpr);
     return true;
   }
 
@@ -4806,7 +4822,7 @@ public:
   }
 
   SyclKernelIntHeaderCreator(SemaSYCL &S, SYCLIntegrationHeader &H,
-                             QualType NameType, FunctionDecl *FreeFunc)
+                             QualType NameType, const FunctionDecl *FreeFunc)
       : SyclKernelFieldHandler(S), Header(H) {
     Header.startKernel(FreeFunc, NameType, FreeFunc->getLocation(),
                        false /*IsESIMD*/, true /*IsSYCLUnnamedKernel*/,
@@ -4824,7 +4840,13 @@ public:
       int Dims = static_cast<int>(
           AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
       int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
-      Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+
+      SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
+          SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor)
+              ? SYCLIntegrationHeader::kind_dynamic_accessor
+              : SYCLIntegrationHeader::kind_accessor;
+
+      Header.addParamDesc(ParamKind, Info,
                           CurOffset +
                               offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
@@ -4850,8 +4872,12 @@ public:
           AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
       int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
 
-      Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
-                          CurOffset + offsetOf(FD, FieldTy));
+      SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
+          SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor)
+              ? SYCLIntegrationHeader::kind_dynamic_accessor
+              : SYCLIntegrationHeader::kind_accessor;
+
+      Header.addParamDesc(ParamKind, Info, CurOffset + offsetOf(FD, FieldTy));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::stream)) {
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
@@ -4883,14 +4909,45 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory))
+    const auto *ClassTy = ParamTy->getAsCXXRecordDecl();
+    assert(ClassTy && "Type must be a C++ record type");
+    if (isSyclAccessorType(ParamTy)) {
+      const auto *AccTy =
+          cast<ClassTemplateSpecializationDecl>(ParamTy->getAsRecordDecl());
+      assert(AccTy->getTemplateArgs().size() >= 2 &&
+             "Incorrect template args for Accessor Type");
+      int Dims = static_cast<int>(
+          AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
+      int Info = getAccessTarget(ParamTy, AccTy) | (Dims << 11);
+      Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+                          CurOffset);
+    } else if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::stream)) {
+      addParam(PD, ParamTy, SYCLIntegrationHeader::kind_stream);
+    } else if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory)) {
       addParam(PD, ParamTy, SYCLIntegrationHeader::kind_work_group_memory);
-    else if (SemaSYCL::isSyclType(ParamTy,
-                                  SYCLTypeAttr::dynamic_work_group_memory))
+    } else if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::sampler) ||
+               SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::annotated_ptr) ||
+               SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::annotated_arg)) {
+      CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
+      assert(InitMethod && "type must have __init method");
+      const ParmVarDecl *InitArg = InitMethod->getParamDecl(0);
+      assert(InitArg && "Init method must have arguments");
+      QualType T = InitArg->getType();
+      SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
+          SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::sampler)
+              ? SYCLIntegrationHeader::kind_sampler
+              : (T->isPointerType() ? SYCLIntegrationHeader::kind_pointer
+                                    : SYCLIntegrationHeader::kind_std_layout);
+      addParam(PD, ParamTy, ParamKind);
+    } else if (SemaSYCL::isSyclType(ParamTy,
+                                    SYCLTypeAttr::dynamic_work_group_memory))
       addParam(PD, ParamTy,
                SYCLIntegrationHeader::kind_dynamic_work_group_memory);
-    else
-      unsupportedFreeFunctionParamType(); // TODO
+
+    else {
+      llvm_unreachable(
+          "Unexpected SYCL special class when generating integration header");
+    }
     return true;
   }
 
@@ -5792,8 +5849,73 @@ void SemaSYCL::MarkDevices() {
   }
 }
 
+static bool CheckFreeFunctionDiagnostics(Sema &S, const FunctionDecl *FD) {
+  if (FD->isVariadic()) {
+    return S.Diag(FD->getLocation(), diag::err_free_function_variadic_args);
+  }
+
+  if (!FD->getReturnType()->isVoidType()) {
+    return S.Diag(FD->getLocation(), diag::err_free_function_return_type);
+  }
+
+  if (const auto *MD = llvm::dyn_cast<CXXMethodDecl>(FD))
+    // The free function extension specification usual methods to be used to
+    // define a free function kernel. We also disallow static methods because we
+    // use integration header.
+    return S.Diag(FD->getLocation(), diag::err_free_function_class_method)
+           << !MD->isStatic() << MD->getSourceRange();
+
+  for (ParmVarDecl *Param : FD->parameters()) {
+    if (Param->hasDefaultArg()) {
+      return S.Diag(Param->getLocation(),
+                    diag::err_free_function_with_default_arg)
+             << Param->getSourceRange();
+    }
+  }
+  return false;
+}
+
+void SemaSYCL::finalizeFreeFunctionKernels() {
+  // This is called at the end of the translation unit. The kernels that appear
+  // in this list are kernels that have been declared but not defined. Their
+  // construction consists only of generating the integration header and setting
+  // their names manually. The other steps in constructing the kernel cannot be
+  // done because potentially nothing is known about the arguments of the kernel
+  // except that they exist.
+  for (const FunctionDecl *kernel : FreeFunctionDeclarations) {
+    if (CheckFreeFunctionDiagnostics(SemaRef, kernel))
+      continue; // Continue in order to diagnose errors in all kernels
+
+    SyclKernelIntHeaderCreator IntHeader(*this, getSyclIntegrationHeader(),
+                                         kernel->getType(), kernel);
+    KernelObjVisitor Visitor{*this};
+    Visitor.VisitFunctionParameters(kernel, IntHeader);
+    std::unique_ptr<MangleContext> MangleCtx(
+        getASTContext().createMangleContext());
+    std::string Name, MangledName;
+    std::tie(Name, MangledName) =
+        constructFreeFunctionKernelName(*this, kernel, *MangleCtx);
+    getSyclIntegrationHeader().updateKernelNames(kernel, Name, MangledName);
+  }
+}
+
+void SemaSYCL::processFreeFunctionDeclaration(const FunctionDecl *FD) {
+  // FD represents a forward declaration of a free function kernel.
+  // Save them for the end of the translation unit action. This makes it easier
+  // to handle the case where a definition is defined later.
+  if (isFreeFunction(FD))
+    FreeFunctionDeclarations.insert(FD->getCanonicalDecl());
+}
+
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
+    if (CheckFreeFunctionDiagnostics(SemaRef, FD))
+      return;
+
+    // In case the free function kernel has already been seen by way of a
+    // forward declaration, flush it out because a definition takes priority.
+    FreeFunctionDeclarations.erase(FD->getCanonicalDecl());
+
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
     SyclKernelUnionChecker UnionChecker(*this);
@@ -5939,7 +6061,7 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
       // When nullptr is discovered, this means we've gone back up a level, so
       // the history should be cleaned.
       StackForRecursion.push_back(nullptr);
-      llvm::copy(RecDecl->fields(), std::back_inserter(StackForRecursion));
+      llvm::append_range(StackForRecursion, RecDecl->fields());
     }
   } while (!StackForRecursion.empty());
 }
@@ -6013,6 +6135,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(pointer);
     CASE(work_group_memory);
     CASE(dynamic_work_group_memory);
+    CASE(dynamic_accessor);
   }
   return "<ERROR>";
 
@@ -6139,7 +6262,7 @@ public:
     Policy.adjustForCPlusPlusFwdDecl();
     Policy.SuppressTypedefs = true;
     Policy.SuppressUnwrittenScope = true;
-    Policy.PrintCanonicalTypes = true;
+    Policy.PrintAsCanonical = true;
     Policy.SkipCanonicalizationOfTemplateTypeParms = true;
     Policy.SuppressFinalSpecifier = true;
   }
@@ -6425,6 +6548,251 @@ static void EmitPragmaDiagnosticPop(raw_ostream &O) {
   O << "\n";
 }
 
+template <typename BeforeFn, typename AfterFn>
+static void PrintNSHelper(BeforeFn Before, AfterFn After, raw_ostream &OS,
+                          const DeclContext *DC) {
+  if (DC->isTranslationUnit())
+    return;
+
+  const auto *CurDecl = cast<Decl>(DC);
+  // Ensure we are in the canonical version, so that we know we have the 'full'
+  // name of the thing.
+  CurDecl = CurDecl->getCanonicalDecl();
+
+  // We are intentionally skipping linkage decls and record decls.  Namespaces
+  // can appear in a linkage decl, but not a record decl, so we don't have to
+  // worry about the names getting messed up from that.  We handle record decls
+  // later when printing the name of the thing.
+  const auto *NS = dyn_cast<NamespaceDecl>(CurDecl);
+  if (NS)
+    Before(OS, NS);
+
+  if (const DeclContext *NewDC = CurDecl->getDeclContext())
+    PrintNSHelper(Before, After, OS, NewDC);
+
+  if (NS)
+    After(OS, NS);
+}
+
+static void PrintNamespaces(raw_ostream &OS, const DeclContext *DC,
+                            bool isPrintNamesOnly = false) {
+  PrintNSHelper([](raw_ostream &OS, const NamespaceDecl *NS) {},
+                [isPrintNamesOnly](raw_ostream &OS, const NamespaceDecl *NS) {
+                  if (!isPrintNamesOnly) {
+                    if (NS->isInline())
+                      OS << "inline ";
+                    OS << "namespace ";
+                  }
+                  if (!NS->isAnonymousNamespace()) {
+                    OS << NS->getName();
+                    if (isPrintNamesOnly)
+                      OS << "::";
+                    else
+                      OS << " ";
+                  }
+                  if (!isPrintNamesOnly) {
+                    OS << "{\n";
+                  }
+                },
+                OS, DC);
+}
+
+static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
+  PrintNSHelper(
+      [](raw_ostream &OS, const NamespaceDecl *NS) {
+        OS << "} // ";
+        if (NS->isInline())
+          OS << "inline ";
+
+        OS << "namespace ";
+        if (!NS->isAnonymousNamespace())
+          OS << NS->getName();
+
+        OS << '\n';
+      },
+      [](raw_ostream &OS, const NamespaceDecl *NS) {}, OS, DC);
+}
+
+class FreeFunctionPrinter {
+  raw_ostream &O;
+  PrintingPolicy &Policy;
+  bool NSInserted = false;
+
+public:
+  FreeFunctionPrinter(raw_ostream &O, PrintingPolicy &PrintPolicy)
+      : O(O), Policy(PrintPolicy) {}
+
+  /// Emits the function declaration of template free function.
+  /// \param FTD The function declaration to print.
+  /// \param S Sema object.
+  void printFreeFunctionDeclaration(FunctionTemplateDecl *FTD,
+                                    clang::SemaSYCL &S) {
+    const FunctionDecl *TemplatedDecl = FTD->getTemplatedDecl();
+    if (!TemplatedDecl)
+      return;
+    const std::string TemplatedDeclParams =
+        getTemplatedParamList(TemplatedDecl->parameters(), Policy);
+    const std::string TemplateParams =
+        getTemplateParameters(FTD->getTemplateParameters(), S);
+    printFreeFunctionDeclaration(TemplatedDecl, TemplatedDeclParams,
+                                 TemplateParams);
+  }
+
+  /// Emits the function declaration of a free function.
+  /// \param FD The function declaration to print.
+  /// \param Args The arguments of the function.
+  /// \param TemplateParameters The template parameters of the function.
+  void printFreeFunctionDeclaration(const FunctionDecl *FD,
+                                    const std::string &Args,
+                                    std::string_view TemplateParameters = "") {
+    const DeclContext *DC = FD->getDeclContext();
+    if (DC) {
+      // if function in namespace, print namespace
+      if (isa<NamespaceDecl>(DC)) {
+        PrintNamespaces(O, FD);
+        // Set flag to print closing braces for namespaces and namespace in shim
+        // function
+        NSInserted = true;
+      }
+      if (FD->isFunctionTemplateSpecialization() &&
+          FD->isThisDeclarationADefinition())
+        O << "template <> ";
+      O << TemplateParameters;
+      O << FD->getReturnType().getAsString() << " ";
+      FD->printName(O, Policy);
+      if (FD->isFunctionTemplateSpecialization() &&
+          FD->isThisDeclarationADefinition())
+        O << getTemplateSpecializationArgString(
+            FD->getTemplateSpecializationArgs());
+
+      O << "(" << Args << ");";
+      if (NSInserted) {
+        O << "\n";
+        PrintNSClosingBraces(O, FD);
+      }
+      O << "\n";
+    }
+  }
+
+  /// Emits free function shim function.
+  /// \param FD The function declaration to print.
+  /// \param ShimCounter The counter for the shim function.
+  /// \param ParmList The parameter list of the function.
+  void printFreeFunctionShim(const FunctionDecl *FD, const unsigned ShimCounter,
+                             const std::string &ParmList) {
+    // Generate a shim function that returns the address of the free function.
+    O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
+    O << "  return (void (*)(" << ParmList << "))";
+
+    if (NSInserted)
+      PrintNamespaces(O, FD, /*isPrintNamesOnly=*/true);
+    O << FD->getIdentifier()->getName().data();
+    if (FD->getPrimaryTemplate())
+      O << getTemplateSpecializationArgString(
+          FD->getTemplateSpecializationArgs());
+  }
+
+private:
+  /// Helper method to get string with template types
+  /// \param TAL The template argument list.
+  /// \returns string Example:
+  /// \code
+  ///  template <typename T1, typename T2>
+  ///  void foo(T1 a, T2 b);
+  /// \endcode
+  /// returns string "<T1, T2>"
+  /// If TAL is nullptr, returns empty string.
+  std::string
+  getTemplateSpecializationArgString(const TemplateArgumentList *TAL) {
+    if (!TAL)
+      return "";
+    std::string Buffer;
+    llvm::raw_string_ostream StringStream(Buffer);
+    ArrayRef<TemplateArgument> A = TAL->asArray();
+    bool FirstParam = true;
+    for (const auto &X : A) {
+      if (FirstParam)
+        FirstParam = false;
+      else if (X.getKind() == TemplateArgument::Pack) {
+        for (const auto &PackArg : X.pack_elements()) {
+          StringStream << ", ";
+          PackArg.print(Policy, StringStream, /*IncludeType*/ true);
+        }
+        continue;
+      } else
+        StringStream << ", ";
+
+      X.print(Policy, StringStream, /*IncludeType*/ true);
+    }
+    StringStream.flush();
+    if (Buffer.front() != '<')
+      Buffer = "<" + Buffer + ">";
+    return Buffer;
+  }
+
+  /// Helper method to get arguments of templated function as a string
+  /// \param Parameters Array of parameters of the function.
+  /// \param Policy Printing policy.
+  /// returned string Example:
+  /// \code
+  ///  template <typename T1, typename T2>
+  ///  void foo(T1 a, T2 b);
+  /// \endcode
+  /// returns string "T1 a, T2 b"
+  std::string
+  getTemplatedParamList(const llvm::ArrayRef<clang::ParmVarDecl *> Parameters,
+                        PrintingPolicy Policy) {
+    bool FirstParam = true;
+    llvm::SmallString<128> ParamList;
+    llvm::raw_svector_ostream ParmListOstream{ParamList};
+    Policy.SuppressTagKeyword = true;
+    for (ParmVarDecl *Param : Parameters) {
+      if (FirstParam)
+        FirstParam = false;
+      else
+        ParmListOstream << ", ";
+      ParmListOstream << Param->getType().getAsString(Policy);
+      ParmListOstream << " " << Param->getNameAsString();
+    }
+    return ParamList.str().str();
+  }
+
+  /// Helper method to get text representation of the template parameters.
+  /// Throws an error if the last parameter is a pack.
+  /// \param TPL The template parameter list.
+  /// \param S The SemaSYCL object.
+  /// Example:
+  /// \code
+  ///  template <typename T1, class T2>
+  ///  void foo(T1 a, T2 b);
+  /// \endcode
+  /// returns string "template <typename T1, class T2> "
+  std::string getTemplateParameters(const clang::TemplateParameterList *TPL,
+                                    SemaSYCL &S) {
+    std::string TemplateParams{"template <"};
+    bool FirstParam{true};
+    for (NamedDecl *Param : *TPL) {
+      if (!FirstParam)
+        TemplateParams += ", ";
+      FirstParam = false;
+      if (const auto *TemplateParam = dyn_cast<TemplateTypeParmDecl>(Param)) {
+        TemplateParams +=
+            TemplateParam->wasDeclaredWithTypename() ? "typename " : "class ";
+        if (TemplateParam->isParameterPack())
+          TemplateParams += "... ";
+        TemplateParams += TemplateParam->getNameAsString();
+      } else if (const auto *NonTypeParam =
+                     dyn_cast<NonTypeTemplateParmDecl>(Param)) {
+        TemplateParams += NonTypeParam->getType().getAsString();
+        TemplateParams += " ";
+        TemplateParams += NonTypeParam->getNameAsString();
+      }
+    }
+    TemplateParams += "> ";
+    return TemplateParams;
+  }
+};
+
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
@@ -6432,6 +6800,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <sycl/detail/defines_elementary.hpp>\n";
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
   O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
+  O << "#include <sycl/access/access.hpp>\n";
   O << "\n";
 
   LangOptions LO;
@@ -6713,22 +7082,37 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     if (K.SyclKernel->getLanguageLinkage() == CLanguageLinkage)
       O << "extern \"C\" ";
     std::string ParmList;
+    std::string ParmListWithNames;
     bool FirstParam = true;
     Policy.SuppressDefaultTemplateArgs = false;
-    Policy.PrintCanonicalTypes = true;
+    Policy.PrintAsCanonical = true;
+    llvm::raw_string_ostream ParmListWithNamesOstream{ParmListWithNames};
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
       if (FirstParam)
         FirstParam = false;
-      else
+      else {
         ParmList += ", ";
-      ParmList += Param->getType().getCanonicalType().getAsString(Policy);
+        ParmListWithNamesOstream << ", ";
+      }
+      if (Param->isParameterPack()) {
+        ParmListWithNamesOstream << "Args... args";
+        ParmList += "Args ...";
+      } else {
+        Policy.SuppressTagKeyword = true;
+        Param->getType().print(ParmListWithNamesOstream, Policy);
+        Policy.SuppressTagKeyword = false;
+        ParmListWithNamesOstream << " " << Param->getNameAsString();
+        ParmList += Param->getType().getCanonicalType().getAsString(Policy);
+      }
     }
+    ParmListWithNamesOstream.flush();
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
-    Policy.PrintCanonicalTypes = false;
+    Policy.PrintAsCanonical = false;
     Policy.SuppressDefinition = true;
     Policy.PolishForDeclaration = true;
     Policy.FullyQualifiedName = true;
     Policy.EnforceScopeForElaboratedTypes = true;
+    Policy.UseFullyQualifiedEnumerators = true;
 
     // Now we need to print the declaration of the kernel itself.
     // Example:
@@ -6756,32 +7140,18 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     // template arguments that match default template arguments while printing
     // template-ids, even if the source code doesn't reference them.
     Policy.EnforceDefaultTemplateArgs = true;
+    FreeFunctionPrinter FFPrinter(O, Policy);
     if (FTD) {
-      FTD->print(O, Policy);
+      FFPrinter.printFreeFunctionDeclaration(FTD, S);
+      if (const auto kind = K.SyclKernel->getTemplateSpecializationKind();
+          K.SyclKernel->isFunctionTemplateSpecialization() &&
+          kind == TSK_ExplicitSpecialization)
+        FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     } else {
-      K.SyclKernel->print(O, Policy);
+      FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     }
-    O << ";\n";
 
-    // Generate a shim function that returns the address of the free function.
-    O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
-    O << "  return (void (*)(" << ParmList << "))"
-      << K.SyclKernel->getIdentifier()->getName().data();
-    if (FTD) {
-      const TemplateArgumentList *TAL =
-          K.SyclKernel->getTemplateSpecializationArgs();
-      ArrayRef<TemplateArgument> A = TAL->asArray();
-      bool FirstParam = true;
-      O << "<";
-      for (const auto &X : A) {
-        if (FirstParam)
-          FirstParam = false;
-        else
-          O << ", ";
-        X.print(Policy, O, true);
-      }
-      O << ">";
-    }
+    FFPrinter.printFreeFunctionShim(K.SyclKernel, ShimCounter, ParmList);
     O << ";\n";
     O << "}\n";
     Policy.SuppressDefaultTemplateArgs = true;
@@ -6822,7 +7192,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "\n// Definition of kernel_id of " << K.Name << "\n";
     O << "namespace sycl {\n";
     O << "template <>\n";
-    O << "kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim"
+    O << "inline kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim"
       << ShimCounter << "()>() {\n";
     O << "  return sycl::detail::get_kernel_id_impl(std::string_view{\""
       << K.Name << "\"});\n";
@@ -6935,61 +7305,6 @@ bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
   return emit(Out);
 }
 
-template <typename BeforeFn, typename AfterFn>
-static void PrintNSHelper(BeforeFn Before, AfterFn After, raw_ostream &OS,
-                          const DeclContext *DC) {
-  if (DC->isTranslationUnit())
-    return;
-
-  const auto *CurDecl = cast<Decl>(DC);
-  // Ensure we are in the canonical version, so that we know we have the 'full'
-  // name of the thing.
-  CurDecl = CurDecl->getCanonicalDecl();
-
-  // We are intentionally skipping linkage decls and record decls.  Namespaces
-  // can appear in a linkage decl, but not a record decl, so we don't have to
-  // worry about the names getting messed up from that.  We handle record decls
-  // later when printing the name of the thing.
-  const auto *NS = dyn_cast<NamespaceDecl>(CurDecl);
-  if (NS)
-    Before(OS, NS);
-
-  if (const DeclContext *NewDC = CurDecl->getDeclContext())
-    PrintNSHelper(Before, After, OS, NewDC);
-
-  if (NS)
-    After(OS, NS);
-}
-
-static void PrintNamespaces(raw_ostream &OS, const DeclContext *DC) {
-  PrintNSHelper([](raw_ostream &OS, const NamespaceDecl *NS) {},
-                [](raw_ostream &OS, const NamespaceDecl *NS) {
-                  if (NS->isInline())
-                    OS << "inline ";
-                  OS << "namespace ";
-                  if (!NS->isAnonymousNamespace())
-                    OS << NS->getName() << " ";
-                  OS << "{\n";
-                },
-                OS, DC);
-}
-
-static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
-  PrintNSHelper(
-      [](raw_ostream &OS, const NamespaceDecl *NS) {
-        OS << "} // ";
-        if (NS->isInline())
-          OS << "inline ";
-
-        OS << "namespace ";
-        if (!NS->isAnonymousNamespace())
-          OS << NS->getName();
-
-        OS << '\n';
-      },
-      [](raw_ostream &OS, const NamespaceDecl *NS) {}, OS, DC);
-}
-
 static std::string EmitShim(raw_ostream &OS, unsigned &ShimCounter,
                             const std::string &LastShim,
                             const NamespaceDecl *AnonNS) {
@@ -7071,7 +7386,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   Policy.adjustForCPlusPlusFwdDecl();
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
-  Policy.PrintCanonicalTypes = true;
+  Policy.PrintAsCanonical = true;
 
   llvm::SmallSet<const VarDecl *, 8> Visited;
   bool EmittedFirstSpecConstant = false;

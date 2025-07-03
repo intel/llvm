@@ -8,7 +8,8 @@
 
 #include "device_complex.h"
 
-#if defined(__SPIR__) || defined(__SPIRV__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
+    defined(__AMDGCN__)
 #include <cmath>
 
 // To support fallback device libraries on-demand loading, please update the

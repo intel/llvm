@@ -36,14 +36,10 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(int, int);
   }                                                                            \
   }
 
-#define __CLC_NVVM_ATOMIC_LOAD_IMPL(                                           \
-    TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, ADDR_SPACE,                  \
-    POINTER_AND_ADDR_SPACE_MANGLED, ADDR_SPACE_NV)                             \
-  __attribute__((always_inline)) _CLC_DECL TYPE _Z18__spirv_\
-AtomicLoad##POINTER_AND_ADDR_SPACE_MANGLED##K##TYPE_MANGLED##N5__spv5\
-Scope4FlagENS1_19MemorySemanticsMask4FlagE(                                    \
-      const volatile ADDR_SPACE TYPE *pointer, enum Scope scope,               \
-      enum MemorySemanticsMask semantics) {                                    \
+#define __CLC_NVVM_ATOMIC_LOAD_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV,            \
+                                    ADDR_SPACE, ADDR_SPACE_NV)                 \
+  __attribute__((always_inline)) _CLC_OVERLOAD _CLC_DECL TYPE                  \
+  __spirv_AtomicLoad(ADDR_SPACE TYPE *pointer, int scope, int semantics) {     \
     /* Semantics mask may include memory order, storage class and other info   \
 Memory order is stored in the lowest 5 bits */                                 \
     unsigned int order = semantics & 0x1F;                                     \
@@ -78,22 +74,21 @@ Memory order is stored in the lowest 5 bits */                                 \
     __builtin_unreachable();                                                   \
   }
 
-#define __CLC_NVVM_ATOMIC_LOAD(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV)   \
-  __CLC_NVVM_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV,    \
-                              __global, PU3AS1, _global_)                      \
-  __CLC_NVVM_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV,    \
-                              __local, PU3AS3, _shared_)                       \
-  __CLC_NVVM_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, ,  \
-                              P, _gen_)
+#define __CLC_NVVM_ATOMIC_LOAD(TYPE, TYPE_NV, TYPE_MANGLED_NV)                 \
+  __CLC_NVVM_ATOMIC_LOAD_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, __global,        \
+                              _global_)                                        \
+  __CLC_NVVM_ATOMIC_LOAD_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, __local,         \
+                              _shared_)                                        \
+  __CLC_NVVM_ATOMIC_LOAD_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, , _gen_)
 
-__CLC_NVVM_ATOMIC_LOAD(int, i, int, i)
-__CLC_NVVM_ATOMIC_LOAD(uint, j, int, i)
-__CLC_NVVM_ATOMIC_LOAD(long, l, long, l)
-__CLC_NVVM_ATOMIC_LOAD(ulong, m, long, l)
+__CLC_NVVM_ATOMIC_LOAD(int, int, i)
+__CLC_NVVM_ATOMIC_LOAD(uint, int, i)
+__CLC_NVVM_ATOMIC_LOAD(long, long, l)
+__CLC_NVVM_ATOMIC_LOAD(ulong, long, l)
 
-__CLC_NVVM_ATOMIC_LOAD(float, f, float, f)
+__CLC_NVVM_ATOMIC_LOAD(float, float, f)
 #ifdef cl_khr_int64_base_atomics
-__CLC_NVVM_ATOMIC_LOAD(double, d, double, d)
+__CLC_NVVM_ATOMIC_LOAD(double, double, d)
 #endif
 
 #undef __CLC_NVVM_ATOMIC_LOAD_TYPES

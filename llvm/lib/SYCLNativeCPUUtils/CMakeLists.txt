@@ -3,7 +3,6 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
   ConvertToMuxBuiltinsSYCLNativeCPU.cpp
-  FixABIMuxBuiltinsSYCLNativeCPU.cpp
   FAtomicsNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -35,15 +34,15 @@ endif()
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
-    # commit ffef31717750d3f15bfd2f18d9cd7f4677fe9d3e
-    # Merge: 574307afde 0b00238554
+    # commit d0a32d701e34b3285de7ce776ea36abfec673df7
+    # Merge: a9f848e0e8 56473a8c25
     # Author: Harald van Dijk <harald.vandijk@codeplay.com>
-    # Date:   Fri Apr 4 16:26:38 2025 +0100
+    # Date:   Mon Jun 30 12:24:46 2025 +0100
     # 
-    #     Merge pull request #751 from hvdijk/llvm21-address-space
+    #     Merge pull request #878 from hvdijk/specify-fuse-ld-lld
     #     
-    #     [LLVM 21] Take address space into account for legality.
-    set(OCK_GIT_INTERNAL_TAG ffef31717750d3f15bfd2f18d9cd7f4677fe9d3e)
+    #     [RefSi] Explicitly specify -fuse-ld=lld.
+    set(OCK_GIT_INTERNAL_TAG d0a32d701e34b3285de7ce776ea36abfec673df7)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)

@@ -11,6 +11,7 @@
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/util.hpp>
 
+#include <deque>
 #include <memory>
 #include <unordered_map>
 
@@ -22,14 +23,11 @@ class context_impl;
 class Scheduler;
 class ProgramManager;
 class Sync;
-class Adapter;
+class adapter_impl;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
-
-using PlatformImplPtr = std::shared_ptr<platform_impl>;
-using ContextImplPtr = std::shared_ptr<context_impl>;
-using AdapterPtr = std::shared_ptr<Adapter>;
+struct KernelNameBasedCacheT;
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
@@ -60,20 +58,22 @@ public:
   bool isSchedulerAlive() const;
   ProgramManager &getProgramManager();
   Sync &getSync();
-  std::vector<PlatformImplPtr> &getPlatformCache();
+  std::vector<std::shared_ptr<platform_impl>> &getPlatformCache();
 
-  std::unordered_map<PlatformImplPtr, ContextImplPtr> &
+  void clearPlatforms();
+
+  std::unordered_map<platform_impl *, std::shared_ptr<context_impl>> &
   getPlatformToDefaultContextCache();
 
   std::mutex &getPlatformToDefaultContextCacheMutex();
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
-  std::vector<AdapterPtr> &getAdapters();
+  std::vector<adapter_impl *> &getAdapters();
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
-
-  static void registerEarlyShutdownHandler();
+  KernelNameBasedCacheT *createKernelNameBasedCache();
+  static void registerStaticVarShutdownHandler();
 
   bool isOkToDefer() const;
   void endDeferredRelease();
@@ -95,7 +95,6 @@ private:
 
   bool OkToDefer = true;
 
-  friend void shutdown_win();
   friend void shutdown_early();
   friend void shutdown_late();
   friend class ObjectUsageCounter;
@@ -118,17 +117,19 @@ private:
   InstWithLock<Scheduler> MScheduler;
   InstWithLock<ProgramManager> MProgramManager;
   InstWithLock<Sync> MSync;
-  InstWithLock<std::vector<PlatformImplPtr>> MPlatformCache;
-  InstWithLock<std::unordered_map<PlatformImplPtr, ContextImplPtr>>
+  InstWithLock<std::vector<std::shared_ptr<platform_impl>>> MPlatformCache;
+  InstWithLock<
+      std::unordered_map<platform_impl *, std::shared_ptr<context_impl>>>
       MPlatformToDefaultContextCache;
   InstWithLock<std::mutex> MPlatformToDefaultContextCacheMutex;
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
-  InstWithLock<std::vector<AdapterPtr>> MAdapters;
+  InstWithLock<std::vector<adapter_impl *>> MAdapters;
   InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
+  InstWithLock<std::deque<KernelNameBasedCacheT>> MKernelNameBasedCaches;
 };
 } // namespace detail
 } // namespace _V1

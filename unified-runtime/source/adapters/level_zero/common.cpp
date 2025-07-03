@@ -76,8 +76,9 @@ bool setEnvVar(const char *name, const char *value) {
   int Res = setenv(name, value, 1);
 #endif
   if (Res != 0) {
-    logger::debug(
-        "UR L0 Adapter was unable to set the environment variable: {}", name);
+    UR_LOG(DEBUG,
+           "UR L0 Adapter was unable to set the environment variable: {}",
+           name);
     return false;
   }
   return true;
@@ -136,9 +137,15 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   } // switch
 }
 
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *, const char *,
+                           bool) {
+  return ZeResult;
+}
+#else
 ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
                            const char *ZeArgs, bool TraceError) {
-  logger::debug("ZE ---> {}{}", ZeName, ZeArgs);
+  UR_LOG(DEBUG, "ZE ---> {}{}", ZeName, ZeArgs);
 
   if (ZeResult == ZE_RESULT_SUCCESS) {
     if (UrL0LeaksDebug) {
@@ -150,10 +157,11 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (TraceError) {
     const char *ErrorString = "Unknown";
     zeParseError(ZeResult, ErrorString);
-    logger::error("Error ({}) in {}", ErrorString, ZeName);
+    UR_LOG(ERR, "Error ({}) in {}", ErrorString, ZeName);
   }
   return ZeResult;
 }
+#endif
 
 // Specializations for various L0 structures
 template <> ze_structure_type_t getZeStructureType<ze_event_pool_desc_t>() {
@@ -295,6 +303,11 @@ ze_structure_type_t getZeStructureType<ze_device_ip_version_ext_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT;
 }
 template <>
+ze_structure_type_t
+getZeStructureType<ze_device_vector_width_properties_ext_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_VECTOR_WIDTH_PROPERTIES_EXT;
+}
+template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
 }
@@ -332,6 +345,10 @@ template <> zes_structure_type_t getZesStructureType<zes_freq_properties_t>() {
 template <> zes_structure_type_t getZesStructureType<zes_power_properties_t>() {
   return ZES_STRUCTURE_TYPE_POWER_PROPERTIES;
 }
+template <>
+ze_structure_type_t getZeStructureType<ze_device_cache_line_size_ext_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_CACHELINE_SIZE_EXT;
+}
 
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 template <>
@@ -342,13 +359,12 @@ getZeStructureType<ze_intel_device_block_array_exp_properties_t>() {
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
-thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
+thread_local int32_t ErrorMessageCode = 0;
 thread_local char ErrorMessage[MaxMessageSize]{};
 thread_local int32_t ErrorAdapterNativeCode;
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *pMessage,
-                                      ur_result_t ErrorCode,
+[[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode,
                                       int32_t AdapterErrorCode) {
   assert(strlen(pMessage) < MaxMessageSize);
   // Copy at most MaxMessageSize - 1 bytes to ensure the resultant string is
@@ -356,9 +372,4 @@ thread_local int32_t ErrorAdapterNativeCode;
   strncpy(ErrorMessage, pMessage, MaxMessageSize - 1);
   ErrorMessageCode = ErrorCode;
   ErrorAdapterNativeCode = AdapterErrorCode;
-}
-
-ur_result_t zerPluginGetLastError(char **message) {
-  *message = &ErrorMessage[0];
-  return ErrorMessageCode;
 }

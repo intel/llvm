@@ -4,12 +4,10 @@ target triple = "spir64-unknown-unknown"
 
 @dev_global = external addrspace(1) global { [4 x i32] }
 @dev_global_no_users = dso_local addrspace(1) global { [4 x i32] } zeroinitializer
-@.str = external addrspace(1) constant [59 x i8]
 @__spirv_BuiltInGlobalInvocationId = external addrspace(1) constant <3 x i64>
 
 ; CHECK: @__TsanDeviceGlobalMetadata
 ; CHECK-NOT: @dev_global_no_users
-; CHECK-NOT: @.str
 ; CHECK-NOT: @__spirv_BuiltInGlobalInvocationId
 ; CHECK-SAME: @dev_global
 

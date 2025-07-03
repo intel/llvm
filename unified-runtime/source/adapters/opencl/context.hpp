@@ -9,12 +9,13 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "adapter.hpp"
 #include "common.hpp"
 #include "device.hpp"
 
 #include <vector>
 
-struct ur_context_handle_t_ {
+struct ur_context_handle_t_ : ur::opencl::handle_base {
   using native_type = cl_context;
   native_type CLContext;
   std::vector<ur_device_handle_t> Devices;
@@ -24,7 +25,7 @@ struct ur_context_handle_t_ {
 
   ur_context_handle_t_(native_type Ctx, uint32_t DevCount,
                        const ur_device_handle_t *phDevices)
-      : CLContext(Ctx), DeviceCount(DevCount) {
+      : handle_base(), CLContext(Ctx), DeviceCount(DevCount) {
     for (uint32_t i = 0; i < DeviceCount; i++) {
       Devices.emplace_back(phDevices[i]);
       urDeviceRetain(phDevices[i]);
@@ -41,7 +42,13 @@ struct ur_context_handle_t_ {
   static ur_result_t makeWithNative(native_type Ctx, uint32_t DevCount,
                                     const ur_device_handle_t *phDevices,
                                     ur_context_handle_t &Context);
-  ~ur_context_handle_t_() {
+  ~ur_context_handle_t_() noexcept {
+    // If we're reasonably sure this context is about to be destroyed we should
+    // clear the ext function pointer cache. This isn't foolproof sadly but it
+    // should drastically reduce the chances of the pathological case described
+    // in the comments in common.hpp.
+    ur::cl::getAdapter()->fnCache.clearCache(CLContext);
+
     for (uint32_t i = 0; i < DeviceCount; i++) {
       urDeviceRelease(Devices[i]);
     }

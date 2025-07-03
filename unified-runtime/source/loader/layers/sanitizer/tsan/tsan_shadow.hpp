@@ -28,12 +28,15 @@ struct ShadowMemory {
 
   virtual ur_result_t Setup() = 0;
 
-  virtual ur_result_t Destory() = 0;
+  virtual ur_result_t Destroy() = 0;
 
   virtual RawShadow *MemToShadow(uptr Ptr) = 0;
 
   virtual ur_result_t CleanShadow(ur_queue_handle_t Queue, uptr Ptr,
                                   uptr Size) = 0;
+
+  virtual ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
+                                       uptr &Begin, uptr &End) = 0;
 
   virtual size_t GetShadowSize() = 0;
 
@@ -66,12 +69,19 @@ struct ShadowMemoryCPU final : public ShadowMemory {
 
   ur_result_t Setup() override;
 
-  ur_result_t Destory() override;
+  ur_result_t Destroy() override;
 
   RawShadow *MemToShadow(uptr Ptr) override;
 
   ur_result_t CleanShadow(ur_queue_handle_t Queue, uptr Ptr,
                           uptr Size) override;
+
+  ur_result_t AllocLocalShadow(ur_queue_handle_t, uint32_t, uptr &Begin,
+                               uptr &End) override {
+    Begin = ShadowBegin;
+    End = ShadowEnd;
+    return UR_RESULT_SUCCESS;
+  }
 
   size_t GetShadowSize() override { return 0x2000'0000'0000ULL; }
 };
@@ -82,16 +92,21 @@ struct ShadowMemoryGPU : public ShadowMemory {
 
   ur_result_t Setup() override;
 
-  ur_result_t Destory() override;
+  ur_result_t Destroy() override;
 
   ur_result_t CleanShadow(ur_queue_handle_t Queue, uptr Ptr,
                           uptr Size) override;
+
+  ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
+                               uptr &Begin, uptr &End) override final;
 
   virtual uptr GetStartAddress() { return 0; }
 
   ur_mutex VirtualMemMapsMutex;
 
   std::unordered_map<uptr, ur_physical_mem_handle_t> VirtualMemMaps;
+
+  uptr LocalShadowOffset = 0;
 };
 
 // clang-format off

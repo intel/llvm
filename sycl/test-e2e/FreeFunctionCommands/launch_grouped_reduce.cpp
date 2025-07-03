@@ -8,7 +8,7 @@
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/khr/free_function_commands.hpp>
+#include <sycl/khr/free_function_commands.hpp>
 #include <sycl/reduction.hpp>
 #include <sycl/usm.hpp>
 

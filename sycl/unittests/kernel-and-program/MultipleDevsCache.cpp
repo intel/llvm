@@ -5,9 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
 #include "detail/context_impl.hpp"
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
@@ -155,19 +152,19 @@ TEST_P(MultipleDeviceCacheTest, ProgramRetain) {
     // on number of device images. This test has one image, but other tests can
     // create other images. Additional variable is added to control count of
     // urProgramRetain calls.
-    auto BundleImpl = getSyclObjImpl(Bundle);
+    detail::kernel_bundle_impl &BundleImpl = *getSyclObjImpl(Bundle);
 
     // Bundle should only contain a single image, specifically the one with
     // MultipleDevsCacheTestKernel.
-    EXPECT_EQ(BundleImpl->size(), size_t{1});
+    EXPECT_EQ(BundleImpl.size(), size_t{1});
 
-    int NumRetains = BundleImpl->size() * std::pow(2, NumDevices) - 1;
+    int NumRetains = BundleImpl.size() * std::pow(2, NumDevices) - 1;
     EXPECT_EQ(RetainCounter, NumRetains)
         << "Expect " << NumRetains << " piProgramRetain calls";
 
-    auto CtxImpl = detail::getSyclObjImpl(Context);
+    detail::context_impl &CtxImpl = *detail::getSyclObjImpl(Context);
     detail::KernelProgramCache::KernelCacheT &KernelCache =
-        CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
+        CtxImpl.getKernelProgramCache().acquireKernelsPerProgramCache().get();
 
     EXPECT_EQ(KernelCache.size(), (size_t)2)
         << "Expect 2 programs in kernel cache";

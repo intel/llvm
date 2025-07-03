@@ -157,14 +157,34 @@ a!
 ----
 class device {
 
+bool ext_oneapi_can_build(ext::oneapi::experimental::source_language lang);
+
+};
+----
+!====
+
+_Returns:_ The value `true` only if the device supports the
+`ext::oneapi::experimental::build` function on kernel bundles written in the
+source language `lang`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+class device {
+
 bool ext_oneapi_can_compile(ext::oneapi::experimental::source_language lang);
 
 };
 ----
 !====
 
-_Returns:_ The value `true` only if the device supports kernel bundles written
-in the source language `lang`.
+_Returns:_ The value `true` only if the device supports the
+`ext::oneapi::experimental::compile` function on kernel bundles written in the
+source language `lang`.
+
 |====
 
 === New free functions to create and build kernel bundles
@@ -227,8 +247,6 @@ state.
 _Throws:_
 
 * An `exception` with the `errc::invalid` error code if the source language
-  `lang` is not supported by any device contained by the context `ctxt`.
-* An `exception` with the `errc::invalid` error code if the source language
   `lang` does not support one of the properties in `PropertyListT`.
 * Overload (1) throws an `exception` with the `errc::invalid` error code if the
   source language `lang` is binary format.
@@ -241,9 +259,11 @@ function.
 
 This function succeeds even if some devices in `ctxt` do not support the source
 language `lang`.
-However, the `build` function fails unless _all_ of its devices support `lang`.
-Therefore, applications should take care to omit devices that do not support
-`lang` when calling `build`.
+However, the `build` and `compile` functions will fail if any of its devices
+return `false` for `ext_oneapi_can_build(lang)` and
+`ext_oneapi_can_compile(lang)` respectively. Therefore, applications should take
+care to omit devices that do not support `lang` for the functions they intend on
+calling.
 _{endnote}_]
 
 a|
@@ -271,8 +291,8 @@ kernel_bundle<bundle_state::executable> build(
 
 _Constraints:_ Available only when `PropertyListT` is an instance of
 `sycl::ext::oneapi::experimental::properties` which contains no properties
-other than those listed below in the section "New properties for the `build`
-function".
+other than those listed below in the section "New properties for the `build` and
+`compile` functions".
 
 _Effects (1):_ The source code from `sourceBundle` is translated into one or more
 device images of state `bundle_state::executable`, and a new kernel bundle is
@@ -293,16 +313,16 @@ _Returns:_ The newly created kernel bundle, which has `executable` state.
 _Throws:_
 
 * An `exception` with the `errc::invalid` error code if any of the devices in
-  `devs` is not contained by the context associated with `sourceBundle`.
+  `devs` return `false` for `ext_oneapi_can_build` with the source language of
+  `sourceBundle`.
 
 * An `exception` with the `errc::invalid` error code if any of the devices in
-  `devs` does not support compilation of kernels in the source language of
-  `sourceBundle`.
+  `devs` is not contained by the context associated with `sourceBundle`.
 
 * An `exception` with the `errc::invalid` error code if the source language
   `lang` does not support one of the properties in `PropertyListT` or if
   `props` contains a `build_options` property that contains an option that is
-  not supported by `lang`.
+  not supported when building `lang`.
 
 * An `exception` with the `errc::build` error code if the compilation or
   linking operations fail.
@@ -317,6 +337,78 @@ source code used to create the kernel bundle being printed to the terminal.
 In situations where this is undesirable, developers must ensure that the
 exception is caught and handled appropriately.
 _{endnote}_]
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<typename PropertyListT = empty_properties_t>                 (1)
+kernel_bundle<bundle_state::object> compile(
+    const kernel_bundle<bundle_state::ext_oneapi_source>& sourceBundle,
+    const std::vector<device>& devs, PropertyListT props={})
+
+template<typename PropertyListT = empty_properties_t>                 (2)
+kernel_bundle<bundle_state::object> compile(
+  const kernel_bundle<bundle_state::ext_oneapi_source>& sourceBundle,
+  PropertyListT props = {})
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+
+_Constraints:_ Available only when `PropertyListT` is an instance of
+`sycl::ext::oneapi::experimental::properties` which contains no properties
+other than those listed below in the section "New properties for the `build` and
+`compile` functions".
+
+_Effects (1):_ The source code from `sourceBundle` is translated into one or
+more device images of state `bundle_state::object`, and a new kernel bundle is
+created to contain these device images.
+The new bundle represents all of the kernels in `sourceBundle` that are
+compatible with at least one of the devices in `devs`.
+Any remaining kernels (those that are not compatible with any of the devices in
+`devs`) are not represented in the new kernel bundle.
+
+The new bundle has the same associated context as `sourceBundle`, and the new
+bundle's set of associated devices is `devs` (with duplicate devices removed).
+
+_Effects (2)_: Equivalent to
+`compile(sourceBundle, sourceBundle.get_devices(), props)`.
+
+_Returns:_ The newly created kernel bundle, which has `object` state.
+
+_Throws:_
+
+* An `exception` with the `errc::invalid` error code if any of the devices in
+  `devs` return `false` for `ext_oneapi_can_compile` with the source language of
+  `sourceBundle`.
+
+* An `exception` with the `errc::invalid` error code if any of the devices in
+  `devs` is not contained by the context associated with `sourceBundle`.
+
+* An `exception` with the `errc::invalid` error code if the source language
+  `lang` does not support one of the properties in `PropertyListT` or if
+  `props` contains a `build_options` property that contains an option that is
+  not supported when compiling `lang`.
+
+* An `exception` with the `errc::build` error code if the compilation operation
+  fails.  In this case, the exception `what` string provides a full build log,
+  including descriptions of any errors, warning messages, and other
+  diagnostics.
+  This string is intended for human consumption, and the format may not be
+  stable across implementations of this extension.
+
+[_Note:_ An uncaught `errc::build` exception may result in some or all of the
+source code used to create the kernel bundle being printed to the terminal.
+In situations where this is undesirable, developers must ensure that the
+exception is caught and handled appropriately.
+_{endnote}_]
+
 |====
 
 === New properties for the `create_kernel_bundle_from_source` function
@@ -384,10 +476,10 @@ _Throws (3):_
   entry with `name` in this property.
 |====
 
-=== New properties for the `build` function
+=== New properties for the `build` and `compile` functions
 
 This extension adds the following properties, which can be used in conjunction
-with the `build` function that is defined above:
+with the `build` and `compile` function that is defined above:
 
 |====
 a|
@@ -549,6 +641,14 @@ This new constraint applies to the following member functions:
 As a result, the only `kernel_bundle` member functions from the core SYCL
 specification that are available for bundles in `ext_oneapi_source` state are
 `get_backend`, `get_context`, and `get_devices`.
+
+=== New constraint for `join` function
+
+This extension adds the following constraint to the `join` functions from the
+core SYCL specification:
+
+> _Constraints:_ This function is not available when `State` is
+> `bundle_state::ext_oneapi_source`.
 
 === Interaction with existing kernel bundle member functions
 

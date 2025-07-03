@@ -321,8 +321,7 @@ class ConstOCLSPVBuiltin<string _Name, list<Type> _Signature> :
 
 // OpenCL v1.0/1.2/2.0 s6.1.1: Built-in Scalar Data Types.
 def Bool      : IntType<"bool",   QualType<"Context.BoolTy">, 1>;
-def TrueChar  : IntType<"_char",      QualType<"Context.CharTy", 0, 1>, 8>;
-def Char      : IntType<"char",      QualType<"Context.SignedCharTy", 0, 1>, 8>;
+def Char      : IntType<"char",     QualType<"Context.CharTy", 0, 1>, 8>;
 def SChar     : IntType<"schar",     QualType<"Context.SignedCharTy", 0, 1>, 8>;
 def UChar     : UIntType<"uchar",     QualType<"Context.UnsignedCharTy">, 8>;
 def Short     : IntType<"short",     QualType<"Context.ShortTy", 0, 1>, 16>;
@@ -356,19 +355,20 @@ def Vec16       : IntList<"Vec16", [16]>;
 def Vec1234     : IntList<"Vec1234", [1, 2, 3, 4]>;
 
 // Type lists.
-def TLAll           : TypeList<[Char,  UChar, Short,  UShort, Int,  UInt, Long,  ULong, Float, Double, Half]>;
-def TLAllUnsigned   : TypeList<[UChar, UChar, UShort, UShort, UInt, UInt, ULong, ULong, UInt,  ULong,  UShort]>;
-def TLAllWithBool : TypeList<[Bool, Char, UChar, Short, UShort, Int, UInt, Long,
+def TLAll           : TypeList<[Char,  SChar, UChar, Short,  UShort, Int,  UInt, Long,  ULong, Float, Double, Half]>;
+def TLAllUnsigned   : TypeList<[UChar, UChar, UChar, UShort, UShort, UInt, UInt, ULong, ULong, UInt,  ULong,  UShort]>;
+def TLAllWithBool : TypeList<[Bool, Char, SChar, UChar, Short, UShort, Int, UInt, Long,
                               ULong, Float, Double, Half]>;
 def TLFloat         : TypeList<[Float, Double, Half]>;
 // FIXME: handle properly char (signed or unsigned depending on host)
-def TLSignedInts    : TypeList<[Char, Short, Int, Long]>;
-def TLUnsignedInts  : TypeList<[UChar, UShort, UInt, ULong]>;
+def TLSignedInts    : TypeList<[Char, SChar, Short, Int, Long]>;
+def TLUIToSIInts    : TypeList<[UChar, UChar, UShort, UInt, ULong]>;
+def TLUnsignedInts : TypeList<[UChar, UShort, UInt, ULong]>;
 
 // Signed to Unsigned conversion
 // FIXME: handle properly char (signed or unsigned depending on host)
-def TLSToUSignedInts    : TypeList<[Char, Short, Int, Long]>;
-def TLSToUUnsignedInts  : TypeList<[UChar, UShort, UInt, ULong]>;
+def TLSToUSignedInts    : TypeList<[Char, SChar, Short, Int, Long]>;
+def TLSToUUnsignedInts  : TypeList<[UChar, UChar, UShort, UInt, ULong]>;
 
 def TLIntLongFloats : TypeList<[Int, UInt, Long, ULong, Float, Double, Half]>;
 
@@ -377,7 +377,7 @@ def TLIntLongFloats : TypeList<[Int, UInt, Long, ULong, Float, Double, Half]>;
 // uchar abs(uchar).
 def TLAllUIntsTwice : TypeList<[UChar, UChar, UChar, UShort, UShort, UInt, UInt, ULong, ULong]>;
 
-def TLAllInts       : TypeList<[Char, UChar, Short, UShort, Int, UInt, Long, ULong]>;
+def TLAllInts       : TypeList<[Char, SChar, UChar, Short, UShort, Int, UInt, Long, ULong]>;
 
 // GenType definitions for multiple base types (e.g. all floating point types,
 // or all integer types).
@@ -394,22 +394,28 @@ def AIGenType1             : GenericType<"AIGenType1", TLAllInts, Vec1>;
 def AIGenTypeN             : GenericType<"AIGenTypeN", TLAllInts, VecAndScalar>;
 def AUIGenTypeN             : GenericType<"AUIGenTypeN", TLUnsignedInts, VecAndScalar>;
 def ASIGenTypeN             : GenericType<"ASIGenTypeN", TLSignedInts, VecAndScalar>;
+// unsigned integers matching 1:1 with signed ints
+def AUIToSIGenTypeN          : GenericType<"AUIToSIGenTypeN", TLUIToSIInts, VecAndScalar>;
 def AIGenTypeNNoScalar     : GenericType<"AIGenTypeNNoScalar", TLAllInts, VecNoScalar>;
 // All integer to unsigned
 def AI2UGenTypeN           : GenericType<"AI2UGenTypeN", TLAllUIntsTwice, VecAndScalar>;
 // Signed integer
+def SGenType1 : GenericType<"SGenType1", TLSignedInts, Vec1>;
 def SGenTypeN              : GenericType<"SGenTypeN", TLSignedInts, VecAndScalar>;
 // Unsigned integer
+def UGenType1 : GenericType<"UGenType1", TLUnsignedInts, Vec1>;
 def UGenTypeN              : GenericType<"UGenTypeN", TLUnsignedInts, VecAndScalar>;
+def UToSGenTypeN           : GenericType<"UToSGenTypeN", TLUIToSIInts, VecAndScalar>;
 def UInt4 : GenericType<"UInt4", TypeList<[UInt]>, Vec4>;
 // Float
+def FGenType1 : GenericType<"FGenType1", TLFloat, Vec1>;
 def FGenTypeN              : GenericType<"FGenTypeN", TLFloat, VecAndScalar>;
 // (u)int, (u)long, and all floats
 def IntLongFloatGenType1   : GenericType<"IntLongFloatGenType1", TLIntLongFloats, Vec1>;
 
 // GenType definitions for every single base type (e.g. fp32 only).
 // Names are like: GenTypeFloatVecAndScalar.
-foreach Type = [Char, UChar, SChar, Short, UShort,
+foreach Type = [Char, SChar, UChar, Short, UShort,
                 Int, UInt, Long, ULong,
                 Float, Double, Half] in {
   foreach VecSizes = [VecAndScalar, VecNoScalar] in {
@@ -547,9 +553,9 @@ foreach name = ["clz", "ctz", "popcount"] in {
 
 def : ConstOCLSPVBuiltin<"rotate", [AIGenTypeN, AIGenTypeN, AIGenTypeN]>;
 
-def : ConstOCLSPVBuiltin<"s_abs", [AUIGenTypeN, ASIGenTypeN]>;
+def : ConstOCLSPVBuiltin<"s_abs", [AUIToSIGenTypeN, ASIGenTypeN]>;
 
-def : ConstOCLSPVBuiltin<"s_abs_diff", [AUIGenTypeN, ASIGenTypeN, ASIGenTypeN]>;
+def : ConstOCLSPVBuiltin<"s_abs_diff", [AUIToSIGenTypeN, ASIGenTypeN, ASIGenTypeN]>;
 
 foreach name = ["s_add_sat",
                 "s_hadd", "s_rhadd",
@@ -649,9 +655,9 @@ def : ConstOCLSPVBuiltin<"bitselect", [AGenTypeN, AGenTypeN, AGenTypeN, AGenType
 
 foreach name = ["select"] in {
   def : ConstOCLSPVBuiltin<name, [SGenTypeN, SGenTypeN, SGenTypeN, SGenTypeN]>;
-  def : ConstOCLSPVBuiltin<name, [SGenTypeN, SGenTypeN, SGenTypeN, UGenTypeN]>;
+  def : ConstOCLSPVBuiltin<name, [SGenTypeN, SGenTypeN, SGenTypeN, UToSGenTypeN]>;
   def : ConstOCLSPVBuiltin<name, [UGenTypeN, UGenTypeN, UGenTypeN, UGenTypeN]>;
-  def : ConstOCLSPVBuiltin<name, [UGenTypeN, UGenTypeN, UGenTypeN, SGenTypeN]>;
+  def : ConstOCLSPVBuiltin<name, [UToSGenTypeN, UToSGenTypeN, UToSGenTypeN, SGenTypeN]>;
   def : ConstOCLSPVBuiltin<name, [GenTypeFloatVecAndScalar, GenTypeFloatVecAndScalar, GenTypeFloatVecAndScalar, GenTypeUIntVecAndScalar]>;
   def : ConstOCLSPVBuiltin<name, [GenTypeDoubleVecAndScalar, GenTypeDoubleVecAndScalar, GenTypeDoubleVecAndScalar, GenTypeULongVecAndScalar]>;
   def : ConstOCLSPVBuiltin<name, [GenTypeHalfVecAndScalar, GenTypeHalfVecAndScalar, GenTypeHalfVecAndScalar, GenTypeUShortVecAndScalar]>;
@@ -847,7 +853,7 @@ foreach AS = [GlobalAS, LocalAS, PrivateAS] in {
   def : SPVBuiltin<"GenericCastToPtrExplicit", [PointerType<Char, AS>, PointerType<Char, GenericAS>], Attr.Const>;
 }
 
-foreach Ty = [Void, ConstType<Void>, VolatileType<Void>, VolatileType<ConstType<Void>>] in {
+foreach Ty = [Void, ConstType<Void>] in {
   def : SPVBuiltin<"GenericCastToPtrExplicit_ToGlobal", [PointerType<Ty, GlobalAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
   def : SPVBuiltin<"GenericCastToPtrExplicit_ToLocal", [PointerType<Ty, LocalAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
   def : SPVBuiltin<"GenericCastToPtrExplicit_ToPrivate", [PointerType<Ty, PrivateAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
@@ -869,16 +875,16 @@ foreach name = ["Dot"] in {
 }
 
 foreach name = ["Any", "All"] in {
-  def : SPVBuiltin<name, [Bool, GenTypeSCharVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [Bool, GenTypeCharVecNoScalar], Attr.Const>;
 }
 
 foreach name = ["IsNan", "IsInf", "IsFinite", "IsNormal", "SignBitSet"] in {
   def : SPVBuiltin<name, [Bool, Float], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Double], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Half], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
 }
 
 foreach name = ["LessOrGreater",
@@ -892,9 +898,9 @@ foreach name = ["LessOrGreater",
   def : SPVBuiltin<name, [Bool, Float, Float], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Double, Double], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Half, Half], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeFloatVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeDoubleVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeHalfVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeFloatVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeDoubleVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeCharVecNoScalar, GenTypeHalfVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
 }
 
 foreach name = ["BitCount"] in {
@@ -982,6 +988,106 @@ foreach name = ["GroupSMin", "GroupSMax"] in {
 // TODO: These builtins need to support vectors of bool.
 foreach name = ["GroupLogicalAndKHR", "GroupLogicalOrKHR"] in {
   def : SPVBuiltin<name, [Bool, Int, Int, Bool], Attr.Convergent>;
+}
+
+def SubgroupShuffleINTELVecType
+    : GenericType<"SubgroupShuffleINTELVecType",
+                  TypeList<[Char, SChar, UChar, Short, UShort, Int, UInt, Float]>,
+                  VecNoScalar>;
+
+foreach name = ["SubgroupShuffleINTEL", "SubgroupShuffleXorINTEL"] in {
+  def : SPVBuiltin<name, [AGenType1, AGenType1, UInt]>;
+  def : SPVBuiltin<name, [SubgroupShuffleINTELVecType,
+                          SubgroupShuffleINTELVecType, UInt]>;
+}
+
+foreach name = ["SubgroupShuffleUpINTEL", "SubgroupShuffleDownINTEL"] in {
+  def : SPVBuiltin<name, [AGenType1, AGenType1, AGenType1, UInt]>;
+  def : SPVBuiltin<name, [SubgroupShuffleINTELVecType,
+                          SubgroupShuffleINTELVecType,
+                          SubgroupShuffleINTELVecType, UInt]>;
+}
+
+foreach name = ["SubgroupBlockWriteINTEL"] in {
+  foreach AS = [GlobalAS, LocalAS] in {
+    foreach Ty = TLUnsignedInts.List in {
+      def : SPVBuiltin<name, [Void, PointerType<Ty, AS>, Ty]>;
+    }
+    foreach Ty = [UChar, UShort] in {
+      foreach v = [2, 4, 8, 16] in {
+        def : SPVBuiltin<name, [Void, PointerType<Ty, AS>, VectorType<Ty, v>]>;
+      }
+    }
+    foreach Ty = [UInt, ULong] in {
+      foreach v = [2, 4, 8] in {
+        def : SPVBuiltin<name, [Void, PointerType<Ty, AS>, VectorType<Ty, v>]>;
+      }
+    }
+  }
+}
+
+// 3.56.18. Atomic Instructions
+
+foreach AS = [GlobalAS, LocalAS, PrivateAS, GenericAS] in {
+  def : SPVBuiltin<
+            "AtomicLoad", [AGenType1, PointerType<AGenType1, AS>, Int, Int],
+            Attr.Convergent>;
+
+  def : SPVBuiltin<"AtomicStore",
+                   [Void, PointerType<AGenType1, AS>, Int, Int, AGenType1],
+                   Attr.Convergent>;
+
+  def : SPVBuiltin<"AtomicExchange",
+                   [AGenType1, PointerType<AGenType1, AS>, Int, Int, AGenType1],
+                   Attr.Convergent>;
+
+  foreach name = ["AtomicCompareExchange", "AtomicCompareExchangeWeak"] in {
+    def : SPVBuiltin<name,
+                     [AIGenType1, PointerType<AIGenType1, AS>, Int, Int, Int,
+                      AIGenType1, AIGenType1],
+                     Attr.Convergent>;
+  }
+
+  foreach name = ["AtomicIIncrement", "AtomicIDecrement"] in {
+    def : SPVBuiltin<name, [AIGenType1, PointerType<AIGenType1, AS>, Int, Int],
+                     Attr.Convergent>;
+  }
+
+  foreach name = ["AtomicSMin", "AtomicSMax"] in {
+    def : SPVBuiltin<name,
+                     [SGenType1, PointerType<SGenType1, AS>, Int, Int,
+                      SGenType1],
+                     Attr.Convergent>;
+  }
+
+  foreach name = ["AtomicUMin", "AtomicUMax"] in {
+    def : SPVBuiltin<name,
+                     [UGenType1, PointerType<UGenType1, AS>, Int, Int,
+                      UGenType1],
+                     Attr.Convergent>;
+  }
+
+  foreach name = ["AtomicIAdd", "AtomicISub", "AtomicAnd", "AtomicOr",
+                  "AtomicXor"] in {
+    def : SPVBuiltin<name,
+                     [AIGenType1, PointerType<AIGenType1, AS>, Int, Int,
+                      AIGenType1],
+                     Attr.Convergent>;
+  }
+
+  def : SPVBuiltin<
+            "AtomicFlagTestAndSet", [Bool, PointerType<Int, AS>, Int, Int],
+            Attr.Convergent>;
+
+  def : SPVBuiltin<"AtomicFlagClear", [Void, PointerType<Int, AS>, Int, Int],
+                   Attr.Convergent>;
+
+  foreach name = ["AtomicFMaxEXT", "AtomicFMinEXT", "AtomicFAddEXT"] in {
+    def : SPVBuiltin<name,
+                     [FGenType1, PointerType<FGenType1, AS>, Int, Int,
+                      FGenType1],
+                     Attr.Convergent>;
+  }
 }
 
 // 3.56.24. Non-Uniform Instructions
