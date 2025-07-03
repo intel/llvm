@@ -324,11 +324,11 @@ void *ur_discrete_buffer_handle_t::mapHostPtr(ur_map_flags_t flags,
   }
 
   usm_unique_ptr_t mappedPtr =
-      usm_unique_ptr_t(ptr, [ownsAlloc = bool(mapToPtr), this](void *p) {
+      usm_unique_ptr_t(ptr, [ownsAlloc = !bool(mapToPtr), this](void *p) {
         if (ownsAlloc) {
           auto ret = hContext->getDefaultUSMPool()->free(p);
           if (ret != UR_RESULT_SUCCESS) {
-            UR_LOG(ERR, "Failed to mapped memory: {}", ret);
+            UR_LOG(ERR, "Failed to free mapped memory: {}", ret);
           }
         }
       });
