@@ -334,6 +334,16 @@ inline void unmap_external_image_memory(image_mem_handle mappedImageMem,
 }
 
 /**
+ * @brief  Check if the device supports importing a handle of a specific type
+ * @param  externMemHandleType Type of external memory handle
+ * @param  syclDevice The device where we want to import memory
+ * @return true if the device supports importing the specified handle type
+ */
+__SYCL_EXPORT bool
+supports_importing_handle_type(external_mem_handle_type externMemHandleType,
+                               const sycl::device &syclDevice);
+
+/**
  *  @brief   Create an image and return the device image handle
  *
  *  @param   memHandle Device memory handle wrapper for allocated image memory

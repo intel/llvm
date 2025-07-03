@@ -49,7 +49,7 @@ TEST_F(SchedulerTest, MemObjCommandCleanupAllocaUsers) {
   addEdge(MockIndirectUser, MockDirectUser.get(), MockAllocaA);
 
   MS.cleanupCommandsForRecord(RecA);
-  MS.removeRecordForMemObj(detail::getSyclObjImpl(BufA).get());
+  MS.removeRecordForMemObj(&*detail::getSyclObjImpl(BufA));
 
   // Check that the direct user has been left with the second alloca
   // as the only dependency, while the indirect user has been cleaned up.
@@ -84,7 +84,7 @@ TEST_F(SchedulerTest, MemObjCommandCleanupAllocaDeps) {
   ASSERT_EQ(DepCmd.MUsers.count(MockAllocaCmd), 1U);
 
   MS.cleanupCommandsForRecord(MemObjRec);
-  MS.removeRecordForMemObj(detail::getSyclObjImpl(Buf).get());
+  MS.removeRecordForMemObj(&*detail::getSyclObjImpl(Buf));
 
   // Check that DepCmd has its MUsers field cleared.
   ASSERT_EQ(DepCmd.MUsers.size(), 0U);
