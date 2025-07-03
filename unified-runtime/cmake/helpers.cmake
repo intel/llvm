@@ -88,7 +88,7 @@ endif()
 
 function(add_ur_target_compile_options name)
     if(NOT MSVC)
-        target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
+        target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=3)
         target_compile_options(${name} PRIVATE
             # Warning options
             -Wall

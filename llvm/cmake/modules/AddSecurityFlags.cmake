@@ -164,24 +164,39 @@ macro(append_common_extra_security_flags)
     endif()
   endif()
 
-  if(LLVM_ON_UNIX)
-    # Fortify Source (strongly recommended):
+  # Fortify Source (strongly recommended):
+  if (NOT WIN32)
+    # Strictly speaking, _FORTIFY_SOURCE is a glibc feature and not a compiler
+    # feature. However, we experienced some issues (warnings about redefined macro
+    # which are problematic under -Werror) when setting it to value '3' with older
+    # gcc versions. Hence the check.
+    # Value '3' became supported in glibc somewhere around gcc 12, so that is
+    # what we are looking for.
+    if (is_gcc AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 12)
+      set(FORTIFY_SOURCE "-D_FORTIFY_SOURCE=2")
+    else()
+      # Assuming that the problem is not reproducible with other compilers
+      set(FORTIFY_SOURCE "-D_FORTIFY_SOURCE=3")
+    endif()
+
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-      message(WARNING "-D_FORTIFY_SOURCE=2 can only be used with optimization.")
-      message(WARNING "-D_FORTIFY_SOURCE=2 is not supported.")
+      message(WARNING "${FORTIFY_SOURCE} can only be used with optimization.")
+      message(WARNING "${FORTIFY_SOURCE} is not supported.")
     else()
       # Sanitizers do not work with checked memory functions, such as
       # __memset_chk. We do not build release packages with sanitizers, so just
-      # avoid -D_FORTIFY_SOURCE=2 under LLVM_USE_SANITIZER.
+      # avoid -D_FORTIFY_SOURCE=N under LLVM_USE_SANITIZER.
       if(NOT LLVM_USE_SANITIZER)
-        message(STATUS "Building with -D_FORTIFY_SOURCE=2")
-        add_definitions(-D_FORTIFY_SOURCE=2)
+        message(STATUS "Building with ${FORTIFY_SOURCE}")
+        add_definitions(${FORTIFY_SOURCE})
       else()
         message(
-          WARNING "-D_FORTIFY_SOURCE=2 dropped due to LLVM_USE_SANITIZER.")
+          WARNING "${FORTIFY_SOURCE} dropped due to LLVM_USE_SANITIZER.")
       endif()
     endif()
+  endif()
 
+  if(LLVM_ON_UNIX)
     if(LLVM_ENABLE_ASSERTIONS)
       add_definitions(-D_GLIBCXX_ASSERTIONS)
     endif()
