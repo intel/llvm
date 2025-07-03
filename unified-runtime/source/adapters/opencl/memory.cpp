@@ -521,7 +521,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
     return ReturnValue(hMemory->Context);
   }
   case UR_MEM_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hMemory->getReferenceCount());
+    return ReturnValue(hMemory->RefCount.getCount());
   }
   default: {
     size_t CheckPropSize = 0;
@@ -569,12 +569,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
-  hMem->incrementReferenceCount();
+  hMem->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
-  if (hMem->decrementReferenceCount() == 0) {
+  if (hMem->RefCount.release()) {
     delete hMem;
   }
   return UR_RESULT_SUCCESS;

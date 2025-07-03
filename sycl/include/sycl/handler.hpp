@@ -562,9 +562,9 @@ private:
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
-  /// TODO: remove the first version of this func (the one without the IsTopCodeLoc arg)
-  ///   at the next ABI breaking window since removing it breaks ABI on windows.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void saveCodeLoc(detail::code_location CodeLoc);
+#endif
   void saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc);
   void copyCodeLoc(const handler &other);
 
@@ -3716,6 +3716,9 @@ private:
   void setKernelIsCooperative(bool);
 
   // Set using cuda thread block cluster launch flag and set the launch bounds.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  void setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims);
+#endif
   void setKernelClusterLaunch(sycl::range<3> ClusterSize);
   void setKernelClusterLaunch(sycl::range<2> ClusterSize);
   void setKernelClusterLaunch(sycl::range<1> ClusterSize);
@@ -3818,6 +3821,16 @@ private:
 
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  void setNDRangeDescriptorPadded(sycl::range<3> N, bool SetNumWorkGroups,
+                                  int Dims);
+  void setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
+                                  sycl::id<3> Offset, int Dims);
+  void setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
+                                  sycl::range<3> LocalSize, sycl::id<3> Offset,
+                                  int Dims);
+#endif
 
   template <int Dims>
   void setNDRangeDescriptor(sycl::range<Dims> N,

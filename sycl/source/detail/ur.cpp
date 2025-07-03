@@ -284,25 +284,24 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
 }
 
 // Get the adapter serving given backend.
-template <backend BE> AdapterPtr &getAdapter() {
-  static AdapterPtr adapterPtr = nullptr;
-  if (adapterPtr)
-    return adapterPtr;
+template <backend BE> adapter_impl &getAdapter() {
+  static adapter_impl *Adapter = nullptr;
+  if (Adapter)
+    return *Adapter;
 
-  std::vector<AdapterPtr> Adapters = ur::initializeUr();
-  for (auto &P : Adapters)
+  for (auto &P : ur::initializeUr())
     if (P->hasBackend(BE)) {
-      adapterPtr = P;
-      return adapterPtr;
+      Adapter = P;
+      return *Adapter;
     }
 
   throw exception(errc::runtime, "ur::getAdapter couldn't find adapter");
 }
 
-template AdapterPtr &getAdapter<backend::opencl>();
-template AdapterPtr &getAdapter<backend::ext_oneapi_level_zero>();
-template AdapterPtr &getAdapter<backend::ext_oneapi_cuda>();
-template AdapterPtr &getAdapter<backend::ext_oneapi_hip>();
+template adapter_impl &getAdapter<backend::opencl>();
+template adapter_impl &getAdapter<backend::ext_oneapi_level_zero>();
+template adapter_impl &getAdapter<backend::ext_oneapi_cuda>();
+template adapter_impl &getAdapter<backend::ext_oneapi_hip>();
 
 // Reads an integer value from ELF data.
 template <typename ResT>

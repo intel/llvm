@@ -8,8 +8,6 @@
 
 // REQUIRES: aspect-usm_device_allocations
 
-// UNSUPPORTED: accelerator, opencl && gpu
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
 
