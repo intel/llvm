@@ -45,35 +45,35 @@ int main() {
     q.submit([&](handler &CGH) {
       CGH.depends_on(InitPrefetch);
       CGH.single_task([=]() {
-        // for (int i = 0; i < Count; i++)
-        //   Dest[i] = 2 * Src[i];
+        for (int i = 0; i < Count; i++)
+          Dest[i] = 2 * Src[i];
       });
     });
     q.wait_and_throw();
 
-    // for (int i = 0; i < Count; i++) {
-    //   assert(Dest[i] == i * 2);
-    // }
+    for (int i = 0; i < Count; i++) {
+      assert(Dest[i] == i * 2);
+    }
 
     // Test device-to-host prefetch via prefetch(handler ...).
-    // event InitPrefetchBack = q.submit([&](handler &CGH) {
-    //   CGH.single_task<class quadruple_dest>([=]() {
-    //     for (int i = 0; i < Count; i++)
-    //       Dest[i] = 4 * Src[i];
-    //   });
-    // });
+    event InitPrefetchBack = q.submit([&](handler &CGH) {
+      CGH.single_task([=]() {
+        for (int i = 0; i < Count; i++)
+          Dest[i] = 4 * Src[i];
+      });
+    });
 
-    // ext::oneapi::experimental::submit(q, [&](handler &CGH) {
-    //   CGH.depends_on(InitPrefetch);
-    //   ext::oneapi::experimental::prefetch(
-    //       CGH, Dest, sizeof(float) * Count,
-    //       ext::oneapi::experimental::prefetch_type::host);
-    // });
-    // q.wait_and_throw();
+    ext::oneapi::experimental::submit(q, [&](handler &CGH) {
+      CGH.depends_on(InitPrefetchBack);
+      ext::oneapi::experimental::prefetch(
+          CGH, Dest, sizeof(float) * Count,
+          ext::oneapi::experimental::prefetch_type::host);
+    });
+    q.wait_and_throw();
 
-    // for (int i = 0; i < Count; i++) {
-    //   assert(Dest[i] == i * 4);
-    // }
+    for (int i = 0; i < Count; i++) {
+      assert(Dest[i] == i * 4);
+    }
   }
 
   // {

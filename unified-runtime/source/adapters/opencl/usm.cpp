@@ -524,36 +524,41 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     [[maybe_unused]] ur_usm_migration_flags_t flags,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  // Have to look up the context from the kernel
+  cl_context CLContext = hQueue->Context->CLContext;
+
+  clEnqueueMigrateMemINTEL_fn EnqueueMigrateMem = nullptr;
+  UR_RETURN_ON_FAILURE(
+    cl_ext::getExtFuncFromContext<clEnqueueMigrateMemINTEL_fn>(
+      CLContext, ur::cl::getAdapter()->fnCache.clEnqueueMigrateMemINTELCache,
+      cl_ext::EnqueueMigrateMemName, &EnqueueMigrateMem));
+
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   for (uint32_t i = 0; i < numEventsInWaitList; i++) {
     CLWaitEvents[i] = phEventWaitList[i]->CLEvent;
   }
-  CL_RETURN_ON_FAILURE(clEnqueueMarkerWithWaitList(
-      hQueue->CLQueue, numEventsInWaitList, CLWaitEvents.data(),
-      ifUrEvent(phEvent, Event)));
+
+  cl_mem_migration_flags MigrationFlag;
+  switch (flags) {
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    MigrationFlag = 0;
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    MigrationFlag = CL_MIGRATE_MEM_OBJECT_HOST;
+    break;
+  default:
+    cl_adapter::setErrorMessage("Invalid USM migration flag",
+                                UR_RESULT_ERROR_INVALID_ENUMERATION);
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  CL_RETURN_ON_FAILURE(EnqueueMigrateMem(
+    hQueue->CLQueue, pMem, size, MigrationFlag, numEventsInWaitList,
+    CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
+
   UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
   return UR_RESULT_SUCCESS;
-  /*
-  // Use this once impls support it.
-  // Have to look up the context from the kernel
-  cl_context CLContext = hQueue->Context;
-
-  clEnqueueMigrateMemINTEL_fn FuncPtr;
-  ur_result_t Err = cl_ext::getExtFuncFromContext<clEnqueueMigrateMemINTEL_fn>(
-      CLContext, "clEnqueueMigrateMemINTEL", &FuncPtr);
-
-  ur_result_t RetVal;
-  if (Err != UR_RESULT_SUCCESS) {
-    RetVal = Err;
-  } else {
-    RetVal = map_cl_error_to_ur(
-        FuncPtr(hQueue->CLQueue, pMem, size, flags,
-                numEventsInWaitList,
-                reinterpret_cast<const cl_event *>(phEventWaitList),
-                reinterpret_cast<cl_event *>(phEvent)));
-  }
-  */
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
