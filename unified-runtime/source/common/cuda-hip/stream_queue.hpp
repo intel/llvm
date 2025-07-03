@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "common/ur_ref_count.hpp"
 #include <algorithm>
 #include <mutex>
 #include <vector>
@@ -44,7 +45,8 @@ struct stream_queue_t {
   std::vector<bool> TransferAppliedBarrier;
   ur_context_handle_t_ *Context;
   ur_device_handle_t_ *Device;
-  std::atomic_uint32_t RefCount{1};
+  std::atomic_uint32_t RefCountOld{1};
+  ur::RefCount RefCount;
   std::atomic_uint32_t EventCount{0};
   std::atomic_uint32_t ComputeStreamIndex{0};
   std::atomic_uint32_t TransferStreamIndex{0};
@@ -344,11 +346,11 @@ struct stream_queue_t {
 
   ur_context_handle_t_ *getContext() const { return Context; };
 
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
+  uint32_t incrementReferenceCount() noexcept { return ++RefCountOld; }
 
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
+  uint32_t decrementReferenceCount() noexcept { return --RefCountOld; }
 
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  uint32_t getReferenceCount() const noexcept { return RefCountOld; }
 
   uint32_t getNextEventId() noexcept { return ++EventCount; }
 

@@ -16,6 +16,7 @@
 #include <variant>
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 #include "queue.hpp"
 
@@ -314,8 +315,7 @@ struct ur_mem_handle_t_ : ur::cuda::handle_base {
   // Context where the memory object is accessible
   ur_context_handle_t Context;
 
-  /// Reference counting of the handler
-  std::atomic_uint32_t RefCount;
+  ur::RefCount RefCount;
 
   // Original mem flags passed
   ur_mem_flags_t MemFlags;
@@ -423,12 +423,6 @@ struct ur_mem_handle_t_ : ur::cuda::handle_base {
   }
 
   ur_context_handle_t getContext() const noexcept { return Context; }
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   void setLastQueueWritingToMemObj(ur_queue_handle_t WritingQueue) {
     urQueueRetain(WritingQueue);

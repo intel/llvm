@@ -15,6 +15,7 @@
 #include <atomic>
 #include <unordered_map>
 
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 
 struct ur_program_handle_t_ : ur::cuda::handle_base {
@@ -22,7 +23,7 @@ struct ur_program_handle_t_ : ur::cuda::handle_base {
   native_type Module;
   const char *Binary;
   size_t BinarySizeInBytes;
-  std::atomic_uint32_t RefCount;
+  ur::RefCount RefCount;
   ur_context_handle_t Context;
   ur_device_handle_t Device;
 
@@ -70,12 +71,6 @@ struct ur_program_handle_t_ : ur::cuda::handle_base {
   ur_device_handle_t getDevice() const noexcept { return Device; };
 
   native_type get() const noexcept { return Module; };
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   ur_result_t getGlobalVariablePointer(const char *name,
                                        CUdeviceptr *DeviceGlobal,
