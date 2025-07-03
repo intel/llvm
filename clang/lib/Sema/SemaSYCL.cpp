@@ -749,9 +749,7 @@ public:
 
   // Skip checking rules on template arguments, since these are constant
   // expressions.
-  bool TraverseTemplateArgumentLoc(const TemplateArgumentLoc &) {
-    return true;
-  }
+  bool TraverseTemplateArgumentLoc(const TemplateArgumentLoc &) { return true; }
 
   // Skip checking the static assert, both components are required to be
   // constant expressions.
@@ -1441,7 +1439,7 @@ class KernelObjVisitor {
   template <typename ParentTy, typename... HandlerTys>
   void visitSimpleRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                          const CXXRecordDecl *, QualType RecordTy,
-                         HandlerTys &... Handlers) {
+                         HandlerTys &...Handlers) {
     (void)std::initializer_list<int>{
         (Handlers.handleNonDecompStruct(Owner, Parent, RecordTy), 0)...};
   }
@@ -1473,9 +1471,8 @@ class KernelObjVisitor {
   }
 
   template <typename... HandlerTys>
-  void VisitRecordHelper(const CXXRecordDecl *Owner,
-                         RecordDecl::field_range,
-                         HandlerTys &... Handlers) {
+  void VisitRecordHelper(const CXXRecordDecl *Owner, RecordDecl::field_range,
+                         HandlerTys &...Handlers) {
     VisitRecordFields(Owner, Handlers...);
   }
 
@@ -1500,7 +1497,7 @@ class KernelObjVisitor {
 
   template <typename... HandlerTys>
   void visitSimpleArray(const CXXRecordDecl *, FieldDecl *Field,
-                        QualType ArrayTy, HandlerTys &... Handlers) {
+                        QualType ArrayTy, HandlerTys &...Handlers) {
     (void)std::initializer_list<int>{
         (Handlers.handleSimpleArrayType(Field, ArrayTy), 0)...};
   }
@@ -1756,18 +1753,10 @@ public:
   virtual bool leaveUnion(const CXXRecordDecl *, ParmVarDecl *) { return true; }
 
   // The following are used for stepping through array elements.
-  virtual bool enterArray(FieldDecl *, QualType, QualType) {
-    return true;
-  }
-  virtual bool leaveArray(FieldDecl *, QualType, QualType) {
-    return true;
-  }
-  virtual bool enterArray(ParmVarDecl *, QualType, QualType) {
-    return true;
-  }
-  virtual bool leaveArray(ParmVarDecl *, QualType, QualType) {
-    return true;
-  }
+  virtual bool enterArray(FieldDecl *, QualType, QualType) { return true; }
+  virtual bool leaveArray(FieldDecl *, QualType, QualType) { return true; }
+  virtual bool enterArray(ParmVarDecl *, QualType, QualType) { return true; }
+  virtual bool leaveArray(ParmVarDecl *, QualType, QualType) { return true; }
 
   virtual bool nextElement(QualType, uint64_t) { return true; }
 
@@ -2806,8 +2795,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     }
   }
 
-  void handleNoAliasProperty(ParmVarDecl *Param, QualType,
-                             SourceLocation Loc) {
+  void handleNoAliasProperty(ParmVarDecl *Param, QualType, SourceLocation Loc) {
     ASTContext &Ctx = SemaSYCLRef.getASTContext();
     Param->addAttr(
         RestrictAttr::CreateImplicit(Ctx, nullptr, ParamIdx(1, Param), Loc));
@@ -3166,8 +3154,8 @@ public:
     return true;
   }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *,
-                             const CXXBaseSpecifier &BS, QualType Ty) final {
+  bool handleNonDecompStruct(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                             QualType Ty) final {
     // This is a base class which should not be decomposed.
     CXXRecordDecl *BaseRecordDecl = Ty->getAsCXXRecordDecl();
     assert(BaseRecordDecl && "Type must be a C++ record type");
@@ -4642,8 +4630,8 @@ public:
     return true;
   }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *,
-                             const CXXBaseSpecifier &, QualType) final {
+  bool handleNonDecompStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                             QualType) final {
     // TODO
     unsupportedFreeFunctionParamType();
     return true;

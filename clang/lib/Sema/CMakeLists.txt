@@ -38,13 +38,13 @@ elseif (is_icpx and WIN32)
   set(opts_to_apply "/Wall")
 endif()
 
-set_source_files_properties(
-  SemaSYCL.cpp
-  SemaSYCLDeclAttr.cpp
-  PROPERTIES
-    COMPILE_OPTIONS
-      ${opts_to_apply}
-)
+if (NOT opts_to_apply STREQUAL "")
+  set_source_files_properties(
+    SemaSYCL.cpp SemaSYCLDeclAttr.cpp
+    PROPERTIES
+      COMPILE_OPTIONS ${opts_to_apply}
+  )
+endif()
 
 clang_tablegen(OpenCLBuiltins.inc -gen-clang-opencl-builtins
   SOURCE OpenCLBuiltins.td
