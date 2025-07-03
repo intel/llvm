@@ -30,8 +30,8 @@ class ComputeRuntime:
 
     def ld_libraries(self) -> list[str]:
         paths = [
-            os.path.join(self.gmmlib, "lib64"),
-            os.path.join(self.level_zero, "lib64"),
+            os.path.join(self.gmmlib, "lib"),
+            os.path.join(self.level_zero, "lib"),
             os.path.join(self.compute_runtime, "bin"),
         ]
 

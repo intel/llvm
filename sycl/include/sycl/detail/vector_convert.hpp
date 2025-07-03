@@ -387,94 +387,94 @@ using enable_if_to_int_vector_t =
                                      RoundingModeCondition, RoundingMode>::type;
 
 // signed to signed, unsigned to unsigned conversions
-#define __SYCL_SCALAR_INT_INT_CONVERT(Op, DestType)                            \
+#define __SYCL_SCALAR_INT_INT_CONVERT(Op, DestType, SPVType)                   \
   template <typename From, typename To, int VecSize, typename Enable>          \
   enable_if_to_int_scalar_t<sycl::opencl::cl_##DestType, Enable, VecSize, To>  \
       Op##Convert(From value) {                                                \
-    return __spirv_##Op##Convert_R##DestType(value);                           \
+    return __spirv_##Op##Convert_R##SPVType(value);                            \
   }
 
-#define __SYCL_VECTOR_INT_INT_CONVERT(Op, N, DestType)                         \
+#define __SYCL_VECTOR_INT_INT_CONVERT(Op, N, DestType, SPVType)                \
   template <typename From, typename To, int VecSize, typename Enable>          \
   enable_if_to_int_vector_t<sycl::opencl::cl_##DestType, Enable, N, VecSize,   \
                             To>                                                \
       Op##Convert(From value) {                                                \
-    return __spirv_##Op##Convert_R##DestType##N(value);                        \
+    return __spirv_##Op##Convert_R##SPVType##N(value);                         \
   }
 
-#define __SYCL_INT_INT_CONVERT(Op, DestType)                                   \
-  __SYCL_SCALAR_INT_INT_CONVERT(Op, DestType)                                  \
-  __SYCL_VECTOR_INT_INT_CONVERT(Op, 2, DestType)                               \
-  __SYCL_VECTOR_INT_INT_CONVERT(Op, 3, DestType)                               \
-  __SYCL_VECTOR_INT_INT_CONVERT(Op, 4, DestType)                               \
-  __SYCL_VECTOR_INT_INT_CONVERT(Op, 8, DestType)                               \
-  __SYCL_VECTOR_INT_INT_CONVERT(Op, 16, DestType)
+#define __SYCL_INT_INT_CONVERT(Op, DestType, SPVType)                          \
+  __SYCL_SCALAR_INT_INT_CONVERT(Op, DestType, SPVType)                         \
+  __SYCL_VECTOR_INT_INT_CONVERT(Op, 2, DestType, SPVType)                      \
+  __SYCL_VECTOR_INT_INT_CONVERT(Op, 3, DestType, SPVType)                      \
+  __SYCL_VECTOR_INT_INT_CONVERT(Op, 4, DestType, SPVType)                      \
+  __SYCL_VECTOR_INT_INT_CONVERT(Op, 8, DestType, SPVType)                      \
+  __SYCL_VECTOR_INT_INT_CONVERT(Op, 16, DestType, SPVType)
 
-__SYCL_INT_INT_CONVERT(S, char)
-__SYCL_INT_INT_CONVERT(S, short)
-__SYCL_INT_INT_CONVERT(S, int)
-__SYCL_INT_INT_CONVERT(S, long)
+__SYCL_INT_INT_CONVERT(S, char, schar)
+__SYCL_INT_INT_CONVERT(S, short, short)
+__SYCL_INT_INT_CONVERT(S, int, int)
+__SYCL_INT_INT_CONVERT(S, long, long)
 
-__SYCL_INT_INT_CONVERT(U, uchar)
-__SYCL_INT_INT_CONVERT(U, ushort)
-__SYCL_INT_INT_CONVERT(U, uint)
-__SYCL_INT_INT_CONVERT(U, ulong)
+__SYCL_INT_INT_CONVERT(U, uchar, uchar)
+__SYCL_INT_INT_CONVERT(U, ushort, ushort)
+__SYCL_INT_INT_CONVERT(U, uint, uint)
+__SYCL_INT_INT_CONVERT(U, ulong, ulong)
 
 #undef __SYCL_SCALAR_INT_INT_CONVERT
 #undef __SYCL_VECTOR_INT_INT_CONVERT
 #undef __SYCL_INT_INT_CONVERT
 
 // float to signed, float to unsigned conversion
-#define __SYCL_SCALAR_FLOAT_INT_CONVERT(Op, DestType, RoundingMode,            \
+#define __SYCL_SCALAR_FLOAT_INT_CONVERT(Op, DestType, SPVType, RoundingMode,   \
                                         RoundingModeCondition)                 \
   template <typename From, typename To, int VecSize, typename Enable,          \
             sycl::rounding_mode RM>                                            \
   enable_if_to_int_scalar_t<sycl::opencl::cl_##DestType, Enable, VecSize, To,  \
                             RoundingModeCondition, RM>                         \
       Convert##Op(From Value) {                                                \
-    return __spirv_Convert##Op##_R##DestType##_##RoundingMode(Value);          \
+    return __spirv_Convert##Op##_R##SPVType##_##RoundingMode(Value);           \
   }
 
-#define __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, N, DestType, RoundingMode,         \
-                                        RoundingModeCondition)                 \
+#define __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, N, DestType, SPVType,              \
+                                        RoundingMode, RoundingModeCondition)   \
   template <typename From, typename To, int VecSize, typename Enable,          \
             sycl::rounding_mode RM>                                            \
   enable_if_to_int_vector_t<sycl::opencl::cl_##DestType, Enable, N, VecSize,   \
                             To, RoundingModeCondition, RM>                     \
       Convert##Op(From Value) {                                                \
-    return __spirv_Convert##Op##_R##DestType##N##_##RoundingMode(Value);       \
+    return __spirv_Convert##Op##_R##SPVType##N##_##RoundingMode(Value);        \
   }
 
-#define __SYCL_FLOAT_INT_CONVERT(Op, DestType, RoundingMode,                   \
+#define __SYCL_FLOAT_INT_CONVERT(Op, DestType, SPVType, RoundingMode,          \
                                  RoundingModeCondition)                        \
-  __SYCL_SCALAR_FLOAT_INT_CONVERT(Op, DestType, RoundingMode,                  \
+  __SYCL_SCALAR_FLOAT_INT_CONVERT(Op, DestType, SPVType, RoundingMode,         \
                                   RoundingModeCondition)                       \
-  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 2, DestType, RoundingMode,               \
+  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 2, DestType, SPVType, RoundingMode,      \
                                   RoundingModeCondition)                       \
-  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 3, DestType, RoundingMode,               \
+  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 3, DestType, SPVType, RoundingMode,      \
                                   RoundingModeCondition)                       \
-  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 4, DestType, RoundingMode,               \
+  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 4, DestType, SPVType, RoundingMode,      \
                                   RoundingModeCondition)                       \
-  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 8, DestType, RoundingMode,               \
+  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 8, DestType, SPVType, RoundingMode,      \
                                   RoundingModeCondition)                       \
-  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 16, DestType, RoundingMode,              \
+  __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, 16, DestType, SPVType, RoundingMode,     \
                                   RoundingModeCondition)
 
-#define __SYCL_FLOAT_INT_CONVERT_FOR_TYPE(Op, DestType)                        \
-  __SYCL_FLOAT_INT_CONVERT(Op, DestType, rte, RteOrAutomatic)                  \
-  __SYCL_FLOAT_INT_CONVERT(Op, DestType, rtz, Rtz)                             \
-  __SYCL_FLOAT_INT_CONVERT(Op, DestType, rtp, Rtp)                             \
-  __SYCL_FLOAT_INT_CONVERT(Op, DestType, rtn, Rtn)
+#define __SYCL_FLOAT_INT_CONVERT_FOR_TYPE(Op, DestType, SPVType)               \
+  __SYCL_FLOAT_INT_CONVERT(Op, DestType, SPVType, rte, RteOrAutomatic)         \
+  __SYCL_FLOAT_INT_CONVERT(Op, DestType, SPVType, rtz, Rtz)                    \
+  __SYCL_FLOAT_INT_CONVERT(Op, DestType, SPVType, rtp, Rtp)                    \
+  __SYCL_FLOAT_INT_CONVERT(Op, DestType, SPVType, rtn, Rtn)
 
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, char)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, short)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, int)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, long)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, char, schar)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, short, short)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, int, int)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, long, long)
 
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, uchar)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, ushort)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, uint)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, ulong)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, uchar, uchar)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, ushort, ushort)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, uint, uint)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, ulong, ulong)
 
 #undef __SYCL_SCALAR_FLOAT_INT_CONVERT
 #undef __SYCL_VECTOR_FLOAT_INT_CONVERT

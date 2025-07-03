@@ -38,6 +38,7 @@
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
@@ -81,7 +82,8 @@ CodeGenFunction::CodeGenFunction(CodeGenModule &cgm, bool suppressNewContext)
       Builder(cgm, cgm.getModule().getContext(), llvm::ConstantFolder(),
               CGBuilderInserterTy(this)),
       SanOpts(CGM.getLangOpts().Sanitize), CurFPFeatures(CGM.getLangOpts()),
-      DebugInfo(CGM.getModuleDebugInfo()), PGO(cgm),
+      DebugInfo(CGM.getModuleDebugInfo()),
+      PGO(std::make_unique<CodeGenPGO>(cgm)),
       ShouldEmitLifetimeMarkers(
           shouldEmitLifetimeMarkers(CGM.getCodeGenOpts(), CGM.getLangOpts())) {
   if (!suppressNewContext)
@@ -314,6 +316,7 @@ TypeEvaluationKind CodeGenFunction::getEvaluationKind(QualType type) {
     case Type::Pipe:
     case Type::BitInt:
     case Type::HLSLAttributedResource:
+    case Type::HLSLInlineSpirv:
       return TEK_Scalar;
 
     // Complexes.
@@ -1794,6 +1797,11 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     // Disable debug info indefinitely for this function
     DebugInfo = nullptr;
   }
+  // Finalize function debug info on exit.
+  auto Cleanup = llvm::make_scope_exit([this] {
+    if (CGDebugInfo *DI = getDebugInfo())
+      DI->completeFunction();
+  });
 
   // The function might not have a body if we're generating thunks for a
   // function declaration.
@@ -1878,7 +1886,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     CurFn->addFnAttr(llvm::Attribute::MustProgress);
 
   // Generate the body of the function.
-  PGO.assignRegionCounters(GD, CurFn);
+  PGO->assignRegionCounters(GD, CurFn);
   if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
       getLangOpts().SYCLIsHost && !FD->hasAttr<CUDAHostAttr>() &&
       FD->hasAttr<CUDADeviceAttr>()) {
@@ -1924,7 +1932,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     // Implicit copy-assignment gets the same special treatment as implicit
     // copy-constructors.
     emitImplicitAssignmentOperatorBody(Args);
-  } else if (FD->hasAttr<OpenCLKernelAttr>() &&
+  } else if (getLangOpts().OpenCL && FD->hasAttr<OpenCLKernelAttr>() &&
              GD.getKernelReferenceKind() == KernelReferenceKind::Kernel) {
     CallArgList CallArgs;
     for (unsigned i = 0; i < Args.size(); ++i) {
@@ -1979,7 +1987,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   // Emit the standard function epilogue.
   FinishFunction(BodyRange.getEnd());
 
-  PGO.verifyCounterMap();
+  PGO->verifyCounterMap();
 
   // If we haven't marked the function nothrow through other means, do
   // a quick pass now to see if we can.
@@ -2103,7 +2111,7 @@ bool CodeGenFunction::ConstantFoldsToSimpleInteger(const Expr *Cond,
   if (!AllowLabels && CodeGenFunction::ContainsLabel(Cond))
     return false;  // Contains a label.
 
-  PGO.markStmtMaybeUsed(Cond);
+  PGO->markStmtMaybeUsed(Cond);
   ResultInt = Int;
   return true;
 }
@@ -2454,6 +2462,8 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
 
   llvm::Instruction *BrInst = Builder.CreateCondBr(CondV, TrueBlock, FalseBlock,
                                                    Weights, Unpredictable);
+  addInstToNewSourceAtom(BrInst, CondV);
+
   switch (HLSLControlFlowAttr) {
   case HLSLControlFlowHintAttr::Microsoft_branch:
   case HLSLControlFlowHintAttr::Microsoft_flatten: {
@@ -2807,6 +2817,7 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
     case Type::ObjCInterface:
     case Type::ObjCObjectPointer:
     case Type::BitInt:
+    case Type::HLSLInlineSpirv:
       llvm_unreachable("type class is never variably-modified!");
 
     case Type::Elaborated:
@@ -3755,4 +3766,24 @@ CodeGenFunction::EmitPointerAuthAuth(const CGPointerAuthInfo &PointerAuth,
 
   return EmitPointerAuthCommon(*this, PointerAuth, Pointer,
                                llvm::Intrinsic::ptrauth_auth);
+}
+
+void CodeGenFunction::addInstToCurrentSourceAtom(
+    llvm::Instruction *KeyInstruction, llvm::Value *Backup) {
+  if (CGDebugInfo *DI = getDebugInfo())
+    DI->addInstToCurrentSourceAtom(KeyInstruction, Backup);
+}
+
+void CodeGenFunction::addInstToSpecificSourceAtom(
+    llvm::Instruction *KeyInstruction, llvm::Value *Backup, uint64_t Atom) {
+  if (CGDebugInfo *DI = getDebugInfo())
+    DI->addInstToSpecificSourceAtom(KeyInstruction, Backup, Atom);
+}
+
+void CodeGenFunction::addInstToNewSourceAtom(llvm::Instruction *KeyInstruction,
+                                             llvm::Value *Backup) {
+  if (CGDebugInfo *DI = getDebugInfo()) {
+    ApplyAtomGroup Grp(getDebugInfo());
+    DI->addInstToCurrentSourceAtom(KeyInstruction, Backup);
+  }
 }

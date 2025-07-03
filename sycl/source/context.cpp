@@ -72,13 +72,14 @@ context::context(const std::vector<device> &DeviceList,
     impl = detail::context_impl::create(DeviceList, AsyncHandler, PropList);
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {
-  const auto &Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
+  detail::adapter_impl &Adapter =
+      sycl::detail::ur::getAdapter<backend::opencl>();
 
   ur_context_handle_t hContext = nullptr;
   ur_native_handle_t nativeHandle =
       reinterpret_cast<ur_native_handle_t>(ClContext);
-  Adapter->call<detail::UrApiKind::urContextCreateWithNativeHandle>(
-      nativeHandle, Adapter->getUrAdapter(), 0, nullptr, nullptr, &hContext);
+  Adapter.call<detail::UrApiKind::urContextCreateWithNativeHandle>(
+      nativeHandle, Adapter.getUrAdapter(), 0, nullptr, nullptr, &hContext);
 
   impl = detail::context_impl::create(hContext, AsyncHandler, Adapter);
 }
@@ -135,10 +136,6 @@ const property_list &context::getPropList() const {
 sycl::ext::oneapi::experimental::memory_pool
 context::ext_oneapi_get_default_memory_pool(const device &dev,
                                             sycl::usm::alloc kind) const {
-  if (kind == sycl::usm::alloc::host)
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::invalid),
-        "Default host memory pool requested but device supplied!");
   if (kind == sycl::usm::alloc::unknown)
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Unknown allocation kinds are disallowed!");
@@ -151,21 +148,6 @@ context::ext_oneapi_get_default_memory_pool(const device &dev,
   return detail::createSyclObjFromImpl<
       sycl::ext::oneapi::experimental::memory_pool>(
       impl->get_default_memory_pool(*this, dev, kind));
-}
-
-sycl::ext::oneapi::experimental::memory_pool
-context::ext_oneapi_get_default_memory_pool(sycl::usm::alloc kind) const {
-  if (kind == sycl::usm::alloc::device || kind == sycl::usm::alloc::shared)
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "Device and shared allocation kinds are disallowed "
-                          "without specifying a device!");
-  if (kind == sycl::usm::alloc::unknown)
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "Unknown allocation kinds are disallowed!");
-
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Host allocated pools are unsupported!");
 }
 
 } // namespace _V1

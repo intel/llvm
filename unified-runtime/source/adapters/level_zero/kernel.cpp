@@ -787,7 +787,7 @@ ur_result_t urKernelGetInfo(
     }
   }
   case UR_KERNEL_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Kernel->RefCount.load()});
+    return ReturnValue(uint32_t{Kernel->RefCount.getCount()});
   case UR_KERNEL_INFO_ATTRIBUTES:
     try {
       uint32_t Size;
@@ -938,7 +938,7 @@ ur_result_t urKernelGetSubGroupInfo(
 ur_result_t urKernelRetain(
     /// [in] handle for the Kernel to retain
     ur_kernel_handle_t Kernel) {
-  Kernel->RefCount.increment();
+  Kernel->RefCount.retain();
 
   return UR_RESULT_SUCCESS;
 }
@@ -946,7 +946,7 @@ ur_result_t urKernelRetain(
 ur_result_t urKernelRelease(
     /// [in] handle for the Kernel to release
     ur_kernel_handle_t Kernel) {
-  if (!Kernel->RefCount.decrementAndTest())
+  if (!Kernel->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   auto KernelProgram = Kernel->Program;
@@ -1122,15 +1122,16 @@ ur_result_t urKernelSuggestMaxCooperativeGroupCount(
   (void)dynamicSharedMemorySize;
   std::shared_lock<ur_shared_mutex> Guard(hKernel->Mutex);
 
+  ze_kernel_handle_t ZeKernel;
+  UR_CALL(getZeKernel(hDevice->ZeDevice, hKernel, &ZeKernel));
+
   uint32_t WG[3];
   WG[0] = ur_cast<uint32_t>(pLocalWorkSize[0]);
   WG[1] = workDim >= 2 ? ur_cast<uint32_t>(pLocalWorkSize[1]) : 1;
   WG[2] = workDim == 3 ? ur_cast<uint32_t>(pLocalWorkSize[2]) : 1;
-  ZE2UR_CALL(zeKernelSetGroupSize, (hKernel->ZeKernel, WG[0], WG[1], WG[2]));
+  ZE2UR_CALL(zeKernelSetGroupSize, (ZeKernel, WG[0], WG[1], WG[2]));
 
   uint32_t TotalGroupCount = 0;
-  ze_kernel_handle_t ZeKernel;
-  UR_CALL(getZeKernel(hDevice->ZeDevice, hKernel, &ZeKernel));
   ZE2UR_CALL(zeKernelSuggestMaxCooperativeGroupCount,
              (ZeKernel, &TotalGroupCount));
   *pGroupCountRet = TotalGroupCount;

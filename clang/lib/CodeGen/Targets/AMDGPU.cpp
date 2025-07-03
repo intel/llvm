@@ -8,7 +8,7 @@
 
 #include "ABIInfoImpl.h"
 #include "TargetInfo.h"
-#include "clang/Basic/TargetOptions.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/AMDGPUAddrSpace.h"
 
 using namespace clang;
@@ -305,8 +305,6 @@ public:
   void setTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
                            CodeGen::CodeGenModule &M) const override;
   unsigned getOpenCLKernelCallingConv() const override;
-  void
-  setOCLKernelStubCallingConvention(const FunctionType *&FT) const override;
 
   llvm::Constant *getNullPointer(const CodeGen::CodeGenModule &CGM,
       llvm::PointerType *T, QualType QT) const override;
@@ -435,14 +433,6 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
 
 unsigned AMDGPUTargetCodeGenInfo::getOpenCLKernelCallingConv() const {
   return llvm::CallingConv::AMDGPU_KERNEL;
-}
-
-void AMDGPUTargetCodeGenInfo::setOCLKernelStubCallingConvention(
-    const FunctionType *&FT) const {
-  bool IsSYCL = getABIInfo().getContext().getLangOpts().isSYCL();
-  FT = getABIInfo().getContext().adjustFunctionType(
-      FT,
-      FT->getExtInfo().withCallingConv(!IsSYCL ? CC_C : CC_AMDGPUKernelCall));
 }
 
 // Currently LLVM assumes null pointers always have value 0,

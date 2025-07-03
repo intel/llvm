@@ -22,13 +22,13 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
               ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
 
   if (pNumPlatforms) {
-    *pNumPlatforms = Adapter.Platforms.size();
+    *pNumPlatforms = Adapter->Platforms.size();
   }
 
   if (phPlatforms) {
     size_t PlatformIndex = 0;
-    for (auto &Platform : Adapter.Platforms) {
-      phPlatforms[PlatformIndex++] = &Platform;
+    for (auto &Platform : Adapter->Platforms) {
+      phPlatforms[PlatformIndex++] = Platform.get();
       if (PlatformIndex == NumEntries) {
         break;
       }
@@ -68,17 +68,13 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   }
 
   if (pPropSizeRet) {
-    if (auto Res = olGetPlatformInfoSize(hPlatform->OffloadPlatform, olInfo,
-                                         pPropSizeRet)) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(olGetPlatformInfoSize(hPlatform->OffloadPlatform, olInfo,
+                                           pPropSizeRet));
   }
 
   if (pPropValue) {
-    if (auto Res = olGetPlatformInfo(hPlatform->OffloadPlatform, olInfo,
-                                     propSize, pPropValue)) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(olGetPlatformInfo(hPlatform->OffloadPlatform, olInfo,
+                                       propSize, pPropValue));
   }
 
   return UR_RESULT_SUCCESS;

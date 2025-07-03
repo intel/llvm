@@ -63,7 +63,8 @@ enum class peer_access {
 /// may be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT device : public detail::OwnerLessBase<device> {
+class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT device
+    : public detail::OwnerLessBase<device> {
 public:
   /// Constructs a SYCL device instance using the default device.
   device();
@@ -207,10 +208,6 @@ public:
 
   /// Queries this SYCL device for information requested by the template
   /// parameter param
-  ///
-  /// Specializations of info::param_traits must be defined in accordance with
-  /// the info parameters in Table 4.20 of SYCL Spec to facilitate returning the
-  /// type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
   template <typename Param>

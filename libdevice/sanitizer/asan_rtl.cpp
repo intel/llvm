@@ -8,9 +8,6 @@
 
 #include "include/asan_rtl.hpp"
 #include "asan/asan_libdevice.hpp"
-#include "atomic.hpp"
-#include "device.h"
-#include "spirv_vars.h"
 
 // Save the pointer to LaunchInfo
 __SYCL_GLOBAL__ uptr *__SYCL_LOCAL__ __AsanLaunchInfo;
@@ -81,7 +78,7 @@ inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
     // FIXME: I'm not sure if we need to check ADDRESS_SPACE_CONSTANT,
     // but this can really simplify the generic pointer conversion logic
     as = ADDRESS_SPACE_GLOBAL;
-    addr = old;
+    addr = (uptr)ToGlobal((void *)old);
   }
   ASAN_DEBUG(__spirv_ocl_printf(__generic_to, old, addr, as));
 }
@@ -921,12 +918,12 @@ __asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
       launch_info->PrivateBase == 0)
     return;
   // Only set on the first sub-group item
-  if (__spirv_BuiltInSubgroupLocalInvocationId != 0)
-    return;
-  const size_t sid = SubGroupLinearId();
-  launch_info->PrivateBase[sid] = (uptr)ptr;
+  if (__spirv_BuiltInSubgroupLocalInvocationId == 0) {
+    const size_t sid = SubGroupLinearId();
+    launch_info->PrivateBase[sid] = (uptr)ptr;
+    ASAN_DEBUG(__spirv_ocl_printf(__asan_print_private_base, sid, ptr));
+  }
   SubGroupBarrier();
-  ASAN_DEBUG(__spirv_ocl_printf(__asan_print_private_base, sid, ptr));
 }
 
 #endif // __SPIR__ || __SPIRV__

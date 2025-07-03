@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/detail/common.hpp>
@@ -20,26 +20,26 @@ inline namespace _V1 {
 namespace detail {
 
 template <typename Param>
-typename Param::return_type
-get_event_profiling_info(ur_event_handle_t Event, const AdapterPtr &Adapter) {
+typename Param::return_type get_event_profiling_info(ur_event_handle_t Event,
+                                                     adapter_impl &Adapter) {
   static_assert(is_event_profiling_info_desc<Param>::value,
                 "Unexpected event profiling info descriptor");
   typename Param::return_type Result{0};
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Adapter->call<UrApiKind::urEventGetProfilingInfo>(
+  Adapter.call<UrApiKind::urEventGetProfilingInfo>(
       Event, UrInfoCode<Param>::value, sizeof(Result), &Result, nullptr);
   return Result;
 }
 
 template <typename Param>
 typename Param::return_type get_event_info(ur_event_handle_t Event,
-                                           const AdapterPtr &Adapter) {
+                                           adapter_impl &Adapter) {
   static_assert(is_event_info_desc<Param>::value,
                 "Unexpected event info descriptor");
   typename Param::return_type Result{0};
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Adapter->call<UrApiKind::urEventGetInfo>(Event, UrInfoCode<Param>::value,
-                                           sizeof(Result), &Result, nullptr);
+  Adapter.call<UrApiKind::urEventGetInfo>(Event, UrInfoCode<Param>::value,
+                                          sizeof(Result), &Result, nullptr);
 
   // If the status is UR_EVENT_STATUS_QUEUED We need to change it since QUEUE is
   // not a valid status in sycl.
