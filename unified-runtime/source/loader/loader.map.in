@@ -26,6 +26,7 @@
 		urBindlessImagesSampledImageCreateExp;
 		urBindlessImagesSampledImageHandleDestroyExp;
 		urBindlessImagesSignalExternalSemaphoreExp;
+		urBindlessImagesSupportsImportingHandleTypeExp;
 		urBindlessImagesUnsampledImageCreateExp;
 		urBindlessImagesUnsampledImageHandleDestroyExp;
 		urBindlessImagesWaitExternalSemaphoreExp;
@@ -206,6 +207,7 @@
 		urPrintBindlessImagesSampledImageCreateExpParams;
 		urPrintBindlessImagesSampledImageHandleDestroyExpParams;
 		urPrintBindlessImagesSignalExternalSemaphoreExpParams;
+		urPrintBindlessImagesSupportsImportingHandleTypeExpParams;
 		urPrintBindlessImagesUnsampledImageCreateExpParams;
 		urPrintBindlessImagesUnsampledImageHandleDestroyExpParams;
 		urPrintBindlessImagesWaitExternalSemaphoreExpParams;
