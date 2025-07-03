@@ -234,7 +234,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
     return ReturnValue(mapCLQueuePropsToUR(QueueProperties));
   }
   case UR_QUEUE_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hQueue->getReferenceCount());
+    return ReturnValue(hQueue->RefCount.getCount());
   }
   default: {
     size_t CheckPropSize = 0;
@@ -289,12 +289,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
-  hQueue->incrementReferenceCount();
+  hQueue->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  if (hQueue->decrementReferenceCount() == 0) {
+  if (hQueue->RefCount.release()) {
     delete hQueue;
   }
   return UR_RESULT_SUCCESS;

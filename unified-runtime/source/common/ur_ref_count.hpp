@@ -8,8 +8,8 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  */
-#ifndef URREFCOUNT_HPP
-#define URREFCOUNT_HPP 1
+#ifndef UR_REF_COUNT_HPP
+#define UR_REF_COUNT_HPP 1
 
 #include <atomic>
 #include <cstdint>
@@ -33,4 +33,4 @@ private:
 
 } // namespace ur
 
-#endif // URREFCOUNT_HPP
+#endif // UR_REF_COUNT_HPP
