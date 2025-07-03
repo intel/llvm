@@ -1,6 +1,8 @@
 name: SYCL Nightly Benchmarking
 
 # Placeholder workflow for testing https://github.com/intel/llvm/pull/19280
+on:
+  workflow_dispatch:
 
 jobs:
   do-nothing:
