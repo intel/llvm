@@ -7,6 +7,7 @@
 //===-----------------------------------------------------------------===//
 
 #include "queue.hpp"
+#include "CL/cl.h"
 #include "common.hpp"
 #include "context.hpp"
 #include "device.hpp"
@@ -172,8 +173,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   if (propName == UR_QUEUE_INFO_EMPTY) {
     if (!hQueue->LastEvent) {
-      // OpenCL doesn't provide API to check the status of the queue.
-      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      // Check the status of the queue under OpenCL backend.
+      cl_event Event;
+      CL_RETURN_ON_FAILURE(
+          clEnqueueMarkerWithWaitList(hQueue->CLQueue, 0, nullptr, &Event));
+      cl_int QueryResult;
+      CL_RETURN_ON_FAILURE(
+          clGetEventInfo(Event, CL_EVENT_COMMAND_EXECUTION_STATUS,
+                         sizeof(QueryResult), &QueryResult, nullptr));
+      CL_RETURN_ON_FAILURE(clReleaseEvent(Event));
+      if (QueryResult == CL_COMPLETE) {
+        return ReturnValue(true);
+      }
+      return ReturnValue(false);
     } else {
       ur_event_status_t Status;
       UR_RETURN_ON_FAILURE(urEventGetInfo(
