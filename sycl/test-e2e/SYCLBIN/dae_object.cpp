@@ -10,8 +10,8 @@
 
 // -- Test for using a kernel from a SYCLBIN with a dead argument.
 
-// XFAIL: hip
-// XFAIL-INTENDED: HIP backend does not implement linking.
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: HIP backend does not implement linking.
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=object %{sycl_target_opts} %S/Inputs/dae_kernel.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out

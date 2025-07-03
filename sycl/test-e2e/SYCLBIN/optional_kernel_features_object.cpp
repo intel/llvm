@@ -12,8 +12,8 @@
 // -- Test for compiling and loading a kernel bundle with a SYCLBIN containing
 //    the use of optional kernel features.
 
-// XFAIL: hip
-// XFAIL-INTENDED: HIP backend does not implement linking.
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: HIP backend does not implement linking.
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=object %{sycl_target_opts} %S/Inputs/optional_kernel_features.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out

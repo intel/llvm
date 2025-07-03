@@ -13,8 +13,8 @@
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
 
-// XFAIL: hip
-// XFAIL-INTENDED: HIP backend does not implement linking.
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: HIP backend does not implement linking.
 
 // XFAIL: cuda
 // XFAIL-TRACKER: CMPLRLLVM-68859
