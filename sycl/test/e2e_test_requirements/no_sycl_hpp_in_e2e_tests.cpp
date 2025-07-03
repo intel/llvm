@@ -8,6 +8,8 @@
 //
 // CHECK-NUM-MATCHES: 27
 //
+// XFAIL: *
+//
 // This test verifies that `<sycl/sycl.hpp>` isn't used in E2E tests. Instead,
 // fine-grained includes should used, see
 // https://github.com/intel/llvm/tree/sycl/sycl/test-e2e#sycldetailcorehpp

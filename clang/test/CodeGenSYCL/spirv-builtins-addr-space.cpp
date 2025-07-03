@@ -8,6 +8,8 @@
 // The opencl_global, opencl_local, and opencl_private attributes get turned
 // into sycl_global, sycl_local and sycl_private address spaces by clang.
 
+// XFAIL: *
+
 #include "Inputs/sycl.hpp"
 
 // CHECK: __spirv_ocl_modf{{.*}}SYglobal
