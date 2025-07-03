@@ -32,6 +32,11 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
 
+          - name: NVIDIA/CUDA
+            runner: '["Linux", "cuda"]'
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
+
           - name: Intel L0 Gen12 GPU
             runner: '["Linux", "gen12"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
@@ -40,6 +45,11 @@ jobs:
 
           - name: Intel L0 Battlemage GPU
             runner: '["Linux", "bmg"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+
+          - name: Intel L0 Arc A-Series GPU
+            runner: '["Linux", "arc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
 
@@ -101,40 +111,6 @@ jobs:
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       repo_ref: ${{ github.sha  }}
-
-  cuda-aws-start:
-    needs: [ubuntu2204_build]
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
-    uses: ./.github/workflows/sycl-aws.yml
-    secrets: inherit
-    with:
-      mode: start
-      ref: ${{ github.sha  }}
-
-  cuda-run-tests:
-    needs: [ubuntu2204_build, cuda-aws-start]
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: CUDA E2E
-      runner: '["aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}"]'
-      image: ghcr.io/intel/llvm/ubuntu2204_build:latest-133fee559371ce0e6ff867e378c21cde2bdf6c90
-      image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
-      target_devices: cuda:gpu
-      repo_ref: ${{ github.sha  }}
-
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
-
-  cuda-aws-stop:
-    needs: [cuda-aws-start, cuda-run-tests]
-    if: always() && ${{ needs.cuda-aws-start.result != 'skipped' }}
-    uses: ./.github/workflows/sycl-aws.yml
-    secrets: inherit
-    with:
-      mode: stop
-      ref: ${{ github.sha  }}
 
   build-sycl-cts:
     needs: ubuntu2204_build
