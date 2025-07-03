@@ -16,6 +16,7 @@
 #include <detail/device_global_map_entry.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -23,9 +24,22 @@ namespace detail {
 
 class DeviceGlobalMap {
 public:
-  void initializeEntries(RTDeviceBinaryImage *Img) {
-    const auto &DeviceGlobals = Img->getDeviceGlobals();
+  DeviceGlobalMap(bool OwnerControlledCleanup)
+      : MOwnerControlledCleanup{OwnerControlledCleanup} {}
+
+  ~DeviceGlobalMap() {
+    if (!MOwnerControlledCleanup)
+      for (auto &DeviceGlobalIt : MDeviceGlobals)
+        DeviceGlobalIt.second->cleanup();
+  }
+
+  void initializeEntries(const RTDeviceBinaryImage *Img) {
     std::lock_guard<std::mutex> DeviceGlobalsGuard(MDeviceGlobalsMutex);
+    initializeEntriesLockless(Img);
+  }
+
+  void initializeEntriesLockless(const RTDeviceBinaryImage *Img) {
+    const auto &DeviceGlobals = Img->getDeviceGlobals();
     for (const sycl_device_binary_property &DeviceGlobal : DeviceGlobals) {
       ByteArray DeviceGlobalInfo =
           DeviceBinaryProperty(DeviceGlobal).asByteArray();
@@ -102,9 +116,16 @@ public:
     return Entry->second;
   }
 
-  DeviceGlobalMapEntry *tryGetEntry(const std::string &UniqueId,
-                                    bool ExcludeDeviceImageScopeDecorated) {
+  DeviceGlobalMapEntry *
+  tryGetEntry(const std::string &UniqueId,
+              bool ExcludeDeviceImageScopeDecorated = false) {
     std::lock_guard<std::mutex> DeviceGlobalsGuard(MDeviceGlobalsMutex);
+    return tryGetEntryLockless(UniqueId, ExcludeDeviceImageScopeDecorated);
+  }
+
+  DeviceGlobalMapEntry *
+  tryGetEntryLockless(const std::string &UniqueId,
+                      bool ExcludeDeviceImageScopeDecorated = false) const {
     auto DeviceGlobalEntry = MDeviceGlobals.find(UniqueId);
     if (DeviceGlobalEntry != MDeviceGlobals.end() &&
         (!ExcludeDeviceImageScopeDecorated ||
@@ -113,22 +134,17 @@ public:
     return nullptr;
   }
 
-  std::vector<DeviceGlobalMapEntry *>
-  getEntries(const std::vector<std::string> &UniqueIds,
-             bool ExcludeDeviceImageScopeDecorated) {
-    std::vector<DeviceGlobalMapEntry *> FoundEntries;
-    FoundEntries.reserve(UniqueIds.size());
-
+  void getEntries(const std::vector<std::string> &UniqueIds,
+                  bool ExcludeDeviceImageScopeDecorated,
+                  std::vector<DeviceGlobalMapEntry *> &OutVec) {
     std::lock_guard<std::mutex> DeviceGlobalsGuard(MDeviceGlobalsMutex);
     for (const std::string &UniqueId : UniqueIds) {
       auto DeviceGlobalEntry = MDeviceGlobals.find(UniqueId);
-      assert(DeviceGlobalEntry != MDeviceGlobals.end() &&
-             "Device global not found in map.");
-      if (!ExcludeDeviceImageScopeDecorated ||
-          !DeviceGlobalEntry->second->MIsDeviceImageScopeDecorated)
-        FoundEntries.push_back(DeviceGlobalEntry->second.get());
+      if (DeviceGlobalEntry != MDeviceGlobals.end() &&
+          (!ExcludeDeviceImageScopeDecorated ||
+           !DeviceGlobalEntry->second->MIsDeviceImageScopeDecorated))
+        OutVec.push_back(DeviceGlobalEntry->second.get());
     }
-    return FoundEntries;
   }
 
   const std::unordered_map<const void *, DeviceGlobalMapEntry *>
@@ -143,6 +159,12 @@ public:
   }
 
 private:
+  // Indicates whether the owner will explicitly cleanup the entries. If false
+  // the dtor of DeviceGlobalMap will cleanup the entries.
+  // Note: This lets the global device global map avoid overhead at shutdown and
+  //       instead let the contexts own the associated entries.
+  bool MOwnerControlledCleanup = true;
+
   // Maps between device_global identifiers and associated information.
   std::unordered_map<KernelNameStrT, std::unique_ptr<DeviceGlobalMapEntry>>
       MDeviceGlobals;

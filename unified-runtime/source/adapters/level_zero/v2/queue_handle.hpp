@@ -13,11 +13,12 @@
 
 #pragma once
 
+#include <variant>
+
 #include "../common.hpp"
 #include "queue_immediate_in_order.hpp"
 #include "queue_immediate_out_of_order.hpp"
 #include <ur_api.h>
-#include <variant>
 
 struct ur_queue_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   using data_variant = std::variant<v2::ur_queue_immediate_in_order_t,
@@ -50,7 +51,7 @@ struct ur_queue_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   ur_result_t queueRetain() {
     return std::visit(
         [](auto &q) {
-          q.RefCount.increment();
+          q.RefCount.retain();
           return UR_RESULT_SUCCESS;
         },
         queue_data);
@@ -59,7 +60,7 @@ struct ur_queue_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   ur_result_t queueRelease() {
     return std::visit(
         [queueHandle = this](auto &q) {
-          if (!q.RefCount.decrementAndTest())
+          if (!q.RefCount.release())
             return UR_RESULT_SUCCESS;
           delete queueHandle;
           return UR_RESULT_SUCCESS;

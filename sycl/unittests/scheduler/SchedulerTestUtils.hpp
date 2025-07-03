@@ -212,7 +212,7 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
           /*AccessRange*/ {0, 0, 0},
           /*MemoryRange*/ {0, 0, 0},
           /*AccessMode*/ sycl::access::mode::read_write,
-          /*SYCLMemObj*/ sycl::detail::getSyclObjImpl(MemObj).get(),
+          /*SYCLMemObj*/ &*sycl::detail::getSyclObjImpl(MemObj),
           /*Dims*/ 0,
           /*ElementSize*/ 0,
           /*Offset*/ size_t(0)};
