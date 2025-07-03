@@ -1374,7 +1374,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
             static_cast<const ur_exp_file_descriptor_t *>(pNext);
 
         extMemDesc.handle.fd = FileDescriptor->fd;
-        extMemDesc.type = hipExternalMemoryHandleTypeOpaqueFd;
+        switch (memHandleType) {
+        case UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD:
+          extMemDesc.type = hipExternalMemoryHandleTypeOpaqueFd;
+          break;
+        case UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF:
+          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        default:
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
       } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
         auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
 
@@ -1393,7 +1401,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
           return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 #endif
           break;
-        case UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD:
         default:
           return UR_RESULT_ERROR_INVALID_VALUE;
         }
@@ -1495,6 +1502,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesSupportsImportingHandleTypeExp(
+    [[maybe_unused]] ur_device_handle_t hDevice,
+    ur_exp_external_mem_type_t memHandleType, ur_bool_t *pSupportedRet) {
+#if defined(_WIN32)
+  *pSupportedRet =
+      (memHandleType == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT) ||
+      (memHandleType == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE);
+#else
+  *pSupportedRet = (memHandleType == UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD);
+#endif
   return UR_RESULT_SUCCESS;
 }
 

@@ -11174,6 +11174,12 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   if (getLangOpts().OpenACC)
     OpenACC().ActOnFunctionDeclarator(NewFD);
 
+  // Handle free functions.
+  if (LangOpts.SYCLIsDevice && !NewFD->isDependentContext() &&
+      !D.isRedeclaration() &&
+      D.getFunctionDefinitionKind() == FunctionDefinitionKind::Declaration)
+    SYCL().processFreeFunctionDeclaration(NewFD);
+
   return NewFD;
 }
 

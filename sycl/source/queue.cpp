@@ -65,14 +65,14 @@ queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
   const device &SyclDevice = *std::max_element(Devs.begin(), Devs.end(), Comp);
 
   impl = detail::queue_impl::create(*detail::getSyclObjImpl(SyclDevice),
-                                    detail::getSyclObjImpl(SyclContext),
+                                    *detail::getSyclObjImpl(SyclContext),
                                     AsyncHandler, PropList);
 }
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
              const async_handler &AsyncHandler, const property_list &PropList) {
   impl = detail::queue_impl::create(*detail::getSyclObjImpl(SyclDevice),
-                                    detail::getSyclObjImpl(SyclContext),
+                                    *detail::getSyclObjImpl(SyclContext),
                                     AsyncHandler, PropList);
 }
 
@@ -100,7 +100,7 @@ queue::queue(cl_command_queue clQueue, const context &SyclContext,
   impl = detail::queue_impl::create(
       // TODO(pi2ur): Don't cast straight from cl_command_queue
       reinterpret_cast<ur_queue_handle_t>(clQueue),
-      detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
+      *detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }
 
 cl_command_queue queue::get() const { return impl->get(); }
@@ -369,9 +369,9 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
   bool AllEventsEmptyOrNop = std::all_of(
       begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
-        auto EventImpl = detail::getSyclObjImpl(Event);
-        return (EventImpl->isDefaultConstructed() || EventImpl->isNOP()) &&
-               !EventImpl->hasCommandGraph();
+        detail::event_impl &EventImpl = *detail::getSyclObjImpl(Event);
+        return (EventImpl.isDefaultConstructed() || EventImpl.isNOP()) &&
+               !EventImpl.hasCommandGraph();
       });
   if (is_in_order() && !impl->hasCommandGraph() && !impl->MIsProfilingEnabled &&
       AllEventsEmptyOrNop) {

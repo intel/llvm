@@ -33,7 +33,7 @@
 
 #include <sycl/access/access.hpp>              // for decorated, address_space
 #include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
-#include <sycl/detail/common.hpp>              // for ArrayCreator, RepeatV...
+#include <sycl/detail/common.hpp>              // for ArrayCreator
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/detail/memcpy.hpp>              // for memcpy
@@ -195,6 +195,10 @@ protected:
   alignas(alignment) DataType m_Data;
 
   template <size_t... Is>
+  constexpr vec_base(const DataT &Val, std::index_sequence<Is...>)
+      : m_Data{((void)Is, Val)...} {}
+
+  template <size_t... Is>
   constexpr vec_base(const std::array<DataT, NumElements> &Arr,
                      std::index_sequence<Is...>)
       : m_Data{Arr[Is]...} {}
@@ -262,8 +266,7 @@ public:
   constexpr vec_base &operator=(vec_base &&) = default;
 
   explicit constexpr vec_base(const DataT &arg)
-      : vec_base(RepeatValue<NumElements>(arg),
-                 std::make_index_sequence<NumElements>()) {}
+      : vec_base(arg, std::make_index_sequence<NumElements>()) {}
 
   template <typename... argTN,
             typename = std::enable_if_t<
@@ -527,12 +530,15 @@ public:
   // `vector_t` is the same as `DataT`. Not that the other ctor isn't a template
   // so we don't even need a smart `enable_if` condition here, the mere fact of
   // this being a template makes the other ctor preferred.
+  // For vectors of length 3, make sure to only copy 3 elements, not 4, to work
+  // around code generation issues, see LLVM #144454.
   template <
       typename vector_t_ = vector_t,
       typename = typename std::enable_if_t<std::is_same_v<vector_t_, vector_t>>>
   constexpr vec(vector_t_ openclVector) {
     sycl::detail::memcpy_no_adl(&this->m_Data, &openclVector,
-                                sizeof(openclVector));
+                                NumElements *
+                                    sizeof(element_type_for_vector_t));
   }
 
   /* @SYCL2020

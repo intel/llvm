@@ -11,6 +11,7 @@
 #pragma once
 
 #include "ur/ur.hpp"
+#include "ur2offload.hpp"
 #include <atomic>
 
 namespace ur::offload {
@@ -23,3 +24,8 @@ using handle_base = ur::handle_base<ur::offload::ddi_getter>;
 struct RefCounted : ur::offload::handle_base {
   std::atomic_uint32_t RefCount = 1;
 };
+
+#define OL_RETURN_ON_ERR(call)                                                 \
+  if (auto OlRes = call) {                                                     \
+    return offloadResultToUR(OlRes);                                           \
+  }

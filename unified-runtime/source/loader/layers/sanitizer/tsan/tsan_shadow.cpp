@@ -29,10 +29,10 @@ std::shared_ptr<ShadowMemory> GetShadowMemory(ur_context_handle_t Context,
     return ShadowCPU;
   } else if (Type == DeviceType::GPU_PVC) {
     return std::make_shared<ShadowMemoryPVC>(Context, Device);
-  } else {
-    UR_LOG_L(getContext()->logger, ERR, "Unsupport device type");
-    return nullptr;
   }
+
+  die("GetShadowMemory: Unsupport device type");
+  return nullptr;
 }
 
 ur_result_t ShadowMemoryCPU::Setup() {
@@ -169,19 +169,12 @@ ur_result_t ShadowMemoryGPU::CleanShadow(ur_queue_handle_t Queue, uptr Ptr,
         UR_LOG_L(getContext()->logger, DEBUG, "urVirtualMemMap: {} ~ {}",
                  (void *)MappedPtr, (void *)(MappedPtr + PageSize - 1));
 
-        // Initialize to zero
-        URes = EnqueueUSMSet(Queue, (void *)MappedPtr, (char)0, PageSize);
-        if (URes != UR_RESULT_SUCCESS) {
-          UR_LOG_L(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}",
-                   URes);
-          return URes;
-        }
-
         VirtualMemMaps[MappedPtr] = PhysicalMem;
       }
     }
   }
 
+  // Initialize to zero
   auto URes = EnqueueUSMSet(Queue, (void *)Begin, (char)0,
                             Size / kShadowCell * kShadowCnt * kShadowSize);
   if (URes != UR_RESULT_SUCCESS) {

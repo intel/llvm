@@ -160,12 +160,12 @@ ze_event_handle_t ur_event_handle_t_::getZeEvent() const {
 }
 
 ur_result_t ur_event_handle_t_::retain() {
-  RefCount.increment();
+  RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_event_handle_t_::release() {
-  if (!RefCount.decrementAndTest())
+  if (!RefCount.release())
     return UR_RESULT_SUCCESS;
 
   if (event_pool) {
@@ -258,7 +258,7 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
     }
   }
   case UR_EVENT_INFO_REFERENCE_COUNT: {
-    return returnValue(hEvent->RefCount.load());
+    return returnValue(hEvent->RefCount.getCount());
   }
   case UR_EVENT_INFO_COMMAND_QUEUE: {
     auto urQueueHandle = reinterpret_cast<uintptr_t>(hEvent->getQueue()) -
