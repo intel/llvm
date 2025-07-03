@@ -3729,8 +3729,10 @@ unsigned FunctionDecl::getBuiltinID(bool ConsiderWrapperFunctions) const {
       !(BuiltinID == Builtin::BIprintf || BuiltinID == Builtin::BImalloc))
     return 0;
 
-  if (Context.getLangOpts().isSYCL() && hasAttr<SYCLDeviceOnlyAttr>() &&
-      BuiltinID != Builtin::BIprintf) {
+  // SYCL doesn't have a device-side standard library. SYCLDeviceOnlyAttr may
+  // be used to provide device-side definitions of standard functions, so
+  // anything with that attribute shouldn't be treated as a builtin.
+  if (Context.getLangOpts().isSYCL() && hasAttr<SYCLDeviceOnlyAttr>()) {
     return 0;
   }
 

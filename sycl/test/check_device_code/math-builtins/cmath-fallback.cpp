@@ -10,8 +10,19 @@
 __attribute__((sycl_device)) void entry(float *fp, double *dp, int *ip,
                                         long *lp, long long *llp, float *rf,
                                         double *rd, int *ri) {
+  // Use an incrementing index to prevent the compiler from optimizing some
+  // calls that would store to the same address.
   int idx = 0;
 
+  // For each supported standard math built-in, we test that the following
+  // overloads are properly mapped to __spirv_ built-ins:
+  //
+  // * Float only.
+  // * Float only with 'f' suffix.
+  // * Double only.
+  // * Integer promotion.
+  // * Mixed floating point promotion (when applicable).
+  //
   // CHECK: __spirv_ocl_fmodff
   rf[idx++] = std::fmod(fp[0], fp[1]);
   // CHECK: __spirv_ocl_fmodff

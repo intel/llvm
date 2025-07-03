@@ -45,7 +45,7 @@ public:
   typedef decltype(test<T>()) type;
 };
 
-// Variant without ::type to allow SFINAE for non promotable types.
+// Variant without ::type to allow SFINAE for non-promotable types.
 template <typename T> struct __dpcpp_promote<T, false> {};
 
 // With a single paramter we only need to promote integers.
@@ -73,11 +73,11 @@ using __dpcpp_promote_3 =
                             typename __dpcpp_promote<V>::type(0))>;
 
 // For each math built-in we need to define float and double overloads, an
-// extern "C" float variant with the 'f' suffix, and a version that promotes to
-// double if any floating-point parameter passed is an integer.
+// extern "C" float variant with the 'f' suffix, and a version that promotes
+// integers or mixed precision floating-point parameters.
 //
-// TODO: Consider targets that don't have double support
-// TODO: Enable long double support where possible
+// TODO: Consider targets that don't have double support.
+// TODO: Enable long double support where possible.
 //
 // The following two macros provide an easy way to define these overloads for
 // basic built-ins with one or two floating-point parameters.
@@ -109,7 +109,7 @@ using __dpcpp_promote_3 =
   }
 
 /// <cstdlib>
-// FIXME: Move this to a cstdlib fallback header
+// FIXME: Move this to a cstdlib fallback header.
 
 __DPCPP_SYCL_DEVICE div_t div(int x, int y) { return {x / y, x % y}; }
 __DPCPP_SYCL_DEVICE ldiv_t ldiv(long x, long y) { return {x / y, x % y}; }
@@ -294,7 +294,7 @@ __DPCPP_SYCL_DEVICE float modf(float x, float *intpart) {
 __DPCPP_SYCL_DEVICE double modf(double x, double *intpart) {
   return __spirv_ocl_modf(x, intpart);
 }
-// modf only supports integer x when the intpart is double
+// modf only supports integer x when the intpart is double.
 template <typename T>
 __DPCPP_SYCL_DEVICE typename __dpcpp_promote_1<T>::type modf(T x,
                                                              double *intpart) {
@@ -332,9 +332,11 @@ __DPCPP_SYCL_DEVICE typename __dpcpp_promote_1<T>::type scalbln(T x, long exp) {
 __DPCPP_SYCL_DEVICE_C int ilogbf(float x) { return __spirv_ocl_ilogb(x); }
 __DPCPP_SYCL_DEVICE int ilogb(float x) { return __spirv_ocl_ilogb(x); }
 __DPCPP_SYCL_DEVICE int ilogb(double x) { return __spirv_ocl_ilogb(x); }
+// ilogb needs a special template since its signature doesn't include the
+// promoted type anywhere, so it needs to be specialized differently.
 template <typename T, typename std::enable_if<std::is_integral<T>::value,
                                               bool>::type = true>
-__DPCPP_SYCL_DEVICE double ilogb(T x) {
+__DPCPP_SYCL_DEVICE int ilogb(T x) {
   return __spirv_ocl_ilogb((double)x);
 }
 
