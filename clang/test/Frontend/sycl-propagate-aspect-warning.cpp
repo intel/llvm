@@ -3,8 +3,6 @@
 // Tests for warnings when propagated aspects do not match the aspects available
 // in a function, as specified through the 'sycl::device_has' attribute.
 
-// XFAIL: *
-
 #include "sycl.hpp"
 
 // expected-note-re@+1 4 {{propagated from call to function '{{.*}}Struct1::Struct1({{.*}})'}}
