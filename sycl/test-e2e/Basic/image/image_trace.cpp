@@ -55,10 +55,10 @@ int main() {
         sycl::float4 Data = Img1Acc.read(sycl::int2{Item[0], Item[1]});
         Img2Acc.write(sycl::int2{Item[0], Item[1]}, Data);
       });
-      // CHECK: urMemImageCreate
+      // CHECK: <--- urMemImageCreate
       // CHECK-SAME: UR_MEM_FLAG_USE_HOST_POINTER
       // CHECK-SAME: .width = 4, .height = 4, .depth = 1, .arraySize = 0, .rowPitch = 64, .slicePitch = 256
-      // CHECK: urMemImageCreate
+      // CHECK: <--- urMemImageCreate
       // CHECK-SAME: UR_MEM_FLAG_USE_HOST_POINTER
       // CHECK-SAME: .width = 4, .height = 4, .depth = 1, .arraySize = 0, .rowPitch = 64, .slicePitch = 256
     });
