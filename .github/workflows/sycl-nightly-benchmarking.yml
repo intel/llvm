@@ -7,3 +7,5 @@ on:
 jobs:
   do-nothing:
     runs-on: ubuntu-latest
+    steps:
+      - run: echo "Test workflow for 19280"
