@@ -311,6 +311,7 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
 
     for (const SYCLBIN::NativeDeviceCodeImage &NDCI :
          AM.NativeDeviceCodeImages) {
+      assert(NDCI.Metadata != nullptr);
       PropertySet &NDCIMetadataProps = (*NDCI.Metadata)
           [PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA];
 

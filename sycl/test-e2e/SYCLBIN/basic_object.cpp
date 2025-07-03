@@ -11,6 +11,9 @@
 // -- Basic test for compiling and loading a SYCLBIN kernel_bundle in object
 // -- state.
 
+// XFAIL: hip
+// XFAIL-INTENDED: HIP backend does not implement linking.
+
 // RUN: %clangxx --offload-new-driver -fsyclbin=object %{sycl_target_opts} %S/Inputs/basic_kernel.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out %t.syclbin
