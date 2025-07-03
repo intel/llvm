@@ -13,10 +13,7 @@ USER_ID=1001
 groupadd -g $USER_ID $USER_NAME && useradd $USER_NAME -u $USER_ID -g $USER_ID -m -s /bin/bash
 # Add user to video/irc groups so that it can access GPU
 usermod -aG video $USER_NAME
-# Not all OS have irc group
-if grep -qi 'ubuntu' /etc/os-release; then
-  usermod -aG irc $USER_NAME
-fi
+usermod -aG irc $USER_NAME
 
 # group 109 is required for user to access PVC card.
 groupadd -f -g 109 render
