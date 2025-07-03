@@ -4470,6 +4470,7 @@
 ?supportsUSMFill2D@handler@_V1@sycl@@AEAA_NXZ
 ?supportsUSMMemcpy2D@handler@_V1@sycl@@AEAA_NXZ
 ?supportsUSMMemset2D@handler@_V1@sycl@@AEAA_NXZ
+?supports_importing_handle_type@experimental@oneapi@ext@_V1@sycl@@YA_NW4external_mem_handle_type@12345@AEBVdevice@45@@Z
 ?sycl_category@_V1@sycl@@YAAEBVerror_category@std@@XZ
 ?throwIfActionIsCreated@handler@_V1@sycl@@AEAAXXZ
 ?throwOnKernelParameterMisuseHelper@handler@_V1@sycl@@AEBAXHP6A?AUkernel_param_desc_t@detail@23@H@Z@Z

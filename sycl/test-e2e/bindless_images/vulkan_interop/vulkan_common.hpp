@@ -65,6 +65,7 @@ static bool supportsDedicatedAllocation = false;
 static bool requiresDedicatedAllocation = false;
 
 static bool supportsExternalSemaphore = false;
+static bool supportsDmaBuf = false;
 
 // A static debug callback function that relays messages from the Vulkan
 // validation layer to the terminal.
@@ -261,6 +262,7 @@ VkResult setupDevice(const sycl::device &dev) {
       VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME,
 #else
       VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
+      VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
 #endif
   };
 
@@ -309,18 +311,19 @@ VkResult setupDevice(const sycl::device &dev) {
 
     // Check if the device supports the optional extensions, if so add them to
     // the list of enabled device extensions.
-    for (const char *optionalExt : optionalExtensions) {
+    for (std::string_view optionalExt : optionalExtensions) {
       auto it = std::find_if(std::begin(supportedDeviceExtensions),
                              std::end(supportedDeviceExtensions),
                              [&](const VkExtensionProperties &ext) {
-                               return (ext.extensionName ==
-                                       std::string_view(optionalExt));
+                               return (ext.extensionName == optionalExt);
                              });
       if (it != std::end(supportedDeviceExtensions)) {
-        enabledDeviceExtensions.push_back(optionalExt);
-        if (std::string_view(optionalExt) ==
-            VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME) {
+        enabledDeviceExtensions.push_back(optionalExt.data());
+        if (optionalExt == VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME) {
           supportsExternalSemaphore = true;
+        }
+        if (optionalExt == VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME) {
+          supportsDmaBuf = true;
         }
       }
     }
@@ -793,11 +796,13 @@ HANDLE getSemaphoreWin32Handle(VkSemaphore semaphore) {
 /*
 Retrieve an opaque file descriptor handle for a given Vulkan memory allocation.
 */
+template <VkExternalMemoryHandleTypeFlagBits vulkanHandleType =
+              VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT>
 int getMemoryOpaqueFD(VkDeviceMemory memory) {
   VkMemoryGetFdInfoKHR mgfi = {};
   mgfi.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
   mgfi.memory = memory;
-  mgfi.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+  mgfi.handleType = vulkanHandleType;
 
   int fd = 0;
   if (vk_getMemoryFdKHR != nullptr) {
