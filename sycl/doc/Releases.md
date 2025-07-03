@@ -16,14 +16,8 @@ Because those builds are made from the latest commit available,
 there is no guarantee of any stability of those builds.
 
 Please note that those builds are tailored for our own testing needs
-and therefore they build with assertions enabled and have some extra
+and therefore they build with assertions enabled and may have some extra
 dependencies.
-
-For example, for extra testing we link with
-[`KhronosGroup/SPIRV-Tools`](https://github.com/KhronosGroup/SPIRV-Tools)
-and you will need to make
-`SPIRV-Tools-shared.dll`/`libSPIRV-Tools-shared.so` available in
-your `PATH`/`LD_LIBRARY_PATH`.
 
 ## Official releases
 
@@ -33,19 +27,23 @@ ordered from the newest to the oldest.
 
 Release branches are prefixed with `sycl-rel-`
 
-### [Upcoming] `6.1.0` release
+### **[Upcoming]** `6.2.0` release
 
 This release will be made from
-the [`sycl-rel-6_1_0`](https://github.com/intel/llvm/tree/sycl-rel-6_1_0)
+the [`sycl-rel-6_2`](https://github.com/intel/llvm/tree/sycl-rel-6_2) branch.
 
-At this moment, no tags are created on the branch, it is being
-stabilized.
+### `6.1.0` release
+
+This release was made from
+the [`sycl-rel-6_1_0`](https://github.com/intel/llvm/tree/sycl-rel-6_1_0)
+branch and we have the following tags published:
+- **[Latest]** [`v6.1.0`](https://github.com/intel/llvm/releases/tag/v6.1.0)
 
 ### `6.0.X` releases
 
-Theses releases are made from
+These releases are made from
 the [`sycl-rel-6_0_0`](https://github.com/intel/llvm/tree/sycl-rel-6_0_0)
-and we have the following tags published:
+branch and we have the following tags published:
 - [`v6.0.1`](https://github.com/intel/llvm/releases/tag/v6.0.1) -
   6.0.1 bugfix release
 - [`v6.0.0`](https://github.com/intel/llvm/releases/tag/v6.0.0) -
