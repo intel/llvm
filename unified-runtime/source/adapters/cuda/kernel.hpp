@@ -17,6 +17,7 @@
 #include <cassert>
 #include <numeric>
 
+#include "common/ur_ref_count.hpp"
 #include "program.hpp"
 
 /// Implementation of a UR Kernel for CUDA
@@ -42,7 +43,7 @@ struct ur_kernel_handle_t_ : ur::cuda::handle_base {
   std::string Name;
   ur_context_handle_t Context;
   ur_program_handle_t Program;
-  std::atomic_uint32_t RefCount;
+  ur::RefCount RefCount;
 
   static constexpr uint32_t ReqdThreadsPerBlockDimensions = 3u;
   size_t ReqdThreadsPerBlock[ReqdThreadsPerBlockDimensions];
@@ -303,12 +304,6 @@ struct ur_kernel_handle_t_ : ur::cuda::handle_base {
     urProgramRelease(Program);
     urContextRelease(Context);
   }
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   native_type get() const noexcept { return Function; };
 

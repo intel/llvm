@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "common/ur_ref_count.hpp"
 #include <algorithm>
 #include <mutex>
 #include <vector>

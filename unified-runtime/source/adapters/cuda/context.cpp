@@ -66,7 +66,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
     return ReturnValue(hContext->getDevices().data(),
                        hContext->getDevices().size());
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(hContext->getReferenceCount());
+    return ReturnValue(hContext->RefCount.getCount());
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // 2D USM memcpy is supported.
     return ReturnValue(true);
@@ -83,7 +83,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  if (hContext->decrementReferenceCount() > 0) {
+  if (!hContext->RefCount.release()) {
     return UR_RESULT_SUCCESS;
   }
   hContext->invokeExtendedDeleters();
@@ -94,9 +94,9 @@ urContextRelease(ur_context_handle_t hContext) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRetain(ur_context_handle_t hContext) {
-  assert(hContext->getReferenceCount() > 0);
+  assert(hContext->RefCount.getCount() > 0);
 
-  hContext->incrementReferenceCount();
+  hContext->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
