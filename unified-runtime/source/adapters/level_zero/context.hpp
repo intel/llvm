@@ -26,6 +26,7 @@
 #include "queue.hpp"
 #include "usm.hpp"
 
+#include "common/ur_ref_count.hpp"
 #include <umf_helpers.hpp>
 
 struct l0_command_list_cache_info {
@@ -357,6 +358,8 @@ struct ur_context_handle_t_ : ur_object {
 
   // Get handle to the L0 context
   ze_context_handle_t getZeHandle() const;
+
+  ur::RefCount RefCount;
 
 private:
   enum EventFlags {

@@ -345,12 +345,12 @@ class DispatchHostTask {
   std::vector<ur_mem_handle_t> MReqUrMem;
 
   bool waitForEvents() const {
-    std::map<const AdapterPtr, std::vector<EventImplPtr>>
+    std::map<adapter_impl *, std::vector<EventImplPtr>>
         RequiredEventsPerAdapter;
 
     for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {
-      const AdapterPtr &Adapter = Event->getAdapter();
-      RequiredEventsPerAdapter[Adapter].push_back(Event);
+      adapter_impl &Adapter = Event->getAdapter();
+      RequiredEventsPerAdapter[&Adapter].push_back(Event);
     }
 
     // wait for dependency device events
@@ -2276,8 +2276,11 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
   if (WGSize[0] == 0) {
     WGSize = {1, 1, 1};
   }
-  NDR = sycl::detail::NDRDescT{nd_range<3>(NDR.NumWorkGroups * WGSize, WGSize),
-                               static_cast<int>(NDR.Dims)};
+
+  for (size_t I = 0; I < NDR.Dims; ++I) {
+    NDR.GlobalSize[I] = WGSize[I] * NDR.NumWorkGroups[I];
+    NDR.LocalSize[I] = WGSize[I];
+  }
 }
 
 // We have the following mapping between dimensions with SPIR-V builtins:
@@ -2540,7 +2543,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
   ur_kernel_handle_t UrKernel = nullptr;
   std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
-  auto &KernelBundleImplPtr = CommandGroup.MKernelBundle;
+  kernel_bundle_impl *KernelBundleImplPtr = CommandGroup.MKernelBundle.get();
 
   if (auto Kernel = CommandGroup.MSyclKernel; Kernel != nullptr) {
     UrKernel = Kernel->getHandleRef();
@@ -2731,7 +2734,7 @@ void enqueueImpKernel(
 
   // Initialize device globals associated with this.
   std::vector<ur_event_handle_t> DeviceGlobalInitEvents =
-      ContextImpl.initializeDeviceGlobals(Program, Queue);
+      ContextImpl.initializeDeviceGlobals(Program, Queue, KernelBundleImplPtr);
   if (!DeviceGlobalInitEvents.empty()) {
     std::vector<ur_event_handle_t> EventsWithDeviceGlobalInits;
     EventsWithDeviceGlobalInits.reserve(RawEvents.size() +

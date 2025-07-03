@@ -29,7 +29,6 @@ class context;
 namespace detail {
 class adapter_impl;
 class context_impl;
-using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
 class event_impl;
 using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
@@ -177,7 +176,7 @@ public:
 
   /// \return the Adapter associated with the context of this event.
   /// Should be called when this is not a Host Event.
-  const AdapterPtr &getAdapter();
+  adapter_impl &getAdapter();
 
   /// Associate event with the context.
   ///
@@ -388,7 +387,7 @@ protected:
   std::atomic<ur_event_handle_t> MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
-  ContextImplPtr MContext;
+  std::shared_ptr<context_impl> MContext;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
