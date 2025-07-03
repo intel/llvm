@@ -43,39 +43,37 @@ def run_iterations(
 ):
     for iter in range(iters):
         log.info(f"running {benchmark.name()}, iteration {iter}... ")
-        bench_results = benchmark.run(env_vars)
-        if bench_results is None:
-            if options.exit_on_failure:
-                raise RuntimeError(f"Benchmark {benchmark.name()} produced no results!")
-            else:
-                failures[benchmark.name()] = "benchmark produced no results!"
-                break
-
-        for bench_result in bench_results:
-            if not bench_result.passed:
+        try:
+            bench_results = benchmark.run(env_vars)
+            if bench_results is None:
                 if options.exit_on_failure:
-                    raise RuntimeError(
-                        f"Benchmark {benchmark.name()} failed: {bench_result.label} verification failed."
-                    )
+                    raise RuntimeError(f"Benchmark produced no results!")
                 else:
-                    failures[bench_result.label] = "verification failed"
-                    log.warning(
-                        f"complete ({bench_result.label}: verification failed)."
-                    )
-                    continue
+                    failures[benchmark.name()] = "benchmark produced no results!"
+                    break
 
-            log.info(
-                f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
-            )
+            for bench_result in bench_results:
+                log.info(
+                    f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
+                )
+                bench_result.name = bench_result.label
+                bench_result.lower_is_better = benchmark.lower_is_better()
+                bench_result.suite = benchmark.get_suite_name()
 
-            bench_result.name = bench_result.label
-            bench_result.lower_is_better = benchmark.lower_is_better()
-            bench_result.suite = benchmark.get_suite_name()
+                if bench_result.label not in results:
+                    results[bench_result.label] = []
 
-            if bench_result.label not in results:
-                results[bench_result.label] = []
-
-            results[bench_result.label].append(bench_result)
+                results[bench_result.label].append(bench_result)
+        except Exception as e:
+            failure_label = f"{benchmark.name()} iteration {iter}"
+            if options.exit_on_failure:
+                raise RuntimeError(
+                    f"Benchmark failed: {failure_label} verification failed: {str(e)}"
+                )
+            else:
+                failures[failure_label] = f"verification failed: {str(e)}"
+                log.error(f"complete ({failure_label}: verification failed: {str(e)}).")
+                continue
 
 
 # https://www.statology.org/modified-z-score/
