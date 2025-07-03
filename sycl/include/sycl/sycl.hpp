@@ -14,14 +14,16 @@
 #define TOSTRING(x) STRINGIFY(x)
 
 #ifdef _MSC_VER
-#define WARNING(msg) __pragma(message(__FILE__ "(" TOSTRING(__LINE__) "): warning: " msg))
+#define WARNING(msg)                                                           \
+  __pragma(message(__FILE__ "(" TOSTRING(__LINE__) "): warning: " msg))
 #elif defined(__GNUC__) || defined(__clang__)
 #define WARNING(msg) _Pragma(TOSTRING(GCC warning msg))
 #else
 #define WARNING(msg) // Unsupported compiler
 #endif
 
-#if !defined(SYCL_LANGUAGE_VERSION) && !defined(SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
+#if !defined(SYCL_LANGUAGE_VERSION) &&                                         \
+    !defined(SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
 WARNING("You are including <sycl/sycl.hpp> without -fsycl flag, \
 which is errorenous for device code compilation. This warning \
 can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
