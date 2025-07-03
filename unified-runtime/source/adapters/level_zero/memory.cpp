@@ -1052,7 +1052,7 @@ ur_result_t urEnqueueMemBufferMap(
 
     // Add the event to the command list.
     CommandList->second.append(reinterpret_cast<ur_event_handle_t>(*Event));
-    (*Event)->RefCount.increment();
+    (*Event)->RefCount.retain();
 
     const auto &ZeCommandList = CommandList->first;
     const auto &WaitList = (*Event)->WaitList;
@@ -1183,7 +1183,7 @@ ur_result_t urEnqueueMemUnmap(
       nullptr /*ForcedCmdQueue*/));
 
   CommandList->second.append(reinterpret_cast<ur_event_handle_t>(*Event));
-  (*Event)->RefCount.increment();
+  (*Event)->RefCount.retain();
 
   const auto &ZeCommandList = CommandList->first;
 
@@ -1635,14 +1635,14 @@ ur_result_t urMemBufferCreate(
 ur_result_t urMemRetain(
     /// [in] handle of the memory object to get access
     ur_mem_handle_t Mem) {
-  Mem->RefCount.increment();
+  Mem->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urMemRelease(
     /// [in] handle of the memory object to release
     ur_mem_handle_t Mem) {
-  if (!Mem->RefCount.decrementAndTest())
+  if (!Mem->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   if (Mem->isImage()) {
@@ -1848,7 +1848,7 @@ ur_result_t urMemGetInfo(
     return ReturnValue(size_t{Buffer->Size});
   }
   case UR_MEM_INFO_REFERENCE_COUNT: {
-    return ReturnValue(Buffer->RefCount.load());
+    return ReturnValue(Buffer->RefCount.getCount());
   }
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;

@@ -131,14 +131,13 @@ macro(append_common_extra_security_flags)
   endif()
 
   # Position Independent Execution
-  if(is_gcc
-     OR is_clang
-     OR (is_icpx AND MSVC))
-    # The project should be configured with -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-    add_compile_option_ext("-fPIE" FPIE)
-    add_link_option_ext("-pie" PIE CMAKE_EXE_LINKER_FLAGS
-                        CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
-  elseif(is_msvc)
+  # We rely on CMake to set the right -fPIE flags for us, but it must be
+  # explicitly requested
+  if (NOT CMAKE_POSITION_INDEPENDENT_CODE)
+    message(FATAL_ERROR "To enable all necessary security flags, CMAKE_POSITION_INDEPENDENT_CODE must be set to ON")
+  endif()
+
+  if(is_msvc)
     add_link_option_ext("/DYNAMICBASE" DYNAMICBASE CMAKE_EXE_LINKER_FLAGS
                         CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   endif()
