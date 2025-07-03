@@ -89,11 +89,8 @@ private:
 // For integrated devices the buffer has been allocated in host memory
 // and can be accessed by the device without copying.
 struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
-  enum class host_ptr_action_t { import, copy };
-
   ur_integrated_buffer_handle_t(ur_context_handle_t hContext, void *hostPtr,
-                                size_t size, host_ptr_action_t useHostPtr,
-                                device_access_mode_t accesMode);
+                                size_t size, device_access_mode_t accesMode);
 
   ur_integrated_buffer_handle_t(ur_context_handle_t hContext, void *hostPtr,
                                 size_t size, device_access_mode_t accesMode,
@@ -165,7 +162,7 @@ private:
   void *writeBackPtr = nullptr;
 
   // If not null, mapHostPtr should map memory to this ptr
-  void *mapToPtr = nullptr;
+  usm_unique_ptr_t mapToPtr;
 
   std::vector<host_allocation_desc_t> hostAllocations;
 
