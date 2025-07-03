@@ -161,7 +161,6 @@ class OneDnnBenchmark(Benchmark):
                 unit="ms",
                 command=command,
                 env=env_vars,
-                stdout=output,
                 git_url=self.suite.git_url(),
                 git_hash=self.suite.git_tag(),
             )

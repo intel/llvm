@@ -165,7 +165,6 @@ class SyclBenchmark(Benchmark):
                             passed=(row[1] == "PASS"),
                             command=command,
                             env=env_vars,
-                            stdout=row,
                             unit="ms",
                             git_url=self.bench.git_url(),
                             git_hash=self.bench.git_hash(),
