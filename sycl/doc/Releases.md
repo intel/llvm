@@ -6,7 +6,7 @@ how to you use them.
 
 ## Nightly builds
 
-The project is being build and tested every night and those builds
+The project is being built and tested every night and those builds
 are published on GitHub as `nightly-YYYY-MM-DD` tags.
 
 Those builds are of **pre-release** quality: they are only suitable
@@ -16,7 +16,7 @@ Because those builds are made from the latest commit available,
 there is no guarantee of any stability of those builds.
 
 Please note that those builds are tailored for our own testing needs
-and therefore they build with assertions enabled and may have some extra
+and therefore they are built with assertions enabled and may have some extra
 dependencies.
 
 ## Official releases
