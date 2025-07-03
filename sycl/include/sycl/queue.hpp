@@ -3634,12 +3634,12 @@ private:
     }
   }
 
-    template <int Dims, typename LambdaArgType> struct TransformUserItemType {
-    using type = std::conditional_t<
-        std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
-        std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
-                           item<Dims>, LambdaArgType>>;
-    };
+  template <int Dims, typename LambdaArgType> struct TransformUserItemType {
+  using type = std::conditional_t<
+      std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
+      std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
+                          item<Dims>, LambdaArgType>>;
+  };
 
   template <typename PropertiesT, typename KernelName,
             typename KernelType, int Dims>
