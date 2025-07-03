@@ -51,6 +51,47 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t urEnqueueUSMFill2DFallback(ur_queue_handle_t hQueue, void *pMem,
+                                       size_t pitch, size_t patternSize,
+                                       const void *pPattern, size_t width,
+                                       size_t height,
+                                       uint32_t numEventsInWaitList,
+                                       const ur_event_handle_t *phEventWaitList,
+                                       ur_event_handle_t *phEvent) {
+  ur_result_t Result = getContext()->urDdiTable.Enqueue.pfnUSMFill2D(
+      hQueue, pMem, pitch, patternSize, pPattern, width, height,
+      numEventsInWaitList, phEventWaitList, phEvent);
+  if (Result == UR_RESULT_SUCCESS ||
+      Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    return Result;
+  }
+
+  // fallback code
+  auto pfnUSMFill = getContext()->urDdiTable.Enqueue.pfnUSMFill;
+
+  std::vector<ur_event_handle_t> WaitEvents(numEventsInWaitList);
+  for (uint32_t i = 0; i < numEventsInWaitList; i++) {
+    WaitEvents[i] = phEventWaitList[i];
+  }
+
+  for (size_t HeightIndex = 0; HeightIndex < height; HeightIndex++) {
+    ur_event_handle_t Event = nullptr;
+
+    UR_CALL(pfnUSMFill(hQueue, (void *)((char *)pMem + pitch * HeightIndex),
+                       patternSize, pPattern, width, WaitEvents.size(),
+                       WaitEvents.data(), &Event));
+
+    WaitEvents.clear();
+    WaitEvents.push_back(Event);
+  }
+
+  if (phEvent && WaitEvents.size()) {
+    *phEvent = WaitEvents[0];
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1756,9 +1797,9 @@ ur_result_t urEnqueueUSMMemcpy2D(
     const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
     const char Pattern = 0;
     ur_event_handle_t Event = nullptr;
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill2D(
-        hQueue, (void *)DstShadow, dstPitch, 1, &Pattern, width, height, 0,
-        nullptr, &Event));
+    UR_CALL(urEnqueueUSMFill2DFallback(hQueue, (void *)DstShadow, dstPitch, 1,
+                                       &Pattern, width, height, 0, nullptr,
+                                       &Event));
     Events.push_back(Event);
   }
 
