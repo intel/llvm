@@ -69,6 +69,7 @@ class Options:
     current_run_name: str = "This PR"
     preset: str = "Full"
     build_jobs: int = multiprocessing.cpu_count()
+    exit_on_failure: bool = False
 
     # Options intended for CI:
     regression_threshold: float = 0.05
