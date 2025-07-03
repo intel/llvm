@@ -149,6 +149,31 @@ private:
       ext::oneapi::experimental::event_mode_enum::none;
 };
 
+using KernelParamDescGetterFuncPtr = detail::kernel_param_desc_t(*)(int);
+
+class __SYCL_EXPORT ExtendedSubmissionInfo : public SubmissionInfo {
+public:
+  ExtendedSubmissionInfo() {}
+
+  std::string_view &KernelName() { return MKernelName; }
+  std::unique_ptr<detail::HostKernelBase> &HostKernel() { return MHostKernel; }
+  const std::unique_ptr<detail::HostKernelBase> &HostKernel() const { return MHostKernel; }
+  int &KernelNumArgs() { return MKernelNumArgs; }
+  KernelParamDescGetterFuncPtr &KernelParamDescGetter() { return MKernelParamDescGetter; }
+  bool &KernelIsESIMD() { return MKernelIsESIMD; }
+  bool &KernelHasSpecialCaptures() {return MKernelHasSpecialCaptures; }
+  detail::KernelNameBasedCacheT *&KernelNameBasedCachePtr() { return MKernelNameBasedCachePtr; }
+
+private:
+  std::string_view MKernelName;
+  std::unique_ptr<detail::HostKernelBase> MHostKernel;
+  int MKernelNumArgs = 0;
+  KernelParamDescGetterFuncPtr MKernelParamDescGetter = nullptr;
+  bool MKernelIsESIMD = false;
+  bool MKernelHasSpecialCaptures = true;
+  detail::KernelNameBasedCacheT *MKernelNameBasedCachePtr = nullptr;
+};
+
 } // namespace v1
 } // namespace detail
 
@@ -3609,6 +3634,37 @@ private:
     }
   }
 
+    template <int Dims, typename LambdaArgType> struct TransformUserItemType {
+    using type = std::conditional_t<
+        std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
+        std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
+                           item<Dims>, LambdaArgType>>;
+    };
+
+  template <typename PropertiesT, typename KernelName,
+            typename KernelType, int Dims>
+  void ProcessExtendedSubmitProperties(PropertiesT Props,
+                                       const KernelType &KernelFunc,
+                                       detail::v1::ExtendedSubmissionInfo &SI) const {
+    ProcessSubmitProperties(Props, SI);
+
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using TransformedArgType = std::conditional_t<
+        std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
+        typename TransformUserItemType<Dims, LambdaArgType>::type>;
+
+    SI.HostKernel().reset(new detail::HostKernel<KernelType, TransformedArgType, Dims>(
+        std::forward<KernelType>(KernelFunc)));
+    SI.KernelName() = detail::getKernelName<NameT>();
+    SI.KernelNumArgs() = detail::getKernelNumParams<NameT>();
+    SI.KernelParamDescGetter() = &(detail::getKernelParamDesc<NameT>);
+    SI.KernelIsESIMD() = detail::isKernelESIMD<NameT>();
+    SI.KernelHasSpecialCaptures() = detail::hasSpecialCaptures<NameT>();
+    SI.KernelNameBasedCachePtr() = detail::getKernelNameBasedCache<NameT>();
+  }
+
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// TODO: Unused. Remove these when ABI-break window is open.
   /// Not using `type_erased_cgfo_ty` on purpose.
@@ -3677,6 +3733,21 @@ private:
   /// A template-free version of submit as const member function.
   event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                const detail::v1::SubmissionInfo &SubmitInfo,
+                               const detail::code_location &CodeLoc,
+                               bool IsTopCodeLoc) const;
+
+  event submit_with_event_impl(const nd_range<1> Range,
+                               const detail::v1::ExtendedSubmissionInfo &ExtSubmitInfo,
+                               const detail::code_location &CodeLoc,
+                               bool IsTopCodeLoc) const;
+
+  event submit_with_event_impl(const nd_range<2> Range,
+                               const detail::v1::ExtendedSubmissionInfo &ExtSubmitInfo,
+                               const detail::code_location &CodeLoc,
+                               bool IsTopCodeLoc) const;
+
+  event submit_with_event_impl(const nd_range<3> Range,
+                               const detail::v1::ExtendedSubmissionInfo &ExtSubmitInfo,
                                const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc) const;
 
@@ -3760,6 +3831,24 @@ private:
         }
       };
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
+                                  TlsCodeLocCapture.isToplevel());
+  }
+
+  template <bool UseFallbackAssert, typename PropertiesT,
+            typename KernelName, typename KernelType, int Dims>
+  event submit_with_event(PropertiesT Props,
+                          const nd_range<Dims> Range,
+                          const KernelType &KernelFunc,
+                          const detail::code_location &CodeLoc =
+                              detail::code_location::current()) const {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    detail::v1::ExtendedSubmissionInfo SI{};
+    ProcessExtendedSubmitProperties<KernelName, KernelType>(Props,
+      KernelFunc, SI);
+
+    // TODO UseFallbackAssert
+
+    return submit_with_event_impl(Range, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
   }
 
