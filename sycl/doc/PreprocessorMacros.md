@@ -34,6 +34,11 @@ This file describes macros that have effect on SYCL compiler and run-time.
   Disables warning diagnostic issued when calling `device::has(aspect::image)`
   and `platform::has(aspect::image)`.
 
+- **SYCL_DISABLE_FSYCL_SYCLHPP_WARNING**
+
+  Disable warning diagnostic issued when including `<sycl/sycl.hpp>` without
+  `-fsycl` compiler flag.
+
 - **SYCL_FALLBACK_ASSERT**
 
   Defining as non-zero enables the fallback assert feature even on devices
