@@ -181,11 +181,11 @@ jobs:
       tests_selector: benchmarks
       benchmark_upload_results: false
       benchmark_preset: 'Minimal'
+      benchmark_dry_run: true
       repo_ref: ${{ github.sha }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
-# TODO a "dry run" option
 
   test-perf:
     needs: [build, detect_changes]
