@@ -34,6 +34,10 @@
 #include <mutex>
 #include <vector>
 
+namespace jit_compiler {
+enum class BinaryFormat : uint32_t;
+}
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
