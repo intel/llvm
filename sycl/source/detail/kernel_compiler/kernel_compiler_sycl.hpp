@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <JITBinaryInfo.h>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp> // __SYCL_EXPORT
 #include <sycl/detail/string_view.hpp>
@@ -36,7 +35,7 @@ userArgsAsString(const std::vector<sycl::detail::string_view> &UserArguments);
 std::pair<sycl_device_binaries, std::string>
 SYCL_JIT_Compile(const std::string &Source, const include_pairs_t &IncludePairs,
                  const std::vector<sycl::detail::string_view> &UserArgs,
-                 std::string *LogPtr, ::jit_compiler::BinaryFormat Format);
+                 std::string *LogPtr);
 
 void SYCL_JIT_Destroy(sycl_device_binaries Binaries);
 
