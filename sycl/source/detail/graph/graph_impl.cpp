@@ -1108,7 +1108,7 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
 
   if (!EventNeeded) {
     Queue.getAdapter()
-        ->call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
+        .call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
             Queue.getHandleRef(), CommandBuffer, UrEnqueueWaitListSize,
             UrEnqueueWaitList, nullptr);
     return nullptr;
@@ -1119,7 +1119,7 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     NewEvent->setSubmissionTime();
     ur_event_handle_t UrEvent = nullptr;
     Queue.getAdapter()
-        ->call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
+        .call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
             Queue.getHandleRef(), CommandBuffer, UrEventHandles.size(),
             UrEnqueueWaitList, &UrEvent);
     NewEvent->setHandle(UrEvent);
