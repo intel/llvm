@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx %fsycl %s -o %t.out
 // RUN: %t.out
 
 //==---- host_image_accessor_read.cpp - SYCL host image accessor check ----==//

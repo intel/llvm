@@ -61,10 +61,6 @@ set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 add_subdirectory(src)
 
 set(xptifw_lib xptifw)
-string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
-if (WIN32 AND "${build_type_lower}" MATCHES "debug")
-  set(xptifw_lib xptifwd)
-endif()
 
 add_custom_target(check-xptifw)
 
