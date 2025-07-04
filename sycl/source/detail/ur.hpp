@@ -47,7 +47,7 @@ std::string urGetInfoString(SyclImplTy &SyclImpl, DescTy Desc) {
   auto &Adapter = SyclImpl.getAdapter();
   size_t ResultSize = 0;
   auto Handle = SyclImpl.getHandleRef();
-  Adapter->template call<ApiKind>(Handle, Desc,
+  Adapter.template call<ApiKind>(Handle, Desc,
                                   /*propSize=*/0,
                                   /*pPropValue=*/nullptr, &ResultSize);
   if (ResultSize == 0)
@@ -59,7 +59,7 @@ std::string urGetInfoString(SyclImplTy &SyclImpl, DescTy Desc) {
   // UR counts null terminator in the size, std::string doesn't. Adjust by "-1"
   // for that.
   Result.resize(ResultSize - 1);
-  Adapter->template call<ApiKind>(Handle, Desc, ResultSize, Result.data(),
+  Adapter.template call<ApiKind>(Handle, Desc, ResultSize, Result.data(),
                                   nullptr);
 
   return Result;

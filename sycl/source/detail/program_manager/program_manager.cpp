@@ -583,7 +583,7 @@ static const char *getUrDeviceTarget(const char *URDeviceTarget) {
 
 static bool compatibleWithDevice(const RTDeviceBinaryImage *BinImage,
                                  const device_impl &DeviceImpl) {
-  auto &Adapter = DeviceImpl.getAdapter();
+  adapter_impl &Adapter = DeviceImpl.getAdapter();
 
   const ur_device_handle_t &URDeviceHandle = DeviceImpl.getHandleRef();
 
@@ -596,7 +596,7 @@ static bool compatibleWithDevice(const RTDeviceBinaryImage *BinImage,
   ur_device_binary_t UrBinary{};
   UrBinary.pDeviceTargetSpec = getUrDeviceTarget(DevBin.DeviceTargetSpec);
 
-  ur_result_t Error = Adapter->call_nocheck<UrApiKind::urDeviceSelectBinary>(
+  ur_result_t Error = Adapter.call_nocheck<UrApiKind::urDeviceSelectBinary>(
       URDeviceHandle, &UrBinary,
       /*num bin images = */ (uint32_t)1, &SuitableImageID);
   if (Error != UR_RESULT_SUCCESS && Error != UR_RESULT_ERROR_INVALID_BINARY)
@@ -641,7 +641,7 @@ bool ProgramManager::shouldBF16DeviceImageBeUsed(
     enum { DEVICELIB_FALLBACK = 0, DEVICELIB_NATIVE };
     ur_bool_t NativeBF16Supported = false;
     ur_result_t CallSuccessful =
-        DeviceImpl.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+        DeviceImpl.getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
             DeviceImpl.getHandleRef(),
             UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE, sizeof(ur_bool_t),
             &NativeBF16Supported, nullptr);
@@ -3289,7 +3289,7 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
   context_impl &ContextImpl = *detail::getSyclObjImpl(Context);
   auto Program = createURProgram(Img, ContextImpl, {Device});
   detail::device_impl &DeviceImpl = *detail::getSyclObjImpl(Device);
-  auto &Adapter = DeviceImpl.getAdapter();
+  adapter_impl &Adapter = DeviceImpl.getAdapter();
   UrFuncInfo<UrApiKind::urProgramRelease> programReleaseInfo;
   auto programRelease =
       programReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
@@ -3306,7 +3306,7 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
             /*For non SPIR-V devices DeviceLibReqdMask is always 0*/ 0,
             ExtraProgramsToLink);
   ur_kernel_handle_t UrKernel{nullptr};
-  Adapter->call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
+  Adapter.call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
       BuildProgram.get(), KernelName.data(), &UrKernel);
   {
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
