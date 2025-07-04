@@ -1,10 +1,10 @@
 add_llvm_component_library(LLVMSYCLNativeCPUUtils
+  CheckNDRangeSYCLNativeCPU.cpp
   PipelineSYCLNativeCPU.cpp
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
   ConvertToMuxBuiltinsSYCLNativeCPU.cpp
   FAtomicsNativeCPU.cpp
-  CheckNDRangeSYCLNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
