@@ -52,14 +52,14 @@ get_kernel_info(ur_kernel_handle_t Kernel, adapter_impl &Adapter) {
 
   // TODO catch an exception and put it to list of asynchronous exceptions
   Adapter.call<UrApiKind::urKernelGetInfo>(Kernel, UrInfoCode<Param>::value, 0,
-                                            nullptr, &ResultSize);
+                                           nullptr, &ResultSize);
   if (ResultSize == 0) {
     return "";
   }
   std::vector<char> Result(ResultSize);
   // TODO catch an exception and put it to list of asynchronous exceptions
   Adapter.call<UrApiKind::urKernelGetInfo>(Kernel, UrInfoCode<Param>::value,
-                                            ResultSize, Result.data(), nullptr);
+                                           ResultSize, Result.data(), nullptr);
   return std::string(Result.data());
 }
 
@@ -71,7 +71,7 @@ get_kernel_info(ur_kernel_handle_t Kernel, adapter_impl &Adapter) {
 
   // TODO catch an exception and put it to list of asynchronous exceptions
   Adapter.call<UrApiKind::urKernelGetInfo>(Kernel, UrInfoCode<Param>::value,
-                                            sizeof(uint32_t), &Result, nullptr);
+                                           sizeof(uint32_t), &Result, nullptr);
   return Result;
 }
 
@@ -92,7 +92,7 @@ get_kernel_device_specific_info_helper(
     ur_kernel_handle_t Kernel, [[maybe_unused]] ur_device_handle_t Device,
     adapter_impl &Adapter, void *Result, size_t Size) {
   Adapter.call<UrApiKind::urKernelGetInfo>(Kernel, UrInfoCode<Param>::value,
-                                            Size, Result, nullptr);
+                                           Size, Result, nullptr);
 }
 
 template <typename Param>
@@ -188,18 +188,18 @@ get_kernel_device_specific_info<
 
   ur_program_handle_t Program;
   Adapter.call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_PROGRAM,
-                                            sizeof(ur_program_handle_t),
-                                            &Program, nullptr);
+                                           sizeof(ur_program_handle_t),
+                                           &Program, nullptr);
   // Retrieve the associated device list
   size_t URDevicesSize = 0;
-  Adapter.call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,
-                                             0, nullptr, &URDevicesSize);
+  Adapter.call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES, 0,
+                                            nullptr, &URDevicesSize);
 
   std::vector<ur_device_handle_t> URDevices(URDevicesSize /
                                             sizeof(ur_device_handle_t));
   Adapter.call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,
-                                             URDevicesSize, URDevices.data(),
-                                             nullptr);
+                                            URDevicesSize, URDevices.data(),
+                                            nullptr);
   assert(Device2SpillMap.size() == URDevices.size());
 
   // Map the result back to the program devices. UR provides the following
