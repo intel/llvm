@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <JITBinaryInfo.h>
 #include <detail/jit_device_binaries.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
@@ -16,6 +15,7 @@
 #if SYCL_EXT_JIT_ENABLE
 #include <Materializer.h>
 #include <RTC.h>
+#include <JITBinaryInfo.h>
 #endif // SYCL_EXT_JIT_ENABLE
 
 #include <functional>
@@ -28,6 +28,7 @@ struct RTCDevImgInfo;
 struct RTCBundleInfo;
 template <typename T> class DynArray;
 using JITEnvVar = DynArray<char>;
+enum class BinaryFormat : uint32_t;
 } // namespace jit_compiler
 
 namespace sycl {

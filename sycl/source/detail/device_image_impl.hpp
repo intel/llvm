@@ -8,7 +8,9 @@
 
 #pragma once
 
+#if SYCL_EXT_JIT_ENABLE
 #include "JITBinaryInfo.h"
+#endif // SYCL_EXT_JIT_ENABLE
 #include <detail/adapter_impl.hpp>
 #include <detail/compiler.hpp>
 #include <detail/context_impl.hpp>
@@ -34,6 +36,10 @@
 #include <memory>
 #include <mutex>
 #include <vector>
+
+namespace jit_compiler {
+enum class BinaryFormat : uint32_t;
+}
 
 namespace sycl {
 inline namespace _V1 {
@@ -164,8 +170,8 @@ struct KernelCompilerBinaryInfo {
       std::string &&Prefix,
       std::shared_ptr<ManagedDeviceGlobalsRegistry> &&DeviceGlobalRegistry)
       : MLanguage{Lang}, MMangledKernelNames{std::move(MangledKernelNames)},
-        MPrefixes{std::move(Prefix)},
-        MDeviceGlobalRegistries{std::move(DeviceGlobalRegistry)} {}
+        MPrefixes{std::move(Prefix)}, MDeviceGlobalRegistries{
+                                          std::move(DeviceGlobalRegistry)} {}
 
   static std::optional<KernelCompilerBinaryInfo>
   Merge(const std::vector<const std::optional<KernelCompilerBinaryInfo> *>
@@ -700,7 +706,9 @@ public:
     return MRTCBinInfo && MRTCBinInfo->MLanguage == Lang;
   }
 
-  static ::jit_compiler::BinaryFormat getTargetFormat(const backend Backend) {
+  static ::jit_compiler::BinaryFormat
+  getTargetFormat([[maybe_unused]] const backend Backend) {
+#if SYCL_EXT_JIT_ENABLE
     switch (Backend) {
     case backend::ext_oneapi_level_zero:
     case backend::opencl:
@@ -714,6 +722,10 @@ public:
           sycl::make_error_code(sycl::errc::invalid),
           "Backend does not support kernel_compiler extension");
     }
+#else
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "JIT not supported");
+#endif // SYCL_EXT_JIT_ENABLE
   }
 
   std::vector<std::shared_ptr<device_image_impl>> buildFromSource(
