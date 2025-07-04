@@ -76,7 +76,7 @@ public:
   cl_kernel get() const {
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urKernelGetNativeHandle>(MKernel,
-                                                           &nativeHandle);
+                                                          &nativeHandle);
     __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(nativeHandle));
     return ur::cast<cl_kernel>(nativeHandle);
   }
@@ -373,10 +373,11 @@ kernel_impl::queryMaxNumWorkGroups(queue Queue,
     WG[2] = WorkGroupSize[2];
 
   uint32_t GroupCount{0};
-  if (auto Result = Adapter.call_nocheck<
-                    UrApiKind::urKernelSuggestMaxCooperativeGroupCount>(
-          Handle, DeviceHandleRef, Dimensions, WG, DynamicLocalMemorySize,
-          &GroupCount);
+  if (auto Result =
+          Adapter
+              .call_nocheck<UrApiKind::urKernelSuggestMaxCooperativeGroupCount>(
+                  Handle, DeviceHandleRef, Dimensions, WG,
+                  DynamicLocalMemorySize, &GroupCount);
       Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE &&
       Result != UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE) {
     // The feature is supported and the group size is valid. Check for other
@@ -513,8 +514,8 @@ ADD_TEMPLATE_METHOD_SPEC(3)
         getSyclObjImpl(Queue.get_device())->getHandleRef();                    \
     uint32_t KernelSubWGSize = 0;                                              \
     Adapter.call<UrApiKind::Kind>(MKernel, DeviceNativeHandle, Reg,            \
-                                   sizeof(uint32_t), &KernelSubWGSize,         \
-                                   nullptr);                                   \
+                                  sizeof(uint32_t), &KernelSubWGSize,          \
+                                  nullptr);                                    \
     return KernelSubWGSize;                                                    \
   }
 
