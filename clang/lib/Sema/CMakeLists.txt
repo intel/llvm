@@ -38,11 +38,11 @@ elseif (is_icpx and WIN32)
   set(opts_to_apply "/Wall")
 endif()
 
-if (NOT opts_to_apply STREQUAL "")
+if (opts_to_apply)
   set_source_files_properties(
     SemaSYCL.cpp SemaSYCLDeclAttr.cpp
     PROPERTIES
-      COMPILE_OPTIONS ${opts_to_apply}
+      COMPILE_OPTIONS "${opts_to_apply}"
   )
 endif()
 
