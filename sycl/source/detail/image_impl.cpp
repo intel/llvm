@@ -263,7 +263,7 @@ static void getImageInfo(context_impl &Context, ur_image_info_t Info, T &Dest,
                          ur_mem_handle_t InteropMemObject) {
   adapter_impl &Adapter = Context.getAdapter();
   Adapter.call<UrApiKind::urMemImageGetInfo>(InteropMemObject, Info, sizeof(T),
-                                              &Dest, nullptr);
+                                             &Dest, nullptr);
 }
 
 image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
@@ -277,7 +277,7 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
   detail::context_impl &Context = *getSyclObjImpl(SyclContext);
   adapter_impl &Adapter = Context.getAdapter();
   Adapter.call<UrApiKind::urMemGetInfo>(Mem, UR_MEM_INFO_SIZE, sizeof(size_t),
-                                         &(BaseT::MSizeInBytes), nullptr);
+                                        &(BaseT::MSizeInBytes), nullptr);
 
   ur_image_format_t Format;
   getImageInfo(Context, UR_IMAGE_INFO_FORMAT, Format, Mem);

@@ -152,9 +152,9 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
     Pointers.push_back(Binaries[I].data());
   }
 
-  Adapter.call<UrApiKind::urProgramGetInfo>(
-      NativePrg, UR_PROGRAM_INFO_BINARIES, sizeof(char *) * Pointers.size(),
-      Pointers.data(), nullptr);
+  Adapter.call<UrApiKind::urProgramGetInfo>(NativePrg, UR_PROGRAM_INFO_BINARIES,
+                                            sizeof(char *) * Pointers.size(),
+                                            Pointers.data(), nullptr);
 
   // Select only binaries for the input devices preserving one to one
   // correpsondence.

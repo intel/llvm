@@ -89,7 +89,7 @@ buffer_impl::getNativeVector(backend BackendName) const {
     // resident on, so pass nullptr for Device param. Buffer interop may not be
     // supported by all backends.
     Adapter.call<UrApiKind::urMemGetNativeHandle>(NativeMem, /*Dev*/ nullptr,
-                                                   &Handle);
+                                                  &Handle);
     Handles.push_back(Handle);
 
     if (Platform.getBackend() == backend::opencl) {

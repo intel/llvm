@@ -48,8 +48,8 @@ std::string urGetInfoString(SyclImplTy &SyclImpl, DescTy Desc) {
   size_t ResultSize = 0;
   auto Handle = SyclImpl.getHandleRef();
   Adapter.template call<ApiKind>(Handle, Desc,
-                                  /*propSize=*/0,
-                                  /*pPropValue=*/nullptr, &ResultSize);
+                                 /*propSize=*/0,
+                                 /*pPropValue=*/nullptr, &ResultSize);
   if (ResultSize == 0)
     return std::string{};
 
@@ -60,7 +60,7 @@ std::string urGetInfoString(SyclImplTy &SyclImpl, DescTy Desc) {
   // for that.
   Result.resize(ResultSize - 1);
   Adapter.template call<ApiKind>(Handle, Desc, ResultSize, Result.data(),
-                                  nullptr);
+                                 nullptr);
 
   return Result;
 }

@@ -66,8 +66,8 @@ public:
     adapter_impl &Adapter = MContext->getAdapter();
     void *ResultPtr = reinterpret_cast<void *>(Ptr);
     Adapter.call<UrApiKind::urVirtualMemMap>(MContext->getHandleRef(),
-                                              ResultPtr, NumBytes, MPhysicalMem,
-                                              Offset, AccessFlags);
+                                             ResultPtr, NumBytes, MPhysicalMem,
+                                             Offset, AccessFlags);
     return ResultPtr;
   }
 

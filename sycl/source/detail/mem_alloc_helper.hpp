@@ -18,10 +18,9 @@ void memBufferCreateHelper(adapter_impl &Adapter, ur_context_handle_t Ctx,
                            ur_mem_handle_t *RetMem,
                            const ur_buffer_properties_t *Props = nullptr);
 void memReleaseHelper(adapter_impl &Adapter, ur_mem_handle_t Mem);
-void memBufferMapHelper(adapter_impl &Adapter,
-                        ur_queue_handle_t command_queue, ur_mem_handle_t buffer,
-                        bool blocking_map, ur_map_flags_t map_flags,
-                        size_t offset, size_t size,
+void memBufferMapHelper(adapter_impl &Adapter, ur_queue_handle_t command_queue,
+                        ur_mem_handle_t buffer, bool blocking_map,
+                        ur_map_flags_t map_flags, size_t offset, size_t size,
                         uint32_t num_events_in_wait_list,
                         const ur_event_handle_t *event_wait_list,
                         ur_event_handle_t *event, void **ret_map);

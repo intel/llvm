@@ -40,8 +40,8 @@ void handleOutOfResources(const device_impl &DeviceImpl,
     adapter_impl &Adapter = DeviceImpl.getAdapter();
     uint32_t NumRegisters = 0;
     Adapter.call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_NUM_REGS,
-                                              sizeof(NumRegisters),
-                                              &NumRegisters, nullptr);
+                                             sizeof(NumRegisters),
+                                             &NumRegisters, nullptr);
 
     uint32_t MaxRegistersPerBlock =
         DeviceImpl.get_info<ext::codeplay::experimental::info::device::
@@ -121,9 +121,9 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
   }
 
   size_t MaxWGSize = 0;
-  Adapter.call<UrApiKind::urDeviceGetInfo>(
-      Device, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE, sizeof(size_t), &MaxWGSize,
-      nullptr);
+  Adapter.call<UrApiKind::urDeviceGetInfo>(Device,
+                                           UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                                           sizeof(size_t), &MaxWGSize, nullptr);
 
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
@@ -376,8 +376,8 @@ void handleInvalidValue(const device_impl &DeviceImpl,
 
   size_t MaxNWGs[] = {0, 0, 0};
   Adapter.call<UrApiKind::urDeviceGetInfo>(Device,
-                                            UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
-                                            sizeof(MaxNWGs), &MaxNWGs, nullptr);
+                                           UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
+                                           sizeof(MaxNWGs), &MaxNWGs, nullptr);
   for (unsigned int I = 0; I < NDRDesc.Dims; I++) {
     size_t NWgs = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     if (NWgs > MaxNWGs[I])

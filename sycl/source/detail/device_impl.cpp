@@ -39,8 +39,7 @@ device_impl::~device_impl() {
   try {
     // TODO catch an exception and put it to list of asynchronous exceptions
     adapter_impl &Adapter = getAdapter();
-    ur_result_t Err =
-        Adapter.call_nocheck<UrApiKind::urDeviceRelease>(MDevice);
+    ur_result_t Err = Adapter.call_nocheck<UrApiKind::urDeviceRelease>(MDevice);
     __SYCL_CHECK_UR_CODE_NO_EXC(Err, Adapter.getBackend());
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_impl", e);
@@ -297,7 +296,7 @@ std::vector<device> device_impl::create_sub_devices() const {
   uint32_t SubDevicesCount = 0;
   adapter_impl &Adapter = getAdapter();
   Adapter.call<UrApiKind::urDevicePartition>(MDevice, &Properties, 0, nullptr,
-                                              &SubDevicesCount);
+                                             &SubDevicesCount);
 
   return create_sub_devices(&Properties, SubDevicesCount);
 }

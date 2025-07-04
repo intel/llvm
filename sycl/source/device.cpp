@@ -230,8 +230,7 @@ void device::ext_oneapi_disable_peer_access(const device &peer) {
   ur_device_handle_t Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
     detail::adapter_impl &Adapter = impl->getAdapter();
-    Adapter.call<detail::UrApiKind::urUsmP2PDisablePeerAccessExp>(Device,
-                                                                   Peer);
+    Adapter.call<detail::UrApiKind::urUsmP2PDisablePeerAccessExp>(Device, Peer);
   }
 }
 

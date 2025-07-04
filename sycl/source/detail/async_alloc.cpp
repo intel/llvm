@@ -85,7 +85,7 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
   } else {
     ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
     Adapter.call<sycl::errc::runtime,
-                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
+                 sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
         Q, (ur_usm_pool_handle_t)0, size, nullptr, UREvents.size(),
         UREvents.data(), &alloc, &Event);
   }
@@ -139,7 +139,7 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
   } else {
     ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
     Adapter.call<sycl::errc::runtime,
-                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
+                 sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
         Q, memPoolImpl.get_handle(), size, nullptr, UREvents.size(),
         UREvents.data(), &alloc, &Event);
   }

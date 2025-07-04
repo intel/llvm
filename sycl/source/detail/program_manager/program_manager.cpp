@@ -107,7 +107,7 @@ static ur_program_handle_t createSpirvProgram(context_impl &Context,
   ur_program_handle_t Program = nullptr;
   adapter_impl &Adapter = Context.getAdapter();
   Adapter.call<UrApiKind::urProgramCreateWithIL>(Context.getHandleRef(), Data,
-                                                  DataLen, nullptr, &Program);
+                                                 DataLen, nullptr, &Program);
   return Program;
 }
 
@@ -1206,8 +1206,8 @@ ProgramManager::getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
   ur_program_handle_t Program;
   adapter_impl &Adapter = Context.getAdapter();
   Adapter.call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_PROGRAM,
-                                            sizeof(ur_program_handle_t),
-                                            &Program, nullptr);
+                                           sizeof(ur_program_handle_t),
+                                           &Program, nullptr);
   return Program;
 }
 
@@ -1216,13 +1216,13 @@ ProgramManager::getProgramBuildLog(const ur_program_handle_t &Program,
                                    context_impl &Context) {
   size_t URDevicesSize = 0;
   adapter_impl &Adapter = Context.getAdapter();
-  Adapter.call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,
-                                             0, nullptr, &URDevicesSize);
+  Adapter.call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES, 0,
+                                            nullptr, &URDevicesSize);
   std::vector<ur_device_handle_t> URDevices(URDevicesSize /
                                             sizeof(ur_device_handle_t));
   Adapter.call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,
-                                             URDevicesSize, URDevices.data(),
-                                             nullptr);
+                                            URDevicesSize, URDevices.data(),
+                                            nullptr);
   std::string Log = "The program was built for " +
                     std::to_string(URDevices.size()) + " devices";
   for (ur_device_handle_t &Device : URDevices) {
@@ -1242,12 +1242,12 @@ ProgramManager::getProgramBuildLog(const ur_program_handle_t &Program,
     std::string DeviceNameString;
     size_t DeviceNameStrSize = 0;
     Adapter.call<UrApiKind::urDeviceGetInfo>(Device, UR_DEVICE_INFO_NAME, 0,
-                                              nullptr, &DeviceNameStrSize);
+                                             nullptr, &DeviceNameStrSize);
     if (DeviceNameStrSize > 0) {
       std::vector<char> DeviceName(DeviceNameStrSize);
       Adapter.call<UrApiKind::urDeviceGetInfo>(Device, UR_DEVICE_INFO_NAME,
-                                                DeviceNameStrSize,
-                                                DeviceName.data(), nullptr);
+                                               DeviceNameStrSize,
+                                               DeviceName.data(), nullptr);
       DeviceNameString = std::string(DeviceName.data());
     }
     Log += "\nBuild program log for '" + DeviceNameString + "':\n" +
@@ -1342,17 +1342,16 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
   return Ext->second;
 }
 
-static ur_result_t doCompile(adapter_impl &Adapter,
-                             ur_program_handle_t Program, uint32_t NumDevs,
-                             ur_device_handle_t *Devs, ur_context_handle_t Ctx,
-                             const char *Opts) {
+static ur_result_t doCompile(adapter_impl &Adapter, ur_program_handle_t Program,
+                             uint32_t NumDevs, ur_device_handle_t *Devs,
+                             ur_context_handle_t Ctx, const char *Opts) {
   // Try to compile with given devices, fall back to compiling with the program
   // context if unsupported by the adapter
   auto Result = Adapter.call_nocheck<UrApiKind::urProgramCompileExp>(
       Program, NumDevs, Devs, Opts);
   if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     return Adapter.call_nocheck<UrApiKind::urProgramCompile>(Ctx, Program,
-                                                              Opts);
+                                                             Opts);
   }
   return Result;
 }
@@ -3198,7 +3197,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
 
     adapter_impl &Adapter = Ctx.getAdapter();
     Adapter.call<UrApiKind::urKernelCreate>(Program, KernelName.data(),
-                                             &Kernel);
+                                            &Kernel);
 
     // Only set UR_USM_INDIRECT_ACCESS if the platform can handle it.
     if (Ctx.getPlatformImpl().supports_usm()) {

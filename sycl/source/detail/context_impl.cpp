@@ -112,7 +112,7 @@ cl_context context_impl::get() const {
   getAdapter().call<UrApiKind::urContextRetain>(MContext);
   ur_native_handle_t nativeHandle = 0;
   getAdapter().call<UrApiKind::urContextGetNativeHandle>(MContext,
-                                                          &nativeHandle);
+                                                         &nativeHandle);
   return ur::cast<cl_context>(nativeHandle);
 }
 
@@ -591,7 +591,7 @@ context_impl::get_default_memory_pool(const context &Context,
   // The memory_pool_impl does not exist for this device yet.
   ur_usm_pool_handle_t PoolHandle;
   Adapter.call<sycl::errc::runtime,
-                sycl::detail::UrApiKind::urUSMPoolGetDefaultDevicePoolExp>(
+               sycl::detail::UrApiKind::urUSMPoolGetDefaultDevicePoolExp>(
       this->getHandleRef(), DeviceHandle, &PoolHandle);
 
   auto MemPoolImplPtr = std::make_shared<

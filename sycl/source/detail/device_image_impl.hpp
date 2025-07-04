@@ -608,8 +608,7 @@ public:
     adapter_impl &Adapter = ContextImpl.getAdapter();
 
     ur_native_handle_t NativeProgram = 0;
-    Adapter.call<UrApiKind::urProgramGetNativeHandle>(MProgram,
-                                                       &NativeProgram);
+    Adapter.call<UrApiKind::urProgramGetNativeHandle>(MProgram, &NativeProgram);
     if (ContextImpl.getBackend() == backend::opencl)
       __SYCL_OCL_CALL(clRetainProgram, ur::cast<cl_program>(NativeProgram));
 
@@ -1273,8 +1272,8 @@ private:
 
     ur_program_handle_t UrProgram = nullptr;
     Adapter.call<UrApiKind::urProgramCreateWithIL>(ContextImpl.getHandleRef(),
-                                                    spirv.data(), spirv.size(),
-                                                    nullptr, &UrProgram);
+                                                   spirv.data(), spirv.size(),
+                                                   nullptr, &UrProgram);
     // program created by urProgramCreateWithIL is implicitly retained.
     if (UrProgram == nullptr)
       throw sycl::exception(

@@ -2043,8 +2043,8 @@ static bool checkContextSupports(detail::context_impl &ContextImpl,
   adapter_impl &Adapter = ContextImpl.getAdapter();
   ur_bool_t SupportsOp = false;
   Adapter.call<UrApiKind::urContextGetInfo>(ContextImpl.getHandleRef(),
-                                             InfoQuery, sizeof(ur_bool_t),
-                                             &SupportsOp, nullptr);
+                                            InfoQuery, sizeof(ur_bool_t),
+                                            &SupportsOp, nullptr);
   return SupportsOp;
 }
 

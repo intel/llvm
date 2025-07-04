@@ -197,9 +197,9 @@ public:
           adapter_impl &Adapter = Context.getAdapter();
           // TODO catch an exception and put it to list of asynchronous
           // exceptions
-          Adapter.call<UrApiKind::urQueueGetInfo>(
-              UrQueue, UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr,
-              nullptr);
+          Adapter.call<UrApiKind::urQueueGetInfo>(UrQueue, UR_QUEUE_INFO_DEVICE,
+                                                  sizeof(DeviceUr), &DeviceUr,
+                                                  nullptr);
           device_impl *Device = Context.findMatchingDeviceImpl(DeviceUr);
           if (Device == nullptr) {
             throw sycl::exception(

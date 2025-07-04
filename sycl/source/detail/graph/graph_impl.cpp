@@ -940,9 +940,9 @@ void exec_graph_impl::createCommandBuffers(
     }
   }
 
-  Res = Adapter
-            .call_nocheck<sycl::detail::UrApiKind::urCommandBufferFinalizeExp>(
-                OutCommandBuffer);
+  Res =
+      Adapter.call_nocheck<sycl::detail::UrApiKind::urCommandBufferFinalizeExp>(
+          OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid,
                           "Failed to finalize UR command-buffer");

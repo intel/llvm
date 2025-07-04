@@ -113,7 +113,7 @@ public:
   cl_platform_id get() const {
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urPlatformGetNativeHandle>(MPlatform,
-                                                             &nativeHandle);
+                                                            &nativeHandle);
     return ur::cast<cl_platform_id>(nativeHandle);
   }
 

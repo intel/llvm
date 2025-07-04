@@ -163,7 +163,7 @@ void memBufferCreateHelper(adapter_impl &Adapter, ur_context_handle_t Ctx,
 #endif
     if (Size)
       Adapter.call<UrApiKind::urMemBufferCreate>(Ctx, Flags, Size, Props,
-                                                  RetMem);
+                                                 RetMem);
   }
 }
 
@@ -183,7 +183,7 @@ void memReleaseHelper(adapter_impl &Adapter, ur_mem_handle_t Mem) {
     // resident on, so pass nullptr for Device param. Buffer interop may not be
     // supported by all backends.
     Adapter.call_nocheck<UrApiKind::urMemGetNativeHandle>(Mem, /*Dev*/ nullptr,
-                                                           &PtrHandle);
+                                                          &PtrHandle);
     Ptr = (uintptr_t)(PtrHandle);
   }
 #endif
@@ -345,8 +345,8 @@ void *MemoryManager::allocateImageObject(context_impl *TargetContext,
   ur_mem_handle_t NewMem = nullptr;
   adapter_impl &Adapter = TargetContext->getAdapter();
   Adapter.call<UrApiKind::urMemImageCreate>(TargetContext->getHandleRef(),
-                                             CreationFlags, &Format, &Desc,
-                                             UserPtr, &NewMem);
+                                            CreationFlags, &Format, &Desc,
+                                            UserPtr, &NewMem);
   return NewMem;
 }
 
@@ -898,7 +898,7 @@ void MemoryManager::context_copy_usm(const void *SrcMem, context_impl *Context,
                     "NULL pointer argument in memory copy operation.");
   adapter_impl &Adapter = Context->getAdapter();
   Adapter.call<UrApiKind::urUSMContextMemcpyExp>(Context->getHandleRef(),
-                                                  DstMem, SrcMem, Len);
+                                                 DstMem, SrcMem, Len);
 }
 
 void MemoryManager::fill_usm(void *Mem, queue_impl &Queue, size_t Length,
@@ -1354,12 +1354,14 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
                                 SrcAccessRange[SrcPos.YTerm],
                                 SrcAccessRange[SrcPos.ZTerm]};
 
-    ur_result_t Result = Adapter.call_nocheck<
-        UrApiKind::urCommandBufferAppendMemBufferReadRectExp>(
-        CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
-        BufferOffset, HostOffset, RectRegion, BufferRowPitch, BufferSlicePitch,
-        HostRowPitch, HostSlicePitch, DstMem, Deps.size(), Deps.data(), 0,
-        nullptr, OutSyncPoint, nullptr, nullptr);
+    ur_result_t Result =
+        Adapter
+            .call_nocheck<UrApiKind::urCommandBufferAppendMemBufferReadRectExp>(
+                CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
+                BufferOffset, HostOffset, RectRegion, BufferRowPitch,
+                BufferSlicePitch, HostRowPitch, HostSlicePitch, DstMem,
+                Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr,
+                nullptr);
     if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -1401,12 +1403,11 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
 
   if (1 == DimDst && 1 == DimSrc) {
     ur_result_t Result =
-        Adapter
-            .call_nocheck<UrApiKind::urCommandBufferAppendMemBufferWriteExp>(
-                CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(DstMem),
-                DstXOffBytes, DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes,
-                Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr,
-                nullptr);
+        Adapter.call_nocheck<UrApiKind::urCommandBufferAppendMemBufferWriteExp>(
+            CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(DstMem),
+            DstXOffBytes, DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes,
+            Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr,
+            nullptr);
 
     if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
