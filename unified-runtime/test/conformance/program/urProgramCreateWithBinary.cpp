@@ -4,6 +4,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include <cstring>
 #include <uur/fixtures.h>
 
 struct urProgramCreateWithBinaryTest : uur::urProgramTest {
@@ -20,9 +21,10 @@ struct urProgramCreateWithBinaryTest : uur::urProgramTest {
                                     sizeof(binary_size), &binary_size,
                                     nullptr));
     binary.resize(binary_size);
-    uint8_t *binary_ptr = binary.data();
+    uint8_t *binary_ptr;
     ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARIES,
                                     sizeof(binary_ptr), &binary_ptr, nullptr));
+    std::memcpy(binary.data(), binary_ptr, binary_size);
   }
 
   void TearDown() override {
