@@ -13,9 +13,9 @@
 #include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/feature_test.hpp>
 #if SYCL_EXT_JIT_ENABLE
+#include <JITBinaryInfo.h>
 #include <Materializer.h>
 #include <RTC.h>
-#include <JITBinaryInfo.h>
 #endif // SYCL_EXT_JIT_ENABLE
 
 #include <functional>

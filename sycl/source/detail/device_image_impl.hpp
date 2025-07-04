@@ -170,8 +170,8 @@ struct KernelCompilerBinaryInfo {
       std::string &&Prefix,
       std::shared_ptr<ManagedDeviceGlobalsRegistry> &&DeviceGlobalRegistry)
       : MLanguage{Lang}, MMangledKernelNames{std::move(MangledKernelNames)},
-        MPrefixes{std::move(Prefix)}, MDeviceGlobalRegistries{
-                                          std::move(DeviceGlobalRegistry)} {}
+        MPrefixes{std::move(Prefix)},
+        MDeviceGlobalRegistries{std::move(DeviceGlobalRegistry)} {}
 
   static std::optional<KernelCompilerBinaryInfo>
   Merge(const std::vector<const std::optional<KernelCompilerBinaryInfo> *>
