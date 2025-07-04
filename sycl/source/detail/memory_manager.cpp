@@ -122,13 +122,13 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   // Assuming all events will be on the same device or
   // devices associated with the same Backend.
   if (!Events.empty()) {
-    const AdapterPtr &Adapter = Events[0]->getAdapter();
+    adapter_impl &Adapter = Events[0]->getAdapter();
     std::vector<ur_event_handle_t> UrEvents(Events.size());
     std::transform(
         Events.begin(), Events.end(), UrEvents.begin(),
         [](const EventImplPtr &EventImpl) { return EventImpl->getHandle(); });
     if (!UrEvents.empty() && UrEvents[0]) {
-      Adapter->call<UrApiKind::urEventWait>(UrEvents.size(), &UrEvents[0]);
+      Adapter.call<UrApiKind::urEventWait>(UrEvents.size(), &UrEvents[0]);
     }
   }
 }
@@ -318,8 +318,8 @@ void *MemoryManager::allocateInteropMemObject(
   // Retain the event since it will be released during alloca command
   // destruction
   if (nullptr != OutEventToWait) {
-    const AdapterPtr &Adapter = InteropEvent->getAdapter();
-    Adapter->call<UrApiKind::urEventRetain>(OutEventToWait);
+    adapter_impl &Adapter = InteropEvent->getAdapter();
+    Adapter.call<UrApiKind::urEventRetain>(OutEventToWait);
   }
   return UserPtr;
 }
@@ -1050,8 +1050,8 @@ void MemoryManager::memset_2d_usm(void *DstMem, queue_impl &Queue, size_t Pitch,
         sycl::make_error_code(errc::invalid),
         "NULL pointer argument in 2D memory memset operation.");
   MemoryManager::fill_2d_usm(DstMem, Queue, Pitch, Width, Height,
-                             {static_cast<unsigned char>(Value)}, DepEvents,
-                             OutEvent);
+                             {static_cast<unsigned char>(Value)},
+                             std::move(DepEvents), OutEvent);
 }
 
 static void
@@ -1145,13 +1145,13 @@ getOrBuildProgramForDeviceGlobal(queue_impl &Queue,
   // If there was no cached program, build one.
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
   ProgramManager &PM = ProgramManager::getInstance();
-  RTDeviceBinaryImage &Img = PM.getDeviceImage(
+  const RTDeviceBinaryImage &Img = PM.getDeviceImage(
       DeviceGlobalEntry->MImages, ContextImpl, *getSyclObjImpl(Device));
 
   device_image_plain DeviceImage =
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
   device_image_plain BuiltImage =
-      PM.build(std::move(DeviceImage), {Device}, {});
+      PM.build(std::move(DeviceImage), {std::move(Device)}, {});
   return getSyclObjImpl(BuiltImage)->get_ur_program_ref();
 }
 

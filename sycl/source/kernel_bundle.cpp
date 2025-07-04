@@ -213,7 +213,7 @@ get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        const sycl::span<char> &Bytes, bundle_state State) {
-  return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs, Bytes, State);
+  return detail::kernel_bundle_impl::create(Ctx, Devs, Bytes, State);
 }
 
 detail::KernelBundleImplPtr
@@ -374,7 +374,7 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   // the device and whose target matches the device.
   detail::device_impl &DevImpl = *getSyclObjImpl(Dev);
   for (const auto &KernelID : KernelIDs) {
-    std::set<detail::RTDeviceBinaryImage *> BinImages =
+    std::set<const detail::RTDeviceBinaryImage *> BinImages =
         detail::ProgramManager::getInstance().getRawDeviceImages({KernelID});
 
     if (std::none_of(BinImages.begin(), BinImages.end(),
@@ -409,8 +409,10 @@ bool is_source_kernel_bundle_supported(
     const std::vector<device_impl *> &DeviceImplVec) {
   backend BE = DeviceImplVec[0]->getBackend();
   // Support is limited to the opencl and level_zero backends.
-  bool BE_Acceptable = (BE == sycl::backend::ext_oneapi_level_zero) ||
-                       (BE == sycl::backend::opencl);
+  bool BE_Acceptable =
+      (BE == sycl::backend::ext_oneapi_level_zero) ||
+      (BE == sycl::backend::opencl || BE == sycl::backend::ext_oneapi_hip ||
+       BE == sycl::backend::ext_oneapi_cuda);
   if (!BE_Acceptable)
     return false;
 
@@ -524,8 +526,8 @@ obj_kb compile_from_source(
     LogPtr = &Log;
   std::vector<device> UniqueDevices =
       sycl::detail::removeDuplicateDevices(Devices);
-  std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
-  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->compile_from_source(
+  kernel_bundle_impl &sourceImpl = *getSyclObjImpl(SourceKB);
+  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl.compile_from_source(
       UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
   auto result = sycl::detail::createSyclObjFromImpl<obj_kb>(KBImpl);
   if (LogView)
@@ -548,9 +550,8 @@ exe_kb build_from_source(
     LogPtr = &Log;
   std::vector<device> UniqueDevices =
       sycl::detail::removeDuplicateDevices(Devices);
-  const std::shared_ptr<kernel_bundle_impl> &sourceImpl =
-      getSyclObjImpl(SourceKB);
-  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->build_from_source(
+  kernel_bundle_impl &sourceImpl = *getSyclObjImpl(SourceKB);
+  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl.build_from_source(
       UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
   auto result = sycl::detail::createSyclObjFromImpl<exe_kb>(std::move(KBImpl));
   if (LogView)

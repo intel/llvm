@@ -52,8 +52,8 @@ static std::vector<ur_event_handle_t>
 getUrEvents(const std::vector<sycl::event> &DepEvents) {
   std::vector<ur_event_handle_t> RetUrEvents;
   for (const sycl::event &Event : DepEvents) {
-    const EventImplPtr &EventImpl = detail::getSyclObjImpl(Event);
-    auto Handle = EventImpl->getHandle();
+    event_impl &EventImpl = *detail::getSyclObjImpl(Event);
+    auto Handle = EventImpl.getHandle();
     if (Handle != nullptr)
       RetUrEvents.push_back(Handle);
   }
@@ -313,7 +313,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 #else
   handler Handler(shared_from_this(), SecondaryQueue, CallerNeedsEvent);
 #endif
-  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
+  detail::handler_impl &HandlerImpl = *detail::getSyclObjImpl(Handler);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
@@ -329,16 +329,16 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
-  const CGType Type = HandlerImpl->MCGType;
+  const CGType Type = HandlerImpl.MCGType;
   std::vector<StreamImplPtr> Streams;
   if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
 
-  HandlerImpl->MEventMode = SubmitInfo.EventMode();
+  HandlerImpl.MEventMode = SubmitInfo.EventMode();
 
   auto isHostTask = Type == CGType::CodeplayHostTask ||
                     (Type == CGType::ExecCommandBuffer &&
-                     HandlerImpl->MExecGraph->containsHostTask());
+                     HandlerImpl.MExecGraph->containsHostTask());
 
   auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
   auto noLastEventPath = !isHostTask &&

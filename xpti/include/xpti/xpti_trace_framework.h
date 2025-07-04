@@ -696,6 +696,11 @@ XPTI_EXPORT_API const xpti_trace_event_t *xptiLookupEvent(uint64_t uid);
 /// @param column_no A uint32_t value representing the column number on the
 /// specified line where the tracepoint is located. This provides the most
 /// precise location of the tracepoint.
+/// @param code_ptr_va A void pointer representing the virtual address of the
+/// code where the tracepoint is located. This can be used to associate the
+/// tracepoint with a specific code location in memory, which is particularly
+/// useful for debugging and performance analysis. If not provided, it defaults
+/// to nullptr, indicating that the code pointer is not specified.
 ///
 /// @return A pointer to the created `xpti_tracepoint_t` structure, which
 /// represents the tracepoint. If the tracepoint cannot be created, the function
@@ -704,10 +709,10 @@ XPTI_EXPORT_API const xpti_trace_event_t *xptiLookupEvent(uint64_t uid);
 /// @note In order to preserve ABI compatibility, an interface pointer to
 /// `xpti_tracepoint_t` is returned.
 
-XPTI_EXPORT_API xpti_tracepoint_t *xptiCreateTracepoint(const char *func_name,
-                                                        const char *file_name,
-                                                        uint32_t line_no,
-                                                        uint32_t column_no);
+XPTI_EXPORT_API xpti_tracepoint_t *
+xptiCreateTracepoint(const char *func_name, const char *file_name,
+                     uint32_t line_no, uint32_t column_no,
+                     void *code_ptr_va = nullptr);
 
 /// @brief Deletes a tracepoint object.
 ///
@@ -916,12 +921,16 @@ XPTI_EXPORT_API void xptiUnsetTracepointScopeData();
 /// @param columnNo The column number in the source file where the trace point
 ///                 is defined. If column information is not available, this can
 ///                 be set to 0.
+/// @param codePtrVa The code pointer value associated with the trace point.
+///                 If code pointer information is not available, this can
+///                 be set to nullptr.
 /// @return Returns a pointer to the registered `xpti_tracepoint_t` structure if
 ///                 the registration is successful; otherwise, returns NULL. The
 ///                 returned pointer should not be freed by the caller.
 XPTI_EXPORT_API const xpti_tracepoint_t *
 xptiRegisterTracepointScope(const char *funcName, const char *fileName,
-                            uint32_t lineNo, uint32_t columnNo);
+                            uint32_t lineNo, uint32_t columnNo,
+                            void *codePtrVa = nullptr);
 
 /// @brief Retrieves the default stream ID.
 /// @details This function is used to get the default stream ID that is
@@ -1042,7 +1051,8 @@ typedef xpti::result_t (*xpti_make_key_from_payload_t)(xpti::payload_t *,
                                                        xpti::uid128_t *);
 typedef const xpti_tracepoint_t *(*xpti_get_trace_point_scope_data_t)();
 typedef const xpti_tracepoint_t *(*xpti_register_tracepoint_scope_t)(
-    const char *func, const char *file, uint32_t line, uint32_t col);
+    const char *func, const char *file, uint32_t line, uint32_t col,
+    void *code_ptr_va);
 typedef xpti::result_t (*xpti_set_trace_point_scope_data_t)(
     xpti_tracepoint_t *);
 typedef void (*xpti_unset_trace_point_scope_data_t)();
@@ -1059,6 +1069,6 @@ typedef const xpti_payload_t *(*xpti_lookup_payload_t)(uint64_t);
 typedef const xpti_trace_event_t *(*xpti_lookup_event_t)(uint64_t);
 typedef xpti_tracepoint_t *(*xpti_create_tracepoint_t)(const char *,
                                                        const char *, uint32_t,
-                                                       uint32_t);
+                                                       uint32_t, void *);
 typedef xpti::result_t (*xpti_delete_tracepoint_t)(xpti_tracepoint_t *);
 }
