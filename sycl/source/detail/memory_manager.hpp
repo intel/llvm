@@ -28,9 +28,7 @@ class queue_impl;
 class event_impl;
 class context_impl;
 
-using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
 // The class contains methods that work with memory. All operations with
 // device memory should go through MemoryManager.
@@ -39,20 +37,20 @@ class MemoryManager {
 public:
   // The following method releases memory allocation of memory object.
   // Depending on the context it releases memory on host or on device.
-  static void release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
+  static void release(context_impl *TargetContext, SYCLMemObjI *MemObj,
                       void *MemAllocation, std::vector<EventImplPtr> DepEvents,
                       ur_event_handle_t &OutEvent);
 
   // The following method allocates memory allocation of memory object.
   // Depending on the context it allocates memory on host or on device.
-  static void *allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
+  static void *allocate(context_impl *TargetContext, SYCLMemObjI *MemObj,
                         bool InitFromUserData, void *HostPtr,
                         std::vector<EventImplPtr> DepEvents,
                         ur_event_handle_t &OutEvent);
 
   // The following method creates OpenCL sub buffer for specified
   // offset, range, and memory object.
-  static void *allocateMemSubBuffer(ContextImplPtr TargetContext,
+  static void *allocateMemSubBuffer(context_impl *TargetContext,
                                     void *ParentMemObj, size_t ElemSize,
                                     size_t Offset, range<3> Range,
                                     std::vector<EventImplPtr> DepEvents,
@@ -61,11 +59,11 @@ public:
   // Allocates buffer in specified context taking into account situations such
   // as host ptr or cl_mem provided by user. TargetContext should be device
   // one(not host).
-  static void *allocateMemBuffer(ContextImplPtr TargetContext,
+  static void *allocateMemBuffer(context_impl *TargetContext,
                                  SYCLMemObjI *MemObj, void *UserPtr,
                                  bool HostPtrReadOnly, size_t Size,
                                  const EventImplPtr &InteropEvent,
-                                 const ContextImplPtr &InteropContext,
+                                 context_impl *InteropContext,
                                  const sycl::property_list &PropsList,
                                  ur_event_handle_t &OutEventToWait);
 
@@ -73,35 +71,35 @@ public:
   // as host ptr or cl_mem provided by user. TargetContext should be device
   // one(not host).
   static void *allocateMemImage(
-      ContextImplPtr TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
+      context_impl *TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
       bool HostPtrReadOnly, size_t Size, const ur_image_desc_t &Desc,
       const ur_image_format_t &Format, const EventImplPtr &InteropEvent,
-      const ContextImplPtr &InteropContext,
-      const sycl::property_list &PropsList, ur_event_handle_t &OutEventToWait);
+      context_impl *InteropContext, const sycl::property_list &PropsList,
+      ur_event_handle_t &OutEventToWait);
 
   // Releases memory object(buffer or image). TargetContext should be device
   // one(not host).
-  static void releaseMemObj(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
+  static void releaseMemObj(context_impl *TargetContext, SYCLMemObjI *MemObj,
                             void *MemAllocation, void *UserPtr);
 
   static void *allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
                                   bool HostPtrReadOnly, size_t Size,
                                   const sycl::property_list &PropsList);
 
-  static void *allocateInteropMemObject(ContextImplPtr TargetContext,
+  static void *allocateInteropMemObject(context_impl *TargetContext,
                                         void *UserPtr,
                                         const EventImplPtr &InteropEvent,
-                                        const ContextImplPtr &InteropContext,
+                                        context_impl *InteropContext,
                                         const sycl::property_list &PropsList,
                                         ur_event_handle_t &OutEventToWait);
 
-  static void *allocateImageObject(ContextImplPtr TargetContext, void *UserPtr,
+  static void *allocateImageObject(context_impl *TargetContext, void *UserPtr,
                                    bool HostPtrReadOnly,
                                    const ur_image_desc_t &Desc,
                                    const ur_image_format_t &Format,
                                    const sycl::property_list &PropsList);
 
-  static void *allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
+  static void *allocateBufferObject(context_impl *TargetContext, void *UserPtr,
                                     bool HostPtrReadOnly, const size_t Size,
                                     const sycl::property_list &PropsList);
 
@@ -140,7 +138,7 @@ public:
                        void *DstMem, std::vector<ur_event_handle_t> DepEvents,
                        ur_event_handle_t *OutEvent);
 
-  static void context_copy_usm(const void *SrcMem, ContextImplPtr Context,
+  static void context_copy_usm(const void *SrcMem, context_impl *Context,
                                size_t Len, void *DstMem);
 
   static void fill_usm(void *DstMem, queue_impl &Queue, size_t Len,
@@ -190,7 +188,7 @@ public:
 
   // Command buffer extension methods
   static void ext_oneapi_copyD2D_cmd_buffer(
-      sycl::detail::ContextImplPtr Context,
+      sycl::detail::context_impl *Context,
       ur_exp_command_buffer_handle_t CommandBuffer, SYCLMemObjI *SYCLMemObj,
       void *SrcMem, unsigned int DimSrc, sycl::range<3> SrcSize,
       sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
@@ -201,7 +199,7 @@ public:
       ur_exp_command_buffer_sync_point_t *OutSyncPoint);
 
   static void ext_oneapi_copyD2H_cmd_buffer(
-      sycl::detail::ContextImplPtr Context,
+      sycl::detail::context_impl *Context,
       ur_exp_command_buffer_handle_t CommandBuffer, SYCLMemObjI *SYCLMemObj,
       void *SrcMem, unsigned int DimSrc, sycl::range<3> SrcSize,
       sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
@@ -211,7 +209,7 @@ public:
       ur_exp_command_buffer_sync_point_t *OutSyncPoint);
 
   static void ext_oneapi_copyH2D_cmd_buffer(
-      sycl::detail::ContextImplPtr Context,
+      sycl::detail::context_impl *Context,
       ur_exp_command_buffer_handle_t CommandBuffer, SYCLMemObjI *SYCLMemObj,
       char *SrcMem, unsigned int DimSrc, sycl::range<3> SrcSize,
       sycl::id<3> SrcOffset, unsigned int SrcElemSize, void *DstMem,
@@ -222,20 +220,20 @@ public:
       ur_exp_command_buffer_sync_point_t *OutSyncPoint);
 
   static void ext_oneapi_copy_usm_cmd_buffer(
-      ContextImplPtr Context, const void *SrcMem,
+      context_impl *Context, const void *SrcMem,
       ur_exp_command_buffer_handle_t CommandBuffer, size_t Len, void *DstMem,
       std::vector<ur_exp_command_buffer_sync_point_t> Deps,
       ur_exp_command_buffer_sync_point_t *OutSyncPoint);
 
   static void ext_oneapi_fill_usm_cmd_buffer(
-      sycl::detail::ContextImplPtr Context,
+      sycl::detail::context_impl *Context,
       ur_exp_command_buffer_handle_t CommandBuffer, void *DstMem, size_t Len,
       const std::vector<unsigned char> &Pattern,
       std::vector<ur_exp_command_buffer_sync_point_t> Deps,
       ur_exp_command_buffer_sync_point_t *OutSyncPoint);
 
   static void ext_oneapi_fill_cmd_buffer(
-      sycl::detail::ContextImplPtr Context,
+      sycl::detail::context_impl *Context,
       ur_exp_command_buffer_handle_t CommandBuffer, SYCLMemObjI *SYCLMemObj,
       void *Mem, size_t PatternSize, const unsigned char *Pattern,
       unsigned int Dim, sycl::range<3> Size, sycl::range<3> AccessRange,
@@ -244,13 +242,13 @@ public:
       ur_exp_command_buffer_sync_point_t *OutSyncPoint);
 
   static void ext_oneapi_prefetch_usm_cmd_buffer(
-      sycl::detail::ContextImplPtr Context,
+      sycl::detail::context_impl *Context,
       ur_exp_command_buffer_handle_t CommandBuffer, void *Mem, size_t Length,
       std::vector<ur_exp_command_buffer_sync_point_t> Deps,
       ur_exp_command_buffer_sync_point_t *OutSyncPoint);
 
   static void ext_oneapi_advise_usm_cmd_buffer(
-      sycl::detail::ContextImplPtr Context,
+      sycl::detail::context_impl *Context,
       ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem,
       size_t Length, ur_usm_advice_flags_t Advice,
       std::vector<ur_exp_command_buffer_sync_point_t> Deps,

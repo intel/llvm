@@ -6,6 +6,7 @@ find_file(EMHASH_SYS_LOC "hash_table8.hpp" PATH_SUFFIXES "emhash")
 if(NOT EMHASH_SYS_LOC)
   set(EMHASH_REPO https://github.com/ktprime/emhash)
   message(STATUS "Will fetch emhash from ${EMHASH_REPO}")
+  include(FetchContent)
   FetchContent_Declare(emhash
     GIT_REPOSITORY    ${EMHASH_REPO}
     GIT_TAG           3ba9abdfdc2e0430fcc2fd8993cad31945b6a02b

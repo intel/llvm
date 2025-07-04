@@ -333,7 +333,7 @@ jobs:
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@v2.3.0
+      uses: softprops/action-gh-release@v2.3.2
       with:
         files: |
           sycl_linux.tar.gz

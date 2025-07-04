@@ -65,16 +65,6 @@ math/atanh.cl
 math/atanpi.cl
 math/cbrt.cl
 math/ceil.cl
-math/clc_exp10.cl
-math/clc_fmod.cl
-math/clc_pow.cl
-math/clc_pown.cl
-math/clc_powr.cl
-math/clc_remainder.cl
-math/clc_remquo.cl
-math/clc_rootn.cl
-math/clc_tan.cl
-math/clc_tanpi.cl
 math/copysign.cl
 math/cos.cl
 math/cosh.cl
@@ -85,7 +75,6 @@ math/erfc.cl
 math/exp.cl
 math/exp10.cl
 math/exp2.cl
-math/exp_helper.cl
 math/expm1.cl
 math/fabs.cl
 math/fdim.cl

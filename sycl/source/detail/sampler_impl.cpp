@@ -24,15 +24,14 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
   verifyProps(MPropList);
 }
 
-sampler_impl::sampler_impl(cl_sampler clSampler,
-                           const ContextImplPtr &syclContext) {
-  const AdapterPtr &Adapter = syclContext->getAdapter();
+sampler_impl::sampler_impl(cl_sampler clSampler, context_impl &syclContext) {
+  const AdapterPtr &Adapter = syclContext.getAdapter();
   ur_sampler_handle_t Sampler{};
   Adapter->call<UrApiKind::urSamplerCreateWithNativeHandle>(
       reinterpret_cast<ur_native_handle_t>(clSampler),
-      syclContext->getHandleRef(), nullptr, &Sampler);
+      syclContext.getHandleRef(), nullptr, &Sampler);
 
-  MContextToSampler[syclContext] = Sampler;
+  MContextToSampler[syclContext.shared_from_this()] = Sampler;
   bool NormalizedCoords;
 
   Adapter->call<UrApiKind::urSamplerGetInfo>(
@@ -95,10 +94,14 @@ sampler_impl::~sampler_impl() {
 }
 
 ur_sampler_handle_t
-sampler_impl::getOrCreateSampler(const ContextImplPtr &ContextImpl) {
+sampler_impl::getOrCreateSampler(context_impl &ContextImpl) {
+  // Just for the `MContextToSampler` lookups. Could probably be changed once we
+  // move to C++20 and would have heterogeneous lookup.
+  std::shared_ptr<context_impl> ContextImplPtr = ContextImpl.shared_from_this();
+
   {
     std::lock_guard<std::mutex> Lock(MMutex);
-    auto It = MContextToSampler.find(ContextImpl);
+    auto It = MContextToSampler.find(ContextImplPtr);
     if (It != MContextToSampler.end())
       return It->second;
   }
@@ -135,10 +138,10 @@ sampler_impl::getOrCreateSampler(const ContextImplPtr &ContextImpl) {
 
   ur_result_t errcode_ret = UR_RESULT_SUCCESS;
   ur_sampler_handle_t resultSampler = nullptr;
-  const AdapterPtr &Adapter = ContextImpl->getAdapter();
+  const AdapterPtr &Adapter = ContextImpl.getAdapter();
 
   errcode_ret = Adapter->call_nocheck<UrApiKind::urSamplerCreate>(
-      ContextImpl->getHandleRef(), &desc, &resultSampler);
+      ContextImpl.getHandleRef(), &desc, &resultSampler);
 
   if (errcode_ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
     throw sycl::exception(sycl::errc::feature_not_supported,
@@ -146,7 +149,7 @@ sampler_impl::getOrCreateSampler(const ContextImplPtr &ContextImpl) {
 
   Adapter->checkUrResult(errcode_ret);
   std::lock_guard<std::mutex> Lock(MMutex);
-  MContextToSampler[ContextImpl] = resultSampler;
+  MContextToSampler[ContextImplPtr] = resultSampler;
 
   return resultSampler;
 }

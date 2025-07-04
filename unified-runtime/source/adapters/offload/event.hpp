@@ -17,4 +17,13 @@
 
 struct ur_event_handle_t_ : RefCounted {
   ol_event_handle_t OffloadEvent;
+  ur_command_t Type;
+
+  static ur_event_handle_t createEmptyEvent() {
+    auto *Event = new ur_event_handle_t_();
+    // Null event represents an empty event. Waiting on it is a no-op.
+    Event->OffloadEvent = nullptr;
+
+    return Event;
+  }
 };

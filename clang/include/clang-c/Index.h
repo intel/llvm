@@ -3035,6 +3035,7 @@ enum CXTypeKind {
   /* HLSL Types */
   CXType_HLSLResource = 179,
   CXType_HLSLAttributedResource = 180,
+  CXType_HLSLInlineSpirv = 181,
 
   /* SPIRV builtin types. */
   CXType_SampledOCLImage1dRO = 200,

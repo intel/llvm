@@ -61,6 +61,17 @@ ur_result_t TsanRuntimeDataWrapper::syncToDevice(ur_queue_handle_t Queue) {
   return UR_RESULT_SUCCESS;
 }
 
+bool TsanRuntimeDataWrapper::hasReport(ur_queue_handle_t Queue) {
+  ur_result_t URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+      Queue, true, ur_cast<void *>(&Host), getDevicePtr(),
+      sizeof(TsanRuntimeData::RecordedReportCount), 0, nullptr, nullptr);
+  if (URes != UR_RESULT_SUCCESS) {
+    UR_LOG(ERR, "Failed to sync runtime data to host: {}", URes);
+    return false;
+  }
+  return Host.RecordedReportCount != 0;
+}
+
 ur_result_t TsanRuntimeDataWrapper::importLocalArgsInfo(
     ur_queue_handle_t Queue, const std::vector<TsanLocalArgsInfo> &LocalArgs) {
   assert(!LocalArgs.empty());
@@ -309,6 +320,9 @@ ur_result_t TsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
   // FIXME: We must use block operation here, until we support
   // urEventSetCallback
   UR_CALL(getContext()->urDdiTable.Queue.pfnFinish(Queue));
+
+  if (!LaunchInfo.Data.hasReport(Queue))
+    return UR_RESULT_SUCCESS;
 
   UR_CALL(LaunchInfo.Data.syncFromDevice(Queue));
 

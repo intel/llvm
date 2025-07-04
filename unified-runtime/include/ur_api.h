@@ -467,6 +467,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT = 272,
   /// Enumerator for ::urUSMContextMemcpyExp
   UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP = 273,
+  /// Enumerator for ::urBindlessImagesSupportsImportingHandleTypeExp
+  UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP = 274,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -9796,6 +9798,8 @@ typedef enum ur_exp_external_mem_type_t {
   UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT = 1,
   /// Win32 NT DirectX 12 resource handle
   UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE = 2,
+  /// dma_buf file descriptor
+  UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF = 3,
   /// @cond
   UR_EXP_EXTERNAL_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -10514,8 +10518,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE <
-///         memHandleType`
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalMemDesc`
 ///         + `NULL == phExternalMem`
@@ -10659,6 +10662,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
     ur_device_handle_t hDevice,
     /// [in][release] pointer to mapped linear memory region to be freed
     void *pMem);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Checks whether the device supports importing the specified external
+///        memory handle type
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pSupportedRet`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesSupportsImportingHandleTypeExp(
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] type of external memory handle
+    ur_exp_external_mem_type_t memHandleType,
+    /// [out] whether the device supports importing the specified external
+    /// memory handle type
+    ur_bool_t *pSupportedRet);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Import an external semaphore
@@ -14836,6 +14866,17 @@ typedef struct ur_bindless_images_free_mapped_linear_memory_exp_params_t {
   ur_device_handle_t *phDevice;
   void **ppMem;
 } ur_bindless_images_free_mapped_linear_memory_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for
+/// urBindlessImagesSupportsImportingHandleTypeExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_bindless_images_supports_importing_handle_type_exp_params_t {
+  ur_device_handle_t *phDevice;
+  ur_exp_external_mem_type_t *pmemHandleType;
+  ur_bool_t **ppSupportedRet;
+} ur_bindless_images_supports_importing_handle_type_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urBindlessImagesImportExternalSemaphoreExp

@@ -1326,6 +1326,8 @@ ur_result_t urGetKernelProcAddrTable(
   }
 
   pDdiTable->pfnCreate = ur_sanitizer_layer::tsan::urKernelCreate;
+  pDdiTable->pfnCreateWithNativeHandle =
+      ur_sanitizer_layer::tsan::urKernelCreateWithNativeHandle;
   pDdiTable->pfnRetain = ur_sanitizer_layer::tsan::urKernelRetain;
   pDdiTable->pfnRelease = ur_sanitizer_layer::tsan::urKernelRelease;
   pDdiTable->pfnSetArgValue = ur_sanitizer_layer::tsan::urKernelSetArgValue;

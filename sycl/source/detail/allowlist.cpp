@@ -375,7 +375,7 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
   // Get platform's backend and put it to DeviceDesc
   DeviceDescT DeviceDesc;
   platform_impl &PlatformImpl =
-      platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter);
+      platform_impl::getOrMakePlatformImpl(UrPlatform, *Adapter);
   backend Backend = PlatformImpl.getBackend();
 
   for (const auto &SyclBe : getSyclBeMap()) {
