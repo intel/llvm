@@ -6,11 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
+#include <clc/internal/clc.h>
+#include <clc/math/clc_log.h>
 
-#include <libspirv/ptx-nvidiacl/libdevice.h>
+float __nv_logf(float);
+double __nv_log(double);
 
-#define __CLC_FUNCTION __spirv_ocl_sqrt
-#define __CLC_BUILTIN __nv_sqrt
+#define __CLC_FUNCTION __clc_log
+#define __CLC_BUILTIN __nv_log
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
 #include <clc/math/unary_builtin_scalarize.inc>

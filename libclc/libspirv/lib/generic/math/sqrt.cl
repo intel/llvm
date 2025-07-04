@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 #include <clc/math/clc_sqrt.h>
 
-#define FUNCTION spirv_ocl_sqrt
+#define FUNCTION __spirv_ocl_sqrt
 #define __CLC_FUNCTION(x) __clc_sqrt
 #define __CLC_BODY <clc/shared/unary_def.inc>
 

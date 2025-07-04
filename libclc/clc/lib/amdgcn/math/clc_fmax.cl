@@ -6,44 +6,25 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
 #include <clc/internal/clc.h>
-#include <clc/relational/clc_isnan.h>
+#include <clc/math/clc_fmax.h>
 
-_CLC_DEF _CLC_OVERLOAD float __clc_fmax(float x, float y) {
-  // fcanonicalize removes sNaNs and flushes denormals if not enabled. Otherwise
-  // fmax instruction flushes the values for comparison, but outputs original
-  // denormal
-  x = __builtin_canonicalizef(x);
-  y = __builtin_canonicalizef(y);
-  return __builtin_fmaxf(x, y);
-}
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __clc_fmax, float, float)
+#define __CLC_FUNCTION __clc_fmax
+#define __CLC_BUILTIN __ocml_fmax
+
+float __ocml_fmax_f32(float, float);
+#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
 
 #ifdef cl_khr_fp64
-
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
+double __ocml_fmax_f64(double, double);
+#define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
+#endif // cl_khr_fp64
 
-_CLC_DEF _CLC_OVERLOAD double __clc_fmax(double x, double y) {
-  x = __builtin_canonicalize(x);
-  y = __builtin_canonicalize(y);
-  return __builtin_fmax(x, y);
-}
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __clc_fmax, double,
-                      double)
-
-#endif
 #ifdef cl_khr_fp16
-
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
+half __ocml_fmax_f16(half, half);
+#define __CLC_BUILTIN_H __CLC_XCONCAT(__CLC_BUILTIN, _f16)
+#endif // cl_khr_fp16
 
-_CLC_DEF _CLC_OVERLOAD half __clc_fmax(half x, half y) {
-  if (__clc_isnan(x))
-    return y;
-  if (__clc_isnan(y))
-    return x;
-  return (y < x) ? x : y;
-}
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __clc_fmax, half, half)
-
-#endif
+#include <clc/math/binary_builtin.inc>

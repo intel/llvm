@@ -17,10 +17,11 @@
 #define __CLC_BUILTIN_H __CLC_BUILTIN_F
 #endif
 
+#if (!defined(__HALF_ONLY) && !defined(__DOUBLE_ONLY))
 _CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(float, __CLC_FUNCTION, __CLC_BUILTIN_F, float)
+#endif
 
-#ifndef __FLOAT_ONLY
-
+#if (!defined(__HALF_ONLY) && !defined(__FLOAT_ONLY))
 #ifdef cl_khr_fp64
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
@@ -28,7 +29,9 @@ _CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(float, __CLC_FUNCTION, __CLC_BUILTIN_F, floa
 _CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(double, __CLC_FUNCTION, __CLC_BUILTIN_D, double)
 
 #endif
+#endif // (!defined(__HALF_ONLY) && !defined(__FLOAT_ONLY))
 
+#if (!defined(__FLOAT_ONLY) && !defined(__DOUBLE_ONLY))
 #ifdef cl_khr_fp16
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
@@ -36,5 +39,4 @@ _CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(double, __CLC_FUNCTION, __CLC_BUILTIN_D, dou
 _CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __CLC_FUNCTION, __CLC_BUILTIN_H, half)
 
 #endif
-
-#endif // !__FLOAT_ONLY
+#endif // (!defined(__FLOAT_ONLY) && !defined(__DOUBLE_ONLY))

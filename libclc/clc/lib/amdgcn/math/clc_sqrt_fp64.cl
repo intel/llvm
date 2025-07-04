@@ -6,25 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
-#include <libspirv/spirv.h>
+#include <clc/internal/clc.h>
+#include <clc/math/clc_sqrt.h>
 
-#define __CLC_FUNCTION __spirv_ocl_fmax
-#define __CLC_BUILTIN __ocml_fmax
-
-float __ocml_fmax_f32(float, float);
-#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
+#define __CLC_FUNCTION __clc_sqrt
+#define __CLC_BUILTIN __ocml_sqrt
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
-double __ocml_fmax_f64(double, double);
+double __ocml_sqrt_f64(double);
 #define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
 #endif // cl_khr_fp64
 
-#ifdef cl_khr_fp16
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-half __ocml_fmax_f16(half, half);
-#define __CLC_BUILTIN_H __CLC_XCONCAT(__CLC_BUILTIN, _f16)
-#endif // cl_khr_fp16
-
-#include <clc/math/binary_builtin.inc>
+#define __DOUBLE_ONLY
+#include <clc/math/unary_builtin_scalarize.inc>
