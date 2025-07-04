@@ -83,13 +83,12 @@ buffer_impl::getNativeVector(backend BackendName) const {
     if (Platform.getBackend() != BackendName)
       continue;
 
-    auto Adapter = Platform.getAdapter();
-
+    adapter_impl &Adapter = Platform.getAdapter();
     ur_native_handle_t Handle = 0;
     // When doing buffer interop we don't know what device the memory should be
     // resident on, so pass nullptr for Device param. Buffer interop may not be
     // supported by all backends.
-    Adapter->call<UrApiKind::urMemGetNativeHandle>(NativeMem, /*Dev*/ nullptr,
+    Adapter.call<UrApiKind::urMemGetNativeHandle>(NativeMem, /*Dev*/ nullptr,
                                                    &Handle);
     Handles.push_back(Handle);
 
