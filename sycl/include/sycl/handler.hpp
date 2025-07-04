@@ -562,9 +562,9 @@ private:
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
-  /// TODO: remove the first version of this func (the one without the IsTopCodeLoc arg)
-  ///   at the next ABI breaking window since removing it breaks ABI on windows.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void saveCodeLoc(detail::code_location CodeLoc);
+#endif
   void saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc);
   void copyCodeLoc(const handler &other);
 
@@ -914,7 +914,7 @@ private:
                              .template get_property<
                                  syclex::cuda::cluster_size_key<ClusterDim>>()
                              .get_cluster_size();
-      setKernelClusterLaunch(padRange(ClusterSize), ClusterDim);
+      setKernelClusterLaunch(ClusterSize);
     }
   }
 
@@ -3716,7 +3716,12 @@ private:
   void setKernelIsCooperative(bool);
 
   // Set using cuda thread block cluster launch flag and set the launch bounds.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims);
+#endif
+  void setKernelClusterLaunch(sycl::range<3> ClusterSize);
+  void setKernelClusterLaunch(sycl::range<2> ClusterSize);
+  void setKernelClusterLaunch(sycl::range<1> ClusterSize);
 
   // Set the request work group memory size (work_group_static ext).
   void setKernelWorkGroupMem(size_t Size);
@@ -3817,47 +3822,7 @@ private:
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
 
-  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
-    if constexpr (Dims == 3) {
-      return Range;
-    } else {
-      sycl::range<3> Res{0, 0, 0};
-      for (int I = 0; I < Dims; ++I)
-        Res[I] = Range[I];
-      return Res;
-    }
-  }
-
-  template <int Dims> static sycl::id<3> padId(sycl::id<Dims> Id) {
-    if constexpr (Dims == 3) {
-      return Id;
-    } else {
-      sycl::id<3> Res{0, 0, 0};
-      for (int I = 0; I < Dims; ++I)
-        Res[I] = Id[I];
-      return Res;
-    }
-  }
-
-  template <int Dims>
-  void setNDRangeDescriptor(sycl::range<Dims> N,
-                            bool SetNumWorkGroups = false) {
-    return setNDRangeDescriptorPadded(padRange(N), SetNumWorkGroups, Dims);
-  }
-  template <int Dims>
-  void setNDRangeDescriptor(sycl::range<Dims> NumWorkItems,
-                            sycl::id<Dims> Offset) {
-    return setNDRangeDescriptorPadded(padRange(NumWorkItems), padId(Offset),
-                                      Dims);
-  }
-  template <int Dims>
-  void setNDRangeDescriptor(sycl::nd_range<Dims> ExecutionRange) {
-    return setNDRangeDescriptorPadded(
-        padRange(ExecutionRange.get_global_range()),
-        padRange(ExecutionRange.get_local_range()),
-        padId(ExecutionRange.get_offset()), Dims);
-  }
-
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setNDRangeDescriptorPadded(sycl::range<3> N, bool SetNumWorkGroups,
                                   int Dims);
   void setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
@@ -3865,6 +3830,39 @@ private:
   void setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                   sycl::range<3> LocalSize, sycl::id<3> Offset,
                                   int Dims);
+#endif
+
+  template <int Dims>
+  void setNDRangeDescriptor(sycl::range<Dims> N,
+                            bool SetNumWorkGroups = false) {
+    return setNDRangeDescriptor(N, SetNumWorkGroups);
+  }
+  template <int Dims>
+  void setNDRangeDescriptor(sycl::range<Dims> NumWorkItems,
+                            sycl::id<Dims> Offset) {
+    return setNDRangeDescriptor(NumWorkItems, Offset);
+  }
+  template <int Dims>
+  void setNDRangeDescriptor(sycl::nd_range<Dims> ExecutionRange) {
+    return setNDRangeDescriptor(ExecutionRange.get_global_range(),
+                                ExecutionRange.get_local_range(),
+                                ExecutionRange.get_offset());
+  }
+
+  void setNDRangeDescriptor(sycl::range<3> N, bool SetNumWorkGroups);
+  void setNDRangeDescriptor(sycl::range<3> NumWorkItems, sycl::id<3> Offset);
+  void setNDRangeDescriptor(sycl::range<3> NumWorkItems,
+                            sycl::range<3> LocalSize, sycl::id<3> Offset);
+
+  void setNDRangeDescriptor(sycl::range<2> N, bool SetNumWorkGroups);
+  void setNDRangeDescriptor(sycl::range<2> NumWorkItems, sycl::id<2> Offset);
+  void setNDRangeDescriptor(sycl::range<2> NumWorkItems,
+                            sycl::range<2> LocalSize, sycl::id<2> Offset);
+
+  void setNDRangeDescriptor(sycl::range<1> N, bool SetNumWorkGroups);
+  void setNDRangeDescriptor(sycl::range<1> NumWorkItems, sycl::id<1> Offset);
+  void setNDRangeDescriptor(sycl::range<1> NumWorkItems,
+                            sycl::range<1> LocalSize, sycl::id<1> Offset);
 
   void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
                      detail::kernel_param_desc_t (*KernelParamDescGetter)(int),

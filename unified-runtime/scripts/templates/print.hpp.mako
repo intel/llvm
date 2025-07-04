@@ -194,6 +194,7 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
 %endfor
 } // namespace ${x}::details
 
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const ur_bool_t value);
 %for spec in specs:
 %for obj in spec['objects']:
 %if re.match(r"enum", obj['type']):

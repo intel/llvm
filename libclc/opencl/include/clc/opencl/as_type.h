@@ -1,5 +1,3 @@
-#ifndef CLC_AS_TYPE
-#define CLC_AS_TYPE
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -85,5 +83,3 @@
 #define as_half8(x) __builtin_astype(x, half8)
 #define as_half16(x) __builtin_astype(x, half16)
 #endif
-
-#endif // CLC_AS_TYPE

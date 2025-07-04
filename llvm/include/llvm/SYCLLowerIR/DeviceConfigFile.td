@@ -189,6 +189,7 @@ def : TargetInfo<"spir64_gen", [], [], "", "", 1>;
 def : TargetInfo<"spir64_x86_64", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
 def : TargetInfo<"spir64_fpga", [], [], "", "", 1>;
 def : TargetInfo<"x86_64", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
+def : TargetInfo<"intel_cpu_spr", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
 // Examples of how to use a combination of explicitly specified values + predefined lists
 //defvar AspectList = [AspectCpu] # AllUSMAspects;
 //def : TargetInfo<"Test", AspectList, []>;

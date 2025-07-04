@@ -119,6 +119,7 @@ Enums
     * ${X}_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD
     * ${X}_EXP_EXTERNAL_MEM_TYPE_WIN32_NT
     * ${X}_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE
+    * ${X}_EXP_EXTERNAL_MEM_TYPE_DMA_BUF
 
 * ${x}_exp_external_semaphore_type_t
     * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD
@@ -200,6 +201,7 @@ Functions
    * ${x}BindlessImagesMapExternalLinearMemoryExp
    * ${x}BindlessImagesReleaseExternalMemoryExp
    * ${x}BindlessImagesFreeMappedLinearMemoryExp
+   * ${x}BindlessImagesSupportsImportingHandleTypeExp
    * ${x}BindlessImagesImportExternalSemaphoreExp
    * ${x}BindlessImagesReleaseExternalSemaphoreExp
    * ${x}BindlessImagesWaitExternalSemaphoreExp
@@ -292,6 +294,12 @@ Changelog
 +----------+-------------------------------------------------------------+
 | 24.0     || Update the ${x}BindlessImagesSampledImageCreateExp API     |
 |          || to take a sampler description instead of sampler handle.   |
++----------+-------------------------------------------------------------+
+| 25.0     || Added support for importing dma_buf                        |
+|          || and checking if device supports importing it               |
+|          || (or other external memory handle types):                   |
+|          ||   * ${X}_EXP_EXTERNAL_MEM_TYPE_DMA_BUF                     |
+|          ||   * ${x}BindlessImagesSupportsImportingHandleTypeExp       |
 +----------+-------------------------------------------------------------+
 
 Contributors

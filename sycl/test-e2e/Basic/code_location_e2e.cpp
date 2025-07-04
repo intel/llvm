@@ -1,3 +1,5 @@
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19214
 // RUN: %{build} -DNDEBUG -o %t1.out
 // RUN: %{run} %t1.out | FileCheck %s
 
