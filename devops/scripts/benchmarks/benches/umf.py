@@ -165,7 +165,6 @@ class GBench(Benchmark):
                         value=value,
                         command=command,
                         env=env_vars,
-                        stdout=result,
                         unit=self.get_unit_time_or_overhead(explicit_group),
                     )
                 )
