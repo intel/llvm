@@ -1425,12 +1425,10 @@ ur_result_t urEnqueueUSMFill2D(
   for (size_t HeightIndex = 0; HeightIndex < Height; HeightIndex++) {
     ur_event_handle_t Event = nullptr;
 
-    UR_CALL(enqueueMemFillHelper(
-        UR_COMMAND_MEM_BUFFER_FILL, Queue,
-        (void *)((char *)Mem + Pitch * HeightIndex),
-        Pattern,     // It will be interpreted as an 8-bit value,
-        PatternSize, // which is indicated with this pattern_size==1
-        Width, NumEventsInWaitList, EventWaitList, &Event));
+    UR_CALL(enqueueMemFillHelper(UR_COMMAND_MEM_BUFFER_FILL, Queue,
+                                 (void *)((char *)Mem + Pitch * HeightIndex),
+                                 Pattern, PatternSize, Width,
+                                 NumEventsInWaitList, EventWaitList, &Event));
 
     WaitEvents.push_back(Event);
   }
