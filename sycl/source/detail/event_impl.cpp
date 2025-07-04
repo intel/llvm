@@ -150,7 +150,7 @@ context_impl &event_impl::getContextImpl() {
 
 adapter_impl &event_impl::getAdapter() {
   initContextIfNeeded();
-  return *MContext->getAdapter();
+  return MContext->getAdapter();
 }
 
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
