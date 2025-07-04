@@ -15,7 +15,6 @@ import re
 
 
 class GromacsBench(Suite):
-
     def git_url(self):
         return "https://gitlab.com/gromacs/gromacs.git"
 
@@ -221,7 +220,6 @@ class GromacsBenchmark(Benchmark):
                 unit="s",
                 command=command,
                 env=env_vars,
-                stdout=mdrun_output,
                 git_url=self.suite.git_url(),
                 git_hash=self.suite.git_tag(),
             )
