@@ -94,7 +94,7 @@ public:
   const async_handler &get_async_handler() const;
 
   /// \return the Adapter associated with the platform of this context.
-  adapter_impl &getAdapter() const { return *MPlatform->getAdapter(); }
+  adapter_impl &getAdapter() const { return MPlatform->getAdapter(); }
 
   /// \return the PlatformImpl associated with this context.
   platform_impl &getPlatformImpl() const { return *MPlatform; }
