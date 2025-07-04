@@ -370,21 +370,36 @@ public:
     return createSyclObjFromImpl<event>(ResEvent);
   }
 
-  event submit_with_event(const nd_range<1> Range,
-                          const detail::v1::ExtendedSubmissionInfo &ExtSubmitInfo,
-                          const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  event
+  submit_with_event(const nd_range<1> Range,
+                    const detail::v1::ExtendedSubmissionInfo &ExtSubmitInfo,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    (void)Range;
+    (void)ExtSubmitInfo;
+    (void)CodeLoc;
+    (void)IsTopCodeLoc;
     return event();
   }
 
-  event submit_with_event(const nd_range<2> Range,
-                          const detail::v1::ExtendedSubmissionInfo &ExtSubmitInfo,
-                          const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  event
+  submit_with_event(const nd_range<2> Range,
+                    const detail::v1::ExtendedSubmissionInfo &ExtSubmitInfo,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    (void)Range;
+    (void)ExtSubmitInfo;
+    (void)CodeLoc;
+    (void)IsTopCodeLoc;
     return event();
   }
 
-  event submit_with_event(const nd_range<3> Range,
-                          const detail::v1::ExtendedSubmissionInfo &ExtSubmitInfo,
-                          const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  event
+  submit_with_event(const nd_range<3> Range,
+                    const detail::v1::ExtendedSubmissionInfo &ExtSubmitInfo,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    (void)Range;
+    (void)ExtSubmitInfo;
+    (void)CodeLoc;
+    (void)IsTopCodeLoc;
     return event();
   }
 
