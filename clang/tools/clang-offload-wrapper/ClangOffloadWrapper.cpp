@@ -1141,7 +1141,8 @@ private:
       }
       std::pair<Constant *, Constant *> Fbin;
       if (Triple(Img.Tgt).isNativeCPU()) {
-        auto FBinOrErr = addDeclarationsForNativeCPU(Img.EntriesFile, SYCLNativeCPUPropSet);
+        auto FBinOrErr =
+            addDeclarationsForNativeCPU(Img.EntriesFile, SYCLNativeCPUPropSet);
         if (!FBinOrErr)
           return FBinOrErr.takeError();
         Fbin = *FBinOrErr;
