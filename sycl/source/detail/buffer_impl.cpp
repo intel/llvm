@@ -57,7 +57,7 @@ void buffer_impl::addInteropObject(
           ur::cast<ur_mem_handle_t>(MInteropMemObject));
       ur_native_handle_t NativeHandle = 0;
       Adapter.call<UrApiKind::urMemGetNativeHandle>(MInteropMemObject, nullptr,
-                                                     &NativeHandle);
+                                                    &NativeHandle);
       Handles.push_back(NativeHandle);
     }
   }

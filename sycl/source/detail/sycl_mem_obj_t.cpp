@@ -46,11 +46,10 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
 
   // Get the size of the buffer in bytes
   Adapter.call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_SIZE,
-                                         sizeof(size_t), &MSizeInBytes,
-                                         nullptr);
+                                        sizeof(size_t), &MSizeInBytes, nullptr);
 
   Adapter.call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_CONTEXT,
-                                         sizeof(Context), &Context, nullptr);
+                                        sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::exception(
@@ -106,7 +105,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
       &NativeProperties, &MInteropMemObject);
 
   Adapter.call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_CONTEXT,
-                                         sizeof(Context), &Context, nullptr);
+                                        sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::exception(
