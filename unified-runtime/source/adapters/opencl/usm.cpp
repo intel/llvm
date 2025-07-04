@@ -587,33 +587,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
-    ur_queue_handle_t hQueue, void *pMem, size_t pitch, size_t patternSize,
-    const void *pPattern, size_t width, size_t height,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  // A quick fallback implementation
-  std::vector<ur_event_handle_t> WaitEvents(height);
-
-  for (size_t HeightIndex = 0; HeightIndex < height; HeightIndex++) {
-    ur_event_handle_t Event = nullptr;
-
-    UR_CALL(urEnqueueUSMFill(
-        hQueue, (void *)((char *)pMem + pitch * HeightIndex), patternSize,
-        pPattern, width, numEventsInWaitList, phEventWaitList, &Event));
-
-    WaitEvents.push_back(Event);
-  }
-
-  if (phEvent) {
-    UR_CALL(urEnqueueEventsWait(hQueue, WaitEvents.size(), WaitEvents.data(),
-                                phEvent));
-  }
-
-  for (const auto Event : WaitEvents) {
-    UR_CALL(urEventRelease(Event));
-  }
-
-  return UR_RESULT_SUCCESS;
+    [[maybe_unused]] ur_queue_handle_t hQueue, [[maybe_unused]] void *pMem,
+    [[maybe_unused]] size_t pitch, [[maybe_unused]] size_t patternSize,
+    [[maybe_unused]] const void *pPattern, [[maybe_unused]] size_t width,
+    [[maybe_unused]] size_t height,
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] ur_event_handle_t *phEvent) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
