@@ -61,7 +61,7 @@ ur_result_t urContextRetain(
 
     /// [in] handle of the context to get a reference of.
     ur_context_handle_t Context) {
-  Context->RefCount.increment();
+  Context->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
@@ -113,7 +113,7 @@ ur_result_t urContextGetInfo(
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(uint32_t(Context->Devices.size()));
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Context->RefCount.load()});
+    return ReturnValue(uint32_t{Context->RefCount.getCount()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // 2D USM memcpy is supported.
     return ReturnValue(uint8_t{UseMemcpy2DOperations});
@@ -251,7 +251,7 @@ ur_device_handle_t ur_context_handle_t_::getRootDevice() const {
 // from the list of tracked contexts.
 ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
 
-  if (!Context->RefCount.decrementAndTest())
+  if (!Context->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   if (IndirectAccessTrackingEnabled) {

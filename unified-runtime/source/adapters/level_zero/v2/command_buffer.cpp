@@ -258,7 +258,7 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
 
 ur_result_t
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
-  hCommandBuffer->RefCount.increment();
+  hCommandBuffer->RefCount.retain();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -266,7 +266,7 @@ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
 
 ur_result_t
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
-  if (!hCommandBuffer->RefCount.decrementAndTest())
+  if (!hCommandBuffer->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   if (auto executionEvent = hCommandBuffer->getExecutionEventUnlocked()) {
@@ -630,7 +630,7 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{hCommandBuffer->RefCount.load()});
+    return ReturnValue(uint32_t{hCommandBuffer->RefCount.getCount()});
   case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
     ur_exp_command_buffer_desc_t Descriptor{};
     Descriptor.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;

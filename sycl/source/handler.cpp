@@ -628,9 +628,7 @@ event handler::finalize() {
         EnqueueKernel();
       } else {
         detail::queue_impl &Queue = impl->get_queue();
-        ResultEvent->setQueue(Queue);
         ResultEvent->setWorkerQueue(Queue.weak_from_this());
-        ResultEvent->setContextImpl(impl->get_context());
         ResultEvent->setStateIncomplete();
         ResultEvent->setSubmissionTime();
 
@@ -1077,24 +1075,21 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
 
     detail::AccessorBaseHost *GBufBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalBuf);
-    detail::AccessorImplPtr GBufImpl = detail::getSyclObjImpl(*GBufBase);
-    detail::Requirement *GBufReq = GBufImpl.get();
+    detail::Requirement *GBufReq = &*detail::getSyclObjImpl(*GBufBase);
     addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
                              IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GOffsetBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalOffset);
-    detail::AccessorImplPtr GOfssetImpl = detail::getSyclObjImpl(*GOffsetBase);
-    detail::Requirement *GOffsetReq = GOfssetImpl.get();
+    detail::Requirement *GOffsetReq = &*detail::getSyclObjImpl(*GOffsetBase);
     addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
                              IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GFlushBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
-    detail::AccessorImplPtr GFlushImpl = detail::getSyclObjImpl(*GFlushBase);
-    detail::Requirement *GFlushReq = GFlushImpl.get();
+    detail::Requirement *GFlushReq = &*detail::getSyclObjImpl(*GFlushBase);
 
     // If work group size wasn't set explicitly then it must be recieved
     // from kernel attribute or set to default values.
@@ -2246,6 +2241,25 @@ void handler::setKernelIsCooperative(bool KernelIsCooperative) {
   impl->MKernelIsCooperative = KernelIsCooperative;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
+  impl->MKernelUsesClusterLaunch = true;
+
+  if (Dims == 1) {
+    sycl::range<1> ClusterSizeTrimmed = {ClusterSize[0]};
+    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+  } else if (Dims == 2) {
+    sycl::range<2> ClusterSizeTrimmed = {ClusterSize[0], ClusterSize[1]};
+    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+  } else if (Dims == 3) {
+    impl->MNDRDesc.setClusterDimensions(ClusterSize);
+  }
+}
+#endif
+
 void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
@@ -2422,6 +2436,56 @@ bool handler::HasAssociatedAccessor(detail::AccessorImplHost *Req,
 void handler::setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 sycl::detail::CGType handler::getType() const { return impl->MCGType; }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::setNDRangeDescriptorPadded(sycl::range<3> N,
+                                         bool SetNumWorkGroups, int Dims) {
+  if (Dims == 1) {
+    sycl::range<1> Range = {N[0]};
+    impl->MNDRDesc = NDRDescT{Range, SetNumWorkGroups};
+  } else if (Dims == 2) {
+    sycl::range<2> Range = {N[0], N[1]};
+    impl->MNDRDesc = NDRDescT{Range, SetNumWorkGroups};
+  } else if (Dims == 3) {
+    impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+  }
+}
+
+void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
+                                         sycl::id<3> Offset, int Dims) {
+  if (Dims == 1) {
+    sycl::range<1> NumWorkItemsTrimmed = {NumWorkItems[0]};
+    sycl::id<1> OffsetTrimmed = {Offset[0]};
+    impl->MNDRDesc = NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed};
+  } else if (Dims == 2) {
+    sycl::range<2> NumWorkItemsTrimmed = {NumWorkItems[0], NumWorkItems[1]};
+    sycl::id<2> OffsetTrimmed = {Offset[0], Offset[1]};
+    impl->MNDRDesc = NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed};
+  } else if (Dims == 3) {
+    impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+  }
+}
+
+void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
+                                         sycl::range<3> LocalSize,
+                                         sycl::id<3> Offset, int Dims) {
+  if (Dims == 1) {
+    sycl::range<1> NumWorkItemsTrimmed = {NumWorkItems[0]};
+    sycl::range<1> LocalSizeTrimmed = {LocalSize[0]};
+    sycl::id<1> OffsetTrimmed = {Offset[0]};
+    impl->MNDRDesc =
+        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed};
+  } else if (Dims == 2) {
+    sycl::range<2> NumWorkItemsTrimmed = {NumWorkItems[0], NumWorkItems[1]};
+    sycl::range<2> LocalSizeTrimmed = {LocalSize[0], LocalSize[1]};
+    sycl::id<2> OffsetTrimmed = {Offset[0], Offset[1]};
+    impl->MNDRDesc =
+        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed};
+  } else if (Dims == 3) {
+    impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+  }
+}
+#endif
+
 void handler::setNDRangeDescriptor(sycl::range<3> N, bool SetNumWorkGroups) {
   impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
 }
@@ -2487,10 +2551,12 @@ void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {
   MCodeLoc = CodeLoc;
   impl->MIsTopCodeLoc = IsTopCodeLoc;
 }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::saveCodeLoc(detail::code_location CodeLoc) {
   MCodeLoc = CodeLoc;
   impl->MIsTopCodeLoc = true;
 }
+#endif
 void handler::copyCodeLoc(const handler &other) {
   MCodeLoc = other.MCodeLoc;
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
