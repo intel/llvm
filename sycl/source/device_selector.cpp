@@ -217,7 +217,7 @@ __SYCL_EXPORT int cpu_selector_v(const device &dev) {
   return Score;
 }
 
-__SYCL_EXPORT int accelerator_selector_v(const device &dev) {
+__SYCL_EXPORT int accelerator_selector_v(const device &) {
   return detail::REJECT_DEVICE_SCORE;
 }
 
