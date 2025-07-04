@@ -225,8 +225,11 @@ enum PropKind : uint32_t {
   Unaliased = 80,
   EventMode = 81,
   NativeLocalBlockIO = 82,
+  InitialThreshold = 83,
+  MaximumSize = 84,
+  ZeroInit = 85,
   // PropKindSize must always be the last value.
-  PropKindSize = 83,
+  PropKindSize = 86,
 };
 
 template <typename PropertyT> struct PropertyToKind {
@@ -255,7 +258,7 @@ protected:
   // Temporary, to ensure new code matches previous behavior and to catch any
   // silly copy-paste mistakes. MSVC can't compile it, but linux-only is
   // enough for this temporary check.
-  static_assert([]() constexpr {
+  static_assert([]() constexpr -> bool {
     if constexpr (std::is_same_v<property_t, key_t>)
       // key_t is incomplete at this point for runtime properties.
       return true;

@@ -94,17 +94,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
 
   if (pPropSizeRet) {
-    if (auto Res =
-            olGetDeviceInfoSize(hDevice->OffloadDevice, olInfo, pPropSizeRet)) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(
+        olGetDeviceInfoSize(hDevice->OffloadDevice, olInfo, pPropSizeRet));
   }
 
   if (pPropValue) {
-    if (auto Res = olGetDeviceInfo(hDevice->OffloadDevice, olInfo, propSize,
-                                   pPropValue)) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(
+        olGetDeviceInfo(hDevice->OffloadDevice, olInfo, propSize, pPropValue));
     // Need to explicitly map this type
     if (olInfo == OL_DEVICE_INFO_TYPE) {
       auto urPropPtr = reinterpret_cast<ur_device_type_t *>(pPropValue);
@@ -149,8 +145,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
     uint32_t NumBinaries, uint32_t *pSelectedBinary) {
 
   ol_platform_backend_t Backend;
-  olGetPlatformInfo(hDevice->Platform->OffloadPlatform,
-                    OL_PLATFORM_INFO_BACKEND, sizeof(Backend), &Backend);
+  OL_RETURN_ON_ERR(olGetPlatformInfo(hDevice->Platform->OffloadPlatform,
+                                     OL_PLATFORM_INFO_BACKEND, sizeof(Backend),
+                                     &Backend));
 
   const char *ImageTarget = UR_DEVICE_BINARY_TARGET_UNKNOWN;
   if (Backend == OL_PLATFORM_BACKEND_CUDA) {

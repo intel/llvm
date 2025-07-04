@@ -518,7 +518,8 @@ void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind,
 ///
 /// \param Ptr is the USM pointer to query
 /// \param Ctxt is the sycl context the ptr was allocated in
-alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
+namespace detail {
+alloc get_pointer_type(const void *Ptr, context_impl &Ctxt) {
   if (!Ptr)
     return alloc::unknown;
 
@@ -559,6 +560,12 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 
   return ResultAlloc;
 }
+} // namespace detail
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_EXPORT alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
+  return get_pointer_type(Ptr, *getSyclObjImpl(Ctxt));
+}
+#endif
 
 /// Queries the device against which the pointer was allocated
 ///

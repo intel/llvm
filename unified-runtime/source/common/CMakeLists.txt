@@ -23,6 +23,8 @@ add_ur_library(ur_common STATIC
     ur_util.cpp
     ur_util.hpp
     latency_tracker.hpp
+    offload_bundle_parser.cpp
+    offload_bundle_parser.hpp
     $<$<PLATFORM_ID:Windows>:windows/ur_lib_loader.cpp>
     $<$<PLATFORM_ID:Linux,Darwin>:linux/ur_lib_loader.cpp>
 )

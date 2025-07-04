@@ -502,20 +502,20 @@ TEST_F(CommandGraphTest, MakeEdgeErrors) {
   // state.
 
   auto CheckGraphStructure = [&]() {
-    auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-    auto NodeAImpl = sycl::detail::getSyclObjImpl(NodeA);
-    auto NodeBImpl = sycl::detail::getSyclObjImpl(NodeB);
+    experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+    experimental::detail::node_impl &NodeAImpl = *getSyclObjImpl(NodeA);
+    experimental::detail::node_impl &NodeBImpl = *getSyclObjImpl(NodeB);
 
-    ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
-    ASSERT_EQ((*GraphImpl->MRoots.begin()).lock(), NodeAImpl);
+    ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
+    ASSERT_EQ(GraphImpl.MRoots.begin()->lock().get(), &NodeAImpl);
 
-    ASSERT_EQ(NodeAImpl->MSuccessors.size(), 1lu);
-    ASSERT_EQ(NodeAImpl->MPredecessors.size(), 0lu);
-    ASSERT_EQ(NodeAImpl->MSuccessors.front().lock(), NodeBImpl);
+    ASSERT_EQ(NodeAImpl.MSuccessors.size(), 1lu);
+    ASSERT_EQ(NodeAImpl.MPredecessors.size(), 0lu);
+    ASSERT_EQ(NodeAImpl.MSuccessors.front().lock().get(), &NodeBImpl);
 
-    ASSERT_EQ(NodeBImpl->MSuccessors.size(), 0lu);
-    ASSERT_EQ(NodeBImpl->MPredecessors.size(), 1lu);
-    ASSERT_EQ(NodeBImpl->MPredecessors.front().lock(), NodeAImpl);
+    ASSERT_EQ(NodeBImpl.MSuccessors.size(), 0lu);
+    ASSERT_EQ(NodeBImpl.MPredecessors.size(), 1lu);
+    ASSERT_EQ(NodeBImpl.MPredecessors.front().lock().get(), &NodeAImpl);
   };
   // Make a normal edge
   ASSERT_NO_THROW(Graph.make_edge(NodeA, NodeB));

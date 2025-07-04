@@ -34,15 +34,15 @@ endif()
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
-    # commit 007a4924129ef49ca8793631d28ae343f6ba6d24
-    # Merge: 0135b8d586 9ed4bddff1
+    # commit d0a32d701e34b3285de7ce776ea36abfec673df7
+    # Merge: a9f848e0e8 56473a8c25
     # Author: Harald van Dijk <harald.vandijk@codeplay.com>
-    # Date:   Wed Jun 11 16:45:25 2025 +0100
+    # Date:   Mon Jun 30 12:24:46 2025 +0100
     # 
-    #     Merge pull request #864 from hvdijk/llvm21-createelementcount
+    #     Merge pull request #878 from hvdijk/specify-fuse-ld-lld
     #     
-    #     [LLVM 21] Remove VectorizationFactor, use CreateElementCount.
-    set(OCK_GIT_INTERNAL_TAG 007a4924129ef49ca8793631d28ae343f6ba6d24)
+    #     [RefSi] Explicitly specify -fuse-ld=lld.
+    set(OCK_GIT_INTERNAL_TAG d0a32d701e34b3285de7ce776ea36abfec673df7)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)

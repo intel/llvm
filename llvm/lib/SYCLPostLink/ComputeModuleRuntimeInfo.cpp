@@ -273,7 +273,9 @@ PropSetRegTy computeModuleProperties(const Module &M,
   }
   if (GlobProps.EmitKernelNames) {
     for (const auto *F : EntryPoints) {
-      if (F->getCallingConv() == CallingConv::SPIR_KERNEL) {
+      if (F->getCallingConv() == CallingConv::SPIR_KERNEL ||
+          F->getCallingConv() == CallingConv::PTX_Kernel ||
+          F->getCallingConv() == CallingConv::AMDGPU_KERNEL) {
         PropSet.add(PropSetRegTy::SYCL_KERNEL_NAMES, F->getName(),
                     /*PropVal=*/true);
       }

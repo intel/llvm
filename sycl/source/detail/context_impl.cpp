@@ -9,6 +9,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/context_info.hpp>
 #include <detail/event_info.hpp>
+#include <detail/memory_pool_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/detail/common.hpp>
@@ -16,6 +17,7 @@
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/property_list.hpp>
@@ -59,8 +61,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
 }
 
 context_impl::context_impl(ur_context_handle_t UrContext,
-                           async_handler AsyncHandler,
-                           const AdapterPtr &Adapter,
+                           async_handler AsyncHandler, adapter_impl &Adapter,
                            const std::vector<sycl::device> &DeviceList,
                            bool OwnedByRuntime, private_tag)
     : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
@@ -72,12 +73,12 @@ context_impl::context_impl(ur_context_handle_t UrContext,
     std::vector<ur_device_handle_t> DeviceIds;
     uint32_t DevicesNum = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Adapter->call<UrApiKind::urContextGetInfo>(
+    Adapter.call<UrApiKind::urContextGetInfo>(
         MContext, UR_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
         nullptr);
     DeviceIds.resize(DevicesNum);
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Adapter->call<UrApiKind::urContextGetInfo>(
+    Adapter.call<UrApiKind::urContextGetInfo>(
         MContext, UR_CONTEXT_INFO_DEVICES,
         sizeof(ur_device_handle_t) * DevicesNum, &DeviceIds[0], nullptr);
 
@@ -338,9 +339,9 @@ void context_impl::addDeviceGlobalInitializer(
   }
 }
 
-std::vector<ur_event_handle_t>
-context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
-                                      queue_impl &QueueImpl) {
+std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
+    ur_program_handle_t NativePrg, queue_impl &QueueImpl,
+    detail::kernel_bundle_impl *KernelBundleImplPtr) {
   if (!MDeviceGlobalNotInitializedCnt.load(std::memory_order_acquire))
     return {};
 
@@ -364,7 +365,7 @@ context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
           InitEventsRef.begin(), InitEventsRef.end(),
           [&Adapter](const ur_event_handle_t &Event) {
             return get_event_info<info::event::command_execution_status>(
-                       Event, Adapter) == info::event_command_status::complete;
+                       Event, *Adapter) == info::event_command_status::complete;
           });
       // Release the removed events.
       for (auto EventIt = NewEnd; EventIt != InitEventsRef.end(); ++EventIt)
@@ -394,6 +395,12 @@ context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
         detail::ProgramManager::getInstance().getDeviceGlobalEntries(
             DeviceGlobalIds,
             /*ExcludeDeviceImageScopeDecorated=*/true);
+    // Kernel bundles may have isolated device globals. They need to be
+    // initialized too.
+    if (KernelBundleImplPtr && KernelBundleImplPtr->getDeviceGlobalMap().size())
+      KernelBundleImplPtr->getDeviceGlobalMap().getEntries(
+          DeviceGlobalIds, /*ExcludeDeviceImageScopeDecorated=*/true,
+          DeviceGlobalEntries);
 
     // If there were no device globals without device_image_scope the device
     // globals are trivially fully initialized and we can end early.
@@ -410,7 +417,7 @@ context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
 
     // Device global map entry pointers will not die before the end of the
     // program and the pointers will stay the same, so we do not need
-    // m_DeviceGlobalsMutex here.
+    // to lock the device global map here.
     // The lifetimes of device global map entries representing globals in
     // runtime-compiled code will be tied to the kernel bundle, so the
     // assumption holds in that setting as well.
@@ -424,7 +431,7 @@ context_impl::initializeDeviceGlobals(ur_program_handle_t NativePrg,
       // are cleaned up separately from cleaning up the device global USM memory
       // this must retain the event.
       {
-        if (OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Adapter))
+        if (OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(*Adapter))
           InitEventsRef.push_back(ZIEvent.TransferOwnership());
       }
       // Write the pointer to the device global and store the event in the
@@ -590,7 +597,7 @@ context_impl::get_default_memory_pool(const context &Context,
   auto MemPoolImplPtr = std::make_shared<
       sycl::ext::oneapi::experimental::detail::memory_pool_impl>(
       Context, Device, sycl::usm::alloc::device, PoolHandle,
-      true /*Default pool*/, property_list{});
+      true /*Default pool*/);
 
   // Hold onto a weak_ptr of the memory_pool_impl. Prevents circular
   // dependencies between the context_impl and memory_pool_impl.

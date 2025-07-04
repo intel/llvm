@@ -58,8 +58,7 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
 
   context Ctx{Plt.get_devices()[0]};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
-  sycl::detail::QueueImplPtr InOrderQueueImpl =
-      detail::getSyclObjImpl(InOrderQueue);
+  detail::queue_impl &InOrderQueueImpl = *detail::getSyclObjImpl(InOrderQueue);
 
   MockScheduler MS;
 
@@ -68,9 +67,9 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   detail::Requirement Req = getMockRequirement(Buf);
 
   detail::MemObjRecord *Record =
-      MS.getOrInsertMemObjRecord(InOrderQueueImpl, &Req);
+      MS.getOrInsertMemObjRecord(&InOrderQueueImpl, &Req);
   std::vector<detail::Command *> AuxCmds;
-  MS.getOrCreateAllocaForReq(Record, &Req, InOrderQueueImpl, AuxCmds);
+  MS.getOrCreateAllocaForReq(Record, &Req, &InOrderQueueImpl, AuxCmds);
   MS.getOrCreateAllocaForReq(Record, &Req, nullptr, AuxCmds);
 
   // Check that sequential memory movements submitted to the same in-order
@@ -79,7 +78,7 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   detail::EnqueueResultT Res;
   auto ReadLock = MS.acquireGraphReadLock();
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
-  Cmd = MS.insertMemoryMove(Record, &Req, InOrderQueueImpl, AuxCmds);
+  Cmd = MS.insertMemoryMove(Record, &Req, &InOrderQueueImpl, AuxCmds);
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
   Cmd = MS.insertMemoryMove(Record, &Req, nullptr, AuxCmds);
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
