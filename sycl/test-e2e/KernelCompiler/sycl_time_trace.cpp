@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
+// REQUIRES: (opencl || level_zero)
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 
