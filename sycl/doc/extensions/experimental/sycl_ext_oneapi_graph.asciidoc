@@ -1047,7 +1047,7 @@ Currently only device allocations are supported. Attempting to add allocations
 of any other type to a graph will result in synchronous errors being thrown
 with error code `invalid`.
 
-===== Restrictions
+===== Restrictions [[allocation-restrictions]]
 
 The following restrictions apply to any graph containing async malloc or free
 nodes:
@@ -1095,10 +1095,13 @@ graph allocations, all other properties will be ignored:
 <<allocation-supported-features, supported features>> section.
 
 ** `property::memory_pool::zero_init` - Allocated memory will be
-zero-initialized only once when first allocated. It will not be zero-initialized
-again before or during any subsequent executions of the graph. If that is
-required by the application it is the responsibility of the user to add the
-appropriate commands to the graph to do this.
+zero-initialized every time a modifiable graph containing allocations with this
+property is finalized into an executable graph (see
+<<allocation-restrictions, this section>> for the restrictions around
+finalization for such graphs). It will not be zero-initialized again before or
+during any subsequent executions of the graph. If that is required by the
+application it is the responsibility of the user to add the appropriate
+commands to the graph to do this.
 
 * `node_type::async_malloc` nodes within a graph will return a pointer to an
 allocation of the provided size. This pointer can then be used in other graph
@@ -1818,8 +1821,9 @@ as the device and context used on creation of the graph.
 
 _Returns:_ An event which represents the command which is submitted to the queue.
 
-_Throws:_ Synchronous `exception` with error code `invalid` if `graph` contains
-any <<graph-memory-allocations, graph-owned memory allocations>>.
+_Throws:_ Synchronous `exception` with error code `invalid` if the queue is
+being recorded to a graph and `graph` contains any
+<<graph-memory-allocations, graph-owned memory allocations>>.
 
 [source,c++]
 ----
@@ -1841,9 +1845,9 @@ are the same as the device and context used on creation of the graph.
 
 _Returns:_ An event which represents the command which is submitted to the queue.
 
-_Throws:_ Synchronous `exception` with error code `invalid` if `graph` contains
-any <<graph-memory-allocations, graph-owned memory allocations>> and is being
-added as a subgraph.
+_Throws:_ Synchronous `exception` with error code `invalid` if the queue is
+being recorded to a graph and `graph` contains any
+<<graph-memory-allocations, graph-owned memory allocations>>.
 
 [source,c++]
 ----
@@ -1865,9 +1869,9 @@ are the same as the device and context used on creation of the graph.
 
 _Returns:_ An event which represents the command which is submitted to the queue.
 
-_Throws:_ Synchronous `exception` with error code `invalid` if `graph` contains
-any <<graph-memory-allocations, graph-owned memory allocations>> and is being
-added as a subgraph.
+_Throws:_ Synchronous `exception` with error code `invalid` if the queue is
+being recorded to a graph and `graph` contains any
+<<graph-memory-allocations, graph-owned memory allocations>>.
 
 ==== New Handler Member Functions
 
@@ -1888,9 +1892,9 @@ _Throws:_
 * Synchronous `exception` with error code `invalid` if the handler
 is submitted to a queue which is associated with a device or context that is
 different from the device and context used on creation of the graph.
-* Synchronous `exception` with error code `invalid` if `graph` contains
-any <<graph-memory-allocations, graph-owned memory allocations>> and is being
-added as a subgraph.
+* Synchronous `exception` with error code `invalid` if the handler is submitted
+to a queue which is being recorded to a graph and `graph` contains any
+<<graph-memory-allocations, graph-owned memory allocations>>.
 
 [source,c++]
 ----
