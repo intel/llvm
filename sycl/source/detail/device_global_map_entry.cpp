@@ -160,7 +160,7 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
       DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
       detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
       if (USMMem.MInitEvent.has_value())
-        CtxImpl->getAdapter()->call<UrApiKind::urEventRelease>(
+        CtxImpl->getAdapter().call<UrApiKind::urEventRelease>(
             *USMMem.MInitEvent);
 #ifndef NDEBUG
       // For debugging we set the event and memory to some recognizable values
@@ -185,7 +185,7 @@ void DeviceGlobalMapEntry::cleanup() {
     DeviceGlobalUSMMem &USMMem = USMPtrIt.second;
     detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
     if (USMMem.MInitEvent.has_value())
-      CtxImpl->getAdapter()->call<UrApiKind::urEventRelease>(
+      CtxImpl->getAdapter().call<UrApiKind::urEventRelease>(
           *USMMem.MInitEvent);
 #ifndef NDEBUG
     // For debugging we set the event and memory to some recognizable values

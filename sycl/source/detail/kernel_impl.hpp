@@ -81,7 +81,7 @@ public:
     return ur::cast<cl_kernel>(nativeHandle);
   }
 
-  const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
+  const AdapterPtr &getAdapter() const { return &MContext->getAdapter(); }
 
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.
@@ -216,10 +216,10 @@ public:
   const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
 
   ur_native_handle_t getNative() const {
-    const AdapterPtr &Adapter = MContext->getAdapter();
+    adapter_impl &Adapter = MContext->getAdapter();
 
     ur_native_handle_t NativeKernel = 0;
-    Adapter->call<UrApiKind::urKernelGetNativeHandle>(MKernel, &NativeKernel);
+    Adapter.call<UrApiKind::urKernelGetNativeHandle>(MKernel, &NativeKernel);
 
     if (MContext->getBackend() == backend::opencl)
       __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeKernel));
