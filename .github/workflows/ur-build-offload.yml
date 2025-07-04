@@ -29,7 +29,7 @@ jobs:
       run: >
         cmake
         -S unified-runtime
-        -B build
+        -B $GITHUB_WORKSPACE/build
         -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
         -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
@@ -39,15 +39,15 @@ jobs:
         -DUR_BUILD_ADAPTER_OFFLOAD=ON
         -DUR_OFFLOAD_INSTALL_DIR="/usr/lib/llvm-21"
         -DUR_OFFLOAD_INCLUDE_DIR="/usr/lib/llvm-21/include"
-        -DCMAKE_INSTALL_PREFIX=./install
+        -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/install
 
     - name: Build
       # This is so that device binaries can find the sycl runtime library
-      run: cmake --build build -j $(nproc)
+      run: cmake --build $GITHUB_WORKSPACE/build -j $(nproc)
 
     - name: Install
       # This is to check that install command does not fail
-      run: cmake --install build
+      run: cmake --install $GITHUB_WORKSPACE/build
 
     - name: Get information about platform
       if: ${{ always() }}
