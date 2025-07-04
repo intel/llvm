@@ -308,7 +308,7 @@ static int unsetFilterEnvVarsAndFork() {
   si.dwFlags |= STARTF_USESTDHANDLES;
 
   PROCESS_INFORMATION pi;
-  if (!CreateProcess(NULL,             /* Applicatioon name. */
+  if (!CreateProcess(L"sycl-ls.exe",   /* Application name. */
                      GetCommandLine(), /* Current process's CLI input. */
                      NULL,             /* Inherit security attributes. */
                      NULL,             /* Thread security attributes. */
