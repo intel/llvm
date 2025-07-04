@@ -108,7 +108,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
                                        phProgram);
   }
 
-  ur_program_handle_t Program = new ur_program_handle_t_();
+  ur_program_handle_t Program = new ur_program_handle_t_{};
+  Program->URContext = hContext;
+  Program->Binary = RealBinary;
+  Program->BinarySizeInBytes = RealLength;
   auto Res = olCreateProgram(hContext->Device->OffloadDevice, RealBinary,
                              RealLength, &Program->OffloadProgram);
 
@@ -137,6 +140,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(ur_context_handle_t,
+                                                     ur_program_handle_t,
+                                                     const char *) {
+  // Do nothing, program is built upon creation
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramCreateWithIL(ur_context_handle_t, const void *, size_t,
+                      const ur_program_properties_t *, ur_program_handle_t *) {
+  return UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
                  size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
@@ -145,6 +161,18 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   switch (propName) {
   case UR_PROGRAM_INFO_REFERENCE_COUNT:
     return ReturnValue(hProgram->RefCount.load());
+  case UR_PROGRAM_INFO_CONTEXT:
+    return ReturnValue(hProgram->URContext);
+  case UR_PROGRAM_INFO_NUM_DEVICES:
+    return ReturnValue(1);
+  case UR_PROGRAM_INFO_DEVICES:
+    return ReturnValue(&hProgram->URContext->Device, 1);
+  case UR_PROGRAM_INFO_IL:
+    return ReturnValue(reinterpret_cast<const char *>(0), 0);
+  case UR_PROGRAM_INFO_BINARY_SIZES:
+    return ReturnValue(&hProgram->BinarySizeInBytes, 1);
+  case UR_PROGRAM_INFO_BINARIES:
+    return ReturnValue(&hProgram->Binary, 1);
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
