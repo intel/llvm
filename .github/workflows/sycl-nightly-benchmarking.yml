@@ -15,8 +15,8 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      # build_configure_extra_args: '--no-assertions'
-      build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+      build_configure_extra_args: '--no-assertions'
+      build_image: ghcr.io/intel/llvm/ubuntu2404_build:latest
       artifact_archive_name: sycl_linux.tar.gz
 
   run-sycl-benchmarks:
