@@ -1420,10 +1420,7 @@ ur_result_t urEnqueueUSMFill2D(
   // fill2d natively
   std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
 
-  std::vector<ur_event_handle_t> WaitEvents(NumEventsInWaitList);
-  for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
-    WaitEvents[i] = EventWaitList[i];
-  }
+  std::vector<ur_event_handle_t> WaitEvents(Height);
 
   for (size_t HeightIndex = 0; HeightIndex < Height; HeightIndex++) {
     ur_event_handle_t Event = nullptr;
@@ -1433,14 +1430,18 @@ ur_result_t urEnqueueUSMFill2D(
         (void *)((char *)Mem + Pitch * HeightIndex),
         Pattern,     // It will be interpreted as an 8-bit value,
         PatternSize, // which is indicated with this pattern_size==1
-        Width, WaitEvents.size(), WaitEvents.data(), &Event));
+        Width, NumEventsInWaitList, EventWaitList, &Event));
 
-    WaitEvents.clear();
     WaitEvents.push_back(Event);
   }
 
-  if (OutEvent && WaitEvents.size()) {
-    *OutEvent = WaitEvents[0];
+  if (OutEvent) {
+    UR_CALL(ur::level_zero::urEnqueueEventsWait(Queue, WaitEvents.size(),
+                                                WaitEvents.data(), OutEvent));
+  }
+
+  for (const auto Event : WaitEvents) {
+    UR_CALL(ur::level_zero::urEventRelease(Event));
   }
 
   return UR_RESULT_SUCCESS;

@@ -1726,11 +1726,6 @@ ur_result_t urEnqueueUSMMemcpy2D(
     {
       auto pfnUSMMemcpy = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
 
-      std::vector<ur_event_handle_t> WaitEvents(numEventsInWaitList);
-      for (uint32_t i = 0; i < numEventsInWaitList; i++) {
-        WaitEvents[i] = phEventWaitList[i];
-      }
-
       for (size_t HeightIndex = 0; HeightIndex < height; HeightIndex++) {
         ur_event_handle_t Event = nullptr;
         const auto DstOrigin =
@@ -1742,8 +1737,8 @@ ur_result_t urEnqueueUSMMemcpy2D(
                                        width - 1) +
             MSAN_ORIGIN_GRANULARITY;
         pfnUSMMemcpy(hQueue, false, (void *)DstOrigin, (void *)SrcOrigin,
-                     SrcOriginEnd - SrcOrigin, WaitEvents.size(),
-                     WaitEvents.data(), &Event);
+                     SrcOriginEnd - SrcOrigin, numEventsInWaitList, phEventWaitList,
+                     &Event);
         Events.push_back(Event);
       }
     }

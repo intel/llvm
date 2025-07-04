@@ -592,24 +592,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   // A quick fallback implementation
-  std::vector<ur_event_handle_t> WaitEvents(numEventsInWaitList);
-  for (uint32_t i = 0; i < numEventsInWaitList; i++) {
-    WaitEvents[i] = phEventWaitList[i];
-  }
+  std::vector<ur_event_handle_t> WaitEvents(height);
 
   for (size_t HeightIndex = 0; HeightIndex < height; HeightIndex++) {
     ur_event_handle_t Event = nullptr;
 
     UR_CALL(urEnqueueUSMFill(
         hQueue, (void *)((char *)pMem + pitch * HeightIndex), patternSize,
-        pPattern, width, WaitEvents.size(), WaitEvents.data(), &Event));
+        pPattern, width, numEventsInWaitList, phEventWaitList, &Event));
 
-    WaitEvents.clear();
     WaitEvents.push_back(Event);
   }
 
-  if (phEvent && WaitEvents.size()) {
-    *phEvent = WaitEvents[0];
+  if (phEvent) {
+    UR_CALL(urEnqueueEventsWait(hQueue, WaitEvents.size(), WaitEvents.data(),
+                                phEvent));
+  }
+
+  for (const auto Event : WaitEvents) {
+    UR_CALL(urEventRelease(Event));
   }
 
   return UR_RESULT_SUCCESS;
