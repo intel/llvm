@@ -2343,7 +2343,7 @@ static void SetArgBasedOnType(
     MemObjData.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
     MemObjData.memoryAccess = AccessModeToUr(Req->MAccessMode);
     Adapter.call<UrApiKind::urKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                   &MemObjData, MemArg);
+                                                  &MemObjData, MemArg);
     break;
   }
   case kernel_param_kind_t::kind_std_layout: {
@@ -2352,7 +2352,7 @@ static void SetArgBasedOnType(
           Kernel, NextTrueIndex, Arg.MSize, nullptr, Arg.MPtr);
     } else {
       Adapter.call<UrApiKind::urKernelSetArgLocal>(Kernel, NextTrueIndex,
-                                                    Arg.MSize, nullptr);
+                                                   Arg.MSize, nullptr);
     }
 
     break;
@@ -2363,7 +2363,7 @@ static void SetArgBasedOnType(
         (ur_sampler_handle_t)detail::getSyclObjImpl(*SamplerPtr)
             ->getOrCreateSampler(ContextImpl);
     Adapter.call<UrApiKind::urKernelSetArgSampler>(Kernel, NextTrueIndex,
-                                                    nullptr, Sampler);
+                                                   nullptr, Sampler);
     break;
   }
   case kernel_param_kind_t::kind_pointer: {
@@ -2371,7 +2371,7 @@ static void SetArgBasedOnType(
     // pointer UR is expecting.
     const void *Ptr = *static_cast<const void *const *>(Arg.MPtr);
     Adapter.call<UrApiKind::urKernelSetArgPointer>(Kernel, NextTrueIndex,
-                                                    nullptr, Ptr);
+                                                   nullptr, Ptr);
     break;
   }
   case kernel_param_kind_t::kind_specialization_constants_buffer: {
@@ -2409,7 +2409,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
     bool KernelHasSpecialCaptures = true) {
-    adapter_impl &Adapter = Queue.getAdapter();
+  adapter_impl &Adapter = Queue.getAdapter();
 
   if (SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
     std::vector<unsigned char> Empty;
@@ -2428,13 +2428,13 @@ static ur_result_t SetKernelParamsAndLaunch(
       case kernel_param_kind_t::kind_std_layout: {
         int Size = ParamDesc.info;
         Adapter.call<UrApiKind::urKernelSetArgValue>(Kernel, NextTrueIndex,
-                                                      Size, nullptr, ArgPtr);
+                                                     Size, nullptr, ArgPtr);
         break;
       }
       case kernel_param_kind_t::kind_pointer: {
         const void *Ptr = *static_cast<const void *const *>(ArgPtr);
         Adapter.call<UrApiKind::urKernelSetArgPointer>(Kernel, NextTrueIndex,
-                                                        nullptr, Ptr);
+                                                       nullptr, Ptr);
         break;
       }
       default:
@@ -2853,7 +2853,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   if (!RawEvents.empty()) {
     MQueue->getAdapter().call<UrApiKind::urEventWait>(RawEvents.size(),
-                                                       &RawEvents[0]);
+                                                      &RawEvents[0]);
   }
 
   ur_exp_command_buffer_sync_point_t OutSyncPoint{};
@@ -3009,7 +3009,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   case CGType::EnqueueNativeCommand: {
     // Queue is created by graph_impl before creating command to submit to
     // scheduler.
-    adapter_impl& Adapter = MQueue->getAdapter();
+    adapter_impl &Adapter = MQueue->getAdapter();
     context_impl &ContextImpl = MQueue->getContextImpl();
     device_impl &DeviceImpl = MQueue->getDeviceImpl();
 
@@ -3099,9 +3099,10 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
 #endif
 
     if (ChildCommandBuffer) {
-      ur_result_t Res = Adapter.call_nocheck<
-          sycl::detail::UrApiKind::urCommandBufferReleaseExp>(
-          ChildCommandBuffer);
+      ur_result_t Res =
+          Adapter
+              .call_nocheck<sycl::detail::UrApiKind::urCommandBufferReleaseExp>(
+                  ChildCommandBuffer);
       (void)Res;
       assert(Res == UR_RESULT_SUCCESS);
     }

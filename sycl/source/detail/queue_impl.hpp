@@ -275,7 +275,7 @@ public:
   cl_command_queue get() {
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
-                                                          &nativeHandle);
+                                                         &nativeHandle);
     __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
   }
@@ -503,7 +503,7 @@ public:
       Properties.pNext = &IndexProperties;
     }
     getAdapter().call<UrApiKind::urQueueCreate>(Context, Device, &Properties,
-                                            &Queue);
+                                                &Queue);
 
     return Queue;
   }
@@ -665,7 +665,7 @@ public:
     auto ResEvent = detail::event_impl::create_device_event(*this);
     ur_event_handle_t UREvent = nullptr;
     getAdapter().call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
-                                                       nullptr, &UREvent);
+                                                      nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;
   }

@@ -216,9 +216,9 @@ void memBufferMapHelper(adapter_impl &Adapter, ur_queue_handle_t Queue,
                          0 /* guard zone */, CorrID);
   }};
 #endif
-  Adapter.call<UrApiKind::urEnqueueMemBufferMap>(
-      Queue, Buffer, Blocking, Flags, Offset, Size, NumEvents, WaitList, Event,
-      RetMap);
+  Adapter.call<UrApiKind::urEnqueueMemBufferMap>(Queue, Buffer, Blocking, Flags,
+                                                 Offset, Size, NumEvents,
+                                                 WaitList, Event, RetMap);
 }
 
 void memUnmapHelper(adapter_impl &Adapter, ur_queue_handle_t Queue,
@@ -245,8 +245,8 @@ void memUnmapHelper(adapter_impl &Adapter, ur_queue_handle_t Queue,
       emitMemReleaseEndTrace(MemObjID, Ptr, CorrID);
     }};
 #endif
-    Adapter.call<UrApiKind::urEnqueueMemUnmap>(Queue, Mem, MappedPtr,
-                                                NumEvents, WaitList, Event);
+    Adapter.call<UrApiKind::urEnqueueMemUnmap>(Queue, Mem, MappedPtr, NumEvents,
+                                               WaitList, Event);
   }
 }
 
@@ -875,8 +875,8 @@ void MemoryManager::copy_usm(const void *SrcMem, queue_impl &SrcQueue,
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
       Adapter.call<UrApiKind::urEnqueueEventsWait>(SrcQueue.getHandleRef(),
-                                                    DepEvents.size(),
-                                                    DepEvents.data(), OutEvent);
+                                                   DepEvents.size(),
+                                                   DepEvents.data(), OutEvent);
     }
     return;
   }
@@ -886,9 +886,9 @@ void MemoryManager::copy_usm(const void *SrcMem, queue_impl &SrcQueue,
                     "NULL pointer argument in memory copy operation.");
 
   Adapter.call<UrApiKind::urEnqueueUSMMemcpy>(SrcQueue.getHandleRef(),
-                                               /* blocking */ false, DstMem,
-                                               SrcMem, Len, DepEvents.size(),
-                                               DepEvents.data(), OutEvent);
+                                              /* blocking */ false, DstMem,
+                                              SrcMem, Len, DepEvents.size(),
+                                              DepEvents.data(), OutEvent);
 }
 
 void MemoryManager::context_copy_usm(const void *SrcMem, context_impl *Context,
@@ -927,8 +927,8 @@ void MemoryManager::prefetch_usm(void *Mem, queue_impl &Queue, size_t Length,
                                  ur_event_handle_t *OutEvent) {
   adapter_impl &Adapter = Queue.getAdapter();
   Adapter.call<UrApiKind::urEnqueueUSMPrefetch>(Queue.getHandleRef(), Mem,
-                                                 Length, 0, DepEvents.size(),
-                                                 DepEvents.data(), OutEvent);
+                                                Length, 0, DepEvents.size(),
+                                                DepEvents.data(), OutEvent);
 }
 
 void MemoryManager::advise_usm(const void *Mem, queue_impl &Queue,
@@ -936,8 +936,8 @@ void MemoryManager::advise_usm(const void *Mem, queue_impl &Queue,
                                std::vector<ur_event_handle_t> /*DepEvents*/,
                                ur_event_handle_t *OutEvent) {
   adapter_impl &Adapter = Queue.getAdapter();
-  Adapter.call<UrApiKind::urEnqueueUSMAdvise>(Queue.getHandleRef(), Mem,
-                                               Length, Advice, OutEvent);
+  Adapter.call<UrApiKind::urEnqueueUSMAdvise>(Queue.getHandleRef(), Mem, Length,
+                                              Advice, OutEvent);
 }
 
 void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
