@@ -1393,33 +1393,57 @@ ur_result_t urEnqueueUSMAdvise(
 
 ur_result_t urEnqueueUSMFill2D(
     /// [in] handle of the queue to submit to.
-    ur_queue_handle_t /*Queue*/,
+    ur_queue_handle_t Queue,
     /// [in] pointer to memory to be filled.
-    void * /*Mem*/,
+    void *Mem,
     /// [in] the total width of the destination memory including padding.
-    size_t /*Pitch*/,
+    size_t Pitch,
     /// [in] the size in bytes of the pattern.
-    size_t /*PatternSize*/,
+    size_t PatternSize,
     /// [in] pointer with the bytes of the pattern to set.
-    const void * /*Pattern*/,
+    const void *Pattern,
     /// [in] the width in bytes of each row to fill.
-    size_t /*Width*/,
+    size_t Width,
     /// [in] the height of the columns to fill.
-    size_t /*Height*/,
+    size_t Height,
     /// [in] size of the event wait list
-    uint32_t /*NumEventsInWaitList*/,
+    uint32_t NumEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     /// events that must be complete before the kernel execution. If
     /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
-    const ur_event_handle_t * /*EventWaitList*/,
+    const ur_event_handle_t *EventWaitList,
     /// [in,out][optional] return an event object that identifies this
     /// particular kernel execution instance.
-    ur_event_handle_t * /*OutEvent*/) {
-  UR_LOG_LEGACY(ERR,
-                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_event_handle_t *OutEvent) {
+  // A quick fallback implementation, since Level Zero does not support USM
+  // fill2d natively
+  std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
+
+  std::vector<ur_event_handle_t> WaitEvents(NumEventsInWaitList);
+  for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
+    WaitEvents[i] = EventWaitList[i];
+  }
+
+  for (size_t HeightIndex = 0; HeightIndex < Height; HeightIndex++) {
+    ur_event_handle_t Event = nullptr;
+
+    UR_CALL(enqueueMemFillHelper(
+        UR_COMMAND_MEM_BUFFER_FILL, Queue,
+        (void *)((char *)Mem + Pitch * HeightIndex),
+        Pattern,     // It will be interpreted as an 8-bit value,
+        PatternSize, // which is indicated with this pattern_size==1
+        Width, WaitEvents.size(), WaitEvents.data(), &Event));
+
+    WaitEvents.clear();
+    WaitEvents.push_back(Event);
+  }
+
+  if (OutEvent && WaitEvents.size()) {
+    *OutEvent = WaitEvents[0];
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urEnqueueUSMMemcpy2D(
