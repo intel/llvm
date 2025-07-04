@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <JITBinaryInfo.h>
 #include <detail/jit_device_binaries.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
