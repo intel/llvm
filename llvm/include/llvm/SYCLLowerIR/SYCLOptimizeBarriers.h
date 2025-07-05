@@ -1,4 +1,4 @@
-//==- SYCLOptimizeBackToBackBarrier.h - SYCLOptimizeBackToBackBarrier Pass -==//
+//==- SYCLOptimizeBarriers.h - SYCLOptimizeBarriers Pass -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,24 +6,24 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass cleans up back-to-back ControlBarrier calls.
+// This pass cleans up ControlBarrier calls.
 //
 //===----------------------------------------------------------------------===//
-#ifndef LLVM_SYCL_OPTIMIZE_BACK_TO_BACK_BARRIER_H
-#define LLVM_SYCL_OPTIMIZE_BACK_TO_BACK_BARRIER_H
+#ifndef LLVM_SYCL_OPTIMIZE_BARRIERS_H
+#define LLVM_SYCL_OPTIMIZE_BARRIERS_H
 
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
 
-class SYCLOptimizeBackToBackBarrierPass
-    : public PassInfoMixin<SYCLOptimizeBackToBackBarrierPass> {
+class SYCLOptimizeBarriersPass
+    : public PassInfoMixin<SYCLOptimizeBarriersPass> {
 public:
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &);
 
   static bool isRequired() { return true; }
 };
 
 } // namespace llvm
 
-#endif // LLVM_SYCL_OPTIMIZE_BACK_TO_BACK_BARRIER_H
+#endif // LLVM_SYCL_OPTIMIZE_BARRIERS_H

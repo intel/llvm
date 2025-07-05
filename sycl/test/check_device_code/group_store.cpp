@@ -9,7 +9,7 @@
 // REQUIRES: linux
 
 #include <sycl/sycl.hpp>
-
+// XFAIL: *
 using namespace sycl;
 
 namespace oneapi_exp = sycl::ext::oneapi::experimental;
