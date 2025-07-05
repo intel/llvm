@@ -216,7 +216,7 @@ private:
   ur_platform_handle_t MPlatform = 0;
   backend MBackend;
 
-  adapter_impl * MAdapter;
+  adapter_impl *MAdapter;
 
   std::vector<std::shared_ptr<device_impl>> MDevices;
   friend class GlobalHandler;

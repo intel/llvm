@@ -506,11 +506,11 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // Needs non const adapter reference.
     std::vector<adapter_impl *> &Adapters = ur::initializeUr();
     auto It = std::find_if(Adapters.begin(), Adapters.end(),
-                           [&Platform = MPlatform](adapter_impl * &Adapter) {
+                           [&Platform = MPlatform](adapter_impl *&Adapter) {
                              return Adapter->containsUrPlatform(Platform);
                            });
     if (It != Adapters.end()) {
-      adapter_impl* &Adapter = *It;
+      adapter_impl *&Adapter = *It;
       std::lock_guard<std::mutex> Guard(*Adapter->getAdapterMutex());
       Adapter->adjustLastDeviceId(MPlatform);
     }

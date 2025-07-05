@@ -449,8 +449,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
   }
 }
 
-void context_impl::DeviceGlobalInitializer::ClearEvents(
-    adapter_impl &Adapter) {
+void context_impl::DeviceGlobalInitializer::ClearEvents(adapter_impl &Adapter) {
   for (const ur_event_handle_t &Event : MDeviceGlobalInitEvents)
     Adapter.call<UrApiKind::urEventRelease>(Event);
   MDeviceGlobalInitEvents.clear();
