@@ -1217,7 +1217,7 @@ def fno_bundle_offload_arch : Flag<["-"], "fno-bundle-offload-arch">,
             "uses the bundle tag `nvptx64-nvidia-cuda` when used. "
             "This allows .o files to contain .bc bundles that are unspecific "
             "to a particular arch version.">;
-def offload_arch_EQ : Joined<["--"], "offload-arch=">,
+def offload_arch_EQ : CommaJoined<["--"], "offload-arch=">,
   Visibility<[ClangOption, FlangOption]>,
   HelpText<"Specify an offloading device architecture for CUDA, HIP, or OpenMP. (e.g. sm_35). "
            "If 'native' is used the compiler will detect locally installed architectures. "
