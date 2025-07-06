@@ -37,13 +37,13 @@ std::vector<std::shared_ptr<detail::node_impl>> getDepGraphNodes(
     sycl::handler &Handler, detail::queue_impl *Queue,
     const std::shared_ptr<detail::graph_impl> &Graph,
     const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
-  auto HandlerImpl = detail::getSyclObjImpl(Handler);
+  detail::handler_impl &HandlerImpl = *detail::getSyclObjImpl(Handler);
   // Get dependent graph nodes from any events
   auto DepNodes = Graph->getNodesForEvents(DepEvents);
   // If this node was added explicitly we may have node deps in the handler as
   // well, so add them to the list
-  DepNodes.insert(DepNodes.end(), HandlerImpl->MNodeDeps.begin(),
-                  HandlerImpl->MNodeDeps.end());
+  DepNodes.insert(DepNodes.end(), HandlerImpl.MNodeDeps.begin(),
+                  HandlerImpl.MNodeDeps.end());
   // If this is being recorded from an in-order queue we need to get the last
   // in-order node if any, since this will later become a dependency of the
   // node being processed here.
@@ -119,7 +119,7 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
                                            const memory_pool &pool) {
 
   auto &Adapter = h.getContextImpl().getAdapter();
-  auto &memPoolImpl = sycl::detail::getSyclObjImpl(pool);
+  detail::memory_pool_impl &memPoolImpl = *detail::getSyclObjImpl(pool);
 
   // Get CG event dependencies for this allocation.
   const auto &DepEvents = h.impl->CGData.MEvents;
@@ -135,12 +135,12 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
 
     // Memory pool is passed as the graph may use some properties of it.
     alloc = Graph->getMemPool().malloc(size, pool.get_alloc_kind(), DepNodes,
-                                       sycl::detail::getSyclObjImpl(pool));
+                                       detail::getSyclObjImpl(pool).get());
   } else {
     ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
     Adapter->call<sycl::errc::runtime,
                   sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
-        Q, memPoolImpl.get()->get_handle(), size, nullptr, UREvents.size(),
+        Q, memPoolImpl.get_handle(), size, nullptr, UREvents.size(),
         UREvents.data(), &alloc, &Event);
   }
   // Async malloc must return a void* immediately.

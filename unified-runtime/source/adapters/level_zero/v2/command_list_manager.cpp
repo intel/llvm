@@ -916,7 +916,7 @@ ur_result_t ur_command_list_manager::appendNativeCommandExp(
 void ur_command_list_manager::recordSubmittedKernel(
     ur_kernel_handle_t hKernel) {
   submittedKernels.push_back(hKernel);
-  hKernel->RefCount.increment();
+  hKernel->RefCount.retain();
 }
 
 ze_command_list_handle_t ur_command_list_manager::getZeCommandList() {
