@@ -8,6 +8,9 @@
 
 #pragma once
 
+#if SYCL_EXT_JIT_ENABLE
+#include "JITBinaryInfo.h"
+#endif // SYCL_EXT_JIT_ENABLE
 #include <detail/adapter_impl.hpp>
 #include <detail/compiler.hpp>
 #include <detail/context_impl.hpp>
@@ -33,6 +36,10 @@
 #include <memory>
 #include <mutex>
 #include <vector>
+
+namespace jit_compiler {
+enum class BinaryFormat : uint32_t;
+}
 
 namespace sycl {
 inline namespace _V1 {
@@ -697,6 +704,28 @@ public:
 
   bool isFromSourceLanguage(syclex::source_language Lang) const noexcept {
     return MRTCBinInfo && MRTCBinInfo->MLanguage == Lang;
+  }
+
+  static ::jit_compiler::BinaryFormat
+  getTargetFormat([[maybe_unused]] const backend Backend) {
+#if SYCL_EXT_JIT_ENABLE
+    switch (Backend) {
+    case backend::ext_oneapi_level_zero:
+    case backend::opencl:
+      return ::jit_compiler::BinaryFormat::SPIRV;
+    case backend::ext_oneapi_cuda:
+      return ::jit_compiler::BinaryFormat::PTX;
+    case backend::ext_oneapi_hip:
+      return ::jit_compiler::BinaryFormat::AMDGCN;
+    default:
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::invalid),
+          "Backend does not support kernel_compiler extension");
+    }
+#else
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "JIT not supported");
+#endif // SYCL_EXT_JIT_ENABLE
   }
 
   std::vector<std::shared_ptr<device_image_impl>> buildFromSource(

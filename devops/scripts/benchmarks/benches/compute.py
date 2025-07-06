@@ -303,7 +303,6 @@ class ComputeBenchmark(Benchmark):
                     stddev=stddev,
                     command=command,
                     env=env_vars,
-                    stdout=result,
                     unit=parse_unit_type(unit),
                     git_url=self.bench.git_url(),
                     git_hash=self.bench.git_hash(),

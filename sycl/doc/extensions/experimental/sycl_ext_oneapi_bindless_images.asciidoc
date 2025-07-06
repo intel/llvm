@@ -2074,6 +2074,7 @@ enum class external_mem_handle_type {
   opaque_fd = 0,
   win32_nt_handle = 1,
   win32_nt_dx12_resource = 2,
+  dma_buf = 3,
 };
 
 // Descriptor templated on specific resource type
@@ -2095,10 +2096,14 @@ for Windows NT resource handles.
 The user must populate the `external_mem_descriptor` with the appropriate 
 `ResourceType` values, a `handle_type`, and the size of the external memory in 
 bytes, before they can then import that memory into SYCL through 
-`import_external_memory`. Note that some handle types can only be used in 
-combination with certain resource types, for example the `opaque_fd` handle type
-is only used on Linux systems and is only compatible with the `resource_fd` 
-resource type.
+`import_external_memory`.
+
+Note that some handle types can only be used in 
+combination with certain resource types, for example the `opaque_fd`
+and `dma_buf` handle types are only used on Linux systems
+and are only compatible with the `resource_fd` resource type.
+The handle types supported by the device can be queried using the
+`supports_importing_handle_type` device query.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
@@ -2139,6 +2144,10 @@ void *map_external_linear_memory(
     uint64_t size, uint64_t offset,
     const sycl::queue &syclQueue);
 }
+
+bool supports_importing_handle_type(
+    external_mem_handle_type externMemHandleType,
+    const sycl::device &syclDevice);
 ```
 
 The resulting `external_mem` can then be mapped, where the resulting type 
@@ -2728,3 +2737,5 @@ This query should be added in a later revision of the proposal.
 |6.10|2025-05-09| - Add `unmap_external_image_memory` and 
                     `unmap_external_linear_memory` APIs.
                   - Clarify how and when external memory should be unmapped.
+|6.11|2025-06-16| - Add `external_mem_handle_type::dma_buf`
+                  - Add `supports_importing_handle_type`

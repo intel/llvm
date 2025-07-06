@@ -89,6 +89,8 @@ void CommonCheck() {
   constexpr size_t NumImages = NumIRModules + NumNativeDeviceCodeImages;
   constexpr SYCLBIN::BundleState State = SYCLBIN::BundleState::Input;
   static constexpr char Arch[] = "some-arch";
+  static constexpr char IRMTarget[] = "spir64-unknown-unknown";
+  static constexpr char NDCITarget[] = "spir64_gen-unknown-unknown";
 
   // Create unique temporary directory for these tests
   SmallString<128> TestDirectory;
@@ -117,8 +119,9 @@ void CommonCheck() {
         module_split::SplitModule{File.c_str(), util::PropertySetRegistry{},
                                   ""}};
     const char *ArchStr = I < NumIRModules ? "" : Arch;
+    Triple Target{I < NumIRModules ? IRMTarget : NDCITarget};
     MDs.emplace_back(
-        SYCLBIN::SYCLBINModuleDesc{ArchStr, std::move(SplitModules)});
+        SYCLBIN::SYCLBINModuleDesc{ArchStr, Target, std::move(SplitModules)});
   }
 
   // Create IR modules.
@@ -187,7 +190,7 @@ void CommonCheck() {
           IRM.Metadata->getPropSets().find(IRMMetadataKey);
       ASSERT_NE(IRMMetadataIt, IRM.Metadata->end());
       const PropertySet &IRMMetadata = IRMMetadataIt->second;
-      EXPECT_EQ(IRMMetadata.size(), size_t{1});
+      EXPECT_EQ(IRMMetadata.size(), size_t{2});
 
       // The type is currently locked to SPIR-V. This will change in the future.
       SmallString<16> IRMMetadataTypeKey{"type"};
@@ -196,6 +199,17 @@ void CommonCheck() {
       const PropertyValue &IRMMetadataType = IRMMetadataTypeIt->second;
       ASSERT_EQ(IRMMetadataType.getType(), PropertyValue::Type::UINT32);
       EXPECT_EQ(IRMMetadataType.asUint32(), uint32_t{0});
+
+      // Make sure the triple string is preserved.
+      SmallString<16> IRMMetadataTargetKey{"target"};
+      const auto &IRMMetadataTargetIt = IRMMetadata.find(IRMMetadataTargetKey);
+      ASSERT_NE(IRMMetadataTargetIt, IRMMetadata.end());
+      const PropertyValue &IRMMetadataTarget = IRMMetadataTargetIt->second;
+      ASSERT_EQ(IRMMetadataTarget.getType(), PropertyValue::Type::BYTE_ARRAY);
+      ASSERT_EQ(IRMMetadataTarget.getByteArraySize(), strlen(IRMTarget));
+      EXPECT_EQ(std::memcmp(IRMMetadataTarget.asByteArray(), IRMTarget,
+                            strlen(IRMTarget)),
+                0);
 
       // Find the image that matches.
       std::vector<uint8_t> IRImage{IRM.RawIRBytes.begin(),
@@ -216,7 +230,7 @@ void CommonCheck() {
           NDCI.Metadata->getPropSets().find(NDCIMetadataKey);
       ASSERT_NE(NDCIMetadataIt, NDCI.Metadata->end());
       const PropertySet &NDCIMetadata = NDCIMetadataIt->second;
-      ASSERT_EQ(NDCIMetadata.size(), size_t{1});
+      ASSERT_EQ(NDCIMetadata.size(), size_t{2});
 
       // Make sure the arch string is preserved.
       SmallString<16> NDCIMetadataArchKey{"arch"};
@@ -226,6 +240,18 @@ void CommonCheck() {
       ASSERT_EQ(NDCIMetadataArch.getType(), PropertyValue::Type::BYTE_ARRAY);
       ASSERT_EQ(NDCIMetadataArch.getByteArraySize(), strlen(Arch));
       EXPECT_EQ(std::memcmp(NDCIMetadataArch.asByteArray(), Arch, strlen(Arch)),
+                0);
+
+      // Make sure the triple string is preserved.
+      SmallString<16> NDCIMetadataTargetKey{"target"};
+      const auto &NDCIMetadataTargetIt =
+          NDCIMetadata.find(NDCIMetadataTargetKey);
+      ASSERT_NE(NDCIMetadataTargetIt, NDCIMetadata.end());
+      const PropertyValue &NDCIMetadataTarget = NDCIMetadataTargetIt->second;
+      ASSERT_EQ(NDCIMetadataTarget.getType(), PropertyValue::Type::BYTE_ARRAY);
+      ASSERT_EQ(NDCIMetadataTarget.getByteArraySize(), strlen(NDCITarget));
+      EXPECT_EQ(std::memcmp(NDCIMetadataTarget.asByteArray(), NDCITarget,
+                            strlen(NDCITarget)),
                 0);
 
       // Find the image that matches.
