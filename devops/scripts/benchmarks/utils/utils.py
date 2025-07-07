@@ -7,6 +7,8 @@ import gzip
 import os
 import shutil
 import subprocess
+import re
+
 import tarfile
 import hashlib
 from pathlib import Path
@@ -175,3 +177,23 @@ def download(dir, url, file, untar=False, unzip=False, checksum=""):
     else:
         log.debug(f"{data_file} exists, skipping...")
     return data_file
+
+
+def get_device_architecture(additional_env_vars):
+    sycl_ls_output = run(
+        ["sycl-ls", "--verbose"], add_sycl=True, env_vars=additional_env_vars
+    ).stdout.decode()
+
+    architectures = set()
+    for line in sycl_ls_output.splitlines():
+        if re.match(r" *Architecture:", line):
+            _, architecture = line.strip().split(":", 1)
+            architectures.add(architecture.strip())
+
+    if len(architectures) != 1:
+        raise ValueError(
+            f"Expected exactly one device architecture, but found {len(architectures)}: {architectures}."
+            "Set ONEAPI_DEVICE_SELECTOR=backend:device_id to specify a single device."
+        )
+
+    return architectures.pop()
