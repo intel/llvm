@@ -19,6 +19,8 @@
 
 #include "../ur_interface_loader.hpp"
 
+ur_event_generation_t unbatchedQueue = 1;
+
 static uint64_t adjustEndEventTimestamp(uint64_t adjustedStartTimestamp,
                                         uint64_t endTimestamp,
                                         uint64_t timestampMaxValue,
@@ -123,8 +125,18 @@ void ur_event_handle_t_::setQueue(ur_queue_t_ *hQueue) {
   profilingData.reset();
 }
 
+void ur_event_handle_t_::setBatch(ur_event_generation_t batch_generation) {
+  this->batchGeneration = batch_generation;
+}
+
 void ur_event_handle_t_::setCommandType(ur_command_t commandType) {
   this->commandType = commandType;
+}
+
+void ur_event_handle_t_::runBatch() {
+  if (batchGeneration != unbatchedQueue) {
+    hQueue->runBatchIfActive(batchGeneration);
+  }
 }
 
 void ur_event_handle_t_::recordStartTimestamp() {
@@ -191,6 +203,10 @@ ur_event_handle_t_::getEventEndTimestampAndHandle() {
 }
 
 ur_queue_t_ *ur_event_handle_t_::getQueue() const { return hQueue; }
+
+ur_event_generation_t ur_event_handle_t_::getBatch() const {
+  return batchGeneration;
+}
 
 ur_context_handle_t ur_event_handle_t_::getContext() const { return hContext; }
 

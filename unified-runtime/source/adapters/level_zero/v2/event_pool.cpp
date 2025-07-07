@@ -50,6 +50,7 @@ void event_pool::free(ur_event_handle_t event) {
 
   event->reset();
   freelist.push_back(event);
+  event->setBatch(unbatchedQueue); //-1);
 
   // The event is still in the pool, so we need to increment the refcount
   assert(event->RefCount.getCount() == 0);

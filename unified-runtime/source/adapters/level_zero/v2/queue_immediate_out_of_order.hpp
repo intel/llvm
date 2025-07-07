@@ -1,4 +1,4 @@
-//===--------- queue_immediate_in_order.hpp - Level Zero Adapter ---------===//
+//===------- queue_immediate_out_of_order.hpp - Level Zero Adapter --------===//
 //
 // Copyright (C) 2025 Intel Corporation
 //
