@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: target-spir
-// XFAIL: run-mode && gpu
-// XFAIL-TRACKER: CMPLRLLVM-66371
 // REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t.out -DGELU %fp-model-precise
