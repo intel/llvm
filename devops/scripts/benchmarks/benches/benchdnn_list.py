@@ -3,6 +3,11 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+unitrace_exclusion_list = [
+    "onednn-graph-sdpa-plain-f32-eager",
+    "onednn-graph-sdpa-plain-f32-graph",
+]
+
 # entry format:
 #  [bench_driver, bench_name, bench_args, rungraph]
 #  bench_driver is the name of the benchdnn driver, e.g. "sum", "graph", etc.
@@ -11,12 +16,6 @@
 #  rungraph is an optional boolean value indicating whether to run the benchmark in graph mode or not (default is True)
 #    if rungraph is True, both direct and graph execution modes will be run for the benchmark
 #    if False, only direct execution mode will be run
-
-unitrace_exclusion_list = [
-    "onednn-graph-sdpa-plain-f32-eager",
-    "onednn-graph-sdpa-plain-f32-graph",
-]
-
 
 # the final choice of benchmarks to run, used in CI and other environments
 benches_final_set = [

@@ -7,7 +7,8 @@ import shutil
 import re
 
 from options import options
-import stat as statmod
+from utils.utils import run, git_clone
+from utils.oneapi import get_oneapi
 
 
 def extract_save_name_and_timestamp(dirname):
@@ -141,3 +142,41 @@ def handle_unitrace_output(bench_dir, unitrace_output, timestamp):
 
     # Prune old unitrace directories
     prune_unitrace_dirs(options.unitrace_res_dir, FILECNT=5)
+
+
+def download_and_build_unitrace(workdir):
+    repo_dir = git_clone(
+        workdir,
+        "pti-gpu-repo",
+        "https://github.com/intel/pti-gpu.git",
+        "master",
+    )
+    build_dir = os.path.join(workdir, "unitrace-build")
+    unitrace_src = os.path.join(repo_dir, "tools", "unitrace")
+    os.makedirs(build_dir, exist_ok=True)
+
+    unitrace_exe = os.path.join(build_dir, "unitrace")
+    if not os.path.isfile(unitrace_exe):
+        run(
+            [
+                "cmake",
+                f"-S {unitrace_src}",
+                f"-B {build_dir}",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_CXX_COMPILER=clang++",
+                "-DCMAKE_C_COMPILER=clang",
+                "-DBUILD_WITH_L0=1",
+                "-DBUILD_WITH_OPENCL=0",
+                "-DBUILD_WITH_ITT=1",
+                "-DBUILD_WITH_XPTI=1",
+                "-DBUILD_WITH_MPI=0",
+            ],
+            ld_library=get_oneapi().ld_libraries() + [f"{options.sycl}/lib"],
+            add_sycl=True,
+        )
+        run(
+            ["cmake", "--build", build_dir, "-j"],
+            ld_library=get_oneapi().ld_libraries() + [f"{options.sycl}/lib"],
+            add_sycl=True,
+        )
+    print("Unitrace built successfully.")

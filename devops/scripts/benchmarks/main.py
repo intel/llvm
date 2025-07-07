@@ -17,8 +17,9 @@ from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
 from history import BenchmarkHistory
-from utils.utils import prepare_workdir, git_clone, run
+from utils.utils import prepare_workdir
 from utils.compute_runtime import *
+from utils.unitrace import download_and_build_unitrace
 from utils.validate import Validate
 from utils.detect_versions import DetectVersion
 from presets import enabled_suites, presets
@@ -32,44 +33,6 @@ import os
 
 # Update this if you are changing the layout of the results files
 INTERNAL_WORKDIR_VERSION = "2.0"
-
-
-def download_and_build_unitrace(workdir):
-    repo_dir = git_clone(
-        workdir,
-        "pti-gpu-repo",
-        "https://github.com/intel/pti-gpu.git",
-        "master",
-    )
-    build_dir = os.path.join(workdir, "unitrace-build")
-    unitrace_src = os.path.join(repo_dir, "tools", "unitrace")
-    os.makedirs(build_dir, exist_ok=True)
-
-    unitrace_exe = os.path.join(build_dir, "unitrace")
-    if not os.path.isfile(unitrace_exe):
-        run(
-            [
-                "cmake",
-                f"-S {unitrace_src}",
-                f"-B {build_dir}",
-                "-DCMAKE_BUILD_TYPE=Release",
-                "-DCMAKE_CXX_COMPILER=clang++",
-                "-DCMAKE_C_COMPILER=clang",
-                "-DBUILD_WITH_L0=1",
-                "-DBUILD_WITH_OPENCL=0",
-                "-DBUILD_WITH_ITT=1",
-                "-DBUILD_WITH_XPTI=1",
-                "-DBUILD_WITH_MPI=0",
-            ],
-            ld_library=get_oneapi().ld_libraries() + [f"{options.sycl}/lib"],
-            add_sycl=True,
-        )
-        run(
-            ["cmake", "--build", build_dir, "-j"],
-            ld_library=get_oneapi().ld_libraries() + [f"{options.sycl}/lib"],
-            add_sycl=True,
-        )
-    print("Unitrace built successfully.")
 
 
 def run_iterations(
