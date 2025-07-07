@@ -553,11 +553,12 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
     // ignore the flag for now.
   }
 
-  void *hostPtr = pProperties ? pProperties->pHost : nullptr;
-  bool useHostPointer = flags & UR_MEM_FLAG_USE_HOST_POINTER;
-  auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
+  if (flags & UR_MEM_FLAG_USE_HOST_POINTER) {
+    // To speed up copies, we always import the host ptr to USM memory
+  }
 
-  assert(useHostPointer == bool(hostPtr));
+  void *hostPtr = pProperties ? pProperties->pHost : nullptr;
+  auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
   if (useHostBuffer(hContext)) {
     *phBuffer = ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
