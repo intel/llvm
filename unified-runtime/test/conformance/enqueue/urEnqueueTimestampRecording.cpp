@@ -10,6 +10,16 @@
 struct urEnqueueTimestampRecordingExpTest : uur::urQueueTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+
+    ur_queue_flags_t queueFlags{};
+    ASSERT_SUCCESS(urQueueGetInfo(queue, UR_QUEUE_INFO_FLAGS,
+                                  sizeof(ur_queue_flags_t), &queueFlags,
+                                  nullptr));
+
+    if (queueFlags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) {
+      UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+    }
+
     bool timestamp_recording_support = false;
     ASSERT_SUCCESS(
         uur::GetTimestampRecordingSupport(device, timestamp_recording_support));
