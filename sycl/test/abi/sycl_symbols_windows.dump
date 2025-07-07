@@ -4405,6 +4405,7 @@
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$00@23@@Z
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$01@23@@Z
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@@Z
+?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@H@Z
 ?setKernelInfo@handler@_V1@sycl@@AEAAXPEAXHP6A?AUkernel_param_desc_t@detail@23@H@Z_N2@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
 ?setKernelNameBasedCachePtr@handler@_V1@sycl@@AEAAXPEAUKernelNameBasedCacheT@detail@23@@Z
@@ -4419,6 +4420,9 @@
 ?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$02@23@0V?$id@$02@23@@Z
 ?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$02@23@V?$id@$02@23@@Z
 ?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$02@23@_N@Z
+?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@V?$id@$02@23@H@Z
+?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@0V?$id@$02@23@H@Z
+?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@_NH@Z
 ?setNDRangeUsed@handler@_V1@sycl@@AEAAX_N@Z
 ?setStateExplicitKernelBundle@handler@_V1@sycl@@AEAAXXZ
 ?setStateSpecConstSet@handler@_V1@sycl@@AEAAXXZ

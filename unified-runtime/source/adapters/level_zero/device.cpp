@@ -166,12 +166,8 @@ ur_result_t urDeviceGet(
   if (Devices)
     std::copy_n(MatchedDevices.begin(), N, Devices);
 
-  if (NumDevices) {
-    if (*NumDevices == 0)
-      *NumDevices = ZeDeviceCount;
-    else
-      *NumDevices = N;
-  }
+  if (NumDevices)
+    *NumDevices = ZeDeviceCount;
 
   return UR_RESULT_SUCCESS;
 }

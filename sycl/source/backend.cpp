@@ -30,16 +30,16 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-static const adapter_impl &getAdapter(backend Backend) {
+static adapter_impl &getAdapter(backend Backend) {
   switch (Backend) {
   case backend::opencl:
-    return *ur::getAdapter<backend::opencl>();
+    return ur::getAdapter<backend::opencl>();
   case backend::ext_oneapi_level_zero:
-    return *ur::getAdapter<backend::ext_oneapi_level_zero>();
+    return ur::getAdapter<backend::ext_oneapi_level_zero>();
   case backend::ext_oneapi_cuda:
-    return *ur::getAdapter<backend::ext_oneapi_cuda>();
+    return ur::getAdapter<backend::ext_oneapi_cuda>();
   case backend::ext_oneapi_hip:
-    return *ur::getAdapter<backend::ext_oneapi_hip>();
+    return ur::getAdapter<backend::ext_oneapi_hip>();
   default:
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::runtime),
@@ -71,7 +71,7 @@ backend convertUrBackend(ur_backend_t UrBackend) {
 }
 
 platform make_platform(ur_native_handle_t NativeHandle, backend Backend) {
-  const adapter_impl &Adapter = getAdapter(Backend);
+  adapter_impl &Adapter = getAdapter(Backend);
 
   // Create UR platform first.
   ur_platform_handle_t UrPlatform = nullptr;
@@ -84,7 +84,7 @@ platform make_platform(ur_native_handle_t NativeHandle, backend Backend) {
 
 __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
                                  backend Backend) {
-  const adapter_impl &Adapter = getAdapter(Backend);
+  adapter_impl &Adapter = getAdapter(Backend);
 
   ur_device_handle_t UrDevice = nullptr;
   Adapter.call<UrApiKind::urDeviceCreateWithNativeHandle>(
@@ -100,7 +100,7 @@ __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
                                    const async_handler &Handler,
                                    backend Backend, bool KeepOwnership,
                                    const std::vector<device> &DeviceList) {
-  const adapter_impl &Adapter = getAdapter(Backend);
+  adapter_impl &Adapter = getAdapter(Backend);
 
   ur_context_handle_t UrContext = nullptr;
   ur_context_native_properties_t Properties{};
@@ -193,7 +193,7 @@ std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(ur_native_handle_t NativeHandle,
                    const context &TargetContext, bool KeepOwnership,
                    bundle_state State, backend Backend) {
-  const adapter_impl &Adapter = getAdapter(Backend);
+  adapter_impl &Adapter = getAdapter(Backend);
   context_impl &ContextImpl = *getSyclObjImpl(TargetContext);
 
   ur_program_handle_t UrProgram = nullptr;

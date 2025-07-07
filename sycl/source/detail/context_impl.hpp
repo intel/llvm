@@ -62,12 +62,12 @@ public:
   /// \param OwnedByRuntime is the flag if ownership is kept by user or
   /// transferred to runtime
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               const adapter_impl &Adapter,
+               adapter_impl &Adapter,
                const std::vector<sycl::device> &DeviceList, bool OwnedByRuntime,
                private_tag);
 
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               const adapter_impl &Adapter, private_tag tag)
+               adapter_impl &Adapter, private_tag tag)
       : context_impl(UrContext, AsyncHandler, Adapter,
                      std::vector<sycl::device>{},
                      /*OwnedByRuntime*/ true, tag) {}
