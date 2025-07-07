@@ -358,7 +358,7 @@ public:
     size_t FoundCnt = 0;
     for (std::weak_ptr<node_impl> &SuccA : NodeA->MSuccessors) {
       for (std::weak_ptr<node_impl> &SuccB : NodeB->MSuccessors) {
-        if (NodeA->isSimilar(NodeB) &&
+        if (NodeA->isSimilar(*NodeB) &&
             checkNodeRecursive(SuccA.lock(), SuccB.lock())) {
           FoundCnt++;
           break;
@@ -383,12 +383,12 @@ public:
   /// @param DebugPrint if set to true throw exception with additional debug
   /// information about the spotted graph differences.
   /// @return true if the two graphs are similar, false otherwise
-  bool hasSimilarStructure(std::shared_ptr<detail::graph_impl> Graph,
+  bool hasSimilarStructure(detail::graph_impl &Graph,
                            bool DebugPrint = false) const {
-    if (this == Graph.get())
+    if (this == &Graph)
       return true;
 
-    if (MContext != Graph->MContext) {
+    if (MContext != Graph.MContext) {
       if (DebugPrint) {
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "MContext are not the same.");
@@ -396,7 +396,7 @@ public:
       return false;
     }
 
-    if (MDevice != Graph->MDevice) {
+    if (MDevice != Graph.MDevice) {
       if (DebugPrint) {
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "MDevice are not the same.");
@@ -404,7 +404,7 @@ public:
       return false;
     }
 
-    if (MEventsMap.size() != Graph->MEventsMap.size()) {
+    if (MEventsMap.size() != Graph.MEventsMap.size()) {
       if (DebugPrint) {
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "MEventsMap sizes are not the same.");
@@ -412,7 +412,7 @@ public:
       return false;
     }
 
-    if (MInorderQueueMap.size() != Graph->MInorderQueueMap.size()) {
+    if (MInorderQueueMap.size() != Graph.MInorderQueueMap.size()) {
       if (DebugPrint) {
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "MInorderQueueMap sizes are not the same.");
@@ -420,7 +420,7 @@ public:
       return false;
     }
 
-    if (MRoots.size() != Graph->MRoots.size()) {
+    if (MRoots.size() != Graph.MRoots.size()) {
       if (DebugPrint) {
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "MRoots sizes are not the same.");
@@ -430,11 +430,11 @@ public:
 
     size_t RootsFound = 0;
     for (std::weak_ptr<node_impl> NodeA : MRoots) {
-      for (std::weak_ptr<node_impl> NodeB : Graph->MRoots) {
+      for (std::weak_ptr<node_impl> NodeB : Graph.MRoots) {
         auto NodeALocked = NodeA.lock();
         auto NodeBLocked = NodeB.lock();
 
-        if (NodeALocked->isSimilar(NodeBLocked)) {
+        if (NodeALocked->isSimilar(*NodeBLocked)) {
           if (checkNodeRecursive(NodeALocked, NodeBLocked)) {
             RootsFound++;
             break;

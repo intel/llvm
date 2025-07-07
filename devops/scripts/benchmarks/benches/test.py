@@ -96,7 +96,6 @@ class TestBench(Benchmark):
                 value=random_value,
                 command=["test", "--arg1", "foo"],
                 env={"A": "B"},
-                stdout="no output",
                 unit="ms",
             )
         ]

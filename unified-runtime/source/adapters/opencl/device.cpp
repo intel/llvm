@@ -1019,7 +1019,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return UR_RESULT_SUCCESS;
   }
   case UR_DEVICE_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hDevice->getReferenceCount());
+    return ReturnValue(hDevice->RefCount.getCount());
   }
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
@@ -1561,7 +1561,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
 // Root devices ref count are unchanged through out the program lifetime.
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
   if (hDevice->ParentDevice) {
-    hDevice->incrementReferenceCount();
+    hDevice->RefCount.retain();
   }
 
   return UR_RESULT_SUCCESS;
@@ -1571,7 +1571,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceRelease(ur_device_handle_t hDevice) {
   if (hDevice->ParentDevice) {
-    if (hDevice->decrementReferenceCount() == 0) {
+    if (hDevice->RefCount.release()) {
       delete hDevice;
     }
   }

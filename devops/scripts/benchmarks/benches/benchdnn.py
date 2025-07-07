@@ -79,7 +79,7 @@ class OneDnnBench(Suite):
             "-DCMAKE_C_COMPILER=clang",
             "-DDNNL_BUILD_TESTS=ON",
             "-DDNNL_BUILD_EXAMPLES=OFF",
-            "-DDNNL_CPU_RUNTIME=NONE",  # Disable SYCL support
+            "-DDNNL_CPU_RUNTIME=NONE",  # Disable SYCL CPU support
             "-DDNNL_GPU_RUNTIME=SYCL",  # Enable SYCL GPU support
         ]
         run(
@@ -91,7 +91,7 @@ class OneDnnBench(Suite):
             f"cmake --build {self.build_dir} --target benchdnn -j {options.build_jobs}",
             add_sycl=True,
             ld_library=[str(self.build_dir) + "/src"] + self.oneapi.ld_libraries(),
-            timeout=60 * 30,
+            timeout=60 * 20,
         )
 
     def teardown(self):
@@ -172,7 +172,6 @@ class OneDnnBenchmark(Benchmark):
                 unit="ms",
                 command=command,
                 env=env_vars,
-                stdout=output,
                 git_url=self.suite.git_url(),
                 git_hash=self.suite.git_tag(),
             )

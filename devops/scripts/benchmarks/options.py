@@ -70,6 +70,7 @@ class Options:
     current_run_name: str = "This PR"
     preset: str = "Full"
     build_jobs: int = multiprocessing.cpu_count()
+    exit_on_failure: bool = False
     unitrace_only: bool = False
     unitrace_inclusive: bool = False
     unitrace_res_dir: str = None

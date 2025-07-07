@@ -42,12 +42,12 @@ ur_result_t urPhysicalMemCreate(
 }
 
 ur_result_t urPhysicalMemRetain(ur_physical_mem_handle_t hPhysicalMem) {
-  hPhysicalMem->RefCount.increment();
+  hPhysicalMem->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
-  if (!hPhysicalMem->RefCount.decrementAndTest())
+  if (!hPhysicalMem->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   if (checkL0LoaderTeardown()) {
@@ -68,7 +68,7 @@ ur_result_t urPhysicalMemGetInfo(ur_physical_mem_handle_t hPhysicalMem,
 
   switch (propName) {
   case UR_PHYSICAL_MEM_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hPhysicalMem->RefCount.load());
+    return ReturnValue(hPhysicalMem->RefCount.getCount());
   }
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;

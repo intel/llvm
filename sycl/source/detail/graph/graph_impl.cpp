@@ -905,12 +905,12 @@ void exec_graph_impl::createCommandBuffers(
   ur_exp_command_buffer_desc_t Desc{
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, MIsUpdatable,
       Partition->MIsInOrderGraph && !MEnableProfiling, MEnableProfiling};
-  auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl.getAdapter();
   sycl::detail::device_impl &DeviceImpl = *sycl::detail::getSyclObjImpl(Device);
   ur_result_t Res =
       Adapter->call_nocheck<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
-          ContextImpl->getHandleRef(), DeviceImpl.getHandleRef(), &Desc,
+          ContextImpl.getHandleRef(), DeviceImpl.getHandleRef(), &Desc,
           &OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid, "Failed to create UR command-buffer");
@@ -1107,10 +1107,9 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
       UrEnqueueWaitListSize == 0 ? nullptr : UrEventHandles.data();
 
   if (!EventNeeded) {
-    Queue.getAdapter()
-        ->call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-            Queue.getHandleRef(), CommandBuffer, UrEnqueueWaitListSize,
-            UrEnqueueWaitList, nullptr);
+    Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
+        Queue.getHandleRef(), CommandBuffer, UrEnqueueWaitListSize,
+        UrEnqueueWaitList, nullptr);
     return nullptr;
   } else {
     auto NewEvent = sycl::detail::event_impl::create_device_event(Queue);
@@ -1118,10 +1117,9 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     NewEvent->setStateIncomplete();
     NewEvent->setSubmissionTime();
     ur_event_handle_t UrEvent = nullptr;
-    Queue.getAdapter()
-        ->call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-            Queue.getHandleRef(), CommandBuffer, UrEventHandles.size(),
-            UrEnqueueWaitList, &UrEvent);
+    Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
+        Queue.getHandleRef(), CommandBuffer, UrEventHandles.size(),
+        UrEnqueueWaitList, &UrEvent);
     NewEvent->setHandle(UrEvent);
     NewEvent->setEventFromSubmittedExecCommandBuffer(true);
     return NewEvent;
@@ -1636,8 +1634,9 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     std::vector<ur_exp_command_buffer_update_value_arg_desc_t> &ValueDescs,
     sycl::detail::NDRDescT &NDRDesc,
     ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const {
-  auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  sycl::detail::context_impl &ContextImpl =
+      *sycl::detail::getSyclObjImpl(MContext);
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl.getAdapter();
   sycl::detail::device_impl &DeviceImpl =
       *sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
 
@@ -1665,7 +1664,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
     BundleObjs = sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-        *ContextImpl, DeviceImpl, ExecCG.MKernelName,
+        ContextImpl, DeviceImpl, ExecCG.MKernelName,
         ExecCG.MKernelNameBasedCachePtr);
     UrKernel = BundleObjs->MKernelHandle;
     EliminatedArgMask = BundleObjs->MKernelArgMask;
@@ -1884,8 +1883,8 @@ void exec_graph_impl::updateURImpl(
     StructListIndex++;
   }
 
-  auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl.getAdapter();
   Adapter->call<sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
       CommandBuffer, UpdateDescList.size(), UpdateDescList.data());
 }
