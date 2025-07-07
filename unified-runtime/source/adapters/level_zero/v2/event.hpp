@@ -20,6 +20,8 @@
 #include "common/ur_ref_count.hpp"
 #include "event_provider.hpp"
 
+using ur_event_generation_t = int64_t;
+
 namespace v2 {
 class event_pool;
 }
@@ -68,7 +70,9 @@ public:
 
   // Set the queue and command that this event is associated with
   void setQueue(ur_queue_t_ *hQueue);
+  void setBatch(ur_event_generation_t batch_generation);
   void setCommandType(ur_command_t commandType);
+  void onWaitListUse();
 
   void reset();
   ze_event_handle_t getZeEvent() const;
@@ -97,6 +101,8 @@ public:
 
   // Get the type of the command that this event is associated with
   ur_command_t getCommandType() const;
+
+  std::optional<ur_event_generation_t> getBatch() const;
 
   // Get the device associated with this event
   ur_device_handle_t getDevice() const;
@@ -129,6 +135,8 @@ protected:
   // queue and commandType that this event is associated with, set by enqueue
   // commands
   ur_queue_t_ *hQueue = nullptr;
+  // std::optional holds a value for events created by batched queues
+  std::optional<ur_event_generation_t> batchGeneration;
   ur_command_t commandType = UR_COMMAND_FORCE_UINT32;
   ur_device_handle_t hDevice = nullptr;
 

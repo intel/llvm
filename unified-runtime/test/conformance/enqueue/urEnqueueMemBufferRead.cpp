@@ -123,7 +123,9 @@ TEST_P(urEnqueueMemBufferReadTestWithParam, NonBlocking) {
                                         0, nullptr, &cpOut));
   ASSERT_NE(cpOut, nullptr);
 
+  // printf("wait event\n");
   ASSERT_SUCCESS(urEventWait(1, &cpOut));
+  // printf("after wait event\n");
 
   bool isSame =
       std::equal(std::begin(output), std::end(output), std::begin(data));
