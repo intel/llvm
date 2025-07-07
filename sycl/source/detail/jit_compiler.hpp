@@ -47,8 +47,7 @@ public:
   std::pair<sycl_device_binaries, std::string> compileSYCL(
       const std::string &CompilationID, const std::string &SYCLSource,
       const std::vector<std::pair<std::string, std::string>> &IncludePairs,
-      const std::vector<std::string> &UserArgs, std::string *LogPtr,
-      ::jit_compiler::BinaryFormat Format);
+      const std::vector<std::string> &UserArgs, std::string *LogPtr);
 
   void destroyDeviceBinaries(sycl_device_binaries Binaries);
 
