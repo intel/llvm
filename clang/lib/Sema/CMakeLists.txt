@@ -34,7 +34,7 @@ if (is_gcc OR is_clang OR (is_icpx AND NOT WIN32))
   set(opts_to_apply ${linux_opts})
 elseif (is_msvc)
   set(opts_to_apply "/W4")
-elseif (is_icpx and WIN32)
+elseif (is_icpx AND WIN32)
   set(opts_to_apply "/Wall")
 endif()
 
