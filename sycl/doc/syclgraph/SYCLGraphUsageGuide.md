@@ -121,7 +121,6 @@ strategy could be employed but instead using a pool of graphs to hide the
 potential host-synchronization caused when updating and increase device
 occupancy.
 
-
 ### Recording Library Calls
 
 #### A Note On Library Compatibility
@@ -221,6 +220,91 @@ q.submit([&](sycl::handler &CGH) {
     });
 });
 ```
+
+### Guidance For Library Authors
+
+In addition to the general SYCL-graph compatibility guidelines there are some
+considerations that are more relevant to library authors to be compatible with
+SYCL-Graph and allow seamless capturing of library calls in a graph.
+
+#### Graph-owned Memory Allocations For Temporary Memory
+
+A common pattern in libraries with specialized SYCL kernels can involve the
+allocation and use of temporary memory for those kernels. One approach is custom
+allocators which rely on SYCL events to control the lifetime and re-use of this
+temporary memory, but these are not compatible with events returned from queue
+submissions which are recorded to a graph. Instead the
+[sycl_ext_oneapi_async_memory_alloc](../extensions/proposed/sycl_ext_oneapi_async_memory_alloc.asciidoc)
+extension can be used which provides similar functionality for eager SYCL usage
+as well as compatibility with graphs.
+
+When captured in a graph calls to these extension functions create graph-owned
+memory allocations which are tied to the lifetime of the graph. These
+allocations can be created as needed for library kernels and the SYCL runtime
+may be able to re-use memory where appropriate to minimize the memory footprint
+of the graph. This can avoid the need for a library to manage the lifetime of
+these allocations themselves, or be aware of the library calls being recorded to
+a graph.
+
+It is important to ensure correct dependencies between allocation commands,
+kernels that use those allocations, and the calls to free the memory. This
+allows the graph to determine when allocations are in-use at a given point in
+the graph, and allow for re-using memory for subsequent allocation nodes if
+those nodes are ordered after a free command which is no longer in use.
+
+It is important to note that calling `async_free` will not deallocate memory
+but simply mark it as free for re-use.
+
+The following shows a simple example of how these allocations can be used in a
+library function which is recorded to a graph:
+
+```c++
+using namespace sycl;
+
+// Library code, this example is assuming an out of order SYCL queue
+void launchLibraryKernel(queue& SyclQueue){
+    size_t TempMemSize = 1024;
+    void* Ptr = nullptr;
+
+    // Get a pointer to some temporary memory for use in the kernel
+    // This call creates an allocation node in the graph if this call is being
+    // recorded.
+    event AllocEvent = SyclQueue.submit([&](handler& CGH){
+        Ptr = sycl_ext::async_malloc(CGH, usm::alloc::device, TempMemSize);
+    });
+
+    // Submit the actual library kernel
+    event KernelEvent = SyclQueue.submit([&](handler& CGH){
+        // Mark the allocation as a dependency so that the temporary memory
+        // is available
+        CGH.depends_on(AllocEvent);
+        // Submit a kernel that uses the temp memory in Ptr
+        CGH.parallel_for(...);
+    });
+
+    // Free the memory back to the pool or graph, indicating that it is free to
+    // be re-used. Memory will not actually be released back to the OS.
+    SyclQueue.submit([&](handler& CGH){
+        // Mark the kernel as a dependency before freeing
+        CGH.depends_on(KernelEvent);
+        sycl_ext::async_free(CGH, Ptr);
+    });
+}
+
+// Application code
+void recordLibraryCall(queue& SyclQueue, sycl_ext::command_graph& Graph){
+    Graph.begin_recording(SyclQueue);
+    // Call into library to record queue commands to the graph
+    launchLibraryKernel(SyclQueue);
+
+    Graph.end_recording(SyclQueue);
+}
+```
+
+Please see "graph-owned memory allocations" section of the
+[sycl_ext_oneapi_graph
+specification](../extensions/experimental/sycl_ext_oneapi_graph.asciidoc) for a
+complete description of the feature.
 
 ## Code Examples
 
@@ -679,4 +763,115 @@ execMainGraph.update(updateGraph);
 // Execute execMainGraph again, which will now be operating on ptrB instead of
 // ptrA
 myQueue.ext_oneapi_graph(execMainGraph);
+```
+
+### Graph-Owned Memory Allocations
+
+#### Explicit Graph Example
+
+Using default memory pool.
+
+```c++
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+void* Ptr = nullptr;
+size_t AllocSize = 1024;
+// Add an async_malloc node and capturing the returned pointer in Ptr
+auto AllocNode = Graph.add([&](handler& CGH){
+  Ptr = sycl_ext::async_malloc(CGH, usm::alloc::device, AllocSize);
+});
+
+// Use Ptr in another graph node which depends on AllocNode
+auto OtherNodeA = Graph.add(..., {property::graph::depends_on{AllocNode}});
+// Use Ptr in another node which has an indirect dependency on AllocNode
+auto OtherNodeB = Graph.add(..., {property::graph::depends_on{OtherNodeA}});
+
+// Free Ptr, indicating it is no longer in use at this point in the graph,
+// with a dependency on any leaf nodes using Ptr
+Graph.add([&](handler& CGH){
+  sycl_ext::async_free(CGH, Ptr);
+}, {property::graph::depends_on{OtherNodeB}});
+```
+
+#### Queue Recording Example
+
+Using user-provided memory pool.
+
+```c++
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+void* Ptr = nullptr;
+size_t AllocSize = 1024;
+queue Queue {syclContext, syclDevice};
+
+// Device memory pool with zero init property
+sycl_ext::memory_pool MemPool{syclContext, syclDevice, usm::alloc::device,
+                             {sycl_ext::property::memory_pool::zero_init{}}};
+Graph.begin_recording(Queue);
+// Add an async_malloc node and capture the returned pointer in Ptr,
+// zero_init property and usm::alloc kind of pool will be respected but pool
+// is otherwise ignored
+event AllocEvent = Queue.submit([&](handler& CGH){
+  Ptr = sycl_ext::async_malloc_from_pool(CGH, AllocSize, MemPool);
+});
+
+// Use Ptr in another graph node which depends on AllocNode
+event OtherEventA = Queue.submit([&](handler& CGH){
+  CGH.depends_on(AllocEvent);
+  // Do something with Ptr
+  CGH.parallel_for(...);
+});
+// Use Ptr in another node which has an indirect dependency on AllocNode
+event OtherEventB = Queue.submit([&](handler& CGH){
+  CGH.depends_on(OtherEventA);
+  // Do something with Ptr
+  CGH.parallel_for(...);
+});
+
+// Free Ptr, indicating it is no longer in use at this point in the graph,
+// with a dependency on any leaf nodes using Ptr
+Queue.submit([&](handler& CGH){
+  CGH.depends_on(OtherEventB);
+  sycl_ext::async_free(CGH, Ptr);
+});
+
+Graph.end_recording(Queue);
+```
+
+#### In-Order Queue Recording Example
+
+Using an in-order queue and the event-less async alloc functions.
+
+```c++
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+void* Ptr = nullptr;
+size_t AllocSize = 1024;
+queue Queue {syclContext, syclDevice, {property::queue::in_order{}}};
+
+Graph.begin_recording(Queue);
+// Add an async_malloc node and capturing the returned pointer in Ptr
+Ptr = sycl_ext::async_malloc(Queue, usm::alloc::device, AllocSize);
+
+// Use Ptr in another graph node which has an in-order dependency on the
+// allocation node
+Queue.submit([&](handler& CGH){
+  // Do something with Ptr
+  CGH.parallel_for(...);
+});
+// Use Ptr in another node which has an in-order dependency on the
+// previous kernel.
+Queue.submit([&](handler& CGH){
+  // Do something with Ptr
+  CGH.parallel_for(...);
+});
+
+// Free Ptr, indicating it is no longer in use at this point in the graph,
+// with an in-order dependency on the previous kernel.
+sycl_ext::async_free(Queue, Ptr);
+
+Graph.end_recording(Queue);
 ```

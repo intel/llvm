@@ -431,7 +431,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       // are cleaned up separately from cleaning up the device global USM memory
       // this must retain the event.
       {
-        if (OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Adapter))
+        if (OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(*Adapter))
           InitEventsRef.push_back(ZIEvent.TransferOwnership());
       }
       // Write the pointer to the device global and store the event in the
