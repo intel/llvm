@@ -149,11 +149,10 @@ void HIPSPVToolChain::addClangTargetOptions(
     CC1Args.append(
         {"-fvisibility=hidden", "-fapply-global-visibility-to-externs"});
 
-  llvm::for_each(getDeviceLibs(DriverArgs, DeviceOffloadingKind),
-                 [&](const BitCodeLibraryInfo &BCFile) {
-                   CC1Args.append({"-mlink-builtin-bitcode",
-                                   DriverArgs.MakeArgString(BCFile.Path)});
-                 });
+  for (const BitCodeLibraryInfo &BCFile :
+       getDeviceLibs(DriverArgs, DeviceOffloadingKind))
+    CC1Args.append(
+        {"-mlink-builtin-bitcode", DriverArgs.MakeArgString(BCFile.Path)});
 }
 
 Tool *HIPSPVToolChain::buildLinker() const {
