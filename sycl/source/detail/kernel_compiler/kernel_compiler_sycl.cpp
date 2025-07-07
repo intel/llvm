@@ -44,8 +44,7 @@ std::pair<sycl_device_binaries, std::string> SYCL_JIT_Compile(
     [[maybe_unused]] const std::string &SYCLSource,
     [[maybe_unused]] const include_pairs_t &IncludePairs,
     [[maybe_unused]] const std::vector<sycl::detail::string_view> &UserArgs,
-    [[maybe_unused]] std::string *LogPtr,
-    [[maybe_unused]] ::jit_compiler::BinaryFormat Format) {
+    [[maybe_unused]] std::string *LogPtr) {
 #if SYCL_EXT_JIT_ENABLE
   static std::atomic_uintptr_t CompilationCounter;
   std::string CompilationID = "rtc_" + std::to_string(CompilationCounter++);
@@ -53,7 +52,7 @@ std::pair<sycl_device_binaries, std::string> SYCL_JIT_Compile(
   for (const sycl::detail::string_view UserArg : UserArgs)
     UserArgStrings.push_back(UserArg.data());
   return sycl::detail::jit_compiler::get_instance().compileSYCL(
-      CompilationID, SYCLSource, IncludePairs, UserArgStrings, LogPtr, Format);
+      CompilationID, SYCLSource, IncludePairs, UserArgStrings, LogPtr);
 #else
   throw sycl::exception(sycl::errc::build,
                         "kernel_compiler via sycl-jit is not available");
