@@ -621,9 +621,10 @@ TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyTo) {
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Q.get_context());
-  sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
-      CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
+  using namespace sycl::detail;
+  context_impl &CtxImpl = *getSyclObjImpl(Q.get_context());
+  KernelProgramCache::KernelCacheT &KernelCache =
+      CtxImpl.getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
       << "Expect 1 program in kernel cache";
   ExpectedReadWriteURProgram = KernelCache.begin()->first;
@@ -650,9 +651,10 @@ TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyTo) {
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Q.get_context());
-  sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
-      CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
+  using namespace sycl::detail;
+  context_impl &CtxImpl = *getSyclObjImpl(Q.get_context());
+  KernelProgramCache::KernelCacheT &KernelCache =
+      CtxImpl.getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
       << "Expect 1 program in kernel cache";
   ExpectedReadWriteURProgram = KernelCache.begin()->first;
@@ -679,9 +681,10 @@ TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyFrom) {
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Q.get_context());
-  sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
-      CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
+  using namespace sycl::detail;
+  context_impl &CtxImpl = *getSyclObjImpl(Q.get_context());
+  KernelProgramCache::KernelCacheT &KernelCache =
+      CtxImpl.getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
       << "Expect 1 program in kernel cache";
   ExpectedReadWriteURProgram = KernelCache.begin()->first;
@@ -708,9 +711,10 @@ TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyFrom) {
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Q.get_context());
-  sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
-      CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
+  using namespace sycl::detail;
+  context_impl &CtxImpl = *getSyclObjImpl(Q.get_context());
+  KernelProgramCache::KernelCacheT &KernelCache =
+      CtxImpl.getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
       << "Expect 1 program in kernel cache";
   ExpectedReadWriteURProgram = KernelCache.begin()->first;

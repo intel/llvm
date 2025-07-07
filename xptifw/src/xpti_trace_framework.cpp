@@ -1252,8 +1252,14 @@ public:
       if ((Payload->flags &
            static_cast<uint64_t>(xpti::payload_flag_t::SourceFileAvailable))) {
         // Add source file information ot string table
-        FileId =
+
+        // MStringTableRef.add returns a string_id_t which is an int32_t and can
+        // be negative, but negative values are unexpected in this context.
+        int32_t PFileId =
             MStringTableRef.add(Payload->source_file, &Payload->source_file);
+
+        assert(PFileId >= 0 && "FileId can't be negative");
+        FileId = static_cast<uint64_t>(PFileId);
       }
     } else {
       // If the payload's function name is available, generate a fast hash as

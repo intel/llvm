@@ -188,6 +188,7 @@ template <size_t size, typename T> inline ur_result_t printArray(std::ostream &o
 %endfor
 } // namespace ${x}::details
 
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const ur_bool_t value);
 %for spec in specs:
 %for obj in spec['objects']:
 %if re.match(r"enum", obj['type']):

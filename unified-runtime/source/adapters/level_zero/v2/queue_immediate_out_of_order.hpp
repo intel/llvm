@@ -11,6 +11,7 @@
 
 #include "../common.hpp"
 #include "../device.hpp"
+#include "common/ur_ref_count.hpp"
 
 #include "context.hpp"
 #include "event.hpp"
@@ -520,6 +521,8 @@ public:
             numEventsInWaitList, phEventWaitList,
             createEventIfRequested(eventPool.get(), phEvent, this));
   }
+
+  ur::RefCount RefCount;
 };
 
 } // namespace v2

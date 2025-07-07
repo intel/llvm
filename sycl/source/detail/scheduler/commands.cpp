@@ -345,12 +345,12 @@ class DispatchHostTask {
   std::vector<ur_mem_handle_t> MReqUrMem;
 
   bool waitForEvents() const {
-    std::map<const AdapterPtr, std::vector<EventImplPtr>>
+    std::map<adapter_impl *, std::vector<EventImplPtr>>
         RequiredEventsPerAdapter;
 
     for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {
-      const AdapterPtr &Adapter = Event->getAdapter();
-      RequiredEventsPerAdapter[Adapter].push_back(Event);
+      adapter_impl &Adapter = Event->getAdapter();
+      RequiredEventsPerAdapter[&Adapter].push_back(Event);
     }
 
     // wait for dependency device events
@@ -434,7 +434,7 @@ public:
         // for host task?
         auto &Queue = HostTask.MQueue;
         bool NativeCommandSupport = false;
-        Queue->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        Queue->getAdapter().call<UrApiKind::urDeviceGetInfo>(
             detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
             UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP,
             sizeof(NativeCommandSupport), &NativeCommandSupport, nullptr);
@@ -449,7 +449,7 @@ public:
           //
           // This entry point is needed in order to migrate memory across
           // devices in the same context for CUDA and HIP backends
-          Queue->getAdapter()->call<UrApiKind::urEnqueueNativeCommandExp>(
+          Queue->getAdapter().call<UrApiKind::urEnqueueNativeCommandExp>(
               HostTask.MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData,
               MReqUrMem.size(), MReqUrMem.data(), nullptr, 0, nullptr, nullptr);
         } else {
@@ -548,9 +548,9 @@ void Command::waitForEvents(queue_impl *Queue,
     } else {
       std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
       flushCrossQueueDeps(EventImpls);
-      const AdapterPtr &Adapter = Queue->getAdapter();
+      adapter_impl &Adapter = Queue->getAdapter();
 
-      Adapter->call<UrApiKind::urEnqueueEventsWait>(
+      Adapter.call<UrApiKind::urEnqueueEventsWait>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
     }
   }
@@ -2276,8 +2276,11 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
   if (WGSize[0] == 0) {
     WGSize = {1, 1, 1};
   }
-  NDR = sycl::detail::NDRDescT{nd_range<3>(NDR.NumWorkGroups * WGSize, WGSize),
-                               static_cast<int>(NDR.Dims)};
+
+  for (size_t I = 0; I < NDR.Dims; ++I) {
+    NDR.GlobalSize[I] = WGSize[I] * NDR.NumWorkGroups[I];
+    NDR.LocalSize[I] = WGSize[I];
+  }
 }
 
 // We have the following mapping between dimensions with SPIR-V builtins:
@@ -2415,7 +2418,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
     bool KernelHasSpecialCaptures = true) {
-  const AdapterPtr &Adapter = Queue.getAdapter();
+  adapter_impl &Adapter = Queue.getAdapter();
 
   if (SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
     std::vector<unsigned char> Empty;
@@ -2496,7 +2499,7 @@ static ur_result_t SetKernelParamsAndLaunch(
   if (HasLocalSize)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
-    Adapter->call<UrApiKind::urKernelGetGroupInfo>(
+    Adapter.call<UrApiKind::urKernelGetGroupInfo>(
         Kernel, Queue.getDeviceImpl().getHandleRef(),
         UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
         RequiredWGSize,
@@ -2539,7 +2542,7 @@ static ur_result_t SetKernelParamsAndLaunch(
   }
   ur_event_handle_t UREvent = nullptr;
   ur_result_t Error =
-      Adapter->call_nocheck<UrApiKind::urEnqueueKernelLaunchWithArgsExp>(
+      Adapter.call_nocheck<UrApiKind::urEnqueueKernelLaunchWithArgsExp>(
           Queue.getHandleRef(), Kernel,
           HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr,
           &NDRDesc.GlobalSize[0], LocalSize, UrArgs.size(), UrArgs.data(),
@@ -2557,7 +2560,7 @@ static ur_result_t SetKernelParamsAndLaunch(
 // Sets arguments for a given kernel and device based on the argument type.
 // This is a legacy path which the graphs extension still uses.
 static void SetArgBasedOnType(
-    const AdapterPtr &Adapter, ur_kernel_handle_t Kernel,
+    adapter_impl &Adapter, ur_kernel_handle_t Kernel,
     device_image_impl *DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     context_impl &ContextImpl, detail::ArgDesc &Arg, size_t NextTrueIndex) {
@@ -2583,17 +2586,17 @@ static void SetArgBasedOnType(
     ur_kernel_arg_mem_obj_properties_t MemObjData{};
     MemObjData.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
     MemObjData.memoryAccess = AccessModeToUr(Req->MAccessMode);
-    Adapter->call<UrApiKind::urKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                   &MemObjData, MemArg);
+    Adapter.call<UrApiKind::urKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                  &MemObjData, MemArg);
     break;
   }
   case kernel_param_kind_t::kind_std_layout: {
     if (Arg.MPtr) {
-      Adapter->call<UrApiKind::urKernelSetArgValue>(
+      Adapter.call<UrApiKind::urKernelSetArgValue>(
           Kernel, NextTrueIndex, Arg.MSize, nullptr, Arg.MPtr);
     } else {
-      Adapter->call<UrApiKind::urKernelSetArgLocal>(Kernel, NextTrueIndex,
-                                                    Arg.MSize, nullptr);
+      Adapter.call<UrApiKind::urKernelSetArgLocal>(Kernel, NextTrueIndex,
+                                                   Arg.MSize, nullptr);
     }
 
     break;
@@ -2603,16 +2606,16 @@ static void SetArgBasedOnType(
     ur_sampler_handle_t Sampler =
         (ur_sampler_handle_t)detail::getSyclObjImpl(*SamplerPtr)
             ->getOrCreateSampler(ContextImpl);
-    Adapter->call<UrApiKind::urKernelSetArgSampler>(Kernel, NextTrueIndex,
-                                                    nullptr, Sampler);
+    Adapter.call<UrApiKind::urKernelSetArgSampler>(Kernel, NextTrueIndex,
+                                                   nullptr, Sampler);
     break;
   }
   case kernel_param_kind_t::kind_pointer: {
     // We need to de-rerence this to get the actual USM allocation - that's the
     // pointer UR is expecting.
     const void *Ptr = *static_cast<const void *const *>(Arg.MPtr);
-    Adapter->call<UrApiKind::urKernelSetArgPointer>(Kernel, NextTrueIndex,
-                                                    nullptr, Ptr);
+    Adapter.call<UrApiKind::urKernelSetArgPointer>(Kernel, NextTrueIndex,
+                                                   nullptr, Ptr);
     break;
   }
   case kernel_param_kind_t::kind_specialization_constants_buffer: {
@@ -2624,7 +2627,7 @@ static void SetArgBasedOnType(
     MemObjProps.pNext = nullptr;
     MemObjProps.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
     MemObjProps.memoryAccess = UR_MEM_FLAG_READ_ONLY;
-    Adapter->call<UrApiKind::urKernelSetArgMemObj>(
+    Adapter.call<UrApiKind::urKernelSetArgMemObj>(
         Kernel, NextTrueIndex, &MemObjProps, SpecConstsBuffer);
     break;
   }
@@ -2712,7 +2715,7 @@ ur_result_t enqueueImpCommandBufferKernel(
   auto SetFunc = [&Adapter, &UrKernel, &DeviceImageImpl, &ContextImpl,
                   &getMemAllocationFunc](sycl::detail::ArgDesc &Arg,
                                          size_t NextTrueIndex) {
-    sycl::detail::SetArgBasedOnType(Adapter, UrKernel, DeviceImageImpl.get(),
+    sycl::detail::SetArgBasedOnType(*Adapter, UrKernel, DeviceImageImpl.get(),
                                     getMemAllocationFunc, ContextImpl, Arg,
                                     NextTrueIndex);
   };
@@ -2836,7 +2839,7 @@ void enqueueImpKernel(
 
   // Initialize device globals associated with this.
   std::vector<ur_event_handle_t> DeviceGlobalInitEvents =
-      ContextImpl.initializeDeviceGlobals(Program, Queue);
+      ContextImpl.initializeDeviceGlobals(Program, Queue, KernelBundleImplPtr);
   if (!DeviceGlobalInitEvents.empty()) {
     std::vector<ur_event_handle_t> EventsWithDeviceGlobalInits;
     EventsWithDeviceGlobalInits.reserve(RawEvents.size() +
@@ -2861,8 +2864,8 @@ void enqueueImpKernel(
     // provided.
     if (KernelCacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_SLM ||
         KernelCacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_DATA) {
-      const AdapterPtr &Adapter = Queue.getAdapter();
-      Adapter->call<UrApiKind::urKernelSetExecInfo>(
+      adapter_impl &Adapter = Queue.getAdapter();
+      Adapter.call<UrApiKind::urKernelSetExecInfo>(
           Kernel, UR_KERNEL_EXEC_INFO_CACHE_CONFIG,
           sizeof(ur_kernel_cache_config_t), nullptr, &KernelCacheConfig);
     }
@@ -2909,19 +2912,18 @@ ur_result_t enqueueReadWriteHostPipe(queue_impl &Queue,
   }
   assert(Program && "Program for this hostpipe is not compiled.");
 
-  const AdapterPtr &Adapter = Queue.getAdapter();
-
+  adapter_impl &Adapter = Queue.getAdapter();
   ur_queue_handle_t ur_q = Queue.getHandleRef();
   ur_result_t Error;
 
   ur_event_handle_t UREvent = nullptr;
   auto OutEvent = OutEventImpl ? &UREvent : nullptr;
   if (read) {
-    Error = Adapter->call_nocheck<UrApiKind::urEnqueueReadHostPipe>(
+    Error = Adapter.call_nocheck<UrApiKind::urEnqueueReadHostPipe>(
         ur_q, Program, PipeName.c_str(), blocking, ptr, size, RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0], OutEvent);
   } else {
-    Error = Adapter->call_nocheck<UrApiKind::urEnqueueWriteHostPipe>(
+    Error = Adapter.call_nocheck<UrApiKind::urEnqueueWriteHostPipe>(
         ur_q, Program, PipeName.c_str(), blocking, ptr, size, RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0], OutEvent);
   }
@@ -2955,8 +2957,8 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   flushCrossQueueDeps(EventImpls);
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   if (!RawEvents.empty()) {
-    MQueue->getAdapter()->call<UrApiKind::urEventWait>(RawEvents.size(),
-                                                       &RawEvents[0]);
+    MQueue->getAdapter().call<UrApiKind::urEventWait>(RawEvents.size(),
+                                                      &RawEvents[0]);
   }
 
   ur_exp_command_buffer_sync_point_t OutSyncPoint{};
@@ -3112,7 +3114,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   case CGType::EnqueueNativeCommand: {
     // Queue is created by graph_impl before creating command to submit to
     // scheduler.
-    const AdapterPtr &Adapter = MQueue->getAdapter();
+    adapter_impl &Adapter = MQueue->getAdapter();
     context_impl &ContextImpl = MQueue->getContextImpl();
     device_impl &DeviceImpl = MQueue->getDeviceImpl();
 
@@ -3129,7 +3131,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     // then passes the handle via a parameter to
     // urCommandBufferAppendNativeCommandExp.
     ur_bool_t DeviceHasSubgraphSupport = false;
-    Adapter->call<UrApiKind::urDeviceGetInfo>(
+    Adapter.call<UrApiKind::urDeviceGetInfo>(
         DeviceImpl.getHandleRef(),
         UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP, sizeof(ur_bool_t),
         &DeviceHasSubgraphSupport, nullptr);
@@ -3141,7 +3143,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
           nullptr /*pnext*/, false /* updatable */, false /* in-order */,
           false /* profilable*/
       };
-      Adapter->call<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
+      Adapter.call<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
           ContextImpl.getHandleRef(), DeviceImpl.getHandleRef(), &Desc,
           &ChildCommandBuffer);
     }
@@ -3190,7 +3192,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     MQueue->setInteropGraph(InteropCommandBuffer);
 #endif
 
-    Adapter->call<UrApiKind::urCommandBufferAppendNativeCommandExp>(
+    Adapter.call<UrApiKind::urCommandBufferAppendNativeCommandExp>(
         MCommandBuffer, CommandBufferInteropFreeFunc, &CustomOpData,
         ChildCommandBuffer, MSyncPointDeps.size(),
         MSyncPointDeps.empty() ? nullptr : MSyncPointDeps.data(),
@@ -3202,9 +3204,10 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
 #endif
 
     if (ChildCommandBuffer) {
-      ur_result_t Res = Adapter->call_nocheck<
-          sycl::detail::UrApiKind::urCommandBufferReleaseExp>(
-          ChildCommandBuffer);
+      ur_result_t Res =
+          Adapter
+              .call_nocheck<sycl::detail::UrApiKind::urCommandBufferReleaseExp>(
+                  ChildCommandBuffer);
       (void)Res;
       assert(Res == UR_RESULT_SUCCESS);
     }
@@ -3585,15 +3588,15 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     ur_bool_t NativeCommandSupport = false;
     assert(MQueue && "Native command should have an associated queue");
-    auto &Adapter = MQueue->getAdapter();
-    Adapter->call<UrApiKind::urDeviceGetInfo>(
+    adapter_impl &Adapter = MQueue->getAdapter();
+    Adapter.call<UrApiKind::urDeviceGetInfo>(
         detail::getSyclObjImpl(MQueue->get_device())->getHandleRef(),
         UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP,
         sizeof(NativeCommandSupport), &NativeCommandSupport, nullptr);
     assert(NativeCommandSupport && "ext_codeplay_enqueue_native_command is not "
                                    "supported on this device");
     if (auto Result =
-            Adapter->call_nocheck<UrApiKind::urEnqueueNativeCommandExp>(
+            Adapter.call_nocheck<UrApiKind::urEnqueueNativeCommandExp>(
                 MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData,
                 ReqMems.size(), ReqMems.data(), nullptr, RawEvents.size(),
                 RawEvents.data(), Event);
@@ -3616,7 +3619,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         ext::oneapi::experimental::event_mode_enum::low_power)
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
-    const AdapterPtr &Adapter = MQueue->getAdapter();
+    adapter_impl &Adapter = MQueue->getAdapter();
     // User can specify explicit dependencies via depends_on call that we should
     // honor here. It is very important for cross queue dependencies. We wait
     // them explicitly since barrier w/o wait list waits for all commands
@@ -3624,13 +3627,13 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     // Output event for wait operation is not requested since barrier is
     // submitted immediately after and should synchronize it internally.
     if (RawEvents.size()) {
-      auto Result = Adapter->call_nocheck<UrApiKind::urEnqueueEventsWait>(
+      auto Result = Adapter.call_nocheck<UrApiKind::urEnqueueEventsWait>(
           MQueue->getHandleRef(), RawEvents.size(), &RawEvents[0], nullptr);
       if (Result != UR_RESULT_SUCCESS)
         return Result;
     }
     if (auto Result =
-            Adapter->call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+            Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, 0, nullptr, Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
@@ -3660,7 +3663,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         ext::oneapi::experimental::event_mode_enum::low_power)
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
-    const AdapterPtr &Adapter = MQueue->getAdapter();
+    adapter_impl &Adapter = MQueue->getAdapter();
     // User can specify explicit dependencies via depends_on call that we should
     // honor here. It is very important for cross queue dependencies. Adding
     // them to the barrier wait list since barrier w/ wait list waits only for
@@ -3668,7 +3671,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     UrEvents.insert(UrEvents.end(), RawEvents.begin(), RawEvents.end());
 
     if (auto Result =
-            Adapter->call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+            Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, UrEvents.size(),
                 &UrEvents[0], Event);
         Result != UR_RESULT_SUCCESS)
@@ -3679,7 +3682,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   }
   case CGType::ProfilingTag: {
     assert(MQueue && "Profiling tag requires a valid queue");
-    const auto &Adapter = MQueue->getAdapter();
+    adapter_impl &Adapter = MQueue->getAdapter();
 
     bool IsInOrderQueue = MQueue->isInOrder();
     ur_event_handle_t *TimestampDeps = nullptr;
@@ -3696,7 +3699,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       // FIXME: urEnqueueEventsWait on the L0 adapter requires a double-release.
       //        Use that instead once it has been fixed.
       //        See https://github.com/oneapi-src/unified-runtime/issues/2347.
-      Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+      Adapter.call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
           MQueue->getHandleRef(),
           /*num_events_in_wait_list=*/0,
           /*event_wait_list=*/nullptr, &PreTimestampMarkerEvent);
@@ -3704,7 +3707,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       NumTimestampDeps = 1;
     }
 
-    Adapter->call<UrApiKind::urEnqueueTimestampRecordingExp>(
+    Adapter.call<UrApiKind::urEnqueueTimestampRecordingExp>(
         MQueue->getHandleRef(),
         /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
 
@@ -3713,16 +3716,16 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     // enqueue is blocked until it finishes.
     if (!IsInOrderQueue) {
       // We also need to release the timestamp event from the marker.
-      Adapter->call<UrApiKind::urEventRelease>(PreTimestampMarkerEvent);
+      Adapter.call<UrApiKind::urEventRelease>(PreTimestampMarkerEvent);
       // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we do
       //        not pass an output event to the UR call. Once that is fixed,
       //        this immediately-deleted event can be removed.
       ur_event_handle_t PostTimestampBarrierEvent{};
-      Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+      Adapter.call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
           MQueue->getHandleRef(),
           /*num_events_in_wait_list=*/0,
           /*event_wait_list=*/nullptr, &PostTimestampBarrierEvent);
-      Adapter->call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
+      Adapter.call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
     }
 
     SetEventHandleOrDiscard();
@@ -3775,7 +3778,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
     if (auto Result =
             MQueue->getAdapter()
-                ->call_nocheck<UrApiKind::urEnqueueCommandBufferExp>(
+                .call_nocheck<UrApiKind::urEnqueueCommandBufferExp>(
                     MQueue->getHandleRef(), CmdBufferCG->MCommandBuffer,
                     RawEvents.size(),
                     RawEvents.empty() ? nullptr : &RawEvents[0], Event);
@@ -3806,12 +3809,12 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     assert(MQueue &&
            "Semaphore wait submissions should have an associated queue");
     CGSemaphoreWait *SemWait = (CGSemaphoreWait *)MCommandGroup.get();
-    const detail::AdapterPtr &Adapter = MQueue->getAdapter();
+    detail::adapter_impl &Adapter = MQueue->getAdapter();
     auto OptWaitValue = SemWait->getWaitValue();
     uint64_t WaitValue = OptWaitValue.has_value() ? OptWaitValue.value() : 0;
 
     return Adapter
-        ->call_nocheck<UrApiKind::urBindlessImagesWaitExternalSemaphoreExp>(
+        .call_nocheck<UrApiKind::urBindlessImagesWaitExternalSemaphoreExp>(
             MQueue->getHandleRef(), SemWait->getExternalSemaphore(),
             OptWaitValue.has_value(), WaitValue, 0, nullptr, nullptr);
   }
@@ -3819,12 +3822,12 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     assert(MQueue &&
            "Semaphore signal submissions should have an associated queue");
     CGSemaphoreSignal *SemSignal = (CGSemaphoreSignal *)MCommandGroup.get();
-    const detail::AdapterPtr &Adapter = MQueue->getAdapter();
+    detail::adapter_impl &Adapter = MQueue->getAdapter();
     auto OptSignalValue = SemSignal->getSignalValue();
     uint64_t SignalValue =
         OptSignalValue.has_value() ? OptSignalValue.value() : 0;
     return Adapter
-        ->call_nocheck<UrApiKind::urBindlessImagesSignalExternalSemaphoreExp>(
+        .call_nocheck<UrApiKind::urBindlessImagesSignalExternalSemaphoreExp>(
             MQueue->getHandleRef(), SemSignal->getExternalSemaphore(),
             OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
   }
@@ -3845,11 +3848,11 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::AsyncFree: {
     assert(MQueue && "Async free submissions should have an associated queue");
     CGAsyncFree *AsyncFree = (CGAsyncFree *)MCommandGroup.get();
-    const detail::AdapterPtr &Adapter = MQueue->getAdapter();
+    detail::adapter_impl &Adapter = MQueue->getAdapter();
     void *ptr = AsyncFree->getPtr();
 
     if (auto Result =
-            Adapter->call_nocheck<sycl::detail::UrApiKind::urEnqueueUSMFreeExp>(
+            Adapter.call_nocheck<sycl::detail::UrApiKind::urEnqueueUSMFreeExp>(
                 MQueue->getHandleRef(), nullptr, ptr, RawEvents.size(),
                 RawEvents.data(), Event);
         Result != UR_RESULT_SUCCESS)
@@ -3867,9 +3870,9 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       return UR_RESULT_SUCCESS;
     }
     assert(MQueue && "Empty node should have an associated queue");
-    const detail::AdapterPtr &Adapter = MQueue->getAdapter();
+    detail::adapter_impl &Adapter = MQueue->getAdapter();
     ur_event_handle_t Event;
-    if (auto Result = Adapter->call_nocheck<UrApiKind::urEnqueueEventsWait>(
+    if (auto Result = Adapter.call_nocheck<UrApiKind::urEnqueueEventsWait>(
             MQueue->getHandleRef(), RawEvents.size(),
             RawEvents.size() ? &RawEvents[0] : nullptr, &Event);
         Result != UR_RESULT_SUCCESS)
