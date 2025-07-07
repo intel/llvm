@@ -117,10 +117,13 @@ TEST_P(urEnqueueUSMMemcpyTest, NonBlocking) {
   ASSERT_SUCCESS(urEventWait(1, &memset_event));
   ASSERT_TRUE(memsetHasFinished());
   ur_event_handle_t memcpy_event = nullptr;
+  // printf("in test\n");
   ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, device_dst, device_src,
                                     allocation_size, 0, nullptr,
                                     &memcpy_event));
+  // printf("enqueued memcpy\n");
   ASSERT_SUCCESS(urEventWait(1, &memcpy_event));
+  // printf("can't wait\n");
   ASSERT_SUCCESS(urEventRelease(memcpy_event));
 
   ASSERT_NO_FATAL_FAILURE(verifyData());
