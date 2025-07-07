@@ -487,20 +487,32 @@ function(add_libclc_builtin_set)
       DEPENDS ${builtins_opt_lib} ${builtins_opt_lib_tgt} ${prepare_builtins_target} )
   endif()
 
-  process_bc(${ARG_ARCH_SUFFIX}.bc
-    LIB_TGT ${builtins_opt_lib_tgt}
-    IN_FILE ${builtins_link_lib}
-    OUT_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
-    OPT_FLAGS ${ARG_OPT_FLAGS}
-    DEPENDENCIES ${builtins_link_lib_tgt} ${LIBCLC_LIBRARY_OUTPUT_INTDIR})
+  # Add a 'prepare' target
+  add_custom_target( prepare-${obj_suffix} ALL DEPENDS ${obj_suffix} )
+  set_target_properties( "prepare-${obj_suffix}" PROPERTIES FOLDER "libclc/Device IR/Prepare" )
 
   # Add dependency to top-level pseudo target to ease making other
   # targets dependent on libclc.
-  set( obj_suffix ${ARG_ARCH_SUFFIX}.bc )
   add_dependencies(${ARG_PARENT_TARGET} prepare-${obj_suffix})
-  set( builtins_lib $<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE> )
+  set( builtins_lib ${obj_suffix} )
 
-  install( FILES ${builtins_lib} DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
+  # Also add a 'prepare' target for the triple. Since a triple may have
+  # multiple devices, ensure we only try to create the triple target once. The
+  # triple's target will build all of the bytecode for its constituent devices.
+  if( NOT TARGET prepare-${ARG_TRIPLE} )
+    add_custom_target( prepare-${ARG_TRIPLE} ALL )
+  endif()
+  add_dependencies( prepare-${ARG_TRIPLE} prepare-${obj_suffix} )
+
+  install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/${obj_suffix}
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/clc"
+  )
+
+  # SPIR-V targets can exit early here
+  if( ARG_ARCH STREQUAL spirv OR ARG_ARCH STREQUAL spirv64 )
+    return()
+  endif()
 
   # Generate remangled variants if requested
   if( ARG_REMANGLE )
@@ -570,24 +582,6 @@ function(add_libclc_builtin_set)
     endforeach()
   endif()
 
-  # Also add a 'prepare' target for the triple. Since a triple may have
-  # multiple devices, ensure we only try to create the triple target once. The
-  # triple's target will build all of the bytecode for its constituent devices.
-  if( NOT TARGET prepare-${ARG_TRIPLE} )
-    add_custom_target( prepare-${ARG_TRIPLE} ALL )
-  endif()
-  add_dependencies( prepare-${ARG_TRIPLE} prepare-${obj_suffix} )
-
-  install(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/${obj_suffix}
-    DESTINATION "${CMAKE_INSTALL_DATADIR}/clc"
-  )
-
-  # SPIR-V targets can exit early here
-  if( ARG_ARCH STREQUAL spirv OR ARG_ARCH STREQUAL spirv64 )
-    return()
-  endif()
-
   # Add a test for whether or not the libraries contain unresolved calls which
   # would usually indicate a build problem. Note that we don't perform this
   # test for all libclc targets:
@@ -595,7 +589,7 @@ function(add_libclc_builtin_set)
   # * clspv targets don't include all OpenCL builtins
   if( NOT ARG_ARCH MATCHES "^(nvptx|clspv)(64)?$" )
     add_test( NAME external-calls-${obj_suffix}
-      COMMAND ./check_external_calls.sh ${builtins-lib}
+      COMMAND ./check_external_calls.sh ${builtins_lib}
       WORKING_DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR} )
     set_tests_properties( external-calls-${obj_suffix}
       PROPERTIES ENVIRONMENT "LLVM_CONFIG=${LLVM_CONFIG}" )
