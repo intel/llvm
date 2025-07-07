@@ -53,6 +53,7 @@ class Options:
     timeout: float = 600
     iterations: int = 3
     verbose: bool = False
+    save_name: str = None
     compare: Compare = Compare.LATEST
     compare_max: int = 10  # average/median over how many results
     output_markdown: MarkdownSize = MarkdownSize.SHORT
@@ -69,7 +70,7 @@ class Options:
     current_run_name: str = "This PR"
     preset: str = "Full"
     build_jobs: int = multiprocessing.cpu_count()
-    unitrace: bool = False
+    unitrace_only: bool = False
     unitrace_inclusive: bool = False
     unitrace_res_dir: str = None
 

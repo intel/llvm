@@ -12,6 +12,12 @@
 #    if rungraph is True, both direct and graph execution modes will be run for the benchmark
 #    if False, only direct execution mode will be run
 
+unitrace_exclusion_list = [
+    "onednn-graph-sdpa-plain-f32-eager",
+    "onednn-graph-sdpa-plain-f32-graph",
+]
+
+
 # the final choice of benchmarks to run, used in CI and other environments
 benches_final_set = [
     [
@@ -62,6 +68,7 @@ benches_final_set = [
         "graph",
         "sdpa-plain-f16",
         "--reset --dt=f16 --case=complex_fusion/mha/sdpa-plain-implicit-causal-mask-fp32-bs1.json",
+        False,  # Do not run SYCL graph for this benchmark
     ],
     [
         "graph",

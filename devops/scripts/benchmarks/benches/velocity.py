@@ -288,7 +288,7 @@ class QuickSilver(VelocityBase):
     def __init__(self, vb: VelocityBench):
         super().__init__("QuickSilver", "qs", vb, "MMS/CTT")
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, unitrace_timestamp: str = None) -> list[Result]:
         # TODO: fix the crash in QuickSilver when UR_L0_USE_IMMEDIATE_COMMANDLISTS=0
         if (
             "UR_L0_USE_IMMEDIATE_COMMANDLISTS" in env_vars
@@ -296,7 +296,7 @@ class QuickSilver(VelocityBase):
         ):
             return None
 
-        return super().run(env_vars)
+        return super().run(env_vars, unitrace_timestamp=unitrace_timestamp)
 
     def name(self):
         return "Velocity-Bench QuickSilver"

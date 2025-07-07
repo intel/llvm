@@ -12,7 +12,7 @@ from utils.result import BenchmarkMetadata, BenchmarkTag, Result
 from options import options
 from utils.utils import download, run
 from abc import ABC, abstractmethod
-import glob
+import utils.unitrace as unitrace
 
 benchmark_tags = [
     BenchmarkTag("SYCL", "Benchmark uses SYCL runtime"),
@@ -71,9 +71,7 @@ class Benchmark(ABC):
         pass
 
     @abstractmethod
-    def run(
-        self, env_vars, unitrace_timestamp: str = None
-    ) -> list[Result]:
+    def run(self, env_vars, unitrace_timestamp: str = None) -> list[Result]:
         pass
 
     @staticmethod
@@ -110,42 +108,27 @@ class Benchmark(ABC):
         ld_libraries.extend(ld_library)
 
         if unitrace_timestamp is not None:
-            unitrace_bin = os.path.join(options.workdir, "unitrace-build", "unitrace")
-            if not os.path.exists(unitrace_bin):
-                raise FileNotFoundError(f"Unitrace binary not found: {unitrace_bin}. ")
-            if not os.path.exists(options.unitrace_res_dir):
-                os.makedirs(options.unitrace_res_dir)
-            bench_dir = f"{options.unitrace_res_dir}/{self.name()}"
-            os.makedirs(bench_dir, exist_ok=True)
-
-            unitrace_output = f"{bench_dir}/{self.name()}_{unitrace_timestamp}"
-            command = (
-                [
-                    str(unitrace_bin),
-                    "--call-logging",
-                    "--host-timing",
-                    "--chrome-sycl-logging",
-                    "--chrome-call-logging",
-                    "--chrome-kernel-logging",
-                    "--output",
-                    unitrace_output,
-                ]
-                + extra_unitrace_opt
-                + command
+            bench_dir, unitrace_output, command = unitrace.unitrace_prepare(
+                self.name(), unitrace_timestamp, command, extra_unitrace_opt
             )
-            if options.verbose:
-                print(f"Unitrace cmd: {' '.join(command)}")
 
-        result = run(
-            command=command,
-            env_vars=env_vars,
-            add_sycl=add_sycl,
-            cwd=options.benchmark_cwd,
-            ld_library=ld_libraries,
-        )
+        try:
+            result = run(
+                command=command,
+                env_vars=env_vars,
+                add_sycl=add_sycl,
+                cwd=options.benchmark_cwd,
+                ld_library=ld_libraries,
+            )
+        except subprocess.CalledProcessError as e:
+            if unitrace_timestamp is not None:
+                unitrace.unitrace_cleanup(options.benchmark_cwd, unitrace_output)
+            raise
 
         if unitrace_timestamp is not None:
-            handle_unitrace_output(bench_dir, unitrace_output, unitrace_timestamp)
+            unitrace.handle_unitrace_output(
+                bench_dir, unitrace_output, unitrace_timestamp
+            )
 
         if use_stdout:
             return result.stdout.decode()
@@ -233,64 +216,3 @@ class Suite(ABC):
 
     def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
         return {}
-
-
-def handle_unitrace_output(bench_dir, unitrace_output, timestamp):
-    FILECNT = 20  # Set your desired max file count
-
-    # 1. Handle unitrace_output.{pid} logs: rename to unitrace_output (remove pid)
-    for f in os.listdir(bench_dir):
-        if f.startswith(os.path.basename(unitrace_output) + "."):
-            parts = f.rsplit(".", 1)
-            if (
-                len(parts) == 2
-                and parts[1].isdigit()
-                and os.path.isfile(os.path.join(bench_dir, f))
-            ):
-                src = os.path.join(bench_dir, f)
-                dst = os.path.join(bench_dir, os.path.basename(unitrace_output))
-                shutil.move(src, dst)
-                break
-
-    # 2. Handle {name}.{pid}.json files: move and rename to {self.name()}.{timestamp}.json
-    pid_json_files = []
-    for f in os.listdir(options.benchmark_cwd):
-        parts = f.split(".")
-        l = len(parts)
-        if len(parts) >= 3 and parts[l - 1] == "json" and parts[l - 2].isdigit():
-            pid_json_files.append(f)
-
-    if len(pid_json_files) == 1:
-        # Extract benchmark name from bench_dir path
-        bench_name = os.path.basename(bench_dir)
-        dst = f"{bench_dir}/{bench_name}_{timestamp}.json"
-        shutil.move(os.path.join(options.benchmark_cwd, pid_json_files[0]), dst)
-    elif len(pid_json_files) > 1:
-        print(
-            f"Warning: Found {len(pid_json_files)} files matching the pattern. Expected 1."
-        )
-
-    # Count files in the dir and remove oldest if more than FILECNT
-    def extract_timestamp_from_name(filename):
-        # Example: onednn-sum-padding-2-graph_20250701_114551
-        base = os.path.basename(filename)
-        parts = base.rsplit("_", 1)
-        if len(parts) == 2:
-            ts = parts[1]
-            # Remove extension if present (for .json files)
-            ts = ts.split(".", 1)[0]
-            return ts
-        return ""
-
-    files = glob.glob(f"{bench_dir}/*")
-    files_with_ts = []
-    for f in files:
-        ts = extract_timestamp_from_name(f)
-        files_with_ts.append((f, ts))
-    # Sort by timestamp string (lexicographically, which works for YYYYMMDD_HHMMSS)
-    files_with_ts.sort(key=lambda x: x[1])
-    sorted_files = [f for f, ts in files_with_ts if ts]
-
-    if len(sorted_files) > FILECNT:
-        for f in sorted_files[: len(sorted_files) - FILECNT]:
-            os.remove(f)

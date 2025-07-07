@@ -85,9 +85,7 @@ def run_iterations(
             print(f"running {benchmark.name()} with Unitrace", flush=True)
         else:
             print(f"running {benchmark.name()}, iteration {iter}... ", flush=True)
-        bench_results = benchmark.run(
-            env_vars, unitrace_timestamp=unitrace_timestamp
-        )
+        bench_results = benchmark.run(env_vars, unitrace_timestamp=unitrace_timestamp)
         if bench_results is None:
             failures[benchmark.name()] = "benchmark produced no results!"
             break
@@ -201,10 +199,10 @@ def collect_metadata(suites):
     return metadata
 
 
-def main(directory, additional_env_vars, save_name, compare_names, filter):
+def main(directory, additional_env_vars, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
-    if options.unitrace or options.unitrace_inclusive:
+    if options.unitrace_only or options.unitrace_inclusive:
         print("Downloading and building Unitrace...")
         download_and_build_unitrace(options.workdir)
         if options.results_directory_override == None:
@@ -294,7 +292,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             merged_env_vars = {**additional_env_vars}
             intermediate_results: dict[str, list[Result]] = {}
             processed: list[Result] = []
-            if not options.unitrace:
+            # regular run of the benchmark
+            if not options.unitrace_only:
                 for _ in range(options.iterations_stddev):
                     run_iterations(
                         benchmark,
@@ -309,8 +308,9 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
                     )
                     if valid:
                         break
-            if options.unitrace_inclusive or options.unitrace:
-                # run the benchmark with unitrace
+            # unitrace run of the benchmark
+            if options.unitrace_inclusive or options.unitrace_only:
+                # set the timestamp to enable unitrace run and save results with proper file names
                 run_iterations(
                     benchmark,
                     merged_env_vars,
@@ -375,13 +375,13 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             f"Markdown with benchmark results has been written to {md_path}/benchmark_results.md"
         )
 
-    saved_name = save_name if save_name is not None else this_name
+    saved_name = options.save_name if options.save_name is not None else this_name
 
     # It's important we don't save the current results into history before
     # we calculate historical averages or get latest results for compare.
     # Otherwise we might be comparing the results to themselves.
     if not options.dry_run:
-        history.save(saved_name, timestamp, results, save_name is not None)
+        history.save(saved_name, timestamp, results, options.save_name is not None)
         if saved_name not in compare_names:
             compare_names.append(saved_name)
 
@@ -673,6 +673,7 @@ if __name__ == "__main__":
     options.ur = args.ur
     options.ur_adapter = args.adapter
     options.exit_on_failure = args.exit_on_failure
+    options.save_name = args.save
     options.compare = Compare(args.compare_type)
     options.compare_max = args.compare_max
     options.output_markdown = args.output_markdown
@@ -688,7 +689,7 @@ if __name__ == "__main__":
     options.results_directory_override = args.results_dir
     options.build_jobs = args.build_jobs
     options.hip_arch = args.hip_arch
-    options.unitrace = args.unitrace
+    options.unitrace_only = args.unitrace
     options.unitrace_inclusive = args.unitrace_inclusive
 
     if args.build_igc and args.compute_runtime is None:
@@ -744,7 +745,6 @@ if __name__ == "__main__":
     main(
         args.benchmark_directory,
         additional_env_vars,
-        args.save,
         args.compare,
         benchmark_filter,
     )

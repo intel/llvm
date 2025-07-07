@@ -224,6 +224,71 @@ def parse_unit_type(compute_unit):
 
 
 class ComputeBenchmark(Benchmark):
+
+    # list of benchmarks to exclude from unitrace due to SIGSEGV, SIGABRT or timeouts
+    unitrace_exclusion_list = [
+        "api_overhead_benchmark_l0 SubmitKernel in order not using events KernelExecTime=20",
+        "api_overhead_benchmark_l0 SubmitKernel in order not using events",
+        "api_overhead_benchmark_l0 SubmitKernel in order with measure completion not using events KernelExecTime=20",
+        "api_overhead_benchmark_l0 SubmitKernel in order with measure completion not using events",
+        "api_overhead_benchmark_sycl SubmitKernel in order not using events KernelExecTime=20",
+        "api_overhead_benchmark_sycl SubmitKernel in order not using events",
+        "api_overhead_benchmark_sycl SubmitKernel in order with measure completion not using events KernelExecTime=20",
+        "api_overhead_benchmark_sycl SubmitKernel in order with measure completion not using events",
+        "api_overhead_benchmark_syclpreview SubmitKernel in order not using events KernelExecTime=20",
+        "api_overhead_benchmark_syclpreview SubmitKernel in order not using events",
+        "api_overhead_benchmark_syclpreview SubmitKernel in order with measure completion not using events KernelExecTime=20",
+        "api_overhead_benchmark_syclpreview SubmitKernel in order with measure completion not using events",
+        "api_overhead_benchmark_ur SubmitKernel in order not using events KernelExecTime=20",
+        "api_overhead_benchmark_ur SubmitKernel in order not using events",
+        "api_overhead_benchmark_ur SubmitKernel in order with measure completion not using events KernelExecTime=20",
+        "api_overhead_benchmark_ur SubmitKernel in order with measure completion not using events",
+        "api_overhead_benchmark_ur SubmitKernel out of order not using events KernelExecTime=20",
+        "api_overhead_benchmark_ur SubmitKernel out of order not using events",
+        "api_overhead_benchmark_ur SubmitKernel out of order with measure completion not using events KernelExecTime=20",
+        "api_overhead_benchmark_ur SubmitKernel out of order with measure completion not using events",
+        "graph_api_benchmark_l0 SinKernelGraph graphs:0, numKernels:5",
+        "graph_api_benchmark_l0 SinKernelGraph graphs:0, numKernels:100",
+        "graph_api_benchmark_l0 SinKernelGraph graphs:1, numKernels:5",
+        "graph_api_benchmark_l0 SinKernelGraph graphs:1, numKernels:100",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:10 ioq 0 measureCompletion 0",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:10 ioq 0 measureCompletion 1",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:10 ioq 1 measureCompletion 0",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:10 ioq 1 measureCompletion 1",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:32 ioq 0 measureCompletion 0",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:32 ioq 0 measureCompletion 1",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:32 ioq 1 measureCompletion 0",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:32 ioq 1 measureCompletion 1",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:4 ioq 0 measureCompletion 0",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:4 ioq 0 measureCompletion 1",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:4 ioq 1 measureCompletion 0",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:4 ioq 1 measureCompletion 1",
+        "graph_api_benchmark_sycl FinalizeGraph rebuildGraphEveryIter:0 graphStructure:Gromacs",
+        "graph_api_benchmark_sycl FinalizeGraph rebuildGraphEveryIter:0 graphStructure:Llama",
+        "graph_api_benchmark_sycl FinalizeGraph rebuildGraphEveryIter:1 graphStructure:Gromacs",
+        "graph_api_benchmark_sycl FinalizeGraph rebuildGraphEveryIter:1 graphStructure:Llama",
+        "graph_api_benchmark_ur SinKernelGraph graphs:0, numKernels:100",
+        "graph_api_benchmark_ur SinKernelGraph graphs:0, numKernels:5",
+        "graph_api_benchmark_ur SinKernelGraph graphs:1, numKernels:100",
+        "graph_api_benchmark_ur SinKernelGraph graphs:1, numKernels:5",
+        "graph_api_benchmark_ur SubmitGraph numKernels:4 ioq 1 measureCompletion 0",
+        "graph_api_benchmark_ur SubmitGraph numKernels:4 ioq 1 measureCompletion 1",
+        "graph_api_benchmark_ur SubmitGraph numKernels:10 ioq 0 measureCompletion 0",
+        "graph_api_benchmark_ur SubmitGraph numKernels:10 ioq 0 measureCompletion 1",
+        "graph_api_benchmark_ur SubmitGraph numKernels:32 ioq 0 measureCompletion 0",
+        "graph_api_benchmark_ur SubmitGraph numKernels:32 ioq 0 measureCompletion 1",
+        "graph_api_benchmark_ur SubmitGraph numKernels:32 ioq 1 measureCompletion 0",
+        "graph_api_benchmark_ur SubmitGraph numKernels:32 ioq 1 measureCompletion 1",
+        "multithread_benchmark_ur MemcpyExecute opsPerThread:400, numThreads:1, allocSize:102400 srcUSM:1 dstUSM:1",
+        "multithread_benchmark_ur MemcpyExecute opsPerThread:400, numThreads:1, allocSize:102400 srcUSM:0 dstUSM:1",
+        "multithread_benchmark_ur MemcpyExecute opsPerThread:100, numThreads:4, allocSize:102400 srcUSM:1 dstUSM:1 without events",
+        "multithread_benchmark_ur MemcpyExecute opsPerThread:100, numThreads:4, allocSize:102400 srcUSM:1 dstUSM:1 without events without copy offload",
+        "multithread_benchmark_ur MemcpyExecute opsPerThread:4096, numThreads:4, allocSize:1024 srcUSM:0 dstUSM:1 without events",
+        "multithread_benchmark_ur MemcpyExecute opsPerThread:4096, numThreads:4, allocSize:1024 srcUSM:0 dstUSM:1 without events with barrier",
+        "memory_benchmark_sycl StreamMemory, placement Device, type Triad, size 10240",
+        "miscellaneous_benchmark_sycl VectorSum",
+    ]
+
     def __init__(self, bench, name, test, runtime: RUNTIMES = None):
         super().__init__(bench.directory, bench)
         self.bench = bench
@@ -290,6 +355,9 @@ class ComputeBenchmark(Benchmark):
 
         command += self.bin_args()
         env_vars.update(self.extra_env_vars())
+
+        if self.name() in self.unitrace_exclusion_list:
+            unitrace_timestamp = None
 
         result = self.run_bench(
             command, env_vars, unitrace_timestamp=unitrace_timestamp

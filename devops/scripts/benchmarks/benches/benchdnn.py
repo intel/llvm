@@ -9,7 +9,7 @@ from options import options
 from utils.utils import git_clone, run, create_build_path
 from utils.result import Result
 from utils.oneapi import get_oneapi
-from .benchdnn_list import get_bench_dnn_list
+from .benchdnn_list import get_bench_dnn_list, unitrace_exclusion_list
 
 
 class OneDnnBench(Suite):
@@ -143,6 +143,13 @@ class OneDnnBenchmark(Benchmark):
 
         env_vars = dict(env_vars) if env_vars else {}
         env_vars["ONEAPI_DEVICE_SELECTOR"] = "level_zero:*"
+
+        if self.name() in unitrace_exclusion_list:
+            if options.verbose:
+                print(
+                    f"[{self.name()}] Skipping benchmark due to unitrace exclusion list."
+                )
+            unitrace_timestamp = None
 
         output = self.run_bench(
             command,
