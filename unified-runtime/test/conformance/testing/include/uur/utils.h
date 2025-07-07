@@ -489,6 +489,30 @@ getDriverVersion(ur_device_handle_t hDevice) {
     }                                                                          \
   } while (0)
 
+#define SKIP_IF_BATCHED_QUEUE(queue)                                           \
+  do {                                                                         \
+    ur_queue_flags_t queueFlags{};                                             \
+    ASSERT_EQ(urQueueGetInfo(queue, UR_QUEUE_INFO_FLAGS,                       \
+                             sizeof(ur_queue_flags_t), &queueFlags, nullptr),  \
+              UR_RESULT_SUCCESS);                                              \
+                                                                               \
+    if (queueFlags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) {                       \
+      UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});                                \
+    }                                                                          \
+  } while (0)
+
+inline void isQueueBatched(ur_queue_handle_t queue, bool *info) {
+  ur_queue_flags_t queueFlags{};
+  ASSERT_EQ(urQueueGetInfo(queue, UR_QUEUE_INFO_FLAGS, sizeof(ur_queue_flags_t),
+                           &queueFlags, nullptr),
+            UR_RESULT_SUCCESS);
+  if (queueFlags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) {
+    *info = true;
+  } else {
+    *info = false;
+  }
+}
+
 // Is this a Data Center GPU Max series (aka PVC)?
 // TODO: change to use
 // https://spec.oneapi.io/level-zero/latest/core/api.html#ze-device-ip-version-ext-t

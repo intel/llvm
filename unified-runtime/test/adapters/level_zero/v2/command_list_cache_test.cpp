@@ -15,6 +15,7 @@
 
 #include "uur/fixtures.h"
 #include "uur/raii.h"
+#include "uur/utils.h"
 
 #include <gtest/gtest.h>
 #include <map>
@@ -186,6 +187,7 @@ TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
 TEST_P(CommandListCacheTest, CommandListsAreReusedByQueues) {
   static constexpr int NumQueuesPerType = 5;
   size_t NumUniqueQueueTypes = 0;
+  bool isBatched = false;
 
   for (int I = 0; I < NumQueuesPerType; I++) {
     NumUniqueQueueTypes = 0;
@@ -216,6 +218,8 @@ TEST_P(CommandListCacheTest, CommandListsAreReusedByQueues) {
           ASSERT_EQ(urQueueCreate(context, device, &QueueProps, Queue.ptr()),
                     UR_RESULT_SUCCESS);
 
+          ASSERT_NO_FATAL_FAILURE(uur::isQueueBatched(Queue, &isBatched));
+
           Queues.emplace_back(Queue);
         }
       }
@@ -227,7 +231,13 @@ TEST_P(CommandListCacheTest, CommandListsAreReusedByQueues) {
 
     ASSERT_EQ(context->getCommandListCache().getNumImmediateCommandLists(),
               NumUniqueQueueTypes);
-    ASSERT_EQ(context->getCommandListCache().getNumRegularCommandLists(), 0);
+
+    if (isBatched) {
+      ASSERT_EQ(context->getCommandListCache().getNumRegularCommandLists(),
+                NumUniqueQueueTypes);
+    } else {
+      ASSERT_EQ(context->getCommandListCache().getNumRegularCommandLists(), 0);
+    }
   }
 }
 
