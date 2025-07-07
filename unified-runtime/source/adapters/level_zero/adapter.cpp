@@ -258,6 +258,51 @@ ur_result_t adapterStateInit() {
   return UR_RESULT_SUCCESS;
 }
 
+static bool isBMGorNewer() {
+  auto urResult = checkDeviceIntelGPUIpVersionOrNewer(0x05004000);
+  if (urResult != UR_RESULT_SUCCESS &&
+      urResult != UR_RESULT_ERROR_UNSUPPORTED_VERSION) {
+    UR_LOG(ERR, "Intel GPU IP Version check failed: {}\n", urResult);
+    throw urResult;
+  }
+
+  return urResult == UR_RESULT_SUCCESS;
+}
+
+// returns a pair indicating whether to use the V1 adapter and a string
+// indicating the reason for the decision.
+static std::pair<bool, std::string> shouldUseV1Adapter() {
+  auto specificAdapterVersionRequested =
+      ur_getenv("UR_LOADER_USE_LEVEL_ZERO_V2").has_value() ||
+      ur_getenv("SYCL_UR_USE_LEVEL_ZERO_V2").has_value();
+
+  auto v2Requested = getenv_tobool("UR_LOADER_USE_LEVEL_ZERO_V2", false);
+  v2Requested |= getenv_tobool("SYCL_UR_USE_LEVEL_ZERO_V2", false);
+
+  std::string reason =
+      specificAdapterVersionRequested
+          ? "Specific adapter version requested by UR_LOADER_USE_LEVEL_ZERO_V2 "
+            "or SYCL_UR_USE_LEVEL_ZERO_V2"
+          : "Using default adapter version based on device IP version";
+
+  if (v2Requested) {
+    return {false, reason};
+  }
+
+  if (!v2Requested && specificAdapterVersionRequested) {
+    // v1 specifically requested
+    return {true, reason};
+  }
+
+  // default: only enable for devices older than BMG
+  return {!isBMGorNewer(), reason};
+}
+
+static std::pair<bool, std::string> shouldUseV2Adapter() {
+  auto [useV1, reason] = shouldUseV1Adapter();
+  return {!useV1, reason};
+}
+
 /*
 This constructor initializes the `ur_adapter_handle_t_` object and
 sets up the environment for Level Zero (L0) initialization.
@@ -475,6 +520,22 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
       return;
     }
+
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    auto [useV2, reason] = shouldUseV2Adapter();
+    if (!useV2) {
+      UR_LOG(INFO, "Skipping L0 V2 adapter: {}", reason);
+      result = std::move(platforms);
+      return;
+    }
+#else
+    auto [useV1, reason] = shouldUseV1Adapter();
+    if (!useV1) {
+      UR_LOG(INFO, "Skipping L0 V1 adapter: {}", reason);
+      result = std::move(platforms);
+      return;
+    }
+#endif
 
     // Check if the user has enabled the default L0 SysMan initialization.
     const int UrSysmanZesinitEnable = [&UserForcedSysManInit] {
