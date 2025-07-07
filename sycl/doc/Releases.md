@@ -1,7 +1,7 @@
 # Releases at intel/llvm
 
 intel/llvm provides a few ways for you to get SYCL compiler and this
-page is intended to document them, provide links and instructions
+page is intended to document them as well as provide links and instructions
 how to you use them.
 
 ## Nightly builds
@@ -10,18 +10,18 @@ The project is being built and tested every night and those builds
 are published on GitHub as `nightly-YYYY-MM-DD` tags.
 
 Those builds are of **pre-release** quality: they are only suitable
-for early integration and testing of a bleeding edge compiler.
+for early integration and testing of a bleeding-edge compiler.
 
 Because those builds are made from the latest commit available,
 there is no guarantee of any stability of those builds.
 
 Please note that those builds are tailored for our own testing needs
-and therefore they are built with assertions enabled and may have some extra
+and therefore they are built with assertions enabled and may have additional
 dependencies.
 
 ## Official releases
 
-Official release branches are created from time to time to provide
+Official release branches are occasionally created to provide
 stable and validated commits for end users. The list below is
 ordered from the newest to the oldest.
 
