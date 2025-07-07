@@ -320,6 +320,11 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
     setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
   }
 
+  if (UrL0LeaksDebug) {
+    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
+    setEnvVar("ZEL_ENABLE_BASIC_LEAK_CHECKER", "1");
+  }
+
   PlatformCache.Compute = [](Result<PlatformVec> &result) {
     uint32_t UserForcedSysManInit = 0;
     // Check if the user has disabled the default L0 Env initialization.
