@@ -578,6 +578,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
                                                           void *pDst,
                                                           const void *pSrc,
                                                           size_t Size) {
-  UR_CHECK_ERROR(cuMemcpyHtoD((CUdeviceptr)pDst, pSrc, Size));
+  UR_CHECK_ERROR(cuMemcpy((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size));
   return UR_RESULT_SUCCESS;
 }
