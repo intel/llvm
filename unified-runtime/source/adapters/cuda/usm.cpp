@@ -94,10 +94,15 @@ urUSMSharedAlloc(ur_context_handle_t, ur_device_handle_t hDevice,
 
 /// USM: Frees the given USM pointer associated with the context.
 ///
-UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
-                                              void *pMem) {
-  (void)hContext; // unused
-  return umf::umf2urResult(umfFree(pMem));
+UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t, void *pMem) {
+  umf_memory_pool_handle_t hPool = NULL;
+  umf_result_t ret = umfPoolByPtr(pMem, &hPool);
+  if (ret == UMF_RESULT_SUCCESS) {
+    return umf::umf2urResult(umfPoolFree(hPool, pMem));
+  } else if (ret == UMF_RESULT_ERROR_INVALID_ARGUMENT) {
+    return mapErrorUR(cuMemFree((CUdeviceptr)pMem));
+  }
+  return umf::umf2urResult(ret);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
