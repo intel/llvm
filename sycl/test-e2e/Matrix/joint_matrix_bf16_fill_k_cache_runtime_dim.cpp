@@ -18,7 +18,7 @@
 
 // Waiting for the commit in IGC to be pulled into the driver to resolve the
 // test.
-// XFAIL: gpu-intel-dg2 && run-mode
+// XFAIL: run-mode && igc-dev
 // XFAIL-TRACKER: GSD-10510
 
 #include "common.hpp"
