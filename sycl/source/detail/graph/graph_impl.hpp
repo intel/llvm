@@ -163,12 +163,6 @@ public:
   /// @return Created node in the graph.
   std::shared_ptr<node_impl> add(nodes_range Deps);
 
-  /// Create an empty node in the graph.
-  /// @param Events List of events associated to this node.
-  /// @return Created node in the graph.
-  std::shared_ptr<node_impl>
-  add(const std::vector<sycl::detail::EventImplPtr> Events);
-
   /// Create a dynamic command-group node in the graph.
   /// @param DynCGImpl Dynamic command-group used to create node.
   /// @param Deps List of predecessor nodes.
@@ -530,12 +524,6 @@ private:
   /// Insert node into list of root nodes.
   /// @param Root Node to add to list of root nodes.
   void addRoot(const std::shared_ptr<node_impl> &Root);
-
-  /// Adds nodes to the exit nodes of this graph.
-  /// @param NodeList List of nodes from sub-graph in schedule order.
-  /// @return An empty node is used to schedule dependencies on this sub-graph.
-  std::shared_ptr<node_impl>
-  addNodesToExits(const std::list<std::shared_ptr<node_impl>> &NodeList);
 
   /// Adds dependencies for a new node, if it has no deps it will be
   /// added as a root node.
