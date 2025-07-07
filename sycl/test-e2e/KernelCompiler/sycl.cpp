@@ -481,7 +481,7 @@ int test_error(sycl::queue q) {
     // yas!
     assert(e.code() == sycl::errc::build);
     assert(std::string(e.what()).find(
-               "error: expected ';' at end of declaration") !=
+               "error: use of undeclared identifier 'no'") !=
            std::string::npos);
   }
   return 0;
