@@ -43,7 +43,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitSingleTaskNoEvent) {
                                             &redefined_urEnqueueKernelLaunch);
 
   oneapiext::submit(Q, [&](handler &CGH) {
-    oneapiext::single_task<TestKernel<>>(CGH, []() {});
+    oneapiext::single_task<TestKernel>(CGH, []() {});
   });
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
@@ -53,7 +53,7 @@ TEST_F(EnqueueFunctionsEventsTests, SingleTaskShortcutNoEvent) {
   mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
                                             &redefined_urEnqueueKernelLaunch);
 
-  oneapiext::single_task<TestKernel<>>(Q, []() {});
+  oneapiext::single_task<TestKernel>(Q, []() {});
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
 }
@@ -64,7 +64,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitSingleTaskKernelNoEvent) {
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
-  auto KID = get_kernel_id<TestKernel<>>();
+  auto KID = get_kernel_id<TestKernel>();
   auto KB = get_kernel_bundle<bundle_state::executable>(
       Q.get_context(), std::vector<kernel_id>{KID});
 
@@ -83,7 +83,7 @@ TEST_F(EnqueueFunctionsEventsTests, SingleTaskShortcutKernelNoEvent) {
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
-  auto KID = get_kernel_id<TestKernel<>>();
+  auto KID = get_kernel_id<TestKernel>();
   auto KB = get_kernel_bundle<bundle_state::executable>(
       Q.get_context(), std::vector<kernel_id>{KID});
 
@@ -101,7 +101,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitRangeParallelForNoEvent) {
                                             &redefined_urEnqueueKernelLaunch);
 
   oneapiext::submit(Q, [&](handler &CGH) {
-    oneapiext::parallel_for<TestKernel<>>(CGH, range<1>{32}, [](item<1>) {});
+    oneapiext::parallel_for<TestKernel>(CGH, range<1>{32}, [](item<1>) {});
   });
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
@@ -111,7 +111,7 @@ TEST_F(EnqueueFunctionsEventsTests, RangeParallelForShortcutNoEvent) {
   mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
                                             &redefined_urEnqueueKernelLaunch);
 
-  oneapiext::parallel_for<TestKernel<>>(Q, range<1>{32}, [](item<1>) {});
+  oneapiext::parallel_for<TestKernel>(Q, range<1>{32}, [](item<1>) {});
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
 }
@@ -122,7 +122,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitRangeParallelForKernelNoEvent) {
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
-  auto KID = get_kernel_id<TestKernel<>>();
+  auto KID = get_kernel_id<TestKernel>();
   auto KB = get_kernel_bundle<bundle_state::executable>(
       Q.get_context(), std::vector<kernel_id>{KID});
 
@@ -142,7 +142,7 @@ TEST_F(EnqueueFunctionsEventsTests, RangeParallelForShortcutKernelNoEvent) {
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
-  auto KID = get_kernel_id<TestKernel<>>();
+  auto KID = get_kernel_id<TestKernel>();
   auto KB = get_kernel_bundle<bundle_state::executable>(
       Q.get_context(), std::vector<kernel_id>{KID});
 
@@ -160,7 +160,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitNDLaunchNoEvent) {
                                             &redefined_urEnqueueKernelLaunch);
 
   oneapiext::submit(Q, [&](handler &CGH) {
-    oneapiext::nd_launch<TestKernel<>>(
+    oneapiext::nd_launch<TestKernel>(
         CGH, nd_range<1>{range<1>{32}, range<1>{32}}, [](nd_item<1>) {});
   });
 
@@ -171,8 +171,8 @@ TEST_F(EnqueueFunctionsEventsTests, NDLaunchShortcutNoEvent) {
   mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
                                             &redefined_urEnqueueKernelLaunch);
 
-  oneapiext::nd_launch<TestKernel<>>(Q, nd_range<1>{range<1>{32}, range<1>{32}},
-                                     [](nd_item<1>) {});
+  oneapiext::nd_launch<TestKernel>(Q, nd_range<1>{range<1>{32}, range<1>{32}},
+                                   [](nd_item<1>) {});
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
 }
@@ -183,7 +183,7 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitNDLaunchKernelNoEvent) {
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
-  auto KID = get_kernel_id<TestKernel<>>();
+  auto KID = get_kernel_id<TestKernel>();
   auto KB = get_kernel_bundle<bundle_state::executable>(
       Q.get_context(), std::vector<kernel_id>{KID});
 
@@ -203,7 +203,7 @@ TEST_F(EnqueueFunctionsEventsTests, NDLaunchShortcutKernelNoEvent) {
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
-  auto KID = get_kernel_id<TestKernel<>>();
+  auto KID = get_kernel_id<TestKernel>();
   auto KB = get_kernel_bundle<bundle_state::executable>(
       Q.get_context(), std::vector<kernel_id>{KID});
 
@@ -380,7 +380,7 @@ TEST_F(EnqueueFunctionsEventsTests, BarrierBeforeHostTask) {
   mock::getCallbacks().set_after_callback(
       "urEnqueueEventsWaitWithBarrier", &after_urEnqueueEventsWaitWithBarrier);
 
-  oneapiext::single_task<TestKernel<>>(Q, []() {});
+  oneapiext::single_task<TestKernel>(Q, []() {});
 
   std::chrono::time_point<std::chrono::steady_clock> HostTaskTimestamp;
   Q.submit([&](handler &CGH) {
