@@ -248,21 +248,26 @@ public:
 
     // Due to a bug in L0, specializations with conflicting IDs will overwrite
     // each other when linked together, so to avoid this issue we link
-    // regular offline-compiled SYCL device images in separation.
+    // images with specialization constants in separation.
     // TODO: Remove when spec const overwriting issue has been fixed in L0.
-    std::vector<const DevImgPlainWithDeps *> OfflineDeviceImages;
+    std::vector<const DevImgPlainWithDeps *> ImagesWithSpecConsts;
     std::unordered_set<std::shared_ptr<device_image_impl>>
-        OfflineDeviceImageSet;
+        ImagesWithSpecConstsSet;
     for (const kernel_bundle<bundle_state::object> &ObjectBundle :
          ObjectBundles) {
       for (const DevImgPlainWithDeps &DeviceImageWithDeps :
            getSyclObjImpl(ObjectBundle)->MDeviceImages) {
-        if (getSyclObjImpl(DeviceImageWithDeps.getMain())->getOriginMask() &
-            ImageOriginSYCLOffline) {
-          OfflineDeviceImages.push_back(&DeviceImageWithDeps);
-          for (const device_image_plain &DevImg : DeviceImageWithDeps)
-            OfflineDeviceImageSet.insert(getSyclObjImpl(DevImg));
-        }
+        if (std::none_of(DeviceImageWithDeps.begin(), DeviceImageWithDeps.end(),
+                         [](const device_image_plain &DevImg) {
+                           const RTDeviceBinaryImage *BinImg =
+                               getSyclObjImpl(DevImg)->get_bin_image_ref();
+                           return BinImg && BinImg->getSpecConstants().size();
+                         }))
+          continue;
+
+        ImagesWithSpecConsts.push_back(&DeviceImageWithDeps);
+        for (const device_image_plain &DevImg : DeviceImageWithDeps)
+          ImagesWithSpecConstsSet.insert(getSyclObjImpl(DevImg));
       }
     }
 
@@ -274,8 +279,8 @@ public:
            ObjectBundles)
         for (const device_image_plain &DevImg :
              getSyclObjImpl(ObjectBundle)->MUniqueDeviceImages)
-          if (OfflineDeviceImageSet.find(getSyclObjImpl(DevImg)) ==
-              OfflineDeviceImageSet.end())
+          if (ImagesWithSpecConstsSet.find(getSyclObjImpl(DevImg)) ==
+              ImagesWithSpecConstsSet.end())
             DevImagesSet.insert(getSyclObjImpl(DevImg));
       DevImages.reserve(DevImagesSet.size());
       for (auto It = DevImagesSet.begin(); It != DevImagesSet.end();)
@@ -391,7 +396,8 @@ public:
     }
 
     // ... And link the offline images in separation. (Workaround.)
-    for (const DevImgPlainWithDeps *DeviceImageWithDeps : OfflineDeviceImages) {
+    for (const DevImgPlainWithDeps *DeviceImageWithDeps :
+         ImagesWithSpecConsts) {
       // Skip images which are not compatible with devices provided
       if (std::none_of(MDevices.begin(), MDevices.end(),
                        [DeviceImageWithDeps](const device &Dev) {

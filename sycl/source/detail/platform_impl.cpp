@@ -32,7 +32,7 @@ namespace detail {
 
 platform_impl &
 platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
-                                     const adapter_impl &Adapter) {
+                                     adapter_impl &Adapter) {
   std::shared_ptr<platform_impl> Result;
   {
     const std::lock_guard<std::mutex> Guard(
@@ -50,8 +50,8 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
     // Otherwise make the impl. Our ctor/dtor are private, so std::make_shared
     // needs a bit of help...
     struct creator : platform_impl {
-      creator(ur_platform_handle_t APlatform, const adapter_impl &AAdapter)
-          : platform_impl(APlatform, &AAdapter) {}
+      creator(ur_platform_handle_t APlatform, adapter_impl &AAdapter)
+          : platform_impl(APlatform, AAdapter) {}
     };
     Result = std::make_shared<creator>(UrPlatform, Adapter);
     PlatformCache.emplace_back(Result);
@@ -62,7 +62,7 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
 
 platform_impl &
 platform_impl::getPlatformFromUrDevice(ur_device_handle_t UrDevice,
-                                       const adapter_impl &Adapter) {
+                                       adapter_impl &Adapter) {
   ur_platform_handle_t Plt =
       nullptr; // TODO catch an exception and put it to list
   // of asynchronous exceptions
