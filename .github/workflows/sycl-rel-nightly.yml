@@ -106,7 +106,8 @@ jobs:
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
       ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
-      build_configure_extra_args: '--disable-jit --no-assertions --add_security_flags=sanitize'
+      # Disable the spirv-dis requirement as to not require SPIR-V Tools.
+      build_configure_extra_args: '-DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off --disable-jit --no-assertions --add_security_flags=sanitize'
       pack_release: 'true'
 
       # We upload both Linux/Windows build via Github's "Releases"
