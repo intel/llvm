@@ -12,8 +12,11 @@
 
 #include "logger/ur_logger.hpp"
 #include "queue_api.hpp"
+#include "queue_batched.hpp"
 #include "queue_handle.hpp"
 #include "queue_immediate_in_order.hpp"
+
+static const bool ForceBatched = getenv_tobool("UR_L0_FORCE_BATCHED");
 
 namespace v2 {
 
@@ -62,10 +65,22 @@ ur_result_t urQueueCreate(ur_context_handle_t hContext,
     return UR_RESULT_ERROR_INVALID_DEVICE;
   }
 
+  TRACK_SCOPE_LATENCY("queueCreate");
+
   ur_queue_flags_t flags = 0;
   if (pProperties) {
     flags = pProperties->flags;
   }
+
+  // TODO better getenv_to_unsigned?
+  // if (getenv_tobool("UR_BATCHED")) {
+
+  if (ForceBatched) {
+    flags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
+  }
+
+  // TODO remove
+  flags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
 
   auto zeIndex = v2::getZeIndex(pProperties);
 
@@ -75,6 +90,12 @@ ur_result_t urQueueCreate(ur_context_handle_t hContext,
             hContext, hDevice, v2::getZeOrdinal(hDevice),
             v2::getZePriority(flags), zeIndex,
             v2::eventFlagsFromQueueFlags(flags), flags);
+  } else if (flags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) {
+    // printf("is batched");
+    *phQueue = ur_queue_handle_t_::create<v2::ur_queue_batched_t>(
+        hContext, hDevice, v2::getZeOrdinal(hDevice), v2::getZePriority(flags),
+        zeIndex, v2::eventFlagsFromQueueFlags(flags), flags);
+
   } else {
     *phQueue = ur_queue_handle_t_::create<v2::ur_queue_immediate_in_order_t>(
         hContext, hDevice, v2::getZeOrdinal(hDevice), v2::getZePriority(flags),

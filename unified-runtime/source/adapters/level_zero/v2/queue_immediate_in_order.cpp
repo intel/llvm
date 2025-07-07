@@ -26,7 +26,7 @@ namespace v2 {
 ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
     ze_command_queue_priority_t priority, std::optional<int32_t> index,
-    event_flags_t eventFlags, ur_queue_flags_t flags)
+    [[maybe_unused]] event_flags_t eventFlags, ur_queue_flags_t flags)
     : hContext(hContext), hDevice(hDevice),
       commandListManager(
           hContext, hDevice,
@@ -105,16 +105,32 @@ ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
 
   auto lockedCommandListManager = commandListManager.lock();
 
-  ZE2UR_CALL(zeCommandListHostSynchronize,
-             (lockedCommandListManager->getZeCommandList(), UINT64_MAX));
+  {
+    // TRACK_SCOPE_LATENCY(
+    //     "ur_queue_immediate_in_order_t::queueFinish_hostSynchronize");
+    TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::hostSynchronize");
+    ZE2UR_CALL(zeCommandListHostSynchronize,
+               (lockedCommandListManager->getZeCommandList(), UINT64_MAX));
+  }
 
-  hContext->getAsyncPool()->cleanupPoolsForQueue(this);
-  hContext->forEachUsmPool([this](ur_usm_pool_handle_t hPool) {
-    hPool->cleanupPoolsForQueue(this);
-    return true;
-  });
+  {
+    // TRACK_SCOPE_LATENCY(
+    //     "ur_queue_immediate_in_order_t::queueFinish_asyncPools");
+    TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::asyncPools");
+    hContext->getAsyncPool()->cleanupPoolsForQueue(this);
+    hContext->forEachUsmPool([this](ur_usm_pool_handle_t hPool) {
+      hPool->cleanupPoolsForQueue(this);
+      return true;
+    });
+  }
 
-  UR_CALL(lockedCommandListManager->releaseSubmittedKernels());
+  {
+    // TRACK_SCOPE_LATENCY(
+    //     "ur_queue_immediate_in_order_t::queueFinish_releaseSubmittedKernels");
+    TRACK_SCOPE_LATENCY(
+        "ur_queue_immediate_in_order_t::releaseSubmittedKernels");
+    UR_CALL(lockedCommandListManager->releaseSubmittedKernels());
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -142,13 +158,18 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
   // in this queue are completed when the signal is started. However, we do
   // need to use barrier if profiling is enabled: see
   // zeCommandListAppendWaitOnEvents
+  wait_list_view waitListView =
+      wait_list_view(phEventWaitList, numEventsInWaitList);
+
   if ((flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0) {
     return commandListManager.lock()->appendEventsWaitWithBarrier(
-        numEventsInWaitList, phEventWaitList,
+        waitListView,
+        /* numEventsInWaitList, phEventWaitList, */
         createEventIfRequested(eventPool.get(), phEvent, this));
   } else {
     return commandListManager.lock()->appendEventsWait(
-        numEventsInWaitList, phEventWaitList,
+        waitListView,
+        /* numEventsInWaitList, phEventWaitList, */
         createEventIfRequested(eventPool.get(), phEvent, this));
   }
 }
