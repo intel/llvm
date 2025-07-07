@@ -472,6 +472,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      spirv-to-ir-wrapper
      sycl-post-link
      sycl-ls
+     syclbin-dump
      clang-resource-headers
      OpenCL-Headers
      opencl-aot
