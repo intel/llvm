@@ -352,19 +352,17 @@ public:
   /// @param NodeA pointer to the first node for comparison
   /// @param NodeB pointer to the second node for comparison
   /// @return true is same structure found, false otherwise
-  static bool checkNodeRecursive(const std::shared_ptr<node_impl> &NodeA,
-                                 const std::shared_ptr<node_impl> &NodeB) {
+  static bool checkNodeRecursive(node_impl &NodeA, node_impl &NodeB) {
     size_t FoundCnt = 0;
-    for (std::weak_ptr<node_impl> &SuccA : NodeA->MSuccessors) {
-      for (std::weak_ptr<node_impl> &SuccB : NodeB->MSuccessors) {
-        if (NodeA->isSimilar(*NodeB) &&
-            checkNodeRecursive(SuccA.lock(), SuccB.lock())) {
+    for (node_impl &SuccA : NodeA.successors()) {
+      for (node_impl &SuccB : NodeB.successors()) {
+        if (NodeA.isSimilar(NodeB) && checkNodeRecursive(SuccA, SuccB)) {
           FoundCnt++;
           break;
         }
       }
     }
-    if (FoundCnt != NodeA->MSuccessors.size()) {
+    if (FoundCnt != NodeA.MSuccessors.size()) {
       return false;
     }
 
@@ -434,7 +432,7 @@ public:
         auto NodeBLocked = NodeB.lock();
 
         if (NodeALocked->isSimilar(*NodeBLocked)) {
-          if (checkNodeRecursive(NodeALocked, NodeBLocked)) {
+          if (checkNodeRecursive(*NodeALocked, *NodeBLocked)) {
             RootsFound++;
             break;
           }
@@ -829,8 +827,7 @@ private:
   /// SyncPoint for CurrentNode, otherwise we need to
   /// synchronize on the host with the completion of previous partitions.
   void findRealDeps(std::vector<ur_exp_command_buffer_sync_point_t> &Deps,
-                    std::shared_ptr<node_impl> CurrentNode,
-                    int ReferencePartitionNum);
+                    node_impl &CurrentNode, int ReferencePartitionNum);
 
   /// Duplicate nodes from the modifiable graph associated with this executable
   /// graph and store them locally. Any subgraph nodes in the modifiable graph
