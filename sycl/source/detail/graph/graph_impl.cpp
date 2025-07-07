@@ -342,40 +342,6 @@ graph_impl::~graph_impl() {
   }
 }
 
-std::shared_ptr<node_impl> graph_impl::addNodesToExits(
-    const std::list<std::shared_ptr<node_impl>> &NodeList) {
-  // Find all input and output nodes from the node list
-  std::vector<std::shared_ptr<node_impl>> Inputs;
-  std::vector<std::shared_ptr<node_impl>> Outputs;
-  for (auto &NodeImpl : NodeList) {
-    if (NodeImpl->MPredecessors.size() == 0) {
-      Inputs.push_back(NodeImpl);
-    }
-    if (NodeImpl->MSuccessors.size() == 0) {
-      Outputs.push_back(NodeImpl);
-    }
-  }
-
-  // Find all exit nodes in the current graph and register the Inputs as
-  // successors
-  for (auto &NodeImpl : MNodeStorage) {
-    if (NodeImpl->MSuccessors.size() == 0) {
-      for (auto &Input : Inputs) {
-        NodeImpl->registerSuccessor(Input);
-      }
-    }
-  }
-
-  // Add all the new nodes to the node storage
-  for (auto &Node : NodeList) {
-    MNodeStorage.push_back(Node);
-    addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
-                    Node);
-  }
-
-  return this->add(Outputs);
-}
-
 void graph_impl::addRoot(const std::shared_ptr<node_impl> &Root) {
   MRoots.insert(Root);
 }
@@ -536,25 +502,6 @@ graph_impl::add(std::function<void(handler &)> CGF,
   }
 
   return NodeImpl;
-}
-
-std::shared_ptr<node_impl>
-graph_impl::add(const std::vector<sycl::detail::EventImplPtr> Events) {
-
-  std::vector<node_impl *> Deps;
-
-  // Add any nodes specified by event dependencies into the dependency list
-  for (const auto &Dep : Events) {
-    if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl != MEventsMap.end()) {
-      Deps.push_back(NodeImpl->second.get());
-    } else {
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "Event dependency from handler::depends_on does "
-                            "not correspond to a node within the graph");
-    }
-  }
-
-  return this->add(Deps);
 }
 
 std::shared_ptr<node_impl>
