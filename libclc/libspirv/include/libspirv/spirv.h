@@ -20,22 +20,6 @@
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #endif
 
-#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
-    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
-     defined(__opencl_c_generic_address_space))
-#define _CLC_GENERIC_AS_SUPPORTED 1
-// Note that we hard-code the assumption that a non-distinct address space means
-// that the target maps the generic address space to the private address space.
-#if __CLC_DISTINCT_GENERIC_ADDRSPACE__
-#define _CLC_DISTINCT_GENERIC_AS_SUPPORTED 1
-#else
-#define _CLC_DISTINCT_GENERIC_AS_SUPPORTED 0
-#endif
-#else
-#define _CLC_GENERIC_AS_SUPPORTED 0
-#define _CLC_DISTINCT_GENERIC_AS_SUPPORTED 0
-#endif
-
 /* Function Attributes */
 #include <clc/clcfunc.h>
 
@@ -48,9 +32,6 @@
 
 /* Reinterpreting Types Using __clc_as_type() and __clc_as_typen() */
 #include <clc/clc_as_type.h>
-
-/* Preprocessor Directives and Macros */
-#include <macros.h>
 
 /* 6.11.1 Work-Item Functions */
 #include <libspirv/workitem/get_global_id.h>
@@ -93,7 +74,24 @@
 #include <libspirv/image/image.h>
 #include <libspirv/image/image_defines.h>
 
+/* 6.15.13. Miscellaneous Vector Functions */
+#include <libspirv/misc/shuffle.h>
+#include <libspirv/misc/shuffle2.h>
+
 /* Pointer Conversion */
 #include <libspirv/conversion/GenericCastToPtrExplicit.h>
+
+/* Group Functions */
+#include <libspirv/group/group_add.h>
+#include <libspirv/group/group_bitwise_and.h>
+#include <libspirv/group/group_bitwise_or.h>
+#include <libspirv/group/group_bitwise_xor.h>
+#include <libspirv/group/group_broadcast.h>
+#include <libspirv/group/group_mul.h>
+#include <libspirv/group/group_shuffle.h>
+#include <libspirv/group/group_shuffle_down.h>
+#include <libspirv/group/group_shuffle_up.h>
+#include <libspirv/group/group_shuffle_xor.h>
+#include <libspirv/group/subgroup_shuffle_intel.h>
 
 #pragma OPENCL EXTENSION all : disable

@@ -1,3 +1,4 @@
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
@@ -203,8 +204,8 @@ bool run_sycl(sycl::queue syclQueue, sycl::range<NDims> globalSize,
                                         dev, ctxt);
 #endif
     syclexp::destroy_image_handle(handles.imgInput, dev, ctxt);
-    syclexp::free_image_mem(handles.imgMem, syclexp::image_type::standard, dev,
-                            ctxt);
+    syclexp::unmap_external_image_memory(
+        handles.imgMem, syclexp::image_type::standard, dev, ctxt);
     syclexp::release_external_memory(handles.inputExternalMem, dev, ctxt);
   } catch (sycl::exception e) {
     std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
@@ -302,14 +303,13 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
 
   printString("Creating input image\n");
   // Create input image memory
-  auto inputImage = vkutil::createImage(imgType, format, {width, height, depth},
-                                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                            VK_IMAGE_USAGE_STORAGE_BIT,
-                                        1 /*mipLevels*/
+  auto inputImage = vkutil::createImage(
+      imgType, format, {width, height, depth},
+      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+      1 /*mipLevels*/
 #ifdef ENABLE_LINEAR_TILING
-                                        ,
-                                        true /*linearTiling*/
+      ,
+      true /*linearTiling*/
 #endif
   );
   VkMemoryRequirements memRequirements;
@@ -578,8 +578,7 @@ int main() {
 
   sycl::device dev;
 
-  if (vkutil::setupDevice(dev.get_info<sycl::info::device::name>()) !=
-      VK_SUCCESS) {
+  if (vkutil::setupDevice(dev) != VK_SUCCESS) {
     std::cerr << "Device setup failed!\n";
     return EXIT_FAILURE;
   }

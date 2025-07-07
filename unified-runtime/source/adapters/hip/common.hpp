@@ -106,12 +106,11 @@ void checkErrorUR(ur_result_t Result, const char *Function, int Line,
 hipError_t getHipVersionString(std::string &Version);
 
 constexpr size_t MaxMessageSize = 256;
-extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *Message,
-                                      ur_result_t ErrorCode);
+[[maybe_unused]] void setErrorMessage(const char *Message, int32_t ErrorCode);
 
 // Helper method to return a (non-null) pointer's attributes, or std::nullopt in
 // the case that the pointer is unknown to the HIP subsystem.
@@ -147,3 +146,10 @@ inline static unsigned getMemoryType(hipPointerAttribute_t hipPointerAttrs) {
   return hipPointerAttrs.memoryType;
 #endif
 }
+
+namespace ur::hip {
+struct ddi_getter {
+  static const ur_dditable_t *value();
+};
+using handle_base = ur::handle_base<ddi_getter>;
+} // namespace ur::hip

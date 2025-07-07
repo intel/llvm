@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc.h>
+#include <clc/opencl/clc.h>
 #include <libspirv/spirv.h>
 #include <libspirv/spirv_types.h>
 

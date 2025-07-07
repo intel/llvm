@@ -3,12 +3,10 @@
 
 // RUN: %{build} -o %t.ooo.out
 // RUN: %{build} -DUSING_INORDER -o %t.ino.out
-// RUN: %{build} -DUSING_DISCARD_EVENTS -o %t.discard_events.out
 
 // Check that dynamic batching raises/lowers batch size
 // RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
 // RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
-// RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
 
 // level_zero_dynamic_batch_test.cpp
 //
@@ -67,10 +65,6 @@ int main(int argc, char *argv[]) {
 
 #ifdef USING_INORDER
   sycl::property_list Props{sycl::property::queue::in_order{}};
-#elif USING_DISCARD_EVENTS
-  sycl::property_list Props{
-      sycl::property::queue::in_order{},
-      sycl::ext::oneapi::property::queue::discard_events{}};
 #else
   sycl::property_list Props{};
 #endif

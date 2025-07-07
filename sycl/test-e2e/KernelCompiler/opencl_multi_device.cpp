@@ -7,14 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: (opencl || level_zero) && ocloc
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
 // RUN: %{build} -o %t.out
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/platform.hpp>
 
 // Test to check that bundle is buildable from OpenCL source if there are
 // multiple devices in the context.

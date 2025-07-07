@@ -84,6 +84,7 @@ add_clang_library(clangSema
   SemaOpenACC.cpp
   SemaOpenACCAtomic.cpp
   SemaOpenACCClause.cpp
+  SemaOpenACCClauseAppertainment.cpp
   SemaOpenCL.cpp
   SemaOpenMP.cpp
   SemaOverload.cpp
@@ -105,6 +106,7 @@ add_clang_library(clangSema
   SemaTemplateInstantiateDecl.cpp
   SemaTemplateVariadic.cpp
   SemaType.cpp
+  SemaTypeTraits.cpp
   SemaWasm.cpp
   SemaX86.cpp
   TypeLocBuilder.cpp
@@ -114,6 +116,7 @@ add_clang_library(clangSema
   ClangSPIRVBuiltinsImpl
   omp_gen
   ClangDriverOptions
+  acc_gen
 
   LINK_LIBS
   clangAPINotes

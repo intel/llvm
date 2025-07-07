@@ -69,7 +69,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
-    [[maybe_unused]] ur_sampler_handle_t hSampler,
+    [[maybe_unused]] const ur_sampler_desc_t *pSamplerDesc,
     [[maybe_unused]] ur_exp_image_native_handle_t *phImage) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -178,6 +178,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] ur_exp_external_mem_handle_t hExternalMem) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
+    [[maybe_unused]] ur_context_handle_t hContext,
+    [[maybe_unused]] ur_device_handle_t hDevice, [[maybe_unused]] void *pMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

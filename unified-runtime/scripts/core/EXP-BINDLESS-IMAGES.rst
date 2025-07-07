@@ -119,6 +119,7 @@ Enums
     * ${X}_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD
     * ${X}_EXP_EXTERNAL_MEM_TYPE_WIN32_NT
     * ${X}_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE
+    * ${X}_EXP_EXTERNAL_MEM_TYPE_DMA_BUF
 
 * ${x}_exp_external_semaphore_type_t
     * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD
@@ -142,6 +143,7 @@ Enums
     * ${X}_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP
+    * ${X}_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP
@@ -198,6 +200,8 @@ Functions
    * ${x}BindlessImagesMapExternalArrayExp
    * ${x}BindlessImagesMapExternalLinearMemoryExp
    * ${x}BindlessImagesReleaseExternalMemoryExp
+   * ${x}BindlessImagesFreeMappedLinearMemoryExp
+   * ${x}BindlessImagesSupportsImportingHandleTypeExp
    * ${x}BindlessImagesImportExternalSemaphoreExp
    * ${x}BindlessImagesReleaseExternalSemaphoreExp
    * ${x}BindlessImagesWaitExternalSemaphoreExp
@@ -286,6 +290,17 @@ Changelog
 |          ||  - GetImageUnsampledHandleSupportExp                       |
 |          ||  - GetImageSampledHandleSupportExp                         |
 +----------+-------------------------------------------------------------+
+| 23.0     | Added BindlessImagesFreeMappedLinearMemory function.        |
++----------+-------------------------------------------------------------+
+| 24.0     || Update the ${x}BindlessImagesSampledImageCreateExp API     |
+|          || to take a sampler description instead of sampler handle.   |
++----------+-------------------------------------------------------------+
+| 25.0     || Added support for importing dma_buf                        |
+|          || and checking if device supports importing it               |
+|          || (or other external memory handle types):                   |
+|          ||   * ${X}_EXP_EXTERNAL_MEM_TYPE_DMA_BUF                     |
+|          ||   * ${x}BindlessImagesSupportsImportingHandleTypeExp       |
++----------+-------------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
@@ -296,3 +311,4 @@ Contributors
 * Chedy Najjar `chedy.najjar@codeplay.com <chedy.najjar@codeplay.com>`_
 * Sean Stirling `sean.stirling@codeplay.com <sean.stirling@codeplay.com>`_
 * Peter Zuzek `peter@codeplay.com peter@codeplay.com <peter@codeplay.com>`_
+* Georgi Mirazchiyski `georgi.mirazchiyski@codeplay.com <georgi.mirazchiyski@codeplay.com>`_

@@ -78,16 +78,7 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     uur::printRectTestString<urEnqueueMemBufferWriteRectTestWithParam>);
 
 TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
-  const auto name = getParam().name;
-  if (name.find("write_row_2D") != std::string::npos) {
-    UUR_KNOWN_FAILURE_ON(uur::HIP{});
-  }
-
-  if (name.find("write_3D_2D") != std::string::npos) {
-    UUR_KNOWN_FAILURE_ON(uur::HIP{});
-  }
-
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   // Unpack the parameters.
   const auto host_size = getParam().src_size;

@@ -144,6 +144,8 @@ void test(sycl::ext::oneapi::level_zero::ownership Ownership) {
 
 int main() {
 #ifdef SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
+  platform Plt{gpu_selector_v};
+
   // Initialize Level Zero driver is required if this test is linked
   // statically with Level Zero loader, the driver will not be init otherwise.
   ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);

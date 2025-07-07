@@ -12,4 +12,4 @@
 
 #define __CLC_BUILTIN divide
 #define __CLC_FUNCTION __spirv_ocl_half_divide
-#include <math/binary_builtin.inc>
+#include <clc/math/binary_builtin.inc>

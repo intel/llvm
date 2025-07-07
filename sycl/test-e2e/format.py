@@ -244,6 +244,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             )
             sycl_target_opts += hip_arch_opts
             substitutions.append(("%{hip_arch_opts}", hip_arch_opts))
+            substitutions.append(("%{amd_arch}", test.config.amd_arch))
         if (
             "target-spir" in build_targets
             and "spirv-backend" in test.config.available_features
@@ -393,4 +394,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         if len(devices_for_test) == 1:
             device = devices_for_test[0]
             result.code = map_result(test.config.sycl_dev_features[device], result.code)
+
+        # Set this to empty so internal lit code won't change our result if it incorrectly
+        # thinks the test should XFAIL. This can happen when our XFAIL condition relies on
+        # device features, since the internal lit code doesn't have knowledge of these.
+        test.xfails = []
+
         return result

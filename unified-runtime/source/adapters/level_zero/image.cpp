@@ -20,20 +20,7 @@
 
 #include "loader/ze_loader.h"
 
-namespace {
-
-} // namespace
-
 namespace ur::level_zero {
-
-ur_result_t
-urBindlessImagesImageFreeExp(ur_context_handle_t /*hContext*/,
-                             ur_device_handle_t /*hDevice*/,
-                             ur_exp_image_mem_native_handle_t hImageMem) {
-  UR_CALL(ur::level_zero::urMemRelease(
-      reinterpret_cast<ur_mem_handle_t>(hImageMem)));
-  return UR_RESULT_SUCCESS;
-}
 
 ur_result_t urBindlessImagesImageCopyExp(
     ur_queue_handle_t hQueue, const void *pSrc, void *pDst,
@@ -112,8 +99,9 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
-    logger::error(logger::LegacyMessage("[UR][L0] "),
-                  " {} function not supported!", __FUNCTION__);
+    UR_LOG_LEGACY(ERR,
+                  logger::LegacyMessage("[UR][L0] {} function not supported!"),
+                  "{} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
@@ -196,8 +184,9 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
-    logger::error(logger::LegacyMessage("[UR][L0] "),
-                  " {} function not supported!", __FUNCTION__);
+    UR_LOG_LEGACY(ERR,
+                  logger::LegacyMessage("[UR][L0] {} function not supported!"),
+                  "{} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 

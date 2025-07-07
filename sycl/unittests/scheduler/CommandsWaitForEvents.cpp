@@ -34,9 +34,8 @@ struct TestCtx {
   bool EventCtx2WasWaited = false;
 
   TestCtx(queue &Queue1, queue &Queue2)
-      : Q1(Queue1), Q2(Queue2),
-        Ctx1(*detail::getSyclObjImpl(Q1.get_context()).get()),
-        Ctx2(*detail::getSyclObjImpl(Q2.get_context()).get()) {
+      : Q1(Queue1), Q2(Queue2), Ctx1(*detail::getSyclObjImpl(Q1.get_context())),
+        Ctx2(*detail::getSyclObjImpl(Q2.get_context())) {
 
     EventCtx1 = mock::createDummyHandle<ur_event_handle_t>();
     EventCtx2 = mock::createDummyHandle<ur_event_handle_t>();
@@ -137,12 +136,10 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
     sycl::unittest::UrMock<> Mock;
     sycl::platform Plt = sycl::platform();
     sycl::queue Q(Plt.get_devices()[0]);
-    std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
-        detail::getSyclObjImpl(Q);
+    auto &QueueImpl =
+        static_cast<QueueImplProxyT &>(*detail::getSyclObjImpl(Q));
 
-    auto QueueImplProxy = std::static_pointer_cast<QueueImplProxyT>(QueueImpl);
-
-    ASSERT_TRUE(QueueImplProxy->MStreamsServiceEvents.empty())
+    ASSERT_TRUE(QueueImpl.MStreamsServiceEvents.empty())
         << "No stream service events are expected at the beggining";
 
     event Event = Q.submit([&](handler &CGH) {
@@ -151,20 +148,18 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
           [=]() { Out << "Hello, World!" << endl; });
     });
 
-    ASSERT_TRUE(QueueImplProxy->MStreamsServiceEvents.size() == 1)
+    ASSERT_TRUE(QueueImpl.MStreamsServiceEvents.size() == 1)
         << "Expected 1 service stream event";
 
-    std::shared_ptr<sycl::detail::event_impl> EventImpl =
-        detail::getSyclObjImpl(Event);
+    auto &EventImplProxy =
+        static_cast<EventImplProxyT &>(*detail::getSyclObjImpl(Event));
 
-    auto EventImplProxy = std::static_pointer_cast<EventImplProxyT>(EventImpl);
-
-    ASSERT_EQ(EventImplProxy->MWeakPostCompleteEvents.size(), 1u)
+    ASSERT_EQ(EventImplProxy.MWeakPostCompleteEvents.size(), 1u)
         << "Expected 1 post complete event";
 
     Q.wait();
 
-    ASSERT_TRUE(QueueImplProxy->MStreamsServiceEvents.empty())
+    ASSERT_TRUE(QueueImpl.MStreamsServiceEvents.empty())
         << "No stream service events are expected to left after wait";
   }
 
@@ -172,22 +167,19 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
     sycl::unittest::UrMock<> Mock;
     sycl::platform Plt = sycl::platform();
     sycl::queue Q(Plt.get_devices()[0]);
-    std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
-        detail::getSyclObjImpl(Q);
+    auto &QueueImpl =
+        static_cast<QueueImplProxyT &>(*detail::getSyclObjImpl(Q));
 
     mock::getCallbacks().set_before_callback("urEventWait",
                                              &urEventsWaitRedefineCheckCalled);
 
-    auto QueueImplProxy = std::static_pointer_cast<QueueImplProxyT>(QueueImpl);
-
     ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-    auto EventImpl = std::make_shared<sycl::detail::event_impl>(QueueImpl);
+    auto EventImpl = sycl::detail::event_impl::create_device_event(QueueImpl);
     EventImpl->setHandle(UREvent);
 
-    QueueImplProxy->registerStreamServiceEvent(EventImpl);
-
-    QueueImplProxy->wait();
+    QueueImpl.registerStreamServiceEvent(EventImpl);
+    QueueImpl.wait();
 
     ASSERT_TRUE(GpiEventsWaitRedefineCalled)
         << "No stream service events are expected to left after wait";
@@ -209,10 +201,12 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
 
   TestContext.reset(new TestCtx(Q1, Q2));
 
-  std::shared_ptr<detail::event_impl> E1(
-      new detail::event_impl(TestContext->EventCtx1, Q1.get_context()));
-  std::shared_ptr<detail::event_impl> E2(
-      new detail::event_impl(TestContext->EventCtx2, Q2.get_context()));
+  std::shared_ptr<detail::event_impl> E1 =
+      detail::event_impl::create_from_handle(TestContext->EventCtx1,
+                                             Q1.get_context());
+  std::shared_ptr<detail::event_impl> E2 =
+      detail::event_impl::create_from_handle(TestContext->EventCtx2,
+                                             Q2.get_context());
 
   MockCommand Cmd(nullptr);
 

@@ -244,7 +244,7 @@ create_image(image_mem_handle memHandle, const image_descriptor &desc,
   populate_ur_structs(desc, urDesc, urFormat);
 
   // Call impl.
-  ur_exp_image_mem_native_handle_t urImageHandle = 0;
+  ur_exp_image_native_handle_t urImageHandle = 0;
   Adapter
       ->call<sycl::errc::runtime,
              sycl::detail::UrApiKind::urBindlessImagesUnsampledImageCreateExp>(
@@ -265,7 +265,7 @@ __SYCL_EXPORT sampled_image_handle
 create_image(image_mem_handle memHandle, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::device &syclDevice,
              const sycl::context &syclContext) {
-  return create_image(reinterpret_cast<void*>(memHandle.raw_handle),
+  return create_image(reinterpret_cast<void *>(memHandle.raw_handle),
                       0 /*pitch*/, sampler, desc, syclDevice, syclContext);
 }
 
@@ -280,14 +280,14 @@ __SYCL_EXPORT sampled_image_handle
 create_image(image_mem &imgMem, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::device &syclDevice,
              const sycl::context &syclContext) {
-  return create_image(reinterpret_cast<void*>(imgMem.get_handle().raw_handle),
+  return create_image(reinterpret_cast<void *>(imgMem.get_handle().raw_handle),
                       0 /*pitch*/, sampler, desc, syclDevice, syclContext);
 }
 
 __SYCL_EXPORT sampled_image_handle
 create_image(image_mem &imgMem, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::queue &syclQueue) {
-  return create_image(reinterpret_cast<void*>(imgMem.get_handle().raw_handle),
+  return create_image(reinterpret_cast<void *>(imgMem.get_handle().raw_handle),
                       0 /*pitch*/, sampler, desc, syclQueue.get_device(),
                       syclQueue.get_context());
 }
@@ -367,21 +367,17 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
       translate_cubemap_filter_mode(sampler.cubemap_filtering)};
   UrAddrModes.pNext = &UrCubemapProps;
 
-  ur_sampler_handle_t urSampler = nullptr;
-  Adapter->call<sycl::errc::runtime, sycl::detail::UrApiKind::urSamplerCreate>(
-      urCtx, &UrSamplerProps, &urSampler);
-
   ur_image_desc_t urDesc;
   ur_image_format_t urFormat;
   populate_ur_structs(desc, urDesc, urFormat, pitch);
 
   // Call impl.
-  ur_exp_image_mem_native_handle_t urImageHandle = 0;
+  ur_exp_image_native_handle_t urImageHandle = 0;
   Adapter->call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::urBindlessImagesSampledImageCreateExp>(
       urCtx, urDevice,
       reinterpret_cast<ur_exp_image_mem_native_handle_t>(devPtr), &urFormat,
-      &urDesc, urSampler, &urImageHandle);
+      &urDesc, &UrSamplerProps, &urImageHandle);
 
   return sampled_image_handle{urImageHandle};
 }
@@ -392,6 +388,34 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
   return create_image(devPtr, pitch, sampler, desc, syclQueue.get_device(),
                       syclQueue.get_context());
 }
+
+namespace detail {
+
+/**
+ * Converts SYCL external_mem_handle_type to the corresponding UR type.
+ *
+ * Note that this function does a simple conversion
+ * and doesn't check the result validity for any specific scenario.
+ */
+constexpr ur_exp_external_mem_type_t
+to_ur_type(external_mem_handle_type externalMemHandleType) {
+  switch (externalMemHandleType) {
+  case external_mem_handle_type::opaque_fd:
+    return UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD;
+  case external_mem_handle_type::dma_buf:
+    return UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF;
+  case external_mem_handle_type::win32_nt_handle:
+    return UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT;
+  case external_mem_handle_type::win32_nt_dx12_resource:
+    return UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE;
+  default:
+    // This ensures that all cases have to be handled
+    assert(false && "Invalid memory handle type");
+    return UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD; // Fallback
+  }
+}
+
+} // namespace detail
 
 template <>
 __SYCL_EXPORT external_mem import_external_memory<resource_fd>(
@@ -407,15 +431,18 @@ __SYCL_EXPORT external_mem import_external_memory<resource_fd>(
   urExternalMemDescriptor.stype = UR_STRUCTURE_TYPE_EXP_EXTERNAL_MEM_DESC;
   urExternalMemDescriptor.pNext = &urFileDescriptor;
 
-  // For `resource_fd` external memory type, the handle type is always
-  // `OPAQUE_FD`. No need for a switch statement like we have for win32
-  // resources.
+  const auto urHandleType = detail::to_ur_type(externalMemDesc.handle_type);
+  if ((urHandleType != UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD) &&
+      (urHandleType != UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF)) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Invalid memory handle type");
+  }
+
   Adapter
       ->call<sycl::errc::invalid,
              sycl::detail::UrApiKind::urBindlessImagesImportExternalMemoryExp>(
-          urCtx, urDevice, externalMemDesc.size_in_bytes,
-          UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD, &urExternalMemDescriptor,
-          &urExternalMem);
+          urCtx, urDevice, externalMemDesc.size_in_bytes, urHandleType,
+          &urExternalMemDescriptor, &urExternalMem);
 
   return external_mem{urExternalMem};
 }
@@ -442,16 +469,9 @@ __SYCL_EXPORT external_mem import_external_memory<resource_win32_handle>(
   urExternalMemDescriptor.stype = UR_STRUCTURE_TYPE_EXP_EXTERNAL_MEM_DESC;
   urExternalMemDescriptor.pNext = &urWin32Handle;
 
-  // Select appropriate memory handle type.
-  ur_exp_external_mem_type_t urHandleType;
-  switch (externalMemDesc.handle_type) {
-  case external_mem_handle_type::win32_nt_handle:
-    urHandleType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT;
-    break;
-  case external_mem_handle_type::win32_nt_dx12_resource:
-    urHandleType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE;
-    break;
-  default:
+  const auto urHandleType = detail::to_ur_type(externalMemDesc.handle_type);
+  if ((urHandleType != UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT) &&
+      (urHandleType != UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE)) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Invalid memory handle type");
   }
@@ -546,6 +566,37 @@ __SYCL_EXPORT void release_external_memory(external_mem extMem,
                           syclQueue.get_context());
 }
 
+__SYCL_EXPORT void
+unmap_external_linear_memory(void *mappedLinearRegion,
+                             const sycl::device &syclDevice,
+                             const sycl::context &syclContext) {
+  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+
+  Adapter->call<
+      sycl::errc::invalid,
+      sycl::detail::UrApiKind::urBindlessImagesFreeMappedLinearMemoryExp>(
+      urCtx, urDevice, mappedLinearRegion);
+}
+
+__SYCL_EXPORT void unmap_external_image_memory(
+    image_mem_handle mappedImageMem, image_type imageType,
+    const sycl::device &syclDevice, const sycl::context &syclContext) {
+  free_image_mem(mappedImageMem, imageType, syclDevice, syclContext);
+}
+
+__SYCL_EXPORT bool
+supports_importing_handle_type(external_mem_handle_type externMemHandleType,
+                               const sycl::device &syclDevice) {
+  auto [urDevice, Adapter] = get_ur_handles(syclDevice);
+  const auto urHandleType = detail::to_ur_type(externMemHandleType);
+  ur_bool_t supportsExternalHandleType{0};
+  Adapter->call<
+      sycl::errc::invalid,
+      sycl::detail::UrApiKind::urBindlessImagesSupportsImportingHandleTypeExp>(
+      urDevice, urHandleType, &supportsExternalHandleType);
+  return static_cast<bool>(supportsExternalHandleType);
+}
+
 template <>
 __SYCL_EXPORT external_semaphore import_external_semaphore(
     external_semaphore_descriptor<resource_fd> externalSemaphoreDesc,
@@ -632,7 +683,7 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
       urCtx, urDevice, urHandleType, &urExternalSemDesc, &urExternalSemaphore);
 
   return external_semaphore{urExternalSemaphore,
-                                  externalSemaphoreDesc.handle_type};
+                            externalSemaphoreDesc.handle_type};
 }
 
 template <>
@@ -797,11 +848,7 @@ __SYCL_EXPORT std::vector<image_memory_handle_type>
 get_image_memory_support(const image_descriptor &imageDescriptor,
                          const sycl::device &syclDevice,
                          const sycl::context &syclContext) {
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(syclDevice);
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
 
   ur_image_desc_t urDesc;
   ur_image_format_t urFormat;
@@ -811,7 +858,7 @@ get_image_memory_support(const image_descriptor &imageDescriptor,
   Adapter->call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::
                     urBindlessImagesGetImageMemoryHandleTypeSupportExp>(
-      CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
+      urCtx, urDevice, &urDesc, &urFormat,
       ur_exp_image_mem_type_t::UR_EXP_IMAGE_MEM_TYPE_USM_POINTER,
       &supportsPointerAllocation);
 
@@ -819,7 +866,7 @@ get_image_memory_support(const image_descriptor &imageDescriptor,
   Adapter->call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::
                     urBindlessImagesGetImageMemoryHandleTypeSupportExp>(
-      CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
+      urCtx, urDevice, &urDesc, &urFormat,
       ur_exp_image_mem_type_t::UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE,
       &supportsOpaqueAllocation);
 
@@ -848,11 +895,7 @@ __SYCL_EXPORT bool is_image_handle_supported<unsampled_image_handle>(
     const image_descriptor &imageDescriptor,
     image_memory_handle_type imageMemoryHandleType,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(syclDevice);
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
 
   ur_image_desc_t urDesc;
   ur_image_format_t urFormat;
@@ -867,8 +910,8 @@ __SYCL_EXPORT bool is_image_handle_supported<unsampled_image_handle>(
   Adapter->call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::
                     urBindlessImagesGetImageUnsampledHandleSupportExp>(
-      CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
-      memHandleType, &supportsUnsampledHandle);
+      urCtx, urDevice, &urDesc, &urFormat, memHandleType,
+      &supportsUnsampledHandle);
 
   return supportsUnsampledHandle;
 }
@@ -888,11 +931,7 @@ __SYCL_EXPORT bool is_image_handle_supported<sampled_image_handle>(
     const image_descriptor &imageDescriptor,
     image_memory_handle_type imageMemoryHandleType,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(syclDevice);
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
 
   ur_image_desc_t urDesc;
   ur_image_format_t urFormat;
@@ -907,8 +946,8 @@ __SYCL_EXPORT bool is_image_handle_supported<sampled_image_handle>(
   Adapter->call<
       sycl::errc::runtime,
       sycl::detail::UrApiKind::urBindlessImagesGetImageSampledHandleSupportExp>(
-      CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
-      memHandleType, &supportsSampledHandle);
+      urCtx, urDevice, &urDesc, &urFormat, memHandleType,
+      &supportsSampledHandle);
 
   return supportsSampledHandle;
 }

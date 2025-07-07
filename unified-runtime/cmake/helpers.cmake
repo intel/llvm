@@ -1,4 +1,4 @@
-# Copyright (C) 2023-2024 Intel Corporation
+# Copyright (C) 2023 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -263,4 +263,21 @@ function(FetchContentSparse_Declare name GIT_REPOSITORY GIT_TAG GIT_DIR)
     set(content-build-dir ${CMAKE_BINARY_DIR}/content-${name})
     FetchSource(${GIT_REPOSITORY} ${GIT_TAG} ${GIT_DIR} ${content-build-dir})
     FetchContent_Declare(${name} SOURCE_DIR ${content-build-dir}/${GIT_DIR})
+endfunction()
+
+function(configure_linker_file input output)
+    # Configure the input file into a temporary file, this needs to happen
+    # first in order to keep default configure_file() behaviour when the input
+    # file is changed to avoid going out of sync with in-tree
+    set(tmp ${output}.tmp)
+    configure_file(${input} ${tmp} ${ARGN})
+    # Strip guarded lines and capture stripped content from stdout
+    execute_process(
+        COMMAND ${PYTHON_EXECUTABLE}
+            ${PROJECT_SOURCE_DIR}/scripts/strip-guarded-lines.py ${tmp}
+            # List names of guarded blocks to include in the output file here
+        OUTPUT_VARIABLE stripped
+    )
+    # Write stripped output to file for use by the linker
+    file(GENERATE OUTPUT ${output} CONTENT "${stripped}")
 endfunction()

@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import collections
-from utils.result import Result
+from utils.result import Result, BenchmarkMetadata
 from options import options, MarkdownSize
 import ast
 
@@ -113,13 +113,17 @@ def is_content_in_size_limit(content_size: int, current_markdown_size: int):
     return content_size <= get_available_markdown_size(current_markdown_size)
 
 
-def get_explicit_group_name(result: Result):
-    explicit_group_name = result.explicit_group
-
-    if explicit_group_name != "":
-        return explicit_group_name
-    else:
+def get_explicit_group_name(result: Result, metadata: dict[str, BenchmarkMetadata]):
+    explicit_group_name = ""
+    try:
+        explicit_group_name = metadata[result.label].explicit_group
+    except Exception as e:
+        print(
+            f"Warning: Unexpected error when getting explicit_group for '{result.label}': {e}"
+        )
         return "Other"
+
+    return explicit_group_name if explicit_group_name else "Other"
 
 
 # Function to generate the markdown collapsible sections for each variant
@@ -169,7 +173,10 @@ def generate_markdown_details(
 
 
 def generate_summary_table(
-    chart_data: dict[str, list[Result]], baseline_name: str, markdown_size: MarkdownSize
+    chart_data: dict[str, list[Result]],
+    baseline_name: str,
+    markdown_size: MarkdownSize,
+    metadata: dict[str, BenchmarkMetadata],
 ):
     summary_table = get_chart_markdown_header(
         chart_data=chart_data, baseline_name=baseline_name
@@ -204,7 +211,7 @@ def generate_summary_table(
         for key, res in results.items():
             if not are_suite_group_assigned:
                 oln.suite = res.suite
-                oln.explicit_group = get_explicit_group_name(res)
+                oln.explicit_group = get_explicit_group_name(res, metadata)
 
                 are_suite_group_assigned = True
 
@@ -382,9 +389,10 @@ def generate_markdown(
     chart_data: dict[str, list[Result]],
     failures: dict[str, str],
     markdown_size: MarkdownSize,
+    metadata: dict[str, BenchmarkMetadata],
 ):
     (summary_line, summary_table) = generate_summary_table(
-        chart_data, name, markdown_size
+        chart_data, name, markdown_size, metadata
     )
 
     current_markdown_size = len(summary_line) + len(summary_table)

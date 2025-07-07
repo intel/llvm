@@ -84,7 +84,7 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
       if (F.getCallingConv() != llvm::CallingConv::SPIR_KERNEL) {
         return false;
       }
-      compiler::utils::VectorizationFactor VF(NativeCPUVeczWidth, false);
+      auto VF = llvm::ElementCount::getFixed(NativeCPUVeczWidth);
       vecz::VeczPassOptions VPO;
       VPO.factor = std::move(VF);
       Opts.emplace_back(std::move(VPO));

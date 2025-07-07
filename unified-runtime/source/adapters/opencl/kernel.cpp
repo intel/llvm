@@ -67,6 +67,13 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     cl_int CLResult;
     cl_kernel Kernel =
         clCreateKernel(hProgram->CLProgram, pKernelName, &CLResult);
+
+    if (CLResult == CL_INVALID_KERNEL_DEFINITION) {
+      cl_adapter::setErrorMessage(
+          "clCreateKernel failed with CL_INVALID_KERNEL_DEFINITION", CLResult);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    }
+
     CL_RETURN_ON_FAILURE(CLResult);
     auto URKernel = std::make_unique<ur_kernel_handle_t_>(Kernel, hProgram,
                                                           hProgram->Context);
@@ -145,7 +152,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
     return ReturnValue(hKernel->Context);
   }
   case UR_KERNEL_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hKernel->getReferenceCount());
+    return ReturnValue(hKernel->RefCount.getCount());
   }
   default: {
     size_t CheckPropSize = 0;
@@ -336,13 +343,13 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
-  hKernel->incrementReferenceCount();
+  hKernel->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRelease(ur_kernel_handle_t hKernel) {
-  if (hKernel->decrementReferenceCount() == 0) {
+  if (hKernel->RefCount.release()) {
     delete hKernel;
   }
   return UR_RESULT_SUCCESS;
@@ -447,7 +454,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
     [[maybe_unused]] ur_kernel_handle_t hKernel,
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] uint32_t workDim,

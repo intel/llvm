@@ -395,7 +395,10 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
     if (BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_arbitrary_precision_integers) ||
         BM->getErrorLog().checkError(
-            BitWidth == 8 || BitWidth == 16 || BitWidth == 32 || BitWidth == 64,
+            (BitWidth == 4 &&
+             BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4)) ||
+                BitWidth == 8 || BitWidth == 16 || BitWidth == 32 ||
+                BitWidth == 64,
             SPIRVEC_InvalidBitWidth, std::to_string(BitWidth))) {
       return mapType(T, BM->addIntegerType(T->getIntegerBitWidth()));
     }
@@ -462,11 +465,13 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
             ConstantInt::get(getSizetType(), ArraySize, false), nullptr)));
     mapType(T, TransType);
     if (ElTy->isPointerTy()) {
-      mapType(
+      Type *ArrTy =
           ArrayType::get(TypedPointerType::get(Type::getInt8Ty(*Ctx),
                                                ElTy->getPointerAddressSpace()),
-                         ArraySize),
-          TransType);
+                         ArraySize);
+      LLVMToSPIRVTypeMap::iterator Loc = TypeMap.find(ArrTy);
+      if (Loc == TypeMap.end())
+        mapType(ArrTy, TransType);
     }
     return TransType;
   }
@@ -739,8 +744,9 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(Type *ET, unsigned AddrSpc) {
     SPIRVType *TranslatedTy = nullptr;
     if (ET->isPointerTy() &&
         BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers)) {
-      TranslatedTy = BM->addUntypedPointerKHRType(
-          SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)));
+      TranslatedTy = BM->addPointerType(
+          SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)),
+          nullptr);
     } else {
       ElementType = transType(ET);
       TranslatedTy = transPointerType(ElementType, AddrSpc);
@@ -765,8 +771,9 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(SPIRVType *ET, unsigned AddrSpc) {
     return transPointerType(ET, SPIRAS_Private);
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers) &&
       !(ET->isTypeArray() || ET->isTypeVector() || ET->isSPIRVOpaqueType())) {
-    TranslatedTy = BM->addUntypedPointerKHRType(
-        SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)));
+    TranslatedTy = BM->addPointerType(
+        SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)),
+        nullptr);
   } else {
     TranslatedTy = BM->addPointerType(
         SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)), ET);
@@ -1016,11 +1023,6 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
     assert(!isKernel(F) &&
            "kernel function was marked as referenced-indirectly");
     BF->addDecorate(DecorationReferencedIndirectlyINTEL);
-  }
-
-  if (Attrs.hasFnAttr(kVCMetadata::VCCallable) &&
-      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite)) {
-    BF->addDecorate(internal::DecorationCallableFunctionINTEL);
   }
 
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
@@ -2348,10 +2350,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     }
     SPIRVType *VarTy = TranslatedTy;
     if (V->getType()->getPointerAddressSpace() == SPIRAS_Generic) {
-      // TODO: refactor addPointerType and addUntypedPointerKHRType in one
-      // method if possible.
       if (TranslatedTy->isTypeUntypedPointerKHR())
-        VarTy = BM->addUntypedPointerKHRType(StorageClassFunction);
+        VarTy = BM->addPointerType(StorageClassFunction, nullptr);
       else
         VarTy = BM->addPointerType(StorageClassFunction,
                                    TranslatedTy->getPointerElementType());
@@ -2697,12 +2697,9 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 
 SPIRVType *LLVMToSPIRVBase::mapType(Type *T, SPIRVType *BT) {
   assert(!T->isPointerTy() && "Pointer types cannot be stored in the type map");
-  auto EmplaceStatus = TypeMap.try_emplace(T, BT);
-  // TODO: Uncomment the assertion, once the type mapping issue is resolved
-  // assert(EmplaceStatus.second && "The type was already added to the map");
+  [[maybe_unused]] auto EmplaceStatus = TypeMap.try_emplace(T, BT);
+  assert(EmplaceStatus.second && "The type was already added to the map");
   SPIRVDBG(dbgs() << "[mapType] " << *T << " => "; spvdbgs() << *BT << '\n');
-  if (!EmplaceStatus.second)
-    return TypeMap[T];
   return BT;
 }
 
@@ -3133,10 +3130,12 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
           if (FMF.allowContract()) {
             M |= FPFastMathModeAllowContractFastINTELMask;
             BM->addCapability(CapabilityFPFastMathModeINTEL);
+            BM->addExtension(ExtensionID::SPV_INTEL_fp_fast_math_mode);
           }
           if (FMF.allowReassoc()) {
             M |= FPFastMathModeAllowReassocINTELMask;
             BM->addCapability(CapabilityFPFastMathModeINTEL);
+            BM->addExtension(ExtensionID::SPV_INTEL_fp_fast_math_mode);
           }
         }
       }
@@ -4303,8 +4302,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     SPIRVType *IntegralTy = transType(II->getType()->getStructElementType(1));
     // IntegralTy is the type of the result. We want to create a pointer to this
     // that we can pass to OpenCLLIB::modf to store the integral part.
-    SPIRVTypePointer *IntegralPtrTy =
-        BM->addPointerType(StorageClassFunction, IntegralTy);
+    SPIRVType *GenericPtrTy = BM->addPointerType(StorageClassFunction, IntegralTy);
+    auto *IntegralPtrTy = dyn_cast<SPIRVTypePointer>(GenericPtrTy);
     // We need to use the entry BB of the function calling llvm.modf.*, instead
     // of the current BB. For that, we'll find current BB's parent and get its
     // first BB, which is the entry BB of the function.
@@ -4830,7 +4829,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     auto *SrcTy = PtrOp->getType();
     SPIRVType *DstTy = nullptr;
     if (SrcTy->isTypeUntypedPointerKHR())
-      DstTy = BM->addUntypedPointerKHRType(StorageClassFunction);
+      DstTy = BM->addPointerType(StorageClassFunction, nullptr);
     else
       DstTy = BM->addPointerType(StorageClassFunction,
                                  SrcTy->getPointerElementType());
@@ -5553,7 +5552,7 @@ SPIRVValue *LLVMToSPIRVBase::transAsmINTEL(InlineAsm *IA) {
       BM->getOrAddAsmTargetINTEL(TripleStr.str()));
   auto *SIA = BM->addAsmINTEL(
       static_cast<SPIRVTypeFunction *>(transType(IA->getFunctionType())),
-      AsmTarget, IA->getAsmString(), IA->getConstraintString());
+      AsmTarget, IA->getAsmString().str(), IA->getConstraintString().str());
   if (IA->hasSideEffects())
     SIA->addDecorate(DecorationSideEffectsINTEL);
   return SIA;
@@ -6275,11 +6274,6 @@ bool LLVMToSPIRVBase::transExecutionMode() {
                 ExtensionID::SPV_INTEL_float_controls2))
           break;
         AddSingleArgExecutionMode(static_cast<ExecutionMode>(EMode));
-      } break;
-      case spv::internal::ExecutionModeFastCompositeKernelINTEL: {
-        if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite))
-          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-              OpExecutionMode, BF, static_cast<ExecutionMode>(EMode))));
       } break;
       case spv::internal::ExecutionModeNamedSubgroupSizeINTEL: {
         if (!BM->isAllowedToUseExtension(

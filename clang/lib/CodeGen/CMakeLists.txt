@@ -105,6 +105,7 @@ add_clang_library(clangCodeGen
   CodeGenFunction.cpp
   CodeGenModule.cpp
   CodeGenPGO.cpp
+  CodeGenSYCL.cpp
   CodeGenTBAA.cpp
   CodeGenTypes.cpp
   ConstantInitBuilder.cpp
@@ -165,8 +166,7 @@ add_clang_library(clangCodeGen
   intrinsics_gen
   ClangDriverOptions
   # These generated headers are included transitively.
-  ARMTargetParserTableGen
-  AArch64TargetParserTableGen
+  target_parser_gen
 
   LINK_LIBS
   clangAST

@@ -1059,9 +1059,7 @@ ModulePass *llvm::createGlobalsAAWrapperPass() {
   return new GlobalsAAWrapperPass();
 }
 
-GlobalsAAWrapperPass::GlobalsAAWrapperPass() : ModulePass(ID) {
-  initializeGlobalsAAWrapperPassPass(*PassRegistry::getPassRegistry());
-}
+GlobalsAAWrapperPass::GlobalsAAWrapperPass() : ModulePass(ID) {}
 
 bool GlobalsAAWrapperPass::runOnModule(Module &M) {
   auto GetTLI = [this](Function &F) -> TargetLibraryInfo & {

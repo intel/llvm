@@ -34,11 +34,6 @@ on:
         required: False
         description: |
           Commit SHA or branch to checkout the intel/llvm repo.
-      devops_ref:
-        type: string
-        required: False
-        description: |
-          Commit SHA or branch to checkout the devops directory.
       tests_ref:
         type: string
         required: False
@@ -58,7 +53,7 @@ on:
         default: '{}'
         required: False
 
-      compiler:
+      cxx:
         type: string
         required: false
         default: "cl"
@@ -111,13 +106,13 @@ jobs:
       with:
         sparse-checkout: |
           devops/actions
-        ref: ${{ inputs.devops_ref|| inputs.repo_ref || github.sha }}
+          sycl/cts_exclude_filter
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
     - name: Setup oneAPI env
       uses: ./devops/actions/setup_windows_oneapi_env
-      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
+      if: ${{ always() && !cancelled() && inputs.cxx == 'icx' }}
     - name: Set env
       run: |
         git config --system core.longpaths true
@@ -164,13 +159,13 @@ jobs:
         target_devices: ${{ inputs.target_devices }}
         extra_lit_opts: ${{ inputs.extra_lit_opts }}
         retention-days: ${{ inputs.artifact_retention_days }}
+        cxx: ${{ inputs.cxx }}
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
       uses: ./devops/actions/run-tests/windows/cts
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
-        cts_exclude_ref: ${{ inputs.repo_ref }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         cts_testing_mode: ${{ inputs.cts_testing_mode }}
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}

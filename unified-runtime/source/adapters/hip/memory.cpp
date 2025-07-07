@@ -29,7 +29,7 @@ size_t imageElementByteSize(hipArray_Format ArrayFormat) {
     return 4;
   default:
     setErrorMessage("Invalid HIP format specifier",
-                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                    UR_RESULT_ERROR_INVALID_VALUE);
     throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
   return 0;
@@ -61,33 +61,25 @@ checkSupportedImageChannelType(ur_image_channel_type_t ImageChannelType) {
 /// If this is zero, calls the relevant HIP Free function
 /// \return UR_RESULT_SUCCESS unless deallocation error
 UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
-
     // Do nothing if there are other references
     if (hMem->decrementReferenceCount() > 0) {
       return UR_RESULT_SUCCESS;
     }
 
     // Call destructor
-    std::unique_ptr<ur_mem_handle_t_> uniqueMemObj(hMem);
-
+    delete hMem;
   } catch (ur_result_t Err) {
-    Result = Err;
-  } catch (...) {
-    Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
-  }
-
-  if (Result != UR_RESULT_SUCCESS) {
     // A reported HIP error is either an implementation or an asynchronous HIP
     // error for which it is unclear if the function that reported it succeeded
     // or not. Either way, the state of the program is compromised and likely
     // unrecoverable.
     setErrorMessage("Error in native free, program state may be "
                     "compromised.",
-                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                    UR_RESULT_ERROR_UNKNOWN);
     return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  } catch (...) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
 
   return UR_RESULT_SUCCESS;

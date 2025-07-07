@@ -31,18 +31,6 @@ _CLC_DEF static bool __clc_nvvm_is_global(generic void *ptr) {
           generic const void *ptr, int unused) {                               \
     return __spirv_GenericCastToPtrExplicit_To##NAME((generic void *)ptr,      \
                                                      unused);                  \
-  }                                                                            \
-  _CLC_DECL _CLC_OVERLOAD                                                      \
-      ADDRSPACE volatile void *__spirv_GenericCastToPtrExplicit_To##NAME(      \
-          generic volatile void *ptr, int unused) {                            \
-    return __spirv_GenericCastToPtrExplicit_To##NAME((generic void *)ptr,      \
-                                                     unused);                  \
-  }                                                                            \
-  _CLC_DECL _CLC_OVERLOAD ADDRSPACE const volatile void                        \
-      *__spirv_GenericCastToPtrExplicit_To##NAME(                              \
-          generic const volatile void *ptr, int unused) {                      \
-    return __spirv_GenericCastToPtrExplicit_To##NAME((generic void *)ptr,      \
-                                                     unused);                  \
   }
 
 GenericCastToPtrExplicit_To(global, Global)

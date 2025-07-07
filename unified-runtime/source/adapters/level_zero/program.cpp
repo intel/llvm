@@ -55,6 +55,26 @@ checkUnresolvedSymbols(ze_module_handle_t ZeModule,
 }
 } // extern "C"
 
+static ur_program_handle_t_::CodeFormat matchILCodeFormat(const void *Input,
+                                                          size_t Length) {
+  const auto MatchMagicNumber = [&](uint32_t Number) {
+    return Length >= sizeof(Number) &&
+           std::memcmp(Input, &Number, sizeof(Number)) == 0;
+  };
+
+  // SPIR-V Specification: 3.1 Magic Number
+  // https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#Magic
+  if (MatchMagicNumber(0x07230203)) {
+    return ur_program_handle_t_::CodeFormat::SPIRV;
+  }
+
+  return ur_program_handle_t_::CodeFormat::Unknown;
+}
+
+static bool isCodeFormatIL(ur_program_handle_t_::CodeFormat CodeFormat) {
+  return CodeFormat == ur_program_handle_t_::CodeFormat::SPIRV;
+}
+
 namespace ur::level_zero {
 
 ur_result_t urProgramCreateWithIL(
@@ -70,9 +90,12 @@ ur_result_t urProgramCreateWithIL(
     ur_program_handle_t *Program) {
   UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(IL && Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  const ur_program_handle_t_::CodeFormat CodeFormat =
+      matchILCodeFormat(IL, Length);
+  UR_ASSERT(isCodeFormatIL(CodeFormat), UR_RESULT_ERROR_INVALID_BINARY);
   try {
-    ur_program_handle_t_ *UrProgram =
-        new ur_program_handle_t_(ur_program_handle_t_::IL, Context, IL, Length);
+    ur_program_handle_t_ *UrProgram = new ur_program_handle_t_(
+        ur_program_handle_t_::IL, Context, IL, Length, CodeFormat);
     *Program = reinterpret_cast<ur_program_handle_t>(UrProgram);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -195,9 +218,17 @@ ur_result_t urProgramBuildExp(
     auto Code = hProgram->getCode(ZeDevice);
     UR_ASSERT(Code, UR_RESULT_ERROR_INVALID_PROGRAM);
 
-    ZeModuleDesc.format = (State == ur_program_handle_t_::IL)
-                              ? ZE_MODULE_FORMAT_IL_SPIRV
-                              : ZE_MODULE_FORMAT_NATIVE;
+    switch (hProgram->getCodeFormat(ZeDevice)) {
+    case ur_program_handle_t_::CodeFormat::SPIRV:
+      ZeModuleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
+      break;
+    case ur_program_handle_t_::CodeFormat::Native:
+      ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
+      break;
+    default:
+      ur::unreachable();
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
+    }
     ZeModuleDesc.inputSize = hProgram->getCodeSize(ZeDevice);
     ZeModuleDesc.pInputModule = Code;
     ze_context_handle_t ZeContext = hProgram->Context->getZeHandle();
@@ -364,6 +395,8 @@ ur_result_t urProgramLinkExp(
     // locks simultaneously with "exclusive" access.  However, there is no such
     // code like that, so this is also not a danger.
     std::vector<std::shared_lock<ur_shared_mutex>> Guards(count);
+    const ur_program_handle_t_::CodeFormat CommonCodeFormat =
+        phPrograms[0]->getCodeFormat();
     for (uint32_t I = 0; I < count; I++) {
       std::shared_lock<ur_shared_mutex> Guard(phPrograms[I]->Mutex);
       Guards[I].swap(Guard);
@@ -373,6 +406,13 @@ ur_result_t urProgramLinkExp(
             ur_program_handle_t_::Object) {
           return UR_RESULT_ERROR_INVALID_OPERATION;
         }
+      }
+
+      // The L0 API has no way to represent mixed format modules,
+      // even though it could be possible to implement linking
+      // of mixed format modules.
+      if (phPrograms[I]->getCodeFormat() != CommonCodeFormat) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
       }
     }
 
@@ -406,7 +446,14 @@ ur_result_t urProgramLinkExp(
 
     ZeStruct<ze_module_desc_t> ZeModuleDesc;
     ZeModuleDesc.pNext = &ZeExtModuleDesc;
-    ZeModuleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
+    switch (CommonCodeFormat) {
+    case ur_program_handle_t_::CodeFormat::SPIRV:
+      ZeModuleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
+      break;
+    default:
+      ur::unreachable();
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
+    }
 
     // This works around a bug in the Level Zero driver.  When "ZE_DEBUG=-1",
     // the driver does validation of the API calls, and it expects
@@ -439,9 +486,9 @@ ur_result_t urProgramLinkExp(
         ZeModuleDesc.pInputModule = ZeExtModuleDesc.pInputModules[0];
         ZeModuleDesc.pConstants = ZeExtModuleDesc.pConstants[0];
       } else {
-        logger::error(
-            "urProgramLink: level_zero driver does not have static linking "
-            "support.");
+        UR_LOG(ERR,
+               "urProgramLink: level_zero driver does not have static linking "
+               "support.");
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
     }
@@ -511,14 +558,14 @@ ur_result_t urProgramLinkExp(
 ur_result_t urProgramRetain(
     /// [in] handle for the Program to retain
     ur_program_handle_t Program) {
-  Program->RefCount.increment();
+  Program->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urProgramRelease(
     /// [in] handle for the Program to release
     ur_program_handle_t Program) {
-  if (!Program->RefCount.decrementAndTest())
+  if (!Program->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   delete Program;
@@ -661,7 +708,7 @@ ur_result_t urProgramGetInfo(
 
   switch (PropName) {
   case UR_PROGRAM_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Program->RefCount.load()});
+    return ReturnValue(uint32_t{Program->RefCount.getCount()});
   case UR_PROGRAM_INFO_CONTEXT:
     return ReturnValue(Program->Context);
   case UR_PROGRAM_INFO_NUM_DEVICES:
@@ -893,7 +940,7 @@ ur_result_t urProgramGetBuildInfo(
     // program.
     return ReturnValue("");
   } else {
-    logger::error("urProgramGetBuildInfo: unsupported ParamName");
+    UR_LOG(ERR, "urProgramGetBuildInfo: unsupported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   return UR_RESULT_SUCCESS;
@@ -908,7 +955,8 @@ ur_result_t urProgramSetSpecializationConstant(
     size_t /*SpecSize*/,
     /// [in] pointer to the specialization value bytes
     const void * /*SpecValue*/) {
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -995,11 +1043,13 @@ ur_result_t urProgramSetSpecializationConstants(
 
 ur_program_handle_t_::ur_program_handle_t_(state St,
                                            ur_context_handle_t Context,
-                                           const void *Input, size_t Length)
+                                           const void *Input, size_t Length,
+                                           CodeFormat CodeFormat)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{true},
-      AssociatedDevices(Context->getDevices()), SpirvCode{new uint8_t[Length]},
-      SpirvCodeLength{Length} {
-  std::memcpy(SpirvCode.get(), Input, Length);
+      AssociatedDevices(Context->getDevices()), ILCode{new uint8_t[Length]},
+      ILCodeLength{Length}, ILCodeFormat(CodeFormat) {
+  assert(isCodeFormatIL(CodeFormat));
+  std::memcpy(ILCode.get(), Input, Length);
   // All devices have the program in IL state.
   for (auto &Device : Context->getDevices()) {
     DeviceData &PerDevData = DeviceDataMap[Device->ZeDevice];
@@ -1065,7 +1115,7 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
   // must be destroyed before the Module can be destroyed.  So, be sure
   // to destroy build log before destroying the module.
   if (!deletion) {
-    if (!RefCount.decrementAndTest()) {
+    if (!RefCount.release()) {
       return;
     }
   }

@@ -22,7 +22,6 @@ int main() {
 
   sycl::device dev;
   sycl::queue q(dev);
-  auto ctxt = q.get_context();
 
   // declare image data
   size_t width = 6;

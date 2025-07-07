@@ -104,7 +104,8 @@ struct valAllDevicesTest : valPlatformTest {
     uint32_t count = 0;
     if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count) ||
         count == 0) {
-      FAIL() << "Failed to get devices";
+      GTEST_SKIP() << "No devices available";
+      return;
     }
 
     devices.resize(count);

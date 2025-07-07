@@ -18,9 +18,6 @@ import os
 
 class VelocityBench(Suite):
     def __init__(self, directory):
-        if options.sycl is None:
-            return
-
         self.directory = directory
 
     def name(self) -> str:
@@ -44,18 +41,6 @@ class VelocityBench(Suite):
         )
 
     def benchmarks(self) -> list[Benchmark]:
-        if options.sycl is None:
-            return []
-
-        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
-            return [
-                Hashtable(self),
-                Bitcracker(self),
-                CudaSift(self),
-                QuickSilver(self),
-                SobelFilter(self),
-            ]
-
         return [
             Hashtable(self),
             Bitcracker(self),
@@ -76,6 +61,19 @@ class VelocityBase(Benchmark):
         self.bench_name = name
         self.bin_name = bin_name
         self.unit = unit
+
+    def enabled(self) -> bool:
+        if options.sycl is None:
+            return False
+        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
+            return self.bench_name in [
+                "hashtable",
+                "bitcracker",
+                "cudaSift",
+                "QuickSilver",
+                "sobel_filter",
+            ]
+        return True
 
     def download_deps(self):
         return
@@ -148,7 +146,6 @@ class VelocityBase(Benchmark):
                 value=self.parse_output(result),
                 command=command,
                 env=env_vars,
-                stdout=result,
                 unit=self.unit,
                 git_url=self.vb.git_url(),
                 git_hash=self.vb.git_hash(),

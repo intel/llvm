@@ -1,8 +1,7 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: windows
 
-// DEFINE: %{link-flags}=%if cl_options %{ /clang:-ld3d12 /clang:-ldxgi /clang:-ldxguid %} %else %{ -ld3d12 -ldxgi -ldxguid %}
-// RUN: %{build} %{link-flags} -o %t.out
+// RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #pragma clang diagnostic ignored "-Waddress-of-temporary"

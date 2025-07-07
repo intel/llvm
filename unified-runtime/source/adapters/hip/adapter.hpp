@@ -17,7 +17,7 @@
 #include <atomic>
 #include <memory>
 
-struct ur_adapter_handle_t_ {
+struct ur_adapter_handle_t_ : ur::hip::handle_base {
   std::atomic<uint32_t> RefCount = 0;
   logger::Logger &logger;
   std::unique_ptr<ur_platform_handle_t_> Platform;

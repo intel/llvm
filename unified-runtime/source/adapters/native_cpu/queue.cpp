@@ -14,13 +14,26 @@
 #include "ur/ur.hpp"
 #include "ur_api.h"
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t /*hQueue*/,
-                                                   ur_queue_info_t /*propName*/,
-                                                   size_t /*propSize*/,
-                                                   void * /*pPropValue*/,
-                                                   size_t * /*pPropSizeRet*/) {
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
+                                                   ur_queue_info_t propName,
+                                                   size_t propSize,
+                                                   void *pPropValue,
+                                                   size_t *pPropSizeRet) {
 
-  DIE_NO_IMPLEMENTATION;
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+  switch (propName) {
+  case UR_QUEUE_INFO_CONTEXT:
+    return ReturnValue(hQueue->getContext());
+  case UR_QUEUE_INFO_DEVICE:
+    return ReturnValue(hQueue->getDevice());
+  case UR_QUEUE_INFO_REFERENCE_COUNT:
+    return ReturnValue(hQueue->getReferenceCount());
+  case UR_QUEUE_INFO_EMPTY:
+    return ReturnValue(hQueue->isEmpty());
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(

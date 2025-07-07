@@ -770,8 +770,7 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
   case VTableComponent::CK_FunctionPointer:
   case VTableComponent::CK_CompleteDtorPointer:
   case VTableComponent::CK_DeletingDtorPointer: {
-    GlobalDecl GD =
-        component.getGlobalDecl(CGM.getCXXABI().hasVectorDeletingDtors());
+    GlobalDecl GD = component.getGlobalDecl();
 
     const bool IsThunk =
         nextVTableThunkIndex < layout.vtable_thunks().size() &&
@@ -1005,7 +1004,7 @@ llvm::GlobalVariable *CodeGenVTables::GenerateConstructionVTable(
   assert(!VTable->isDeclaration() && "Shouldn't set properties on declaration");
   CGM.setGVProperties(VTable, RD);
 
-  CGM.EmitVTableTypeMetadata(RD, VTable, *VTLayout.get());
+  CGM.EmitVTableTypeMetadata(RD, VTable, *VTLayout);
 
   if (UsingRelativeLayout) {
     RemoveHwasanMetadata(VTable);

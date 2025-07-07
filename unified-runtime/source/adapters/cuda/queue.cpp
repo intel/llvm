@@ -66,6 +66,7 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
 
+    ScopedContext Active(hDevice);
     unsigned int Flags = CU_STREAM_NON_BLOCKING;
     ur_queue_flags_t URFlags = 0;
     // '0' is the default priority, per CUDA Toolkit 12.2 and earlier
@@ -83,7 +84,6 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
         IsOutOfOrder = true;
       }
       if (URFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
-        ScopedContext Active(hDevice);
         UR_CHECK_ERROR(cuCtxGetStreamPriorityRange(nullptr, &Priority));
       } else if (URFlags & UR_QUEUE_FLAG_PRIORITY_LOW) {
         ScopedContext Active(hDevice);
@@ -92,7 +92,7 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
     }
 
     Queue = std::unique_ptr<ur_queue_handle_t_>(new ur_queue_handle_t_{
-        {IsOutOfOrder, hContext, hDevice, Flags, URFlags, Priority}});
+        {}, {IsOutOfOrder, hContext, hDevice, Flags, URFlags, Priority}});
 
     *phQueue = Queue.release();
 
@@ -202,7 +202,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   } else {
     setErrorMessage("Incorrect native stream flags, expecting "
                     "CU_STREAM_DEFAULT or CU_STREAM_NON_BLOCKING",
-                    UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+                    UR_RESULT_ERROR_INVALID_VALUE);
     return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
 
@@ -211,7 +211,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 
   // Create queue from a native stream
   *phQueue = new ur_queue_handle_t_{
-      {CuStream, hContext, hDevice, CuFlags, Flags, isNativeHandleOwned}};
+      {}, {CuStream, hContext, hDevice, CuFlags, Flags, isNativeHandleOwned}};
 
   return UR_RESULT_SUCCESS;
 }

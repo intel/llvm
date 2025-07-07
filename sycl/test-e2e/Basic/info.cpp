@@ -9,6 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 #include <cassert>
 #include <cstdint>

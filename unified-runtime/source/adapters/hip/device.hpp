@@ -17,7 +17,7 @@
 /// Includes an observer pointer to the platform,
 /// and implements the reference counting semantics since
 /// HIP objects are not refcounted.
-struct ur_device_handle_t_ {
+struct ur_device_handle_t_ : ur::hip::handle_base {
 private:
   using native_type = hipDevice_t;
 
@@ -28,10 +28,9 @@ private:
   uint32_t DeviceIndex;
 
   int MaxWorkGroupSize{0};
-  int MaxBlockDimX{0};
-  int MaxBlockDimY{0};
-  int MaxBlockDimZ{0};
-  int DeviceMaxLocalMem{0};
+  size_t MaxBlockDim[3];
+  int MaxCapacityLocalMem{0};
+  int MaxChosenLocalMem{0};
   int ManagedMemSupport{0};
   int ConcurrentManagedAccess{0};
   bool HardwareImageSupport{false};
@@ -39,19 +38,25 @@ private:
 public:
   ur_device_handle_t_(native_type HipDevice, hipEvent_t EvBase,
                       ur_platform_handle_t Platform, uint32_t DeviceIndex)
-      : HIPDevice(HipDevice), RefCount{1}, Platform(Platform), EvBase(EvBase),
-        DeviceIndex(DeviceIndex) {
+      : handle_base(), HIPDevice(HipDevice), RefCount{1}, Platform(Platform),
+        EvBase(EvBase), DeviceIndex(DeviceIndex) {
 
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &MaxWorkGroupSize, hipDeviceAttributeMaxThreadsPerBlock, HIPDevice));
+
+    int MaxDim;
     UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &MaxBlockDimX, hipDeviceAttributeMaxBlockDimX, HIPDevice));
+        &MaxDim, hipDeviceAttributeMaxBlockDimX, HIPDevice));
+    MaxBlockDim[0] = size_t(MaxDim);
     UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &MaxBlockDimY, hipDeviceAttributeMaxBlockDimY, HIPDevice));
+        &MaxDim, hipDeviceAttributeMaxBlockDimY, HIPDevice));
+    MaxBlockDim[1] = size_t(MaxDim);
     UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &MaxBlockDimZ, hipDeviceAttributeMaxBlockDimZ, HIPDevice));
+        &MaxDim, hipDeviceAttributeMaxBlockDimZ, HIPDevice));
+    MaxBlockDim[2] = size_t(MaxDim);
+
     UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &DeviceMaxLocalMem, hipDeviceAttributeMaxSharedMemoryPerBlock,
+        &MaxCapacityLocalMem, hipDeviceAttributeMaxSharedMemoryPerBlock,
         HIPDevice));
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &ManagedMemSupport, hipDeviceAttributeManagedMemory, HIPDevice));
@@ -64,6 +69,30 @@ public:
         hipDeviceGetAttribute(&Ret, hipDeviceAttributeImageSupport, HIPDevice));
     assert(Ret == 0 || Ret == 1);
     HardwareImageSupport = Ret == 1;
+
+    // Set local mem max size if env var is present
+    static const char *LocalMemSzPtrUR =
+        std::getenv("UR_HIP_MAX_LOCAL_MEM_SIZE");
+    static const char *LocalMemSzPtrPI =
+        std::getenv("SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE");
+    static const char *LocalMemSzPtr =
+        LocalMemSzPtrUR ? LocalMemSzPtrUR : LocalMemSzPtrPI;
+
+    if (LocalMemSzPtr) {
+      MaxChosenLocalMem = std::atoi(LocalMemSzPtr);
+      if (MaxChosenLocalMem <= 0) {
+        setErrorMessage(LocalMemSzPtrUR ? "Invalid value specified for "
+                                          "UR_HIP_MAX_LOCAL_MEM_SIZE"
+                                        : "Invalid value specified for "
+                                          "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE",
+                        UR_RESULT_ERROR_OUT_OF_RESOURCES);
+        throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+
+      // Cap chosen local mem size to device capacity, kernel enqueue will fail
+      // if it actually needs more.
+      MaxChosenLocalMem = std::min(MaxChosenLocalMem, MaxCapacityLocalMem);
+    }
   }
 
   ~ur_device_handle_t_() noexcept(false) {}
@@ -82,13 +111,13 @@ public:
 
   int getMaxWorkGroupSize() const noexcept { return MaxWorkGroupSize; };
 
-  int getMaxBlockDimX() const noexcept { return MaxBlockDimX; };
+  size_t getMaxBlockDim(int dim) const noexcept { return MaxBlockDim[dim]; };
 
-  int getMaxBlockDimY() const noexcept { return MaxBlockDimY; };
+  const size_t *getMaxBlockDim() const noexcept { return MaxBlockDim; };
 
-  int getMaxBlockDimZ() const noexcept { return MaxBlockDimZ; };
+  int getMaxCapacityLocalMem() const noexcept { return MaxCapacityLocalMem; };
 
-  int getDeviceMaxLocalMem() const noexcept { return DeviceMaxLocalMem; };
+  int getMaxChosenLocalMem() const noexcept { return MaxChosenLocalMem; };
 
   int getManagedMemSupport() const noexcept { return ManagedMemSupport; };
 

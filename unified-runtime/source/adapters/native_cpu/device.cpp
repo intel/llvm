@@ -99,7 +99,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
   if (NumEntries == 0) {
     /// Runtime queries number of devices
     if (phDevices != nullptr) {
-      logger::error("Invalid Arguments for urDevicesGet");
+      UR_LOG(ERR, "Invalid Arguments for urDevicesGet");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     return UR_RESULT_SUCCESS;
@@ -214,8 +214,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       *pPropSizeRet = 0;
     }
     return UR_RESULT_SUCCESS;
-  case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
-    return ReturnValue("");
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
     return ReturnValue(
         ur_queue_flag_t(UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
@@ -396,10 +394,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
-    uint64_t Capabilities = UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
-                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
-                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
-                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
+    ur_memory_scope_capability_flags_t Capabilities =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
@@ -444,16 +443,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(false);
 
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    return ReturnValue(false);
-
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
-    return ReturnValue(false);
-
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
 
   case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
+    return ReturnValue(false);
+
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    return ReturnValue(0);
+
+  case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
     return ReturnValue(false);
 
   default:

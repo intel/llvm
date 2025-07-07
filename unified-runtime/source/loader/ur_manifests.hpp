@@ -26,14 +26,14 @@ namespace ur_loader {
 struct ur_adapter_manifest {
   std::string name;
   std::string library;
-  ur_adapter_backend_t backend;
+  ur_backend_t backend;
   std::vector<ur_device_type_t> device_types;
 };
 
 const std::vector<ur_adapter_manifest> ur_adapter_manifests = {
     {"opencl",
      MAKE_LIBRARY_NAME("ur_adapter_opencl", "0"),
-     UR_ADAPTER_BACKEND_OPENCL,
+     UR_BACKEND_OPENCL,
      {
          UR_DEVICE_TYPE_CPU,
          UR_DEVICE_TYPE_GPU,
@@ -43,19 +43,19 @@ const std::vector<ur_adapter_manifest> ur_adapter_manifests = {
      }},
     {"cuda",
      MAKE_LIBRARY_NAME("ur_adapter_cuda", "0"),
-     UR_ADAPTER_BACKEND_CUDA,
+     UR_BACKEND_CUDA,
      {
          UR_DEVICE_TYPE_GPU,
      }},
     {"hip",
      MAKE_LIBRARY_NAME("ur_adapter_hip", "0"),
-     UR_ADAPTER_BACKEND_HIP,
+     UR_BACKEND_HIP,
      {
          UR_DEVICE_TYPE_GPU,
      }},
     {"level_zero",
      MAKE_LIBRARY_NAME("ur_adapter_level_zero", "0"),
-     UR_ADAPTER_BACKEND_LEVEL_ZERO,
+     UR_BACKEND_LEVEL_ZERO,
      {
          UR_DEVICE_TYPE_CPU,
          UR_DEVICE_TYPE_GPU,
@@ -65,7 +65,7 @@ const std::vector<ur_adapter_manifest> ur_adapter_manifests = {
      }},
     {"level_zero_v2",
      MAKE_LIBRARY_NAME("ur_adapter_level_zero_v2", "0"),
-     UR_ADAPTER_BACKEND_LEVEL_ZERO,
+     UR_BACKEND_LEVEL_ZERO,
      {
          UR_DEVICE_TYPE_CPU,
          UR_DEVICE_TYPE_GPU,
@@ -75,9 +75,16 @@ const std::vector<ur_adapter_manifest> ur_adapter_manifests = {
      }},
     {"native_cpu",
      MAKE_LIBRARY_NAME("ur_adapter_native_cpu", "0"),
-     UR_ADAPTER_BACKEND_NATIVE_CPU,
+     UR_BACKEND_NATIVE_CPU,
      {
          UR_DEVICE_TYPE_CPU,
+     }},
+    {"offload",
+     MAKE_LIBRARY_NAME("ur_adapter_offload", "0"),
+     UR_BACKEND_OFFLOAD,
+     {
+         UR_DEVICE_TYPE_CPU,
+         UR_DEVICE_TYPE_GPU,
      }},
 };
 } // namespace ur_loader

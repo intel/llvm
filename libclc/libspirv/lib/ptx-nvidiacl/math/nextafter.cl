@@ -11,12 +11,13 @@
 #include <clc/utils.h>
 #include <libspirv/spirv.h>
 
-#define __CLC_FUNCTION __spirv_ocl_nextafter
+#define __SPIRV_FUNCTION __spirv_ocl_nextafter
 #define __CLC_BUILTIN __nv_nextafter
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
 #define __CLC_BUILTIN_D __CLC_BUILTIN
 
-_CLC_DEFINE_BINARY_BUILTIN(float, __CLC_FUNCTION, __CLC_BUILTIN_F, float, float)
+_CLC_DEFINE_BINARY_BUILTIN(float, __SPIRV_FUNCTION, __CLC_BUILTIN_F, float,
+                           float)
 
 #ifndef __FLOAT_ONLY
 
@@ -24,7 +25,7 @@ _CLC_DEFINE_BINARY_BUILTIN(float, __CLC_FUNCTION, __CLC_BUILTIN_F, float, float)
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(double, __CLC_FUNCTION, __CLC_BUILTIN_D, double,
+_CLC_DEFINE_BINARY_BUILTIN(double, __SPIRV_FUNCTION, __CLC_BUILTIN_D, double,
                            double)
 
 #endif

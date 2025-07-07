@@ -157,6 +157,7 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
     ${PROJECT_NAME}::umf
+    ur_common
     rocmdrv
     )
 

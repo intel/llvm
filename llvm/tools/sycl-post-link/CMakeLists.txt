@@ -9,8 +9,6 @@ set(LLVM_LINK_COMPONENTS
   TransformUtils
   SYCLLowerIR
   SYCLPostLink
-  InstCombine
-  ScalarOpts
   Linker
   Passes
   Analysis

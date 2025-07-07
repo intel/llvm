@@ -34,7 +34,6 @@
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCParser/AsmCond.h"
 #include "llvm/MC/MCParser/AsmLexer.h"
-#include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCAsmParser.h"
 #include "llvm/MC/MCParser/MCAsmParserExtension.h"
 #include "llvm/MC/MCParser/MCAsmParserUtils.h"
@@ -670,8 +669,6 @@ private:
   bool parseEscapedString(std::string &Data) override;
   bool parseAngleBracketString(std::string &Data) override;
 
-  const MCExpr *applySpecifier(const MCExpr *E, uint32_t Variant);
-
   // Macro-like directives
   MCAsmMacro *parseMacroLikeBody(SMLoc DirectiveLoc);
   void instantiateMacroLikeBody(MCAsmMacro *M, SMLoc DirectiveLoc,
@@ -716,7 +713,7 @@ private:
 
 class HLASMAsmParser final : public AsmParser {
 private:
-  MCAsmLexer &Lexer;
+  AsmLexer &Lexer;
   MCStreamer &Out;
 
   void lexLeadingSpaces() {
@@ -758,8 +755,6 @@ extern MCAsmParserExtension *createXCOFFAsmParser();
 extern MCAsmParserExtension *createWasmAsmParser();
 
 } // end namespace llvm
-
-enum { DEFAULT_ADDRSPACE = 0 };
 
 AsmParser::AsmParser(SourceMgr &SM, MCContext &Ctx, MCStreamer &Out,
                      const MCAsmInfo &MAI, unsigned CB = 0)
@@ -1193,7 +1188,7 @@ bool AsmParser::parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc,
 
           Split = std::make_pair(Identifier, VName);
         }
-      } else {
+      } else if (Lexer.getAllowAtInIdentifier()) {
         Split = Identifier.split('@');
       }
     } else if (MAI.useParensForSpecifier() &&
@@ -1236,14 +1231,14 @@ bool AsmParser::parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc,
     // If this is an absolute variable reference, substitute it now to preserve
     // semantics in the face of reassignment.
     if (Sym->isVariable()) {
-      auto V = Sym->getVariableValue(/*SetUsed*/ false);
+      auto V = Sym->getVariableValue();
       bool DoInline = isa<MCConstantExpr>(V) && !Variant;
       if (auto TV = dyn_cast<MCTargetExpr>(V))
         DoInline = TV->inlineAssignedExpr();
       if (DoInline) {
         if (Variant)
           return Error(EndLoc, "unexpected modifier on variable reference");
-        Res = Sym->getVariableValue(/*SetUsed*/ false);
+        Res = Sym->getVariableValue();
         return false;
       }
     }
@@ -1341,7 +1336,7 @@ bool AsmParser::parseExpression(const MCExpr *&Res) {
   return parseExpression(Res, EndLoc);
 }
 
-const MCExpr *AsmParser::applySpecifier(const MCExpr *E, uint32_t Spec) {
+const MCExpr *MCAsmParser::applySpecifier(const MCExpr *E, uint32_t Spec) {
   // Ask the target implementation about this expression first.
   const MCExpr *NewE = getTargetParser().applySpecifier(E, Spec, Ctx);
   if (NewE)
@@ -1432,6 +1427,23 @@ static std::string angleBracketString(StringRef AltMacroStr) {
   return Res;
 }
 
+bool MCAsmParser::parseAtSpecifier(const MCExpr *&Res, SMLoc &EndLoc) {
+  if (parseOptionalToken(AsmToken::At)) {
+    if (getLexer().isNot(AsmToken::Identifier))
+      return TokError("expected specifier following '@'");
+
+    auto Spec = MAI.getSpecifierForName(getTok().getIdentifier());
+    if (!Spec)
+      return TokError("invalid specifier '@" + getTok().getIdentifier() + "'");
+
+    const MCExpr *ModifiedRes = applySpecifier(Res, *Spec);
+    if (ModifiedRes)
+      Res = ModifiedRes;
+    Lex();
+  }
+  return false;
+}
+
 /// Parse an expression and return it.
 ///
 ///  expr ::= expr &&,|| expr               -> lowest.
@@ -1452,8 +1464,7 @@ bool AsmParser::parseExpression(const MCExpr *&Res, SMLoc &EndLoc) {
   // As a special case, we support 'a op b @ modifier' by rewriting the
   // expression to include the modifier. This is inefficient, but in general we
   // expect users to use 'a@modifier op b'.
-  if (Ctx.getAsmInfo()->useAtForSpecifier() &&
-      parseOptionalToken(AsmToken::At)) {
+  if (Lexer.getAllowAtInIdentifier() && parseOptionalToken(AsmToken::At)) {
     if (Lexer.isNot(AsmToken::Identifier))
       return TokError("unexpected symbol modifier following '@'");
 
@@ -1748,20 +1759,9 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
     // Treat '.' as a valid identifier in this context.
     Lex();
     IDVal = ".";
-  } else if (Lexer.is(AsmToken::LCurly)) {
-    // Treat '{' as a valid identifier in this context.
+  } else if (getTargetParser().tokenIsStartOfStatement(ID.getKind())) {
     Lex();
-    IDVal = "{";
-
-  } else if (Lexer.is(AsmToken::RCurly)) {
-    // Treat '}' as a valid identifier in this context.
-    Lex();
-    IDVal = "}";
-  } else if (Lexer.is(AsmToken::Star) &&
-             getTargetParser().starIsStartOfStatement()) {
-    // Accept '*' as a valid start of statement.
-    Lex();
-    IDVal = "*";
+    IDVal = ID.getString();
   } else if (parseIdentifier(IDVal)) {
     if (!TheCondState.Ignore) {
       Lex(); // always eat a token
@@ -5272,9 +5272,9 @@ bool AsmParser::parseDirectiveIfdef(SMLoc DirectiveLoc, bool expect_defined) {
     MCSymbol *Sym = getContext().lookupSymbol(Name);
 
     if (expect_defined)
-      TheCondState.CondMet = (Sym && !Sym->isUndefined(false));
+      TheCondState.CondMet = (Sym && !Sym->isUndefined());
     else
-      TheCondState.CondMet = (!Sym || Sym->isUndefined(false));
+      TheCondState.CondMet = (!Sym || Sym->isUndefined());
     TheCondState.Ignore = !TheCondState.CondMet;
   }
 
@@ -6332,37 +6332,25 @@ bool parseAssignmentExpression(StringRef Name, bool allow_redef,
   SMLoc EqualLoc = Parser.getTok().getLoc();
   if (Parser.parseExpression(Value))
     return Parser.TokError("missing expression");
-
-  // Note: we don't count b as used in "a = b". This is to allow
-  // a = b
-  // b = c
-
   if (Parser.parseEOL())
     return true;
+  // Relocation specifiers are not permitted. For now, handle just
+  // MCSymbolRefExpr.
+  if (auto *S = dyn_cast<MCSymbolRefExpr>(Value); S && S->getSpecifier())
+    return Parser.Error(
+        EqualLoc, "relocation specifier not permitted in symbol equating");
 
   // Validate that the LHS is allowed to be a variable (either it has not been
   // used as a symbol, or it is an absolute symbol).
   Sym = Parser.getContext().lookupSymbol(Name);
   if (Sym) {
-    // Diagnose assignment to a label.
-    //
-    // FIXME: Diagnostics. Note the location of the definition as a label.
-    // FIXME: Diagnose assignment to protected identifier (e.g., register name).
-    if (Value->isSymbolUsedInExpression(Sym))
-      return Parser.Error(EqualLoc, "Recursive use of '" + Name + "'");
-    else if (Sym->isUndefined(/*SetUsed*/ false) && !Sym->isUsed() &&
-             !Sym->isVariable())
-      ; // Allow redefinitions of undefined symbols only used in directives.
-    else if (Sym->isVariable() && !Sym->isUsed() && allow_redef)
-      ; // Allow redefinitions of variables that haven't yet been used.
-    else if (!Sym->isUndefined() && (!Sym->isVariable() || !allow_redef))
+    if (!Sym->isUnset() && (!allow_redef || !Sym->isRedefinable()))
       return Parser.Error(EqualLoc, "redefinition of '" + Name + "'");
-    else if (!Sym->isVariable())
-      return Parser.Error(EqualLoc, "invalid assignment to '" + Name + "'");
-    else if (!isa<MCConstantExpr>(Sym->getVariableValue()))
-      return Parser.Error(EqualLoc,
-                          "invalid reassignment of non-absolute variable '" +
-                              Name + "'");
+    // If the symbol is redefinable, clone it and update the symbol table
+    // to the new symbol. Existing references to the original symbol remain
+    // unchanged.
+    if (Sym->isRedefinable())
+      Sym = Parser.getContext().cloneSymbol(*Sym);
   } else if (Name == ".") {
     Parser.getStreamer().emitValueToOffset(Value, 0, EqualLoc);
     return false;

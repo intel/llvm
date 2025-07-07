@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 #include "event.hpp"
 #include "program.hpp"
@@ -29,9 +30,6 @@ struct ur_device_handle_t_;
 
 bool IsDevicePointer(ur_context_handle_t Context, const void *Ptr);
 bool IsSharedPointer(ur_context_handle_t Context, const void *Ptr);
-bool PreferCopyEngineUsage(ur_device_handle_t Device,
-                           ur_context_handle_t Context, const void *Src,
-                           void *Dst);
 
 // This is an experimental option to test performance of device to device copy
 // operations on copy engines (versus compute engine)
@@ -93,6 +91,8 @@ struct ur_mem_handle_t_ : ur_object {
   // Method to get type of the derived object (image or buffer)
   bool isImage() const { return mem_type == mem_type_t::image; }
 
+  ur::RefCount RefCount;
+
 protected:
   ur_mem_handle_t_(mem_type_t type, ur_context_handle_t Context)
       : UrContext{Context}, UrDevice{nullptr}, mem_type(type) {}
@@ -119,7 +119,7 @@ struct ur_buffer final : ur_mem_handle_t_ {
       : ur_mem_handle_t_(mem_type_t::buffer, Parent->UrContext), Size(Size),
         SubBuffer{{Parent, Origin}} {
     // Retain the Parent Buffer due to the Creation of the SubBuffer.
-    Parent->RefCount.increment();
+    Parent->RefCount.retain();
   }
 
   // Interop-buffer constructor

@@ -29,7 +29,7 @@ void SanitizerOptions::Init(const std::string &EnvName,
     std::stringstream SS;
     SS << "<SANITIZER>[ERROR]: ";
     SS << e.what();
-    Logger.always(SS.str().c_str());
+    UR_LOG_L(Logger, QUIET, SS.str().c_str());
     die("Sanitizer failed to parse options.\n");
   }
 
@@ -47,14 +47,15 @@ void SanitizerOptions::Init(const std::string &EnvName,
   Parser.ParseBool("detect_leaks", DetectLeaks);
   Parser.ParseBool("halt_on_error", HaltOnError);
   Parser.ParseBool("recover", Recover);
+  Parser.ParseBool("msan_check_host_and_shared_usm", MsanCheckHostAndSharedUSM);
 
   Parser.ParseUint64("quarantine_size_mb", MaxQuarantineSizeMB, 0, UINT32_MAX);
   Parser.ParseUint64("redzone", MinRZSize, 16);
   MinRZSize =
       IsPowerOfTwo(MinRZSize) ? MinRZSize : RoundUpToPowerOfTwo(MinRZSize);
   if (MinRZSize > 16) {
-    Logger.warning(
-        "Increasing the redzone size may cause excessive memory overhead");
+    UR_LOG_L(Logger, WARN,
+             "Increasing the redzone size may cause excessive memory overhead");
   }
 }
 

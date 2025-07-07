@@ -14,7 +14,7 @@ int main() {
   Q.submit([&](sycl::handler &h) {
      h.parallel_for<class MyKernelR_4>(
          sycl::nd_range<1>(N, 8),
-         [=](sycl::nd_item<1> item) { array[item.get_group_linear_id()]++; });
+         [=](sycl::nd_item<1> item) { array[item.get_global_linear_id()]++; });
    }).wait();
   // CHECK-NOT: WARNING: DeviceSanitizer: data race
 

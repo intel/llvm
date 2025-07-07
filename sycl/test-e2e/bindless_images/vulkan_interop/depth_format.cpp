@@ -1,3 +1,4 @@
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
@@ -83,7 +84,8 @@ void runSycl(const sycl::device &syclDevice, sycl::range<2> globalSize,
     // Cleanup.
     syclexp::destroy_image_handle(imgIn, syclQueue);
     syclexp::destroy_image_handle(imgOut, syclQueue);
-    syclexp::free_image_mem(imgMemIn, syclexp::image_type::standard, syclQueue);
+    syclexp::unmap_external_image_memory(
+        imgMemIn, syclexp::image_type::standard, syclQueue);
     syclexp::free_image_mem(imgMemOut, syclexp::image_type::standard,
                             syclQueue);
     syclexp::release_external_memory(externalMemIn, syclQueue);
@@ -127,9 +129,8 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
   {
     vkInputImage = vkutil::createImage(imgType, imgInFormat, imgExtent,
                                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                           VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                           VK_IMAGE_USAGE_STORAGE_BIT,
-                                       1);
+                                           VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                       1 /*mipLevels*/);
     VkMemoryRequirements memRequirements;
     auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
         vkInputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memRequirements);
@@ -140,9 +141,8 @@ bool runTest(const sycl::device &syclDevice, sycl::range<2> dims,
 
     vkOutputImage = vkutil::createImage(imgType, imgOutFormat, imgExtent,
                                         VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                            VK_IMAGE_USAGE_STORAGE_BIT,
-                                        1);
+                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                        1 /*mipLevels*/);
     VkMemoryRequirements outputMemRequirements;
     auto outputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
         vkOutputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -362,8 +362,7 @@ int main() {
 
   sycl::device syclDevice;
 
-  if (vkutil::setupDevice(syclDevice.get_info<sycl::info::device::name>()) !=
-      VK_SUCCESS) {
+  if (vkutil::setupDevice(syclDevice) != VK_SUCCESS) {
     std::cerr << "Device setup failed!\n";
     return EXIT_FAILURE;
   }
@@ -373,7 +372,7 @@ int main() {
     return EXIT_FAILURE;
   }
 
-  auto testPassed = runTest(syclDevice, {16, 16}, {16, 16});
+  auto testPassed = runTest(syclDevice, {128, 128}, {16, 16});
 
   if (vkutil::cleanup() != VK_SUCCESS) {
     std::cerr << "Cleanup failed!\n";

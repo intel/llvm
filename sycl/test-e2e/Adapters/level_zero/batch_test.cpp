@@ -2,7 +2,6 @@
 
 // RUN: %{build} -o %t.ooo.out
 // RUN: %{build} -DUSING_INORDER -o %t.ino.out
-// RUN: %{build} -DUSING_DISCARD_EVENTS -o %t.discard_events.out
 // UNSUPPORTED: ze_debug, level_zero_v2_adapter
 
 // To test batching on out-of-order queue:
@@ -48,28 +47,6 @@
 
 // Set batching to 9 explicitly
 // RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=9 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB9 %s
-
-// To test batching on in-order queue with discard_events:
-// Set batching to 4 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB4 %s
-
-// Set batching to 1 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB1 %s
-
-// Set batching to 3 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=3 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB3 %s
-
-// Set batching to 5 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=5 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB5 %s
-
-// Set batching to 7 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=7 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB7 %s
-
-// Set batching to 8 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=8 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB8 %s
-
-// Set batching to 9 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=9 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB9 %s
 
 // level_zero_batch_test.cpp
 //
@@ -292,10 +269,6 @@ int main(int argc, char *argv[]) {
 
 #ifdef USING_INORDER
   sycl::property_list Props{sycl::property::queue::in_order{}};
-#elif USING_DISCARD_EVENTS
-  sycl::property_list Props{
-      sycl::property::queue::in_order{},
-      sycl::ext::oneapi::property::queue::discard_events{}};
 #else
   sycl::property_list Props{};
 #endif

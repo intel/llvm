@@ -118,6 +118,9 @@ SYCLBIN::SYCLBINDesc::SYCLBINDesc(BundleState State,
         IRMMetadata.add(
             llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA, "type",
             /*SPIR-V*/ 0);
+        IRMMetadata.add(
+            llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA,
+            "target", MD.TargetTriple.str());
         IRMMetadata.write(IDMetadataOS);
         AMD.IRModuleDescs.emplace_back(std::move(ID));
       } else {
@@ -126,6 +129,9 @@ SYCLBIN::SYCLBINDesc::SYCLBINDesc(BundleState State,
         NDCIMetadata.add(llvm::util::PropertySetRegistry::
                              SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
                          "arch", MD.ArchString);
+        NDCIMetadata.add(llvm::util::PropertySetRegistry::
+                             SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
+                         "target", MD.TargetTriple.str());
         NDCIMetadata.write(IDMetadataOS);
         AMD.NativeDeviceCodeImageDescs.emplace_back(std::move(ID));
       }
@@ -224,6 +230,8 @@ Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
     OS << StringRef(reinterpret_cast<char *>(&AMHeader), sizeof(AMHeader));
     OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
     HeaderTrackedMetadataOffset += AMHeader.MetadataSize;
+    IRModuleOffset += AMHeader.IRModuleCount;
+    NativeDeviceCodeImageOffset += AMHeader.NativeDeviceCodeImageCount;
     BinariesCount +=
         AMHeader.IRModuleCount + AMHeader.NativeDeviceCodeImageCount;
   }

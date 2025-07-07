@@ -6,9 +6,16 @@
 
 #include "fixtures.h"
 #include "queue.hpp"
+#include "ur_ddi.h"
 
 using urCudaQueueGetNativeHandleTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCudaQueueGetNativeHandleTest);
+
+const ur_dditable_t *ur::cuda::ddi_getter::value() {
+  // Return a blank dditable
+  static ur_dditable_t table{};
+  return &table;
+};
 
 TEST_P(urCudaQueueGetNativeHandleTest, Success) {
   CUstream Stream;

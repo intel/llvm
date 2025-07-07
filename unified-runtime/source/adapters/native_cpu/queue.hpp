@@ -27,18 +27,30 @@ struct ur_queue_handle_t_ : RefCounted {
 
   ur_context_handle_t getContext() const { return context; }
 
-  void addEvent(ur_event_handle_t event) { events.insert(event); }
+  void addEvent(ur_event_handle_t event) {
+    std::lock_guard<std::mutex> lock(mutex);
+    events.insert(event);
+  }
 
-  void removeEvent(ur_event_handle_t event) { events.erase(event); }
+  void removeEvent(ur_event_handle_t event) {
+    std::lock_guard<std::mutex> lock(mutex);
+    events.erase(event);
+  }
 
   void finish() {
+    std::unique_lock<std::mutex> lock(mutex);
     while (!events.empty()) {
       auto ev = *events.begin();
       // ur_event_handle_t_::wait removes itself from the events set in the
-      // queue
+      // queue.
+      ev->incrementReferenceCount();
+      // Unlocking mutex for removeEvent and for event callbacks that may need
+      // to acquire it.
+      lock.unlock();
       ev->wait();
+      decrementOrDelete(ev);
+      lock.lock();
     }
-    events.clear();
   }
 
   ~ur_queue_handle_t_() { finish(); }
@@ -47,10 +59,16 @@ struct ur_queue_handle_t_ : RefCounted {
 
   bool isProfiling() const { return profilingEnabled; }
 
+  bool isEmpty() const {
+    // TODO: check that events are done if there were any
+    return events.size() == 0;
+  }
+
 private:
   ur_device_handle_t device;
   ur_context_handle_t context;
   std::set<ur_event_handle_t> events;
   const bool inOrder;
   const bool profilingEnabled;
+  std::mutex mutex;
 };

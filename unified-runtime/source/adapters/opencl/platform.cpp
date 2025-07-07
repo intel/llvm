@@ -39,7 +39,7 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
 
   switch (static_cast<uint32_t>(propName)) {
   case UR_PLATFORM_INFO_BACKEND:
-    return ReturnValue(UR_PLATFORM_BACKEND_OPENCL);
+    return ReturnValue(UR_BACKEND_OPENCL);
   case UR_PLATFORM_INFO_ADAPTER:
     return ReturnValue(ur::cl::getAdapter());
   case UR_PLATFORM_INFO_NAME:
@@ -72,7 +72,14 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
   static std::mutex adapterPopulationMutex{};
   ur_adapter_handle_t Adapter = nullptr;
   UR_RETURN_ON_FAILURE(urAdapterGet(1, &Adapter, nullptr));
-  if (Adapter && !(Adapter->NumPlatforms)) {
+  if (!Adapter) {
+    // The only operation urAdapterGet really performs is allocating the adapter
+    // handle via new, so no adapter handle here almost certainly means memory
+    // problems.
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  }
+
+  if (Adapter->NumPlatforms == 0) {
     std::lock_guard guard{adapterPopulationMutex};
 
     // It's possible for urPlatformGet, if ran on multiple threads, to enter

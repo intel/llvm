@@ -25,8 +25,8 @@ struct urCommandBufferMemcpyCommandsTest
     offset_src = std::get<1>(GetParam()).offset_src;
     offset_dst = std::get<1>(GetParam()).offset_dst;
     copy_size = std::get<1>(GetParam()).copy_size;
-    assert(size <= offset_src + copy_size);
-    assert(size <= offset_dst + copy_size);
+    assert(size >= offset_src + copy_size);
+    assert(size >= offset_dst + copy_size);
     // Allocate USM pointers
     ASSERT_SUCCESS(
         urUSMDeviceAlloc(context, device, nullptr, nullptr, size, &device_ptr));
@@ -116,6 +116,10 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     printMemcpyTestString<urCommandBufferMemcpyCommandsTest>);
 
 TEST_P(urCommandBufferMemcpyCommandsTest, Buffer) {
+  // Buffer read & write not supported on OpenCL
+  // See https://github.com/KhronosGroup/OpenCL-Docs/issues/1281
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   std::vector<uint8_t> input(size);
   std::iota(input.begin(), input.end(), 1);
 

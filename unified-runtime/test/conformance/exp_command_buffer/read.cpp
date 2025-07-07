@@ -15,6 +15,10 @@ struct testParametersRead {
 struct urCommandBufferReadCommandsTest
     : uur::command_buffer::urCommandBufferExpTestWithParam<testParametersRead> {
   void SetUp() override {
+    // Buffer read not supported on OpenCL
+    // see https://github.com/KhronosGroup/OpenCL-Docs/issues/1281
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::command_buffer::urCommandBufferExpTestWithParam<
             testParametersRead>::SetUp());
@@ -22,7 +26,7 @@ struct urCommandBufferReadCommandsTest
     size = std::get<1>(GetParam()).size;
     offset = std::get<1>(GetParam()).offset;
     read_size = std::get<1>(GetParam()).read_size;
-    assert(size <= offset + read_size);
+    assert(size >= offset + read_size);
     // Allocate USM pointers
     ASSERT_SUCCESS(
         urUSMDeviceAlloc(context, device, nullptr, nullptr, size, &device_ptr));

@@ -129,6 +129,12 @@ enum class EmbedResult {
   Empty = 2,    // Corresponds to __STDC_EMBED_EMPTY__
 };
 
+struct CXXStandardLibraryVersionInfo {
+  enum Library { Unknown, LibStdCXX };
+  Library Lib;
+  std::uint64_t Version;
+};
+
 /// Engages in a tight little dance with the lexer to efficiently
 /// preprocess tokens.
 ///
@@ -140,6 +146,12 @@ class Preprocessor {
   friend class VariadicMacroScopeGuard;
 
   llvm::unique_function<void(const clang::Token &)> OnToken;
+  /// Functor for getting the dependency preprocessor directives of a file.
+  ///
+  /// These are directives derived from a special form of lexing where the
+  /// source input is scanned for the preprocessor directives that might have an
+  /// effect on the dependencies for a compilation unit.
+  DependencyDirectivesGetter *GetDependencyDirectives = nullptr;
   const PreprocessorOptions &PPOpts;
   DiagnosticsEngine        *Diags;
   const LangOptions &LangOpts;
@@ -328,7 +340,7 @@ private:
   SourceLocation ModuleImportLoc;
 
   /// The import path for named module that we're currently processing.
-  SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> NamedModuleImportPath;
+  SmallVector<IdentifierLoc, 2> NamedModuleImportPath;
 
   llvm::DenseMap<FileID, SmallVector<const char *>> CheckPoints;
   unsigned CheckPointCounter = 0;
@@ -623,7 +635,7 @@ private:
 
   /// The identifier and source location of the currently-active
   /// \#pragma clang arc_cf_code_audited begin.
-  std::pair<IdentifierInfo *, SourceLocation> PragmaARCCFCodeAuditedInfo;
+  IdentifierLoc PragmaARCCFCodeAuditedInfo;
 
   /// The source location of the currently-active
   /// \#pragma clang assume_nonnull begin.
@@ -1327,6 +1339,10 @@ public:
     OnToken = std::move(F);
   }
 
+  void setDependencyDirectivesGetter(DependencyDirectivesGetter &Get) {
+    GetDependencyDirectives = &Get;
+  }
+
   void setPreprocessToken(bool Preprocess) { PreprocessToken = Preprocess; }
 
   bool isMacroDefined(StringRef Id) {
@@ -1999,8 +2015,7 @@ public:
   /// arc_cf_code_audited begin.
   ///
   /// Returns an invalid location if there is no such pragma active.
-  std::pair<IdentifierInfo *, SourceLocation>
-  getPragmaARCCFCodeAuditedInfo() const {
+  IdentifierLoc getPragmaARCCFCodeAuditedInfo() const {
     return PragmaARCCFCodeAuditedInfo;
   }
 
@@ -2008,7 +2023,7 @@ public:
   /// arc_cf_code_audited begin.  An invalid location ends the pragma.
   void setPragmaARCCFCodeAuditedInfo(IdentifierInfo *Ident,
                                      SourceLocation Loc) {
-    PragmaARCCFCodeAuditedInfo = {Ident, Loc};
+    PragmaARCCFCodeAuditedInfo = IdentifierLoc(Loc, Ident);
   }
 
   /// The location of the currently-active \#pragma clang
@@ -2699,6 +2714,15 @@ private:
   }
 
   //===--------------------------------------------------------------------===//
+  // Standard Library Identification
+  std::optional<CXXStandardLibraryVersionInfo> CXXStandardLibraryVersion;
+
+public:
+  std::optional<std::uint64_t> getStdLibCxxVersion();
+  bool NeedsStdLibCxxWorkaroundBefore(std::uint64_t FixedVersion);
+
+private:
+  //===--------------------------------------------------------------------===//
   // Caching stuff.
   void CachingLex(Token &Result);
 
@@ -2763,7 +2787,7 @@ private:
                             const FileEntry *LookupFromFile = nullptr);
   void HandleEmbedDirectiveImpl(SourceLocation HashLoc,
                                 const LexEmbedParametersResult &Params,
-                                StringRef BinaryContents);
+                                StringRef BinaryContents, StringRef FileName);
 
   // File inclusion.
   void HandleIncludeDirective(SourceLocation HashLoc, Token &Tok,
@@ -3067,6 +3091,7 @@ public:
 /// preprocessor to the parser through an annotation token.
 struct EmbedAnnotationData {
   StringRef BinaryData;
+  StringRef FileName;
 };
 
 /// Registry of pragma handlers added by plugins

@@ -212,6 +212,8 @@ etors:
     desc: "Win32 NT handle"
   - name: WIN32_NT_DX12_RESOURCE
     desc: "Win32 NT DirectX 12 resource handle"
+  - name: DMA_BUF
+    desc: "dma_buf file descriptor"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Dictates the type of external semaphore handle."
@@ -527,6 +529,7 @@ name: SampledImageCreateExp
 ordinal: "0"
 analogue:
     - "**cuTexObjectCreate**"
+    - "**hipTexObjectCreate**"
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -543,9 +546,9 @@ params:
     - type: "const $x_image_desc_t*"
       name: pImageDesc
       desc: "[in] pointer to image description"
-    - type: $x_sampler_handle_t
-      name: hSampler
-      desc: "[in] sampler to be used"
+    - type: const $x_sampler_desc_t*
+      name: pSamplerDesc
+      desc: "[in] pointer to sampler description to be used"
     - type: $x_exp_image_native_handle_t*
       name: phImage
       desc: "[out][alloc] pointer to handle of image object created"
@@ -899,6 +902,48 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Free a linear memory region mapped using MapExternalLinearMemoryExp"
+class: $xBindlessImages
+name: FreeMappedLinearMemoryExp
+ordinal: "0"
+analogue:
+    - "**cuMemFree**"
+    - "**zeMemFree**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: void *
+      name: pMem
+      desc: "[in][release] pointer to mapped linear memory region to be freed"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`pMem == NULL`"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Checks whether the device supports importing the specified external memory handle type"
+class: $xBindlessImages
+name: SupportsImportingHandleTypeExp
+ordinal: "0"
+params:
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_exp_external_mem_type_t
+      name: memHandleType
+      desc: "[in] type of external memory handle"
+    - type: $x_bool_t*
+      name: pSupportedRet
+      desc: "[out] whether the device supports importing the specified external memory handle type"
+returns:
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_CONTEXT
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Import an external semaphore"

@@ -34,7 +34,9 @@
 #include <level_zero/ze_intel_gpu.h>
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
+#include "common/ur_ref_count.hpp"
 #include "logger/ur_logger.hpp"
+#include "ur_interface_loader.hpp"
 
 struct _ur_platform_handle_t;
 
@@ -45,8 +47,8 @@ struct _ur_platform_handle_t;
     }
   } catch (...) {
   }
-  logger::debug(
-      "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
+  UR_LOG(DEBUG,
+         "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
   return false;
 }
 
@@ -72,6 +74,13 @@ const int UrL0Debug = [] {
 
 const int UrL0LeaksDebug = [] {
   const char *UrRet = std::getenv("UR_L0_LEAKS_DEBUG");
+  if (!UrRet)
+    return 0;
+  return std::atoi(UrRet);
+}();
+
+const int UrL0VectorWidth = [] {
+  const char *UrRet = std::getenv("UR_L0_VECTOR_WIDTH_SIZE");
   if (!UrRet)
     return 0;
   return std::atoi(UrRet);
@@ -212,55 +221,9 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString);
 #define ZE_CALL_NOCHECK_NAME(ZeName, ZeArgs, callName)                         \
   ZeCall().doCall(ZeName ZeArgs, callName, #ZeArgs, false)
 
-// This wrapper around std::atomic is created to limit operations with reference
-// counter and to make allowed operations more transparent in terms of
-// thread-safety in the plugin. increment() and load() operations do not need a
-// mutex guard around them since the underlying data is already atomic.
-// decrementAndTest() method is used to guard a code which needs to be
-// executed when object's ref count becomes zero after release. This method also
-// doesn't need a mutex guard because decrement operation is atomic and only one
-// thread can reach ref count equal to zero, i.e. only a single thread can pass
-// through this check.
-struct ReferenceCounter {
-  ReferenceCounter() : RefCount{1} {}
-
-  // Reset the counter to the initial value.
-  void reset() { RefCount = 1; }
-
-  // Used when retaining an object.
-  void increment() { RefCount++; }
-
-  // Supposed to be used in ur*GetInfo* methods where ref count value is
-  // requested.
-  uint32_t load() { return RefCount.load(); }
-
-  // This method allows to guard a code which needs to be executed when object's
-  // ref count becomes zero after release. It is important to notice that only a
-  // single thread can pass through this check. This is true because of several
-  // reasons:
-  //   1. Decrement operation is executed atomically.
-  //   2. It is not allowed to retain an object after its refcount reaches zero.
-  //   3. It is not allowed to release an object more times than the value of
-  //   the ref count.
-  // 2. and 3. basically means that we can't use an object at all as soon as its
-  // refcount reaches zero. Using this check guarantees that code for deleting
-  // an object and releasing its resources is executed once by a single thread
-  // and we don't need to use any mutexes to guard access to this object in the
-  // scope after this check. Of course if we access another objects in this code
-  // (not the one which is being deleted) then access to these objects must be
-  // guarded, for example with a mutex.
-  bool decrementAndTest() { return --RefCount == 0; }
-
-private:
-  std::atomic<uint32_t> RefCount;
-};
-
 // Base class to store common data
-struct ur_object {
-  ur_object() : RefCount{} {}
-
-  // Must be atomic to prevent data race when incrementing/decrementing.
-  ReferenceCounter RefCount;
+struct ur_object : ur::handle_base<ur::level_zero::ddi_getter> {
+  ur_object() : handle_base() {}
 
   // This mutex protects accesses to all the non-const member variables.
   // Exclusive access is required to modify any of these members.
@@ -295,6 +258,8 @@ struct MemAllocRecord : ur_object {
   // TODO: this should go away when memory isolation issue is fixed in the Level
   // Zero runtime.
   ur_context_handle_t Context;
+
+  ur::RefCount RefCount;
 };
 
 extern usm::DisjointPoolAllConfigs DisjointPoolConfigInstance;
@@ -373,11 +338,10 @@ constexpr char ZE_SUPPORTED_EXTENSIONS[] =
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 constexpr size_t MaxMessageSize = 256;
-extern thread_local ur_result_t ErrorMessageCode;
+extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 extern thread_local int32_t ErrorAdapterNativeCode;
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *pMessage,
-                                      ur_result_t ErrorCode,
+[[maybe_unused]] void setErrorMessage(const char *pMessage, int32_t ErrorCode,
                                       int32_t AdapterErrorCode);

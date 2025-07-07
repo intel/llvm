@@ -4,6 +4,7 @@ from utils.result import Result, BenchmarkRun
 from options import options
 
 import os
+import re
 import sys
 import json
 import argparse
@@ -145,6 +146,9 @@ class Compare:
 
                 def reset_aggregate() -> dict:
                     return {
+                        # TODO compare determine which command args have an
+                        # impact on perf results, and do not compare arg results
+                        # are incomparable
                         "command_args": set(test_run.command[1:]),
                         "aggregate": aggregator(starting_elements=[test_run.value]),
                     }
@@ -153,27 +157,7 @@ class Compare:
                 if test_run.name not in average_aggregate:
                     average_aggregate[test_run.name] = reset_aggregate()
                 else:
-                    # Check that we are comparing runs with the same cmd args:
-                    if (
-                        set(test_run.command[1:])
-                        == average_aggregate[test_run.name]["command_args"]
-                    ):
-                        average_aggregate[test_run.name]["aggregate"].add(
-                            test_run.value
-                        )
-                    else:
-                        # If the command args used between runs are different,
-                        # discard old run data and prefer new command args
-                        #
-                        # This relies on the fact that paths from get_result_paths()
-                        # is sorted from older to newer
-                        print(
-                            f"Warning: Command args for {test_run.name} from {result_path} is different from prior runs."
-                        )
-                        print(
-                            "DISCARDING older data and OVERRIDING with data using new arg."
-                        )
-                        average_aggregate[test_run.name] = reset_aggregate()
+                    average_aggregate[test_run.name]["aggregate"].add(test_run.value)
 
         return {
             name: BenchmarkHistoricAverage(
@@ -217,9 +201,9 @@ class Compare:
         for test in target.results:
             if test.name not in hist_avg:
                 continue
-            if hist_avg[test.name].command_args != set(test.command[1:]):
-                print(f"Warning: skipped {test.name} due to command args mismatch.")
-                continue
+            # TODO compare command args which have an impact on performance
+            # (i.e. ignore --save-name): if command results are incomparable,
+            # skip the result.
 
             delta = 1 - (
                 test.value / hist_avg[test.name].value
@@ -336,6 +320,12 @@ if __name__ == "__main__":
         help="Timestamp (in YYYYMMDD_HHMMSS) of oldest result to include in historic average calculation",
         default="20000101_010101",
     )
+    parser_avg.add_argument(
+        "--regression-filter",
+        type=str,
+        help="If provided, only regressions matching provided regex will cause exit status 1.",
+        default=None,
+    )
 
     args = parser.parse_args()
 
@@ -350,24 +340,40 @@ if __name__ == "__main__":
             "median", args.name, args.compare_file, args.results_dir, args.cutoff
         )
 
+        # Not all regressions are of concern: if a filter is provided, filter
+        # regressions using filter
+        regressions_ignored = []
+        regressions_of_concern = []
+        if args.regression_filter is not None:
+            filter_pattern = re.compile(args.regression_filter)
+            for test in regressions:
+                if filter_pattern.search(test["name"]):
+                    regressions_of_concern.append(test)
+                else:
+                    regressions_ignored.append(test)
+
         def print_regression(entry: dict):
             """Print an entry outputted from Compare.to_hist"""
             print(f"Test: {entry['name']}")
             print(f"-- Historic {entry['avg_type']}: {entry['hist_avg']}")
-            print(f"-- Run result: {test['value']}")
-            print(f"-- Delta: {test['delta']}")
+            print(f"-- Run result: {entry['value']}")
+            print(f"-- Delta: {entry['delta']}")
             print("")
 
         if improvements:
             print("#\n# Improvements:\n#\n")
             for test in improvements:
                 print_regression(test)
-        if regressions:
+        if regressions_ignored:
+            print("#\n# Regressions (filtered out by regression-filter):\n#\n")
+            for test in regressions_ignored:
+                print_regression(test)
+        if regressions_of_concern:
             print("#\n# Regressions:\n#\n")
-            for test in regressions:
+            for test in regressions_of_concern:
                 print_regression(test)
             exit(1)  # Exit 1 to trigger github test failure
-        print("\nNo regressions found!")
+        print("\nNo unexpected regressions found!")
     else:
         print("Unsupported operation: exiting.")
         exit(1)

@@ -39,12 +39,11 @@ TEST(DeviceAsan, Initialization) {
   ASSERT_EQ(status, UR_RESULT_SUCCESS);
 
   for (auto adapter : adapters) {
-    ur_adapter_backend_t backend;
+    ur_backend_t backend;
     status = urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND, sizeof(backend),
                               &backend, nullptr);
     ASSERT_EQ(status, UR_RESULT_SUCCESS);
-    if (backend == UR_ADAPTER_BACKEND_OPENCL ||
-        backend == UR_ADAPTER_BACKEND_HIP) {
+    if (backend == UR_BACKEND_OPENCL || backend == UR_BACKEND_HIP) {
       // Helper methods are unsupported
       continue;
     }
@@ -100,13 +99,12 @@ TEST(DeviceAsan, UnsupportedFeature) {
   ASSERT_EQ(status, UR_RESULT_SUCCESS);
 
   for (auto adapter : adapters) {
-    ur_adapter_backend_t backend;
+    ur_backend_t backend;
     status = urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND, sizeof(backend),
                               &backend, nullptr);
     ASSERT_EQ(status, UR_RESULT_SUCCESS);
     SCOPED_TRACE(backend);
-    if (backend == UR_ADAPTER_BACKEND_OPENCL ||
-        backend == UR_ADAPTER_BACKEND_HIP) {
+    if (backend == UR_BACKEND_OPENCL || backend == UR_BACKEND_HIP) {
       // Helper methods are unsupported
       continue;
     }

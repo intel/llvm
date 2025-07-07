@@ -33,4 +33,4 @@ void setCopyRectParams(ur_rect_region_t Region, const void *SrcPtr,
 
 void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
                         const size_t *GlobalWorkSize, const uint32_t WorkDim,
-                        const size_t MaxThreadsPerBlock[3]);
+                        ur_kernel_handle_t Kernel);

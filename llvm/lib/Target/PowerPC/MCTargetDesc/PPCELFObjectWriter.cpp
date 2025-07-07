@@ -25,11 +25,10 @@ namespace {
     PPCELFObjectWriter(bool Is64Bit, uint8_t OSABI);
 
   protected:
-    unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
-                          const MCFixup &Fixup, bool IsPCRel) const override;
+    unsigned getRelocType(const MCFixup &Fixup, const MCValue &Target,
+                          bool IsPCRel) const override;
 
-    bool needsRelocateWithSymbol(const MCValue &Val, const MCSymbol &Sym,
-                                 unsigned Type) const override;
+    bool needsRelocateWithSymbol(const MCValue &, unsigned Type) const override;
   };
 }
 
@@ -38,12 +37,9 @@ PPCELFObjectWriter::PPCELFObjectWriter(bool Is64Bit, uint8_t OSABI)
                             Is64Bit ?  ELF::EM_PPC64 : ELF::EM_PPC,
                             /*HasRelocationAddend*/ true) {}
 
-unsigned PPCELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
-                                          const MCFixup &Fixup,
+unsigned PPCELFObjectWriter::getRelocType(const MCFixup &Fixup,
+                                          const MCValue &Target,
                                           bool IsPCRel) const {
-  MCFixupKind Kind = Fixup.getKind();
-  if (Kind >= FirstLiteralRelocationKind)
-    return Kind - FirstLiteralRelocationKind;
   SMLoc Loc = Fixup.getValue()->getLoc();
   auto Spec = static_cast<PPCMCExpr::Specifier>(Target.getSpecifier());
   switch (Spec) {
@@ -108,7 +104,7 @@ unsigned PPCELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
     case PPC::fixup_ppc_br24_notoc:
       switch (Spec) {
       default:
-        Ctx.reportError(Loc, "unsupported relocation type");
+        reportError(Loc, "unsupported relocation type");
         break;
       case PPCMCExpr::VK_None:
         Type = ELF::R_PPC_REL24;
@@ -131,7 +127,7 @@ unsigned PPCELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
     case PPC::fixup_ppc_half16:
       switch (Spec) {
       default:
-        Ctx.reportError(Loc, "unsupported relocation type");
+        reportError(Loc, "unsupported relocation type");
         return ELF::R_PPC_NONE;
       case PPCMCExpr::VK_None:
         return ELF::R_PPC_REL16;
@@ -145,12 +141,12 @@ unsigned PPCELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
       break;
     case PPC::fixup_ppc_half16ds:
     case PPC::fixup_ppc_half16dq:
-      Ctx.reportError(Loc, "unsupported relocation type");
+      reportError(Loc, "unsupported relocation type");
       break;
     case PPC::fixup_ppc_pcrel34:
       switch (Spec) {
       default:
-        Ctx.reportError(Loc, "unsupported relocation type");
+        reportError(Loc, "unsupported relocation type");
         break;
       case PPCMCExpr::VK_PCREL:
         Type = ELF::R_PPC64_PCREL34;
@@ -170,11 +166,9 @@ unsigned PPCELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
       }
       break;
     case FK_Data_4:
-    case FK_PCRel_4:
       Type = ELF::R_PPC_REL32;
       break;
     case FK_Data_8:
-    case FK_PCRel_8:
       Type = ELF::R_PPC64_REL64;
       break;
     }
@@ -190,7 +184,7 @@ unsigned PPCELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
     case PPC::fixup_ppc_half16:
       switch (Spec) {
       default:
-        Ctx.reportError(Loc, "unsupported relocation type");
+        reportError(Loc, "unsupported relocation type");
         break;
       case PPCMCExpr::VK_LO:
         return ELF::R_PPC_ADDR16_LO;
@@ -366,7 +360,7 @@ unsigned PPCELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
     case PPC::fixup_ppc_half16dq:
       switch (Spec) {
       default:
-        Ctx.reportError(Loc, "unsupported relocation type");
+        reportError(Loc, "unsupported relocation type");
         break;
       case PPCMCExpr::VK_LO:
         return ELF::R_PPC64_ADDR16_LO_DS;
@@ -414,7 +408,7 @@ unsigned PPCELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
     case PPC::fixup_ppc_nofixup:
       switch (Spec) {
       default:
-        Ctx.reportError(Loc, "unsupported relocation type");
+        reportError(Loc, "unsupported relocation type");
         break;
       case PPCMCExpr::VK_TLSGD:
         if (is64Bit())
@@ -442,7 +436,7 @@ unsigned PPCELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
     case PPC::fixup_ppc_imm34:
       switch (Spec) {
       default:
-        Ctx.reportError(Loc, "unsupported relocation type");
+        reportError(Loc, "unsupported relocation type");
         break;
       case PPCMCExpr::VK_DTPREL:
         Type = ELF::R_PPC64_DTPREL34;
@@ -455,7 +449,7 @@ unsigned PPCELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
     case FK_Data_8:
       switch (Spec) {
       default:
-        Ctx.reportError(Loc, "unsupported relocation type");
+        reportError(Loc, "unsupported relocation type");
         break;
       case PPCMCExpr::VK_TOCBASE:
         Type = ELF::R_PPC64_TOC;
@@ -491,8 +485,7 @@ unsigned PPCELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
   return Type;
 }
 
-bool PPCELFObjectWriter::needsRelocateWithSymbol(const MCValue &,
-                                                 const MCSymbol &Sym,
+bool PPCELFObjectWriter::needsRelocateWithSymbol(const MCValue &V,
                                                  unsigned Type) const {
   switch (Type) {
     default:
@@ -505,7 +498,7 @@ bool PPCELFObjectWriter::needsRelocateWithSymbol(const MCValue &,
       // The "other" values are stored in the last 6 bits of the second byte.
       // The traditional defines for STO values assume the full byte and thus
       // the shift to pack it.
-      unsigned Other = cast<MCSymbolELF>(Sym).getOther() << 2;
+      unsigned Other = cast<MCSymbolELF>(V.getAddSym())->getOther() << 2;
       return (Other & ELF::STO_PPC64_LOCAL_MASK) != 0;
     }
 

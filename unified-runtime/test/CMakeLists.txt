@@ -26,13 +26,27 @@ set(INSTALL_GTEST OFF)
 FetchContent_MakeAvailable(googletest)
 enable_testing()
 
+# At the time of writing this comment, this is only used for level_zero adapter testing.
+# It is found here for use in `lit.site.cfg.py.in`, which is inherited by said testing.
+find_program(VALGRIND valgrind)
+
+function(ur_configure_file input output main_file)
+  configure_file(${input} ${output} @ONLY)
+  if(NOT UR_STANDALONE_BUILD)
+    get_property(LLVM_LIT_CONFIG_FILES GLOBAL PROPERTY LLVM_LIT_CONFIG_FILES)
+    list(APPEND LLVM_LIT_CONFIG_FILES "${CMAKE_CURRENT_SOURCE_DIR}/${main_file}" "${CMAKE_CURRENT_BINARY_DIR}/${output}")
+    set_property(GLOBAL PROPERTY LLVM_LIT_CONFIG_FILES ${LLVM_LIT_CONFIG_FILES})
+  endif()
+endfunction()
+
 # Set up the root `check-unified-runtime` target
-configure_file(lit.site.cfg.py.in lit.site.cfg.py)
+ur_configure_file(lit.site.cfg.py.in lit.site.cfg.py lit.cfg.py)
 add_custom_target(deps_check-unified-runtime)
 if(UR_STANDALONE_BUILD)
   add_custom_target(check-unified-runtime
-    COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}" -v
+    COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}" -sv
     DEPENDS deps_check-unified-runtime
+    USES_TERMINAL
   )
 else()
   # Use the LLVM method to add the test suite - this also registers it under `check-all`
@@ -55,12 +69,13 @@ function(add_ur_lit_testsuite suite)
   set(TARGET "check-unified-runtime-${suite}")
 
   if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in)
-    configure_file(lit.site.cfg.py.in lit.site.cfg.py)
+    ur_configure_file(lit.site.cfg.py.in lit.site.cfg.py lit.cfg.py)
   endif()
 
   if(UR_STANDALONE_BUILD)
     add_custom_target(${TARGET}
-      COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}" -v
+      COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}" -sv
+      USES_TERMINAL
     )
   else()
     add_lit_testsuite(${TARGET} "Running Unified Runtime ${suite} tests"
@@ -75,24 +90,30 @@ function(add_ur_lit_testsuite suite)
   set(TEST_CURRENT_SUITE "${TARGET}" PARENT_SCOPE)
 endfunction()
 
-# Add a new gtest test; it will be added to the dependency list of the current `add_ur_lit_testsuite`
-function(add_gtest_test name)
-    set(TEST_TARGET_NAME ${name}-test)
-    add_ur_executable(${TEST_TARGET_NAME} ${ARGN})
-    target_link_libraries(${TEST_TARGET_NAME}
+function(add_testing_binary target)
+    add_ur_executable(${target} ${ARGN})
+    target_link_libraries(${target}
         PRIVATE
         ${PROJECT_NAME}::loader
         ${PROJECT_NAME}::headers
         ${PROJECT_NAME}::testing
         ${PROJECT_NAME}::mock
-        ${PROJECT_NAME}::common
-        gmock
-        GTest::gtest_main)
-    set_target_properties(${TEST_TARGET_NAME}
+        ${PROJECT_NAME}::common)
+    set_target_properties(${target}
         PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     )
-    add_dependencies(deps_${TEST_CURRENT_SUITE} ${TEST_TARGET_NAME})
+    add_dependencies(deps_${TEST_CURRENT_SUITE} ${target})
+endfunction()
+
+# Add a new gtest test; it will be added to the dependency list of the current `add_ur_lit_testsuite`
+function(add_gtest_test name)
+    set(TEST_TARGET_NAME ${name}-test)
+    add_testing_binary(${TEST_TARGET_NAME} ${ARGN})
+    target_link_libraries(${TEST_TARGET_NAME}
+        PRIVATE
+        gmock
+        GTest::gtest_main)
 endfunction()
 
 # Conformance defines the generate_device_binaries target which should be

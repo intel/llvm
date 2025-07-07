@@ -97,16 +97,17 @@ static ur_result_t redefinedDeviceGetInfoAfter(void *pParams) {
 
 class BufferTest : public ::testing::Test {
 public:
-  BufferTest() : Mock{}, Plt{sycl::platform()} {}
+  BufferTest()
+      : Mock{}, Plt([]() {
+          // Make sure these are re-defined before we create device hierarchy.
+          mock::getCallbacks().set_before_callback(
+              "urMemBufferCreate", &redefinedMemBufferCreateBefore);
+          mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                                  &redefinedDeviceGetInfoAfter);
+          return sycl::platform{};
+        }()) {}
 
 protected:
-  void SetUp() override {
-    mock::getCallbacks().set_before_callback("urMemBufferCreate",
-                                             &redefinedMemBufferCreateBefore);
-    mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                            &redefinedDeviceGetInfoAfter);
-  }
-
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt;
 };
@@ -180,10 +181,9 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
             Acc{Buf, cgh, sycl::write_only, PL};
       })
       .wait();
-  std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-      sycl::detail::getSyclObjImpl(Buf);
+  sycl::detail::buffer_impl &BufImpl = *sycl::detail::getSyclObjImpl(Buf);
   EXPECT_EQ(
-      BufImpl->get_property<sycl::property::buffer::detail::buffer_location>()
+      BufImpl.get_property<sycl::property::buffer::detail::buffer_location>()
           .get_buffer_location(),
       (uint64_t)3);
 
@@ -199,7 +199,7 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
       .wait();
 
   EXPECT_EQ(
-      BufImpl->has_property<sycl::property::buffer::detail::buffer_location>(),
+      BufImpl.has_property<sycl::property::buffer::detail::buffer_location>(),
       0);
 }
 

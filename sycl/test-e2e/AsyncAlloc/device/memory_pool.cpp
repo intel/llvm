@@ -25,12 +25,10 @@ int main() {
   try {
 
     // Pool properties
-    syclexp::property::memory_pool::initial_threshold InitialThreshold(1024);
-    syclexp::property::memory_pool::maximum_size MaximumSize(4096);
-    syclexp::property::memory_pool::read_only ReadOnly;
-    syclexp::property::memory_pool::zero_init ZeroInit;
-    sycl::property_list PoolProps{InitialThreshold, MaximumSize, ReadOnly,
-                                  ZeroInit};
+    syclexp::initial_threshold InitialThreshold(1024);
+    syclexp::maximum_size MaximumSize(4096);
+    syclexp::zero_init ZeroInit{};
+    syclexp::properties PoolProps{InitialThreshold, MaximumSize, ZeroInit};
 
     // Create pools -- device only
     sycl::usm::alloc Kind = sycl::usm::alloc::device;
@@ -64,39 +62,6 @@ int main() {
     assert(Dev == MemPool1.get_device() && "Stored pool device is incorrect!");
     assert(Kind == MemPool1.get_alloc_kind() &&
            "Stored pool allocation kind is incorrect!");
-
-    // Check property has-ers/getters
-    assert(MemPool1.has_property<
-               syclexp::property::memory_pool::initial_threshold>() &&
-           "Pool does not have property when it should!");
-    assert(
-        MemPool1.has_property<syclexp::property::memory_pool::maximum_size>() &&
-        "Pool does not have property when it should!");
-    assert(MemPool1.has_property<syclexp::property::memory_pool::read_only>() &&
-           "Pool does not have property when it should!");
-    assert(MemPool1.has_property<syclexp::property::memory_pool::zero_init>() &&
-           "Pool does not have property when it should!");
-    assert(!MemPoolMoveAssign.has_property<
-               syclexp::property::memory_pool::initial_threshold>() &&
-           "Pool has property when it should not!");
-    assert(!MemPoolMoveAssign
-                .has_property<syclexp::property::memory_pool::maximum_size>() &&
-           "Pool has property when it should not!");
-    assert(!MemPoolMoveAssign
-                .has_property<syclexp::property::memory_pool::read_only>() &&
-           "Pool has property when it should not!");
-    assert(!MemPoolMoveAssign
-                .has_property<syclexp::property::memory_pool::zero_init>() &&
-           "Pool has property when it should not!");
-
-    assert(MemPool1.get_property<
-                       syclexp::property::memory_pool::initial_threshold>()
-                   .get_initial_threshold() ==
-               InitialThreshold.get_initial_threshold() &&
-           "Pool property values do not match!");
-    assert(MemPool1.get_property<syclexp::property::memory_pool::maximum_size>()
-                   .get_maximum_size() == MaximumSize.get_maximum_size() &&
-           "Pool property values do not match!");
 
     size_t ReleaseThresholdGet = MemPool1.get_threshold();
     size_t ReservedSizeCurrent = MemPool1.get_reserved_size_current();

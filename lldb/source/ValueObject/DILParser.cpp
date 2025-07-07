@@ -80,9 +80,87 @@ ASTNodeUP DILParser::Run() {
 // Parse an expression.
 //
 //  expression:
-//    primary_expression
+//    unary_expression
 //
-ASTNodeUP DILParser::ParseExpression() { return ParsePrimaryExpression(); }
+ASTNodeUP DILParser::ParseExpression() { return ParseUnaryExpression(); }
+
+// Parse an unary_expression.
+//
+//  unary_expression:
+//    postfix_expression
+//    unary_operator expression
+//
+//  unary_operator:
+//    "&"
+//    "*"
+//
+ASTNodeUP DILParser::ParseUnaryExpression() {
+  if (CurToken().IsOneOf({Token::amp, Token::star})) {
+    Token token = CurToken();
+    uint32_t loc = token.GetLocation();
+    m_dil_lexer.Advance();
+    auto rhs = ParseExpression();
+    switch (token.GetKind()) {
+    case Token::star:
+      return std::make_unique<UnaryOpNode>(loc, UnaryOpKind::Deref,
+                                           std::move(rhs));
+    case Token::amp:
+      return std::make_unique<UnaryOpNode>(loc, UnaryOpKind::AddrOf,
+                                           std::move(rhs));
+
+    default:
+      llvm_unreachable("invalid token kind");
+    }
+  }
+  return ParsePostfixExpression();
+}
+
+// Parse a postfix_expression.
+//
+//  postfix_expression:
+//    primary_expression
+//    postfix_expression "[" integer_literal "]"
+//    postfix_expression "." id_expression
+//    postfix_expression "->" id_expression
+//
+ASTNodeUP DILParser::ParsePostfixExpression() {
+  ASTNodeUP lhs = ParsePrimaryExpression();
+  while (CurToken().IsOneOf({Token::l_square, Token::period, Token::arrow})) {
+    uint32_t loc = CurToken().GetLocation();
+    Token token = CurToken();
+    switch (token.GetKind()) {
+    case Token::l_square: {
+      m_dil_lexer.Advance();
+      std::optional<int64_t> rhs = ParseIntegerConstant();
+      if (!rhs) {
+        BailOut(
+            llvm::formatv("failed to parse integer constant: {0}", CurToken()),
+            CurToken().GetLocation(), CurToken().GetSpelling().length());
+        return std::make_unique<ErrorNode>();
+      }
+      Expect(Token::r_square);
+      m_dil_lexer.Advance();
+      lhs = std::make_unique<ArraySubscriptNode>(loc, std::move(lhs),
+                                                 std::move(*rhs));
+      break;
+    }
+    case Token::period:
+    case Token::arrow: {
+      m_dil_lexer.Advance();
+      Token member_token = CurToken();
+      std::string member_id = ParseIdExpression();
+      lhs = std::make_unique<MemberOfNode>(
+          member_token.GetLocation(), std::move(lhs),
+          token.GetKind() == Token::arrow, member_id);
+      break;
+    }
+    default:
+      llvm_unreachable("invalid token");
+    }
+  }
+
+  return lhs;
+}
 
 // Parse a primary_expression.
 //
@@ -248,6 +326,23 @@ void DILParser::BailOut(const std::string &error, uint32_t loc,
       llvm::make_error<DILDiagnosticError>(m_input_expr, error, loc, err_len);
   // Advance the lexer token index to the end of the lexed tokens vector.
   m_dil_lexer.ResetTokenIdx(m_dil_lexer.NumLexedTokens() - 1);
+}
+
+// Parse a integer_literal.
+//
+//  integer_literal:
+//    ? Integer constant ?
+//
+std::optional<int64_t> DILParser::ParseIntegerConstant() {
+  auto spelling = CurToken().GetSpelling();
+  llvm::StringRef spelling_ref = spelling;
+  int64_t raw_value;
+  if (!spelling_ref.getAsInteger<int64_t>(0, raw_value)) {
+    m_dil_lexer.Advance();
+    return raw_value;
+  }
+
+  return std::nullopt;
 }
 
 void DILParser::Expect(Token::Kind kind) {

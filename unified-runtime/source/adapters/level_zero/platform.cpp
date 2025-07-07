@@ -98,11 +98,11 @@ ur_result_t urPlatformGetInfo(
     //
     return ReturnValue(Platform->ZeDriverApiVersion.c_str());
   case UR_PLATFORM_INFO_BACKEND:
-    return ReturnValue(UR_PLATFORM_BACKEND_LEVEL_ZERO);
+    return ReturnValue(UR_BACKEND_LEVEL_ZERO);
   case UR_PLATFORM_INFO_ADAPTER:
     return ReturnValue(GlobalAdapter);
   default:
-    logger::debug("urPlatformGetInfo: unrecognized ParamName");
+    UR_LOG(DEBUG, "urPlatformGetInfo: unrecognized ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -292,6 +292,12 @@ ur_result_t ur_platform_handle_t_::initialize() {
       if (extension.version ==
           ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_VERSION_1_0) {
         ZeCopyOffloadExtensionSupported = true;
+      }
+    }
+    if (strncmp(extension.name, ZE_BINDLESS_IMAGE_EXP_NAME,
+                strlen(ZE_BINDLESS_IMAGE_EXP_NAME) + 1) == 0) {
+      if (extension.version == ZE_BINDLESS_IMAGE_EXP_VERSION_1_0) {
+        ZeBindlessImagesExtensionSupported = true;
       }
     }
     zeDriverExtensionMap[extension.name] = extension.version;
@@ -542,6 +548,22 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeCommandListImmediateAppendExt
             .zeCommandListImmediateAppendCommandListsExp != nullptr;
   }
+
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeImageGetDeviceOffsetExp",
+                   reinterpret_cast<void **>(
+                       &ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp)));
+
+  ZeImageGetDeviceOffsetExt.Supported =
+      ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp != nullptr;
+
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeMemGetPitchFor2dImage",
+                   reinterpret_cast<void **>(
+                       &ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage)));
+
+  ZeMemGetPitchFor2dImageExt.Supported =
+      ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
 
   return UR_RESULT_SUCCESS;
 }
