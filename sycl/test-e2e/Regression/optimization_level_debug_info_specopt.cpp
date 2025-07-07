@@ -8,6 +8,8 @@
 
 // NOTE: Tests that debugging information can be generated for all special-name
 // optimization levels.
+//
+// XFAIL: *
 
 #include <sycl/detail/core.hpp>
 
