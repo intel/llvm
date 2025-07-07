@@ -45,6 +45,36 @@ test___spirv_ocl_ldexp(__clc_vec16_fp32_t args_0, __clc_vec16_int32_t args_1) {
   return __spirv_ocl_ldexp(args_0, args_1);
 }
 
+__attribute__((overloadable)) __clc_fp32_t
+test___spirv_ocl_ldexp(__clc_fp32_t args_0, __clc_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+__attribute__((overloadable)) __clc_vec2_fp32_t
+test___spirv_ocl_ldexp(__clc_vec2_fp32_t args_0, __clc_vec2_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+__attribute__((overloadable)) __clc_vec3_fp32_t
+test___spirv_ocl_ldexp(__clc_vec3_fp32_t args_0, __clc_vec3_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+__attribute__((overloadable)) __clc_vec4_fp32_t
+test___spirv_ocl_ldexp(__clc_vec4_fp32_t args_0, __clc_vec4_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+__attribute__((overloadable)) __clc_vec8_fp32_t
+test___spirv_ocl_ldexp(__clc_vec8_fp32_t args_0, __clc_vec8_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+__attribute__((overloadable)) __clc_vec16_fp32_t
+test___spirv_ocl_ldexp(__clc_vec16_fp32_t args_0, __clc_vec16_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
 #ifdef cl_khr_fp64
 __attribute__((overloadable)) __clc_fp64_t
 test___spirv_ocl_ldexp(__clc_fp64_t args_0, __clc_int32_t args_1) {
@@ -87,7 +117,48 @@ test___spirv_ocl_ldexp(__clc_vec16_fp64_t args_0, __clc_vec16_int32_t args_1) {
 }
 
 #endif
+#ifdef cl_khr_fp64
+__attribute__((overloadable)) __clc_fp64_t
+test___spirv_ocl_ldexp(__clc_fp64_t args_0, __clc_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
 
+#endif
+#ifdef cl_khr_fp64
+__attribute__((overloadable)) __clc_vec2_fp64_t
+test___spirv_ocl_ldexp(__clc_vec2_fp64_t args_0, __clc_vec2_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+#endif
+#ifdef cl_khr_fp64
+__attribute__((overloadable)) __clc_vec3_fp64_t
+test___spirv_ocl_ldexp(__clc_vec3_fp64_t args_0, __clc_vec3_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+#endif
+#ifdef cl_khr_fp64
+__attribute__((overloadable)) __clc_vec4_fp64_t
+test___spirv_ocl_ldexp(__clc_vec4_fp64_t args_0, __clc_vec4_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+#endif
+#ifdef cl_khr_fp64
+__attribute__((overloadable)) __clc_vec8_fp64_t
+test___spirv_ocl_ldexp(__clc_vec8_fp64_t args_0, __clc_vec8_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+#endif
+#ifdef cl_khr_fp64
+__attribute__((overloadable)) __clc_vec16_fp64_t
+test___spirv_ocl_ldexp(__clc_vec16_fp64_t args_0, __clc_vec16_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+#endif
 #ifdef cl_khr_fp16
 __attribute__((overloadable)) __clc_fp16_t
 test___spirv_ocl_ldexp(__clc_fp16_t args_0, __clc_int32_t args_1) {
@@ -126,6 +197,48 @@ test___spirv_ocl_ldexp(__clc_vec8_fp16_t args_0, __clc_vec8_int32_t args_1) {
 #ifdef cl_khr_fp16
 __attribute__((overloadable)) __clc_vec16_fp16_t
 test___spirv_ocl_ldexp(__clc_vec16_fp16_t args_0, __clc_vec16_int32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+#endif
+#ifdef cl_khr_fp16
+__attribute__((overloadable)) __clc_fp16_t
+test___spirv_ocl_ldexp(__clc_fp16_t args_0, __clc_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+#endif
+#ifdef cl_khr_fp16
+__attribute__((overloadable)) __clc_vec2_fp16_t
+test___spirv_ocl_ldexp(__clc_vec2_fp16_t args_0, __clc_vec2_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+#endif
+#ifdef cl_khr_fp16
+__attribute__((overloadable)) __clc_vec3_fp16_t
+test___spirv_ocl_ldexp(__clc_vec3_fp16_t args_0, __clc_vec3_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+#endif
+#ifdef cl_khr_fp16
+__attribute__((overloadable)) __clc_vec4_fp16_t
+test___spirv_ocl_ldexp(__clc_vec4_fp16_t args_0, __clc_vec4_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+#endif
+#ifdef cl_khr_fp16
+__attribute__((overloadable)) __clc_vec8_fp16_t
+test___spirv_ocl_ldexp(__clc_vec8_fp16_t args_0, __clc_vec8_uint32_t args_1) {
+  return __spirv_ocl_ldexp(args_0, args_1);
+}
+
+#endif
+#ifdef cl_khr_fp16
+__attribute__((overloadable)) __clc_vec16_fp16_t
+test___spirv_ocl_ldexp(__clc_vec16_fp16_t args_0, __clc_vec16_uint32_t args_1) {
   return __spirv_ocl_ldexp(args_0, args_1);
 }
 
