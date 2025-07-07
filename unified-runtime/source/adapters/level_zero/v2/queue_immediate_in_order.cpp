@@ -20,6 +20,7 @@
 
 #include "../program.hpp"
 #include "../ur_interface_loader.hpp"
+#include <cstddef>
 
 namespace v2 {
 

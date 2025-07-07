@@ -231,6 +231,8 @@ struct ur_command_list_manager {
                                const ur_event_handle_t *phEventWaitList,
                                ur_event_handle_t phEvent);
 
+  ur_result_t appendRegular(ze_command_list_handle_t *phCommandLists);
+
 private:
   ur_result_t appendGenericCommandListsExp(
       uint32_t numCommandLists, ze_command_list_handle_t *phCommandLists,

@@ -10,6 +10,7 @@
 
 #include <ze_api.h>
 
+#include "adapters/level_zero/v2/usm.hpp"
 #include "context.hpp"
 #include "event.hpp"
 #include "event_pool.hpp"
@@ -123,8 +124,18 @@ void ur_event_handle_t_::setQueue(ur_queue_t_ *hQueue) {
   profilingData.reset();
 }
 
+void ur_event_handle_t_::setBatch(int64_t batch_generation) {
+  this->batch_generation = batch_generation;
+}
+
 void ur_event_handle_t_::setCommandType(ur_command_t commandType) {
   this->commandType = commandType;
+}
+
+void ur_event_handle_t_::runBatch() {
+  if (batch_generation != -1) {
+    hQueue->runBatchIfCurrentBatch(batch_generation);
+  }
 }
 
 void ur_event_handle_t_::recordStartTimestamp() {
@@ -191,6 +202,8 @@ ur_event_handle_t_::getEventEndTimestampAndHandle() {
 }
 
 ur_queue_t_ *ur_event_handle_t_::getQueue() const { return hQueue; }
+
+int64_t ur_event_handle_t_::getBatch() const { return batch_generation; }
 
 ur_context_handle_t ur_event_handle_t_::getContext() const { return hContext; }
 

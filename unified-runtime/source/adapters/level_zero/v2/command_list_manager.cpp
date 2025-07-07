@@ -129,6 +129,7 @@ wait_list_view ur_command_list_manager::getWaitListView(
       numWaitEvents + (additionalWaitEvent != nullptr ? 1 : 0);
   waitList.resize(totalNumWaitEvents);
   for (uint32_t i = 0; i < numWaitEvents; i++) {
+    phWaitEvents[i]->runBatch();
     waitList[i] = phWaitEvents[i]->getZeEvent();
   }
   if (additionalWaitEvent != nullptr) {
@@ -495,6 +496,14 @@ ur_result_t ur_command_list_manager::appendTimestampRecordingExp(
   if (blocking) {
     ZE2UR_CALL(zeCommandListHostSynchronize, (getZeCommandList(), UINT64_MAX));
   }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::appendRegular(
+    ze_command_list_handle_t *phCommandLists) {
+  ZE2UR_CALL(zeCommandListImmediateAppendCommandListsExp,
+             (getZeCommandList(), 1, phCommandLists, nullptr, 0, nullptr));
 
   return UR_RESULT_SUCCESS;
 }

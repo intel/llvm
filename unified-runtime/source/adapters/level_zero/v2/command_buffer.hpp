@@ -19,6 +19,7 @@
 #include "kernel.hpp"
 #include "lockable.hpp"
 #include "queue_api.hpp"
+// #include "ur_api.h"
 #include <ze_api.h>
 
 struct kernel_command_handle;

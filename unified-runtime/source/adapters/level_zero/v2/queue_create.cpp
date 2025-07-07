@@ -10,6 +10,7 @@
  *
  */
 
+#include "queue_batched.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue_api.hpp"
 #include "queue_handle.hpp"
@@ -67,6 +68,11 @@ ur_result_t urQueueCreate(ur_context_handle_t hContext,
     flags = pProperties->flags;
   }
 
+  // TODO better getenv_to_unsigned?
+  if (getenv_tobool("UR_BATCHED")) {
+    flags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
+  }
+
   auto zeIndex = v2::getZeIndex(pProperties);
 
   if ((flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) != 0) {
@@ -75,6 +81,11 @@ ur_result_t urQueueCreate(ur_context_handle_t hContext,
             hContext, hDevice, v2::getZeOrdinal(hDevice),
             v2::getZePriority(flags), zeIndex,
             v2::eventFlagsFromQueueFlags(flags), flags);
+  } else if (flags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) {
+    *phQueue = ur_queue_handle_t_::create<v2::ur_queue_batched_t>(
+        hContext, hDevice, v2::getZeOrdinal(hDevice), v2::getZePriority(flags),
+        zeIndex, v2::eventFlagsFromQueueFlags(flags), flags);
+
   } else {
     *phQueue = ur_queue_handle_t_::create<v2::ur_queue_immediate_in_order_t>(
         hContext, hDevice, v2::getZeOrdinal(hDevice), v2::getZePriority(flags),
