@@ -255,7 +255,7 @@ void exec_graph_impl::makePartitions() {
     const std::shared_ptr<partition> &Partition = std::make_shared<partition>();
     for (auto &Node : MNodeStorage) {
       if (Node->MPartitionNum == i) {
-        MPartitionNodes[Node] = PartitionFinalNum;
+        MPartitionNodes[Node.get()] = PartitionFinalNum;
         if (isPartitionRoot(Node)) {
           Partition->MRoots.insert(Node);
           if (Node->MCGType == CGType::CodeplayHostTask) {
@@ -290,8 +290,7 @@ void exec_graph_impl::makePartitions() {
     for (auto const &Root : Partition->MRoots) {
       auto RootNode = Root.lock();
       for (node_impl &NodeDep : RootNode->predecessors()) {
-        auto &Predecessor =
-            MPartitions[MPartitionNodes[NodeDep.shared_from_this()]];
+        auto &Predecessor = MPartitions[MPartitionNodes[&NodeDep]];
         Partition->MPredecessors.push_back(Predecessor.get());
         Predecessor->MSuccessors.push_back(Partition.get());
       }
@@ -610,8 +609,7 @@ bool graph_impl::checkForCycles() {
   return CycleFound;
 }
 
-std::shared_ptr<node_impl>
-graph_impl::getLastInorderNode(sycl::detail::queue_impl *Queue) {
+node_impl *graph_impl::getLastInorderNode(sycl::detail::queue_impl *Queue) {
   if (!Queue) {
     assert(0 ==
            MInorderQueueMap.count(std::weak_ptr<sycl::detail::queue_impl>{}));
@@ -624,8 +622,8 @@ graph_impl::getLastInorderNode(sycl::detail::queue_impl *Queue) {
 }
 
 void graph_impl::setLastInorderNode(sycl::detail::queue_impl &Queue,
-                                    std::shared_ptr<node_impl> Node) {
-  MInorderQueueMap[Queue.weak_from_this()] = std::move(Node);
+                                    node_impl &Node) {
+  MInorderQueueMap[Queue.weak_from_this()] = &Node;
 }
 
 void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
@@ -726,11 +724,10 @@ void exec_graph_impl::findRealDeps(
       findRealDeps(Deps, NodeImpl, ReferencePartitionNum);
     }
   } else {
-    auto CurrentNodePtr = CurrentNode.shared_from_this();
     // Verify if CurrentNode belong the the same partition
-    if (MPartitionNodes[CurrentNodePtr] == ReferencePartitionNum) {
+    if (MPartitionNodes[&CurrentNode] == ReferencePartitionNum) {
       // Verify that the sync point has actually been set for this node.
-      auto SyncPoint = MSyncPoints.find(CurrentNodePtr);
+      auto SyncPoint = MSyncPoints.find(&CurrentNode);
       assert(SyncPoint != MSyncPoints.end() &&
              "No sync point has been set for node dependency.");
       // Check if the dependency has already been added.
@@ -749,7 +746,7 @@ exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
                                    std::shared_ptr<node_impl> Node) {
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
   for (node_impl &N : Node->predecessors()) {
-    findRealDeps(Deps, N, MPartitionNodes[Node]);
+    findRealDeps(Deps, N, MPartitionNodes[Node.get()]);
   }
   ur_exp_command_buffer_sync_point_t NewSyncPoint;
   ur_exp_command_buffer_command_handle_t NewCommand = 0;
@@ -782,7 +779,7 @@ exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
       Deps, &NewSyncPoint, MIsUpdatable ? &NewCommand : nullptr, nullptr);
 
   if (MIsUpdatable) {
-    MCommandMap[Node] = NewCommand;
+    MCommandMap[Node.get()] = NewCommand;
   }
 
   if (Res != UR_RESULT_SUCCESS) {
@@ -805,7 +802,7 @@ exec_graph_impl::enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
 
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
   for (node_impl &N : Node->predecessors()) {
-    findRealDeps(Deps, N, MPartitionNodes[Node]);
+    findRealDeps(Deps, N, MPartitionNodes[Node.get()]);
   }
 
   sycl::detail::EventImplPtr Event =
@@ -814,7 +811,7 @@ exec_graph_impl::enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
           /*EventNeeded=*/true, CommandBuffer, Deps);
 
   if (MIsUpdatable) {
-    MCommandMap[Node] = Event->getCommandBufferCommand();
+    MCommandMap[Node.get()] = Event->getCommandBufferCommand();
   }
 
   return Event->getSyncPoint();
@@ -830,7 +827,8 @@ void exec_graph_impl::buildRequirements() {
                          Node->MCommandGroup->getRequirements().begin(),
                          Node->MCommandGroup->getRequirements().end());
 
-    std::shared_ptr<partition> &Partition = MPartitions[MPartitionNodes[Node]];
+    std::shared_ptr<partition> &Partition =
+        MPartitions[MPartitionNodes[Node.get()]];
 
     Partition->MRequirements.insert(
         Partition->MRequirements.end(),
@@ -877,10 +875,10 @@ void exec_graph_impl::createCommandBuffers(
                     Node->MCommandGroup.get())
                     ->MStreams.size() ==
             0) {
-      MSyncPoints[Node] =
+      MSyncPoints[Node.get()] =
           enqueueNodeDirect(MContext, DeviceImpl, OutCommandBuffer, Node);
     } else {
-      MSyncPoints[Node] = enqueueNode(OutCommandBuffer, Node);
+      MSyncPoints[Node.get()] = enqueueNode(OutCommandBuffer, Node);
     }
   }
 
@@ -1726,7 +1724,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   auto ExecNode = MIDCache.find(Node->MID);
   assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
 
-  auto Command = MCommandMap.find(ExecNode->second);
+  auto Command = MCommandMap.find(ExecNode->second.get());
   assert(Command != MCommandMap.end());
   UpdateDesc.hCommand = Command->second;
 
@@ -1756,7 +1754,7 @@ exec_graph_impl::getURUpdatableNodes(
 
     auto ExecNode = MIDCache.find(Node->MID);
     assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
-    auto PartitionIndex = MPartitionNodes.find(ExecNode->second);
+    auto PartitionIndex = MPartitionNodes.find(ExecNode->second.get());
     assert(PartitionIndex != MPartitionNodes.end());
     PartitionedNodes[PartitionIndex->second].push_back(Node);
   }
