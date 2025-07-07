@@ -1,0 +1,54 @@
+// REQUIRES: linux, cpu || (gpu && level_zero)
+// RUN: %{build} %device_msan_flags -O0 -g -o %t2.out
+// RUN: %{run} not %t2.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_msan_flags -O2 -g -o %t3.out
+// RUN: %{run} not %t3.out 2>&1 | FileCheck %s
+
+// UNSUPPORTED: cpu
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64618
+
+// XFAIL: spirv-backend && gpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/memcpy2d.hpp>
+#include <sycl/usm.hpp>
+
+__attribute__((noinline)) int check(int data1, int data2) {
+  return data1 + data2;
+}
+
+constexpr size_t Pitch = 4;
+constexpr size_t Width = 2;
+constexpr size_t Height = 2;
+constexpr size_t Size = Pitch * Height;
+
+void check_memcpy2d(sycl::queue &Q) {
+  std::cout << "check_memcpy2d" << std::endl;
+
+  auto *source = sycl::malloc_device<int>(Size, Q);
+  Q.memset(source, 0, Size * sizeof(int)).wait();
+
+  auto *dest = sycl::malloc_device<int>(Size, Q);
+  Q.ext_oneapi_memcpy2d(dest, Pitch, source, Pitch, Width, Height).wait();
+
+  // Q.single_task<class Test1>([=]() {
+  //    dest[0] = check(dest[0], dest[1]);
+  //  }).wait();
+  // Q.single_task<class Test2>([=]() {
+  //    dest[0] = check(dest[2], dest[3]);
+  //  }).wait();
+  // CHECK-LABEL: check_memcpy2d
+  // CHECK: use-of-uninitialized-value
+  // CHECK-NOT: PASS
+
+  sycl::free(dest, Q);
+  sycl::free(source, Q);
+  std::cout << "PASS" << std::endl;
+}
+
+int main() {
+  sycl::queue Q;
+  check_memcpy2d(Q);
+  return 0;
+}

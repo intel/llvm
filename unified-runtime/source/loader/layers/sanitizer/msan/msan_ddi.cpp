@@ -61,8 +61,7 @@ ur_result_t urEnqueueUSMFill2DFallback(ur_queue_handle_t hQueue, void *pMem,
   ur_result_t Result = getContext()->urDdiTable.Enqueue.pfnUSMFill2D(
       hQueue, pMem, pitch, patternSize, pPattern, width, height,
       numEventsInWaitList, phEventWaitList, phEvent);
-  if (Result == UR_RESULT_SUCCESS ||
-      Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+  if (Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     return Result;
   }
 
