@@ -16,7 +16,25 @@ if (SYCL_ENABLE_XPTI_TRACING)
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
 endif()
 
+if(is_gcc
+   OR is_clang
+   OR (is_icpx AND MSVC))
+  add_compile_option_ext("-Wall" WALL)
+  add_compile_option_ext("-Wextra" WEXTRA)
+elseif(is_icpx)
+  add_compile_option_ext("/Wall" WALL)
+elseif(is_msvc)
+  add_compile_option_ext("/W4" WALL)
+endif()
 
+if(CMAKE_BUILD_TYPE MATCHES "Release")
+  if(is_gcc
+     OR is_clang
+     OR (is_icpx AND MSVC))
+    add_compile_option_ext("-Wconversion" WCONVERSION)
+    add_compile_option_ext("-Wimplicit-fallthrough" WIMPLICITFALLTHROUGH)
+  endif()
+endif()
 
 function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Add an optional argument so we can get the library name to
@@ -32,33 +50,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   check_cxx_compiler_flag(-ffunction-sections HAS_FUNCTION_SECTIONS_FLAG)
   check_cxx_compiler_flag(-fdata-sections HAS_DATA_SECTIONS_FLAG)
 
-  if(is_gcc
-     OR is_clang
-     OR (is_icpx AND MSVC))
-    add_compile_option_ext("-Wall" WALL)
-    add_compile_option_ext("-Wextra" WEXTRA)
-  elseif(is_icpx)
-    add_compile_option_ext("/Wall" WALL)
-  elseif(is_msvc)
-    add_compile_option_ext("/W4" WALL)
-  endif()
-
-  if(CMAKE_BUILD_TYPE MATCHES "Release")
-    if(is_gcc
-       OR is_clang
-       OR (is_icpx AND MSVC))
-      add_compile_option_ext("-Wconversion" WCONVERSION)
-      add_compile_option_ext("-Wimplicit-fallthrough" WIMPLICITFALLTHROUGH)
-    endif()
-  endif()
-
-  # check_cxx_compiler_flag(-Wall HAS_WALL_FLAG)
-  # check_cxx_compiler_flag(-Wextra HAS_WEXTRA_FLAG)
-  # check_cxx_compiler_flag(/Wall HAS_SLASH_WALL_FLAG)
-  # check_cxx_compiler_flag(/W4 HAS_SLASH_W4_FLAG)
-  # check_cxx_compiler_flag(-Wconversion HAS_WCONVERSION_FLAG)
-  # check_cxx_compiler_flag(-Wimplicit-fallthrough HAS_WIMPLICIT_FALLTHROUGH_FLAG)
-
   target_compile_options(
     ${LIB_OBJ_NAME}
     PRIVATE
@@ -66,12 +57,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       $<$<BOOL:${HAS_INST_AFTER_SPEC}>:-Winstantiation-after-specialization>
       $<$<BOOL:${HAS_FUNCTION_SECTIONS_FLAG}>:-ffunction-sections>
       $<$<BOOL:${HAS_DATA_SECTIONS_FLAG}>:-fdata-sections>
-      # $<$<BOOL:${HAS_WALL_FLAG}>:-Wall>
-      # $<$<BOOL:${HAS_WEXTRA_FLAG}>:-Wextra>
-      # $<$<BOOL:${HAS_SLASH_WALL_FLAG}>:/Wall>
-      # $<$<BOOL:${HAS_SLASH_W4_FLAG}>:/W4>
-      # $<$<AND:$<BOOL:${HAS_WCONVERSION_FLAG},$<STREQUAL:"${CMAKE_BUILD_TYPE}","Release">>>:-Wconversion>
-      #  $<$<AND:$<BOOL:${HAS_WIMPLICIT_FALLTHROUGH_FLAG},$<STREQUAL:"${CMAKE_BUILD_TYPE}","Release">>>:-Wimplicit-fallthrough>
     PUBLIC
       $<$<NOT:$<BOOL:${MSVC}>>:-fvisibility=hidden -fvisibility-inlines-hidden>
       # Sycl math built-in macros cause a GCC 4.6 'note' to be output
