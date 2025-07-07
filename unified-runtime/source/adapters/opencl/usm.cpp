@@ -533,7 +533,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
       CLContext, ur::cl::getAdapter()->fnCache.clEnqueueMigrateMemINTELCache,
       cl_ext::EnqueueMigrateMemName, &EnqueueMigrateMem));
 
-  cl_event Event;
+  cl_event Event = nullptr;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   for (uint32_t i = 0; i < numEventsInWaitList; i++) {
     CLWaitEvents[i] = phEventWaitList[i]->CLEvent;

@@ -927,8 +927,12 @@ void MemoryManager::prefetch_usm(void *Mem, queue_impl &Queue, size_t Length,
                                  ur_event_handle_t *OutEvent,
                                  sycl::ext::oneapi::experimental::prefetch_type Dest) {
   const AdapterPtr &Adapter = Queue.getAdapter();
+  ur_usm_migration_flags_t MigrationFlag =
+      (Dest == sycl::ext::oneapi::experimental::prefetch_type::device)
+          ? UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE
+          : UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST;
   Adapter->call<UrApiKind::urEnqueueUSMPrefetch>(Queue.getHandleRef(), Mem,
-                                                 Length, 0, DepEvents.size(),
+                                                 Length, MigrationFlag, DepEvents.size(),
                                                  DepEvents.data(), OutEvent);
 }
 
@@ -1541,8 +1545,12 @@ void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint, 
     sycl::ext::oneapi::experimental::prefetch_type Dest) {
   const AdapterPtr &Adapter = Context->getAdapter();
+  ur_usm_migration_flags_t MigrationFlag =
+      (Dest == sycl::ext::oneapi::experimental::prefetch_type::device)
+          ? UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE
+          : UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST;
   Adapter->call<UrApiKind::urCommandBufferAppendUSMPrefetchExp>(
-      CommandBuffer, Mem, Length, ur_usm_migration_flags_t(0), Deps.size(),
+      CommandBuffer, Mem, Length, MigrationFlag, Deps.size(),
       Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
 }
 
