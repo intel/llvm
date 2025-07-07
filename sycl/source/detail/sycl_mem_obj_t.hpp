@@ -90,7 +90,7 @@ public:
 
   virtual ~SYCLMemObjT() = default;
 
-  const AdapterPtr &getAdapter() const;
+  adapter_impl &getAdapter() const;
 
   size_t getSizeInBytes() const noexcept override { return MSizeInBytes; }
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
