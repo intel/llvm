@@ -5779,8 +5779,8 @@ typedef enum ur_program_info_t {
   UR_PROGRAM_INFO_IL = 4,
   /// [size_t[]] Return program binary sizes for each device.
   UR_PROGRAM_INFO_BINARY_SIZES = 5,
-  /// [unsigned char[]] Return program binaries for all devices for this
-  /// Program. These are not null-terminated.
+  /// [unsigned char *[]] Write program binaries into caller-provided
+  /// buffers for each device. These are not null-terminated.
   UR_PROGRAM_INFO_BINARIES = 6,
   /// [size_t][optional-query] Number of kernels in Program, return type
   /// size_t.
