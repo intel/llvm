@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 236
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 232
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -140,7 +140,6 @@
 // CHECK-NEXT: Graph/Explicit/interop-level-zero-launch-kernel.cpp
 // CHECK-NEXT: Graph/Explicit/memadvise.cpp
 // CHECK-NEXT: Graph/Explicit/prefetch.cpp
-// CHECK-NEXT: Graph/Explicit/spec_constants_handler_api.cpp
 // CHECK-NEXT: Graph/Explicit/spec_constants_kernel_bundle_api.cpp
 // CHECK-NEXT: Graph/Explicit/work_group_size_prop.cpp
 // CHECK-NEXT: Graph/RecordReplay/buffer_copy_host2target.cpp
@@ -154,7 +153,6 @@
 // CHECK-NEXT: Graph/RecordReplay/interop-level-zero-launch-kernel.cpp
 // CHECK-NEXT: Graph/RecordReplay/memadvise.cpp
 // CHECK-NEXT: Graph/RecordReplay/prefetch.cpp
-// CHECK-NEXT: Graph/RecordReplay/spec_constants_handler_api.cpp
 // CHECK-NEXT: Graph/RecordReplay/spec_constants_kernel_bundle_api.cpp
 // CHECK-NEXT: Graph/RecordReplay/work_group_size_prop.cpp
 // CHECK-NEXT: Graph/UnsupportedDevice/device_query.cpp
@@ -258,8 +256,6 @@
 // CHECK-NEXT: Regression/barrier_waitlist_with_interop_event.cpp
 // CHECK-NEXT: Regression/complex_global_object.cpp
 // CHECK-NEXT: Regression/event_destruction.cpp
-// CHECK-NEXT: Regression/get_subgroup_sizes.cpp
-// CHECK-NEXT: Regression/get_subgroup_sizes.cpp
 // CHECK-NEXT: Regression/invalid_reqd_wg_size_correct_exception.cpp
 // CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
 // CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp

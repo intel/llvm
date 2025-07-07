@@ -39,7 +39,7 @@ struct DeviceGlobalUSMMem {
 
   // Gets the initialization event if it exists. If not the OwnedUrEvent
   // will contain no event.
-  OwnedUrEvent getInitEvent(const AdapterPtr &Adapter);
+  OwnedUrEvent getInitEvent(adapter_impl &Adapter);
 
 private:
   void *MPtr;
@@ -119,6 +119,13 @@ struct DeviceGlobalMapEntry {
 
   // Removes resources for device_globals associated with the context.
   void removeAssociatedResources(const context_impl *CtxImpl);
+
+  // Cleans up the USM memory and intialization events associated with this
+  // entry. This should only be called when the device global entry is not
+  // owned by the program manager, as otherwise it will be bound to the lifetime
+  // of the owner context and will be cleaned up through
+  // removeAssociatedResources.
+  void cleanup();
 
 private:
   // Map from a device and a context to the associated USM allocation for the

@@ -14,10 +14,11 @@
 #include <sycl/detail/cg_types.hpp> // for CGType
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
 
-#include <cstring> // for memcpy
-#include <fstream> // for fstream, ostream
-#include <iomanip> // for setw, setfill
-#include <vector>  // for vector
+#include <cstring>
+#include <fstream>
+#include <iomanip>
+#include <set>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -326,16 +327,15 @@ public:
   /// @param CompareContentOnly Skip comparisons related to graph structure,
   /// compare only the type and command groups of the nodes
   /// @return True if the two nodes are similar
-  bool isSimilar(const std::shared_ptr<node_impl> &Node,
-                 bool CompareContentOnly = false) const {
+  bool isSimilar(node_impl &Node, bool CompareContentOnly = false) const {
     if (!CompareContentOnly) {
-      if (MSuccessors.size() != Node->MSuccessors.size())
+      if (MSuccessors.size() != Node.MSuccessors.size())
         return false;
 
-      if (MPredecessors.size() != Node->MPredecessors.size())
+      if (MPredecessors.size() != Node.MPredecessors.size())
         return false;
     }
-    if (MCGType != Node->MCGType)
+    if (MCGType != Node.MCGType)
       return false;
 
     switch (MCGType) {
@@ -343,14 +343,14 @@ public:
       sycl::detail::CGExecKernel *ExecKernelA =
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
       sycl::detail::CGExecKernel *ExecKernelB =
-          static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
+          static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
       return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
     }
     case sycl::detail::CGType::CopyUSM: {
       sycl::detail::CGCopyUSM *CopyA =
           static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
       sycl::detail::CGCopyUSM *CopyB =
-          static_cast<sycl::detail::CGCopyUSM *>(Node->MCommandGroup.get());
+          static_cast<sycl::detail::CGCopyUSM *>(Node.MCommandGroup.get());
       return (CopyA->getSrc() == CopyB->getSrc()) &&
              (CopyA->getDst() == CopyB->getDst()) &&
              (CopyA->getLength() == CopyB->getLength());
@@ -361,7 +361,7 @@ public:
       sycl::detail::CGCopy *CopyA =
           static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
       sycl::detail::CGCopy *CopyB =
-          static_cast<sycl::detail::CGCopy *>(Node->MCommandGroup.get());
+          static_cast<sycl::detail::CGCopy *>(Node.MCommandGroup.get());
       return (CopyA->getSrc() == CopyB->getSrc()) &&
              (CopyA->getDst() == CopyB->getDst());
     }
@@ -753,6 +753,82 @@ private:
   template <typename CGT> std::unique_ptr<CGT> createCGCopy() const {
     return std::make_unique<CGT>(*static_cast<CGT *>(MCommandGroup.get()));
   }
+};
+
+// Non-owning!
+class nodes_range {
+  template <typename... Containers>
+  using storage_iter_impl =
+      std::variant<typename Containers::const_iterator...>;
+
+  using storage_iter = storage_iter_impl<
+      std::vector<std::shared_ptr<node_impl>>, std::vector<node_impl *>,
+      // Next one is temporary. It looks like `weak_ptr`s aren't
+      // used for the actual lifetime management and the objects are
+      // always guaranteed to be alive. Once the code is cleaned
+      // from `weak_ptr`s this alternative should be removed too.
+      std::vector<std::weak_ptr<node_impl>>,
+      //
+      std::set<std::shared_ptr<node_impl>>>;
+
+  storage_iter Begin;
+  storage_iter End;
+  const size_t Size;
+
+public:
+  nodes_range(const nodes_range &Other) = default;
+
+  template <
+      typename ContainerTy,
+      typename = std::enable_if_t<!std::is_same_v<nodes_range, ContainerTy>>>
+  nodes_range(ContainerTy &Container)
+      : Begin{Container.begin()}, End{Container.end()}, Size{Container.size()} {
+  }
+
+  class iterator {
+    storage_iter It;
+
+    iterator(storage_iter It) : It(It) {}
+    friend class nodes_range;
+
+  public:
+    iterator &operator++() {
+      It = std::visit(
+          [](auto &&It) {
+            ++It;
+            return storage_iter{It};
+          },
+          It);
+      return *this;
+    }
+    bool operator!=(const iterator &Other) const { return It != Other.It; }
+
+    node_impl &operator*() {
+      return std::visit(
+          [](auto &&It) -> node_impl & {
+            auto &Elem = *It;
+            if constexpr (std::is_same_v<std::decay_t<decltype(Elem)>,
+                                         std::weak_ptr<node_impl>>) {
+              // This assumes that weak_ptr doesn't actually manage lifetime and
+              // the object is guaranteed to be alive (which seems to be the
+              // assumption across all graph code).
+              return *Elem.lock();
+            } else {
+              return *Elem;
+            }
+          },
+          It);
+    }
+  };
+
+  iterator begin() const {
+    return {std::visit([](auto &&It) { return storage_iter{It}; }, Begin)};
+  }
+  iterator end() const {
+    return {std::visit([](auto &&It) { return storage_iter{It}; }, End)};
+  }
+  size_t size() const { return Size; }
+  bool empty() const { return Size == 0; }
 };
 } // namespace detail
 } // namespace experimental

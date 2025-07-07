@@ -84,7 +84,7 @@ public:
   /// @return A pointer to the start of the allocation
   void *malloc(size_t Size, usm::alloc AllocType,
                const std::vector<std::shared_ptr<node_impl>> &DepNodes,
-               const std::shared_ptr<memory_pool_impl> &MemPool = nullptr);
+               memory_pool_impl *MemPool = nullptr);
 
   /// Return the total amount of memory being used by this pool
   size_t getMemUseCurrent() const {

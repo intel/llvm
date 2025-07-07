@@ -62,12 +62,12 @@ public:
   /// \param OwnedByRuntime is the flag if ownership is kept by user or
   /// transferred to runtime
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               const AdapterPtr &Adapter,
+               adapter_impl &Adapter,
                const std::vector<sycl::device> &DeviceList, bool OwnedByRuntime,
                private_tag);
 
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               const AdapterPtr &Adapter, private_tag tag)
+               adapter_impl &Adapter, private_tag tag)
       : context_impl(UrContext, AsyncHandler, Adapter,
                      std::vector<sycl::device>{},
                      /*OwnedByRuntime*/ true, tag) {}
@@ -223,7 +223,8 @@ public:
 
   /// Initializes device globals for a program on the associated queue.
   std::vector<ur_event_handle_t>
-  initializeDeviceGlobals(ur_program_handle_t NativePrg, queue_impl &QueueImpl);
+  initializeDeviceGlobals(ur_program_handle_t NativePrg, queue_impl &QueueImpl,
+                          detail::kernel_bundle_impl *KernelBundleImplPtr);
 
   void memcpyToHostOnlyDeviceGlobal(device_impl &DeviceImpl,
                                     const void *DeviceGlobalPtr,
@@ -378,5 +379,11 @@ inline auto get_ur_handles(const sycl::device &syclDevice,
       sycl::detail::getSyclObjImpl(syclDevice)->getHandleRef();
   return std::tuple{urDevice, urCtx, Adapter};
 }
+inline auto get_ur_handles(const sycl::device &syclDevice) {
+  auto &implDevice = *sycl::detail::getSyclObjImpl(syclDevice);
+  ur_device_handle_t urDevice = implDevice.getHandleRef();
+  return std::tuple{urDevice, implDevice.getAdapter()};
+}
+
 } // namespace _V1
 } // namespace sycl

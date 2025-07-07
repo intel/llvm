@@ -29,10 +29,10 @@ std::shared_ptr<ShadowMemory> GetShadowMemory(ur_context_handle_t Context,
     return ShadowCPU;
   } else if (Type == DeviceType::GPU_PVC) {
     return std::make_shared<ShadowMemoryPVC>(Context, Device);
-  } else {
-    UR_LOG_L(getContext()->logger, ERR, "Unsupport device type");
-    return nullptr;
   }
+
+  die("GetShadowMemory: Unsupport device type");
+  return nullptr;
 }
 
 ur_result_t ShadowMemoryCPU::Setup() {

@@ -147,7 +147,7 @@ public:
   /// @return Created node in the graph.
   std::shared_ptr<node_impl> add(node_type NodeType,
                                  std::shared_ptr<sycl::detail::CG> CommandGroup,
-                                 std::vector<std::shared_ptr<node_impl>> &Deps);
+                                 nodes_range Deps);
 
   /// Create a CGF node in the graph.
   /// @param CGF Command-group function to create node with.
@@ -161,7 +161,7 @@ public:
   /// Create an empty node in the graph.
   /// @param Deps List of predecessor nodes.
   /// @return Created node in the graph.
-  std::shared_ptr<node_impl> add(std::vector<std::shared_ptr<node_impl>> &Deps);
+  std::shared_ptr<node_impl> add(nodes_range Deps);
 
   /// Create an empty node in the graph.
   /// @param Events List of events associated to this node.
@@ -174,8 +174,7 @@ public:
   /// @param Deps List of predecessor nodes.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
-  add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
-      std::vector<std::shared_ptr<node_impl>> &Deps);
+  add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl, nodes_range Deps);
 
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
@@ -358,7 +357,7 @@ public:
     size_t FoundCnt = 0;
     for (std::weak_ptr<node_impl> &SuccA : NodeA->MSuccessors) {
       for (std::weak_ptr<node_impl> &SuccB : NodeB->MSuccessors) {
-        if (NodeA->isSimilar(NodeB) &&
+        if (NodeA->isSimilar(*NodeB) &&
             checkNodeRecursive(SuccA.lock(), SuccB.lock())) {
           FoundCnt++;
           break;
@@ -383,12 +382,12 @@ public:
   /// @param DebugPrint if set to true throw exception with additional debug
   /// information about the spotted graph differences.
   /// @return true if the two graphs are similar, false otherwise
-  bool hasSimilarStructure(std::shared_ptr<detail::graph_impl> Graph,
+  bool hasSimilarStructure(detail::graph_impl &Graph,
                            bool DebugPrint = false) const {
-    if (this == Graph.get())
+    if (this == &Graph)
       return true;
 
-    if (MContext != Graph->MContext) {
+    if (MContext != Graph.MContext) {
       if (DebugPrint) {
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "MContext are not the same.");
@@ -396,7 +395,7 @@ public:
       return false;
     }
 
-    if (MDevice != Graph->MDevice) {
+    if (MDevice != Graph.MDevice) {
       if (DebugPrint) {
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "MDevice are not the same.");
@@ -404,7 +403,7 @@ public:
       return false;
     }
 
-    if (MEventsMap.size() != Graph->MEventsMap.size()) {
+    if (MEventsMap.size() != Graph.MEventsMap.size()) {
       if (DebugPrint) {
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "MEventsMap sizes are not the same.");
@@ -412,7 +411,7 @@ public:
       return false;
     }
 
-    if (MInorderQueueMap.size() != Graph->MInorderQueueMap.size()) {
+    if (MInorderQueueMap.size() != Graph.MInorderQueueMap.size()) {
       if (DebugPrint) {
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "MInorderQueueMap sizes are not the same.");
@@ -420,7 +419,7 @@ public:
       return false;
     }
 
-    if (MRoots.size() != Graph->MRoots.size()) {
+    if (MRoots.size() != Graph.MRoots.size()) {
       if (DebugPrint) {
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "MRoots sizes are not the same.");
@@ -430,11 +429,11 @@ public:
 
     size_t RootsFound = 0;
     for (std::weak_ptr<node_impl> NodeA : MRoots) {
-      for (std::weak_ptr<node_impl> NodeB : Graph->MRoots) {
+      for (std::weak_ptr<node_impl> NodeB : Graph.MRoots) {
         auto NodeALocked = NodeA.lock();
         auto NodeBLocked = NodeB.lock();
 
-        if (NodeALocked->isSimilar(NodeBLocked)) {
+        if (NodeALocked->isSimilar(*NodeBLocked)) {
           if (checkNodeRecursive(NodeALocked, NodeBLocked)) {
             RootsFound++;
             break;
@@ -542,14 +541,12 @@ private:
   /// added as a root node.
   /// @param Node The node to add deps for
   /// @param Deps List of dependent nodes
-  void addDepsToNode(const std::shared_ptr<node_impl> &Node,
-                     std::vector<std::shared_ptr<node_impl>> &Deps) {
-    if (!Deps.empty()) {
-      for (auto &N : Deps) {
-        N->registerSuccessor(Node);
-        this->removeRoot(Node);
-      }
-    } else {
+  void addDepsToNode(const std::shared_ptr<node_impl> &Node, nodes_range Deps) {
+    for (node_impl &N : Deps) {
+      N.registerSuccessor(Node);
+      this->removeRoot(Node);
+    }
+    if (Node->MPredecessors.empty()) {
       this->addRoot(Node);
     }
   }

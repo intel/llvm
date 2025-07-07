@@ -22,8 +22,6 @@ class dynamic_parameter_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
-using KernelBundleImplPtr = std::shared_ptr<detail::kernel_bundle_impl>;
-
 enum class HandlerSubmissionState : std::uint8_t {
   NO_STATE = 0,
   EXPLICIT_KERNEL_BUNDLE_STATE,
