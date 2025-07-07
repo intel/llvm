@@ -171,8 +171,25 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
     return ReturnValue(reinterpret_cast<const char *>(0), 0);
   case UR_PROGRAM_INFO_BINARY_SIZES:
     return ReturnValue(&hProgram->BinarySizeInBytes, 1);
-  case UR_PROGRAM_INFO_BINARIES:
-    return ReturnValue(&hProgram->Binary, 1);
+  case UR_PROGRAM_INFO_BINARIES: {
+    if (!pPropValue && !pPropSizeRet) {
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (pPropValue != nullptr) {
+      if (propSize < sizeof(void *)) {
+        return UR_RESULT_ERROR_INVALID_SIZE;
+      }
+
+      std::memcpy(*reinterpret_cast<void **>(pPropValue), hProgram->Binary,
+                  hProgram->BinarySizeInBytes);
+    }
+
+    if (pPropSizeRet != nullptr) {
+      *pPropSizeRet = sizeof(void *);
+    }
+    break;
+  }
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
