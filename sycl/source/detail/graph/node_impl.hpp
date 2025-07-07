@@ -31,6 +31,7 @@ class node;
 namespace detail {
 // Forward declarations
 class node_impl;
+class nodes_range;
 class exec_graph_impl;
 
 /// Takes a vector of weak_ptrs to node_impls and returns a vector of node
@@ -115,6 +116,10 @@ public:
   /// Note : This number is only used during the partitionning process and
   /// cannot be used to find out the partion of a node outside of this process.
   int MPartitionNum = -1;
+
+  // Out-of-class as need "complete" `nodes_range`:
+  inline nodes_range successors() const;
+  inline nodes_range predecessors() const;
 
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
@@ -830,6 +835,10 @@ public:
   size_t size() const { return Size; }
   bool empty() const { return Size == 0; }
 };
+
+inline nodes_range node_impl::successors() const { return MSuccessors; }
+inline nodes_range node_impl::predecessors() const { return MPredecessors; }
+
 } // namespace detail
 } // namespace experimental
 } // namespace oneapi
