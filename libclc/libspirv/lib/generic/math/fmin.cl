@@ -9,13 +9,13 @@
 #include <libspirv/spirv.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_fmin(float x, float y) {
-  return __builtin_fmaxf(x);
+  return __builtin_fmaxf(x, y);
 }
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_fmin(double x, double y) {
-  return __builtin_fmax(x);
+  return __builtin_fmax(x, y);
 }
 #endif
 
