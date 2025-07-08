@@ -358,8 +358,7 @@ createTargetCodeGenInfo(CodeGenModule &CGM, const TargetInfo &Target,
       }();
     }
     if (!HostTriple.isNativeCPU()) {
-      HostTargetCodeGenInfo =
-          createTargetCodeGenInfo(CGM, Target, HostTriple);
+      HostTargetCodeGenInfo = createTargetCodeGenInfo(CGM, Target, HostTriple);
     }
 
     return createNativeCPUTargetCodeGenInfo(CGM,
