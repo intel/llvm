@@ -225,6 +225,8 @@ def parse_unit_type(compute_unit):
 
 class ComputeBenchmark(Benchmark):
 
+    not_traceable = []  # List of benchmarks that should not be traced by Unitrace
+
     def __init__(self, bench, name, test, runtime: RUNTIMES = None):
         super().__init__(bench.directory, bench)
         self.bench = bench
@@ -263,6 +265,9 @@ class ComputeBenchmark(Benchmark):
 
         # Check if the specific runtime is enabled (or no specific runtime required)
         return self.runtime is None or self.runtime in self.enabled_runtimes()
+
+    def traceable(self) -> bool:
+        return self.bench_name not in self.not_traceable
 
     def bin_args(self) -> list[str]:
         return []

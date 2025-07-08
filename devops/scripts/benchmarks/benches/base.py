@@ -61,6 +61,12 @@ class Benchmark(ABC):
         By default, it returns True, but can be overridden to disable a benchmark."""
         return True
 
+    def traceable(self) -> bool:
+        """Returns whether this benchmark should be traced by Unitrace.
+        By default, it returns True, but can be overridden to disable tracing for a benchmark.
+        """
+        return True
+
     @abstractmethod
     def setup(self):
         pass
@@ -106,7 +112,7 @@ class Benchmark(ABC):
         ld_libraries = options.extra_ld_libraries.copy()
         ld_libraries.extend(ld_library)
 
-        if run_unitrace:
+        if self.traceable() and run_unitrace:
             if extra_unitrace_opt is None:
                 extra_unitrace_opt = []
             unitrace_output, command = get_unitrace().setup(
@@ -126,7 +132,7 @@ class Benchmark(ABC):
                 get_unitrace().cleanup(options.benchmark_cwd, unitrace_output)
             raise
 
-        if run_unitrace:
+        if self.traceable() and run_unitrace:
             get_unitrace().handle_output(unitrace_output)
 
         if use_stdout:
