@@ -130,7 +130,7 @@ class VelocityBase(Benchmark):
     def get_tags(self):
         return ["SYCL", "application"]
 
-    def run(self, env_vars, unitrace_timestamp: str = None) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         env_vars.update(self.extra_env_vars())
 
         command = [
@@ -142,7 +142,7 @@ class VelocityBase(Benchmark):
             command,
             env_vars,
             ld_library=self.ld_libraries(),
-            unitrace_timestamp=unitrace_timestamp,
+            run_unitrace=run_unitrace,
         )
 
         return [
@@ -287,7 +287,7 @@ class QuickSilver(VelocityBase):
     def __init__(self, vb: VelocityBench):
         super().__init__("QuickSilver", "qs", vb, "MMS/CTT")
 
-    def run(self, env_vars, unitrace_timestamp: str = None) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         # TODO: fix the crash in QuickSilver when UR_L0_USE_IMMEDIATE_COMMANDLISTS=0
         if (
             "UR_L0_USE_IMMEDIATE_COMMANDLISTS" in env_vars
@@ -295,7 +295,7 @@ class QuickSilver(VelocityBase):
         ):
             return None
 
-        return super().run(env_vars, unitrace_timestamp=unitrace_timestamp)
+        return super().run(env_vars)
 
     def name(self):
         return "Velocity-Bench QuickSilver"

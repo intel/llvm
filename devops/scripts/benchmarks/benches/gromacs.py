@@ -162,7 +162,7 @@ class GromacsBenchmark(Benchmark):
             ld_library=self.suite.oneapi.ld_libraries(),
         )
 
-    def run(self, env_vars, unitrace_timestamp: str = None) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         model_dir = self.grappa_dir / self.model
 
         env_vars.update({"SYCL_CACHE_PERSISTENT": "1"})
@@ -201,7 +201,7 @@ class GromacsBenchmark(Benchmark):
             add_sycl=True,
             use_stdout=False,
             ld_library=self.suite.oneapi.ld_libraries(),
-            unitrace_timestamp=unitrace_timestamp,
+            run_unitrace=run_unitrace,
         )
 
         if not self._validate_correctness(options.benchmark_cwd + "/md.log"):

@@ -9,7 +9,7 @@ from options import options
 from utils.utils import git_clone, run, create_build_path
 from utils.result import Result
 from utils.oneapi import get_oneapi
-from .benchdnn_list import get_bench_dnn_list, unitrace_exclusion_list
+from .benchdnn_list import get_bench_dnn_list
 
 
 class OneDnnBench(Suite):
@@ -129,7 +129,7 @@ class OneDnnBenchmark(Benchmark):
         if not self.bench_bin.exists():
             raise FileNotFoundError(f"Benchmark binary not found: {self.bench_bin}")
 
-    def run(self, env_vars, unitrace_timestamp: str = None) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         command = [
             str(self.bench_bin),
             *self.bench_args.split(),
@@ -142,20 +142,13 @@ class OneDnnBenchmark(Benchmark):
         env_vars = dict(env_vars) if env_vars else {}
         env_vars["ONEAPI_DEVICE_SELECTOR"] = "level_zero:*"
 
-        if self.name() in unitrace_exclusion_list:
-            if options.verbose:
-                print(
-                    f"[{self.name()}] Skipping benchmark due to unitrace exclusion list."
-                )
-            unitrace_timestamp = None
-
         output = self.run_bench(
             command,
             env_vars,
             add_sycl=True,
             ld_library=ld_library,
             use_stdout=True,
-            unitrace_timestamp=unitrace_timestamp,
+            run_unitrace=run_unitrace,
             extra_unitrace_opt=["--chrome-dnn-logging"],
         )
         result_value = self._extract_time(output)

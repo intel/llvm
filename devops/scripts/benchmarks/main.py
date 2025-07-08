@@ -19,13 +19,10 @@ from output_html import generate_html
 from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
-from utils.unitrace import download_and_build_unitrace
 from utils.validate import Validate
 from utils.detect_versions import DetectVersion
+from utils.unitrace import get_unitrace, create_unitrace
 from presets import enabled_suites, presets
-from utils.oneapi import get_oneapi
-from datetime import datetime, timezone
-
 import argparse
 import re
 import statistics
@@ -41,14 +38,15 @@ def run_iterations(
     iters: int,
     results: dict[str, list[Result]],
     failures: dict[str, str],
-    unitrace_timestamp: str = None,
+    run_unitrace: bool = False,
 ):
     for iter in range(iters):
-        if unitrace_timestamp is not None:
-            print(f"running {benchmark.name()} with Unitrace", flush=True)
+        if run_unitrace:
+            print(f"running {benchmark.name()} with Unitrace... ", flush=True)
         else:
             print(f"running {benchmark.name()}, iteration {iter}... ", flush=True)
-        bench_results = benchmark.run(env_vars, unitrace_timestamp=unitrace_timestamp)
+
+        bench_results = benchmark.run(env_vars, run_unitrace=run_unitrace)
         if bench_results is None:
             if options.exit_on_failure:
                 raise RuntimeError(f"Benchmark {benchmark.name()} produced no results!")
@@ -173,13 +171,19 @@ def collect_metadata(suites):
 def main(directory, additional_env_vars, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
-    if options.unitrace_only or options.unitrace_inclusive:
-        print("Downloading and building Unitrace...")
-        download_and_build_unitrace(options.workdir)
-        if options.results_directory_override == None:
-            options.unitrace_res_dir = os.path.join(directory, "results")
-        else:
-            options.unitrace_res_dir = options.results_directory_override
+    if args.unitrace == "inclusive":
+        create_unitrace(inclusive=True)
+    elif args.unitrace is True:
+        create_unitrace(inclusive=False)
+    elif args.unitrace is not None:
+        parser.error(
+            "Invalid value for --unitrace. Use 'inclusive' for tracing along regular benchmarks or no argument for tracing only."
+        )
+
+    if get_unitrace() is not None and options.save_name is None:
+        raise ValueError(
+            "Unitrace requires a save name to be specified via --save option."
+        )
 
     if options.build_compute_runtime:
         print(f"Setting up Compute Runtime {options.compute_runtime_tag}")
@@ -236,12 +240,6 @@ def main(directory, additional_env_vars, compare_names, filter):
                 print(f"{type(s).__name__} setup complete.")
                 benchmarks += suite_benchmarks
 
-    timestamp = (
-        datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
-        if options.timestamp_override is None
-        else options.timestamp_override
-    )
-
     for benchmark in benchmarks:
         try:
             if options.verbose:
@@ -263,7 +261,7 @@ def main(directory, additional_env_vars, compare_names, filter):
             intermediate_results: dict[str, list[Result]] = {}
             processed: list[Result] = []
             # regular run of the benchmark
-            if not options.unitrace_only:
+            if get_unitrace() is None or get_unitrace().inclusive:
                 for _ in range(options.iterations_stddev):
                     run_iterations(
                         benchmark,
@@ -271,23 +269,22 @@ def main(directory, additional_env_vars, compare_names, filter):
                         options.iterations,
                         intermediate_results,
                         failures,
-                        unitrace_timestamp=None,
+                        run_unitrace=False,
                     )
                     valid, processed = process_results(
                         intermediate_results, benchmark.stddev_threshold()
                     )
                     if valid:
                         break
-            # unitrace run of the benchmark
-            if options.unitrace_inclusive or options.unitrace_only:
-                # set the timestamp to enable unitrace run and save results with proper file names
+            # single unitrace run independent of benchmark iterations
+            if get_unitrace() is not None:
                 run_iterations(
                     benchmark,
                     merged_env_vars,
                     1,
                     intermediate_results,
                     failures,
-                    unitrace_timestamp=timestamp,
+                    run_unitrace=True,
                 )
             results += processed
         except Exception as e:
@@ -351,7 +348,7 @@ def main(directory, additional_env_vars, compare_names, filter):
     # we calculate historical averages or get latest results for compare.
     # Otherwise we might be comparing the results to themselves.
     if not options.dry_run:
-        history.save(saved_name, timestamp, results, options.save_name is not None)
+        history.save(saved_name, results)
         if saved_name not in compare_names:
             compare_names.append(saved_name)
 
@@ -546,14 +543,11 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--unitrace",
-        action="store_true",
-        help="Unitrace tracing for sigle iteration of benchmarks",
-    )
-
-    parser.add_argument(
-        "--unitrace-inclusive",
-        action="store_true",
-        help="Regular run of benchmarks iterations and unitrace tracing in single additional run",
+        nargs="?",
+        const=True,
+        default=None,
+        help="Unitrace tracing for single iteration of benchmarks. Inclusive tracing is done along regular benchmarks.",
+        choices=["inclusive", True],
     )
 
     # Options intended for CI:
@@ -661,8 +655,6 @@ if __name__ == "__main__":
     options.results_directory_override = args.results_dir
     options.build_jobs = args.build_jobs
     options.hip_arch = args.hip_arch
-    options.unitrace_only = args.unitrace
-    options.unitrace_inclusive = args.unitrace_inclusive
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
@@ -673,10 +665,6 @@ if __name__ == "__main__":
         if not os.path.isdir(args.output_dir):
             parser.error("Specified --output-dir is not a valid path")
         options.output_directory = os.path.abspath(args.output_dir)
-    if args.unitrace_inclusive and args.unitrace:
-        parser.error(
-            "--unitrace-inclusive and --unitrace are mutually exclusive, please specify only one of them"
-        )
 
     # Options intended for CI:
     options.timestamp_override = args.timestamp_override

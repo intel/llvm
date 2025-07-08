@@ -3,7 +3,6 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from dataclasses import dataclass
 import os
 import shutil
 import subprocess
@@ -12,7 +11,7 @@ from utils.result import BenchmarkMetadata, BenchmarkTag, Result
 from options import options
 from utils.utils import download, run
 from abc import ABC, abstractmethod
-import utils.unitrace as unitrace
+from utils.unitrace import get_unitrace
 
 benchmark_tags = [
     BenchmarkTag("SYCL", "Benchmark uses SYCL runtime"),
@@ -71,7 +70,7 @@ class Benchmark(ABC):
         pass
 
     @abstractmethod
-    def run(self, env_vars, unitrace_timestamp: str = None) -> list[Result]:
+    def run(self, env_vars: dict, run_unitrace: bool = False) -> list[Result]:
         pass
 
     @staticmethod
@@ -93,8 +92,8 @@ class Benchmark(ABC):
         ld_library=[],
         add_sycl=True,
         use_stdout=True,
-        unitrace_timestamp: str = None,
-        extra_unitrace_opt=[],
+        run_unitrace=False,
+        extra_unitrace_opt=None,
     ):
         env_vars = env_vars.copy()
         if options.ur is not None:
@@ -107,9 +106,11 @@ class Benchmark(ABC):
         ld_libraries = options.extra_ld_libraries.copy()
         ld_libraries.extend(ld_library)
 
-        if unitrace_timestamp is not None:
-            bench_dir, unitrace_output, command = unitrace.unitrace_prepare(
-                self.name(), unitrace_timestamp, command, extra_unitrace_opt
+        if run_unitrace:
+            if extra_unitrace_opt is None:
+                extra_unitrace_opt = []
+            unitrace_output, command = get_unitrace().setup(
+                self.name(), command, extra_unitrace_opt
             )
 
         try:
@@ -120,15 +121,13 @@ class Benchmark(ABC):
                 cwd=options.benchmark_cwd,
                 ld_library=ld_libraries,
             )
-        except subprocess.CalledProcessError as e:
-            if unitrace_timestamp is not None:
-                unitrace.unitrace_cleanup(options.benchmark_cwd, unitrace_output)
+        except subprocess.CalledProcessError:
+            if run_unitrace:
+                get_unitrace().cleanup(options.benchmark_cwd, unitrace_output)
             raise
 
-        if unitrace_timestamp is not None:
-            unitrace.handle_unitrace_output(
-                bench_dir, unitrace_output, unitrace_timestamp
-            )
+        if run_unitrace:
+            get_unitrace().handle_output(unitrace_output)
 
         if use_stdout:
             return result.stdout.decode()

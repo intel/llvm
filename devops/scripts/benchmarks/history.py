@@ -14,6 +14,7 @@ from utils.utils import run
 from utils.validate import Validate
 
 from utils.detect_versions import DetectVersion
+from utils.unitrace import get_unitrace
 
 
 class BenchmarkHistory:
@@ -149,24 +150,28 @@ class BenchmarkHistory:
             compute_runtime=compute_runtime,
         )
 
-    def save(self, save_name, timestamp, results: list[Result], to_file=True):
+    def save(self, save_name, results: list[Result]):
         benchmark_data = self.create_run(save_name, results)
         self.runs.append(benchmark_data)
 
-        if not to_file:
+        if options.save_name is None:
             return
 
-        serialized = benchmark_data.to_json()
+        serialized = benchmark_data.to_json()  # type: ignore
         results_dir = Path(os.path.join(self.dir, "results"))
         os.makedirs(results_dir, exist_ok=True)
 
-        # Use formatted timestamp for the filename
-        if timestamp is None:
+        if get_unitrace() is not None:
+            timestamp = get_unitrace().timestamp  # type: ignore
+        elif options.timestamp_override is not None:
+            timestamp = options.timestamp_override
+        else:
             timestamp = (
                 datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
                 if options.timestamp_override is None
                 else options.timestamp_override
             )
+
         file_path = Path(os.path.join(results_dir, f"{save_name}_{timestamp}.json"))
         with file_path.open("w") as file:
             json.dump(serialized, file, indent=4)

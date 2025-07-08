@@ -138,7 +138,7 @@ class GBench(Benchmark):
 
         return all_names
 
-    def run(self, env_vars, unitrace_timestamp: str = None) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         command = [f"{self.benchmark_bin}"]
 
         all_names = self.get_names_of_benchmarks_to_be_run(command, env_vars)
@@ -156,7 +156,7 @@ class GBench(Benchmark):
                 env_vars,
                 add_sycl=False,
                 ld_library=[self.umf_lib],
-                unitrace_timestamp=unitrace_timestamp,
+                run_unitrace=run_unitrace,
             )
 
             parsed = self.parse_output(result)

@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 import multiprocessing
+import os
 
 
 class Compare(Enum):
@@ -69,11 +70,8 @@ class Options:
     build_igc: bool = False
     current_run_name: str = "This PR"
     preset: str = "Full"
-    build_jobs: int = multiprocessing.cpu_count()
+    build_jobs: int = len(os.sched_getaffinity(0))  # Cores available for the process.
     exit_on_failure: bool = False
-    unitrace_only: bool = False
-    unitrace_inclusive: bool = False
-    unitrace_res_dir: str = None
 
     # Options intended for CI:
     regression_threshold: float = 0.05

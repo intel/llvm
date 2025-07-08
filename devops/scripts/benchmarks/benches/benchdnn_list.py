@@ -3,11 +3,6 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-unitrace_exclusion_list = [
-    "onednn-graph-sdpa-plain-f32-eager",
-    "onednn-graph-sdpa-plain-f32-graph",
-]
-
 # entry format:
 #  [bench_driver, bench_name, bench_args, rungraph]
 #  bench_driver is the name of the benchdnn driver, e.g. "sum", "graph", etc.

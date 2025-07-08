@@ -115,7 +115,7 @@ class LlamaBench(Benchmark):
     def lower_is_better(self):
         return False
 
-    def run(self, env_vars, unitrace_timestamp: str = None) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
             "--output",
@@ -144,7 +144,7 @@ class LlamaBench(Benchmark):
             command,
             env_vars,
             ld_library=self.bench.oneapi.ld_libraries(),
-            unitrace_timestamp=unitrace_timestamp,
+            run_unitrace=run_unitrace,
         )
         parsed = self.parse_output(result)
         results = []
