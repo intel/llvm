@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED-INTENDED: SG size = 32 is not supported for SYCL Joint Matrix on DG2
+// UNSUPPORTED-INTENDED: SG size = 32 is not supported for SYCL Joint Matrix on
+// DG2
 
 // REQUIRES: target-spir
 // REQUIRES: aspect-ext_intel_matrix
