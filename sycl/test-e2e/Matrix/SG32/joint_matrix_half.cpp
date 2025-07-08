@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
-// UNSUPPORTED: gpu-intel-dg2
+
+// UNSUPPORTED-INTENDED: SG size = 32 is not supported for SYCL Joint Matrix on DG2
 
 // REQUIRES: target-spir
 
@@ -34,18 +34,24 @@ int main() {
     if (combinations[i].nsize == 0) { // Intel AMX
       test<half, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16,
            layout::row_major, 1>();
+      test<half, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16,
+           layout::ext_intel_packed, 2>();
       break;
     }
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
       test<half, float, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16,
            layout::row_major, 1>();
+      test<half, float, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16,
+           layout::ext_intel_packed, 2>();
       break;
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
       test<half, float, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16, layout::row_major,
            1>();
+      test<half, float, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16,
+           layout::ext_intel_packed, 2>();
       break;
     }
   }

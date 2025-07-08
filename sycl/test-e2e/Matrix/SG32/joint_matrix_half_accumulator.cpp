@@ -5,9 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
-// UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: GSD-4181
+
+// UNSUPPORTED-INTENDED: SG size = 32 is not supported for SYCL Joint Matrix on DG2
 
 // REQUIRES: target-spir
 // REQUIRES: aspect-ext_intel_matrix
