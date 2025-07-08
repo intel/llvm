@@ -14,18 +14,14 @@
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 #include <sycl/usm.hpp>
 
-__attribute__((noinline)) int check(int data1, int data2) {
-  return data1 + data2;
-}
-
 constexpr size_t Pitch = 4;
 constexpr size_t Width = 2;
 constexpr size_t Height = 2;
 constexpr size_t Size = Pitch * Height;
 
-#if defined(__SYCL_DEVICE_ONLY__)
-SYCL_EXTERNAL extern "C" void *__msan_get_shadow(uintptr_t addr, uint32_t as);
-#endif
+__attribute__((noinline)) int check(int data1, int data2) {
+  return data1 + data2;
+}
 
 void check_memcpy2d(sycl::queue &Q) {
   std::cout << "check_memcpy2d" << std::endl;
