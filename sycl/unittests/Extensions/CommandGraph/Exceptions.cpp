@@ -507,7 +507,7 @@ TEST_F(CommandGraphTest, MakeEdgeErrors) {
     experimental::detail::node_impl &NodeBImpl = *getSyclObjImpl(NodeB);
 
     ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
-    ASSERT_EQ(GraphImpl.MRoots.begin()->lock().get(), &NodeAImpl);
+    ASSERT_EQ(*GraphImpl.MRoots.begin(), &NodeAImpl);
 
     ASSERT_EQ(NodeAImpl.MSuccessors.size(), 1lu);
     ASSERT_EQ(NodeAImpl.MPredecessors.size(), 0lu);
