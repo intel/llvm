@@ -147,7 +147,7 @@ public:
   /// @return Created node in the graph.
   std::shared_ptr<node_impl> add(node_type NodeType,
                                  std::shared_ptr<sycl::detail::CG> CommandGroup,
-                                 std::vector<std::shared_ptr<node_impl>> &Deps);
+                                 nodes_range Deps);
 
   /// Create a CGF node in the graph.
   /// @param CGF Command-group function to create node with.
@@ -161,21 +161,14 @@ public:
   /// Create an empty node in the graph.
   /// @param Deps List of predecessor nodes.
   /// @return Created node in the graph.
-  std::shared_ptr<node_impl> add(std::vector<std::shared_ptr<node_impl>> &Deps);
-
-  /// Create an empty node in the graph.
-  /// @param Events List of events associated to this node.
-  /// @return Created node in the graph.
-  std::shared_ptr<node_impl>
-  add(const std::vector<sycl::detail::EventImplPtr> Events);
+  std::shared_ptr<node_impl> add(nodes_range Deps);
 
   /// Create a dynamic command-group node in the graph.
   /// @param DynCGImpl Dynamic command-group used to create node.
   /// @param Deps List of predecessor nodes.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
-  add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
-      std::vector<std::shared_ptr<node_impl>> &Deps);
+  add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl, nodes_range Deps);
 
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
@@ -532,24 +525,16 @@ private:
   /// @param Root Node to add to list of root nodes.
   void addRoot(const std::shared_ptr<node_impl> &Root);
 
-  /// Adds nodes to the exit nodes of this graph.
-  /// @param NodeList List of nodes from sub-graph in schedule order.
-  /// @return An empty node is used to schedule dependencies on this sub-graph.
-  std::shared_ptr<node_impl>
-  addNodesToExits(const std::list<std::shared_ptr<node_impl>> &NodeList);
-
   /// Adds dependencies for a new node, if it has no deps it will be
   /// added as a root node.
   /// @param Node The node to add deps for
   /// @param Deps List of dependent nodes
-  void addDepsToNode(const std::shared_ptr<node_impl> &Node,
-                     std::vector<std::shared_ptr<node_impl>> &Deps) {
-    if (!Deps.empty()) {
-      for (auto &N : Deps) {
-        N->registerSuccessor(Node);
-        this->removeRoot(Node);
-      }
-    } else {
+  void addDepsToNode(const std::shared_ptr<node_impl> &Node, nodes_range Deps) {
+    for (node_impl &N : Deps) {
+      N.registerSuccessor(Node);
+      this->removeRoot(Node);
+    }
+    if (Node->MPredecessors.empty()) {
       this->addRoot(Node);
     }
   }

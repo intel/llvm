@@ -12,6 +12,7 @@
 #include "JITContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Error.h"
+#include <vector>
 
 namespace jit_compiler {
 
@@ -24,9 +25,6 @@ public:
   static llvm::Expected<JITBinaryInfo>
   translate(llvm::Module &Mod, JITContext &JITCtx, BinaryFormat Format,
             const char *KernelName = nullptr);
-
-  std::pair<std::string, std::string> static getTargetCPUAndFeatureAttrs(
-      const llvm::Module *M, const char *KernelName, BinaryFormat Format);
 
 private:
   /// Pair of address and size to represent a binary blob.
