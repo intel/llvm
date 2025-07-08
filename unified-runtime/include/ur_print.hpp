@@ -2991,6 +2991,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     os << "UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES";
     break;
+  case UR_DEVICE_INFO_LUID:
+    os << "UR_DEVICE_INFO_LUID";
+    break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
     break;
@@ -4744,6 +4747,20 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     ur::details::printFlag<ur_kernel_launch_properties_flag_t>(os, *tptr);
 
     os << ")";
+  } break;
+  case UR_DEVICE_INFO_LUID: {
+
+    const uint8_t *tptr = (const uint8_t *)ptr;
+    os << "{";
+    size_t nelems = size / sizeof(uint8_t);
+    for (size_t i = 0; i < nelems; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      os << static_cast<int>(tptr[i]);
+    }
+    os << "}";
   } break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;

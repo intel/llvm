@@ -237,6 +237,9 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_3d, id<3>,
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_global_work_groups, size_t, __SYCL_TRAIT_HANDLED_IN_RT)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_cuda_cluster_group, bool, __SYCL_TRAIT_HANDLED_IN_RT)
 
+__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_device_info_luid, detail::luid_type,
+                         UR_DEVICE_INFO_LUID)
+
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF

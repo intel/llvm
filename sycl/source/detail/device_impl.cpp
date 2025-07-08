@@ -510,6 +510,7 @@ EXPORT_GET_INFO(ext::intel::info::device::current_clock_throttle_reasons)
 EXPORT_GET_INFO(ext::intel::info::device::fan_speed)
 EXPORT_GET_INFO(ext::intel::info::device::min_power_limit)
 EXPORT_GET_INFO(ext::intel::info::device::max_power_limit)
+EXPORT_GET_INFO(ext::intel::info::device::luid)
 
 EXPORT_GET_INFO(ext::codeplay::experimental::info::device::supports_fusion)
 EXPORT_GET_INFO(ext::codeplay::experimental::info::device::max_registers_per_work_group)

@@ -129,6 +129,7 @@ MAP(UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES, ur_memory_order_capability_
 MAP(UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES, ur_memory_scope_capability_flags_t)
 MAP(UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES, ur_memory_order_capability_flags_t)
 MAP(UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES, ur_memory_scope_capability_flags_t)
+MAP(UR_DEVICE_INFO_LUID, std::array<uint8_t, 8>)
 // Deprecated, we're not using it, so comment out to avoid warnings:
 // MAP(UR_DEVICE_INFO_BFLOAT16, ur_bool_t)
 MAP(UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES, uint32_t)

@@ -1186,6 +1186,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return ReturnValue(0);
   }
+  case UR_DEVICE_INFO_LUID: {
+    // LUID is only available on Windows.
+    // Intel extension for device LUID. This returns the LUID as
+    // std::array<std::byte, 8>. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+    char *LUID = nullptr;
+    cuDeviceGetLuid(LUID, nullptr, hDevice->get());
+
+    std::array<unsigned char, 8> Name = {};
+
+    if (LUID == nullptr) {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    std::copy(LUID, LUID + 8, Name.begin());
+    return ReturnValue(Name.data(), 8);
+  }
   default:
     break;
   }
