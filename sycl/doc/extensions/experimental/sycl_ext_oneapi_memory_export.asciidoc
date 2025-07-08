@@ -234,7 +234,9 @@ The return type is determined by the template parameter,
 `ExportMemHandleType`.
 
 The value of `ExportMemHandleType` must match the value passed to
-`alloc_exportable_device_mem` when the memory was allocated.
+`alloc_exportable_device_mem` when the memory was allocated. Passing an
+`ExportMemHandleType` value that not match the value passed to
+`alloc_exportable_device_mem` results in undefined behavior.
 
 The `syclDevice` and `syclContext` passed to `export_device_mem_handle` must
 match the device and context used when the `deviceMemory` was allocated using
