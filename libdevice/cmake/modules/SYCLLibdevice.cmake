@@ -668,6 +668,26 @@ foreach(dtype IN ITEMS bf16 fp32 fp64)
   endforeach()
 endforeach()
 
+# Add device fallback imf libraries for single bitcode targets.
+# The output files are bitcode.
+foreach(arch IN LISTS imf_build_archs)
+  foreach(dtype IN ITEMS bf16 fp32 fp64)
+    set(tgt_name imf_fallback_${dtype}_bc_${arch})
+
+    add_lib_imf(libsycl-fallback-imf-${arch}-${dtype}
+      ARCH ${arch}
+      DIR ${bc_binary_dir}
+      FTYPE bc
+      DTYPE ${dtype}
+      EXTRA_OPTS ${bc_device_compile_opts} ${compile_opts_${arch}}
+      TGT_NAME ${tgt_name})
+
+    append_to_property(
+      ${bc_binary_dir}/libsycl-fallback-imf-${arch}-${dtype}.${bc-suffix}
+      PROPERTY_NAME BC_DEVICE_LIBS_${arch})
+  endforeach()
+endforeach()
+
 # Create one large bitcode file for the NVPTX and AMD targets.
 # Use all the files collected in the respective global properties.
 foreach(arch IN LISTS full_build_archs)
