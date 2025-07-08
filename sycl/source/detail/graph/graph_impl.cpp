@@ -724,6 +724,7 @@ void exec_graph_impl::findRealDeps(
       findRealDeps(Deps, NodeImpl, ReferencePartitionNum);
     }
   } else {
+    auto CurrentNodePtr = CurrentNode.shared_from_this();
     // Verify if CurrentNode belong the the same partition
     if (MPartitionNodes[&CurrentNode] == ReferencePartitionNum) {
       // Verify that the sync point has actually been set for this node.

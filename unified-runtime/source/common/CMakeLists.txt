@@ -42,13 +42,11 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit b02c3c5b3c2cf4b09ff82ce36c95a63e293aa88e
-    # Merge: 5835cb8 6dcd296
-    # Author: Krzysztof Filipek <krzysztof.filipek@intel.com>
-    # Date:   Wed Jul 2 10:55:35 2025 +0200
-    # Merge pull request #1397 from lplewa/memspace_experiment
-    # move memspace api to experimental
-    set(UMF_TAG v0.12.0-dev4)
+    # commit 99ff81024f28ed37090f7910dfadc6aaf8dbb3ff
+    # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+    # Date:   Mon Jul 7 17:08:39 2025 +0200
+    # 1.0.0-rc1 release
+    set(UMF_TAG v1.0.0-rc1)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
