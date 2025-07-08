@@ -660,7 +660,6 @@ if __name__ == "__main__":
         detect_res = DetectVersion.init(detect_ver_path)
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
-    parser.error("dummy error")
 
     main(
         args.benchmark_directory,
