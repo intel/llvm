@@ -9,8 +9,6 @@
 // REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_shared_allocations
 
-// Note linking is not supported on CUDA/HIP.
-
 // -- Test for the linking of two kernels with conflicting definitions of
 // -- kernels with the same name.
 

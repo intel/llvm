@@ -61,7 +61,7 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   case UR_PLATFORM_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_OFFLOAD);
   case UR_PLATFORM_INFO_ADAPTER:
-    return ReturnValue(&Adapter);
+    return ReturnValue(Adapter);
     break;
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;

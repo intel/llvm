@@ -6,15 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: Enable half precision when ldexp is implemented.
-#if __CLC_FPSIZE > 16
+#if (__CLC_VECSIZE_OR_1 == 1 || __CLC_VECSIZE_OR_1 == 2 ||                     \
+     __CLC_VECSIZE_OR_1 == 3 || __CLC_VECSIZE_OR_1 == 4)
 
-#ifndef __CLC_SCALAR
-
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_ldexp(__CLC_GENTYPE x, int n) {
-  return __spirv_ocl_ldexp(x, (__CLC_INTN)n);
+_CLC_OVERLOAD _CLC_DEF __CLC_SCALAR_GENTYPE
+__spirv_ocl_length(__CLC_GENTYPE p) {
+  return __clc_length(p);
 }
-
-#endif
 
 #endif

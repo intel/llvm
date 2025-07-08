@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE
-__spirv_ocl_native_recip(__CLC_GENTYPE val) {
-  return 1.0f / val;
-}
+#include <clc/shared/clc_clamp.h>
+#include <libspirv/spirv.h>
+
+#define __CLC_BODY <clamp.inc>
+#include <clc/integer/gentype.inc>
