@@ -701,6 +701,10 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
       // libraries.
       const ToolChain *OffloadTC =
           C->getSingleOffloadToolChain<Action::OFK_SYCL>();
+      // `AdjustedArgs` already contains `--offload-arch=<CPU>`, but that
+      // doesn't seem to be picked up by the logic called by `getDeviceLibs`.
+      AdjustedArgs.AddJoinedArg(
+          nullptr, getDriverOptTable().getOption(OPT_mcpu_EQ), CPU);
       auto CommonDeviceLibs =
           OffloadTC->getDeviceLibs(AdjustedArgs, Action::OffloadKind::OFK_SYCL);
       if (CommonDeviceLibs.empty()) {
