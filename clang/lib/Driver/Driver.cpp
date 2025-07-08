@@ -5982,8 +5982,9 @@ class OffloadingActionBuilder final {
       // For NVPTX we need to also link libclc at the same stage that we link
       // all of the unbundled SYCL libdevice objects together.
       // TODO: libspirv should have been linked in already by
-      // CudaToolChain::addClangTargetOptions, check under what circumstances
-      // this is still needed.
+      // CudaToolChain::addClangTargetOptions, but may be required again for
+      // libdevice. This may be removed if we no longer need to link in
+      // libdevice.
       if (TC->getTriple().isNVPTX()) {
         if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
                 TC->getTriple(), Args, *TC->getAuxTriple())) {
