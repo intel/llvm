@@ -18,17 +18,8 @@
 #include <d3d11.h>
 #include <d3d12.h>
 
-// As we are to share common DXGI interface functionality between our DX 11 and
-// DX 12 tests, we include at least dxgi1_4 (introduced with Direct3D 12) as a
-// minimum requirement for both. If OS version supports it, try to use dxgi1_6.
 // DXGI 1.6 is included in Windows 10 as part of the Creators Update (0x0A00).
-#define HAS_DXGI_1_6 (_WIN32_WINNT >= WINVER_WIN10)
-#if HAS_DXGI_1_6
 #include <dxgi1_6.h>
-#else
-// This version assumes Windows 10 and above.
-#include <dxgi1_4.h>
-#endif
 
 // Required for the DXGI debug layer (for IDXGIFactoy).
 #include <dxgidebug.h>
@@ -268,6 +259,17 @@ bool canCreateDxDevice(IDXGIAdapter1 *pAdapter, bool withDebugDevice) {
 
 } // namespace detail
 
+std::string getD3DDeviceName(const DXGI_ADAPTER_DESC1 &adapterDesc) {
+  // Convert the description string to a narrow string.
+  // This conversion is a little imperfect due to consideration for locale etc.
+  std::string name{};
+  std::wstring wstrDescription = adapterDesc.Description;
+  std::transform(std::begin(wstrDescription), std::end(wstrDescription),
+                 std::back_inserter(name),
+                 [](wchar_t c) { return static_cast<char>(c); });
+  return name;
+}
+
 /// @brief  This is a helper function to find an appropriate hardware adapter.
 /// It does not create the final D3D device but rather tests creating it with
 /// the chosen hardware adapter, so it can be used safely for SYCL interop.
@@ -276,33 +278,23 @@ bool canCreateDxDevice(IDXGIAdapter1 *pAdapter, bool withDebugDevice) {
 /// the one that specifically matches the SYCL device for interopability. For
 /// that reason we will need to introduce an LUID device query extension first.
 template <dx_version dxVer>
-void getDXGIHardwareAdapter(
-    IDXGIFactory1 *pFactory, IDXGIAdapter1 **ppAdapter,
-    device_preference devicePreference = device_preference::Unspecified) {
+ComPtr<IDXGIAdapter1> getDXGIHardwareAdapter(IDXGIFactory1 *pFactory,
+                                             std::string_view syclDeviceName) {
   assert(pFactory);
-  *ppAdapter = nullptr;
   ComPtr<IDXGIAdapter1> adapter;
 
-  // It is not neccessary to tie the DXGI debug layer with the Direct3D 11 or 12
+  // It is not necessary to tie the DXGI debug layer with the Direct3D 11 or 12
   // device debug layer, but for the purposes of our tests and this abstracted
   // functionality, it makes things easier to maintain so you just need to flip
   // one switch and get access to the full debugging utilities of DirectX.
   const bool withDebugDevice = detail::isDXGIDebugLayerEnabled(pFactory);
 
-  const bool preferIntegrated =
-      devicePreference == device_preference::Integrated;
-  const bool preferDedicated = devicePreference == device_preference::Dedicated;
-
   bool foundAdapter = false;
-  // Find a suitable hardware adapter.
-#if HAS_DXGI_1_6
+  std::string adapterName;
   if (ComPtr<IDXGIFactory6> factory6;
       SUCCEEDED(pFactory->QueryInterface(IID_PPV_ARGS(&factory6)))) {
     for (UINT adapterIndex = 0; SUCCEEDED(factory6->EnumAdapterByGpuPreference(
-             adapterIndex,
-             preferDedicated    ? DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE
-             : preferIntegrated ? DXGI_GPU_PREFERENCE_MINIMUM_POWER
-                                : DXGI_GPU_PREFERENCE_UNSPECIFIED,
+             adapterIndex, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
              IID_PPV_ARGS(&adapter)));
          ++adapterIndex) {
       if (!adapter) {
@@ -320,141 +312,35 @@ void getDXGIHardwareAdapter(
         continue;
       }
 
-      // Test if we can successfully create a device with this adapter.
-      if (detail::canCreateDxDevice<dxVer>(adapter.Get(), withDebugDevice)) {
-        foundAdapter = true;
-        break;
+      adapterName = getD3DDeviceName(desc);
+#ifdef VERBOSE_PRINT
+      std::cout << "Considering D3D device: " << name << std::endl;
+#endif
+      // Try matching SYCL device name with D3D device name
+      // TODO: This should be replaced by LUID matching
+      if ((adapterName.find(syclDeviceName) == std::string::npos) &&
+          (syclDeviceName.find(adapterName) == std::string::npos)) {
+        continue;
       }
+
+      // Test if we can successfully create a device with this adapter.
+      if (!detail::canCreateDxDevice<dxVer>(adapter.Get(), withDebugDevice)) {
+        continue;
+      }
+
+      foundAdapter = true;
+      break;
     }
   }
-  // Note: If no adapters were found from the above filtered enumeration, then
-  // will fallback to EnumAdapters1 to search all of the available HW adapters.
-#endif
 
-  // Find a suitable hardware adapter.
   if (!foundAdapter) {
-    for (UINT adapterIndex = 0;
-         pFactory->EnumAdapters1(adapterIndex, adapter.GetAddressOf()) !=
-         DXGI_ERROR_NOT_FOUND;
-         ++adapterIndex) {
-      if (!adapter) {
-        continue;
-      }
-
-      DXGI_ADAPTER_DESC1 desc;
-      ZeroMemory(&desc, sizeof(desc));
-      if (FAILED(adapter->GetDesc1(&desc))) {
-        continue;
-      }
-
-      // We don't want the Microsoft Basic Render Driver (software) adapter.
-      if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
-        continue;
-      }
-
-      if (devicePreference != device_preference::Unspecified) {
-        // Simple heuristic, but it's hard to do better without external deps.
-        ComPtr<IDXGIAdapter3> tmpAdapter3;
-        DXGI_QUERY_VIDEO_MEMORY_INFO videoMemoryInfo;
-        bool isNonLocalMemoryPresent = false;
-        if (SUCCEEDED(adapter.As(&tmpAdapter3)) && tmpAdapter3 &&
-            SUCCEEDED(tmpAdapter3->QueryVideoMemoryInfo(
-                0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &videoMemoryInfo))) {
-          isNonLocalMemoryPresent = videoMemoryInfo.Budget != 0;
-        }
-        // Integrated GPUs will dedicated the non-local (i.e. system RAM)
-        // memory as local (i.e. VRAM-like), so from this we can potentially
-        // derive that  if  if the non-local memory segment is 0 then it's an
-        // intergrated graphics card that is using/allocating it as local.
-        // In the case of dedicated GPUs both segments will be independent.
-        if (bool isIntegrated = !isNonLocalMemoryPresent;
-            isIntegrated && !preferIntegrated) {
-          continue;
-        }
-      }
-
-      // Test if we can successfully create a device with this adapter.
-      if (detail::canCreateDxDevice<dxVer>(adapter.Get(), withDebugDevice)) {
-        foundAdapter = true;
-        break;
-      }
-    }
-  }
-
-  if (foundAdapter) {
-    // Set the returned adapter.
-    *ppAdapter = adapter.Detach();
+    std::cerr << "Could not find the requested DirectX hardware adapter for "
+                 "SYCL device: "
+              << syclDeviceName << std::endl;
   } else {
-#ifdef VERBOSE_PRINT
-    std::cerr << "Could not find the requested DirectX hardware adapter.\n";
-#endif
+    std::cout << "Initialized D3D adapter: " << adapterName << std::endl;
   }
-}
-
-/// @brief  This is a helper function to find a hardware adapter with a
-//          particular LUID.
-// NOTE: In Windows, a Locally Unique Identifier (LUID) is represented as a
-// 64-bit (signed) integer, defined as a struct of two 32-bit integers in DXGI.
-// The @param luid type may depend on how a future SYCL ext defines it, so for
-// simplicity we take it as a int64_t here and the low and high parts will need
-// to be extracted for comparison with the DXGI adapter's LUID.
-template <dx_version dxVer>
-[[maybe_unused]] void getDXGIHardwareAdapterFromLUID(IDXGIFactory1 *pFactory,
-                                                     IDXGIAdapter1 **ppAdapter,
-                                                     int64_t luid) {
-  assert(pFactory);
-  *ppAdapter = nullptr;
-  ComPtr<IDXGIAdapter1> adapter;
-
-  // It is not neccessary to tie the DXGI debug layer with the Direct3D 11 or 12
-  // device debug layer, but for the purposes of our tests and this abstracted
-  // functionality, it makes things easier to maintain so you just need to flip
-  // one switch and get access to the full debugging utilities of DirectX.
-  const bool withDebugDevice = isDXGIDebugLayerEnabled(pFactory);
-
-  // Find a suitable hardware adapter.
-  bool foundAdapter = false;
-  for (UINT adapterIndex = 0;
-       pFactory->EnumAdapters1(adapterIndex, adapter.GetAddressOf()) !=
-       DXGI_ERROR_NOT_FOUND;
-       ++adapterIndex) {
-    if (!adapter) {
-      continue;
-    }
-
-    DXGI_ADAPTER_DESC1 desc;
-    ZeroMemory(&desc, sizeof(desc));
-    if (FAILED(adapter->GetDesc1(&desc))) {
-      continue;
-    }
-
-    // We don't want the Microsoft Basic Render Driver (software) adapter.
-    if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
-      continue;
-    }
-
-    // TODO: Compare LUIDs here when a SYCL LUID extension is implemented. E.g.
-    // Extract the low and hight parts of the the luid parameter.
-    const auto luidLowPart = static_cast<uint32_t>(luid & 0xFFFFFFFF);
-    const auto luidHightPart = static_cast<int32_t>((luid >> 32) & 0xFFFFFFFF);
-    if ((desc.AdapterLuid.LowPart == luidLowPart) &&
-        (desc.AdapterLuid.HighPart == luidHightPart)) {
-      // Test if we can successfully create a device with this adapter.
-      if (detail::canCreateDxDevice<dxVer>(adapter.Get(), withDebugDevice)) {
-        foundAdapter = true;
-        break;
-      }
-    }
-  }
-
-  if (foundAdapter) {
-    // Set the returned adapter.
-    *ppAdapter = adapter.Detach();
-  } else {
-#ifdef VERBOSE_PRINT
-    std::cerr << "Could not find the requested DirectX hardware adapter.\n";
-#endif
-  }
+  return adapter;
 }
 
 } // namespace dx_helpers

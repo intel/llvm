@@ -21,9 +21,11 @@ public:
   DX12SYCLDevice(const DX12SYCLDevice &) = delete;
   DX12SYCLDevice &operator=(const DX12SYCLDevice &) = delete;
 
+private:
   void initDX12Device();
   void initDX12CommandList();
 
+public:
   ID3D12Device *getDx12Device() { return m_dx12Device.Get(); }
   ID3D12CommandQueue *getDx12CommandQueue() { return m_dx12CommandQueue.Get(); }
   ID3D12GraphicsCommandList *getDx12CommandList() {
@@ -36,8 +38,6 @@ public:
   }
 
 private:
-  void getDX12Adapter(IDXGIFactory2 *pFactory, IDXGIAdapter1 **ppAdapter);
-
   // DX12 Objects
   ComPtr<IDXGIFactory4> m_dx12Factory;
   ComPtr<IDXGIAdapter1> m_dx12HardwareAdapter;
@@ -47,8 +47,8 @@ private:
   ComPtr<ID3D12CommandAllocator> m_dx12CommandAllocator;
 
   // SYCL Objects
-  sycl::device m_syclDevice;
   sycl::queue m_syclQueue;
+  sycl::device m_syclDevice;
 };
 
 template <int NDims, typename DType, int NChannels> class DX12InteropTest {

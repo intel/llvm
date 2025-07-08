@@ -1,6 +1,10 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
+// UNSUPPORTED: gpu-intel-gen12
+// UNSUPPORTED-INTENDED: Unknown issue with integrated GPU failing
+//                       when importing memory
+
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
@@ -8,8 +12,11 @@
 
 #include "read_write_unsampled.h"
 
-DX12SYCLDevice::DX12SYCLDevice() {
-  m_syclQueue = sycl::queue{m_syclDevice, {sycl::property::queue::in_order{}}};
+DX12SYCLDevice::DX12SYCLDevice()
+    : m_syclQueue{{sycl::property::queue::in_order{}}},
+      m_syclDevice{m_syclQueue.get_device()} {
+  initDX12Device();
+  initDX12CommandList();
 }
 
 void DX12SYCLDevice::initDX12Device() {
@@ -18,7 +25,8 @@ void DX12SYCLDevice::initDX12Device() {
                                    IID_PPV_ARGS(&m_dx12Factory)));
 
   // Get the hardware adapter for a suitable GPU.
-  getDX12Adapter(m_dx12Factory.Get(), &m_dx12HardwareAdapter);
+  m_dx12HardwareAdapter = getDXGIHardwareAdapter<dx_version::DX12>(
+      m_dx12Factory.Get(), m_syclDevice.get_info<sycl::info::device::name>());
 
   // Create a device from our hardware adapter.
   ThrowIfFailed(D3D12CreateDevice(m_dx12HardwareAdapter.Get(),
@@ -41,22 +49,6 @@ void DX12SYCLDevice::initDX12CommandList() {
   ThrowIfFailed(m_dx12Device->CreateCommandList(
       0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_dx12CommandAllocator.Get(), NULL,
       IID_PPV_ARGS(&m_dx12CommandList)));
-}
-
-void DX12SYCLDevice::getDX12Adapter(IDXGIFactory2 *pFactory,
-                                    IDXGIAdapter1 **ppAdapter) {
-#if defined(PREFER_INTEGRATED_GPU)
-  constexpr auto devicePreference = device_preference::Integrated;
-#else
-  constexpr auto devicePreference = device_preference::Dedicated;
-#endif
-  getDXGIHardwareAdapter<dx_version::DX12>(pFactory, ppAdapter,
-                                           devicePreference);
-  if (!(*ppAdapter) && devicePreference != device_preference::Unspecified) {
-    std::cout << "Could not find suitable device, look again.\n";
-    // Request again but this time falling back to any available GPU.
-    getDXGIHardwareAdapter<dx_version::DX12>(pFactory, ppAdapter);
-  }
 }
 
 template <int NDims, typename DType, int NChannels>
@@ -570,8 +562,6 @@ runTest(DX12SYCLDevice &device, sycl::image_channel_type channelType,
 
 int main() {
   DX12SYCLDevice device;
-  device.initDX12Device();
-  device.initDX12CommandList();
 
   bool validated = true;
 

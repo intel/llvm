@@ -1,6 +1,10 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
+// UNSUPPORTED: gpu-intel-gen12
+// UNSUPPORTED-INTENDED: Unknown issue with integrated GPU failing
+//                       when importing memory
+
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
@@ -20,11 +24,11 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 static int TotalNumVerifiedTests = 0;
 
 template <typename DType, int NChannels>
-void populateD3D11Texture(D3D11ProgramState *d3d11ProgramState,
+void populateD3D11Texture(D3D11ProgramState &d3d11ProgramState,
                           ID3D11Resource *pResource, uint32_t width,
                           uint32_t height, uint32_t depth, DXGI_FORMAT format,
                           const DType *inputData, IDXGIKeyedMutex *keyedMutex) {
-  assert(d3d11ProgramState && d3d11ProgramState->deviceContext);
+  assert(d3d11ProgramState.deviceContext);
   assert(keyedMutex);
   // There are more efficient ways than using UpdateSubresource (ie
   // Map/Unmap). However, this test application is not a realtime
@@ -37,14 +41,14 @@ void populateD3D11Texture(D3D11ProgramState *d3d11ProgramState,
   dstRegion.bottom = height;
   dstRegion.front = 0;
   dstRegion.back = 1;
-  ThrowIfFailed(keyedMutex->AcquireSync(d3d11ProgramState->key++, INFINITE));
+  ThrowIfFailed(keyedMutex->AcquireSync(d3d11ProgramState.key++, INFINITE));
   const UINT rowPitch = width * NChannels * sizeof(DType);
   const UINT depthPitch = height * rowPitch;
-  ID3D11DeviceContext *deviceContext = d3d11ProgramState->deviceContext;
+  ID3D11DeviceContext *deviceContext = d3d11ProgramState.deviceContext;
   deviceContext->UpdateSubresource(pResource, 0, &dstRegion,
                                    static_cast<const void *>(inputData),
                                    rowPitch, depthPitch);
-  ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState->key));
+  ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState.key));
 }
 
 syclexp::unsampled_image_handle
@@ -124,14 +128,13 @@ void callSyclKernel(sycl::queue syclQueue,
 }
 
 template <typename DType, int NChannels>
-bool verifyResult(D3D11ProgramState *d3d11ProgramState,
+bool verifyResult(D3D11ProgramState &d3d11ProgramState,
                   ID3D11Resource *pResource,
                   const D3D11_TEXTURE2D_DESC &texDesc, const DType *inputData,
                   IDXGIKeyedMutex *keyedMutex) {
-  assert(d3d11ProgramState && d3d11ProgramState->device &&
-         d3d11ProgramState->deviceContext);
-  auto *pDevice = d3d11ProgramState->device;
-  auto *pDeviceContext = d3d11ProgramState->deviceContext;
+  assert(d3d11ProgramState.device && d3d11ProgramState.deviceContext);
+  auto *pDevice = d3d11ProgramState.device;
+  auto *pDeviceContext = d3d11ProgramState.deviceContext;
 
   static constexpr UINT bindFlags = 0;
   static constexpr UINT miscFlags = 0;
@@ -147,9 +150,9 @@ bool verifyResult(D3D11ProgramState *d3d11ProgramState,
       pDevice->CreateTexture2D(&stagingDesc, nullptr, &stagingTexture));
 
   // Copy the texture subresource
-  ThrowIfFailed(keyedMutex->AcquireSync(d3d11ProgramState->key++, INFINITE));
+  ThrowIfFailed(keyedMutex->AcquireSync(d3d11ProgramState.key++, INFINITE));
   pDeviceContext->CopyResource(stagingTexture.Get(), pResource);
-  ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState->key));
+  ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState.key));
 
   // Map the staging texture to CPU memory
   D3D11_MAPPED_SUBRESOURCE mappedResource;
@@ -197,14 +200,13 @@ bool verifyResult(D3D11ProgramState *d3d11ProgramState,
 /// @brief Runner for the DX11-SYCL memory interopability functionality.
 /// @return 0 on success and 1 on failure
 template <int NDims, typename DType, int NChannels>
-int runTest(D3D11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
+int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
             sycl::image_channel_type channelType,
             const sycl::range<NDims> &globalSize,
             const sycl::range<NDims> &localSize) {
-  assert(d3d11ProgramState && d3d11ProgramState->device &&
-         d3d11ProgramState->deviceContext);
-  auto *pDevice = d3d11ProgramState->device;
-  auto *pDeviceContext = d3d11ProgramState->deviceContext;
+  assert(d3d11ProgramState.device && d3d11ProgramState.deviceContext);
+  auto *pDevice = d3d11ProgramState.device;
+  auto *pDeviceContext = d3d11ProgramState.deviceContext;
 
   syclexp::image_descriptor syclImageDesc{globalSize, NChannels, channelType};
   // Verify ability to allocate the above image descriptor.
@@ -251,7 +253,7 @@ int runTest(D3D11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
   // Create the keyed mutex for synchronising the shared resource.
   ComPtr<IDXGIKeyedMutex> keyedMutex;
   ThrowIfFailed(texture.As(&keyedMutex));
-  d3d11ProgramState->key = 0;
+  d3d11ProgramState.key = 0;
 
   // Create an NT handle to a shared resource referring to our texture.
   // Opening the shared resource gives access to it for use on the SYCL device.
@@ -298,11 +300,11 @@ int runTest(D3D11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
   // When IDXGIKeyedMutex importing into SYCL is implemented, we'll be able to
   // call it from the SYCL API. All it does is ensuring only one device has
   // exclusive access.
-  ThrowIfFailed(keyedMutex->AcquireSync(d3d11ProgramState->key++, INFINITE));
+  ThrowIfFailed(keyedMutex->AcquireSync(d3d11ProgramState.key++, INFINITE));
   callSyclKernel<NDims, DType, NChannels>(syclQueue, syclImageHandle,
                                           globalSize, localSize);
   // Back to the D3D11 process
-  ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState->key));
+  ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState.key));
 
   // Read-back and verify
   int errc = 1;
@@ -333,13 +335,12 @@ int runTest(D3D11ProgramState *d3d11ProgramState, sycl::queue syclQueue,
 }
 
 int main() {
-  // Initialize D3D11
-  auto d3d11ProgramState = std::make_unique<D3D11ProgramState>();
-  initializeD3D11(d3d11ProgramState.get());
+  // Create SYCL queue, relying on SYCL device selection
+  sycl::queue syclQueue;
+  sycl::device syclDevice = syclQueue.get_device();
 
-  // Initialize SYCL
-  sycl::device syclDevice = getSyclDeviceFromDX11(d3d11ProgramState.get());
-  sycl::queue syclQueue(syclDevice);
+  // Initialize D3D11 and create DX11 programs state from the SYCL device
+  D3D11ProgramState d3d11ProgramState{syclDevice};
 
   int errors = 0;
 
@@ -349,19 +350,19 @@ int main() {
 #else
   const sycl::range<1> globalSize1D{4096};
 #endif
-  errors += runTest<1, uint32_t, 1>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<1, uint32_t, 1>(d3d11ProgramState, syclQueue,
                                     sycl::image_channel_type::unsigned_int32,
                                     globalSize1D, sycl::range{256});
-  errors += runTest<1, uint8_t, 4>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<1, uint8_t, 4>(d3d11ProgramState, syclQueue,
                                    sycl::image_channel_type::unorm_int8,
                                    globalSize1D, sycl::range{256});
-  errors += runTest<1, float, 1>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<1, float, 1>(d3d11ProgramState, syclQueue,
                                  sycl::image_channel_type::fp32, globalSize1D,
                                  sycl::range{256});
-  errors += runTest<1, sycl::half, 2>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<1, sycl::half, 2>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize1D, sycl::range{256});
-  errors += runTest<1, sycl::half, 4>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<1, sycl::half, 4>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize1D, sycl::range{256});
 
@@ -375,19 +376,19 @@ int main() {
       sycl::range{1024, 1024}, sycl::range{1920, 1080}, sycl::range{1920, 1080},
       sycl::range{1280, 720}, sycl::range{1280, 720}};
 #endif
-  errors += runTest<2, uint32_t, 1>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<2, uint32_t, 1>(d3d11ProgramState, syclQueue,
                                     sycl::image_channel_type::unsigned_int32,
                                     globalSize2D[0], sycl::range{16, 16});
-  errors += runTest<2, uint8_t, 4>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<2, uint8_t, 4>(d3d11ProgramState, syclQueue,
                                    sycl::image_channel_type::unorm_int8,
                                    globalSize2D[1], sycl::range{16, 8});
-  errors += runTest<2, float, 1>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<2, float, 1>(d3d11ProgramState, syclQueue,
                                  sycl::image_channel_type::fp32,
                                  globalSize2D[2], sycl::range{16, 8});
-  errors += runTest<2, sycl::half, 2>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<2, sycl::half, 2>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize2D[3], sycl::range{16, 16});
-  errors += runTest<2, sycl::half, 4>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<2, sycl::half, 4>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize2D[4], sycl::range{16, 16});
 
@@ -402,19 +403,19 @@ int main() {
       sycl::range{1920, 1080, 8}, sycl::range{1280, 720, 4},
       sycl::range{1280, 720, 4}};
 #endif
-  errors += runTest<3, uint32_t, 1>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<3, uint32_t, 1>(d3d11ProgramState, syclQueue,
                                     sycl::image_channel_type::unsigned_int32,
                                     globalSize3D[0], sycl::range{16, 16, 1});
-  errors += runTest<3, uint8_t, 4>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<3, uint8_t, 4>(d3d11ProgramState, syclQueue,
                                    sycl::image_channel_type::unorm_int8,
                                    globalSize3D[1], sycl::range{16, 8, 2});
-  errors += runTest<3, float, 1>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<3, float, 1>(d3d11ProgramState, syclQueue,
                                  sycl::image_channel_type::fp32,
                                  globalSize3D[2], sycl::range{16, 8, 1});
-  errors += runTest<3, sycl::half, 2>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<3, sycl::half, 2>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize3D[3], sycl::range{16, 16, 1});
-  errors += runTest<3, sycl::half, 4>(d3d11ProgramState.get(), syclQueue,
+  errors += runTest<3, sycl::half, 4>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize3D[4], sycl::range{16, 16, 1});
 
