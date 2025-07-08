@@ -41,8 +41,8 @@ int main() {
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
-      test<half, float, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16, 
-           layout::row_major, 1>();
+      test<half, float, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16,  layout::row_major, 
+           1>();
       test<half, float, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16,
            layout::ext_intel_packed, 2>();
       break;
