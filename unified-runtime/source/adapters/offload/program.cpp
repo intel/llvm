@@ -190,8 +190,13 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
     }
     break;
   }
-  default:
+  case UR_PROGRAM_INFO_NUM_KERNELS:
+  case UR_PROGRAM_INFO_KERNEL_NAMES:
+    // Program introspection is not available for liboffload (or generally,
+    // amdgpu/cuda)
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  default:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
   return UR_RESULT_SUCCESS;
