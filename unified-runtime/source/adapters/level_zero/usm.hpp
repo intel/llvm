@@ -86,9 +86,10 @@ protected:
   virtual ur_result_t allocateImpl(void **, size_t, uint32_t) = 0;
 
 public:
-  virtual void get_last_native_error(const char ** /*ErrMsg*/,
-                                     int32_t *ErrCode) {
+  virtual umf_result_t get_last_native_error(const char ** /*ErrMsg*/,
+                                             int32_t *ErrCode) {
     *ErrCode = static_cast<int32_t>(getLastStatusRef());
+    return UMF_RESULT_SUCCESS;
   };
   virtual umf_result_t initialize(ur_context_handle_t, ur_device_handle_t) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
@@ -105,34 +106,28 @@ public:
   virtual umf_result_t get_recommended_page_size(size_t, size_t *) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };
-  virtual umf_result_t purge_lazy(void *, size_t) {
+  virtual umf_result_t ext_get_ipc_handle_size(size_t *) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t ext_get_ipc_handle(const void *, size_t, void *) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t ext_put_ipc_handle(void *) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t ext_open_ipc_handle(void *, void **) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t ext_close_ipc_handle(void *, size_t) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t ext_ctl(int, const char *, void *, size_t,
+                               umf_ctl_query_type_t) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t get_name(const char **) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };
-  virtual umf_result_t purge_force(void *, size_t) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  };
-  virtual umf_result_t allocation_merge(void *, void *, size_t) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  }
-  virtual umf_result_t allocation_split(void *, size_t, size_t) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  }
-  virtual umf_result_t get_ipc_handle_size(size_t *) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  }
-  virtual umf_result_t get_ipc_handle(const void *, size_t, void *) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  }
-  virtual umf_result_t put_ipc_handle(void *) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  }
-  virtual umf_result_t open_ipc_handle(void *, void **) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  }
-  virtual umf_result_t close_ipc_handle(void *, size_t) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  }
-  virtual const char *get_name() { return ""; };
   virtual ~USMMemoryProviderBase() = default;
 };
 
@@ -151,12 +146,19 @@ public:
   umf_result_t free(void *Ptr, size_t Size) override;
   umf_result_t get_min_page_size(const void *, size_t *) override;
   // TODO: Different name for each provider (Host/Shared/SharedRO/Device)
-  const char *get_name() override { return "Level Zero"; };
-  umf_result_t get_ipc_handle_size(size_t *) override;
-  umf_result_t get_ipc_handle(const void *, size_t, void *) override;
-  umf_result_t put_ipc_handle(void *) override;
-  umf_result_t open_ipc_handle(void *, void **) override;
-  umf_result_t close_ipc_handle(void *, size_t) override;
+  umf_result_t get_name(const char **name) override {
+    if (!name) {
+      return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    *name = "Level Zero";
+    return UMF_RESULT_SUCCESS;
+  };
+  umf_result_t ext_get_ipc_handle_size(size_t *) override;
+  umf_result_t ext_get_ipc_handle(const void *, size_t, void *) override;
+  umf_result_t ext_put_ipc_handle(void *) override;
+  umf_result_t ext_open_ipc_handle(void *, void **) override;
+  umf_result_t ext_close_ipc_handle(void *, size_t) override;
 };
 
 // Allocation routines for shared memory type

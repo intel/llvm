@@ -147,7 +147,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
     const llvm::opt::ArgList &Args)
-    : D(D) {}
+    : SYCLInstallationDetector(D) {}
 
 static llvm::SmallString<64>
 getLibSpirvBasename(const llvm::Triple &DeviceTriple,
