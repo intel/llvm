@@ -157,14 +157,30 @@ class __SYCL_EXPORT KernelRuntimeInfo {
 public:
   KernelRuntimeInfo() {}
 
+  KernelRuntimeInfo(const KernelRuntimeInfo &rhs) = delete;
+
+  KernelRuntimeInfo(KernelRuntimeInfo &&rhs) = delete;
+
+  KernelRuntimeInfo &operator=(const KernelRuntimeInfo &rhs) = delete;
+
+  KernelRuntimeInfo &operator=(KernelRuntimeInfo &&rhs) = delete;
+
   std::string_view &KernelName() { return MKernelName; }
+
   std::unique_ptr<detail::HostKernelBase> &HostKernel() { return MHostKernel; }
+
+  detail::HostKernelBase *GetHostKernelPtr() { return MHostKernel.get(); }
+
   int &KernelNumArgs() { return MKernelNumArgs; }
+
   KernelParamDescGetterFuncPtr &KernelParamDescGetter() {
     return MKernelParamDescGetter;
   }
+
   bool &KernelIsESIMD() { return MKernelIsESIMD; }
+
   bool &KernelHasSpecialCaptures() { return MKernelHasSpecialCaptures; }
+
   detail::KernelNameBasedCacheT *&KernelNameBasedCachePtr() {
     return MKernelNameBasedCachePtr;
   }
