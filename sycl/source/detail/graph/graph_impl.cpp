@@ -342,40 +342,6 @@ graph_impl::~graph_impl() {
   }
 }
 
-std::shared_ptr<node_impl> graph_impl::addNodesToExits(
-    const std::list<std::shared_ptr<node_impl>> &NodeList) {
-  // Find all input and output nodes from the node list
-  std::vector<std::shared_ptr<node_impl>> Inputs;
-  std::vector<std::shared_ptr<node_impl>> Outputs;
-  for (auto &NodeImpl : NodeList) {
-    if (NodeImpl->MPredecessors.size() == 0) {
-      Inputs.push_back(NodeImpl);
-    }
-    if (NodeImpl->MSuccessors.size() == 0) {
-      Outputs.push_back(NodeImpl);
-    }
-  }
-
-  // Find all exit nodes in the current graph and register the Inputs as
-  // successors
-  for (auto &NodeImpl : MNodeStorage) {
-    if (NodeImpl->MSuccessors.size() == 0) {
-      for (auto &Input : Inputs) {
-        NodeImpl->registerSuccessor(Input);
-      }
-    }
-  }
-
-  // Add all the new nodes to the node storage
-  for (auto &Node : NodeList) {
-    MNodeStorage.push_back(Node);
-    addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
-                    Node);
-  }
-
-  return this->add(Outputs);
-}
-
 void graph_impl::addRoot(const std::shared_ptr<node_impl> &Root) {
   MRoots.insert(Root);
 }
@@ -452,8 +418,7 @@ void graph_impl::markCGMemObjs(
   }
 }
 
-std::shared_ptr<node_impl>
-graph_impl::add(std::vector<std::shared_ptr<node_impl>> &Deps) {
+std::shared_ptr<node_impl> graph_impl::add(nodes_range Deps) {
   const std::shared_ptr<node_impl> &NodeImpl = std::make_shared<node_impl>();
 
   MNodeStorage.push_back(NodeImpl);
@@ -540,28 +505,9 @@ graph_impl::add(std::function<void(handler &)> CGF,
 }
 
 std::shared_ptr<node_impl>
-graph_impl::add(const std::vector<sycl::detail::EventImplPtr> Events) {
-
-  std::vector<std::shared_ptr<node_impl>> Deps;
-
-  // Add any nodes specified by event dependencies into the dependency list
-  for (const auto &Dep : Events) {
-    if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl != MEventsMap.end()) {
-      Deps.push_back(NodeImpl->second);
-    } else {
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "Event dependency from handler::depends_on does "
-                            "not correspond to a node within the graph");
-    }
-  }
-
-  return this->add(Deps);
-}
-
-std::shared_ptr<node_impl>
 graph_impl::add(node_type NodeType,
                 std::shared_ptr<sycl::detail::CG> CommandGroup,
-                std::vector<std::shared_ptr<node_impl>> &Deps) {
+                nodes_range Deps) {
 
   // A unique set of dependencies obtained by checking requirements and events
   std::set<std::shared_ptr<node_impl>> UniqueDeps = getCGEdges(CommandGroup);
@@ -569,15 +515,14 @@ graph_impl::add(node_type NodeType,
   // Track and mark the memory objects being used by the graph.
   markCGMemObjs(CommandGroup);
 
-  // Add any deps determined from requirements and events into the dependency
-  // list
-  Deps.insert(Deps.end(), UniqueDeps.begin(), UniqueDeps.end());
-
   const std::shared_ptr<node_impl> &NodeImpl =
       std::make_shared<node_impl>(NodeType, std::move(CommandGroup));
   MNodeStorage.push_back(NodeImpl);
 
+  // Add any deps determined from requirements and events into the dependency
+  // list
   addDepsToNode(NodeImpl, Deps);
+  addDepsToNode(NodeImpl, UniqueDeps);
 
   if (NodeType == node_type::async_free) {
     auto AsyncFreeCG =
@@ -592,7 +537,7 @@ graph_impl::add(node_type NodeType,
 
 std::shared_ptr<node_impl>
 graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
-                std::vector<std::shared_ptr<detail::node_impl>> &Deps) {
+                nodes_range Deps) {
   // Set of Dependent nodes based on CG event and accessor dependencies.
   std::set<std::shared_ptr<node_impl>> DynCGDeps =
       getCGEdges(DynCGImpl->MCommandGroups[0]);
@@ -1107,10 +1052,9 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
       UrEnqueueWaitListSize == 0 ? nullptr : UrEventHandles.data();
 
   if (!EventNeeded) {
-    Queue.getAdapter()
-        ->call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-            Queue.getHandleRef(), CommandBuffer, UrEnqueueWaitListSize,
-            UrEnqueueWaitList, nullptr);
+    Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
+        Queue.getHandleRef(), CommandBuffer, UrEnqueueWaitListSize,
+        UrEnqueueWaitList, nullptr);
     return nullptr;
   } else {
     auto NewEvent = sycl::detail::event_impl::create_device_event(Queue);
@@ -1118,10 +1062,9 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     NewEvent->setStateIncomplete();
     NewEvent->setSubmissionTime();
     ur_event_handle_t UrEvent = nullptr;
-    Queue.getAdapter()
-        ->call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-            Queue.getHandleRef(), CommandBuffer, UrEventHandles.size(),
-            UrEnqueueWaitList, &UrEvent);
+    Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
+        Queue.getHandleRef(), CommandBuffer, UrEventHandles.size(),
+        UrEnqueueWaitList, &UrEvent);
     NewEvent->setHandle(UrEvent);
     NewEvent->setEventFromSubmittedExecCommandBuffer(true);
     return NewEvent;

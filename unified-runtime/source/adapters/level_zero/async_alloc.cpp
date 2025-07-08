@@ -235,18 +235,24 @@ ur_result_t urEnqueueUSMFreeExp(
                (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
   }
 
-  auto hPool = umfPoolByPtr(Mem);
-  if (!hPool) {
+  umf_memory_pool_handle_t hPool = nullptr;
+  auto umfRet = umfPoolByPtr(Mem, &hPool);
+  if (umfRet != UMF_RESULT_SUCCESS || !hPool) {
     return USMFreeHelper(Queue->Context, Mem);
   }
 
   UsmPool *usmPool = nullptr;
-  auto ret = umfPoolGetTag(hPool, (void **)&usmPool);
-  if (ret != UMF_RESULT_SUCCESS || usmPool == nullptr) {
+  umfRet = umfPoolGetTag(hPool, (void **)&usmPool);
+  if (umfRet != UMF_RESULT_SUCCESS || usmPool == nullptr) {
     return USMFreeHelper(Queue->Context, Mem);
   }
 
-  size_t size = umfPoolMallocUsableSize(hPool, Mem);
+  size_t size = 0;
+  umfRet = umfPoolMallocUsableSize(hPool, Mem, &size);
+  if (umfRet != UMF_RESULT_SUCCESS) {
+    return USMFreeHelper(Queue->Context, Mem);
+  }
+
   (*Event)->RefCount.retain();
   usmPool->AsyncPool.insert(Mem, size, *Event, Queue);
 

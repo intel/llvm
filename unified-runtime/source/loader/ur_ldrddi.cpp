@@ -4395,6 +4395,30 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesSupportsImportingHandleTypeExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesSupportsImportingHandleTypeExp(
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] type of external memory handle
+    ur_exp_external_mem_type_t memHandleType,
+    /// [out] whether the device supports importing the specified external
+    /// memory handle type
+    ur_bool_t *pSupportedRet) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+
+  auto *pfnSupportsImportingHandleTypeExp =
+      dditable->BindlessImagesExp.pfnSupportsImportingHandleTypeExp;
+  if (nullptr == pfnSupportsImportingHandleTypeExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnSupportsImportingHandleTypeExp(hDevice, memHandleType,
+                                           pSupportedRet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImportExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     /// [in] handle of the context object
@@ -5848,6 +5872,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
           ur_loader::urBindlessImagesReleaseExternalMemoryExp;
       pDdiTable->pfnFreeMappedLinearMemoryExp =
           ur_loader::urBindlessImagesFreeMappedLinearMemoryExp;
+      pDdiTable->pfnSupportsImportingHandleTypeExp =
+          ur_loader::urBindlessImagesSupportsImportingHandleTypeExp;
       pDdiTable->pfnImportExternalSemaphoreExp =
           ur_loader::urBindlessImagesImportExternalSemaphoreExp;
       pDdiTable->pfnReleaseExternalSemaphoreExp =

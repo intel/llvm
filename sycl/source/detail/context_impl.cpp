@@ -61,8 +61,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
 }
 
 context_impl::context_impl(ur_context_handle_t UrContext,
-                           async_handler AsyncHandler,
-                           const adapter_impl &Adapter,
+                           async_handler AsyncHandler, adapter_impl &Adapter,
                            const std::vector<sycl::device> &DeviceList,
                            bool OwnedByRuntime, private_tag)
     : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
@@ -366,7 +365,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
           InitEventsRef.begin(), InitEventsRef.end(),
           [&Adapter](const ur_event_handle_t &Event) {
             return get_event_info<info::event::command_execution_status>(
-                       Event, Adapter) == info::event_command_status::complete;
+                       Event, *Adapter) == info::event_command_status::complete;
           });
       // Release the removed events.
       for (auto EventIt = NewEnd; EventIt != InitEventsRef.end(); ++EventIt)
@@ -432,7 +431,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       // are cleaned up separately from cleaning up the device global USM memory
       // this must retain the event.
       {
-        if (OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Adapter))
+        if (OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(*Adapter))
           InitEventsRef.push_back(ZIEvent.TransferOwnership());
       }
       // Write the pointer to the device global and store the event in the
