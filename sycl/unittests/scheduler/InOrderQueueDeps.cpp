@@ -96,8 +96,7 @@ ur_result_t redefinedEnqueueEventsWaitWithBarrierExt(void *pParams) {
 }
 
 sycl::event submitKernel(sycl::queue &Q) {
-  return Q.submit(
-      [&](handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  return Q.submit([&](handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 }
 
 TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
@@ -151,10 +150,10 @@ TEST_F(SchedulerTest, TwoInOrderQueuesOnSameContext) {
                            property::queue::in_order()};
 
   event EvFirst = InOrderQueueFirst.submit(
-      [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([] {}); });
   std::ignore = InOrderQueueSecond.submit([&](sycl::handler &CGH) {
     CGH.depends_on(EvFirst);
-    CGH.single_task<TestKernel<>>([] {});
+    CGH.single_task<TestKernel>([] {});
   });
 
   InOrderQueueFirst.wait();
@@ -178,10 +177,10 @@ TEST_F(SchedulerTest, InOrderQueueNoSchedulerPath) {
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
 
   event EvFirst = InOrderQueue.submit(
-      [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([] {}); });
   std::ignore = InOrderQueue.submit([&](sycl::handler &CGH) {
     CGH.depends_on(EvFirst);
-    CGH.single_task<TestKernel<>>([] {});
+    CGH.single_task<TestKernel>([] {});
   });
 
   InOrderQueue.wait();

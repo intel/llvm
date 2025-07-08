@@ -243,8 +243,9 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
 }
 
 ur_result_t ur_usm_pool_handle_t_::free(void *ptr) {
-  auto umfPool = umfPoolByPtr(ptr);
-  if (umfPool) {
+  umf_memory_pool_handle_t umfPool = nullptr;
+  auto umfRet = umfPoolByPtr(ptr, &umfPool);
+  if (umfRet == UMF_RESULT_SUCCESS && umfPool) {
     return umf::umf2urResult(umfPoolFree(umfPool, ptr));
   } else {
     UR_LOG(ERR, "Failed to find pool for pointer: {}", ptr);
@@ -537,8 +538,9 @@ ur_result_t urUSMGetMemAllocInfo(
     return ReturnValue(size);
   }
   case UR_USM_ALLOC_INFO_POOL: {
-    auto umfPool = umfPoolByPtr(ptr);
-    if (!umfPool) {
+    umf_memory_pool_handle_t umfPool = nullptr;
+    auto umfRet = umfPoolByPtr(ptr, &umfPool);
+    if (umfRet != UMF_RESULT_SUCCESS || !umfPool) {
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 

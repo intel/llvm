@@ -44,7 +44,7 @@ class graph_mem_pool {
     // Should the allocation be zero initialized during initial allocation
     bool ZeroInit = false;
     // Last free node for this allocation in the graph
-    std::weak_ptr<node_impl> LastFreeNode = {};
+    node_impl *LastFreeNode = nullptr;
   };
 
 public:

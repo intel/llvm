@@ -100,17 +100,16 @@ void sortTopological(std::set<std::weak_ptr<node_impl>,
     Source.pop();
     SortedNodes.push_back(Node);
 
-    for (auto &SuccWP : Node->MSuccessors) {
-      auto Succ = SuccWP.lock();
+    for (node_impl &Succ : Node->successors()) {
 
-      if (PartitionBounded && (Succ->MPartitionNum != Node->MPartitionNum)) {
+      if (PartitionBounded && (Succ.MPartitionNum != Node->MPartitionNum)) {
         continue;
       }
 
-      auto &TotalVisitedEdges = Succ->MTotalVisitedEdges;
+      auto &TotalVisitedEdges = Succ.MTotalVisitedEdges;
       ++TotalVisitedEdges;
-      if (TotalVisitedEdges == Succ->MPredecessors.size()) {
-        Source.push(Succ);
+      if (TotalVisitedEdges == Succ.MPredecessors.size()) {
+        Source.push(Succ.weak_from_this());
       }
     }
   }
@@ -127,14 +126,14 @@ void sortTopological(std::set<std::weak_ptr<node_impl>,
 /// a node with a smaller partition number.
 /// @param Node Node to assign to the partition.
 /// @param PartitionNum Number to propagate.
-void propagatePartitionUp(std::shared_ptr<node_impl> Node, int PartitionNum) {
-  if (((Node->MPartitionNum != -1) && (Node->MPartitionNum <= PartitionNum)) ||
-      (Node->MCGType == sycl::detail::CGType::CodeplayHostTask)) {
+void propagatePartitionUp(node_impl &Node, int PartitionNum) {
+  if (((Node.MPartitionNum != -1) && (Node.MPartitionNum <= PartitionNum)) ||
+      (Node.MCGType == sycl::detail::CGType::CodeplayHostTask)) {
     return;
   }
-  Node->MPartitionNum = PartitionNum;
-  for (auto &Predecessor : Node->MPredecessors) {
-    propagatePartitionUp(Predecessor.lock(), PartitionNum);
+  Node.MPartitionNum = PartitionNum;
+  for (node_impl &Predecessor : Node.predecessors()) {
+    propagatePartitionUp(Predecessor, PartitionNum);
   }
 }
 
@@ -146,17 +145,17 @@ void propagatePartitionUp(std::shared_ptr<node_impl> Node, int PartitionNum) {
 /// @param HostTaskList List of host tasks that have already been processed and
 /// are encountered as successors to the node Node.
 void propagatePartitionDown(
-    const std::shared_ptr<node_impl> &Node, int PartitionNum,
+    node_impl &Node, int PartitionNum,
     std::list<std::shared_ptr<node_impl>> &HostTaskList) {
-  if (Node->MCGType == sycl::detail::CGType::CodeplayHostTask) {
-    if (Node->MPartitionNum != -1) {
-      HostTaskList.push_front(Node);
+  if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask) {
+    if (Node.MPartitionNum != -1) {
+      HostTaskList.push_front(Node.shared_from_this());
     }
     return;
   }
-  Node->MPartitionNum = PartitionNum;
-  for (auto &Successor : Node->MSuccessors) {
-    propagatePartitionDown(Successor.lock(), PartitionNum, HostTaskList);
+  Node.MPartitionNum = PartitionNum;
+  for (node_impl &Successor : Node.successors()) {
+    propagatePartitionDown(Successor, PartitionNum, HostTaskList);
   }
 }
 
@@ -165,8 +164,8 @@ void propagatePartitionDown(
 /// @param Node node to test
 /// @return True is `Node` is a root of its partition
 bool isPartitionRoot(std::shared_ptr<node_impl> Node) {
-  for (auto &Predecessor : Node->MPredecessors) {
-    if (Predecessor.lock()->MPartitionNum == Node->MPartitionNum) {
+  for (node_impl &Predecessor : Node->predecessors()) {
+    if (Predecessor.MPartitionNum == Node->MPartitionNum) {
       return false;
     }
   }
@@ -221,15 +220,15 @@ void exec_graph_impl::makePartitions() {
     auto Node = HostTaskList.front();
     HostTaskList.pop_front();
     CurrentPartition++;
-    for (auto &Predecessor : Node->MPredecessors) {
-      propagatePartitionUp(Predecessor.lock(), CurrentPartition);
+    for (node_impl &Predecessor : Node->predecessors()) {
+      propagatePartitionUp(Predecessor, CurrentPartition);
     }
     CurrentPartition++;
     Node->MPartitionNum = CurrentPartition;
     CurrentPartition++;
     auto TmpSize = HostTaskList.size();
-    for (auto &Successor : Node->MSuccessors) {
-      propagatePartitionDown(Successor.lock(), CurrentPartition, HostTaskList);
+    for (node_impl &Successor : Node->successors()) {
+      propagatePartitionDown(Successor, CurrentPartition, HostTaskList);
     }
     if (HostTaskList.size() > TmpSize) {
       // At least one HostTask has been re-numbered so group merge opportunities
@@ -290,9 +289,9 @@ void exec_graph_impl::makePartitions() {
   for (const auto &Partition : MPartitions) {
     for (auto const &Root : Partition->MRoots) {
       auto RootNode = Root.lock();
-      for (const auto &Dep : RootNode->MPredecessors) {
-        auto NodeDep = Dep.lock();
-        auto &Predecessor = MPartitions[MPartitionNodes[NodeDep]];
+      for (node_impl &NodeDep : RootNode->predecessors()) {
+        auto &Predecessor =
+            MPartitions[MPartitionNodes[NodeDep.shared_from_this()]];
         Partition->MPredecessors.push_back(Predecessor.get());
         Predecessor->MSuccessors.push_back(Partition.get());
       }
@@ -340,40 +339,6 @@ graph_impl::~graph_impl() {
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~graph_impl", e);
   }
-}
-
-std::shared_ptr<node_impl> graph_impl::addNodesToExits(
-    const std::list<std::shared_ptr<node_impl>> &NodeList) {
-  // Find all input and output nodes from the node list
-  std::vector<std::shared_ptr<node_impl>> Inputs;
-  std::vector<std::shared_ptr<node_impl>> Outputs;
-  for (auto &NodeImpl : NodeList) {
-    if (NodeImpl->MPredecessors.size() == 0) {
-      Inputs.push_back(NodeImpl);
-    }
-    if (NodeImpl->MSuccessors.size() == 0) {
-      Outputs.push_back(NodeImpl);
-    }
-  }
-
-  // Find all exit nodes in the current graph and register the Inputs as
-  // successors
-  for (auto &NodeImpl : MNodeStorage) {
-    if (NodeImpl->MSuccessors.size() == 0) {
-      for (auto &Input : Inputs) {
-        NodeImpl->registerSuccessor(Input);
-      }
-    }
-  }
-
-  // Add all the new nodes to the node storage
-  for (auto &Node : NodeList) {
-    MNodeStorage.push_back(Node);
-    addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
-                    Node);
-  }
-
-  return this->add(Outputs);
 }
 
 void graph_impl::addRoot(const std::shared_ptr<node_impl> &Root) {
@@ -424,8 +389,8 @@ std::set<std::shared_ptr<node_impl>> graph_impl::getCGEdges(
         bool ShouldAddDep = true;
         // If any of this node's successors have this requirement then we skip
         // adding the current node as a dependency.
-        for (auto &Succ : Node->MSuccessors) {
-          if (Succ.lock()->hasRequirementDependency(Req)) {
+        for (node_impl &Succ : Node->successors()) {
+          if (Succ.hasRequirementDependency(Req)) {
             ShouldAddDep = false;
             break;
           }
@@ -452,8 +417,7 @@ void graph_impl::markCGMemObjs(
   }
 }
 
-std::shared_ptr<node_impl>
-graph_impl::add(std::vector<std::shared_ptr<node_impl>> &Deps) {
+std::shared_ptr<node_impl> graph_impl::add(nodes_range Deps) {
   const std::shared_ptr<node_impl> &NodeImpl = std::make_shared<node_impl>();
 
   MNodeStorage.push_back(NodeImpl);
@@ -540,28 +504,9 @@ graph_impl::add(std::function<void(handler &)> CGF,
 }
 
 std::shared_ptr<node_impl>
-graph_impl::add(const std::vector<sycl::detail::EventImplPtr> Events) {
-
-  std::vector<std::shared_ptr<node_impl>> Deps;
-
-  // Add any nodes specified by event dependencies into the dependency list
-  for (const auto &Dep : Events) {
-    if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl != MEventsMap.end()) {
-      Deps.push_back(NodeImpl->second);
-    } else {
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "Event dependency from handler::depends_on does "
-                            "not correspond to a node within the graph");
-    }
-  }
-
-  return this->add(Deps);
-}
-
-std::shared_ptr<node_impl>
 graph_impl::add(node_type NodeType,
                 std::shared_ptr<sycl::detail::CG> CommandGroup,
-                std::vector<std::shared_ptr<node_impl>> &Deps) {
+                nodes_range Deps) {
 
   // A unique set of dependencies obtained by checking requirements and events
   std::set<std::shared_ptr<node_impl>> UniqueDeps = getCGEdges(CommandGroup);
@@ -569,15 +514,14 @@ graph_impl::add(node_type NodeType,
   // Track and mark the memory objects being used by the graph.
   markCGMemObjs(CommandGroup);
 
-  // Add any deps determined from requirements and events into the dependency
-  // list
-  Deps.insert(Deps.end(), UniqueDeps.begin(), UniqueDeps.end());
-
   const std::shared_ptr<node_impl> &NodeImpl =
       std::make_shared<node_impl>(NodeType, std::move(CommandGroup));
   MNodeStorage.push_back(NodeImpl);
 
+  // Add any deps determined from requirements and events into the dependency
+  // list
   addDepsToNode(NodeImpl, Deps);
+  addDepsToNode(NodeImpl, UniqueDeps);
 
   if (NodeType == node_type::async_free) {
     auto AsyncFreeCG =
@@ -592,7 +536,7 @@ graph_impl::add(node_type NodeType,
 
 std::shared_ptr<node_impl>
 graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
-                std::vector<std::shared_ptr<detail::node_impl>> &Deps) {
+                nodes_range Deps) {
   // Set of Dependent nodes based on CG event and accessor dependencies.
   std::set<std::shared_ptr<node_impl>> DynCGDeps =
       getCGEdges(DynCGImpl->MCommandGroups[0]);
@@ -776,17 +720,17 @@ void graph_impl::beginRecording(sycl::detail::queue_impl &Queue) {
 // predecessors until we find the real dependency.
 void exec_graph_impl::findRealDeps(
     std::vector<ur_exp_command_buffer_sync_point_t> &Deps,
-    std::shared_ptr<node_impl> CurrentNode, int ReferencePartitionNum) {
-  if (!CurrentNode->requiresEnqueue()) {
-    for (auto &N : CurrentNode->MPredecessors) {
-      auto NodeImpl = N.lock();
+    node_impl &CurrentNode, int ReferencePartitionNum) {
+  if (!CurrentNode.requiresEnqueue()) {
+    for (node_impl &NodeImpl : CurrentNode.predecessors()) {
       findRealDeps(Deps, NodeImpl, ReferencePartitionNum);
     }
   } else {
+    auto CurrentNodePtr = CurrentNode.shared_from_this();
     // Verify if CurrentNode belong the the same partition
-    if (MPartitionNodes[CurrentNode] == ReferencePartitionNum) {
+    if (MPartitionNodes[CurrentNodePtr] == ReferencePartitionNum) {
       // Verify that the sync point has actually been set for this node.
-      auto SyncPoint = MSyncPoints.find(CurrentNode);
+      auto SyncPoint = MSyncPoints.find(CurrentNodePtr);
       assert(SyncPoint != MSyncPoints.end() &&
              "No sync point has been set for node dependency.");
       // Check if the dependency has already been added.
@@ -804,8 +748,8 @@ exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
                                    ur_exp_command_buffer_handle_t CommandBuffer,
                                    std::shared_ptr<node_impl> Node) {
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
-  for (auto &N : Node->MPredecessors) {
-    findRealDeps(Deps, N.lock(), MPartitionNodes[Node]);
+  for (node_impl &N : Node->predecessors()) {
+    findRealDeps(Deps, N, MPartitionNodes[Node]);
   }
   ur_exp_command_buffer_sync_point_t NewSyncPoint;
   ur_exp_command_buffer_command_handle_t NewCommand = 0;
@@ -860,8 +804,8 @@ exec_graph_impl::enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
                              std::shared_ptr<node_impl> Node) {
 
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
-  for (auto &N : Node->MPredecessors) {
-    findRealDeps(Deps, N.lock(), MPartitionNodes[Node]);
+  for (node_impl &N : Node->predecessors()) {
+    findRealDeps(Deps, N, MPartitionNodes[Node]);
   }
 
   sycl::detail::EventImplPtr Event =
@@ -1330,8 +1274,8 @@ void exec_graph_impl::duplicateNodes() {
     auto NodeCopy = NewNodes[i];
     // Look through all the original node successors, find their copies and
     // register those as successors with the current copied node
-    for (auto &NextNode : OriginalNode->MSuccessors) {
-      auto Successor = NodesMap.at(NextNode.lock());
+    for (node_impl &NextNode : OriginalNode->successors()) {
+      auto Successor = NodesMap.at(NextNode.shared_from_this());
       NodeCopy->registerSuccessor(Successor);
     }
   }
@@ -1372,8 +1316,8 @@ void exec_graph_impl::duplicateNodes() {
       auto SubgraphNode = SubgraphNodes[i];
       auto NodeCopy = NewSubgraphNodes[i];
 
-      for (auto &NextNode : SubgraphNode->MSuccessors) {
-        auto Successor = SubgraphNodesMap.at(NextNode.lock());
+      for (node_impl &NextNode : SubgraphNode->successors()) {
+        auto Successor = SubgraphNodesMap.at(NextNode.shared_from_this());
         NodeCopy->registerSuccessor(Successor);
       }
     }
@@ -1394,9 +1338,8 @@ void exec_graph_impl::duplicateNodes() {
     // original subgraph node
 
     // Predecessors
-    for (auto &PredNodeWeak : NewNode->MPredecessors) {
-      auto PredNode = PredNodeWeak.lock();
-      auto &Successors = PredNode->MSuccessors;
+    for (node_impl &PredNode : NewNode->predecessors()) {
+      auto &Successors = PredNode.MSuccessors;
 
       // Remove the subgraph node from this nodes successors
       Successors.erase(std::remove_if(Successors.begin(), Successors.end(),
@@ -1408,14 +1351,13 @@ void exec_graph_impl::duplicateNodes() {
       // Add all input nodes from the subgraph as successors for this node
       // instead
       for (auto &Input : Inputs) {
-        PredNode->registerSuccessor(Input);
+        PredNode.registerSuccessor(Input);
       }
     }
 
     // Successors
-    for (auto &SuccNodeWeak : NewNode->MSuccessors) {
-      auto SuccNode = SuccNodeWeak.lock();
-      auto &Predecessors = SuccNode->MPredecessors;
+    for (node_impl &SuccNode : NewNode->successors()) {
+      auto &Predecessors = SuccNode.MPredecessors;
 
       // Remove the subgraph node from this nodes successors
       Predecessors.erase(std::remove_if(Predecessors.begin(),
@@ -1428,7 +1370,7 @@ void exec_graph_impl::duplicateNodes() {
       // Add all Output nodes from the subgraph as predecessors for this node
       // instead
       for (auto &Output : Outputs) {
-        Output->registerSuccessor(SuccNode);
+        Output->registerSuccessor(SuccNode.shared_from_this());
       }
     }
 
