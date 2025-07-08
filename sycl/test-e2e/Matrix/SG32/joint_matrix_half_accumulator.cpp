@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: gpu-intel-dg2
 // UNSUPPORTED-INTENDED: SG size = 32 is not supported for SYCL Joint Matrix on
 // DG2
 
