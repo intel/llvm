@@ -272,6 +272,10 @@ function(process_bc out_file)
   set( builtins_opt_lib $<TARGET_PROPERTY:${ARG_LIB_TGT},TARGET_FILE> )
 
   # Add prepare target
+  add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
+    COMMAND ${prepare_builtins_exe} -o ${ARG_OUT_DIR}/${out_file}
+      ${builtins_opt_lib}
+      DEPENDS ${builtins_opt_lib} ${ARG_LIB_TGT} ${prepare_builtins_target} )
   add_custom_target( prepare-${out_file} ALL
     DEPENDS ${ARG_OUT_DIR}/${out_file}
   )
