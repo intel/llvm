@@ -11,7 +11,6 @@
 #include "JITBinaryInfo.h"
 #include "translation/Translation.h"
 
-#include <Driver/ToolChains/AMDGPU.h>
 #include <Driver/ToolChains/Cuda.h>
 #include <Driver/ToolChains/LazyDetector.h>
 #include <clang/Basic/DiagnosticDriver.h>
@@ -20,6 +19,7 @@
 #include <clang/Driver/Compilation.h>
 #include <clang/Driver/Driver.h>
 #include <clang/Driver/Options.h>
+#include <clang/Driver/ToolChain.h>
 #include <clang/Frontend/ChainedDiagnosticConsumer.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendActions.h>
@@ -58,6 +58,7 @@ using namespace llvm::opt;
 using namespace llvm::sycl;
 using namespace llvm::module_split;
 using namespace llvm::util;
+using namespace llvm::vfs;
 using namespace jit_compiler;
 
 #ifdef _GNU_SOURCE
@@ -318,10 +319,8 @@ public:
 
 } // anonymous namespace
 
-static void adjustArgs(const InputArgList &UserArgList,
-                       const std::string &DPCPPRoot, BinaryFormat Format,
-                       SmallVectorImpl<std::string> &CommandLine) {
-  DerivedArgList DAL{UserArgList};
+static void addRTCArgs(DerivedArgList &DAL, const std::string &DPCPPRoot,
+                       BinaryFormat Format) {
   const auto &OptTable = getDriverOptTable();
   DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
   DAL.AddJoinedArg(
@@ -349,12 +348,25 @@ static void adjustArgs(const InputArgList &UserArgList,
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_cuda_gpu_arch_EQ), CPU);
     }
   }
+}
+
+static void renderArgs(const DerivedArgList &DAL,
+                       SmallVectorImpl<std::string> &CommandLine) {
   ArgStringList ASL;
   for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
+  const auto &UserArgList = DAL.getBaseArgs();
   for_each(UserArgList,
            [&UserArgList, &ASL](Arg *A) { A->render(UserArgList, ASL); });
   transform(ASL, std::back_inserter(CommandLine),
             [](const char *AS) { return std::string{AS}; });
+}
+
+static void adjustArgs(const InputArgList &UserArgList,
+                       const std::string &DPCPPRoot, BinaryFormat Format,
+                       SmallVectorImpl<std::string> &CommandLine) {
+  DerivedArgList DAL{UserArgList};
+  addRTCArgs(DAL, DPCPPRoot, Format);
+  renderArgs(DAL, CommandLine);
 }
 
 static void setupTool(ClangTool &Tool, const std::string &DPCPPRoot,
@@ -517,17 +529,18 @@ static bool getDeviceLibraries(const ArgList &Args,
   using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
   const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
-      {"libsycl-crt", "libc"},
-      {"libsycl-complex", "libm-fp32"},
-      {"libsycl-complex-fp64", "libm-fp64"},
-      {"libsycl-cmath", "libm-fp32"},
-      {"libsycl-cmath-fp64", "libm-fp64"},
+    {"libsycl-crt", "libc"},
+    {"libsycl-complex", "libm-fp32"},
+    {"libsycl-complex-fp64", "libm-fp64"},
+    {"libsycl-cmath", "libm-fp32"},
+    {"libsycl-cmath-fp64", "libm-fp64"},
 #if defined(_WIN32)
-      {"libsycl-msvc-math", "libm-fp32"},
+    {"libsycl-msvc-math", "libm-fp32"},
 #endif
-      {"libsycl-imf", "libimf-fp32"},
-      {"libsycl-imf-fp64", "libimf-fp64"},
-      {"libsycl-imf-bf16", "libimf-bf16"}};
+    {"libsycl-imf", "libimf-fp32"},
+    {"libsycl-imf-fp64", "libimf-fp64"},
+    {"libsycl-imf-bf16", "libimf-bf16"}
+  };
   // ITT annotation libraries are linked in separately whenever the device
   // code instrumentation is enabled.
   const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
@@ -630,8 +643,32 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
 
   // For GPU targets we need to link against vendor provided libdevice.
   if (IsCudaHIP) {
+    std::string Argv0 = DPCPPRoot + "/bin/clang++";
     Triple T{Module.getTargetTriple()};
-    Driver D{(Twine(DPCPPRoot) + "/bin/clang++").str(), T.getTriple(), Diags};
+    IntrusiveRefCntPtr<OverlayFileSystem> OFS{
+        new OverlayFileSystem{getRealFileSystem()}};
+    IntrusiveRefCntPtr<InMemoryFileSystem> VFS{new InMemoryFileSystem};
+    std::string CppFileName{"a.cpp"};
+    VFS->addFile(CppFileName, /*ModificationTime=*/0,
+                 MemoryBuffer::getMemBuffer("", ""));
+    OFS->pushOverlay(VFS);
+    Driver D{Argv0, T.getTriple(), Diags, "dpcpp compiler driver", OFS};
+
+    SmallVector<std::string> CommandLine;
+    CommandLine.push_back(Argv0);
+    DerivedArgList AdjustedArgs{UserArgList};
+    addRTCArgs(AdjustedArgs, DPCPPRoot, Format);
+    renderArgs(AdjustedArgs, CommandLine);
+    CommandLine.push_back(CppFileName);
+    SmallVector<const char *> CommandLineCStr(CommandLine.size());
+    llvm::transform(CommandLine, CommandLineCStr.begin(),
+                    [](const auto &S) { return S.c_str(); });
+
+    Compilation *C = D.BuildCompilation(CommandLineCStr);
+    if (!C) {
+      return createStringError("Unable to construct driver for CUDA/HIP");
+    }
+
     auto [CPU, Features] =
         Translator::getTargetCPUAndFeatureAttrs(&Module, "", Format);
     (void)Features;
@@ -662,9 +699,10 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     } else {
       // AMDGPU requires entire toolchain in order to provide all common bitcode
       // libraries.
-      clang::driver::toolchains::ROCMToolChain TC(D, T, UserArgList);
-      auto CommonDeviceLibs = TC.getCommonDeviceLibNames(
-          UserArgList, CPU, Action::OffloadKind::OFK_SYCL, false);
+      const ToolChain *OffloadTC =
+          C->getSingleOffloadToolChain<Action::OFK_SYCL>();
+      auto CommonDeviceLibs =
+          OffloadTC->getDeviceLibs(AdjustedArgs, Action::OffloadKind::OFK_SYCL);
       if (CommonDeviceLibs.empty()) {
         return createStringError("Unable to find ROCm common device libraries");
       }
