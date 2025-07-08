@@ -147,30 +147,30 @@ public:
   /// @param CommandGroup The CG which stores all information for this node.
   /// @param Deps Dependencies of the created node.
   /// @return Created node in the graph.
-  std::shared_ptr<node_impl> add(node_type NodeType,
-                                 std::shared_ptr<sycl::detail::CG> CommandGroup,
-                                 nodes_range Deps);
+  node_impl &add(node_type NodeType,
+                 std::shared_ptr<sycl::detail::CG> CommandGroup,
+                 nodes_range Deps);
 
   /// Create a CGF node in the graph.
   /// @param CGF Command-group function to create node with.
   /// @param Args Node arguments.
   /// @param Deps Dependencies of the created node.
   /// @return Created node in the graph.
-  std::shared_ptr<node_impl> add(std::function<void(handler &)> CGF,
-                                 const std::vector<sycl::detail::ArgDesc> &Args,
-                                 std::vector<std::shared_ptr<node_impl>> &Deps);
+  node_impl &add(std::function<void(handler &)> CGF,
+                 const std::vector<sycl::detail::ArgDesc> &Args,
+                 nodes_range Deps);
 
   /// Create an empty node in the graph.
   /// @param Deps List of predecessor nodes.
   /// @return Created node in the graph.
-  std::shared_ptr<node_impl> add(nodes_range Deps);
+  node_impl &add(nodes_range Deps);
 
   /// Create a dynamic command-group node in the graph.
   /// @param DynCGImpl Dynamic command-group used to create node.
   /// @param Deps List of predecessor nodes.
   /// @return Created node in the graph.
-  std::shared_ptr<node_impl>
-  add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl, nodes_range Deps);
+  node_impl &add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
+                 nodes_range Deps);
 
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
@@ -192,10 +192,10 @@ public:
   /// @param EventImpl Event to associate with a node in map.
   /// @param NodeImpl Node to associate with event in map.
   void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
-                       const std::shared_ptr<node_impl> &NodeImpl) {
+                       node_impl &NodeImpl) {
     if (!(EventImpl->hasCommandGraph()))
       EventImpl->setCommandGraph(shared_from_this());
-    MEventsMap[EventImpl] = NodeImpl;
+    MEventsMap[EventImpl] = NodeImpl.shared_from_this();
   }
 
   /// Find the sycl event associated with a node.
@@ -510,6 +510,12 @@ public:
   }
 
 private:
+  template <typename... Ts> node_impl &createNode(Ts &&...Args) {
+    MNodeStorage.push_back(
+        std::make_shared<node_impl>(std::forward<Ts>(Args)...));
+    return *MNodeStorage.back();
+  }
+
   /// Check the graph for cycles by performing a depth-first search of the
   /// graph. If a node is visited more than once in a given path through the
   /// graph, a cycle is present and the search ends immediately.
@@ -524,13 +530,13 @@ private:
   /// added as a root node.
   /// @param Node The node to add deps for
   /// @param Deps List of dependent nodes
-  void addDepsToNode(const std::shared_ptr<node_impl> &Node, nodes_range Deps) {
+  void addDepsToNode(node_impl &Node, nodes_range Deps) {
     for (node_impl &N : Deps) {
       N.registerSuccessor(Node);
-      this->removeRoot(*Node);
+      this->removeRoot(Node);
     }
-    if (Node->MPredecessors.empty()) {
-      this->addRoot(*Node);
+    if (Node.MPredecessors.empty()) {
+      this->addRoot(Node);
     }
   }
 
