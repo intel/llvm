@@ -527,7 +527,7 @@ graph_impl::add(node_type NodeType,
         static_cast<CGAsyncFree *>(NodeImpl->MCommandGroup.get());
     // If this is an async free node mark that it is now available for reuse,
     // and pass the async free node for tracking.
-    MGraphMemPool.markAllocationAsAvailable(AsyncFreeCG->getPtr(), NodeImpl);
+    MGraphMemPool.markAllocationAsAvailable(AsyncFreeCG->getPtr(), *NodeImpl);
   }
 
   return NodeImpl;
