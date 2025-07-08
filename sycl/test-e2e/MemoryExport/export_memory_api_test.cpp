@@ -1,4 +1,4 @@
-// REQUIRES: aspect-ext_oneapi_memory_export_linear
+// REQUIRES: aspect-ext_oneapi_exportable_device_mem
 // REQUIRES: target-spir
 
 // RUN: %{build} -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
@@ -16,7 +16,7 @@ int main() {
 
   // Check if the device supports memory export.
   bool hasExportSupport =
-      device.has(sycl::aspect::ext_oneapi_memory_export_linear);
+      device.has(sycl::aspect::ext_oneapi_exportable_device_mem);
 
   if (!hasExportSupport) {
     std::cerr << "Device does not support memory export.\n";

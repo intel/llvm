@@ -1,4 +1,4 @@
-// REQUIRES: aspect-ext_oneapi_memory_export_linear
+// REQUIRES: aspect-ext_oneapi_exportable_device_mem
 // REQUIRES: target-spir
 // REQUIRES: vulkan
 
@@ -187,7 +187,7 @@ int main(int argc, char *argv[]) {
 
   // Check if the device supports memory export
   bool syclHasExportSupport =
-      syclDevice.has(sycl::aspect::ext_oneapi_memory_export_linear);
+      syclDevice.has(sycl::aspect::ext_oneapi_exportable_device_mem);
 
   if (!syclHasExportSupport) {
     std::cerr << "Device does not support memory export.\n";

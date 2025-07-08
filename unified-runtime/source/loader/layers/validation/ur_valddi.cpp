@@ -569,8 +569,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_DEVICE_INFO_MEMORY_EXPORT_LINEAR_MEMORY_EXPORT_SUPPORT_EXP <
-        propName)
+    if (UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -10317,14 +10316,23 @@ __urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (ppMem == nullptr)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
+    if ((hDevice == nullptr) || (hContext == nullptr))
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
     if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE < handleTypeToExport)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (alignment != 0 && ((alignment & (alignment - 1)) != 0))
+      return UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT;
 
     if (size == 0)
       return UR_RESULT_ERROR_INVALID_USM_SIZE;
@@ -10363,10 +10371,16 @@ __urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (pMem == nullptr)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if ((hDevice == nullptr) || (hContext == nullptr))
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
@@ -10407,10 +10421,16 @@ __urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (pMemHandleRet == nullptr || pMem == nullptr)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if ((hDevice == nullptr) || (hContext == nullptr))
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE < handleTypeToExport)

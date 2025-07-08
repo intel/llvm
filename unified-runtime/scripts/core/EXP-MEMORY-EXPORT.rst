@@ -68,7 +68,7 @@ API
 Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * ${x}_device_info_t
-    * ${X}_DEVICE_INFO_MEMORY_EXPORT_LINEAR_MEMORY_EXPORT_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP
 
 * ${x}_exp_external_mem_type_t
     * ${X}_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD

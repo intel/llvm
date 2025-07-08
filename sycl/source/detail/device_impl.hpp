@@ -1557,9 +1557,9 @@ public:
                  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP>()
           .value_or(0);
     }
-    CASE(ext_oneapi_memory_export_linear) {
+    CASE(ext_oneapi_exportable_device_mem) {
       return get_info_impl_nocheck<
-                 UR_DEVICE_INFO_MEMORY_EXPORT_LINEAR_MEMORY_EXPORT_SUPPORT_EXP>()
+                 UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP>()
           .value_or(0);
     }
     else {
