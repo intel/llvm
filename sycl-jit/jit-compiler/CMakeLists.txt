@@ -60,6 +60,7 @@ target_include_directories(sycl-jit
   ${LLVM_MAIN_INCLUDE_DIR}
   ${LLVM_SPIRV_INCLUDE_DIRS}
   ${LLVM_EXTERNAL_CLANG_SOURCE_DIR}/include
+  ${LLVM_EXTERNAL_CLANG_SOURCE_DIR}/lib
   ${CMAKE_BINARY_DIR}/tools/clang/include
 )
 target_include_directories(sycl-jit

@@ -8,6 +8,9 @@
 
 #pragma once
 
+#if SYCL_EXT_JIT_ENABLE
+#include "JITBinaryInfo.h"
+#endif // SYCL_EXT_JIT_ENABLE
 #include <detail/adapter_impl.hpp>
 #include <detail/compiler.hpp>
 #include <detail/context_impl.hpp>
@@ -703,6 +706,28 @@ public:
     return MRTCBinInfo && MRTCBinInfo->MLanguage == Lang;
   }
 
+  static ::jit_compiler::BinaryFormat
+  getTargetFormat([[maybe_unused]] const backend Backend) {
+#if SYCL_EXT_JIT_ENABLE
+    switch (Backend) {
+    case backend::ext_oneapi_level_zero:
+    case backend::opencl:
+      return ::jit_compiler::BinaryFormat::SPIRV;
+    case backend::ext_oneapi_cuda:
+      return ::jit_compiler::BinaryFormat::PTX;
+    case backend::ext_oneapi_hip:
+      return ::jit_compiler::BinaryFormat::AMDGCN;
+    default:
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::invalid),
+          "Backend does not support kernel_compiler extension");
+    }
+#else
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "JIT not supported");
+#endif // SYCL_EXT_JIT_ENABLE
+  }
+
   std::vector<std::shared_ptr<device_image_impl>> buildFromSource(
       const std::vector<device> &Devices,
       const std::vector<sycl::detail::string_view> &BuildOptions,
@@ -733,9 +758,12 @@ public:
       }
     }
 
-    if (MRTCBinInfo->MLanguage == syclex::source_language::sycl)
+    if (MRTCBinInfo->MLanguage == syclex::source_language::sycl) {
+      const auto Format = getTargetFormat(MContext.get_backend());
       return createSYCLImages(Devices, bundle_state::executable, BuildOptions,
-                              LogPtr, RegisteredKernelNames, OutDeviceBins);
+                              LogPtr, RegisteredKernelNames, OutDeviceBins,
+                              Format);
+    }
 
     std::vector<ur_device_handle_t> DeviceVec;
     DeviceVec.reserve(Devices.size());
@@ -823,8 +851,10 @@ public:
                               "device does not support source language");
       }
     }
+    const auto Format = getTargetFormat(MContext.get_backend());
     return createSYCLImages(Devices, bundle_state::object, CompileOptions,
-                            LogPtr, RegisteredKernelNames, OutDeviceBins);
+                            LogPtr, RegisteredKernelNames, OutDeviceBins,
+                            Format);
   }
 
 private:
@@ -996,8 +1026,8 @@ private:
       const std::vector<sycl::detail::string_view> &Options,
       std::string *LogPtr,
       const std::vector<sycl::detail::string_view> &RegisteredKernelNames,
-      std::vector<std::shared_ptr<ManagedDeviceBinaries>> &OutDeviceBins)
-      const {
+      std::vector<std::shared_ptr<ManagedDeviceBinaries>> &OutDeviceBins,
+      ::jit_compiler::BinaryFormat Format) const {
     assert(MRTCBinInfo);
     assert(MRTCBinInfo->MLanguage == syclex::source_language::sycl);
     assert(std::holds_alternative<std::string>(MBinImage));
@@ -1027,7 +1057,7 @@ private:
 
     auto [Binaries, Prefix] = syclex::detail::SYCL_JIT_Compile(
         RegisteredKernelNames.empty() ? SourceStr : SourceExt.str(),
-        MRTCBinInfo->MIncludePairs, Options, LogPtr);
+        MRTCBinInfo->MIncludePairs, Options, LogPtr, Format);
 
     auto &PM = detail::ProgramManager::getInstance();
 
