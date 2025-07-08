@@ -6,15 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: Enable half precision when ldexp is implemented.
-#if __CLC_FPSIZE > 16
+#include <clc/internal/clc.h>
+#include <clc/math/clc_log.h>
 
-#ifndef __CLC_SCALAR
+float __nv_logf(float);
+double __nv_log(double);
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_ldexp(__CLC_GENTYPE x, int n) {
-  return __spirv_ocl_ldexp(x, (__CLC_INTN)n);
-}
-
-#endif
-
-#endif
+#define __CLC_FUNCTION __clc_log
+#define __CLC_BUILTIN __nv_log
+#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
+#include <clc/math/unary_builtin_scalarize.inc>
