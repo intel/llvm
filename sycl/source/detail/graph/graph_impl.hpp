@@ -294,14 +294,12 @@ public:
   /// @param Queue In-order queue to find the last node added to the graph from.
   /// @return Last node in this graph added from \p Queue recording, or empty
   /// shared pointer if none.
-  std::shared_ptr<node_impl>
-  getLastInorderNode(sycl::detail::queue_impl *Queue);
+  node_impl *getLastInorderNode(sycl::detail::queue_impl *Queue);
 
   /// Track the last node added to this graph from an in-order queue.
   /// @param Queue In-order queue to register \p Node for.
   /// @param Node Last node that was added to this graph from \p Queue.
-  void setLastInorderNode(sycl::detail::queue_impl &Queue,
-                          std::shared_ptr<node_impl> Node);
+  void setLastInorderNode(sycl::detail::queue_impl &Queue, node_impl &Node);
 
   /// Prints the contents of the graph to a text file in DOT format.
   /// @param FilePath Path to the output file.
@@ -465,15 +463,14 @@ public:
   /// @param[in] Queue The queue the barrier was recorded from.
   /// @param[in] BarrierNodeImpl The created barrier node.
   void setBarrierDep(std::weak_ptr<sycl::detail::queue_impl> Queue,
-                     std::shared_ptr<node_impl> BarrierNodeImpl) {
-    MBarrierDependencyMap[Queue] = BarrierNodeImpl;
+                     node_impl &BarrierNodeImpl) {
+    MBarrierDependencyMap[Queue] = &BarrierNodeImpl;
   }
 
   /// Get the last barrier node that was submitted to the queue.
   /// @param[in] Queue The queue to find the last barrier node of. An empty
   /// shared_ptr is returned if no barrier node has been recorded to the queue.
-  std::shared_ptr<node_impl>
-  getBarrierDep(std::weak_ptr<sycl::detail::queue_impl> Queue) {
+  node_impl *getBarrierDep(std::weak_ptr<sycl::detail::queue_impl> Queue) {
     return MBarrierDependencyMap[Queue];
   }
 
@@ -553,7 +550,7 @@ private:
   /// Map for every in-order queue thats recorded a node to the graph, what
   /// the last node added was. We can use this to create new edges on the last
   /// node if any more nodes are added to the graph from the queue.
-  std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
+  std::map<std::weak_ptr<sycl::detail::queue_impl>, node_impl *,
            std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
       MInorderQueueMap;
   /// Controls whether we skip the cycle checks in makeEdge, set by the presence
@@ -568,7 +565,7 @@ private:
 
   /// Mapping from queues to barrier nodes. For each queue the last barrier
   /// node recorded to the graph from the queue is stored.
-  std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
+  std::map<std::weak_ptr<sycl::detail::queue_impl>, node_impl *,
            std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
       MBarrierDependencyMap;
   /// Graph memory pool for handling graph-owned memory allocations for this
@@ -886,14 +883,13 @@ private:
   std::shared_ptr<graph_impl> MGraphImpl;
   /// Map of nodes in the exec graph to the sync point representing their
   /// execution in the command graph.
-  std::unordered_map<std::shared_ptr<node_impl>,
-                     ur_exp_command_buffer_sync_point_t>
+  std::unordered_map<node_impl *, ur_exp_command_buffer_sync_point_t>
       MSyncPoints;
   /// Sycl queue impl ptr associated with this graph.
   std::shared_ptr<sycl::detail::queue_impl> MQueueImpl;
   /// Map of nodes in the exec graph to the partition number to which they
   /// belong.
-  std::unordered_map<std::shared_ptr<node_impl>, int> MPartitionNodes;
+  std::unordered_map<node_impl *, int> MPartitionNodes;
   /// Device associated with this executable graph.
   sycl::device MDevice;
   /// Context associated with this executable graph.
@@ -909,8 +905,7 @@ private:
   /// Storage for copies of nodes from the original modifiable graph.
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
   /// Map of nodes to their associated UR command handles.
-  std::unordered_map<std::shared_ptr<node_impl>,
-                     ur_exp_command_buffer_command_handle_t>
+  std::unordered_map<node_impl *, ur_exp_command_buffer_command_handle_t>
       MCommandMap;
   /// List of partition without any predecessors in this exec graph.
   std::vector<std::weak_ptr<partition>> MRootPartitions;
