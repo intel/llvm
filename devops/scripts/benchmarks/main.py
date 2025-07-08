@@ -43,14 +43,22 @@ def run_iterations(
         print(f"running {benchmark.name()}, iteration {iter}... ", flush=True)
         bench_results = benchmark.run(env_vars)
         if bench_results is None:
-            failures[benchmark.name()] = "benchmark produced no results!"
-            break
+            if options.exit_on_failure:
+                raise RuntimeError(f"Benchmark {benchmark.name()} produced no results!")
+            else:
+                failures[benchmark.name()] = "benchmark produced no results!"
+                break
 
         for bench_result in bench_results:
             if not bench_result.passed:
-                failures[bench_result.label] = "verification failed"
-                print(f"complete ({bench_result.label}: verification failed).")
-                continue
+                if options.exit_on_failure:
+                    raise RuntimeError(
+                        f"Benchmark {benchmark.name()} failed: {bench_result.label} verification failed."
+                    )
+                else:
+                    failures[bench_result.label] = "verification failed"
+                    print(f"complete ({bench_result.label}: verification failed).")
+                    continue
 
             print(
                 f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
@@ -220,7 +228,6 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             benchmark.setup()
             if options.verbose:
                 print(f"{benchmark.name()} setup complete.")
-
         except Exception as e:
             if options.exit_on_failure:
                 raise e
@@ -405,7 +412,9 @@ if __name__ == "__main__":
         "--verbose", help="Print output of all the commands.", action="store_true"
     )
     parser.add_argument(
-        "--exit-on-failure", help="Exit on first failure.", action="store_true"
+        "--exit-on-failure",
+        help="Exit on first benchmark failure.",
+        action="store_true",
     )
     parser.add_argument(
         "--compare-type",
