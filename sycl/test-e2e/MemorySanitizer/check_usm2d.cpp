@@ -23,6 +23,10 @@ constexpr size_t Width = 2;
 constexpr size_t Height = 2;
 constexpr size_t Size = Pitch * Height;
 
+#if defined(__SYCL_DEVICE_ONLY__)
+SYCL_EXTERNAL extern "C" void *__msan_get_shadow(uintptr_t addr, uint32_t as);
+#endif
+
 void check_memcpy2d(sycl::queue &Q) {
   std::cout << "check_memcpy2d" << std::endl;
 
@@ -30,21 +34,24 @@ void check_memcpy2d(sycl::queue &Q) {
   Q.memset(source, 0, Size * sizeof(int)).wait();
 
   auto *dest = sycl::malloc_device<int>(Size, Q);
-  Q.ext_oneapi_memcpy2d(dest, Pitch, source, Pitch, Width, Height).wait();
+  Q.ext_oneapi_memcpy2d(dest, Pitch * sizeof(int), source, Pitch * sizeof(int),
+                        Width * sizeof(int), Height)
+      .wait();
 
-  // Q.single_task<class Test1>([=]() {
-  //    dest[0] = check(dest[0], dest[1]);
-  //  }).wait();
-  // Q.single_task<class Test2>([=]() {
-  //    dest[0] = check(dest[2], dest[3]);
-  //  }).wait();
-  // CHECK-LABEL: check_memcpy2d
+  Q.single_task<class Test1>([=]() {
+     dest[0] = check(dest[0], dest[1]);
+     dest[0] = check(dest[4], dest[5]);
+   }).wait();
+  // CHECK-NOT: check_usm2d.cpp:[[@LINE-3]]
+
+  Q.single_task<class Test2>([=]() {
+     dest[0] = check(dest[2], dest[3]);
+   }).wait();
   // CHECK: use-of-uninitialized-value
-  // CHECK-NOT: PASS
+  // CHECK: check_usm2d.cpp:[[@LINE-3]]
 
   sycl::free(dest, Q);
   sycl::free(source, Q);
-  std::cout << "PASS" << std::endl;
 }
 
 int main() {

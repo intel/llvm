@@ -33,9 +33,9 @@ void check_memset(sycl::queue &Q) {
 
 void check_fill(sycl::queue &Q) {
   std::cout << "check_fill" << std::endl;
-  auto *array = sycl::malloc_device<int>(2, Q);
+  int *array = sycl::malloc_device<int>(2, Q);
   uint32_t pattern = 0;
-  auto ev1 = Q.fill(array, pattern, 2 / sizeof(pattern));
+  auto ev1 = Q.fill(array, pattern, 2);
   auto ev2 =
       Q.single_task(ev1, [=]() { array[0] = check(array[0], array[1]); });
   Q.wait();
