@@ -6,7 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE
-__spirv_ocl_native_divide(__CLC_GENTYPE x, __CLC_GENTYPE y) {
-  return x / y;
-}
+#include <clc/shared/clc_clamp.h>
+#include <libspirv/spirv.h>
+
+#define FUNCTION __spirv_ocl_fclamp
+#define __CLC_FUNCTION(x) __clc_clamp
+
+#define __CLC_BODY <clc/shared/ternary_def.inc>
+#include <clc/math/gentype.inc>

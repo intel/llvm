@@ -25,13 +25,13 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   assert(!MInitEvent.has_value() && "MInitEvent has not been cleaned up.");
 }
 
-OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(const AdapterPtr &Adapter) {
+OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(adapter_impl &Adapter) {
   std::lock_guard<std::mutex> Lock(MInitEventMutex);
   // If there is a init event we can remove it if it is done.
   if (MInitEvent.has_value()) {
     if (get_event_info<info::event::command_execution_status>(
-            *MInitEvent, *Adapter) == info::event_command_status::complete) {
-      Adapter->call<UrApiKind::urEventRelease>(*MInitEvent);
+            *MInitEvent, Adapter) == info::event_command_status::complete) {
+      Adapter.call<UrApiKind::urEventRelease>(*MInitEvent);
       MInitEvent = {};
       return OwnedUrEvent(Adapter);
     } else {
