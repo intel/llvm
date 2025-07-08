@@ -9,6 +9,8 @@
 // UNSUPPORTED: gpu-intel-dg2
 // UNSUPPORTED-INTENDED: SG size = 32 is not supported for SYCL Joint Matrix on
 // DG2
+// UNSUPPORTED: cpu
+// UNSUPPORTED-INTENDED: Different C and D types are not supported on AMX
 
 // REQUIRES: target-spir
 // REQUIRES: aspect-ext_intel_matrix

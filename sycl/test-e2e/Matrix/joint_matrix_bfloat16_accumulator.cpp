@@ -5,6 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+// UNSUPPORTED: cpu
+// UNSUPPORTED-INTENDED: Different C and D types are not supported on AMX
+
 // REQUIRES: target-spir
 
 // REQUIRES: aspect-ext_intel_matrix
