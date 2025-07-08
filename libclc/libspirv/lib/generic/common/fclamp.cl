@@ -6,19 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifdef __CLC_FPSIZE
-#define DECL __spirv_ocl_fclamp
-#else
-#ifdef __CLC_GEN_S
-#define DECL __spirv_ocl_s_clamp
-#else
-#define DECL __spirv_ocl_u_clamp
-#endif
-#endif
+#include <clc/shared/clc_clamp.h>
+#include <libspirv/spirv.h>
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE DECL(__CLC_GENTYPE x, __CLC_GENTYPE y,
-                                          __CLC_GENTYPE z) {
-  return __clc_clamp(x, y, z);
-}
+#define FUNCTION __spirv_ocl_fclamp
+#define __CLC_FUNCTION(x) __clc_clamp
 
-#undef DECL
+#define __CLC_BODY <clc/shared/ternary_def.inc>
+#include <clc/math/gentype.inc>
