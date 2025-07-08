@@ -202,7 +202,6 @@ function(add_devicelibs filename)
   else()
     set(devicelib_filetypes "${filetypes}")
   endif()
-  set(devicelib_buildarchs "${ARG_BUILD_ARCHS}")
   foreach(filetype IN LISTS devicelib_filetypes)
     compile_lib(${filename}
       FILETYPE ${filetype}
@@ -211,7 +210,7 @@ function(add_devicelibs filename)
       EXTRA_OPTS ${ARG_EXTRA_OPTS} ${${filetype}_device_compile_opts})
   endforeach()
 
-  foreach(arch IN LISTS devicelib_buildarchs)
+  foreach(arch IN LISTS ARG_BUILD_ARCHS)
     compile_lib(${filename}-${arch}
       FILETYPE bc
       SRC ${ARG_SRC}
@@ -405,7 +404,7 @@ if(MSVC)
     DEPENDENCIES ${cmath_obj_deps})
 else()
   if(UR_SANITIZER_INCLUDE_DIR)
-    set(sanitizer_build_archs "")
+    set(sanitizer_build_archs)
     # asan jit
     add_devicelibs(libsycl-asan
       SRC sanitizer/asan_rtl.cpp
