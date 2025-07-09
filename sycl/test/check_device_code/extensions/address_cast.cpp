@@ -125,20 +125,20 @@ namespace dynamic_as_cast {
 // CHECK-LABEL: define dso_local spir_func void @_ZN15dynamic_as_cast19to_global_decoratedEN4sycl3_V19multi_ptrIiLNS1_6access13address_spaceE6ELNS3_9decoratedE1EEE(
 // CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::multi_ptr") align 8 captures(none) initializes((0, 8)) [[AGG_RESULT:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr.0") align 8 captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {{.*}}{
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[P]], align 8, !tbaa [[TBAA8]]
-// CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
-// CHECK-NEXT:    [[CALL_I_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef [[TMP1]], i32 noundef 5) #[[ATTR5:[0-9]+]]
-// CHECK-NEXT:    store ptr addrspace(1) [[CALL_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !tbaa [[TBAA13]], !alias.scope [[META49:![0-9]+]]
-// CHECK-NEXT:    ret void
+// CHECK:    [[TMP0:%.*]] = load i64, ptr [[P]], align 8, !tbaa [[TBAA8]]
+// CHECK:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
+// CHECK:    [[CALL_I_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef [[TMP1]], i32 noundef 5) #[[ATTR5:[0-9]+]]
+// CHECK:    store ptr addrspace(1) [[CALL_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !tbaa [[TBAA13]], !alias.scope [[META49:![0-9]+]]
+// CHECK:    ret void
 //
 // CHECK_ALLOCA_AS-LABEL: define dso_local spir_func void @_ZN15dynamic_as_cast19to_global_decoratedEN4sycl3_V19multi_ptrIiLNS1_6access13address_spaceE6ELNS3_9decoratedE1EEE(
 // CHECK_ALLOCA_AS-SAME: ptr dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::multi_ptr") align 8 captures(none) [[AGG_RESULT:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr.0") align 8 captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {{.*}}{
 // CHECK_ALLOCA_AS-NEXT:  [[ENTRY:.*:]]
-// CHECK_ALLOCA_AS-NEXT:    [[TMP0:%.*]] = load i64, ptr [[P]], align 8, !tbaa [[TBAA8]]
-// CHECK_ALLOCA_AS-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
-// CHECK_ALLOCA_AS-NEXT:    [[CALL_I_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef [[TMP1]], i32 noundef 5) #[[ATTR5:[0-9]+]]
-// CHECK_ALLOCA_AS-NEXT:    store ptr addrspace(1) [[CALL_I_I_I]], ptr [[AGG_RESULT]], align 8, !tbaa [[TBAA13]], !alias.scope [[META49:![0-9]+]]
-// CHECK_ALLOCA_AS-NEXT:    ret void
+// CHECK_ALLOCA_AS:    [[TMP0:%.*]] = load i64, ptr [[P]], align 8, !tbaa [[TBAA8]]
+// CHECK_ALLOCA_AS:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
+// CHECK_ALLOCA_AS:    [[CALL_I_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef [[TMP1]], i32 noundef 5) #[[ATTR5:[0-9]+]]
+// CHECK_ALLOCA_AS:    store ptr addrspace(1) [[CALL_I_I_I]], ptr [[AGG_RESULT]], align 8, !tbaa [[TBAA13]], !alias.scope [[META49:![0-9]+]]
+// CHECK_ALLOCA_AS:    ret void
 //
 SYCL_EXTERNAL auto to_global_decorated(decorated_generic_ptr<int> p) {
   return dynamic_address_cast<access::address_space::global_space>(p);
@@ -146,16 +146,16 @@ SYCL_EXTERNAL auto to_global_decorated(decorated_generic_ptr<int> p) {
 // CHECK-LABEL: define dso_local spir_func void @_ZN15dynamic_as_cast23to_global_not_decoratedEPi(
 // CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::multi_ptr.1") align 8 captures(none) initializes((0, 8)) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] {{.*}}{
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    [[CALL_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef [[P]], i32 noundef 5) #[[ATTR5]]
-// CHECK-NEXT:    store ptr addrspace(1) [[CALL_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !tbaa [[TBAA21]], !alias.scope [[META55:![0-9]+]]
-// CHECK-NEXT:    ret void
+// CHECK:    [[CALL_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef [[P]], i32 noundef 5) #[[ATTR5]]
+// CHECK:    store ptr addrspace(1) [[CALL_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !tbaa [[TBAA21]], !alias.scope [[META55:![0-9]+]]
+// CHECK:    ret void
 //
 // CHECK_ALLOCA_AS-LABEL: define dso_local spir_func void @_ZN15dynamic_as_cast23to_global_not_decoratedEPi(
 // CHECK_ALLOCA_AS-SAME: ptr dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::multi_ptr.1") align 8 captures(none) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] {{.*}}{
 // CHECK_ALLOCA_AS-NEXT:  [[ENTRY:.*:]]
-// CHECK_ALLOCA_AS-NEXT:    [[CALL_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef [[P]], i32 noundef 5) #[[ATTR5]]
-// CHECK_ALLOCA_AS-NEXT:    store ptr addrspace(1) [[CALL_I_I]], ptr [[AGG_RESULT]], align 8, !tbaa [[TBAA21]], !alias.scope [[META55:![0-9]+]]
-// CHECK_ALLOCA_AS-NEXT:    ret void
+// CHECK_ALLOCA_AS:    [[CALL_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef [[P]], i32 noundef 5) #[[ATTR5]]
+// CHECK_ALLOCA_AS:    store ptr addrspace(1) [[CALL_I_I]], ptr [[AGG_RESULT]], align 8, !tbaa [[TBAA21]], !alias.scope [[META55:![0-9]+]]
+// CHECK_ALLOCA_AS:    ret void
 //
 SYCL_EXTERNAL auto to_global_not_decorated(int *p) {
   return dynamic_address_cast<access::address_space::global_space>(p);
