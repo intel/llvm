@@ -19,10 +19,8 @@ namespace oneapi {
 namespace experimental {
 namespace detail {
 
-void *
-graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
-                       const std::vector<std::shared_ptr<node_impl>> &DepNodes,
-                       memory_pool_impl *MemPool) {
+void *graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
+                             nodes_range DepNodes, memory_pool_impl *MemPool) {
   // We are potentially modifying contents of this memory pool and the owning
   // graph, so take a lock here.
   graph_impl::WriteLock Lock(MGraph.MMutex);
@@ -81,9 +79,9 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
 }
 
 std::optional<graph_mem_pool::alloc_info>
-graph_mem_pool::tryReuseExistingAllocation(
-    size_t Size, usm::alloc AllocType, bool ReadOnly,
-    const std::vector<std::shared_ptr<node_impl>> &DepNodes) {
+graph_mem_pool::tryReuseExistingAllocation(size_t Size, usm::alloc AllocType,
+                                           bool ReadOnly,
+                                           nodes_range DepNodes) {
   // If we have no dependencies this is a no-op because allocations must connect
   // to a free node for reuse to be possible.
   if (DepNodes.empty()) {
@@ -119,8 +117,8 @@ graph_mem_pool::tryReuseExistingAllocation(
   std::queue<node_impl *> NodesToCheck;
 
   // Add all the dependent nodes to the queue, they will be popped first
-  for (auto &Dep : DepNodes) {
-    NodesToCheck.push(&*Dep);
+  for (node_impl &Dep : DepNodes) {
+    NodesToCheck.push(&Dep);
   }
 
   // Called when traversing over nodes to check if the current node is a free
@@ -175,10 +173,9 @@ graph_mem_pool::tryReuseExistingAllocation(
   return std::nullopt;
 }
 
-void graph_mem_pool::markAllocationAsAvailable(
-    void *Ptr, const std::shared_ptr<node_impl> &FreeNode) {
+void graph_mem_pool::markAllocationAsAvailable(void *Ptr, node_impl &FreeNode) {
   MFreeAllocations.push_back(Ptr);
-  MAllocations.at(Ptr).LastFreeNode = FreeNode.get();
+  MAllocations.at(Ptr).LastFreeNode = &FreeNode;
 }
 
 } // namespace detail
