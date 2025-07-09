@@ -196,8 +196,6 @@ macro(append_common_extra_security_flags)
     if(CMAKE_BUILD_TYPE MATCHES "Release")
       add_link_option_ext("-Wl,-z,now" ZNOW CMAKE_EXE_LINKER_FLAGS
                           CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
-      add_link_option_ext("-Wl,-z,nodlopen" ZDLOPEN CMAKE_EXE_LINKER_FLAGS
-                          CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
     endif()
   endif()
 endmacro()
