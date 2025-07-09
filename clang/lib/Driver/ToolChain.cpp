@@ -1869,7 +1869,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         return false;
       };
       if (DeviceOffloadKind == Action::OFK_OpenMP &&
-          !SingleTargetTripleCount(options::OPT_fopenmp_targets_EQ)) {
+          !SingleTargetTripleCount(options::OPT_offload_targets_EQ)) {
         getDriver().Diag(diag::err_drv_Xopenmp_target_missing_triple);
         continue;
       }
