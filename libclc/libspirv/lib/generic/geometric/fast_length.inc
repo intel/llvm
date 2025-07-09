@@ -6,9 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/utils.h>
+#if (__CLC_VECSIZE_OR_1 == 1 || __CLC_VECSIZE_OR_1 == 2 ||                     \
+     __CLC_VECSIZE_OR_1 == 3 || __CLC_VECSIZE_OR_1 == 4)
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_pow(__CLC_GENTYPE x,
-                                                     __CLC_GENTYPE y) {
-  return __clc_pow(x, y);
+_CLC_OVERLOAD _CLC_DEF __CLC_SCALAR_GENTYPE
+__spirv_ocl_fast_length(__CLC_GENTYPE p) {
+  return __clc_fast_length(p);
 }
+
+#endif

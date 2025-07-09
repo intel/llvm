@@ -65,7 +65,7 @@ protected:
       return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L}, nullptr,
                                   {}, true);
     } else if (Type == TestCGType::KERNEL_TASK) {
-      auto L = [&](handler &CGH) { CGH.single_task<TestKernel<>>([] {}); };
+      auto L = [&](handler &CGH) { CGH.single_task<TestKernel>([] {}); };
       return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L}, nullptr,
                                   {}, true);
     } else // (Type == TestCGType::BARRIER)

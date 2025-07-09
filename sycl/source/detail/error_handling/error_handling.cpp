@@ -469,7 +469,7 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
 
 namespace detail::kernel_get_group_info {
 void handleErrorOrWarning(ur_result_t Error, ur_kernel_group_info_t Descriptor,
-                          const AdapterPtr &Adapter) {
+                          adapter_impl &Adapter) {
   assert(Error != UR_RESULT_SUCCESS &&
          "Success is expected to be handled on caller side");
   switch (Error) {
@@ -483,7 +483,7 @@ void handleErrorOrWarning(ur_result_t Error, ur_kernel_group_info_t Descriptor,
     break;
   // TODO: Handle other error codes
   default:
-    Adapter->checkUrResult(Error);
+    Adapter.checkUrResult(Error);
     break;
   }
 }
