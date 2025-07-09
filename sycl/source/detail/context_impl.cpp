@@ -64,7 +64,7 @@ context_impl::context_impl(ur_context_handle_t UrContext,
                            async_handler AsyncHandler, adapter_impl &Adapter,
                            const std::vector<sycl::device> &DeviceList,
                            bool OwnedByRuntime, private_tag)
-    : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
+    : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(std::move(AsyncHandler)),
       MDevices(DeviceList), MContext(UrContext), MPlatform(),
       MSupportBufferLocationByDevices(NotChecked) {
   if (!MDevices.empty()) {

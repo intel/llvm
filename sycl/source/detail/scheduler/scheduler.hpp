@@ -200,7 +200,7 @@ struct MemObjRecord {
   MemObjRecord(context_impl *Ctx, std::size_t LeafLimit,
                LeavesCollection::AllocateDependencyF AllocateDependency)
       : MReadLeaves{this, LeafLimit, AllocateDependency},
-        MWriteLeaves{this, LeafLimit, AllocateDependency},
+        MWriteLeaves{this, LeafLimit, std::move(AllocateDependency)},
         MCurContext{Ctx ? Ctx->shared_from_this() : nullptr} {}
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
