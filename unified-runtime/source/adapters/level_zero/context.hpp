@@ -161,6 +161,7 @@ struct ur_context_handle_t_ : ur_object {
   std::vector<std::list<ze_event_pool_handle_t>> ZeEventPoolCache{30};
   std::vector<std::unordered_map<ze_device_handle_t, size_t>>
       ZeEventPoolCacheDeviceMap{30};
+  std::list<ze_event_pool_handle_t> ZePoolCleanupList;
 
   // This map will be used to determine if a pool is full or not
   // by storing number of empty slots available in the pool.
