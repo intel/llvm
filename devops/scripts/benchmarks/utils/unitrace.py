@@ -4,10 +4,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import os
 import shutil
-import re
 
 from options import options
 from utils.utils import run, git_clone
+from utils.logger import log
+
 from datetime import datetime, timezone
 
 
@@ -23,7 +24,7 @@ class Unitrace:
             else options.timestamp_override
         )
 
-        print("Downloading and building Unitrace...")
+        log.info("Downloading and building Unitrace...")
         repo_dir = git_clone(
             options.workdir,
             "pti-gpu-repo",
@@ -53,43 +54,41 @@ class Unitrace:
                 add_sycl=True,
             )
             run(
-                ["cmake", "--build", build_dir, "-j", options.build_jobs],
+                ["cmake", "--build", build_dir, "-j", str(options.build_jobs)],
                 add_sycl=True,
             )
-        print("Unitrace built successfully.")
+        log.info("Unitrace built successfully.")
 
         if options.results_directory_override == None:
             self.traces_dir = os.path.join(options.workdir, "results", "traces")
         else:
             self.traces_dir = os.path.join(options.results_directory_override, "traces")
 
-    def _prune_unitrace_dirs(self, dir: str, FILECNT: int = 10):
-        files = os.listdir(dir)
+    def _prune_unitrace_dirs(self, res_dir: str, FILECNT: int = 10):
+        files = os.listdir(res_dir)
         files.sort()  # Lexicographical sort matches timestamp order
         if len(files) > 2 * FILECNT:
             for f in files[: len(files) - 2 * FILECNT]:
-                full_path = os.path.join(dir, f)
+                full_path = os.path.join(res_dir, f)
                 if os.path.isdir(full_path):
                     shutil.rmtree(full_path)
                 else:
                     os.remove(full_path)
-                if options.verbose:
-                    print(f"Removing old unitrace file: {full_path}")
+                    log.debug(f"Removing old unitrace file: {full_path}")
 
     def cleanup(self, bench_cwd: str, unitrace_output: str):
         # Remove .pid files from the benchmark directory and .json files from cwd
         unitrace_dir = os.path.dirname(unitrace_output)
         unitrace_base = os.path.basename(unitrace_output)
-        print(f"Cleanup unitrace output {unitrace_base} from {unitrace_dir}")
         for f in os.listdir(unitrace_dir):
             if f.startswith(unitrace_base + "."):
                 os.remove(os.path.join(unitrace_dir, f))
-                print(f"Cleanup: Removed {f} from {unitrace_dir}")
+                log.debug(f"Cleanup: Removed {f} from {unitrace_dir}")
         if os.path.exists(bench_cwd):
             for f in os.listdir(bench_cwd):
                 if f.endswith(".json"):
                     os.remove(os.path.join(bench_cwd, f))
-                    print(f"Cleanup: Removed {f} from {bench_cwd}")
+                    log.debug(f"Cleanup: Removed {f} from {bench_cwd}")
 
     def setup(
         self, bench_name: str, command: list[str], extra_unitrace_opt: list[str] = None
@@ -124,8 +123,7 @@ class Unitrace:
             + extra_unitrace_opt
             + command
         )
-        if options.verbose:
-            print(f"Unitrace cmd: {' '.join(unitrace_command)}")
+        log.debug(f"Unitrace cmd: {' '.join(unitrace_command)}")
 
         return unitrace_output, unitrace_command
 
@@ -161,8 +159,7 @@ class Unitrace:
         )
 
         shutil.move(os.path.join(options.benchmark_cwd, pid_json_files[0]), dst)
-        if options.verbose:
-            print(f"Moved {pid_json_files[0]} to {dst}")
+        log.debug(f"Moved {pid_json_files[0]} to {dst}")
 
         # Prune old unitrace directories
         self._prune_unitrace_dirs(os.path.dirname(unitrace_output))
@@ -177,10 +174,10 @@ def create_unitrace(inclusive: bool) -> None:
         try:
             _unitrace_instance = Unitrace(inclusive)
         except Exception as e:
-            print(f"Failed to build Unitrace: {e}")
+            log.error(f"Failed to build Unitrace: {e}")
             _unitrace_instance = None
         if _unitrace_instance is not None:
-            print("Unitrace instance created successfully.")
+            log.info("Unitrace instance created successfully.")
     else:
         raise ValueError("Unitrace instance already created")
 

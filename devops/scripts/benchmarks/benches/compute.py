@@ -225,7 +225,22 @@ def parse_unit_type(compute_unit):
 
 class ComputeBenchmark(Benchmark):
 
-    not_traceable = []  # List of benchmarks that should not be traced by Unitrace
+    # List of benchmarks that should not be traced by Unitrace
+    not_traceable = [
+        # timeouts with v2 adapter
+        "graph_api_benchmark_l0 SubmitGraph numKernels:4 ioq 0 measureCompletion 0",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:4 ioq 0 measureCompletion 1",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:10 ioq 0 measureCompletion 0",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:10 ioq 0 measureCompletion 1",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:32 ioq 0 measureCompletion 0",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:32 ioq 0 measureCompletion 1",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:4 ioq 1 measureCompletion 0",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:4 ioq 1 measureCompletion 1",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:32 ioq 1 measureCompletion 0",
+        "graph_api_benchmark_l0 SubmitGraph numKernels:32 ioq 1 measureCompletion 1",
+        "graph_api_benchmark_ur SubmitGraph numKernels:10 ioq 0 measureCompletion 0",
+        "graph_api_benchmark_ur SubmitGraph numKernels:10 ioq 0 measureCompletion 1",
+    ]
 
     def __init__(self, bench, name, test, runtime: RUNTIMES = None):
         super().__init__(bench.directory, bench)

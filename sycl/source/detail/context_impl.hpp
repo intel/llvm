@@ -94,7 +94,7 @@ public:
   const async_handler &get_async_handler() const;
 
   /// \return the Adapter associated with the platform of this context.
-  const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
+  adapter_impl &getAdapter() const { return MPlatform->getAdapter(); }
 
   /// \return the PlatformImpl associated with this context.
   platform_impl &getPlatformImpl() const { return *MPlatform; }
@@ -367,7 +367,7 @@ void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
 // convenient to be able to reference them without extra `detail::`.
 inline auto get_ur_handles(sycl::detail::context_impl &Ctx) {
   ur_context_handle_t urCtx = Ctx.getHandleRef();
-  return std::tuple{urCtx, Ctx.getAdapter()};
+  return std::tuple{urCtx, &Ctx.getAdapter()};
 }
 inline auto get_ur_handles(const sycl::context &syclContext) {
   return get_ur_handles(*sycl::detail::getSyclObjImpl(syclContext));
@@ -382,7 +382,7 @@ inline auto get_ur_handles(const sycl::device &syclDevice,
 inline auto get_ur_handles(const sycl::device &syclDevice) {
   auto &implDevice = *sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t urDevice = implDevice.getHandleRef();
-  return std::tuple{urDevice, implDevice.getAdapter()};
+  return std::tuple{urDevice, &implDevice.getAdapter()};
 }
 
 } // namespace _V1

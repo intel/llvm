@@ -3,12 +3,15 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+
 from pathlib import Path
+
 from .base import Suite, Benchmark
 from options import options
 from utils.utils import git_clone, run, create_build_path
 from utils.result import Result
 from utils.oneapi import get_oneapi
+from utils.logger import log
 from .benchdnn_list import get_bench_dnn_list
 
 
@@ -153,8 +156,7 @@ class OneDnnBenchmark(Benchmark):
         )
         result_value = self._extract_time(output)
 
-        if options.verbose:
-            print(f"[{self.name()}] Output: {output}")
+        log.debug(f"[{self.name()}] Output: {output}")
 
         return [
             Result(

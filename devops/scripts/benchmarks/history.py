@@ -7,12 +7,13 @@ import os
 import json
 from pathlib import Path
 import socket
+
 from utils.result import Result, BenchmarkRun
 from options import Compare, options
 from datetime import datetime, timezone, timedelta
 from utils.utils import run
 from utils.validate import Validate
-
+from utils.logger import log
 from utils.detect_versions import DetectVersion
 from utils.unitrace import get_unitrace
 
@@ -34,8 +35,8 @@ class BenchmarkHistory:
     def load(self, n: int):
         results_dir = Path(self.dir) / "results"
         if not results_dir.exists() or not results_dir.is_dir():
-            print(
-                f"Warning: {results_dir} is not a valid directory: no historic results loaded."
+            log.warning(
+                f"{results_dir} is not a valid directory: no historic results loaded."
             )
             return
 
@@ -98,7 +99,7 @@ class BenchmarkHistory:
 
         if options.git_commit_override is None or options.github_repo_override is None:
             if options.detect_versions.sycl:
-                print(f"Auto-detecting sycl version...")
+                log.info(f"Auto-detecting sycl version...")
                 github_repo, git_hash = DetectVersion.instance().get_dpcpp_git_info()
             else:
                 git_hash, github_repo = git_info_from_path(
@@ -130,12 +131,12 @@ class BenchmarkHistory:
         if options.build_compute_runtime:
             compute_runtime = options.compute_runtime_tag
         elif options.detect_versions.compute_runtime:
-            print(f"Auto-detecting compute_runtime version...")
+            log.info(f"Auto-detecting compute_runtime version...")
             detect_res = DetectVersion.instance()
             compute_runtime = detect_res.get_compute_runtime_ver()
             if detect_res.get_compute_runtime_ver_cached() is None:
-                print(
-                    "Warning: Could not find compute_runtime version via github tags API."
+                log.warning(
+                    "Could not find compute_runtime version via github tags API."
                 )
         else:
             compute_runtime = "unknown"
@@ -175,7 +176,7 @@ class BenchmarkHistory:
         file_path = Path(os.path.join(results_dir, f"{save_name}_{timestamp}.json"))
         with file_path.open("w") as file:
             json.dump(serialized, file, indent=4)
-        print(f"Benchmark results saved to {file_path}")
+        log.info(f"Benchmark results saved to {file_path}")
 
     def find_first(self, name: str) -> BenchmarkRun:
         for r in self.runs:
