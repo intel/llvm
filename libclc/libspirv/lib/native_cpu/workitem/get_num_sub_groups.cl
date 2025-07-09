@@ -10,6 +10,6 @@
 
 uint __mux_get_num_sub_groups();
 
-_CLC_DEF _CLC_OVERLOAD uint __spirv_NumSubgroups() {
+_CLC_DEF _CLC_OVERLOAD uint __spirv_BuiltInNumSubgroups() {
   return __mux_get_num_sub_groups();
 }

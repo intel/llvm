@@ -119,12 +119,12 @@ void SaveReport(const uint32_t size, const char __SYCL_CONSTANT__ *file,
     SanitizerReport.AccessSize = size;
     SanitizerReport.Origin = origin;
     SanitizerReport.Line = line;
-    SanitizerReport.GID0 = __spirv_GlobalInvocationId_x();
-    SanitizerReport.GID1 = __spirv_GlobalInvocationId_y();
-    SanitizerReport.GID2 = __spirv_GlobalInvocationId_z();
-    SanitizerReport.LID0 = __spirv_LocalInvocationId_x();
-    SanitizerReport.LID1 = __spirv_LocalInvocationId_y();
-    SanitizerReport.LID2 = __spirv_LocalInvocationId_z();
+    SanitizerReport.GID0 = __spirv_BuiltInGlobalInvocationId(0);
+    SanitizerReport.GID1 = __spirv_BuiltInGlobalInvocationId(1);
+    SanitizerReport.GID2 = __spirv_BuiltInGlobalInvocationId(2);
+    SanitizerReport.LID0 = __spirv_BuiltInLocalInvocationId(0);
+    SanitizerReport.LID1 = __spirv_BuiltInLocalInvocationId(1);
+    SanitizerReport.LID2 = __spirv_BuiltInLocalInvocationId(2);
 
     // Show we've done copying
     atomicStore(&SanitizerReport.Flag, MSAN_REPORT_FINISH);
@@ -379,8 +379,9 @@ inline void UnpoisonShadow(uptr addr, uint32_t as, size_t size) {
 
 // Check if the current work item is the first one in the work group
 inline bool IsFirstWorkItemWthinWorkGroup() {
-  return __spirv_LocalInvocationId_x() + __spirv_LocalInvocationId_y() +
-             __spirv_LocalInvocationId_z() ==
+  return __spirv_BuiltInLocalInvocationId(0) +
+             __spirv_BuiltInLocalInvocationId(1) +
+             __spirv_BuiltInLocalInvocationId(2) ==
          0;
 }
 

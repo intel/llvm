@@ -10,29 +10,39 @@
 
 extern int __nvvm_reflect_ocl(constant char *);
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalInvocationId_x() {
-  if (__nvvm_reflect_ocl("__CUDA_ID_QUERIES_FIT_IN_INT")) {
-    return (uint)__spirv_WorkgroupId_x() * (uint)__spirv_WorkgroupSize_x() +
-           (uint)__spirv_LocalInvocationId_x() + (uint)__spirv_GlobalOffset_x();
+_CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInGlobalInvocationId(int dim) {
+  switch (dim) {
+  case 0: {
+    if (__nvvm_reflect_ocl("__CUDA_ID_QUERIES_FIT_IN_INT")) {
+      return (uint)__spirv_BuiltInWorkgroupId(0) *
+                 (uint)__spirv_BuiltInWorkgroupSize(0) +
+             (uint)__spirv_BuiltInLocalInvocationId(0) +
+             (uint)__spirv_BuiltInGlobalOffset(0);
+    }
+    return __spirv_BuiltInWorkgroupId(0) * __spirv_BuiltInWorkgroupSize(0) +
+           __spirv_BuiltInLocalInvocationId(0) + __spirv_BuiltInGlobalOffset(0);
   }
-  return __spirv_WorkgroupId_x() * __spirv_WorkgroupSize_x() +
-         __spirv_LocalInvocationId_x() + __spirv_GlobalOffset_x();
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalInvocationId_y() {
-  if (__nvvm_reflect_ocl("__CUDA_ID_QUERIES_FIT_IN_INT")) {
-    return (uint)__spirv_WorkgroupId_y() * (uint)__spirv_WorkgroupSize_y() +
-           (uint)__spirv_LocalInvocationId_y() + (uint)__spirv_GlobalOffset_y();
+  case 1: {
+    if (__nvvm_reflect_ocl("__CUDA_ID_QUERIES_FIT_IN_INT")) {
+      return (uint)__spirv_BuiltInWorkgroupId(1) *
+                 (uint)__spirv_BuiltInWorkgroupSize(1) +
+             (uint)__spirv_BuiltInLocalInvocationId(1) +
+             (uint)__spirv_BuiltInGlobalOffset(1);
+    }
+    return __spirv_BuiltInWorkgroupId(1) * __spirv_BuiltInWorkgroupSize(1) +
+           __spirv_BuiltInLocalInvocationId(1) + __spirv_BuiltInGlobalOffset(1);
   }
-  return __spirv_WorkgroupId_y() * __spirv_WorkgroupSize_y() +
-         __spirv_LocalInvocationId_y() + __spirv_GlobalOffset_y();
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalInvocationId_z() {
-  if (__nvvm_reflect_ocl("__CUDA_ID_QUERIES_FIT_IN_INT")) {
-    return (uint)__spirv_WorkgroupId_z() * (uint)__spirv_WorkgroupSize_z() +
-           (uint)__spirv_LocalInvocationId_z() + (uint)__spirv_GlobalOffset_z();
+  case 2: {
+    if (__nvvm_reflect_ocl("__CUDA_ID_QUERIES_FIT_IN_INT")) {
+      return (uint)__spirv_BuiltInWorkgroupId(2) *
+                 (uint)__spirv_BuiltInWorkgroupSize(2) +
+             (uint)__spirv_BuiltInLocalInvocationId(2) +
+             (uint)__spirv_BuiltInGlobalOffset(2);
+    }
+    return __spirv_BuiltInWorkgroupId(2) * __spirv_BuiltInWorkgroupSize(2) +
+           __spirv_BuiltInLocalInvocationId(2) + __spirv_BuiltInGlobalOffset(2);
   }
-  return __spirv_WorkgroupId_z() * __spirv_WorkgroupSize_z() +
-         __spirv_LocalInvocationId_z() + __spirv_GlobalOffset_z();
+  default:
+    return 0;
+  }
 }

@@ -47,7 +47,7 @@ public:
 
   id_type get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupLocalInvocationId() / PartitionSize;
+    return __spirv_BuiltInSubgroupLocalInvocationId() / PartitionSize;
 #else
     throw exception(make_error_code(errc::runtime),
                     "Non-uniform groups are not supported on host.");
@@ -56,7 +56,7 @@ public:
 
   id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupLocalInvocationId() % PartitionSize;
+    return __spirv_BuiltInSubgroupLocalInvocationId() % PartitionSize;
 #else
     throw exception(make_error_code(errc::runtime),
                     "Non-uniform groups are not supported on host.");
@@ -65,7 +65,7 @@ public:
 
   range_type get_group_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupSize() / PartitionSize;
+    return __spirv_BuiltInSubgroupSize() / PartitionSize;
 #else
     throw exception(make_error_code(errc::runtime),
                     "Non-uniform groups are not supported on host.");

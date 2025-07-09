@@ -131,7 +131,12 @@ enum class lsc_subopcode : uint8_t {
   fence = 0x1f,
 };
 static constexpr char ESIMD_INSERTED_VSTORE_FUNC_NAME[] = "_Z14__esimd_vstorev";
-static constexpr char SPIRV_INTRIN_PREF[] = "__spirv_BuiltIn";
+static constexpr char SPIRV_BuiltInSubgroupLocalInvocationId[] =
+    "_Z40__spirv_BuiltInSubgroupLocalInvocationIdv";
+static constexpr char SPIRV_BuiltInSubgroupSizev[] =
+    "_Z27__spirv_BuiltInSubgroupSizev";
+static constexpr char SPIRV_BuiltInSubgroupMaxSizev[] =
+    "_Z30__spirv_BuiltInSubgroupMaxSizev";
 struct ESIMDIntrinDesc {
   // Denotes argument translation rule kind.
   enum GenXArgRuleKind {
@@ -1280,37 +1285,23 @@ bool translateLLVMIntrinsic(CallInst *CI) {
   return true; // "intrinsic has been translated, erase the original call"
 }
 
-/// Replaces the load \p LI of SPIRV global with a compile time known constant
+/// Replaces SPIRV workitem built-in call with a compile time known constant
 /// when possible. The replaced instructions are stored into the given
 /// container \p InstsToErase.
 static void
-translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
-                         SmallVectorImpl<Instruction *> &InstsToErase) {
+translateWorkItemBuiltInUse(CallInst *CI, StringRef SpirvBuiltInName,
+                            SmallVectorImpl<Instruction *> &InstsToErase) {
   Value *NewInst = nullptr;
-  if (SpirvGlobalName == "SubgroupLocalInvocationId") {
-    NewInst = llvm::Constant::getNullValue(LI->getType());
-  } else if (SpirvGlobalName == "SubgroupSize" ||
-             SpirvGlobalName == "SubgroupMaxSize") {
-    NewInst = llvm::Constant::getIntegerValue(LI->getType(),
+  if (SpirvBuiltInName == SPIRV_BuiltInSubgroupLocalInvocationId) {
+    NewInst = llvm::Constant::getNullValue(CI->getType());
+  } else if (SpirvBuiltInName == SPIRV_BuiltInSubgroupSizev ||
+             SpirvBuiltInName == SPIRV_BuiltInSubgroupMaxSizev) {
+    NewInst = llvm::Constant::getIntegerValue(CI->getType(),
                                               llvm::APInt(32, 1, true));
   }
   if (NewInst) {
-    LI->replaceAllUsesWith(NewInst);
-    InstsToErase.push_back(LI);
-  }
-}
-
-static void translateGlobalUse(Value *Use, StringRef SpirvGlobalName,
-                               SmallVectorImpl<Instruction *> &InstsToErase) {
-  LoadInst *LI = dyn_cast<LoadInst>(Use);
-  ConstantExpr *CE = dyn_cast<ConstantExpr>(Use);
-  GetElementPtrConstantExpr *GEPCE = dyn_cast<GetElementPtrConstantExpr>(Use);
-  if (LI != nullptr) {
-    translateSpirvGlobalUses(LI, SpirvGlobalName, InstsToErase);
-  } else if (CE != nullptr || GEPCE != nullptr) {
-    for (User *U : (CE == nullptr ? GEPCE : CE)->users()) {
-      translateGlobalUse(U, SpirvGlobalName, InstsToErase);
-    }
+    CI->replaceAllUsesWith(NewInst);
+    InstsToErase.push_back(CI);
   }
 }
 
@@ -2117,13 +2108,14 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
   }
 
   SmallVector<Instruction *, 8> ToErase;
-  constexpr size_t PrefLen = StringRef(SPIRV_INTRIN_PREF).size();
-  for (GlobalVariable &Global : M.globals()) {
-    if (!Global.getName().starts_with(SPIRV_INTRIN_PREF))
+  for (Function &F : M) {
+    if (F.getName() != SPIRV_BuiltInSubgroupLocalInvocationId &&
+        F.getName() != SPIRV_BuiltInSubgroupSizev &&
+        F.getName() != SPIRV_BuiltInSubgroupMaxSizev)
       continue;
 
-    for (User *U : Global.users())
-      translateGlobalUse(U, Global.getName().drop_front(PrefLen), ToErase);
+    for (User *U : F.users())
+      translateWorkItemBuiltInUse(cast<CallInst>(U), F.getName(), ToErase);
   }
   for (auto *CI : ToErase)
     CI->eraseFromParent();

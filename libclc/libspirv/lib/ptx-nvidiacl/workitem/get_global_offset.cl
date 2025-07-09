@@ -10,14 +10,15 @@
 
 // Compiler support is required to provide global offset on NVPTX.
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalOffset_x() {
-  return __builtin_ptx_implicit_offset()[0];
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalOffset_y() {
-  return __builtin_ptx_implicit_offset()[1];
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalOffset_z() {
-  return __builtin_ptx_implicit_offset()[2];
+_CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInGlobalOffset(int dim) {
+  switch (dim) {
+  case 0:
+    return __builtin_ptx_implicit_offset()[0];
+  case 1:
+    return __builtin_ptx_implicit_offset()[1];
+  case 2:
+    return __builtin_ptx_implicit_offset()[2];
+  default:
+    return 0;
+  }
 }

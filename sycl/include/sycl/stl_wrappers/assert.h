@@ -35,11 +35,13 @@ __devicelib_assert_fail(const char *, const char *, int32_t, const char *,
 #else
 #define assert(e)                                                              \
   ((e) ? void(0)                                                               \
-       : __devicelib_assert_fail(                                              \
-             #e, __FILE__, __LINE__, nullptr, __spirv_GlobalInvocationId_x(),  \
-             __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),   \
-             __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),     \
-             __spirv_LocalInvocationId_z()))
+       : __devicelib_assert_fail(#e, __FILE__, __LINE__, nullptr,              \
+                                 __spirv_BuiltInGlobalInvocationId(0),         \
+                                 __spirv_BuiltInGlobalInvocationId(1),         \
+                                 __spirv_BuiltInGlobalInvocationId(2),         \
+                                 __spirv_BuiltInLocalInvocationId(0),          \
+                                 __spirv_BuiltInLocalInvocationId(1),          \
+                                 __spirv_BuiltInLocalInvocationId(2)))
 #endif
 #endif
 #endif

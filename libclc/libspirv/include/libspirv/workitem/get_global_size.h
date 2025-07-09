@@ -6,6 +6,4 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_DECL _CLC_OVERLOAD size_t __spirv_GlobalSize_x();
-_CLC_DECL _CLC_OVERLOAD size_t __spirv_GlobalSize_y();
-_CLC_DECL _CLC_OVERLOAD size_t __spirv_GlobalSize_z();
+_CLC_DECL _CLC_OVERLOAD size_t __spirv_BuiltInGlobalSize(int);
