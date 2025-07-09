@@ -10,12 +10,6 @@ import sys
 import re
 
 
-def get_llvm_bin_path():
-    if "LLVM_BIN_PATH" in os.environ:
-        return os.environ["LLVM_BIN_PATH"]
-    return ""
-
-
 def match_symbol(sym_binding, sym_type, sym_section):
     if sym_binding is None or sym_type is None or sym_section is None:
         return False
@@ -65,7 +59,7 @@ def parse_readobj_output(output):
     return parsed_symbols
 
 
-def dump_symbols(target_path, output):
+def dump_symbols(target_path, output, llvm_bin_path):
     with open(output, "w") as out:
         out.write(
             "################################################################################"
@@ -93,7 +87,7 @@ def dump_symbols(target_path, output):
         readobj_opts = "--coff-exports" if os.name == "nt" else "--syms"
         readobj_out = subprocess.check_output(
             [
-                os.path.join(get_llvm_bin_path(), "llvm-readobj"),
+                os.path.join(llvm_bin_path, "llvm-readobj"),
                 readobj_opts,
                 target_path,
             ]
@@ -113,7 +107,7 @@ def compare_results(ref_records, records):
 
 # Dumps symbols from from binary at target_path and compares with a snapshot
 # stored at ref_path. Reports new and absent symbols (if there are any).
-def check_symbols(ref_path, target_path):
+def check_symbols(ref_path, target_path, llvm_bin_path):
     with open(ref_path, "r") as ref:
         ref_symbols = []
         for line in ref:
@@ -123,7 +117,7 @@ def check_symbols(ref_path, target_path):
         readobj_opts = "--coff-exports" if os.name == "nt" else "--syms"
         readobj_out = subprocess.check_output(
             [
-                os.path.join(get_llvm_bin_path(), "llvm-readobj"),
+                os.path.join(llvm_bin_path, "llvm-readobj"),
                 readobj_opts,
                 target_path,
             ]
@@ -171,20 +165,26 @@ def main():
     )
     parser.add_argument("--reference", type=str, help="Reference ABI dump")
     parser.add_argument("--output", type=str, help="Output for dump modes")
+    parser.add_argument(
+        "--llvm-bin-path",
+        type=str,
+        default=os.getenv("LLVM_BIN_PATH", ""),
+        help="Path to LLVM binaries. Can be overridden by LLVM_BIN_PATH environment variable.",
+    )
     parser.add_argument("target_library", type=str)
 
     args = parser.parse_args()
 
     if args.mode == "check_symbols":
         if args.reference is None:
-            print("Please specify --reference option. Quiting.")
+            print("Please specify --reference option. Quitting.")
             sys.exit(-2)
-        check_symbols(args.reference, args.target_library)
+        check_symbols(args.reference, args.target_library, args.llvm_bin_path)
     elif args.mode == "dump_symbols":
         if args.output is None:
-            print("Please specify --output option. Quiting.")
+            print("Please specify --output option. Quitting.")
             sys.exit(-2)
-        dump_symbols(args.target_library, args.output)
+        dump_symbols(args.target_library, args.output, args.llvm_bin_path)
 
 
 if __name__ == "__main__":
