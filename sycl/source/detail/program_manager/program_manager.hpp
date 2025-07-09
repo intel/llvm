@@ -62,7 +62,7 @@ bool doesDevSupportDeviceRequirements(const device_impl &Dev,
 std::optional<sycl::exception>
 checkDevSupportDeviceRequirements(const device_impl &Dev,
                                   const RTDeviceBinaryImage &BinImages,
-                                  const NDRDescT &NDRDesc = {});
+                                  const detail::v1::NDRDescT &NDRDesc = {});
 
 bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
                                 const device_impl &DevImpl);
@@ -179,7 +179,7 @@ public:
   ur_program_handle_t getBuiltURProgram(context_impl &ContextImpl,
                                         device_impl &DeviceImpl,
                                         KernelNameStrRefT KernelName,
-                                        const NDRDescT &NDRDesc = {});
+                                        const detail::v1::NDRDescT &NDRDesc = {});
 
   /// Builds a program from a given set of images or retrieves that program from
   /// cache.
@@ -201,7 +201,7 @@ public:
   getOrCreateKernel(context_impl &ContextImpl, device_impl &DeviceImpl,
                     KernelNameStrRefT KernelName,
                     KernelNameBasedCacheT *KernelNameBasedCachePtr,
-                    const NDRDescT &NDRDesc = {});
+                    const detail::v1::NDRDescT &NDRDesc = {});
 
   ur_kernel_handle_t getCachedMaterializedKernel(
       KernelNameStrRefT KernelName,

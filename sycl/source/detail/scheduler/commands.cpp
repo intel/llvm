@@ -1989,7 +1989,7 @@ std::string instrumentationGetKernelName(
 }
 
 void instrumentationAddExtraKernelMetadata(
-    xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
+    xpti_td *&CmdTraceEvent, const detail::v1::NDRDescT &NDRDesc,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
     KernelNameStrRefT KernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr,
@@ -2107,7 +2107,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     const std::string_view SyclKernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
-    const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
+    const detail::v1::NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
 
   auto XptiObjects = std::make_pair<xpti_td *, uint64_t>(nullptr, -1);
@@ -2261,7 +2261,7 @@ std::string_view ExecCGCommand::getTypeString() const {
 // the number of work - groups, such that the size of each group is chosen by
 // the runtime, or by the number of work - groups and number of work - items
 // for users who need more control.
-static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
+static void adjustNDRangePerKernel(detail::v1::NDRDescT &NDR, ur_kernel_handle_t Kernel,
                                    const device_impl &DeviceImpl) {
   if (NDR.GlobalSize[0] != 0)
     return; // GlobalSize is set - no need to adjust
@@ -2292,7 +2292,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
 // Initially we keep the order of NDRDescT as it provided by the user, this
 // simplifies overall handling and do the reverse only when
 // the kernel is enqueued.
-void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
+void ReverseRangeDimensionsForKernel(detail::v1::NDRDescT &NDR) {
   if (NDR.Dims > 1) {
     std::swap(NDR.GlobalSize[0], NDR.GlobalSize[NDR.Dims - 1]);
     std::swap(NDR.LocalSize[0], NDR.LocalSize[NDR.Dims - 1]);
@@ -2398,7 +2398,7 @@ static void SetArgBasedOnType(
 static ur_result_t SetKernelParamsAndLaunch(
     queue_impl &Queue, std::vector<ArgDesc> &Args,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
-    ur_kernel_handle_t Kernel, NDRDescT &NDRDesc,
+    ur_kernel_handle_t Kernel, detail::v1::NDRDescT &NDRDesc,
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
@@ -2672,7 +2672,7 @@ ur_result_t enqueueImpCommandBufferKernel(
 }
 
 void enqueueImpKernel(
-    queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
+    queue_impl &Queue, detail::v1::NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
     const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr,
@@ -3231,7 +3231,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     assert(MQueue && "Kernel submissions should have an associated queue");
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
 
-    NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
+    detail::v1::NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
     std::vector<ArgDesc> &Args = ExecKernel->MArgs;
 
     auto getMemAllocationFunc = [this](Requirement *Req) {

@@ -228,7 +228,7 @@ public:
   using sycl::handler::impl;
   using sycl::handler::setNDRangeDescriptor;
 
-  sycl::detail::NDRDescT &getNDRDesc() { return impl->MNDRDesc; }
+  sycl::detail::v1::NDRDescT &getNDRDesc() { return impl->MNDRDesc; }
   sycl::detail::code_location &getCodeLoc() { return MCodeLoc; }
   std::vector<std::shared_ptr<sycl::detail::stream_impl>> &getStreamStorage() {
     return MStreamStorage;

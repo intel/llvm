@@ -155,7 +155,7 @@ public:
   std::vector<detail::ArgDesc> MAssociatedAccesors;
 
   /// Struct that encodes global size, local size, ...
-  detail::NDRDescT MNDRDesc;
+  detail::v1::NDRDescT MNDRDesc;
 
   /// Type of the command group, e.g. kernel, fill. Can also encode version.
   /// Use getType and setType methods to access this variable unless

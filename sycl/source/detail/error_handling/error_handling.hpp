@@ -26,7 +26,7 @@ namespace enqueue_kernel_launch {
 /// This function actually never returns and always throws an exception with
 /// error description.
 void handleErrorOrWarning(ur_result_t, const device_impl &, ur_kernel_handle_t,
-                          const NDRDescT &);
+                          const detail::v1::NDRDescT &);
 } // namespace enqueue_kernel_launch
 
 namespace kernel_get_group_info {

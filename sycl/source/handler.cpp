@@ -2443,12 +2443,12 @@ void handler::setNDRangeDescriptorPadded(sycl::range<3> N,
                                          bool SetNumWorkGroups, int Dims) {
   if (Dims == 1) {
     sycl::range<1> Range = {N[0]};
-    impl->MNDRDesc = NDRDescT{Range, SetNumWorkGroups};
+    impl->MNDRDesc = detail::v1::NDRDescT{Range, SetNumWorkGroups};
   } else if (Dims == 2) {
     sycl::range<2> Range = {N[0], N[1]};
-    impl->MNDRDesc = NDRDescT{Range, SetNumWorkGroups};
+    impl->MNDRDesc = detail::v1::NDRDescT{Range, SetNumWorkGroups};
   } else if (Dims == 3) {
-    impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+    impl->MNDRDesc = detail::v1::NDRDescT{N, SetNumWorkGroups};
   }
 }
 
@@ -2457,13 +2457,13 @@ void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
   if (Dims == 1) {
     sycl::range<1> NumWorkItemsTrimmed = {NumWorkItems[0]};
     sycl::id<1> OffsetTrimmed = {Offset[0]};
-    impl->MNDRDesc = NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed};
+    impl->MNDRDesc = detail::v1::NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed};
   } else if (Dims == 2) {
     sycl::range<2> NumWorkItemsTrimmed = {NumWorkItems[0], NumWorkItems[1]};
     sycl::id<2> OffsetTrimmed = {Offset[0], Offset[1]};
-    impl->MNDRDesc = NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed};
+    impl->MNDRDesc = detail::v1::NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed};
   } else if (Dims == 3) {
-    impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+    impl->MNDRDesc = detail::v1::NDRDescT{NumWorkItems, Offset};
   }
 }
 
@@ -2475,56 +2475,56 @@ void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
     sycl::range<1> LocalSizeTrimmed = {LocalSize[0]};
     sycl::id<1> OffsetTrimmed = {Offset[0]};
     impl->MNDRDesc =
-        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed};
+        detail::v1::NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed};
   } else if (Dims == 2) {
     sycl::range<2> NumWorkItemsTrimmed = {NumWorkItems[0], NumWorkItems[1]};
     sycl::range<2> LocalSizeTrimmed = {LocalSize[0], LocalSize[1]};
     sycl::id<2> OffsetTrimmed = {Offset[0], Offset[1]};
     impl->MNDRDesc =
-        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed};
+        detail::v1::NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed};
   } else if (Dims == 3) {
-    impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+    impl->MNDRDesc = detail::v1::NDRDescT{NumWorkItems, LocalSize, Offset};
   }
 }
 #endif
 
 void handler::setNDRangeDescriptor(sycl::range<3> N, bool SetNumWorkGroups) {
-  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+  impl->MNDRDesc = detail::v1::NDRDescT{N, SetNumWorkGroups};
 }
 void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
                                    sycl::id<3> Offset) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+  impl->MNDRDesc = detail::v1::NDRDescT{NumWorkItems, Offset};
 }
 void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
                                    sycl::range<3> LocalSize,
                                    sycl::id<3> Offset) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+  impl->MNDRDesc = detail::v1::NDRDescT{NumWorkItems, LocalSize, Offset};
 }
 
 void handler::setNDRangeDescriptor(sycl::range<2> N, bool SetNumWorkGroups) {
-  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+  impl->MNDRDesc = detail::v1::NDRDescT{N, SetNumWorkGroups};
 }
 void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
                                    sycl::id<2> Offset) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+  impl->MNDRDesc = detail::v1::NDRDescT{NumWorkItems, Offset};
 }
 void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
                                    sycl::range<2> LocalSize,
                                    sycl::id<2> Offset) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+  impl->MNDRDesc = detail::v1::NDRDescT{NumWorkItems, LocalSize, Offset};
 }
 
 void handler::setNDRangeDescriptor(sycl::range<1> N, bool SetNumWorkGroups) {
-  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+  impl->MNDRDesc = detail::v1::NDRDescT{N, SetNumWorkGroups};
 }
 void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
                                    sycl::id<1> Offset) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+  impl->MNDRDesc = detail::v1::NDRDescT{NumWorkItems, Offset};
 }
 void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
                                    sycl::range<1> LocalSize,
                                    sycl::id<1> Offset) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+  impl->MNDRDesc = detail::v1::NDRDescT{NumWorkItems, LocalSize, Offset};
 }
 
 void handler::setKernelNameBasedCachePtr(
