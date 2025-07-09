@@ -1873,6 +1873,7 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
     DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
   }
 
+  graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl = impl->add(CGF, {}, DepImpls);
   return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
 }
