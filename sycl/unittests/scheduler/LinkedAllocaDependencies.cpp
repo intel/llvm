@@ -66,7 +66,7 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   sycl::detail::queue_impl &Q1 = *sycl::detail::getSyclObjImpl(Queue1);
 
   auto AllocaDep = [](sycl::detail::Command *, sycl::detail::Command *,
-                      sycl::detail::MemObjRecord *,
+                      const sycl::detail::MemObjRecord *,
                       std::vector<sycl::detail::Command *> &) {};
 
   std::shared_ptr<sycl::detail::MemObjRecord> Record{

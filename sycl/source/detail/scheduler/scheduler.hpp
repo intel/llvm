@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <memory_resource>
 #include <queue>
 #include <set>
 #include <shared_mutex>
@@ -184,6 +185,7 @@ class queue_impl;
 class event_impl;
 class context_impl;
 class DispatchHostTask;
+class MapOfDependentCmds;
 
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
@@ -605,7 +607,7 @@ protected:
 
     /// \return a pointer to the corresponding memory object record for the
     /// SYCL memory object provided, or nullptr if it does not exist.
-    MemObjRecord *getMemObjRecord(SYCLMemObjI *MemObject);
+    static MemObjRecord *getMemObjRecord(SYCLMemObjI *MemObject);
 
     /// \return a pointer to MemObjRecord for pointer to memory object. If the
     /// record is not found, nullptr is returned.
@@ -627,9 +629,16 @@ protected:
                          std::vector<Command *> &ToEnqueue);
 
     /// Removes commands from leaves.
-    void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
-                      access::mode AccessMode,
-                      std::vector<Command *> &ToCleanUp);
+    void updateLeaves(Command *NewCmd, const std::set<Command *> &Cmds,
+                      MemObjRecord *Record, access::mode AccessMode,
+                      const MapOfDependentCmds &DependentCmdsOfNewCmd,
+                      const QueueImplPtr &Queue,
+                      std::vector<Command *> &ToCleanUp,
+                      std::vector<Command *> &ToEnqueue);
+
+    /// Prepare a command to cleanup
+    void commandToCleanup(Command *NewCmd, Command *DepCommand,
+                          std::vector<Command *> &ToEnqueue);
 
     /// Perform connection of events in multiple contexts
     /// \param Cmd dependant command
@@ -698,9 +707,14 @@ protected:
                               Command::BlockReason Reason,
                               std::vector<Command *> &ToEnqueue);
 
+    /// If all dependences of a dependent cmd already covered by NewCmd,
+    /// move the dependent cmd in ToCleanUp
+    bool detectDuplicates(Command *DepCommand,
+                          const MapOfDependentCmds &DependentCmdsOfNewCmd);
+
   protected:
     /// Finds a command dependency corresponding to the record.
-    DepDesc findDepForRecord(Command *Cmd, MemObjRecord *Record);
+    DepDesc findDepForRecord(Command *Cmd, const MemObjRecord *Record);
 
     /// Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
@@ -728,6 +742,8 @@ protected:
     std::queue<Command *> MCmdsToVisit;
     /// Used to track commands that have been visited during graph traversal.
     std::vector<Command *> MVisitedCmds;
+
+    LeavesCollection::AllocateDependencyF MAllocateDependency;
 
     /// Prints contents of graph to text file in DOT format
     ///
@@ -896,6 +912,46 @@ protected:
   friend class queue_impl;
   friend class event_impl;
   friend class ::MockScheduler;
+};
+
+class MapOfDependentCmds {
+  using CommandModePair = std::pair<SYCLMemObjI *, access::mode>;
+
+  struct CommandModePairHash {
+    std::size_t operator()(const CommandModePair &p) const noexcept {
+      return std::hash<SYCLMemObjI *>{}(p.first) ^
+             std::hash<access::mode>{}(p.second);
+    }
+  };
+
+  using CommandModePairSet =
+      std::pmr::unordered_set<CommandModePair, CommandModePairHash>;
+
+  std::array<std::byte, 4 * 1024> MDependentCmdsOfNewCmdBuf;
+  std::pmr::monotonic_buffer_resource MDependentCmdsOfNewCmdBufRes{
+      MDependentCmdsOfNewCmdBuf.data(), MDependentCmdsOfNewCmdBuf.size()};
+  CommandModePairSet MDependentCmdsOfNewCmd{&MDependentCmdsOfNewCmdBufRes};
+
+  void addDep(const DepDesc &Dep) {
+    MDependentCmdsOfNewCmd.emplace(Dep.MDepRequirement->MSYCLMemObj,
+                                   Dep.MDepRequirement->MAccessMode);
+  }
+
+public:
+  MapOfDependentCmds(const std::vector<DepDesc> &Deps) {
+    for (const DepDesc &Dep : Deps)
+      addDep(Dep);
+  }
+
+  void addDeps(const std::vector<DepDesc> &Deps) {
+    MDependentCmdsOfNewCmd.clear();
+    for (const DepDesc &Dep : Deps)
+      addDep(Dep);
+  }
+
+  bool isMemObjExist(const std::pair<SYCLMemObjI *, access::mode> &Mo) const {
+    return MDependentCmdsOfNewCmd.count(Mo);
+  }
 };
 
 } // namespace detail
