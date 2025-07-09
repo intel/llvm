@@ -1252,7 +1252,8 @@ ur_result_t ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
 
   size_t UsableSize = 0;
   auto UmfRet = umfPoolMallocUsableSize(UmfPool, *RetMem, &UsableSize);
-  if (UmfRet != UMF_RESULT_SUCCESS) {
+  if (UmfRet != UMF_RESULT_SUCCESS &&
+      UmfRet != UMF_RESULT_ERROR_NOT_SUPPORTED) {
     return umf::umf2urResult(UmfRet);
   }
 
@@ -1265,7 +1266,8 @@ ur_result_t ur_usm_pool_handle_t_::free(void *Mem,
                                         umf_memory_pool_handle_t UmfPool) {
   size_t Size = 0;
   auto UmfRet = umfPoolMallocUsableSize(UmfPool, Mem, &Size);
-  if (UmfRet != UMF_RESULT_SUCCESS) {
+  if (UmfRet != UMF_RESULT_SUCCESS &&
+      UmfRet != UMF_RESULT_ERROR_NOT_SUPPORTED) {
     return umf::umf2urResult(UmfRet);
   }
 
