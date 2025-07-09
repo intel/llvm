@@ -102,18 +102,18 @@ public:
   /// Get backend option.
   void getBackendOption(const char *frontend_option,
                         const char **backend_option) const {
-    const auto &Adapter = getAdapter();
+    adapter_impl &Adapter = getAdapter();
     ur_result_t Err =
-        Adapter->call_nocheck<UrApiKind::urPlatformGetBackendOption>(
+        Adapter.call_nocheck<UrApiKind::urPlatformGetBackendOption>(
             MPlatform, frontend_option, backend_option);
-    Adapter->checkUrResult(Err);
+    Adapter.checkUrResult(Err);
   }
 
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
     ur_native_handle_t nativeHandle = 0;
-    getAdapter()->call<UrApiKind::urPlatformGetNativeHandle>(MPlatform,
-                                                             &nativeHandle);
+    getAdapter().call<UrApiKind::urPlatformGetNativeHandle>(MPlatform,
+                                                            &nativeHandle);
     return ur::cast<cl_platform_id>(nativeHandle);
   }
 
@@ -136,7 +136,7 @@ public:
   static std::vector<platform> get_platforms();
 
   // \return the Adapter associated with this platform.
-  const AdapterPtr &getAdapter() const { return MAdapter; }
+  adapter_impl &getAdapter() const { return *MAdapter; }
 
   /// Gets the native handle of the SYCL platform.
   ///
