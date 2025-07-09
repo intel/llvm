@@ -1321,11 +1321,9 @@ void exec_graph_impl::duplicateNodes() {
       auto &Successors = PredNode.MSuccessors;
 
       // Remove the subgraph node from this nodes successors
-      Successors.erase(std::remove_if(Successors.begin(), Successors.end(),
-                                      [NewNode](auto WeakNode) {
-                                        return WeakNode.lock() == NewNode;
-                                      }),
-                       Successors.end());
+      Successors.erase(
+          std::remove(Successors.begin(), Successors.end(), NewNode.get()),
+          Successors.end());
 
       // Add all input nodes from the subgraph as successors for this node
       // instead
@@ -1339,12 +1337,9 @@ void exec_graph_impl::duplicateNodes() {
       auto &Predecessors = SuccNode.MPredecessors;
 
       // Remove the subgraph node from this nodes successors
-      Predecessors.erase(std::remove_if(Predecessors.begin(),
-                                        Predecessors.end(),
-                                        [NewNode](auto WeakNode) {
-                                          return WeakNode.lock() == NewNode;
-                                        }),
-                         Predecessors.end());
+      Predecessors.erase(
+          std::remove(Predecessors.begin(), Predecessors.end(), NewNode.get()),
+          Predecessors.end());
 
       // Add all Output nodes from the subgraph as predecessors for this node
       // instead
