@@ -6,8 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/geometric/clc_distance.h>
-#include <libspirv/spirv.h>
+#if (__CLC_VECSIZE_OR_1 == 1 || __CLC_VECSIZE_OR_1 == 2 ||                     \
+     __CLC_VECSIZE_OR_1 == 3 || __CLC_VECSIZE_OR_1 == 4)
 
-#define __CLC_BODY <distance.inc>
-#include <clc/math/gentype.inc>
+_CLC_OVERLOAD _CLC_DEF __CLC_SCALAR_GENTYPE
+__spirv_ocl_fast_length(__CLC_GENTYPE p) {
+  return __clc_fast_length(p);
+}
+
+#endif
