@@ -415,6 +415,196 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 }
 #endif
 
+// no_handler
+
+void queue_impl::extractArgsAndReqsFromLambda(
+    char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
+    size_t NumKernelParams, std::vector<ArgDesc> &Args) {
+  size_t IndexShift = 0;
+
+  Args.reserve(NumKernelParams);
+
+  for (size_t I = 0; I < NumKernelParams; ++I) {
+    detail::kernel_param_desc_t ParamDesc = ParamDescGetter(I);
+    void *Ptr = LambdaPtr + ParamDesc.offset;
+    const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
+    const int &Size = ParamDesc.info;
+
+    Args.emplace_back(Kind, Ptr, Size, I + IndexShift);
+  }
+}
+
+void queue_impl::extract_args_set_arg_value(ur_kernel_handle_t Kernel,
+  size_t NextTrueIndex, int Size, const void *ArgPtr) {
+  getAdapter()->call<UrApiKind::urKernelSetArgValue>(Kernel, NextTrueIndex,
+                                                        Size, nullptr, ArgPtr);
+}
+
+void queue_impl::extract_args_set_arg_pointer(ur_kernel_handle_t Kernel,
+  size_t NextTrueIndex, const void *Ptr) {
+  getAdapter()->call<UrApiKind::urKernelSetArgPointer>(Kernel, NextTrueIndex,
+                                                          nullptr, Ptr);
+}
+
+void queue_impl::submit_no_handler_full(
+  detail::NDRDescT NDRDesc, const char *KernelName,
+  void *KernelFunc, int KernelNumParams,
+  detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
+
+  std::vector<ur_event_handle_t> RawEvents;
+
+  assert(!hasCommandGraph());
+
+  // TODO external event
+
+  bool SchedulerBypass = true;
+
+  std::unique_lock<std::mutex> Lock(MMutex);
+
+  EventImplPtr &LastEvent = MDefaultGraphDeps.LastEventPtr;
+
+  if (isInOrder() && LastEvent && !Scheduler::CheckEventReadiness(*MContext, LastEvent)) {
+    SchedulerBypass = false;
+  }
+
+  if (SchedulerBypass) {
+    EventImplPtr &LastEvent = MDefaultGraphDeps.LastEventPtr;
+
+    if (isInOrder() && LastEvent && LastEvent->getHandle()) {
+      RawEvents.push_back(LastEvent->getHandle());
+    }
+
+    submit_no_handler_scheduler_bypass(NDRDesc,
+      KernelName, KernelFunc, KernelNumParams, KernelParamDescGetter,
+      KernelNameBasedCachePtr, RawEvents);
+  } else {
+    std::vector<event> DepEvents{detail::createSyclObjFromImpl<event>(LastEvent)};
+
+    detail::EventImplPtr EventImpl = submit_no_handler_scheduler(NDRDesc,
+      KernelName, KernelFunc, KernelNumParams, KernelParamDescGetter,
+      KernelNameBasedCachePtr, DepEvents);
+
+    if (isInOrder()) {
+      MDefaultGraphDeps.LastEventPtr = EventImpl;
+    }
+  }
+}
+
+void queue_impl::submit_no_handler_scheduler_bypass(
+  detail::NDRDescT NDRDesc, const char *KernelName,
+  void *KernelFunc, int KernelNumParams,
+  detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr,
+  std::vector<ur_event_handle_t> &RawEvents) {
+
+  auto Self = shared_from_this();
+  std::vector<detail::ArgDesc> Args;
+
+  enqueueImpKernel(
+      *Self,
+      NDRDesc, // MNDRDesc
+      Args,
+      nullptr, // KernelBundleImpPtr
+      nullptr, // MKernel
+      KernelName,
+      KernelNameBasedCachePtr, // MKernelNameBasedCachePtr
+      RawEvents,
+      nullptr, // out event
+      nullptr, // getMemAllocationFunc
+      UR_KERNEL_CACHE_CONFIG_DEFAULT, // MKernelCacheConfig
+      false, // MKernelIsCooperative
+      false, // MKernelUsesClusterLaunch
+      0, // MKernelWorkGroupMemorySize
+      nullptr, // BinImage
+      KernelFunc, // MKernelFuncPtr
+      KernelNumParams, // MKernelNumArgs
+      KernelParamDescGetter, // MKernelParamDescGetter
+      false); // MKernelHasSpecialCaptures
+}
+
+std::shared_ptr<detail::event_impl> queue_impl::submit_no_handler_scheduler(
+  detail::NDRDescT NDRDesc, const char *KernelName,
+  void *KernelFunc, int KernelNumParams,
+  detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr,
+  std::vector<event> &DepEvents) {
+
+  assert(!hasCommandGraph());
+
+  // TODO external event
+
+  auto Self = shared_from_this();
+
+  std::unique_ptr<detail::CG> CommandGroup;
+  detail::CG::StorageInitHelper CGData;
+  std::vector<detail::ArgDesc> Args;
+  std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
+  std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+  detail::code_location CodeLoc = {};
+
+  extractArgsAndReqsFromLambda((char *)KernelFunc, KernelParamDescGetter,
+                                KernelNumParams, Args);
+
+  for (event DepEvent : DepEvents) {
+    CGData.MEvents.push_back(detail::getSyclObjImpl(DepEvent));
+  }
+
+  CommandGroup.reset(new detail::CGExecKernel(
+      std::move(NDRDesc),
+      nullptr, // MHostKernel
+      nullptr, // MKernel
+      nullptr, // MKernelBundle
+      std::move(CGData), // CGData
+      std::move(Args), // MArgs
+      KernelName, // MKernelName
+      KernelNameBasedCachePtr, // MKernelNameBasedCachePtr
+      std::move(StreamStorage), // MStreamStorage
+      std::move(AuxiliaryResources), // MAuxiliaryResources
+      detail::CGType::Kernel,
+      UR_KERNEL_CACHE_CONFIG_DEFAULT, // MKernelCacheConfig
+      false, // MKernelIsCooperative
+      false, // MKernelUsesClusterLaunch
+      0, // MKernelWorkGroupMemorySize
+      CodeLoc)); // MCodeLoc
+
+  return detail::Scheduler::getInstance().addCG(
+      std::move(CommandGroup),
+      *this, // MQueue
+      false); // MEventNeeded
+}
+
+std::shared_ptr<detail::event_impl> queue_impl::host_task_no_handler(
+    std::function<void()> &&Func, std::shared_ptr<detail::event_impl> LastEventImpl) {
+  //setNDRangeDescriptor(range<1>(1));
+  std::unique_ptr<detail::CG> CommandGroup;
+  std::shared_ptr<HostTask> HostTask;
+  detail::CG::StorageInitHelper CGData;
+  std::vector<detail::ArgDesc> Args; // TODO
+
+  auto Self = shared_from_this();
+
+  HostTask.reset(new detail::HostTask(std::move(Func)));
+
+  if(LastEventImpl) {
+    CGData.MEvents.push_back(LastEventImpl);
+  }
+
+  CommandGroup.reset(new detail::CGHostTask(
+      std::move(HostTask),
+      this,
+      getContextImplPtr().get(),
+      std::move(Args),
+      std::move(CGData),
+      detail::CGType::CodeplayHostTask,
+      {}));
+
+  return detail::Scheduler::getInstance().addCG(
+        std::move(CommandGroup),
+        *this, // MQueue
+        false); // MEventNeeded
+}
+
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::vector<event> &DepEvents,
                                     bool CallerNeedsEvent,

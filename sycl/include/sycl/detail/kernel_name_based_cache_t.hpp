@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <detail/hashers.hpp>
-#include <detail/kernel_arg_mask.hpp>
+//#include <detail/hashers.hpp>
+//#include <sycl/detail/kernel_arg_mask.hpp>
 #include <emhash/hash_table8.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
@@ -20,6 +20,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 using FastKernelCacheKeyT = std::pair<ur_device_handle_t, ur_context_handle_t>;
+using KernelArgMask = std::vector<bool>;
 
 struct FastKernelCacheVal {
   ur_kernel_handle_t MKernelHandle;    /* UR kernel handle pointer. */
@@ -29,25 +30,27 @@ struct FastKernelCacheVal {
   const KernelArgMask *MKernelArgMask; /* Eliminated kernel argument mask. */
   ur_program_handle_t MProgramHandle;  /* UR program handle corresponding to
                                      this kernel. */
-  const adapter_impl &MAdapterPtr;     /* We can keep reference to the adapter
+  /*const adapter_impl &MAdapterPtr;*/     /* We can keep reference to the adapter
                                 because during 2-stage shutdown the kernel
                                 cache is destroyed deliberately before the
                                 adapter. */
 
   FastKernelCacheVal(ur_kernel_handle_t KernelHandle, std::mutex *Mutex,
                      const KernelArgMask *KernelArgMask,
-                     ur_program_handle_t ProgramHandle,
-                     const adapter_impl &AdapterPtr)
+                     ur_program_handle_t ProgramHandle)
+                     //const adapter_impl &AdapterPtr)
       : MKernelHandle(KernelHandle), MMutex(Mutex),
-        MKernelArgMask(KernelArgMask), MProgramHandle(ProgramHandle),
-        MAdapterPtr(AdapterPtr) {}
+        MKernelArgMask(KernelArgMask), MProgramHandle(ProgramHandle)
+        /*MAdapterPtr(AdapterPtr)*/ {}
 
   ~FastKernelCacheVal() {
+    /*
     if (MKernelHandle)
       MAdapterPtr.call<sycl::detail::UrApiKind::urKernelRelease>(MKernelHandle);
     if (MProgramHandle)
       MAdapterPtr.call<sycl::detail::UrApiKind::urProgramRelease>(
           MProgramHandle);
+    */
     MKernelHandle = nullptr;
     MMutex = nullptr;
     MKernelArgMask = nullptr;

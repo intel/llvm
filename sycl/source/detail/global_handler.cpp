@@ -14,7 +14,7 @@
 #include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
-#include <detail/kernel_name_based_cache_t.hpp>
+#include <sycl/detail/kernel_name_based_cache_t.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>

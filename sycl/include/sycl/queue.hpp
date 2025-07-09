@@ -40,6 +40,8 @@
 #include <sycl/nd_range.hpp>                         // for nd_range
 #include <sycl/property_list.hpp>                    // for property_list
 #include <sycl/range.hpp>                            // for range
+#include <sycl/detail/kernel_name_based_cache_t.hpp>
+#include <sycl/khr/requirements.hpp>
 
 #include <cstddef>     // for size_t
 #include <functional>  // for function
@@ -2784,6 +2786,256 @@ public:
         CodeLoc);
   }
 
+  // no_handler
+
+private:
+  // NOTE: the name of this function - "kernel_single_task" - is used by the
+  // Front End to determine kernel invocation kind.
+  template <typename KernelName, typename KernelType, typename... Props>
+#ifdef __SYCL_DEVICE_ONLY__
+  [[__sycl_detail__::add_ir_attributes_function(
+      "sycl-single-task",
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      nullptr,
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+#endif
+
+  __SYCL_KERNEL_ATTR__ static void
+  kernel_single_task(const KernelType &KernelFunc) {
+#ifdef __SYCL_DEVICE_ONLY__
+    KernelFunc();
+#else
+    (void)KernelFunc;
+#endif
+  }
+
+  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
+  // Front End to determine kernel invocation kind.
+  template <typename KernelName, typename ElementType, typename KernelType,
+            typename... Props>
+#ifdef __SYCL_DEVICE_ONLY__
+  [[__sycl_detail__::add_ir_attributes_function(
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+#endif
+  __SYCL_KERNEL_ATTR__ static void
+  kernel_parallel_for(const KernelType &KernelFunc) {
+#ifdef __SYCL_DEVICE_ONLY__
+    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
+#else
+    (void)KernelFunc;
+#endif
+  }
+
+  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
+    if constexpr (Dims == 3) {
+      return Range;
+    } else {
+      sycl::range<3> Res{0, 0, 0};
+      for (int I = 0; I < Dims; ++I)
+        Res[I] = Range[I];
+      return Res;
+    }
+  }
+
+  template <int Dims> static sycl::id<3> padId(sycl::id<Dims> Id) {
+    if constexpr (Dims == 3) {
+      return Id;
+    } else {
+      sycl::id<3> Res{0, 0, 0};
+      for (int I = 0; I < Dims; ++I)
+        Res[I] = Id[I];
+      return Res;
+    }
+  }
+
+  template <typename KernelName, typename KernelType, int Dims>
+  void submit_no_handler(nd_range<Dims> Range, const KernelType &KernelFunc) const {
+
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+
+    const char *KernelN = detail::getKernelName<NameT>();
+    KernelType Kernel = KernelFunc;
+    void *KernelFuncPtr = reinterpret_cast<void *>(&Kernel);
+    int KernelNumParams = detail::getKernelNumParams<NameT>();
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = &(detail::getKernelParamDesc<NameT>);
+    bool IsKernelESIMD = detail::isKernelESIMD<NameT>();
+    bool HasSpecialCapt = detail::hasSpecialCaptures<NameT>();
+    detail::KernelNameBasedCacheT *KernelNameBasedCachePtr = detail::getKernelNameBasedCache<NameT>();
+
+    assert(HasSpecialCapt == false);
+    assert(IsKernelESIMD == false);
+
+    submit_no_handler_full(Range, KernelN, KernelFuncPtr, KernelNumParams, KernelParamDescGetter,
+      KernelNameBasedCachePtr);
+  }
+
+  bool are_events_safe_for_scheduler_bypass(
+    const std::vector<sycl::event> &Events) const;
+  bool check_event_readiness(const event &Event) const;
+  ur_device_handle_t get_device_ur_handle() const;
+  ur_context_handle_t get_context_ur_handle() const;
+  void extract_args_set_arg_value(ur_kernel_handle_t Kernel,
+    size_t NextTrueIndex, int Size, const void *ArgPtr) const;
+  void extract_args_set_arg_pointer(ur_kernel_handle_t Kernel,
+    size_t NextTrueIndex, const void *Ptr) const;
+
+  detail::FastKernelCacheValPtr
+  getKernel(ur_device_handle_t Device,
+    ur_context_handle_t Context, detail::FastKernelSubcacheT *KernelSubcacheHint) const {
+
+    const detail::FastKernelSubcacheEntriesT &SubcacheEntries =
+            KernelSubcacheHint->Entries;
+    detail::FastKernelSubcacheReadLockT SubcacheLock{KernelSubcacheHint->Mutex};
+    const detail::FastKernelCacheKeyT RequiredKey(Device, Context);
+    // Search for the kernel in the subcache.
+    auto It = std::find_if(SubcacheEntries.begin(), SubcacheEntries.end(),
+                            [&](const detail::FastKernelEntryT &Entry) {
+                              return Entry.Key == RequiredKey;
+                            });
+    if (It != SubcacheEntries.end()) {
+      //traceKernel("Kernel fetched.", KernelName, true);
+      return It->Value;
+    }
+
+    return detail::FastKernelCacheValPtr();
+  }
+
+  void extract_args_from_lambda(ur_kernel_handle_t Kernel, void *KernelFuncPtr,
+    const detail::KernelArgMask *EliminatedArgMask, int KernelNumParams,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int)) const {
+    auto setFunc = [this, Kernel, KernelFuncPtr](const detail::kernel_param_desc_t &ParamDesc,
+                                size_t NextTrueIndex) {
+      const void *ArgPtr = (const char *)KernelFuncPtr + ParamDesc.offset;
+      switch (ParamDesc.kind) {
+      case detail::kernel_param_kind_t::kind_std_layout: {
+        int Size = ParamDesc.info;
+        extract_args_set_arg_value(Kernel, NextTrueIndex, Size, ArgPtr);
+        break;
+      }
+      case detail::kernel_param_kind_t::kind_pointer: {
+        const void *Ptr = *static_cast<const void *const *>(ArgPtr);
+        extract_args_set_arg_pointer(Kernel, NextTrueIndex, Ptr);
+        break;
+      }
+      default:
+        throw std::runtime_error("Direct kernel argument copy failed.");
+      }
+    };
+
+    if (!EliminatedArgMask || EliminatedArgMask->size() == 0) {
+      for (int I = 0; I < KernelNumParams; ++I) {
+        const detail::kernel_param_desc_t &Param = KernelParamDescGetter(I);
+        setFunc(Param, I);
+      }
+    } else {
+      size_t NextTrueIndex = 0;
+      for (int I = 0; I < KernelNumParams; ++I) {
+        const detail::kernel_param_desc_t &Param = KernelParamDescGetter(I);
+        if ((*EliminatedArgMask)[I])
+          continue;
+        setFunc(Param, NextTrueIndex);
+        ++NextTrueIndex;
+      }
+    }
+  }
+
+  template <typename KernelName, typename KernelType, int Dims, typename... Requirements>
+  void submit_no_handler_header(nd_range<Dims> Range, const KernelType &KernelFunc,
+    const khr::requirements<Requirements...> &Reqs) {
+
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+
+    KernelType KernelFuncLocal = KernelFunc;
+    void *KernelFuncPtr = reinterpret_cast<void *>(&KernelFuncLocal);
+    int KernelNumParams = detail::getKernelNumParams<NameT>();
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = &(detail::getKernelParamDesc<NameT>);
+    bool IsKernelESIMD = detail::isKernelESIMD<NameT>();
+    bool HasSpecialCapt = detail::hasSpecialCaptures<NameT>();
+    detail::KernelNameBasedCacheT *KernelNameBasedCachePtr = detail::getKernelNameBasedCache<NameT>();
+    ur_device_handle_t Device = get_device_ur_handle();
+    ur_context_handle_t Context = get_context_ur_handle();
+
+    assert(HasSpecialCapt == false);
+    assert(IsKernelESIMD == false);
+
+    detail::FastKernelCacheValPtr KernelCacheVal = getKernel(
+        Device, Context, &KernelNameBasedCachePtr->FastKernelSubcache);
+
+    std::vector<event> Dependencies;
+
+    if constexpr (khr::has_events<Requirements...>()) {
+      khr::add_events(Reqs, Dependencies);
+    }
+
+    std::lock_guard<std::mutex> Lock{*MMutex};
+
+    if (MLastEvent) {
+      Dependencies.push_back(*MLastEvent);
+    }
+
+    bool SchedulerBypass = KernelCacheVal
+      && are_events_safe_for_scheduler_bypass(Dependencies);
+
+    if (SchedulerBypass) {
+      extract_args_from_lambda(KernelCacheVal->MKernelHandle, KernelFuncPtr,
+        KernelCacheVal->MKernelArgMask, KernelNumParams, KernelParamDescGetter);
+      submit_no_handler_scheduler_bypass(Range, KernelCacheVal, Dependencies);
+      MLastEvent = std::nullopt;
+    } else {
+      const char *KernelN = detail::getKernelName<NameT>();
+
+      event Event = submit_no_handler_scheduler(
+        Range, KernelN, KernelFuncPtr, KernelNumParams, KernelParamDescGetter,
+        KernelNameBasedCachePtr, Dependencies);
+
+      if (is_in_order()) {
+        MLastEvent = Event;
+      }
+    }
+  }
+
+public:
+  /// single_task version not using handler
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  void single_task_no_handler(const KernelType &KernelFunc) const {
+
+    kernel_single_task<KernelName, KernelType,
+      ext::oneapi::experimental::empty_properties_t>(KernelFunc);
+    submit_no_handler<KernelName, KernelType, 1>(nd_range<1>{}, KernelFunc);
+  }
+
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename KernelType, typename... Requirements>
+  void parallel_for_no_handler(nd_range<Dims> Range, const KernelType &KernelFunc,
+    const khr::requirements<Requirements...> &Reqs) {
+
+    kernel_parallel_for<KernelName, sycl::nd_item<Dims>, KernelType,
+      ext::oneapi::experimental::empty_properties_t>(KernelFunc);
+#ifdef __DPCPP_ENABLE_HEADER_SUBMIT
+    submit_no_handler_header<KernelName, KernelType, Dims, Requirements...>(Range, KernelFunc, Reqs);
+#else
+    submit_no_handler<KernelName, KernelType, Dims>(Range, KernelFunc);
+#endif
+  }
+
+  template <typename FuncT>
+  std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
+                                              void()>::value ||
+                    detail::check_fn_signature<std::remove_reference_t<FuncT>,
+                                              void(interop_handle)>::value>
+  host_task_no_handler(FuncT &&Func) {
+    std::lock_guard<std::mutex> Lock{*MMutex};
+
+    event Event = host_task_no_handler_impl(std::move(Func), MLastEvent);
+    if (is_in_order()) {
+      MLastEvent = Event;
+    }
+  }
+
+
   /// parallel_for version with a kernel represented as a lambda + range that
   /// specifies global size only.
   ///
@@ -3567,6 +3819,10 @@ private:
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
 
+  //std::shared_ptr<detail::event_impl> MLastEvent;
+  std::optional<event> MLastEvent;
+  std::shared_ptr<std::mutex> MMutex;
+
   template <class Obj>
   friend const decltype(Obj::impl) &
   detail::getSyclObjImpl(const Obj &SyclObject);
@@ -3685,6 +3941,27 @@ private:
                                  const detail::v1::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc) const;
+
+  // no_handler
+
+  template<int Dims>
+  void submit_no_handler_full(nd_range<Dims> Range, const char *KernelName, void *KernelFunc,
+    int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+    detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) const;
+
+  template<int Dims>
+  event submit_no_handler_scheduler(
+    nd_range<Dims> Range, const char *KernelName, void *KernelFunc,
+    int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+    detail::KernelNameBasedCacheT *KernelNameBasedCachePtr,
+    std::vector<event> &DepEvents) const;
+
+  template<int Dims>
+  void submit_no_handler_scheduler_bypass(nd_range<Dims> Range, detail::FastKernelCacheValPtr &KernelCacheVal,
+    std::vector<event> &DepEvents) const;
+
+  event host_task_no_handler_impl(
+    std::function<void()> &&Func, std::optional<event> LastEvent);
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
