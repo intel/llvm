@@ -38,7 +38,7 @@ public:
 // through UR entry points.
 // https://github.com/oneapi-src/unified-runtime/issues/1330
 ur_adapter_handle_t_::ur_adapter_handle_t_()
-    : handle_base(),
+    : handle_base(), RefCount(0),
       logger(logger::get_logger("cuda",
                                 /*default_log_level*/ UR_LOGGER_LEVEL_ERROR)) {
   Platform = std::make_unique<ur_platform_handle_t_>();
