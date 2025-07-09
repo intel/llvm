@@ -2,6 +2,27 @@ import os
 import sys
 
 
+# config.available_features is a list. This class behaves like a normal list,
+# but its "add()" method also checks if the feature being added is known, i.e.
+# contained in the set of all alowed features.
+class AvailableFeatures(set):
+    def __init__(self, *args, **kwargs):
+        from sycl_lit_allowed_features import get_sycl_lit_allowed_features
+        allowed_features = get_sycl_lit_allowed_features()
+        super().__init__(*args, **kwargs)
+        self.allowed_features = allowed_features
+
+    def add(self, entry):
+        if entry in self.allowed_features:
+            super().add(entry)
+        else:
+            raise ValueError(
+                "feature "
+                + entry
+                + " is not allowed. Please update the set in sycl/test-e2e/sycl_lit_allowed_features.py."
+            )
+
+
 class TestingConfig(object):
     """
     TestingConfig - Information on the tests inside a suite.
