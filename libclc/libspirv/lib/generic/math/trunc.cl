@@ -9,7 +9,7 @@
 #include <clc/math/clc_trunc.h>
 
 #define FUNCTION __spirv_ocl_trunc
-#define __CLC_FUNCTION(x) __clc_trunc
+#define __IMPL_FUNCTION(x) __clc_trunc
 #define __CLC_BODY <clc/shared/unary_def.inc>
 
 #include <clc/math/gentype.inc>

@@ -19,7 +19,7 @@ DEF_POPCOUNT_HELPER(char, unsigned char)
 DEF_POPCOUNT_HELPER(short, unsigned short)
 
 #define FUNCTION __spirv_ocl_popcount
-#define __IMPL_FUNCTION
+#define __IMPL_FUNCTION __spirv_ocl_popcount
 #define __CLC_BODY <clc/shared/ternary_def_scalarize.inc>
 #include <clc/integer/gentype.inc>
 

@@ -10,7 +10,7 @@
 #include <clc/math/clc_tanpi.h>
 
 #define FUNCTION __spirv_ocl_tanpi
-#define __CLC_FUNCTION(x) __clc_tanpi
+#define __IMPL_FUNCTION(x) __clc_tanpi
 #define __CLC_BODY <clc/shared/unary_def.inc>
 
 #include <clc/math/gentype.inc>
