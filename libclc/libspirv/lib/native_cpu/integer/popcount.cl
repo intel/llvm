@@ -22,6 +22,8 @@ DEF_POPCOUNT_HELPER(short, unsigned short)
 #define __IMPL_FUNCTION __spirv_ocl_popcount
 #define __CLC_BODY <clc/shared/ternary_def_scalarize.inc>
 #include <clc/integer/gentype.inc>
+#undef __IMPL_FUNCTION
+#undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE int
 #define __IMPL_FUNCTION __builtin_popcount

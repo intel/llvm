@@ -43,6 +43,7 @@ _CLC_DEF _CLC_OVERLOAD half2 __clc_native_exp2(half2 x) {
 #undef FUNCTION
 #define FUNCTION __clc_native_exp2
 
+#undef __CLC_MIN_VECSIZE
 #define __CLC_MIN_VECSIZE 3
 #define __HALF_ONLY
 #define __CLC_BODY <clc/shared/unary_def_scalarize.inc>
