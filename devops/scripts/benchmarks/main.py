@@ -691,6 +691,15 @@ if __name__ == "__main__":
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 
+    try:
+        options.device_architecture = get_device_architecture(additional_env_vars)
+    except Exception as e:
+        options.device_architecture = ""
+        log.warning(f"Failed to fetch device architecture: {e}")
+        log.warning("Defaulting to generic benchmark parameters.")
+
+    log.info(f"Selected device architecture: {options.device_architecture}")
+
     main(
         args.benchmark_directory,
         additional_env_vars,
