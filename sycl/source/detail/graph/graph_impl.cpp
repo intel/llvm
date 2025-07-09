@@ -409,10 +409,8 @@ void graph_impl::markCGMemObjs(
   }
 }
 
-std::shared_ptr<node_impl> graph_impl::add(nodes_range Deps) {
-  const std::shared_ptr<node_impl> &NodeImpl = std::make_shared<node_impl>();
-
-  MNodeStorage.push_back(NodeImpl);
+node_impl &graph_impl::add(nodes_range Deps) {
+  node_impl &NodeImpl = createNode();
 
   addDepsToNode(NodeImpl, Deps);
   // Add an event associated with this explicit node for mixed usage
@@ -421,10 +419,9 @@ std::shared_ptr<node_impl> graph_impl::add(nodes_range Deps) {
   return NodeImpl;
 }
 
-std::shared_ptr<node_impl>
-graph_impl::add(std::function<void(handler &)> CGF,
-                const std::vector<sycl::detail::ArgDesc> &Args,
-                std::vector<std::shared_ptr<node_impl>> &Deps) {
+node_impl &graph_impl::add(std::function<void(handler &)> CGF,
+                           const std::vector<sycl::detail::ArgDesc> &Args,
+                           nodes_range Deps) {
   (void)Args;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::handler_impl HandlerImpl{*this};
@@ -435,7 +432,9 @@ graph_impl::add(std::function<void(handler &)> CGF,
 
   // Pass the node deps to the handler so they are available when processing the
   // CGF, need for async_malloc nodes.
-  Handler.impl->MNodeDeps = Deps;
+  Handler.impl->MNodeDeps.clear();
+  for (node_impl &N : Deps)
+    Handler.impl->MNodeDeps.push_back(N.shared_from_this());
 
 #if XPTI_ENABLE_INSTRUMENTATION
   // Save code location if one was set in TLS.
@@ -471,7 +470,7 @@ graph_impl::add(std::function<void(handler &)> CGF,
           : ext::oneapi::experimental::detail::getNodeTypeFromCG(
                 Handler.getType());
 
-  auto NodeImpl =
+  node_impl &NodeImpl =
       this->add(NodeType, std::move(Handler.impl->MGraphNodeCG), Deps);
 
   // Add an event associated with this explicit node for mixed usage
@@ -489,16 +488,15 @@ graph_impl::add(std::function<void(handler &)> CGF,
   }
 
   for (auto &[DynamicParam, ArgIndex] : DynamicParams) {
-    DynamicParam->registerNode(NodeImpl, ArgIndex);
+    DynamicParam->registerNode(NodeImpl.shared_from_this(), ArgIndex);
   }
 
   return NodeImpl;
 }
 
-std::shared_ptr<node_impl>
-graph_impl::add(node_type NodeType,
-                std::shared_ptr<sycl::detail::CG> CommandGroup,
-                nodes_range Deps) {
+node_impl &graph_impl::add(node_type NodeType,
+                           std::shared_ptr<sycl::detail::CG> CommandGroup,
+                           nodes_range Deps) {
 
   // A unique set of dependencies obtained by checking requirements and events
   std::set<std::shared_ptr<node_impl>> UniqueDeps = getCGEdges(CommandGroup);
@@ -506,9 +504,7 @@ graph_impl::add(node_type NodeType,
   // Track and mark the memory objects being used by the graph.
   markCGMemObjs(CommandGroup);
 
-  const std::shared_ptr<node_impl> &NodeImpl =
-      std::make_shared<node_impl>(NodeType, std::move(CommandGroup));
-  MNodeStorage.push_back(NodeImpl);
+  node_impl &NodeImpl = createNode(NodeType, std::move(CommandGroup));
 
   // Add any deps determined from requirements and events into the dependency
   // list
@@ -516,17 +512,16 @@ graph_impl::add(node_type NodeType,
   addDepsToNode(NodeImpl, UniqueDeps);
 
   if (NodeType == node_type::async_free) {
-    auto AsyncFreeCG =
-        static_cast<CGAsyncFree *>(NodeImpl->MCommandGroup.get());
+    auto AsyncFreeCG = static_cast<CGAsyncFree *>(NodeImpl.MCommandGroup.get());
     // If this is an async free node mark that it is now available for reuse,
     // and pass the async free node for tracking.
-    MGraphMemPool.markAllocationAsAvailable(AsyncFreeCG->getPtr(), *NodeImpl);
+    MGraphMemPool.markAllocationAsAvailable(AsyncFreeCG->getPtr(), NodeImpl);
   }
 
   return NodeImpl;
 }
 
-std::shared_ptr<node_impl>
+node_impl &
 graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
                 nodes_range Deps) {
   // Set of Dependent nodes based on CG event and accessor dependencies.
@@ -551,15 +546,14 @@ graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
   const auto &ActiveKernel = DynCGImpl->getActiveCG();
   node_type NodeType =
       ext::oneapi::experimental::detail::getNodeTypeFromCG(DynCGImpl->MCGType);
-  std::shared_ptr<detail::node_impl> NodeImpl =
-      add(NodeType, ActiveKernel, Deps);
+  detail::node_impl &NodeImpl = add(NodeType, ActiveKernel, Deps);
 
   // Add an event associated with this explicit node for mixed usage
   addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
                   NodeImpl);
 
   // Track the dynamic command-group used inside the node object
-  DynCGImpl->MNodes.push_back(NodeImpl);
+  DynCGImpl->MNodes.push_back(NodeImpl.shared_from_this());
 
   return NodeImpl;
 }
@@ -652,7 +646,7 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
   bool DestWasGraphRoot = Dest->MPredecessors.size() == 0;
 
   // We need to add the edges first before checking for cycles
-  Src->registerSuccessor(Dest);
+  Src->registerSuccessor(*Dest);
 
   bool DestLostRootStatus = DestWasGraphRoot && Dest->MPredecessors.size() == 1;
   if (DestLostRootStatus) {
@@ -1265,7 +1259,7 @@ void exec_graph_impl::duplicateNodes() {
     // Look through all the original node successors, find their copies and
     // register those as successors with the current copied node
     for (node_impl &NextNode : OriginalNode->successors()) {
-      auto Successor = NodesMap.at(NextNode.shared_from_this());
+      node_impl &Successor = *NodesMap.at(NextNode.shared_from_this());
       NodeCopy->registerSuccessor(Successor);
     }
   }
@@ -1307,7 +1301,8 @@ void exec_graph_impl::duplicateNodes() {
       auto NodeCopy = NewSubgraphNodes[i];
 
       for (node_impl &NextNode : SubgraphNode->successors()) {
-        auto Successor = SubgraphNodesMap.at(NextNode.shared_from_this());
+        node_impl &Successor =
+            *SubgraphNodesMap.at(NextNode.shared_from_this());
         NodeCopy->registerSuccessor(Successor);
       }
     }
@@ -1341,7 +1336,7 @@ void exec_graph_impl::duplicateNodes() {
       // Add all input nodes from the subgraph as successors for this node
       // instead
       for (auto &Input : Inputs) {
-        PredNode.registerSuccessor(Input);
+        PredNode.registerSuccessor(*Input);
       }
     }
 
@@ -1360,7 +1355,7 @@ void exec_graph_impl::duplicateNodes() {
       // Add all Output nodes from the subgraph as predecessors for this node
       // instead
       for (auto &Output : Outputs) {
-        Output->registerSuccessor(SuccNode.shared_from_this());
+        Output->registerSuccessor(SuccNode);
       }
     }
 
@@ -1843,38 +1838,25 @@ node modifiable_command_graph::addImpl(dynamic_command_group &DynCGF,
                           "dynamic command-group.");
   }
 
-  std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
-  for (auto &D : Deps) {
-    DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
-  }
-
   graph_impl::WriteLock Lock(impl->MMutex);
-  std::shared_ptr<detail::node_impl> NodeImpl = impl->add(DynCGFImpl, DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
+  detail::node_impl &NodeImpl = impl->add(DynCGFImpl, Deps);
+  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
 node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
   impl->throwIfGraphRecordingQueue("Explicit API \"Add()\" function");
-  std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
-  for (auto &D : Deps) {
-    DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
-  }
 
   graph_impl::WriteLock Lock(impl->MMutex);
-  std::shared_ptr<detail::node_impl> NodeImpl = impl->add(DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
+  detail::node_impl &NodeImpl = impl->add(Deps);
+  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
 node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
                                        const std::vector<node> &Deps) {
   impl->throwIfGraphRecordingQueue("Explicit API \"Add()\" function");
-  std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
-  for (auto &D : Deps) {
-    DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
-  }
 
-  std::shared_ptr<detail::node_impl> NodeImpl = impl->add(CGF, {}, DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
+  detail::node_impl &NodeImpl = impl->add(CGF, {}, Deps);
+  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
 void modifiable_command_graph::addGraphLeafDependencies(node Node) {
