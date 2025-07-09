@@ -36,7 +36,6 @@ math/hypot.cl
 math/ilogb.cl
 math/ldexp.cl
 math/lgamma.cl
-math/log.cl
 math/log10.cl
 math/log1p.cl
 math/log2.cl
@@ -65,8 +64,6 @@ math/rsqrt.cl
 math/sin.cl
 math/sincos.cl
 math/sinh.cl
-math/sinpi.cl
-math/sqrt.cl
 math/tan.cl
 math/tanh.cl
 math/tgamma.cl
