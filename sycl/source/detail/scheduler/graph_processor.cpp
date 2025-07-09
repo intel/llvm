@@ -17,11 +17,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
+void Scheduler::GraphProcessor::waitForEvent(event_impl &Event,
                                              ReadLockT &GraphReadLock,
                                              std::vector<Command *> &ToCleanUp,
                                              bool LockTheLock, bool *Success) {
-  Command *Cmd = Event->getCommand();
+  Command *Cmd = Event.getCommand();
   // Command can be nullptr if user creates sycl::event explicitly or the
   // event has been waited on by another thread
   if (!Cmd)
@@ -34,10 +34,10 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
     // TODO: Reschedule commands.
     throw exception(make_error_code(errc::runtime), "Enqueue process failed.");
 
-  assert(Cmd->getEvent() == Event);
+  assert(Cmd->getEvent().get() == &Event);
 
   GraphReadLock.unlock();
-  Event->waitInternal(Success);
+  Event.waitInternal(Success);
 
   if (LockTheLock)
     GraphReadLock.lock();

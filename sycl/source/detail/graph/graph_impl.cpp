@@ -1491,7 +1491,7 @@ void exec_graph_impl::update(
       // needed because HostTask nodes (and all the nodes that depend on
       // HostTasks), are scheduled using a separate thread. This wait call
       // acts as a synchronization point for that thread.
-      UpdateEvent->wait(UpdateEvent);
+      UpdateEvent->wait();
     }
   } else {
     // For each partition in the executable graph, call UR update on the
