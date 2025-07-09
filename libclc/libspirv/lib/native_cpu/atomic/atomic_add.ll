@@ -1,3 +1,11 @@
+;;===----------------------------------------------------------------------===;;
+;
+; Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+; See https://llvm.org/LICENSE.txt for license information.
+; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+;
+;;===----------------------------------------------------------------------===;;
+
 define float @_Z21__spirv_AtomicFAddEXTPfiif(ptr noundef %p, i32 noundef %scope, i32 noundef %semantics, float noundef %val) nounwind alwaysinline {
 entry:
   %0 = atomicrmw fadd ptr %p, float %val seq_cst, align 4
