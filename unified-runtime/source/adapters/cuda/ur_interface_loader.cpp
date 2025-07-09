@@ -443,6 +443,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnUSMHostAllocExp = urEnqueueUSMHostAllocExp;
   pDdiTable->pfnUSMFreeExp = urEnqueueUSMFreeExp;
   pDdiTable->pfnCommandBufferExp = urEnqueueCommandBufferExp;
+  pDdiTable->pfnHostTaskExp = urEnqueueHostTaskExp;
 
   return UR_RESULT_SUCCESS;
 }

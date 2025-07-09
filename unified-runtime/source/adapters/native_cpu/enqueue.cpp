@@ -692,3 +692,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     const ur_event_handle_t *, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueHostTaskExp(ur_queue_handle_t, ur_exp_host_task_function_t, void *,
+                     const ur_exp_host_task_properties_t *, uint32_t,
+                     const ur_event_handle_t *, ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}

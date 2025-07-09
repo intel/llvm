@@ -1138,6 +1138,23 @@ ur_result_t urPrintExpPeerInfo(enum ur_exp_peer_info_t value, char *buffer,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpHostTaskFlags(enum ur_exp_host_task_flag_t value,
+                                    char *buffer, const size_t buff_size,
+                                    size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintExpHostTaskProperties(const struct ur_exp_host_task_properties_t params,
+                             char *buffer, const size_t buff_size,
+                             size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpEnqueueExtFlags(enum ur_exp_enqueue_ext_flag_t value,
                                       char *buffer, const size_t buff_size,
                                       size_t *out_size) {
@@ -1920,6 +1937,14 @@ ur_result_t urPrintEnqueueCommandBufferExpParams(
 ur_result_t urPrintEnqueueTimestampRecordingExpParams(
     const struct ur_enqueue_timestamp_recording_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintEnqueueHostTaskExpParams(
+    const struct ur_enqueue_host_task_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);

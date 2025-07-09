@@ -23,6 +23,7 @@
 
 #include "command_list_manager.hpp"
 #include "lockable.hpp"
+#include "ur_api.h"
 
 namespace v2 {
 
@@ -33,6 +34,38 @@ private:
   lockable<ur_command_list_manager> commandListManager;
   ur_queue_flags_t flags;
   v2::raii::cache_borrowed_event_pool eventPool;
+  v2::raii::cache_borrowed_event_pool normalEventsPool;
+
+  struct HostTaskData {
+    ur_exp_host_task_function_t pfnHostTask;
+    void *data;
+    ur_event_handle_t InputEvent;
+    ur_event_handle_t OutputEvent;
+    ur_event_handle_t CleanupEvent;
+  };
+
+  std::once_flag HostTaskInit;
+
+  // accessing this is thread-safe without locks
+  std::optional<mpmc::Sender<HostTaskData>> HostTaskSender;
+
+  std::optional<std::thread> HostTaskWorker;
+
+  ur_event_handle_t createEvent(raii::cache_borrowed_event_pool &pool,
+                                ur_command_t type) {
+    auto hEvent = pool->allocate();
+    hEvent->setQueue(this);
+    hEvent->setCommandType(type);
+    return hEvent;
+  }
+
+  ur_event_handle_t createCounterEvent(ur_command_t type) {
+    return createEvent(eventPool, type);
+  }
+
+  ur_event_handle_t createNormalEvent(ur_command_t type) {
+    return createEvent(normalEventsPool, type);
+  }
 
 public:
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
@@ -452,6 +485,11 @@ public:
         numEventsInWaitList, phEventWaitList,
         createEventIfRequested(eventPool.get(), phEvent, this));
   }
+
+  ur_result_t enqueueHostTaskExp(ur_exp_host_task_function_t, void *,
+                                 const ur_exp_host_task_properties_t *,
+                                 uint32_t, const ur_event_handle_t *,
+                                 ur_event_handle_t *) override;
 
   ur::RefCount RefCount;
 };
