@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -std=c++20 -fsyntax-only %s -verify=device -ast-dump | FileCheck %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-decompose-functor -std=c++20 -fsyntax-only %s -verify=device -ast-dump | FileCheck %s
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-host -std=c++20 -fsyntax-only %s -verify=host
 
 // This test checks that when a binding declaration is captured that
