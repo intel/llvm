@@ -1,10 +1,15 @@
 # Fuzzing plan for intel/llvm
 
+Fuzzing (or fuzz testing) is an automated testing approach where inputs are
+randomly generated. It often leads to passing unexpected and invalid inputs
+which in turn uncovers various corner cases that weren't considered during
+development or regular testing.
+
 The main product which is being developed at intel/llvm repo is a SYCL
-implementation. At high-level, it consists of two compiler and runtime and
-therefore this document will be divided into two major sections covering those
-components. Those components are essentially the only entry points through which
-a user can interact with our product.
+implementation. At high-level, it consists of two components: a compiler and a
+runtime, and therefore this document will be divided into two major sections
+covering those components. Those components are essentially the only entry
+points through which a user can interact with our product.
 
 ## SYCL Runtime
 
@@ -14,20 +19,20 @@ variables and config file.
 
 ### Fuzzing environment variables
 
-Following environment variables [documentation][sycl-rt-env-variables] every env
-variable should be fuzzed.
+Every environment variable in the [documentation][sycl-rt-env-variables] should
+should be fuzzed.
 
-The most interesting are ones which expect data in a certain format, like
-`ONEAPI_DEVICE_SELECTOR` or `SYCL_CACHE_TRESHOLD`.
+The most interesting of the environment variables are ones which expect data in
+a certain format, like `ONEAPI_DEVICE_SELECTOR` or `SYCL_CACHE_TRESHOLD`.
 
 [sycl-rt-env-variables]: https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md
 
 ### Fuzzing sycl config file
 
-Instead of tweaking SYCL RT behavior through environment variables, the same
-can be done by providing a config file. We don't seem to have any documentation
-on it except the source code for the functionality which is located in
-`sycl/source/detail/config.cpp` file.
+Instead of tweaking SYCL Runtime behavior through environment variables, the
+same can be done by providing a config file. We don't seem to have any
+documentation on it except the source code for the functionality which is
+located in `sycl/source/detail/config.cpp` file.
 
 There is a prototype for the sycl config file fuzzer available at
 https://github.com/intel/llvm/pull/16308
@@ -42,17 +47,18 @@ properly fuzz them structure-aware fuzzing may be needed.
 
 ## SYCL Compiler
 
-SYCL compiler is based on the upstream LLVM and it is an enormously huge
-codebase. Some of LLVM components have been re-used without any modifications to
-them at all. Some of LLVM components were slightly tweaked or significantly
-modified and there are components which are completely new and only exist in
-our implementation.
+SYCL compiler is based on the [upstream LLVM compiler project][llvm-project]
+and it is an enormously huge codebase. Some of LLVM components have been re-used
+without any modifications to them at all. Some of LLVM components were slightly
+tweaked or significantly modified and there are components which are completely
+new and only exist in our implementation.
 
 For every re-used component we should be able to benefit from existing fuzz
 testing written for those. Upstream documentation has them documented
 [here][llvm-fuzzers].
 
 [llvm-fuzzers]: https://llvm.org/docs/FuzzingLLVM.html
+[llvm-project]: https://github.com/llvm/llvm-project
 
 However, even though we could re-use existing fuzzers, we can't just rely on
 someone else running them on the upstream codebase, because those runs won't
@@ -64,8 +70,8 @@ Sections below will go through components that we have and describe in more
 details like what should we fuzz and if we already have an existing fuzzer for
 that.
 
-There is also [intel/yarpgen](https://github.com/intel/yarpgen) project that can
-be used to fuzz SYCL compilers. It generate random programs (of certain
+There is also the [intel/yarpgen](https://github.com/intel/yarpgen) project that
+can be used to fuzz SYCL compilers. It generate random programs (of certain
 structure) to detect weaknesses and bugs in optimization passes.
 
 ### Command line options
@@ -80,9 +86,9 @@ various weird inputs.
 ### SYCL-specific passes
 
 We have developed a number of passes to implement different SYCL features. They
-all can be found in `llvm/lib/SYCLLowerIR` folder. We don't need a dedicated
-fuzzer for every pass, we can re-use existing LLVM fuzzer intended for compiler
-passes to cover those.
+all can be found in the `llvm/lib/SYCLLowerIR` folder. We don't need a dedicated
+fuzzer for every pass, but we can instead re-use existing LLVM fuzzer intended
+for compiler passes to cover those.
 
 ### SYCL-specific tools
 
