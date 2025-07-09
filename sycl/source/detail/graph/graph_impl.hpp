@@ -147,7 +147,7 @@ public:
   /// @return Created node in the graph.
   std::shared_ptr<node_impl> add(node_type NodeType,
                                  std::shared_ptr<sycl::detail::CG> CommandGroup,
-                                 std::vector<std::shared_ptr<node_impl>> &Deps);
+                                 nodes_range Deps);
 
   /// Create a CGF node in the graph.
   /// @param CGF Command-group function to create node with.
@@ -161,21 +161,14 @@ public:
   /// Create an empty node in the graph.
   /// @param Deps List of predecessor nodes.
   /// @return Created node in the graph.
-  std::shared_ptr<node_impl> add(std::vector<std::shared_ptr<node_impl>> &Deps);
-
-  /// Create an empty node in the graph.
-  /// @param Events List of events associated to this node.
-  /// @return Created node in the graph.
-  std::shared_ptr<node_impl>
-  add(const std::vector<sycl::detail::EventImplPtr> Events);
+  std::shared_ptr<node_impl> add(nodes_range Deps);
 
   /// Create a dynamic command-group node in the graph.
   /// @param DynCGImpl Dynamic command-group used to create node.
   /// @param Deps List of predecessor nodes.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
-  add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
-      std::vector<std::shared_ptr<node_impl>> &Deps);
+  add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl, nodes_range Deps);
 
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
@@ -301,14 +294,12 @@ public:
   /// @param Queue In-order queue to find the last node added to the graph from.
   /// @return Last node in this graph added from \p Queue recording, or empty
   /// shared pointer if none.
-  std::shared_ptr<node_impl>
-  getLastInorderNode(sycl::detail::queue_impl *Queue);
+  node_impl *getLastInorderNode(sycl::detail::queue_impl *Queue);
 
   /// Track the last node added to this graph from an in-order queue.
   /// @param Queue In-order queue to register \p Node for.
   /// @param Node Last node that was added to this graph from \p Queue.
-  void setLastInorderNode(sycl::detail::queue_impl &Queue,
-                          std::shared_ptr<node_impl> Node);
+  void setLastInorderNode(sycl::detail::queue_impl &Queue, node_impl &Node);
 
   /// Prints the contents of the graph to a text file in DOT format.
   /// @param FilePath Path to the output file.
@@ -353,19 +344,17 @@ public:
   /// @param NodeA pointer to the first node for comparison
   /// @param NodeB pointer to the second node for comparison
   /// @return true is same structure found, false otherwise
-  static bool checkNodeRecursive(const std::shared_ptr<node_impl> &NodeA,
-                                 const std::shared_ptr<node_impl> &NodeB) {
+  static bool checkNodeRecursive(node_impl &NodeA, node_impl &NodeB) {
     size_t FoundCnt = 0;
-    for (std::weak_ptr<node_impl> &SuccA : NodeA->MSuccessors) {
-      for (std::weak_ptr<node_impl> &SuccB : NodeB->MSuccessors) {
-        if (NodeA->isSimilar(*NodeB) &&
-            checkNodeRecursive(SuccA.lock(), SuccB.lock())) {
+    for (node_impl &SuccA : NodeA.successors()) {
+      for (node_impl &SuccB : NodeB.successors()) {
+        if (NodeA.isSimilar(NodeB) && checkNodeRecursive(SuccA, SuccB)) {
           FoundCnt++;
           break;
         }
       }
     }
-    if (FoundCnt != NodeA->MSuccessors.size()) {
+    if (FoundCnt != NodeA.MSuccessors.size()) {
       return false;
     }
 
@@ -435,7 +424,7 @@ public:
         auto NodeBLocked = NodeB.lock();
 
         if (NodeALocked->isSimilar(*NodeBLocked)) {
-          if (checkNodeRecursive(NodeALocked, NodeBLocked)) {
+          if (checkNodeRecursive(*NodeALocked, *NodeBLocked)) {
             RootsFound++;
             break;
           }
@@ -474,15 +463,14 @@ public:
   /// @param[in] Queue The queue the barrier was recorded from.
   /// @param[in] BarrierNodeImpl The created barrier node.
   void setBarrierDep(std::weak_ptr<sycl::detail::queue_impl> Queue,
-                     std::shared_ptr<node_impl> BarrierNodeImpl) {
-    MBarrierDependencyMap[Queue] = BarrierNodeImpl;
+                     node_impl &BarrierNodeImpl) {
+    MBarrierDependencyMap[Queue] = &BarrierNodeImpl;
   }
 
   /// Get the last barrier node that was submitted to the queue.
   /// @param[in] Queue The queue to find the last barrier node of. An empty
   /// shared_ptr is returned if no barrier node has been recorded to the queue.
-  std::shared_ptr<node_impl>
-  getBarrierDep(std::weak_ptr<sycl::detail::queue_impl> Queue) {
+  node_impl *getBarrierDep(std::weak_ptr<sycl::detail::queue_impl> Queue) {
     return MBarrierDependencyMap[Queue];
   }
 
@@ -532,24 +520,16 @@ private:
   /// @param Root Node to add to list of root nodes.
   void addRoot(const std::shared_ptr<node_impl> &Root);
 
-  /// Adds nodes to the exit nodes of this graph.
-  /// @param NodeList List of nodes from sub-graph in schedule order.
-  /// @return An empty node is used to schedule dependencies on this sub-graph.
-  std::shared_ptr<node_impl>
-  addNodesToExits(const std::list<std::shared_ptr<node_impl>> &NodeList);
-
   /// Adds dependencies for a new node, if it has no deps it will be
   /// added as a root node.
   /// @param Node The node to add deps for
   /// @param Deps List of dependent nodes
-  void addDepsToNode(const std::shared_ptr<node_impl> &Node,
-                     std::vector<std::shared_ptr<node_impl>> &Deps) {
-    if (!Deps.empty()) {
-      for (auto &N : Deps) {
-        N->registerSuccessor(Node);
-        this->removeRoot(Node);
-      }
-    } else {
+  void addDepsToNode(const std::shared_ptr<node_impl> &Node, nodes_range Deps) {
+    for (node_impl &N : Deps) {
+      N.registerSuccessor(Node);
+      this->removeRoot(Node);
+    }
+    if (Node->MPredecessors.empty()) {
       this->addRoot(Node);
     }
   }
@@ -570,7 +550,7 @@ private:
   /// Map for every in-order queue thats recorded a node to the graph, what
   /// the last node added was. We can use this to create new edges on the last
   /// node if any more nodes are added to the graph from the queue.
-  std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
+  std::map<std::weak_ptr<sycl::detail::queue_impl>, node_impl *,
            std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
       MInorderQueueMap;
   /// Controls whether we skip the cycle checks in makeEdge, set by the presence
@@ -585,7 +565,7 @@ private:
 
   /// Mapping from queues to barrier nodes. For each queue the last barrier
   /// node recorded to the graph from the queue is stored.
-  std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
+  std::map<std::weak_ptr<sycl::detail::queue_impl>, node_impl *,
            std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
       MBarrierDependencyMap;
   /// Graph memory pool for handling graph-owned memory allocations for this
@@ -832,8 +812,7 @@ private:
   /// SyncPoint for CurrentNode, otherwise we need to
   /// synchronize on the host with the completion of previous partitions.
   void findRealDeps(std::vector<ur_exp_command_buffer_sync_point_t> &Deps,
-                    std::shared_ptr<node_impl> CurrentNode,
-                    int ReferencePartitionNum);
+                    node_impl &CurrentNode, int ReferencePartitionNum);
 
   /// Duplicate nodes from the modifiable graph associated with this executable
   /// graph and store them locally. Any subgraph nodes in the modifiable graph
@@ -904,14 +883,13 @@ private:
   std::shared_ptr<graph_impl> MGraphImpl;
   /// Map of nodes in the exec graph to the sync point representing their
   /// execution in the command graph.
-  std::unordered_map<std::shared_ptr<node_impl>,
-                     ur_exp_command_buffer_sync_point_t>
+  std::unordered_map<node_impl *, ur_exp_command_buffer_sync_point_t>
       MSyncPoints;
   /// Sycl queue impl ptr associated with this graph.
   std::shared_ptr<sycl::detail::queue_impl> MQueueImpl;
   /// Map of nodes in the exec graph to the partition number to which they
   /// belong.
-  std::unordered_map<std::shared_ptr<node_impl>, int> MPartitionNodes;
+  std::unordered_map<node_impl *, int> MPartitionNodes;
   /// Device associated with this executable graph.
   sycl::device MDevice;
   /// Context associated with this executable graph.
@@ -927,8 +905,7 @@ private:
   /// Storage for copies of nodes from the original modifiable graph.
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
   /// Map of nodes to their associated UR command handles.
-  std::unordered_map<std::shared_ptr<node_impl>,
-                     ur_exp_command_buffer_command_handle_t>
+  std::unordered_map<node_impl *, ur_exp_command_buffer_command_handle_t>
       MCommandMap;
   /// List of partition without any predecessors in this exec graph.
   std::vector<std::weak_ptr<partition>> MRootPartitions;

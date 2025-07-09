@@ -6,12 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
+#include <clc/internal/clc.h>
+#include <clc/math/clc_sqrt.h>
 
-#include <libspirv/ptx-nvidiacl/libdevice.h>
-#include <clc/clcmacro.h>
+#define __CLC_FUNCTION __clc_sqrt
+#define __CLC_BUILTIN __ocml_sqrt
 
-#define __CLC_FUNCTION __spirv_ocl_log
-#define __CLC_BUILTIN __nv_log
-#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
+#ifdef cl_khr_fp64
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+double __ocml_sqrt_f64(double);
+#define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
+#endif // cl_khr_fp64
+
+#define __DOUBLE_ONLY
 #include <clc/math/unary_builtin_scalarize.inc>

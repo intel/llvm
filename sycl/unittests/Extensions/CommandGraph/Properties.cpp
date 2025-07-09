@@ -21,7 +21,7 @@ public:
 TEST_F(CommandGraphTest, PropertiesCheckInvalidNode) {
   try {
     auto Node1 = Graph.add(
-        [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+        [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
         UnknownProperty{});
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::invalid);

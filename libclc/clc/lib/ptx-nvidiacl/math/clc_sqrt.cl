@@ -6,19 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifdef __CLC_FPSIZE
-#define DECL __spirv_ocl_fclamp
-#else
-#ifdef __CLC_GEN_S
-#define DECL __spirv_ocl_s_clamp
-#else
-#define DECL __spirv_ocl_u_clamp
-#endif
-#endif
+#include <clc/internal/clc.h>
+#include <clc/math/clc_sqrt.h>
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE DECL(__CLC_GENTYPE x, __CLC_GENTYPE y,
-                                          __CLC_GENTYPE z) {
-  return __clc_clamp(x, y, z);
-}
+float __nv_sqrtf(float);
+double __nv_sqrt(double);
 
-#undef DECL
+#define __CLC_FUNCTION __clc_sqrt
+#define __CLC_BUILTIN __nv_sqrt
+#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
+#include <clc/math/unary_builtin_scalarize.inc>
