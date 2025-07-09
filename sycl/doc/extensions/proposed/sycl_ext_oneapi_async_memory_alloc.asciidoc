@@ -786,13 +786,10 @@ are no API for retrieving properties from a `memory_pool`.
 . Support host and shared USM allocations
 +
 --
-*UNRESOLVED*: Currently this extension does not support host and shared USM
-allocations, as these are much more complex to implement compared to device USM
-allocations. It is expected these will be supported in the future. Host USM
-allocations will be supported via the following `memory_pool` constructor:
-
-  template <typename Properties = empty_properties_t>
-  memory_pool(const context &ctx, usm::alloc kind, Properties props = {});
+*UNRESOLVED*: Currently this extension only support host USM allocations 
+without a `memory_pool` via `async_alloc` and does not support shared USM allocations,
+as these are much more complex to implement compared to device USM allocations.
+shared allocations and full support for host allocations are expected to be supported in the future. 
 --
 
 . Support user provided allocations
