@@ -1,3 +1,6 @@
+// UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19373
+
 // REQUIRES: ocloc
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=input -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device bmg-g21" -o %t.input_bmg_g21_gpu_device_arch.syclbin %s
