@@ -11,6 +11,7 @@
 #include "command_list_manager.hpp"
 #include "../helpers/kernel_helpers.hpp"
 #include "../helpers/memory_helpers.hpp"
+#include "../sampler.hpp"
 #include "../ur_interface_loader.hpp"
 #include "command_buffer.hpp"
 #include "context.hpp"
@@ -973,5 +974,66 @@ ur_result_t ur_command_list_manager::releaseSubmittedKernels() {
     UR_CALL(hKernel->release());
   }
   submittedKernels.clear();
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
+    ur_kernel_handle_t hKernel, const size_t pGlobalWorkOffset[3],
+    const size_t pGlobalWorkSize[3], const size_t pLocalWorkSize[3],
+    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t phEvent) {
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueKernelLaunchWithArgsExp");
+  {
+    std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
+    for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
+      switch (pArgs[argIndex].type) {
+      case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+        UR_CALL(hKernel->setArgValue(pArgs[argIndex].index,
+                                     pArgs[argIndex].size, nullptr, nullptr));
+        break;
+      case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+        UR_CALL(hKernel->setArgValue(pArgs[argIndex].index,
+                                     pArgs[argIndex].size, nullptr,
+                                     pArgs[argIndex].value.value));
+        break;
+      case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+        UR_CALL(hKernel->setArgPointer(pArgs[argIndex].index, nullptr,
+                                       pArgs[argIndex].value.pointer));
+        break;
+      case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
+        // TODO: import helper for converting ur flags to internal equivalent
+        UR_CALL(hKernel->addPendingMemoryAllocation(
+            {pArgs[argIndex].value.memObjTuple.hMem,
+             ur_mem_buffer_t::device_access_mode_t::read_write,
+             pArgs[argIndex].index}));
+        break;
+      case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+        UR_CALL(
+            hKernel->setArgValue(argIndex, sizeof(void *), nullptr,
+                                 &pArgs[argIndex].value.sampler->ZeSampler));
+        break;
+      }
+      default:
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+      }
+    }
+  }
+
+  // Normalize so each dimension has at least one work item
+  const std::array<size_t, 3> GlobalWorkSize3D = {
+      std::max(pGlobalWorkSize[0], std::size_t{1}),
+      std::max(pGlobalWorkSize[1], std::size_t{1}),
+      std::max(pGlobalWorkSize[2], std::size_t{1})};
+  UR_CALL(appendKernelLaunch(hKernel, 3, pGlobalWorkOffset,
+                             GlobalWorkSize3D.data(), pLocalWorkSize,
+                             numPropsInLaunchPropList, launchPropList,
+                             numEventsInWaitList, phEventWaitList, phEvent));
+
+  recordSubmittedKernel(hKernel);
+
   return UR_RESULT_SUCCESS;
 }

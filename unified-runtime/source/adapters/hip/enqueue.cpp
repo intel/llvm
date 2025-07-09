@@ -16,6 +16,7 @@
 #include "logger/ur_logger.hpp"
 #include "memory.hpp"
 #include "queue.hpp"
+#include "sampler.hpp"
 #include "ur_api.h"
 
 #include <ur/ur.hpp>
@@ -338,6 +339,65 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     return err;
   }
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
+    const size_t pGlobalWorkOffset[3], const size_t pGlobalWorkSize[3],
+    const size_t pLocalWorkSize[3], uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  try {
+    for (uint32_t i = 0; i < numArgs; i++) {
+      switch (pArgs[i].type) {
+      case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
+        hKernel->setKernelLocalArg(pArgs[i].index, pArgs[i].size);
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
+        hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
+                              pArgs[i].value.value);
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
+        // setKernelArg is expecting a pointer to our argument
+        hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
+                              &pArgs[i].value.pointer);
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
+        ur_kernel_arg_mem_obj_properties_t Props = {
+            UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
+            pArgs[i].value.memObjTuple.flags};
+        UR_CALL(urKernelSetArgMemObj(hKernel, pArgs[i].index, &Props,
+                                     pArgs[i].value.memObjTuple.hMem));
+        break;
+      }
+      case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+        uint32_t SamplerProps = pArgs[i].value.sampler->Props;
+        hKernel->setKernelArg(pArgs[i].index, sizeof(uint32_t),
+                              (void *)&SamplerProps);
+        break;
+      }
+      default:
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+      }
+    }
+  } catch (ur_result_t Err) {
+    return Err;
+  }
+  // Normalize so each dimension has at least one work item
+  const std::array<size_t, 3> GlobalWorkSize3D = {
+      std::max(pGlobalWorkSize[0], std::size_t{1}),
+      std::max(pGlobalWorkSize[1], std::size_t{1}),
+      std::max(pGlobalWorkSize[2], std::size_t{1})};
+  return urEnqueueKernelLaunch(hQueue, hKernel, 3, pGlobalWorkOffset,
+                               GlobalWorkSize3D.data(), pLocalWorkSize,
+                               numPropsInLaunchPropList, launchPropList,
+                               numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 /// Enqueues a wait on the given queue for all events.
