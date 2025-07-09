@@ -18,8 +18,21 @@ static std::vector<ur_device_handle_t>
 filterP2PDevices(ur_device_handle_t hSourceDevice,
                  const std::vector<ur_device_handle_t> &devices) {
   std::vector<ur_device_handle_t> p2pDevices;
+
+  std::optional<std::unordered_set<DeviceId>> p2pDevicesEnabledByUser;
+
   for (auto &device : devices) {
     if (device == hSourceDevice) {
+      continue;
+    }
+
+    if (!p2pDevicesEnabledByUser.has_value())
+    {
+      std::shared_lock<ur_shared_mutex> Lock(hSourceDevice->Mutex);
+      p2pDevicesEnabledByUser.emplace(hSourceDevice->p2pDeviceIds);
+    }
+
+    if (p2pDevicesEnabledByUser->count(*device->Id) == 0) {
       continue;
     }
 
@@ -126,8 +139,39 @@ void ur_context_handle_t_::removeUsmPool(ur_usm_pool_handle_t hPool) {
   usmPoolHandles.remove(hPool);
 }
 
-const std::vector<ur_device_handle_t> &
-ur_context_handle_t_::getP2PDevices(ur_device_handle_t hDevice) const {
+void ur_context_handle_t_::addResidentDevice(ur_device_handle_t hDevice, ur_device_handle_t newPeerDevice) {
+  std::scoped_lock<ur_shared_mutex> lock(Mutex);
+  auto & pDevices = p2pAccessDevices.at(hDevice->Id);
+
+  assert(0 = std::count_if(
+    std::begin(pDevices), std::end(pDevices),
+        [&](const auto pDevice) { return newPeerDevice->Id == pDevice->Id; }));
+
+  pDevices.push_back(newPeerDevice);
+}
+void ur_context_handle_t_::removeResidentDevice(ur_device_handle_t hDevice, ur_device_handle_t oldPeerDevice) {
+  std::scoped_lock<ur_shared_mutex> lock(Mutex);
+  auto & pDevices = p2pAccessDevices.at(hDevice->Id);
+
+  const auto & findOldDevice = [&] {
+    return std::find_if(
+      std::begin(pDevices), std::end(pDevices),
+      [oldPeerDevice](const auto pDevice) { return oldPeerDevice->Id == pDevice->Id; });
+  };
+
+  auto pDeviceIt = findOldDevice();
+  assert(pDeviceIt != std::end(pDevices));
+  pDevices.erase(pDeviceIt);
+  assert(findOldDevice() == std::end(pDevices));
+
+  for (auto poolHandle : usmPoolHandles) {
+    poolHandle->removeResidentDevice();
+  }
+}
+
+std::vector<ur_device_handle_t>
+ur_context_handle_t_::getP2PDevices(ur_device_handle_t hDevice) {
+  std::scoped_lock<ur_shared_mutex> lock(Mutex);
   return p2pAccessDevices[hDevice->Id.value()];
 }
 
@@ -145,6 +189,10 @@ ur_result_t urContextCreate(uint32_t deviceCount,
 
   *phContext =
       new ur_context_handle_t_(zeContext, deviceCount, phDevices, true);
+  {
+    std::scoped_lock<ur_shared_mutex> Lock(hPlatform->ContextsMutex);
+    hPlatform->Contexts.push_back(*phContext);
+  }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -182,6 +230,14 @@ ur_result_t urContextRetain(ur_context_handle_t hContext) try {
 }
 
 ur_result_t urContextRelease(ur_context_handle_t hContext) try {
+  auto Platform = hContext->getPlatform();
+  auto &Contexts = Platform->Contexts;
+  {
+    std::scoped_lock<ur_shared_mutex> Lock(Platform->ContextsMutex);
+    auto It = std::find(Contexts.begin(), Contexts.end(), hContext);
+    UR_ASSERT(It != Contexts.end(), UR_RESULT_ERROR_INVALID_CONTEXT);
+    Contexts.erase(It);
+  }
   return hContext->release();
 } catch (...) {
   return exceptionToResult(std::current_exception());

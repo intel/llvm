@@ -17,6 +17,8 @@
 
 #include <umf/providers/provider_level_zero.h>
 
+#include "memory_pool_internal.h"
+
 static inline void UMF_CALL_THROWS(umf_result_t res) {
   if (res != UMF_RESULT_SUCCESS) {
     throw res;
@@ -310,6 +312,14 @@ void ur_usm_pool_handle_t_::cleanupPoolsForQueue(void *hQueue) {
     p->asyncPool.cleanupForQueue(hQueue);
     return true;
   });
+}
+
+void ur_usm_pool_handle_t_::addResidentDevice(ur_device_handle_t hDevice, ur_device_handle_t peerDevice) {
+  poolManager.addResidentDevice(hDevice, peerDevice);
+}
+
+void ur_usm_pool_handle_t_::removeResidentDevice(ur_device_handle_t hDevice, ur_device_handle_t peerDevice) {
+  poolManager.removeResidentDevice(hDevice, peerDevice);
 }
 
 namespace ur::level_zero {

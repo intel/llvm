@@ -49,6 +49,8 @@ struct ur_usm_pool_handle_t_ : ur_object {
 
   void cleanupPools();
   void cleanupPoolsForQueue(void *hQueue);
+  void addResidentDevice(ur_device_handle_t hDevice, ur_device_handle_t peerDevice);
+  void removeResidentDevice(ur_device_handle_t hDevice, ur_device_handle_t peerDevice);
 
   ur::RefCount RefCount;
 
