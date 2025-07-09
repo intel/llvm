@@ -495,7 +495,7 @@ function(add_libclc_builtin_set)
   endif()
 
   # Add a 'prepare' target
-  add_custom_target( prepare-${obj_suffix} ALL DEPENDS ${obj_suffix} )
+  add_custom_target( prepare-${obj_suffix} ALL DEPENDS ${libclc_builtins_lib} )
   set_target_properties( "prepare-${obj_suffix}" PROPERTIES FOLDER "libclc/Device IR/Prepare" )
 
   # Add dependency to top-level pseudo target to ease making other

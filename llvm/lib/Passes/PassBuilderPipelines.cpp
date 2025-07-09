@@ -706,19 +706,16 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
 
     LPM2.addPass(LoopDeletionPass());
 
-    if (PTO.LoopInterchange)
-      LPM2.addPass(LoopInterchangePass());
-
-    // Do not enable unrolling in PreLinkThinLTO phase during sample PGO
-    // because it changes IR to makes profile annotation in back compile
-    // inaccurate. The normal unroller doesn't pay attention to forced full
-    // unroll attributes so we need to make sure and allow the full unroll pass
-    // to pay attention to it.
-    if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink || !PGOOpt ||
-        PGOOpt->Action != PGOOptions::SampleUse)
-      LPM2.addPass(LoopFullUnrollPass(Level.getSpeedupLevel(),
-                                      /* OnlyWhenForced= */ !PTO.LoopUnrolling,
-                                      PTO.ForgetAllSCEVInLoopUnroll));
+  // Do not enable unrolling in PreLinkThinLTO phase during sample PGO
+  // because it changes IR to makes profile annotation in back compile
+  // inaccurate. The normal unroller doesn't pay attention to forced full unroll
+  // attributes so we need to make sure and allow the full unroll pass to pay
+  // attention to it.
+  if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink || !PGOOpt ||
+      PGOOpt->Action != PGOOptions::SampleUse)
+    LPM2.addPass(LoopFullUnrollPass(Level.getSpeedupLevel(),
+                                    /* OnlyWhenForced= */ !PTO.LoopUnrolling,
+                                    PTO.ForgetAllSCEVInLoopUnroll));
 
     invokeLoopOptimizerEndEPCallbacks(LPM2, Level);
 
@@ -1570,6 +1567,10 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
     //        this may need to be revisited once we run GVN before loop deletion
     //        in the simplification pipeline.
     LPM.addPass(LoopDeletionPass());
+
+    if (PTO.LoopInterchange)
+      LPM.addPass(LoopInterchangePass());
+
     OptimizePM.addPass(
         createFunctionToLoopPassAdaptor(std::move(LPM), /*UseMemorySSA=*/false,
                                         /*UseBlockFrequencyInfo=*/false));
