@@ -229,7 +229,8 @@ HIPSPVToolChain::getDeviceLibs(
   // Maintain compatability with --hip-device-lib.
   auto BCLibArgs = DriverArgs.getAllArgValues(options::OPT_hip_device_lib_EQ);
   if (!BCLibArgs.empty()) {
-    llvm::for_each(BCLibArgs, [&](StringRef BCName) {
+    bool Found = false;
+    for (StringRef BCName : BCLibArgs) {
       StringRef FullName;
       for (std::string LibraryPath : LibraryPaths) {
         SmallString<128> Path(LibraryPath);
@@ -237,11 +238,13 @@ HIPSPVToolChain::getDeviceLibs(
         FullName = Path;
         if (llvm::sys::fs::exists(FullName)) {
           BCLibs.emplace_back(FullName.str());
-          return;
+          Found = true;
+          break;
         }
       }
-      getDriver().Diag(diag::err_drv_no_such_file) << BCName;
-    });
+      if (!Found)
+        getDriver().Diag(diag::err_drv_no_such_file) << BCName;
+    }
   } else {
     // Search device library named as 'hipspv-<triple>.bc'.
     auto TT = getTriple().normalize();
