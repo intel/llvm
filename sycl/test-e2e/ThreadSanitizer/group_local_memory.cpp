@@ -26,11 +26,27 @@ int main() {
           if (item.get_global_linear_id() == 0)
             *sum = *ptr;
         });
-  });
-  Q.wait();
+  }).wait();
   // CHECK: WARNING: DeviceSanitizer: data race
   // CHECK-NEXT: When write of size 4 at 0x{{.*}} in kernel <{{.*}}Test>
   // CHECK-NEXT: #0 {{.*}}group_local_memory.cpp
+
+  // More work groups to triger local shadow re-allocated
+  Q.submit([&](sycl::handler &h) {
+    h.parallel_for<class Test2>(
+        sycl::nd_range<1>(256, 16), [=](sycl::nd_item<1> item) {
+          auto ptr =
+              sycl::ext::oneapi::group_local_memory<int>(item.get_group());
+          *ptr += item.get_global_linear_id();
+
+          check(ptr, item.get_local_linear_id());
+
+          item.barrier();
+
+          if (item.get_global_linear_id() == 0)
+            *sum = *ptr;
+        });
+  }).wait();
 
   sycl::free(sum, Q);
   return 0;
