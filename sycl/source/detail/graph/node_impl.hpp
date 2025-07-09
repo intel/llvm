@@ -437,7 +437,7 @@ public:
                             "the node was originally created with.");
     }
 
-    NDRDesc = sycl::detail::NDRDescT{ExecutionRange};
+    NDRDesc = sycl::detail::v1::NDRDescT{ExecutionRange};
   }
 
   template <int Dimensions> void updateRange(range<Dimensions> ExecutionRange) {
@@ -458,7 +458,7 @@ public:
                             "the node was originally created with.");
     }
 
-    NDRDesc = sycl::detail::NDRDescT{ExecutionRange};
+    NDRDesc = sycl::detail::v1::NDRDescT{ExecutionRange};
   }
   /// Update this node with the command-group from another node.
   /// @param Other The other node to update, must be of the same node type.

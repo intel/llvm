@@ -620,7 +620,7 @@ private:
 };
 
 void enqueueImpKernel(
-    queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
+    queue_impl &Queue, detail::v1::NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
     const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr,
@@ -690,7 +690,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     std::string_view SyclKernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
-    const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
+    const detail::v1::NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs);
 #endif
 
@@ -796,7 +796,7 @@ void applyFuncOnFilteredArgs(
   }
 }
 
-void ReverseRangeDimensionsForKernel(NDRDescT &NDR);
+void ReverseRangeDimensionsForKernel(detail::v1::NDRDescT &NDR);
 
 } // namespace detail
 } // namespace _V1

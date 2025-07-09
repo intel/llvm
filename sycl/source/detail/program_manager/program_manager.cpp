@@ -862,7 +862,7 @@ static void setSpecializationConstants(device_image_impl &InputImpl,
 // its ref count incremented.
 ur_program_handle_t ProgramManager::getBuiltURProgram(
     context_impl &ContextImpl, device_impl &DeviceImpl,
-    KernelNameStrRefT KernelName, const NDRDescT &NDRDesc) {
+    KernelNameStrRefT KernelName, const detail::v1::NDRDescT &NDRDesc) {
   device_impl *RootDevImpl;
   ur_bool_t MustBuildOnSubdevice = true;
 
@@ -1124,7 +1124,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     context_impl &ContextImpl, device_impl &DeviceImpl,
     KernelNameStrRefT KernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr, const NDRDescT &NDRDesc) {
+    KernelNameBasedCacheT *KernelNameBasedCachePtr, const detail::v1::NDRDescT &NDRDesc) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << &ContextImpl
               << ", " << &DeviceImpl << ", " << KernelName << ")\n";
@@ -3593,7 +3593,7 @@ std::optional<sycl::exception> checkDevSupportJointMatrixMad(
 std::optional<sycl::exception>
 checkDevSupportDeviceRequirements(const device_impl &Dev,
                                   const RTDeviceBinaryImage &Img,
-                                  const NDRDescT &NDRDesc) {
+                                  const detail::v1::NDRDescT &NDRDesc) {
   auto getPropIt = [&Img](const std::string &PropName) {
     auto &PropRange = Img.getDeviceRequirements();
     RTDeviceBinaryImage::PropertyRange::ConstIterator PropIt = std::find_if(

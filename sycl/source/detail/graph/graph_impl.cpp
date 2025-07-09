@@ -1573,7 +1573,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
     std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
     std::vector<ur_exp_command_buffer_update_value_arg_desc_t> &ValueDescs,
-    sycl::detail::NDRDescT &NDRDesc,
+    sycl::detail::v1::NDRDescT &NDRDesc,
     ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const {
   sycl::detail::context_impl &ContextImpl =
       *sycl::detail::getSyclObjImpl(MContext);
@@ -1800,7 +1800,7 @@ void exec_graph_impl::updateURImpl(
       PtrDescsList(NumUpdatableNodes);
   std::vector<std::vector<ur_exp_command_buffer_update_value_arg_desc_t>>
       ValueDescsList(NumUpdatableNodes);
-  std::vector<sycl::detail::NDRDescT> NDRDescList(NumUpdatableNodes);
+  std::vector<sycl::detail::v1::NDRDescT> NDRDescList(NumUpdatableNodes);
   std::vector<ur_exp_command_buffer_update_kernel_launch_desc_t> UpdateDescList(
       NumUpdatableNodes);
   std::vector<FastKernelCacheValPtr> KernelBundleObjList(NumUpdatableNodes);

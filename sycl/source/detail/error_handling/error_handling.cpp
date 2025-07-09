@@ -22,7 +22,7 @@ inline namespace _V1 {
 namespace detail::enqueue_kernel_launch {
 
 void handleOutOfResources(const device_impl &DeviceImpl,
-                          ur_kernel_handle_t Kernel, const NDRDescT &NDRDesc) {
+                          ur_kernel_handle_t Kernel, const detail::v1::NDRDescT &NDRDesc) {
   sycl::platform Platform = DeviceImpl.get_platform();
   sycl::backend Backend = Platform.get_backend();
   if (Backend == sycl::backend::ext_oneapi_cuda) {
@@ -75,7 +75,7 @@ void handleOutOfResources(const device_impl &DeviceImpl,
 
 void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
                                 ur_kernel_handle_t Kernel,
-                                const NDRDescT &NDRDesc) {
+                                const detail::v1::NDRDescT &NDRDesc) {
   sycl::platform Platform = DeviceImpl.get_platform();
 
   // Some of the error handling below is special for particular OpenCL
@@ -349,7 +349,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
 }
 
 void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
-                               const NDRDescT &NDRDesc) {
+                               const detail::v1::NDRDescT &NDRDesc) {
 
   const AdapterPtr &Adapter = DeviceImpl.getAdapter();
   ur_device_handle_t Device = DeviceImpl.getHandleRef();
@@ -370,7 +370,7 @@ void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
 }
 
 void handleInvalidValue(const device_impl &DeviceImpl,
-                        const NDRDescT &NDRDesc) {
+                        const detail::v1::NDRDescT &NDRDesc) {
   const AdapterPtr &Adapter = DeviceImpl.getAdapter();
   ur_device_handle_t Device = DeviceImpl.getHandleRef();
 
@@ -393,7 +393,7 @@ void handleInvalidValue(const device_impl &DeviceImpl,
 }
 
 void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
-                          ur_kernel_handle_t Kernel, const NDRDescT &NDRDesc) {
+                          ur_kernel_handle_t Kernel, const detail::v1::NDRDescT &NDRDesc) {
   assert(Error != UR_RESULT_SUCCESS &&
          "Success is expected to be handled on caller side");
   switch (Error) {

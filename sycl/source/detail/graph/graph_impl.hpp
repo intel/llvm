@@ -31,7 +31,6 @@ class handler;
 namespace detail {
 class SYCLMemObjT;
 class queue_impl;
-class NDRDescT;
 class ArgDesc;
 class CG;
 } // namespace detail
@@ -869,7 +868,7 @@ private:
       std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
       std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
       std::vector<ur_exp_command_buffer_update_value_arg_desc_t> &ValueDescs,
-      sycl::detail::NDRDescT &NDRDesc,
+      sycl::detail::v1::NDRDescT &NDRDesc,
       ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const;
 
   /// Execution schedule of nodes in the graph.
