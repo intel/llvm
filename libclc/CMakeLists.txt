@@ -420,13 +420,9 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     set( libspirv_gen_files )
     set( BUILD_LIBSPIRV_${t} TRUE )
 
-    if( NOT ARCH STREQUAL spirv AND NOT ARCH STREQUAL spirv64 )
-      if( ARCH STREQUAL clspv OR ARCH STREQUAL clspv64 )
-        list( APPEND libspirv_gen_files clspv-convert.cl )
-      elseif ( NOT ENABLE_RUNTIME_SUBNORMAL )
-        list( APPEND libspirv_gen_files spirv-convert.cl )
-        list( APPEND libspirv_lib_files libspirv/lib/generic/subnormal_use_default.ll )
-      endif()
+    if ( NOT ENABLE_RUNTIME_SUBNORMAL )
+      list( APPEND libspirv_gen_files spirv-convert.cl )
+      list( APPEND libspirv_lib_files libspirv/lib/generic/subnormal_use_default.ll )
     endif()
 
     libclc_configure_lib_source(
