@@ -27,7 +27,7 @@ class RTDeviceBinaryImage;
 void waitEvents(std::vector<sycl::event> DepEvents);
 #endif
 
-std::tuple<const RTDeviceBinaryImage *, ur_program_handle_t>
+const RTDeviceBinaryImage *
 retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
                      CGExecKernel *CGKernel = nullptr);
 } // namespace detail
