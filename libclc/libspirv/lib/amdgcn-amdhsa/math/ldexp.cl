@@ -33,6 +33,7 @@ _CLC_OVERLOAD _CLC_INLINE static half ocml_ldexp_helper(half x, int y) {
 
 #define FUNCTION __spirv_ocl_ldexp
 #define __IMPL_FUNCTION ocml_ldexp_helper
+#undef __CLC_MIN_VECSIZE
 #define __CLC_MIN_VECSIZE 1
 
 #define __CLC_ARG2_TYPE int

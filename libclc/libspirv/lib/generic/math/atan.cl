@@ -189,6 +189,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_atan(double x) {
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
+#undef __CLC_MIN_VECSIZE
 #define __CLC_MIN_VECSIZE 1
 #define __HALF_ONLY
 #define __IMPL_FUNCTION __builtin_atanf16

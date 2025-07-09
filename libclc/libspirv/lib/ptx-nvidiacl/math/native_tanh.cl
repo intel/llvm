@@ -37,6 +37,7 @@ _CLC_DEF _CLC_OVERLOAD half2 __clc_native_tanh(half2 x) {
                              : (half2)(__nv_tanhf(x.x), __nv_tanhf(x.y));
 }
 
+#undef __CLC_MIN_VECSIZE
 #define __CLC_MIN_VECSIZE 3
 #define __HALF_ONLY
 #define __CLC_BODY <clc/shared/unary_def_scalarize.inc>
