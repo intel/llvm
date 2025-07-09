@@ -575,7 +575,9 @@ urUSMPoolTrimToExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
-                                                          void *, const void *,
-                                                          size_t) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+                                                          void *pDst,
+                                                          const void *pSrc,
+                                                          size_t Size) {
+  UR_CHECK_ERROR(cuMemcpy((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size));
+  return UR_RESULT_SUCCESS;
 }
