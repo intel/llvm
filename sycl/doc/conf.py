@@ -16,6 +16,8 @@
 
 import datetime
 from docutils import nodes
+import re
+
 
 # -- Project information -----------------------------------------------------
 
@@ -48,8 +50,18 @@ html_theme = "haiku"
 source_suffix = [".rst", ".md"]
 
 exclude_patterns = [
-    # Extensions are mostly in asciidoc which has poor support in Sphinx.
-    "extensions/*",
+    # We are migrating the SYCL extensions to reStructuredText, but some of the
+    # older *.rst files in the extensions directories have errors, so ignore
+    # them.
+    "extensions/supported/C-CXX-StandardLibrary.rst",
+    "extensions/supported/sycl_ext_intel_esimd/*",
+    # These files are instructions to developers about how to write extensions,
+    # so do not build them into the extensions documentation.
+    "extensions/template.rst",
+    "extensions/*.md",
+    "extensions/*/*.md",
+    # These OpenCL and SPIR-V extensions are asciidoc which has poor support in
+    # Sphinx.
     "design/opencl-extensions/*",
     "design/spirv-extensions/*",
     # Sphinx complains about syntax errors in these files.
@@ -84,5 +96,76 @@ def on_missing_reference(app, env, node, contnode):
     return newnode
 
 
+# These match only relative URLs because ":" is missing from the
+# match set, which means they won't match a URL starting with
+# "http:", etc.
+reRelativeRstUri = re.compile("([a-z0-9_/.-]*)\.rst")
+reRelativeAsciidocUri = re.compile("[a-z0-9_/.-]*\.asciidoc")
+
+
+# We want the extension specification documents to be readable in either of two
+# ways:
+#
+#   * From the HTML that is generated from Sphinx, or
+#   * By using a web browser to navigate to the .rst file in the repo.
+#
+# The second method works because the GitHub server renders an .rst file into
+# HTML when serving its contents to the browser.
+#
+# One challenge with this are cross-files references.  The GitHub server
+# approach works well when a reference uses a standard relative URL like:
+#
+# > This is a `reference`_ to another file.
+# >
+# > .. _`reference`: relative/path/to/file.rst
+#
+# However this style of cross-file reference does *not* work well with the
+# Sphinx tools.  In Sphinx, you would instead normally use the syntax
+# ":doc:`relative/path/to/file` for such a cross-file link.  However, that
+# syntax is not understood by the GitHub server.
+#
+# In order to have cross-file links that work in both scenarios, we use the
+# standard relative URL approach (understood by GitHub) and then establish a
+# "doctree-resolved" callback to fix up the links in the Sphinx generated HTML.
+def on_doctree_resolved(app, doctree, docname):
+
+    # Get the directory that contains the *source* file of the link.  These
+    # files are always relative to the directory containing "conf.py"
+    # (<top>/sycl/doc).  For example, the file "sycl/doc/extension/supported/foo.rst"
+    # will have a directory "extension/supported/".
+    refdoc_components = docname.split("/")
+    dirs = "/".join(refdoc_components[:-1])
+    if dirs:
+        dirs += "/"
+
+    # Look for references from this file to other files.
+    for ref in doctree.traverse(nodes.reference):
+        if "refuri" in ref:
+            uri = ref["refuri"]
+
+            # This is a relative link to another .rst file.  We assume the
+            # target .rst file was also processed by Sphinx, so we just need to
+            # replace the ".rst" suffix with ".html".
+            m = reRelativeRstUri.fullmatch(uri)
+            if m:
+                ref["refuri"] = m[1] + ".html"
+                continue
+
+            # This is a relative link to an .asciidoc file.  These files are not
+            # processed by Sphinx, so there is no generated HTML.  Instead,
+            # change the link to point to the file in the main branch of the
+            # GitHub repo.  Although this is not ideal, it's better than a
+            # broken link.  We are in the process of migrating the .asciidoc
+            # specifications to .rst.  When that is complete, this
+            # transformation won't be needed anymore.
+            m = reRelativeAsciidocUri.fullmatch(uri)
+            if m:
+                ref["refuri"] = (
+                    "https://github.com/intel/llvm/tree/sycl/sycl/doc/" + dirs + uri
+                )
+                continue
+
+
 def setup(app):
     app.connect("missing-reference", on_missing_reference)
+    app.connect("doctree-resolved", on_doctree_resolved)
