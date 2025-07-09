@@ -275,13 +275,24 @@ public:
     std::vector<device_image_plain> DevImages;
     {
       std::set<std::shared_ptr<device_image_impl>> DevImagesSet;
+      std::unordered_set<const RTDeviceBinaryImage *> SeenBinImgs;
       for (const kernel_bundle<bundle_state::object> &ObjectBundle :
-           ObjectBundles)
+           ObjectBundles) {
         for (const device_image_plain &DevImg :
-             getSyclObjImpl(ObjectBundle)->MUniqueDeviceImages)
-          if (ImagesWithSpecConstsSet.find(getSyclObjImpl(DevImg)) ==
-              ImagesWithSpecConstsSet.end())
-            DevImagesSet.insert(getSyclObjImpl(DevImg));
+             getSyclObjImpl(ObjectBundle)->MUniqueDeviceImages) {
+          auto &DevImgImpl = getSyclObjImpl(DevImg);
+          const RTDeviceBinaryImage *BinImg = DevImgImpl->get_bin_image_ref();
+          // We have duplicate images if either the underlying binary image has
+          // been seen before or the device image implementation is in the
+          // image set already.
+          if ((BinImg && SeenBinImgs.find(BinImg) != SeenBinImgs.end()) ||
+              ImagesWithSpecConstsSet.find(DevImgImpl) !=
+                  ImagesWithSpecConstsSet.end())
+            continue;
+          SeenBinImgs.insert(BinImg);
+          DevImagesSet.insert(DevImgImpl);
+        }
+      }
       DevImages.reserve(DevImagesSet.size());
       for (auto It = DevImagesSet.begin(); It != DevImagesSet.end();)
         DevImages.push_back(createSyclObjFromImpl<device_image_plain>(

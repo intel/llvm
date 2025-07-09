@@ -45,6 +45,27 @@ are stored [here](https://oneapi-src.github.io/unified-runtime/performance/).
 ## Output formats
 You can display the results in the form of a HTML file by using `--ouptut-html` and a markdown file by using `--output-markdown`. Due to character limits for posting PR comments, the final content of the markdown file might be reduced. In order to obtain the full markdown output, use `--output-markdown full`.
 
+## Logging
+
+The benchmark runner uses a configurable logging system with different log levels that can be set using the `--log-level` command-line option.
+
+Available log levels:
+- `debug`
+- `info` (default)
+- `warning`
+- `error`
+- `critical`
+
+To set the log level, use the `--log-level` option:
+```bash
+./main.py ~/benchmarks_workdir/ --sycl ~/llvm/build/ --log-level debug
+```
+
+You can also use the `--verbose` flag, which sets the log level to `debug` and overrides any `--log-level` setting:
+```bash
+./main.py ~/benchmarks_workdir/ --sycl ~/llvm/build/ --verbose
+```
+
 ## Requirements
 
 ### Python
