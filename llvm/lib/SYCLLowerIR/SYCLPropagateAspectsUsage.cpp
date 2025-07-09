@@ -665,6 +665,24 @@ void processDeclaredVirtualFunctionSets(
     StringMap<SmallVector<Function *, 4>> &VirtualFunctionSets) {
   if (!F->hasFnAttribute("calls-indirectly"))
     return;
+
+  // "Construction" kernels which reference vtables but do not actually
+  // perform any virtual calls have the calls-indirectly attribute
+  // attached by SYCLVirtualFunctionAnalysis pass. We do not want to
+  // attach sycl_used_aspects metadata to such kernels.
+  bool hasVirtualCall = false;
+  for (const Instruction &I : instructions(F)) {
+    const auto *CI = dyn_cast<CallInst>(&I);
+    if (!CI)
+      continue;
+    if (CI->isIndirectCall() && CI->hasFnAttr("virtual-call")) {
+      hasVirtualCall = true;
+      break;
+    }
+  }
+  if (!hasVirtualCall)
+    return;
+
   Attribute CallsIndirectlyAttr = F->getFnAttribute("calls-indirectly");
   SmallVector<StringRef, 4> DeclaredVirtualFunctionSetNames;
   CallsIndirectlyAttr.getValueAsString().split(DeclaredVirtualFunctionSetNames,
