@@ -868,8 +868,7 @@ event handler::finalize() {
   if (auto GraphImpl = Queue->getCommandGraph(); GraphImpl) {
     auto EventImpl = detail::event_impl::create_completed_host_event();
     EventImpl->setSubmittedQueue(Queue->weak_from_this());
-    std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
-        nullptr;
+    ext::oneapi::experimental::detail::node_impl *NodeImpl = nullptr;
 
     // GraphImpl is read and written in this scope so we lock this graph
     // with full priviledges.
@@ -891,8 +890,7 @@ event handler::finalize() {
               GraphImpl->getLastInorderNode(Queue)) {
         Deps.push_back(DependentNode);
       }
-      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps)
-                     .shared_from_this();
+      NodeImpl = &GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       // If we are recording an in-order queue remember the new node, so it
       // can be used as a dependency for any more nodes recorded from this
@@ -907,8 +905,7 @@ event handler::finalize() {
       if (LastBarrierRecordedFromQueue) {
         Deps.push_back(LastBarrierRecordedFromQueue);
       }
-      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps)
-                     .shared_from_this();
+      NodeImpl = &GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       if (NodeImpl->MCGType == sycl::detail::CGType::Barrier) {
         GraphImpl->setBarrierDep(Queue->weak_from_this(), *NodeImpl);
