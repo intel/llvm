@@ -1,4 +1,3 @@
-integer/popcount.cl
 math/sqrt.cl
 math/clc_sqrt.cl
 math/fma.cl
