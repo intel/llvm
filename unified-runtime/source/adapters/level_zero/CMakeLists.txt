@@ -113,6 +113,9 @@ if(UR_BUILD_ADAPTER_L0)
         "${CMAKE_CURRENT_SOURCE_DIR}/../../"
         LevelZeroLoader-Headers
     )
+    if (NOT WIN32)
+        add_dependencies(ur_adapter_level_zero LEVEL_ZERO_DYNAMIC_LOADER)
+    endif()
 endif()
 
 if(UR_BUILD_ADAPTER_L0_V2)
@@ -219,4 +222,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         "${CMAKE_CURRENT_SOURCE_DIR}/../../ur"
         LevelZeroLoader-Headers
     )
+    if (NOT WIN32)
+        add_dependencies(ur_adapter_level_zero_v2 LEVEL_ZERO_DYNAMIC_LOADER)
+    endif()
 endif()
