@@ -580,9 +580,9 @@ bool platform_impl::supports_usm() const {
 }
 
 ur_native_handle_t platform_impl::getNative() const {
-  const auto &Adapter = getAdapter();
+  adapter_impl &Adapter = getAdapter();
   ur_native_handle_t Handle = 0;
-  Adapter->call<UrApiKind::urPlatformGetNativeHandle>(getHandleRef(), &Handle);
+  Adapter.call<UrApiKind::urPlatformGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
 }
 
