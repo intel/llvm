@@ -17,6 +17,7 @@
 #include <cstring>
 #include <fstream>
 #include <iomanip>
+#include <list>
 #include <set>
 #include <vector>
 
@@ -39,10 +40,7 @@ class exec_graph_impl;
 std::vector<node>
 createNodesFromImpls(const std::vector<std::weak_ptr<node_impl>> &Impls);
 
-/// Takes a vector of shared_ptrs to node_impls and returns a vector of node
-/// objects created from those impls, in the same order.
-std::vector<node>
-createNodesFromImpls(const std::vector<std::shared_ptr<node_impl>> &Impls);
+std::vector<node> createNodesFromImpls(nodes_range Impls);
 
 inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
   using sycl::detail::CG;
@@ -774,7 +772,9 @@ class nodes_range {
       // from `weak_ptr`s this alternative should be removed too.
       std::vector<std::weak_ptr<node_impl>>,
       //
-      std::set<std::shared_ptr<node_impl>>>;
+      std::set<std::shared_ptr<node_impl>>, std::set<node_impl *>,
+      //
+      std::list<node_impl *>>;
 
   storage_iter Begin;
   storage_iter End;

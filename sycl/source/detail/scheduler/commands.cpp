@@ -282,7 +282,7 @@ Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
     // they don't have an associated queue and command.
     if (!EventImpl->isInterop() && !EventImpl->isEnqueued()) {
       if (!EventImpl->getCommand() ||
-          !static_cast<Command *>(EventImpl->getCommand())->producesPiEvent())
+          !EventImpl->getCommand()->producesPiEvent())
         continue;
       std::vector<Command *> AuxCmds;
       Scheduler::getInstance().enqueueCommandForCG(EventImpl, AuxCmds,
@@ -541,7 +541,7 @@ void Command::waitForEvents(queue_impl *Queue,
         std::vector<ur_event_handle_t> RawEvents =
             getUrEvents(CtxWithEvents.second);
         if (!RawEvents.empty()) {
-          CtxWithEvents.first->getAdapter()->call<UrApiKind::urEventWait>(
+          CtxWithEvents.first->getAdapter().call<UrApiKind::urEventWait>(
               RawEvents.size(), RawEvents.data());
         }
       }
@@ -766,7 +766,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   // distinction since the command might still be unenqueued at this point.
   bool PiEventExpected =
       (!DepEvent->isHost() && !DepEvent->isDefaultConstructed());
-  if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
+  if (auto *DepCmd = DepEvent->getCommand())
     PiEventExpected &= DepCmd->producesPiEvent();
 
   if (!PiEventExpected) {
@@ -835,7 +835,7 @@ Command *Command::addDep(EventImplPtr Event,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // We need this for just the instrumentation, so guarding it will prevent
   // unused variable warnings when instrumentation is turned off
-  Command *Cmd = (Command *)Event->getCommand();
+  Command *Cmd = Event->getCommand();
   ur_event_handle_t UrEventAddr = Event->getHandle();
   // Now make an edge for the dependent event
   emitEdgeEventForEventDependence(Cmd, UrEventAddr);
@@ -2271,7 +2271,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<
       sycl::info::kernel_device_specific::compile_work_group_size>(
-      Kernel, DeviceImpl.getHandleRef(), *DeviceImpl.getAdapter());
+      Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getAdapter());
 
   if (WGSize[0] == 0) {
     WGSize = {1, 1, 1};
@@ -2606,11 +2606,11 @@ ur_result_t enqueueImpCommandBufferKernel(
     AltUrKernels.push_back(AltUrKernel);
   }
 
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl.getAdapter();
+  adapter_impl &Adapter = ContextImpl.getAdapter();
   auto SetFunc = [&Adapter, &UrKernel, &DeviceImageImpl, &ContextImpl,
                   &getMemAllocationFunc](sycl::detail::ArgDesc &Arg,
                                          size_t NextTrueIndex) {
-    sycl::detail::SetArgBasedOnType(*Adapter, UrKernel, DeviceImageImpl.get(),
+    sycl::detail::SetArgBasedOnType(Adapter, UrKernel, DeviceImageImpl.get(),
                                     getMemAllocationFunc, ContextImpl, Arg,
                                     NextTrueIndex);
   };
@@ -2632,7 +2632,7 @@ ur_result_t enqueueImpCommandBufferKernel(
   if (HasLocalSize)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
-    Adapter->call<UrApiKind::urKernelGetGroupInfo>(
+    Adapter.call<UrApiKind::urKernelGetGroupInfo>(
         UrKernel, DeviceImpl.getHandleRef(),
         UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
         RequiredWGSize,
@@ -2649,13 +2649,13 @@ ur_result_t enqueueImpCommandBufferKernel(
   // we query the descriptor here to check if a handle is required.
   ur_exp_command_buffer_desc_t CommandBufferDesc{};
 
-  Adapter->call<UrApiKind::urCommandBufferGetInfoExp>(
+  Adapter.call<UrApiKind::urCommandBufferGetInfoExp>(
       CommandBuffer,
       ur_exp_command_buffer_info_t::UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR,
       sizeof(ur_exp_command_buffer_desc_t), &CommandBufferDesc, nullptr);
 
   ur_result_t Res =
-      Adapter->call_nocheck<UrApiKind::urCommandBufferAppendKernelLaunchExp>(
+      Adapter.call_nocheck<UrApiKind::urCommandBufferAppendKernelLaunchExp>(
           CommandBuffer, UrKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
           &NDRDesc.GlobalSize[0], LocalSize, AltUrKernels.size(),
           AltUrKernels.size() ? AltUrKernels.data() : nullptr,

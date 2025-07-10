@@ -1401,6 +1401,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
           return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 #endif
           break;
+        case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE:
+#if HIP_VERSION >= 50600000
+          extMemDesc.type = hipExternalMemoryHandleTypeD3D11Resource;
+          extMemDesc.flags = hipExternalMemoryDedicated;
+#else
+          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+#endif
+          break;
         default:
           return UR_RESULT_ERROR_INVALID_VALUE;
         }

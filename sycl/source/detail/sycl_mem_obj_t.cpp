@@ -162,7 +162,7 @@ void SYCLMemObjT::updateHostMemory() {
 adapter_impl &SYCLMemObjT::getAdapter() const {
   assert((MInteropContext != nullptr) &&
          "Trying to get Adapter from SYCLMemObjT with nullptr ContextImpl.");
-  return *(MInteropContext->getAdapter());
+  return MInteropContext->getAdapter();
 }
 
 bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
