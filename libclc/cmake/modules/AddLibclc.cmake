@@ -96,15 +96,12 @@ endfunction()
 #     Custom target to create
 # * INPUT <string> ...
 #     List of bytecode files to link together
-# * RSP_DIR <string>
-#     Directory where a response file should be placed
-#     (Only needed for WIN32 or CYGWIN)
 # * DEPENDENCIES <string> ...
 #     List of extra dependencies to inject
 function(link_bc)
   cmake_parse_arguments(ARG
     "INTERNALIZE"
-    "TARGET;RSP_DIR"
+    "TARGET"
     "INPUTS;DEPENDENCIES"
     ${ARGN}
   )
@@ -113,7 +110,7 @@ function(link_bc)
   if( WIN32 OR CYGWIN )
     # Create a response file in case the number of inputs exceeds command-line
     # character limits on certain platforms.
-    file( TO_CMAKE_PATH ${ARG_RSP_DIR}/${ARG_TARGET}.rsp RSP_FILE )
+    file( TO_CMAKE_PATH ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.rsp RSP_FILE )
     # Turn it into a space-separate list of input files
     list( JOIN ARG_INPUTS " " RSP_INPUT )
     file( GENERATE OUTPUT ${RSP_FILE} CONTENT ${RSP_INPUT} )
@@ -418,7 +415,6 @@ function(add_libclc_builtin_set)
     link_bc(
       TARGET ${builtins_link_lib_tgt}
       INPUTS ${bytecode_files}
-      RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
       DEPENDENCIES ${builtins_comp_lib_tgt}
     )
   else()
@@ -429,7 +425,6 @@ function(add_libclc_builtin_set)
     link_bc(
       TARGET ${builtins_link_lib_tmp_tgt}
       INPUTS ${bytecode_files}
-      RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
       DEPENDENCIES ${builtins_comp_lib_tgt}
     )
     set( internal_link_depend_files )
@@ -441,7 +436,6 @@ function(add_libclc_builtin_set)
       TARGET ${builtins_link_lib_tgt}
       INPUTS $<TARGET_PROPERTY:${builtins_link_lib_tmp_tgt},TARGET_FILE>
         ${internal_link_depend_files}
-      RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
       DEPENDENCIES ${builtins_link_lib_tmp_tgt} ${ARG_INTERNAL_LINK_DEPENDENCIES}
     )
   endif()
