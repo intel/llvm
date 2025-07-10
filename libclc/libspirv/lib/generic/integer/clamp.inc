@@ -6,11 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/shared/clc_clamp.h>
-#include <libspirv/spirv.h>
+#ifdef __CLC_GEN_S
+#define DECL __spirv_ocl_s_clamp
+#else
+#define DECL __spirv_ocl_u_clamp
+#endif
 
-#define __CLC_BODY <clamp.inc>
-#include <clc/integer/gentype.inc>
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE DECL(__CLC_GENTYPE x, __CLC_GENTYPE y,
+                                          __CLC_GENTYPE z) {
+  return __clc_clamp(x, y, z);
+}
 
-#define __CLC_BODY <clamp.inc>
-#include <clc/math/gentype.inc>
+#undef DECL
