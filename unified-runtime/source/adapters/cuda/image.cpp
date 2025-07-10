@@ -1524,6 +1524,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
           extMemDesc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE;
           extMemDesc.flags = CUDA_EXTERNAL_MEMORY_DEDICATED;
           break;
+        case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE:
+          extMemDesc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_RESOURCE;
+          extMemDesc.flags = CUDA_EXTERNAL_MEMORY_DEDICATED;
+          break;
         default:
           return UR_RESULT_ERROR_INVALID_VALUE;
         }

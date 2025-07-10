@@ -8,6 +8,7 @@ import os
 
 from options import options
 from utils.result import BenchmarkMetadata, BenchmarkOutput
+from utils.logger import log
 from history import BenchmarkHistory
 from benches.base import benchmark_tags_dict
 
@@ -42,13 +43,13 @@ def _write_output_to_file(
             f.write(";\n")
 
             if not archive:
-                print(f"See {os.getcwd()}/html/index.html for the results.")
+                log.info(f"See {html_path}/index.html for the results.")
     else:
         # For remote format, we write a single JSON file
         data_path = os.path.join(html_path, f"{filename}.json")
         with open(data_path, "w") as f:
             json.dump(json.loads(output.to_json()), f, indent=2)
-        print(
+        log.info(
             f"Upload {data_path} to a location set in config.js remoteDataUrl argument."
         )
 

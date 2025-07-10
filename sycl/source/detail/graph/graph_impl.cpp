@@ -369,7 +369,7 @@ std::set<std::shared_ptr<node_impl>> graph_impl::getCGEdges(
                             "Event dependency from handler::depends_on does "
                             "not correspond to a node within the graph");
     } else {
-      UniqueDeps.insert(NodeImpl->second);
+      UniqueDeps.insert(NodeImpl->second->shared_from_this());
     }
   }
 
@@ -683,9 +683,9 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
   auto RecordedQueueSP = RecordedQueue.lock();
   for (auto &Node : MNodeStorage) {
     if (Node->MSuccessors.empty()) {
-      auto EventForNode = getEventForNode(Node);
+      auto EventForNode = getEventForNode(*Node);
       if (EventForNode->getSubmittedQueue() == RecordedQueueSP) {
-        Events.push_back(getEventForNode(Node));
+        Events.push_back(getEventForNode(*Node));
       }
     }
   }
