@@ -221,6 +221,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             try:
                 s.setup()
             except Exception as e:
+                if options.exit_on_failure:
+                    raise e
                 failures[s.name()] = f"Suite setup failure: {e}"
                 log.error(
                     f"{type(s).__name__} setup failed. Benchmarks won't be added."
