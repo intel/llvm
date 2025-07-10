@@ -6,4 +6,4 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_DECL _CLC_OVERLOAD size_t __spirv_LocalInvocationIndex();
+_CLC_DECL _CLC_OVERLOAD size_t __spirv_BuiltInLocalInvocationIndex();

@@ -348,7 +348,7 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
     if (scope == Subgroup) {                                                   \
       return __spirv_SubgroupShuffleINTEL(x, local_id);                        \
     }                                                                          \
-    bool source = (__spirv_LocalInvocationIndex() == local_id);                \
+    bool source = (__spirv_BuiltInLocalInvocationIndex() == local_id);         \
     __local TYPE *scratch = __CLC_APPEND(__clc__get_group_scratch_, TYPE)();   \
     if (source) {                                                              \
       *scratch = x;                                                            \

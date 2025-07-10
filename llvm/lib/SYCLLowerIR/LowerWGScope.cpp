@@ -947,7 +947,7 @@ Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
       return Bld.CreateCall(Callee, {ConstantInt::get(ArgTy, Dim)});
     };
 
-    StringRef LocalInvocationIdName = "_Z33__spirv_BuiltInLocalInvocationIdi";
+    StringRef LocalInvocationIdName = "_Z32__spirv_BuiltInLocalInvocationIdi";
     Value *LocalInvocationIdX = CreateCallee(LocalInvocationIdName, 0);
     Value *LocalInvocationIdY = CreateCallee(LocalInvocationIdName, 1);
     Value *LocalInvocationIdZ = CreateCallee(LocalInvocationIdName, 2);

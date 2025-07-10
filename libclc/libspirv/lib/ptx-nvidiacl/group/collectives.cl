@@ -627,11 +627,11 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
 
 #define __CLC_GROUP_BROADCAST(TYPE)                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      int scope, TYPE x, ulong local_id) {                                    \
+      int scope, TYPE x, ulong local_id) {                                     \
     if (scope == Subgroup) {                                                   \
       return __clc__SubgroupShuffle(x, local_id);                              \
     }                                                                          \
-    bool source = (__spirv_LocalInvocationIndex() == local_id);                \
+    bool source = (__spirv_BuiltInLocalInvocationIndex() == local_id);         \
     __local TYPE *scratch = __CLC_APPEND(__clc__get_group_scratch_, TYPE)();   \
     if (source) {                                                              \
       *scratch = x;                                                            \
@@ -642,17 +642,17 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
     return result;                                                             \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      int scope, TYPE x, ulong2 local_id) {                                   \
+      int scope, TYPE x, ulong2 local_id) {                                    \
     ulong linear_local_id = __clc__2d_to_linear_local_id(local_id);            \
     return __spirv_GroupBroadcast(scope, x, linear_local_id);                  \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      int scope, TYPE x, ulong3 local_id) {                                   \
+      int scope, TYPE x, ulong3 local_id) {                                    \
     ulong linear_local_id = __clc__3d_to_linear_local_id(local_id);            \
     return __spirv_GroupBroadcast(scope, x, linear_local_id);                  \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      int scope, TYPE x, uint local_id) {                                     \
+      int scope, TYPE x, uint local_id) {                                      \
     return __spirv_GroupBroadcast(scope, x, (ulong)local_id);                  \
   }
 __CLC_GROUP_BROADCAST(char);
