@@ -886,13 +886,13 @@ event handler::finalize() {
       // In-order queues create implicit linear dependencies between nodes.
       // Find the last node added to the graph from this queue, so our new
       // node can set it as a predecessor.
-      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-          Deps;
+      std::vector<ext::oneapi::experimental::detail::node_impl *> Deps;
       if (ext::oneapi::experimental::detail::node_impl *DependentNode =
               GraphImpl->getLastInorderNode(Queue)) {
-        Deps.push_back(DependentNode->shared_from_this());
+        Deps.push_back(DependentNode);
       }
-      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
+      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps)
+                     .shared_from_this();
 
       // If we are recording an in-order queue remember the new node, so it
       // can be used as a dependency for any more nodes recorded from this
@@ -902,13 +902,13 @@ event handler::finalize() {
       ext::oneapi::experimental::detail::node_impl
           *LastBarrierRecordedFromQueue =
               GraphImpl->getBarrierDep(Queue->weak_from_this());
-      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-          Deps;
+      std::vector<ext::oneapi::experimental::detail::node_impl *> Deps;
 
       if (LastBarrierRecordedFromQueue) {
-        Deps.push_back(LastBarrierRecordedFromQueue->shared_from_this());
+        Deps.push_back(LastBarrierRecordedFromQueue);
       }
-      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
+      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps)
+                     .shared_from_this();
 
       if (NodeImpl->MCGType == sycl::detail::CGType::Barrier) {
         GraphImpl->setBarrierDep(Queue->weak_from_this(), *NodeImpl);
