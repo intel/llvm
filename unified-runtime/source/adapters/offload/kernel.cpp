@@ -29,6 +29,8 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     return offloadResultToUR(Res);
   }
 
+  Kernel->Program = hProgram;
+
   *phKernel = Kernel;
 
   return UR_RESULT_SUCCESS;
@@ -99,7 +101,8 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                  : static_cast<ur_mem_flags_t>(UR_MEM_FLAG_READ_WRITE);
   hKernel->Args.addMemObjArg(argIndex, hArgValue, MemAccess);
 
-  auto Ptr = std::get<BufferMem>(hArgValue->Mem).Ptr;
+  auto Ptr =
+      std::get<BufferMem>(hArgValue->Mem).getPtr(hKernel->Program->Device);
   hKernel->Args.addArg(argIndex, sizeof(void *), &Ptr);
   return UR_RESULT_SUCCESS;
 }

@@ -27,7 +27,7 @@ namespace {
 // Workaround for Offload not supporting PTX binaries. Force CUDA programs
 // to be linked so they end up as CUBIN.
 #ifdef UR_CUDA_ENABLED
-ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t hContext,
+ur_result_t ProgramCreateCudaWorkaround(ur_device_handle_t hDevice,
                                         const uint8_t *Binary, size_t Length,
                                         ur_program_handle_t *phProgram) {
   uint8_t *RealBinary;
@@ -49,8 +49,8 @@ ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t hContext,
 #endif
 
   ur_program_handle_t Program = new ur_program_handle_t_();
-  auto Res = olCreateProgram(hContext->Device->OffloadDevice, RealBinary,
-                             RealLength, &Program->OffloadProgram);
+  auto Res = olCreateProgram(hDevice->OffloadDevice, RealBinary, RealLength,
+                             &Program->OffloadProgram);
 
   // Program owns the linked module now
   cuLinkDestroy(State);
@@ -74,8 +74,8 @@ ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t, const uint8_t *,
 } // namespace
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
-    ur_context_handle_t hContext, uint32_t numDevices,
-    ur_device_handle_t *phDevices, size_t *pLengths, const uint8_t **ppBinaries,
+    ur_context_handle_t, uint32_t numDevices, ur_device_handle_t *phDevices,
+    size_t *pLengths, const uint8_t **ppBinaries,
     const ur_program_properties_t *, ur_program_handle_t *phProgram) {
   if (numDevices > 1) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -104,18 +104,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   olGetPlatformInfo(phDevices[0]->Platform->OffloadPlatform,
                     OL_PLATFORM_INFO_BACKEND, sizeof(Backend), &Backend);
   if (Backend == OL_PLATFORM_BACKEND_CUDA) {
-    return ProgramCreateCudaWorkaround(hContext, RealBinary, RealLength,
+    return ProgramCreateCudaWorkaround(phDevices[0], RealBinary, RealLength,
                                        phProgram);
   }
 
   ur_program_handle_t Program = new ur_program_handle_t_();
-  auto Res = olCreateProgram(hContext->Device->OffloadDevice, RealBinary,
+  auto Res = olCreateProgram(phDevices[0]->OffloadDevice, RealBinary,
                              RealLength, &Program->OffloadProgram);
 
   if (Res != OL_SUCCESS) {
     delete Program;
     return offloadResultToUR(Res);
   }
+
+  // We only have one device
+  Program->Device = phDevices[0];
 
   *phProgram = Program;
 

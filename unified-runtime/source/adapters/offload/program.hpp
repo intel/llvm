@@ -17,4 +17,5 @@
 
 struct ur_program_handle_t_ : RefCounted {
   ol_program_handle_t OffloadProgram;
+  ur_device_handle_t Device;
 };

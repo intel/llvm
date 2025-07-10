@@ -79,4 +79,6 @@ struct ur_kernel_handle_t_ : RefCounted {
 
   ol_kernel_handle_t OffloadKernel;
   OffloadKernelArguments Args{};
+
+  ur_program_handle_t Program;
 };

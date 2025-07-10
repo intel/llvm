@@ -21,7 +21,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     [[maybe_unused]] ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_queue_properties_t *, ur_queue_handle_t *phQueue) {
 
-  assert(hContext->Device == hDevice);
+  if (!hContext->containsDevice(hDevice)) {
+    return UR_RESULT_ERROR_INVALID_DEVICE;
+  }
 
   ur_queue_handle_t Queue = new ur_queue_handle_t_();
   auto Res = olCreateQueue(hDevice->OffloadDevice, &Queue->OffloadQueue);
@@ -31,6 +33,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   }
 
   Queue->OffloadDevice = hDevice->OffloadDevice;
+  Queue->Device = hDevice;
 
   *phQueue = Queue;
 
