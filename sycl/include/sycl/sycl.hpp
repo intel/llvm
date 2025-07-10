@@ -10,27 +10,27 @@
 
 // Throw warning when including sycl.hpp without using -fsycl flag.
 // Warning can be disabled by defining SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
+#define SYCL_STRINGIFY(x) #x
+#define SYCL_TOSTRING(x) SYCL_STRINGIFY(x)
 
 #ifdef _MSC_VER
-#define WARNING(msg)                                                           \
-  __pragma(message(__FILE__ "(" TOSTRING(__LINE__) "): warning: " msg))
+#define SYCL_WARNING(msg)                                                      \
+  __pragma(message(__FILE__ "(" SYCL_TOSTRING(__LINE__) "): warning: " msg))
 #elif defined(__GNUC__) || defined(__clang__)
-#define WARNING(msg) _Pragma(TOSTRING(GCC warning msg))
+#define SYCL_WARNING(msg) _Pragma(SYCL_TOSTRING(GCC warning msg))
 #else
-#define WARNING(msg) // Unsupported compiler
+#define SYCL_WARNING(msg) // Unsupported compiler
 #endif
 
 #if !defined(SYCL_LANGUAGE_VERSION) &&                                         \
     !defined(SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
-WARNING("You are including <sycl/sycl.hpp> without -fsycl flag, \
+SYCL_WARNING("You are including <sycl/sycl.hpp> without -fsycl flag, \
 which is errorenous for device code compilation. This warning \
 can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #endif
-#undef WARNING
-#undef TOSTRING
-#undef STRINGIFY
+#undef SYCL_WARNING
+#undef SYCL_TOSTRING
+#undef SYCL_STRINGIFY
 
 #include <sycl/detail/core.hpp>
 
