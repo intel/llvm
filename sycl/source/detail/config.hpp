@@ -214,9 +214,9 @@ public:
         try {
           val = std::stoi(str);
           return true;
-        // Ignore parsing exceptions, but throw on unexpected exceptions:
-        } catch (const std::invalid_argument&) {
-        } catch (const std::out_of_range&) {
+          // Ignore parsing exceptions, but throw on unexpected exceptions:
+        } catch (const std::invalid_argument &) {
+        } catch (const std::out_of_range &) {
         }
         return false;
       };
@@ -225,8 +225,8 @@ public:
       // MinRound:PreferredRound:MinRange
       std::string Params(RoundParams);
       size_t Pos = Params.find(':');
-      if (Pos != std::string::npos &&
-          GuardedStoi(MF, Params.substr(0, Pos)) && MF > 0) {
+      if (Pos != std::string::npos && GuardedStoi(MF, Params.substr(0, Pos)) &&
+          MF > 0) {
         Params.erase(0, Pos + 1);
         Pos = Params.find(':');
         if (Pos != std::string::npos &&
@@ -248,7 +248,8 @@ public:
           << "WARNING: Invalid value passed for "
           << "SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS (Expected format "
           << "MinRound:PreferredRound:MinRange, where MinRound, PreferredRound"
-          << " > 0). Provided parameters will be ignored." << std::endl;
+          << " > 0, MinRange >= 0). Provided parameters will be ignored."
+          << std::endl;
     }
   }
 };
