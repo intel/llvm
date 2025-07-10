@@ -32,8 +32,6 @@ namespace dx_helpers {
 
 enum class dx_version { DX11, DX12 };
 
-enum class device_preference { Unspecified, Integrated, Dedicated };
-
 inline std::string ResultToString(HRESULT result) {
   char s_str[64] = {};
   sprintf_s(s_str, "Error result == 0x%08X", static_cast<uint32_t>(result));
