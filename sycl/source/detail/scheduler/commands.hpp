@@ -576,8 +576,8 @@ private:
 /// object.
 class MemCpyCommand : public Command {
 public:
-  MemCpyCommand(Requirement SrcReq, AllocaCommandBase *SrcAllocaCmd,
-                Requirement DstReq, AllocaCommandBase *DstAllocaCmd,
+  MemCpyCommand(const Requirement &SrcReq, AllocaCommandBase *SrcAllocaCmd,
+                const Requirement &DstReq, AllocaCommandBase *DstAllocaCmd,
                 queue_impl *SrcQueue, queue_impl *DstQueue);
 
   void printDot(std::ostream &Stream) const final;
