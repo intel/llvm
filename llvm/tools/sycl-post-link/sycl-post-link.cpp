@@ -259,7 +259,7 @@ struct IrPropSymFilenameTriple {
   std::string Sym;
 };
 
-void writeToFile(const StringRef Filename, const StringRef Content) {
+static void writeToFile(const StringRef Filename, const StringRef Content) {
   std::error_code EC;
   raw_fd_ostream OS{Filename, EC, sys::fs::OpenFlags::OF_None};
   checkError(EC, "error opening the file '" + Filename + "'");
@@ -325,11 +325,6 @@ void saveModuleSymbolTable(const module_split::ModuleDesc &MD,
   writeToFile(Filename, SymT);
 }
 
-// Compute the filename suffix for the module
-StringRef getModuleSuffix(const module_split::ModuleDesc &MD) {
-  return MD.isESIMD() ? "_esimd" : "";
-}
-
 bool isTargetCompatibleWithModule(const std::string &Target,
                                   module_split::ModuleDesc &IrMD);
 
@@ -338,16 +333,16 @@ void addTableRow(util::SimpleTable &Table,
 
 /// \param OutTables List of tables (one for each target) to output results
 /// \param MD Module descriptor to save
-/// \param OutputPrefix Prefix for the all generated outputs.
-/// \param IRFilename filename of already available IR component. If not empty,
-///   IR component saving is skipped, and this file name is recorded as such in
-///   the result.
+/// \param OutputPrefix Prefix for all generated outputs.
+/// \param IRFilename Filename of IR component. If filename is not empty, it
+///   is recorded in the OutTable. Otherwise, a new file is created to save
+///   the IR component, and the new name is recorded in the OutTable.
 void saveModule(
     const std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
     module_split::ModuleDesc &MD, const int I, const Twine &OutputPrefix,
     const StringRef IRFilename) {
   IrPropSymFilenameTriple BaseTriple;
-  StringRef Suffix = getModuleSuffix(MD);
+  StringRef Suffix = MD.isESIMD() ? "_esimd" : "";
   MD.saveSplitInformationAsMetadata();
 
   if (!IRFilename.empty()) {
@@ -355,8 +350,8 @@ void saveModule(
     BaseTriple.Ir = IRFilename.str();
   } else {
     if (!MD.isSYCLDeviceLib()) {
-      // For deviceLib Modules, don't need to do clean up, no entry-point
-      // is included, the module only includes a bunch of exported functions
+      // For deviceLib Modules, we don't need to do clean up and no entry-point
+      // is included. The module only includes a bunch of exported functions
       // intended to be invoked by user's device modules.
       MD.cleanup(AllowDeviceImageDependencies);
     }
