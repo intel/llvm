@@ -1852,10 +1852,10 @@ void MemCpyCommandHost::printDot(std::ostream &Stream) const {
 }
 
 UpdateHostRequirementCommand::UpdateHostRequirementCommand(
-    queue_impl *Queue, Requirement Req, AllocaCommandBase *SrcAllocaCmd,
+    queue_impl *Queue, Requirement &Req, AllocaCommandBase *SrcAllocaCmd,
     void **DstPtr)
     : Command(CommandType::UPDATE_REQUIREMENT, Queue),
-      MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(Req)), MDstPtr(DstPtr) {
+      MSrcAllocaCmd(SrcAllocaCmd), MDstReq(Req), MDstPtr(DstPtr) {
 
   emitInstrumentationDataProxy();
 }

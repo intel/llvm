@@ -696,7 +696,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 
 class UpdateHostRequirementCommand : public Command {
 public:
-  UpdateHostRequirementCommand(queue_impl *Queue, Requirement Req,
+  UpdateHostRequirementCommand(queue_impl *Queue, Requirement &Req,
                                AllocaCommandBase *SrcAllocaCmd, void **DstPtr);
 
   void printDot(std::ostream &Stream) const final;
