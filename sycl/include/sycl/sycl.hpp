@@ -10,27 +10,27 @@
 
 // Throw warning when including sycl.hpp without using -fsycl flag.
 // Warning can be disabled by defining SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.
-#define SYCL_STRINGIFY(x) #x
-#define SYCL_TOSTRING(x) SYCL_STRINGIFY(x)
+#define __SYCL_STRINGIFY(x) #x
+#define __SYCL_TOSTRING(x) __SYCL_STRINGIFY(x)
 
 #ifdef _MSC_VER
-#define SYCL_WARNING(msg)                                                      \
-  __pragma(message(__FILE__ "(" SYCL_TOSTRING(__LINE__) "): warning: " msg))
+#define __SYCL_WARNING(msg)                                                    \
+  __pragma(message(__FILE__ "(" __SYCL_TOSTRING(__LINE__) "): warning: " msg))
 #elif defined(__GNUC__) || defined(__clang__)
-#define SYCL_WARNING(msg) _Pragma(SYCL_TOSTRING(GCC warning msg))
+#define __SYCL_WARNING(msg) _Pragma(__SYCL_TOSTRING(GCC warning msg))
 #else
-#define SYCL_WARNING(msg) // Unsupported compiler
+#define __SYCL_WARNING(msg) // Unsupported compiler
 #endif
 
 #if !defined(SYCL_LANGUAGE_VERSION) &&                                         \
     !defined(SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
-SYCL_WARNING("You are including <sycl/sycl.hpp> without -fsycl flag, \
+__SYCL_WARNING("You are including <sycl/sycl.hpp> without -fsycl flag, \
 which is errorenous for device code compilation. This warning \
 can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #endif
-#undef SYCL_WARNING
-#undef SYCL_TOSTRING
-#undef SYCL_STRINGIFY
+#undef __SYCL_WARNING
+#undef __SYCL_TOSTRING
+#undef __SYCL_STRINGIFY
 
 #include <sycl/detail/core.hpp>
 
