@@ -249,7 +249,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     if benchmarks:
         log.info(f"Running {len(benchmarks)} benchmarks...")
     elif not options.dry_run:
-        log.warning("No benchmarks to run.")
+        raise RuntimeError("No benchmarks to run.")
     for benchmark in benchmarks:
         try:
             merged_env_vars = {**additional_env_vars}
