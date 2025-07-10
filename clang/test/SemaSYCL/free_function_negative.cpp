@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -verify=expected -fsycl-int-header=%t.h %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -verify=expected %s
 
 #include "sycl.hpp"
 
