@@ -1268,6 +1268,9 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
       case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE:
         importWin32->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_D3D12_RESOURCE;
         break;
+      case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE:
+        importWin32->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_D3D11_TEXTURE;
+        break;
       default:
         delete importWin32;
         delete externalMemoryData;

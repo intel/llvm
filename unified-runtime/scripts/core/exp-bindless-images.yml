@@ -214,6 +214,8 @@ etors:
     desc: "Win32 NT DirectX 12 resource handle"
   - name: DMA_BUF
     desc: "dma_buf file descriptor"
+  - name: WIN32_NT_DX11_RESOURCE
+    desc: "Win32 NT DirectX 11 resource handle"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Dictates the type of external semaphore handle."
