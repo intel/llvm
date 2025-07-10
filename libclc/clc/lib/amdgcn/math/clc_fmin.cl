@@ -6,45 +6,25 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
 #include <clc/internal/clc.h>
-#include <clc/relational/clc_isnan.h>
+#include <clc/math/clc_fmin.h>
 
-_CLC_DEF _CLC_OVERLOAD float __clc_fmin(float x, float y) {
-  // fcanonicalize removes sNaNs and flushes denormals if not enabled. Otherwise
-  // fmin instruction flushes the values for comparison, but outputs original
-  // denormal
-  x = __builtin_canonicalizef(x);
-  y = __builtin_canonicalizef(y);
-  return __builtin_fminf(x, y);
-}
+#define __CLC_FUNCTION __clc_fmin
+#define __CLC_BUILTIN __ocml_fmin
+
+float __ocml_fmin_f32(float, float);
+#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
 
 #ifdef cl_khr_fp64
-
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-_CLC_DEF _CLC_OVERLOAD double __clc_fmin(double x, double y) {
-  x = __builtin_canonicalize(x);
-  y = __builtin_canonicalize(y);
-  return __builtin_fmin(x, y);
-}
-
-#endif
+double __ocml_fmin_f64(double, double);
+#define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
+#endif // cl_khr_fp64
 
 #ifdef cl_khr_fp16
-
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
+half __ocml_fmin_f16(half, half);
+#define __CLC_BUILTIN_H __CLC_XCONCAT(__CLC_BUILTIN, _f16)
+#endif // cl_khr_fp16
 
-_CLC_DEF _CLC_OVERLOAD half __clc_fmin(half x, half y) {
-  if (__clc_isnan(x))
-    return y;
-  if (__clc_isnan(y))
-    return x;
-  return (y < x) ? y : x;
-}
-
-#endif
-
-#define FUNCTION __clc_fmin
-#define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
-#include <clc/math/gentype.inc>
+#include <clc/math/binary_builtin.inc>

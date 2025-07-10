@@ -6,9 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_native_powr(__CLC_GENTYPE x,
-                                                             __CLC_GENTYPE y) {
-  // x^y == 2^{log2 x^y} == 2^{y * log2 x}
-  // for x < 0 propagate nan created by log2
-  return __spirv_ocl_native_exp2(y * __spirv_ocl_native_log2(x));
-}
+#include <clc/internal/clc.h>
+#include <clc/math/clc_sqrt.h>
+
+float __nv_sqrtf(float);
+double __nv_sqrt(double);
+
+#define __CLC_FUNCTION __clc_sqrt
+#define __CLC_BUILTIN __nv_sqrt
+#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
+#include <clc/math/unary_builtin_scalarize.inc>

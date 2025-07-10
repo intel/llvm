@@ -124,7 +124,7 @@ TEST_F(QueueID, QueueCreationAndKernelWithDeps) {
   Q1.submit(
         [&](handler &Cgh) {
           sycl::accessor acc(buf, Cgh, sycl::read_write);
-          Cgh.parallel_for<TestKernel<1>>(1, [=](sycl::id<1> idx) {});
+          Cgh.parallel_for<TestKernel>(1, [=](sycl::id<1> idx) {});
         },
         {FileName, FunctionName, 1, 0})
       .wait();
@@ -173,7 +173,7 @@ TEST_F(QueueID, QueueCreationAndKernelNoDeps) {
 
   Q0.submit(
         [&](handler &Cgh) {
-          Cgh.parallel_for<TestKernel<1>>(1, [=](sycl::id<1> idx) {});
+          Cgh.parallel_for<TestKernel>(1, [=](sycl::id<1> idx) {});
         },
         {FileName, FunctionName, 2, 0})
       .wait();
@@ -181,7 +181,7 @@ TEST_F(QueueID, QueueCreationAndKernelNoDeps) {
 
   Q1.submit(
         [&](handler &Cgh) {
-          Cgh.parallel_for<TestKernel<1>>(1, [=](sycl::id<1> idx) {});
+          Cgh.parallel_for<TestKernel>(1, [=](sycl::id<1> idx) {});
         },
         {FileName, FunctionName, 3, 0})
       .wait();
