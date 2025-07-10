@@ -9060,7 +9060,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
   } break;
   case UR_PROGRAM_INFO_BINARIES: {
 
-    const unsigned char *tptr = (const unsigned char *)ptr;
+    const unsigned char *const *tptr = (const unsigned char *const *)ptr;
     printPtr(os, tptr);
   } break;
   case UR_PROGRAM_INFO_NUM_KERNELS: {
