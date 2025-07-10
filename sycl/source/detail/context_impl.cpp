@@ -120,7 +120,7 @@ context_impl::~context_impl() {
   try {
     // Free all events associated with the initialization of device globals.
     for (auto &DeviceGlobalInitializer : MDeviceGlobalInitializers)
-      DeviceGlobalInitializer.second.ClearEvents(&getAdapter());
+      DeviceGlobalInitializer.second.ClearEvents(getAdapter());
     // Free all device_global USM allocations associated with this context.
     for (const void *DeviceGlobal : MAssociatedDeviceGlobals) {
       DeviceGlobalMapEntry *DGEntry =
@@ -146,7 +146,7 @@ const async_handler &context_impl::get_async_handler() const {
 template <>
 uint32_t context_impl::get_info<info::context::reference_count>() const {
   return get_context_info<info::context::reference_count>(this->getHandleRef(),
-                                                          &this->getAdapter());
+                                                          this->getAdapter());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
   return createSyclObjFromImpl<platform>(*MPlatform);
