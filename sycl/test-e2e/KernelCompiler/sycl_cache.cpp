@@ -7,15 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: (opencl || level_zero)
-// Unlike other RTC tests, don't run this one on Cuda/HIP. Eviction mechanism
-// is based on the size of compiled kernels, which in turns depends on the
-// target. Don't run eviction check for CUDA/HIP, so that we don't have to find
-// a magic number that works for all binaries (and by definition is flaky).
-
 // REQUIRES: aspect-usm_device_allocations
-
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
 // DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=7 SYCL_CACHE_DIR=%t/cache_dir
 // DEFINE: %{max_cache_size} = SYCL_CACHE_MAX_SIZE=30000

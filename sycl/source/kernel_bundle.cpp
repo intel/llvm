@@ -409,10 +409,8 @@ bool is_source_kernel_bundle_supported(
     const std::vector<device_impl *> &DeviceImplVec) {
   backend BE = DeviceImplVec[0]->getBackend();
   // Support is limited to the opencl and level_zero backends.
-  bool BE_Acceptable =
-      (BE == sycl::backend::ext_oneapi_level_zero) ||
-      (BE == sycl::backend::opencl || BE == sycl::backend::ext_oneapi_hip ||
-       BE == sycl::backend::ext_oneapi_cuda);
+  bool BE_Acceptable = (BE == sycl::backend::ext_oneapi_level_zero) ||
+                       (BE == sycl::backend::opencl);
   if (!BE_Acceptable)
     return false;
 
@@ -424,7 +422,7 @@ bool is_source_kernel_bundle_supported(
     if (DeviceImplVec.empty())
       return false;
 
-    const AdapterPtr &Adapter = DeviceImplVec[0]->getAdapter();
+    detail::adapter_impl &Adapter = DeviceImplVec[0]->getAdapter();
     std::vector<uint32_t> IPVersionVec;
     IPVersionVec.reserve(DeviceImplVec.size());
 
@@ -432,7 +430,7 @@ bool is_source_kernel_bundle_supported(
                    std::back_inserter(IPVersionVec), [&](device_impl *Dev) {
                      uint32_t ipVersion = 0;
                      ur_device_handle_t DeviceHandle = Dev->getHandleRef();
-                     Adapter->call<UrApiKind::urDeviceGetInfo>(
+                     Adapter.call<UrApiKind::urDeviceGetInfo>(
                          DeviceHandle, UR_DEVICE_INFO_IP_VERSION,
                          sizeof(uint32_t), &ipVersion, nullptr);
                      return ipVersion;

@@ -244,7 +244,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             )
             sycl_target_opts += hip_arch_opts
             substitutions.append(("%{hip_arch_opts}", hip_arch_opts))
-            substitutions.append(("%{amd_arch}", test.config.amd_arch))
         if (
             "target-spir" in build_targets
             and "spirv-backend" in test.config.available_features

@@ -808,7 +808,7 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
       // Overwrite Ty with IntegerLiteral's size
       Ty = parsePrimitiveTypeString(StringRef(&*TyStr.begin(), TyStr.size()),
                                     Ctx);
-    Val = ValL->getValue();
+    Val = ValL->value();
     break;
   }
   case id::Node::KBoolExpr: {

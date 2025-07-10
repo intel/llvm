@@ -62,12 +62,12 @@ public:
   /// \param OwnedByRuntime is the flag if ownership is kept by user or
   /// transferred to runtime
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               const adapter_impl &Adapter,
+               adapter_impl &Adapter,
                const std::vector<sycl::device> &DeviceList, bool OwnedByRuntime,
                private_tag);
 
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               const adapter_impl &Adapter, private_tag tag)
+               adapter_impl &Adapter, private_tag tag)
       : context_impl(UrContext, AsyncHandler, Adapter,
                      std::vector<sycl::device>{},
                      /*OwnedByRuntime*/ true, tag) {}
@@ -94,7 +94,7 @@ public:
   const async_handler &get_async_handler() const;
 
   /// \return the Adapter associated with the platform of this context.
-  const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
+  adapter_impl &getAdapter() const { return MPlatform->getAdapter(); }
 
   /// \return the PlatformImpl associated with this context.
   platform_impl &getPlatformImpl() const { return *MPlatform; }
@@ -367,7 +367,7 @@ void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
 // convenient to be able to reference them without extra `detail::`.
 inline auto get_ur_handles(sycl::detail::context_impl &Ctx) {
   ur_context_handle_t urCtx = Ctx.getHandleRef();
-  return std::tuple{urCtx, Ctx.getAdapter()};
+  return std::tuple{urCtx, &Ctx.getAdapter()};
 }
 inline auto get_ur_handles(const sycl::context &syclContext) {
   return get_ur_handles(*sycl::detail::getSyclObjImpl(syclContext));
@@ -379,5 +379,11 @@ inline auto get_ur_handles(const sycl::device &syclDevice,
       sycl::detail::getSyclObjImpl(syclDevice)->getHandleRef();
   return std::tuple{urDevice, urCtx, Adapter};
 }
+inline auto get_ur_handles(const sycl::device &syclDevice) {
+  auto &implDevice = *sycl::detail::getSyclObjImpl(syclDevice);
+  ur_device_handle_t urDevice = implDevice.getHandleRef();
+  return std::tuple{urDevice, &implDevice.getAdapter()};
+}
+
 } // namespace _V1
 } // namespace sycl
