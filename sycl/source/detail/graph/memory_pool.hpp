@@ -73,9 +73,6 @@ public:
   /// Memory pool cannot be copied
   graph_mem_pool(graph_mem_pool &) = delete;
 
-  /// Memory pool cannot be assigned
-  graph_mem_pool &operator=(const graph_mem_pool &) = delete;
-
   /// Get a pointer to a new allocation. For device allocations these are
   /// virtual reservations which must be later mapped to allocated physical
   /// memory before use by calling allocateAndMapAll()
