@@ -34,7 +34,7 @@ struct ur_sampler_handle_t_ : ur::cuda::handle_base {
   ur_context_handle_t Context;
 
   ur_sampler_handle_t_(ur_context_handle_t Context)
-      : handle_base(), RefCount(1), Props(0), MinMipmapLevelClamp(0.0f),
+      : handle_base(), Props(0), MinMipmapLevelClamp(0.0f),
         MaxMipmapLevelClamp(0.0f), MaxAnisotropy(0.0f), Context(Context) {}
 
   ur_bool_t isNormalizedCoords() const noexcept {

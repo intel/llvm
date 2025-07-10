@@ -256,7 +256,7 @@ struct ur_kernel_handle_t_ : ur::cuda::handle_base {
                       ur_context_handle_t Context)
       : handle_base(), Function{Func},
         FunctionWithOffsetParam{FuncWithOffsetParam}, Name{Name},
-        Context{Context}, Program{Program}, RefCount{1} {
+        Context{Context}, Program{Program} {
     urProgramRetain(Program);
     urContextRetain(Context);
 

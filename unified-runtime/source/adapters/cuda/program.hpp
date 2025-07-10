@@ -50,9 +50,9 @@ struct ur_program_handle_t_ : ur::cuda::handle_base {
 
   ur_program_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device)
       : handle_base(), Module{nullptr}, Binary{}, BinarySizeInBytes{0},
-        RefCount{1}, Context{Context}, Device{Device},
-        KernelReqdWorkGroupSizeMD{}, KernelMaxWorkGroupSizeMD{},
-        KernelMaxLinearWorkGroupSizeMD{}, KernelReqdSubGroupSizeMD{} {
+        Context{Context}, Device{Device}, KernelReqdWorkGroupSizeMD{},
+        KernelMaxWorkGroupSizeMD{}, KernelMaxLinearWorkGroupSizeMD{},
+        KernelReqdSubGroupSizeMD{} {
     urContextRetain(Context);
 
     // When the log is queried we use strnlen(InfoLog), so it needs to be

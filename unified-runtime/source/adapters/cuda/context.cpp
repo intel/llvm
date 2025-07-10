@@ -45,6 +45,7 @@ urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
   try {
     ContextPtr = std::unique_ptr<ur_context_handle_t_>(
         new ur_context_handle_t_{phDevices, DeviceCount});
+    ContextPtr->RefCount.retain();
     *phContext = ContextPtr.release();
   } catch (ur_result_t Err) {
     return Err;
@@ -83,7 +84,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  if (!hContext->RefCount.release()) {
+  if (hContext->RefCount.release()) {
     return UR_RESULT_SUCCESS;
   }
   hContext->invokeExtendedDeleters();
