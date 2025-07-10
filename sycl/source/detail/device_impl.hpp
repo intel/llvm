@@ -1204,9 +1204,9 @@ public:
     }
     CASE(ext::intel::info::device::node_mask) {
       if (!has(aspect::ext_intel_device_info_node_mask))
-        throw exception(
-            make_error_code(errc::feature_not_supported),
-            "The device does not have the ext_intel_device_info_node_mask aspect");
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_device_info_node_mask aspect");
       return get_info_impl<UR_DEVICE_INFO_NODE_MASK>();
     }
     else {

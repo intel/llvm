@@ -1371,7 +1371,7 @@ ur_result_t urDeviceGetInfo(
     // Intel extension for device node mask. This returns the node mask as
     // uint32_t. For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
-    
+
     // Node mask is provided through the L0 LUID extension so support for this
     // extension must be checked.
     if (Device->Platform->ZeLUIDSupported) {
@@ -1383,8 +1383,7 @@ ur_result_t urDeviceGetInfo(
 
       ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
 
-      const auto &nodeMask = LuidDesc.nodeMask;
-      return ReturnValue(nodeMask, sizeof(nodeMask));
+      return ReturnValue(LuidDesc.nodeMask);
     } else {
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
