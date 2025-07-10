@@ -5869,6 +5869,7 @@ void SemaSYCL::MarkDevices() {
     checkSYCLAddIRAttributesFunctionAttrConflicts(T.GetSYCLKernel());
   }
 }
+
 static bool CheckFreeFunctionDiagnostics(Sema &S, const FunctionDecl *FD) {
   if (FD->isVariadic()) {
     return S.Diag(FD->getLocation(), diag::err_free_function_variadic_args);
