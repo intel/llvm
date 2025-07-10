@@ -239,7 +239,8 @@ struct Wrapper {
   std::optional<util::PropertySet> SYCLNativeCPUPropSet = std::nullopt;
 
   std::pair<Constant *, Constant *>
-  addDeclarationsForNativeCPU(std::string Entries, std::optional<util::PropertySet> NativeCPUProps) {
+  addDeclarationsForNativeCPU(std::string Entries,
+                              std::optional<util::PropertySet> NativeCPUProps) {
     auto *NullPtr = llvm::ConstantPointerNull::get(PointerType::getUnqual(C));
     if (Entries.empty())
       return {NullPtr, NullPtr};
@@ -285,16 +286,17 @@ struct Wrapper {
     auto *GVar = new GlobalVariable(M, CA->getType(), true,
                                     GlobalVariable::InternalLinkage, CA,
                                     "__sycl_native_cpu_decls");
-    auto *EntriesBegin = ConstantExpr::getGetElementPtr(GVar->getValueType(), GVar,
-                                                 getSizetConstPair(0u, 0u));
+    auto *EntriesBegin = ConstantExpr::getGetElementPtr(
+        GVar->getValueType(), GVar, getSizetConstPair(0u, 0u));
 
     // Add Native CPU specific properties to the nativecpu_program struct
     Constant *PropValue = NullPtr;
     if (NativeCPUProps.has_value()) {
       auto Props = addPropertySetToModule(*NativeCPUProps);
-      auto *Category = addStringToModule(sycl::PropSetRegTy::SYCL_NATIVE_CPU_PROPS, "SYCL_PropSetName");
-      auto S = ConstantStruct::get(
-          SyclPropSetTy, Category, Props.first, Props.second);
+      auto *Category = addStringToModule(
+          sycl::PropSetRegTy::SYCL_NATIVE_CPU_PROPS, "SYCL_PropSetName");
+      auto S = ConstantStruct::get(SyclPropSetTy, Category, Props.first,
+                                   Props.second);
       auto T = addStructArrayToModule({S}, SyclPropSetTy);
       PropValue = T.first;
     }
@@ -303,16 +305,17 @@ struct Wrapper {
     // We add it to a ConstantArray of length 1 because the SYCL runtime expects
     // a non-zero sized binary image, and this allows it to point the end of the
     // binary image to the end of the array.
-    auto *Program = ConstantStruct::get(NCPUProgramT, {EntriesBegin, PropValue});
+    auto *Program =
+        ConstantStruct::get(NCPUProgramT, {EntriesBegin, PropValue});
     ArrayType *ProgramATy = ArrayType::get(NCPUProgramT, 1);
     Constant *CPA = ConstantArray::get(ProgramATy, {Program});
-    auto *ProgramGVar = new GlobalVariable(M, ProgramATy, true,
-                                    GlobalVariable::InternalLinkage, CPA,
-                                    "__sycl_native_cpu_program");
-    auto *ProgramBegin = ConstantExpr::getGetElementPtr(ProgramGVar->getValueType(), ProgramGVar,
-                                                 getSizetConstPair(0u, 0u));
-    auto *ProgramEnd = ConstantExpr::getGetElementPtr(ProgramGVar->getValueType(), ProgramGVar,
-                                                 getSizetConstPair(0u, 1u));
+    auto *ProgramGVar =
+        new GlobalVariable(M, ProgramATy, true, GlobalVariable::InternalLinkage,
+                           CPA, "__sycl_native_cpu_program");
+    auto *ProgramBegin = ConstantExpr::getGetElementPtr(
+        ProgramGVar->getValueType(), ProgramGVar, getSizetConstPair(0u, 0u));
+    auto *ProgramEnd = ConstantExpr::getGetElementPtr(
+        ProgramGVar->getValueType(), ProgramGVar, getSizetConstPair(0u, 1u));
     return std::make_pair(ProgramBegin, ProgramEnd);
   }
 
@@ -541,9 +544,9 @@ struct Wrapper {
     SmallVector<Constant *> PropSetsInits;
     for (const auto &PropSet : PropRegistry) {
       // create content in the rightmost column and get begin/end pointers
-       if (PropSet.first == sycl::PropSetRegTy::SYCL_NATIVE_CPU_PROPS) {
-        // We don't emit Native CPU specific properties in this section, but instead
-        // we emit them in the native_cpu_entry struct directly.
+      if (PropSet.first == sycl::PropSetRegTy::SYCL_NATIVE_CPU_PROPS) {
+        // We don't emit Native CPU specific properties in this section, but
+        // instead we emit them in the native_cpu_entry struct directly.
         SYCLNativeCPUPropSet = PropSet.second;
         continue;
       }
