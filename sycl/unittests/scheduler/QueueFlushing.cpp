@@ -112,7 +112,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                 access::mode::read_write};
     testCommandEnqueue(&MapCmd, QueueImplB, MockReq);
 
-    detail::UnMapMemObject UnmapCmd{&AllocaCmd, &MockReq, &MockHostPtr,
+    detail::UnMapMemObject UnmapCmd{&AllocaCmd, MockReq, &MockHostPtr,
                                     &QueueImplA};
     testCommandEnqueue(&UnmapCmd, QueueImplB, MockReq);
 

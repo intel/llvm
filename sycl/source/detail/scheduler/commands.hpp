@@ -537,8 +537,8 @@ private:
 /// The map command enqueues mapping of device memory onto host memory.
 class MapMemObject : public Command {
 public:
-  MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req, void **DstPtr,
-               queue_impl *Queue, access::mode MapMode);
+  MapMemObject(AllocaCommandBase *SrcAllocaCmd, const Requirement &Req,
+               void **DstPtr, queue_impl *Queue, access::mode MapMode);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MSrcReq; }
@@ -556,7 +556,7 @@ private:
 /// The unmap command removes mapping of host memory onto device memory.
 class UnMapMemObject : public Command {
 public:
-  UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
+  UnMapMemObject(AllocaCommandBase *DstAllocaCmd, const Requirement &Req,
                  void **SrcPtr, queue_impl *Queue);
 
   void printDot(std::ostream &Stream) const final;
