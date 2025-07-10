@@ -204,7 +204,7 @@ private:
   device_impl *getDeviceImplHelper(ur_device_handle_t UrDevice);
 
   // Helper to get the vector of platforms supported by a given UR adapter
-  static std::vector<platform> getAdapterPlatforms(AdapterPtr &Adapter,
+  static std::vector<platform> getAdapterPlatforms(adapter_impl &Adapter,
                                                    bool Supported = true);
 
   // Helper to filter reportable devices in the platform
@@ -216,7 +216,7 @@ private:
   ur_platform_handle_t MPlatform = 0;
   backend MBackend;
 
-  AdapterPtr MAdapter;
+  adapter_impl *MAdapter;
 
   std::vector<std::shared_ptr<device_impl>> MDevices;
   friend class GlobalHandler;
