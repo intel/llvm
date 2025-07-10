@@ -1029,12 +1029,12 @@ void Command::copySubmissionCodeLocation() {
 }
 
 AllocaCommandBase::AllocaCommandBase(CommandType Type, queue_impl *Queue,
-                                     Requirement Req,
+                                     const Requirement &Req,
                                      AllocaCommandBase *LinkedAllocaCmd,
                                      bool IsConst)
     : Command(Type, Queue), MLinkedAllocaCmd(LinkedAllocaCmd),
       MIsLeaderAlloca(nullptr == LinkedAllocaCmd), MIsConst(IsConst),
-      MRequirement(std::move(Req)), MReleaseCmd(Queue, this) {
+      MRequirement(Req), MReleaseCmd(Queue, this) {
   MRequirement.MAccessMode = access::mode::read_write;
   emitInstrumentationDataProxy();
 }
@@ -1071,11 +1071,11 @@ bool AllocaCommandBase::supportsPostEnqueueCleanup() const { return false; }
 
 bool AllocaCommandBase::readyForCleanup() const { return false; }
 
-AllocaCommand::AllocaCommand(queue_impl *Queue, Requirement Req,
+AllocaCommand::AllocaCommand(queue_impl *Queue, const Requirement &Req,
                              bool InitFromUserData,
                              AllocaCommandBase *LinkedAllocaCmd, bool IsConst)
-    : AllocaCommandBase(CommandType::ALLOCA, Queue, std::move(Req),
-                        LinkedAllocaCmd, IsConst),
+    : AllocaCommandBase(CommandType::ALLOCA, Queue, Req, LinkedAllocaCmd,
+                        IsConst),
       MInitFromUserData(InitFromUserData) {
   // Node event must be created before the dependent edge is added to this
   // node, so this call must be before the addDep() call.
@@ -1153,7 +1153,7 @@ AllocaSubBufCommand::AllocaSubBufCommand(queue_impl *Queue, Requirement Req,
                                          AllocaCommandBase *ParentAlloca,
                                          std::vector<Command *> &ToEnqueue,
                                          std::vector<Command *> &ToCleanUp)
-    : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, Queue, std::move(Req),
+    : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, Queue, Req,
                         /*LinkedAllocaCmd*/ nullptr, /*IsConst*/ false),
       MParentAlloca(ParentAlloca) {
   // Node event must be created before the dependent edge

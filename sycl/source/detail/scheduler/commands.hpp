@@ -453,7 +453,7 @@ private:
 /// Base class for memory allocation commands.
 class AllocaCommandBase : public Command {
 public:
-  AllocaCommandBase(CommandType Type, queue_impl *Queue, Requirement Req,
+  AllocaCommandBase(CommandType Type, queue_impl *Queue, const Requirement &Req,
                     AllocaCommandBase *LinkedAllocaCmd, bool IsConst);
 
   ReleaseCommand *getReleaseCmd() { return &MReleaseCmd; }
@@ -498,7 +498,7 @@ protected:
 /// or underlying framework.
 class AllocaCommand : public AllocaCommandBase {
 public:
-  AllocaCommand(queue_impl *Queue, Requirement Req,
+  AllocaCommand(queue_impl *Queue, const Requirement &Req,
                 bool InitFromUserData = true,
                 AllocaCommandBase *LinkedAllocaCmd = nullptr,
                 bool IsConst = false);
