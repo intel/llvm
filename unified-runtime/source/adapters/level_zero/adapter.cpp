@@ -298,7 +298,7 @@ static std::pair<bool, std::string> shouldUseV1Adapter() {
   return {!isBMGorNewer(), reason};
 }
 
-static std::pair<bool, std::string> shouldUseV2Adapter() {
+[[maybe_unused]] static std::pair<bool, std::string> shouldUseV2Adapter() {
   auto [useV1, reason] = shouldUseV1Adapter();
   return {!useV1, reason};
 }
