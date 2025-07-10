@@ -556,7 +556,7 @@ private:
 /// The unmap command removes mapping of host memory onto device memory.
 class UnMapMemObject : public Command {
 public:
-  UnMapMemObject(AllocaCommandBase *DstAllocaCmd, const Requirement *Req,
+  UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
                  void **SrcPtr, queue_impl *Queue);
 
   void printDot(std::ostream &Stream) const final;
