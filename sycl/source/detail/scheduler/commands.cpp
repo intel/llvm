@@ -282,7 +282,7 @@ Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
     // they don't have an associated queue and command.
     if (!EventImpl->isInterop() && !EventImpl->isEnqueued()) {
       if (!EventImpl->getCommand() ||
-          !static_cast<Command *>(EventImpl->getCommand())->producesPiEvent())
+          !EventImpl->getCommand()->producesPiEvent())
         continue;
       std::vector<Command *> AuxCmds;
       Scheduler::getInstance().enqueueCommandForCG(EventImpl, AuxCmds,
@@ -766,7 +766,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   // distinction since the command might still be unenqueued at this point.
   bool PiEventExpected =
       (!DepEvent->isHost() && !DepEvent->isDefaultConstructed());
-  if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
+  if (auto *DepCmd = DepEvent->getCommand())
     PiEventExpected &= DepCmd->producesPiEvent();
 
   if (!PiEventExpected) {
@@ -835,7 +835,7 @@ Command *Command::addDep(EventImplPtr Event,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // We need this for just the instrumentation, so guarding it will prevent
   // unused variable warnings when instrumentation is turned off
-  Command *Cmd = (Command *)Event->getCommand();
+  Command *Cmd = Event->getCommand();
   ur_event_handle_t UrEventAddr = Event->getHandle();
   // Now make an edge for the dependent event
   emitEdgeEventForEventDependence(Cmd, UrEventAddr);

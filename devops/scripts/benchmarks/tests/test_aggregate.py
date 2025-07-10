@@ -4,6 +4,7 @@ import os
 sys.path.append(f"{os.path.dirname(__file__)}/../")
 from options import options
 from utils.aggregate import *
+from utils.logger import log
 
 
 def run_testcase(aggregator: Aggregator, src: list, expected: float) -> bool:
@@ -12,7 +13,7 @@ def run_testcase(aggregator: Aggregator, src: list, expected: float) -> bool:
         aggr.add(n)
     res = aggr.get_avg()
     if res != expected:
-        print(f"Failed: {aggregator}, {src} -- expected {expected}, got {res}")
+        log.warning(f"Failed: {aggregator}, {src} -- expected {expected}, got {res}")
         return False
     return True
 
@@ -32,7 +33,7 @@ def test_EWMA():
             fails = fails + 1
         else:
             successes = successes + 1
-    print(f"EWMA test: {successes} successes, {fails} fails.")
+    log.info(f"EWMA test: {successes} successes, {fails} fails.")
 
 
 if __name__ == "__main__":

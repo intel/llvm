@@ -916,7 +916,7 @@ event handler::finalize() {
     }
 
     // Associate an event with this new node and return the event.
-    GraphImpl->addEventForNode(EventImpl, std::move(NodeImpl));
+    GraphImpl->addEventForNode(EventImpl, *NodeImpl);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     return EventImpl;

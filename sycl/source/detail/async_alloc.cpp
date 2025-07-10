@@ -33,7 +33,7 @@ getUrEvents(const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
   return RetUrEvents;
 }
 
-std::vector<std::shared_ptr<detail::node_impl>> getDepGraphNodes(
+std::vector<detail::node_impl *> getDepGraphNodes(
     sycl::handler &Handler, detail::queue_impl *Queue,
     const std::shared_ptr<detail::graph_impl> &Graph,
     const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
@@ -42,14 +42,14 @@ std::vector<std::shared_ptr<detail::node_impl>> getDepGraphNodes(
   auto DepNodes = Graph->getNodesForEvents(DepEvents);
   // If this node was added explicitly we may have node deps in the handler as
   // well, so add them to the list
-  DepNodes.insert(DepNodes.end(), HandlerImpl.MNodeDeps.begin(),
-                  HandlerImpl.MNodeDeps.end());
+  for (auto &N : HandlerImpl.MNodeDeps)
+    DepNodes.push_back(N.get());
   // If this is being recorded from an in-order queue we need to get the last
   // in-order node if any, since this will later become a dependency of the
   // node being processed here.
   if (detail::node_impl *LastInOrderNode = Graph->getLastInorderNode(Queue);
       LastInOrderNode) {
-    DepNodes.push_back(LastInOrderNode->shared_from_this());
+    DepNodes.push_back(LastInOrderNode);
   }
   return DepNodes;
 }
