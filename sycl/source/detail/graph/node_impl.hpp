@@ -183,6 +183,9 @@ public:
     }
     return *this;
   }
+
+  ~node_impl() {}
+
   /// Checks if this node should be a dependency of another node based on
   /// accessor requirements. This is calculated using access modes if a
   /// requirement to the same buffer is found inside this node.
