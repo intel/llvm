@@ -345,7 +345,7 @@ struct ur_mem_handle_t_ : ur::cuda::handle_base {
   /// Constructs the UR mem handler for a non-typed allocation ("buffer")
   ur_mem_handle_t_(ur_context_handle_t Ctxt, ur_mem_flags_t MemFlags,
                    BufferMem::AllocMode Mode, void *HostPtr, size_t Size)
-      : handle_base(), Context{Ctxt}, RefCount{1}, MemFlags{MemFlags},
+      : handle_base(), Context{Ctxt}, MemFlags{MemFlags},
         HaveMigratedToDeviceSinceLastWrite(Context->Devices.size(), false),
         Mem{std::in_place_type<BufferMem>, Ctxt, this, Mode, HostPtr, Size} {
     urContextRetain(Context);
@@ -353,9 +353,9 @@ struct ur_mem_handle_t_ : ur::cuda::handle_base {
 
   // Subbuffer constructor
   ur_mem_handle_t_(ur_mem_handle_t Parent, size_t SubBufferOffset)
-      : handle_base(), Context{Parent->Context}, RefCount{1},
-        MemFlags{Parent->MemFlags}, HaveMigratedToDeviceSinceLastWrite(
-                                        Parent->Context->Devices.size(), false),
+      : handle_base(), Context{Parent->Context}, MemFlags{Parent->MemFlags},
+        HaveMigratedToDeviceSinceLastWrite(Parent->Context->Devices.size(),
+                                           false),
         Mem{BufferMem{std::get<BufferMem>(Parent->Mem)}} {
     auto &SubBuffer = std::get<BufferMem>(Mem);
     SubBuffer.Parent = Parent;
@@ -376,7 +376,7 @@ struct ur_mem_handle_t_ : ur::cuda::handle_base {
   ur_mem_handle_t_(ur_context_handle_t Ctxt, ur_mem_flags_t MemFlags,
                    ur_image_format_t ImageFormat, ur_image_desc_t ImageDesc,
                    void *HostPtr)
-      : handle_base(), Context{Ctxt}, RefCount{1}, MemFlags{MemFlags},
+      : handle_base(), Context{Ctxt}, MemFlags{MemFlags},
         HaveMigratedToDeviceSinceLastWrite(Context->Devices.size(), false),
         Mem{std::in_place_type<SurfaceMem>,
             Ctxt,
