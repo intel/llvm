@@ -150,7 +150,7 @@ context_impl &event_impl::getContextImpl() {
 
 adapter_impl &event_impl::getAdapter() {
   initContextIfNeeded();
-  return *MContext->getAdapter();
+  return MContext->getAdapter();
 }
 
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
@@ -616,7 +616,7 @@ bool event_impl::isCompleted() {
          info::event_command_status::complete;
 }
 
-void event_impl::setCommand(void *Cmd) { MCommand = Cmd; }
+void event_impl::setCommand(Command *Cmd) { MCommand = Cmd; }
 
 } // namespace detail
 } // namespace _V1

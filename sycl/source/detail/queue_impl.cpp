@@ -294,7 +294,7 @@ sycl::detail::optional<event> queue_impl::getLastEvent() {
 void queue_impl::addEvent(const detail::EventImplPtr &EventImpl) {
   if (!EventImpl)
     return;
-  auto *Cmd = static_cast<Command *>(EventImpl->getCommand());
+  Command *Cmd = EventImpl->getCommand();
   if (Cmd != nullptr && EventImpl->getHandle() == nullptr) {
     std::weak_ptr<event_impl> EventWeakPtr{EventImpl};
     std::lock_guard<std::mutex> Lock{MMutex};

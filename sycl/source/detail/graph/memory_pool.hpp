@@ -23,6 +23,7 @@ namespace detail {
 
 // Forward declarations
 class node_impl;
+class nodes_range;
 
 /// Class handling graph-owned memory allocations. Device allocations are
 /// managed using virtual memory.
@@ -44,7 +45,7 @@ class graph_mem_pool {
     // Should the allocation be zero initialized during initial allocation
     bool ZeroInit = false;
     // Last free node for this allocation in the graph
-    std::weak_ptr<node_impl> LastFreeNode = {};
+    node_impl *LastFreeNode = nullptr;
   };
 
 public:
@@ -82,8 +83,7 @@ public:
   /// @param MemPool Optional memory pool from which allocations will not be
   /// made directly but properties may be respected.
   /// @return A pointer to the start of the allocation
-  void *malloc(size_t Size, usm::alloc AllocType,
-               const std::vector<std::shared_ptr<node_impl>> &DepNodes,
+  void *malloc(size_t Size, usm::alloc AllocType, nodes_range DepNodes,
                memory_pool_impl *MemPool = nullptr);
 
   /// Return the total amount of memory being used by this pool
@@ -160,8 +160,7 @@ public:
   /// @param Ptr The pointer to the allocation.
   /// @param FreeNode The graph node of node_type::async_free which is freeing
   /// the allocation.
-  void markAllocationAsAvailable(void *Ptr,
-                                 const std::shared_ptr<node_impl> &FreeNode);
+  void markAllocationAsAvailable(void *Ptr, node_impl &FreeNode);
 
 private:
   /// Tries to reuse an existing allocation which has been marked free in the
@@ -173,9 +172,10 @@ private:
   /// reusable allocations.
   /// @returns An optional allocation info value, where a null value indicates
   /// that no allocation could be reused.
-  std::optional<alloc_info> tryReuseExistingAllocation(
-      size_t Size, usm::alloc AllocType, bool ReadOnly,
-      const std::vector<std::shared_ptr<node_impl>> &DepNodes);
+  std::optional<alloc_info> tryReuseExistingAllocation(size_t Size,
+                                                       usm::alloc AllocType,
+                                                       bool ReadOnly,
+                                                       nodes_range DepNodes);
 
   /// Returns an aligned byte size given a required granularity
   /// @param UnalignedByteSize The original requested allocation size
