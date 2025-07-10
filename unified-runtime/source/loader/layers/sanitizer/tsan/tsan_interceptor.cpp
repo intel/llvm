@@ -333,7 +333,7 @@ ur_result_t TsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
   auto CI = getContextInfo(GetContext(Queue));
   auto DI = getDeviceInfo(GetDevice(Queue));
 
-  ManagedQueue InternalQueue(CI->Handle, DI->Handle);
+  ManagedQueue InternalQueue(CI->Handle, DI->Handle, true);
   if (!InternalQueue) {
     UR_LOG_L(getContext()->logger, ERR, "Failed to create internal queue");
     return UR_RESULT_ERROR_INVALID_QUEUE;
