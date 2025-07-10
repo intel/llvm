@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -247,8 +248,9 @@ allocated.
 This function will throw a `sycl::exception` with the `errc::runtime` code if
 any error occurs while exporting the memory handle.
 
-{note}The returned handle may be used to import the SYCL allocated memory into
-an external API, such as Vulkan or DirectX.{endnote}
+[_Note:_ The returned handle may be used to import the SYCL allocated memory
+into an external API, such as Vulkan or DirectX.
+_{endnote}_]
 
 ```c++
 
@@ -274,7 +276,7 @@ Using `free_exportable_mem` on a memory region invalidates the handle
 returned by `export_device_mem_handle` for that region. The handle must not be
 used after the memory has been freed.
 
-The `syclDevice` and `syclContext` passed to `export_device_mem_handle` must
+The `syclDevice` and `syclContext` passed to `free_exportable_mem` must
 match the device and context used when the `deviceMemory` was allocated using
 `alloc_exportable_device_mem`. If a `syclQueue` is passed, it must also be
 associated with the same SYCL device and context used when the memory was
