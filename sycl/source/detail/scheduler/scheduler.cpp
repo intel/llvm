@@ -159,8 +159,7 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
   {
     ReadLockT Lock = acquireReadLock();
 
-    Command *NewCmd =
-        (NewEvent) ? static_cast<Command *>(NewEvent->getCommand()) : nullptr;
+    Command *NewCmd = (NewEvent) ? NewEvent->getCommand() : nullptr;
 
     EnqueueResultT Res;
     bool Enqueued;
@@ -366,7 +365,7 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
                         "Enqueue process failed.");
     }
 
-    if (Command *NewCmd = static_cast<Command *>(NewCmdEvent->getCommand())) {
+    if (Command *NewCmd = NewCmdEvent->getCommand()) {
       Enqueued =
           GraphProcessor::enqueueCommand(NewCmd, Lock, Res, ToCleanUp, NewCmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
@@ -418,7 +417,7 @@ void Scheduler::enqueueUnblockedCommands(
     const std::vector<EventImplPtr> &ToEnqueue, ReadLockT &GraphReadLock,
     std::vector<Command *> &ToCleanUp) {
   for (auto &Event : ToEnqueue) {
-    Command *Cmd = static_cast<Command *>(Event->getCommand());
+    Command *Cmd = Event->getCommand();
     if (!Cmd)
       continue;
     EnqueueResultT Res;
@@ -674,7 +673,7 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
                         "Enqueue process failed.");
     }
 
-    if (Command *NewCmd = static_cast<Command *>(NewCmdEvent->getCommand())) {
+    if (Command *NewCmd = NewCmdEvent->getCommand()) {
       Enqueued =
           GraphProcessor::enqueueCommand(NewCmd, Lock, Res, ToCleanUp, NewCmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)

@@ -747,7 +747,7 @@ public:
 
     device_impl &DeviceImpl = *getSyclObjImpl(Dev);
     bool SupportContextMemcpy = false;
-    DeviceImpl.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+    DeviceImpl.getAdapter().call<UrApiKind::urDeviceGetInfo>(
         DeviceImpl.getHandleRef(),
         UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP,
         sizeof(SupportContextMemcpy), &SupportContextMemcpy, nullptr);

@@ -167,6 +167,8 @@ ur_result_t ur_exp_command_buffer_handle_t_::registerExecutionEventUnlocked(
 }
 
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
+  UR_CALL_NOCHECK(commandListManager.lock()->releaseSubmittedKernels());
+
   if (currentExecution) {
     currentExecution->release();
   }
