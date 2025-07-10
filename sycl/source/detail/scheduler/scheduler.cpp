@@ -654,7 +654,8 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
     WriteLockT Lock = acquireWriteLock();
 
     Command *NewCmd = MGraphBuilder.addCommandGraphUpdate(
-        Graph, Nodes, Queue, Requirements, Events, AuxiliaryCmds);
+        Graph, std::move(Nodes), Queue, std::move(Requirements), Events,
+        AuxiliaryCmds);
     if (!NewCmd)
       return nullptr;
     NewCmdEvent = NewCmd->getEvent();

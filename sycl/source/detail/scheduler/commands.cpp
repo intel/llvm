@@ -3805,7 +3805,7 @@ UpdateCommandBufferCommand::UpdateCommandBufferCommand(
     std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
         Nodes)
     : Command(CommandType::UPDATE_CMD_BUFFER, Queue), MGraph(Graph),
-      MNodes(Nodes) {}
+      MNodes(std::move(Nodes)) {}
 
 ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
