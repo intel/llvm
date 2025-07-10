@@ -238,18 +238,19 @@ public:
         }
       }
       ProcessedFactors = true;
+      if (!FactorsAreValid) {
+        std::cerr
+            << "WARNING: Invalid value passed for "
+            << "SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS (Expected format "
+            << "MinRound:PreferredRound:MinRange, where MinRound, PreferredRound"
+            << " > 0, MinRange >= 0). Provided parameters will be ignored."
+            << std::endl;
+      }
     }
     if (FactorsAreValid) {
       MinFactor = MF;
       GoodFactor = GF;
       MinRange = MR;
-    } else {
-      std::cerr
-          << "WARNING: Invalid value passed for "
-          << "SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS (Expected format "
-          << "MinRound:PreferredRound:MinRange, where MinRound, PreferredRound"
-          << " > 0, MinRange >= 0). Provided parameters will be ignored."
-          << std::endl;
     }
   }
 };
