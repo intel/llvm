@@ -600,9 +600,9 @@ private:
 /// memory object.
 class MemCpyCommandHost : public Command {
 public:
-  MemCpyCommandHost(Requirement SrcReq, AllocaCommandBase *SrcAllocaCmd,
-                    Requirement DstReq, void **DstPtr, queue_impl *SrcQueue,
-                    queue_impl *DstQueue);
+  MemCpyCommandHost(const Requirement &SrcReq, AllocaCommandBase *SrcAllocaCmd,
+                    const Requirement &DstReq, void **DstPtr,
+                    queue_impl *SrcQueue, queue_impl *DstQueue);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
