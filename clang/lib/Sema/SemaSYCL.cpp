@@ -1589,7 +1589,8 @@ class KernelObjVisitor {
                   << Cur->getNameAsString() << Param->getSourceRange();
               return;
             }
-            const CXXRecordDecl *BaseDecl = Base.getType()->getAsCXXRecordDecl();
+            const CXXRecordDecl *BaseDecl =
+                Base.getType()->getAsCXXRecordDecl();
             if (BaseDecl)
               WorkList.push_back(BaseDecl);
           }
