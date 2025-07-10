@@ -1200,8 +1200,6 @@ public:
         throw exception(
             make_error_code(errc::feature_not_supported),
             "The device does not have the ext_intel_device_info_luid aspect");
-      // TODO: we're essentially memcpy'ing here...
-      static_assert(std::is_same_v<luid_type, std::array<unsigned char, 8>>);
       return get_info_impl<UR_DEVICE_INFO_LUID>();
     }
     else {
@@ -2325,7 +2323,6 @@ EXPORT_GET_INFO(ext::intel::info::device::current_clock_throttle_reasons)
 EXPORT_GET_INFO(ext::intel::info::device::fan_speed)
 EXPORT_GET_INFO(ext::intel::info::device::min_power_limit)
 EXPORT_GET_INFO(ext::intel::info::device::max_power_limit)
-EXPORT_GET_INFO(ext::intel::info::device::luid)
 
 EXPORT_GET_INFO(ext::codeplay::experimental::info::device::supports_fusion)
 EXPORT_GET_INFO(ext::codeplay::experimental::info::device::max_registers_per_work_group)
