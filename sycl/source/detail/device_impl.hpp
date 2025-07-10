@@ -1202,6 +1202,13 @@ public:
             "The device does not have the ext_intel_device_info_luid aspect");
       return get_info_impl<UR_DEVICE_INFO_LUID>();
     }
+    CASE(ext::intel::info::device::node_mask) {
+      if (!has(aspect::ext_intel_device_info_node_mask))
+        throw exception(
+            make_error_code(errc::feature_not_supported),
+            "The device does not have the ext_intel_device_info_node_mask aspect");
+      return get_info_impl<UR_DEVICE_INFO_NODE_MASK>();
+    }
     else {
       constexpr auto Desc = UrInfoCode<Param>::value;
       return static_cast<typename Param::return_type>(get_info_impl<Desc>());
@@ -1314,6 +1321,9 @@ public:
     }
     CASE(ext_intel_device_info_luid) {
       return has_info_desc(UR_DEVICE_INFO_LUID);
+    }
+    CASE(ext_intel_device_info_node_mask) {
+      return has_info_desc(UR_DEVICE_INFO_NODE_MASK);
     }
     CASE(ext_intel_max_mem_bandwidth) {
       // currently not supported

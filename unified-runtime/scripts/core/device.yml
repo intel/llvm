@@ -466,6 +466,8 @@ etors:
       desc: "[$x_kernel_launch_properties_flags_t] Bitfield of supported kernel launch properties."
     - name: LUID
       desc: "[uint8_t[]][optional-query] return device LUID"
+    - name: NODE_MASK
+      desc: "[uint32_t][optional-query] return device node mask"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"

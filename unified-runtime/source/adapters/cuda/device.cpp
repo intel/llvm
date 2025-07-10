@@ -1203,6 +1203,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     std::copy(LUID, LUID + 8, Name.begin());
     return ReturnValue(Name.data(), 8);
   }
+  case UR_DEVICE_INFO_NODE_MASK: {
+    // Device node mask is only available on Windows.
+    // Intel extension for device node mask. This returns the node mask as
+    // uint32_t. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+    uint32_t *nodeMask = nullptr;
+    cuDeviceGetLuid(nullptr, nodeMask, hDevice->get());
+
+    if (nodeMask == nullptr) {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    return ReturnValue(*nodeMask);
+  }
   default:
     break;
   }

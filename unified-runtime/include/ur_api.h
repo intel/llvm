@@ -2314,6 +2314,8 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES = 128,
   /// [uint8_t[]][optional-query] return device LUID
   UR_DEVICE_INFO_LUID = 129,
+  /// [uint32_t][optional-query] return device node mask
+  UR_DEVICE_INFO_NODE_MASK = 130,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
