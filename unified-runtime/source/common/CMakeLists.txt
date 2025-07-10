@@ -42,12 +42,11 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit 0a63bbd489e8e910c3f9a2129b287bfc63925716 (HEAD -> main, upstream/main)
-    # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
-    # Date:   Mon May 12 09:46:48 2025 +0200
-    # Merge pull request #1308 from lukaszstolarczuk/depr-hwloc-disable-cmake
-    # [CMake] Warn about UMF_DISABLE_HWLOC being deprecated
-    set(UMF_TAG 0a63bbd489e8e910c3f9a2129b287bfc63925716)
+    # commit 99ff81024f28ed37090f7910dfadc6aaf8dbb3ff
+    # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+    # Date:   Mon Jul 7 17:08:39 2025 +0200
+    # 1.0.0-rc1 release
+    set(UMF_TAG v1.0.0-rc1)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")

@@ -25,11 +25,14 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-void waitEvents(std::vector<sycl::event> DepEvents) {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// Unused, only keeping for ABI compatibility reasons.
+__SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents) {
   for (auto SyclEvent : DepEvents) {
     detail::getSyclObjImpl(SyclEvent)->waitInternal();
   }
 }
+#endif
 
 __SYCL_EXPORT void
 markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
@@ -49,7 +52,7 @@ retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
         ProgramManager::getInstance().getRawDeviceImages(KernelIds);
     auto DeviceImage = std::find_if(
         DeviceImages.begin(), DeviceImages.end(),
-        [isNvidia](RTDeviceBinaryImage *DI) {
+        [isNvidia](const RTDeviceBinaryImage *DI) {
           const std::string &TargetSpec = isNvidia ? std::string("llvm_nvptx64")
                                                    : std::string("llvm_amdgcn");
           return DI->getFormat() == SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&

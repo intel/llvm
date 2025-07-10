@@ -25,6 +25,7 @@
 #include <zes_api.h>
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "device.hpp"
 
 extern "C" {
@@ -692,6 +693,8 @@ struct ur_queue_handle_t_ : ur_object {
 
   // Pointer to the unified handle.
   ur_queue_handle_t_ *UnifiedHandle;
+
+  ur::RefCount RefCount;
 };
 
 // This helper function creates a ur_event_handle_t and associate a
