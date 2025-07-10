@@ -518,7 +518,7 @@ private:
 /// The AllocaSubBuf command enqueues creation of sub-buffer of memory object.
 class AllocaSubBufCommand : public AllocaCommandBase {
 public:
-  AllocaSubBufCommand(queue_impl *Queue, Requirement Req,
+  AllocaSubBufCommand(queue_impl *Queue, const Requirement &Req,
                       AllocaCommandBase *ParentAlloca,
                       std::vector<Command *> &ToEnqueue,
                       std::vector<Command *> &ToCleanUp);
