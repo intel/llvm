@@ -369,7 +369,7 @@ std::set<std::shared_ptr<node_impl>> graph_impl::getCGEdges(
                             "Event dependency from handler::depends_on does "
                             "not correspond to a node within the graph");
     } else {
-      UniqueDeps.insert(NodeImpl->second);
+      UniqueDeps.insert(NodeImpl->second->shared_from_this());
     }
   }
 
@@ -417,7 +417,7 @@ std::shared_ptr<node_impl> graph_impl::add(nodes_range Deps) {
   addDepsToNode(NodeImpl, Deps);
   // Add an event associated with this explicit node for mixed usage
   addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
-                  NodeImpl);
+                  *NodeImpl);
   return NodeImpl;
 }
 
@@ -476,7 +476,7 @@ graph_impl::add(std::function<void(handler &)> CGF,
 
   // Add an event associated with this explicit node for mixed usage
   addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
-                  NodeImpl);
+                  *NodeImpl);
 
   // Retrieve any dynamic parameters which have been registered in the CGF and
   // register the actual nodes with them.
@@ -556,7 +556,7 @@ graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
 
   // Add an event associated with this explicit node for mixed usage
   addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
-                  NodeImpl);
+                  *NodeImpl);
 
   // Track the dynamic command-group used inside the node object
   DynCGImpl->MNodes.push_back(NodeImpl);
@@ -689,9 +689,9 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
   auto RecordedQueueSP = RecordedQueue.lock();
   for (auto &Node : MNodeStorage) {
     if (Node->MSuccessors.empty()) {
-      auto EventForNode = getEventForNode(Node);
+      auto EventForNode = getEventForNode(*Node);
       if (EventForNode->getSubmittedQueue() == RecordedQueueSP) {
-        Events.push_back(getEventForNode(Node));
+        Events.push_back(getEventForNode(*Node));
       }
     }
   }
