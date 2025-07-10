@@ -35,20 +35,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
   auto AllocMode = BufferMem::AllocMode::Default;
 
   if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
-    auto Res = olMemAlloc(OffloadDevice, OL_ALLOC_TYPE_HOST, size, &HostPtr);
-    if (Res) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(
+        olMemAlloc(OffloadDevice, OL_ALLOC_TYPE_HOST, size, &HostPtr));
+
     // TODO: We (probably) need something like cuMemHostGetDevicePointer
     // for this to work everywhere. For now assume the managed host pointer is
     // device-accessible.
     Ptr = HostPtr;
     AllocMode = BufferMem::AllocMode::AllocHostPtr;
   } else {
-    auto Res = olMemAlloc(OffloadDevice, OL_ALLOC_TYPE_DEVICE, size, &Ptr);
-    if (Res) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(
+        olMemAlloc(OffloadDevice, OL_ALLOC_TYPE_DEVICE, size, &Ptr));
     if (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) {
       AllocMode = BufferMem::AllocMode::CopyIn;
     }
@@ -59,11 +56,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
       hContext, ParentBuffer, flags, AllocMode, Ptr, HostPtr, size});
 
   if (PerformInitialCopy) {
-    auto Res = olMemcpy(nullptr, Ptr, OffloadDevice, HostPtr,
-                        Adapter->HostDevice, size, nullptr);
-    if (Res) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(olMemcpy(nullptr, Ptr, OffloadDevice, HostPtr,
+                              Adapter->HostDevice, size, nullptr));
   }
 
   *phBuffer = URMemObj.release();
@@ -85,10 +79,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
   if (hMem->MemType == ur_mem_handle_t_::Type::Buffer) {
     // TODO: Handle registered host memory
     auto &BufferImpl = std::get<BufferMem>(MemObjPtr->Mem);
-    auto Res = olMemFree(BufferImpl.Ptr);
-    if (Res) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(olMemFree(BufferImpl.Ptr));
   }
 
   return UR_RESULT_SUCCESS;

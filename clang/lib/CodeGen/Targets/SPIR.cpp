@@ -394,9 +394,6 @@ void SPIRVTargetCodeGenInfo::setCUDAKernelCallingConvention(
 
 void CommonSPIRTargetCodeGenInfo::setOCLKernelStubCallingConvention(
     const FunctionType *&FT) const {
-  // Disable kernel stub for sycl
-  if (getABIInfo().getContext().getLangOpts().isSYCL())
-     return;
   FT = getABIInfo().getContext().adjustFunctionType(
       FT, FT->getExtInfo().withCallingConv(CC_SpirFunction));
 }

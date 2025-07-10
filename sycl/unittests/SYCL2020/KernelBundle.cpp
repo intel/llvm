@@ -107,15 +107,17 @@ TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
   auto ObjBundle = sycl::compile(KernelBundle, KernelBundle.get_devices());
   EXPECT_FALSE(ObjBundle.empty()) << "Expect non-empty obj kernel bundle";
 
-  auto ObjBundleImpl = sycl::detail::getSyclObjImpl(ObjBundle);
-  EXPECT_EQ(ObjBundleImpl->get_bundle_state(), sycl::bundle_state::object)
+  sycl::detail::kernel_bundle_impl &ObjBundleImpl =
+      *sycl::detail::getSyclObjImpl(ObjBundle);
+  EXPECT_EQ(ObjBundleImpl.get_bundle_state(), sycl::bundle_state::object)
       << "Expect object device image in bundle";
 
   auto LinkBundle = sycl::link(ObjBundle, ObjBundle.get_devices());
   EXPECT_FALSE(LinkBundle.empty()) << "Expect non-empty exec kernel bundle";
 
-  auto LinkBundleImpl = sycl::detail::getSyclObjImpl(LinkBundle);
-  EXPECT_EQ(LinkBundleImpl->get_bundle_state(), sycl::bundle_state::executable)
+  sycl::detail::kernel_bundle_impl &LinkBundleImpl =
+      *sycl::detail::getSyclObjImpl(LinkBundle);
+  EXPECT_EQ(LinkBundleImpl.get_bundle_state(), sycl::bundle_state::executable)
       << "Expect executable device image in bundle";
 }
 

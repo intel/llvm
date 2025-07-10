@@ -24,13 +24,15 @@
 
 namespace sycl {
 inline namespace _V1 {
-using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 namespace detail {
-void waitEvents(std::vector<sycl::event> DepEvents) {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// Unused, only keeping for ABI compatibility reasons.
+__SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents) {
   for (auto SyclEvent : DepEvents) {
     detail::getSyclObjImpl(SyclEvent)->waitInternal();
   }
 }
+#endif
 
 __SYCL_EXPORT void
 markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
@@ -50,7 +52,7 @@ retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
         ProgramManager::getInstance().getRawDeviceImages(KernelIds);
     auto DeviceImage = std::find_if(
         DeviceImages.begin(), DeviceImages.end(),
-        [isNvidia](RTDeviceBinaryImage *DI) {
+        [isNvidia](const RTDeviceBinaryImage *DI) {
           const std::string &TargetSpec = isNvidia ? std::string("llvm_nvptx64")
                                                    : std::string("llvm_amdgcn");
           return DI->getFormat() == SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
@@ -59,10 +61,10 @@ retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
     if (DeviceImage == DeviceImages.end()) {
       return {nullptr, nullptr};
     }
-    auto ContextImpl = Queue.getContextImplPtr();
+    context_impl &ContextImpl = Queue.getContextImpl();
     ur_program_handle_t Program =
         detail::ProgramManager::getInstance().createURProgram(
-            **DeviceImage, *ContextImpl, {createSyclObjFromImpl<device>(Dev)});
+            **DeviceImage, ContextImpl, {createSyclObjFromImpl<device>(Dev)});
     return {*DeviceImage, Program};
   }
 
@@ -79,11 +81,11 @@ retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
     DeviceImage = SyclKernelImpl->getDeviceImage()->get_bin_image_ref();
     Program = SyclKernelImpl->getDeviceImage()->get_ur_program_ref();
   } else {
-    auto ContextImpl = Queue.getContextImplPtr();
+    context_impl &ContextImpl = Queue.getContextImpl();
     DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
-        KernelName, *ContextImpl, Dev);
+        KernelName, ContextImpl, Dev);
     Program = detail::ProgramManager::getInstance().createURProgram(
-        *DeviceImage, *ContextImpl, {createSyclObjFromImpl<device>(Dev)});
+        *DeviceImage, ContextImpl, {createSyclObjFromImpl<device>(Dev)});
   }
   return {DeviceImage, Program};
 }
