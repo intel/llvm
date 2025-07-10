@@ -2480,13 +2480,9 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @{
 
 /// Get HW Thread ID
-__ESIMD_API int32_t get_hw_thread_id() {
-  return 0;
-}
+__ESIMD_API int32_t get_hw_thread_id() { return 0; }
 /// Get subdevice ID
-__ESIMD_API int32_t get_subdevice_id() {
-  return 0;
-}
+__ESIMD_API int32_t get_subdevice_id() { return 0; }
 
 /// @} sycl_esimd_hw_thread_queries
 
