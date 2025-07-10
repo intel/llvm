@@ -8,12 +8,15 @@
 //
 //===----------------------------------------------------------------------===//
 #pragma once
-#include "common.hpp"
-#include "event.hpp"
-#include "ur_api.h"
+
 #include <set>
 
-struct ur_queue_handle_t_ : RefCounted {
+#include "common.hpp"
+#include "common/ur_ref_count.hpp"
+#include "event.hpp"
+#include "ur_api.h"
+
+struct ur_queue_handle_t_ {
   ur_queue_handle_t_(ur_device_handle_t device, ur_context_handle_t context,
                      const ur_queue_properties_t *pProps)
       : device(device), context(context),
@@ -43,7 +46,7 @@ struct ur_queue_handle_t_ : RefCounted {
       auto ev = *events.begin();
       // ur_event_handle_t_::wait removes itself from the events set in the
       // queue.
-      ev->incrementReferenceCount();
+      ev->RefCount.retain();
       // Unlocking mutex for removeEvent and for event callbacks that may need
       // to acquire it.
       lock.unlock();
@@ -63,6 +66,8 @@ struct ur_queue_handle_t_ : RefCounted {
     // TODO: check that events are done if there were any
     return events.size() == 0;
   }
+
+  ur::RefCount RefCount;
 
 private:
   ur_device_handle_t device;
