@@ -308,7 +308,7 @@ static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
 
   if (!AllocaCmdSrc->getQueue()) {
     UnMapMemObject *UnMapCmd = new UnMapMemObject(
-        AllocaCmdDst, *AllocaCmdDst->getRequirement(),
+        AllocaCmdDst, AllocaCmdDst->getRequirement(),
         &AllocaCmdSrc->MMemAllocation, AllocaCmdDst->getQueue());
 
     std::swap(AllocaCmdSrc->MIsActive, AllocaCmdDst->MIsActive);
@@ -426,7 +426,7 @@ Command *Scheduler::GraphBuilder::remapMemoryObject(
       findDepsForReq(Record, Req, Record->getCurContext());
 
   UnMapMemObject *UnMapCmd = new UnMapMemObject(
-      LinkedAllocaCmd, *LinkedAllocaCmd->getRequirement(),
+      LinkedAllocaCmd, LinkedAllocaCmd->getRequirement(),
       &HostAllocaCmd->MMemAllocation, LinkedAllocaCmd->getQueue());
 
   // Map write only as read-write

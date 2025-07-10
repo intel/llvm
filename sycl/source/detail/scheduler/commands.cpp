@@ -1421,10 +1421,11 @@ void MapMemObject::printDot(std::ostream &Stream) const {
   }
 }
 
-UnMapMemObject::UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
-                               void **SrcPtr, queue_impl *Queue)
+UnMapMemObject::UnMapMemObject(AllocaCommandBase *DstAllocaCmd,
+                               const Requirement *Req, void **SrcPtr,
+                               queue_impl *Queue)
     : Command(CommandType::UNMAP_MEM_OBJ, Queue), MDstAllocaCmd(DstAllocaCmd),
-      MDstReq(std::move(Req)), MSrcPtr(SrcPtr) {
+      MDstReq(std::move(*Req)), MSrcPtr(SrcPtr) {
   emitInstrumentationDataProxy();
 }
 
