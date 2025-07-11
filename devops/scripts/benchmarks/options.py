@@ -52,7 +52,6 @@ class Options:
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
     iterations: int = 3
-    verbose: bool = False
     compare: Compare = Compare.LATEST
     compare_max: int = 10  # average/median over how many results
     output_markdown: MarkdownSize = MarkdownSize.SHORT
@@ -72,6 +71,7 @@ class Options:
     exit_on_failure: bool = False
 
     # Options intended for CI:
+
     regression_threshold: float = 0.05
     # It's necessary in CI to compare or redo benchmark runs. Instead of
     # generating a new timestamp each run by default, specify a single timestamp
@@ -93,6 +93,17 @@ class Options:
     # via the HTML UI when "Include archived runs" is enabled
     archive_baseline_days: int = 30  # Archive Baseline_* runs after 30 days
     archive_pr_days: int = 7  # Archive other (PR/dev) runs after 7 days
+
+    # EWMA Options:
+
+    # The smoothing factor is alpha in the EWMA equation. Generally, a higher
+    # smoothing factor results in newer data having more weight, and a lower
+    # smoothing factor results in older data having more weight.
+    #
+    # Valid values for this smoothing factor ranges from (0, 1). Note that no
+    # value of smothing factor will result in older elements having more weight
+    # than newer elements.
+    EWMA_smoothing_factor: float = 0.15
 
     detect_versions: DetectVersionsOptions = field(
         default_factory=DetectVersionsOptions

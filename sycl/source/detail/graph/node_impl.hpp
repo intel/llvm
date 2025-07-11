@@ -17,6 +17,7 @@
 #include <cstring>
 #include <fstream>
 #include <iomanip>
+#include <list>
 #include <set>
 #include <vector>
 
@@ -31,6 +32,7 @@ class node;
 namespace detail {
 // Forward declarations
 class node_impl;
+class nodes_range;
 class exec_graph_impl;
 
 /// Takes a vector of weak_ptrs to node_impls and returns a vector of node
@@ -38,10 +40,7 @@ class exec_graph_impl;
 std::vector<node>
 createNodesFromImpls(const std::vector<std::weak_ptr<node_impl>> &Impls);
 
-/// Takes a vector of shared_ptrs to node_impls and returns a vector of node
-/// objects created from those impls, in the same order.
-std::vector<node>
-createNodesFromImpls(const std::vector<std::shared_ptr<node_impl>> &Impls);
+std::vector<node> createNodesFromImpls(nodes_range Impls);
 
 inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
   using sycl::detail::CG;
@@ -116,6 +115,10 @@ public:
   /// cannot be used to find out the partion of a node outside of this process.
   int MPartitionNum = -1;
 
+  // Out-of-class as need "complete" `nodes_range`:
+  inline nodes_range successors() const;
+  inline nodes_range predecessors() const;
+
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
   void registerSuccessor(const std::shared_ptr<node_impl> &Node) {
@@ -180,6 +183,9 @@ public:
     }
     return *this;
   }
+
+  ~node_impl() {}
+
   /// Checks if this node should be a dependency of another node based on
   /// accessor requirements. This is calculated using access modes if a
   /// requirement to the same buffer is found inside this node.
@@ -457,9 +463,9 @@ public:
   }
   /// Update this node with the command-group from another node.
   /// @param Other The other node to update, must be of the same node type.
-  void updateFromOtherNode(const std::shared_ptr<node_impl> &Other) {
-    assert(MNodeType == Other->MNodeType);
-    MCommandGroup = Other->getCGCopy();
+  void updateFromOtherNode(node_impl &Other) {
+    assert(MNodeType == Other.MNodeType);
+    MCommandGroup = Other.getCGCopy();
   }
 
   id_type getID() const { return MID; }
@@ -769,7 +775,9 @@ class nodes_range {
       // from `weak_ptr`s this alternative should be removed too.
       std::vector<std::weak_ptr<node_impl>>,
       //
-      std::set<std::shared_ptr<node_impl>>>;
+      std::set<std::shared_ptr<node_impl>>, std::set<node_impl *>,
+      //
+      std::list<node_impl *>>;
 
   storage_iter Begin;
   storage_iter End;
@@ -830,6 +838,10 @@ public:
   size_t size() const { return Size; }
   bool empty() const { return Size == 0; }
 };
+
+inline nodes_range node_impl::successors() const { return MSuccessors; }
+inline nodes_range node_impl::predecessors() const { return MPredecessors; }
+
 } // namespace detail
 } // namespace experimental
 } // namespace oneapi
