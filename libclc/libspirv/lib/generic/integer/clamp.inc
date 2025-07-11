@@ -6,14 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifdef __CLC_FPSIZE
-#define DECL __spirv_ocl_fclamp
-#else
 #ifdef __CLC_GEN_S
 #define DECL __spirv_ocl_s_clamp
 #else
 #define DECL __spirv_ocl_u_clamp
-#endif
 #endif
 
 _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE DECL(__CLC_GENTYPE x, __CLC_GENTYPE y,
