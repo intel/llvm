@@ -370,6 +370,45 @@ public:
     return createSyclObjFromImpl<event>(ResEvent);
   }
 
+  event
+  submit_with_event(nd_range<1> Range,
+                    const detail::v1::SubmissionInfo &SubmitInfo,
+                    const detail::v1::KernelRuntimeInfo &KRInfo,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    (void)Range;
+    (void)SubmitInfo;
+    (void)KRInfo;
+    (void)CodeLoc;
+    (void)IsTopCodeLoc;
+    return event();
+  }
+
+  event
+  submit_with_event(nd_range<2> Range,
+                    const detail::v1::SubmissionInfo &SubmitInfo,
+                    const detail::v1::KernelRuntimeInfo &KRInfo,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    (void)Range;
+    (void)SubmitInfo;
+    (void)KRInfo;
+    (void)CodeLoc;
+    (void)IsTopCodeLoc;
+    return event();
+  }
+
+  event
+  submit_with_event(nd_range<3> Range,
+                    const detail::v1::SubmissionInfo &SubmitInfo,
+                    const detail::v1::KernelRuntimeInfo &KRInfo,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    (void)Range;
+    (void)SubmitInfo;
+    (void)KRInfo;
+    (void)CodeLoc;
+    (void)IsTopCodeLoc;
+    return event();
+  }
+
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
                             const v1::SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
