@@ -23,6 +23,10 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/access/access.hpp>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+#include <xpti/xpti_data_types.h>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 
@@ -347,10 +351,12 @@ public:
 
   /// The event for node_create and task_begin.
   void *MTraceEvent = nullptr;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   /// The stream under which the traces are emitted.
   ///
   /// Stream ids are positive integers and we set it to an invalid value.
   xpti::stream_id_t MStreamID = xpti::invalid_id<xpti::stream_id_t>;
+#endif
   /// Reserved for storing the object address such as SPIR-V or memory object
   /// address.
   void *MAddress = nullptr;
