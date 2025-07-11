@@ -52,7 +52,7 @@ ur_result_t getZeKernelWrapped(ur_kernel_handle_t Kernel,
                                ze_kernel_handle_t &ZeKernel,
                                ur_device_handle_t Device) {
   ze_kernel_handle_t Tmp{};
-  UR_CALL(getZeKernel(Device->ZeDevice, Kernel, &Tmp));
+  UR_CALL(getZeKernel(Device, Kernel, &Tmp));
   ZeKernel = Tmp;
   return UR_RESULT_SUCCESS;
 }
@@ -1043,7 +1043,7 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
 
   auto Device = CommandBuffer->Device;
   ze_kernel_handle_t ZeKernel{};
-  UR_CALL(getZeKernel(Device->ZeDevice, Kernel, &ZeKernel));
+  UR_CALL(getZeKernel(Device, Kernel, &ZeKernel));
 
   if (GlobalWorkOffset != NULL) {
     UR_CALL(setKernelGlobalOffset(CommandBuffer->Context, ZeKernel, WorkDim,
