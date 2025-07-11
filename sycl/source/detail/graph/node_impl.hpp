@@ -183,6 +183,9 @@ public:
     }
     return *this;
   }
+
+  ~node_impl() {}
+
   /// Checks if this node should be a dependency of another node based on
   /// accessor requirements. This is calculated using access modes if a
   /// requirement to the same buffer is found inside this node.
@@ -460,9 +463,9 @@ public:
   }
   /// Update this node with the command-group from another node.
   /// @param Other The other node to update, must be of the same node type.
-  void updateFromOtherNode(const std::shared_ptr<node_impl> &Other) {
-    assert(MNodeType == Other->MNodeType);
-    MCommandGroup = Other->getCGCopy();
+  void updateFromOtherNode(node_impl &Other) {
+    assert(MNodeType == Other.MNodeType);
+    MCommandGroup = Other.getCGCopy();
   }
 
   id_type getID() const { return MID; }

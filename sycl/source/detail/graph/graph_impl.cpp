@@ -341,7 +341,7 @@ void graph_impl::addRoot(node_impl &Root) { MRoots.insert(&Root); }
 
 void graph_impl::removeRoot(node_impl &Root) { MRoots.erase(&Root); }
 
-std::set<std::shared_ptr<node_impl>> graph_impl::getCGEdges(
+std::set<node_impl *> graph_impl::getCGEdges(
     const std::shared_ptr<sycl::detail::CG> &CommandGroup) const {
   const auto &Requirements = CommandGroup->getRequirements();
   if (!MAllowBuffers && Requirements.size()) {
@@ -362,7 +362,7 @@ std::set<std::shared_ptr<node_impl>> graph_impl::getCGEdges(
   }
 
   // Add any nodes specified by event dependencies into the dependency list
-  std::set<std::shared_ptr<node_impl>> UniqueDeps;
+  std::set<node_impl *> UniqueDeps;
   for (auto &Dep : CommandGroup->getEvents()) {
     if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl == MEventsMap.end()) {
       throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -388,7 +388,7 @@ std::set<std::shared_ptr<node_impl>> graph_impl::getCGEdges(
           }
         }
         if (ShouldAddDep) {
-          UniqueDeps.insert(Node);
+          UniqueDeps.insert(Node.get());
         }
       }
     }
@@ -417,7 +417,7 @@ std::shared_ptr<node_impl> graph_impl::add(nodes_range Deps) {
   addDepsToNode(NodeImpl, Deps);
   // Add an event associated with this explicit node for mixed usage
   addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
-                  NodeImpl);
+                  *NodeImpl);
   return NodeImpl;
 }
 
@@ -476,7 +476,7 @@ graph_impl::add(std::function<void(handler &)> CGF,
 
   // Add an event associated with this explicit node for mixed usage
   addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
-                  NodeImpl);
+                  *NodeImpl);
 
   // Retrieve any dynamic parameters which have been registered in the CGF and
   // register the actual nodes with them.
@@ -501,7 +501,7 @@ graph_impl::add(node_type NodeType,
                 nodes_range Deps) {
 
   // A unique set of dependencies obtained by checking requirements and events
-  std::set<std::shared_ptr<node_impl>> UniqueDeps = getCGEdges(CommandGroup);
+  std::set<node_impl *> UniqueDeps = getCGEdges(CommandGroup);
 
   // Track and mark the memory objects being used by the graph.
   markCGMemObjs(CommandGroup);
@@ -530,8 +530,7 @@ std::shared_ptr<node_impl>
 graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
                 nodes_range Deps) {
   // Set of Dependent nodes based on CG event and accessor dependencies.
-  std::set<std::shared_ptr<node_impl>> DynCGDeps =
-      getCGEdges(DynCGImpl->MCommandGroups[0]);
+  std::set<node_impl *> DynCGDeps = getCGEdges(DynCGImpl->MCommandGroups[0]);
   for (unsigned i = 1; i < DynCGImpl->getNumCGs(); i++) {
     auto &CG = DynCGImpl->MCommandGroups[i];
     auto CGEdges = getCGEdges(CG);
@@ -556,7 +555,7 @@ graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
 
   // Add an event associated with this explicit node for mixed usage
   addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
-                  NodeImpl);
+                  *NodeImpl);
 
   // Track the dynamic command-group used inside the node object
   DynCGImpl->MNodes.push_back(NodeImpl);
@@ -689,9 +688,9 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
   auto RecordedQueueSP = RecordedQueue.lock();
   for (auto &Node : MNodeStorage) {
     if (Node->MSuccessors.empty()) {
-      auto EventForNode = getEventForNode(Node);
+      auto EventForNode = getEventForNode(*Node);
       if (EventForNode->getSubmittedQueue() == RecordedQueueSP) {
-        Events.push_back(getEventForNode(Node));
+        Events.push_back(getEventForNode(*Node));
       }
     }
   }
@@ -1491,7 +1490,7 @@ void exec_graph_impl::update(
       // needed because HostTask nodes (and all the nodes that depend on
       // HostTasks), are scheduled using a separate thread. This wait call
       // acts as a synchronization point for that thread.
-      UpdateEvent->wait(UpdateEvent);
+      UpdateEvent->wait();
     }
   } else {
     // For each partition in the executable graph, call UR update on the
@@ -1559,7 +1558,7 @@ bool exec_graph_impl::needsScheduledUpdate(
 }
 
 void exec_graph_impl::populateURKernelUpdateStructs(
-    const std::shared_ptr<node_impl> &Node, FastKernelCacheValPtr &BundleObjs,
+    node_impl &Node, FastKernelCacheValPtr &BundleObjs,
     std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
     std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
     std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
@@ -1574,7 +1573,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
 
   // Gather arg information from Node
   auto &ExecCG =
-      *(static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get()));
+      *(static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get()));
   // Copy args because we may modify them
   std::vector<sycl::detail::ArgDesc> NodeArgs = ExecCG.getArguments();
   // Copy NDR desc since we need to modify it
@@ -1713,7 +1712,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   // TODO: Handle subgraphs or any other cases where multiple nodes may be
   // associated with a single key, once those node types are supported for
   // update.
-  auto ExecNode = MIDCache.find(Node->MID);
+  auto ExecNode = MIDCache.find(Node.MID);
   assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
 
   auto Command = MCommandMap.find(ExecNode->second.get());
@@ -1725,30 +1724,29 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   ExecNode->second->updateFromOtherNode(Node);
 }
 
-std::map<int, std::vector<std::shared_ptr<node_impl>>>
-exec_graph_impl::getURUpdatableNodes(
-    const std::vector<std::shared_ptr<node_impl>> &Nodes) const {
+std::map<int, std::vector<node_impl *>>
+exec_graph_impl::getURUpdatableNodes(nodes_range Nodes) const {
   // Iterate over the list of nodes, and for every node that can
   // be updated through UR, add it to the list of nodes for
   // that can be updated for the UR command-buffer partition.
-  std::map<int, std::vector<std::shared_ptr<node_impl>>> PartitionedNodes;
+  std::map<int, std::vector<node_impl *>> PartitionedNodes;
 
   // Initialize vector for each partition
   for (size_t i = 0; i < MPartitions.size(); i++) {
     PartitionedNodes[i] = {};
   }
 
-  for (auto &Node : Nodes) {
+  for (node_impl &Node : Nodes) {
     // Kernel node update is the only command type supported in UR for update.
-    if (Node->MCGType != sycl::detail::CGType::Kernel) {
+    if (Node.MCGType != sycl::detail::CGType::Kernel) {
       continue;
     }
 
-    auto ExecNode = MIDCache.find(Node->MID);
+    auto ExecNode = MIDCache.find(Node.MID);
     assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
     auto PartitionIndex = MPartitionNodes.find(ExecNode->second.get());
     assert(PartitionIndex != MPartitionNodes.end());
-    PartitionedNodes[PartitionIndex->second].push_back(Node);
+    PartitionedNodes[PartitionIndex->second].push_back(&Node);
   }
 
   return PartitionedNodes;
@@ -1765,13 +1763,12 @@ void exec_graph_impl::updateHostTasksImpl(
     auto ExecNode = MIDCache.find(Node->MID);
     assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
 
-    ExecNode->second->updateFromOtherNode(Node);
+    ExecNode->second->updateFromOtherNode(*Node);
   }
 }
 
-void exec_graph_impl::updateURImpl(
-    ur_exp_command_buffer_handle_t CommandBuffer,
-    const std::vector<std::shared_ptr<node_impl>> &Nodes) const {
+void exec_graph_impl::updateURImpl(ur_exp_command_buffer_handle_t CommandBuffer,
+                                   nodes_range Nodes) const {
   const size_t NumUpdatableNodes = Nodes.size();
   if (NumUpdatableNodes == 0) {
     return;
@@ -1797,10 +1794,10 @@ void exec_graph_impl::updateURImpl(
   std::vector<FastKernelCacheValPtr> KernelBundleObjList(NumUpdatableNodes);
 
   size_t StructListIndex = 0;
-  for (auto &Node : Nodes) {
+  for (node_impl &Node : Nodes) {
     // This should be the case when getURUpdatableNodes() is used to
     // create the list of nodes.
-    assert(Node->MCGType == sycl::detail::CGType::Kernel);
+    assert(Node.MCGType == sycl::detail::CGType::Kernel);
 
     auto &MemobjDescs = MemobjDescsList[StructListIndex];
     auto &MemobjProps = MemobjPropsList[StructListIndex];

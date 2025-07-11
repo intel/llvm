@@ -134,7 +134,7 @@ public:
   /// dependent nodes if so.
   /// @param CommandGroup The command group to verify and retrieve edges for.
   /// @return Set of dependent nodes in the graph.
-  std::set<std::shared_ptr<node_impl>>
+  std::set<node_impl *>
   getCGEdges(const std::shared_ptr<sycl::detail::CG> &CommandGroup) const;
 
   /// Identifies the sycl buffers used in the command-group and marks them
@@ -192,21 +192,21 @@ public:
   /// @param EventImpl Event to associate with a node in map.
   /// @param NodeImpl Node to associate with event in map.
   void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
-                       const std::shared_ptr<node_impl> &NodeImpl) {
+                       node_impl &NodeImpl) {
     if (!(EventImpl->hasCommandGraph()))
       EventImpl->setCommandGraph(shared_from_this());
-    MEventsMap[EventImpl] = NodeImpl;
+    MEventsMap[EventImpl] = &NodeImpl;
   }
 
   /// Find the sycl event associated with a node.
   /// @param NodeImpl Node to find event for.
   /// @return Event associated with node.
   std::shared_ptr<sycl::detail::event_impl>
-  getEventForNode(std::shared_ptr<node_impl> NodeImpl) const {
+  getEventForNode(node_impl &NodeImpl) const {
     ReadLock Lock(MMutex);
     if (auto EventImpl = std::find_if(
             MEventsMap.begin(), MEventsMap.end(),
-            [NodeImpl](auto &it) { return it.second == NodeImpl; });
+            [&NodeImpl](auto &it) { return it.second == &NodeImpl; });
         EventImpl != MEventsMap.end()) {
       return EventImpl->first;
     }
@@ -220,13 +220,14 @@ public:
   /// the given event.
   /// @param EventImpl Event to find the node for.
   /// @return Node associated with the event.
-  std::shared_ptr<node_impl>
+  node_impl &
   getNodeForEvent(std::shared_ptr<sycl::detail::event_impl> EventImpl) {
     ReadLock Lock(MMutex);
 
     if (auto NodeFound = MEventsMap.find(EventImpl);
         NodeFound != std::end(MEventsMap)) {
-      return NodeFound->second;
+      // TODO: Is it guaranteed to be non-null?
+      return *NodeFound->second;
     }
 
     throw sycl::exception(
@@ -238,9 +239,9 @@ public:
   /// found for a given event.
   /// @param Events Events to find nodes for.
   /// @return A list of node counterparts for each event, in the same order.
-  std::vector<std::shared_ptr<node_impl>> getNodesForEvents(
+  std::vector<node_impl *> getNodesForEvents(
       const std::vector<std::shared_ptr<sycl::detail::event_impl>> &Events) {
-    std::vector<std::shared_ptr<node_impl>> NodeList{};
+    std::vector<node_impl *> NodeList{};
     NodeList.reserve(Events.size());
 
     ReadLock Lock(MMutex);
@@ -544,8 +545,7 @@ private:
            std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
       MRecordingQueues;
   /// Map of events to their associated recorded nodes.
-  std::unordered_map<std::shared_ptr<sycl::detail::event_impl>,
-                     std::shared_ptr<node_impl>>
+  std::unordered_map<std::shared_ptr<sycl::detail::event_impl>, node_impl *>
       MEventsMap;
   /// Map for every in-order queue thats recorded a node to the graph, what
   /// the last node added was. We can use this to create new edges on the last
@@ -692,7 +692,7 @@ public:
   /// through UR should be included in this list, currently this is only
   /// nodes of kernel type.
   void updateURImpl(ur_exp_command_buffer_handle_t CommandBuffer,
-                    const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+                    nodes_range Nodes) const;
 
   /// Update host-task nodes
   /// @param Nodes List of nodes to update, any node that is not a host-task
@@ -708,8 +708,8 @@ public:
   ///
   /// @param Nodes List of nodes to split
   /// @return Map of partition indexes to nodes
-  std::map<int, std::vector<std::shared_ptr<node_impl>>> getURUpdatableNodes(
-      const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+  std::map<int, std::vector<node_impl *>>
+  getURUpdatableNodes(nodes_range Nodes) const;
 
   unsigned long long getID() const { return MID; }
 
@@ -859,7 +859,7 @@ private:
   /// @param[out] NDRDesc ND-Range to update.
   /// @param[out] UpdateDesc Base struct in the pointer chain.
   void populateURKernelUpdateStructs(
-      const std::shared_ptr<node_impl> &Node, FastKernelCacheValPtr &BundleObjs,
+      node_impl &Node, FastKernelCacheValPtr &BundleObjs,
       std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
       std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
       std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,

@@ -7027,7 +7027,8 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType`
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalMemDesc`
 ///         + `NULL == phExternalMem`
@@ -7199,7 +7200,8 @@ ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType`
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pSupportedRet`
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
