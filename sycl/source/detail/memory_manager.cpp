@@ -1487,7 +1487,8 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
   ur_result_t Result =
       Adapter.call_nocheck<UrApiKind::urCommandBufferAppendUSMFillExp>(
           CommandBuffer, DstMem, Pattern.data(), Pattern.size(), Len,
-          Deps.size(), Deps.data(), 0u, nullptr, OutSyncPoint, nullptr, nullptr);
+          Deps.size(), Deps.data(), 0u, nullptr, OutSyncPoint, nullptr,
+          nullptr);
   if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
