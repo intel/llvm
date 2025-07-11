@@ -86,9 +86,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
     return result;
   }
   pDdiTable->pfnBuild = urProgramBuild;
-  pDdiTable->pfnCompile = nullptr;
+  pDdiTable->pfnCompile = urProgramCompile;
   pDdiTable->pfnCreateWithBinary = urProgramCreateWithBinary;
-  pDdiTable->pfnCreateWithIL = nullptr;
+  pDdiTable->pfnCreateWithIL = urProgramCreateWithIL;
   pDdiTable->pfnCreateWithNativeHandle = urProgramCreateWithNativeHandle;
   pDdiTable->pfnGetBuildInfo = nullptr;
   pDdiTable->pfnGetFunctionPointer = nullptr;
