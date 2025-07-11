@@ -143,7 +143,7 @@ std::vector<platform> platform_impl::getAdapterPlatforms(adapter_impl &Adapter,
 
     if (!Supported) {
       if (IsBanned || !HasAnyDevices) {
-        Platforms.push_back(Platform);
+        Platforms.push_back(std::move(Platform));
       }
     } else {
       if (IsBanned) {
@@ -155,7 +155,7 @@ std::vector<platform> platform_impl::getAdapterPlatforms(adapter_impl &Adapter,
       // 2020 4.6.2 ) If we have an empty platform, we don't report it back
       // from platform::get_platforms().
       if (HasAnyDevices) {
-        Platforms.push_back(Platform);
+        Platforms.push_back(std::move(Platform));
       }
     }
   }
