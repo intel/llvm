@@ -35,6 +35,10 @@
 #endif
 #endif
 
+#ifndef __DPCPP_SYCL_EXTERNAL_LIBC
+#define __DPCPP_SYCL_EXTERNAL_LIBC __DPCPP_SYCL_EXTERNAL
+#endif
+
 // Helper for enabling empty-base optimizations on MSVC.
 // TODO: Remove this when MSVC has this optimization enabled by default.
 #ifdef _MSC_VER
