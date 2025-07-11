@@ -251,16 +251,9 @@ def do_configure(args, passthrough_args):
     cmake_cmd.append(llvm_dir)
 
     if args.use_libcxx:
-        if not (args.libcxx_include and args.libcxx_library):
-            sys.exit(
-                "Please specify include and library path of libc++ when building sycl "
-                "runtime with it"
-            )
         cmake_cmd.extend(
             [
-                "-DSYCL_USE_LIBCXX=ON",
-                "-DSYCL_LIBCXX_INCLUDE_PATH={}".format(args.libcxx_include),
-                "-DSYCL_LIBCXX_LIBRARY_PATH={}".format(args.libcxx_library),
+                "-DLLVM_ENABLE_LIBCXX=ON",
             ]
         )
 
@@ -387,10 +380,14 @@ def main():
         "--use-libcxx", action="store_true", help="build sycl runtime with libcxx"
     )
     parser.add_argument(
-        "--libcxx-include", metavar="LIBCXX_INCLUDE_PATH", help="libcxx include path"
+        "--libcxx-include",
+        metavar="LIBCXX_INCLUDE_PATH",
+        help="libcxx include path (deprecated)",
     )
     parser.add_argument(
-        "--libcxx-library", metavar="LIBCXX_LIBRARY_PATH", help="libcxx library path"
+        "--libcxx-library",
+        metavar="LIBCXX_LIBRARY_PATH",
+        help="libcxx library path (deprecated)",
     )
     parser.add_argument(
         "--use-lld", action="store_true", help="Use LLD linker for build"
