@@ -126,14 +126,14 @@ function(link_bc)
   endif()
 
   add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${ARG_TARGET}.bc
-    COMMAND ${llvm-link_exe} ${link_flags} -o ${CMAKE_CURRENT_BINARY_DIR}/${ARG_TARGET}.bc ${LINK_INPUT_ARG}
+    OUTPUT ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.bc
+    COMMAND ${llvm-link_exe} ${link_flags} -o ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.bc ${LINK_INPUT_ARG}
     DEPENDS ${llvm-link_target} ${ARG_DEPENDENCIES} ${ARG_INPUTS} ${RSP_FILE}
   )
 
-  add_custom_target( ${ARG_TARGET} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${ARG_TARGET}.bc )
+  add_custom_target( ${ARG_TARGET} ALL DEPENDS ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.bc )
   set_target_properties( ${ARG_TARGET} PROPERTIES
-    TARGET_FILE ${CMAKE_CURRENT_BINARY_DIR}/${ARG_TARGET}.bc
+    TARGET_FILE ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.bc
     FOLDER "libclc/Device IR/Linking"
   )
 endfunction()
@@ -203,82 +203,6 @@ function(get_libclc_device_info)
   if( ARG_CLANG_TRIPLE )
     set( ${ARG_CLANG_TRIPLE} ${ARG_TRIPLE} PARENT_SCOPE )
   endif()
-endfunction()
-
-function(add_libclc_alias alias target)
-  cmake_parse_arguments(ARG "" "" PARENT_TARGET "" ${ARGN})
-
-  if(CMAKE_HOST_UNIX AND NOT CMAKE_SYSTEM_NAME STREQUAL Windows)
-    set(LIBCLC_LINK_OR_COPY create_symlink)
-  else()
-    set(LIBCLC_LINK_OR_COPY copy)
-  endif()
-
-  add_custom_command(
-      OUTPUT ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${alias_suffix}
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
-      COMMAND ${CMAKE_COMMAND} -E
-        ${LIBCLC_LINK_OR_COPY} ${target}.bc
-        ${alias_suffix}
-      WORKING_DIRECTORY
-        ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
-      DEPENDS "prepare-${target}"
-    )
-  add_custom_target( alias-${alias_suffix} ALL
-    DEPENDS "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${alias_suffix}" )
-  add_dependencies(${ARG_PARENT_TARGET} alias-${alias_suffix})
-
-  install( FILES ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${alias_suffix}
-           DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
-
-endfunction(add_libclc_alias alias target)
-
-# Runs opt and prepare-builtins on a bitcode file specified by lib_tgt
-#
-# ARGUMENTS:
-# * LIB_TGT string
-#     Target name that becomes dependent on the out file named LIB_TGT.bc
-# * IN_FILE string
-#     Target name of the input bytecode file
-# * OUT_DIR string
-#     Name of the directory where the output should be placed
-# *  DEPENDENCIES <string> ...
-#     List of extra dependencies to inject
-function(process_bc out_file)
-  cmake_parse_arguments(ARG
-    ""
-    "LIB_TGT;IN_FILE;OUT_DIR"
-    "OPT_FLAGS;DEPENDENCIES"
-    ${ARGN})
-
-  # Check if the target already exists
-  if(NOT TARGET ${ARG_LIB_TGT})
-    add_custom_command(OUTPUT ${ARG_LIB_TGT}.bc
-      COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${ARG_LIB_TGT}.bc
-      ${ARG_IN_FILE}
-      DEPENDS ${opt_target} ${ARG_IN_FILE} ${ARG_DEPENDENCIES}
-    )
-    add_custom_target(${ARG_LIB_TGT}
-      ALL DEPENDS ${ARG_LIB_TGT}.bc
-    )
-    set_target_properties(${ARG_LIB_TGT}
-      PROPERTIES TARGET_FILE ${ARG_LIB_TGT}.bc
-    )
-  endif()
-
-  set( builtins_opt_lib $<TARGET_PROPERTY:${ARG_LIB_TGT},TARGET_FILE> )
-
-  # Add prepare target
-  add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
-    COMMAND ${prepare_builtins_exe} -o ${ARG_OUT_DIR}/${out_file}
-      ${builtins_opt_lib}
-      DEPENDS ${builtins_opt_lib} ${ARG_LIB_TGT} ${prepare_builtins_target} )
-  add_custom_target( prepare-${out_file} ALL
-    DEPENDS ${ARG_OUT_DIR}/${out_file}
-  )
-  set_target_properties( prepare-${out_file}
-    PROPERTIES TARGET_FILE ${ARG_OUT_DIR}/${out_file}
-  )
 endfunction()
 
 # Compiles a list of library source files (provided by LIB_FILES/GEN_FILES) and
@@ -448,8 +372,8 @@ function(add_libclc_builtin_set)
 
   set( builtins_link_lib $<TARGET_PROPERTY:${builtins_link_lib_tgt},TARGET_FILE> )
 
-  add_custom_command( OUTPUT ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+  add_custom_command( OUTPUT ${LIBCLC_OUTPUT_LIBRARY_DIR}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_OUTPUT_LIBRARY_DIR}
     DEPENDS ${builtins_link_lib} prepare_builtins )
 
   # For SPIR-V targets we diverage at this point and generate SPIR-V using the
@@ -517,9 +441,9 @@ function(add_libclc_builtin_set)
 
   # Generate remangled variants if requested
   if( ARG_REMANGLE )
-    set( dummy_in ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/libclc_dummy_in.cc )
+    set( dummy_in ${LIBCLC_OUTPUT_LIBRARY_DIR}/libclc_dummy_in.cc )
     add_custom_command( OUTPUT ${dummy_in}
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_OUTPUT_LIBRARY_DIR}
       COMMAND ${CMAKE_COMMAND} -E touch ${dummy_in}
     )
     set(long_widths l32 l64)
@@ -536,9 +460,9 @@ function(add_libclc_builtin_set)
       foreach(signedness ${char_signedness})
         # Remangle
         set( builtins_remangle_path
-            "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" )
+            "${LIBCLC_OUTPUT_LIBRARY_DIR}/remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" )
         add_custom_command( OUTPUT "${builtins_remangle_path}"
-          COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+          COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_OUTPUT_LIBRARY_DIR}
           COMMAND ${libclc-remangler_exe}
           -o "${builtins_remangle_path}"
           --triple=${ARG_TRIPLE}
@@ -607,12 +531,12 @@ function(add_libclc_builtin_set)
     set_target_properties( alias-${alias_suffix}
       PROPERTIES FOLDER "libclc/Device IR/Aliases"
     )
+    add_dependencies(${ARG_PARENT_TARGET} alias-${alias_suffix})
     install(
       FILES ${LIBCLC_OUTPUT_LIBRARY_DIR}/${alias_suffix}
       DESTINATION "${CMAKE_INSTALL_DATADIR}/clc"
     )
   endforeach( a )
-
 endfunction(add_libclc_builtin_set)
 
 # Produces a list of libclc source files by walking over SOURCES files in a
