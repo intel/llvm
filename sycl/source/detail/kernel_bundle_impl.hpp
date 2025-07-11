@@ -124,7 +124,7 @@ public:
   // Interop constructor
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      device_image_plain &DevImage, private_tag Tag)
-      : kernel_bundle_impl(Ctx, Devs, Tag) {
+      : kernel_bundle_impl(std::move(Ctx), std::move(Devs), Tag) {
     MDeviceImages.emplace_back(DevImage);
     MUniqueDeviceImages.emplace_back(DevImage);
   }
@@ -275,13 +275,24 @@ public:
     std::vector<device_image_plain> DevImages;
     {
       std::set<std::shared_ptr<device_image_impl>> DevImagesSet;
+      std::unordered_set<const RTDeviceBinaryImage *> SeenBinImgs;
       for (const kernel_bundle<bundle_state::object> &ObjectBundle :
-           ObjectBundles)
+           ObjectBundles) {
         for (const device_image_plain &DevImg :
-             getSyclObjImpl(ObjectBundle)->MUniqueDeviceImages)
-          if (ImagesWithSpecConstsSet.find(getSyclObjImpl(DevImg)) ==
-              ImagesWithSpecConstsSet.end())
-            DevImagesSet.insert(getSyclObjImpl(DevImg));
+             getSyclObjImpl(ObjectBundle)->MUniqueDeviceImages) {
+          auto &DevImgImpl = getSyclObjImpl(DevImg);
+          const RTDeviceBinaryImage *BinImg = DevImgImpl->get_bin_image_ref();
+          // We have duplicate images if either the underlying binary image has
+          // been seen before or the device image implementation is in the
+          // image set already.
+          if ((BinImg && SeenBinImgs.find(BinImg) != SeenBinImgs.end()) ||
+              ImagesWithSpecConstsSet.find(DevImgImpl) !=
+                  ImagesWithSpecConstsSet.end())
+            continue;
+          SeenBinImgs.insert(BinImg);
+          DevImagesSet.insert(DevImgImpl);
+        }
+      }
       DevImages.reserve(DevImagesSet.size());
       for (auto It = DevImagesSet.begin(); It != DevImagesSet.end();)
         DevImages.push_back(createSyclObjFromImpl<device_image_plain>(
@@ -736,7 +747,7 @@ public:
 
     device_impl &DeviceImpl = *getSyclObjImpl(Dev);
     bool SupportContextMemcpy = false;
-    DeviceImpl.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+    DeviceImpl.getAdapter().call<UrApiKind::urDeviceGetInfo>(
         DeviceImpl.getHandleRef(),
         UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP,
         sizeof(SupportContextMemcpy), &SupportContextMemcpy, nullptr);

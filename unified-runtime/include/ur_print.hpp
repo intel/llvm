@@ -274,6 +274,8 @@ printFlag<ur_exp_enqueue_native_command_flag_t>(std::ostream &os,
 
 } // namespace ur::details
 
+inline std::ostream &operator<<(std::ostream &os,
+                                [[maybe_unused]] const ur_bool_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_structure_type_t value);
@@ -9058,7 +9060,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
   } break;
   case UR_PROGRAM_INFO_BINARIES: {
 
-    const unsigned char *tptr = (const unsigned char *)ptr;
+    const unsigned char *const *tptr = (const unsigned char *const *)ptr;
     printPtr(os, tptr);
   } break;
   case UR_PROGRAM_INFO_NUM_KERNELS: {
@@ -11318,6 +11320,9 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF:
     os << "UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF";
+    break;
+  case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE:
+    os << "UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE";
     break;
   default:
     os << "unknown enumerator";

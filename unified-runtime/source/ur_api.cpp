@@ -2892,11 +2892,11 @@ ur_result_t UR_APICALL urProgramCompile(
 ///       in `phProgram` will contain a binary of the
 ///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
 ///       `hContext`.
-///     - If a non-success code is returned and `phProgram` is not `nullptr`, it
-///       will contain an unspecified program or `nullptr`. Implementations may
-///       use the build log of this program (accessible via
-///       ::urProgramGetBuildInfo) to provide an error log for the linking
-///       failure.
+///     - If a non-success code is returned, adapters may store a program in
+///       `phProgram`. This program should only be used with
+///       `::urProgramGetBuildInfo` to get the build log for the failure.
+///       Adapters which do not do not support producing build logs must set
+///       this value to `nullptr`.
 ///
 /// @remarks
 ///   _Analogues_
@@ -7027,7 +7027,8 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType`
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalMemDesc`
 ///         + `NULL == phExternalMem`
@@ -7199,7 +7200,8 @@ ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType`
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pSupportedRet`
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
@@ -8784,11 +8786,11 @@ ur_result_t UR_APICALL urProgramCompileExp(
 ///       in `phProgram` will contain a binary of the
 ///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
 ///       `phDevices`.
-///     - If a non-success code is returned and `phProgram` is not `nullptr`, it
-///       will contain an unspecified program or `nullptr`. Implementations may
-///       use the build log of this program (accessible via
-///       ::urProgramGetBuildInfo) to provide an error log for the linking
-///       failure.
+///     - If a non-success code is returned, adapters may store a program in
+///       `phProgram`. This program should only be used with
+///       `::urProgramGetBuildInfo` to get the build log for the failure.
+///       Adapters which do not do not support producing build logs must set
+///       this value to `nullptr`.
 ///
 /// @remarks
 ///   _Analogues_
