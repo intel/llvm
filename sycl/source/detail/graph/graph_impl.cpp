@@ -744,7 +744,7 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   const bool xptiEnabled = xptiTraceEnabled();
-  int32_t StreamID = xpti::invalid_id<>;
+  auto StreamID = xpti::invalid_id<xpti::stream_id_t>;
   xpti_td *CmdTraceEvent = nullptr;
   uint64_t InstanceID = 0;
   if (xptiEnabled) {

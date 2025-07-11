@@ -1489,10 +1489,10 @@ public:
   /// @typedef stream_cb_t
   /// @brief Maps a stream ID to its corresponding callbacks for different
   /// trace types
-  /// @details This unordered map uses a uint16_t as the key for the stream
-  /// ID, and cb_t to map the stream to registered callbacks for each trace
-  /// type
-  using stream_cb_t = emhash7::HashMap<uint16_t, cb_t>;
+  /// @details This unordered map uses the xpti::strem_id_t  as the key for the
+  /// stream ID, and cb_t to map the stream to registered callbacks for each
+  /// trace type
+  using stream_cb_t = emhash7::HashMap<xpti::stream_id_t, cb_t>;
 
   /// @typedef statistics_t
   /// @brief Keeps track of statistics, typically counts, associated with
@@ -1512,11 +1512,11 @@ public:
   /// @typedef stream_flags_t
   /// @brief Maps a stream ID to its corresponding trace flags for different
   /// trace point types.
-  /// @details This unordered map uses a uint8_t as the key for trace type,
-  /// and trace_flags_t to map the trace type to their boolean that indiciates
-  /// whether a callback has been registered for this trace type in the given
-  /// stream.
-  using stream_flags_t = emhash7::HashMap<uint8_t, trace_flags_t>;
+  /// @details This unordered map uses the xpti::stream_id_t as the key for
+  /// trace type, and trace_flags_t to map the trace type to their boolean that
+  /// indiciates whether a callback has been registered for this trace type in
+  /// the given stream.
+  using stream_flags_t = emhash7::HashMap<xpti::stream_id_t, trace_flags_t>;
 
   /// @brief Registers a callback function for a specific trace type and stream
   /// ID.
@@ -1545,7 +1545,7 @@ public:
   ///         previously unregistered and is now re-enabled.
   ///
 
-  xpti::result_t registerCallback(uint8_t StreamID, uint16_t TraceType,
+  xpti::result_t registerCallback(xpti::stream_id_t StreamID, uint16_t TraceType,
                                   xpti::tracepoint_callback_api_t cbFunc) {
     if (!cbFunc)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
@@ -1630,7 +1630,7 @@ public:
   ///         `xpti::result_t::XPTI_RESULT_NOTFOUND` if the callback is not
   ///         found for the specified trace type and stream ID.
 
-  xpti::result_t unregisterCallback(uint8_t StreamID, uint16_t TraceType,
+  xpti::result_t unregisterCallback(xpti::stream_id_t StreamID, uint16_t TraceType,
                                     xpti::tracepoint_callback_api_t cbFunc) {
     if (!cbFunc)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
@@ -1688,7 +1688,7 @@ public:
   /// modifying the callbacks and stream flags. If the implementation evolves to
   /// use reader-writer locks, a reader lock should be used where appropriate.
 
-  xpti::result_t unregisterStream(uint8_t StreamID) {
+  xpti::result_t unregisterStream(xpti::stream_id_t StreamID) {
     // If there are no callbacks registered for the requested stream ID, we
     // return not found; use reader lock here if the implementation moves to
     // reader-writer locks.
@@ -1726,7 +1726,7 @@ public:
   /// @return Returns true if the trace type ihas subscribers in the stream;
   /// otherwise, returns false.
 
-  bool checkSubscribed(uint16_t StreamID, uint16_t TraceType) {
+  bool checkSubscribed(xpti::stream_id_t StreamID, uint16_t TraceType) {
     if (StreamID == 0)
       return false;
 
@@ -1791,7 +1791,7 @@ public:
   ///       function also updates the event occurrence count in a thread-safe
   ///       manner.
 
-  xpti::result_t notifySubscribers(uint16_t StreamID, uint16_t TraceType,
+  xpti::result_t notifySubscribers(xpti::stream_id_t StreamID, uint16_t TraceType,
                                    xpti::trace_event_data_t *Parent,
                                    xpti::trace_event_data_t *Object,
                                    uint64_t InstanceNo, const void *UserData) {
@@ -2374,17 +2374,17 @@ public:
     return g_tls_temp_scope_data;
   }
 
-  xpti::result_t registerCallback(uint8_t StreamID, uint16_t TraceType,
+  xpti::result_t registerCallback(xpti::stream_id_t StreamID, uint16_t TraceType,
                                   xpti::tracepoint_callback_api_t cbFunc) {
     return MNotifier.registerCallback(StreamID, TraceType, cbFunc);
   }
 
-  xpti::result_t unregisterCallback(uint8_t StreamID, uint16_t TraceType,
+  xpti::result_t unregisterCallback(xpti::stream_id_t StreamID, uint16_t TraceType,
                                     xpti::tracepoint_callback_api_t cbFunc) {
     return MNotifier.unregisterCallback(StreamID, TraceType, cbFunc);
   }
 
-  xpti::result_t notifySubscribers(uint8_t StreamID, uint16_t TraceType,
+  xpti::result_t notifySubscribers(xpti::stream_id_t StreamID, uint16_t TraceType,
                                    xpti::trace_event_data_t *Parent,
                                    xpti::trace_event_data_t *Object,
                                    uint64_t InstanceNo, const void *UserData) {
@@ -3270,7 +3270,7 @@ xptiQueryPayload(xpti::trace_event_data_t *LookupObject) {
 /// efficient and do not introduce significant performance overhead.
 
 XPTI_EXPORT_API xpti::result_t
-xptiRegisterCallback(uint8_t StreamID, uint16_t TraceType,
+xptiRegisterCallback(xpti::stream_id_t StreamID, uint16_t TraceType,
                      xpti::tracepoint_callback_api_t cbFunc) {
   return xpti::Framework::instance().registerCallback(StreamID, TraceType,
                                                       cbFunc);
@@ -3298,7 +3298,7 @@ xptiRegisterCallback(uint8_t StreamID, uint16_t TraceType,
 /// error code indicating the reason for failure.
 
 XPTI_EXPORT_API xpti::result_t
-xptiUnregisterCallback(uint8_t StreamID, uint16_t TraceType,
+xptiUnregisterCallback(xpti::stream_id_t StreamID, uint16_t TraceType,
                        xpti::tracepoint_callback_api_t cbFunc) {
   return xpti::Framework::instance().unregisterCallback(StreamID, TraceType,
                                                         cbFunc);
@@ -3335,7 +3335,7 @@ xptiUnregisterCallback(uint8_t StreamID, uint16_t TraceType,
 /// relevant subscribers, or an error code indicating the reason for failure.
 
 XPTI_EXPORT_API xpti::result_t
-xptiNotifySubscribers(uint8_t StreamID, uint16_t TraceType,
+xptiNotifySubscribers(xpti::stream_id_t StreamID, uint16_t TraceType,
                       xpti::trace_event_data_t *Parent,
                       xpti::trace_event_data_t *Object, uint64_t InstanceNo,
                       const void *TemporalUserData) {
@@ -3376,7 +3376,8 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
 /// specified stream and trace type. Returns `true` if tracing is enabled, and
 /// `false` otherwise.
 
-XPTI_EXPORT_API bool xptiCheckTraceEnabled(uint16_t stream, uint16_t ttype) {
+XPTI_EXPORT_API bool xptiCheckTraceEnabled(xpti::stream_id_t stream,
+                                           uint16_t ttype) {
   return xpti::Framework::instance().checkTraceEnabled(stream, ttype);
 }
 
@@ -3591,7 +3592,7 @@ XPTI_EXPORT_API bool xptiCheckTracepointScopeNotification() {
 ///
 /// @return The default stream ID as an 8-bit unsigned integer.
 
-XPTI_EXPORT_API uint8_t xptiGetDefaultStreamID() {
+XPTI_EXPORT_API xpti::stream_id_t xptiGetDefaultStreamID() {
   return xpti::g_default_stream_id;
 }
 
@@ -3606,7 +3607,8 @@ XPTI_EXPORT_API uint8_t xptiGetDefaultStreamID() {
 /// @return xpti::result_t Returns XPTI_RESULT_SUCCESS on success, or an
 /// appropriate error code on failure.
 
-XPTI_EXPORT_API xpti::result_t xptiSetDefaultStreamID(uint8_t DefaultStreamId) {
+XPTI_EXPORT_API xpti::result_t
+xptiSetDefaultStreamID(xpti::stream_id_t DefaultStreamId) {
   if ((int8_t)DefaultStreamId < 0)
     return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
