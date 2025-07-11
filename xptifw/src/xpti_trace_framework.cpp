@@ -1545,7 +1545,8 @@ public:
   ///         previously unregistered and is now re-enabled.
   ///
 
-  xpti::result_t registerCallback(xpti::stream_id_t StreamID, uint16_t TraceType,
+  xpti::result_t registerCallback(xpti::stream_id_t StreamID,
+                                  uint16_t TraceType,
                                   xpti::tracepoint_callback_api_t cbFunc) {
     if (!cbFunc)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
@@ -1630,7 +1631,8 @@ public:
   ///         `xpti::result_t::XPTI_RESULT_NOTFOUND` if the callback is not
   ///         found for the specified trace type and stream ID.
 
-  xpti::result_t unregisterCallback(xpti::stream_id_t StreamID, uint16_t TraceType,
+  xpti::result_t unregisterCallback(xpti::stream_id_t StreamID,
+                                    uint16_t TraceType,
                                     xpti::tracepoint_callback_api_t cbFunc) {
     if (!cbFunc)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
@@ -1791,7 +1793,8 @@ public:
   ///       function also updates the event occurrence count in a thread-safe
   ///       manner.
 
-  xpti::result_t notifySubscribers(xpti::stream_id_t StreamID, uint16_t TraceType,
+  xpti::result_t notifySubscribers(xpti::stream_id_t StreamID,
+                                   uint16_t TraceType,
                                    xpti::trace_event_data_t *Parent,
                                    xpti::trace_event_data_t *Object,
                                    uint64_t InstanceNo, const void *UserData) {
@@ -2374,17 +2377,20 @@ public:
     return g_tls_temp_scope_data;
   }
 
-  xpti::result_t registerCallback(xpti::stream_id_t StreamID, uint16_t TraceType,
+  xpti::result_t registerCallback(xpti::stream_id_t StreamID,
+                                  uint16_t TraceType,
                                   xpti::tracepoint_callback_api_t cbFunc) {
     return MNotifier.registerCallback(StreamID, TraceType, cbFunc);
   }
 
-  xpti::result_t unregisterCallback(xpti::stream_id_t StreamID, uint16_t TraceType,
+  xpti::result_t unregisterCallback(xpti::stream_id_t StreamID,
+                                    uint16_t TraceType,
                                     xpti::tracepoint_callback_api_t cbFunc) {
     return MNotifier.unregisterCallback(StreamID, TraceType, cbFunc);
   }
 
-  xpti::result_t notifySubscribers(xpti::stream_id_t StreamID, uint16_t TraceType,
+  xpti::result_t notifySubscribers(xpti::stream_id_t StreamID,
+                                   uint16_t TraceType,
                                    xpti::trace_event_data_t *Parent,
                                    xpti::trace_event_data_t *Object,
                                    uint64_t InstanceNo, const void *UserData) {

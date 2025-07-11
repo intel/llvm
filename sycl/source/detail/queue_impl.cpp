@@ -557,7 +557,8 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
 }
 
 void queue_impl::instrumentationEpilog(void *TelemetryEvent, std::string &Name,
-                                       xpti::stream_id_t StreamID, uint64_t IId) {
+                                       xpti::stream_id_t StreamID,
+                                       uint64_t IId) {
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_end;
   if (!(xptiCheckTraceEnabled(StreamID, NotificationTraceType) &&
         TelemetryEvent))
