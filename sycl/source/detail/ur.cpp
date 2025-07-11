@@ -96,7 +96,8 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
 bool XPTIInitDone = false;
 
 // Initializes all available Adapters.
-std::vector<AdapterPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
+std::vector<adapter_impl *> &
+initializeUr(ur_loader_config_handle_t LoaderConfig) {
   // This uses static variable initialization to work around a gcc bug with
   // std::call_once and exceptions.
   // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
