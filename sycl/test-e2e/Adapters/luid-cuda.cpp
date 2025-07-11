@@ -1,10 +1,10 @@
 // REQUIRES: aspect-ext_intel_device_info_luid
-// REQUIRES: gpu, cuda, cuda_dev_kit, windows
+// REQUIRES: gpu, target-nvidia, cuda_dev_kit, windows
 
 // RUN: %{build} %cuda_options -o %t.out
 // RUN: %{run} %t.out
 
-// Test that the LUID is read correctly from Level Zero.
+// Test that the LUID is read correctly from CUDA.
 
 #include <iomanip>
 #include <iostream>

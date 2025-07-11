@@ -1,4 +1,4 @@
-// REQUIRES: aspect-ext_intel_device_info_luid
+// REQUIRES: aspect-ext_intel_device_info_node_mask
 // REQUIRES: gpu, level_zero, level_zero_dev_kit, windows
 
 // RUN: %{build} %level_zero_options -o %t.out
