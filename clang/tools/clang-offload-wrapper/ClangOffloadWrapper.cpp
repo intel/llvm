@@ -653,7 +653,7 @@ private:
   }
 
   Function *addDeclarationForNativeCPU(StringRef Name) {
-    static FunctionType *FTy = FunctionType::get(
+    FunctionType *FTy = FunctionType::get(
         Type::getVoidTy(C),
         {PointerType::getUnqual(C), PointerType::getUnqual(C)}, false);
     auto FCalle = M.getOrInsertFunction(
