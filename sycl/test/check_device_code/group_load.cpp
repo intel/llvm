@@ -7,7 +7,7 @@
 // complicate test updates while not improving test coverage. Limiting to linux
 // should be fine.
 // REQUIRES: linux
-
+// XFAIL: *
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

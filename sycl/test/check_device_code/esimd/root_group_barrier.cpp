@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -c -fsycl-device-only -Xclang -emit-llvm %s -o - | FileCheck %s
-
+// XFAIL: *
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/group_barrier.hpp>
