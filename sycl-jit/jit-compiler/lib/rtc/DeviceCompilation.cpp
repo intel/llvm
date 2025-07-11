@@ -11,8 +11,6 @@
 #include "JITBinaryInfo.h"
 #include "translation/Translation.h"
 
-#include <Driver/ToolChains/Cuda.h>
-#include <Driver/ToolChains/LazyDetector.h>
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
@@ -667,9 +665,9 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     } else {
       CPUArgList.AddJoinedArg(nullptr, D.getOpts().getOption(OPT_mcpu_EQ), CPU);
     }
+
     SmallVector<ToolChain::BitCodeLibraryInfo, 12> CommonDeviceLibs =
         OffloadTC->getDeviceLibs(CPUArgList, Action::OffloadKind::OFK_SYCL);
-
     if (CommonDeviceLibs.empty()) {
       return createStringError("Unable to find common device libraries");
     }
