@@ -40,7 +40,7 @@ LibLoader::loadAdapterLibrary(const char *name) {
   bool deepbind = getenv_tobool(DEEP_BIND_ENV);
   if (deepbind) {
 #if defined(SANITIZER_ANY)
-    UR_LOG(WARN
+    UR_LOG(WARN,
            "Enabling RTLD_DEEPBIND while running under a sanitizer is likely "
            "to cause issues. Consider disabling {} environment variable.",
            DEEP_BIND_ENV);

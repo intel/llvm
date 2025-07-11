@@ -5,6 +5,11 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import argparse
+import re
+import statistics
+import os
+
 from benches.compute import *
 from benches.gromacs import GromacsBench
 from benches.velocity import VelocityBench
@@ -12,6 +17,7 @@ from benches.syclbench import *
 from benches.llamacpp import *
 from benches.umf import *
 from benches.test import TestSuite
+from benches.benchdnn import OneDnnBench
 from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
@@ -19,11 +25,10 @@ from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
 from utils.validate import Validate
+from utils.detect_versions import DetectVersion
+from utils.logger import log
 from presets import enabled_suites, presets
 
-import argparse
-import re
-import statistics
 
 # Update this if you are changing the layout of the results files
 INTERNAL_WORKDIR_VERSION = "2.0"
@@ -37,30 +42,38 @@ def run_iterations(
     failures: dict[str, str],
 ):
     for iter in range(iters):
-        print(f"running {benchmark.name()}, iteration {iter}... ", flush=True)
-        bench_results = benchmark.run(env_vars)
-        if bench_results is None:
-            failures[benchmark.name()] = "benchmark produced no results!"
-            break
+        log.info(f"running {benchmark.name()}, iteration {iter}... ")
+        try:
+            bench_results = benchmark.run(env_vars)
+            if bench_results is None:
+                if options.exit_on_failure:
+                    raise RuntimeError(f"Benchmark produced no results!")
+                else:
+                    failures[benchmark.name()] = "benchmark produced no results!"
+                    break
 
-        for bench_result in bench_results:
-            if not bench_result.passed:
-                failures[bench_result.label] = "verification failed"
-                print(f"complete ({bench_result.label}: verification failed).")
+            for bench_result in bench_results:
+                log.info(
+                    f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
+                )
+                bench_result.name = bench_result.label
+                bench_result.lower_is_better = benchmark.lower_is_better()
+                bench_result.suite = benchmark.get_suite_name()
+
+                if bench_result.label not in results:
+                    results[bench_result.label] = []
+
+                results[bench_result.label].append(bench_result)
+        except Exception as e:
+            failure_label = f"{benchmark.name()} iteration {iter}"
+            if options.exit_on_failure:
+                raise RuntimeError(
+                    f"Benchmark failed: {failure_label} verification failed: {str(e)}"
+                )
+            else:
+                failures[failure_label] = f"verification failed: {str(e)}"
+                log.error(f"complete ({failure_label}: verification failed: {str(e)}).")
                 continue
-
-            print(
-                f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
-            )
-
-            bench_result.name = bench_result.label
-            bench_result.lower_is_better = benchmark.lower_is_better()
-            bench_result.suite = benchmark.get_suite_name()
-
-            if bench_result.label not in results:
-                results[bench_result.label] = []
-
-            results[bench_result.label].append(bench_result)
 
 
 # https://www.statology.org/modified-z-score/
@@ -123,7 +136,7 @@ def process_results(
         ) * mean_value
 
         if stddev > threshold:
-            print(f"stddev {stddev} above the threshold {threshold} for {label}")
+            log.warning(f"stddev {stddev} above the threshold {threshold} for {label}")
             valid_results = False
 
         rlist.sort(key=lambda res: res.value)
@@ -155,10 +168,13 @@ def collect_metadata(suites):
 def main(directory, additional_env_vars, save_name, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
+    if options.dry_run:
+        log.info("Dry run mode enabled. No benchmarks will be executed.")
+
     if options.build_compute_runtime:
-        print(f"Setting up Compute Runtime {options.compute_runtime_tag}")
+        log.info(f"Setting up Compute Runtime {options.compute_runtime_tag}")
         cr = get_compute_runtime()
-        print("Compute Runtime setup complete.")
+        log.info("Compute Runtime setup complete.")
         options.extra_ld_libraries.extend(cr.ld_libraries())
         options.extra_env_vars.update(cr.env_vars())
 
@@ -169,6 +185,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         LlamaCppBench(directory),
         UMFSuite(directory),
         GromacsBench(directory),
+        OneDnnBench(directory),
         TestSuite(),
     ]
 
@@ -186,7 +203,10 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         if s.name() not in enabled_suites(options.preset):
             continue
 
-        suite_benchmarks = s.benchmarks()
+        # filter out benchmarks that are disabled
+        suite_benchmarks = [
+            benchmark for benchmark in s.benchmarks() if benchmark.enabled()
+        ]
         if filter:
             suite_benchmarks = [
                 benchmark
@@ -195,33 +215,39 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             ]
 
         if suite_benchmarks:
-            print(f"Setting up {type(s).__name__}")
+            log.info(f"Setting up {type(s).__name__}")
             try:
                 s.setup()
             except Exception as e:
+                if options.exit_on_failure:
+                    raise e
                 failures[s.name()] = f"Suite setup failure: {e}"
-                print(f"{type(s).__name__} setup failed. Benchmarks won't be added.")
-                print(f"failed: {e}")
+                log.error(
+                    f"{type(s).__name__} setup failed. Benchmarks won't be added."
+                )
+                log.error(f"failed: {e}")
             else:
-                print(f"{type(s).__name__} setup complete.")
+                log.info(f"{type(s).__name__} setup complete.")
                 benchmarks += suite_benchmarks
 
     for benchmark in benchmarks:
         try:
-            if options.verbose:
-                print(f"Setting up {benchmark.name()}... ")
+            log.debug(f"Setting up {benchmark.name()}... ")
             benchmark.setup()
-            if options.verbose:
-                print(f"{benchmark.name()} setup complete.")
+            log.debug(f"{benchmark.name()} setup complete.")
 
         except Exception as e:
             if options.exit_on_failure:
                 raise e
             else:
                 failures[benchmark.name()] = f"Benchmark setup failure: {e}"
-                print(f"failed: {e}")
+                log.error(f"failed: {e}")
 
     results = []
+    if benchmarks:
+        log.info(f"Running {len(benchmarks)} benchmarks...")
+    elif not options.dry_run:
+        raise RuntimeError("No benchmarks to run.")
     for benchmark in benchmarks:
         try:
             merged_env_vars = {**additional_env_vars}
@@ -246,15 +272,13 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
                 raise e
             else:
                 failures[benchmark.name()] = f"Benchmark run failure: {e}"
-                print(f"failed: {e}")
+                log.error(f"failed: {e}")
 
     for benchmark in benchmarks:
         # this never has any useful information anyway, so hide it behind verbose
-        if options.verbose:
-            print(f"tearing down {benchmark.name()}... ", flush=True)
+        log.debug(f"tearing down {benchmark.name()}... ")
         benchmark.teardown()
-        if options.verbose:
-            print(f"{benchmark.name()} teardown complete.")
+        log.debug(f"{benchmark.name()} teardown complete.")
 
     this_name = options.current_run_name
     chart_data = {}
@@ -268,21 +292,24 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     history = BenchmarkHistory(results_dir)
     # limit how many files we load.
     # should this be configurable?
+    log.info(f"Loading benchmark history from {results_dir}...")
     history.load(1000)
+    log.info(f"Loaded {len(history.runs)} benchmark runs.")
 
-    # remove duplicates. this can happen if e.g., --compare baseline is specified manually.
-    compare_names = (
-        list(dict.fromkeys(compare_names)) if compare_names is not None else []
-    )
-
-    for name in compare_names:
-        compare_result = history.get_compare(name)
-        if compare_result:
-            chart_data[name] = compare_result.results
+    if compare_names:
+        log.info(f"Comparing against {len(compare_names)} previous runs...")
+        # remove duplicates. this can happen if e.g., --compare baseline is specified manually.
+        compare_names = list(dict.fromkeys(compare_names))
+        for name in compare_names:
+            compare_result = history.get_compare(name)
+            if compare_result:
+                chart_data[name] = compare_result.results
+        log.info(f"Comparison complete.")
 
     if options.output_markdown:
+        log.info("Generating markdown with benchmark results...")
         markdown_content = generate_markdown(
-            this_name, chart_data, failures, options.output_markdown
+            this_name, chart_data, failures, options.output_markdown, metadata
         )
 
         md_path = options.output_directory
@@ -292,7 +319,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         with open(os.path.join(md_path, "benchmark_results.md"), "w") as file:
             file.write(markdown_content)
 
-        print(
+        log.info(
             f"Markdown with benchmark results has been written to {md_path}/benchmark_results.md"
         )
 
@@ -302,16 +329,21 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     # we calculate historical averages or get latest results for compare.
     # Otherwise we might be comparing the results to themselves.
     if not options.dry_run:
+        log.info(f"Saving benchmark results...")
         history.save(saved_name, results, save_name is not None)
         if saved_name not in compare_names:
             compare_names.append(saved_name)
+        log.info(f"Benchmark results saved.")
 
     if options.output_html:
         html_path = options.output_directory
         if options.output_directory is None:
-            html_path = os.path.join(os.path.dirname(__file__), "html")
-
-        generate_html(history.runs, compare_names, html_path, metadata)
+            html_path = os.path.normpath(
+                os.path.join(os.path.dirname(__file__), "html")
+            )
+        log.info(f"Generating HTML with benchmark results in {html_path}...")
+        generate_html(history, compare_names, html_path, metadata)
+        log.info(f"HTML with benchmark results has been generated")
 
 
 def validate_and_parse_env_args(env_args):
@@ -369,6 +401,7 @@ if __name__ == "__main__":
         type=str,
         help="Compare results against previously saved data.",
         action="append",
+        default=[],
     )
     parser.add_argument(
         "--iterations",
@@ -395,10 +428,14 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
-        "--verbose", help="Print output of all the commands.", action="store_true"
+        "--verbose",
+        help="Set logging level to DEBUG. Overrides --log-level.",
+        action="store_true",
     )
     parser.add_argument(
-        "--exit-on-failure", help="Exit on first failure.", action="store_true"
+        "--exit-on-failure",
+        help="Exit on first benchmark failure.",
+        action="store_true",
     )
     parser.add_argument(
         "--compare-type",
@@ -506,7 +543,7 @@ if __name__ == "__main__":
         type=lambda ts: Validate.timestamp(
             ts,
             throw=argparse.ArgumentTypeError(
-                "Specified timestamp not in YYYYMMDD_HHMMSS format."
+                "Specified timestamp not in YYYYMMDD_HHMMSS format"
             ),
         ),
         help="Manually specify timestamp used in metadata",
@@ -517,7 +554,7 @@ if __name__ == "__main__":
         type=lambda gh_repo: Validate.github_repo(
             gh_repo,
             throw=argparse.ArgumentTypeError(
-                "Specified github repo not in <owner>/<repo> format."
+                "Specified github repo not in <owner>/<repo> format"
             ),
         ),
         help="Manually specify github repo metadata of component tested (e.g. SYCL, UMF)",
@@ -528,18 +565,59 @@ if __name__ == "__main__":
         type=lambda commit: Validate.commit_hash(
             commit,
             throw=argparse.ArgumentTypeError(
-                "Specified commit is not a valid commit hash."
+                "Specified commit is not a valid commit hash"
             ),
         ),
         help="Manually specify commit hash metadata of component tested (e.g. SYCL, UMF)",
         default=options.git_commit_override,
     )
 
+    parser.add_argument(
+        "--detect-version",
+        type=lambda components: Validate.on_re(
+            components,
+            r"[a-z_,]+",
+            throw=argparse.ArgumentTypeError(
+                "Specified --detect-version is not a comma-separated list"
+            ),
+        ),
+        help="Detect versions of components used: comma-separated list with choices from sycl,compute_runtime",
+        default=None,
+    )
+    parser.add_argument(
+        "--detect-version-cpp-path",
+        type=Path,
+        help="Location of detect_version.cpp used to query e.g. DPC++, L0",
+        default=None,
+    )
+    parser.add_argument(
+        "--archive-baseline-after",
+        type=int,
+        help="Archive baseline results (runs starting with 'Baseline_') older than this many days. "
+        "Archived results are stored separately and can be viewed in the HTML UI by enabling "
+        "'Include archived runs'. This helps manage the size of the primary dataset.",
+        default=options.archive_baseline_days,
+    )
+    parser.add_argument(
+        "--archive-pr-after",
+        type=int,
+        help="Archive PR and other non-baseline results older than this many days. "
+        "Archived results are stored separately and can be viewed in the HTML UI by enabling "
+        "'Include archived runs'. PR runs typically have a shorter retention period than baselines.",
+        default=options.archive_pr_days,
+    )
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        choices=["debug", "info", "warning", "error", "critical"],
+        help="Set the logging level",
+        default="info",
+    )
+
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
 
     options.workdir = args.benchmark_directory
-    options.verbose = args.verbose
     options.rebuild = not args.no_rebuild
     options.redownload = args.redownload
     options.sycl = args.sycl
@@ -564,6 +642,9 @@ if __name__ == "__main__":
     options.build_jobs = args.build_jobs
     options.hip_arch = args.hip_arch
 
+    # Initialize logger with command line arguments
+    log.initialize(args.verbose, args.log_level)
+
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
     if args.compute_runtime is not None:
@@ -586,7 +667,38 @@ if __name__ == "__main__":
         options.github_repo_override = args.github_repo
         options.git_commit_override = args.git_commit
 
+    # Automatically detect versions:
+    if args.detect_version is not None:
+        detect_ver_path = args.detect_version_cpp_path
+        if detect_ver_path is None:
+            detect_ver_path = Path(
+                f"{os.path.dirname(__file__)}/utils/detect_versions.cpp"
+            )
+            if not detect_ver_path.is_file():
+                parser.error(
+                    f"Unable to find detect_versions.cpp at {detect_ver_path}, please specify --detect-version-cpp-path"
+                )
+        elif not detect_ver_path.is_file():
+            parser.error(f"Specified --detect-version-cpp-path is not a valid file")
+
+        enabled_components = args.detect_version.split(",")
+        options.detect_versions.sycl = "sycl" in enabled_components
+        options.detect_versions.compute_runtime = (
+            "compute_runtime" in enabled_components
+        )
+
+        detect_res = DetectVersion.init(detect_ver_path)
+
     benchmark_filter = re.compile(args.filter) if args.filter else None
+
+    try:
+        options.device_architecture = get_device_architecture(additional_env_vars)
+    except Exception as e:
+        options.device_architecture = ""
+        log.warning(f"Failed to fetch device architecture: {e}")
+        log.warning("Defaulting to generic benchmark parameters.")
+
+    log.info(f"Selected device architecture: {options.device_architecture}")
 
     main(
         args.benchmark_directory,

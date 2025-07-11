@@ -14,6 +14,7 @@
 
 #include "../enqueued_pool.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "event.hpp"
 #include "ur_pool_manager.hpp"
 
@@ -38,6 +39,8 @@ struct ur_usm_pool_handle_t_ : ur_object {
                        size_t size, void **ppRetMem);
   ur_result_t free(void *ptr);
 
+  bool hasPool(const umf_memory_pool_handle_t hPool);
+
   std::optional<std::pair<void *, ur_event_handle_t>>
   allocateEnqueued(ur_context_handle_t hContext, void *hQueue,
                    bool isInOrderQueue, ur_device_handle_t hDevice,
@@ -46,6 +49,8 @@ struct ur_usm_pool_handle_t_ : ur_object {
 
   void cleanupPools();
   void cleanupPoolsForQueue(void *hQueue);
+
+  ur::RefCount RefCount;
 
 private:
   ur_context_handle_t hContext;

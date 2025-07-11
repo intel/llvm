@@ -414,6 +414,8 @@ ur_result_t GetDeviceHostPipeRWSupported(ur_device_handle_t device,
                                          bool &support);
 ur_result_t GetTimestampRecordingSupport(ur_device_handle_t device,
                                          bool &support);
+ur_result_t GetUSMContextMemcpyExpSupport(ur_device_handle_t device,
+                                          bool &support);
 
 ur_device_partition_property_t makePartitionByCountsDesc(uint32_t count);
 

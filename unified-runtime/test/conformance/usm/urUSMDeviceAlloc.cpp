@@ -42,11 +42,11 @@ TEST_P(urUSMDeviceAllocTest, Success) {
   uint8_t pattern = 0;
   ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
                                   allocation_size, 0, nullptr, &event));
-  EXPECT_SUCCESS(urQueueFlush(queue));
+  ASSERT_SUCCESS(urQueueFlush(queue));
   ASSERT_SUCCESS(urEventWait(1, &event));
 
   ASSERT_SUCCESS(urUSMFree(context, ptr));
-  EXPECT_SUCCESS(urEventRelease(event));
+  ASSERT_SUCCESS(urEventRelease(event));
 }
 
 TEST_P(urUSMDeviceAllocTest, SuccessWithDescriptors) {
@@ -70,7 +70,7 @@ TEST_P(urUSMDeviceAllocTest, SuccessWithDescriptors) {
   ASSERT_SUCCESS(urEventWait(1, &event));
 
   ASSERT_SUCCESS(urUSMFree(context, ptr));
-  EXPECT_SUCCESS(urEventRelease(event));
+  ASSERT_SUCCESS(urEventRelease(event));
 }
 
 TEST_P(urUSMDeviceAllocTest, InvalidNullHandleContext) {
@@ -160,5 +160,5 @@ TEST_P(urUSMDeviceAllocAlignmentTest, SuccessAlignedAllocations) {
   ASSERT_SUCCESS(urEventWait(1, &event));
 
   ASSERT_SUCCESS(urUSMFree(context, ptr));
-  EXPECT_SUCCESS(urEventRelease(event));
+  ASSERT_SUCCESS(urEventRelease(event));
 }

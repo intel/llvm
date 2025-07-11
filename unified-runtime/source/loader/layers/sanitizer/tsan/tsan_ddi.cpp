@@ -44,6 +44,32 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
 } // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGet
+ur_result_t urAdapterGet(
+    /// [in] the number of adapters to be added to phAdapters. If phAdapters
+    /// is not NULL, then NumEntries should be greater than zero, otherwise
+    /// ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
+    uint32_t NumEntries,
+    /// [out][optional][range(0, NumEntries)] array of handle of adapters. If
+    /// NumEntries is less than the number of adapters available, then
+    /// ::urAdapterGet shall only retrieve that number of platforms.
+    ur_adapter_handle_t *phAdapters,
+    /// [out][optional] returns the total number of adapters available.
+    uint32_t *pNumAdapters) {
+  auto pfnAdapterGet = getContext()->urDdiTable.Adapter.pfnGet;
+
+  ur_result_t result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
+  if (result == UR_RESULT_SUCCESS && phAdapters) {
+    const uint32_t NumAdapters = pNumAdapters ? *pNumAdapters : NumEntries;
+    for (uint32_t i = 0; i < NumAdapters; ++i) {
+      UR_CALL(getTsanInterceptor()->holdAdapter(phAdapters[i]));
+    }
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextCreate
 __urdlllocal ur_result_t UR_APICALL urContextCreate(
     /// [in] the number of devices given in phDevices
@@ -1045,6 +1071,32 @@ ur_result_t urKernelSetArgMemObj(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgLocal
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in] size of the local buffer to be allocated by the runtime
+    size_t argSize,
+    /// [in][optional] pointer to local buffer properties.
+    const ur_kernel_arg_local_properties_t *pProperties) {
+  auto pfnSetArgLocal = getContext()->urDdiTable.Kernel.pfnSetArgLocal;
+
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "==== urKernelSetArgLocal (argIndex={}, argSize={})", argIndex,
+           argSize);
+
+  {
+    auto &KI = getTsanInterceptor()->getKernelInfo(hKernel);
+    std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
+    KI.LocalArgs[argIndex] = TsanLocalArgsInfo{argSize};
+  }
+
+  return pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMDeviceAlloc
 __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     /// [in] handle of the context object
@@ -1127,6 +1179,11 @@ ur_result_t urEnqueueKernelLaunch(
     /// execute the kernel function. If nullptr, the runtime implementation will
     /// choose the work-group size.
     const size_t *pLocalWorkSize,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+    /// properties
+    const ur_kernel_launch_property_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -1137,63 +1194,23 @@ ur_result_t urEnqueueKernelLaunch(
     /// [out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t *phEvent) {
+  // This mutex is to prevent concurrent kernel launches across different queues
+  // as the DeviceTSAN local shadow memory does not support concurrent
+  // kernel launches now.
+  std::scoped_lock<ur_shared_mutex> Guard(
+      getTsanInterceptor()->KernelLaunchMutex);
+
   UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueKernelLaunch");
 
-  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue));
+  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
+                        pLocalWorkSize, pGlobalWorkOffset, workDim);
 
   UR_CALL(getTsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
   UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent));
-
-  UR_CALL(getTsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
-
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-  UR_LOG_L(getContext()->logger, DEBUG,
-           "==== urEnqueueCooperativeKernelLaunchExp");
-
-  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue));
-
-  UR_CALL(getTsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
-
-  UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent));
+      pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
+      numEventsInWaitList, phEventWaitList, phEvent));
 
   UR_CALL(getTsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 
@@ -1207,6 +1224,27 @@ ur_result_t urCheckVersion(ur_api_version_t version) {
           UR_MINOR_VERSION(version)) {
     return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
   }
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Adapter table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+ur_result_t urGetAdapterProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_adapter_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  pDdiTable->pfnGet = ur_sanitizer_layer::tsan::urAdapterGet;
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -1288,10 +1326,13 @@ ur_result_t urGetKernelProcAddrTable(
   }
 
   pDdiTable->pfnCreate = ur_sanitizer_layer::tsan::urKernelCreate;
+  pDdiTable->pfnCreateWithNativeHandle =
+      ur_sanitizer_layer::tsan::urKernelCreateWithNativeHandle;
   pDdiTable->pfnRetain = ur_sanitizer_layer::tsan::urKernelRetain;
   pDdiTable->pfnRelease = ur_sanitizer_layer::tsan::urKernelRelease;
   pDdiTable->pfnSetArgValue = ur_sanitizer_layer::tsan::urKernelSetArgValue;
   pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::tsan::urKernelSetArgMemObj;
+  pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::tsan::urKernelSetArgLocal;
 
   return UR_RESULT_SUCCESS;
 }
@@ -1378,25 +1419,6 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's EnqueueExp table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-__urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
-    /// [in,out] pointer to table of DDI function pointers
-    ur_enqueue_exp_dditable_t *pDdiTable) {
-  if (nullptr == pDdiTable) {
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-  }
-
-  pDdiTable->pfnCooperativeKernelLaunchExp =
-      ur_sanitizer_layer::tsan::urEnqueueCooperativeKernelLaunchExp;
-  return UR_RESULT_SUCCESS;
-}
-
 } // namespace tsan
 
 ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
@@ -1406,6 +1428,11 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::tsan::urCheckVersion(UR_API_VERSION_CURRENT);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result =
+        ur_sanitizer_layer::tsan::urGetAdapterProcAddrTable(&dditable->Adapter);
   }
 
   if (UR_RESULT_SUCCESS == result) {
@@ -1439,11 +1466,6 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result =
         ur_sanitizer_layer::tsan::urGetEnqueueProcAddrTable(&dditable->Enqueue);
-  }
-
-  if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::tsan::urGetEnqueueExpProcAddrTable(
-        &dditable->EnqueueExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {

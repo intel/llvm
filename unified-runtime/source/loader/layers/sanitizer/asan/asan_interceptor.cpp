@@ -53,7 +53,7 @@ AsanInterceptor::~AsanInterceptor() {
   m_ShadowMap.clear();
 
   for (auto Adapter : m_Adapters) {
-    getContext()->urDdiTable.Global.pfnAdapterRelease(Adapter);
+    getContext()->urDdiTable.Adapter.pfnRelease(Adapter);
   }
 }
 
@@ -671,6 +671,7 @@ KernelInfo &AsanInterceptor::getOrCreateKernelInfo(ur_kernel_handle_t Kernel) {
   // Create new KernelInfo
   auto Program = GetProgram(Kernel);
   auto PI = getProgramInfo(Program);
+  assert(PI != nullptr && "unregistered program!");
   bool IsInstrumented = PI->isKernelInstrumented(Kernel);
 
   std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);

@@ -29,20 +29,12 @@ inline namespace _V1 {
 // Forward declaration
 class device;
 namespace detail {
-class context_impl {
-public:
-  /// Constructs a context_impl using a single SYCL devices.
-  ///
-  /// The constructed context_impl will use the AsyncHandler parameter to
-  /// handle exceptions.
-  /// PropList carries the properties of the constructed context_impl.
-  ///
-  /// \param Device is an instance of SYCL device.
-  /// \param AsyncHandler is an instance of async_handler.
-  /// \param PropList is an instance of property_list.
-  context_impl(const device &Device, async_handler AsyncHandler,
-               const property_list &PropList);
+class context_impl : public std::enable_shared_from_this<context_impl> {
+  struct private_tag {
+    explicit private_tag() = default;
+  };
 
+public:
   /// Constructs a context_impl using a list of SYCL devices.
   ///
   /// Newly created instance will save each SYCL device in the list. This
@@ -56,7 +48,8 @@ public:
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
   context_impl(const std::vector<sycl::device> DeviceList,
-               async_handler AsyncHandler, const property_list &PropList);
+               async_handler AsyncHandler, const property_list &PropList,
+               private_tag);
 
   /// Construct a context_impl using plug-in interoperability handle.
   ///
@@ -69,9 +62,24 @@ public:
   /// \param OwnedByRuntime is the flag if ownership is kept by user or
   /// transferred to runtime
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               const AdapterPtr &Adapter,
-               const std::vector<sycl::device> &DeviceList = {},
-               bool OwnedByRuntime = true);
+               adapter_impl &Adapter,
+               const std::vector<sycl::device> &DeviceList, bool OwnedByRuntime,
+               private_tag);
+
+  context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
+               adapter_impl &Adapter, private_tag tag)
+      : context_impl(UrContext, std::move(AsyncHandler), Adapter,
+                     std::vector<sycl::device>{},
+                     /*OwnedByRuntime*/ true, tag) {}
+
+  // Single variadic method works because all the ctors are expected to be
+  // "public" except the `private_tag` part restricting the creation to
+  // `std::shared_ptr` allocations.
+  template <typename... Ts>
+  static std::shared_ptr<context_impl> create(Ts &&...args) {
+    return std::make_shared<context_impl>(std::forward<Ts>(args)...,
+                                          private_tag{});
+  }
 
   ~context_impl();
 
@@ -86,7 +94,7 @@ public:
   const async_handler &get_async_handler() const;
 
   /// \return the Adapter associated with the platform of this context.
-  const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
+  adapter_impl &getAdapter() const { return MPlatform->getAdapter(); }
 
   /// \return the PlatformImpl associated with this context.
   platform_impl &getPlatformImpl() const { return *MPlatform; }
@@ -215,8 +223,8 @@ public:
 
   /// Initializes device globals for a program on the associated queue.
   std::vector<ur_event_handle_t>
-  initializeDeviceGlobals(ur_program_handle_t NativePrg,
-                          const std::shared_ptr<queue_impl> &QueueImpl);
+  initializeDeviceGlobals(ur_program_handle_t NativePrg, queue_impl &QueueImpl,
+                          detail::kernel_bundle_impl *KernelBundleImplPtr);
 
   void memcpyToHostOnlyDeviceGlobal(device_impl &DeviceImpl,
                                     const void *DeviceGlobalPtr,
@@ -287,7 +295,7 @@ private:
     }
 
     /// Clears all events of the initializer. This will not acquire the lock.
-    void ClearEvents(const AdapterPtr &Adapter);
+    void ClearEvents(adapter_impl &Adapter);
 
     /// The binary image of the program.
     const RTDeviceBinaryImage *MBinImage = nullptr;
@@ -357,11 +365,12 @@ void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
 
 // We're under sycl/source and these won't be exported but it's way more
 // convenient to be able to reference them without extra `detail::`.
-inline auto get_ur_handles(const sycl::context &syclContext) {
-  sycl::detail::context_impl &Ctx = *sycl::detail::getSyclObjImpl(syclContext);
+inline auto get_ur_handles(sycl::detail::context_impl &Ctx) {
   ur_context_handle_t urCtx = Ctx.getHandleRef();
-  const sycl::detail::Adapter *Adapter = Ctx.getAdapter().get();
-  return std::tuple{urCtx, Adapter};
+  return std::tuple{urCtx, &Ctx.getAdapter()};
+}
+inline auto get_ur_handles(const sycl::context &syclContext) {
+  return get_ur_handles(*sycl::detail::getSyclObjImpl(syclContext));
 }
 inline auto get_ur_handles(const sycl::device &syclDevice,
                            const sycl::context &syclContext) {
@@ -370,5 +379,11 @@ inline auto get_ur_handles(const sycl::device &syclDevice,
       sycl::detail::getSyclObjImpl(syclDevice)->getHandleRef();
   return std::tuple{urDevice, urCtx, Adapter};
 }
+inline auto get_ur_handles(const sycl::device &syclDevice) {
+  auto &implDevice = *sycl::detail::getSyclObjImpl(syclDevice);
+  ur_device_handle_t urDevice = implDevice.getHandleRef();
+  return std::tuple{urDevice, &implDevice.getAdapter()};
+}
+
 } // namespace _V1
 } // namespace sycl

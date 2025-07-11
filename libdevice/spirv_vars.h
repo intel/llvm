@@ -10,11 +10,23 @@
 #define __LIBDEVICE_SPIRV_VARS_H
 
 #include "device.h"
-
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
-    defined(__AMDGCN__)
-
 #include <cstddef>
+
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+// For AMD/Cuda those symbols will be provided by libclc.
+DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_x();
+DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_y();
+DEVICE_EXTERNAL size_t __spirv_GlobalInvocationId_z();
+DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_x();
+DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_y();
+DEVICE_EXTERNAL size_t __spirv_LocalInvocationId_z();
+DEVICE_EXTERNAL size_t __spirv_GlobalSize_x();
+DEVICE_EXTERNAL size_t __spirv_GlobalSize_y();
+DEVICE_EXTERNAL size_t __spirv_GlobalSize_z();
+#endif // __NVPTX__ || __AMDGCN__
+
+#if defined(__SPIR__) || defined(__SPIRV__)
+
 #include <cstdint>
 
 #define __SPIRV_VAR_QUALIFIERS EXTERN_C const
@@ -63,5 +75,5 @@ const size_t_vec __spirv_BuiltInGlobalInvocationId{};
 const size_t_vec __spirv_BuiltInLocalInvocationId{};
 #endif // !__SPIR__ && !__SPIRV__
 
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
+#endif // __SPIR__ || __SPIRV__
 #endif // __LIBDEVICE_SPIRV_VARS_H

@@ -17,9 +17,6 @@ import os
 
 class LlamaCppBench(Suite):
     def __init__(self, directory):
-        if options.sycl is None:
-            return
-
         self.directory = directory
 
     def name(self) -> str:
@@ -80,12 +77,6 @@ class LlamaCppBench(Suite):
         )
 
     def benchmarks(self) -> list[Benchmark]:
-        if options.sycl is None:
-            return []
-
-        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
-            return []
-
         return [LlamaBench(self)]
 
 
@@ -93,6 +84,13 @@ class LlamaBench(Benchmark):
     def __init__(self, bench):
         super().__init__(bench.directory, bench)
         self.bench = bench
+
+    def enabled(self):
+        if options.sycl is None:
+            return False
+        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
+            return False
+        return True
 
     def setup(self):
         self.benchmark_bin = os.path.join(self.bench.build_path, "bin", "llama-bench")
@@ -156,7 +154,6 @@ class LlamaBench(Benchmark):
                     value=mean,
                     command=command,
                     env=env_vars,
-                    stdout=result,
                     unit="token/s",
                     git_url=self.bench.git_url(),
                     git_hash=self.bench.git_hash(),

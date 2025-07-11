@@ -369,7 +369,7 @@ ur_result_t urQueueGetInfo(
   case UR_QUEUE_INFO_DEVICE:
     return ReturnValue(Queue->Device);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Queue->RefCount.load()});
+    return ReturnValue(uint32_t{Queue->RefCount.getCount()});
   case UR_QUEUE_INFO_FLAGS:
     return ReturnValue(Queue->Properties);
   case UR_QUEUE_INFO_SIZE:
@@ -593,7 +593,7 @@ ur_result_t urQueueRetain(
     std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
     Queue->RefCountExternal++;
   }
-  Queue->RefCount.increment();
+  Queue->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
@@ -612,7 +612,7 @@ ur_result_t urQueueRelease(
       // internal reference count. When the External Reference count == 0, then
       // cleanup of the queue begins and the final decrement of the internal
       // reference count is completed.
-      static_cast<void>(Queue->RefCount.decrementAndTest());
+      static_cast<void>(Queue->RefCount.release());
       return UR_RESULT_SUCCESS;
     }
 
@@ -928,20 +928,6 @@ ur_result_t urQueueFlush(
     ur_queue_handle_t Queue) {
   std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
   return Queue->executeAllOpenCommandLists();
-}
-
-ur_result_t urEnqueueKernelLaunchCustomExp(
-    ur_queue_handle_t /*hQueue*/, ur_kernel_handle_t /*hKernel*/,
-    uint32_t /*workDim*/, const size_t * /*pGlobalWorkOffset*/,
-    const size_t * /*pGlobalWorkSize*/, const size_t * /*pLocalWorkSize*/,
-    uint32_t /*numPropsInLaunchPropList*/,
-    const ur_exp_launch_property_t * /*launchPropList*/,
-    uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t * /*phEvent*/) {
-  UR_LOG(ERR, "[UR][L0] {} function not implemented!",
-         "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 } // namespace ur::level_zero
@@ -1291,7 +1277,6 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
   // So, disable it for modes where we print PI traces. Printing
   // traces incurs much different timings than real execution
   // ansyway, and many regression tests use it.
-  //
   bool CurrentlyEmpty = !PrintTrace && this->LastCommandEvent == nullptr;
 
   // The list can be empty if command-list only contains signals of proxy
@@ -1330,7 +1315,8 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
         die("executeCommandList: OpenCommandList should be equal to"
             "null or CommandList");
 
-      if (CommandList->second.size() < CommandBatch.QueueBatchSize) {
+      if (CommandList->second.size() < CommandBatch.QueueBatchSize &&
+          !IsBlocking) {
         CommandBatch.OpenCommandList = CommandList;
         return UR_RESULT_SUCCESS;
       }
@@ -1403,7 +1389,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
           if (!Event->HostVisibleEvent) {
             Event->HostVisibleEvent =
                 reinterpret_cast<ur_event_handle_t>(HostVisibleEvent);
-            HostVisibleEvent->RefCount.increment();
+            HostVisibleEvent->RefCount.retain();
           }
         }
 
@@ -1564,7 +1550,7 @@ ur_result_t ur_queue_handle_t_::addEventToQueueCache(ur_event_handle_t Event) {
 }
 
 void ur_queue_handle_t_::active_barriers::add(ur_event_handle_t &Event) {
-  Event->RefCount.increment();
+  Event->RefCount.retain();
   Events.push_back(Event);
 }
 
@@ -1602,7 +1588,7 @@ void ur_queue_handle_t_::clearEndTimeRecordings() {
 }
 
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
-  if (!Queue->RefCount.decrementAndTest())
+  if (!Queue->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   for (auto &Cache : Queue->EventCaches) {
@@ -1935,7 +1921,7 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
   // Append this Event to the CommandList, if any
   if (CommandList != Queue->CommandListMap.end()) {
     CommandList->second.append(*Event);
-    (*Event)->RefCount.increment();
+    (*Event)->RefCount.retain();
   }
 
   // We need to increment the reference counter here to avoid ur_queue_handle_t
@@ -1943,7 +1929,7 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
   // urEventRelease requires access to the associated ur_queue_handle_t.
   // In urEventRelease, the reference counter of the Queue is decremented
   // to release it.
-  Queue->RefCount.increment();
+  Queue->RefCount.retain();
 
   // SYCL RT does not track completion of the events, so it could
   // release a PI event as soon as that's not being waited in the app.
@@ -1975,7 +1961,7 @@ void ur_queue_handle_t_::CaptureIndirectAccesses() {
         // SubmissionsCount turns to 0. We don't want to know how many times
         // allocation was retained by each submission.
         if (Pair.second)
-          Elem.second.RefCount.increment();
+          Elem.second.RefCount.retain();
       }
     }
     Kernel->SubmissionsCount++;

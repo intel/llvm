@@ -16,6 +16,9 @@ struct urUpdatableEnqueueCommandBufferExpTest
     : uur::command_buffer::urUpdatableCommandBufferExpExecutionTest {
 
   virtual void SetUp() override {
+    // https://github.com/intel/llvm/issues/18722
+    UUR_KNOWN_FAILURE_ON(uur::HIP{});
+
     program_name = "cpy_and_mult_usm";
     UUR_RETURN_ON_FATAL_FAILURE(
         urUpdatableCommandBufferExpExecutionTest::SetUp());

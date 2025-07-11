@@ -14,8 +14,8 @@ ordinal: "1"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves all available adapters"
-class: $x
-name: AdapterGet
+class: $xAdapter
+name: Get
 decl: static
 ordinal: "2"
 details:
@@ -46,8 +46,8 @@ returns:
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Releases the adapter handle reference indicating end of its usage"
-class: $x
-name: AdapterRelease
+class: $xAdapter
+name: Release
 decl: static
 ordinal: "3"
 details:
@@ -64,8 +64,8 @@ params:
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get a reference to the adapter handle."
-class: $x
-name: AdapterRetain
+class: $xAdapter
+name: Retain
 decl: static
 ordinal: "4"
 details:
@@ -107,8 +107,8 @@ details: |
         $xAdapterGetLastError(hAdapter, &pMessage, &error);
     }
     ```
-class: $x
-name: AdapterGetLastError
+class: $xAdapter
+name: GetLastError
 decl: static
 ordinal: "5"
 params:
@@ -147,8 +147,8 @@ etors:
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves information about the adapter"
-class: $x
-name: AdapterGetInfo
+class: $xAdapter
+name: GetInfo
 decl: static
 ordinal: "6"
 details:

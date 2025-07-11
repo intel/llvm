@@ -19,4 +19,5 @@ add_conformance_kernels_test(kernel
     urKernelSetArgValue.cpp
     urKernelSetExecInfo.cpp
     urKernelSetSpecializationConstants.cpp
+    urKernelSuggestMaxCooperativeGroupCount.cpp
     urKernelGetSuggestedLocalWorkSize.cpp)

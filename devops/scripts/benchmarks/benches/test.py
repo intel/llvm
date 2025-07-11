@@ -93,11 +93,9 @@ class TestBench(Benchmark):
         return [
             Result(
                 label=self.name(),
-                explicit_group=self.group,
                 value=random_value,
                 command=["test", "--arg1", "foo"],
                 env={"A": "B"},
-                stdout="no output",
                 unit="ms",
             )
         ]

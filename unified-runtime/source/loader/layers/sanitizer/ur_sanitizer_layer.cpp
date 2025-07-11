@@ -14,6 +14,7 @@
 #include "ur_sanitizer_layer.hpp"
 #include "asan/asan_ddi.hpp"
 #include "msan/msan_ddi.hpp"
+#include "tsan/tsan_ddi.hpp"
 
 namespace ur_sanitizer_layer {
 context_t *getContext() {
@@ -38,6 +39,9 @@ ur_result_t context_t::tearDown() {
     break;
   case SanitizerType::MemorySanitizer:
     destroyMsanInterceptor();
+    break;
+  case SanitizerType::ThreadSanitizer:
+    destroyTsanInterceptor();
     break;
   default:
     break;

@@ -22,6 +22,7 @@ on:
     - '.github/workflows/sycl-macos-*.yml'
     - '.github/workflows/sycl-nightly.yml'
     - '.github/workflows/sycl-rel-nightly.yml'
+    - '.github/workflows/sycl-rel-nightly-launch.yml'
     - '.github/workflows/trivy.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
@@ -110,7 +111,7 @@ jobs:
           - name: E2E tests on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
+            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
           - name: Dev IGC on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
@@ -120,13 +121,20 @@ jobs:
           - name: Intel Battlemage Graphics
             runner: '["Linux", "bmg"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu
+            target_devices: level_zero:gpu;level_zero_v2:gpu
           - name: SPIR-V Backend / Intel Battlemage Graphics
             runner: '["Linux", "bmg"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param spirv-backend=True
             e2e_binaries_artifact: sycl_e2e_bin_default_spirv_backend
+          - name: Preview Mode
+            runner: '["Linux", "gen12"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+            extra_lit_opts: --param test-preview-mode=True
+            e2e_binaries_artifact: sycl_e2e_bin_default_preview
+
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
@@ -155,6 +163,7 @@ jobs:
         'false' }}
       # Run only if the PR does not have the 'ci-no-devigc' label.
       skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
+      env: ${{ contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}' }}
 
   test-perf:
     needs: [build, detect_changes]

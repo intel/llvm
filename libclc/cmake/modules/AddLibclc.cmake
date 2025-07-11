@@ -96,15 +96,12 @@ endfunction()
 #     Custom target to create
 # * INPUT <string> ...
 #     List of bytecode files to link together
-# * RSP_DIR <string>
-#     Directory where a response file should be placed
-#     (Only needed for WIN32 or CYGWIN)
 # * DEPENDENCIES <string> ...
 #     List of extra dependencies to inject
 function(link_bc)
   cmake_parse_arguments(ARG
     "INTERNALIZE"
-    "TARGET;RSP_DIR"
+    "TARGET"
     "INPUTS;DEPENDENCIES"
     ${ARGN}
   )
@@ -113,7 +110,7 @@ function(link_bc)
   if( WIN32 OR CYGWIN )
     # Create a response file in case the number of inputs exceeds command-line
     # character limits on certain platforms.
-    file( TO_CMAKE_PATH ${ARG_RSP_DIR}/${ARG_TARGET}.rsp RSP_FILE )
+    file( TO_CMAKE_PATH ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.rsp RSP_FILE )
     # Turn it into a space-separate list of input files
     list( JOIN ARG_INPUTS " " RSP_INPUT )
     file( GENERATE OUTPUT ${RSP_FILE} CONTENT ${RSP_INPUT} )
@@ -309,6 +306,8 @@ endfunction()
 #      Optimization options (for opt)
 #  * TARGET_ENV <string>
 #      Prefix to give the final builtin library aliases
+#  * REMANGLE <string>
+#      Bool string indicating whether remangler will be run
 #  * ALIASES <string> ...
 #      List of aliases
 #  * INTERNAL_LINK_DEPENDENCIES <target> ...
@@ -318,7 +317,7 @@ endfunction()
 function(add_libclc_builtin_set)
   cmake_parse_arguments(ARG
     "CLC_INTERNAL"
-    "ARCH;TRIPLE;ARCH_SUFFIX;TARGET_ENV;PARENT_TARGET"
+    "ARCH;TRIPLE;ARCH_SUFFIX;TARGET_ENV;REMANGLE;PARENT_TARGET"
     "LIB_FILES;GEN_FILES;COMPILE_FLAGS;OPT_FLAGS;ALIASES;INTERNAL_LINK_DEPENDENCIES"
     ${ARGN}
   )
@@ -373,8 +372,9 @@ function(add_libclc_builtin_set)
       TRIPLE ${ARG_TRIPLE}
       INPUT ${input_file}
       OUTPUT ${output_file}
-      EXTRA_OPTS -fno-builtin -nostdlib "${file_specific_compile_options}"
-        "${ARG_COMPILE_FLAGS}" -I${CMAKE_CURRENT_SOURCE_DIR}/${file_dir}
+      EXTRA_OPTS -fno-builtin -nostdlib "${ARG_COMPILE_FLAGS}"
+        "${file_specific_compile_options}"
+        -I${CMAKE_CURRENT_SOURCE_DIR}/${file_dir}
       DEPENDENCIES ${input_file_dep}
     )
     list( APPEND compile_tgts ${tgt} )
@@ -411,7 +411,6 @@ function(add_libclc_builtin_set)
     link_bc(
       TARGET ${builtins_link_lib_tgt}
       INPUTS ${bytecode_files}
-      RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
       DEPENDENCIES ${builtins_comp_lib_tgt}
     )
   else()
@@ -422,7 +421,6 @@ function(add_libclc_builtin_set)
     link_bc(
       TARGET ${builtins_link_lib_tmp_tgt}
       INPUTS ${bytecode_files}
-      RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
       DEPENDENCIES ${builtins_comp_lib_tgt}
     )
     set( internal_link_depend_files )
@@ -434,7 +432,6 @@ function(add_libclc_builtin_set)
       TARGET ${builtins_link_lib_tgt}
       INPUTS $<TARGET_PROPERTY:${builtins_link_lib_tmp_tgt},TARGET_FILE>
         ${internal_link_depend_files}
-      RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
       DEPENDENCIES ${builtins_link_lib_tmp_tgt} ${ARG_INTERNAL_LINK_DEPENDENCIES}
     )
   endif()
@@ -483,7 +480,7 @@ function(add_libclc_builtin_set)
   install( FILES ${builtins_lib} DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
 
   # Generate remangled variants if requested
-  if( LIBCLC_GENERATE_REMANGLED_VARIANTS )
+  if( ARG_REMANGLE )
     set( dummy_in ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/libclc_dummy_in.cc )
     add_custom_command( OUTPUT ${dummy_in}
       COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
@@ -575,23 +572,17 @@ endfunction(add_libclc_builtin_set)
 # LIB_FILE_LIST may be pre-populated and is appended to.
 #
 # Arguments:
-# * CLC_INTERNAL
-#     Pass if compiling the internal CLC builtin libraries, which have a
-#     different directory structure.
 # * LIB_ROOT_DIR <string>
 #     Root directory containing target's lib files, relative to libclc root
 #     directory. If not provided, is set to '.'.
-# * LIB_DIR <string>
-#     Name of the directory containing the target's lib files. If not provided,
-#     is set to 'lib'.
 # * DIRS <string> ...
 #     List of directories under LIB_ROOT_DIR to walk over searching for SOURCES
 #     files. Directories earlier in the list have lower priority than
 #     subsequent ones.
 function(libclc_configure_lib_source LIB_FILE_LIST)
   cmake_parse_arguments(ARG
-    "CLC_INTERNAL"
-    "LIB_DIR;LIB_ROOT_DIR"
+    ""
+    "LIB_ROOT_DIR"
     "DIRS"
     ${ARGN}
   )
@@ -600,19 +591,11 @@ function(libclc_configure_lib_source LIB_FILE_LIST)
     set(ARG_LIB_ROOT_DIR  ".")
   endif()
 
-  if( NOT ARG_LIB_DIR )
-    set(ARG_LIB_DIR  "lib")
-  endif()
-
   # Enumerate SOURCES* files
   set( source_list )
   foreach( l IN LISTS ARG_DIRS )
     foreach( s "SOURCES" "SOURCES_${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}" )
-      if( ARG_CLC_INTERNAL OR ARG_LIB_ROOT_DIR STREQUAL libspirv )
-        file( TO_CMAKE_PATH ${ARG_LIB_ROOT_DIR}/${ARG_LIB_DIR}/${l}/${s} file_loc )
-      else()
-        file( TO_CMAKE_PATH ${ARG_LIB_ROOT_DIR}/${l}/${ARG_LIB_DIR}/${s} file_loc )
-      endif()
+      file( TO_CMAKE_PATH ${ARG_LIB_ROOT_DIR}/lib/${l}/${s} file_loc )
       file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/${file_loc} loc )
       # Prepend the location to give higher priority to the specialized
       # implementation

@@ -108,9 +108,6 @@ llvm::Type *CodeGenTypes::ConvertTypeForMem(QualType T) {
                                 MT->getNumRows() * MT->getNumColumns());
   }
 
-  if (T->isMFloat8Type())
-    return llvm::Type::getInt8Ty(getLLVMContext());
-
   llvm::Type *R = ConvertType(T);
 
   // Check for the boolean vector case.
@@ -575,8 +572,7 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   case BuiltinType::Id:
 #define SVE_PREDICATE_TYPE(Name, MangledName, Id, SingletonId)                 \
   case BuiltinType::Id:
-#define SVE_TYPE(Name, Id, SingletonId)
-#include "clang/Basic/AArch64SVEACLETypes.def"
+#include "clang/Basic/AArch64ACLETypes.def"
       {
         ASTContext::BuiltinVectorTypeInfo Info =
             Context.getBuiltinVectorTypeInfo(cast<BuiltinType>(Ty));
@@ -849,6 +845,7 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     break;
   }
   case Type::HLSLAttributedResource:
+  case Type::HLSLInlineSpirv:
     ResultType = CGM.getHLSLRuntime().convertHLSLSpecificType(Ty);
     break;
   }
@@ -961,6 +958,10 @@ bool CodeGenTypes::isZeroInitializable(QualType T) {
   // We have to ask the ABI about member pointers.
   if (const MemberPointerType *MPT = T->getAs<MemberPointerType>())
     return getCXXABI().isZeroInitializable(MPT);
+
+  // HLSL Inline SPIR-V types are non-zero-initializable.
+  if (T->getAs<HLSLInlineSpirvType>())
+    return false;
 
   // Everything else is okay.
   return true;

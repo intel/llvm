@@ -15,7 +15,7 @@ inline namespace _V1 {
 namespace detail {
 
 template <class T> backend getImplBackend(const T &Impl) {
-  return Impl->getContextImplPtr()->getBackend();
+  return Impl->getContextImpl().getBackend();
 }
 
 } // namespace detail

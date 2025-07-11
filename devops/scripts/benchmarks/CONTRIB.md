@@ -29,6 +29,8 @@ The suite is structured around three main components: Suites, Benchmarks, and Re
         * `unstable()`: If it returns a string reason, the benchmark is hidden by default and marked unstable.
         * `get_tags()`: Returns a list of string tags (e.g., "SYCL", "UR", "micro", "application"). See `benches/base.py` for predefined tags.
         * `stddev_threshold()`: Returns a custom standard deviation threshold (float) for stability checks, overriding the global default.
+        * `display_name()`: Returns a user-friendly name for the benchmark (default: `name()`).
+        * `explicit_group()`: Returns an explicit group name for results (string). If not set, results are grouped by the benchmark's `name()`. This is useful for grouping related results in visualizations.
     * **Helper Methods (Base Class):**
         * `run_bench(command, env_vars, ld_library=[], add_sycl=True)`: Executes a command with appropriate environment setup (UR adapter, SYCL paths, extra env vars/libs). Returns stdout.
         * `download(name, url, file, ...)`: Downloads and optionally extracts data dependencies into the working directory.
@@ -45,7 +47,6 @@ The suite is structured around three main components: Suites, Benchmarks, and Re
         * `env`: Environment variables used (`dict[str, str]`).
         * `stdout`: Full standard output of the benchmark run (string).
         * `passed`: Boolean indicating if verification passed (default: `True`).
-        * `explicit_group`: Name for grouping results in visualization (string). Benchmarks in the same group are compared in tables/charts. Ensure consistent units and value ranges within a group.
         * `stddev`: Standard deviation, if calculated by the benchmark itself (float, default: 0.0).
         * `git_url`, `git_hash`: Git info for the benchmark's source code (string).
     * **Fields (set by Framework):**
@@ -63,6 +64,8 @@ The suite is structured around three main components: Suites, Benchmarks, and Re
         * `unstable`: Reason if unstable, otherwise `None` (string).
         * `tags`: List of associated tags (`list[str]`).
         * `range_min`, `range_max`: Optional minimum/maximum value for the Y-axis range in charts. Defaults to `None`, with range determined automatically.
+        * `display_name`: Optional user-friendly name for the benchmark (string). Defaults to `name()`.
+        * `explicit_group`: Optional explicit group name for results (string). Used to group results in visualizations.
 
 ## Adding New Benchmarks
 
@@ -79,7 +82,7 @@ The suite is structured around three main components: Suites, Benchmarks, and Re
 * **Ensure determinism:** Minimize run-to-run variance. High standard deviation (`> stddev_threshold`) triggers reruns.
 * **Handle configuration:** If a benchmark requires specific hardware/software, detect it in `setup()` and potentially skip gracefully if requirements aren't met (e.g., return an empty list from `run` or don't add it in the Suite's `benchmarks()` method).
 * **Use unique names:** Ensure `benchmark.name()` and `result.label` are descriptive and unique.
-* **Group related results:** Use `result.explicit_group` consistently for results you want to compare directly in outputs. Ensure units match within a group. If defining group-level metadata in the Suite, ensure the chosen explicit_group name starts with the corresponding key defined in additional_metadata.
+* **Group related results:** Use `benchmark.explicit_group()` consistently for results you want to compare directly in outputs. Ensure units match within a group. If defining group-level metadata in the Suite, ensure the chosen explicit_group name starts with the corresponding key defined in additional_metadata.
 * **Test locally:** Before submitting changes, test with relevant drivers/backends (e.g., using `--compute-runtime --build-igc` for L0). Check the visualization locally if possible (--output-markdown --output-html, then open the generated files).
 
 ## Utilities

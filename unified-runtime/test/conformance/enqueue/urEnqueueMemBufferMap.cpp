@@ -50,10 +50,6 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
 TEST_P(urEnqueueMemBufferMapTestWithWriteFlagParam, SuccessWrite) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
-  if (getParam().map_flag == UR_MAP_FLAG_WRITE_INVALIDATE_REGION) {
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-  }
-
   const std::vector<uint32_t> input(count, 0);
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
                                          input.data(), 0, nullptr, nullptr));

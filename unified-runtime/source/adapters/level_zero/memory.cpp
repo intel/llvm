@@ -57,27 +57,6 @@ bool IsSharedPointer(ur_context_handle_t Context, const void *Ptr) {
   return (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_SHARED);
 }
 
-// Helper Function to check if the Copy Engine should be preferred given the
-// types of memory used.
-bool PreferCopyEngineUsage(ur_device_handle_t Device,
-                           ur_context_handle_t Context, const void *Src,
-                           void *Dst) {
-  bool PreferCopyEngine = false;
-  // Given Integrated Devices, Copy Engines are not preferred for any Copy
-  // operations.
-  if (!Device->isIntegrated()) {
-    // Given non D2D Copies, for better performance, Copy Engines are preferred
-    // only if one has both the Main and Link Copy Engines.
-    if (Device->hasLinkCopyEngine() && Device->hasMainCopyEngine() &&
-        (!IsDevicePointer(Context, Src) || !IsDevicePointer(Context, Dst))) {
-      PreferCopyEngine = true;
-    }
-  }
-  // Temporary option added to use force engine for D2D copy
-  PreferCopyEngine |= UseCopyEngineForD2DCopy;
-  return PreferCopyEngine;
-}
-
 // Shared by all memory read/write/copy PI interfaces.
 // PI interfaces must have queue's and destination buffer's mutexes locked for
 // exclusive use and source buffer's mutex locked for shared use on entry.
@@ -1073,7 +1052,7 @@ ur_result_t urEnqueueMemBufferMap(
 
     // Add the event to the command list.
     CommandList->second.append(reinterpret_cast<ur_event_handle_t>(*Event));
-    (*Event)->RefCount.increment();
+    (*Event)->RefCount.retain();
 
     const auto &ZeCommandList = CommandList->first;
     const auto &WaitList = (*Event)->WaitList;
@@ -1204,7 +1183,7 @@ ur_result_t urEnqueueMemUnmap(
       nullptr /*ForcedCmdQueue*/));
 
   CommandList->second.append(reinterpret_cast<ur_event_handle_t>(*Event));
-  (*Event)->RefCount.increment();
+  (*Event)->RefCount.retain();
 
   const auto &ZeCommandList = CommandList->first;
 
@@ -1259,10 +1238,23 @@ ur_result_t urEnqueueUSMMemcpy(
     ur_event_handle_t *OutEvent) {
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
+  // Device to Device copies are found to execute slower on copy engine
+  // (versus compute engine).
+  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src) ||
+                          !IsDevicePointer(Queue->Context, Dst);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (Queue->Device->isDG2() && (IsSharedPointer(Queue->Context, Src) ||
+                                 IsSharedPointer(Queue->Context, Dst))) {
+    PreferCopyEngine = false;
+  }
+
+  // Temporary option added to use copy engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
   return enqueueMemCopyHelper( // TODO: do we need a new command type for this?
       UR_COMMAND_MEM_BUFFER_COPY, Queue, Dst, Blocking, Size, Src,
-      NumEventsInWaitList, EventWaitList, OutEvent,
-      PreferCopyEngineUsage(Queue->Device, Queue->Context, Src, Dst));
+      NumEventsInWaitList, EventWaitList, OutEvent, PreferCopyEngine);
 }
 
 ur_result_t urEnqueueUSMPrefetch(
@@ -1462,13 +1454,26 @@ ur_result_t urEnqueueUSMMemcpy2D(
 
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
+  // Device to Device copies are found to execute slower on copy engine
+  // (versus compute engine).
+  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src) ||
+                          !IsDevicePointer(Queue->Context, Dst);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (Queue->Device->isDG2() && (IsSharedPointer(Queue->Context, Src) ||
+                                 IsSharedPointer(Queue->Context, Dst))) {
+    PreferCopyEngine = false;
+  }
+
+  // Temporary option added to use copy engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
   return enqueueMemCopyRectHelper( // TODO: do we need a new command type for
                                    // this?
       UR_COMMAND_MEM_BUFFER_COPY_RECT, Queue, Src, Dst, ZeroOffset, ZeroOffset,
       Region, SrcPitch, DstPitch, 0, /*SrcSlicePitch=*/
       0,                             /*DstSlicePitch=*/
-      Blocking, NumEventsInWaitList, EventWaitList, Event,
-      PreferCopyEngineUsage(Queue->Device, Queue->Context, Src, Dst));
+      Blocking, NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
 }
 
 ur_result_t urMemImageCreate(
@@ -1630,14 +1635,14 @@ ur_result_t urMemBufferCreate(
 ur_result_t urMemRetain(
     /// [in] handle of the memory object to get access
     ur_mem_handle_t Mem) {
-  Mem->RefCount.increment();
+  Mem->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urMemRelease(
     /// [in] handle of the memory object to release
     ur_mem_handle_t Mem) {
-  if (!Mem->RefCount.decrementAndTest())
+  if (!Mem->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   if (Mem->isImage()) {
@@ -1843,7 +1848,7 @@ ur_result_t urMemGetInfo(
     return ReturnValue(size_t{Buffer->Size});
   }
   case UR_MEM_INFO_REFERENCE_COUNT: {
-    return ReturnValue(Buffer->RefCount.load());
+    return ReturnValue(Buffer->RefCount.getCount());
   }
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;

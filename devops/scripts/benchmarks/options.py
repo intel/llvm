@@ -2,8 +2,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 import multiprocessing
 
-from presets import presets
-
 
 class Compare(Enum):
     LATEST = "latest"
@@ -14,6 +12,32 @@ class Compare(Enum):
 class MarkdownSize(Enum):
     SHORT = "short"
     FULL = "full"
+
+
+@dataclass
+class DetectVersionsOptions:
+    """
+    Options for automatic version detection
+    """
+
+    # Components to detect versions for:
+    sycl: bool = False
+    compute_runtime: bool = False
+    # umf: bool = False
+    # level_zero: bool = False
+
+    # Placeholder text, should automatic version detection fail: This text will
+    # only be used if automatic version detection for x component is explicitly
+    # specified.
+    not_found_placeholder = "unknown"  # None
+
+    # TODO unauthenticated users only get 60 API calls per hour: this will not
+    # work if we enable benchmark CI in precommit.
+    compute_runtime_tag_api: str = (
+        "https://api.github.com/repos/intel/compute-runtime/tags"
+    )
+    # Max amount of api calls permitted on each run of the benchmark scripts
+    max_api_calls = 4
 
 
 @dataclass
@@ -28,7 +52,6 @@ class Options:
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
     iterations: int = 3
-    verbose: bool = False
     compare: Compare = Compare.LATEST
     compare_max: int = 10  # average/median over how many results
     output_markdown: MarkdownSize = MarkdownSize.SHORT
@@ -40,13 +63,15 @@ class Options:
     build_compute_runtime: bool = False
     extra_ld_libraries: list[str] = field(default_factory=list)
     extra_env_vars: dict = field(default_factory=dict)
-    compute_runtime_tag: str = "25.13.33276.18"
+    compute_runtime_tag: str = "25.22.33944.8"
     build_igc: bool = False
     current_run_name: str = "This PR"
     preset: str = "Full"
     build_jobs: int = multiprocessing.cpu_count()
+    exit_on_failure: bool = False
 
     # Options intended for CI:
+
     regression_threshold: float = 0.05
     # It's necessary in CI to compare or redo benchmark runs. Instead of
     # generating a new timestamp each run by default, specify a single timestamp
@@ -63,6 +88,26 @@ class Options:
     # CI scripts vs SYCl build source.
     github_repo_override: str = None
     git_commit_override: str = None
+    # Archiving settings
+    # Archived runs are stored separately from the main dataset but are still accessible
+    # via the HTML UI when "Include archived runs" is enabled
+    archive_baseline_days: int = 30  # Archive Baseline_* runs after 30 days
+    archive_pr_days: int = 7  # Archive other (PR/dev) runs after 7 days
+
+    # EWMA Options:
+
+    # The smoothing factor is alpha in the EWMA equation. Generally, a higher
+    # smoothing factor results in newer data having more weight, and a lower
+    # smoothing factor results in older data having more weight.
+    #
+    # Valid values for this smoothing factor ranges from (0, 1). Note that no
+    # value of smothing factor will result in older elements having more weight
+    # than newer elements.
+    EWMA_smoothing_factor: float = 0.15
+
+    detect_versions: DetectVersionsOptions = field(
+        default_factory=DetectVersionsOptions
+    )
 
 
 options = Options()

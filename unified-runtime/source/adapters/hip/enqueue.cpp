@@ -249,12 +249,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
   UR_ASSERT(hQueue->getContext() == hKernel->getContext(),
             UR_RESULT_ERROR_INVALID_QUEUE);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+
+  for (uint32_t propIndex = 0; propIndex < numPropsInLaunchPropList;
+       propIndex++) {
+    // Adapters that don't support cooperative kernels are currently expected
+    // to ignore COOPERATIVE launch properties. Ideally we should avoid passing
+    // these at the SYCL RT level instead, see
+    // https://github.com/intel/llvm/issues/18421
+    if (launchPropList[propIndex].id == UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE ||
+        launchPropList[propIndex].id ==
+            UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE) {
+      continue;
+    }
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
 
   // Early exit for zero size range kernel
   if (*pGlobalWorkSize == 0) {
@@ -322,16 +338,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     return err;
   }
   return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                               pGlobalWorkSize, pLocalWorkSize,
-                               numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 /// Enqueues a wait on the given queue for all events.

@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/graph/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -31,8 +32,7 @@
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
 
-#include "detail/graph_impl.hpp"
-
+#include <memory>
 #include <utility>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -46,12 +46,10 @@ inline namespace _V1 {
 // forward declaration
 
 namespace ext::oneapi::experimental::detail {
-class graph_impl;
-}
+class node_impl;
+} // namespace ext::oneapi::experimental::detail
 
 namespace detail {
-
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
 /// Sets max number of queues supported by FPGA RT.
 static constexpr size_t MaxNumQueues = 256;
@@ -73,21 +71,27 @@ struct SubmissionInfoImpl {
       ext::oneapi::experimental::event_mode_enum::none;
 };
 
-class queue_impl {
+class queue_impl : public std::enable_shared_from_this<queue_impl> {
+  // `protected` is for unittests only, should really be private!
+protected:
+  struct private_tag {
+    explicit private_tag() = default;
+  };
+
 public:
   // \return a default context for the platform if it includes the device
   // passed and default contexts are enabled, a new context otherwise.
-  static ContextImplPtr getDefaultOrNew(device_impl &Device) {
-    if (!SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
-      return detail::getSyclObjImpl(
-          context{createSyclObjFromImpl<device>(Device), {}, {}});
+  static std::shared_ptr<context_impl> getDefaultOrNew(device_impl &Device) {
+    if (SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get()) {
+      context_impl &CtxImpl =
+          Device.getPlatformImpl().khr_get_default_context();
+      if (CtxImpl.isDeviceValid(Device))
+        return CtxImpl.shared_from_this();
+    }
 
-    ContextImplPtr DefaultContext =
-        detail::getSyclObjImpl(Device.get_platform().khr_get_default_context());
-    if (DefaultContext->isDeviceValid(Device))
-      return DefaultContext;
-    return detail::getSyclObjImpl(
-        context{createSyclObjFromImpl<device>(Device), {}, {}});
+    return context_impl::create(
+        std::vector<device>{createSyclObjFromImpl<device>(Device)},
+        async_handler{}, property_list{});
   }
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
@@ -97,8 +101,9 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(device_impl &Device, const async_handler &AsyncHandler,
-             const property_list &PropList)
-      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList) {};
+             const property_list &PropList, private_tag tag)
+      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList,
+                   tag) {};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
@@ -109,10 +114,11 @@ public:
   /// constructed.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties to use for queue construction.
-  queue_impl(device_impl &Device, const ContextImplPtr &Context,
-             const async_handler &AsyncHandler, const property_list &PropList)
-      : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
-        MPropList(PropList),
+  queue_impl(device_impl &Device, std::shared_ptr<context_impl> &&Context,
+             const async_handler &AsyncHandler, const property_list &PropList,
+             private_tag)
+      : MDevice(Device), MContext(std::move(Context)),
+        MAsyncHandler(AsyncHandler), MPropList(PropList),
         MIsInorder(has_property<property::queue::in_order>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
@@ -137,8 +143,8 @@ public:
             "Queue compute index must be a non-negative number less than "
             "device's number of available compute queue indices.");
     }
-    if (!Context->isDeviceValid(Device)) {
-      if (Context->getBackend() == backend::opencl)
+    if (!MContext->isDeviceValid(Device)) {
+      if (MContext->getBackend() == backend::opencl)
         throw sycl::exception(
             make_error_code(errc::invalid),
             "Queue cannot be constructed with the given context and device "
@@ -168,19 +174,13 @@ public:
     trySwitchingToNoEventsMode();
   }
 
-  sycl::detail::optional<event>
-  getLastEvent(const std::shared_ptr<queue_impl> &Self);
+  queue_impl(device_impl &Device, context_impl &Context,
+             const async_handler &AsyncHandler, const property_list &PropList,
+             private_tag Tag)
+      : queue_impl(Device, Context.shared_from_this(), AsyncHandler, PropList,
+                   Tag) {}
 
-public:
-  /// Constructs a SYCL queue from adapter interoperability handle.
-  ///
-  /// \param UrQueue is a raw UR queue handle.
-  /// \param Context is a SYCL context to associate with the queue being
-  /// constructed.
-  /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  queue_impl(ur_queue_handle_t UrQueue, const ContextImplPtr &Context,
-             const async_handler &AsyncHandler)
-      : queue_impl(UrQueue, Context, AsyncHandler, {}) {}
+  sycl::detail::optional<event> getLastEvent();
 
   /// Constructs a SYCL queue from adapter interoperability handle.
   ///
@@ -189,17 +189,18 @@ public:
   /// constructed.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is the queue properties.
-  queue_impl(ur_queue_handle_t UrQueue, const ContextImplPtr &Context,
-             const async_handler &AsyncHandler, const property_list &PropList)
+  queue_impl(ur_queue_handle_t UrQueue, context_impl &Context,
+             const async_handler &AsyncHandler, const property_list &PropList,
+             private_tag)
       : MDevice([&]() -> device_impl & {
           ur_device_handle_t DeviceUr{};
-          const AdapterPtr &Adapter = Context->getAdapter();
+          adapter_impl &Adapter = Context.getAdapter();
           // TODO catch an exception and put it to list of asynchronous
           // exceptions
-          Adapter->call<UrApiKind::urQueueGetInfo>(
-              UrQueue, UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr,
-              nullptr);
-          device_impl *Device = Context->findMatchingDeviceImpl(DeviceUr);
+          Adapter.call<UrApiKind::urQueueGetInfo>(UrQueue, UR_QUEUE_INFO_DEVICE,
+                                                  sizeof(DeviceUr), &DeviceUr,
+                                                  nullptr);
+          device_impl *Device = Context.findMatchingDeviceImpl(DeviceUr);
           if (Device == nullptr) {
             throw sycl::exception(
                 make_error_code(errc::invalid),
@@ -207,8 +208,9 @@ public:
           }
           return *Device;
         }()),
-        MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
-        MQueue(UrQueue), MIsInorder(has_property<property::queue::in_order>()),
+        MContext(Context.shared_from_this()), MAsyncHandler(AsyncHandler),
+        MPropList(PropList), MQueue(UrQueue),
+        MIsInorder(has_property<property::queue::in_order>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
@@ -234,6 +236,15 @@ public:
     trySwitchingToNoEventsMode();
   }
 
+  // Single variadic method works because all the ctors are expected to be
+  // "public" except the `private_tag` part restricting the creation to
+  // `std::shared_ptr` allocations.
+  template <typename... Ts>
+  static std::shared_ptr<queue_impl> create(Ts &&...args) {
+    return std::make_shared<queue_impl>(std::forward<Ts>(args)...,
+                                        private_tag{});
+  }
+
   ~queue_impl() {
     try {
 #if XPTI_ENABLE_INSTRUMENTATION
@@ -244,7 +255,7 @@ public:
 #endif
       throw_asynchronous();
       auto status =
-          getAdapter()->call_nocheck<UrApiKind::urQueueRelease>(MQueue);
+          getAdapter().call_nocheck<UrApiKind::urQueueRelease>(MQueue);
       // If loader is already closed, it'll return a not-initialized status
       // which the UR should convert to SUCCESS code. But that isn't always
       // working on Windows. This is a temporary workaround until that is fixed.
@@ -252,7 +263,7 @@ public:
       // ->call<>() instead of ->call_nocheck<>() above.
       if (status != UR_RESULT_SUCCESS &&
           status != UR_RESULT_ERROR_UNINITIALIZED) {
-        __SYCL_CHECK_UR_CODE_NO_EXC(status);
+        __SYCL_CHECK_UR_CODE_NO_EXC(status, getAdapter().getBackend());
       }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
@@ -263,8 +274,8 @@ public:
 
   cl_command_queue get() {
     ur_native_handle_t nativeHandle = 0;
-    getAdapter()->call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
-                                                          &nativeHandle);
+    getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
+                                                         &nativeHandle);
     __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
   }
@@ -274,9 +285,15 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
+  adapter_impl &getAdapter() const { return MContext->getAdapter(); }
 
-  const ContextImplPtr &getContextImplPtr() const { return MContext; }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  const std::shared_ptr<context_impl> &getContextImplPtr() const {
+    return MContext;
+  }
+#endif
+
+  context_impl &getContextImpl() const { return *MContext; }
 
   device_impl &getDeviceImpl() const { return MDevice; }
 
@@ -308,7 +325,7 @@ public:
                             "flush cannot be called for a queue which is "
                             "recording to a command graph.");
     }
-    getAdapter()->call<UrApiKind::urQueueFlush>(MQueue);
+    getAdapter().call<UrApiKind::urQueueFlush>(MQueue);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -318,14 +335,12 @@ public:
   /// for execution on a secondary queue.
   ///
   /// \param CGF is a function object containing command group.
-  /// \param Self is a shared_ptr to this queue.
   /// \param SecondQueue is a shared_ptr to the secondary queue.
   /// \param Loc is the code location of the submit call (default argument)
   /// \param StoreAdditionalInfo makes additional info be stored in event_impl
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   event submit(const detail::type_erased_cgfo_ty &CGF,
-               const std::shared_ptr<queue_impl> &Self,
                const std::shared_ptr<queue_impl> &SecondQueue,
                const detail::code_location &Loc, bool IsTopCodeLoc,
                const SubmitPostProcessF *PostProcess = nullptr) {
@@ -334,35 +349,32 @@ public:
     SI.SecondaryQueue() = SecondQueue;
     if (PostProcess)
       SI.PostProcessorFunc() = *PostProcess;
-    return submit_with_event(CGF, Self, SI, Loc, IsTopCodeLoc);
+    return submit_with_event(CGF, SI, Loc, IsTopCodeLoc);
   }
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
   /// \param CGF is a function object containing command group.
-  /// \param Self is a shared_ptr to this queue.
   /// \param SubmitInfo is additional optional information for the submission.
   /// \param Loc is the code location of the submit call (default argument)
   /// \param StoreAdditionalInfo makes additional info be stored in event_impl
   /// \return a SYCL event object for the submitted command group.
   event submit_with_event(const detail::type_erased_cgfo_ty &CGF,
-                          const std::shared_ptr<queue_impl> &Self,
                           const v1::SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
 
-    event ResEvent =
-        submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
+    detail::EventImplPtr ResEvent =
+        submit_impl(CGF, SubmitInfo.SecondaryQueue().get(),
                     /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
-    return ResEvent;
+    return createSyclObjFromImpl<event>(ResEvent);
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
-                            const std::shared_ptr<queue_impl> &Self,
                             const v1::SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
-    submit_impl(CGF, Self, SubmitInfo.SecondaryQueue().get(),
+    submit_impl(CGF, SubmitInfo.SecondaryQueue().get(),
                 /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
   }
 
@@ -475,7 +487,6 @@ public:
     ur_queue_handle_t Queue{};
     ur_context_handle_t Context = MContext->getHandleRef();
     ur_device_handle_t Device = MDevice.getHandleRef();
-    const AdapterPtr &Adapter = getAdapter();
     /*
         sycl::detail::pi::PiQueueProperties Properties[] = {
             PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
@@ -491,8 +502,8 @@ public:
               .get_index();
       Properties.pNext = &IndexProperties;
     }
-    Adapter->call<UrApiKind::urQueueCreate>(Context, Device, &Properties,
-                                            &Queue);
+    getAdapter().call<UrApiKind::urQueueCreate>(Context, Device, &Properties,
+                                                &Queue);
 
     return Queue;
   }
@@ -516,7 +527,6 @@ public:
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   ///
-  /// \param Self is a shared_ptr to this queue.
   /// \param Ptr is a USM pointer to the memory to fill.
   /// \param Value is a value to be set. Value is cast as an unsigned char.
   /// \param Count is a number of bytes to fill.
@@ -524,13 +534,11 @@ public:
   /// dependencies.
   /// \param CallerNeedsEvent specifies if the caller expects a usable event.
   /// \return an event representing fill operation.
-  event memset(const std::shared_ptr<queue_impl> &Self, void *Ptr, int Value,
-               size_t Count, const std::vector<event> &DepEvents,
-               bool CallerNeedsEvent);
+  event memset(void *Ptr, int Value, size_t Count,
+               const std::vector<event> &DepEvents, bool CallerNeedsEvent);
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
   ///
-  /// \param Self is a shared_ptr to this queue.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
   /// \param Count is a number of bytes to copy.
@@ -538,14 +546,12 @@ public:
   /// dependencies.
   /// \param CallerNeedsEvent specifies if the caller expects a usable event.
   /// \return an event representing copy operation.
-  event memcpy(const std::shared_ptr<queue_impl> &Self, void *Dest,
-               const void *Src, size_t Count,
+  event memcpy(void *Dest, const void *Src, size_t Count,
                const std::vector<event> &DepEvents, bool CallerNeedsEvent,
                const code_location &CodeLoc);
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
-  /// \param Self is a shared_ptr to this queue.
   /// \param Ptr is a USM pointer to the allocation.
   /// \param Length is a number of bytes in the allocation.
   /// \param Advice is a device-defined advice for the specified allocation.
@@ -553,8 +559,7 @@ public:
   /// dependencies.
   /// \param CallerNeedsEvent specifies if the caller expects a usable event.
   /// \return an event representing advise operation.
-  event mem_advise(const std::shared_ptr<queue_impl> &Self, const void *Ptr,
-                   size_t Length, ur_usm_advice_flags_t Advice,
+  event mem_advise(const void *Ptr, size_t Length, ur_usm_advice_flags_t Advice,
                    const std::vector<event> &DepEvents, bool CallerNeedsEvent);
 
   /// Puts exception to the list of asynchronous ecxeptions.
@@ -581,13 +586,11 @@ public:
 
   bool queue_empty() const;
 
-  event memcpyToDeviceGlobal(const std::shared_ptr<queue_impl> &Self,
-                             void *DeviceGlobalPtr, const void *Src,
+  event memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                              bool IsDeviceImageScope, size_t NumBytes,
                              size_t Offset, const std::vector<event> &DepEvents,
                              bool CallerNeedsEvent);
-  event memcpyFromDeviceGlobal(const std::shared_ptr<queue_impl> &Self,
-                               void *Dest, const void *DeviceGlobalPtr,
+  event memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
                                bool IsDeviceImageScope, size_t NumBytes,
                                size_t Offset,
                                const std::vector<event> &DepEvents,
@@ -600,7 +603,7 @@ public:
     MExtGraphDeps.reset();
 
     if (Graph) {
-      MNoEventMode = false;
+      MNoLastEventMode = false;
     } else {
       trySwitchingToNoEventsMode();
     }
@@ -644,8 +647,8 @@ public:
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
-  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
-    return Queue ? Queue->getContextImplPtr() : nullptr;
+  static context_impl *getContext(queue_impl *Queue) {
+    return Queue ? &Queue->getContextImpl() : nullptr;
   }
 
   // Must be called under MMutex protection
@@ -658,11 +661,11 @@ public:
   /// Inserts a marker event at the end of the queue. Waiting for this marker
   /// will wait for the completion of all work in the queue at the time of the
   /// insertion, but will not act as a barrier unless the queue is in-order.
-  EventImplPtr insertMarkerEvent(const std::shared_ptr<queue_impl> &Self) {
-    auto ResEvent = std::make_shared<detail::event_impl>(Self);
+  EventImplPtr insertMarkerEvent() {
+    auto ResEvent = detail::event_impl::create_device_event(*this);
     ur_event_handle_t UREvent = nullptr;
-    getAdapter()->call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
-                                                       nullptr, &UREvent);
+    getAdapter().call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
+                                                      nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;
   }
@@ -683,10 +686,11 @@ public:
 protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
-    auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);
+    queue_impl &Queue = Handler.impl->get_queue();
+    auto ResEvent = detail::event_impl::create_device_event(Queue);
     ur_event_handle_t UREvent = nullptr;
-    getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-        Handler.MQueue->getHandleRef(), 0, nullptr, &UREvent);
+    getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+        Queue.getHandleRef(), 0, nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;
   }
@@ -701,51 +705,62 @@ protected:
       Handler.depends_on(*ExternalEvent);
   }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  inline const detail::EventImplPtr &
+  parseEvent(const detail::EventImplPtr &Event) {
+    assert(!Event || !Event->isDiscarded());
+    return Event;
+  }
+#else
+  inline detail::EventImplPtr parseEvent(const event &Event) {
+    const detail::EventImplPtr &EventImpl = getSyclObjImpl(Event);
+    return EventImpl->isDiscarded() ? nullptr : EventImpl;
+  }
+#endif
+
   bool trySwitchingToNoEventsMode() {
-    if (MNoEventMode.load(std::memory_order_relaxed))
+    if (MNoLastEventMode.load(std::memory_order_relaxed))
       return true;
 
     if (!MGraph.expired() || !isInOrder())
       return false;
 
     if (MDefaultGraphDeps.LastEventPtr != nullptr &&
-        !Scheduler::CheckEventReadiness(MContext,
+        !Scheduler::CheckEventReadiness(*MContext,
                                         MDefaultGraphDeps.LastEventPtr))
       return false;
 
-    MNoEventMode.store(true, std::memory_order_relaxed);
+    MNoLastEventMode.store(true, std::memory_order_relaxed);
     MDefaultGraphDeps.LastEventPtr = nullptr;
     return true;
   }
 
   template <typename HandlerType = handler>
-  event finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
+  detail::EventImplPtr
+  finalizeHandlerInOrderNoEventsUnlocked(HandlerType &Handler) {
     assert(isInOrder());
-    assert(MGraph.expired());
-    assert(MDefaultGraphDeps.LastEventPtr == nullptr ||
-           MContext->getBackend() == backend::opencl);
-    assert(MNoEventMode);
 
-    MEmpty = false;
+    MEmpty.store(false, std::memory_order_release);
 
     synchronizeWithExternalEvent(Handler);
 
-    if (MContext->getBackend() == backend::opencl && MGraph.expired()) {
-      // This is needed to support queue_empty() call
-      auto Event = Handler.finalize();
-      if (!getSyclObjImpl(Event)->isDiscarded()) {
-        MDefaultGraphDeps.LastEventPtr = getSyclObjImpl(Event);
-      }
-      return Event;
-    } else {
-      return Handler.finalize();
+    auto Event = parseEvent(Handler.finalize());
+
+    if (Event && !Scheduler::CheckEventReadiness(*MContext, Event)) {
+      MDefaultGraphDeps.LastEventPtr = Event;
+      MNoLastEventMode.store(false, std::memory_order_relaxed);
     }
+
+    return Event;
   }
 
   template <typename HandlerType = handler>
-  event finalizeHandlerInOrderHostTaskUnlocked(HandlerType &Handler) {
+  detail::EventImplPtr
+  finalizeHandlerInOrderHostTaskUnlocked(HandlerType &Handler) {
     assert(isInOrder());
-    assert(Handler.getType() == CGType::CodeplayHostTask);
+    assert(Handler.getType() == CGType::CodeplayHostTask ||
+           (Handler.getType() == CGType::ExecCommandBuffer &&
+            getSyclObjImpl(Handler)->MExecGraph->containsHostTask()));
 
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;
@@ -757,7 +772,7 @@ protected:
       // Note: This could be improved by moving the handling of dependencies
       // to before calling the CGF.
       Handler.depends_on(EventToBuildDeps);
-    } else if (MNoEventMode) {
+    } else if (MNoLastEventMode) {
       // There might be some operations submitted to the queue
       // but the LastEventPtr is not set. If we are to run a host_task,
       // we need to insert a barrier to ensure proper synchronization.
@@ -765,27 +780,22 @@ protected:
     }
 
     MEmpty = false;
-    MNoEventMode = false;
+    MNoLastEventMode = false;
 
     synchronizeWithExternalEvent(Handler);
 
-    auto Event = Handler.finalize();
-    EventToBuildDeps = getSyclObjImpl(Event);
-    assert(!EventToBuildDeps->isDiscarded());
-    return Event;
+    EventToBuildDeps = parseEvent(Handler.finalize());
+    assert(EventToBuildDeps);
+    return EventToBuildDeps;
   }
 
   template <typename HandlerType = handler>
-  event finalizeHandlerInOrderWithDepsUnlocked(HandlerType &Handler) {
+  detail::EventImplPtr
+  finalizeHandlerInOrderWithDepsUnlocked(HandlerType &Handler) {
     // this is handled by finalizeHandlerInOrderHostTask
     assert(Handler.getType() != CGType::CodeplayHostTask);
-
-    if (Handler.getType() == CGType::ExecCommandBuffer && MNoEventMode) {
-      // TODO: this shouldn't be needed but without this
-      // the legacy adapter doesn't synchronize the operations properly
-      // when non-immediate command lists are used.
-      Handler.depends_on(insertHelperBarrier(Handler));
-    }
+    assert(!(Handler.getType() == CGType::ExecCommandBuffer &&
+             getSyclObjImpl(Handler)->MExecGraph->containsHostTask()));
 
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;
@@ -796,7 +806,7 @@ protected:
     // to before calling the CGF.
     if (EventToBuildDeps && Handler.getType() != CGType::AsyncAlloc) {
       // If we have last event, this means we are no longer in no-event mode.
-      assert(!MNoEventMode);
+      assert(!MNoLastEventMode);
       Handler.depends_on(EventToBuildDeps);
     }
 
@@ -804,29 +814,24 @@ protected:
 
     synchronizeWithExternalEvent(Handler);
 
-    auto EventRet = Handler.finalize();
+    EventToBuildDeps = parseEvent(Handler.finalize());
+    if (EventToBuildDeps)
+      MNoLastEventMode = false;
 
-    if (getSyclObjImpl(EventRet)->isDiscarded()) {
-      EventToBuildDeps = nullptr;
-    } else {
-      MNoEventMode = false;
-      EventToBuildDeps = getSyclObjImpl(EventRet);
+    // TODO: if the event is NOP we should be able to discard it.
+    // However, NOP events are used to describe ordering for graph operations
+    // Once https://github.com/intel/llvm/issues/18330 is fixed, we can
+    // start relying on command buffer in-order property instead.
 
-      // TODO: if the event is NOP we should be able to discard it as well.
-      // However, NOP events are used to describe ordering for graph operations
-      // Once https://github.com/intel/llvm/issues/18330 is fixed, we can
-      // start relying on command buffer in-order property instead.
-    }
-
-    return EventRet;
+    return EventToBuildDeps;
   }
 
   template <typename HandlerType = handler>
-  event finalizeHandlerOutOfOrder(HandlerType &Handler) {
+  detail::EventImplPtr finalizeHandlerOutOfOrder(HandlerType &Handler) {
     const CGType Type = getSyclObjImpl(Handler)->MCGType;
     std::lock_guard<std::mutex> Lock{MMutex};
 
-    MEmpty = false;
+    MEmpty.store(false, std::memory_order_release);
 
     // The following code supports barrier synchronization if host task is
     // involved in the scenario. Native barriers cannot handle host task
@@ -847,18 +852,17 @@ protected:
         (Type == CGType::CodeplayHostTask || (!Deps.LastBarrier->isEnqueued())))
       Handler.depends_on(Deps.LastBarrier);
 
-    auto EventRet = Handler.finalize();
-    const EventImplPtr &EventRetImpl = getSyclObjImpl(EventRet);
+    EventImplPtr EventRetImpl = parseEvent(Handler.finalize());
     if (Type == CGType::CodeplayHostTask)
-      Deps.UnenqueuedCmdEvents.push_back(std::move(EventRetImpl));
+      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
     else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
-      Deps.LastBarrier = std::move(EventRetImpl);
+      Deps.LastBarrier = EventRetImpl;
       Deps.UnenqueuedCmdEvents.clear();
     } else if (!EventRetImpl->isEnqueued()) {
-      Deps.UnenqueuedCmdEvents.push_back(std::move(EventRetImpl));
+      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
     }
 
-    return EventRet;
+    return EventRetImpl;
   }
 
   template <typename HandlerType = handler>
@@ -873,7 +877,8 @@ protected:
       KernelUsesAssert =
           (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
           ProgramManager::getInstance().kernelUsesAssert(
-              Handler.MKernelName.data());
+              Handler.MKernelName.data(),
+              Handler.impl->MKernelNameBasedCachePtr);
 
     auto &PostProcess = *PostProcessorFunc;
     PostProcess(IsKernel, KernelUsesAssert, Event);
@@ -883,54 +888,50 @@ protected:
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
-  /// \param Self is a pointer to this queue.
   /// \param PrimaryQueue is a pointer to the primary queue. This may be the
-  ///        same as Self.
+  ///        same as this.
   /// \param SecondaryQueue is a pointer to the secondary queue. This may be the
-  ///        same as Self.
+  ///        same as this.
   /// \param CallerNeedsEvent is a boolean indicating whether the event is
   ///        required by the user after the call.
   /// \param Loc is the code location of the submit call (default argument)
   /// \param SubmitInfo is additional optional information for the submission.
   /// \return a SYCL event representing submitted command group.
-  event submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                    const std::shared_ptr<queue_impl> &Self,
-                    const std::shared_ptr<queue_impl> &PrimaryQueue,
-                    const std::shared_ptr<queue_impl> &SecondaryQueue,
-                    bool CallerNeedsEvent, const detail::code_location &Loc,
-                    bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
+  detail::EventImplPtr
+  submit_impl(const detail::type_erased_cgfo_ty &CGF,
+              const std::shared_ptr<queue_impl> &PrimaryQueue,
+              const std::shared_ptr<queue_impl> &SecondaryQueue,
+              bool CallerNeedsEvent, const detail::code_location &Loc,
+              bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
 #endif
 
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
-  /// \param Self is a pointer to this queue.
   /// \param SecondaryQueue is a pointer to the secondary queue.
   /// \param CallerNeedsEvent is a boolean indicating whether the event is
   ///        required by the user after the call.
   /// \param Loc is the code location of the submit call (default argument)
   /// \param SubmitInfo is additional optional information for the submission.
   /// \return a SYCL event representing submitted command group.
-  event submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                    const std::shared_ptr<queue_impl> &Self,
-                    queue_impl *SecondaryQueue, bool CallerNeedsEvent,
-                    const detail::code_location &Loc, bool IsTopCodeLoc,
-                    const v1::SubmissionInfo &SubmitInfo);
+  detail::EventImplPtr submit_impl(const detail::type_erased_cgfo_ty &CGF,
+                                   queue_impl *SecondaryQueue,
+                                   bool CallerNeedsEvent,
+                                   const detail::code_location &Loc,
+                                   bool IsTopCodeLoc,
+                                   const v1::SubmissionInfo &SubmitInfo);
 
   /// Helper function for submitting a memory operation with a handler.
-  /// \param Self is a shared_ptr to this queue.
   /// \param DepEvents is a vector of dependencies of the operation.
   /// \param HandlerFunc is a function that submits the operation with a
   ///        handler.
   template <typename HandlerFuncT>
-  event submitWithHandler(const std::shared_ptr<queue_impl> &Self,
-                          const std::vector<event> &DepEvents,
+  event submitWithHandler(const std::vector<event> &DepEvents,
                           bool CallerNeedsEvent, HandlerFuncT HandlerFunc);
 
   /// Performs submission of a memory operation directly if scheduler can be
   /// bypassed, or with a handler otherwise.
   ///
-  /// \param Self is a shared_ptr to this queue.
   /// \param DepEvents is a vector of dependencies of the operation.
   /// \param CallerNeedsEvent specifies if the caller needs an event from this
   ///        memory operation.
@@ -944,10 +945,10 @@ protected:
   /// \return an event representing the submitted operation.
   template <typename HandlerFuncT, typename MemMngrFuncT,
             typename... MemMngrArgTs>
-  event submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
-                          const std::vector<event> &DepEvents,
+  event submitMemOpHelper(const std::vector<event> &DepEvents,
                           bool CallerNeedsEvent, HandlerFuncT HandlerFunc,
-                          MemMngrFuncT MemMngrFunc, MemMngrArgTs... MemOpArgs);
+                          MemMngrFuncT MemMngrFunc,
+                          MemMngrArgTs &&...MemOpArgs);
 
   // When instrumentation is enabled emits trace event for wait begin and
   // returns the telemetry event generated for the wait
@@ -974,14 +975,14 @@ protected:
 
   /// Stores an event that should be associated with the queue
   ///
-  /// \param Event is the event to be stored
-  void addEvent(const event &Event);
+  /// \param EventImpl is the event to be stored
+  void addEvent(const detail::EventImplPtr &EventImpl);
 
   /// Protects all the fields that can be changed by class' methods.
   mutable std::mutex MMutex;
 
   device_impl &MDevice;
-  const ContextImplPtr MContext;
+  const std::shared_ptr<context_impl> MContext;
 
   /// These events are tracked, but not owned, by the queue.
   std::vector<std::weak_ptr<event_impl>> MEventsWeak;
@@ -993,7 +994,6 @@ protected:
   const async_handler MAsyncHandler;
   const property_list MPropList;
 
-  /// List of queues created for FPGA device from a single SYCL queue.
   ur_queue_handle_t MQueue;
 
   // Access should be guarded with MMutex
@@ -1049,10 +1049,10 @@ protected:
   // be true if the queue is in-order, the command graph is not
   // associated with the queue and there has never been any host
   // tasks submitted to the queue.
-  std::atomic<bool> MNoEventMode = false;
+  std::atomic<bool> MNoLastEventMode = false;
 
   // Used exclusively in getLastEvent and queue_empty() implementations
-  bool MEmpty = true;
+  std::atomic<bool> MEmpty = true;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
   std::mutex MStreamsServiceEventsMutex;

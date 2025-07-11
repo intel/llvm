@@ -43,6 +43,9 @@ extern "C" {
 #endif
 
 %for tbl in th.get_pfntables(specs, meta, n, tags):
+%if 'guard' in tbl:
+#if ${tbl['guard']}
+%endif
 ${X}_APIEXPORT ${x}_result_t ${X}_APICALL ${tbl['export']['name']}(
     %for line in th.make_param_lines(n, tags, tbl['export'], format=["type", "name", "delim"]):
     ${line}
@@ -55,11 +58,20 @@ ${X}_APIEXPORT ${x}_result_t ${X}_APICALL ${tbl['export']['name']}(
     }
 
     %for obj in tbl['functions']:
+%if 'guard' in obj and 'guard' not in tbl:
+#if ${obj['guard']}
+%endif
     pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 43)} = ${n}::${adapter}::${th.make_func_name(n, tags, obj)};
+%if 'guard' in obj and 'guard' not in tbl:
+#endif // ${obj['guard']}
+%endif
     %endfor
 
     return result;
 }
+%if 'guard' in tbl:
+#endif // ${tbl['guard']}
+%endif
 
 %endfor
 
@@ -84,9 +96,15 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
 #endif
 
 %for tbl in th.get_pfntables(specs, meta, n, tags):
+%if 'guard' in tbl:
+#if ${tbl['guard']}
+%endif
   result = NAMESPACE_::${tbl['export']['name']}( ${X}_API_VERSION_CURRENT, &ddi->${tbl['name']} );
   if (result != UR_RESULT_SUCCESS)
     return result;
+%if 'guard' in tbl:
+#endif // ${tbl['guard']}
+%endif
 %endfor
 
 #undef NAMESPACE_

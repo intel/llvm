@@ -29,7 +29,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
       std::min(static_cast<uint32_t>(hPlatform->Devices.size()), NumEntries);
 
   for (size_t I = 0; I < NumDevices; I++) {
-    phDevices[I] = &hPlatform->Devices[I];
+    phDevices[I] = hPlatform->Devices[I].get();
   }
 
   return UR_RESULT_SUCCESS;
@@ -74,6 +74,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_REFERENCE_COUNT:
     // Devices are never allocated or freed
     return ReturnValue(uint32_t{1});
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
+    return ReturnValue(uint32_t{3});
   // Unimplemented features
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
   case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
@@ -92,17 +94,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
 
   if (pPropSizeRet) {
-    if (auto Res =
-            olGetDeviceInfoSize(hDevice->OffloadDevice, olInfo, pPropSizeRet)) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(
+        olGetDeviceInfoSize(hDevice->OffloadDevice, olInfo, pPropSizeRet));
   }
 
   if (pPropValue) {
-    if (auto Res = olGetDeviceInfo(hDevice->OffloadDevice, olInfo, propSize,
-                                   pPropValue)) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(
+        olGetDeviceInfo(hDevice->OffloadDevice, olInfo, propSize, pPropValue));
     // Need to explicitly map this type
     if (olInfo == OL_DEVICE_INFO_TYPE) {
       auto urPropPtr = reinterpret_cast<ur_device_type_t *>(pPropValue);
@@ -147,8 +145,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
     uint32_t NumBinaries, uint32_t *pSelectedBinary) {
 
   ol_platform_backend_t Backend;
-  olGetPlatformInfo(hDevice->Platform->OffloadPlatform,
-                    OL_PLATFORM_INFO_BACKEND, sizeof(Backend), &Backend);
+  OL_RETURN_ON_ERR(olGetPlatformInfo(hDevice->Platform->OffloadPlatform,
+                                     OL_PLATFORM_INFO_BACKEND, sizeof(Backend),
+                                     &Backend));
 
   const char *ImageTarget = UR_DEVICE_BINARY_TARGET_UNKNOWN;
   if (Backend == OL_PLATFORM_BACKEND_CUDA) {

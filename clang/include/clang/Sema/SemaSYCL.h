@@ -270,6 +270,8 @@ private:
 
   llvm::DenseSet<const FunctionDecl *> SYCLKernelFunctions;
 
+  llvm::DenseSet<const FunctionDecl *> FreeFunctionDeclarations;
+
 public:
   SemaSYCL(Sema &S);
 
@@ -362,7 +364,9 @@ public:
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void SetSYCLKernelNames();
   void MarkDevices();
+  void processFreeFunctionDeclaration(const FunctionDecl *FD);
   void ProcessFreeFunction(FunctionDecl *FD);
+  void finalizeFreeFunctionKernels();
 
   /// Get the number of fields or captures within the parsed type.
   ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);

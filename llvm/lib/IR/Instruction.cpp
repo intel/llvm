@@ -26,6 +26,7 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/ProfDataUtils.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Support/Compiler.h"
 using namespace llvm;
 
 InsertPosition::InsertPosition(Instruction *InsertBefore)
@@ -129,7 +130,7 @@ BasicBlock::iterator Instruction::insertInto(BasicBlock *ParentBB,
   return getIterator();
 }
 
-extern cl::opt<bool> UseNewDbgInfoFormat;
+LLVM_ABI extern cl::opt<bool> UseNewDbgInfoFormat;
 
 void Instruction::insertBefore(BasicBlock &BB,
                                InstListType::iterator InsertPos) {
@@ -373,7 +374,7 @@ std::optional<BasicBlock::iterator> Instruction::getInsertionPointAfterDef() {
 }
 
 bool Instruction::isOnlyUserOfAnyOperand() {
-  return any_of(operands(), [](Value *V) { return V->hasOneUser(); });
+  return any_of(operands(), [](const Value *V) { return V->hasOneUser(); });
 }
 
 void Instruction::setHasNoUnsignedWrap(bool b) {

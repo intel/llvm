@@ -7,7 +7,6 @@ import os
 import re
 import yaml
 
-from pathlib import Path
 from .utils import *
 from options import options
 
@@ -30,8 +29,8 @@ class ComputeRuntime:
 
     def ld_libraries(self) -> list[str]:
         paths = [
-            os.path.join(self.gmmlib, "lib64"),
-            os.path.join(self.level_zero, "lib64"),
+            os.path.join(self.gmmlib, "lib"),
+            os.path.join(self.level_zero, "lib"),
             os.path.join(self.compute_runtime, "bin"),
         ]
 
@@ -51,6 +50,7 @@ class ComputeRuntime:
         }
 
     def build_gmmlib(self, repo, commit):
+        log.info("Building GMMLib...")
         self.gmmlib_repo = git_clone(options.workdir, "gmmlib-repo", repo, commit)
         self.gmmlib_build = os.path.join(options.workdir, "gmmlib-build")
         self.gmmlib_install = os.path.join(options.workdir, "gmmlib-install")
@@ -64,9 +64,11 @@ class ComputeRuntime:
         run(configure_command)
         run(f"cmake --build {self.gmmlib_build} -j {options.build_jobs}")
         run(f"cmake --install {self.gmmlib_build}")
+        log.info("GMMLib build complete.")
         return self.gmmlib_install
 
     def build_level_zero(self, repo, commit):
+        log.info("Building Level Zero...")
         self.level_zero_repo = git_clone(
             options.workdir, "level-zero-repo", repo, commit
         )
@@ -89,9 +91,11 @@ class ComputeRuntime:
         run(configure_command)
         run(f"cmake --build {self.level_zero_build} -j {options.build_jobs}")
         run(f"cmake --install {self.level_zero_build}")
+        log.info("Level Zero build complete.")
         return self.level_zero_install
 
     def build_igc(self, repo, commit):
+        log.info("Building IGC...")
         self.igc_repo = git_clone(options.workdir, "igc", repo, commit)
         self.vc_intr = git_clone(
             options.workdir,
@@ -151,6 +155,7 @@ class ComputeRuntime:
         )
         # cmake --install doesn't work...
         run("make install", cwd=self.igc_build)
+        log.info("IGC build complete.")
         return self.igc_install
 
     def read_manifest(self, manifest_path):
@@ -204,6 +209,7 @@ class ComputeRuntime:
         # Remove -Werror...
         replace_in_file(cmakelists_path, r"\s-Werror(?:=[a-zA-Z]*)?", "")
 
+        log.info("Building Compute Runtime...")
         configure_command = [
             "cmake",
             f"-B {self.compute_runtime_build}",
@@ -220,6 +226,7 @@ class ComputeRuntime:
 
         run(configure_command)
         run(f"cmake --build {self.compute_runtime_build} -j {options.build_jobs}")
+        log.info("Compute Runtime build complete.")
         return self.compute_runtime_build
 
 

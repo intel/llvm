@@ -15,10 +15,7 @@ class Result:
     value: float
     command: list[str]
     env: dict[str, str]
-    stdout: str
-    passed: bool = True
     unit: str = ""
-    explicit_group: str = ""
     # stddev can be optionally set by the benchmark,
     # if not set, it will be calculated automatically.
     stddev: float = 0.0
@@ -37,8 +34,8 @@ class BenchmarkRun:
     name: str = "This PR"
     hostname: str = "Unknown"
     git_hash: str = ""
-    github_repo: str = None
-    date: datetime = field(
+    github_repo: str = ""
+    date: datetime | None = field(
         default=None,
         metadata=config(encoder=datetime.isoformat, decoder=datetime.fromisoformat),
     )
@@ -63,6 +60,7 @@ class BenchmarkMetadata:
     range_min: float = None
     range_max: float = None
     display_name: str = None
+    explicit_group: str = None
 
 
 @dataclass_json

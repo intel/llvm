@@ -140,7 +140,7 @@ public:
 
 public:
   RTDeviceBinaryImage() : Bin(nullptr) {}
-  RTDeviceBinaryImage(sycl_device_binary Bin) { init(Bin); }
+  RTDeviceBinaryImage(sycl_device_binary Bin);
   // Explicitly delete copy constructor/operator= to avoid unintentional copies
   RTDeviceBinaryImage(const RTDeviceBinaryImage &) = delete;
   RTDeviceBinaryImage &operator=(const RTDeviceBinaryImage &) = delete;
@@ -227,6 +227,7 @@ public:
   const std::vector<ur_program_metadata_t> &getProgramMetadataUR() const {
     return ProgramMetadataUR;
   }
+  const PropertyRange &getKernelNames() const { return KernelNames; }
   const PropertyRange &getExportedSymbols() const { return ExportedSymbols; }
   const PropertyRange &getImportedSymbols() const { return ImportedSymbols; }
   const PropertyRange &getDeviceGlobals() const { return DeviceGlobals; }
@@ -247,8 +248,6 @@ public:
   }
 
 protected:
-  void init();
-  void init(sycl_device_binary Bin);
   sycl_device_binary get() const { return Bin; }
 
   sycl_device_binary Bin;
@@ -261,6 +260,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange KernelParamOptInfo;
   RTDeviceBinaryImage::PropertyRange AssertUsed;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
+  RTDeviceBinaryImage::PropertyRange KernelNames;
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
   RTDeviceBinaryImage::PropertyRange ImportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
@@ -296,7 +296,7 @@ public:
   }
 
   static DynRTDeviceBinaryImage
-  merge(const std::vector<RTDeviceBinaryImage *> &Imgs);
+  merge(const std::vector<const RTDeviceBinaryImage *> &Imgs);
 
 protected:
   DynRTDeviceBinaryImage();
@@ -304,7 +304,7 @@ protected:
   std::unique_ptr<char[], std::function<void(void *)>> Data;
 };
 
-#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+#ifdef SYCL_RT_ZSTD_AVAILABLE
 // Compressed device binary image. Decompression happens when the image is
 // actually used to build a program.
 // Also, frees the decompressed data in destructor.
@@ -329,9 +329,9 @@ public:
 
 private:
   std::unique_ptr<char[]> m_DecompressedData;
-  size_t m_ImageSize;
+  size_t m_ImageSize = 0;
 };
-#endif // SYCL_RT_ZSTD_NOT_AVAIABLE
+#endif // SYCL_RT_ZSTD_AVAILABLE
 
 } // namespace detail
 } // namespace _V1

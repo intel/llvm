@@ -14,6 +14,7 @@
 
 #include "command_list_cache.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "event_pool_cache.hpp"
 #include "usm.hpp"
 
@@ -32,6 +33,17 @@ struct ur_context_handle_t_ : ur_object {
   const std::vector<ur_device_handle_t> &getDevices() const;
   ur_usm_pool_handle_t getDefaultUSMPool();
   ur_usm_pool_handle_t getAsyncPool();
+
+  void addUsmPool(ur_usm_pool_handle_t hPool);
+  void removeUsmPool(ur_usm_pool_handle_t hPool);
+
+  template <typename Func> void forEachUsmPool(Func func) {
+    std::shared_lock<ur_shared_mutex> lock(Mutex);
+    for (const auto &hPool : usmPoolHandles) {
+      if (!func(hPool))
+        break;
+    }
+  }
 
   const std::vector<ur_device_handle_t> &
   getP2PDevices(ur_device_handle_t hDevice) const;
@@ -53,6 +65,8 @@ struct ur_context_handle_t_ : ur_object {
   // For that the Device or its root devices need to be in the context.
   bool isValidDevice(ur_device_handle_t Device) const;
 
+  ur::RefCount RefCount;
+
 private:
   const v2::raii::ze_context_handle_t hContext;
   const std::vector<ur_device_handle_t> hDevices;
@@ -69,4 +83,5 @@ private:
 
   ur_usm_pool_handle_t_ defaultUSMPool;
   ur_usm_pool_handle_t_ asyncPool;
+  std::list<ur_usm_pool_handle_t> usmPoolHandles;
 };

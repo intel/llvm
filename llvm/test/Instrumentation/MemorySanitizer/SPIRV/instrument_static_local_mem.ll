@@ -4,7 +4,7 @@ target triple = "spir64-unknown-unknown"
 
 @WGCopy = internal addrspace(3) global i64 zeroinitializer, align 8
 @WGLocal = internal addrspace(3) global i64 zeroinitializer, align 8
-; CHECK: @__MsanKernelMetadata{{.*}}i64 14, i64 1, i64 0
+; CHECK: @__MsanKernelMetadata{{.*}}i64 14, i64 4
 
 define spir_kernel void @MyKernelMemset() sanitize_memory {
 ; CHECK-LABEL: @MyKernelMemset

@@ -22,6 +22,7 @@
 #include "CGSYCLRuntime.h"
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
+#include "CodeGenPGO.h"
 #include "TargetInfo.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -256,7 +257,7 @@ CodeGenTypes::arrangeFreeFunctionType(CanQual<FunctionProtoType> FTP) {
 }
 
 static CallingConv getCallingConventionForDecl(const ObjCMethodDecl *D,
-                                               bool IsWindows) {
+                                               bool IsTargetDefaultMSABI) {
   // Set the appropriate calling convention for the Function.
   if (D->hasAttr<StdCallAttr>())
     return CC_X86StdCall;
@@ -292,10 +293,10 @@ static CallingConv getCallingConventionForDecl(const ObjCMethodDecl *D,
     return CC_IntelOclBicc;
 
   if (D->hasAttr<MSABIAttr>())
-    return IsWindows ? CC_C : CC_Win64;
+    return IsTargetDefaultMSABI ? CC_C : CC_Win64;
 
   if (D->hasAttr<SysVABIAttr>())
-    return IsWindows ? CC_X86_64SysV : CC_C;
+    return IsTargetDefaultMSABI ? CC_X86_64SysV : CC_C;
 
   if (D->hasAttr<PreserveMostAttr>())
     return CC_PreserveMost;
@@ -583,8 +584,11 @@ CodeGenTypes::arrangeObjCMessageSendSignature(const ObjCMethodDecl *MD,
   }
 
   FunctionType::ExtInfo einfo;
-  bool IsWindows = getContext().getTargetInfo().getTriple().isOSWindows();
-  einfo = einfo.withCallingConv(getCallingConventionForDecl(MD, IsWindows));
+  bool IsTargetDefaultMSABI =
+      getContext().getTargetInfo().getTriple().isOSWindows() ||
+      getContext().getTargetInfo().getTriple().isUEFI();
+  einfo = einfo.withCallingConv(
+      getCallingConventionForDecl(MD, IsTargetDefaultMSABI));
 
   if (getContext().getLangOpts().ObjCAutoRefCount &&
       MD->hasAttr<NSReturnsRetainedAttr>())
@@ -674,10 +678,10 @@ arrangeFreeFunctionLikeCall(CodeGenTypes &CGT, CodeGenModule &CGM,
       addExtParameterInfosForCall(paramInfos, proto, numExtraRequiredArgs,
                                   args.size());
 
-    // If we don't have a prototype at all, but we're supposed to
-    // explicitly use the variadic convention for unprototyped calls,
-    // treat all of the arguments as required but preserve the nominal
-    // possibility of variadics.
+  // If we don't have a prototype at all, but we're supposed to
+  // explicitly use the variadic convention for unprototyped calls,
+  // treat all of the arguments as required but preserve the nominal
+  // possibility of variadics.
   } else if (CGM.getTargetCodeGenInfo().isNoProtoCallVariadic(
                  args, cast<FunctionNoProtoType>(fnType))) {
     required = RequiredArgs(args.size());
@@ -1372,19 +1376,23 @@ static llvm::Value *CreateCoercedLoad(Address Src, llvm::Type *Ty,
       // If we are casting a fixed i8 vector to a scalable i1 predicate
       // vector, use a vector insert and bitcast the result.
       if (ScalableDstTy->getElementType()->isIntegerTy(1) &&
-          ScalableDstTy->getElementCount().isKnownMultipleOf(8) &&
           FixedSrcTy->getElementType()->isIntegerTy(8)) {
         ScalableDstTy = llvm::ScalableVectorType::get(
             FixedSrcTy->getElementType(),
-            ScalableDstTy->getElementCount().getKnownMinValue() / 8);
+            llvm::divideCeil(
+                ScalableDstTy->getElementCount().getKnownMinValue(), 8));
       }
       if (ScalableDstTy->getElementType() == FixedSrcTy->getElementType()) {
         auto *Load = CGF.Builder.CreateLoad(Src);
         auto *PoisonVec = llvm::PoisonValue::get(ScalableDstTy);
         llvm::Value *Result = CGF.Builder.CreateInsertVector(
             ScalableDstTy, PoisonVec, Load, uint64_t(0), "cast.scalable");
-        if (ScalableDstTy != Ty)
-          Result = CGF.Builder.CreateBitCast(Result, Ty);
+        ScalableDstTy = cast<llvm::ScalableVectorType>(
+            llvm::VectorType::getWithSizeAndScalar(ScalableDstTy, Ty));
+        if (Result->getType() != ScalableDstTy)
+          Result = CGF.Builder.CreateBitCast(Result, ScalableDstTy);
+        if (Result->getType() != Ty)
+          Result = CGF.Builder.CreateExtractVector(Ty, Result, uint64_t(0));
         return Result;
       }
     }
@@ -1426,7 +1434,8 @@ void CodeGenFunction::CreateCoercedStore(llvm::Value *Src, Address Dst,
         SrcSize == CGM.getDataLayout().getTypeAllocSize(Dst.getElementType())) {
       // If the value is supposed to be a pointer, convert it before storing it.
       Src = CoerceIntOrPtrToIntOrPtr(Src, Dst.getElementType(), *this);
-      Builder.CreateStore(Src, Dst, DstIsVolatile);
+      auto *I = Builder.CreateStore(Src, Dst, DstIsVolatile);
+      addInstToCurrentSourceAtom(I, Src);
     } else if (llvm::StructType *STy =
                    dyn_cast<llvm::StructType>(Src->getType())) {
       // Prefer scalar stores to first-class aggregate stores.
@@ -1434,16 +1443,21 @@ void CodeGenFunction::CreateCoercedStore(llvm::Value *Src, Address Dst,
       for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
         Address EltPtr = Builder.CreateStructGEP(Dst, i);
         llvm::Value *Elt = Builder.CreateExtractValue(Src, i);
-        Builder.CreateStore(Elt, EltPtr, DstIsVolatile);
+        auto *I = Builder.CreateStore(Elt, EltPtr, DstIsVolatile);
+        addInstToCurrentSourceAtom(I, Elt);
       }
     } else {
-      Builder.CreateStore(Src, Dst.withElementType(SrcTy), DstIsVolatile);
+      auto *I =
+          Builder.CreateStore(Src, Dst.withElementType(SrcTy), DstIsVolatile);
+      addInstToCurrentSourceAtom(I, Src);
     }
   } else if (SrcTy->isIntegerTy()) {
     // If the source is a simple integer, coerce it directly.
     llvm::Type *DstIntTy = Builder.getIntNTy(DstSize.getFixedValue() * 8);
     Src = CoerceIntOrPtrToIntOrPtr(Src, DstIntTy, *this);
-    Builder.CreateStore(Src, Dst.withElementType(DstIntTy), DstIsVolatile);
+    auto *I =
+        Builder.CreateStore(Src, Dst.withElementType(DstIntTy), DstIsVolatile);
+    addInstToCurrentSourceAtom(I, Src);
   } else {
     // Otherwise do coercion through memory. This is stupid, but
     // simple.
@@ -1457,10 +1471,11 @@ void CodeGenFunction::CreateCoercedStore(llvm::Value *Src, Address Dst,
     RawAddress Tmp =
         CreateTempAllocaForCoercion(*this, SrcTy, Dst.getAlignment());
     Builder.CreateStore(Src, Tmp);
-    Builder.CreateMemCpy(Dst.emitRawPointer(*this),
-                         Dst.getAlignment().getAsAlign(), Tmp.getPointer(),
-                         Tmp.getAlignment().getAsAlign(),
-                         Builder.CreateTypeSize(IntPtrTy, DstSize));
+    auto *I = Builder.CreateMemCpy(
+        Dst.emitRawPointer(*this), Dst.getAlignment().getAsAlign(),
+        Tmp.getPointer(), Tmp.getAlignment().getAsAlign(),
+        Builder.CreateTypeSize(IntPtrTy, DstSize));
+    addInstToCurrentSourceAtom(I, Src);
   }
 }
 
@@ -1482,8 +1497,14 @@ CoerceScalableToFixed(CodeGenFunction &CGF, llvm::FixedVectorType *ToTy,
   // If we are casting a scalable i1 predicate vector to a fixed i8
   // vector, first bitcast the source.
   if (FromTy->getElementType()->isIntegerTy(1) &&
-      FromTy->getElementCount().isKnownMultipleOf(8) &&
       ToTy->getElementType() == CGF.Builder.getInt8Ty()) {
+    if (!FromTy->getElementCount().isKnownMultipleOf(8)) {
+      FromTy = llvm::ScalableVectorType::get(
+          FromTy->getElementType(),
+          llvm::alignTo<8>(FromTy->getElementCount().getKnownMinValue()));
+      llvm::Value *ZeroVec = llvm::Constant::getNullValue(FromTy);
+      V = CGF.Builder.CreateInsertVector(FromTy, ZeroVec, V, uint64_t(0));
+    }
     FromTy = llvm::ScalableVectorType::get(
         ToTy->getElementType(),
         FromTy->getElementCount().getKnownMinValue() / 8);
@@ -2289,6 +2310,11 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
                                                  llvm::AttrBuilder &FuncAttrs) {
   getTrivialDefaultFunctionAttributes(Name, HasOptnone, AttrOnCallSite,
                                       FuncAttrs);
+
+  if (!AttrOnCallSite)
+    TargetCodeGenInfo::initPointerAuthFnAttributes(CodeGenOpts.PointerAuth,
+                                                   FuncAttrs);
+
   // If we're just getting the default, get the default values for mergeable
   // attributes.
   if (!AttrOnCallSite)
@@ -2723,6 +2749,10 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     // handles these separately to set them based on the global defaults.
     GetCPUAndFeaturesAttributes(CalleeInfo.getCalleeDecl(), FuncAttrs);
   }
+
+  // Mark functions that are replaceable by the loader.
+  if (CodeGenOpts.isLoaderReplaceableFunctionName(Name))
+    FuncAttrs.addAttribute("loader-replaceable");
 
   // Collect attributes from arguments and return values.
   ClangToLLVMArgMapping IRFunctionArgs(getContext(), FI);
@@ -4181,7 +4211,7 @@ void CodeGenFunction::EmitFunctionEpilog(const CGFunctionInfo &FI,
     if (results.size() == 1) {
       RV = results[0];
 
-      // Otherwise, we need to make a first-class aggregate.
+    // Otherwise, we need to make a first-class aggregate.
     } else {
       // Construct a return type that lacks padding elements.
       llvm::Type *returnType = RetAI.getUnpaddedCoerceAndExpandType();
@@ -4320,11 +4350,11 @@ void CodeGenFunction::EmitDelegateCallArg(CallArgList &args,
   if (type->isReferenceType()) {
     args.add(RValue::get(Builder.CreateLoad(local)), type);
 
-    // In ARC, move out of consumed arguments so that the release cleanup
-    // entered by StartFunction doesn't cause an over-release.  This isn't
-    // optimal -O0 code generation, but it should get cleaned up when
-    // optimization is enabled.  This also assumes that delegate calls are
-    // performed exactly once for a set of arguments, but that should be safe.
+  // In ARC, move out of consumed arguments so that the release cleanup
+  // entered by StartFunction doesn't cause an over-release.  This isn't
+  // optimal -O0 code generation, but it should get cleaned up when
+  // optimization is enabled.  This also assumes that delegate calls are
+  // performed exactly once for a set of arguments, but that should be safe.
   } else if (getLangOpts().ObjCAutoRefCount &&
              param->hasAttr<NSConsumedAttr>() && type->isObjCRetainableType()) {
     llvm::Value *ptr = Builder.CreateLoad(local);
@@ -4333,8 +4363,8 @@ void CodeGenFunction::EmitDelegateCallArg(CallArgList &args,
     Builder.CreateStore(null, local);
     args.add(RValue::get(ptr), type);
 
-    // For the most part, we just need to load the alloca, except that
-    // aggregate r-values are actually pointers to temporaries.
+  // For the most part, we just need to load the alloca, except that
+  // aggregate r-values are actually pointers to temporaries.
   } else {
     args.add(convertTempToRValue(local, type, loc), type);
   }
@@ -4426,7 +4456,7 @@ static void emitWriteback(CodeGenFunction &CGF,
     // Release the old value.
     CGF.EmitARCRelease(oldValue, srcLV.isARCPreciseLifetime());
 
-    // Otherwise, we can just do a normal lvalue store.
+  // Otherwise, we can just do a normal lvalue store.
   } else {
     CGF.EmitStoreThroughLValue(RValue::get(value), srcLV);
   }
@@ -4467,7 +4497,7 @@ static void emitWritebackArg(CodeGenFunction &CGF, CallArgList &args,
   if (const Expr *lvExpr = maybeGetUnaryAddrOfOperand(CRE->getSubExpr())) {
     srcLV = CGF.EmitLValue(lvExpr);
 
-    // Otherwise, just emit it as a scalar.
+  // Otherwise, just emit it as a scalar.
   } else {
     Address srcAddr = CGF.EmitPointerWithAlignment(CRE->getSubExpr());
 
@@ -5371,12 +5401,11 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
           (SRetPtr.getAddressSpace() != RetAI.getIndirectAddrSpace())) {
         llvm::Value *V = SRetPtr.getBasePointer();
         LangAS SAS = getLangASFromTargetAS(SRetPtr.getAddressSpace());
-        LangAS DAS = getLangASFromTargetAS(RetAI.getIndirectAddrSpace());
         llvm::Type *Ty = llvm::PointerType::get(getLLVMContext(),
                                                 RetAI.getIndirectAddrSpace());
 
         SRetPtr = SRetPtr.withPointer(
-            getTargetHooks().performAddrSpaceCast(*this, V, SAS, DAS, Ty, true),
+            getTargetHooks().performAddrSpaceCast(*this, V, SAS, Ty, true),
             SRetPtr.isKnownNonNull());
       }
       IRCallArgs[IRFunctionArgs.getSRetArgNo()] =
@@ -5495,7 +5524,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
           NeedCopy = true;
         } else if (I->hasLValue()) {
           auto LV = I->getKnownLValue();
-          auto AS = LV.getAddressSpace();
 
           bool isByValOrRef =
               ArgInfo.isIndirectAliased() || ArgInfo.getIndirectByVal();
@@ -5504,17 +5532,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
               (LV.getAlignment() < getContext().getTypeAlignInChars(I->Ty))) {
             NeedCopy = true;
           }
-          if (!getLangOpts().OpenCL) {
-            if ((isByValOrRef && (AS != LangAS::Default &&
-                                  AS != CGM.getASTAllocaAddressSpace()))) {
-              NeedCopy = true;
-            }
-          }
-          // For OpenCL even if RV is located in default or alloca address space
-          // we don't want to perform address space cast for it.
-          else if ((isByValOrRef && Addr.getType()->getAddressSpace() !=
-                                        IRFuncTy->getParamType(FirstIRArg)
-                                            ->getPointerAddressSpace())) {
+
+          if (isByValOrRef && Addr.getType()->getAddressSpace() !=
+                                  ArgInfo.getIndirectAddrSpace()) {
             NeedCopy = true;
           }
         }
@@ -5522,11 +5542,17 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         if (!NeedCopy) {
           // Skip the extra memcpy call.
           llvm::Value *V = getAsNaturalPointerTo(Addr, I->Ty);
-          auto *T = llvm::PointerType::get(
-              CGM.getLLVMContext(), CGM.getDataLayout().getAllocaAddrSpace());
+          unsigned AddrSpace = CGM.getCodeGenOpts().UseAllocaASForSrets
+                                            ? ArgInfo.getIndirectAddrSpace()
+                                            : CGM.getDataLayout().getAllocaAddrSpace();
+          auto *T = llvm::PointerType::get(CGM.getLLVMContext(), AddrSpace);
+
+          // FIXME: This should not depend on the language address spaces, and
+          // only the contextual values. If the address space mismatches, see if
+          // we can look through a cast to a compatible address space value,
+          // otherwise emit a copy.
           llvm::Value *Val = getTargetHooks().performAddrSpaceCast(
-              *this, V, LangAS::Default, CGM.getASTAllocaAddressSpace(), T,
-              true);
+              *this, V, I->Ty.getAddressSpace(), T, true);
           if (ArgHasMaybeUndefAttr)
             Val = Builder.CreateFreeze(Val);
           IRCallArgs[FirstIRArg] = Val;
@@ -5615,12 +5641,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         if (FirstIRArg < IRFuncTy->getNumParams() &&
             V->getType() != IRFuncTy->getParamType(FirstIRArg)) {
           assert(V->getType()->isPointerTy() && "Only pointers can mismatch!");
-          auto FormalAS = CallInfo.arguments()[ArgNo]
-                              .type.getQualifiers()
-                              .getAddressSpace();
           auto ActualAS = I->Ty.getAddressSpace();
           V = getTargetHooks().performAddrSpaceCast(
-              *this, V, ActualAS, FormalAS, IRFuncTy->getParamType(FirstIRArg));
+              *this, V, ActualAS, IRFuncTy->getParamType(FirstIRArg));
         }
 
         if (ArgHasMaybeUndefAttr)
@@ -6061,7 +6084,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // For more details, see the comment before the definition of
   // IPVK_IndirectCallTarget in InstrProfData.inc.
   if (!CI->getCalledFunction())
-    PGO.valueProfile(Builder, llvm::IPVK_IndirectCallTarget, CI, CalleePtr);
+    PGO->valueProfile(Builder, llvm::IPVK_IndirectCallTarget, CI, CalleePtr);
 
   // In ObjC ARC mode with no ObjC ARC exception safety, tell the ARC
   // optimizer it can aggressively ignore unwind edges.

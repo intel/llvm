@@ -12,6 +12,7 @@
  */
 
 #include "msan_ddi.hpp"
+#include "msan/msan_libdevice.hpp"
 #include "msan_interceptor.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
@@ -50,6 +51,47 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t urEnqueueUSMFill2DFallback(ur_queue_handle_t hQueue, void *pMem,
+                                       size_t pitch, size_t patternSize,
+                                       const void *pPattern, size_t width,
+                                       size_t height,
+                                       uint32_t numEventsInWaitList,
+                                       const ur_event_handle_t *phEventWaitList,
+                                       ur_event_handle_t *phEvent) {
+  ur_result_t Result = getContext()->urDdiTable.Enqueue.pfnUSMFill2D(
+      hQueue, pMem, pitch, patternSize, pPattern, width, height,
+      numEventsInWaitList, phEventWaitList, phEvent);
+  if (Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    return Result;
+  }
+
+  // fallback code
+  auto pfnUSMFill = getContext()->urDdiTable.Enqueue.pfnUSMFill;
+
+  std::vector<ur_event_handle_t> WaitEvents(numEventsInWaitList);
+
+  for (size_t HeightIndex = 0; HeightIndex < height; HeightIndex++) {
+    ur_event_handle_t Event = nullptr;
+
+    UR_CALL(pfnUSMFill(hQueue, (void *)((char *)pMem + pitch * HeightIndex),
+                       patternSize, pPattern, width, WaitEvents.size(),
+                       WaitEvents.data(), &Event));
+
+    WaitEvents.push_back(Event);
+  }
+
+  if (phEvent) {
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+        hQueue, WaitEvents.size(), WaitEvents.data(), phEvent));
+  }
+
+  for (const auto Event : WaitEvents) {
+    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(Event));
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -65,7 +107,7 @@ ur_result_t urAdapterGet(
     ur_adapter_handle_t *phAdapters,
     /// [out][optional] returns the total number of adapters available.
     uint32_t *pNumAdapters) {
-  auto pfnAdapterGet = getContext()->urDdiTable.Global.pfnAdapterGet;
+  auto pfnAdapterGet = getContext()->urDdiTable.Adapter.pfnGet;
 
   // FIXME: This is a W/A to disable heap extended for MSAN so that we can
   // reserve large VA of GPU.
@@ -107,7 +149,7 @@ ur_result_t urUSMDeviceAlloc(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMHostAlloc
-ur_result_t UR_APICALL urUSMHostAlloc(
+ur_result_t urUSMHostAlloc(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     const ur_usm_desc_t
         *pUSMDesc, ///< [in][optional] USM memory allocation descriptor
@@ -125,7 +167,7 @@ ur_result_t UR_APICALL urUSMHostAlloc(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMSharedAlloc
-ur_result_t UR_APICALL urUSMSharedAlloc(
+ur_result_t urUSMSharedAlloc(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
     ur_device_handle_t hDevice,    ///< [in] handle of the device object
     const ur_usm_desc_t *pUSMDesc, ///< [in][optional] Pointer to USM memory
@@ -144,7 +186,7 @@ ur_result_t UR_APICALL urUSMSharedAlloc(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMFree
-ur_result_t UR_APICALL urUSMFree(
+ur_result_t urUSMFree(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
     /// [in] pointer to USM memory object
@@ -411,6 +453,11 @@ ur_result_t urEnqueueKernelLaunch(
     /// execute the kernel function. If nullptr, the runtime implementation will
     /// choose the work-group size.
     const size_t *pLocalWorkSize,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+    /// properties
+    const ur_kernel_launch_property_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -421,6 +468,12 @@ ur_result_t urEnqueueKernelLaunch(
     /// [out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t *phEvent) {
+  // This mutex is to prevent concurrent kernel launches across different queues
+  // as the DeviceMSAN local/private shadow memory does not support concurrent
+  // kernel launches now.
+  std::scoped_lock<ur_shared_mutex> Guard(
+      getMsanInterceptor()->KernelLaunchMutex);
+
   UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueKernelLaunch");
 
   USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
@@ -432,8 +485,8 @@ ur_result_t urEnqueueKernelLaunch(
 
   UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      LaunchInfo.LocalWorkSize.data(), numEventsInWaitList, phEventWaitList,
-      phEvent));
+      LaunchInfo.LocalWorkSize.data(), numPropsInLaunchPropList, launchPropList,
+      numEventsInWaitList, phEventWaitList, phEvent));
 
   UR_CALL(getMsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 
@@ -1314,59 +1367,6 @@ ur_result_t urEnqueueMemUnmap(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-
-  UR_LOG_L(getContext()->logger, DEBUG,
-           "==== urEnqueueCooperativeKernelLaunchExp");
-
-  USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
-                           pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
-                           workDim);
-  UR_CALL(LaunchInfo.initialize());
-
-  UR_CALL(getMsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
-
-  UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      LaunchInfo.LocalWorkSize.data(), numEventsInWaitList, phEventWaitList,
-      phEvent));
-
-  UR_CALL(getMsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
-
-  return UR_RESULT_SUCCESS;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelRetain
 ur_result_t urKernelRetain(
@@ -1463,7 +1463,7 @@ ur_result_t urKernelSetArgMemObj(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSetArgLocal
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
+__urdlllocal ur_result_t urKernelSetArgLocal(
     /// [in] handle of the kernel object
     ur_kernel_handle_t hKernel,
     /// [in] argument index in range [0, num args - 1]
@@ -1489,7 +1489,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueUSMFill
-ur_result_t UR_APICALL urEnqueueUSMFill(
+ur_result_t urEnqueueUSMFill(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
     /// [in][bounds(0, size)] pointer to USM memory object
@@ -1521,20 +1521,19 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
                      numEventsInWaitList, phEventWaitList, &Event));
   Events.push_back(Event);
 
-  const auto Mem = (uptr)pMem;
-  auto MemInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Mem);
-  if (MemInfoItOp) {
-    auto MemInfo = (*MemInfoItOp)->second;
+  {
+    ur_device_handle_t hDevice = GetUSMAllocDevice(hQueue, pMem);
+    assert(hDevice);
+    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(hDevice);
+    uptr MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
-    const auto &DeviceInfo =
-        getMsanInterceptor()->getDeviceInfo(MemInfo->Device);
-    const auto MemShadow = DeviceInfo->Shadow->MemToShadow(Mem);
-
-    Event = nullptr;
-    UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)MemShadow, 0, size, 0,
-                                  nullptr, &Event));
+    ur_event_handle_t Event = nullptr;
+    UR_CALL(EnqueueUSMSet(hQueue, (void *)MemShadow, (char)0, size, 0, nullptr,
+                          &Event));
     Events.push_back(Event);
   }
+
+  // NOTE: No need to set origin, since its shadow is clean
 
   if (phEvent) {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
@@ -1549,7 +1548,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueUSMMemcpy
-ur_result_t UR_APICALL urEnqueueUSMMemcpy(
+ur_result_t urEnqueueUSMMemcpy(
     /// [in] handle of the queue object
     ur_queue_handle_t hQueue,
     /// [in] blocking or non-blocking copy
@@ -1580,34 +1579,51 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
                        phEventWaitList, &Event));
   Events.push_back(Event);
 
-  const auto Src = (uptr)pSrc, Dst = (uptr)pDst;
-  auto SrcInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Src);
-  auto DstInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Dst);
+  ur_context_handle_t hContext = GetContext(hQueue);
+  bool IsSrcUSM = IsUSM(hContext, pSrc);
+  bool IsDstUSM = IsUSM(hContext, pDst);
 
-  if (SrcInfoItOp && DstInfoItOp) {
-    auto SrcInfo = (*SrcInfoItOp)->second;
-    auto DstInfo = (*DstInfoItOp)->second;
+  if (IsSrcUSM && IsDstUSM) {
+    ur_device_handle_t SrcDevice = GetUSMAllocDevice(hQueue, pSrc);
+    ur_device_handle_t DstDevice = GetUSMAllocDevice(hQueue, pDst);
+    assert(SrcDevice && DstDevice);
+    const auto SrcDI = getMsanInterceptor()->getDeviceInfo(SrcDevice);
+    const auto DstDI = getMsanInterceptor()->getDeviceInfo(DstDevice);
+    {
+      const auto SrcShadow = SrcDI->Shadow->MemToShadow((uptr)pSrc);
+      const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
 
-    const auto &DeviceInfo =
-        getMsanInterceptor()->getDeviceInfo(SrcInfo->Device);
-    const auto SrcShadow = DeviceInfo->Shadow->MemToShadow(Src);
-    const auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
+      ur_event_handle_t Event = nullptr;
+      UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstShadow,
+                           (void *)SrcShadow, size, 0, nullptr, &Event));
+      Events.push_back(Event);
+    }
+    {
+      const auto SrcOriginBegin = SrcDI->Shadow->MemToOrigin((uptr)pSrc);
+      const auto SrcOriginEnd =
+          SrcDI->Shadow->MemToOrigin((uptr)pSrc + size - 1) +
+          MSAN_ORIGIN_GRANULARITY;
+      const auto DstOrigin = DstDI->Shadow->MemToOrigin((uptr)pDst);
 
-    Event = nullptr;
-    UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstShadow, (void *)SrcShadow,
-                         size, 0, nullptr, &Event));
-    Events.push_back(Event);
-  } else if (DstInfoItOp) {
-    auto DstInfo = (*DstInfoItOp)->second;
-
-    const auto &DeviceInfo =
-        getMsanInterceptor()->getDeviceInfo(DstInfo->Device);
-    auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
-
-    Event = nullptr;
-    UR_CALL(EnqueueUSMBlockingSet(hQueue, (void *)DstShadow, 0, size, 0,
-                                  nullptr, &Event));
-    Events.push_back(Event);
+      ur_event_handle_t Event = nullptr;
+      UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstOrigin,
+                           (void *)SrcOriginBegin,
+                           SrcOriginEnd - SrcOriginBegin, 0, nullptr, &Event));
+      Events.push_back(Event);
+    }
+  } else if (IsDstUSM) {
+    // FIXME: Assume host memory is always initialized memory, but the better
+    // way may enable host-side Msan as well
+    ur_device_handle_t DstDevice = GetUSMAllocDevice(hQueue, pDst);
+    assert(DstDevice);
+    const auto DstDI = getMsanInterceptor()->getDeviceInfo(DstDevice);
+    {
+      const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
+      ur_event_handle_t Event = nullptr;
+      UR_CALL(EnqueueUSMSet(hQueue, (void *)DstShadow, (char)0, size, 0,
+                            nullptr, &Event));
+      Events.push_back(Event);
+    }
   }
 
   if (phEvent) {
@@ -1623,7 +1639,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueUSMFill2D
-ur_result_t UR_APICALL urEnqueueUSMFill2D(
+ur_result_t urEnqueueUSMFill2D(
     /// [in] handle of the queue to submit to.
     ur_queue_handle_t hQueue,
     /// [in][bounds(0, pitch * height)] pointer to memory to be filled.
@@ -1660,21 +1676,20 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
                        height, numEventsInWaitList, phEventWaitList, &Event));
   Events.push_back(Event);
 
-  const auto Mem = (uptr)pMem;
-  auto MemInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Mem);
-  if (MemInfoItOp) {
-    auto MemInfo = (*MemInfoItOp)->second;
-
-    const auto &DeviceInfo =
-        getMsanInterceptor()->getDeviceInfo(MemInfo->Device);
-    const auto MemShadow = DeviceInfo->Shadow->MemToShadow(Mem);
+  {
+    ur_device_handle_t hDevice = GetUSMAllocDevice(hQueue, pMem);
+    assert(hDevice);
+    const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(hDevice);
+    const auto MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
     const char Pattern = 0;
-    Event = nullptr;
+    ur_event_handle_t Event = nullptr;
     UR_CALL(pfnUSMFill2D(hQueue, (void *)MemShadow, pitch, 1, &Pattern, width,
                          height, 0, nullptr, &Event));
     Events.push_back(Event);
   }
+
+  // NOTE: No need to set origin, since its shadow is clean
 
   if (phEvent) {
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
@@ -1689,7 +1704,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueUSMMemcpy2D
-ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
+ur_result_t urEnqueueUSMMemcpy2D(
     /// [in] handle of the queue to submit to.
     ur_queue_handle_t hQueue,
     /// [in] indicates if this operation should block the host.
@@ -1728,36 +1743,58 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
                          &Event));
   Events.push_back(Event);
 
-  const auto Src = (uptr)pSrc, Dst = (uptr)pDst;
-  auto SrcInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Src);
-  auto DstInfoItOp = getMsanInterceptor()->findAllocInfoByAddress(Dst);
+  ur_context_handle_t hContext = GetContext(hQueue);
+  bool IsSrcUSM = IsUSM(hContext, pSrc);
+  bool IsDstUSM = IsUSM(hContext, pDst);
 
-  if (SrcInfoItOp && DstInfoItOp) {
-    auto SrcInfo = (*SrcInfoItOp)->second;
-    auto DstInfo = (*DstInfoItOp)->second;
+  if (IsSrcUSM && IsDstUSM) {
+    ur_device_handle_t SrcDevice = GetUSMAllocDevice(hQueue, pSrc);
+    ur_device_handle_t DstDevice = GetUSMAllocDevice(hQueue, pDst);
+    assert(SrcDevice && DstDevice);
+    const auto SrcDI = getMsanInterceptor()->getDeviceInfo(SrcDevice);
+    const auto DstDI = getMsanInterceptor()->getDeviceInfo(DstDevice);
+    {
+      const auto SrcShadow = SrcDI->Shadow->MemToShadow((uptr)pSrc);
+      const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
 
-    const auto &DeviceInfo =
-        getMsanInterceptor()->getDeviceInfo(SrcInfo->Device);
-    const auto SrcShadow = DeviceInfo->Shadow->MemToShadow(Src);
-    const auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
+      ur_event_handle_t Event = nullptr;
+      UR_CALL(pfnUSMMemcpy2D(hQueue, blocking, (void *)DstShadow, dstPitch,
+                             (void *)SrcShadow, srcPitch, width, height, 0,
+                             nullptr, &Event));
+      Events.push_back(Event);
+    }
 
-    Event = nullptr;
-    UR_CALL(pfnUSMMemcpy2D(hQueue, blocking, (void *)DstShadow, dstPitch,
-                           (void *)SrcShadow, srcPitch, width, height, 0,
-                           nullptr, &Event));
-    Events.push_back(Event);
-  } else if (DstInfoItOp) {
-    auto DstInfo = (*DstInfoItOp)->second;
+    {
+      auto pfnUSMMemcpy = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
 
-    const auto &DeviceInfo =
-        getMsanInterceptor()->getDeviceInfo(DstInfo->Device);
-    const auto DstShadow = DeviceInfo->Shadow->MemToShadow(Dst);
-
+      for (size_t HeightIndex = 0; HeightIndex < height; HeightIndex++) {
+        ur_event_handle_t Event = nullptr;
+        const auto DstOrigin =
+            DstDI->Shadow->MemToOrigin((uptr)pDst + dstPitch * HeightIndex);
+        const auto SrcOrigin =
+            SrcDI->Shadow->MemToOrigin((uptr)pSrc + srcPitch * HeightIndex);
+        const auto SrcOriginEnd =
+            SrcDI->Shadow->MemToOrigin((uptr)pSrc + srcPitch * HeightIndex +
+                                       width - 1) +
+            MSAN_ORIGIN_GRANULARITY;
+        pfnUSMMemcpy(hQueue, false, (void *)DstOrigin, (void *)SrcOrigin,
+                     SrcOriginEnd - SrcOrigin, numEventsInWaitList,
+                     phEventWaitList, &Event);
+        Events.push_back(Event);
+      }
+    }
+  } else if (IsDstUSM) {
+    // FIXME: Assume host memory is always initialized memory, but the better
+    // way may enable host-side Msan as well
+    ur_device_handle_t DstDevice = GetUSMAllocDevice(hQueue, pDst);
+    assert(DstDevice);
+    const auto DstDI = getMsanInterceptor()->getDeviceInfo(DstDevice);
+    const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
     const char Pattern = 0;
-    Event = nullptr;
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill2D(
-        hQueue, (void *)DstShadow, dstPitch, 1, &Pattern, width, height, 0,
-        nullptr, &Event));
+    ur_event_handle_t Event = nullptr;
+    UR_CALL(urEnqueueUSMFill2DFallback(hQueue, (void *)DstShadow, dstPitch, 1,
+                                       &Pattern, width, height, 0, nullptr,
+                                       &Event));
     Events.push_back(Event);
   }
 
@@ -1766,25 +1803,29 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
         hQueue, Events.size(), Events.data(), phEvent));
   }
 
-  for (const auto &E : Events)
+  for (const auto E : Events)
     UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
 
   return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Global table
+/// @brief Exported function for filling application's Adapter table
 ///        with current process' addresses
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-ur_result_t urGetGlobalProcAddrTable(
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+ur_result_t urGetAdapterProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t,
     /// [in,out] pointer to table of DDI function pointers
-    ur_global_dditable_t *pDdiTable) {
+    ur_adapter_dditable_t *pDdiTable) {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  pDdiTable->pfnAdapterGet = ur_sanitizer_layer::msan::urAdapterGet;
+  pDdiTable->pfnGet = ur_sanitizer_layer::msan::urAdapterGet;
 
   return result;
 }
@@ -1957,25 +1998,6 @@ ur_result_t urCheckVersion(ur_api_version_t version) {
   return UR_RESULT_SUCCESS;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's EnqueueExp table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-__urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
-    /// [in,out] pointer to table of DDI function pointers
-    ur_enqueue_exp_dditable_t *pDdiTable) {
-  if (nullptr == pDdiTable) {
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-  }
-
-  pDdiTable->pfnCooperativeKernelLaunchExp =
-      ur_sanitizer_layer::msan::urEnqueueCooperativeKernelLaunchExp;
-  return UR_RESULT_SUCCESS;
-}
-
 } // namespace msan
 
 ur_result_t initMsanDDITable(ur_dditable_t *dditable) {
@@ -1988,8 +2010,8 @@ ur_result_t initMsanDDITable(ur_dditable_t *dditable) {
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result =
-        ur_sanitizer_layer::msan::urGetGlobalProcAddrTable(&dditable->Global);
+    result = ur_sanitizer_layer::msan::urGetAdapterProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->Adapter);
   }
 
   if (UR_RESULT_SUCCESS == result) {
@@ -2028,11 +2050,6 @@ ur_result_t initMsanDDITable(ur_dditable_t *dditable) {
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::msan::urGetUSMProcAddrTable(&dditable->USM);
-  }
-
-  if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::msan::urGetEnqueueExpProcAddrTable(
-        &dditable->EnqueueExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {

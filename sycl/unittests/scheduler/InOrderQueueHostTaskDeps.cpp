@@ -45,11 +45,6 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
       .wait();
 
   size_t expectedCount = 1u;
-
-  // OpenCL needs to store all events so does not need a barrier
-  if (Ctx.get_platform().get_backend() == backend::opencl)
-    expectedCount = 0u;
-
   EXPECT_EQ(GEventsWaitCounter, expectedCount);
 }
 
@@ -105,7 +100,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
 
   event Ev2 = InOrderQueue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel<>>([] {});
+    CGH.single_task<TestKernel>([] {});
   });
 
   {
@@ -151,7 +146,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
 
   event Ev1 = InOrderQueue.memset(buf, 0, sizeof(buf[0]));
 
-  event Ev2 = InOrderQueue.single_task<TestKernel<>>([] {});
+  event Ev2 = InOrderQueue.single_task<TestKernel>([] {});
 
   {
     std::unique_lock<std::mutex> lk(CvMutex);
