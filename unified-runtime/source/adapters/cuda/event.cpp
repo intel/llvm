@@ -265,7 +265,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
   }
 
   // decrement ref count. If it is 0, delete the event.
-  if (hEvent->release()) {
+  if (hEvent->RefCount.release()) {
     std::unique_ptr<ur_event_handle_t_> event_ptr{hEvent};
     ur_result_t Result = UR_RESULT_ERROR_INVALID_EVENT;
     try {

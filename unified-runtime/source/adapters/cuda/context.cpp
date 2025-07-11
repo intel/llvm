@@ -85,10 +85,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
   if (hContext->RefCount.release()) {
-    return UR_RESULT_SUCCESS;
+    hContext->invokeExtendedDeleters();
+    delete hContext;
   }
-  hContext->invokeExtendedDeleters();
-  delete hContext;
 
   return UR_RESULT_SUCCESS;
 }

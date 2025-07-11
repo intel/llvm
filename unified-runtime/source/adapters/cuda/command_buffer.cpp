@@ -62,7 +62,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     bool IsInOrder)
     : handle_base(), Context(Context), Device(Device), IsUpdatable(IsUpdatable),
       IsInOrder(IsInOrder), CudaGraph{nullptr}, CudaGraphExec{nullptr},
-      RefCount{1}, NextSyncPoint{0} {
+      NextSyncPoint{0} {
   urContextRetain(Context);
 }
 

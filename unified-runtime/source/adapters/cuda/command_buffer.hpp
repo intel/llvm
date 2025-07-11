@@ -186,7 +186,8 @@ struct ur_exp_command_buffer_handle_t_ : ur::cuda::handle_base {
   CUgraph CudaGraph;
   // Cuda Graph Exec handle
   CUgraphExec CudaGraphExec = nullptr;
-
+  // Atomic variable counting the number of reference to this command_buffer
+  // using std::atomic prevents data race when incrementing/decrementing.
   ur::RefCount RefCount;
 
   // Ordered map of sync_points to ur_events, so that we can find the last
