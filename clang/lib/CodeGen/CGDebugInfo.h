@@ -14,6 +14,7 @@
 #define LLVM_CLANG_LIB_CODEGEN_CGDEBUGINFO_H
 
 #include "CGBuilder.h"
+#include "SanitizerHandler.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExternalASTSource.h"
@@ -980,6 +981,16 @@ public:
 };
 
 bool noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM);
+class SanitizerDebugLocation {
+  CodeGenFunction *CGF;
+  ApplyDebugLocation Apply;
+
+public:
+  SanitizerDebugLocation(CodeGenFunction *CGF,
+                         ArrayRef<SanitizerKind::SanitizerOrdinal> Ordinals,
+                         SanitizerHandler Handler);
+  ~SanitizerDebugLocation();
+};
 
 } // namespace CodeGen
 } // namespace clang

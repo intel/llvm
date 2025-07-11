@@ -64,7 +64,7 @@ def do_configure(args, passthrough_args):
 
     sycl_enable_xpti_tracing = "ON"
     xpti_enable_werror = "OFF"
-    llvm_enable_zstd = "ON"
+    llvm_enable_zstd = "OFF"
     spirv_enable_dis = "OFF"
     sycl_install_device_config_file = "OFF"
 
@@ -162,9 +162,6 @@ def do_configure(args, passthrough_args):
             libclc_gen_remangled_variants = "ON"
             spirv_enable_dis = "ON"
             sycl_install_device_config_file = "ON"
-
-        # Build compiler with zstd in CI.
-        llvm_enable_zstd = "FORCE_ON"
 
     if args.enable_backends:
         sycl_enabled_backends += args.enable_backends

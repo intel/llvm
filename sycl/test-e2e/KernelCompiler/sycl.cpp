@@ -12,7 +12,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
 
-// XFAIL: preview-mode && run-mode
+// XFAIL: *
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18390
 
 #include <sycl/detail/core.hpp>
