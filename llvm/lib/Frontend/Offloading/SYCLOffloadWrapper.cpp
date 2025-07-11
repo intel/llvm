@@ -219,16 +219,9 @@ struct Wrapper {
   }
 
   Function *addDeclarationForNativeCPU(StringRef Name) {
-    FunctionType *NativeCPUFuncTy = FunctionType::get(
+    FunctionType *FTy = FunctionType::get(
         Type::getVoidTy(C),
         {PointerType::getUnqual(C), PointerType::getUnqual(C)}, false);
-    FunctionType *NativeCPUBuiltinTy = FunctionType::get(
-        PointerType::getUnqual(C), {PointerType::getUnqual(C)}, false);
-    FunctionType *FTy;
-    if (Name.starts_with("__dpcpp_nativecpu"))
-      FTy = NativeCPUBuiltinTy;
-    else
-      FTy = NativeCPUFuncTy;
     auto FCalle = M.getOrInsertFunction(
         sycl::utils::addSYCLNativeCPUSuffix(Name).str(), FTy);
     Function *F = dyn_cast<Function>(FCalle.getCallee());
