@@ -2,8 +2,6 @@
 set(LIBCLC_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(LIBCLC_PERTARGET_TEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/targets)
 
-file(MAKE_DIRECTORY ${LIBCLC_PERTARGET_TEST_DIR})
-
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
@@ -34,6 +32,7 @@ foreach( t ${LIBCLC_TARGET_TO_TEST} )
     # The solution is to create a separate directory for each target,
     # and copy the lit.site.cfg.py file there; the name of the
     # directory will be used as the target name.
+    file(MAKE_DIRECTORY ${LIBCLC_PERTARGET_TEST_DIR}/${t})
     file(COPY_FILE ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
                    ${LIBCLC_PERTARGET_TEST_DIR}/${t}/lit.site.cfg.py)
 
