@@ -315,6 +315,7 @@ struct ur_mem_handle_t_ : ur::cuda::handle_base {
   // Context where the memory object is accessible
   ur_context_handle_t Context;
 
+  /// Reference counting of the handler
   ur::RefCount RefCount;
 
   // Original mem flags passed

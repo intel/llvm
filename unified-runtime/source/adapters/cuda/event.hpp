@@ -15,6 +15,7 @@
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 #include "queue.hpp"
+#include "common/ur_ref_count.hpp"
 
 /// UR Event mapping to CUevent
 struct ur_event_handle_t_ : ur::cuda::handle_base {

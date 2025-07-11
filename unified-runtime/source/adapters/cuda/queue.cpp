@@ -107,7 +107,7 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
-  assert(hQueue->RefCount.getCount() > 0);
+  assert(hQueue->RefCount.getCount());
 
   hQueue->RefCount.retain();
   return UR_RESULT_SUCCESS;
