@@ -110,12 +110,12 @@ template <typename T> void templFoo () {
   TS<T> Var;
 }
 
-// expected-error@+2{{'device_global' attribute only applies to classes}}
-// expected-error@+1{{'global_variable_allowed' attribute only applies to classes}}
+// expected-error@+2{{'__sycl_detail__::device_global' attribute only applies to classes}}
+// expected-error@+1{{'__sycl_detail__::global_variable_allowed' attribute only applies to classes}}
 [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] int integer;
 
-// expected-error@+2{{'device_global' attribute only applies to classes}}
-// expected-error@+1{{'global_variable_allowed' attribute only applies to classes}}
+// expected-error@+2{{'__sycl_detail__::device_global' attribute only applies to classes}}
+// expected-error@+1{{'__sycl_detail__::global_variable_allowed' attribute only applies to classes}}
 [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] int *pointer;
 
 union [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] a_union;

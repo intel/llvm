@@ -2853,6 +2853,8 @@ TEST(TripleTest, DefaultExceptionHandling) {
   EXPECT_EQ(ExceptionHandling::DwarfCFI,
             Triple("msp430-unknown-unknown").getDefaultExceptionHandling());
   EXPECT_EQ(ExceptionHandling::DwarfCFI,
+            Triple("m68k-unknown-unknown").getDefaultExceptionHandling());
+  EXPECT_EQ(ExceptionHandling::DwarfCFI,
             Triple("csky-unknown-unknown").getDefaultExceptionHandling());
 
   EXPECT_EQ(ExceptionHandling::AIX,
