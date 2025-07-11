@@ -60,7 +60,6 @@ macro(append_common_extra_security_flags)
   elseif(is_msvc)
     add_link_option_ext("/LTCG" LTCG CMAKE_EXE_LINKER_FLAGS
                         CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
-    add_compile_option_ext("/sdl" SDL)
     add_compile_option_ext("/guard:cf" GUARDCF)
     add_link_option_ext("/CETCOMPAT" CETCOMPAT CMAKE_EXE_LINKER_FLAGS
                         CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
