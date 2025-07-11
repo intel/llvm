@@ -5733,9 +5733,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 
 } // namespace ur_loader
 
-#if defined(__cplusplus)
 extern "C" {
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Adapter table
@@ -7037,7 +7035,4 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 
   return result;
 }
-
-#if defined(__cplusplus)
 }
-#endif
