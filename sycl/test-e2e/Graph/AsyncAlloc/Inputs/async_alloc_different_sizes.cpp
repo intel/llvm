@@ -30,5 +30,5 @@ int main() {
   asyncAllocWorksWithSize(131);
   asyncAllocWorksWithSize(10071);
   asyncAllocWorksWithSize(1007177);
-  // asyncAllocWorksWithSize(191439360); // BUG
+  asyncAllocWorksWithSize(191439360);
 }
