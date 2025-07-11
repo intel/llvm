@@ -8,4 +8,3 @@
 benchmarkRuns = [];
 
 defaultCompareNames = [];
-
