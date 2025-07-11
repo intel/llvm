@@ -22,8 +22,8 @@ int main() {
 
   uint32_t *nodeMaskOpencl = nullptr;
 
-  clGetDeviceInfo(openclDevice, CL_DEVICE_NODE_MASK_KHR,
-    sizeof(uint32_t), nodeMaskOpencl, nullptr);
+  clGetDeviceInfo(openclDevice, CL_DEVICE_NODE_MASK_KHR, sizeof(uint32_t),
+                  nodeMaskOpencl, nullptr);
 
   std::cout << "OpenCL  : " << *nodeMaskOpencl << std::endl;
 

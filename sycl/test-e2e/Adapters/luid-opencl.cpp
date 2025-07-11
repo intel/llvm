@@ -28,12 +28,12 @@ int main() {
   char *luidOpencl = nullptr;
 
   clGetDeviceInfo(openclDevice, CL_DEVICE_LUID_KHR,
-    sizeof(char) * CL_LUID_SIZE_KHR, luidOpencl, nullptr);
+                  sizeof(char) * CL_LUID_SIZE_KHR, luidOpencl, nullptr);
 
   std::stringstream luidOpenclHex;
   for (int i = 0; i < 8; ++i)
-  luidOpenclHex << std::hex << std::setw(2) << std::setfill('0')
-                << int(luidOpencl[i]);
+    luidOpenclHex << std::hex << std::setw(2) << std::setfill('0')
+                  << int(luidOpencl[i]);
   std::cout << "OpenCL  : " << luidOpenclHex.str() << std::endl;
 
   if (luidSYCLHex.str() != luidOpenclHex.str()) {
