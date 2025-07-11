@@ -3801,10 +3801,10 @@ bool ExecCGCommand::readyForCleanup() const {
 UpdateCommandBufferCommand::UpdateCommandBufferCommand(
     queue_impl *Queue,
     ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-    std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-        Nodes)
+    ext::oneapi::experimental::detail::nodes_range Nodes)
     : Command(CommandType::UPDATE_CMD_BUFFER, Queue), MGraph(Graph),
-      MNodes(std::move(Nodes)) {}
+      MNodes(Nodes.to<std::vector<std::shared_ptr<
+                 ext::oneapi::experimental::detail::node_impl>>>()) {}
 
 ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();

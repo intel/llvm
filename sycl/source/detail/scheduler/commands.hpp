@@ -29,6 +29,7 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental::detail {
 class exec_graph_impl;
 class node_impl;
+class nodes_range;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
@@ -716,8 +717,7 @@ public:
   explicit UpdateCommandBufferCommand(
       queue_impl *Queue,
       ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-          Nodes);
+      ext::oneapi::experimental::detail::nodes_range Nodes);
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() final;
