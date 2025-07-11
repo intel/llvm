@@ -79,23 +79,35 @@ def run(
         raise
 
 
-def git_clone(dir, name, repo, commit):
-    repo_path = os.path.join(dir, name)
-    log.debug(f"Cloning {repo} into {repo_path} at commit {commit}")
+def git_clone(repo_path, repo_url, commit) -> bool:
+    """Clone a git repository into a specified directory at a specific commit.
+    Args:
+        repo_path (str): The directory where the repository should be cloned.
+        repo (str): The URL of the git repository.
+        commit (str): The commit hash to checkout.
+    Returns:
+        bool: True if the repository was cloned or updated, False if it was already up-to-date.
+    """
+    log.debug(f"Cloning {repo_url} into {repo_path} at commit {commit}")
 
     if os.path.isdir(repo_path) and os.path.isdir(os.path.join(repo_path, ".git")):
         run("git fetch", cwd=repo_path)
         run("git reset --hard", cwd=repo_path)
-        run(f"git checkout {commit}", cwd=repo_path)
+        target_commit = run(f"git rev-parse {commit}", cwd=repo_path).stdout.decode().strip()
+        current_commit = run("git rev-parse HEAD", cwd=repo_path).stdout.decode().strip()
+        if current_commit != target_commit:
+            log.debug(f"Current commit {current_commit} does not match target {target_commit}, checking out {commit}.")
+            run(f"git checkout {commit}", cwd=repo_path)
+            return False
     elif not os.path.exists(repo_path):
-        run(f"git clone --recursive {repo} {repo_path}")
+        run(f"git clone --recursive {repo_url} {repo_path}")
         run(f"git checkout {commit}", cwd=repo_path)
     else:
         raise Exception(
             f"The directory {repo_path} exists but is not a git repository."
         )
-    log.debug(f"Cloned {repo} into {repo_path} at commit {commit}")
-    return repo_path
+    log.debug(f"Cloned {repo_url} into {repo_path} at commit {commit}")
+    return True
 
 
 def prepare_bench_cwd(dir):
