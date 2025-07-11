@@ -1183,7 +1183,7 @@ void handler::extractArgsAndReqs() {
   std::vector<detail::ArgDesc> UnPreparedArgs = std::move(impl->MArgs);
   clearArgs();
   MArgShift = 0;
-  std::cout << detail::KernelInfoData<getKernelName()>::getNumParams() << std::endl;
+  //std::cout << detail::KernelInfo<getKernelName()>::getNumParams() << std::endl;
   std::sort(
       UnPreparedArgs.begin(), UnPreparedArgs.end(),
       [](const detail::ArgDesc &first, const detail::ArgDesc &second) -> bool {
