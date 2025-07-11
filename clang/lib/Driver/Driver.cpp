@@ -6388,46 +6388,42 @@ class OffloadingActionBuilder final {
                 ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
             assert(TCIt != ToolChains.end() &&
                    "Toolchain was not created for this platform");
-            if (!TT.isNVPTX() && !TT.isAMDGCN()) {
-              // When users specify the target as 'intel_gpu_*', the proper
-              // triple is 'spir64_gen'.  The given string from intel_gpu_*
-              // is the target device.
-              if (TT.isSPIR() &&
-                  TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-                // Multiple spir64_gen targets are allowed to be used via the
-                // -fsycl-targets=spir64_gen and -fsycl-targets=intel_gpu_*
-                // specifiers. Using an index through the known GpuArchList
-                // values, increment through them accordingly to allow for
-                // the multiple settings as well as preventing re-use.
-                while (TT != GpuArchList[GenIndex].first &&
-                       GenIndex < GpuArchList.size())
-                  ++GenIndex;
-                if (GpuArchList[GenIndex].first != TT)
-                  // No match.
-                  continue;
-                StringRef Device(GpuArchList[GenIndex].second);
-                SYCLTargetInfoList.emplace_back(
-                    *TCIt, Device.empty() ? nullptr : Device.data());
-                ++GenIndex;
-                continue;
-              }
-              SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
-            } else {
-              const char *OffloadArch = nullptr;
+            if (TT.isNVPTX() || TT.isAMDGCN()) {
               for (auto &TargetTripleArchPair : GpuArchList) {
                 if (TT == TargetTripleArchPair.first) {
-                  OffloadArch = TargetTripleArchPair.second;
-                  // Add an arch to the SYCLTargetInfoList
-                  // only if it is not already present in the list.
-                  auto Arch = llvm::find_if(
-                      SYCLTargetInfoList, [&](auto &DeviceTargetInfo) {
-                        return OffloadArch == DeviceTargetInfo.BoundArch;
-                      });
-
-                  if (Arch == SYCLTargetInfoList.end())
+                  const char *OffloadArch = TargetTripleArchPair.second;
+                  // Add an arch to the SYCLTargetInfoList only if it is not
+                  // already present in the list.
+                  if (llvm::none_of(
+                          SYCLTargetInfoList, [&](auto &DeviceTargetInfo) {
+                            return OffloadArch == DeviceTargetInfo.BoundArch;
+                          }))
                     SYCLTargetInfoList.emplace_back(*TCIt, OffloadArch);
                 }
               }
+            } else if (TT.isSPIR() &&
+                       TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+              // When users specify the target as 'intel_gpu_*', the proper
+              // triple is 'spir64_gen'.  The given string from intel_gpu_* is
+              // the target device.
+
+              // Multiple spir64_gen targets are allowed to be used via the
+              // -fsycl-targets=spir64_gen and -fsycl-targets=intel_gpu_*
+              // specifiers. Using an index through the known GpuArchList
+              // values, increment through them accordingly to allow for the
+              // multiple settings as well as preventing re-use.
+              while (TT != GpuArchList[GenIndex].first &&
+                     GenIndex < GpuArchList.size())
+                ++GenIndex;
+              if (GpuArchList[GenIndex].first != TT)
+                // No match.
+                continue;
+              StringRef Device(GpuArchList[GenIndex].second);
+              SYCLTargetInfoList.emplace_back(
+                  *TCIt, Device.empty() ? nullptr : Device.data());
+              ++GenIndex;
+            } else {
+              SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
             }
           }
         }
