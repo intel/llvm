@@ -1259,12 +1259,19 @@ static std::pair<std::string, std::string> constructFreeFunctionKernelName(
     MC.mangleName(FreeFunc, Out);
     std::string MangledName(Out.str());
     size_t StartNums = MangledName.find_first_of("0123456789");
-    size_t EndNums = MangledName.find_first_not_of("0123456789", StartNums);
-    size_t NameLength =
-        std::stoi(MangledName.substr(StartNums, EndNums - StartNums));
-    size_t NewNameLength = 14 /*length of __sycl_kernel_*/ + NameLength;
-    NewName = MangledName.substr(0, StartNums) + std::to_string(NewNameLength) +
-              "__sycl_kernel_" + MangledName.substr(EndNums);
+    if (StartNums == std::string::npos) {
+      // Microsoft mangling name has template like ?FunctionName@@YAXH@Z
+      NewName =
+          MangledName.substr(0, 1) + "sycl_kernel_" + MangledName.substr(1);
+    } else {
+      size_t EndNums = MangledName.find_first_not_of("0123456789", StartNums);
+      size_t NameLength =
+          std::stoi(MangledName.substr(StartNums, EndNums - StartNums));
+      size_t NewNameLength = 14 /*length of __sycl_kernel_*/ + NameLength;
+      NewName = MangledName.substr(0, StartNums) +
+                std::to_string(NewNameLength) + "__sycl_kernel_" +
+                MangledName.substr(EndNums);
+    }
   }
   StableName = NewName;
   return {NewName, StableName};
