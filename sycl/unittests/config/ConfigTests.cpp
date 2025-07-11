@@ -464,28 +464,30 @@ TEST(ConfigTests, CheckParallelForRangeRoundingParams) {
   };
 
   // Lambda to assert test parameters are as expected.
-  auto AssertRoundingParams = [](size_t MF, size_t GF, size_t MR, const char* errMsg, bool ForceUpdate = false) {
+  auto AssertRoundingParams = [](size_t MF, size_t GF, size_t MR,
+                                 const char *errMsg, bool ForceUpdate = false) {
     size_t ResultMF = 0, ResultGF = 0, ResultMR = 0;
     SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
-      ResultMF, ResultGF, ResultMR, ForceUpdate);
+        ResultMF, ResultGF, ResultMR, ForceUpdate);
     EXPECT_EQ(MF, ResultMF) << errMsg;
     EXPECT_EQ(GF, ResultGF) << errMsg;
     EXPECT_EQ(MR, ResultMR) << errMsg;
   };
 
   // Lambda to test invalid input -- factors should remain unchanged.
-  auto TestBadInput = [&](const char *value, const char* errMsg) {
+  auto TestBadInput = [&](const char *value, const char *errMsg) {
     size_t MF = 1, GF = 2, MR = 3;
     SetRoundingParams(value);
-    SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
-      MF, GF, MR, true);
+    SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(MF, GF, MR,
+                                                                     true);
     EXPECT_EQ(MF, 1) << errMsg;
     EXPECT_EQ(GF, 2) << errMsg;
     EXPECT_EQ(MR, 3) << errMsg;
   };
 
   // Test malformed input:
-  constexpr char MalformedErr[] = "Rounding parameters should be ignored on malformed input";
+  constexpr char MalformedErr[] =
+      "Rounding parameters should be ignored on malformed input";
   TestBadInput("abc", MalformedErr);
   TestBadInput("42", MalformedErr);
   TestBadInput(":7", MalformedErr);
@@ -495,7 +497,8 @@ TEST(ConfigTests, CheckParallelForRangeRoundingParams) {
   TestBadInput("1:abc:3", MalformedErr);
 
   // Test well-formed input, but bad parameters:
-  constexpr char BadParamsErr[] = "Rounding parameters should be ignored if parameters provided are invalid";
+  constexpr char BadParamsErr[] = "Rounding parameters should be ignored if "
+                                  "parameters provided are invalid";
   TestBadInput("0:1:2", BadParamsErr);
   TestBadInput("1:0:2", BadParamsErr);
   TestBadInput("-1:2:3", BadParamsErr);
@@ -503,7 +506,9 @@ TEST(ConfigTests, CheckParallelForRangeRoundingParams) {
 
   // Test valid values.
   SetRoundingParams("8:16:32");
-  AssertRoundingParams(8, 16, 32, "Failed to read rounding parameters properly");
+  AssertRoundingParams(8, 16, 32,
+                       "Failed to read rounding parameters properly");
   SetRoundingParams("8:16:0");
-  AssertRoundingParams(8, 16, 0, "0 is a valid value for MinRange", /*ForceUpdate =*/ true);
+  AssertRoundingParams(8, 16, 0, "0 is a valid value for MinRange",
+                       /*ForceUpdate =*/true);
 }
