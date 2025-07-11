@@ -1,5 +1,5 @@
-// REQUIREddS: aspect-ext_intel_device_info_luid
-// REQUIREddS: gpu, cuda, cuda_dev_kit, windows
+// REQUIRES: aspect-ext_intel_device_info_luid
+// REQUIRES: gpu, cuda, cuda_dev_kit, windows
 
 // RUN: %{build} %cuda_options -o %t.out
 // RUN: %{run} %t.out
