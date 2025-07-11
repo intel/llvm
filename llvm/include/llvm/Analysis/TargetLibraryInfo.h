@@ -206,7 +206,7 @@ public:
     TestAltMathLibrary  // Use a fake alternate math library for testing
   };
 
-  LLVM_ABI TargetLibraryInfoImpl() = delete;
+  TargetLibraryInfoImpl() = delete;
   LLVM_ABI explicit TargetLibraryInfoImpl(const Triple &T);
 
   // Provide value semantics.
