@@ -25,7 +25,7 @@
 // *** <sycl/builtins.hpp> ***
 
 #if defined(__NVPTX__) || defined(__AMDGCN__)
-#include "cmath-fallback.h"
+#include "__sycl_cmath_wrapper_impl.hpp"
 #endif
 
 #include <sycl/detail/defines_elementary.hpp>
