@@ -29,7 +29,7 @@ class VelocityBench(Suite):
     def git_hash(self) -> str:
         return "b22215c16f789100449c34bf4eaa3fb178983d69"
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
