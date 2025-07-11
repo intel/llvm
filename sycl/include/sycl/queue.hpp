@@ -2784,6 +2784,112 @@ public:
         CodeLoc);
   }
 
+  // no_handler
+
+private:
+  // NOTE: the name of this function - "kernel_single_task" - is used by the
+  // Front End to determine kernel invocation kind.
+  template <typename KernelName, typename KernelType, typename... Props>
+#ifdef __SYCL_DEVICE_ONLY__
+  [[__sycl_detail__::add_ir_attributes_function(
+      "sycl-single-task",
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      nullptr,
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+#endif
+
+  __SYCL_KERNEL_ATTR__ static void
+  kernel_single_task(const KernelType &KernelFunc) {
+#ifdef __SYCL_DEVICE_ONLY__
+    KernelFunc();
+#else
+    (void)KernelFunc;
+#endif
+  }
+
+  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
+  // Front End to determine kernel invocation kind.
+  template <typename KernelName, typename ElementType, typename KernelType,
+            typename... Props>
+#ifdef __SYCL_DEVICE_ONLY__
+  [[__sycl_detail__::add_ir_attributes_function(
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+#endif
+  __SYCL_KERNEL_ATTR__ static void
+  kernel_parallel_for(const KernelType &KernelFunc) {
+#ifdef __SYCL_DEVICE_ONLY__
+    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
+#else
+    (void)KernelFunc;
+#endif
+  }
+
+  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
+    if constexpr (Dims == 3) {
+      return Range;
+    } else {
+      sycl::range<3> Res{0, 0, 0};
+      for (int I = 0; I < Dims; ++I)
+        Res[I] = Range[I];
+      return Res;
+    }
+  }
+
+  template <int Dims> static sycl::id<3> padId(sycl::id<Dims> Id) {
+    if constexpr (Dims == 3) {
+      return Id;
+    } else {
+      sycl::id<3> Res{0, 0, 0};
+      for (int I = 0; I < Dims; ++I)
+        Res[I] = Id[I];
+      return Res;
+    }
+  }
+
+  template <typename KernelName, typename KernelType, int Dims>
+  void submit_no_handler(nd_range<Dims> Range, const KernelType &KernelFunc) const {
+
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+
+    const char *KernelN = detail::getKernelName<NameT>();
+    KernelType Kernel = KernelFunc;
+    void *KernelFuncPtr = reinterpret_cast<void *>(&Kernel);
+    int KernelNumParams = detail::getKernelNumParams<NameT>();
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = &(detail::getKernelParamDesc<NameT>);
+    bool IsKernelESIMD = detail::isKernelESIMD<NameT>();
+    bool HasSpecialCapt = detail::hasSpecialCaptures<NameT>();
+    detail::KernelNameBasedCacheT *KernelNameBasedCachePtr = detail::getKernelNameBasedCache<NameT>();
+
+    assert(HasSpecialCapt == false);
+    assert(IsKernelESIMD == false);
+
+    submit_no_handler_impl(Range, KernelN, KernelFuncPtr, KernelNumParams, KernelParamDescGetter,
+      KernelNameBasedCachePtr);
+  }
+
+public:
+  /// single_task version not using handler
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  void single_task_no_handler(const KernelType &KernelFunc) const {
+
+    kernel_single_task<KernelName, KernelType,
+      ext::oneapi::experimental::empty_properties_t>(KernelFunc);
+    submit_no_handler<KernelName, KernelType, 1>(nd_range<1>{}, KernelFunc);
+  }
+
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename KernelType>
+  void parallel_for_no_handler(nd_range<Dims> Range, const KernelType &KernelFunc) const {
+
+    kernel_parallel_for<KernelName, sycl::nd_item<Dims>, KernelType,
+      ext::oneapi::experimental::empty_properties_t>(KernelFunc);
+    submit_no_handler<KernelName, KernelType, Dims>(Range, KernelFunc);
+  }
+
+
+
   /// parallel_for version with a kernel represented as a lambda + range that
   /// specifies global size only.
   ///
@@ -3685,6 +3791,13 @@ private:
                                  const detail::v1::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc) const;
+
+  // no_handler
+
+  template<int Dims>
+  void submit_no_handler_impl(nd_range<Dims> Range, const char *KernelName, void *KernelFunc,
+    int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+    detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) const;
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
