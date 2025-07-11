@@ -6373,8 +6373,7 @@ class OffloadingActionBuilder final {
         }
 
         // Fill GpuArchList, end if there are issues in initializingGpuArchMap
-        // FIXME: returns true if initialization failed. Everyone expects this?
-        if (initializeGpuArchMap())
+        if (!initializeGpuArchMap())
           return true;
 
         size_t GenIndex = 0;
