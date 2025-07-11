@@ -34,7 +34,7 @@ BUILTIN_COMMON(ONE_ARG, radians,
 
 BUILTIN_COMMON(ONE_ARG, sign, [](auto x) -> decltype(x) {
   using T = decltype(x);
-  if (std::isnan(x))
+  if (std::isnan(sycl::detail::cast_if_host_half(x)))
     return T(0.0);
   if (x > 0)
     return T(1.0);
