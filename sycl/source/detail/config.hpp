@@ -199,8 +199,8 @@ template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS> {
 private:
 public:
   static void GetSettings(size_t &MinFactor, size_t &GoodFactor,
-                          size_t &MinRange) {
-    static const char *RoundParams = BaseT::getRawValue();
+                          size_t &MinRange, bool ForceUpdate = false) {
+    const char *RoundParams = BaseT::getRawValue();
     if (RoundParams == nullptr)
       return;
 
@@ -209,10 +209,12 @@ public:
     static size_t MF;
     static size_t GF;
     static size_t MR;
-    if (!ProcessedFactors) {
+    if (!ProcessedFactors || ForceUpdate) {
       auto GuardedStoi = [](size_t &val, const std::string &str) {
         try {
-          val = std::stoi(str);
+          int ParsedResult = std::stoi(str);
+          if (ParsedResult < 0) return false;
+          val = ParsedResult;
           return true;
           // Ignore parsing exceptions, but throw on unexpected exceptions:
         } catch (const std::invalid_argument &) {
@@ -237,8 +239,9 @@ public:
           // Note that MinRange = 0 is considered valid.
         }
       }
-      ProcessedFactors = true;
-      if (!FactorsAreValid) {
+      if (FactorsAreValid) {
+        ProcessedFactors = true;
+      } else {
         std::cerr
             << "WARNING: Invalid value passed for "
             << "SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS (Expected format "
