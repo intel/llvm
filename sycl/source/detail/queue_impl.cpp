@@ -415,6 +415,103 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 }
 #endif
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+
+std::vector<ArgDesc> queue_impl::extractArgsAndReqsFromLambda(
+    char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
+    size_t NumKernelParams) {
+
+  size_t IndexShift = 0;
+  std::vector<ArgDesc> Args;
+
+  Args.reserve(NumKernelParams);
+
+  for (size_t I = 0; I < NumKernelParams; ++I) {
+    detail::kernel_param_desc_t ParamDesc = ParamDescGetter(I);
+    void *Ptr = LambdaPtr + ParamDesc.offset;
+    const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
+    const int &Size = ParamDesc.info;
+
+    Args.emplace_back(Kind, Ptr, Size, I + IndexShift);
+  }
+
+  return Args;
+}
+
+detail::EventImplPtr
+queue_impl::submit_impl(const NDRDescT &NDRDesc,
+            const v1::SubmissionInfo &SubmitInfo,
+            const v1::KernelRuntimeInfo &KRInfo,
+            bool CallerNeedsEvent,
+            const detail::code_location &CodeLoc,
+            bool IsTopCodeLoc) {
+
+  std::unique_ptr<detail::CG> CommandGroup;
+  detail::CG::StorageInitHelper CGData;
+  std::vector<detail::ArgDesc> Args;
+  std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
+  std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+
+  std::unique_lock<std::mutex> Lock(MMutex);
+
+  // Graphs are not supported yet for the no-handler path
+  assert(!hasCommandGraph());
+
+  // Set the No Last Event Mode to false, since the no-handler path
+  // does not support it yet.
+  MNoLastEventMode.store(false, std::memory_order_relaxed);
+
+  // Used by queue_empty() and getLastEvent()
+  MEmpty.store(false, std::memory_order_release);
+
+  // Sync with an external event
+  std::optional<event> ExternalEvent = popExternalEvent();
+  if (ExternalEvent) {
+    CGData.MEvents.push_back(getSyclObjImpl(*ExternalEvent));
+  }
+
+  // Sync with the last event for in order queue
+  EventImplPtr &LastEvent = MDefaultGraphDeps.LastEventPtr;
+  if (isInOrder() && LastEvent) {
+    CGData.MEvents.push_back(LastEvent);
+  }
+
+  // TODO UnenqueuedCmdEvents for out of order queue
+
+  Args = extractArgsAndReqsFromLambda(KRInfo.GetKernelFuncPtr(),
+    KRInfo.KernelParamDescGetter(), KRInfo.KernelNumArgs());
+
+  CommandGroup.reset(new detail::CGExecKernel(
+      std::move(NDRDesc),
+      KRInfo.HostKernel(),
+      nullptr, // MKernel
+      nullptr, // MKernelBundle
+      std::move(CGData),
+      std::move(Args),
+      toKernelNameStrT(KRInfo.KernelName()),
+      KRInfo.KernelNameBasedCachePtr(),
+      std::move(StreamStorage),
+      std::move(AuxiliaryResources),
+      detail::CGType::Kernel,
+      UR_KERNEL_CACHE_CONFIG_DEFAULT,
+      false, // MKernelIsCooperative
+      false, // MKernelUsesClusterLaunch
+      0, // MKernelWorkGroupMemorySize
+      CodeLoc));
+
+  EventImplPtr EventImpl = detail::Scheduler::getInstance().addCG(
+      std::move(CommandGroup), *this, CallerNeedsEvent);
+
+  // Sync with the last event for in order queue
+  if (isInOrder() && !EventImpl->isDiscarded()) {
+    LastEvent = EventImpl;
+  }
+
+  return CallerNeedsEvent ? EventImpl : nullptr;
+}
+
+#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::vector<event> &DepEvents,
                                     bool CallerNeedsEvent,

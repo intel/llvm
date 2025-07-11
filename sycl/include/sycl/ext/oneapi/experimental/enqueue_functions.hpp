@@ -111,6 +111,7 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
       Props, detail::type_erased_cgfo_ty{CGF}, nullptr, CodeLoc);
 }
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 template <typename PropertiesT, typename KernelName,
           typename KernelType, int Dims>
 event submit_with_event_impl(const queue &Q, PropertiesT Props,
@@ -120,6 +121,17 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
   return Q.submit_with_event<__SYCL_USE_FALLBACK_ASSERT, PropertiesT,
     KernelName, KernelType, Dims>(Props, Range, KernelFunc, CodeLoc);
 }
+
+template <typename PropertiesT, typename KernelName,
+          typename KernelType, int Dims>
+void submit_without_event_impl(const queue &Q, PropertiesT Props,
+                        nd_range<Dims> Range,
+                        const KernelType &KernelFunc,
+                        const sycl::detail::code_location &CodeLoc) {
+  //Q.submit_without_event<__SYCL_USE_FALLBACK_ASSERT, PropertiesT,
+  //  KernelName, KernelType, Dims>(Props, Range, KernelFunc, CodeLoc);
+}
+#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 } // namespace detail
 
 template <typename CommandGroupFunc, typename PropertiesT>
@@ -165,7 +177,18 @@ event submit_with_event(const queue &Q, PropertiesT Props,
   return sycl::ext::oneapi::experimental::detail::submit_with_event_impl
     <PropertiesT, KernelName, KernelType, Dims>(Q, Props, Range, KernelFunc, CodeLoc);
 }
-#endif
+
+template <typename PropertiesT, typename KernelName = sycl::detail::auto_name,
+          typename KernelType, int Dims>
+void submit_without_event(const queue &Q, PropertiesT Props,
+                          nd_range<Dims> Range,
+                          const KernelType &KernelFunc,
+                          const sycl::detail::code_location &CodeLoc =
+                            sycl::detail::code_location::current()) {
+  sycl::ext::oneapi::experimental::detail::submit_without_event_impl
+    <PropertiesT, KernelName, KernelType, Dims>(Q, Props, Range, KernelFunc, CodeLoc);
+}
+#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 
 template <typename KernelName = sycl::detail::auto_name, typename KernelType>
 void single_task(handler &CGH, const KernelType &KernelObj) {
