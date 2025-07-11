@@ -92,9 +92,6 @@ else()
   endif()
 endif()
 
-# Setup the paths where libclc runtimes should be stored.
-set( LIBCLC_OUTPUT_LIBRARY_DIR ${CMAKE_CURRENT_BINARY_DIR} )
-
 if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
   message( WARNING "Using custom LLVM tools to build libclc: "
     "${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR}, "
@@ -341,6 +338,10 @@ else(LIBCLC_STANDALONE_BUILD)
   set(LIBCLC_LIBRARY_OUTPUT_INTDIR ${LLVM_LIBRARY_OUTPUT_INTDIR})
 endif(LIBCLC_STANDALONE_BUILD)
 file( TO_CMAKE_PATH ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/clc LIBCLC_LIBRARY_OUTPUT_INTDIR )
+
+# Setup the paths where libclc runtimes should be stored.
+# FIXME: Align with upstream
+set( LIBCLC_OUTPUT_LIBRARY_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR} )
 
 foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   message( STATUS "libclc target '${t}' is enabled" )
