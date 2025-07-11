@@ -1166,10 +1166,6 @@ llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 CudaToolChain::getDeviceLibs(
     const llvm::opt::ArgList &DriverArgs,
     const Action::OffloadKind DeviceOffloadingKind) const {
-  if (!DriverArgs.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib,
-                          true))
-    return {};
-
   StringRef GpuArch = DriverArgs.getLastArgValue(options::OPT_march_EQ);
   std::string LibDeviceFile = CudaInstallation.getLibDeviceFile(GpuArch);
   if (LibDeviceFile.empty()) {
