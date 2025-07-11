@@ -3082,7 +3082,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   ///
   /// This location will be later instrumented with a check that will print a
   /// UMR warning in runtime if the shadow value is not 0.
-  void insertShadowCheck(Value *Shadow, Value *Origin, Instruction *OrigIns) {
+  void insertCheckShadow(Value *Shadow, Value *Origin, Instruction *OrigIns) {
     assert(Shadow);
     if (!InsertChecks)
       return;
@@ -3103,11 +3103,12 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         ShadowOriginAndInsertPoint(Shadow, Origin, OrigIns));
   }
 
-  /// Remember the place where a shadow check should be inserted.
+  /// Get shadow for value, and remember the place where a shadow check should
+  /// be inserted.
   ///
   /// This location will be later instrumented with a check that will print a
   /// UMR warning in runtime if the value is not fully defined.
-  void insertShadowCheck(Value *Val, Instruction *OrigIns) {
+  void insertCheckShadowOf(Value *Val, Instruction *OrigIns) {
     assert(Val);
     Value *Shadow, *Origin;
     if (ClCheckConstantShadow) {
@@ -3121,7 +3122,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         return;
       Origin = dyn_cast_or_null<Instruction>(getOrigin(Val));
     }
-    insertShadowCheck(Shadow, Origin, OrigIns);
+    insertCheckShadow(Shadow, Origin, OrigIns);
   }
 
   AtomicOrdering addReleaseOrdering(AtomicOrdering a) {
@@ -3236,7 +3237,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     }
 
     if (ClCheckAccessAddress)
-      insertShadowCheck(I.getPointerOperand(), &I);
+      insertCheckShadowOf(I.getPointerOperand(), &I);
 
     if (I.isAtomic())
       I.setOrdering(addAcquireOrdering(I.getOrdering()));
@@ -3259,7 +3260,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   void visitStoreInst(StoreInst &I) {
     StoreList.push_back(&I);
     if (ClCheckAccessAddress)
-      insertShadowCheck(I.getPointerOperand(), &I);
+      insertCheckShadowOf(I.getPointerOperand(), &I);
   }
 
   void handleCASOrRMW(Instruction &I) {
@@ -3273,13 +3274,13 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
                            .first;
 
     if (ClCheckAccessAddress)
-      insertShadowCheck(Addr, &I);
+      insertCheckShadowOf(Addr, &I);
 
     // Only test the conditional argument of cmpxchg instruction.
     // The other argument can potentially be uninitialized, but we can not
     // detect this situation reliably without possible false positives.
     if (isa<AtomicCmpXchgInst>(I))
-      insertShadowCheck(Val, &I);
+      insertCheckShadowOf(Val, &I);
 
     IRB.CreateStore(getCleanShadow(Val), ShadowPtr);
 
@@ -3299,7 +3300,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   // Vector manipulation.
   void visitExtractElementInst(ExtractElementInst &I) {
-    insertShadowCheck(I.getOperand(1), &I);
+    insertCheckShadowOf(I.getOperand(1), &I);
     IRBuilder<> IRB(&I);
     setShadow(&I, IRB.CreateExtractElement(getShadow(&I, 0), I.getOperand(1),
                                            "_msprop"));
@@ -3307,7 +3308,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   }
 
   void visitInsertElementInst(InsertElementInst &I) {
-    insertShadowCheck(I.getOperand(2), &I);
+    insertCheckShadowOf(I.getOperand(2), &I);
     IRBuilder<> IRB(&I);
     auto *Shadow0 = getShadow(&I, 0);
     auto *Shadow1 = getShadow(&I, 1);
@@ -3805,7 +3806,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   void handleIntegerDiv(Instruction &I) {
     IRBuilder<> IRB(&I);
     // Strict on the second argument.
-    insertShadowCheck(I.getOperand(1), &I);
+    insertCheckShadowOf(I.getOperand(1), &I);
     setShadow(&I, getShadow(&I, 0));
     setOrigin(&I, getOrigin(&I, 0));
   }
@@ -4135,7 +4136,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     IRB.CreateAlignedStore(Shadow, ShadowPtr, Align(1));
 
     if (ClCheckAccessAddress)
-      insertShadowCheck(Addr, &I);
+      insertCheckShadowOf(Addr, &I);
 
     // FIXME: factor out common code from materializeStores
     if (MS.TrackOrigins)
@@ -4168,7 +4169,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     }
 
     if (ClCheckAccessAddress)
-      insertShadowCheck(Addr, &I);
+      insertCheckShadowOf(Addr, &I);
 
     if (MS.TrackOrigins) {
       if (PropagateShadow)
@@ -4525,7 +4526,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       AggShadow = ConvertShadow;
     }
     assert(AggShadow->getType()->isIntegerTy());
-    insertShadowCheck(AggShadow, getOrigin(ConvertOp), &I);
+    insertCheckShadow(AggShadow, getOrigin(ConvertOp), &I);
 
     // Build result shadow by zero-filling parts of CopyOp shadow that come from
     // ConvertOp.
@@ -4932,7 +4933,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     IRB.CreateStore(getCleanShadow(Ty), ShadowPtr);
 
     if (ClCheckAccessAddress)
-      insertShadowCheck(Addr, &I);
+      insertCheckShadowOf(Addr, &I);
   }
 
   void handleLdmxcsr(IntrinsicInst &I) {
@@ -4948,12 +4949,12 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         getShadowOriginPtr(Addr, IRB, Ty, Alignment, /*isStore*/ false);
 
     if (ClCheckAccessAddress)
-      insertShadowCheck(Addr, &I);
+      insertCheckShadowOf(Addr, &I);
 
     Value *Shadow = IRB.CreateAlignedLoad(Ty, ShadowPtr, Alignment, "_ldmxcsr");
     Value *Origin = MS.TrackOrigins ? IRB.CreateLoad(MS.OriginTy, OriginPtr)
                                     : getCleanOrigin();
-    insertShadowCheck(Shadow, Origin, &I);
+    insertCheckShadow(Shadow, Origin, &I);
   }
 
   void handleMaskedExpandLoad(IntrinsicInst &I) {
@@ -4964,8 +4965,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Value *PassThru = I.getArgOperand(2);
 
     if (ClCheckAccessAddress) {
-      insertShadowCheck(Ptr, &I);
-      insertShadowCheck(Mask, &I);
+      insertCheckShadowOf(Ptr, &I);
+      insertCheckShadowOf(Mask, &I);
     }
 
     if (!PropagateShadow) {
@@ -4997,8 +4998,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Value *Mask = I.getArgOperand(2);
 
     if (ClCheckAccessAddress) {
-      insertShadowCheck(Ptr, &I);
-      insertShadowCheck(Mask, &I);
+      insertCheckShadowOf(Ptr, &I);
+      insertCheckShadowOf(Mask, &I);
     }
 
     Value *Shadow = getShadow(Values);
@@ -5022,11 +5023,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     Type *PtrsShadowTy = getShadowTy(Ptrs);
     if (ClCheckAccessAddress) {
-      insertShadowCheck(Mask, &I);
+      insertCheckShadowOf(Mask, &I);
       Value *MaskedPtrShadow = IRB.CreateSelect(
           Mask, getShadow(Ptrs), Constant::getNullValue((PtrsShadowTy)),
           "_msmaskedptrs");
-      insertShadowCheck(MaskedPtrShadow, getOrigin(Ptrs), &I);
+      insertCheckShadow(MaskedPtrShadow, getOrigin(Ptrs), &I);
     }
 
     if (!PropagateShadow) {
@@ -5060,11 +5061,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     Type *PtrsShadowTy = getShadowTy(Ptrs);
     if (ClCheckAccessAddress) {
-      insertShadowCheck(Mask, &I);
+      insertCheckShadowOf(Mask, &I);
       Value *MaskedPtrShadow = IRB.CreateSelect(
           Mask, getShadow(Ptrs), Constant::getNullValue((PtrsShadowTy)),
           "_msmaskedptrs");
-      insertShadowCheck(MaskedPtrShadow, getOrigin(Ptrs), &I);
+      insertCheckShadow(MaskedPtrShadow, getOrigin(Ptrs), &I);
     }
 
     Value *Shadow = getShadow(Values);
@@ -5092,8 +5093,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Value *Shadow = getShadow(V);
 
     if (ClCheckAccessAddress) {
-      insertShadowCheck(Ptr, &I);
-      insertShadowCheck(Mask, &I);
+      insertCheckShadowOf(Ptr, &I);
+      insertCheckShadowOf(Mask, &I);
     }
 
     Value *ShadowPtr;
@@ -5125,8 +5126,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Value *PassThru = I.getArgOperand(3);
 
     if (ClCheckAccessAddress) {
-      insertShadowCheck(Ptr, &I);
-      insertShadowCheck(Mask, &I);
+      insertCheckShadowOf(Ptr, &I);
+      insertCheckShadowOf(Mask, &I);
     }
 
     if (!PropagateShadow) {
@@ -5189,8 +5190,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Value *SrcShadow = getShadow(Src);
 
     if (ClCheckAccessAddress) {
-      insertShadowCheck(Dst, &I);
-      insertShadowCheck(Mask, &I);
+      insertCheckShadowOf(Dst, &I);
+      insertCheckShadowOf(Mask, &I);
     }
 
     Value *DstShadowPtr;
@@ -5250,7 +5251,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     const Align Alignment = Align(1);
 
     if (ClCheckAccessAddress) {
-      insertShadowCheck(Mask, &I);
+      insertCheckShadowOf(Mask, &I);
     }
 
     Type *SrcShadowTy = getShadowTy(Src);
@@ -5295,7 +5296,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       assert(V->getType() == IndexBits->getType());
       V = IRB.CreateOr(V, IRB.CreateAnd(V, IndexBits));
     }
-    insertShadowCheck(V, getOrigin(Idx), I);
+    insertCheckShadow(V, getOrigin(Idx), I);
   }
 
   // Instrument AVX permutation intrinsic.
@@ -5584,8 +5585,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     // Technically, we could probably just check whether the LSB is
     // initialized, but intuitively it feels like a partly uninitialized mask
     // is unintended, and we should warn the user immediately.
-    insertShadowCheck(Mask, &I);
-    insertShadowCheck(RoundingMode, &I);
+    insertCheckShadowOf(Mask, &I);
+    insertCheckShadowOf(RoundingMode, &I);
 
     assert(isa<FixedVectorType>(A->getType()));
     unsigned NumElements =
@@ -5666,7 +5667,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       ShadowArgs.push_back(LaneNumber);
 
       // TODO: blend shadow of lane number into output shadow?
-      insertShadowCheck(LaneNumber, &I);
+      insertCheckShadowOf(LaneNumber, &I);
     }
 
     Value *Src = I.getArgOperand(numArgs - 1);
@@ -5718,7 +5719,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     int skipTrailingOperands = 1;
 
     if (ClCheckAccessAddress)
-      insertShadowCheck(Addr, &I);
+      insertCheckShadowOf(Addr, &I);
 
     // Second-last operand is the lane number (for vst{2,3,4}lane)
     if (useLane) {
@@ -6693,7 +6694,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       if (A->getType()->isScalableTy()) {
         LLVM_DEBUG(dbgs() << "Arg  " << i << " is vscale: " << CB << "\n");
         // Handle as noundef, but don't reserve tls slots.
-        insertShadowCheck(A, &CB);
+        insertCheckShadowOf(A, &CB);
         continue;
       }
 
@@ -6706,7 +6707,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
       // Always do eager check for spirv target
       if (EagerCheck || SpirOrSpirv) {
-        insertShadowCheck(A, &CB);
+        insertCheckShadowOf(A, &CB);
         Size = DL.getTypeAllocSize(A->getType());
       } else {
         [[maybe_unused]] Value *Store = nullptr;
@@ -6891,7 +6892,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Value *Shadow = getShadow(RetVal);
     bool StoreOrigin = true;
     if (EagerCheck) {
-      insertShadowCheck(RetVal, &I);
+      insertCheckShadowOf(RetVal, &I);
       Shadow = getCleanShadow(RetVal);
       StoreOrigin = false;
     }
@@ -7128,7 +7129,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     // Each such pointer is instrumented with a call to the runtime library.
     Type *OpType = Operand->getType();
     // Check the operand value itself.
-    insertShadowCheck(Operand, &I);
+    insertCheckShadowOf(Operand, &I);
     if (!OpType->isPointerTy() || !isOutput) {
       assert(!isOutput);
       return;
@@ -7238,7 +7239,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     for (size_t i = 0, n = I.getNumOperands(); i < n; i++) {
       Value *Operand = I.getOperand(i);
       if (Operand->getType()->isSized())
-        insertShadowCheck(Operand, &I);
+        insertCheckShadowOf(Operand, &I);
     }
     setShadow(&I, getCleanShadow(&I));
     setOrigin(&I, getCleanOrigin());
