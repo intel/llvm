@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <type_traits>
+#include <iostream>
 
 namespace sycl {
 inline namespace _V1 {
@@ -44,6 +46,15 @@ template <auto *Func> struct is_kernel {
 template <auto *Func>
 inline constexpr bool is_kernel_v = is_kernel<Func>::value;
 
+namespace detail {
+template <typename T> struct is_special_type_wrapper {
+  inline static constexpr bool value = false;
+};
+
+template <typename T>
+struct special_type_wrapper_info {}; 
+
+} // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl

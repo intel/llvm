@@ -65,7 +65,8 @@ public:
     kind_work_group_memory,
     kind_dynamic_work_group_memory,
     kind_dynamic_accessor,
-    kind_last = kind_dynamic_accessor
+    kind_special_type_wrapper,
+    kind_last = kind_special_type_wrapper
   };
 
 public:
@@ -118,6 +119,9 @@ public:
   /// integration header is required.
   void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
 
+void addFreeFunctionParamDecomposition(QualType Ty, MemberExpr *expr) {
+    DecompositionMap[Ty.getAsOpaquePtr()].push_back(expr);
+}
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
@@ -183,7 +187,6 @@ private:
     return KernelDescs.size() > 0 ? &KernelDescs[KernelDescs.size() - 1]
                                   : nullptr;
   }
-
 private:
   /// Keeps invocation descriptors for each kernel invocation started by
   /// SYCLIntegrationHeader::startKernel
@@ -205,6 +208,8 @@ private:
   /// Keeps track of whether declaration of __sycl_host_pipe_registration
   /// type and __sycl_host_pipe_registrar variable are required to emit.
   bool NeedToEmitHostPipeRegistration = false;
+
+  llvm::DenseMap<void *, llvm::SmallVector<MemberExpr *, 8>> DecompositionMap;
 };
 
 class SYCLIntegrationFooter {
