@@ -12,6 +12,8 @@
 // -- Test for a simple linking case with source files compiled from SYCL source
 // -- at runtime.
 
+// Note linking is not supported on CUDA/HIP.
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %{l0_leak_check} %{run} %t.out

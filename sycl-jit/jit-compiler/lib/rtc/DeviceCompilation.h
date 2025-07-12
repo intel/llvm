@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "JITBinaryInfo.h"
 #include "RTC.h"
 
 #include <llvm/ADT/SmallVector.h>
@@ -24,16 +25,17 @@ using ModuleUPtr = std::unique_ptr<llvm::Module>;
 
 llvm::Expected<std::string>
 calculateHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
-              const llvm::opt::InputArgList &UserArgList);
+              const llvm::opt::InputArgList &UserArgList, BinaryFormat Format);
 
 llvm::Expected<ModuleUPtr>
 compileDeviceCode(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
                   const llvm::opt::InputArgList &UserArgList,
-                  std::string &BuildLog, llvm::LLVMContext &Context);
+                  std::string &BuildLog, llvm::LLVMContext &Context,
+                  BinaryFormat Format);
 
 llvm::Error linkDeviceLibraries(llvm::Module &Module,
                                 const llvm::opt::InputArgList &UserArgList,
-                                std::string &BuildLog);
+                                std::string &BuildLog, BinaryFormat Format);
 
 using PostLinkResult = std::pair<RTCBundleInfo, llvm::SmallVector<ModuleUPtr>>;
 llvm::Expected<PostLinkResult>
