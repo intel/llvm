@@ -20,10 +20,8 @@ entry:
   store i32 %add.i, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
   ret void
 }
-; CHECK: %conv.i = zext i32 0 to i64
-; CHECK: store i64 %conv.i, ptr addrspace(1) %_arg_DoNotOptimize, align 8
-; CHECK: %add.i = add i32 0, 3
-; CHECK: store i32 %add.i, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
+; CHECK: store i64 0, ptr addrspace(1) %_arg_DoNotOptimize, align 8
+; CHECK: store i32 3, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
 
 ; Function Attrs: convergent norecurse
 define dso_local spir_kernel void @kernel_SubgroupSize(ptr addrspace(1) noundef align 8 %_arg_DoNotOptimize, ptr addrspace(1) noundef align 4 %_arg_DoNotOptimize32)#0 !sycl_explicit_simd !3{
@@ -35,10 +33,8 @@ entry:
   store i32 %add.i, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
   ret void
 }
-; CHECK: %conv.i = zext i32 1 to i64
-; CHECK: store i64 %conv.i, ptr addrspace(1) %_arg_DoNotOptimize, align 8
-; CHECK: %add.i = add i32 1, 7
-; CHECK: store i32 %add.i, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
+; CHECK: store i64 1, ptr addrspace(1) %_arg_DoNotOptimize, align 8
+; CHECK: store i32 8, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
 
 ; Function Attrs: convergent norecurse
 define dso_local spir_kernel void @kernel_SubgroupMaxSize(ptr addrspace(1) noundef align 8 %_arg_DoNotOptimize, ptr addrspace(1) noundef align 4 %_arg_DoNotOptimize32) #0 !sycl_explicit_simd !3 {
@@ -50,10 +46,8 @@ entry:
   store i32 %add.i, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
   ret void
 }
-; CHECK: %conv.i = zext i32 1 to i64
-; CHECK: store i64 %conv.i, ptr addrspace(1) %_arg_DoNotOptimize, align 8
-; CHECK: %add.i = add i32 1, 9
-; CHECK: store i32 %add.i, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
+; CHECK: store i64 1, ptr addrspace(1) %_arg_DoNotOptimize, align 8
+; CHECK: store i32 10, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
 
 attributes #0 = { "sycl-module-id"="a.cpp" }
 
