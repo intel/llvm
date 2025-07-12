@@ -15,6 +15,8 @@
 #include <sycl/detail/cg_types.hpp>    // for CGType
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
 
+#include <sycl/ext/oneapi/experimental/graph/node.hpp> // for node
+
 #include <cstring>
 #include <fstream>
 #include <iomanip>
@@ -27,8 +29,6 @@ inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
-// Forward declarations
-class node;
 
 namespace detail {
 // Forward declarations
@@ -122,27 +122,27 @@ public:
 
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
-  void registerSuccessor(const std::shared_ptr<node_impl> &Node) {
+  void registerSuccessor(node_impl &Node) {
     if (std::find_if(MSuccessors.begin(), MSuccessors.end(),
-                     [Node](const std::weak_ptr<node_impl> &Ptr) {
-                       return Ptr.lock() == Node;
+                     [&Node](const std::weak_ptr<node_impl> &Ptr) {
+                       return Ptr.lock().get() == &Node;
                      }) != MSuccessors.end()) {
       return;
     }
-    MSuccessors.push_back(Node);
-    Node->registerPredecessor(shared_from_this());
+    MSuccessors.push_back(Node.weak_from_this());
+    Node.registerPredecessor(*this);
   }
 
   /// Add predecessor to the node.
   /// @param Node Node to add as a predecessor.
-  void registerPredecessor(const std::shared_ptr<node_impl> &Node) {
+  void registerPredecessor(node_impl &Node) {
     if (std::find_if(MPredecessors.begin(), MPredecessors.end(),
                      [&Node](const std::weak_ptr<node_impl> &Ptr) {
-                       return Ptr.lock() == Node;
+                       return Ptr.lock().get() == &Node;
                      }) != MPredecessors.end()) {
       return;
     }
-    MPredecessors.push_back(Node);
+    MPredecessors.push_back(Node.weak_from_this());
   }
 
   /// Construct an empty node.
@@ -764,12 +764,14 @@ private:
 
 struct nodes_deref_impl {
   template <typename T> static node_impl &dereference(T &Elem) {
-    if constexpr (std::is_same_v<std::decay_t<decltype(Elem)>,
-                                 std::weak_ptr<node_impl>>) {
+    using Ty = std::decay_t<decltype(Elem)>;
+    if constexpr (std::is_same_v<Ty, std::weak_ptr<node_impl>>) {
       // This assumes that weak_ptr doesn't actually manage lifetime and
       // the object is guaranteed to be alive (which seems to be the
       // assumption across all graph code).
       return *Elem.lock();
+    } else if constexpr (std::is_same_v<Ty, node>) {
+      return *getSyclObjImpl(Elem);
     } else {
       return *Elem;
     }
@@ -791,7 +793,7 @@ using nodes_iterator = nodes_iterator_impl<
     //
     std::set<std::shared_ptr<node_impl>>, std::set<node_impl *>,
     //
-    std::list<node_impl *>>;
+    std::list<node_impl *>, std::vector<node>>;
 
 class nodes_range : public iterator_range<nodes_iterator> {
 private:
