@@ -8,14 +8,15 @@
 
 #include <libspirv/spirv.h>
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_LocalInvocationId_x() {
-  return __nvvm_read_ptx_sreg_tid_x();
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_LocalInvocationId_y() {
-  return __nvvm_read_ptx_sreg_tid_y();
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_LocalInvocationId_z() {
-  return __nvvm_read_ptx_sreg_tid_z();
+_CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInLocalInvocationId(int dim) {
+  switch (dim) {
+  case 0:
+    return __nvvm_read_ptx_sreg_tid_x();
+  case 1:
+    return __nvvm_read_ptx_sreg_tid_y();
+  case 2:
+    return __nvvm_read_ptx_sreg_tid_z();
+  default:
+    return 0;
+  }
 }

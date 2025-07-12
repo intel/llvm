@@ -8,6 +8,6 @@
 
 #include <libspirv/spirv.h>
 
-_CLC_DEF _CLC_OVERLOAD uint __spirv_SubgroupLocalInvocationId() {
+_CLC_DEF _CLC_OVERLOAD uint __spirv_BuiltInSubgroupLocalInvocationId() {
   return __nvvm_read_ptx_sreg_laneid();
 }
