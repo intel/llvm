@@ -8,8 +8,7 @@
 
 #include "device_math.h"
 
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
-    defined(__AMDGCN__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 DEVICE_EXTERN_C_INLINE
 int abs(int x) { return __devicelib_abs(x); }
@@ -190,25 +189,7 @@ float asinhf(float x) { return __devicelib_asinhf(x); }
 DEVICE_EXTERN_C_INLINE
 float atanhf(float x) { return __devicelib_atanhf(x); }
 
-#ifdef __NVPTX__
-extern "C" SYCL_EXTERNAL float __nv_nearbyintf(float);
-DEVICE_EXTERN_C_INLINE
-float nearbyintf(float x) { return __nv_nearbyintf(x); }
-
-extern "C" SYCL_EXTERNAL float __nv_rintf(float);
-DEVICE_EXTERN_C_INLINE
-float rintf(float x) { return __nv_rintf(x); }
-#elif defined(__AMDGCN__)
-extern "C" SYCL_EXTERNAL float __ocml_nearbyint_f32(float);
-DEVICE_EXTERN_C_INLINE
-float nearbyintf(float x) { return __ocml_nearbyint_f32(x); }
-
-extern "C" SYCL_EXTERNAL float __ocml_rint_f32(float);
-DEVICE_EXTERN_C_INLINE
-float rintf(float x) { return __ocml_rint_f32(x); }
-#else
 DEVICE_EXTERN_C_INLINE
 float rintf(float x) { return __spirv_ocl_rint(x); }
-#endif
 
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
+#endif // __SPIR__ || __SPIRV__
