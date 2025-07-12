@@ -7,27 +7,29 @@
 // RUN: %if cpu %{ %{run} %t.x86.out %}
 //
 // REQUIRES: cpu || gpu
-// UNSUPPORTED: hip
-// REQUIRES: sg-32
+// REQUIRES: aspect-ext_oneapi_fragment
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
+#include <sycl/ext/oneapi/experimental/fragment.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 
-template <size_t PartitionSize> class TestKernel;
+class TestKernel;
 
-template <size_t PartitionSize> void test() {
+int main() {
   sycl::queue Q;
+
+  auto SGSizes = Q.get_device().get_info<sycl::info::device::sub_group_sizes>();
+  if (std::find(SGSizes.begin(), SGSizes.end(), 32) == SGSizes.end()) {
+    std::cout << "Test skipped due to missing support for sub-group size 32."
+              << std::endl;
+    return 0;
+  }
 
   // Test for both the full sub-group size and a case with less work than a full
   // sub-group.
   for (size_t WGS : std::array<size_t, 2>{32, 16}) {
-    if (WGS < PartitionSize)
-      continue;
-
-    std::cout << "Testing for work size " << WGS << " and partition size "
-              << PartitionSize << std::endl;
+    std::cout << "Testing for work size " << WGS << std::endl;
 
     sycl::buffer<bool, 1> MatchBuf{sycl::range{WGS}};
     sycl::buffer<bool, 1> LeaderBuf{sycl::range{WGS}};
@@ -40,36 +42,35 @@ template <size_t PartitionSize> void test() {
           [=](sycl::nd_item<1> item) [[sycl::reqd_sub_group_size(32)]] {
             auto WI = item.get_global_id();
             auto SG = item.get_sub_group();
-            auto SGS = SG.get_local_linear_range();
 
-            auto Partition = syclex::get_fixed_size_group<PartitionSize>(SG);
+            // Split into odd and even work-items.
+            bool Predicate = WI % 2 == 0;
+            auto FragmentGroup = syclex::binary_partition(SG, Predicate);
 
+            // Check function return values match Predicate.
+            // NB: Test currently uses exactly one sub-group, but we use SG
+            //     below in case this changes in future.
             bool Match = true;
-            Match &= (Partition.get_group_id() == (WI / PartitionSize));
-            Match &= (Partition.get_local_id() == (WI % PartitionSize));
-            Match &= (Partition.get_group_range() == (SGS / PartitionSize));
-            Match &= (Partition.get_local_range() == PartitionSize);
+            auto GroupID = (Predicate) ? 1 : 0;
+            auto LocalID = SG.get_local_id() / 2;
+            Match &= (FragmentGroup.get_group_id() == GroupID);
+            Match &= (FragmentGroup.get_local_id() == LocalID);
+            Match &= (FragmentGroup.get_group_range() == 2);
+            Match &= (FragmentGroup.get_local_range() ==
+                      SG.get_local_linear_range() / 2);
             MatchAcc[WI] = Match;
-            LeaderAcc[WI] = Partition.leader();
+            LeaderAcc[WI] = FragmentGroup.leader();
           };
-      CGH.parallel_for<TestKernel<PartitionSize>>(NDR, KernelFunc);
+      CGH.parallel_for<TestKernel>(NDR, KernelFunc);
     });
 
     sycl::host_accessor MatchAcc{MatchBuf, sycl::read_only};
     sycl::host_accessor LeaderAcc{LeaderBuf, sycl::read_only};
     for (int WI = 0; WI < WGS; ++WI) {
       assert(MatchAcc[WI] == true);
-      assert(LeaderAcc[WI] == ((WI % PartitionSize) == 0));
+      assert(LeaderAcc[WI] == (WI < 2));
     }
   }
-}
 
-int main() {
-  test<1>();
-  test<2>();
-  test<4>();
-  test<8>();
-  test<16>();
-  test<32>();
   return 0;
 }
