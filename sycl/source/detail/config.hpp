@@ -199,35 +199,64 @@ template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS> {
 private:
 public:
   static void GetSettings(size_t &MinFactor, size_t &GoodFactor,
-                          size_t &MinRange) {
-    static const char *RoundParams = BaseT::getRawValue();
+                          size_t &MinRange, bool ForceUpdate = false) {
+    const char *RoundParams = BaseT::getRawValue();
     if (RoundParams == nullptr)
       return;
 
     static bool ProcessedFactors = false;
+    static bool FactorsAreValid = false;
     static size_t MF;
     static size_t GF;
     static size_t MR;
-    if (!ProcessedFactors) {
+    if (!ProcessedFactors || ForceUpdate) {
+      auto GuardedStoi = [](size_t &val, const std::string &str) {
+        try {
+          int ParsedResult = std::stoi(str);
+          if (ParsedResult < 0)
+            return false;
+          val = ParsedResult;
+          return true;
+          // Ignore parsing exceptions, but throw on unexpected exceptions:
+        } catch (const std::invalid_argument &) {
+        } catch (const std::out_of_range &) {
+        }
+        return false;
+      };
+
       // Parse optional parameters of this form (all values required):
       // MinRound:PreferredRound:MinRange
       std::string Params(RoundParams);
       size_t Pos = Params.find(':');
-      if (Pos != std::string::npos) {
-        MF = std::stoi(Params.substr(0, Pos));
+      if (Pos != std::string::npos && GuardedStoi(MF, Params.substr(0, Pos)) &&
+          MF > 0) {
         Params.erase(0, Pos + 1);
         Pos = Params.find(':');
-        if (Pos != std::string::npos) {
-          GF = std::stoi(Params.substr(0, Pos));
+        if (Pos != std::string::npos &&
+            GuardedStoi(GF, Params.substr(0, Pos)) && GF > 0) {
           Params.erase(0, Pos + 1);
-          MR = std::stoi(Params);
+          // Factors are valid only if all parsed successfully:
+          FactorsAreValid = GuardedStoi(MR, Params);
+          // Note that MinRange = 0 is considered valid.
         }
       }
-      ProcessedFactors = true;
+      if (FactorsAreValid) {
+        ProcessedFactors = true;
+      } else {
+        std::cerr
+            << "WARNING: Invalid value passed for "
+            << "SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS (Expected format "
+            << "MinRound:PreferredRound:MinRange, where MinRound, "
+               "PreferredRound"
+            << " > 0, MinRange >= 0). Provided parameters will be ignored."
+            << std::endl;
+      }
     }
-    MinFactor = MF;
-    GoodFactor = GF;
-    MinRange = MR;
+    if (FactorsAreValid) {
+      MinFactor = MF;
+      GoodFactor = GF;
+      MinRange = MR;
+    }
   }
 };
 
