@@ -17,19 +17,47 @@
 #include "event.hpp"
 #include "ur_api.h"
 #include "ur_pool_manager.hpp"
+#include "usm.hpp"
 #include <umf_helpers.hpp>
 
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
 
 struct UsmPool {
-  UsmPool(umf::pool_unique_handle_t Pool)
-      : UmfPool(std::move(Pool)), AsyncPool([](ur_event_handle_t Event) {
-          return urEventReleaseInternal(Event);
-        }) {}
+  UsmPool(ur_usm_pool_handle_t UrPool, umf::pool_unique_handle_t UmfPool);
+  // Parent pool.
+  ur_usm_pool_handle_t UrPool;
   umf::pool_unique_handle_t UmfPool;
   // 'AsyncPool' needs to be declared after 'UmfPool' so its destructor is
   // invoked first.
   EnqueuedPool AsyncPool;
+};
+
+struct AllocationStats {
+public:
+  enum UpdateType {
+    INCREASE,
+    DECREASE,
+  };
+
+  void update(UpdateType Type, size_t Size) {
+    if (Type == INCREASE) {
+      AllocatedMemorySize += Size;
+      size_t Current = AllocatedMemorySize.load();
+      size_t Peak = PeakAllocatedMemorySize.load();
+      if (Peak < Current) {
+        PeakAllocatedMemorySize.store(Current);
+      }
+    } else if (Type == DECREASE) {
+      AllocatedMemorySize -= Size;
+    }
+  }
+
+  size_t getCurrent() { return AllocatedMemorySize.load(); }
+  size_t getPeak() { return PeakAllocatedMemorySize.load(); }
+
+private:
+  std::atomic_size_t AllocatedMemorySize{0};
+  std::atomic_size_t PeakAllocatedMemorySize{0};
 };
 
 struct ur_usm_pool_handle_t_ : ur_object {
@@ -41,6 +69,7 @@ struct ur_usm_pool_handle_t_ : ur_object {
   ur_result_t allocate(ur_context_handle_t Context, ur_device_handle_t Device,
                        const ur_usm_desc_t *USMDesc, ur_usm_type_t Type,
                        size_t Size, void **RetMem);
+  ur_result_t free(void *Mem, umf_memory_pool_handle_t hPool);
 
   std::optional<std::pair<void *, ur_event_handle_t>>
   allocateEnqueued(ur_queue_handle_t Queue, ur_device_handle_t Device,
@@ -51,14 +80,18 @@ struct ur_usm_pool_handle_t_ : ur_object {
   UsmPool *getPoolByHandle(const umf_memory_pool_handle_t Pool);
   void cleanupPools();
   void cleanupPoolsForQueue(ur_queue_handle_t Queue);
+  size_t getTotalReservedSize();
+  size_t getPeakReservedSize();
+  size_t getTotalUsedSize();
+  size_t getPeakUsedSize();
 
   ur_context_handle_t Context;
-
   ur::RefCount RefCount;
 
 private:
   UsmPool *getPool(const usm::pool_descriptor &Desc);
   usm::pool_manager<usm::pool_descriptor, UsmPool> PoolManager;
+  AllocationStats AllocStats;
 };
 
 // Exception type to pass allocation errors
@@ -138,6 +171,7 @@ private:
   umf_result_t GetL0MinPageSize(const void *Mem, size_t *PageSize);
   size_t MinPageSize = 0;
   bool MinPageSizeCached = false;
+  AllocationStats AllocStats;
 
 public:
   umf_result_t initialize(ur_context_handle_t Ctx,
@@ -159,6 +193,8 @@ public:
   umf_result_t ext_put_ipc_handle(void *) override;
   umf_result_t ext_open_ipc_handle(void *, void **) override;
   umf_result_t ext_close_ipc_handle(void *, size_t) override;
+  umf_result_t ext_ctl(int, const char *, void *, size_t,
+                       umf_ctl_query_type_t) override;
 };
 
 // Allocation routines for shared memory type

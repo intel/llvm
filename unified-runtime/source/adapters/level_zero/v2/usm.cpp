@@ -176,10 +176,10 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
       auto &poolConfig =
           disjointPoolConfigs.value().Configs[descToDisjoinPoolMemType(desc)];
       auto pool = usm::makeDisjointPool(makeProvider(desc), poolConfig);
-      usmPool = std::make_unique<UsmPool>(std::move(pool));
+      usmPool = std::make_unique<UsmPool>(this, std::move(pool));
     } else {
       auto pool = usm::makeProxyPool(makeProvider(desc));
-      usmPool = std::make_unique<UsmPool>(std::move(pool));
+      usmPool = std::make_unique<UsmPool>(this, std::move(pool));
     }
     UMF_CALL_THROWS(
         umfPoolSetTag(usmPool->umfPool.get(), usmPool.get(), nullptr));

@@ -18,15 +18,7 @@
 #include "event.hpp"
 #include "ur_pool_manager.hpp"
 
-struct UsmPool {
-  UsmPool(umf::pool_unique_handle_t pPool)
-      : umfPool(std::move(pPool)),
-        asyncPool([](ur_event_handle_t hEvent) { return hEvent->release(); }) {}
-  umf::pool_unique_handle_t umfPool;
-  // 'asyncPool' needs to be declared after 'umfPool' so its destructor is
-  // invoked first.
-  EnqueuedPool asyncPool;
-};
+struct UsmPool;
 
 struct ur_usm_pool_handle_t_ : ur_object {
   ur_usm_pool_handle_t_(ur_context_handle_t hContext,
@@ -57,4 +49,17 @@ private:
   usm::pool_manager<usm::pool_descriptor, UsmPool> poolManager;
 
   UsmPool *getPool(const usm::pool_descriptor &desc);
+};
+
+struct UsmPool {
+  UsmPool(ur_usm_pool_handle_t urPool, umf::pool_unique_handle_t umfPool)
+      : umfPool(std::move(umfPool)),
+        asyncPool([](ur_event_handle_t hEvent) { return hEvent->release(); },
+                  [context = urPool->getContextHandle()](void *ptr) {
+                    return ur::level_zero::urUSMFree(context, ptr);
+                  }) {}
+  umf::pool_unique_handle_t umfPool;
+  // 'asyncPool' needs to be declared after 'umfPool' so its destructor is
+  // invoked first.
+  EnqueuedPool asyncPool;
 };
