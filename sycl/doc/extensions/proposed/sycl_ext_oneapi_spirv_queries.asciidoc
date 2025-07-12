@@ -1,0 +1,205 @@
+= sycl_ext_oneapi_spirv_queries
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.
+OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 10 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+This extension references sections of the
+link:https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html[SPIR-V
+specification] version 1.6, revision 6.
+References below to the "SPIR-V specification" refer to that version.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+This extension adds new queries that allow an application to identify the
+link:https://www.khronos.org/spirv/[SPIR-V] features that are supported by a
+SYCL device.
+These queries may be useful for applications that use the
+link:../experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc[sycl_ext_oneapi_kernel_compiler_spirv]
+extension to ensure that a SYCL device supports the features required by a
+SPIR-V binary module.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_SPIRV_QUERIES`
+to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Queries
+
+==== New member functions for the device class
+
+This extension also adds the following member functions to the `device` class,
+which allow the application to query whether the device supports SPIR-V queries,
+and if so, which SPIR-V extended instruction sets, extensions, and capabilities
+the device supports.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+class device {
+  bool ext_oneapi_supports_spirv_queries() const;
+};
+----
+!====
+
+_Returns:_ The value `true` if the device supports SPIR-V queries.
+Returns `false` if the device does not support SPIR-V.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+class device {
+  bool ext_oneapi_supports_spirv_extended_instruction_set(
+    const std::string &name) const;
+};
+----
+!====
+
+_Returns:_ The value `true` if the device supports SPIR-V binary modules that
+import the SPIR-V extended instruction set identified by `name`.
+Returns `false` if the device does not support SPIR-V queries.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+class device {
+  bool ext_oneapi_supports_spirv_extension(const std::string &name) const;
+};
+----
+!====
+
+_Returns:_ The value `true` if the device supports SPIR-V modules that declare
+usage of the SPIR-V extension identified by `name`.
+Returns `false` if the device does not support SPIR-V queries.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+class device {
+  bool ext_oneapi_supports_spirv_capability(uint32_t capability) const;
+};
+----
+!====
+
+_Returns:_ The value `true` if the device supports SPIR-V modules that declare
+the SPIR-V capability identified by `capability`.
+Some capabilities may additionally require a specific SPIR-V version or SPIR-V
+extension.
+SPIR-V capabilities are described in section 3.2.30 "Capability" of the SPIR-V
+specification.
+Returns `false` if the device does not support SPIR-V queries.
+
+|====
+
+
+== Examples
+
+=== Simple example
+
+The following example shows a simple SYCL program that demonstrates how to query
+whether a SYCL device supports SPIR-V queries, and if it does, whether the SYCL
+devices supports an SPIR-V extended instruction set, SPIR-V extension, and
+SPIR-V capability.
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+#include <spirv/unified1/spirv.hpp>
+
+int main() {
+  sycl::queue q;
+  sycl::device d = q.get_device();
+
+  if (d.ext_oneapi_supports_spirv_queries())
+    std::cout << "Device supports SPIR-V queries.\n";
+
+  if (d.ext_oneapi_supports_spirv_extended_instruction_set("OpenCL.std"))
+    std::cout << "Device supports the OpenCL.std SPIR-V extended instruction set.\n";
+
+  if (d.ext_oneapi_supports_spirv_extension("SPV_KHR_linkonce_odr"))
+    std::cout << "Device supports the SPV_KHR_linkonce_odr SPIR-V extension.\n";
+
+  if (d.ext_oneapi_supports_spirv_capability(spv::CapabilityAddresses))
+    std::cout << "Device supports the Addresses SPIR-V capability.\n";
+}
+----
+
