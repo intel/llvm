@@ -494,7 +494,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   uint32_t NumDevices = 0;
   MAdapter->call<UrApiKind::urDeviceGet>(MPlatform, UrDeviceType,
-                                         0, // CP info::device_type::all
+                                         0u, // CP info::device_type::all
                                          nullptr, &NumDevices);
   const backend Backend = getBackend();
 

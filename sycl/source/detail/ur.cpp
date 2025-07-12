@@ -208,7 +208,7 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
   }
 
   uint32_t adapterCount = 0;
-  CHECK_UR_SUCCESS(adapterGet(0, nullptr, &adapterCount));
+  CHECK_UR_SUCCESS(adapterGet(0u, nullptr, &adapterCount));
   std::vector<ur_adapter_handle_t> adapters(adapterCount);
   CHECK_UR_SUCCESS(adapterGet(adapterCount, adapters.data(), nullptr));
 
