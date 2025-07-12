@@ -69,6 +69,7 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
   bool ZeDriverEuCountExtensionFound{false};
   bool ZeCopyOffloadExtensionSupported{false};
   bool ZeBindlessImagesExtensionSupported{false};
+  bool ZeLUIDSupported{false};
 
   // Cache UR devices for reuse
   std::vector<std::unique_ptr<ur_device_handle_t_>> URDevicesCache;
