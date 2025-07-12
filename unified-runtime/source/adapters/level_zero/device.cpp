@@ -1583,12 +1583,8 @@ ur_result_t urDeviceCreateWithNativeHandle(
   // a valid Level Zero device.
 
   ur_device_handle_t Dev = nullptr;
-  if (const auto *platforms = GlobalAdapter->PlatformCache->get_value()) {
-    for (const auto &p : *platforms) {
-      Dev = p->getDeviceFromNativeHandle(ZeDevice);
-    }
-  } else {
-    return GlobalAdapter->PlatformCache->get_error();
+  for (const auto &p : GlobalAdapter->Platforms) {
+    Dev = p->getDeviceFromNativeHandle(ZeDevice);
   }
 
   if (Dev == nullptr)

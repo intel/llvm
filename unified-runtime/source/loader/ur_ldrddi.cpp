@@ -34,21 +34,21 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
 
   auto context = getContext();
 
-  size_t adapterIndex = 0;
-  if (nullptr != phAdapters && NumEntries != 0) {
-    for (auto &platform : context->platforms) {
-      if (platform.initStatus != UR_RESULT_SUCCESS)
-        continue;
-      platform.dditable.Adapter.pfnGet(1, &phAdapters[adapterIndex], nullptr);
-      adapterIndex++;
-      if (adapterIndex == NumEntries) {
-        break;
-      }
-    }
+  uint32_t numAdapters = 0;
+  for (auto &platform : context->platforms) {
+    if (platform.initStatus != UR_RESULT_SUCCESS)
+      continue;
+
+    uint32_t adapter;
+    ur_adapter_handle_t *adapterHandle =
+        numAdapters < NumEntries ? &phAdapters[numAdapters] : nullptr;
+    platform.dditable.Adapter.pfnGet(1, adapterHandle, &adapter);
+
+    numAdapters += adapter;
   }
 
   if (pNumAdapters != nullptr) {
-    *pNumAdapters = static_cast<uint32_t>(context->platforms.size());
+    *pNumAdapters = numAdapters;
   }
 
   return UR_RESULT_SUCCESS;

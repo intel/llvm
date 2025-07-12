@@ -962,6 +962,8 @@ for full_name, sycl_device in zip(
 
     if "v2" in full_name:
         env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "1"
+    else:
+        env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "0"
 
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):

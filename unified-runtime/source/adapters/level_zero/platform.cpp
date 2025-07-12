@@ -28,20 +28,15 @@ ur_result_t urPlatformGet(
     uint32_t *NumPlatforms) {
   // Platform handles are cached for reuse. This is to ensure consistent
   // handle pointers across invocations and to improve retrieval performance.
-  if (const auto *cached_platforms = GlobalAdapter->PlatformCache->get_value();
-      cached_platforms) {
-    uint32_t nplatforms = (uint32_t)cached_platforms->size();
-    if (NumPlatforms) {
-      *NumPlatforms = nplatforms;
-    }
+  uint32_t nplatforms = (uint32_t)GlobalAdapter->Platforms.size();
+  if (NumPlatforms) {
+    *NumPlatforms = nplatforms;
+  }
     if (Platforms) {
       for (uint32_t i = 0; i < std::min(nplatforms, NumEntries); ++i) {
-        Platforms[i] = cached_platforms->at(i).get();
+        Platforms[i] = GlobalAdapter->Platforms.at(i).get();
       }
     }
-  } else {
-    return GlobalAdapter->PlatformCache->get_error();
-  }
 
   return UR_RESULT_SUCCESS;
 }
