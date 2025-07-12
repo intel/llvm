@@ -580,7 +580,7 @@ event handler::finalize() {
 #endif
       auto EnqueueKernel = [&]() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-        int32_t StreamID = xpti::invalid_id<>;
+        auto StreamID = xpti::invalid_id<xpti::stream_id_t>;
         xpti_td *CmdTraceEvent = nullptr;
         uint64_t InstanceID = 0;
         if (xptiEnabled) {
