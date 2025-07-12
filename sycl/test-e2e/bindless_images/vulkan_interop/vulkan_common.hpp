@@ -4,13 +4,15 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #endif
 
+#include <sycl/ext/oneapi/bindless_images.hpp>
+
 #include <vulkan/vulkan.h>
 
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <set>
-#include <sycl/ext/oneapi/bindless_images.hpp>
+#include <string_view>
 #include <vector>
 
 void printString(std::string str) {
@@ -19,6 +21,14 @@ void printString(std::string str) {
 #endif
 }
 
+VkResult checkVulkanError(VkResult err, std::string_view callStr) {
+  if (err != VK_SUCCESS) {
+    std::cerr << callStr << " failed. Code: " << err << std::endl;
+  }
+  return err;
+}
+#define VK_CHECK_CALL(call) checkVulkanError(call, #call)
+
 #define VK_CHECK_CALL_RET(call)                                                \
   {                                                                            \
     VkResult err = call;                                                       \
@@ -26,13 +36,6 @@ void printString(std::string str) {
       std::cerr << #call << " failed. Code: " << err << "\n";                  \
       return err;                                                              \
     }                                                                          \
-  }
-
-#define VK_CHECK_CALL(call)                                                    \
-  {                                                                            \
-    VkResult err = call;                                                       \
-    if (err != VK_SUCCESS)                                                     \
-      std::cerr << #call << " failed. Code: " << err << "\n";                  \
   }
 
 static VkInstance vk_instance;
@@ -48,6 +51,8 @@ static PFN_vkGetSemaphoreWin32HandleKHR vk_getSemaphoreWin32HandleKHR;
 #else
 static PFN_vkGetMemoryFdKHR vk_getMemoryFdKHR;
 static PFN_vkGetSemaphoreFdKHR vk_getSemaphoreFdKHR;
+static PFN_vkGetImageDrmFormatModifierPropertiesEXT
+    vkGetImageDrmFormatModifierPropertiesEXTpfn;
 #endif
 
 static PFN_vkGetImageMemoryRequirements2 vk_getImageMemoryRequirements2;
@@ -66,6 +71,7 @@ static bool requiresDedicatedAllocation = false;
 
 static bool supportsExternalSemaphore = false;
 static bool supportsDmaBuf = false;
+static bool supportsDrmFormatModifiers = false;
 
 // A static debug callback function that relays messages from the Vulkan
 // validation layer to the terminal.
@@ -229,6 +235,17 @@ getSupportedDeviceExtensions(std::vector<VkExtensionProperties> &extensions,
   return VK_SUCCESS;
 }
 
+template <class PFN>
+VkResult getExtensionFnPointer(PFN &funcPtr, std::string_view name) {
+  funcPtr = reinterpret_cast<PFN>(vkGetDeviceProcAddr(vk_device, name.data()));
+  if (!funcPtr) {
+    std::cerr << "Could not get func pointer to \"" << name << "\"!"
+              << std::endl;
+    return VK_ERROR_UNKNOWN;
+  }
+  return VK_SUCCESS;
+}
+
 // Set up the Vulkan device from the SYCL one
 VkResult setupDevice(const sycl::device &dev) {
   uint32_t physicalDeviceCount = 0;
@@ -263,6 +280,7 @@ VkResult setupDevice(const sycl::device &dev) {
 #else
       VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
       VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
+      VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
 #endif
   };
 
@@ -324,6 +342,9 @@ VkResult setupDevice(const sycl::device &dev) {
         }
         if (optionalExt == VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME) {
           supportsDmaBuf = true;
+        }
+        if (optionalExt == VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME) {
+          supportsDrmFormatModifiers = true;
         }
       }
     }
@@ -415,48 +436,50 @@ VkResult setupDevice(const sycl::device &dev) {
   // Get function pointers for memory and semaphore handle exportation.
   // Functions will depend on the OS being compiled for.
 #ifdef _WIN32
-  vk_GetMemoryWin32HandleKHR =
-      (PFN_vkGetMemoryWin32HandleKHR)vkGetDeviceProcAddr(
-          vk_device, "vkGetMemoryWin32HandleKHR");
-  if (!vk_GetMemoryWin32HandleKHR) {
-    std::cerr
-        << "Could not get func pointer to \"vkGetMemoryWin32HandleKHR\"!\n";
-    return VK_ERROR_UNKNOWN;
+  {
+    auto result = getExtensionFnPointer(vk_GetMemoryWin32HandleKHR,
+                                        "vkGetMemoryWin32HandleKHR");
+    if (result != VK_SUCCESS) {
+      return result;
+    }
   }
   if (supportsExternalSemaphore) {
-    vk_getSemaphoreWin32HandleKHR =
-        (PFN_vkGetSemaphoreWin32HandleKHR)vkGetDeviceProcAddr(
-            vk_device, "vkGetSemaphoreWin32HandleKHR");
-    if (!vk_getSemaphoreWin32HandleKHR) {
-      std::cerr << "Could not get func pointer to "
-                   "\"vkGetSemaphoreWin32HandleKHR\"!\n";
-      return VK_ERROR_UNKNOWN;
+    auto result = getExtensionFnPointer(vk_getSemaphoreWin32HandleKHR,
+                                        "vkGetSemaphoreWin32HandleKHR");
+    if (result != VK_SUCCESS) {
+      return result;
     }
   }
 #else
-  vk_getMemoryFdKHR =
-      (PFN_vkGetMemoryFdKHR)vkGetDeviceProcAddr(vk_device, "vkGetMemoryFdKHR");
-  if (!vk_getMemoryFdKHR) {
-    std::cerr << "Could not get func pointer to \"vkGetMemoryFdKHR\"!\n";
-    return VK_ERROR_UNKNOWN;
+  {
+    auto result = getExtensionFnPointer(vk_getMemoryFdKHR, "vkGetMemoryFdKHR");
+    if (result != VK_SUCCESS) {
+      return result;
+    }
   }
   if (supportsExternalSemaphore) {
-    vk_getSemaphoreFdKHR = (PFN_vkGetSemaphoreFdKHR)vkGetDeviceProcAddr(
-        vk_device, "vkGetSemaphoreFdKHR");
-    if (!vk_getSemaphoreFdKHR) {
-      std::cerr << "Could not get func pointer to \"vkGetSemaphoreFdKHR\"!\n";
-      return VK_ERROR_UNKNOWN;
+    auto result =
+        getExtensionFnPointer(vk_getSemaphoreFdKHR, "vkGetSemaphoreFdKHR");
+    if (result != VK_SUCCESS) {
+      return result;
+    }
+  }
+  if (supportsDrmFormatModifiers) {
+    auto result =
+        getExtensionFnPointer(vkGetImageDrmFormatModifierPropertiesEXTpfn,
+                              "vkGetImageDrmFormatModifierPropertiesEXT");
+    if (result != VK_SUCCESS) {
+      return result;
     }
   }
 #endif
 
-  vk_getImageMemoryRequirements2 =
-      reinterpret_cast<PFN_vkGetImageMemoryRequirements2>(
-          vkGetDeviceProcAddr(vk_device, "vkGetImageMemoryRequirements2KHR"));
-  if (!vk_getImageMemoryRequirements2) {
-    std::cerr << "Could not get func pointer to "
-                 "\"vkGetImageMemoryRequirements2KHR\"!\n";
-    return VK_ERROR_UNKNOWN;
+  {
+    auto result = getExtensionFnPointer(vk_getImageMemoryRequirements2,
+                                        "vkGetImageMemoryRequirements2KHR");
+    if (result != VK_SUCCESS) {
+      return result;
+    }
   }
 
   return VK_SUCCESS;
