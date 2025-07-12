@@ -12969,6 +12969,8 @@ def err_free_function_first_occurrence_missing_attr: Error<
   "the first occurrence of SYCL kernel free function should be declared with 'sycl-nd-range-kernel' or 'sycl-single-task-kernel' compile time properties">;
 def err_free_function_class_method : Error<
   "%select{static |}0class method cannot be used to define a SYCL kernel free function kernel">;
+def err_free_function_virtual_arg : Error<
+  "argument type '%0' virtually inherited from base class is not supported as a SYCL kernel free function kernel arguments">;
 
 
 // SYCL kernel entry point diagnostics

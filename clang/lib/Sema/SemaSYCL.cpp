@@ -1257,12 +1257,19 @@ constructFreeFunctionKernelName(const FunctionDecl *FreeFunc,
     MC.mangleName(FreeFunc, Out);
     std::string MangledName(Out.str());
     size_t StartNums = MangledName.find_first_of("0123456789");
-    size_t EndNums = MangledName.find_first_not_of("0123456789", StartNums);
-    size_t NameLength =
-        std::stoi(MangledName.substr(StartNums, EndNums - StartNums));
-    size_t NewNameLength = 14 /*length of __sycl_kernel_*/ + NameLength;
-    NewName = MangledName.substr(0, StartNums) + std::to_string(NewNameLength) +
-              "__sycl_kernel_" + MangledName.substr(EndNums);
+    if (StartNums == std::string::npos) {
+      // Microsoft mangling name has template like ?FunctionName@@YAXH@Z
+      NewName =
+          MangledName.substr(0, 1) + "sycl_kernel_" + MangledName.substr(1);
+    } else {
+      size_t EndNums = MangledName.find_first_not_of("0123456789", StartNums);
+      size_t NameLength =
+          std::stoi(MangledName.substr(StartNums, EndNums - StartNums));
+      size_t NewNameLength = 14 /*length of __sycl_kernel_*/ + NameLength;
+      NewName = MangledName.substr(0, StartNums) +
+                std::to_string(NewNameLength) + "__sycl_kernel_" +
+                MangledName.substr(EndNums);
+    }
   }
   StableName = NewName;
   return {NewName, StableName};
@@ -1569,6 +1576,27 @@ class KernelObjVisitor {
     else if (ParamTy->isStructureOrClassType()) {
       if (KP_FOR_EACH(handleStructType, Param, ParamTy)) {
         CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
+        llvm::SmallVector<const CXXRecordDecl *, 8> WorkList;
+        llvm::SmallPtrSet<const CXXRecordDecl *, 8> Visited;
+        if (RD)
+          WorkList.push_back(RD);
+        while (!WorkList.empty()) {
+          const CXXRecordDecl *Cur = WorkList.pop_back_val();
+          if (!Cur || !Visited.insert(Cur).second)
+            continue;
+          for (const auto &Base : Cur->bases()) {
+            if (Base.isVirtual()) {
+              SemaSYCLRef.SemaRef.Diag(Param->getLocation(),
+                                       diag::err_free_function_virtual_arg)
+                  << Cur->getNameAsString() << Param->getSourceRange();
+              return;
+            }
+            const CXXRecordDecl *BaseDecl =
+                Base.getType()->getAsCXXRecordDecl();
+            if (BaseDecl)
+              WorkList.push_back(BaseDecl);
+          }
+        }
         visitRecord(nullptr, Param, RD, ParamTy, Handlers...);
       }
     } else if (ParamTy->isUnionType())
