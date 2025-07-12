@@ -186,7 +186,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
 
 ur_result_t MemBuffer::free() {
   for (const auto &[_, Ptr] : Allocations) {
-    ur_result_t URes = getContext()->urDdiTable.USM.pfnFree(Context, Ptr);
+    ur_result_t URes = getTsanInterceptor()->releaseMemory(Context, Ptr);
     if (URes != UR_RESULT_SUCCESS) {
       UR_LOG_L(getContext()->logger, ERR, "Failed to free buffer handle {}",
                (void *)Ptr);

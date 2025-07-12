@@ -192,7 +192,8 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
                                               uint32_t NumWG, uptr &Begin,
                                               uptr &End) {
   const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
-  const size_t RequiredShadowSize = NumWG * LocalMemorySize;
+  const size_t RequiredShadowSize =
+      std::min(NumWG, (uint32_t)kThreadSlotCount) * LocalMemorySize;
   static size_t LastAllocatedSize = 0;
   if (RequiredShadowSize > LastAllocatedSize) {
     if (LocalShadowOffset) {
