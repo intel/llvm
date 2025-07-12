@@ -62,7 +62,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     bool IsInOrder)
     : handle_base(), Context(Context), Device(Device), IsUpdatable(IsUpdatable),
       IsInOrder(IsInOrder), CudaGraph{nullptr}, CudaGraphExec{nullptr},
-      RefCount{1}, NextSyncPoint{0} {
+      NextSyncPoint{0} {
   urContextRetain(Context);
 }
 
@@ -382,13 +382,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  hCommandBuffer->incrementReferenceCount();
+  hCommandBuffer->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  if (hCommandBuffer->decrementReferenceCount() == 0) {
+  if (hCommandBuffer->RefCount.release()) {
     // Ref count has reached zero, release of created commands
     for (auto &Command : hCommandBuffer->CommandHandles) {
       commandHandleDestroy(Command);
@@ -1478,7 +1478,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
-    return ReturnValue(hCommandBuffer->getReferenceCount());
+    return ReturnValue(hCommandBuffer->RefCount.getCount());
   case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
     ur_exp_command_buffer_desc_t Descriptor{};
     Descriptor.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;

@@ -127,9 +127,9 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
-  UR_ASSERT(hKernel->getReferenceCount() > 0u, UR_RESULT_ERROR_INVALID_KERNEL);
+  UR_ASSERT(hKernel->RefCount.getCount() > 0u, UR_RESULT_ERROR_INVALID_KERNEL);
 
-  hKernel->incrementReferenceCount();
+  hKernel->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
@@ -137,10 +137,10 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRelease(ur_kernel_handle_t hKernel) {
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  UR_ASSERT(hKernel->getReferenceCount() != 0, UR_RESULT_ERROR_INVALID_KERNEL);
+  UR_ASSERT(hKernel->RefCount.getCount() != 0, UR_RESULT_ERROR_INVALID_KERNEL);
 
   // decrement ref count. If it is 0, delete the program.
-  if (hKernel->decrementReferenceCount() == 0) {
+  if (hKernel->RefCount.release()) {
     // no internal cuda resources to clean up. Just delete it.
     delete hKernel;
     return UR_RESULT_SUCCESS;
@@ -248,7 +248,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
   case UR_KERNEL_INFO_NUM_ARGS:
     return ReturnValue(hKernel->getNumArgs());
   case UR_KERNEL_INFO_REFERENCE_COUNT:
-    return ReturnValue(hKernel->getReferenceCount());
+    return ReturnValue(hKernel->RefCount.getCount());
   case UR_KERNEL_INFO_CONTEXT:
     return ReturnValue(hKernel->getContext());
   case UR_KERNEL_INFO_PROGRAM:
