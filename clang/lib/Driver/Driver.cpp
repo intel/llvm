@@ -1479,61 +1479,78 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
       return;
     }
-    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-    auto AMDTriple = getHIPOffloadTargetTriple(*this, C.getInputArgs());
-    auto NVPTXTriple = getNVIDIAOffloadTargetTriple(*this, C.getInputArgs(),
-                                                    HostTC->getTriple());
+    llvm::Triple AMDTriple("amdgcn-amd-amdhsa");
+    llvm::Triple NVPTXTriple("nvptx64-nvidia-cuda");
+    llvm::Triple IntelGPUTriple("spir64_gen-unknown-unknown");
+    llvm::Triple IntelCPUTriple("spir64_x86_64-unknown-unknown");
 
     // Attempt to deduce the offloading triple from the set of architectures.
     // We need to temporarily create these toolchains so that we can access
     // tools for inferring architectures.
     llvm::DenseSet<StringRef> Archs;
-    if (NVPTXTriple) {
-      auto TempTC = std::make_unique<toolchains::CudaToolChain>(
-          *this, *NVPTXTriple, *HostTC, C.getInputArgs(), Action::OFK_None);
-      for (StringRef Arch :
-           getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, &*TempTC, true))
-        Archs.insert(Arch);
-    }
-    if (AMDTriple) {
-      auto TempTC = std::make_unique<toolchains::AMDGPUOpenMPToolChain>(
-          *this, *AMDTriple, *HostTC, C.getInputArgs());
-      for (StringRef Arch :
-           getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, &*TempTC, true))
-        Archs.insert(Arch);
-    }
-    if (!AMDTriple && !NVPTXTriple) {
-      for (StringRef Arch :
-           getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, nullptr, true))
-        Archs.insert(Arch);
-    }
-    for (StringRef Arch : Archs) {
-      if (NVPTXTriple && IsSYCLSupportedNVidiaGPUArch(StringToOffloadArch(
-                             getProcessorFromTargetID(*NVPTXTriple, Arch)))) {
-        DerivedArchs[NVPTXTriple->getTriple()].insert(Arch);
-      } else if (AMDTriple &&
-                 IsSYCLSupportedAMDGPUArch(StringToOffloadArch(
-                     getProcessorFromTargetID(*AMDTriple, Arch)))) {
-        DerivedArchs[AMDTriple->getTriple()].insert(Arch);
-      } else if (IsSYCLSupportedIntelCPUArch(StringToOffloadArchSYCL(Arch))) {
-        DerivedArchs[getSYCLDeviceTriple("spir64_x86_64").getTriple()].insert(
-            Arch);
-      } else if (IsSYCLSupportedIntelGPUArch(StringToOffloadArchSYCL(Arch))) {
-        StringRef IntelGPUArch;
-        // For Intel Graphics AOT target, valid values for '--offload-arch'
-        // are mapped to valid device names accepted by OCLOC (the Intel GPU AOT
-        // compiler) via the '-device' option. The mapIntelGPUArchName
-        // function maps the accepted values for '--offload-arch' to enable SYCL
-        // offloading to Intel GPUs and the corresponding '-device' value passed
-        // to OCLOC.
-        IntelGPUArch = mapIntelGPUArchName(Arch).data();
-        DerivedArchs[getSYCLDeviceTriple("spir64_gen").getTriple()].insert(
-            IntelGPUArch);
-      } else {
-        Diag(clang::diag::err_drv_invalid_sycl_target) << Arch;
+
+    for (StringRef Arch :
+         C.getInputArgs().getAllArgValues(options::OPT_offload_arch_EQ)) {
+      bool IsNVPTX = IsSYCLSupportedNVidiaGPUArch(
+          StringToOffloadArch(getProcessorFromTargetID(NVPTXTriple, Arch)));
+      bool IsAMDGPU = IsSYCLSupportedAMDGPUArch(
+          StringToOffloadArch(getProcessorFromTargetID(AMDTriple, Arch)));
+      bool IsIntelGPU = IsIntelGPUOffloadArch(
+          StringToOffloadArch(getProcessorFromTargetID(IntelGPUTriple, Arch)));
+      bool IsIntelCPU = IsIntelCPUOffloadArch(
+          StringToOffloadArch(getProcessorFromTargetID(IntelCPUTriple, Arch)));
+      if (!IsNVPTX && !IsAMDGPU && !Arch.empty() && !IsIntelGPU &&
+          !IsIntelCPU && !Arch.equals_insensitive("native")) {
+        Diag(clang::diag::err_drv_failed_to_deduce_target_from_arch) << Arch;
         return;
       }
     }
+
+    for (const llvm::Triple &TT :
+         {AMDTriple, NVPTXTriple, IntelGPUTriple, IntelCPUTriple}) {
+      auto &TC = getOffloadToolChain(C.getInputArgs(), Action::OFK_OpenMP, TT,
+                                     C.getDefaultToolChain().getTriple());
+
+      llvm::SmallVector<StringRef> Archs =
+          getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, &TC,
+                          /*SpecificToolchain=*/false);
+      if (!Archs.empty()) {
+        C.addOffloadDeviceToolChain(&TC, Action::OFK_SYCL);
+        OffloadArchs[&TC] = Archs;
+      }
+    }
+
+    /*   for (StringRef Arch : Archs) {
+         if (NVPTXTriple && IsSYCLSupportedNVidiaGPUArch(StringToOffloadArch(
+                                getProcessorFromTargetID(*NVPTXTriple, Arch))))
+       { DerivedArchs[NVPTXTriple->getTriple()].insert(Arch); } else if
+       (AMDTriple && IsSYCLSupportedAMDGPUArch(StringToOffloadArch(
+                        getProcessorFromTargetID(*AMDTriple, Arch)))) {
+           DerivedArchs[AMDTriple->getTriple()].insert(Arch);
+         } else if (IsSYCLSupportedIntelCPUArch(StringToOffloadArchSYCL(Arch)))
+       { DerivedArchs[getSYCLDeviceTriple("spir64_x86_64").getTriple()].insert(
+               Arch);
+         } else if (IsSYCLSupportedIntelGPUArch(StringToOffloadArchSYCL(Arch)))
+       { StringRef IntelGPUArch;
+           // For Intel Graphics AOT target, valid values for '--offload-arch'
+           // are mapped to valid device names accepted by OCLOC (the Intel GPU
+       AOT
+           // compiler) via the '-device' option. The mapIntelGPUArchName
+           // function maps the accepted values for '--offload-arch' to enable
+       SYCL
+           // offloading to Intel GPUs and the corresponding '-device' value
+       passed
+           // to OCLOC.
+           IntelGPUArch = mapIntelGPUArchName(Arch).data();
+           DerivedArchs[getSYCLDeviceTriple("spir64_gen").getTriple()].insert(
+               IntelGPUArch);
+         } else {
+           Diag(clang::diag::err_drv_invalid_sycl_target) << Arch;
+           return;
+         }
+       }
+   */
+
     // Emit an error if architecture value is not provided
     // to --offload-arch.
     if (Archs.empty()) {
@@ -7540,6 +7557,8 @@ static StringRef getCanonicalArchString(Compilation &C,
                                         bool SpecificToolchain) {
   // Lookup the CUDA / HIP architecture string. Only report an error if we were
   // expecting the triple to be only NVPTX / AMDGPU.
+  // Arch = Intels arch bdw
+  // Triple = nvidia triple
   OffloadArch Arch =
       StringToOffloadArch(getProcessorFromTargetID(Triple, ArchStr));
   if (Triple.isNVPTX() &&
