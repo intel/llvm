@@ -147,6 +147,9 @@
 #include "llvm/Transforms/Vectorize/SLPVectorizer.h"
 #include "llvm/Transforms/Vectorize/VectorCombine.h"
 
+// TODO: move it elsewhere
+#include "llvm/SYCLLowerIR/SYCLOptimizeBarriers.h"
+
 using namespace llvm;
 
 static cl::opt<InliningAdvisorMode> UseInlineAdvisor(
@@ -575,6 +578,8 @@ PassBuilder::buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
       SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
   FPM.addPass(InstCombinePass());
   invokePeepholeEPCallbacks(FPM, Level);
+  if (SYCLOptimizationMode)
+    FPM.addPass(SYCLOptimizeBarriersPass());
 
   return FPM;
 }
@@ -808,6 +813,8 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
                                     .sinkCommonInsts(true)));
   FPM.addPass(InstCombinePass());
   invokePeepholeEPCallbacks(FPM, Level);
+  if (SYCLOptimizationMode)
+    FPM.addPass(SYCLOptimizeBarriersPass());
 
   return FPM;
 }
