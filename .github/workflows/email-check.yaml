@@ -27,8 +27,11 @@ jobs:
           # Create empty comment file
           echo "[]" > comments
 
+      # If author's email is hidden in GH's settings, github.event.pull_request.user.email
+      # will be null and PR will be authored by noreply.github.com.
       - name: Validate author email
-        if: ${{ endsWith(steps.author.outputs.EMAIL, 'noreply.github.com')  }}
+        if: endsWith(steps.author.outputs.EMAIL, 'noreply.github.com') ||
+              github.event.pull_request.user.email == ''
         env:
           COMMENT: >-
             ⚠️ We detected that you are using a GitHub private e-mail address to contribute to the repo.<br/>
@@ -38,6 +41,9 @@ jobs:
           cat << EOF > comments
           [{"body" : "$COMMENT"}]
           EOF
+
+          # Fail this job.
+          false
 
       - uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 #v4.3.0
         if: always()
