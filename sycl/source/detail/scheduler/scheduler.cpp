@@ -67,7 +67,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     // Capture the dependencies
     DepCommands.insert(Cmd);
 #endif
-    GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
+    GraphProcessor::waitForEvent(*Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
@@ -82,7 +82,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     DepCommands.insert(Cmd);
 #endif
-    GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
+    GraphProcessor::waitForEvent(*Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
     Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
@@ -97,7 +97,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     // reported as edges
     ReleaseCmd->resolveReleaseDependencies(DepCommands);
 #endif
-    GraphProcessor::waitForEvent(ReleaseCmd->getEvent(), GraphReadLock,
+    GraphProcessor::waitForEvent(*ReleaseCmd->getEvent(), GraphReadLock,
                                  ToCleanUp);
   }
 }
@@ -278,12 +278,12 @@ bool Scheduler::isInstanceAlive() {
   return GlobalHandler::instance().isSchedulerAlive();
 }
 
-void Scheduler::waitForEvent(const EventImplPtr &Event, bool *Success) {
+void Scheduler::waitForEvent(event_impl &Event, bool *Success) {
   ReadLockT Lock = acquireReadLock();
   // It's fine to leave the lock unlocked upon return from waitForEvent as
   // there's no more actions to do here with graph
   std::vector<Command *> ToCleanUp;
-  GraphProcessor::waitForEvent(std::move(Event), Lock, ToCleanUp,
+  GraphProcessor::waitForEvent(Event, Lock, ToCleanUp,
                                /*LockTheLock=*/false, Success);
   cleanupCommands(ToCleanUp);
 }
@@ -654,7 +654,8 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
     WriteLockT Lock = acquireWriteLock();
 
     Command *NewCmd = MGraphBuilder.addCommandGraphUpdate(
-        Graph, Nodes, Queue, Requirements, Events, AuxiliaryCmds);
+        Graph, std::move(Nodes), Queue, std::move(Requirements), Events,
+        AuxiliaryCmds);
     if (!NewCmd)
       return nullptr;
     NewCmdEvent = NewCmd->getEvent();

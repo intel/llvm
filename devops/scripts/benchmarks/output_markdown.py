@@ -115,17 +115,12 @@ def is_content_in_size_limit(content_size: int, current_markdown_size: int):
 
 
 def get_explicit_group_name(result: Result, metadata: dict[str, BenchmarkMetadata]):
-    explicit_group_name = ""
     try:
-        explicit_group_name = metadata[result.label].explicit_group
-    except Exception as e:
-        log.warning(
-            f"Unexpected error when getting explicit_group for '{result.label}': {e}"
-        )
+        group_name = metadata[result.label].explicit_group
+        return group_name if group_name else "Other"
+    except Exception:
+        log.debug(f"No explicit group found for {result.label}, using 'Other'")
         return "Other"
-
-    return explicit_group_name if explicit_group_name else "Other"
-
 
 # Function to generate the markdown collapsible sections for each variant
 def generate_markdown_details(

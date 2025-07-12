@@ -25,13 +25,12 @@ inline namespace _V1 {
 enum class backend : char;
 namespace detail {
 class adapter_impl;
-using AdapterPtr = adapter_impl *;
 
 namespace ur {
 void *getURLoaderLibrary();
 
 // Performs UR one-time initialization.
-std::vector<AdapterPtr> &
+std::vector<adapter_impl *> &
 initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
 
 // Get the adapter serving given backend.

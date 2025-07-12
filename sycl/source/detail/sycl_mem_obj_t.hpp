@@ -34,7 +34,6 @@ namespace detail {
 class context_impl;
 class event_impl;
 class adapter_impl;
-using AdapterPtr = adapter_impl *;
 
 using EventImplPtr = std::shared_ptr<event_impl>;
 

@@ -200,7 +200,7 @@ struct MemObjRecord {
   MemObjRecord(context_impl *Ctx, std::size_t LeafLimit,
                LeavesCollection::AllocateDependencyF AllocateDependency)
       : MReadLeaves{this, LeafLimit, AllocateDependency},
-        MWriteLeaves{this, LeafLimit, AllocateDependency},
+        MWriteLeaves{this, LeafLimit, std::move(AllocateDependency)},
         MCurContext{Ctx ? Ctx->shared_from_this() : nullptr} {}
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
@@ -404,7 +404,7 @@ public:
   ///        (e.g., in case of a non-blocking read from a pipe), and the value
   ///        it's pointing to is then set according to the outcome.
 
-  void waitForEvent(const EventImplPtr &Event, bool *Success = nullptr);
+  void waitForEvent(event_impl &Event, bool *Success = nullptr);
 
   /// Removes buffer from the graph.
   ///
@@ -831,8 +831,7 @@ protected:
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state if and only if LockTheLock is true.
-    static void waitForEvent(const EventImplPtr &Event,
-                             ReadLockT &GraphReadLock,
+    static void waitForEvent(event_impl &Event, ReadLockT &GraphReadLock,
                              std::vector<Command *> &ToCleanUp,
                              bool LockTheLock = true, bool *Success = nullptr);
 

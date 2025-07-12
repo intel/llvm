@@ -442,7 +442,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       // Extract everything after this option and add it to the above.
       if (EndOfOpt != std::string::npos)
         NewCompileOpts += CompileOpts.substr(EndOfOpt);
-      CompileOpts = NewCompileOpts;
+      CompileOpts = std::move(NewCompileOpts);
       OptPos = CompileOpts.find(TargetRegisterAllocMode);
     }
     constexpr std::string_view ReplaceOpts[] = {"-foffload-fp32-prec-div",

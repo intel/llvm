@@ -124,7 +124,7 @@ public:
   // Interop constructor
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      device_image_plain &DevImage, private_tag Tag)
-      : kernel_bundle_impl(Ctx, Devs, Tag) {
+      : kernel_bundle_impl(std::move(Ctx), std::move(Devs), Tag) {
     MDeviceImages.emplace_back(DevImage);
     MUniqueDeviceImages.emplace_back(DevImage);
   }

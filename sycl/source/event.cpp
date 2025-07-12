@@ -36,7 +36,7 @@ bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
 
-void event::wait() { impl->wait(impl); }
+void event::wait() { impl->wait(); }
 
 void event::wait(const std::vector<event> &EventList) {
   for (auto E : EventList) {
@@ -44,7 +44,7 @@ void event::wait(const std::vector<event> &EventList) {
   }
 }
 
-void event::wait_and_throw() { impl->wait_and_throw(impl); }
+void event::wait_and_throw() { impl->wait_and_throw(); }
 
 void event::wait_and_throw(const std::vector<event> &EventList) {
   for (auto E : EventList) {
@@ -87,7 +87,7 @@ event::get_profiling_info() const {
   }
 
   if constexpr (!std::is_same_v<Param, info::event_profiling::command_submit>) {
-    impl->wait(impl);
+    impl->wait();
   }
   return impl->template get_profiling_info<Param>();
 }

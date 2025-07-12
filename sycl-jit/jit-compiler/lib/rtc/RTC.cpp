@@ -71,7 +71,7 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
   if (auto *Arg =
           UserArgList.getLastArg(clang::driver::options::OPT_ftime_trace_EQ)) {
     TraceFileName = Arg->getValue();
-    int Granularity =
+    unsigned Granularity =
         500; // microseconds. Same default as in `clang::FrontendOptions`.
     if (auto *Arg = UserArgList.getLastArg(
             clang::driver::options::OPT_ftime_trace_granularity_EQ)) {

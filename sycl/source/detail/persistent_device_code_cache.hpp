@@ -112,7 +112,7 @@ private:
    * specialization constant values, device code SPIR-V images.
    */
   static void
-  writeSourceItem(const std::string &FileName, const device &Device,
+  writeSourceItem(const std::string &FileName, device_impl &Device,
                   const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
                   const SerializedObj &SpecConsts,
                   const std::string &BuildOptionsString);
@@ -120,12 +120,12 @@ private:
   /* Check that cache item key sources are equal to the current program
    */
   static bool isCacheItemSrcEqual(
-      const std::string &FileName, const device &Device,
+      const std::string &FileName, device_impl &Device,
       const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
       const SerializedObj &SpecConsts, const std::string &BuildOptionsString);
 
   /* Form string representing device version */
-  static std::string getDeviceIDString(const device &Device);
+  static std::string getDeviceIDString(device_impl &Device);
 
   /* Returns true if specified images should be cached on disk. It checks if
    * cache is enabled, images have SPIRV type and match thresholds. */
@@ -165,7 +165,7 @@ public:
   /* Get directory name for storing current cache item
    */
   static std::string
-  getCacheItemPath(const device &Device,
+  getCacheItemPath(device_impl &Device,
                    const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
                    const SerializedObj &SpecConsts,
                    const std::string &BuildOptionsString);
@@ -174,7 +174,7 @@ public:
    * kernel_compiler ).
    */
   static std::string
-  getCompiledKernelItemPath(const device &Device,
+  getCompiledKernelItemPath(device_impl &Device,
                             const std::string &BuildOptionsString,
                             const std::string &SourceString);
 
@@ -191,13 +191,13 @@ public:
    * stored in vector of chars.
    */
   static std::vector<std::vector<char>>
-  getItemFromDisc(const std::vector<device> &Devices,
+  getItemFromDisc(devices_range Devices,
                   const std::vector<const RTDeviceBinaryImage *> &Imgs,
                   const SerializedObj &SpecConsts,
                   const std::string &BuildOptionsString);
 
   static std::vector<std::vector<char>>
-  getCompiledKernelFromDisc(const std::vector<device> &Devices,
+  getCompiledKernelFromDisc(devices_range Devices,
                             const std::string &BuildOptionsString,
                             const std::string &SourceStr);
 
@@ -206,13 +206,13 @@ public:
   /* Stores build program in persistent cache
    */
   static void
-  putItemToDisc(const std::vector<device> &Devices,
+  putItemToDisc(devices_range Devices,
                 const std::vector<const RTDeviceBinaryImage *> &Imgs,
                 const SerializedObj &SpecConsts,
                 const std::string &BuildOptionsString,
                 const ur_program_handle_t &NativePrg);
 
-  static void putCompiledKernelToDisc(const std::vector<device> &Devices,
+  static void putCompiledKernelToDisc(devices_range Devices,
                                       const std::string &BuildOptionsString,
                                       const std::string &SourceStr,
                                       const ur_program_handle_t &NativePrg);

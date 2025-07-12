@@ -626,7 +626,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
       LastEvent = MDefaultGraphDeps.LastEventPtr;
     }
     if (LastEvent) {
-      LastEvent->wait(LastEvent);
+      LastEvent->wait();
     }
   } else if (!isInOrder()) {
     std::vector<std::weak_ptr<event_impl>> WeakEvents;
@@ -651,7 +651,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
         // A nullptr UR event indicates that urQueueFinish will not cover it,
         // either because it's a host task event or an unenqueued one.
         if (nullptr == EventImplSharedPtr->getHandle()) {
-          EventImplSharedPtr->wait(EventImplSharedPtr);
+          EventImplSharedPtr->wait();
         }
       }
     }
@@ -666,7 +666,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
       StreamsServiceEvents.swap(MStreamsServiceEvents);
     }
     for (const EventImplPtr &Event : StreamsServiceEvents)
-      Event->wait(Event);
+      Event->wait();
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION

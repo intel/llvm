@@ -574,7 +574,7 @@ TEST_P(MultipleDevsKernelBundleTest, DISABLED_PersistentCache) {
   sycl_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage RTBinImg{Bin};
   auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
-      {Devices[0], Devices[2]}, {&RTBinImg}, {}, {});
+      std::vector<sycl::device>{Devices[0], Devices[2]}, {&RTBinImg}, {}, {});
   EXPECT_EQ(Res.size(), static_cast<size_t>(2))
       << "Expected cache items to be loaded";
 

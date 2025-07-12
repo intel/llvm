@@ -68,7 +68,7 @@ public:
 
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
                adapter_impl &Adapter, private_tag tag)
-      : context_impl(UrContext, AsyncHandler, Adapter,
+      : context_impl(UrContext, std::move(AsyncHandler), Adapter,
                      std::vector<sycl::device>{},
                      /*OwnedByRuntime*/ true, tag) {}
 
@@ -295,7 +295,7 @@ private:
     }
 
     /// Clears all events of the initializer. This will not acquire the lock.
-    void ClearEvents(const AdapterPtr &Adapter);
+    void ClearEvents(adapter_impl &Adapter);
 
     /// The binary image of the program.
     const RTDeviceBinaryImage *MBinImage = nullptr;

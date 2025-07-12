@@ -144,9 +144,10 @@ function createChart(data, containerId, type) {
                                 `Value: ${point.y.toFixed(2)} ${data.unit}`,
                                 `Stddev: ${point.stddev.toFixed(2)} ${data.unit}`,
                                 `Git Hash: ${point.gitHash}`,
-                                `Compute Runtime: ${point.compute_runtime}`,
-                                `Bench hash: ${point.gitBenchHash?.substring(0, 7)}`,
-                                `Bench URL: ${point.gitBenchUrl}`,
+                                ...(point.compute_runtime && point.compute_runtime !== 'null' && point.compute_runtime !== 'unknown' ?
+                                    [`Compute Runtime: ${point.compute_runtime}`] : []),
+                                ...(point.gitBenchHash ? [`Bench hash: ${point.gitBenchHash.substring(0, 7)}`] : []),
+                                ...(point.gitBenchUrl ? [`Bench URL: ${point.gitBenchUrl}`] : []),
                             ];
                         } else {
                             return [`${context.dataset.label}:`,
