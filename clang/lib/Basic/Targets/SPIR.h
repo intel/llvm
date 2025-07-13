@@ -213,9 +213,10 @@ public:
     AddrSpaceMap = DefaultIsGeneric ? &SPIRDefIsGenMap : &SPIRDefIsPrivMap;
   }
 
-  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts) override {
-    TargetInfo::adjust(Diags, Opts);
-    // NOTE: SYCL specification considers unannotated pointers and references
+  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts,
+              const TargetInfo *Aux) override {
+    TargetInfo::adjust(Diags, Opts, Aux);
+    // FIXME: SYCL specification considers unannotated pointers and references
     // to be pointing to the generic address space. See section 5.9.3 of
     // SYCL 2020 specification.
     // Currently, there is no way of representing SYCL's and HIP/CUDA's default
@@ -532,8 +533,9 @@ public:
   std::optional<LangAS> getConstantAddressSpace() const override {
     return ConstantAS;
   }
-  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts) override {
-    BaseSPIRVTargetInfo::adjust(Diags, Opts);
+  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts,
+              const TargetInfo *Aux) override {
+    BaseSPIRVTargetInfo::adjust(Diags, Opts, Aux);
     // opencl_constant will map to UniformConstant in SPIR-V
     if (Opts.OpenCL)
       ConstantAS = LangAS::opencl_constant;
@@ -726,8 +728,9 @@ public:
 
   void setAuxTarget(const TargetInfo *Aux) override;
 
-  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts) override {
-    TargetInfo::adjust(Diags, Opts);
+  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts,
+              const TargetInfo *Aux) override {
+    TargetInfo::adjust(Diags, Opts, Aux);
   }
 
   bool hasInt128Type() const override { return TargetInfo::hasInt128Type(); }
