@@ -7,9 +7,12 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spirv64-unknown-unknown"
 
-define spir_func void @bb_remove() {
-; CHECK-LABEL: define spir_func void @bb_remove() {
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
+@GV = external addrspace(1) global i32
+
+@__spirv_BuiltInWorkgroupId = external addrspace(1) global <3 x i32>
+
+define spir_kernel void @bb_remove() {
+; CHECK-LABEL: define spir_kernel void @bb_remove() {
 ; CHECK-NEXT:    ret void
 ;
   call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
@@ -17,8 +20,24 @@ define spir_func void @bb_remove() {
   ret void
 }
 
-define spir_func void @bb_private_access() {
-; CHECK-LABEL: define spir_func void @bb_private_access() {
+define spir_kernel void @bb_remove_get_id() {
+; CHECK-LABEL: define spir_kernel void @bb_remove_get_id() {
+; CHECK-NEXT:    [[ID1:%.*]] = load <3 x i32>, ptr addrspace(1) @__spirv_BuiltInWorkgroupId, align 16
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
+; CHECK-NEXT:    [[ID2:%.*]] = load <3 x i32>, ptr addrspace(1) @__spirv_BuiltInWorkgroupId, align 16
+; CHECK-NEXT:    [[ID3:%.*]] = load <3 x i32>, ptr addrspace(1) @__spirv_BuiltInWorkgroupId, align 16
+; CHECK-NEXT:    ret void
+;
+  %id1 = load <3 x i32>, ptr addrspace(1) @__spirv_BuiltInWorkgroupId
+  call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
+  %id2 = load <3 x i32>, ptr addrspace(1) @__spirv_BuiltInWorkgroupId
+  call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
+  %id3 = load <3 x i32>, ptr addrspace(1) @__spirv_BuiltInWorkgroupId
+  ret void
+}
+
+define spir_kernel void @bb_private_access() {
+; CHECK-LABEL: define spir_kernel void @bb_private_access() {
 ; CHECK-NEXT:    [[TMP:%.*]] = alloca i32, align 4
 ; CHECK-NEXT:    store i32 1, ptr [[TMP]], align 4
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
@@ -33,8 +52,8 @@ define spir_func void @bb_private_access() {
   ret void
 }
 
-define spir_func void @bb_generic_alloca_access() {
-; CHECK-LABEL: define spir_func void @bb_generic_alloca_access() {
+define spir_kernel void @bb_generic_alloca_access() {
+; CHECK-LABEL: define spir_kernel void @bb_generic_alloca_access() {
 ; CHECK-NEXT:    [[TMP:%.*]] = alloca i32, align 4
 ; CHECK-NEXT:    [[TMP_CAST:%.*]] = addrspacecast ptr [[TMP]] to ptr addrspace(4)
 ; CHECK-NEXT:    store i32 1, ptr addrspace(4) [[TMP_CAST]], align 4
@@ -51,13 +70,13 @@ define spir_func void @bb_generic_alloca_access() {
   ret void
 }
 
-define spir_func void @cfg_remove(i1 %cond) {
-; CHECK-LABEL: define spir_func void @cfg_remove(
+define spir_kernel void @cfg_remove(i1 %cond) {
+; CHECK-LABEL: define spir_kernel void @cfg_remove(
 ; CHECK-SAME: i1 [[COND:%.*]]) {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
 ; CHECK-NEXT:    br i1 [[COND]], label %[[BB1:.*]], label %[[BB1]]
 ; CHECK:       [[BB1]]:
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
 ; CHECK-NEXT:    ret void
 ;
 entry:
@@ -68,38 +87,35 @@ bb1:
   ret void
 }
 
-define spir_func void @downgrade_global(ptr addrspace(3) %p) {
-; CHECK-LABEL: define spir_func void @downgrade_global(
+define spir_kernel void @downgrade_global(ptr addrspace(3) %p) {
+; CHECK-LABEL: define spir_kernel void @downgrade_global(
 ; CHECK-SAME: ptr addrspace(3) [[P:%.*]]) {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
 ; CHECK-NEXT:    store i32 0, ptr addrspace(3) [[P]], align 4
 ; CHECK-NEXT:    br label %[[BB1:.*]]
 ; CHECK:       [[BB1]]:
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 2, i32 noundef 0)
 ; CHECK-NEXT:    ret void
 ;
 entry:
-  call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 1, i32 noundef 0)
+  call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 1, i32 noundef 912)
   store i32 0, ptr addrspace(3) %p
   br label %bb1
 bb1:
-  call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 1, i32 noundef 0)
+  call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 1, i32 noundef 912)
   ret void
 }
 
-define spir_func void @unknown_scope(i32 %exec, i32 %mem) {
-; CHECK-LABEL: define spir_func void @unknown_scope(
+define spir_kernel void @unknown_scope(i32 %exec, i32 %mem) {
+; CHECK-LABEL: define spir_kernel void @unknown_scope(
 ; CHECK-SAME: i32 [[EXEC:%.*]], i32 [[MEM:%.*]]) {
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 [[EXEC]], i32 [[MEM]], i32 noundef 0)
 ; CHECK-NEXT:    ret void
 ;
   call void @_Z22__spirv_ControlBarrieriii(i32 %exec, i32 %mem, i32 noundef 0)
   ret void
 }
 
-define spir_func void @unknown_memory() {
-; CHECK-LABEL: define spir_func void @unknown_memory() {
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
+define spir_kernel void @unknown_memory() {
+; CHECK-LABEL: define spir_kernel void @unknown_memory() {
 ; CHECK-NEXT:    call void @unknown()
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
 ; CHECK-NEXT:    ret void
@@ -110,21 +126,18 @@ define spir_func void @unknown_memory() {
   ret void
 }
 
-define spir_func void @downgrade_semantics() {
-; CHECK-LABEL: define spir_func void @downgrade_semantics() {
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 2, i32 noundef 400)
+define spir_kernel void @downgrade_semantics() {
+; CHECK-LABEL: define spir_kernel void @downgrade_semantics() {
 ; CHECK-NEXT:    ret void
 ;
   call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 1, i32 noundef 912)
   ret void
 }
 
-define spir_func void @no_downgrade(ptr addrspace(1) %p) {
-; CHECK-LABEL: define spir_func void @no_downgrade(
+define spir_kernel void @no_downgrade(ptr addrspace(1) %p) {
+; CHECK-LABEL: define spir_kernel void @no_downgrade(
 ; CHECK-SAME: ptr addrspace(1) [[P:%.*]]) {
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 2, i32 noundef 400)
 ; CHECK-NEXT:    store i32 0, ptr addrspace(1) [[P]], align 4
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 2, i32 noundef 400)
 ; CHECK-NEXT:    ret void
 ;
   call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 1, i32 noundef 912)
@@ -133,15 +146,31 @@ define spir_func void @no_downgrade(ptr addrspace(1) %p) {
   ret void
 }
 
-define spir_func void @semantics_none() {
-; CHECK-LABEL: define spir_func void @semantics_none() {
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 2, i32 noundef 0)
+define spir_kernel void @semantics_none() {
+; CHECK-LABEL: define spir_kernel void @semantics_none() {
 ; CHECK-NEXT:    ret void
 ;
   call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 1, i32 noundef 0)
   ret void
 }
 
+define spir_func void @cfg_remove_sem_subsume(i1 %cond) {
+; CHECK-LABEL: define spir_func void @cfg_remove_sem_subsume(
+; CHECK-SAME: i1 [[COND:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 912)
+; CHECK-NEXT:    br i1 [[COND]], label %[[BB1:.*]], label %[[BB1]]
+; CHECK:       [[BB1]]:
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 400)
+; CHECK-NEXT:    ret void
+;
+entry:
+  call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 912)
+  br i1 %cond, label %bb1, label %bb1
+bb1:
+  call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 400)
+  ret void
+}
 
 declare void @unknown()
 

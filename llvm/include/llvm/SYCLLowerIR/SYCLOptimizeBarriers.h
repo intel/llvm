@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass cleans up ControlBarrier calls.
+// This pass cleans up ControlBarrier and MemoryBarrier calls.
 //
 //===----------------------------------------------------------------------===//
 #ifndef LLVM_SYCL_OPTIMIZE_BARRIERS_H

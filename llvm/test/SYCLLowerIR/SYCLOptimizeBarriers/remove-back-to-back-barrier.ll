@@ -8,11 +8,17 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spirv64-unknown-unknown"
 
-define spir_func void @_Z3fooii(i32 %0, i32 %1) {
-; CHECK-LABEL: define spir_func void @_Z3fooii(
+@GV = external addrspace(3) global i32
+
+define spir_kernel void @_Z3fooii(i32 %0, i32 %1) {
+; CHECK-LABEL: define spir_kernel void @_Z3fooii(
 ; CHECK-SAME: i32 [[TMP0:%.*]], i32 [[TMP1:%.*]]) {
+; CHECK-NEXT:    [[VAL:%.*]] = load i32, ptr addrspace(3) @GV, align 4
 ; CHECK-NEXT:    call spir_func void @__itt_offload_wg_barrier_wrapper()
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 1, i32 noundef 912)
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 400)
+; CHECK-NEXT:    call spir_func void @__itt_offload_wi_resume_wrapper()
+; CHECK-NEXT:    call spir_func void @__itt_offload_wg_barrier_wrapper()
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 64, i32 noundef 2, i32 noundef 400)
 ; CHECK-NEXT:    call spir_func void @__itt_offload_wi_resume_wrapper()
 ; CHECK-NEXT:    call spir_func void @__itt_offload_wg_barrier_wrapper()
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 [[TMP0]], i32 noundef 2, i32 noundef 912)
@@ -25,6 +31,7 @@ define spir_func void @_Z3fooii(i32 %0, i32 %1) {
 ; CHECK-NEXT:    call spir_func void @__itt_offload_wi_resume_wrapper()
 ; CHECK-NEXT:    ret void
 ;
+  %val = load i32, ptr addrspace(3) @GV
   call spir_func void @__itt_offload_wg_barrier_wrapper()
   call void @_Z22__spirv_ControlBarrieriii(i32 noundef 4, i32 noundef 1, i32 noundef 912)
   call spir_func void @__itt_offload_wi_resume_wrapper()
@@ -74,6 +81,9 @@ define dso_local void @_Z3booi(i32 noundef %0) local_unnamed_addr #0 {
 ; CHECK-NEXT:    [[TMP2:%.*]] = icmp eq i32 [[TMP0]], 0
 ; CHECK-NEXT:    br i1 [[TMP2]], label %[[BB3:.*]], label %[[BB4:.*]]
 ; CHECK:       [[BB3]]:
+; CHECK-NEXT:    call spir_func void @__itt_offload_wg_barrier_wrapper()
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 3, i32 noundef 3, i32 noundef 0)
+; CHECK-NEXT:    call spir_func void @__itt_offload_wi_resume_wrapper()
 ; CHECK-NEXT:    br label %[[BB4]]
 ; CHECK:       [[BB4]]:
 ; CHECK-NEXT:    call spir_func void @__itt_offload_wg_barrier_wrapper()

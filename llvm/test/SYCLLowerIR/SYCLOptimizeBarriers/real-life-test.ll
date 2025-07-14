@@ -29,7 +29,7 @@ define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerE
 ; CHECK-NEXT:    [[CMP_I:%.*]] = icmp slt i32 [[I_0_I]], 262144
 ; CHECK-NEXT:    br i1 [[CMP_I]], label %[[FOR_BODY_I]], label %[[FOR_COND_CLEANUP_I:.*]]
 ; CHECK:       [[FOR_COND_CLEANUP_I]]:
-; CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 400) #[[ATTR2:[0-9]+]]
+; CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 912) #[[ATTR2:[0-9]+]]
 ; CHECK-NEXT:    [[TMP3:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationId, align 32, !noalias [[META17:![0-9]+]]
 ; CHECK-NEXT:    [[TMP4:%.*]] = getelementptr float, ptr addrspace(3) [[_ARG_LOCAL]], i64 [[TMP3]]
 ; CHECK-NEXT:    br label %[[FOR_COND9_I:.*]]

@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
+// This pass optimizes __spirv_ControlBarrier and __spirv_MemoryBarrier calls.
+//
 // SYCL Barrier-Optimization Pass Overview
 //
 // 1) **Collect Phase**
@@ -21,6 +23,19 @@
 //      – Global   : at least one addrspace(1/5/6) access (with an exception of
 //      loads from __spirv_BuiltIn GVs) – Unknown  : any other
 //      mayReadOrWriteMemory() (intrinsics, calls, addrspace generic)
+//    * Walk the function and record every barrier call into a list of
+//      BarrierDesc structures:
+//      - CI        : the call instruction
+//      - ExecScope : the execution-scope operand (for MemoryBarrier this is
+//      Invocation)
+//      - MemScope  : the memory-scope operand
+//      - Semantic  : the fence-semantics bits
+//    * At the same time, build a per-basic block summary of memory accesses:
+//      - None   : only private/constant or no accesses
+//      - Local  : at least one addrspace(3) access
+//      - Global : at least one addrspace(1/5/6) access (except loads from
+//        __spirv_BuiltIn globals)
+//      - Unknown: any other mayReadOrWriteMemory() instruction
 //
 // 2) **At Entry and At Exit Elimination**
 //    - **Entry**: For each barrier B, if on *every* path from function entry to
@@ -29,6 +44,11 @@
 //    - **Exit** : For each barrier B, if on *every* path from B to any function
 //    return there are no
 //      accesses >= B.MemScope, then remove B.
+//    - **Entry**: For each barrier B, if on every path from function entry to B
+//      there are no accesses greater than or equal to B.MemScope, remove B.
+//    - **Exit** : For each barrier B, if on every path from B to any function
+//      return there are no accesses greater than or equal to B.MemScope, remove
+//      B.
 //
 // 3) **Back-to-Back Elimination (per-BB)**
 //    a) *Pure-Sync Collapse*
@@ -37,6 +57,10 @@
 //         (ignore Unknown).
 //         – Erase all other barriers (they synchronize
 //         nothing).
+//       If BB summary == None (no local, global or unknown accesses):
+//         - Find the single barrier with the widest (ExecScope, MemScope)
+//           ignoring Unknown scopes.
+//         - Erase all other barriers since they synchronize nothing.
 //    b) *General Redundancy Check*
 //       Otherwise we walk the barriers in source order and compare each new
 //       barrier to the most recent one that is still alive:
@@ -46,25 +70,37 @@
 //       - If the earlier barrier fences a superset of what the later one would
 //         fence and there are no accesses that only the later barrier would
 //         need to order, the later barrier is removed.
+//         fence and there are no accesses that only the later barrier would
+//         need to order, the later barrier is removed.
 //       - Symmetrically, if the later barrier fences a superset and the
 //       intervening
 //         code contains nothing that only the earlier barrier needed, the
 //         earlier barrier is removed.
+//         intervening code contains nothing that only the earlier barrier
+//         needed, the earlier barrier is removed.
 //    Any barrier whose execution or memory scope is Unknown is kept
 //    conservatively. After a single pass every basic block contains only the
 //    minimal set of barriers required to enforce ordering for the memory
 //    operations it actually performs.
 //
 // 4) **CFG-Wide Elimination**
+//    For each pair of barriers A and B in the function:
+//      - If A dominates B and B post dominates A and there are no accesses that only B would need to
+//        order, B can be removed.
+//    FIXME: The logic shoud actually be:
 //    a) *Dominator-Based Removal*
 //       For each pair (A, B) with identical Exec and Mem scopes where A
 //       dominates B:
 //         – If *every* path from A to B has no accesses >= A.MemScope, remove
 //         B.
+//         - If every path from A to B has no accesses >= A.MemScope, remove B.
 //    b) *Post-Dominator-Based Removal*
 //       For each pair (A, B) with identical scopes where B post-dominates A:
 //         – If *every* path from A to B has no accesses >= A.MemScope, remove
 //         A.
+//         - If every path from A to B has no accesses >= A.MemScope, remove A.
+//
+//    But there are loops to handle, so simpler logic is used for now.
 //
 // 5) **Global -> Local Downgrade**
 //    For each global-scope barrier B (MemScope == Device/CrossDevice or
@@ -72,6 +108,9 @@
 //      – If there exists another global barrier A that dominates or
 //        post-dominates B and no Global/Unknown accesses occur between the two,
 //        B can be downgraded to Workgroup scope.
+//      - If there exists another global barrier A that dominates or
+//        post-dominates B and no Global or Unknown accesses occur between the
+//        two, B can be downgraded to Workgroup scope.
 //
 //===----------------------------------------------------------------------===//
 
@@ -82,16 +121,20 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 
 using namespace llvm;
 
+#define DEBUG_TYPE "sycl-opt-barriers"
+
 namespace {
 
 // Hard-coded special names used in the pass.
-// TODO: add MemoryBarrier.
 static constexpr char CONTROL_BARRIER[] = "_Z22__spirv_ControlBarrieriii";
+static constexpr char MEMORY_BARRIER[] = "_Z21__spirv_MemoryBarrierii";
 static constexpr char ITT_BARRIER[] = "__itt_offload_wg_barrier_wrapper";
 static constexpr char ITT_RESUME[] = "__itt_offload_wi_resume_wrapper";
 static constexpr char SPIRV_BUILTIN_PREFIX[] = "__spirv_BuiltIn";
@@ -154,13 +197,7 @@ const std::unordered_map<Scope, uint32_t> ScopeWeights = {
     {Scope::Subgroup, 400},
     {Scope::Invocation, 10}};
 
-enum class MemorySemantics {
-  SubgroupMemory = 0x80,
-  WorkgroupMemory = 0x100,
-  CrossWorkgroupMemory = 0x200
-};
-
-inline CompareRes compareScopesWithWeights(const Scope LHS, const Scope RHS) {
+static inline CompareRes compareScopesWithWeights(Scope LHS, Scope RHS) {
   auto LHSIt = ScopeWeights.find(LHS);
   auto RHSIt = ScopeWeights.find(RHS);
 
@@ -175,6 +212,86 @@ inline CompareRes compareScopesWithWeights(const Scope LHS, const Scope RHS) {
   if (LHSWeight < RHSWeight)
     return CompareRes::SMALLER;
   return CompareRes::EQUAL;
+}
+
+enum class MemorySemantics {
+  SubgroupMemory = 0x80,
+  WorkgroupMemory = 0x100,
+  CrossWorkgroupMemory = 0x200
+};
+
+enum class Ordering {
+  Acquire = 0x2,
+  Release = 0x4,
+  AcquireRelease = 0x8,
+  SequentiallyConsistent = 0x10
+};
+
+static constexpr uint32_t MemorySemanticMask = ~0x3fu;
+
+// Normalize a raw 'memory semantics' bitmask to a canonical form.
+static inline uint32_t canonicalizeSemantic(uint32_t Sem) {
+  bool HasAc = Sem & static_cast<uint32_t>(Ordering::Acquire);
+  bool HasRel = Sem & static_cast<uint32_t>(Ordering::Release);
+  bool HasAcRel = Sem & static_cast<uint32_t>(Ordering::AcquireRelease);
+  bool HasSeq = Sem & static_cast<uint32_t>(Ordering::SequentiallyConsistent);
+
+  if (HasSeq)
+    Sem &= MemorySemanticMask |
+           static_cast<uint32_t>(Ordering::SequentiallyConsistent);
+  else {
+    if (HasAc && HasRel)
+      HasAcRel = true;
+    if (HasAcRel) {
+      Sem &= ~(static_cast<uint32_t>(Ordering::Acquire) |
+               static_cast<uint32_t>(Ordering::Release));
+      Sem |= static_cast<uint32_t>(Ordering::AcquireRelease);
+    }
+  }
+  return Sem;
+}
+
+// Merge two semantics bitmasks into a single canonical form.
+static inline uint32_t mergeSemantics(uint32_t A, uint32_t B) {
+  return canonicalizeSemantic(canonicalizeSemantic(A) |
+                              canonicalizeSemantic(B));
+}
+
+// Return the ordering class of a semantic bitmask.
+static inline int orderingClass(uint32_t Sem) {
+  Sem = canonicalizeSemantic(Sem);
+  if (Sem & static_cast<uint32_t>(Ordering::SequentiallyConsistent))
+    return 4;
+  if (Sem & static_cast<uint32_t>(Ordering::AcquireRelease))
+    return 3;
+  if (Sem & static_cast<uint32_t>(Ordering::Release))
+    return 2;
+  if (Sem & static_cast<uint32_t>(Ordering::Acquire))
+    return 1;
+  return 0;
+}
+
+// Check if A is a superset of B in terms of semantics and ordering.
+static inline bool semanticsSuperset(uint32_t A, uint32_t B) {
+  A = canonicalizeSemantic(A);
+  B = canonicalizeSemantic(B);
+  uint32_t AMem = A & MemorySemanticMask;
+  uint32_t BMem = B & MemorySemanticMask;
+  if ((BMem & ~AMem) != 0)
+    return false;
+
+  int AOrd = orderingClass(A);
+  int BOrd = orderingClass(B);
+
+  if (AOrd == 4)
+    return true;
+  if (AOrd == 3)
+    return BOrd <= 3;
+  if (AOrd == 1)
+    return BOrd == 1 || BOrd == 0;
+  if (AOrd == 2)
+    return BOrd == 2 || BOrd == 0;
+  return BOrd == 0;
 }
 
 // Holds everything we know about one barrier invocation.
@@ -193,35 +310,49 @@ using BarriersMap = DenseMap<BasicBlock *, SmallVector<BarrierDesc, 2>>;
 
 // Map SPIR-V Barrier Scope to the RegionMemScope that a barrier of that kind
 // actually fences.
-static RegionMemScope getBarrierFencedScope(const Scope BarrierScope) {
-  switch (BarrierScope) {
-  case Scope::Invocation:
-    // 'Invocation' fences nothing but itself — treat them as None.
-    return RegionMemScope::None;
-  case Scope::Workgroup:
-  case Scope::Subgroup:
-    // Workgroup and Subgroup barriers orders local memory.
-    return RegionMemScope::Local;
-  case Scope::Device:
-  case Scope::CrossDevice:
-    // Orders cross-workgroup/device memory (global).
+static RegionMemScope getBarrierFencedScope(const BarrierDesc &BD) {
+  uint32_t Sem = canonicalizeSemantic(BD.Semantic);
+  if (Sem & static_cast<uint32_t>(MemorySemantics::CrossWorkgroupMemory))
     return RegionMemScope::Global;
-  default:
-    return RegionMemScope::Unknown;
-  }
+  if (Sem & (static_cast<uint32_t>(MemorySemantics::WorkgroupMemory) |
+             static_cast<uint32_t>(MemorySemantics::SubgroupMemory)))
+    return RegionMemScope::Local;
+  return RegionMemScope::None;
 }
 
-// Classify a single instruction’s memory scope. Used to set/update memory
+// Classify a single instruction's memory scope. Used to set/update memory
 // scope of a basic block.
 static RegionMemScope classifyMemScope(Instruction *I) {
   if (CallInst *CI = dyn_cast<CallInst>(I)) {
     if (Function *F = CI->getCalledFunction()) {
-      if (F->getName() == CONTROL_BARRIER || F->getName() == ITT_BARRIER ||
-          F->getName() == ITT_RESUME)
+      const StringRef FName = F->getName();
+      if (FName == CONTROL_BARRIER || FName == MEMORY_BARRIER ||
+          FName == ITT_BARRIER || FName == ITT_RESUME)
         return RegionMemScope::None;
+      if (FName.contains("__spirv_Atomic")) {
+        // SPIR-V atomics all have the same signature:
+        // arg0 = ptr, arg1 = SPIR-V Scope, arg2 = Semantics
+        auto *ScopeC = dyn_cast<ConstantInt>(CI->getArgOperand(1));
+        if (!ScopeC)
+          return RegionMemScope::Unknown;
+        switch (ScopeC->getZExtValue()) {
+        case static_cast<uint32_t>(Scope::CrossDevice):
+        case static_cast<uint32_t>(Scope::Device):
+          return RegionMemScope::Global;
+        case static_cast<uint32_t>(Scope::Workgroup):
+        case static_cast<uint32_t>(Scope::Subgroup):
+          return RegionMemScope::Local;
+        case static_cast<uint32_t>(Scope::Invocation):
+          return RegionMemScope::None;
+        default:
+          return RegionMemScope::Unknown;
+        }
+      }
+      // TODO: handle other SPIR-V friendly function calls.
     }
   }
-  // If it doesn’t read or write, it doesn't affect the region memory scope.
+
+  // If it doesn't read or write, it doesn't affect the region memory scope.
   if (!I->mayReadOrWriteMemory())
     return RegionMemScope::None;
 
@@ -229,13 +360,18 @@ static RegionMemScope classifyMemScope(Instruction *I) {
     // If generic pointer originates from an alloca instruction within a
     // function - it's safe to assume, that it's a private allocation.
     // FIXME: use more comprehensive analysis.
-    Value *Cand = Pointer->stripInBoundsConstantOffsets();
-    if (isa<AllocaInst>(Cand))
+    Value *Orig = Pointer->stripInBoundsConstantOffsets();
+    if (isa<AllocaInst>(Orig))
       return RegionMemScope::None;
-    return RegionMemScope::Unknown;
+    uint32_t AS = cast<PointerType>(Orig->getType())->getAddressSpace();
+    auto Pos = AddrSpaceMap.find(AS);
+    if (Pos == AddrSpaceMap.end())
+      return RegionMemScope::Unknown;
+    return Pos->second == RegionMemScope::Generic ? RegionMemScope::Unknown
+                                                  : Pos->second;
   };
 
-  auto getScopeForPtr = [&](Value *Ptr, unsigned AS) -> RegionMemScope {
+  auto getScopeForPtr = [&](Value *Ptr, uint32_t AS) -> RegionMemScope {
     // Loads from __spirv_BuiltIn GVs are not fenced by barriers.
     if (auto *GV = dyn_cast<GlobalVariable>(Ptr))
       if (GV->getName().starts_with(SPIRV_BUILTIN_PREFIX))
@@ -247,9 +383,8 @@ static RegionMemScope classifyMemScope(Instruction *I) {
                                                   : Pos->second;
   };
 
-  // Check for memory instructions. Currently handled: load/store/memory
-  // intrinsics.
-  // TODO: check for other intrinsics and SPIR-V friendly function calls.
+  // Check for memory instructions.
+  // TODO: check for other intrinsics
   if (auto *LD = dyn_cast<LoadInst>(I))
     return getScopeForPtr(LD->getPointerOperand(),
                           LD->getPointerAddressSpace());
@@ -267,12 +402,22 @@ static RegionMemScope classifyMemScope(Instruction *I) {
     }
     return Scope;
   }
+  if (isa<FenceInst>(I))
+    return RegionMemScope::Global;
+
+  if (auto *RMW = dyn_cast<AtomicRMWInst>(I))
+    return getScopeForPtr(RMW->getPointerOperand(),
+                          RMW->getPointerAddressSpace());
+  if (auto *CompEx = dyn_cast<AtomicCmpXchgInst>(I))
+    return getScopeForPtr(CompEx->getPointerOperand(),
+                          CompEx->getPointerAddressSpace());
+
   return RegionMemScope::Unknown;
 }
 
 // Scan the function and build:
-// 1. a list of all BarrierDesc‘s
-// 2. a per-BB memory-scope summary
+// - list of all BarrierDesc‘s
+// - per-BB memory-scope summary
 static void collectBarriersAndMemInfo(Function &F,
                                       SmallVectorImpl<BarrierDesc> &Barriers,
                                       BBMemInfoMap &BBMemInfo) {
@@ -292,15 +437,24 @@ static void collectBarriersAndMemInfo(Function &F,
           continue;
         }
 
+        // Check if this is a control/memory barrier call and store it.
         StringRef Name = Callee->getName();
+        auto getConst = [&](uint32_t idx) -> uint32_t {
+          if (auto *C = dyn_cast<ConstantInt>(CI->getArgOperand(idx)))
+            return C->getZExtValue();
+          return static_cast<uint32_t>(Scope::Unknown);
+        };
         if (Name == CONTROL_BARRIER) {
-          auto getConst = [&](uint32_t idx) -> uint32_t {
-            if (auto *C = dyn_cast<ConstantInt>(CI->getArgOperand(idx)))
-              return C->getZExtValue();
-            return static_cast<uint32_t>(Scope::Unknown);
-          };
+          LLVM_DEBUG(dbgs() << "Collected ControlBarrier: " << *CI << "\n");
           BarrierDesc BD = {CI, static_cast<Scope>(getConst(0)),
                             static_cast<Scope>(getConst(1)), getConst(2)};
+          BD.Semantic = canonicalizeSemantic(BD.Semantic);
+          Barriers.emplace_back(BD);
+        } else if (Name == MEMORY_BARRIER) {
+          LLVM_DEBUG(dbgs() << "Collected MemoryBarrier: " << *CI << "\n");
+          BarrierDesc BD = {CI, Scope::Invocation,
+                            static_cast<Scope>(getConst(0)), getConst(1)};
+          BD.Semantic = canonicalizeSemantic(BD.Semantic);
           Barriers.emplace_back(BD);
         }
       }
@@ -327,6 +481,7 @@ static bool eraseBarrierWithITT(BarrierDesc &BD) {
     return false;
   SmallPtrSet<Instruction *, 3> ToErase;
   CallInst *CI = BD.CI;
+  LLVM_DEBUG(dbgs() << "Erase barrier: " << *CI << "\n");
   // Look up/down for ITT markers.
   if (auto *Prev = CI->getPrevNode())
     if (isITT(Prev))
@@ -348,18 +503,31 @@ static bool eraseBarrierWithITT(BarrierDesc &BD) {
 static bool noFencedMemAccessesBetween(CallInst *A, CallInst *B,
                                        RegionMemScope Required,
                                        BBMemInfoMap &BBMemInfo) {
+  LLVM_DEBUG(dbgs() << "Checking for fenced accesses between: " << *A << " and "
+                    << *B << "\n");
   RegionMemScope BBMemScope = BBMemInfo[A->getParent()];
   if (BBMemScope == RegionMemScope::Unknown ||
-      Required == RegionMemScope::Unknown)
+      Required == RegionMemScope::Unknown) {
+    LLVM_DEBUG(dbgs() << "noFencedMemAccessesBetween(" << *A << ", " << *B
+                      << ") returned " << false << "\n");
     return false;
-  if (BBMemScope == RegionMemScope::None)
+  }
+  if (BBMemScope == RegionMemScope::None) {
+    LLVM_DEBUG(dbgs() << "noFencedMemAccessesBetween(" << *A << ", " << *B
+                      << ") returned " << true << "\n");
     return true;
+  }
   for (auto It = ++BasicBlock::iterator(A), End = BasicBlock::iterator(B);
        It != End; ++It) {
     auto InstScope = classifyMemScope(&*It);
-    if (InstScope == RegionMemScope::Unknown || InstScope >= Required)
+    if (InstScope == RegionMemScope::Unknown || InstScope >= Required) {
+      LLVM_DEBUG(dbgs() << "noFencedMemAccessesBetween(" << *A << ", " << *B
+                        << ") returned " << false << "\n");
       return false;
+    }
   }
+  LLVM_DEBUG(dbgs() << "noFencedMemAccessesBetween(" << *A << ", " << *B
+                    << ") returned " << true << "\n");
   return true;
 }
 
@@ -368,6 +536,7 @@ static bool noFencedMemAccessesBetween(CallInst *A, CallInst *B,
 static bool hasFencedAccesses(BasicBlock *BB, RegionMemScope Required,
                               Instruction *Start = nullptr,
                               Instruction *End = nullptr) {
+  LLVM_DEBUG(dbgs() << "Checking for fenced accesses in basic block\n");
   auto It = Start ? std::next(BasicBlock::iterator(Start)) : BB->begin();
   auto Finish = End ? BasicBlock::iterator(End) : BB->end();
   for (; It != Finish; ++It) {
@@ -378,40 +547,94 @@ static bool hasFencedAccesses(BasicBlock *BB, RegionMemScope Required,
   return false;
 }
 
-// Check across basic blocks that no accesses of Required scope happen on any
-// path from A to B. A must dominate B.
+/// Return true if no accesses of >= Required scope occur on *every* path
+/// from A to B through the CFG.  If A==nullptr, start at EntryBlock; if
+/// B==nullptr, end at all exit blocks.
 static bool noFencedAccessesCFG(CallInst *A, CallInst *B,
                                 RegionMemScope Required,
                                 BBMemInfoMap &BBMemInfo) {
+  LLVM_DEBUG(dbgs() << "Checking for fenced accesses between: " << *A << " and "
+                    << *B << " in CFG" << "\n");
   if (Required == RegionMemScope::Unknown)
     return false;
+  // Build the set of blocks that can reach B.
+  SmallPtrSet<BasicBlock *, 32> ReachB;
+  if (B) {
+    SmallVector<BasicBlock *, 16> Stack{B->getParent()};
+    ReachB.insert(B->getParent());
+    while (!Stack.empty()) {
+      BasicBlock *Cur = Stack.pop_back_val();
+      for (BasicBlock *Pred : predecessors(Cur))
+        if (ReachB.insert(Pred).second)
+          Stack.push_back(Pred);
+    }
+  }
 
-  if (A->getParent() == B->getParent())
+  // Shortcut: same block and both non-null
+  if (A && B && A->getParent() == B->getParent())
     return noFencedMemAccessesBetween(A, B, Required, BBMemInfo);
 
+  Function *F = (A ? A->getFunction() : B->getFunction());
+  BasicBlock *Entry = &F->getEntryBlock();
+
+  // Worklist entries: (BasicBlock, Instruction* startPoint).
   SmallVector<std::pair<BasicBlock *, Instruction *>, 8> Worklist;
   SmallPtrSet<BasicBlock *, 16> Visited;
 
-  Worklist.emplace_back(A->getParent(), A);
-  Visited.insert(A->getParent());
+  // Initialize
+  if (A) {
+    Worklist.emplace_back(A->getParent(), A);
+    Visited.insert(A->getParent());
+  } else {
+    // from kernel entry
+    Worklist.emplace_back(Entry, /*start at beginning*/ nullptr);
+    Visited.insert(Entry);
+  }
 
+  // Simple BFS-like traversal of the CFG to find all paths from A to B.
   while (!Worklist.empty()) {
     auto [BB, StartInst] = Worklist.pop_back_val();
+    // Check if BB is reachable from B.
+    if (B && !ReachB.contains(BB))
+      continue;
 
-    if (BB == B->getParent()) {
+    // If we've reached the block containing B, only scan up to B
+    if (B && BB == B->getParent()) {
       if (hasFencedAccesses(BB, Required, StartInst, B))
         return false;
+      // Do not descend past B block.
       continue;
     }
 
-    if (hasFencedAccesses(BB, Required, StartInst, nullptr))
-      return false;
+    // If we're scanning to exit and this is a terminator
+    // block, check from StartInst to the end of BB and then continue to no
+    // successors.
+    if (!B && BB->getTerminator()->getNumSuccessors() == 0) {
+      if (hasFencedAccesses(BB, Required, StartInst, nullptr)) {
+        LLVM_DEBUG(dbgs() << "noFencedAccessesCFG(" << *A << ", " << *B
+                          << ") returned " << false << "\n");
+        return false;
+      }
+      // do not enqueue successors (there are none).
+      continue;
+    }
 
+    // Otherwise, scan entire block.
+    if (hasFencedAccesses(BB, Required, StartInst, nullptr)) {
+      LLVM_DEBUG(dbgs() << "noFencedAccessesCFG(" << *A << ", " << *B
+                        << ") returned " << false << "\n");
+      return false;
+    }
+
+    // Enqueue successors.
     for (BasicBlock *Succ : successors(BB))
-      if (Visited.insert(Succ).second)
-        Worklist.emplace_back(Succ, nullptr);
+      if ((!B || ReachB.contains(Succ)) && Visited.insert(Succ).second)
+        Worklist.emplace_back(Succ, /*no partial start*/ nullptr);
   }
 
+  // If we never saw a disallowed memory access on any path, it's safe.
+  LLVM_DEBUG(dbgs() << "noFencedAccessesCFG(" << *A << ", " << *B
+                    << ") returned " << true << "\n");
   return true;
 }
 
@@ -430,16 +653,25 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
       return BD.ExecScope == Scope::Unknown || BD.MemScope == Scope::Unknown;
     });
     if (!HasUnknown) {
+      LLVM_DEBUG(
+          dbgs() << "Erasing barrier in basic block with no memory accesses\n");
       // Pick the barrier with the widest scope.
       auto Best = std::max_element(
-          Barriers.begin(), Barriers.end(),
-          [](const BarrierDesc &A, const BarrierDesc &B) {
+          Barriers.begin(), Barriers.end(), [](auto &A, auto &B) {
+            // First prefer the barrier whose semantics fence more memory +
+            // stronger ordering
+            if (semanticsSuperset(B.Semantic, A.Semantic) &&
+                !semanticsSuperset(A.Semantic, B.Semantic))
+              return true;
+            if (semanticsSuperset(A.Semantic, B.Semantic) &&
+                !semanticsSuperset(B.Semantic, A.Semantic))
+              return false;
+            // then fall back to exec/mem‐scope width as before:
             auto CmpExec = compareScopesWithWeights(B.ExecScope, A.ExecScope);
+            if (CmpExec != CompareRes::EQUAL)
+              return CmpExec == CompareRes::BIGGER;
             auto CmpMem = compareScopesWithWeights(B.MemScope, A.MemScope);
-            return (CmpExec == CompareRes::BIGGER ||
-                    (CmpExec == CompareRes::EQUAL &&
-                     CmpMem == CompareRes::BIGGER)) ||
-                   (CmpMem == CompareRes::BIGGER);
+            return CmpMem == CompareRes::BIGGER;
           });
 
       // Remove all other barriers in the block.
@@ -460,47 +692,80 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
       continue; // already removed
     while (!Survivors.empty()) {
       BarrierDesc &Last = Survivors.back();
-      // Must share semantics to guess.
-      // TODO: actually allow semantics missmatch for barriers removal for
-      // several cases.
-      if (Last.Semantic != Cur.Semantic)
-        break;
+      uint32_t LastSem = canonicalizeSemantic(Last.Semantic);
+      uint32_t CurSem = canonicalizeSemantic(Cur.Semantic);
+      uint32_t MergedSem = mergeSemantics(LastSem, CurSem);
 
       auto CmpExec = compareScopesWithWeights(Last.ExecScope, Cur.ExecScope);
       auto CmpMem = compareScopesWithWeights(Last.MemScope, Cur.MemScope);
-      RegionMemScope FenceLast = getBarrierFencedScope(Last.MemScope);
-      RegionMemScope FenceCur = getBarrierFencedScope(Cur.MemScope);
+      RegionMemScope FenceLast = getBarrierFencedScope(Last);
+      RegionMemScope FenceCur = getBarrierFencedScope(Cur);
 
+      // If either scope is unknown, we cannot merge.
       if (CmpExec == CompareRes::UNKNOWN || CmpMem == CompareRes::UNKNOWN ||
           FenceLast == RegionMemScope::Unknown ||
           FenceCur == RegionMemScope::Unknown)
         break;
 
-      // If identical then drop Cur.
+      auto *Int32Ty = Type::getInt32Ty(Last.CI->getContext());
+      // If the execution and memory scopes of the barriers are equal, we can
+      // merge them if there are no accesses that only one of the barriers
+      // would need to fence.
       if (CmpExec == CompareRes::EQUAL && CmpMem == CompareRes::EQUAL) {
+        if (semanticsSuperset(LastSem, CurSem) &&
+            noFencedMemAccessesBetween(Last.CI, Cur.CI, FenceLast, BBMemInfo)) {
+          if (MergedSem != LastSem) {
+            Last.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
+            Last.Semantic = MergedSem;
+          }
+          Changed |= eraseBarrierWithITT(Cur);
+          break;
+        }
+        if (semanticsSuperset(CurSem, LastSem) &&
+            noFencedMemAccessesBetween(Last.CI, Cur.CI, FenceCur, BBMemInfo)) {
+          if (MergedSem != CurSem) {
+            Cur.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
+            Cur.Semantic = MergedSem;
+          }
+          Changed |= eraseBarrierWithITT(Last);
+          Survivors.pop_back();
+          continue;
+        }
         if (noFencedMemAccessesBetween(Last.CI, Cur.CI, FenceLast, BBMemInfo)) {
+          Last.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
+          Last.Semantic = MergedSem;
           Changed |= eraseBarrierWithITT(Cur);
         }
         break;
       }
-      // If Last wider then drop Cur.
+      // If the execution or memory scope of the barriers is not equal, we
+      // can only merge if one is a superset of the other and there are no
+      // accesses that only the other barrier would need to fence.
       if ((CmpExec == CompareRes::BIGGER || CmpMem == CompareRes::BIGGER) &&
+          semanticsSuperset(LastSem, CurSem) &&
           noFencedMemAccessesBetween(Last.CI, Cur.CI, FenceCur, BBMemInfo)) {
+        if (MergedSem != LastSem) {
+          Last.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
+          Last.Semantic = MergedSem;
+        }
         Changed |= eraseBarrierWithITT(Cur);
         break;
       }
-      // If Cur wider then drop Last and retry.
       if ((CmpExec == CompareRes::SMALLER || CmpMem == CompareRes::SMALLER) &&
+          semanticsSuperset(CurSem, LastSem) &&
           noFencedMemAccessesBetween(Last.CI, Cur.CI, FenceLast, BBMemInfo)) {
+        if (MergedSem != CurSem) {
+          Cur.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
+          Cur.Semantic = MergedSem;
+        }
         Changed |= eraseBarrierWithITT(Last);
         Survivors.pop_back();
         continue;
       }
-      // No elimination possible.
       break;
     }
     if (Cur.CI) // still alive?
-      Survivors.push_back(Cur);
+      Survivors.emplace_back(Cur);
   }
 
   // If we removed any, replace Barriers with the survivors
@@ -526,25 +791,33 @@ static bool eliminateDominatedBarriers(SmallVectorImpl<BarrierDesc *> &Barriers,
       if (B1 == B2 || !B2->CI)
         continue;
 
-      // Skip barriers with missmatching Semantic, Scopes or Unknown Scope.
-      if (B1->Semantic != B2->Semantic)
+      // Skip if scopes are unknown or B1 does not enforce at least the
+      // semantics of B2.
+      if (B1->ExecScope == Scope::Unknown || B1->MemScope == Scope::Unknown ||
+          B2->ExecScope == Scope::Unknown || B2->MemScope == Scope::Unknown)
         continue;
-      if (B1->ExecScope != B2->ExecScope || B1->MemScope != B2->MemScope)
+      auto ExecCmp = compareScopesWithWeights(B1->ExecScope, B2->ExecScope);
+      auto MemCmp = compareScopesWithWeights(B1->MemScope, B2->MemScope);
+      if (ExecCmp == CompareRes::UNKNOWN || MemCmp == CompareRes::UNKNOWN)
         continue;
-      if (B1->ExecScope == Scope::Unknown || B1->MemScope == Scope::Unknown)
+      bool ExecSubsumes =
+          ExecCmp == CompareRes::BIGGER || ExecCmp == CompareRes::EQUAL;
+      bool MemSubsumes =
+          MemCmp == CompareRes::BIGGER || MemCmp == CompareRes::EQUAL;
+      bool SemSubsumes = (B1->Semantic & B2->Semantic) == B2->Semantic;
+
+      if (!ExecSubsumes || !MemSubsumes || !SemSubsumes)
         continue;
 
-      RegionMemScope Fence = getBarrierFencedScope(B1->MemScope);
+      RegionMemScope Fence = getBarrierFencedScope(*B1);
       if (Fence == RegionMemScope::Unknown)
         continue;
 
-      if (DT.dominates(B1->CI, B2->CI)) {
+      // FIXME: missing optimization, see the header comment. For now live
+      // with the simpler logic.
+      if (DT.dominates(B1->CI, B2->CI) && PDT.dominates(B2->CI, B1->CI))
         if (noFencedAccessesCFG(B1->CI, B2->CI, Fence, BBMemInfo))
           Changed |= eraseBarrierWithITT(*B2);
-      } else if (PDT.dominates(B1->CI->getParent(), B2->CI->getParent())) {
-        if (noFencedAccessesCFG(B2->CI, B1->CI, Fence, BBMemInfo))
-          Changed |= eraseBarrierWithITT(*B2);
-      }
     }
   }
   return Changed;
@@ -556,7 +829,9 @@ static bool downgradeGlobalBarriers(SmallVectorImpl<BarrierDesc *> &Barriers,
                                     DominatorTree &DT, PostDominatorTree &PDT,
                                     BBMemInfoMap &BBMemInfo) {
   bool Changed = false;
-  // Check for memory scope and Semantics to see, which memory is fenced.
+
+  // Identify a global barrier: either SPIR-V Device/CrossDevice scope
+  // or has the CrossWorkgroupMemory bit.
   auto IsGlobalBarrier = [](const BarrierDesc &BD) {
     return BD.MemScope == Scope::Device || BD.MemScope == Scope::CrossDevice ||
            (BD.Semantic &
@@ -569,48 +844,64 @@ static bool downgradeGlobalBarriers(SmallVectorImpl<BarrierDesc *> &Barriers,
       continue;
     if (B.ExecScope == Scope::Unknown || B.MemScope == Scope::Unknown)
       continue;
-    bool CanDowngrade = false;
+
+    // Look for an earlier barrier A that completely subsumes B:
+    // A must dominate or post-dominates B, with no intervening global
+    // accesses. A must itself be a global barrier.
     for (auto *APtr : Barriers) {
       if (APtr == BPtr)
         continue;
       BarrierDesc &A = *APtr;
-      if (!A.CI || !IsGlobalBarrier(A))
+      if (!A.CI)
         continue;
-      // If no path from A to B contains global memory accesses - downgrade
-      // the barrier.
-      if (DT.dominates(A.CI, B.CI)) {
-        if (noFencedAccessesCFG(A.CI, B.CI, RegionMemScope::Global,
-                                BBMemInfo)) {
-          CanDowngrade = true;
-          break;
-        }
-      } else if (PDT.dominates(A.CI->getParent(), B.CI->getParent())) {
-        if (noFencedAccessesCFG(B.CI, A.CI, RegionMemScope::Global,
-                                BBMemInfo)) {
-          CanDowngrade = true;
-          break;
-        }
-      }
-    }
 
-    if (!CanDowngrade) {
+      bool CanDowngrade = false;
+      // A strictly dominates B.
+      if (DT.dominates(A.CI, B.CI) &&
+          noFencedAccessesCFG(A.CI, B.CI, RegionMemScope::Global, BBMemInfo)) {
+        CanDowngrade = true;
+      }
+      // or A post-dominates B block.
+      else if (PDT.dominates(A.CI, B.CI) &&
+               noFencedAccessesCFG(B.CI, A.CI, RegionMemScope::Global,
+                                   BBMemInfo)) {
+        CanDowngrade = true;
+      }
+      if (!CanDowngrade)
+        continue;
+
+      // Merge ordering semantics so we never weaken A joint B fence.
+      uint32_t MergedSem = mergeSemantics(A.Semantic, B.Semantic);
       LLVMContext &Ctx = B.CI->getContext();
+      const bool IsControlBarrier =
+          B.CI->getCalledFunction()->getName() == CONTROL_BARRIER;
       Type *Int32Ty = Type::getInt32Ty(Ctx);
-      uint32_t OldSem = B.Semantic;
-      // Downgrade both scope and semantics.
-      if (OldSem &
-          static_cast<uint32_t>(MemorySemantics::CrossWorkgroupMemory)) {
+      if (MergedSem != B.Semantic) {
+        B.CI->setArgOperand(IsControlBarrier ? 2 : 1,
+                            ConstantInt::get(Int32Ty, MergedSem));
+        B.Semantic = MergedSem;
+      }
+
+      // Downgrade memory semantics: CrossWorkgroup -> Workgroup.
+      const uint32_t CrossMask =
+          static_cast<uint32_t>(MemorySemantics::CrossWorkgroupMemory);
+      if (B.Semantic & CrossMask) {
         uint32_t NewSem =
-            (OldSem &
-             ~static_cast<uint32_t>(MemorySemantics::CrossWorkgroupMemory)) |
+            (B.Semantic & ~CrossMask) |
             static_cast<uint32_t>(MemorySemantics::WorkgroupMemory);
-        B.CI->setArgOperand(2, ConstantInt::get(Int32Ty, NewSem));
+        B.CI->setArgOperand(IsControlBarrier ? 2 : 1,
+                            ConstantInt::get(Int32Ty, NewSem));
         B.Semantic = NewSem;
       }
-      B.CI->setArgOperand(1, ConstantInt::get(Int32Ty, static_cast<uint32_t>(
-                                                           Scope::Workgroup)));
+      LLVM_DEBUG(dbgs() << "Downgrade global barrier: " << *B.CI << "\n");
+      // Lower the SPIR-V memory-scope operand to Workgroup.
+      B.CI->setArgOperand(
+          IsControlBarrier ? 1 : 0,
+          ConstantInt::get(Int32Ty, static_cast<uint32_t>(Scope::Workgroup)));
       B.MemScope = Scope::Workgroup;
+
       Changed = true;
+      break;
     }
   }
 
@@ -618,7 +909,7 @@ static bool downgradeGlobalBarriers(SmallVectorImpl<BarrierDesc *> &Barriers,
 }
 
 // True if BD is the first real instruction of the function.
-static bool isAtKernelEntry(const BarrierDesc &BD) {
+static bool isAtKernelEntry(BarrierDesc &BD) {
   BasicBlock &Entry = BD.CI->getFunction()->getEntryBlock();
   if (BD.CI->getParent() != &Entry)
     return false;
@@ -634,7 +925,7 @@ static bool isAtKernelEntry(const BarrierDesc &BD) {
 }
 
 // True if BD is immediately before a return/unreachable and nothing follows.
-static bool isAtKernelExit(const BarrierDesc &BD) {
+static bool isAtKernelExit(BarrierDesc &BD) {
   BasicBlock *BB = BD.CI->getParent();
   Instruction *Term = BB->getTerminator();
   if (!isa<ReturnInst>(Term) && !isa<UnreachableInst>(Term))
@@ -650,19 +941,29 @@ static bool isAtKernelExit(const BarrierDesc &BD) {
 
 // Remove barriers that appear at the very beginning or end of a kernel
 // function.
-static bool
-eliminateBoundaryBarriers(SmallVectorImpl<BarrierDesc *> &Barriers) {
+static bool eliminateBoundaryBarriers(SmallVectorImpl<BarrierDesc *> &Barreirs,
+                                      BBMemInfoMap &BBMemInfo) {
   bool Changed = false;
-  for (auto *BPtr : Barriers) {
+  for (auto *BPtr : Barreirs) {
     BarrierDesc &B = *BPtr;
     if (!B.CI)
       continue;
-    // FIXME?: do we _really_ need this restriction? If yes - should it be
-    // applied for other transformations done by the pass?
+    // Only for real SPIR kernels:
     if (B.CI->getFunction()->getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
-    if (isAtKernelEntry(B) || isAtKernelExit(B))
+    RegionMemScope Fence = getBarrierFencedScope(B);
+    // entry: no fenced accesses on *any* path from entry to B.CI
+    if (isAtKernelEntry(B) && noFencedAccessesCFG(/*pretend A = entry*/ nullptr,
+                                                  B.CI, Fence, BBMemInfo)) {
       Changed |= eraseBarrierWithITT(B);
+      continue;
+    }
+    // exit: no fenced accesses on every path from B.CI to return
+    if (isAtKernelExit(B) &&
+        noFencedAccessesCFG(B.CI, /*pretend B = exit*/ nullptr, Fence,
+                            BBMemInfo)) {
+      Changed |= eraseBarrierWithITT(B);
+    }
   }
   return Changed;
 }
@@ -671,6 +972,10 @@ eliminateBoundaryBarriers(SmallVectorImpl<BarrierDesc *> &Barriers) {
 
 PreservedAnalyses SYCLOptimizeBarriersPass::run(Function &F,
                                                 FunctionAnalysisManager &AM) {
+  if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+    return PreservedAnalyses::none();
+  LLVM_DEBUG(dbgs() << "Running SYCLOptimizeBarriers on " << F.getName()
+                    << "\n");
   SmallVector<BarrierDesc, 16> Barriers;
   BBMemInfoMap BBMemInfo;
   BarriersMap BarriersByBB;
@@ -679,7 +984,7 @@ PreservedAnalyses SYCLOptimizeBarriersPass::run(Function &F,
   // Analyse the function gathering barrier and memory scope of the region info.
   collectBarriersAndMemInfo(F, Barriers, BBMemInfo);
   for (auto &B : Barriers)
-    BarriersByBB[B.CI->getParent()].push_back(B);
+    BarriersByBB[B.CI->getParent()].emplace_back(B);
 
   for (auto &Pair : BarriersByBB)
     for (auto &BD : Pair.second)
@@ -687,11 +992,13 @@ PreservedAnalyses SYCLOptimizeBarriersPass::run(Function &F,
 
   bool Changed = false;
   // First remove 'at entry' and 'at exit' barriers if the fence nothing.
-  Changed |= eliminateBoundaryBarriers(BarrierPtrs);
+  Changed |= eliminateBoundaryBarriers(BarrierPtrs, BBMemInfo);
   // Then remove redundant barriers within a single basic block.
   for (auto &BarrierBBPair : BarriersByBB)
-    Changed = eliminateBackToBackInBB(BarrierBBPair.first, BarrierBBPair.second,
-                                      BBMemInfo);
+    Changed |= eliminateBackToBackInBB(BarrierBBPair.first,
+                                       BarrierBBPair.second, BBMemInfo);
+
+  // TODO: hoist 2 barriers with the same predessor BBs.
 
   // In the end eliminate or narrow barriers depending on DT and PDT analyses.
   DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
