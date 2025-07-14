@@ -71,6 +71,17 @@ class Benchmark(ABC):
 
     @abstractmethod
     def run(self, env_vars) -> list[Result]:
+        """Execute the benchmark with the given environment variables.
+
+        Args:
+            env_vars: Environment variables to use when running the benchmark.
+
+        Returns:
+            A list of Result objects with the benchmark results.
+
+        Raises:
+            Exception: If the benchmark fails for any reason.
+        """
         pass
 
     @staticmethod

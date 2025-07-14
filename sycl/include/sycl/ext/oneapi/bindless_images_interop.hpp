@@ -22,6 +22,7 @@ enum class external_mem_handle_type {
   win32_nt_handle = 1,
   win32_nt_dx12_resource = 2,
   dma_buf = 3,
+  win32_nt_dx11_resource = 4,
 };
 
 // Types of external semaphore handles
