@@ -53,10 +53,9 @@ public:
   partition() : MSchedule(), MCommandBuffers() {}
 
   /// List of root nodes.
-  std::set<std::weak_ptr<node_impl>, std::owner_less<std::weak_ptr<node_impl>>>
-      MRoots;
+  std::set<node_impl *> MRoots;
   /// Execution schedule of nodes in the graph.
-  std::list<std::shared_ptr<node_impl>> MSchedule;
+  std::list<node_impl *> MSchedule;
   /// Map of devices to command buffers.
   std::unordered_map<sycl::device, ur_exp_command_buffer_handle_t>
       MCommandBuffers;
@@ -84,17 +83,20 @@ public:
   // replaced every time the partition is executed.
   EventImplPtr MEvent;
 
+  nodes_range roots() const { return MRoots; }
+  nodes_range schedule() const { return MSchedule; }
+
   /// Checks if the graph is single path, i.e. each node has a single successor.
   /// @return True if the graph is a single path
   bool checkIfGraphIsSinglePath() {
     if (MRoots.size() > 1) {
       return false;
     }
-    for (const auto &Node : MSchedule) {
+    for (node_impl &Node : schedule()) {
       // In version 1.3.28454 of the L0 driver, 2D Copy ops cannot not
       // be enqueued in an in-order cmd-list (causing execution to stall).
       // The 2D Copy test should be removed from here when the bug is fixed.
-      if ((Node->MSuccessors.size() > 1) || (Node->isNDCopyNode())) {
+      if ((Node.MSuccessors.size() > 1) || (Node.isNDCopyNode())) {
         return false;
       }
     }
@@ -103,7 +105,7 @@ public:
   }
 
   /// Add nodes to MSchedule.
-  void schedule();
+  void updateSchedule();
 };
 
 /// Implementation details of command_graph<modifiable>.
@@ -126,13 +128,13 @@ public:
 
   /// Remove node from list of root nodes.
   /// @param Root Node to remove from list of root nodes.
-  void removeRoot(const std::shared_ptr<node_impl> &Root);
+  void removeRoot(node_impl &Root);
 
   /// Verifies the CG is valid to add to the graph and returns set of
   /// dependent nodes if so.
   /// @param CommandGroup The command group to verify and retrieve edges for.
   /// @return Set of dependent nodes in the graph.
-  std::set<std::shared_ptr<node_impl>>
+  std::set<node_impl *>
   getCGEdges(const std::shared_ptr<sycl::detail::CG> &CommandGroup) const;
 
   /// Identifies the sycl buffers used in the command-group and marks them
@@ -190,21 +192,21 @@ public:
   /// @param EventImpl Event to associate with a node in map.
   /// @param NodeImpl Node to associate with event in map.
   void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
-                       const std::shared_ptr<node_impl> &NodeImpl) {
+                       node_impl &NodeImpl) {
     if (!(EventImpl->hasCommandGraph()))
       EventImpl->setCommandGraph(shared_from_this());
-    MEventsMap[EventImpl] = NodeImpl;
+    MEventsMap[EventImpl] = &NodeImpl;
   }
 
   /// Find the sycl event associated with a node.
   /// @param NodeImpl Node to find event for.
   /// @return Event associated with node.
   std::shared_ptr<sycl::detail::event_impl>
-  getEventForNode(std::shared_ptr<node_impl> NodeImpl) const {
+  getEventForNode(node_impl &NodeImpl) const {
     ReadLock Lock(MMutex);
     if (auto EventImpl = std::find_if(
             MEventsMap.begin(), MEventsMap.end(),
-            [NodeImpl](auto &it) { return it.second == NodeImpl; });
+            [&NodeImpl](auto &it) { return it.second == &NodeImpl; });
         EventImpl != MEventsMap.end()) {
       return EventImpl->first;
     }
@@ -218,13 +220,14 @@ public:
   /// the given event.
   /// @param EventImpl Event to find the node for.
   /// @return Node associated with the event.
-  std::shared_ptr<node_impl>
+  node_impl &
   getNodeForEvent(std::shared_ptr<sycl::detail::event_impl> EventImpl) {
     ReadLock Lock(MMutex);
 
     if (auto NodeFound = MEventsMap.find(EventImpl);
         NodeFound != std::end(MEventsMap)) {
-      return NodeFound->second;
+      // TODO: Is it guaranteed to be non-null?
+      return *NodeFound->second;
     }
 
     throw sycl::exception(
@@ -236,9 +239,9 @@ public:
   /// found for a given event.
   /// @param Events Events to find nodes for.
   /// @return A list of node counterparts for each event, in the same order.
-  std::vector<std::shared_ptr<node_impl>> getNodesForEvents(
+  std::vector<node_impl *> getNodesForEvents(
       const std::vector<std::shared_ptr<sycl::detail::event_impl>> &Events) {
-    std::vector<std::shared_ptr<node_impl>> NodeList{};
+    std::vector<node_impl *> NodeList{};
     NodeList.reserve(Events.size());
 
     ReadLock Lock(MMutex);
@@ -281,14 +284,15 @@ public:
   sycl::device getDevice() const { return MDevice; }
 
   /// List of root nodes.
-  std::set<std::weak_ptr<node_impl>, std::owner_less<std::weak_ptr<node_impl>>>
-      MRoots;
+  std::set<node_impl *> MRoots;
 
   /// Storage for all nodes contained within a graph. Nodes are connected to
   /// each other via weak_ptrs and so do not extend each other's lifetimes.
   /// This storage allows easy iteration over all nodes in the graph, rather
   /// than needing an expensive depth first search.
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
+
+  nodes_range roots() const { return MRoots; }
 
   /// Find the last node added to this graph from an in-order queue.
   /// @param Queue In-order queue to find the last node added to the graph from.
@@ -312,8 +316,8 @@ public:
     std::fstream Stream(FilePath, std::ios::out);
     Stream << "digraph dot {" << std::endl;
 
-    for (std::weak_ptr<node_impl> Node : MRoots)
-      Node.lock()->printDotRecursive(Stream, VisitedNodes, Verbose);
+    for (node_impl &Node : roots())
+      Node.printDotRecursive(Stream, VisitedNodes, Verbose);
 
     Stream << "}" << std::endl;
 
@@ -418,13 +422,10 @@ public:
     }
 
     size_t RootsFound = 0;
-    for (std::weak_ptr<node_impl> NodeA : MRoots) {
-      for (std::weak_ptr<node_impl> NodeB : Graph.MRoots) {
-        auto NodeALocked = NodeA.lock();
-        auto NodeBLocked = NodeB.lock();
-
-        if (NodeALocked->isSimilar(*NodeBLocked)) {
-          if (checkNodeRecursive(*NodeALocked, *NodeBLocked)) {
+    for (node_impl &NodeA : roots()) {
+      for (node_impl &NodeB : Graph.roots()) {
+        if (NodeA.isSimilar(NodeB)) {
+          if (checkNodeRecursive(NodeA, NodeB)) {
             RootsFound++;
             break;
           }
@@ -518,7 +519,7 @@ private:
 
   /// Insert node into list of root nodes.
   /// @param Root Node to add to list of root nodes.
-  void addRoot(const std::shared_ptr<node_impl> &Root);
+  void addRoot(node_impl &Root);
 
   /// Adds dependencies for a new node, if it has no deps it will be
   /// added as a root node.
@@ -527,10 +528,10 @@ private:
   void addDepsToNode(const std::shared_ptr<node_impl> &Node, nodes_range Deps) {
     for (node_impl &N : Deps) {
       N.registerSuccessor(Node);
-      this->removeRoot(Node);
+      this->removeRoot(*Node);
     }
     if (Node->MPredecessors.empty()) {
-      this->addRoot(Node);
+      this->addRoot(*Node);
     }
   }
 
@@ -544,8 +545,7 @@ private:
            std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
       MRecordingQueues;
   /// Map of events to their associated recorded nodes.
-  std::unordered_map<std::shared_ptr<sycl::detail::event_impl>,
-                     std::shared_ptr<node_impl>>
+  std::unordered_map<std::shared_ptr<sycl::detail::event_impl>, node_impl *>
       MEventsMap;
   /// Map for every in-order queue thats recorded a node to the graph, what
   /// the last node added was. We can use this to create new edges on the last
@@ -647,9 +647,7 @@ public:
 
   /// Query the scheduling of node execution.
   /// @return List of nodes in execution order.
-  const std::list<std::shared_ptr<node_impl>> &getSchedule() const {
-    return MSchedule;
-  }
+  const std::list<node_impl *> &getSchedule() const { return MSchedule; }
 
   /// Query the graph_impl.
   /// @return pointer to the graph_impl MGraphImpl
@@ -694,7 +692,7 @@ public:
   /// through UR should be included in this list, currently this is only
   /// nodes of kernel type.
   void updateURImpl(ur_exp_command_buffer_handle_t CommandBuffer,
-                    const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+                    nodes_range Nodes) const;
 
   /// Update host-task nodes
   /// @param Nodes List of nodes to update, any node that is not a host-task
@@ -710,8 +708,8 @@ public:
   ///
   /// @param Nodes List of nodes to split
   /// @return Map of partition indexes to nodes
-  std::map<int, std::vector<std::shared_ptr<node_impl>>> getURUpdatableNodes(
-      const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+  std::map<int, std::vector<node_impl *>>
+  getURUpdatableNodes(nodes_range Nodes) const;
 
   unsigned long long getID() const { return MID; }
 
@@ -730,8 +728,7 @@ private:
   /// @param Node The node being enqueued.
   /// @return UR sync point created for this node in the command-buffer.
   ur_exp_command_buffer_sync_point_t
-  enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
-              std::shared_ptr<node_impl> Node);
+  enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer, node_impl &Node);
 
   /// Enqueue a node directly to the command-buffer without going through the
   /// scheduler.
@@ -740,11 +737,9 @@ private:
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
   /// @return UR sync point created for this node in the command-buffer.
-  ur_exp_command_buffer_sync_point_t
-  enqueueNodeDirect(const sycl::context &Ctx,
-                    sycl::detail::device_impl &DeviceImpl,
-                    ur_exp_command_buffer_handle_t CommandBuffer,
-                    std::shared_ptr<node_impl> Node);
+  ur_exp_command_buffer_sync_point_t enqueueNodeDirect(
+      const sycl::context &Ctx, sycl::detail::device_impl &DeviceImpl,
+      ur_exp_command_buffer_handle_t CommandBuffer, node_impl &Node);
 
   /// Enqueues a host-task partition (i.e. a partition that contains only a
   /// single node and that node is a host-task).
@@ -864,7 +859,7 @@ private:
   /// @param[out] NDRDesc ND-Range to update.
   /// @param[out] UpdateDesc Base struct in the pointer chain.
   void populateURKernelUpdateStructs(
-      const std::shared_ptr<node_impl> &Node, FastKernelCacheValPtr &BundleObjs,
+      node_impl &Node, FastKernelCacheValPtr &BundleObjs,
       std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
       std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
       std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
@@ -873,7 +868,7 @@ private:
       ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const;
 
   /// Execution schedule of nodes in the graph.
-  std::list<std::shared_ptr<node_impl>> MSchedule;
+  std::list<node_impl *> MSchedule;
   /// Pointer to the modifiable graph impl associated with this executable
   /// graph.
   /// Thread-safe implementation note: in the current implementation

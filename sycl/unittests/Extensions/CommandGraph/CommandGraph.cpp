@@ -59,7 +59,7 @@ TEST_F(CommandGraphTest, AddNode) {
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   ASSERT_FALSE(getSyclObjImpl(Node1)->isEmpty());
   ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
-  ASSERT_EQ(GraphImpl.MRoots.begin()->lock().get(), &*getSyclObjImpl(Node1));
+  ASSERT_EQ(*GraphImpl.MRoots.begin(), &*getSyclObjImpl(Node1));
   ASSERT_TRUE(getSyclObjImpl(Node1)->MSuccessors.empty());
   ASSERT_TRUE(getSyclObjImpl(Node1)->MPredecessors.empty());
 

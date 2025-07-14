@@ -161,6 +161,105 @@ function(compile_lib_ext filename)
            COMPONENT libsycldevice)
 endfunction()
 
+# Links together one or more bytecode files
+#
+# Arguments:
+# * INTERNALIZE
+#     Set if -internalize flag should be passed when linking
+# * TARGET <string>
+#     Custom target to create
+# * INPUT <string> ...
+#     List of bytecode files to link together
+# * RSP_DIR <string>
+#     Directory where a response file should be placed
+#     (Only needed for WIN32 or CYGWIN)
+# * DEPENDENCIES <string> ...
+#     List of extra dependencies to inject
+function(link_bc)
+  cmake_parse_arguments(ARG
+    "INTERNALIZE"
+    "TARGET;RSP_DIR"
+    "INPUTS;DEPENDENCIES"
+    ${ARGN}
+  )
+
+  set( LINK_INPUT_ARG ${ARG_INPUTS} )
+  if( WIN32 OR CYGWIN )
+    # Create a response file in case the number of inputs exceeds command-line
+    # character limits on certain platforms.
+    file( TO_CMAKE_PATH ${ARG_RSP_DIR}/${ARG_TARGET}.rsp RSP_FILE )
+    # Turn it into a space-separate list of input files
+    list( JOIN ARG_INPUTS " " RSP_INPUT )
+    file( GENERATE OUTPUT ${RSP_FILE} CONTENT ${RSP_INPUT} )
+    # Ensure that if this file is removed, we re-run CMake
+    set_property( DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+      ${RSP_FILE}
+    )
+    set( LINK_INPUT_ARG "@${RSP_FILE}" )
+  endif()
+
+  if( ARG_INTERNALIZE )
+    set( link_flags --internalize --only-needed )
+  endif()
+
+  add_custom_command(
+    OUTPUT ${ARG_TARGET}.bc
+    COMMAND ${llvm-link_exe} ${link_flags} -o ${ARG_TARGET}.bc ${LINK_INPUT_ARG}
+    DEPENDS ${llvm-link_target} ${ARG_DEPENDENCIES} ${ARG_INPUTS} ${RSP_FILE}
+  )
+
+  add_custom_target( ${ARG_TARGET} ALL DEPENDS ${ARG_TARGET}.bc )
+  set_target_properties( ${ARG_TARGET} PROPERTIES
+    TARGET_FILE ${CMAKE_CURRENT_BINARY_DIR}/${ARG_TARGET}.bc
+  )
+endfunction()
+
+# Runs opt and prepare-builtins on a bitcode file specified by lib_tgt
+#
+# ARGUMENTS:
+# * LIB_TGT string
+#     Target name that becomes dependent on the out file named LIB_TGT.bc
+# * IN_FILE string
+#     Target name of the input bytecode file
+# * OUT_DIR string
+#     Name of the directory where the output should be placed
+# *  DEPENDENCIES <string> ...
+#     List of extra dependencies to inject
+function(process_bc out_file)
+  cmake_parse_arguments(ARG
+    ""
+    "LIB_TGT;IN_FILE;OUT_DIR"
+    "OPT_FLAGS;DEPENDENCIES"
+    ${ARGN})
+  add_custom_command( OUTPUT ${ARG_LIB_TGT}.bc
+    COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${ARG_LIB_TGT}.bc
+    ${ARG_IN_FILE}
+    DEPENDS ${opt_target} ${ARG_IN_FILE} ${ARG_DEPENDENCIES}
+  )
+  add_custom_target( ${ARG_LIB_TGT}
+    ALL DEPENDS ${ARG_LIB_TGT}.bc
+  )
+  set_target_properties( ${ARG_LIB_TGT}
+    PROPERTIES TARGET_FILE ${ARG_LIB_TGT}.bc
+  )
+
+  set( builtins_opt_lib $<TARGET_PROPERTY:${ARG_LIB_TGT},TARGET_FILE> )
+
+  # Add prepare target
+  # FIXME: prepare_builtins_exe comes from having included libclc before this.
+  # This is brittle.
+  add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
+    COMMAND ${prepare_builtins_exe} -o ${ARG_OUT_DIR}/${out_file}
+      ${builtins_opt_lib}
+      DEPENDS ${builtins_opt_lib} ${ARG_LIB_TGT} ${prepare_builtins_target} )
+  add_custom_target( prepare-${out_file} ALL
+    DEPENDS ${ARG_OUT_DIR}/${out_file}
+  )
+  set_target_properties( prepare-${out_file}
+    PROPERTIES TARGET_FILE ${ARG_OUT_DIR}/${out_file}
+  )
+endfunction()
+
 # Appends a list to a global property.
 #
 # Arguments:

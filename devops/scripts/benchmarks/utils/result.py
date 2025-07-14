@@ -15,7 +15,6 @@ class Result:
     value: float
     command: list[str]
     env: dict[str, str]
-    passed: bool = True
     unit: str = ""
     # stddev can be optionally set by the benchmark,
     # if not set, it will be calculated automatically.

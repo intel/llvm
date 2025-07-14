@@ -121,12 +121,22 @@ class ComputeBench(Suite):
     def benchmarks(self) -> list[Benchmark]:
         benches = []
 
+        # hand-picked value so that total execution time of the benchmark is
+        # similar on all architectures
+        long_lernel_exec_time_ioq = 20
+        long_kernel_exec_time_ooo = 200 if "bmg" in options.device_architecture else 20
+
         for runtime in list(RUNTIMES):
             # Add SubmitKernel benchmarks using loops
             for in_order_queue in [0, 1]:
                 for measure_completion in [0, 1]:
                     for use_events in [0, 1]:
-                        for kernel_exec_time in [1, 20]:
+                        long_kernel_exec_time = (
+                            long_lernel_exec_time_ioq
+                            if in_order_queue
+                            else long_kernel_exec_time_ooo
+                        )
+                        for kernel_exec_time in [1, long_kernel_exec_time]:
                             benches.append(
                                 SubmitKernel(
                                     self,

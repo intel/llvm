@@ -84,12 +84,10 @@ bool checkExecGraphSchedule(
   if (ScheduleA.size() != ScheduleB.size())
     return false;
 
-  std::vector<
-      std::shared_ptr<sycl::ext::oneapi::experimental::detail::node_impl>>
-      VScheduleA{std::begin(ScheduleA), std::end(ScheduleA)};
-  std::vector<
-      std::shared_ptr<sycl::ext::oneapi::experimental::detail::node_impl>>
-      VScheduleB{std::begin(ScheduleB), std::end(ScheduleB)};
+  std::vector<sycl::ext::oneapi::experimental::detail::node_impl *> VScheduleA{
+      std::begin(ScheduleA), std::end(ScheduleA)};
+  std::vector<sycl::ext::oneapi::experimental::detail::node_impl *> VScheduleB{
+      std::begin(ScheduleB), std::end(ScheduleB)};
 
   for (size_t i = 0; i < VScheduleA.size(); i++) {
     if (!VScheduleA[i]->isSimilar(*VScheduleB[i]))
@@ -244,7 +242,7 @@ TEST_F(MultiThreadGraphTest, RecordAddNodesInOrderQueue) {
   ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
 
   // Check structure graph
-  auto CurrentNode = GraphImpl.MRoots.begin()->lock();
+  experimental::detail::node_impl *CurrentNode = *GraphImpl.MRoots.begin();
   for (size_t i = 1; i <= GraphImpl.getNumberOfNodes(); i++) {
     EXPECT_LE(CurrentNode->MSuccessors.size(), 1lu);
 
@@ -254,7 +252,7 @@ TEST_F(MultiThreadGraphTest, RecordAddNodesInOrderQueue) {
     } else {
       // Check other nodes have 1 successor
       EXPECT_EQ(CurrentNode->MSuccessors.size(), 1lu);
-      CurrentNode = CurrentNode->MSuccessors[0].lock();
+      CurrentNode = CurrentNode->MSuccessors[0].lock().get();
     }
   }
 }
