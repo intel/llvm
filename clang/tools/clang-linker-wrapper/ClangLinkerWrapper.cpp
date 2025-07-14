@@ -1227,14 +1227,17 @@ packageSYCLBIN(SYCLBIN::BundleState State,
   return *OutFileOrErr;
 }
 
+Error copyFileToFinalExecutable(StringRef File) {
+  if (std::error_code EC = sys::fs::copy_file(File, ExecutableName))
+    return createFileError(ExecutableName, EC);
+  return Error::success();
+}
+
 Error mergeSYCLBIN(ArrayRef<StringRef> Files, const ArgList &Args) {
   // Fast path for the general case where there's only one file. In this case we
   // do not need to parse it and can instead simply copy it.
-  if (Files.size() == 1) {
-    if (std::error_code EC = sys::fs::copy_file(Files[0], ExecutableName))
-      return createFileError(ExecutableName, EC);
-    return Error::success();
-  }
+  if (Files.size() == 1)
+    copyFileToFinalExecutable(Files[0]);
   // TODO: Merge SYCLBIN files here and write to ExecutableName output.
   // Use the first file as the base and modify.
   assert(Files.size() == 1);
@@ -2227,7 +2230,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
 
       // Store the offloading image for each linked output file.
       for (OffloadKind Kind = OFK_OpenMP; Kind != OFK_LAST;
-        Kind = static_cast<OffloadKind>((uint16_t)(Kind) << 1)) {
+           Kind = static_cast<OffloadKind>((uint16_t)(Kind) << 1)) {
         if ((ActiveOffloadKindMask & Kind) == 0)
           continue;
         llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> FileOrErr =
@@ -2566,6 +2569,10 @@ getDeviceInput(const ArgList &Args) {
       if (!ExtractOrErr)
         return ExtractOrErr.takeError();
 
+      // Skip if input type is host
+      if (Binary.getBinary()->getString("type") == "host")
+        continue;
+
       // If another target needs this binary it must be copied instead.
       if (Index == CompatibleTargets.size() - 1)
         InputFiles[ID].emplace_back(std::move(Binary));
@@ -2790,9 +2797,21 @@ int main(int Argc, char **Argv) {
       if (Error Err = sycl::mergeSYCLBIN(*FilesOrErr, Args))
         reportError(std::move(Err));
     } else {
-      // Run the host linking job with the rendered arguments.
-      if (Error Err = runLinker(*FilesOrErr, Args))
-        reportError(std::move(Err));
+      if (Args.hasArg(OPT_sycl_device_link)) {
+        // Skip host linker if -sycl-device-link option is set.
+        // Just copy the output of device linking and wrapping action.
+        if (FilesOrErr->size() > 1) {
+          reportError(createStringError(
+              "Expect single output from the device linker."));
+        } else {
+          if (Error Err = sycl::copyFileToFinalExecutable((*FilesOrErr)[0]))
+            reportError(std::move(Err));
+        }
+      } else {
+        // Run the host linking job with the rendered arguments.
+        if (Error Err = runLinker(*FilesOrErr, Args))
+          reportError(std::move(Err));
+      }
     }
   }
 
