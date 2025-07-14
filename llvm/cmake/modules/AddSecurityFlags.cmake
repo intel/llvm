@@ -74,8 +74,6 @@ macro(append_common_extra_security_flags)
   elseif(is_icpx)
     add_compile_option_ext("/Wformat" WFORMAT)
     add_compile_option_ext("/Wformat-security" WFORMATSECURITY)
-  elseif(is_msvc)
-    add_compile_option_ext("/analyze" ANALYZE)
   endif()
 
   if(CMAKE_BUILD_TYPE MATCHES "Release")
