@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __CMATH_FALLBACK_H__
-#define __CMATH_FALLBACK_H__
+#ifndef __SYCL_CMATH_WRAPPER_IMPL_HPP__
+#define __SYCL_CMATH_WRAPPER_IMPL_HPP__
 
 // This header defines device-side overloads of <cmath> functions based on
 // their equivalent __spirv_ built-ins.
