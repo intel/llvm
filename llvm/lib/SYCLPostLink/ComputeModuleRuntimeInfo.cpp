@@ -357,9 +357,11 @@ PropSetRegTy computeModuleProperties(const Module &M,
                     *MaxLinearWGSize);
       }
 
-      if (auto IsNDRange = getKernelSingleEltMetadata<bool>(Func, "is_nd_range")) {
+      if (auto IsNDRange =
+              getKernelSingleEltMetadata<bool>(Func, "is_nd_range")) {
         MetadataNames.push_back(Func.getName().str() + "@is_nd_range");
-        PropSet.add(PropSetRegTy::SYCL_NATIVE_CPU_PROPS, MetadataNames.back(), *IsNDRange);
+        PropSet.add(PropSetRegTy::SYCL_NATIVE_CPU_PROPS, MetadataNames.back(),
+                    *IsNDRange);
       }
     }
 

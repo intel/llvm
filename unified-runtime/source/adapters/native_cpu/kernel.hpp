@@ -194,7 +194,7 @@ struct ur_kernel_handle_t_ : RefCounted {
   }
 
   bool isNDRangeKernel() const { return NDRangeKernel; }
-  
+
 private:
   void removeArgReferences() {
     for (auto arg : ReferencedArgs)
@@ -204,9 +204,6 @@ private:
     for (auto arg : other.ReferencedArgs)
       addArgReference(arg);
   }
-
-
-
 
 private:
   char *_localMemPool = nullptr;
