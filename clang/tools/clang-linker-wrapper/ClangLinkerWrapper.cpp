@@ -2569,10 +2569,6 @@ getDeviceInput(const ArgList &Args) {
       if (!ExtractOrErr)
         return ExtractOrErr.takeError();
 
-      // Skip if input type is host
-      if (Binary.getBinary()->getString("type") == "host")
-        continue;
-
       // If another target needs this binary it must be copied instead.
       if (Index == CompatibleTargets.size() - 1)
         InputFiles[ID].emplace_back(std::move(Binary));
