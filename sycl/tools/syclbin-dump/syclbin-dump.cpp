@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
                 .moveInto(ParsedOffloadBinary)) {
       // If we failed to load as an offload binary, it may still be a SYCLBIN at
       // an outer level.
-      (bool)llvm::handleErrors(
+      std::ignore = (bool)llvm::handleErrors(
           std::move(E),
           [](std::unique_ptr<ECError>) -> Error { return Error::success(); });
       return MemoryBufferRef(**FileMemBufferOrError);
