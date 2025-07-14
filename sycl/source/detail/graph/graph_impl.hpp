@@ -917,7 +917,7 @@ private:
 
   // Stores a cache of node ids from modifiable graph nodes to the companion
   // node(s) in this graph. Used for quick access when updating this graph.
-  std::multimap<node_impl::id_type, std::shared_ptr<node_impl>> MIDCache;
+  std::multimap<node_impl::id_type, node_impl *> MIDCache;
 
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.
