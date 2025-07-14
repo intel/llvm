@@ -176,10 +176,10 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
       auto &poolConfig =
           disjointPoolConfigs.value().Configs[descToDisjoinPoolMemType(desc)];
       auto pool = usm::makeDisjointPool(makeProvider(desc), poolConfig);
-      usmPool = std::make_unique<UsmPool>(std::move(pool));
+      usmPool = std::make_unique<UsmPool>(this, std::move(pool));
     } else {
       auto pool = usm::makeProxyPool(makeProvider(desc));
-      usmPool = std::make_unique<UsmPool>(std::move(pool));
+      usmPool = std::make_unique<UsmPool>(this, std::move(pool));
     }
     UMF_CALL_THROWS(
         umfPoolSetTag(usmPool->umfPool.get(), usmPool.get(), nullptr));
@@ -243,8 +243,9 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
 }
 
 ur_result_t ur_usm_pool_handle_t_::free(void *ptr) {
-  auto umfPool = umfPoolByPtr(ptr);
-  if (umfPool) {
+  umf_memory_pool_handle_t umfPool = nullptr;
+  auto umfRet = umfPoolByPtr(ptr, &umfPool);
+  if (umfRet == UMF_RESULT_SUCCESS && umfPool) {
     return umf::umf2urResult(umfPoolFree(umfPool, ptr));
   } else {
     UR_LOG(ERR, "Failed to find pool for pointer: {}", ptr);
@@ -537,8 +538,9 @@ ur_result_t urUSMGetMemAllocInfo(
     return ReturnValue(size);
   }
   case UR_USM_ALLOC_INFO_POOL: {
-    auto umfPool = umfPoolByPtr(ptr);
-    if (!umfPool) {
+    umf_memory_pool_handle_t umfPool = nullptr;
+    auto umfRet = umfPoolByPtr(ptr, &umfPool);
+    if (umfRet != UMF_RESULT_SUCCESS || !umfPool) {
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 

@@ -5,12 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: SYCL-RTC is not available for accelerator devices
-
+// REQUIRES: (opencl || level_zero)
 // RUN: %{build} -o %t.out
-// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out | FileCheck %s
+// RUN: %{run} %t.out | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

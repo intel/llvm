@@ -25,13 +25,13 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   assert(!MInitEvent.has_value() && "MInitEvent has not been cleaned up.");
 }
 
-OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(const AdapterPtr &Adapter) {
+OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(adapter_impl &Adapter) {
   std::lock_guard<std::mutex> Lock(MInitEventMutex);
   // If there is a init event we can remove it if it is done.
   if (MInitEvent.has_value()) {
     if (get_event_info<info::event::command_execution_status>(
             *MInitEvent, Adapter) == info::event_command_status::complete) {
-      Adapter->call<UrApiKind::urEventRelease>(*MInitEvent);
+      Adapter.call<UrApiKind::urEventRelease>(*MInitEvent);
       MInitEvent = {};
       return OwnedUrEvent(Adapter);
     } else {
@@ -160,7 +160,7 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
       DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
       detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
       if (USMMem.MInitEvent.has_value())
-        CtxImpl->getAdapter()->call<UrApiKind::urEventRelease>(
+        CtxImpl->getAdapter().call<UrApiKind::urEventRelease>(
             *USMMem.MInitEvent);
 #ifndef NDEBUG
       // For debugging we set the event and memory to some recognizable values
@@ -185,8 +185,7 @@ void DeviceGlobalMapEntry::cleanup() {
     DeviceGlobalUSMMem &USMMem = USMPtrIt.second;
     detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
     if (USMMem.MInitEvent.has_value())
-      CtxImpl->getAdapter()->call<UrApiKind::urEventRelease>(
-          *USMMem.MInitEvent);
+      CtxImpl->getAdapter().call<UrApiKind::urEventRelease>(*USMMem.MInitEvent);
 #ifndef NDEBUG
     // For debugging we set the event and memory to some recognizable values
     // to allow us to check that this cleanup happens before erasure.

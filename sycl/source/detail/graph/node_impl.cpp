@@ -31,14 +31,11 @@ std::vector<node> createNodesFromImpls(
   return Nodes;
 }
 
-/// Takes a vector of shared_ptrs to node_impls and returns a vector of node
-/// objects created from those impls, in the same order.
-std::vector<node> createNodesFromImpls(
-    const std::vector<std::shared_ptr<detail::node_impl>> &Impls) {
+std::vector<node> createNodesFromImpls(nodes_range Impls) {
   std::vector<node> Nodes{};
   Nodes.reserve(Impls.size());
 
-  for (std::shared_ptr<detail::node_impl> Impl : Impls) {
+  for (detail::node_impl &Impl : Impls) {
     Nodes.push_back(sycl::detail::createSyclObjFromImpl<node>(Impl));
   }
 
