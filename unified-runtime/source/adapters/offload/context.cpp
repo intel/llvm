@@ -14,11 +14,16 @@
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     uint32_t DeviceCount, const ur_device_handle_t *phDevices,
     const ur_context_properties_t *, ur_context_handle_t *phContext) {
-  if (DeviceCount > 1) {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  // For multi-device contexts, all devices must have the same platform.
+  ur_device_handle_t FirstDevice = *phDevices;
+  for (uint32_t i = 1; i < DeviceCount; i++) {
+    if (phDevices[i]->Platform != FirstDevice->Platform) {
+      return UR_RESULT_ERROR_INVALID_DEVICE;
+    }
   }
 
-  auto Ctx = new ur_context_handle_t_(*phDevices);
+  auto Ctx = new ur_context_handle_t_(phDevices, DeviceCount);
   *phContext = Ctx;
   return UR_RESULT_SUCCESS;
 }
@@ -30,9 +35,9 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
 
   switch (propName) {
   case UR_CONTEXT_INFO_NUM_DEVICES:
-    return ReturnValue(uint32_t{1});
+    return ReturnValue(hContext->Devices.size());
   case UR_CONTEXT_INFO_DEVICES:
-    return ReturnValue(&hContext->Device, 1);
+    return ReturnValue(hContext->Devices.data(), hContext->Devices.size());
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(hContext->RefCount.load());
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:

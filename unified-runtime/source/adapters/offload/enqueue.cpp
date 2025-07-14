@@ -67,6 +67,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   LaunchArgs.GroupSize.z = GroupSize[2];
   LaunchArgs.DynSharedMemory = 0;
 
+  // Prepare memobj arguments
+  for (auto &Arg : hKernel->Args.MemObjArgs) {
+    Arg.Mem->enqueueMigrateMemoryToDeviceIfNeeded(hQueue->Device,
+                                                  hQueue->OffloadQueue);
+    if (Arg.AccessFlags & (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) {
+      Arg.Mem->setLastQueueWritingToMemObj(hQueue);
+    }
+  }
+
   ol_event_handle_t EventOut;
   OL_RETURN_ON_ERR(
       olLaunchKernel(hQueue->OffloadQueue, hQueue->OffloadDevice,
@@ -105,8 +114,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
 
   ol_event_handle_t EventOut = nullptr;
 
-  char *DevPtr =
-      reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
+  // Note that this entry point may be called on a queue that may not be the
+  // last queue to write to the MemBuffer, meaning we must perform the copy
+  // from a different device
+  // TODO: Evaluate whether this is better than just migrating the memory to the
+  // correct device and then doing the read.
+  if (hBuffer->LastQueueWritingToMemObj &&
+      hBuffer->LastQueueWritingToMemObj->Device != hQueue->Device) {
+    hQueue = hBuffer->LastQueueWritingToMemObj;
+  }
+
+  char *DevPtr = reinterpret_cast<char *>(
+      std::get<BufferMem>(hBuffer->Mem).getPtr(hQueue->Device));
 
   OL_RETURN_ON_ERR(olMemcpy(hQueue->OffloadQueue, pDst, Adapter->HostDevice,
                             DevPtr + offset, hQueue->OffloadDevice, size,
@@ -137,8 +156,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 
   ol_event_handle_t EventOut = nullptr;
 
-  char *DevPtr =
-      reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
+  char *DevPtr = reinterpret_cast<char *>(
+      std::get<BufferMem>(hBuffer->Mem).getPtr(hQueue->Device));
 
   OL_RETURN_ON_ERR(olMemcpy(hQueue->OffloadQueue, DevPtr + offset,
                             hQueue->OffloadDevice, pSrc, Adapter->HostDevice,
