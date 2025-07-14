@@ -45,7 +45,6 @@ urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
   try {
     ContextPtr = std::unique_ptr<ur_context_handle_t_>(
         new ur_context_handle_t_{phDevices, DeviceCount});
-    ContextPtr->RefCount.retain();
     *phContext = ContextPtr.release();
   } catch (ur_result_t Err) {
     return Err;
