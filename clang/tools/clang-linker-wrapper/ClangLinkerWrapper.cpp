@@ -1228,6 +1228,7 @@ packageSYCLBIN(SYCLBIN::BundleState State,
 }
 
 Error copyFileToFinalExecutable(StringRef File) {
+  // TODO: check if copy can be replaced by rename.
   if (std::error_code EC = sys::fs::copy_file(File, ExecutableName))
     return createFileError(ExecutableName, EC);
   return Error::success();
@@ -1237,7 +1238,8 @@ Error mergeSYCLBIN(ArrayRef<StringRef> Files, const ArgList &Args) {
   // Fast path for the general case where there's only one file. In this case we
   // do not need to parse it and can instead simply copy it.
   if (Files.size() == 1)
-    copyFileToFinalExecutable(Files[0]);
+    if (Error Err = copyFileToFinalExecutable(Files[0]))
+      reportError(std::move(Err));
   // TODO: Merge SYCLBIN files here and write to ExecutableName output.
   // Use the first file as the base and modify.
   assert(Files.size() == 1);
