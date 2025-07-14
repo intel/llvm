@@ -170,6 +170,11 @@ def do_configure(args, passthrough_args):
 
     install_dir = os.path.join(abs_obj_dir, "install")
 
+    if args.add_security_flags and args.add_security_flags != 'none':
+        # Our codebase isn't ready for those new warnings just yet
+        if platform.system() == "Windows":
+            sycl_werror = "OFF"
+
     cmake_cmd = [
         "cmake",
         "-G",
