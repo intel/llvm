@@ -194,12 +194,12 @@ public:
              private_tag)
       : MDevice([&]() -> device_impl & {
           ur_device_handle_t DeviceUr{};
-          const AdapterPtr &Adapter = Context.getAdapter();
+          adapter_impl &Adapter = Context.getAdapter();
           // TODO catch an exception and put it to list of asynchronous
           // exceptions
-          Adapter->call<UrApiKind::urQueueGetInfo>(
-              UrQueue, UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr,
-              nullptr);
+          Adapter.call<UrApiKind::urQueueGetInfo>(UrQueue, UR_QUEUE_INFO_DEVICE,
+                                                  sizeof(DeviceUr), &DeviceUr,
+                                                  nullptr);
           device_impl *Device = Context.findMatchingDeviceImpl(DeviceUr);
           if (Device == nullptr) {
             throw sycl::exception(
@@ -285,7 +285,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  adapter_impl &getAdapter() const { return *MContext->getAdapter(); }
+  adapter_impl &getAdapter() const { return MContext->getAdapter(); }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const std::shared_ptr<context_impl> &getContextImplPtr() const {

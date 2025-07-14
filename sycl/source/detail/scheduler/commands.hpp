@@ -453,7 +453,7 @@ private:
 /// Base class for memory allocation commands.
 class AllocaCommandBase : public Command {
 public:
-  AllocaCommandBase(CommandType Type, queue_impl *Queue, Requirement Req,
+  AllocaCommandBase(CommandType Type, queue_impl *Queue, const Requirement &Req,
                     AllocaCommandBase *LinkedAllocaCmd, bool IsConst);
 
   ReleaseCommand *getReleaseCmd() { return &MReleaseCmd; }
@@ -498,7 +498,7 @@ protected:
 /// or underlying framework.
 class AllocaCommand : public AllocaCommandBase {
 public:
-  AllocaCommand(queue_impl *Queue, Requirement Req,
+  AllocaCommand(queue_impl *Queue, const Requirement &Req,
                 bool InitFromUserData = true,
                 AllocaCommandBase *LinkedAllocaCmd = nullptr,
                 bool IsConst = false);
@@ -518,7 +518,7 @@ private:
 /// The AllocaSubBuf command enqueues creation of sub-buffer of memory object.
 class AllocaSubBufCommand : public AllocaCommandBase {
 public:
-  AllocaSubBufCommand(queue_impl *Queue, Requirement Req,
+  AllocaSubBufCommand(queue_impl *Queue, const Requirement &Req,
                       AllocaCommandBase *ParentAlloca,
                       std::vector<Command *> &ToEnqueue,
                       std::vector<Command *> &ToCleanUp);
@@ -537,8 +537,8 @@ private:
 /// The map command enqueues mapping of device memory onto host memory.
 class MapMemObject : public Command {
 public:
-  MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req, void **DstPtr,
-               queue_impl *Queue, access::mode MapMode);
+  MapMemObject(AllocaCommandBase *SrcAllocaCmd, const Requirement &Req,
+               void **DstPtr, queue_impl *Queue, access::mode MapMode);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MSrcReq; }
@@ -556,7 +556,7 @@ private:
 /// The unmap command removes mapping of host memory onto device memory.
 class UnMapMemObject : public Command {
 public:
-  UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
+  UnMapMemObject(AllocaCommandBase *DstAllocaCmd, const Requirement &Req,
                  void **SrcPtr, queue_impl *Queue);
 
   void printDot(std::ostream &Stream) const final;
@@ -576,8 +576,8 @@ private:
 /// object.
 class MemCpyCommand : public Command {
 public:
-  MemCpyCommand(Requirement SrcReq, AllocaCommandBase *SrcAllocaCmd,
-                Requirement DstReq, AllocaCommandBase *DstAllocaCmd,
+  MemCpyCommand(const Requirement &SrcReq, AllocaCommandBase *SrcAllocaCmd,
+                const Requirement &DstReq, AllocaCommandBase *DstAllocaCmd,
                 queue_impl *SrcQueue, queue_impl *DstQueue);
 
   void printDot(std::ostream &Stream) const final;
@@ -600,9 +600,9 @@ private:
 /// memory object.
 class MemCpyCommandHost : public Command {
 public:
-  MemCpyCommandHost(Requirement SrcReq, AllocaCommandBase *SrcAllocaCmd,
-                    Requirement DstReq, void **DstPtr, queue_impl *SrcQueue,
-                    queue_impl *DstQueue);
+  MemCpyCommandHost(const Requirement &SrcReq, AllocaCommandBase *SrcAllocaCmd,
+                    const Requirement &DstReq, void **DstPtr,
+                    queue_impl *SrcQueue, queue_impl *DstQueue);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
@@ -696,7 +696,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 
 class UpdateHostRequirementCommand : public Command {
 public:
-  UpdateHostRequirementCommand(queue_impl *Queue, Requirement Req,
+  UpdateHostRequirementCommand(queue_impl *Queue, const Requirement &Req,
                                AllocaCommandBase *SrcAllocaCmd, void **DstPtr);
 
   void printDot(std::ostream &Stream) const final;

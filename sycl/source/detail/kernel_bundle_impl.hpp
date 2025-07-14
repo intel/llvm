@@ -124,7 +124,7 @@ public:
   // Interop constructor
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      device_image_plain &DevImage, private_tag Tag)
-      : kernel_bundle_impl(Ctx, Devs, Tag) {
+      : kernel_bundle_impl(std::move(Ctx), std::move(Devs), Tag) {
     MDeviceImages.emplace_back(DevImage);
     MUniqueDeviceImages.emplace_back(DevImage);
   }
@@ -747,7 +747,7 @@ public:
 
     device_impl &DeviceImpl = *getSyclObjImpl(Dev);
     bool SupportContextMemcpy = false;
-    DeviceImpl.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+    DeviceImpl.getAdapter().call<UrApiKind::urDeviceGetInfo>(
         DeviceImpl.getHandleRef(),
         UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP,
         sizeof(SupportContextMemcpy), &SupportContextMemcpy, nullptr);
