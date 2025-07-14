@@ -29,7 +29,7 @@ TEST_F(CommandGraphTest, EnqueueBarrier) {
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Graph.end_recording(Queue);
 
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
 
   // Check the graph structure
   // (1) (2) (3)
@@ -38,14 +38,13 @@ TEST_F(CommandGraphTest, EnqueueBarrier) {
   //     (B)
   //     / \
   //   (4) (5)
-  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Root : GraphImpl->MRoots) {
-    auto Node = Root.lock();
-    ASSERT_EQ(Node->MSuccessors.size(), 1lu);
-    auto BarrierNode = Node->MSuccessors.front().lock();
+  ASSERT_EQ(GraphImpl.MRoots.size(), 3lu);
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    ASSERT_EQ(Root.MSuccessors.size(), 1lu);
+    auto BarrierNode = Root.MSuccessors.front().lock();
     ASSERT_EQ(BarrierNode->MCGType, sycl::detail::CGType::Barrier);
-    ASSERT_EQ(GraphImpl->getEventForNode(BarrierNode),
-              sycl::detail::getSyclObjImpl(Barrier));
+    ASSERT_EQ(GraphImpl.getEventForNode(*BarrierNode).get(),
+              &*getSyclObjImpl(Barrier));
     ASSERT_EQ(BarrierNode->MPredecessors.size(), 3lu);
     ASSERT_EQ(BarrierNode->MSuccessors.size(), 2lu);
   }
@@ -70,7 +69,7 @@ TEST_F(CommandGraphTest, EnqueueBarrierMultipleQueues) {
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Graph.end_recording();
 
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
 
   // Check the graph structure
   // (1) (2) (3)
@@ -78,18 +77,15 @@ TEST_F(CommandGraphTest, EnqueueBarrierMultipleQueues) {
   //     (B)
   //     / \
   //   (4) (5)
-  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Root : GraphImpl->MRoots) {
-    auto RootNode = Root.lock();
+  ASSERT_EQ(GraphImpl.MRoots.size(), 3lu);
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    if (GraphImpl.getEventForNode(Root).get() == &*getSyclObjImpl(Node2Graph)) {
 
-    if (GraphImpl->getEventForNode(RootNode) ==
-        sycl::detail::getSyclObjImpl(Node2Graph)) {
+      ASSERT_EQ(Root.MSuccessors.size(), 1lu);
+      auto SuccNode = Root.MSuccessors.front().lock();
 
-      ASSERT_EQ(RootNode->MSuccessors.size(), 1lu);
-      auto SuccNode = RootNode->MSuccessors.front().lock();
-
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-                sycl::detail::getSyclObjImpl(Barrier));
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+                &*getSyclObjImpl(Barrier));
 
       ASSERT_EQ(SuccNode->MPredecessors.size(), 1lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 2lu);
@@ -97,12 +93,12 @@ TEST_F(CommandGraphTest, EnqueueBarrierMultipleQueues) {
       for (auto SuccSucc : SuccNode->MSuccessors) {
         auto SuccSuccNode = SuccSucc.lock();
 
-        if (GraphImpl->getEventForNode(SuccSuccNode) ==
-            sycl::detail::getSyclObjImpl(Node4Graph)) {
+        if (GraphImpl.getEventForNode(*SuccSuccNode).get() ==
+            &*getSyclObjImpl(Node4Graph)) {
           ASSERT_EQ(SuccSuccNode->MPredecessors.size(), 1lu);
           ASSERT_EQ(SuccSuccNode->MSuccessors.size(), 0lu);
-        } else if (GraphImpl->getEventForNode(SuccSuccNode) ==
-                   sycl::detail::getSyclObjImpl(Node5Graph)) {
+        } else if (GraphImpl.getEventForNode(*SuccSuccNode).get() ==
+                   &*getSyclObjImpl(Node5Graph)) {
           ASSERT_EQ(SuccSuccNode->MPredecessors.size(), 1lu);
           ASSERT_EQ(SuccSuccNode->MSuccessors.size(), 0lu);
         } else {
@@ -110,7 +106,7 @@ TEST_F(CommandGraphTest, EnqueueBarrierMultipleQueues) {
         }
       }
     } else {
-      ASSERT_EQ(RootNode->MSuccessors.size(), 0lu);
+      ASSERT_EQ(Root.MSuccessors.size(), 0lu);
     }
   }
 }
@@ -137,7 +133,7 @@ TEST_F(CommandGraphTest, EnqueueBarrierWaitList) {
 
   Graph.end_recording(Queue);
 
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
 
   // Check the graph structure
   // (1) (2) (3)
@@ -146,14 +142,13 @@ TEST_F(CommandGraphTest, EnqueueBarrierWaitList) {
   //     (B)  |
   //     / \ /
   //   (4) (5)
-  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Root : GraphImpl->MRoots) {
-    auto Node = Root.lock();
-    ASSERT_EQ(Node->MSuccessors.size(), 1lu);
-    auto SuccNode = Node->MSuccessors.front().lock();
+  ASSERT_EQ(GraphImpl.MRoots.size(), 3lu);
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    ASSERT_EQ(Root.MSuccessors.size(), 1lu);
+    auto SuccNode = Root.MSuccessors.front().lock();
     if (SuccNode->MCGType == sycl::detail::CGType::Barrier) {
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-                sycl::detail::getSyclObjImpl(Barrier));
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+                &*getSyclObjImpl(Barrier));
       ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 2lu);
     } else {
@@ -191,7 +186,7 @@ TEST_F(CommandGraphTest, EnqueueBarrierWaitListMultipleQueues) {
 
   Graph.end_recording();
 
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
 
   // Check the graph structure
   // (1) (2) (3)
@@ -203,14 +198,13 @@ TEST_F(CommandGraphTest, EnqueueBarrierWaitListMultipleQueues) {
   //    \ | /
   //     \|/
   //     (B2)
-  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Root : GraphImpl->MRoots) {
-    auto Node = Root.lock();
-    ASSERT_EQ(Node->MSuccessors.size(), 1lu);
-    auto SuccNode = Node->MSuccessors.front().lock();
+  ASSERT_EQ(GraphImpl.MRoots.size(), 3lu);
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    ASSERT_EQ(Root.MSuccessors.size(), 1lu);
+    auto SuccNode = Root.MSuccessors.front().lock();
     if (SuccNode->MCGType == sycl::detail::CGType::Barrier) {
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-                sycl::detail::getSyclObjImpl(Barrier));
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+                &*getSyclObjImpl(Barrier));
       ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 3lu);
     } else {
@@ -252,7 +246,7 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
 
   Graph.end_recording(Queue);
 
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
 
   // Check the graph structure
   // (1) (2) (3)
@@ -266,21 +260,20 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
   //     /|\
   //    / | \
   // (6) (7) (8)
-  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Root : GraphImpl->MRoots) {
-    auto Node = Root.lock();
-    ASSERT_EQ(Node->MSuccessors.size(), 1lu);
-    auto SuccNode = Node->MSuccessors.front().lock();
+  ASSERT_EQ(GraphImpl.MRoots.size(), 3lu);
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    ASSERT_EQ(Root.MSuccessors.size(), 1lu);
+    auto SuccNode = Root.MSuccessors.front().lock();
     if (SuccNode->MCGType == sycl::detail::CGType::Barrier) {
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-                sycl::detail::getSyclObjImpl(Barrier1));
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+                &*getSyclObjImpl(Barrier1));
       ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 3lu);
       for (auto Succ1 : SuccNode->MSuccessors) {
         auto SuccBarrier1 = Succ1.lock();
         if (SuccBarrier1->MCGType == sycl::detail::CGType::Barrier) {
-          ASSERT_EQ(GraphImpl->getEventForNode(SuccBarrier1),
-                    sycl::detail::getSyclObjImpl(Barrier2));
+          ASSERT_EQ(GraphImpl.getEventForNode(*SuccBarrier1).get(),
+                    &*getSyclObjImpl(Barrier2));
           ASSERT_EQ(SuccBarrier1->MPredecessors.size(), 3lu);
           ASSERT_EQ(SuccBarrier1->MSuccessors.size(), 3lu);
           for (auto Succ2 : SuccBarrier1->MSuccessors) {
@@ -291,8 +284,8 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
           }
         } else {
           // Node 4 or Node 5
-          if (GraphImpl->getEventForNode(SuccBarrier1) ==
-              sycl::detail::getSyclObjImpl(Node4Graph)) {
+          if (GraphImpl.getEventForNode(*SuccBarrier1).get() ==
+              &*getSyclObjImpl(Node4Graph)) {
             // Node 4
             ASSERT_EQ(SuccBarrier1->MPredecessors.size(), 1lu);
             ASSERT_EQ(SuccBarrier1->MSuccessors.size(), 1lu);
@@ -332,13 +325,12 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousCommand) {
 
   // Check the graph structure
   // (B)
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-  ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
 
-  for (auto Root : GraphImpl->MRoots) {
-    auto RootNode = Root.lock();
-    ASSERT_EQ(RootNode->MSuccessors.size(), 0lu);
-    ASSERT_TRUE(RootNode->MCGType == sycl::detail::CGType::Barrier);
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    ASSERT_EQ(Root.MSuccessors.size(), 0lu);
+    ASSERT_TRUE(Root.MCGType == sycl::detail::CGType::Barrier);
   }
 }
 
@@ -367,24 +359,21 @@ TEST_F(CommandGraphTest, InOrderQueuesWithBarrier) {
   // (1) (2)
   //  |
   // (B)
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-  ASSERT_EQ(GraphImpl->MRoots.size(), 2lu);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl.MRoots.size(), 2lu);
 
-  for (auto Root : GraphImpl->MRoots) {
-    auto RootNode = Root.lock();
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    if (GraphImpl.getEventForNode(Root).get() == &*getSyclObjImpl(Node1)) {
+      ASSERT_EQ(Root.MSuccessors.size(), 1lu);
 
-    if (GraphImpl->getEventForNode(RootNode) ==
-        sycl::detail::getSyclObjImpl(Node1)) {
-      ASSERT_EQ(RootNode->MSuccessors.size(), 1lu);
-
-      auto SuccNode = RootNode->MSuccessors.front().lock();
+      auto SuccNode = Root.MSuccessors.front().lock();
       ASSERT_TRUE(SuccNode->MCGType == sycl::detail::CGType::Barrier);
 
       ASSERT_EQ(SuccNode->MPredecessors.size(), 1lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
-    } else if (GraphImpl->getEventForNode(RootNode) ==
-               sycl::detail::getSyclObjImpl(Node2)) {
-      ASSERT_EQ(RootNode->MSuccessors.size(), 0lu);
+    } else if (GraphImpl.getEventForNode(Root).get() ==
+               &*getSyclObjImpl(Node2)) {
+      ASSERT_EQ(Root.MSuccessors.size(), 0lu);
     } else {
       ASSERT_TRUE(false && "Unexpected root node");
     }
@@ -415,17 +404,15 @@ TEST_F(CommandGraphTest, InOrderQueuesWithBarrierWaitList) {
   // (1) (2)
   //  |  /
   // (B)
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-  ASSERT_EQ(GraphImpl->MRoots.size(), 2lu);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl.MRoots.size(), 2lu);
 
-  for (auto Root : GraphImpl->MRoots) {
-    auto RootNode = Root.lock();
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    ASSERT_EQ(Root.MSuccessors.size(), 1lu);
 
-    ASSERT_EQ(RootNode->MSuccessors.size(), 1lu);
-
-    auto SuccNode = RootNode->MSuccessors.front().lock();
-    ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-              sycl::detail::getSyclObjImpl(BarrierNode));
+    auto SuccNode = Root.MSuccessors.front().lock();
+    ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+              &*getSyclObjImpl(BarrierNode));
 
     ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
     ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
@@ -459,31 +446,28 @@ TEST_F(CommandGraphTest, InOrderQueuesWithEmptyBarrierWaitList) {
   // (1)  (2)
   //  |    |
   // (B)  (3)
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-  ASSERT_EQ(GraphImpl->MRoots.size(), 2lu);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl.MRoots.size(), 2lu);
 
-  for (auto Root : GraphImpl->MRoots) {
-    auto RootNode = Root.lock();
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    if (GraphImpl.getEventForNode(Root).get() == &*getSyclObjImpl(Node1)) {
+      ASSERT_EQ(Root.MSuccessors.size(), 1lu);
 
-    if (GraphImpl->getEventForNode(RootNode) ==
-        sycl::detail::getSyclObjImpl(Node1)) {
-      ASSERT_EQ(RootNode->MSuccessors.size(), 1lu);
+      auto SuccNode = Root.MSuccessors.front().lock();
 
-      auto SuccNode = RootNode->MSuccessors.front().lock();
-
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-                sycl::detail::getSyclObjImpl(BarrierNode));
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+                &*getSyclObjImpl(BarrierNode));
 
       ASSERT_EQ(SuccNode->MPredecessors.size(), 1lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
-    } else if (GraphImpl->getEventForNode(RootNode) ==
-               sycl::detail::getSyclObjImpl(Node2)) {
-      ASSERT_EQ(RootNode->MSuccessors.size(), 1lu);
+    } else if (GraphImpl.getEventForNode(Root).get() ==
+               &*getSyclObjImpl(Node2)) {
+      ASSERT_EQ(Root.MSuccessors.size(), 1lu);
 
-      auto SuccNode = RootNode->MSuccessors.front().lock();
+      auto SuccNode = Root.MSuccessors.front().lock();
 
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-                sycl::detail::getSyclObjImpl(Node3));
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+                &*getSyclObjImpl(Node3));
 
       ASSERT_EQ(SuccNode->MPredecessors.size(), 1lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
@@ -524,31 +508,28 @@ TEST_F(CommandGraphTest, BarrierMixedQueueTypes) {
   //   (B) |
   //       |
   //      (3)
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-  ASSERT_EQ(GraphImpl->MRoots.size(), 2lu);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl.MRoots.size(), 2lu);
 
-  for (auto Root : GraphImpl->MRoots) {
-    auto RootNode = Root.lock();
-
-    if (GraphImpl->getEventForNode(RootNode) ==
-        sycl::detail::getSyclObjImpl(Node1)) {
-      ASSERT_EQ(RootNode->MSuccessors.size(), 1lu);
-    } else if (GraphImpl->getEventForNode(RootNode) ==
-               sycl::detail::getSyclObjImpl(Node2)) {
-      ASSERT_EQ(RootNode->MSuccessors.size(), 2lu);
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    if (GraphImpl.getEventForNode(Root).get() == &*getSyclObjImpl(Node1)) {
+      ASSERT_EQ(Root.MSuccessors.size(), 1lu);
+    } else if (GraphImpl.getEventForNode(Root).get() ==
+               &*getSyclObjImpl(Node2)) {
+      ASSERT_EQ(Root.MSuccessors.size(), 2lu);
     } else {
       ASSERT_TRUE(false && "Unexpected root node");
     }
 
-    for (auto Succ : RootNode->MSuccessors) {
+    for (auto Succ : Root.MSuccessors) {
       auto SuccNode = Succ.lock();
 
-      if (GraphImpl->getEventForNode(SuccNode) ==
-          sycl::detail::getSyclObjImpl(BarrierNode)) {
+      if (GraphImpl.getEventForNode(*SuccNode).get() ==
+          &*getSyclObjImpl(BarrierNode)) {
         ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
         ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
-      } else if (GraphImpl->getEventForNode(SuccNode) ==
-                 sycl::detail::getSyclObjImpl(Node3)) {
+      } else if (GraphImpl.getEventForNode(*SuccNode).get() ==
+                 &*getSyclObjImpl(Node3)) {
         ASSERT_EQ(SuccNode->MPredecessors.size(), 1lu);
         ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
       } else {
@@ -580,19 +561,18 @@ TEST_F(CommandGraphTest, BarrierBetweenExplicitNodes) {
   // (B) (1)
   //      |
   //     (2)
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-  ASSERT_EQ(GraphImpl->MRoots.size(), 2lu);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl.MRoots.size(), 2lu);
 
-  for (auto Root : GraphImpl->MRoots) {
-    auto RootNode = Root.lock();
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
 
-    if (GraphImpl->getEventForNode(RootNode) ==
-        sycl::detail::getSyclObjImpl(BarrierNode)) {
-      ASSERT_EQ(RootNode->MSuccessors.size(), 0lu);
-    } else if (RootNode == sycl::detail::getSyclObjImpl(Node1)) {
-      ASSERT_EQ(RootNode->MSuccessors.size(), 1lu);
-      auto SuccNode = RootNode->MSuccessors.front().lock();
-      ASSERT_EQ(SuccNode, sycl::detail::getSyclObjImpl(Node2));
+    if (GraphImpl.getEventForNode(Root).get() ==
+        &*getSyclObjImpl(BarrierNode)) {
+      ASSERT_EQ(Root.MSuccessors.size(), 0lu);
+    } else if (&Root == &*getSyclObjImpl(Node1)) {
+      ASSERT_EQ(Root.MSuccessors.size(), 1lu);
+      auto SuccNode = Root.MSuccessors.front().lock();
+      ASSERT_EQ(SuccNode.get(), &*getSyclObjImpl(Node2));
     } else {
       ASSERT_TRUE(false);
     }
@@ -636,19 +616,18 @@ TEST_F(CommandGraphTest, BarrierMultipleOOOQueue) {
   //  (B)      (5)
   //   |
   //  (6)
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-  ASSERT_EQ(GraphImpl->MRoots.size(), 4u);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl.MRoots.size(), 4u);
 
-  for (auto Root : GraphImpl->MRoots) {
-    auto RootNode = Root.lock();
-    auto RootNodeEvent = GraphImpl->getEventForNode(RootNode);
-    if ((RootNodeEvent == sycl::detail::getSyclObjImpl(Node1)) ||
-        (RootNodeEvent == sycl::detail::getSyclObjImpl(Node2))) {
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    auto RootNodeEvent = GraphImpl.getEventForNode(Root);
+    if ((RootNodeEvent.get() == &*getSyclObjImpl(Node1)) ||
+        (RootNodeEvent.get() == &*getSyclObjImpl(Node2))) {
 
-      auto SuccNode = RootNode->MSuccessors.front().lock();
+      auto SuccNode = Root.MSuccessors.front().lock();
 
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-                sycl::detail::getSyclObjImpl(BarrierNode));
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+                &*getSyclObjImpl(BarrierNode));
 
       ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 1lu);
@@ -658,14 +637,14 @@ TEST_F(CommandGraphTest, BarrierMultipleOOOQueue) {
       ASSERT_EQ(SuccSuccNode->MPredecessors.size(), 1lu);
       ASSERT_EQ(SuccSuccNode->MSuccessors.size(), 0lu);
 
-      auto Node6Impl = sycl::detail::getSyclObjImpl(Node6);
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccSuccNode), Node6Impl);
-    } else if ((RootNodeEvent == sycl::detail::getSyclObjImpl(Node3)) ||
-               (RootNodeEvent == sycl::detail::getSyclObjImpl(Node4))) {
-      auto SuccNode = RootNode->MSuccessors.front().lock();
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccSuccNode).get(),
+                &*getSyclObjImpl(Node6));
+    } else if ((RootNodeEvent.get() == &*getSyclObjImpl(Node3)) ||
+               (RootNodeEvent.get() == &*getSyclObjImpl(Node4))) {
+      auto SuccNode = Root.MSuccessors.front().lock();
 
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-                sycl::detail::getSyclObjImpl(Node5));
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+                &*getSyclObjImpl(Node5));
 
       ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
@@ -701,23 +680,22 @@ TEST_F(CommandGraphTest, BarrierMultipleInOrderQueue) {
   // (1) (2)
   //  |   |
   // (B) (3)
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-  ASSERT_EQ(GraphImpl->MRoots.size(), 2u);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl.MRoots.size(), 2u);
 
-  for (auto Root : GraphImpl->MRoots) {
-    auto RootNode = Root.lock();
-    auto RootNodeEvent = GraphImpl->getEventForNode(RootNode);
-    if (RootNodeEvent == sycl::detail::getSyclObjImpl(Node1)) {
-      auto SuccNode = RootNode->MSuccessors.front().lock();
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-                sycl::detail::getSyclObjImpl(BarrierNode));
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    auto RootNodeEvent = GraphImpl.getEventForNode(Root);
+    if (RootNodeEvent.get() == &*getSyclObjImpl(Node1)) {
+      auto SuccNode = Root.MSuccessors.front().lock();
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+                &*getSyclObjImpl(BarrierNode));
 
       ASSERT_EQ(SuccNode->MPredecessors.size(), 1lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
-    } else if (RootNodeEvent == sycl::detail::getSyclObjImpl(Node2)) {
-      auto SuccNode = RootNode->MSuccessors.front().lock();
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-                sycl::detail::getSyclObjImpl(Node3));
+    } else if (RootNodeEvent.get() == &*getSyclObjImpl(Node2)) {
+      auto SuccNode = Root.MSuccessors.front().lock();
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+                &*getSyclObjImpl(Node3));
 
       ASSERT_EQ(SuccNode->MPredecessors.size(), 1lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
@@ -752,23 +730,22 @@ TEST_F(CommandGraphTest, BarrierMultipleMixedOrderQueues) {
   // (1) (2)
   //  |   |
   // (B) (3)
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-  ASSERT_EQ(GraphImpl->MRoots.size(), 2u);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl.MRoots.size(), 2u);
 
-  for (auto Root : GraphImpl->MRoots) {
-    auto RootNode = Root.lock();
-    auto RootNodeEvent = GraphImpl->getEventForNode(RootNode);
-    if (RootNodeEvent == sycl::detail::getSyclObjImpl(Node1)) {
-      auto SuccNode = RootNode->MSuccessors.front().lock();
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-                sycl::detail::getSyclObjImpl(BarrierNode));
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    auto RootNodeEvent = GraphImpl.getEventForNode(Root);
+    if (RootNodeEvent.get() == &*getSyclObjImpl(Node1)) {
+      auto SuccNode = Root.MSuccessors.front().lock();
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+                &*getSyclObjImpl(BarrierNode));
 
       ASSERT_EQ(SuccNode->MPredecessors.size(), 1lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
-    } else if (RootNodeEvent == sycl::detail::getSyclObjImpl(Node2)) {
-      auto SuccNode = RootNode->MSuccessors.front().lock();
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-                sycl::detail::getSyclObjImpl(Node3));
+    } else if (RootNodeEvent.get() == &*getSyclObjImpl(Node2)) {
+      auto SuccNode = Root.MSuccessors.front().lock();
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+                &*getSyclObjImpl(Node3));
 
       ASSERT_EQ(SuccNode->MPredecessors.size(), 1lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
@@ -797,23 +774,22 @@ TEST_F(CommandGraphTest, BarrierMultipleQueuesMultipleBarriers) {
   // (1)       (2)
   //  |         |
   // (4)       (3)
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-  ASSERT_EQ(GraphImpl->MRoots.size(), 2u);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl.MRoots.size(), 2u);
 
-  for (auto Root : GraphImpl->MRoots) {
-    auto RootNode = Root.lock();
-    auto RootNodeEvent = GraphImpl->getEventForNode(RootNode);
-    if (RootNodeEvent == sycl::detail::getSyclObjImpl(Barrier1)) {
-      auto SuccNode = RootNode->MSuccessors.front().lock();
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-                sycl::detail::getSyclObjImpl(Barrier4));
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    auto RootNodeEvent = GraphImpl.getEventForNode(Root);
+    if (RootNodeEvent.get() == &*getSyclObjImpl(Barrier1)) {
+      auto SuccNode = Root.MSuccessors.front().lock();
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+                &*getSyclObjImpl(Barrier4));
 
       ASSERT_EQ(SuccNode->MPredecessors.size(), 1lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
-    } else if (RootNodeEvent == sycl::detail::getSyclObjImpl(Barrier2)) {
-      auto SuccNode = RootNode->MSuccessors.front().lock();
-      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
-                sycl::detail::getSyclObjImpl(Barrier3));
+    } else if (RootNodeEvent.get() == &*getSyclObjImpl(Barrier2)) {
+      auto SuccNode = Root.MSuccessors.front().lock();
+      ASSERT_EQ(GraphImpl.getEventForNode(*SuccNode).get(),
+                &*getSyclObjImpl(Barrier3));
 
       ASSERT_EQ(SuccNode->MPredecessors.size(), 1lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 0lu);
@@ -875,68 +851,66 @@ TEST_F(CommandGraphTest, BarrierWithInOrderCommands) {
   // (5)    (6)
   //    \   /
   //    (B5)
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-  ASSERT_EQ(GraphImpl->MRoots.size(), 2lu);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl.MRoots.size(), 2lu);
 
-  for (auto Root : GraphImpl->MRoots) {
-    auto RootNode = Root.lock();
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
     bool EvenPath;
 
-    ASSERT_EQ(RootNode->MSuccessors.size(), 1lu);
-    if (GraphImpl->getEventForNode(RootNode) ==
-        sycl::detail::getSyclObjImpl(Node2)) {
+    ASSERT_EQ(Root.MSuccessors.size(), 1lu);
+    if (GraphImpl.getEventForNode(Root).get() == &*getSyclObjImpl(Node2)) {
       EvenPath = true;
-    } else if (GraphImpl->getEventForNode(RootNode),
-               sycl::detail::getSyclObjImpl(Node1)) {
+    } else if (GraphImpl.getEventForNode(Root).get() ==
+               &*getSyclObjImpl(Node1)) {
       EvenPath = false;
     } else {
       ASSERT_TRUE(false);
     }
 
-    auto Succ1Node = RootNode->MSuccessors.front().lock();
+    auto Succ1Node = Root.MSuccessors.front().lock();
     ASSERT_EQ(Succ1Node->MSuccessors.size(), 1lu);
     if (EvenPath) {
-      ASSERT_EQ(GraphImpl->getEventForNode(Succ1Node),
-                sycl::detail::getSyclObjImpl(Barrier2));
+      ASSERT_EQ(GraphImpl.getEventForNode(*Succ1Node).get(),
+                &*getSyclObjImpl(Barrier2));
     } else {
-      ASSERT_EQ(GraphImpl->getEventForNode(Succ1Node),
-                sycl::detail::getSyclObjImpl(Barrier1));
+      ASSERT_EQ(GraphImpl.getEventForNode(*Succ1Node).get(),
+                &*getSyclObjImpl(Barrier1));
     }
 
     auto Succ2Node = Succ1Node->MSuccessors.front().lock();
     ASSERT_EQ(Succ2Node->MSuccessors.size(), 1lu);
     if (EvenPath) {
-      ASSERT_EQ(GraphImpl->getEventForNode(Succ2Node),
-                sycl::detail::getSyclObjImpl(Node4));
+      ASSERT_EQ(GraphImpl.getEventForNode(*Succ2Node).get(),
+                &*getSyclObjImpl(Node4));
     } else {
-      ASSERT_EQ(GraphImpl->getEventForNode(Succ2Node),
-                sycl::detail::getSyclObjImpl(Node3));
+      ASSERT_EQ(GraphImpl.getEventForNode(*Succ2Node).get(),
+                &*getSyclObjImpl(Node3));
     }
 
     auto Succ3Node = Succ2Node->MSuccessors.front().lock();
     ASSERT_EQ(Succ3Node->MSuccessors.size(), 1lu);
     if (EvenPath) {
-      ASSERT_EQ(GraphImpl->getEventForNode(Succ3Node),
-                sycl::detail::getSyclObjImpl(Barrier4));
+      ASSERT_EQ(GraphImpl.getEventForNode(*Succ3Node).get(),
+                &*getSyclObjImpl(Barrier4));
     } else {
-      ASSERT_EQ(GraphImpl->getEventForNode(Succ3Node),
-                sycl::detail::getSyclObjImpl(Barrier3));
+      ASSERT_EQ(GraphImpl.getEventForNode(*Succ3Node).get(),
+                &*getSyclObjImpl(Barrier3));
     }
 
     auto Succ4Node = Succ3Node->MSuccessors.front().lock();
     ASSERT_EQ(Succ4Node->MSuccessors.size(), 1lu);
     if (EvenPath) {
-      ASSERT_EQ(GraphImpl->getEventForNode(Succ4Node),
-                sycl::detail::getSyclObjImpl(Node6));
+      ASSERT_EQ(GraphImpl.getEventForNode(*Succ4Node).get(),
+                &*getSyclObjImpl(Node6));
     } else {
-      ASSERT_EQ(GraphImpl->getEventForNode(Succ4Node),
-                sycl::detail::getSyclObjImpl(Node5));
+      ASSERT_EQ(GraphImpl.getEventForNode(*Succ4Node).get(),
+                &*getSyclObjImpl(Node5));
     }
 
     auto Succ5Node = Succ4Node->MSuccessors.front().lock();
     ASSERT_EQ(Succ5Node->MSuccessors.size(), 0lu);
     ASSERT_EQ(Succ5Node->MPredecessors.size(), 2lu);
-    ASSERT_EQ(GraphImpl->getEventForNode(Succ5Node),
-              sycl::detail::getSyclObjImpl(Barrier5));
+    ASSERT_EQ(GraphImpl.getEventForNode(*Succ5Node).get(),
+              &*getSyclObjImpl(Barrier5));
   }
 }

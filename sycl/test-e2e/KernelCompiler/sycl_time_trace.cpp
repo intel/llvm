@@ -5,11 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 // REQUIRES: (opencl || level_zero)
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: SYCL-RTC is not available for accelerator devices
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 

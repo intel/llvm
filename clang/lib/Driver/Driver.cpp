@@ -1570,19 +1570,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     }
   }
 
-  // -fno-sycl-libspirv flag is reserved for very unusual cases where the
-  // libspirv library is not linked when using CUDA/HIP: so output appropriate
-  // warnings.
-  if (C.getInputArgs().hasArg(options::OPT_fno_sycl_libspirv)) {
-    for (auto &TT : UniqueSYCLTriplesVec) {
-      if (TT.isNVPTX() || TT.isAMDGCN()) {
-        Diag(diag::warn_flag_no_sycl_libspirv) << TT.getTriple();
-        continue;
-      }
-      Diag(diag::warn_drv_unsupported_option_for_target)
-          << "-fno-sycl-libspirv" << TT.getTriple() << 0;
-    }
-  }
   // -fsycl-fp64-conv-emu is valid only for AOT compilation with an Intel GPU
   // target. For other scenarios, we emit a warning message.
   if (C.getInputArgs().hasArg(options::OPT_fsycl_fp64_conv_emu)) {
@@ -5992,9 +5979,13 @@ class OffloadingActionBuilder final {
       if (!NumOfDeviceLibLinked)
         return false;
 
-      // For NVPTX and NativeCPU we need to also link libclc at the same stage
-      // that we link all of the unbundled SYCL libdevice objects together.
-      if (TC->getTriple().isNVPTX() || isNativeCPU) {
+      // For NVPTX we need to also link libclc at the same stage that we link
+      // all of the unbundled SYCL libdevice objects together.
+      // TODO: libspirv should have been linked in already by
+      // CudaToolChain::addClangTargetOptions, but may be required again for
+      // libdevice. This may be removed if we no longer need to link in
+      // libdevice.
+      if (TC->getTriple().isNVPTX()) {
         if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
                 TC->getTriple(), Args, *TC->getAuxTriple())) {
           Arg *LibClcInputArg =
@@ -6006,7 +5997,9 @@ class OffloadingActionBuilder final {
       }
 
       // For NVPTX we also need to link with the CUDA libdevice
-      if (TC->getTriple().isNVPTX() && !Args.hasArg(options::OPT_offloadlib)) {
+      if (TC->getTriple().isNVPTX() &&
+          Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib,
+                       true)) {
         const toolchains::CudaToolChain *CudaTC =
             static_cast<const toolchains::CudaToolChain *>(TC);
         std::string LibDeviceFile =
@@ -6060,7 +6053,8 @@ class OffloadingActionBuilder final {
 
     /// Initialize the GPU architecture list from arguments - this populates
     /// `GpuArchList` from `--offload-arch` flags. Only relevant if compiling to
-    /// CUDA or AMDGCN. Return true if any initialization errors are found.
+    /// CUDA or AMDGCN.
+    /// \return true if any initialization is successful.
     /// FIXME: "offload-arch" and the BoundArch mechanism should also be
     // used in the SYCLToolChain for SPIR-V AOT to track the offload
     // architecture instead of the Triple sub-arch it currently uses.
@@ -6146,11 +6140,11 @@ class OffloadingActionBuilder final {
             })) {
           C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch)
               << (SYCLTripleList.size() > 1) << Triple.str();
-          return true;
+          return false;
         }
       }
 
-      return false;
+      return true;
     }
 
     // Goes through all of the arguments, including inputs expected for the
@@ -6321,121 +6315,110 @@ class OffloadingActionBuilder final {
           C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
       bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(
           options::OPT_fsycl, options::OPT_fno_sycl, false);
-      bool ShouldAddDefaultTriple = true;
-      bool GpuInitHasErrors = false;
-      bool HasSYCLTargetsOption = SYCLTargets;
 
-      if (HasSYCLTargetsOption) {
-        if (SYCLTargets) {
-          Arg *SYCLTargetsValues = SYCLTargets;
-          // Fill SYCLTripleList
-          llvm::StringMap<StringRef> FoundNormalizedTriples;
-          for (StringRef Val : SYCLTargetsValues->getValues()) {
-            StringRef UserTargetName(Val);
-            if (auto ValidDevice = gen::isGPUTarget<gen::IntelGPU>(Val)) {
-              if (ValidDevice->empty())
-                // Unrecognized, we have already diagnosed this earlier; skip.
-                continue;
-              // Add the proper -device value to the list.
-              GpuArchList.emplace_back(
-                  C.getDriver().getSYCLDeviceTriple("spir64_gen"),
-                  ValidDevice->data());
-              UserTargetName = "spir64_gen";
-            } else if (auto ValidDevice =
-                           gen::isGPUTarget<gen::NvidiaGPU>(Val)) {
-              if (ValidDevice->empty())
-                // Unrecognized, we have already diagnosed this earlier; skip.
-                continue;
-              // Add the proper -device value to the list.
-              GpuArchList.emplace_back(
-                  C.getDriver().getSYCLDeviceTriple("nvptx64-nvidia-cuda"),
-                  ValidDevice->data());
-              UserTargetName = "nvptx64-nvidia-cuda";
-            } else if (auto ValidDevice = gen::isGPUTarget<gen::AmdGPU>(Val)) {
-              if (ValidDevice->empty())
-                // Unrecognized, we have already diagnosed this earlier; skip.
-                continue;
-              // Add the proper -device value to the list.
-              GpuArchList.emplace_back(
-                  C.getDriver().getSYCLDeviceTriple("amdgcn-amd-amdhsa"),
-                  ValidDevice->data());
-              UserTargetName = "amdgcn-amd-amdhsa";
-            }
-
-            llvm::Triple TT(
-                C.getDriver().getSYCLDeviceTriple(Val, SYCLTargetsValues));
-            std::string NormalizedName = TT.normalize();
-
-            // Make sure we don't have a duplicate triple.
-            auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
-            if (Duplicate != FoundNormalizedTriples.end())
+      if (SYCLTargets) {
+        Arg *SYCLTargetsValues = SYCLTargets;
+        // Fill SYCLTripleList
+        llvm::StringMap<StringRef> FoundNormalizedTriples;
+        for (StringRef Val : SYCLTargetsValues->getValues()) {
+          StringRef UserTargetName(Val);
+          if (auto ValidDevice = gen::isGPUTarget<gen::IntelGPU>(Val)) {
+            if (ValidDevice->empty())
+              // Unrecognized, we have already diagnosed this earlier; skip.
               continue;
-
-            // Store the current triple so that we can check for duplicates in
-            // the following iterations.
-            FoundNormalizedTriples[NormalizedName] = Val;
-
-            SYCLTripleList.push_back(
-                C.getDriver().getSYCLDeviceTriple(UserTargetName));
-            // For user specified spir64_gen, add an empty device value as a
-            // placeholder.
-            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen)
-              GpuArchList.emplace_back(TT, nullptr);
+            // Add the proper -device value to the list.
+            GpuArchList.emplace_back(
+                C.getDriver().getSYCLDeviceTriple("spir64_gen"),
+                ValidDevice->data());
+            UserTargetName = "spir64_gen";
+          } else if (auto ValidDevice = gen::isGPUTarget<gen::NvidiaGPU>(Val)) {
+            if (ValidDevice->empty())
+              // Unrecognized, we have already diagnosed this earlier; skip.
+              continue;
+            // Add the proper -device value to the list.
+            GpuArchList.emplace_back(
+                C.getDriver().getSYCLDeviceTriple("nvptx64-nvidia-cuda"),
+                ValidDevice->data());
+            UserTargetName = "nvptx64-nvidia-cuda";
+          } else if (auto ValidDevice = gen::isGPUTarget<gen::AmdGPU>(Val)) {
+            if (ValidDevice->empty())
+              // Unrecognized, we have already diagnosed this earlier; skip.
+              continue;
+            // Add the proper -device value to the list.
+            GpuArchList.emplace_back(
+                C.getDriver().getSYCLDeviceTriple("amdgcn-amd-amdhsa"),
+                ValidDevice->data());
+            UserTargetName = "amdgcn-amd-amdhsa";
           }
 
-          // Fill GpuArchList, end if there are issues in initializingGpuArchMap
-          GpuInitHasErrors = initializeGpuArchMap();
-          if (GpuInitHasErrors)
-            return true;
+          llvm::Triple TT(
+              C.getDriver().getSYCLDeviceTriple(Val, SYCLTargetsValues));
+          std::string NormalizedName = TT.normalize();
 
-          size_t GenIndex = 0;
-          // Fill SYCLTargetInfoList
-          for (auto &TT : SYCLTripleList) {
-            auto TCIt = llvm::find_if(
-                ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
-            assert(TCIt != ToolChains.end() &&
-                   "Toolchain was not created for this platform");
-            if (!TT.isNVPTX() && !TT.isAMDGCN()) {
-              // When users specify the target as 'intel_gpu_*', the proper
-              // triple is 'spir64_gen'.  The given string from intel_gpu_*
-              // is the target device.
-              if (TT.isSPIR() &&
-                  TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-                // Multiple spir64_gen targets are allowed to be used via the
-                // -fsycl-targets=spir64_gen and -fsycl-targets=intel_gpu_*
-                // specifiers. Using an index through the known GpuArchList
-                // values, increment through them accordingly to allow for
-                // the multiple settings as well as preventing re-use.
-                while (TT != GpuArchList[GenIndex].first &&
-                       GenIndex < GpuArchList.size())
-                  ++GenIndex;
-                if (GpuArchList[GenIndex].first != TT)
-                  // No match.
-                  continue;
-                StringRef Device(GpuArchList[GenIndex].second);
-                SYCLTargetInfoList.emplace_back(
-                    *TCIt, Device.empty() ? nullptr : Device.data());
-                ++GenIndex;
-                continue;
-              }
-              SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
-            } else {
-              const char *OffloadArch = nullptr;
-              for (auto &TargetTripleArchPair : GpuArchList) {
-                if (TT == TargetTripleArchPair.first) {
-                  OffloadArch = TargetTripleArchPair.second;
-                  // Add an arch to the SYCLTargetInfoList
-                  // only if it is not already present in the list.
-                  auto Arch = llvm::find_if(
-                      SYCLTargetInfoList, [&](auto &DeviceTargetInfo) {
-                        return OffloadArch == DeviceTargetInfo.BoundArch;
-                      });
+          // Make sure we don't have a duplicate triple.
+          auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
+          if (Duplicate != FoundNormalizedTriples.end())
+            continue;
 
-                  if (Arch == SYCLTargetInfoList.end())
-                    SYCLTargetInfoList.emplace_back(*TCIt, OffloadArch);
-                }
+          // Store the current triple so that we can check for duplicates in
+          // the following iterations.
+          FoundNormalizedTriples[NormalizedName] = Val;
+
+          SYCLTripleList.push_back(
+              C.getDriver().getSYCLDeviceTriple(UserTargetName));
+          // For user specified spir64_gen, add an empty device value as a
+          // placeholder.
+          if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen)
+            GpuArchList.emplace_back(TT, nullptr);
+        }
+
+        // Fill GpuArchList, end if there are issues in initializingGpuArchMap
+        if (!initializeGpuArchMap())
+          return true;
+
+        size_t GenIndex = 0;
+        // Fill SYCLTargetInfoList
+        for (auto &TT : SYCLTripleList) {
+          auto TCIt = llvm::find_if(
+              ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
+          assert(TCIt != ToolChains.end() &&
+                 "Toolchain was not created for this platform");
+          if (TT.isNVPTX() || TT.isAMDGCN()) {
+            for (auto &TargetTripleArchPair : GpuArchList) {
+              if (TT == TargetTripleArchPair.first) {
+                const char *OffloadArch = TargetTripleArchPair.second;
+                // Add an arch to the SYCLTargetInfoList only if it is not
+                // already present in the list.
+                if (llvm::none_of(
+                        SYCLTargetInfoList, [&](auto &DeviceTargetInfo) {
+                          return OffloadArch == DeviceTargetInfo.BoundArch;
+                        }))
+                  SYCLTargetInfoList.emplace_back(*TCIt, OffloadArch);
               }
             }
+          } else if (TT.isSPIR() &&
+                     TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+            // When users specify the target as 'intel_gpu_*', the proper
+            // triple is 'spir64_gen'.  The given string from intel_gpu_* is
+            // the target device.
+
+            // Multiple spir64_gen targets are allowed to be used via the
+            // -fsycl-targets=spir64_gen and -fsycl-targets=intel_gpu_*
+            // specifiers. Using an index through the known GpuArchList
+            // values, increment through them accordingly to allow for the
+            // multiple settings as well as preventing re-use.
+            while (TT != GpuArchList[GenIndex].first &&
+                   GenIndex < GpuArchList.size())
+              ++GenIndex;
+            if (GpuArchList[GenIndex].first != TT)
+              // No match.
+              continue;
+            StringRef Device(GpuArchList[GenIndex].second);
+            SYCLTargetInfoList.emplace_back(
+                *TCIt, Device.empty() ? nullptr : Device.data());
+            ++GenIndex;
+          } else {
+            SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
           }
         }
       } else if (HasValidSYCLRuntime) {
@@ -6477,7 +6460,7 @@ class OffloadingActionBuilder final {
         }
       }
 
-      if (ShouldAddDefaultTriple && addSYCLDefaultTriple(C, SYCLTripleList)) {
+      if (addSYCLDefaultTriple(C, SYCLTripleList)) {
         // If a SYCLDefaultTriple is added to SYCLTripleList,
         // add new target to SYCLTargetInfoList
         llvm::Triple TT = SYCLTripleList.front();
