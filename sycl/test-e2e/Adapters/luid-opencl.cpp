@@ -25,10 +25,10 @@ int main() {
 
   auto openclDevice = sycl::get_native<sycl::backend::opencl>(dev);
 
-  char *luidOpencl = nullptr;
+  std::array<unsigned char, CL_LUID_SIZE_KHR> luidOpencl{};
 
   clGetDeviceInfo(openclDevice, CL_DEVICE_LUID_KHR,
-                  sizeof(char) * CL_LUID_SIZE_KHR, luidOpencl, nullptr);
+                  sizeof(char) * CL_LUID_SIZE_KHR, luidOpencl.data(), nullptr);
 
   std::stringstream luidOpenclHex;
   for (int i = 0; i < 8; ++i)

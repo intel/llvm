@@ -27,14 +27,18 @@ int main() {
 
   CUdevice cudaDevice = sycl::get_native<sycl::backend::ext_oneapi_cuda>(dev);
 
-  char *luidCuda = nullptr;
+  std::array<char, 8> luidCuda{};
 
-  cuDeviceGetLuid(luidCuda, nullptr, cudaDevice);
+  cuDeviceGetLuid(luidCuda.data(), nullptr, cudaDevice);
+
+  // Cuda returns luid as char, not unsigned char so convert that here.
+  std::array<unsigned char, 8> luidCudaConverted{};
+  std::copy(luidCuda.begin(), luidCuda.end(), luidCudaConverted.begin());
 
   std::stringstream luidCudaHex;
   for (int i = 0; i < 8; ++i)
     luidCudaHex << std::hex << std::setw(2) << std::setfill('0')
-                << int(luidCuda[i]);
+                << int(luidCudaConverted[i]);
   std::cout << "CUDA  : " << luidCudaHex.str() << std::endl;
 
   if (luidSYCLHex.str() != luidCudaHex.str()) {

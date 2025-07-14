@@ -1463,17 +1463,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
 
-    cl_int *nodeMask = nullptr;
+    cl_int nodeMask = 0;
 
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
                                          CL_DEVICE_NODE_MASK_KHR,
-                                         sizeof(cl_int), nodeMask, nullptr));
+                                         sizeof(cl_int), &nodeMask, nullptr));
 
-    if (nodeMask == nullptr) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    return ReturnValue(*nodeMask);
+    return ReturnValue(nodeMask);
   }
   // TODO: We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.

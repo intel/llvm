@@ -16,19 +16,20 @@
 
 int main() {
   sycl::device dev;
-  auto nodeMaskSYCL = dev.get_info<sycl::ext::intel::info::device::node_mask>();
+  uint32_t nodeMaskSYCL =
+      dev.get_info<sycl::ext::intel::info::device::node_mask>();
 
   std::cout << "SYCL: " << nodeMaskSYCL << std::endl;
 
   CUdevice cudaDevice = sycl::get_native<sycl::backend::ext_oneapi_cuda>(dev);
 
-  uint32_t *nodeMaskCuda = nullptr;
+  uint32_t nodeMaskCuda = 0;
 
-  cuDeviceGetLuid(nullptr, nodeMaskCuda, cudaDevice);
+  cuDeviceGetLuid(nullptr, &nodeMaskCuda, cudaDevice);
 
-  std::cout << "CUDA  : " << *nodeMaskCuda << std::endl;
+  std::cout << "CUDA  : " << nodeMaskCuda << std::endl;
 
-  if (nodeMaskSYCL != *nodeMaskCuda) {
+  if (nodeMaskSYCL != nodeMaskCuda) {
     std::cout << "FAILED" << std::endl;
     return -1;
   }

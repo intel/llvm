@@ -20,14 +20,14 @@ int main() {
 
   auto openclDevice = sycl::get_native<sycl::backend::opencl>(dev);
 
-  uint32_t *nodeMaskOpencl = nullptr;
+  uint32_t nodeMaskOpencl = 0;
 
   clGetDeviceInfo(openclDevice, CL_DEVICE_NODE_MASK_KHR, sizeof(uint32_t),
-                  nodeMaskOpencl, nullptr);
+                  &nodeMaskOpencl, nullptr);
 
-  std::cout << "OpenCL  : " << *nodeMaskOpencl << std::endl;
+  std::cout << "OpenCL  : " << nodeMaskOpencl << std::endl;
 
-  if (nodeMaskSYCL != *nodeMaskOpencl) {
+  if (nodeMaskSYCL != nodeMaskOpencl) {
     std::cout << "FAILED" << std::endl;
     return -1;
   }
