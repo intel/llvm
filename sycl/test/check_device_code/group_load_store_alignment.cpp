@@ -4,7 +4,7 @@
 // REQUIRES: linux
 // Test checks that when alignment property is provided with alignment value
 // which meets the requirement then there is no dynamic alignment check.
-// XFAIL: *
+
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

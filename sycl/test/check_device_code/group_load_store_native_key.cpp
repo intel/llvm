@@ -6,7 +6,7 @@
 
 // Test that in case of local address space, intrinsic is generated only if
 // native_local_block_io property is set.
-// XFAIL: *
+
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

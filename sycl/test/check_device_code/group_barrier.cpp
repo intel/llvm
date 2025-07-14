@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl-device-only -fsycl-unnamed-lambda -S -Xclang -emit-llvm -Xclang -no-enable-noundef-analysis  %s -o - | FileCheck %s
-// XFAIL: *
 #include <sycl/sycl.hpp>
 
 const auto TestLambda = [](auto G) {
