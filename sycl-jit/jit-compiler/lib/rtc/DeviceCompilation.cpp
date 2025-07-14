@@ -671,8 +671,8 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     if (CommonDeviceLibs.empty()) {
       return createStringError("Unable to find common device libraries");
     }
-    for (auto &Lib : CommonDeviceLibs) {
 
+    for (auto &Lib : CommonDeviceLibs) {
       ModuleUPtr LibModule;
       if (auto Error =
               loadBitcodeLibrary(Lib.Path, Context).moveInto(LibModule)) {
