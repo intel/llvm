@@ -432,7 +432,6 @@ node_impl &graph_impl::add(std::function<void(handler &)> CGF,
 
   // Pass the node deps to the handler so they are available when processing the
   // CGF, need for async_malloc nodes.
-  Handler.impl->MNodeDeps.clear();
   for (node_impl &N : Deps)
     Handler.impl->MNodeDeps.push_back(N.shared_from_this());
 
