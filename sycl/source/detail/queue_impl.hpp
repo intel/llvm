@@ -372,62 +372,62 @@ public:
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   event
-  submit_with_event(nd_range<1> Range,
+  submit_direct_with_event(nd_range<1> Range,
                     const detail::v1::SubmissionInfo &SubmitInfo,
                     const detail::v1::KernelRuntimeInfo &KRInfo,
                     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl =
-        submit_impl(NDRDescT{Range}, SubmitInfo, KRInfo, true, CodeLoc,
+        submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, true, CodeLoc,
                     IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
   event
-  submit_with_event(nd_range<2> Range,
+  submit_direct_with_event(nd_range<2> Range,
                     const detail::v1::SubmissionInfo &SubmitInfo,
                     const detail::v1::KernelRuntimeInfo &KRInfo,
                     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl =
-        submit_impl(NDRDescT{Range}, SubmitInfo, KRInfo, true, CodeLoc,
+        submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, true, CodeLoc,
                     IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
   event
-  submit_with_event(nd_range<3> Range,
+  submit_direct_with_event(nd_range<3> Range,
                     const detail::v1::SubmissionInfo &SubmitInfo,
                     const detail::v1::KernelRuntimeInfo &KRInfo,
                     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl =
-        submit_impl(NDRDescT{Range}, SubmitInfo, KRInfo, true, CodeLoc,
+        submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, true, CodeLoc,
                     IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
   void
-  submit_without_event(nd_range<1> Range,
+  submit_direct_without_event(nd_range<1> Range,
                     const detail::v1::SubmissionInfo &SubmitInfo,
                     const detail::v1::KernelRuntimeInfo &KRInfo,
                     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-    submit_impl(NDRDescT{Range}, SubmitInfo, KRInfo, false, CodeLoc,
+    submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, false, CodeLoc,
                     IsTopCodeLoc);
   }
 
   void
-  submit_without_event(nd_range<2> Range,
+  submit_direct_without_event(nd_range<2> Range,
                     const detail::v1::SubmissionInfo &SubmitInfo,
                     const detail::v1::KernelRuntimeInfo &KRInfo,
                     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-    submit_impl(NDRDescT{Range}, SubmitInfo, KRInfo, false, CodeLoc,
+    submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, false, CodeLoc,
                     IsTopCodeLoc);
   }
 
   void
-  submit_without_event(nd_range<3> Range,
+  submit_direct_without_event(nd_range<3> Range,
                     const detail::v1::SubmissionInfo &SubmitInfo,
                     const detail::v1::KernelRuntimeInfo &KRInfo,
                     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-    submit_impl(NDRDescT{Range}, SubmitInfo, KRInfo, false, CodeLoc,
+    submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, false, CodeLoc,
                     IsTopCodeLoc);
   }
 #endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
@@ -987,13 +987,14 @@ protected:
                                    bool IsTopCodeLoc,
                                    const v1::SubmissionInfo &SubmitInfo);
 
-  detail::EventImplPtr submit_impl(const NDRDescT &NDRDesc,
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+  detail::EventImplPtr submit_direct_impl(const NDRDescT &NDRDesc,
                                    const v1::SubmissionInfo &SubmitInfo,
                                    const v1::KernelRuntimeInfo &KRInfo,
                                    bool CallerNeedsEvent,
                                    const detail::code_location &CodeLoc,
                                    bool IsTopCodeLoc);
-
+#endif
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.
   /// \param HandlerFunc is a function that submits the operation with a

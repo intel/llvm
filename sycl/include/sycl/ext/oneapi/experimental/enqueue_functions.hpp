@@ -114,22 +114,21 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 template <typename PropertiesT, typename KernelName,
           typename KernelType, int Dims>
-event submit_with_event_impl(const queue &Q, PropertiesT Props,
+void submit_direct_impl(const queue &Q, PropertiesT Props,
                         nd_range<Dims> Range,
                         const KernelType &KernelFunc,
                         const sycl::detail::code_location &CodeLoc) {
-  return Q.submit_with_event<__SYCL_USE_FALLBACK_ASSERT, PropertiesT,
+  Q.submit_direct_without_event<__SYCL_USE_FALLBACK_ASSERT, PropertiesT,
     KernelName, KernelType, Dims>(Props, Range, KernelFunc, CodeLoc);
 }
-
 template <typename PropertiesT, typename KernelName,
           typename KernelType, int Dims>
-void submit_without_event_impl(const queue &Q, PropertiesT Props,
+event submit_direct_with_event_impl(const queue &Q, PropertiesT Props,
                         nd_range<Dims> Range,
                         const KernelType &KernelFunc,
                         const sycl::detail::code_location &CodeLoc) {
-  //Q.submit_without_event<__SYCL_USE_FALLBACK_ASSERT, PropertiesT,
-  //  KernelName, KernelType, Dims>(Props, Range, KernelFunc, CodeLoc);
+  return Q.submit_direct_with_event<__SYCL_USE_FALLBACK_ASSERT, PropertiesT,
+    KernelName, KernelType, Dims>(Props, Range, KernelFunc, CodeLoc);
 }
 #endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 } // namespace detail
@@ -149,11 +148,24 @@ void submit(const queue &Q, CommandGroupFunc &&CGF,
   submit(Q, empty_properties_t{}, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+template <typename PropertiesT, typename KernelName = sycl::detail::auto_name,
+          typename KernelType, int Dims>
+void submit(const queue &Q, PropertiesT Props,
+            nd_range<Dims> Range,
+            const KernelType &KernelFunc,
+            const sycl::detail::code_location &CodeLoc =
+              sycl::detail::code_location::current()) {
+  sycl::ext::oneapi::experimental::detail::submit_direct_impl
+    <PropertiesT, KernelName, KernelType, Dims>(Q, Props, Range, KernelFunc, CodeLoc);
+}
+#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+
 template <typename CommandGroupFunc, typename PropertiesT>
 event submit_with_event(const queue &Q, PropertiesT Props,
                         CommandGroupFunc &&CGF,
                         const sycl::detail::code_location &CodeLoc =
-                            sycl::detail::code_location::current()) {
+                          sycl::detail::code_location::current()) {
   return sycl::ext::oneapi::experimental::detail::submit_with_event_impl(
       Q, Props, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
@@ -174,18 +186,7 @@ event submit_with_event(const queue &Q, PropertiesT Props,
                         const KernelType &KernelFunc,
                         const sycl::detail::code_location &CodeLoc =
                           sycl::detail::code_location::current()) {
-  return sycl::ext::oneapi::experimental::detail::submit_with_event_impl
-    <PropertiesT, KernelName, KernelType, Dims>(Q, Props, Range, KernelFunc, CodeLoc);
-}
-
-template <typename PropertiesT, typename KernelName = sycl::detail::auto_name,
-          typename KernelType, int Dims>
-void submit_without_event(const queue &Q, PropertiesT Props,
-                          nd_range<Dims> Range,
-                          const KernelType &KernelFunc,
-                          const sycl::detail::code_location &CodeLoc =
-                            sycl::detail::code_location::current()) {
-  sycl::ext::oneapi::experimental::detail::submit_without_event_impl
+  return sycl::ext::oneapi::experimental::detail::submit_direct_with_event_impl
     <PropertiesT, KernelName, KernelType, Dims>(Q, Props, Range, KernelFunc, CodeLoc);
 }
 #endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT

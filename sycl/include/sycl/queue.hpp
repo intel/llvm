@@ -231,14 +231,14 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 template <typename PropertiesT, typename KernelName,
           typename KernelType, int Dims>
-event submit_with_event_impl(const queue &Q, PropertiesT Props,
+void submit_direct_impl(const queue &Q, PropertiesT Props,
                         nd_range<Dims> Range,
                         const KernelType &KernelFunc,
                         const sycl::detail::code_location &CodeLoc);
 
 template <typename PropertiesT, typename KernelName,
           typename KernelType, int Dims>
-void submit_without_event_impl(const queue &Q, PropertiesT Props,
+event submit_direct_with_event_impl(const queue &Q, PropertiesT Props,
                         nd_range<Dims> Range,
                         const KernelType &KernelFunc,
                         const sycl::detail::code_location &CodeLoc);
@@ -3675,17 +3675,18 @@ private:
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   template <typename PropertiesT, typename KernelName,
             typename KernelType, int Dims>
-  friend event ext::oneapi::experimental::detail::submit_with_event_impl(
+  friend void ext::oneapi::experimental::detail::submit_direct_impl(
       const queue &Q, PropertiesT Props, nd_range<Dims> Range,
       const KernelType &KernelFunc,
       const sycl::detail::code_location &CodeLoc);
 
   template <typename PropertiesT, typename KernelName,
             typename KernelType, int Dims>
-  friend void ext::oneapi::experimental::detail::submit_without_event_impl(
+  friend event ext::oneapi::experimental::detail::submit_direct_with_event_impl(
       const queue &Q, PropertiesT Props, nd_range<Dims> Range,
       const KernelType &KernelFunc,
       const sycl::detail::code_location &CodeLoc);
+
 #endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 
   template <typename PropertiesT>
@@ -3804,37 +3805,37 @@ private:
                                bool IsTopCodeLoc) const;
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  event submit_with_event_impl(
+  event submit_direct_with_event_impl(
       nd_range<1> Range,
       const detail::v1::SubmissionInfo &SubmitInfo,
       const detail::v1::KernelRuntimeInfo &KRInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
-  event submit_with_event_impl(
+  event submit_direct_with_event_impl(
       nd_range<2> Range,
       const detail::v1::SubmissionInfo &SubmitInfo,
       const detail::v1::KernelRuntimeInfo &KRInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
-  event submit_with_event_impl(
+  event submit_direct_with_event_impl(
       nd_range<3> Range,
       const detail::v1::SubmissionInfo &SubmitInfo,
       const detail::v1::KernelRuntimeInfo &KRInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
-  void submit_without_event_impl(
+  void submit_direct_without_event_impl(
       nd_range<1> Range,
       const detail::v1::SubmissionInfo &SubmitInfo,
       const detail::v1::KernelRuntimeInfo &KRInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
-  void submit_without_event_impl(
+  void submit_direct_without_event_impl(
       nd_range<2> Range,
       const detail::v1::SubmissionInfo &SubmitInfo,
       const detail::v1::KernelRuntimeInfo &KRInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
-  void submit_without_event_impl(
+  void submit_direct_without_event_impl(
       nd_range<3> Range,
       const detail::v1::SubmissionInfo &SubmitInfo,
       const detail::v1::KernelRuntimeInfo &KRInfo,
@@ -3925,10 +3926,45 @@ private:
   }
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+
+#ifdef SYCL_LANGUAGE_VERSION
+#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
+#define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel_entry_point(KernelName)]]
+#else
+#define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel]]
+#endif // __INTEL_SYCL_USE_INTEGRATION_HEADERS
+#else
+#define __SYCL_KERNEL_ATTR__
+#endif // SYCL_LANGUAGE_VERSION
+
+  // TODO The kernel wrapper functions have to be moved from the handler class
+  // to a place where they are accessible by both the handler and the queue class.
+  // For test purposes, this wrapper is a copy of the handler wrapper,
+  // but an aplication which would use both handler and no-handler APIs,
+  // won't compile.
+  //
+  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
+  // Front End to determine kernel invocation kind.
+  template <typename KernelName, typename ElementType, typename KernelType,
+            typename... Props>
+#ifdef __SYCL_DEVICE_ONLY__
+  [[__sycl_detail__::add_ir_attributes_function(
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+#endif
+  __SYCL_KERNEL_ATTR__ static void
+  kernel_parallel_for(const KernelType &KernelFunc) {
+#ifdef __SYCL_DEVICE_ONLY__
+    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
+#else
+    (void)KernelFunc;
+#endif
+  }
+
   template <bool UseFallbackAssert, typename PropertiesT,
             typename KernelName = detail::auto_name,
             typename KernelType, int Dims>
-  event submit_with_event(PropertiesT Props, nd_range<Dims> Range,
+  event submit_direct_with_event(PropertiesT Props, nd_range<Dims> Range,
                           const KernelType &KernelFunc,
                           const detail::code_location &CodeLoc =
                               detail::code_location::current()) const {
@@ -3943,18 +3979,19 @@ private:
     ProcessKernelRuntimeInfo<PropertiesT, NameT, KernelType, Dims>(Props,
       KernelFunc, KRInfo);
 
-    // TODO call the kernel_parallel_for wrapper
+    kernel_parallel_for<NameT, sycl::nd_item<Dims>, KernelType,
+      ext::oneapi::experimental::empty_properties_t>(KernelFunc);
 
     // TODO UseFallbackAssert
 
-    return submit_with_event_impl(Range, SI, KRInfo,
+    return submit_direct_with_event_impl(Range, SI, KRInfo,
       TlsCodeLocCapture.query(), TlsCodeLocCapture.isToplevel());
   }
 
   template <bool UseFallbackAssert, typename PropertiesT,
             typename KernelName = detail::auto_name,
             typename KernelType, int Dims>
-  void submit_without_event(PropertiesT Props, nd_range<Dims> Range,
+  void submit_direct_without_event(PropertiesT Props, nd_range<Dims> Range,
                           const KernelType &KernelFunc,
                           const detail::code_location &CodeLoc =
                               detail::code_location::current()) const {
@@ -3969,11 +4006,12 @@ private:
     ProcessKernelRuntimeInfo<PropertiesT, NameT, KernelType, Dims>(Props,
       KernelFunc, KRInfo);
 
-    // TODO call the kernel_parallel_for wrapper
+    kernel_parallel_for<NameT, sycl::nd_item<Dims>, KernelType,
+      ext::oneapi::experimental::empty_properties_t>(KernelFunc);
 
     // TODO UseFallbackAssert
 
-    submit_without_event_impl(Range, SI, KRInfo,
+    submit_direct_without_event_impl(Range, SI, KRInfo,
       TlsCodeLocCapture.query(), TlsCodeLocCapture.isToplevel());
   }
 #endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT

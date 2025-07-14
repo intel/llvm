@@ -439,7 +439,7 @@ std::vector<ArgDesc> queue_impl::extractArgsAndReqsFromLambda(
 }
 
 detail::EventImplPtr
-queue_impl::submit_impl(const NDRDescT &NDRDesc,
+queue_impl::submit_direct_impl(const NDRDescT &NDRDesc,
             const v1::SubmissionInfo &SubmitInfo,
             const v1::KernelRuntimeInfo &KRInfo,
             bool CallerNeedsEvent,
