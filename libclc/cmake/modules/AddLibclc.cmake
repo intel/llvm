@@ -232,8 +232,6 @@ endfunction()
 #      Compilation options (for clang)
 #  * OPT_FLAGS <string> ...
 #      Optimization options (for opt)
-#  * TARGET_ENV <string>
-#      Prefix to give the final builtin library aliases
 #  * REMANGLE <string>
 #      Bool string indicating whether remangler will be run
 #  * ALIASES <string> ...
@@ -245,7 +243,7 @@ endfunction()
 function(add_libclc_builtin_set)
   cmake_parse_arguments(ARG
     "CLC_INTERNAL"
-    "ARCH;TRIPLE;ARCH_SUFFIX;TARGET_ENV;REMANGLE;PARENT_TARGET"
+    "ARCH;TRIPLE;ARCH_SUFFIX;REMANGLE;PARENT_TARGET"
     "LIB_FILES;GEN_FILES;COMPILE_FLAGS;OPT_FLAGS;ALIASES;INTERNAL_LINK_DEPENDENCIES"
     ${ARGN}
   )
