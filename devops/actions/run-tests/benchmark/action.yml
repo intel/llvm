@@ -168,8 +168,10 @@ runs:
         --name "$SAVE_NAME" \
         --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
         --results-dir "./llvm-ci-perf-results/results/" \
-        --regression-filter '^[a-z_]+_sycl ' ${{ inputs.dry_run == 'true' && '--dry-run' }} \
-        --verbose
+        --regression-filter '^[a-z_]+_sycl ' \
+        --verbose \
+        ${{ inputs.dry_run == 'true' && '--dry-run' }} \
+
       echo "-----"
 
   - name: Cache changes to benchmark folder for archival purposes
