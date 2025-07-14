@@ -547,9 +547,10 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
       xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
       xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
       xpti::addMetadata(WaitEvent, "sym_line_no",
-                        static_cast<int32_t>((CodeLoc.lineNumber())));
-      xpti::addMetadata(WaitEvent, "sym_column_no",
-                        static_cast<int32_t>((CodeLoc.columnNumber())));
+                        static_cast<xpti::object_id_t>((CodeLoc.lineNumber())));
+      xpti::addMetadata(
+          WaitEvent, "sym_column_no",
+          static_cast<xpti::object_id_t>((CodeLoc.columnNumber())));
     }
     xptiNotifySubscribers(StreamID, xpti::trace_wait_begin, nullptr, WaitEvent,
                           QWaitInstanceNo,
