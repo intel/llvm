@@ -355,12 +355,6 @@ static constexpr ext::oneapi::experimental::architecture
 // target name is specified via "-fsycl-targets", the associated invocation of
 // the device compiler will set this variable to false, and that will trigger
 // an error for code that uses "if_architecture_is".
-#pragma warning(push)
-// By some reason the following diagnostic is emitted which breaks -Werror (/WX)
-// build. Preprocessed code looks like (0 == 1) || (0 == 1) || ..., so it looks
-// like a bug in the MSVC compiler, hence disabling it.
-// (<non-zero constant> || <non-zero constant>) is always a non-zero constant.  Did you intend to use the bitwise-and operator?
-#pragma warning(disable: 6285)
 static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_X86_64__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_BDW__ == 1) ||
@@ -449,7 +443,6 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX1151__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1200__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1201__ == 1);
-#pragma warning(pop)
 
 constexpr static std::optional<ext::oneapi::experimental::architecture>
 get_current_architecture_aot() {
