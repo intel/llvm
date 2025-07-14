@@ -21,8 +21,9 @@
 //      – None     : only private/constant or no accesses
 //      – Local    : at least one addrspace(3) access
 //      – Global   : at least one addrspace(1/5/6) access (with an exception of
-//      loads from __spirv_BuiltIn GVs) – Unknown  : any other
-//      mayReadOrWriteMemory() (intrinsics, calls, addrspace generic)
+//      loads from __spirv_BuiltIn GVs)
+//      – Unknown  : any other mayReadOrWriteMemory() (intrinsics, calls,
+//      generic addrspace)
 //    * Walk the function and record every barrier call into a list of
 //      BarrierDesc structures:
 //      - CI        : the call instruction
@@ -34,7 +35,7 @@
 //      - None   : only private/constant or no accesses
 //      - Local  : at least one addrspace(3) access
 //      - Global : at least one addrspace(1/5/6) access (except loads from
-//        __spirv_BuiltIn globals)
+//      __spirv_BuiltIn globals)
 //      - Unknown: any other mayReadOrWriteMemory() instruction
 //
 // 2) **At Entry and At Exit Elimination**
