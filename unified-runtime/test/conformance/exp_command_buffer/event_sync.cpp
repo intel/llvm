@@ -426,7 +426,7 @@ TEST_P(CommandEventSyncTest, USMPrefetchExp) {
 
   // Test prefetch command waiting on queue event
   ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
-      cmd_buf_handle, device_ptrs[1], allocation_size, 0 /* migration flags*/,
+      cmd_buf_handle, device_ptrs[1], allocation_size, UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE,
       0, nullptr, 1, &external_events[0], nullptr, &external_events[1],
       nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));

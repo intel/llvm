@@ -140,10 +140,13 @@ TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferFillExp) {
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMPrefetchExp) {
   // No Prefetch command in cl_khr_command_buffer
-  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+  // UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
 
   ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
-      cmd_buf_handle, device_ptrs[0], allocation_size, 0, 0, nullptr, 0,
+      cmd_buf_handle, device_ptrs[0], allocation_size, UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 0, nullptr, 0,
+      nullptr, nullptr, nullptr, nullptr));
+  ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
+      cmd_buf_handle, device_ptrs[0], allocation_size, UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST, 0, nullptr, 0,
       nullptr, nullptr, nullptr, nullptr));
 }
 
