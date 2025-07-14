@@ -476,13 +476,16 @@ TEST(ConfigTests, CheckParallelForRangeRoundingParams) {
 
   // Lambda to test invalid input -- factors should remain unchanged.
   auto TestBadInput = [&](const char *value, const char *errMsg) {
-    size_t MF = 1, GF = 2, MR = 3;
+    // Original factor values are stored as its own variable as size of size_t
+    // varies depending on system and architecture:
+    constexpr size_t MF = 1, GF = 2, MR = 3;
+    size_t TestMF = MF, TestGF = GF, TestMR = MR;
     SetRoundingParams(value);
-    SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(MF, GF, MR,
-                                                                     true);
-    EXPECT_EQ(MF, 1) << errMsg;
-    EXPECT_EQ(GF, 2) << errMsg;
-    EXPECT_EQ(MR, 3) << errMsg;
+    SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
+      TestMF, TestGF, TestMR, true);
+    EXPECT_EQ(TestMF, MF) << errMsg;
+    EXPECT_EQ(TestGF, GF) << errMsg;
+    EXPECT_EQ(TestMR, MR) << errMsg;
   };
 
   // Test malformed input:
