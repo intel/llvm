@@ -280,16 +280,22 @@ naiveMergeBinaryProperties(const std::vector<const RTDeviceBinaryImage *> &Imgs,
 
 // Exclusive property merge logic. If IgnoreDuplicates is false it assumes there
 // are no cases where properties have different values and throws otherwise.
-template <typename RangeGetterT>
+template <typename RangeGetterT,
+          typename DropPropertyT = std::function<bool(std::string_view)>>
 static std::unordered_map<std::string_view, const sycl_device_binary_property>
 exclusiveMergeBinaryProperties(
     const std::vector<const RTDeviceBinaryImage *> &Imgs,
-    const RangeGetterT &RangeGetter, bool IgnoreDuplicates = false) {
+    const RangeGetterT &RangeGetter, bool IgnoreDuplicates = false,
+    const DropPropertyT &DropProperty = [](auto) { return false; }) {
   std::unordered_map<std::string_view, const sycl_device_binary_property>
       MergeMap;
   for (const RTDeviceBinaryImage *Img : Imgs) {
     const RTDeviceBinaryImage::PropertyRange &Range = RangeGetter(*Img);
     for (const sycl_device_binary_property Prop : Range) {
+      // Skip adding the property if we can drop it.
+      if (DropProperty(std::string_view{Prop->Name}))
+        continue;
+
       const auto [It, Inserted] =
           MergeMap.try_emplace(std::string_view{Prop->Name}, Prop);
       if (IgnoreDuplicates || Inserted)
@@ -549,10 +555,11 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
       Imgs,
       [](const RTDeviceBinaryImage &Img) { return Img.getImportedSymbols(); },
       /*IgnoreDuplicates=*/true);
-  auto MergedMisc =
-      exclusiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
-        return Img.getMiscProperties();
-      });
+  auto MergedMisc = exclusiveMergeBinaryProperties(
+      Imgs,
+      [](const RTDeviceBinaryImage &Img) { return Img.getMiscProperties(); },
+      /*IgnoreDuplicates=*/true, /*DropProperty=*/
+      [](std::string_view PropertyName) { return PropertyName == "optLevel"; });
 
   std::array<const std::unordered_map<std::string_view,
                                       const sycl_device_binary_property> *,
