@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/helpers.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/aspects.hpp>
@@ -2280,6 +2281,33 @@ private:
       MCache;
 
 }; // class device_impl
+
+struct devices_deref_impl {
+  template <typename T> static device_impl &dereference(T &Elem) {
+    using Ty = std::decay_t<decltype(Elem)>;
+    if constexpr (std::is_same_v<Ty, device>) {
+      return *getSyclObjImpl(Elem);
+    } else if constexpr (std::is_same_v<Ty, device_impl>) {
+      return Elem;
+    } else {
+      return *Elem;
+    }
+  }
+};
+using devices_iterator =
+    variadic_iterator<devices_deref_impl,
+                      std::vector<std::shared_ptr<device_impl>>::const_iterator,
+                      std::vector<device>::const_iterator, device_impl *>;
+
+class devices_range : public iterator_range<devices_iterator> {
+private:
+  using Base = iterator_range<devices_iterator>;
+
+public:
+  using Base::Base;
+  devices_range(const device &Dev)
+      : devices_range(&*getSyclObjImpl(Dev), (&*getSyclObjImpl(Dev) + 1), 1) {}
+};
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename Param>
