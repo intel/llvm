@@ -12,21 +12,21 @@
 #include <climits>
 #include <optional>
 #include <string.h>
+#include <tuple>
 
 #include "context.hpp"
 #include "event.hpp"
-#include "queue.hpp"
-#include "umf/base.h"
-#include "umf/memory_pool.h"
-#include "ur_api.h"
-#include "usm.hpp"
-
 #include "logger/ur_logger.hpp"
+#include "queue.hpp"
+#include "ur_api.h"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
 #include "ur_util.hpp"
+#include "usm.hpp"
 
-#include <tuple>
+#include <umf/base.h>
+#include <umf/experimental/ctl.h>
+#include <umf/memory_pool.h>
 #include <umf_helpers.hpp>
 
 namespace umf {
@@ -309,15 +309,15 @@ ur_result_t urUSMHostAlloc(
     size_t Size,
     /// [out] pointer to USM host memory object
     void **RetMem) {
-  ur_usm_pool_handle_t USMPool = nullptr;
+  ur_usm_pool_handle_t UrPool = nullptr;
   if (Pool) {
-    USMPool = Pool;
+    UrPool = Pool;
   } else {
-    USMPool = &Context->DefaultPool;
+    UrPool = &Context->DefaultPool;
   }
 
-  return USMPool->allocate(Context, nullptr, USMDesc, UR_USM_TYPE_HOST, Size,
-                           RetMem);
+  return UrPool->allocate(Context, nullptr, USMDesc, UR_USM_TYPE_HOST, Size,
+                          RetMem);
 }
 
 ur_result_t urUSMDeviceAlloc(
@@ -334,15 +334,15 @@ ur_result_t urUSMDeviceAlloc(
     /// [out] pointer to USM device memory object
     void **RetMem) {
 
-  ur_usm_pool_handle_t USMPool = nullptr;
+  ur_usm_pool_handle_t UrPool = nullptr;
   if (Pool) {
-    USMPool = Pool;
+    UrPool = Pool;
   } else {
-    USMPool = &Context->DefaultPool;
+    UrPool = &Context->DefaultPool;
   }
 
-  return USMPool->allocate(Context, Device, USMDesc, UR_USM_TYPE_DEVICE, Size,
-                           RetMem);
+  return UrPool->allocate(Context, Device, USMDesc, UR_USM_TYPE_DEVICE, Size,
+                          RetMem);
 }
 
 ur_result_t urUSMSharedAlloc(
@@ -358,15 +358,15 @@ ur_result_t urUSMSharedAlloc(
     size_t Size,
     /// [out] pointer to USM shared memory object
     void **RetMem) {
-  ur_usm_pool_handle_t USMPool = nullptr;
+  ur_usm_pool_handle_t UrPool = nullptr;
   if (Pool) {
-    USMPool = Pool;
+    UrPool = Pool;
   } else {
-    USMPool = &Context->DefaultPool;
+    UrPool = &Context->DefaultPool;
   }
 
-  return USMPool->allocate(Context, Device, USMDesc, UR_USM_TYPE_SHARED, Size,
-                           RetMem);
+  return UrPool->allocate(Context, Device, USMDesc, UR_USM_TYPE_SHARED, Size,
+                          RetMem);
 }
 
 ur_result_t
@@ -444,16 +444,16 @@ ur_result_t urUSMGetMemAllocInfo(
     return ReturnValue(Size);
   }
   case UR_USM_ALLOC_INFO_POOL: {
-    umf_memory_pool_handle_t UMFPool = nullptr;
-    auto umfRet = umfPoolByPtr(Ptr, &UMFPool);
-    if (umfRet != UMF_RESULT_SUCCESS || !UMFPool) {
+    umf_memory_pool_handle_t UmfPool = nullptr;
+    auto UmfRet = umfPoolByPtr(Ptr, &UmfPool);
+    if (UmfRet != UMF_RESULT_SUCCESS || !UmfPool) {
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
     std::shared_lock<ur_shared_mutex> ContextLock(Context->Mutex);
 
     for (auto &Pool : Context->UsmPoolHandles) {
-      if (Pool->hasPool(UMFPool)) {
+      if (Pool->hasPool(UmfPool)) {
         return ReturnValue(Pool);
       }
     }
@@ -609,7 +609,7 @@ ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t /*Context*/,
 
 ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t,
                                            ur_usm_pool_info_t, void *, size_t) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
@@ -623,10 +623,42 @@ ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t UR_APICALL urUSMPoolGetInfoExp(ur_usm_pool_handle_t,
-                                           ur_usm_pool_info_t, void *,
-                                           size_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ur_result_t UR_APICALL urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
+                                           ur_usm_pool_info_t PropName,
+                                           void *PropValue,
+                                           size_t *PropSizeRet) {
+  size_t value = 0;
+  switch (PropName) {
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+    // Current pool implementation ignores threshold.
+    value = 0;
+    break;
+  case UR_USM_POOL_INFO_RESERVED_CURRENT_EXP:
+    value = hPool->getTotalReservedSize();
+    break;
+  case UR_USM_POOL_INFO_USED_CURRENT_EXP:
+    value = hPool->getTotalUsedSize();
+    break;
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+    value = hPool->getPeakReservedSize();
+    break;
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    value = hPool->getPeakUsedSize();
+    break;
+  default:
+    // Unknown enumerator
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+
+  if (PropValue) {
+    *(size_t *)PropValue = value;
+  }
+
+  if (PropSizeRet) {
+    *(size_t *)PropSizeRet = sizeof(size_t);
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(ur_context_handle_t,
@@ -699,6 +731,9 @@ enum umf_result_t L0MemoryProvider::alloc(size_t Size, size_t Align,
     return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
   }
 
+  // TODO: Align the size? free doesn't accept alignment param.
+  AllocStats.update(AllocationStats::INCREASE, Size);
+
   return UMF_RESULT_SUCCESS;
 }
 
@@ -710,6 +745,8 @@ enum umf_result_t L0MemoryProvider::free(void *Ptr, size_t Size) {
     getLastStatusRef() = Res;
     return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
   }
+
+  AllocStats.update(AllocationStats::DECREASE, Size);
 
   return UMF_RESULT_SUCCESS;
 }
@@ -866,6 +903,33 @@ umf_result_t L0MemoryProvider::ext_close_ipc_handle(void *Ptr,
   return UMF_RESULT_SUCCESS;
 }
 
+umf_result_t L0MemoryProvider::ext_ctl(int, const char *Name, void *Arg,
+                                       size_t Size, umf_ctl_query_type_t) {
+  if (std::string(Name) == "stats.allocated_memory") {
+    if (!Arg && Size < sizeof(size_t)) {
+      return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    *(reinterpret_cast<size_t *>(Arg)) = AllocStats.getCurrent();
+    UR_LOG(DEBUG, "L0MemoryProvider::ext_ctl with name: {}, value: {}", Name,
+           AllocStats.getCurrent());
+  } else if (std::string(Name) == "stats.peak_memory") {
+    if (!Arg && Size < sizeof(size_t)) {
+      return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    // Return the peak memory size.
+    *(reinterpret_cast<size_t *>(Arg)) = AllocStats.getPeak();
+    UR_LOG(DEBUG, "L0MemoryProvider::ext_ctl with name: {}, value: {}", Name,
+           AllocStats.getPeak());
+  } else {
+    UR_LOG(ERR, "L0MemoryProvider::ext_ctl with unknown name: {}", Name);
+    return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+  }
+
+  return UMF_RESULT_SUCCESS;
+}
+
 ur_result_t L0SharedMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
                                                  uint32_t Alignment) {
   return USMSharedAllocImpl(ResultPtr, Context, Device, /*host flags*/ 0,
@@ -956,6 +1020,14 @@ MakeProvider(ProviderParams *Params = nullptr) {
   return nullptr;
 }
 
+UsmPool::UsmPool(ur_usm_pool_handle_t UrPool, umf::pool_unique_handle_t UmfPool)
+    : UrPool(UrPool), UmfPool(std::move(UmfPool)),
+      AsyncPool(
+          [](ur_event_handle_t Event) { return urEventReleaseInternal(Event); },
+          [Context = UrPool->Context](void *Ptr) {
+            return USMFreeHelper(Context, Ptr);
+          }) {}
+
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc,
                                              bool IsProxy)
@@ -983,7 +1055,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     }
 
     std::unique_ptr<UsmPool> usmPool =
-        std::make_unique<UsmPool>(std::move(Pool));
+        std::make_unique<UsmPool>(this, std::move(Pool));
     auto Ret = umf::umf2urResult(
         umfPoolSetTag(usmPool->UmfPool.get(), usmPool.get(), nullptr));
     if (Ret) {
@@ -1043,7 +1115,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
         DisjointPoolConfigs.Configs[DescToDisjointPoolMemType(Desc)];
 
     std::unique_ptr<UsmPool> usmPool = std::make_unique<UsmPool>(
-        usm::makeDisjointPool(MakeProvider(&Desc), PoolConfig));
+        this, usm::makeDisjointPool(MakeProvider(&Desc), PoolConfig));
     auto Ret = umf::umf2urResult(
         umfPoolSetTag(usmPool->UmfPool.get(), usmPool.get(), nullptr));
     if (Ret) {
@@ -1154,20 +1226,20 @@ ur_result_t ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
   if (!Pool) {
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
-  auto umfPool = Pool->UmfPool.get();
+  auto UmfPool = Pool->UmfPool.get();
 
-  *RetMem = umfPoolAlignedMalloc(umfPool, Size, Alignment);
+  *RetMem = umfPoolAlignedMalloc(UmfPool, Size, Alignment);
   if (*RetMem == nullptr) {
     if (Pool->AsyncPool.cleanup()) { // true means that objects were deallocated
       // let's try again
-      *RetMem = umfPoolAlignedMalloc(umfPool, Size, Alignment);
+      *RetMem = umfPoolAlignedMalloc(UmfPool, Size, Alignment);
     }
     if (*RetMem == nullptr) {
-      auto umfRet = umfPoolGetLastAllocationError(umfPool);
+      auto UmfRet = umfPoolGetLastAllocationError(UmfPool);
       UR_LOG(ERR,
              "enqueueUSMAllocHelper: allocation from the UMF pool {} failed",
-             umfPool);
-      return umf::umf2urResult(umfRet);
+             UmfPool);
+      return umf::umf2urResult(UmfRet);
     }
   }
 
@@ -1177,6 +1249,34 @@ ur_result_t ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
                                std::forward_as_tuple(*RetMem),
                                std::forward_as_tuple(Context));
   }
+
+  size_t UsableSize = 0;
+  auto UmfRet = umfPoolMallocUsableSize(UmfPool, *RetMem, &UsableSize);
+  if (UmfRet != UMF_RESULT_SUCCESS &&
+      UmfRet != UMF_RESULT_ERROR_NOT_SUPPORTED) {
+    return umf::umf2urResult(UmfRet);
+  }
+
+  AllocStats.update(AllocationStats::UpdateType::INCREASE, UsableSize);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_usm_pool_handle_t_::free(void *Mem,
+                                        umf_memory_pool_handle_t UmfPool) {
+  size_t Size = 0;
+  auto UmfRet = umfPoolMallocUsableSize(UmfPool, Mem, &Size);
+  if (UmfRet != UMF_RESULT_SUCCESS &&
+      UmfRet != UMF_RESULT_ERROR_NOT_SUPPORTED) {
+    return umf::umf2urResult(UmfRet);
+  }
+
+  UmfRet = umfPoolFree(UmfPool, Mem);
+  if (UmfRet != UMF_RESULT_SUCCESS) {
+    return umf::umf2urResult(UmfRet);
+  }
+
+  AllocStats.update(AllocationStats::UpdateType::DECREASE, Size);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1207,6 +1307,60 @@ void ur_usm_pool_handle_t_::cleanupPoolsForQueue(ur_queue_handle_t Queue) {
     return true;
   });
 }
+
+size_t ur_usm_pool_handle_t_::getTotalReservedSize() {
+  size_t totalAllocatedSize = 0;
+  umf_result_t UmfRet = UMF_RESULT_SUCCESS;
+  PoolManager.forEachPool([&](UsmPool *p) {
+    umf_memory_provider_handle_t hProvider = nullptr;
+    size_t allocatedSize = 0;
+    UmfRet = umfPoolGetMemoryProvider(p->UmfPool.get(), &hProvider);
+    if (UmfRet != UMF_RESULT_SUCCESS) {
+      return false;
+    }
+
+    UmfRet = umfCtlGet("umf.provider.by_handle.stats.allocated_memory",
+                       hProvider, &allocatedSize, sizeof(allocatedSize));
+    if (UmfRet != UMF_RESULT_SUCCESS) {
+      return false;
+    }
+
+    totalAllocatedSize += allocatedSize;
+    return true;
+  });
+
+  return UmfRet == UMF_RESULT_SUCCESS ? totalAllocatedSize : 0;
+}
+
+size_t ur_usm_pool_handle_t_::getPeakReservedSize() {
+  size_t totalAllocatedSize = 0;
+  umf_result_t Ret = UMF_RESULT_SUCCESS;
+  PoolManager.forEachPool([&](UsmPool *p) {
+    umf_memory_provider_handle_t hProvider = nullptr;
+    size_t allocatedSize = 0;
+    Ret = umfPoolGetMemoryProvider(p->UmfPool.get(), &hProvider);
+    if (Ret != UMF_RESULT_SUCCESS) {
+      return false;
+    }
+
+    Ret = umfCtlGet("umf.provider.by_handle.stats.peak_memory", hProvider,
+                    &allocatedSize, sizeof(allocatedSize));
+    if (Ret != UMF_RESULT_SUCCESS) {
+      return false;
+    }
+
+    totalAllocatedSize += allocatedSize;
+    return true;
+  });
+
+  return Ret == UMF_RESULT_SUCCESS ? totalAllocatedSize : 0;
+}
+
+size_t ur_usm_pool_handle_t_::getTotalUsedSize() {
+  return AllocStats.getCurrent();
+}
+
+size_t ur_usm_pool_handle_t_::getPeakUsedSize() { return AllocStats.getPeak(); }
 
 bool ur_usm_pool_handle_t_::hasPool(const umf_memory_pool_handle_t Pool) {
   return getPoolByHandle(Pool) != nullptr;
@@ -1282,16 +1436,25 @@ ur_result_t USMFreeHelper(ur_context_handle_t Context, void *Ptr,
     Context->MemAllocs.erase(It);
   }
 
-  umf_memory_pool_handle_t hPool = nullptr;
-  auto umfRet = umfPoolByPtr(Ptr, &hPool);
-  if (umfRet != UMF_RESULT_SUCCESS || !hPool) {
+  umf_memory_pool_handle_t UmfPool = nullptr;
+  auto UmfRet = umfPoolByPtr(Ptr, &UmfPool);
+  if (UmfRet != UMF_RESULT_SUCCESS || !UmfPool) {
     if (IndirectAccessTrackingEnabled)
       UR_CALL(ContextReleaseHelper(Context));
     return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
   }
 
-  umfRet = umfPoolFree(hPool, Ptr);
-  if (IndirectAccessTrackingEnabled)
+  UsmPool *UsmPool = nullptr;
+  UmfRet = umfPoolGetTag(UmfPool, (void **)&UsmPool);
+  if (UmfRet != UMF_RESULT_SUCCESS || !UsmPool) {
+    // This should never happen
+    UR_LOG(ERR, "enqueueUSMFreeExp: invalid pool tag");
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  auto Ret = UsmPool->UrPool->free(Ptr, UmfPool);
+  if (IndirectAccessTrackingEnabled) {
     UR_CALL(ContextReleaseHelper(Context));
-  return umf::umf2urResult(umfRet);
+  }
+  return Ret;
 }

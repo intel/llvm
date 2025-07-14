@@ -134,7 +134,7 @@ public:
   /// dependent nodes if so.
   /// @param CommandGroup The command group to verify and retrieve edges for.
   /// @return Set of dependent nodes in the graph.
-  std::set<std::shared_ptr<node_impl>>
+  std::set<node_impl *>
   getCGEdges(const std::shared_ptr<sycl::detail::CG> &CommandGroup) const;
 
   /// Identifies the sycl buffers used in the command-group and marks them
@@ -692,7 +692,7 @@ public:
   /// through UR should be included in this list, currently this is only
   /// nodes of kernel type.
   void updateURImpl(ur_exp_command_buffer_handle_t CommandBuffer,
-                    const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+                    nodes_range Nodes) const;
 
   /// Update host-task nodes
   /// @param Nodes List of nodes to update, any node that is not a host-task
@@ -708,8 +708,8 @@ public:
   ///
   /// @param Nodes List of nodes to split
   /// @return Map of partition indexes to nodes
-  std::map<int, std::vector<std::shared_ptr<node_impl>>> getURUpdatableNodes(
-      const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+  std::map<int, std::vector<node_impl *>>
+  getURUpdatableNodes(nodes_range Nodes) const;
 
   unsigned long long getID() const { return MID; }
 
@@ -859,7 +859,7 @@ private:
   /// @param[out] NDRDesc ND-Range to update.
   /// @param[out] UpdateDesc Base struct in the pointer chain.
   void populateURKernelUpdateStructs(
-      const std::shared_ptr<node_impl> &Node, FastKernelCacheValPtr &BundleObjs,
+      node_impl &Node, FastKernelCacheValPtr &BundleObjs,
       std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
       std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
       std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,

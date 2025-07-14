@@ -3260,8 +3260,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     const RTDeviceBinaryImage *BinImage = nullptr;
     if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
-      std::tie(BinImage, std::ignore) =
-          retrieveKernelBinary(*MQueue, KernelName);
+      BinImage = retrieveKernelBinary(*MQueue, KernelName);
       assert(BinImage && "Failed to obtain a binary image.");
     }
     enqueueImpKernel(
@@ -3805,7 +3804,7 @@ UpdateCommandBufferCommand::UpdateCommandBufferCommand(
     std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
         Nodes)
     : Command(CommandType::UPDATE_CMD_BUFFER, Queue), MGraph(Graph),
-      MNodes(Nodes) {}
+      MNodes(std::move(Nodes)) {}
 
 ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
