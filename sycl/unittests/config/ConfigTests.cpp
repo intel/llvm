@@ -482,7 +482,7 @@ TEST(ConfigTests, CheckParallelForRangeRoundingParams) {
     size_t TestMF = MF, TestGF = GF, TestMR = MR;
     SetRoundingParams(value);
     SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
-      TestMF, TestGF, TestMR, true);
+        TestMF, TestGF, TestMR, true);
     EXPECT_EQ(TestMF, MF) << errMsg;
     EXPECT_EQ(TestGF, GF) << errMsg;
     EXPECT_EQ(TestMR, MR) << errMsg;
