@@ -84,34 +84,24 @@
 //    minimal set of barriers required to enforce ordering for the memory
 //    operations it actually performs.
 //
-// 4) **CFG-Wide Elimination**
-//    For each pair of barriers A and B in the function:
-//      - If A dominates B and B post dominates A and there are no accesses that only B would need to
-//        order, B can be removed.
-//    FIXME: The logic shoud actually be:
-//    a) *Dominator-Based Removal*
-//       For each pair (A, B) with identical Exec and Mem scopes where A
-//       dominates B:
-//         – If *every* path from A to B has no accesses >= A.MemScope, remove
-//         B.
-//         - If every path from A to B has no accesses >= A.MemScope, remove B.
-//    b) *Post-Dominator-Based Removal*
-//       For each pair (A, B) with identical scopes where B post-dominates A:
-//         – If *every* path from A to B has no accesses >= A.MemScope, remove
-//         A.
-//         - If every path from A to B has no accesses >= A.MemScope, remove A.
+// 3) **CFG-Wide Optimization (Dominator/Post-Dominator)**
+//    Perform barrier analysis across the entire CFG using dominance
+//    and post-dominance to remove or narrow memory scope and semantic of
+//    barrier calls:
 //
-//    But there are loops to handle, so simpler logic is used for now.
+//    a) *Dominator-Based Elimination* — For any two barriers A and B where
+//       A's ExecScope and MemScope cover B's (i.e., A subsumes B in both
+//       execution and memory ordering semantics) and A's fence semantics
+//       include B's, if A dominates B and B post-dominates A, and there are no
+//       memory accesses at or above the fenced scope on any path between A and
+//       B, then B is fully redundant and can be removed.
 //
-// 5) **Global -> Local Downgrade**
-//    For each global-scope barrier B (MemScope == Device/CrossDevice or
-//    CrossWorkgroupMemory semantics):
-//      – If there exists another global barrier A that dominates or
-//        post-dominates B and no Global/Unknown accesses occur between the two,
-//        B can be downgraded to Workgroup scope.
-//      - If there exists another global barrier A that dominates or
-//        post-dominates B and no Global or Unknown accesses occur between the
-//        two, B can be downgraded to Workgroup scope.
+//    b) *Global-to-Local Downgrade* — For barriers that fence global memory
+//       (Device/CrossDevice or CrossWorkgroupMemory semantics), if another
+//       global barrier A dominates or post-dominates barrier B with no
+//       intervening global or unknown accesses, B's MemScope is lowered to
+//       Workgroup. Their fence semantics are merged so that no ordering
+//       guarantees are weakened.
 //
 //===----------------------------------------------------------------------===//
 
@@ -555,7 +545,7 @@ static bool noFencedAccessesCFG(CallInst *A, CallInst *B,
                                 RegionMemScope Required,
                                 BBMemInfoMap &BBMemInfo) {
   LLVM_DEBUG(dbgs() << "Checking for fenced accesses between: " << *A << " and "
-                    << *B << " in CFG" << "\n");
+                     << *B << " in CFG" << "\n");
   if (Required == RegionMemScope::Unknown)
     return false;
   // Build the set of blocks that can reach B.
@@ -778,131 +768,109 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
   return Changed;
 }
 
-// Remove barriers that are redundant in the CFG based on dominance relations.
-static bool eliminateDominatedBarriers(SmallVectorImpl<BarrierDesc *> &Barriers,
-                                       DominatorTree &DT,
-                                       PostDominatorTree &PDT,
-                                       BBMemInfoMap &BBMemInfo) {
+// Walk the whole CFG once, first trying to erase fully–redundant
+// barriers and, if that is impossible, trying to downgrade
+// Cross-work-group barriers that are safely covered by another global fence.
+static bool optimizeBarriersCFG(SmallVectorImpl<BarrierDesc *> &Barriers,
+                                DominatorTree &DT, PostDominatorTree &PDT,
+                                BBMemInfoMap &BBMemInfo) {
   bool Changed = false;
-  for (auto *B1 : Barriers) {
-    if (!B1->CI)
-      continue;
-    for (auto *B2 : Barriers) {
-      // Check if the barrier was already removed.
-      if (B1 == B2 || !B2->CI)
+
+  for (BarrierDesc *B : Barriers) {
+    if (!B->CI)
+      continue; // Already removed
+
+    bool Removed = false;
+    bool IsGlobalB =
+        (B->MemScope == Scope::Device || B->MemScope == Scope::CrossDevice ||
+         (B->Semantic &
+          static_cast<uint32_t>(MemorySemantics::CrossWorkgroupMemory)));
+    BarrierDesc *DowngradeCand = nullptr;
+
+    for (BarrierDesc *A : Barriers) {
+      if (A == B || !A->CI)
         continue;
 
-      // Skip if scopes are unknown or B1 does not enforce at least the
-      // semantics of B2.
-      if (B1->ExecScope == Scope::Unknown || B1->MemScope == Scope::Unknown ||
-          B2->ExecScope == Scope::Unknown || B2->MemScope == Scope::Unknown)
-        continue;
-      auto ExecCmp = compareScopesWithWeights(B1->ExecScope, B2->ExecScope);
-      auto MemCmp = compareScopesWithWeights(B1->MemScope, B2->MemScope);
-      if (ExecCmp == CompareRes::UNKNOWN || MemCmp == CompareRes::UNKNOWN)
-        continue;
-      bool ExecSubsumes =
-          ExecCmp == CompareRes::BIGGER || ExecCmp == CompareRes::EQUAL;
-      bool MemSubsumes =
-          MemCmp == CompareRes::BIGGER || MemCmp == CompareRes::EQUAL;
-      bool SemSubsumes = (B1->Semantic & B2->Semantic) == B2->Semantic;
+      // Elimination check.
+      auto ExecCmp = compareScopesWithWeights(A->ExecScope, B->ExecScope);
+      auto MemCmp = compareScopesWithWeights(A->MemScope, B->MemScope);
+      bool ScopesCover =
+          (ExecCmp == CompareRes::BIGGER || ExecCmp == CompareRes::EQUAL) &&
+          (MemCmp == CompareRes::BIGGER || MemCmp == CompareRes::EQUAL);
+      bool SemCover = (A->Semantic & B->Semantic) == B->Semantic;
+      bool ADominatesB = DT.dominates(A->CI, B->CI);
+      if (ScopesCover && SemCover) {
+        RegionMemScope Fence = getBarrierFencedScope(*A);
+        // FIXME: this check is way too conservative.
+        if (Fence != RegionMemScope::Unknown && ADominatesB &&
+            PDT.dominates(B->CI, A->CI) &&
+            noFencedAccessesCFG(A->CI, B->CI, Fence, BBMemInfo)) {
+          Changed |= eraseBarrierWithITT(*B);
+          Removed = true;
+          break;
+        }
+      }
 
-      if (!ExecSubsumes || !MemSubsumes || !SemSubsumes)
-        continue;
-
-      RegionMemScope Fence = getBarrierFencedScope(*B1);
-      if (Fence == RegionMemScope::Unknown)
-        continue;
-
-      // FIXME: missing optimization, see the header comment. For now live
-      // with the simpler logic.
-      if (DT.dominates(B1->CI, B2->CI) && PDT.dominates(B2->CI, B1->CI))
-        if (noFencedAccessesCFG(B1->CI, B2->CI, Fence, BBMemInfo))
-          Changed |= eraseBarrierWithITT(*B2);
+      // Downgrade check.
+      if (!Removed && IsGlobalB && !DowngradeCand) {
+        bool IsGlobalA =
+            (A->MemScope == Scope::Device ||
+             A->MemScope == Scope::CrossDevice ||
+             (A->Semantic &
+              static_cast<uint32_t>(MemorySemantics::CrossWorkgroupMemory)));
+        if (IsGlobalA) {
+          if (DT.dominates(A->CI, B->CI) &&
+              noFencedAccessesCFG(A->CI, B->CI, RegionMemScope::Global,
+                                  BBMemInfo)) {
+            DowngradeCand = A;
+          } else if (PDT.dominates(A->CI, B->CI) &&
+                     noFencedAccessesCFG(B->CI, A->CI, RegionMemScope::Global,
+                                         BBMemInfo)) {
+            DowngradeCand = A;
+          }
+        }
+      }
     }
-  }
-  return Changed;
-}
 
-// Downgrade global barriers to workgroup when no global memory is touched
-// before the next global barrier.
-static bool downgradeGlobalBarriers(SmallVectorImpl<BarrierDesc *> &Barriers,
-                                    DominatorTree &DT, PostDominatorTree &PDT,
-                                    BBMemInfoMap &BBMemInfo) {
-  bool Changed = false;
-
-  // Identify a global barrier: either SPIR-V Device/CrossDevice scope
-  // or has the CrossWorkgroupMemory bit.
-  auto IsGlobalBarrier = [](const BarrierDesc &BD) {
-    return BD.MemScope == Scope::Device || BD.MemScope == Scope::CrossDevice ||
-           (BD.Semantic &
-            static_cast<uint32_t>(MemorySemantics::CrossWorkgroupMemory));
-  };
-
-  for (auto *BPtr : Barriers) {
-    BarrierDesc &B = *BPtr;
-    if (!B.CI || !IsGlobalBarrier(B))
-      continue;
-    if (B.ExecScope == Scope::Unknown || B.MemScope == Scope::Unknown)
+    if (Removed)
       continue;
 
-    // Look for an earlier barrier A that completely subsumes B:
-    // A must dominate or post-dominates B, with no intervening global
-    // accesses. A must itself be a global barrier.
-    for (auto *APtr : Barriers) {
-      if (APtr == BPtr)
-        continue;
-      BarrierDesc &A = *APtr;
-      if (!A.CI)
-        continue;
-
-      bool CanDowngrade = false;
-      // A strictly dominates B.
-      if (DT.dominates(A.CI, B.CI) &&
-          noFencedAccessesCFG(A.CI, B.CI, RegionMemScope::Global, BBMemInfo)) {
-        CanDowngrade = true;
-      }
-      // or A post-dominates B block.
-      else if (PDT.dominates(A.CI, B.CI) &&
-               noFencedAccessesCFG(B.CI, A.CI, RegionMemScope::Global,
-                                   BBMemInfo)) {
-        CanDowngrade = true;
-      }
-      if (!CanDowngrade)
-        continue;
-
-      // Merge ordering semantics so we never weaken A joint B fence.
-      uint32_t MergedSem = mergeSemantics(A.Semantic, B.Semantic);
-      LLVMContext &Ctx = B.CI->getContext();
+    if (DowngradeCand) {
+      BarrierDesc &A = *DowngradeCand;
+      BarrierDesc &R = *B;
+      uint32_t mergedSem = mergeSemantics(A.Semantic, R.Semantic);
+      LLVMContext &Ctx = R.CI->getContext();
       const bool IsControlBarrier =
-          B.CI->getCalledFunction()->getName() == CONTROL_BARRIER;
+          R.CI->getCalledFunction()->getName() == CONTROL_BARRIER;
       Type *Int32Ty = Type::getInt32Ty(Ctx);
-      if (MergedSem != B.Semantic) {
-        B.CI->setArgOperand(IsControlBarrier ? 2 : 1,
-                            ConstantInt::get(Int32Ty, MergedSem));
-        B.Semantic = MergedSem;
+
+      // Merge ordering semantics.
+      if (mergedSem != R.Semantic) {
+        R.CI->setArgOperand(IsControlBarrier ? 2 : 1,
+                            ConstantInt::get(Int32Ty, mergedSem));
+        R.Semantic = mergedSem;
       }
 
-      // Downgrade memory semantics: CrossWorkgroup -> Workgroup.
+      // Downgrade CrossWorkgroup -> Workgroup semantics.
       const uint32_t CrossMask =
           static_cast<uint32_t>(MemorySemantics::CrossWorkgroupMemory);
-      if (B.Semantic & CrossMask) {
+      if (R.Semantic & CrossMask) {
         uint32_t NewSem =
-            (B.Semantic & ~CrossMask) |
+            (R.Semantic & ~CrossMask) |
             static_cast<uint32_t>(MemorySemantics::WorkgroupMemory);
-        B.CI->setArgOperand(IsControlBarrier ? 2 : 1,
+        R.CI->setArgOperand(IsControlBarrier ? 2 : 1,
                             ConstantInt::get(Int32Ty, NewSem));
-        B.Semantic = NewSem;
+        R.Semantic = NewSem;
       }
-      LLVM_DEBUG(dbgs() << "Downgrade global barrier: " << *B.CI << "\n");
-      // Lower the SPIR-V memory-scope operand to Workgroup.
-      B.CI->setArgOperand(
+
+      // Lower the SPIR-V MemScope operand to Workgroup.
+      R.CI->setArgOperand(
           IsControlBarrier ? 1 : 0,
           ConstantInt::get(Int32Ty, static_cast<uint32_t>(Scope::Workgroup)));
-      B.MemScope = Scope::Workgroup;
+      R.MemScope = Scope::Workgroup;
 
+      LLVM_DEBUG(dbgs() << "Downgraded global barrier: " << *R.CI << "\n");
       Changed = true;
-      break;
     }
   }
 
@@ -1005,8 +973,7 @@ PreservedAnalyses SYCLOptimizeBarriersPass::run(Function &F,
   DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
   PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
 
-  Changed |= eliminateDominatedBarriers(BarrierPtrs, DT, PDT, BBMemInfo);
-  Changed |= downgradeGlobalBarriers(BarrierPtrs, DT, PDT, BBMemInfo);
+  Changed |= optimizeBarriersCFG(BarrierPtrs, DT, PDT, BBMemInfo);
 
   return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
