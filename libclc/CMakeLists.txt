@@ -247,7 +247,6 @@ if( ENABLE_RUNTIME_SUBNORMAL )
   foreach( file IN ITEMS subnormal_use_default subnormal_disable )
     link_bc(
        TARGET ${file}
-       RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/opencl/lib/generic/${file}.ll
     )
     install(
@@ -579,7 +578,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         ARCH ${ARCH}
         ARCH_SUFFIX libspirv-${arch_suffix}
         TRIPLE ${clang_triple}
-        TARGET_ENV libspirv-
         REMANGLE ${LIBCLC_GENERATE_REMANGLED_VARIANTS}
         COMPILE_FLAGS ${spirv_build_flags}
         OPT_FLAGS ${opt_flags}
