@@ -15,6 +15,7 @@
 #include "umf_pools/disjoint_pool_config_parser.hpp"
 #include "usm.hpp"
 
+#include <umf/experimental/ctl.h>
 #include <umf/providers/provider_level_zero.h>
 
 static inline void UMF_CALL_THROWS(umf_result_t res) {
@@ -239,18 +240,44 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
     }
   }
 
+  size_t usableSize = 0;
+  auto UmfRet = umfPoolMallocUsableSize(umfPool, *ppRetMem, &usableSize);
+  if (UmfRet != UMF_RESULT_SUCCESS &&
+      UmfRet != UMF_RESULT_ERROR_NOT_SUPPORTED) {
+    return umf::umf2urResult(UmfRet);
+  }
+
+  allocStats.update(AllocationStats::UpdateType::INCREASE, usableSize);
+
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_usm_pool_handle_t_::free(void *ptr) {
-  umf_memory_pool_handle_t umfPool = nullptr;
-  auto umfRet = umfPoolByPtr(ptr, &umfPool);
-  if (umfRet == UMF_RESULT_SUCCESS && umfPool) {
-    return umf::umf2urResult(umfPoolFree(umfPool, ptr));
-  } else {
-    UR_LOG(ERR, "Failed to find pool for pointer: {}", ptr);
-    return UR_RESULT_ERROR_INVALID_VALUE;
+ur_result_t ur_usm_pool_handle_t_::free(void *ptr,
+                                        umf_memory_pool_handle_t umfPool) {
+  // There's no hint for the UMF pool, so we need to find it by pointer.
+  if (!umfPool) {
+    if (umfPoolByPtr(ptr, &umfPool) != UMF_RESULT_SUCCESS || !umfPool) {
+      UR_LOG(ERR, "Failed to find pool for pointer: {}", ptr);
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
   }
+
+  size_t size = 0;
+  auto umfRet = umfPoolMallocUsableSize(umfPool, ptr, &size);
+  if (umfRet != UMF_RESULT_SUCCESS &&
+      umfRet != UMF_RESULT_ERROR_NOT_SUPPORTED) {
+    return umf::umf2urResult(umfRet);
+  }
+
+  umfRet = umfPoolFree(umfPool, ptr);
+  if (umfRet != UMF_RESULT_SUCCESS) {
+    UR_LOG(ERR, "Failed to free pointer: {}", ptr);
+    return umf::umf2urResult(umfRet);
+  }
+
+  allocStats.update(AllocationStats::UpdateType::DECREASE, size);
+
+  return UR_RESULT_SUCCESS;
 }
 
 bool ur_usm_pool_handle_t_::hasPool(const umf_memory_pool_handle_t umfPool) {
@@ -311,6 +338,60 @@ void ur_usm_pool_handle_t_::cleanupPoolsForQueue(void *hQueue) {
     return true;
   });
 }
+
+size_t ur_usm_pool_handle_t_::getTotalReservedSize() {
+  size_t totalAllocatedSize = 0;
+  umf_result_t umfRet = UMF_RESULT_SUCCESS;
+  poolManager.forEachPool([&](UsmPool *p) {
+    umf_memory_provider_handle_t hProvider = nullptr;
+    size_t allocatedSize = 0;
+    umfRet = umfPoolGetMemoryProvider(p->umfPool.get(), &hProvider);
+    if (umfRet != UMF_RESULT_SUCCESS) {
+      return false;
+    }
+
+    umfRet = umfCtlGet("umf.provider.by_handle.{}.stats.allocated_memory",
+                       &allocatedSize, sizeof(allocatedSize), hProvider);
+    if (umfRet != UMF_RESULT_SUCCESS) {
+      return false;
+    }
+
+    totalAllocatedSize += allocatedSize;
+    return true;
+  });
+
+  return umfRet == UMF_RESULT_SUCCESS ? totalAllocatedSize : 0;
+}
+
+size_t ur_usm_pool_handle_t_::getPeakReservedSize() {
+  size_t totalAllocatedSize = 0;
+  umf_result_t umfRet = UMF_RESULT_SUCCESS;
+  poolManager.forEachPool([&](UsmPool *p) {
+    umf_memory_provider_handle_t hProvider = nullptr;
+    size_t allocatedSize = 0;
+    umfRet = umfPoolGetMemoryProvider(p->umfPool.get(), &hProvider);
+    if (umfRet != UMF_RESULT_SUCCESS) {
+      return false;
+    }
+
+    umfRet = umfCtlGet("umf.provider.by_handle.{}.stats.peak_memory",
+                       &allocatedSize, sizeof(allocatedSize), hProvider);
+    if (umfRet != UMF_RESULT_SUCCESS) {
+      return false;
+    }
+
+    totalAllocatedSize += allocatedSize;
+    return true;
+  });
+
+  return umfRet == UMF_RESULT_SUCCESS ? totalAllocatedSize : 0;
+}
+
+size_t ur_usm_pool_handle_t_::getTotalUsedSize() {
+  return allocStats.getCurrent();
+}
+
+size_t ur_usm_pool_handle_t_::getPeakUsedSize() { return allocStats.getPeak(); }
 
 namespace ur::level_zero {
 ur_result_t urUSMPoolCreate(
@@ -383,6 +464,53 @@ ur_result_t urUSMPoolGetInfo(
   return umf::umf2urResult(e);
 } catch (...) {
   return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
+                                ur_usm_pool_info_t propName, void *pPropValue,
+                                size_t *pPropSizeRet) {
+  size_t value = 0;
+  switch (propName) {
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+    // Current pool implementation ignores threshold.
+    value = 0;
+    break;
+  case UR_USM_POOL_INFO_RESERVED_CURRENT_EXP:
+    value = hPool->getTotalReservedSize();
+    break;
+  case UR_USM_POOL_INFO_USED_CURRENT_EXP:
+    value = hPool->getTotalUsedSize();
+    break;
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+    value = hPool->getPeakReservedSize();
+    break;
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    value = hPool->getPeakUsedSize();
+    break;
+  default:
+    // Unknown enumerator
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+
+  if (pPropValue) {
+    *(size_t *)pPropValue = value;
+  }
+
+  if (pPropSizeRet) {
+    *(size_t *)pPropSizeRet = sizeof(size_t);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urUSMPoolGetDefaultDevicePoolExp(ur_context_handle_t hContext,
+                                             ur_device_handle_t,
+                                             ur_usm_pool_handle_t *pPool) {
+  // Default async pool should contain an internal pool for all detected
+  // devices.
+  *pPool = hContext->getAsyncPool();
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urUSMDeviceAlloc(
@@ -463,7 +591,20 @@ ur_result_t urUSMFree(
     ur_context_handle_t /*hContext*/,
     /// [in] pointer to USM memory object
     void *pMem) try {
-  return umf::umf2urResult(umfFree(pMem));
+  umf_memory_pool_handle_t umfPool = nullptr;
+  auto umfRet = umfPoolByPtr(pMem, &umfPool);
+  if (umfRet != UMF_RESULT_SUCCESS || !umfPool) {
+    return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
+  }
+
+  UsmPool *usmPool = nullptr;
+  umfRet = umfPoolGetTag(umfPool, (void **)&usmPool);
+  if (umfRet != UMF_RESULT_SUCCESS || !usmPool) {
+    // This should never happen
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return usmPool->urPool->free(pMem, umfPool);
 } catch (umf_result_t e) {
   return umf::umf2urResult(e);
 } catch (...) {
