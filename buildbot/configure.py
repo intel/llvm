@@ -174,6 +174,7 @@ def do_configure(args, passthrough_args):
         # Our codebase isn't ready for those new warnings just yet
         if platform.system() == "Windows":
             sycl_werror = "OFF"
+            xpti_enable_werror = "OFF"
 
     cmake_cmd = [
         "cmake",
