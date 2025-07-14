@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/async/clc_prefetch.h>
 #include <libspirv/spirv.h>
 
 #define __CLC_BODY <prefetch.inc>
