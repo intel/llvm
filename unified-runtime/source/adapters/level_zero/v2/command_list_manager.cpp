@@ -1023,15 +1023,10 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
     }
   }
 
-  // Normalize so each dimension has at least one work item
-  const std::array<size_t, 3> GlobalWorkSize3D = {
-      std::max(pGlobalWorkSize[0], std::size_t{1}),
-      std::max(pGlobalWorkSize[1], std::size_t{1}),
-      std::max(pGlobalWorkSize[2], std::size_t{1})};
-  UR_CALL(appendKernelLaunch(hKernel, 3, pGlobalWorkOffset,
-                             GlobalWorkSize3D.data(), pLocalWorkSize,
-                             numPropsInLaunchPropList, launchPropList,
-                             numEventsInWaitList, phEventWaitList, phEvent));
+  UR_CALL(appendKernelLaunch(hKernel, 3, pGlobalWorkOffset, pGlobalWorkSize,
+                             pLocalWorkSize, numPropsInLaunchPropList,
+                             launchPropList, numEventsInWaitList,
+                             phEventWaitList, phEvent));
 
   recordSubmittedKernel(hKernel);
 

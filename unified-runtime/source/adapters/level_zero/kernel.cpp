@@ -211,14 +211,10 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     }
   }
   // Normalize so each dimension has at least one work item
-  const std::array<size_t, 3> GlobalWorkSize3D = {
-      std::max(GlobalWorkSize[0], std::size_t{1}),
-      std::max(GlobalWorkSize[1], std::size_t{1}),
-      std::max(GlobalWorkSize[2], std::size_t{1})};
   return level_zero::urEnqueueKernelLaunch(
-      Queue, Kernel, 3, GlobalWorkOffset, GlobalWorkSize3D.data(),
-      LocalWorkSize, NumPropsInLaunchPropList, LaunchPropList,
-      NumEventsInWaitList, EventWaitList, OutEvent);
+      Queue, Kernel, 3, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize,
+      NumPropsInLaunchPropList, LaunchPropList, NumEventsInWaitList,
+      EventWaitList, OutEvent);
 }
 
 inline ur_result_t EnqueueCooperativeKernelLaunchHelper(

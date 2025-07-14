@@ -668,13 +668,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   } catch (ur_result_t Err) {
     return Err;
   }
-  // Normalize so each dimension has at least one work item
-  const std::array<size_t, 3> GlobalWorkSize3D = {
-      std::max(pGlobalWorkSize[0], std::size_t{1}),
-      std::max(pGlobalWorkSize[1], std::size_t{1}),
-      std::max(pGlobalWorkSize[2], std::size_t{1})};
   return urEnqueueKernelLaunch(hQueue, hKernel, 3, pGlobalWorkOffset,
-                               GlobalWorkSize3D.data(), pLocalWorkSize,
+                               pGlobalWorkSize, pLocalWorkSize,
                                numPropsInLaunchPropList, launchPropList,
                                numEventsInWaitList, phEventWaitList, phEvent);
 }
