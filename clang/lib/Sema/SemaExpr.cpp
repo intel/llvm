@@ -18029,14 +18029,8 @@ HandleImmediateInvocations(Sema &SemaRef,
       // - it is a subexpression of a manifestly constant-evaluated expression
       //   or conversion.
       return;
-    } else {
-      for (auto &DDEntry : SemaRef.MaybeDeviceDeferredDiags)
-        for (auto &DD : DDEntry.second)
-          SemaRef.DeviceDeferredDiags[DDEntry.first].push_back(DD);
     }
   }
-  SemaRef.MaybeDeviceDeferredDiags.clear();
-  SemaRef.InConstexprVarInit = false;
 
   /// When we have more than 1 ImmediateInvocationCandidates or previously
   /// failed immediate invocations, we need to check for nested

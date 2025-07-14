@@ -18936,6 +18936,17 @@ void Sema::ActOnCXXExitDeclInitializer(Scope *S, Decl *D) {
   if (S && D->isOutOfLine())
     ExitDeclaratorContext(S);
 
+  if (auto *VD = dyn_cast<VarDecl>(D)) {
+    if (!VD->isUsableInConstantExpressions(Context) &&
+        !VD->hasConstantInitialization()) {
+      for (auto &DDEntry : MaybeDeviceDeferredDiags)
+        for (auto &DD : DDEntry.second)
+          DeviceDeferredDiags[DDEntry.first].push_back(DD);
+    }
+    MaybeDeviceDeferredDiags.clear();
+  }
+  InConstexprVarInit = false;
+
   PopExpressionEvaluationContext();
 }
 
