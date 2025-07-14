@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/helpers.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/aspects.hpp>
@@ -113,7 +114,7 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
 
   bool has_info_desc(ur_device_info_t Desc) const {
     size_t return_size = 0;
-    return getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+    return getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
                MDevice, Desc, 0, nullptr, &return_size) == UR_RESULT_SUCCESS;
   }
 
@@ -152,25 +153,23 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
       static_assert(
           !check_type_in_v<typename ur_ret_t::value_type, bool, std::string>);
       size_t ResultSize = 0;
-      ur_result_t Error =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-              getHandleRef(), Desc, 0, nullptr, &ResultSize);
+      ur_result_t Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getHandleRef(), Desc, 0, nullptr, &ResultSize);
       if (Error != UR_RESULT_SUCCESS)
         return {Error};
       if (ResultSize == 0)
         return {ur_ret_t{}};
 
       ur_ret_t Result(ResultSize / sizeof(typename ur_ret_t::value_type));
-      Error = getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+      Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
       if (Error != UR_RESULT_SUCCESS)
         return {Error};
       return {Result};
     } else {
       ur_ret_t Result;
-      ur_result_t Error =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-              getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
+      ur_result_t Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
       if (Error == UR_RESULT_SUCCESS)
         return {Result};
       else
@@ -188,18 +187,18 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
         return urGetInfoString<UrApiKind::urDeviceGetInfo>(*this, Desc);
       } else if constexpr (is_std_vector_v<ur_ret_t>) {
         size_t ResultSize = 0;
-        getAdapter()->call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0,
-                                                       nullptr, &ResultSize);
+        getAdapter().call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0,
+                                                      nullptr, &ResultSize);
         if (ResultSize == 0)
           return ur_ret_t{};
 
         ur_ret_t Result(ResultSize / sizeof(typename ur_ret_t::value_type));
-        getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        getAdapter().call<UrApiKind::urDeviceGetInfo>(
             getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
         return Result;
       } else {
         ur_ret_t Result;
-        getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        getAdapter().call<UrApiKind::urDeviceGetInfo>(
             getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
         return Result;
       }
@@ -468,7 +467,7 @@ public:
   platform get_platform() const;
 
   /// \return the associated adapter with this device.
-  const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
+  adapter_impl &getAdapter() const { return MPlatform->getAdapter(); }
 
   /// Check SYCL extension support by device
   ///
@@ -940,7 +939,7 @@ public:
 
       // TODO: std::array<size_t, 3> ?
       size_t result[3];
-      getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+      getAdapter().call<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(result),
           &result, nullptr);
       return id<3>(std::min(Limit, result[2]), std::min(Limit, result[1]),
@@ -1011,7 +1010,7 @@ public:
         ur_result_t Err = Devs.error();
         if (Err == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION)
           return std::vector<sycl::device>{};
-        getAdapter()->checkUrResult(Err);
+        getAdapter().checkUrResult(Err);
       }
 
       std::vector<sycl::device> Result;
@@ -1488,7 +1487,7 @@ public:
     CASE(ext_oneapi_graph) {
       ur_device_command_buffer_update_capability_flags_t UpdateCapabilities;
       bool CallSuccessful =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
               MDevice, UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP,
               sizeof(UpdateCapabilities), &UpdateCapabilities,
               nullptr) == UR_RESULT_SUCCESS;
@@ -1510,7 +1509,7 @@ public:
     CASE(ext_oneapi_limited_graph) {
       bool SupportsCommandBuffers = false;
       bool CallSuccessful =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
               MDevice, UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP,
               sizeof(SupportsCommandBuffers), &SupportsCommandBuffers,
               nullptr) == UR_RESULT_SUCCESS;
@@ -1875,7 +1874,7 @@ public:
           // Not all devices support this device info query
           return std::nullopt;
         }
-        getAdapter()->checkUrResult(Err);
+        getAdapter().checkUrResult(Err);
       }
 
       auto Val = static_cast<int>(DeviceIp.value());
@@ -2282,6 +2281,33 @@ private:
       MCache;
 
 }; // class device_impl
+
+struct devices_deref_impl {
+  template <typename T> static device_impl &dereference(T &Elem) {
+    using Ty = std::decay_t<decltype(Elem)>;
+    if constexpr (std::is_same_v<Ty, device>) {
+      return *getSyclObjImpl(Elem);
+    } else if constexpr (std::is_same_v<Ty, device_impl>) {
+      return Elem;
+    } else {
+      return *Elem;
+    }
+  }
+};
+using devices_iterator =
+    variadic_iterator<devices_deref_impl,
+                      std::vector<std::shared_ptr<device_impl>>::const_iterator,
+                      std::vector<device>::const_iterator, device_impl *>;
+
+class devices_range : public iterator_range<devices_iterator> {
+private:
+  using Base = iterator_range<devices_iterator>;
+
+public:
+  using Base::Base;
+  devices_range(const device &Dev)
+      : devices_range(&*getSyclObjImpl(Dev), (&*getSyclObjImpl(Dev) + 1), 1) {}
+};
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename Param>

@@ -532,7 +532,9 @@ protected:
   SanitizerType m_SanitizerFoundInImage;
 
   // Maps between device_global identifiers and associated information.
-  DeviceGlobalMap m_DeviceGlobals;
+  // The ownership of entry resources is taken to allow contexts to cleanup
+  // their associated entry resources when they die.
+  DeviceGlobalMap m_DeviceGlobals{/*OwnerControlledCleanup=*/true};
 
   // Maps between host_pipe identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>
