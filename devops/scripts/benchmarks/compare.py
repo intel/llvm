@@ -350,9 +350,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.verbose:
-        verbose = True
-        log.info("-- Compare.py --")
+    log.initialize(args.verbose)
+    log.info("-- Compare.py --")
 
     if args.operation == "to_hist":
         if not Validate.timestamp(args.cutoff):
@@ -392,19 +391,25 @@ if __name__ == "__main__":
             log_func("")
 
         if improvements:
-            log.info("#\n# Improvements:\n#\n")
+            log.info("#")
+            log.info("# Improvements:")
+            log.info("#")
             for test in improvements:
                 print_regression(test)
         if regressions_ignored:
-            log.info("#\n# Regressions (filtered out by regression-filter):\n#\n")
+            log.info("#")
+            log.info("# Regressions (filtered out by regression-filter):")
+            log.info("#")
             for test in regressions_ignored:
                 print_regression(test)
         if regressions_of_concern:
-            log.warning("#\n# Regressions:\n#\n")
+            log.warning("#")
+            log.warning("# Regressions:")
+            log.warning("#")
             for test in regressions_of_concern:
                 print_regression(test, is_warning=True)
             exit(1)  # Exit 1 to trigger github test failure
-        log.info("\nNo unexpected regressions found!")
+        log.info("No unexpected regressions found!")
     else:
         log.error("Unsupported operation: exiting.")
         exit(1)
