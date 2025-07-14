@@ -15,8 +15,8 @@
 #ifdef __SYCL_DEVICE_ONLY__
 
 // The 'sycl_device_only' attribute enables device-side overloading.
-#define __DPCPP_SYCL_DEVICE __attribute__((sycl_device_only, always_inline))
-#define __DPCPP_SYCL_DEVICE_C                                                  \
+#define __SYCL_DEVICE __attribute__((sycl_device_only, always_inline))
+#define __SYCL_DEVICE_C                                                        \
   extern "C" __attribute__((sycl_device_only, always_inline))
 
 // Promotion templates: the C++ standard library provides overloads that allow
@@ -27,7 +27,7 @@
 // below provide the machinery to define these promoting overloads.
 template <typename T, bool = (std::is_integral<T>::value ||
                               std::is_floating_point<T>::value)>
-struct __dpcpp_promote {
+struct __sycl_promote {
 private:
   // Integer types are promoted to double.
   template <typename U>
@@ -46,31 +46,31 @@ public:
 };
 
 // Variant without ::type to allow SFINAE for non-promotable types.
-template <typename T> struct __dpcpp_promote<T, false> {};
+template <typename T> struct __sycl_promote<T, false> {};
 
 // With a single paramter we only need to promote integers.
 template <typename T>
-using __dpcpp_promote_1 = std::enable_if<std::is_integral<T>::value, double>;
+using __sycl_promote_1 = std::enable_if<std::is_integral<T>::value, double>;
 
 // With two or three parameters we need to promote integers and possibly
 // floating point types. We rely on operator+ with decltype to deduce the
 // overall promotion type. This is only needed if at least one of the parameter
 // is an integer, or if there's multiple different floating point types.
 template <typename T, typename U>
-using __dpcpp_promote_2 =
+using __sycl_promote_2 =
     std::enable_if<!std::is_same<T, U>::value || std::is_integral<T>::value ||
                        std::is_integral<U>::value,
-                   decltype(typename __dpcpp_promote<T>::type(0) +
-                            typename __dpcpp_promote<U>::type(0))>;
+                   decltype(typename __sycl_promote<T>::type(0) +
+                            typename __sycl_promote<U>::type(0))>;
 
 template <typename T, typename U, typename V>
-using __dpcpp_promote_3 =
+using __sycl_promote_3 =
     std::enable_if<!(std::is_same<T, U>::value && std::is_same<U, V>::value) ||
                        std::is_integral<T>::value ||
                        std::is_integral<U>::value || std::is_integral<V>::value,
-                   decltype(typename __dpcpp_promote<T>::type(0) +
-                            typename __dpcpp_promote<U>::type(0) +
-                            typename __dpcpp_promote<V>::type(0))>;
+                   decltype(typename __sycl_promote<T>::type(0) +
+                            typename __sycl_promote<U>::type(0) +
+                            typename __sycl_promote<V>::type(0))>;
 
 // For each math built-in we need to define float and double overloads, an
 // extern "C" float variant with the 'f' suffix, and a version that promotes
@@ -81,269 +81,258 @@ using __dpcpp_promote_3 =
 //
 // The following two macros provide an easy way to define these overloads for
 // basic built-ins with one or two floating-point parameters.
-#define __DPCPP_SPIRV_MAP_UNARY(NAME)                                          \
-  __DPCPP_SYCL_DEVICE_C float NAME##f(float x) {                               \
-    return __spirv_ocl_##NAME(x);                                              \
-  }                                                                            \
-  __DPCPP_SYCL_DEVICE float NAME(float x) { return __spirv_ocl_##NAME(x); }    \
-  __DPCPP_SYCL_DEVICE double NAME(double x) { return __spirv_ocl_##NAME(x); }  \
+#define __SYCL_SPIRV_MAP_UNARY(NAME)                                           \
+  __SYCL_DEVICE_C float NAME##f(float x) { return __spirv_ocl_##NAME(x); }     \
+  __SYCL_DEVICE float NAME(float x) { return __spirv_ocl_##NAME(x); }          \
+  __SYCL_DEVICE double NAME(double x) { return __spirv_ocl_##NAME(x); }        \
   template <typename T>                                                        \
-  __DPCPP_SYCL_DEVICE typename __dpcpp_promote_1<T>::type NAME(T x) {          \
+  __SYCL_DEVICE typename __sycl_promote_1<T>::type NAME(T x) {                 \
     return __spirv_ocl_##NAME((double)x);                                      \
   }
 
-#define __DPCPP_SPIRV_MAP_BINARY(NAME)                                         \
-  __DPCPP_SYCL_DEVICE_C float NAME##f(float x, float y) {                      \
+#define __SYCL_SPIRV_MAP_BINARY(NAME)                                          \
+  __SYCL_DEVICE_C float NAME##f(float x, float y) {                            \
     return __spirv_ocl_##NAME(x, y);                                           \
   }                                                                            \
-  __DPCPP_SYCL_DEVICE float NAME(float x, float y) {                           \
+  __SYCL_DEVICE float NAME(float x, float y) {                                 \
     return __spirv_ocl_##NAME(x, y);                                           \
   }                                                                            \
-  __DPCPP_SYCL_DEVICE double NAME(double x, double y) {                        \
+  __SYCL_DEVICE double NAME(double x, double y) {                              \
     return __spirv_ocl_##NAME(x, y);                                           \
   }                                                                            \
   template <typename T, typename U>                                            \
-  __DPCPP_SYCL_DEVICE __dpcpp_promote_2<T, U>::type NAME(T x, U y) {           \
-    typedef typename __dpcpp_promote_2<T, U>::type type;                       \
+  __SYCL_DEVICE __sycl_promote_2<T, U>::type NAME(T x, U y) {                  \
+    typedef typename __sycl_promote_2<T, U>::type type;                        \
     return __spirv_ocl_##NAME((type)x, (type)y);                               \
   }
 
 /// <cstdlib>
 // FIXME: Move this to a cstdlib fallback header.
 
-__DPCPP_SYCL_DEVICE div_t div(int x, int y) { return {x / y, x % y}; }
-__DPCPP_SYCL_DEVICE ldiv_t ldiv(long x, long y) { return {x / y, x % y}; }
-__DPCPP_SYCL_DEVICE lldiv_t ldiv(long long x, long long y) {
-  return {x / y, x % y};
-}
+__SYCL_DEVICE div_t div(int x, int y) { return {x / y, x % y}; }
+__SYCL_DEVICE ldiv_t ldiv(long x, long y) { return {x / y, x % y}; }
+__SYCL_DEVICE lldiv_t ldiv(long long x, long long y) { return {x / y, x % y}; }
 
-__DPCPP_SYCL_DEVICE long long abs(long long n) { return n < 0 ? -n : n; }
-__DPCPP_SYCL_DEVICE_C long long llabs(long long n) { return n < 0 ? -n : n; }
-__DPCPP_SYCL_DEVICE long abs(long n) { return n < 0 ? -n : n; }
-__DPCPP_SYCL_DEVICE int abs(int n) { return n < 0 ? -n : n; }
-__DPCPP_SYCL_DEVICE_C long labs(long n) { return n < 0 ? -n : n; }
+__SYCL_DEVICE long long abs(long long n) { return n < 0 ? -n : n; }
+__SYCL_DEVICE_C long long llabs(long long n) { return n < 0 ? -n : n; }
+__SYCL_DEVICE long abs(long n) { return n < 0 ? -n : n; }
+__SYCL_DEVICE int abs(int n) { return n < 0 ? -n : n; }
+__SYCL_DEVICE_C long labs(long n) { return n < 0 ? -n : n; }
 
 /// Basic operations
 //
 
-__DPCPP_SYCL_DEVICE float abs(float x) { return x < 0 ? -x : x; }
-__DPCPP_SYCL_DEVICE double abs(double x) { return x < 0 ? -x : x; }
-__DPCPP_SYCL_DEVICE float fabs(float x) { return x < 0 ? -x : x; }
-__DPCPP_SYCL_DEVICE_C float fabsf(float x) { return x < 0 ? -x : x; }
-__DPCPP_SYCL_DEVICE double fabs(double x) { return x < 0 ? -x : x; }
+__SYCL_DEVICE float abs(float x) { return x < 0 ? -x : x; }
+__SYCL_DEVICE double abs(double x) { return x < 0 ? -x : x; }
+__SYCL_DEVICE float fabs(float x) { return x < 0 ? -x : x; }
+__SYCL_DEVICE_C float fabsf(float x) { return x < 0 ? -x : x; }
+__SYCL_DEVICE double fabs(double x) { return x < 0 ? -x : x; }
 template <typename T>
-__DPCPP_SYCL_DEVICE typename __dpcpp_promote_1<T>::type fabs(T x) {
+__SYCL_DEVICE typename __sycl_promote_1<T>::type fabs(T x) {
   return x < 0 ? -x : x;
 }
 
-__DPCPP_SPIRV_MAP_BINARY(fmod);
-__DPCPP_SPIRV_MAP_BINARY(remainder);
+__SYCL_SPIRV_MAP_BINARY(fmod);
+__SYCL_SPIRV_MAP_BINARY(remainder);
 
-__DPCPP_SYCL_DEVICE_C float remquof(float x, float y, int *q) {
+__SYCL_DEVICE_C float remquof(float x, float y, int *q) {
   return __spirv_ocl_remquo(x, y, q);
 }
-__DPCPP_SYCL_DEVICE float remquo(float x, float y, int *q) {
+__SYCL_DEVICE float remquo(float x, float y, int *q) {
   return __spirv_ocl_remquo(x, y, q);
 }
-__DPCPP_SYCL_DEVICE double remquo(double x, double y, int *q) {
+__SYCL_DEVICE double remquo(double x, double y, int *q) {
   return __spirv_ocl_remquo(x, y, q);
 }
 template <typename T, typename U>
-__DPCPP_SYCL_DEVICE typename __dpcpp_promote_2<T, U>::type remquo(T x, U y,
-                                                                  int *q) {
-  typedef typename __dpcpp_promote_2<T, U>::type type;
+__SYCL_DEVICE typename __sycl_promote_2<T, U>::type remquo(T x, U y, int *q) {
+  typedef typename __sycl_promote_2<T, U>::type type;
   return __spirv_ocl_remquo((type)x, (type)y, q);
 }
 
-__DPCPP_SYCL_DEVICE_C float fmaf(float x, float y, float z) {
+__SYCL_DEVICE_C float fmaf(float x, float y, float z) {
   return __spirv_ocl_fma(x, y, z);
 }
-__DPCPP_SYCL_DEVICE float fma(float x, float y, float z) {
+__SYCL_DEVICE float fma(float x, float y, float z) {
   return __spirv_ocl_fma(x, y, z);
 }
-__DPCPP_SYCL_DEVICE double fma(double x, double y, double z) {
+__SYCL_DEVICE double fma(double x, double y, double z) {
   return __spirv_ocl_fma(x, y, z);
 }
 template <typename T, typename U, typename V>
-__DPCPP_SYCL_DEVICE typename __dpcpp_promote_3<T, U, V>::type fma(T x, U y,
-                                                                  V z) {
-  typedef typename __dpcpp_promote_3<T, U, V>::type type;
+__SYCL_DEVICE typename __sycl_promote_3<T, U, V>::type fma(T x, U y, V z) {
+  typedef typename __sycl_promote_3<T, U, V>::type type;
   return __spirv_ocl_fma((type)x, (type)y, (type)z);
 }
 
-__DPCPP_SPIRV_MAP_BINARY(fmax);
-__DPCPP_SPIRV_MAP_BINARY(fmin);
-__DPCPP_SPIRV_MAP_BINARY(fdim);
+__SYCL_SPIRV_MAP_BINARY(fmax);
+__SYCL_SPIRV_MAP_BINARY(fmin);
+__SYCL_SPIRV_MAP_BINARY(fdim);
 // unsupported: nan
 
 /// Exponential functions
 //
 
-__DPCPP_SPIRV_MAP_UNARY(exp);
-__DPCPP_SPIRV_MAP_UNARY(exp2);
-__DPCPP_SPIRV_MAP_UNARY(expm1);
-__DPCPP_SPIRV_MAP_UNARY(log);
-__DPCPP_SPIRV_MAP_UNARY(log10);
-__DPCPP_SPIRV_MAP_UNARY(log2);
-__DPCPP_SPIRV_MAP_UNARY(log1p);
+__SYCL_SPIRV_MAP_UNARY(exp);
+__SYCL_SPIRV_MAP_UNARY(exp2);
+__SYCL_SPIRV_MAP_UNARY(expm1);
+__SYCL_SPIRV_MAP_UNARY(log);
+__SYCL_SPIRV_MAP_UNARY(log10);
+__SYCL_SPIRV_MAP_UNARY(log2);
+__SYCL_SPIRV_MAP_UNARY(log1p);
 
 /// Power functions
 //
 
-__DPCPP_SPIRV_MAP_BINARY(pow);
-__DPCPP_SPIRV_MAP_UNARY(sqrt);
-__DPCPP_SPIRV_MAP_UNARY(cbrt);
-__DPCPP_SPIRV_MAP_BINARY(hypot);
+__SYCL_SPIRV_MAP_BINARY(pow);
+__SYCL_SPIRV_MAP_UNARY(sqrt);
+__SYCL_SPIRV_MAP_UNARY(cbrt);
+__SYCL_SPIRV_MAP_BINARY(hypot);
 
 /// Trigonometric functions
 //
 
-__DPCPP_SPIRV_MAP_UNARY(sin);
-__DPCPP_SPIRV_MAP_UNARY(cos);
-__DPCPP_SPIRV_MAP_UNARY(tan);
-__DPCPP_SPIRV_MAP_UNARY(asin);
-__DPCPP_SPIRV_MAP_UNARY(acos);
-__DPCPP_SPIRV_MAP_UNARY(atan);
-__DPCPP_SPIRV_MAP_BINARY(atan2);
+__SYCL_SPIRV_MAP_UNARY(sin);
+__SYCL_SPIRV_MAP_UNARY(cos);
+__SYCL_SPIRV_MAP_UNARY(tan);
+__SYCL_SPIRV_MAP_UNARY(asin);
+__SYCL_SPIRV_MAP_UNARY(acos);
+__SYCL_SPIRV_MAP_UNARY(atan);
+__SYCL_SPIRV_MAP_BINARY(atan2);
 
 /// Hyperbolic functions
 //
 
-__DPCPP_SPIRV_MAP_UNARY(sinh);
-__DPCPP_SPIRV_MAP_UNARY(cosh);
-__DPCPP_SPIRV_MAP_UNARY(tanh);
-__DPCPP_SPIRV_MAP_UNARY(asinh);
-__DPCPP_SPIRV_MAP_UNARY(acosh);
-__DPCPP_SPIRV_MAP_UNARY(atanh);
+__SYCL_SPIRV_MAP_UNARY(sinh);
+__SYCL_SPIRV_MAP_UNARY(cosh);
+__SYCL_SPIRV_MAP_UNARY(tanh);
+__SYCL_SPIRV_MAP_UNARY(asinh);
+__SYCL_SPIRV_MAP_UNARY(acosh);
+__SYCL_SPIRV_MAP_UNARY(atanh);
 
 /// Error and gamma functions
 //
 
-__DPCPP_SPIRV_MAP_UNARY(erf);
-__DPCPP_SPIRV_MAP_UNARY(erfc);
-__DPCPP_SPIRV_MAP_UNARY(tgamma);
-__DPCPP_SPIRV_MAP_UNARY(lgamma);
+__SYCL_SPIRV_MAP_UNARY(erf);
+__SYCL_SPIRV_MAP_UNARY(erfc);
+__SYCL_SPIRV_MAP_UNARY(tgamma);
+__SYCL_SPIRV_MAP_UNARY(lgamma);
 
 /// Nearest integer floating-point operations
 //
 
-__DPCPP_SPIRV_MAP_UNARY(ceil);
-__DPCPP_SPIRV_MAP_UNARY(floor);
-__DPCPP_SPIRV_MAP_UNARY(trunc);
-__DPCPP_SPIRV_MAP_UNARY(round);
+__SYCL_SPIRV_MAP_UNARY(ceil);
+__SYCL_SPIRV_MAP_UNARY(floor);
+__SYCL_SPIRV_MAP_UNARY(trunc);
+__SYCL_SPIRV_MAP_UNARY(round);
 // unsupported: lround, llround (no spirv mapping)
-__DPCPP_SPIRV_MAP_UNARY(rint);
+__SYCL_SPIRV_MAP_UNARY(rint);
 // unsupported: lrint, llrint (no spirv mapping)
 
 // unsupported (partially, no spirv mapping): nearbyint
 #if defined(__NVPTX__)
 extern "C" SYCL_EXTERNAL float __nv_nearbyintf(float);
 extern "C" SYCL_EXTERNAL double __nv_nearbyint(double);
-__DPCPP_SYCL_DEVICE_C float nearbyintf(float x) { return __nv_nearbyintf(x); }
-__DPCPP_SYCL_DEVICE float nearbyint(float x) { return __nv_nearbyintf(x); }
-__DPCPP_SYCL_DEVICE double nearbyint(double x) { return __nv_nearbyintf(x); }
+__SYCL_DEVICE_C float nearbyintf(float x) { return __nv_nearbyintf(x); }
+__SYCL_DEVICE float nearbyint(float x) { return __nv_nearbyintf(x); }
+__SYCL_DEVICE double nearbyint(double x) { return __nv_nearbyintf(x); }
 #elif defined(__AMDGCN__)
 extern "C" SYCL_EXTERNAL float __ocml_nearbyint_f32(float);
 extern "C" SYCL_EXTERNAL double __ocml_nearbyint_f64(double);
-__DPCPP_SYCL_DEVICE_C float nearbyintf(float x) {
-  return __ocml_nearbyint_f32(x);
-}
-__DPCPP_SYCL_DEVICE float nearbyint(float x) { return __ocml_nearbyint_f32(x); }
-__DPCPP_SYCL_DEVICE double nearbyint(double x) {
-  return __ocml_nearbyint_f64(x);
-}
+__SYCL_DEVICE_C float nearbyintf(float x) { return __ocml_nearbyint_f32(x); }
+__SYCL_DEVICE float nearbyint(float x) { return __ocml_nearbyint_f32(x); }
+__SYCL_DEVICE double nearbyint(double x) { return __ocml_nearbyint_f64(x); }
 #endif
 
 /// Floating-point manipulation functions
 //
 
-__DPCPP_SYCL_DEVICE_C float frexpf(float x, int *exp) {
+__SYCL_DEVICE_C float frexpf(float x, int *exp) {
   return __spirv_ocl_frexp(x, exp);
 }
-__DPCPP_SYCL_DEVICE float frexp(float x, int *exp) {
+__SYCL_DEVICE float frexp(float x, int *exp) {
   return __spirv_ocl_frexp(x, exp);
 }
-__DPCPP_SYCL_DEVICE double frexp(double x, int *exp) {
+__SYCL_DEVICE double frexp(double x, int *exp) {
   return __spirv_ocl_frexp(x, exp);
 }
 template <typename T>
-__DPCPP_SYCL_DEVICE typename __dpcpp_promote_1<T>::type frexp(T x, int *exp) {
+__SYCL_DEVICE typename __sycl_promote_1<T>::type frexp(T x, int *exp) {
   return __spirv_ocl_frexp((double)x, exp);
 }
 
-__DPCPP_SYCL_DEVICE_C float ldexpf(float x, int exp) {
+__SYCL_DEVICE_C float ldexpf(float x, int exp) {
   return __spirv_ocl_ldexp(x, exp);
 }
-__DPCPP_SYCL_DEVICE float ldexp(float x, int exp) {
+__SYCL_DEVICE float ldexp(float x, int exp) {
   return __spirv_ocl_ldexp(x, exp);
 }
-__DPCPP_SYCL_DEVICE double ldexp(double x, int exp) {
+__SYCL_DEVICE double ldexp(double x, int exp) {
   return __spirv_ocl_ldexp(x, exp);
 }
 template <typename T>
-__DPCPP_SYCL_DEVICE typename __dpcpp_promote_1<T>::type ldexp(T x, int exp) {
+__SYCL_DEVICE typename __sycl_promote_1<T>::type ldexp(T x, int exp) {
   return __spirv_ocl_ldexp((double)x, exp);
 }
 
-__DPCPP_SYCL_DEVICE_C float modff(float x, float *intpart) {
+__SYCL_DEVICE_C float modff(float x, float *intpart) {
   return __spirv_ocl_modf(x, intpart);
 }
-__DPCPP_SYCL_DEVICE float modf(float x, float *intpart) {
+__SYCL_DEVICE float modf(float x, float *intpart) {
   return __spirv_ocl_modf(x, intpart);
 }
-__DPCPP_SYCL_DEVICE double modf(double x, double *intpart) {
+__SYCL_DEVICE double modf(double x, double *intpart) {
   return __spirv_ocl_modf(x, intpart);
 }
 // modf only supports integer x when the intpart is double.
 template <typename T>
-__DPCPP_SYCL_DEVICE typename __dpcpp_promote_1<T>::type modf(T x,
-                                                             double *intpart) {
+__SYCL_DEVICE typename __sycl_promote_1<T>::type modf(T x, double *intpart) {
   return __spirv_ocl_modf((double)x, intpart);
 }
 
-__DPCPP_SYCL_DEVICE_C float scalbnf(float x, int exp) {
+__SYCL_DEVICE_C float scalbnf(float x, int exp) {
   return __spirv_ocl_ldexp(x, exp);
 }
-__DPCPP_SYCL_DEVICE float scalbn(float x, int exp) {
+__SYCL_DEVICE float scalbn(float x, int exp) {
   return __spirv_ocl_ldexp(x, exp);
 }
-__DPCPP_SYCL_DEVICE double scalbn(double x, int exp) {
+__SYCL_DEVICE double scalbn(double x, int exp) {
   return __spirv_ocl_ldexp(x, exp);
 }
 template <typename T>
-__DPCPP_SYCL_DEVICE typename __dpcpp_promote_1<T>::type scalbn(T x, int exp) {
+__SYCL_DEVICE typename __sycl_promote_1<T>::type scalbn(T x, int exp) {
   return __spirv_ocl_ldexp((double)x, exp);
 }
 
-__DPCPP_SYCL_DEVICE_C float scalblnf(float x, long exp) {
+__SYCL_DEVICE_C float scalblnf(float x, long exp) {
   return __spirv_ocl_ldexp(x, (int)exp);
 }
-__DPCPP_SYCL_DEVICE float scalbln(float x, long exp) {
+__SYCL_DEVICE float scalbln(float x, long exp) {
   return __spirv_ocl_ldexp(x, (int)exp);
 }
-__DPCPP_SYCL_DEVICE double scalbln(double x, long exp) {
+__SYCL_DEVICE double scalbln(double x, long exp) {
   return __spirv_ocl_ldexp(x, (int)exp);
 }
 template <typename T>
-__DPCPP_SYCL_DEVICE typename __dpcpp_promote_1<T>::type scalbln(T x, long exp) {
+__SYCL_DEVICE typename __sycl_promote_1<T>::type scalbln(T x, long exp) {
   return __spirv_ocl_ldexp((double)x, (int)exp);
 }
 
-__DPCPP_SYCL_DEVICE_C int ilogbf(float x) { return __spirv_ocl_ilogb(x); }
-__DPCPP_SYCL_DEVICE int ilogb(float x) { return __spirv_ocl_ilogb(x); }
-__DPCPP_SYCL_DEVICE int ilogb(double x) { return __spirv_ocl_ilogb(x); }
+__SYCL_DEVICE_C int ilogbf(float x) { return __spirv_ocl_ilogb(x); }
+__SYCL_DEVICE int ilogb(float x) { return __spirv_ocl_ilogb(x); }
+__SYCL_DEVICE int ilogb(double x) { return __spirv_ocl_ilogb(x); }
 // ilogb needs a special template since its signature doesn't include the
 // promoted type anywhere, so it needs to be specialized differently.
 template <typename T, typename std::enable_if<std::is_integral<T>::value,
                                               bool>::type = true>
-__DPCPP_SYCL_DEVICE int ilogb(T x) {
+__SYCL_DEVICE int ilogb(T x) {
   return __spirv_ocl_ilogb((double)x);
 }
 
-__DPCPP_SPIRV_MAP_UNARY(logb);
-__DPCPP_SPIRV_MAP_BINARY(nextafter);
+__SYCL_SPIRV_MAP_UNARY(logb);
+__SYCL_SPIRV_MAP_BINARY(nextafter);
 // unsupported: nextforward
-__DPCPP_SPIRV_MAP_BINARY(copysign);
+__SYCL_SPIRV_MAP_BINARY(copysign);
 
 /// Classification and comparison
 //
@@ -533,9 +522,9 @@ _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 #endif
 
-#undef __DPCPP_SPIRV_MAP_BINARY
-#undef __DPCPP_SPIRV_MAP_UNARY
-#undef __DPCPP_SYCL_DEVICE_C
-#undef __DPCPP_SYCL_DEVICE
+#undef __SYCL_SPIRV_MAP_BINARY
+#undef __SYCL_SPIRV_MAP_UNARY
+#undef __SYCL_DEVICE_C
+#undef __SYCL_DEVICE
 #endif
 #endif
