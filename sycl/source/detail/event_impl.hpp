@@ -110,15 +110,11 @@ public:
 
   /// Waits for the event.
   ///
-  /// Self is needed in order to pass shared_ptr to Scheduler.
-  ///
-  /// \param Self is a pointer to this event.
   /// \param Success is an optional parameter that, when set to a non-null
   ///        pointer, indicates that failure is a valid outcome for this wait
   ///        (e.g., in case of a non-blocking read from a pipe), and the value
   ///        it's pointing to is then set according to the outcome.
-  void wait(std::shared_ptr<sycl::detail::event_impl> Self,
-            bool *Success = nullptr);
+  void wait(bool *Success = nullptr);
 
   /// Waits for the event.
   ///
@@ -126,9 +122,7 @@ public:
   /// event is waiting on executions from, then call that context's
   /// asynchronous error handler with those errors. Self is needed in order to
   /// pass shared_ptr to Scheduler.
-  ///
-  /// \param Self is a pointer to this event.
-  void wait_and_throw(std::shared_ptr<sycl::detail::event_impl> Self);
+  void wait_and_throw();
 
   /// Queries this event for profiling information.
   ///
