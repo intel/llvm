@@ -9,7 +9,7 @@
 
 // REQUIRES: aspect-ext_intel_matrix
 // UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: CMPLRLLVM-66371
+// UNSUPPORTED-INTENDED: prefetch is not supported on DG2
 
 // RUN: %{build} -o %t_vnni.out -DPREFETCH -DVNNI %fp-model-precise
 // RUN: %{run} %t_vnni.out
