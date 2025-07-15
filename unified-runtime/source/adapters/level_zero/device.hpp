@@ -242,6 +242,9 @@ struct ur_device_handle_t_ : ur_object {
   std::unordered_map<ur_exp_image_native_handle_t, ze_image_handle_t>
       ZeOffsetToImageHandleMap;
 
+  // devices which user enabled p2p access by urUsmP2P(Enable|Disable)PeerAccessExp
+  std::unordered_set<DeviceId> p2pDeviceIds;
+
   // unique ephemeral identifer of the device in the adapter
   std::optional<DeviceId> Id;
 

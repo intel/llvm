@@ -36,6 +36,8 @@ struct ur_context_handle_t_ : ur_object {
 
   void addUsmPool(ur_usm_pool_handle_t hPool);
   void removeUsmPool(ur_usm_pool_handle_t hPool);
+  void addResidentDevice(ur_device_handle_t hDevice, ur_device_handle_t peerDevice);
+  void removeResidentDevice(ur_device_handle_t hDevice, ur_device_handle_t peerDevice);
 
   template <typename Func> void forEachUsmPool(Func func) {
     std::shared_lock<ur_shared_mutex> lock(Mutex);
@@ -45,8 +47,8 @@ struct ur_context_handle_t_ : ur_object {
     }
   }
 
-  const std::vector<ur_device_handle_t> &
-  getP2PDevices(ur_device_handle_t hDevice) const;
+  std::vector<ur_device_handle_t>
+  getP2PDevices(ur_device_handle_t hDevice);
 
   v2::event_pool &getNativeEventsPool() { return nativeEventsPool; }
   v2::command_list_cache_t &getCommandListCache() { return commandListCache; }

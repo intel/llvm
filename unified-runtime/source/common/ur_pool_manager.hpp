@@ -153,6 +153,7 @@ inline std::vector<pool_descriptor> pool_descriptor::createFromDevices(
 
 template <typename D, typename H> struct pool_manager {
 private:
+    static_assert(std::is_same_v<D, usm::pool_descriptor>);
   using pool_handle_t = H *;
   using unique_pool_handle_t = std::unique_ptr<H, std::function<void(H *)>>;
   using desc_to_pool_map_t = std::unordered_map<D, unique_pool_handle_t>;
@@ -192,6 +193,23 @@ public:
 
     return it->second.get();
   }
+
+  void addResidentDevice(ur_device_handle_t hDevice, ur_device_handle_t peerDevice) {
+    for (const auto &[desc, pool] : descToPoolMap) {
+      if (desc.hDevice == hDevice)
+        umfCtlExec("umf.provider.byHandle.residency.addResidentDevice",
+                   pool->umfPool->provider, peerDevice, sizeof(*peerDevice));
+    }
+  }
+
+  void removeResidentDevice(ur_device_handle_t hDevice, ur_device_handle_t peerDevice) {
+    for (const auto &[desc, pool] : descToPoolMap) {
+      if (desc.hDevice == hDevice)
+        umfCtlExec("umf.provider.byHandle.residency.removeResidentDevice",
+                   pool->umfPool->provider, peerDevice, sizeof(*peerDevice));
+    }
+  }
+
   template <typename Func> void forEachPool(Func func) {
     for (const auto &[desc, pool] : descToPoolMap) {
       if (!func(pool.get()))
