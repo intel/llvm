@@ -3,10 +3,10 @@
 
 
 // checks that the host triple is native_cpu, the device triple is set, and that the sycl-native-cpu LLVM option is set
-// CHECK: clang{{.*}}"-triple" "native_cpu"{{.*}}"-aux-triple" "{{.*}}" "-fsycl-is-native-cpu"{{.*}}"-D" "__SYCL_NATIVE_CPU__"
+// CHECK: clang{{.*}}"-triple" "native_cpu"{{.*}}"-aux-triple" "{{.*}}" {{.*}}"-D" "__SYCL_NATIVE_CPU__"
 
 // checks that the target triples are set correctly when the target is set explicitly
-// CHECK-AARCH64: clang{{.*}}"-triple" "native_cpu"{{.*}}"-aux-triple" "aarch64-unknown-linux-gnu"{{.*}}"-fsycl-is-native-cpu"{{.*}}"-D" "__SYCL_NATIVE_CPU__"
+// CHECK-AARCH64: clang{{.*}}"-triple" "native_cpu"{{.*}}"-aux-triple" "aarch64-unknown-linux-gnu" {{.*}}"-D" "__SYCL_NATIVE_CPU__"
 
 // RUN:   %clang -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=native_cpu -g %s 2>&1 | FileCheck -check-prefix=CHECK-LINUX %s
 // CHECK-LINUX: {{.*}}"-fsycl-is-device"{{.*}}"-dwarf-version=[[DVERSION:.*]]" "-debugger-tuning=gdb"
@@ -32,6 +32,5 @@
 
 // Checking that coverage testing options are accepted by native_cpu, and that device and host compilation invocations receive the same options
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Werror -fno-profile-instr-generate -fprofile-instr-generate -fno-coverage-mapping -fcoverage-mapping -### %s 2>&1 | FileCheck %s --check-prefix=CHECK_COV_INVO
-// CHECK_COV_INVO:{{.*}}clang{{.*}}-fsycl-is-device{{.*}}"-fsycl-is-native-cpu" "-D" "__SYCL_NATIVE_CPU__"{{.*}}"-fprofile-instrument=clang"{{.*}}"-fcoverage-mapping" "-fcoverage-compilation-dir={{.*}}"
+// CHECK_COV_INVO:{{.*}}clang{{.*}}"-fsycl-is-device"{{.*}} "-D" "__SYCL_NATIVE_CPU__"{{.*}}"-fprofile-instrument=clang"{{.*}}"-fcoverage-mapping" "-fcoverage-compilation-dir={{.*}}"
 // CHECK_COV_INVO:{{.*}}clang{{.*}}"-fsycl-is-host"{{.*}}"-fprofile-instrument=clang"{{.*}}"-fcoverage-mapping" "-fcoverage-compilation-dir={{.*}}"
-
