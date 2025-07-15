@@ -1227,8 +1227,13 @@ packageSYCLBIN(SYCLBIN::BundleState State,
   return *OutFileOrErr;
 }
 
-Error copyFileToFinalExecutable(StringRef File) {
-  // TODO: check if copy can be replaced by rename.
+Error copyFileToFinalExecutable(StringRef File, const ArgList &Args) {
+  llvm::Triple Triple(
+      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
+  StringRef CopyCommand = Triple.isOSWindows() ? "copy" : "cp";
+  if (Verbose || DryRun)
+    llvm::errs() << "\"" << CopyCommand << "\" " << File << " "
+                 << ExecutableName << "\n";
   if (std::error_code EC = sys::fs::copy_file(File, ExecutableName))
     return createFileError(ExecutableName, EC);
   return Error::success();
@@ -1238,7 +1243,7 @@ Error mergeSYCLBIN(ArrayRef<StringRef> Files, const ArgList &Args) {
   // Fast path for the general case where there's only one file. In this case we
   // do not need to parse it and can instead simply copy it.
   if (Files.size() == 1)
-    if (Error Err = copyFileToFinalExecutable(Files[0]))
+    if (Error Err = copyFileToFinalExecutable(Files[0], Args))
       reportError(std::move(Err));
   // TODO: Merge SYCLBIN files here and write to ExecutableName output.
   // Use the first file as the base and modify.
@@ -2802,7 +2807,8 @@ int main(int Argc, char **Argv) {
           reportError(createStringError(
               "Expect single output from the device linker."));
         } else {
-          if (Error Err = sycl::copyFileToFinalExecutable((*FilesOrErr)[0]))
+          if (Error Err =
+                  sycl::copyFileToFinalExecutable((*FilesOrErr)[0], Args))
             reportError(std::move(Err));
         }
       } else {
