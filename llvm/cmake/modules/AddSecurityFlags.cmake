@@ -133,11 +133,11 @@ macro(append_common_extra_security_flags)
   # Position Independent Execution
   # We rely on CMake to set the right -fPIE flags for us, but it must be
   # explicitly requested
-  if (NOT CMAKE_POSITION_INDEPENDENT_CODE)
-    message(FATAL_ERROR "To enable all necessary security flags, CMAKE_POSITION_INDEPENDENT_CODE must be set to ON")
-  else()
+  if (CMAKE_POSITION_INDEPENDENT_CODE)
     include(CheckPIESupported)
     check_pie_supported()
+  else()
+    message(FATAL_ERROR "To enable all necessary security flags, CMAKE_POSITION_INDEPENDENT_CODE must be set to ON")
   endif()
 
   if(is_msvc)
