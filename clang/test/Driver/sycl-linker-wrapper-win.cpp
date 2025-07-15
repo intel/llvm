@@ -139,6 +139,6 @@
 // CHK-DEVLINK-CMDS-NEXT: "{{.*}}sycl-post-link.exe"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-DEVLINK-CMDS-NEXT: "{{.*}}llvm-spirv.exe"{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
 // CHK-DEVLINK-CMDS-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
-// CHK-DEVLINK-CMDS-NEXT: "{{.*}}clang.exe"{{.*}} -c -o [[CLANGOUT:.*]].o [[WRAPPEROUT]].bc
-// CHK-DEVLINK-CMDS-NEXT: "{{.*}}copy"{{.*}} [[CLANGOUT]] a.exe
+// CHK-DEVLINK-CMDS-NEXT: "{{.*}}clang.exe"{{.*}} -c -o {{.*}} [[WRAPPEROUT]].bc
+// CHK-DEVLINK-CMDS-NEXT: "{{.*}}copy"{{.*}} {{.*}} a.exe
 // CHK-DEVLINK-CMDS-NOT: "{{.*}}ld"
