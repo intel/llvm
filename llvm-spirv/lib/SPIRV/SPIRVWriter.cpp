@@ -3996,6 +3996,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::masked_gather:
   case Intrinsic::masked_scatter:
   case Intrinsic::modf:
+  case Intrinsic::fake_use:
     return true;
   default:
     // Unknown intrinsics' declarations should always be translated
@@ -4984,6 +4985,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::trap:
   case Intrinsic::ubsantrap:
   case Intrinsic::debugtrap:
+  // Just ignore llvm.fake.use intrinsic, as it has no translation in SPIRV.
+  case Intrinsic::fake_use:
   // llvm.instrprof.* intrinsics are not supported
   case Intrinsic::instrprof_increment:
   case Intrinsic::instrprof_increment_step:
