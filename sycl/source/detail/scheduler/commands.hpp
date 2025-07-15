@@ -23,6 +23,10 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/access/access.hpp>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+#include <xpti/xpti_data_types.h>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 
@@ -33,7 +37,7 @@ class node_impl;
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
+void emitInstrumentationGeneral(xpti::stream_id_t StreamID, uint64_t InstanceID,
                                 xpti_td *TraceEvent, uint16_t Type,
                                 const void *Addr);
 #endif
@@ -347,10 +351,12 @@ public:
 
   /// The event for node_create and task_begin.
   void *MTraceEvent = nullptr;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   /// The stream under which the traces are emitted.
   ///
   /// Stream ids are positive integers and we set it to an invalid value.
-  int32_t MStreamID = -1;
+  xpti::stream_id_t MStreamID = xpti::invalid_id<xpti::stream_id_t>;
+#endif
   /// Reserved for storing the object address such as SPIR-V or memory object
   /// address.
   void *MAddress = nullptr;
@@ -686,7 +692,8 @@ private:
 // Very close to ExecCGCommand::emitInstrumentationData content.
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
-    int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    xpti::stream_id_t StreamID,
+    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     std::string_view SyclKernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
