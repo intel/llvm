@@ -1234,6 +1234,7 @@ Error copyFileToFinalExecutable(StringRef File, const ArgList &Args) {
   if (Verbose || DryRun)
     llvm::errs() << "\"" << CopyCommand << "\" " << File << " "
                  << ExecutableName << "\n";
+  // TODO: check if copy can be replaced by rename.
   if (std::error_code EC = sys::fs::copy_file(File, ExecutableName))
     return createFileError(ExecutableName, EC);
   return Error::success();
