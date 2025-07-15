@@ -2256,7 +2256,14 @@ public:
   }
 
   uint8_t registerStream(const char *StreamName) {
-    return (uint8_t)MStreamStringTable.add(StreamName);
+    xpti::string_id_t StreamID = MStreamStringTable.add(StreamName);
+
+    // string_id_t is uint32_t while return type is uint8_t, so we need to
+    // check if the ID is valid and fits into uint8_t.
+    if (StreamID == xpti::invalid_id<xpti::string_id_t>)
+      return xpti::invalid_id<uint8_t>;
+    else
+      return static_cast<uint8_t>(StreamID);
   }
 
   ///
@@ -2284,7 +2291,14 @@ public:
   }
 
   uint8_t registerVendor(const char *StreamName) {
-    return (uint8_t)MVendorStringTable.add(StreamName);
+    xpti::string_id_t StreamID = MVendorStringTable.add(StreamName);
+
+    // string_id_t is uint32_t while return type is uint8_t, so we need to
+    // check if the ID is valid and fits into uint8_t.
+    if (StreamID == xpti::invalid_id<xpti::string_id_t>)
+      return xpti::invalid_id<uint8_t>;
+    else
+      return static_cast<uint8_t>(StreamID);
   }
 
   string_id_t registerString(const char *String, char **TableString) {
