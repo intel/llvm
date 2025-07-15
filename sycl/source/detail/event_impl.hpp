@@ -32,6 +32,7 @@ class context_impl;
 class queue_impl;
 class event_impl;
 using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
+class Command;
 
 class event_impl {
   struct private_tag {
@@ -109,15 +110,11 @@ public:
 
   /// Waits for the event.
   ///
-  /// Self is needed in order to pass shared_ptr to Scheduler.
-  ///
-  /// \param Self is a pointer to this event.
   /// \param Success is an optional parameter that, when set to a non-null
   ///        pointer, indicates that failure is a valid outcome for this wait
   ///        (e.g., in case of a non-blocking read from a pipe), and the value
   ///        it's pointing to is then set according to the outcome.
-  void wait(std::shared_ptr<sycl::detail::event_impl> Self,
-            bool *Success = nullptr);
+  void wait(bool *Success = nullptr);
 
   /// Waits for the event.
   ///
@@ -125,9 +122,7 @@ public:
   /// event is waiting on executions from, then call that context's
   /// asynchronous error handler with those errors. Self is needed in order to
   /// pass shared_ptr to Scheduler.
-  ///
-  /// \param Self is a pointer to this event.
-  void wait_and_throw(std::shared_ptr<sycl::detail::event_impl> Self);
+  void wait_and_throw();
 
   /// Queries this event for profiling information.
   ///
@@ -176,7 +171,7 @@ public:
 
   /// \return the Adapter associated with the context of this event.
   /// Should be called when this is not a Host Event.
-  const AdapterPtr &getAdapter();
+  adapter_impl &getAdapter();
 
   /// Associate event with the context.
   ///
@@ -195,14 +190,14 @@ public:
   /// Scheduler mutex must be locked in read mode when this is called.
   ///
   /// @return a generic pointer to Command object instance.
-  void *getCommand() { return MCommand; }
+  Command *getCommand() { return MCommand; }
 
   /// Associates this event with the command.
   ///
   /// Scheduler mutex must be locked in write mode when this is called.
   ///
   /// @param Command is a generic pointer to Command object instance.
-  void setCommand(void *Command);
+  void setCommand(Command *Cmd);
 
   /// Returns host profiling information.
   ///
@@ -389,7 +384,7 @@ protected:
   uint64_t MSubmitTime = 0;
   std::shared_ptr<context_impl> MContext;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
-  void *MCommand = nullptr;
+  Command *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   bool MIsProfilingEnabled = false;
 

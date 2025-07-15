@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 233
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 229
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -188,11 +188,8 @@
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache_init.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache_unroll.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bf16_fill_k_cache_unroll_init.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_array.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_packedB.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_down_convert.cpp
-// CHECK-NEXT: Matrix/SG32/joint_matrix_half.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_int8_rowmajorA_rowmajorB.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_prefetch.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_rowmajorA_rowmajorB.cpp
@@ -256,7 +253,6 @@
 // CHECK-NEXT: Regression/barrier_waitlist_with_interop_event.cpp
 // CHECK-NEXT: Regression/complex_global_object.cpp
 // CHECK-NEXT: Regression/event_destruction.cpp
-// CHECK-NEXT: Regression/get_subgroup_sizes.cpp
 // CHECK-NEXT: Regression/invalid_reqd_wg_size_correct_exception.cpp
 // CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
 // CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp

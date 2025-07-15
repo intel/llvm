@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/device_image_impl.hpp>
+#include <detail/kernel_arg_mask.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 
 namespace sycl {
@@ -33,24 +34,28 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
       auto [UrKernel, CacheMutex, ArgMask] =
           PM.getOrCreateKernel(Context, AdjustedName,
                                /*PropList=*/{}, UrProgram);
-      return std::make_shared<kernel_impl>(
-          UrKernel, *getSyclObjImpl(Context), shared_from_this(),
-          OwnerBundle.shared_from_this(), ArgMask, UrProgram, CacheMutex);
+      return std::make_shared<kernel_impl>(UrKernel, *getSyclObjImpl(Context),
+                                           shared_from_this(), OwnerBundle,
+                                           ArgMask, UrProgram, CacheMutex);
     }
     return nullptr;
   }
 
   ur_program_handle_t UrProgram = get_ur_program_ref();
-  const AdapterPtr &Adapter = getSyclObjImpl(Context)->getAdapter();
+  detail::adapter_impl &Adapter = getSyclObjImpl(Context)->getAdapter();
   ur_kernel_handle_t UrKernel = nullptr;
-  Adapter->call<UrApiKind::urKernelCreate>(UrProgram, AdjustedName.c_str(),
-                                           &UrKernel);
+  Adapter.call<UrApiKind::urKernelCreate>(UrProgram, AdjustedName.c_str(),
+                                          &UrKernel);
   // Kernel created by urKernelCreate is implicitly retained.
+
+  const KernelArgMask *ArgMask = nullptr;
+  if (auto ArgMaskIt = MEliminatedKernelArgMasks.find(AdjustedName);
+      ArgMaskIt != MEliminatedKernelArgMasks.end())
+    ArgMask = &ArgMaskIt->second;
 
   return std::make_shared<kernel_impl>(
       UrKernel, *detail::getSyclObjImpl(Context), shared_from_this(),
-      OwnerBundle.shared_from_this(),
-      /*ArgMask=*/nullptr, UrProgram, /*CacheMutex=*/nullptr);
+      OwnerBundle, ArgMask, UrProgram, /*CacheMutex=*/nullptr);
 }
 
 } // namespace detail

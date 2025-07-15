@@ -10,26 +10,30 @@
 
 #include <detail/accessor_impl.hpp> // for AccessorImplHost
 #include <detail/cg.hpp>            // for CGExecKernel, CGHostTask, ArgDesc...
-#include <detail/host_task.hpp>     // for HostTask
-#include <sycl/detail/cg_types.hpp> // for CGType
+#include <detail/helpers.hpp>
+#include <detail/host_task.hpp>        // for HostTask
+#include <sycl/detail/cg_types.hpp>    // for CGType
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
 
-#include <cstring> // for memcpy
-#include <fstream> // for fstream, ostream
-#include <iomanip> // for setw, setfill
-#include <vector>  // for vector
+#include <sycl/ext/oneapi/experimental/graph/node.hpp> // for node
+
+#include <cstring>
+#include <fstream>
+#include <iomanip>
+#include <list>
+#include <set>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
-// Forward declarations
-class node;
 
 namespace detail {
 // Forward declarations
 class node_impl;
+class nodes_range;
 class exec_graph_impl;
 
 /// Takes a vector of weak_ptrs to node_impls and returns a vector of node
@@ -37,10 +41,7 @@ class exec_graph_impl;
 std::vector<node>
 createNodesFromImpls(const std::vector<std::weak_ptr<node_impl>> &Impls);
 
-/// Takes a vector of shared_ptrs to node_impls and returns a vector of node
-/// objects created from those impls, in the same order.
-std::vector<node>
-createNodesFromImpls(const std::vector<std::shared_ptr<node_impl>> &Impls);
+std::vector<node> createNodesFromImpls(nodes_range Impls);
 
 inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
   using sycl::detail::CG;
@@ -115,29 +116,33 @@ public:
   /// cannot be used to find out the partion of a node outside of this process.
   int MPartitionNum = -1;
 
+  // Out-of-class as need "complete" `nodes_range`:
+  inline nodes_range successors() const;
+  inline nodes_range predecessors() const;
+
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
-  void registerSuccessor(const std::shared_ptr<node_impl> &Node) {
+  void registerSuccessor(node_impl &Node) {
     if (std::find_if(MSuccessors.begin(), MSuccessors.end(),
-                     [Node](const std::weak_ptr<node_impl> &Ptr) {
-                       return Ptr.lock() == Node;
+                     [&Node](const std::weak_ptr<node_impl> &Ptr) {
+                       return Ptr.lock().get() == &Node;
                      }) != MSuccessors.end()) {
       return;
     }
-    MSuccessors.push_back(Node);
-    Node->registerPredecessor(shared_from_this());
+    MSuccessors.push_back(Node.weak_from_this());
+    Node.registerPredecessor(*this);
   }
 
   /// Add predecessor to the node.
   /// @param Node Node to add as a predecessor.
-  void registerPredecessor(const std::shared_ptr<node_impl> &Node) {
+  void registerPredecessor(node_impl &Node) {
     if (std::find_if(MPredecessors.begin(), MPredecessors.end(),
                      [&Node](const std::weak_ptr<node_impl> &Ptr) {
-                       return Ptr.lock() == Node;
+                       return Ptr.lock().get() == &Node;
                      }) != MPredecessors.end()) {
       return;
     }
-    MPredecessors.push_back(Node);
+    MPredecessors.push_back(Node.weak_from_this());
   }
 
   /// Construct an empty node.
@@ -179,6 +184,9 @@ public:
     }
     return *this;
   }
+
+  ~node_impl() {}
+
   /// Checks if this node should be a dependency of another node based on
   /// accessor requirements. This is calculated using access modes if a
   /// requirement to the same buffer is found inside this node.
@@ -326,16 +334,15 @@ public:
   /// @param CompareContentOnly Skip comparisons related to graph structure,
   /// compare only the type and command groups of the nodes
   /// @return True if the two nodes are similar
-  bool isSimilar(const std::shared_ptr<node_impl> &Node,
-                 bool CompareContentOnly = false) const {
+  bool isSimilar(node_impl &Node, bool CompareContentOnly = false) const {
     if (!CompareContentOnly) {
-      if (MSuccessors.size() != Node->MSuccessors.size())
+      if (MSuccessors.size() != Node.MSuccessors.size())
         return false;
 
-      if (MPredecessors.size() != Node->MPredecessors.size())
+      if (MPredecessors.size() != Node.MPredecessors.size())
         return false;
     }
-    if (MCGType != Node->MCGType)
+    if (MCGType != Node.MCGType)
       return false;
 
     switch (MCGType) {
@@ -343,14 +350,14 @@ public:
       sycl::detail::CGExecKernel *ExecKernelA =
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
       sycl::detail::CGExecKernel *ExecKernelB =
-          static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
+          static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
       return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
     }
     case sycl::detail::CGType::CopyUSM: {
       sycl::detail::CGCopyUSM *CopyA =
           static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
       sycl::detail::CGCopyUSM *CopyB =
-          static_cast<sycl::detail::CGCopyUSM *>(Node->MCommandGroup.get());
+          static_cast<sycl::detail::CGCopyUSM *>(Node.MCommandGroup.get());
       return (CopyA->getSrc() == CopyB->getSrc()) &&
              (CopyA->getDst() == CopyB->getDst()) &&
              (CopyA->getLength() == CopyB->getLength());
@@ -361,7 +368,7 @@ public:
       sycl::detail::CGCopy *CopyA =
           static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
       sycl::detail::CGCopy *CopyB =
-          static_cast<sycl::detail::CGCopy *>(Node->MCommandGroup.get());
+          static_cast<sycl::detail::CGCopy *>(Node.MCommandGroup.get());
       return (CopyA->getSrc() == CopyB->getSrc()) &&
              (CopyA->getDst() == CopyB->getDst());
     }
@@ -457,9 +464,9 @@ public:
   }
   /// Update this node with the command-group from another node.
   /// @param Other The other node to update, must be of the same node type.
-  void updateFromOtherNode(const std::shared_ptr<node_impl> &Other) {
-    assert(MNodeType == Other->MNodeType);
-    MCommandGroup = Other->getCGCopy();
+  void updateFromOtherNode(node_impl &Other) {
+    assert(MNodeType == Other.MNodeType);
+    MCommandGroup = Other.getCGCopy();
   }
 
   id_type getID() const { return MID; }
@@ -754,6 +761,51 @@ private:
     return std::make_unique<CGT>(*static_cast<CGT *>(MCommandGroup.get()));
   }
 };
+
+struct nodes_deref_impl {
+  template <typename T> static node_impl &dereference(T &Elem) {
+    using Ty = std::decay_t<decltype(Elem)>;
+    if constexpr (std::is_same_v<Ty, std::weak_ptr<node_impl>>) {
+      // This assumes that weak_ptr doesn't actually manage lifetime and
+      // the object is guaranteed to be alive (which seems to be the
+      // assumption across all graph code).
+      return *Elem.lock();
+    } else if constexpr (std::is_same_v<Ty, node>) {
+      return *getSyclObjImpl(Elem);
+    } else {
+      return *Elem;
+    }
+  }
+};
+
+template <typename... ContainerTy>
+using nodes_iterator_impl =
+    variadic_iterator<nodes_deref_impl,
+                      typename ContainerTy::const_iterator...>;
+
+using nodes_iterator = nodes_iterator_impl<
+    std::vector<std::shared_ptr<node_impl>>, std::vector<node_impl *>,
+    // Next one is temporary. It looks like `weak_ptr`s aren't
+    // used for the actual lifetime management and the objects are
+    // always guaranteed to be alive. Once the code is cleaned
+    // from `weak_ptr`s this alternative should be removed too.
+    std::vector<std::weak_ptr<node_impl>>,
+    //
+    std::set<std::shared_ptr<node_impl>>, std::set<node_impl *>,
+    //
+    std::list<node_impl *>, std::vector<node>>;
+
+class nodes_range : public iterator_range<nodes_iterator> {
+private:
+  using Base = iterator_range<nodes_iterator>;
+
+public:
+  using Base::Base;
+};
+
+inline nodes_range node_impl::successors() const { return MSuccessors; }
+inline nodes_range node_impl::predecessors() const { return MPredecessors; }
+
 } // namespace detail
 } // namespace experimental
 } // namespace oneapi

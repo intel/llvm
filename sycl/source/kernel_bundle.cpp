@@ -213,7 +213,7 @@ get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        const sycl::span<char> &Bytes, bundle_state State) {
-  return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs, Bytes, State);
+  return detail::kernel_bundle_impl::create(Ctx, Devs, Bytes, State);
 }
 
 detail::KernelBundleImplPtr
@@ -422,7 +422,7 @@ bool is_source_kernel_bundle_supported(
     if (DeviceImplVec.empty())
       return false;
 
-    const AdapterPtr &Adapter = DeviceImplVec[0]->getAdapter();
+    detail::adapter_impl &Adapter = DeviceImplVec[0]->getAdapter();
     std::vector<uint32_t> IPVersionVec;
     IPVersionVec.reserve(DeviceImplVec.size());
 
@@ -430,7 +430,7 @@ bool is_source_kernel_bundle_supported(
                    std::back_inserter(IPVersionVec), [&](device_impl *Dev) {
                      uint32_t ipVersion = 0;
                      ur_device_handle_t DeviceHandle = Dev->getHandleRef();
-                     Adapter->call<UrApiKind::urDeviceGetInfo>(
+                     Adapter.call<UrApiKind::urDeviceGetInfo>(
                          DeviceHandle, UR_DEVICE_INFO_IP_VERSION,
                          sizeof(uint32_t), &ipVersion, nullptr);
                      return ipVersion;
@@ -524,8 +524,8 @@ obj_kb compile_from_source(
     LogPtr = &Log;
   std::vector<device> UniqueDevices =
       sycl::detail::removeDuplicateDevices(Devices);
-  std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
-  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->compile_from_source(
+  kernel_bundle_impl &sourceImpl = *getSyclObjImpl(SourceKB);
+  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl.compile_from_source(
       UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
   auto result = sycl::detail::createSyclObjFromImpl<obj_kb>(KBImpl);
   if (LogView)
@@ -548,9 +548,8 @@ exe_kb build_from_source(
     LogPtr = &Log;
   std::vector<device> UniqueDevices =
       sycl::detail::removeDuplicateDevices(Devices);
-  const std::shared_ptr<kernel_bundle_impl> &sourceImpl =
-      getSyclObjImpl(SourceKB);
-  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->build_from_source(
+  kernel_bundle_impl &sourceImpl = *getSyclObjImpl(SourceKB);
+  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl.build_from_source(
       UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
   auto result = sycl::detail::createSyclObjFromImpl<exe_kb>(std::move(KBImpl));
   if (LogView)
