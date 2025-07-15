@@ -2295,7 +2295,7 @@ struct devices_deref_impl {
   }
 };
 using devices_iterator =
-    variadic_iterator<devices_deref_impl,
+    variadic_iterator<devices_deref_impl, device,
                       std::vector<std::shared_ptr<device_impl>>::const_iterator,
                       std::vector<device>::const_iterator, device_impl *>;
 

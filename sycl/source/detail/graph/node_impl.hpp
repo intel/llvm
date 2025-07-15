@@ -36,13 +36,6 @@ class node_impl;
 class nodes_range;
 class exec_graph_impl;
 
-/// Takes a vector of weak_ptrs to node_impls and returns a vector of node
-/// objects created from those impls, in the same order.
-std::vector<node>
-createNodesFromImpls(const std::vector<std::weak_ptr<node_impl>> &Impls);
-
-std::vector<node> createNodesFromImpls(nodes_range Impls);
-
 inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
   using sycl::detail::CG;
 
@@ -780,7 +773,7 @@ struct nodes_deref_impl {
 
 template <typename... ContainerTy>
 using nodes_iterator_impl =
-    variadic_iterator<nodes_deref_impl,
+    variadic_iterator<nodes_deref_impl, node,
                       typename ContainerTy::const_iterator...>;
 
 using nodes_iterator = nodes_iterator_impl<
