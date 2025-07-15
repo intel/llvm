@@ -2801,15 +2801,15 @@ int main(int Argc, char **Argv) {
         reportError(std::move(Err));
     } else {
       if (Args.hasArg(OPT_sycl_device_link)) {
-        // Skip host linker if -sycl-device-link option is set.
+        // Skip host linker if --sycl-device-link option is set.
         // Just copy the output of device linking and wrapping action.
-        if (FilesOrErr->size() > 1) {
-          reportError(createStringError(
-              "Expect single output from the device linker."));
-        } else {
+        if (FilesOrErr->size() == 1) {
           if (Error Err =
                   sycl::copyFileToFinalExecutable((*FilesOrErr)[0], Args))
             reportError(std::move(Err));
+        } else {
+          reportError(createStringError(
+              "Expect single output from the device linker."));
         }
       } else {
         // Run the host linking job with the rendered arguments.
