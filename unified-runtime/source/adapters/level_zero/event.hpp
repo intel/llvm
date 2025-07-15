@@ -25,6 +25,7 @@
 #include <zes_api.h>
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "queue.hpp"
 #include "ur_api.h"
 
@@ -262,6 +263,8 @@ struct ur_event_handle_t_ : ur_object {
   // Used only for asynchronous allocations. This is the event originally used
   // on async free to indicate when the allocation can be used again.
   ur_event_handle_t OriginAllocEvent = nullptr;
+
+  ur::RefCount RefCount;
 };
 
 // Helper function to implement zeHostSynchronize.

@@ -13,6 +13,7 @@
 #include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/feature_test.hpp>
 #if SYCL_EXT_JIT_ENABLE
+#include <JITBinaryInfo.h>
 #include <Materializer.h>
 #include <RTC.h>
 #endif // SYCL_EXT_JIT_ENABLE
@@ -27,6 +28,7 @@ struct RTCDevImgInfo;
 struct RTCBundleInfo;
 template <typename T> class DynArray;
 using JITEnvVar = DynArray<char>;
+enum class BinaryFormat : uint32_t;
 } // namespace jit_compiler
 
 namespace sycl {

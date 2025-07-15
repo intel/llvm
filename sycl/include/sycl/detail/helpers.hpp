@@ -40,10 +40,6 @@ enum class memory_order;
 namespace detail {
 class buffer_impl;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
-#endif
-
 __SYCL_EXPORT void
 markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
 

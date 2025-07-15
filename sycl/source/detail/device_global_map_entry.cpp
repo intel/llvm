@@ -25,13 +25,13 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   assert(!MInitEvent.has_value() && "MInitEvent has not been cleaned up.");
 }
 
-OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(const AdapterPtr &Adapter) {
+OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(adapter_impl &Adapter) {
   std::lock_guard<std::mutex> Lock(MInitEventMutex);
   // If there is a init event we can remove it if it is done.
   if (MInitEvent.has_value()) {
     if (get_event_info<info::event::command_execution_status>(
             *MInitEvent, Adapter) == info::event_command_status::complete) {
-      Adapter->call<UrApiKind::urEventRelease>(*MInitEvent);
+      Adapter.call<UrApiKind::urEventRelease>(*MInitEvent);
       MInitEvent = {};
       return OwnedUrEvent(Adapter);
     } else {
@@ -104,19 +104,18 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(const context &Context) {
          "USM allocations should not be acquired for device_global with "
          "device_image_scope property.");
   context_impl &CtxImpl = *getSyclObjImpl(Context);
-  const std::shared_ptr<device_impl> &DevImpl =
-      getSyclObjImpl(CtxImpl.getDevices().front());
+  device_impl &DevImpl = *getSyclObjImpl(CtxImpl.getDevices().front());
   std::lock_guard<std::mutex> Lock(MDeviceToUSMPtrMapMutex);
 
-  auto DGUSMPtr = MDeviceToUSMPtrMap.find({DevImpl.get(), &CtxImpl});
+  auto DGUSMPtr = MDeviceToUSMPtrMap.find({&DevImpl, &CtxImpl});
   if (DGUSMPtr != MDeviceToUSMPtrMap.end())
     return DGUSMPtr->second;
 
   void *NewDGUSMPtr = detail::usm::alignedAllocInternal(
-      0, MDeviceGlobalTSize, &CtxImpl, DevImpl.get(), sycl::usm::alloc::device);
+      0, MDeviceGlobalTSize, &CtxImpl, &DevImpl, sycl::usm::alloc::device);
 
   auto NewAllocIt = MDeviceToUSMPtrMap.emplace(
-      std::piecewise_construct, std::forward_as_tuple(DevImpl.get(), &CtxImpl),
+      std::piecewise_construct, std::forward_as_tuple(&DevImpl, &CtxImpl),
       std::forward_as_tuple(NewDGUSMPtr));
   assert(NewAllocIt.second &&
          "USM allocation for device and context already happened.");
@@ -161,7 +160,7 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
       DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
       detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
       if (USMMem.MInitEvent.has_value())
-        CtxImpl->getAdapter()->call<UrApiKind::urEventRelease>(
+        CtxImpl->getAdapter().call<UrApiKind::urEventRelease>(
             *USMMem.MInitEvent);
 #ifndef NDEBUG
       // For debugging we set the event and memory to some recognizable values
@@ -186,8 +185,7 @@ void DeviceGlobalMapEntry::cleanup() {
     DeviceGlobalUSMMem &USMMem = USMPtrIt.second;
     detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
     if (USMMem.MInitEvent.has_value())
-      CtxImpl->getAdapter()->call<UrApiKind::urEventRelease>(
-          *USMMem.MInitEvent);
+      CtxImpl->getAdapter().call<UrApiKind::urEventRelease>(*USMMem.MInitEvent);
 #ifndef NDEBUG
     // For debugging we set the event and memory to some recognizable values
     // to allow us to check that this cleanup happens before erasure.
