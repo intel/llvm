@@ -780,7 +780,7 @@ struct nodes_deref_impl {
 
 template <typename... ContainerTy>
 using nodes_iterator_impl =
-    variadic_iterator<nodes_deref_impl,
+    variadic_iterator<nodes_deref_impl, node,
                       typename ContainerTy::const_iterator...>;
 
 using nodes_iterator = nodes_iterator_impl<

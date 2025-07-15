@@ -2295,9 +2295,11 @@ struct devices_deref_impl {
   }
 };
 using devices_iterator =
-    variadic_iterator<devices_deref_impl,
+    variadic_iterator<devices_deref_impl, device,
                       std::vector<std::shared_ptr<device_impl>>::const_iterator,
-                      std::vector<device>::const_iterator, device_impl *>;
+                      std::vector<device>::const_iterator,
+                      std::vector<device_impl *>::const_iterator,
+                      device_impl *>;
 
 class devices_range : public iterator_range<devices_iterator> {
 private:
@@ -2305,8 +2307,22 @@ private:
 
 public:
   using Base::Base;
-  devices_range(const device &Dev)
-      : devices_range(&*getSyclObjImpl(Dev), (&*getSyclObjImpl(Dev) + 1), 1) {}
+
+  template <typename Container>
+  decltype(std::declval<Base>().to<Container>()) to() const {
+    return this->Base::to<Container>();
+  }
+
+  template <typename Container>
+  std::enable_if_t<std::is_same_v<Container, std::vector<ur_device_handle_t>>,
+                   Container>
+  to() const {
+    std::vector<ur_device_handle_t> DeviceHandles;
+    DeviceHandles.reserve(size());
+    std::transform(begin(), end(), std::back_inserter(DeviceHandles),
+                   [](device_impl &Dev) { return Dev.getHandleRef(); });
+    return DeviceHandles;
+  }
 };
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
