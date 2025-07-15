@@ -524,7 +524,7 @@ ur_native_handle_t event_impl::getNative() {
     ur_event_native_properties_t NativeProperties{};
     ur_event_handle_t UREvent = nullptr;
     Adapter.call<UrApiKind::urEventCreateWithNativeHandle>(
-        0, TempContext, &NativeProperties, &UREvent);
+        0u, TempContext, &NativeProperties, &UREvent);
     this->setHandle(UREvent);
     Handle = UREvent;
   }

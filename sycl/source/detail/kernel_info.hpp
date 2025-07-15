@@ -51,7 +51,7 @@ get_kernel_info(ur_kernel_handle_t Kernel, adapter_impl &Adapter) {
   size_t ResultSize = 0;
 
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Adapter.call<UrApiKind::urKernelGetInfo>(Kernel, UrInfoCode<Param>::value, 0,
+  Adapter.call<UrApiKind::urKernelGetInfo>(Kernel, UrInfoCode<Param>::value, 0u,
                                            nullptr, &ResultSize);
   if (ResultSize == 0) {
     return "";
@@ -176,7 +176,7 @@ get_kernel_device_specific_info<
 
   // First call to get the number of device images
   Adapter.call<UrApiKind::urKernelGetInfo>(
-      Kernel, UR_KERNEL_INFO_SPILL_MEM_SIZE, 0, nullptr, &ResultSize);
+      Kernel, UR_KERNEL_INFO_SPILL_MEM_SIZE, 0u, nullptr, &ResultSize);
 
   size_t DeviceCount = ResultSize / sizeof(uint32_t);
 
@@ -192,8 +192,8 @@ get_kernel_device_specific_info<
                                            &Program, nullptr);
   // Retrieve the associated device list
   size_t URDevicesSize = 0;
-  Adapter.call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES, 0,
-                                            nullptr, &URDevicesSize);
+  Adapter.call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,
+                                            0u, nullptr, &URDevicesSize);
 
   std::vector<ur_device_handle_t> URDevices(URDevicesSize /
                                             sizeof(ur_device_handle_t));

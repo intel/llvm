@@ -62,7 +62,7 @@ static void enableITTAnnotationsIfNeeded(const ur_program_handle_t &Prog,
     ur_specialization_constant_info_t SpecConstInfo = {
         ITTSpecConstId, sizeof(char), &SpecValue};
     Adapter.call<UrApiKind::urProgramSetSpecializationConstants>(
-        Prog, 1, &SpecConstInfo);
+        Prog, 1u, &SpecConstInfo);
   }
 }
 
@@ -598,7 +598,7 @@ static bool compatibleWithDevice(const RTDeviceBinaryImage *BinImage,
 
   ur_result_t Error = Adapter.call_nocheck<UrApiKind::urDeviceSelectBinary>(
       URDeviceHandle, &UrBinary,
-      /*num bin images = */ (uint32_t)1, &SuitableImageID);
+      /*num bin images = */ 1u, &SuitableImageID);
   if (Error != UR_RESULT_SUCCESS && Error != UR_RESULT_ERROR_INVALID_BINARY)
     throw detail::set_ur_error(exception(make_error_code(errc::runtime),
                                          "Invalid binary image or device"),
@@ -852,7 +852,7 @@ static void setSpecializationConstants(device_image_impl &InputImpl,
             SpecIDDesc.ID, SpecIDDesc.Size,
             SpecConsts.data() + SpecIDDesc.BlobOffset};
         Adapter.call<UrApiKind::urProgramSetSpecializationConstants>(
-            Prog, 1, &SpecConstInfo);
+            Prog, 1u, &SpecConstInfo);
       }
     }
   }
@@ -1216,8 +1216,8 @@ ProgramManager::getProgramBuildLog(const ur_program_handle_t &Program,
                                    context_impl &Context) {
   size_t URDevicesSize = 0;
   adapter_impl &Adapter = Context.getAdapter();
-  Adapter.call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES, 0,
-                                            nullptr, &URDevicesSize);
+  Adapter.call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,
+                                            0u, nullptr, &URDevicesSize);
   std::vector<ur_device_handle_t> URDevices(URDevicesSize /
                                             sizeof(ur_device_handle_t));
   Adapter.call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,
@@ -1229,7 +1229,7 @@ ProgramManager::getProgramBuildLog(const ur_program_handle_t &Program,
     std::string DeviceBuildInfoString;
     size_t DeviceBuildInfoStrSize = 0;
     Adapter.call<UrApiKind::urProgramGetBuildInfo>(
-        Program, Device, UR_PROGRAM_BUILD_INFO_LOG, 0, nullptr,
+        Program, Device, UR_PROGRAM_BUILD_INFO_LOG, 0u, nullptr,
         &DeviceBuildInfoStrSize);
     if (DeviceBuildInfoStrSize > 0) {
       std::vector<char> DeviceBuildInfo(DeviceBuildInfoStrSize);
@@ -1241,7 +1241,7 @@ ProgramManager::getProgramBuildLog(const ur_program_handle_t &Program,
 
     std::string DeviceNameString;
     size_t DeviceNameStrSize = 0;
-    Adapter.call<UrApiKind::urDeviceGetInfo>(Device, UR_DEVICE_INFO_NAME, 0,
+    Adapter.call<UrApiKind::urDeviceGetInfo>(Device, UR_DEVICE_INFO_NAME, 0u,
                                              nullptr, &DeviceNameStrSize);
     if (DeviceNameStrSize > 0) {
       std::vector<char> DeviceName(DeviceNameStrSize);
