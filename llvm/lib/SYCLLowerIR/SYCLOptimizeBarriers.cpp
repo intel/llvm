@@ -25,12 +25,7 @@
 //      – Unknown  : any other mayReadOrWriteMemory() (intrinsics, calls,
 //      generic addrspace)
 //    * Walk the function and record every barrier call into a list of
-//      BarrierDesc structures:
-//      - CI        : the call instruction
-//      - ExecScope : the execution-scope operand (for MemoryBarrier this is
-//      Invocation)
-//      - MemScope  : the memory-scope operand
-//      - Semantic  : the fence-semantics bits
+//      BarrierDesc structures.
 //    * At the same time, build a per-basic block summary of memory accesses:
 //      - None   : only private/constant or no accesses
 //      - Local  : at least one addrspace(3) access
@@ -40,24 +35,18 @@
 //
 // 2) **At Entry and At Exit Elimination**
 //    - **Entry**: For each barrier B, if on *every* path from function entry to
-//    B there are no
-//      accesses >= B.MemScope, then remove B.
+//    B there are no accesses to memory region greater than or equal to
+//    B.MemScope, then remove B.
 //    - **Exit** : For each barrier B, if on *every* path from B to any function
-//    return there are no
-//      accesses >= B.MemScope, then remove B.
-//    - **Entry**: For each barrier B, if on every path from function entry to B
-//      there are no accesses greater than or equal to B.MemScope, remove B.
-//    - **Exit** : For each barrier B, if on every path from B to any function
-//      return there are no accesses greater than or equal to B.MemScope, remove
-//      B.
+//    return there are no accesses to memory region greater than or equal to
+//    B.MemScope, then remove B.
 //
 // 3) **Back-to-Back Elimination (per-BB)**
 //    a) *Pure-Sync Collapse*
 //       If BB summary == None (no local/global/unknown accesses):
 //         – Find the single barrier with the *widest* (ExecScope, MemScope)
 //         (ignore Unknown).
-//         – Erase all other barriers (they synchronize
-//         nothing).
+//         – Erase all other barriers (they synchronize nothing).
 //       If BB summary == None (no local, global or unknown accesses):
 //         - Find the single barrier with the widest (ExecScope, MemScope)
 //           ignoring Unknown scopes.
@@ -71,14 +60,9 @@
 //       - If the earlier barrier fences a superset of what the later one would
 //         fence and there are no accesses that only the later barrier would
 //         need to order, the later barrier is removed.
-//         fence and there are no accesses that only the later barrier would
-//         need to order, the later barrier is removed.
 //       - Symmetrically, if the later barrier fences a superset and the
-//       intervening
-//         code contains nothing that only the earlier barrier needed, the
-//         earlier barrier is removed.
-//         intervening code contains nothing that only the earlier barrier
-//         needed, the earlier barrier is removed.
+//       intervening code contains nothing that only the earlier barrier needed,
+//       the earlier barrier is removed.
 //    Any barrier whose execution or memory scope is Unknown is kept
 //    conservatively. After a single pass every basic block contains only the
 //    minimal set of barriers required to enforce ordering for the memory
@@ -222,18 +206,18 @@ static constexpr uint32_t MemorySemanticMask = ~0x3fu;
 
 // Normalize a raw 'memory semantics' bitmask to a canonical form.
 static inline uint32_t canonicalizeSemantic(uint32_t Sem) {
-  bool HasAc = Sem & static_cast<uint32_t>(Ordering::Acquire);
+  bool HasAcq = Sem & static_cast<uint32_t>(Ordering::Acquire);
   bool HasRel = Sem & static_cast<uint32_t>(Ordering::Release);
-  bool HasAcRel = Sem & static_cast<uint32_t>(Ordering::AcquireRelease);
+  bool HasAcqRel = Sem & static_cast<uint32_t>(Ordering::AcquireRelease);
   bool HasSeq = Sem & static_cast<uint32_t>(Ordering::SequentiallyConsistent);
 
   if (HasSeq)
     Sem &= MemorySemanticMask |
            static_cast<uint32_t>(Ordering::SequentiallyConsistent);
   else {
-    if (HasAc && HasRel)
-      HasAcRel = true;
-    if (HasAcRel) {
+    if (HasAcq && HasRel)
+      HasAcqRel = true;
+    if (HasAcqRel) {
       Sem &= ~(static_cast<uint32_t>(Ordering::Acquire) |
                static_cast<uint32_t>(Ordering::Release));
       Sem |= static_cast<uint32_t>(Ordering::AcquireRelease);
@@ -244,8 +228,7 @@ static inline uint32_t canonicalizeSemantic(uint32_t Sem) {
 
 // Merge two semantics bitmasks into a single canonical form.
 static inline uint32_t mergeSemantics(uint32_t A, uint32_t B) {
-  return canonicalizeSemantic(canonicalizeSemantic(A) |
-                              canonicalizeSemantic(B));
+  return canonicalizeSemantic(A | B);
 }
 
 // Return the ordering class of a semantic bitmask.
@@ -278,10 +261,10 @@ static inline bool semanticsSuperset(uint32_t A, uint32_t B) {
     return true;
   if (AOrd == 3)
     return BOrd <= 3;
-  if (AOrd == 1)
-    return BOrd == 1 || BOrd == 0;
   if (AOrd == 2)
     return BOrd == 2 || BOrd == 0;
+  if (AOrd == 1)
+    return BOrd == 1 || BOrd == 0;
   return BOrd == 0;
 }
 
@@ -493,10 +476,10 @@ static bool eraseBarrierWithITT(BarrierDesc &BD) {
 // True if no fenced accesses of MemScope appear in [A->next, B).
 static bool noFencedMemAccessesBetween(CallInst *A, CallInst *B,
                                        RegionMemScope Required,
-                                       BBMemInfoMap &BBMemInfo) {
+                                       const BBMemInfoMap &BBMemInfo) {
   LLVM_DEBUG(dbgs() << "Checking for fenced accesses between: " << *A << " and "
                     << *B << "\n");
-  RegionMemScope BBMemScope = BBMemInfo[A->getParent()];
+  RegionMemScope BBMemScope = BBMemInfo.lookup(A->getParent());
   if (BBMemScope == RegionMemScope::Unknown ||
       Required == RegionMemScope::Unknown) {
     LLVM_DEBUG(dbgs() << "noFencedMemAccessesBetween(" << *A << ", " << *B
@@ -543,9 +526,9 @@ static bool hasFencedAccesses(BasicBlock *BB, RegionMemScope Required,
 /// B==nullptr, end at all exit blocks.
 static bool noFencedAccessesCFG(CallInst *A, CallInst *B,
                                 RegionMemScope Required,
-                                BBMemInfoMap &BBMemInfo) {
+                                const BBMemInfoMap &BBMemInfo) {
   LLVM_DEBUG(dbgs() << "Checking for fenced accesses between: " << *A << " and "
-                     << *B << " in CFG" << "\n");
+                    << *B << " in CFG" << "\n");
   if (Required == RegionMemScope::Unknown)
     return false;
   // Build the set of blocks that can reach B.
@@ -561,7 +544,7 @@ static bool noFencedAccessesCFG(CallInst *A, CallInst *B,
     }
   }
 
-  // Shortcut: same block and both non-null
+  // Shortcut: same block and both non-null.
   if (A && B && A->getParent() == B->getParent())
     return noFencedMemAccessesBetween(A, B, Required, BBMemInfo);
 
@@ -572,12 +555,12 @@ static bool noFencedAccessesCFG(CallInst *A, CallInst *B,
   SmallVector<std::pair<BasicBlock *, Instruction *>, 8> Worklist;
   SmallPtrSet<BasicBlock *, 16> Visited;
 
-  // Initialize
+  // Initialize the worklist from CI or ...
   if (A) {
     Worklist.emplace_back(A->getParent(), A);
     Visited.insert(A->getParent());
   } else {
-    // from kernel entry
+    // ... from kernel's entry.
     Worklist.emplace_back(Entry, /*start at beginning*/ nullptr);
     Visited.insert(Entry);
   }
@@ -589,7 +572,7 @@ static bool noFencedAccessesCFG(CallInst *A, CallInst *B,
     if (B && !ReachB.contains(BB))
       continue;
 
-    // If we've reached the block containing B, only scan up to B
+    // If we've reached the block containing B, only scan up to B.
     if (B && BB == B->getParent()) {
       if (hasFencedAccesses(BB, Required, StartInst, B))
         return false;
@@ -632,10 +615,11 @@ static bool noFencedAccessesCFG(CallInst *A, CallInst *B,
 // The back-to-back elimination on one BB.
 static bool eliminateBackToBackInBB(BasicBlock *BB,
                                     SmallVectorImpl<BarrierDesc> &Barriers,
-                                    BBMemInfoMap &BBMemInfo) {
+                                    const BBMemInfoMap &BBMemInfo) {
   SmallVector<BarrierDesc, 8> Survivors;
   bool Changed = false;
-  RegionMemScope BlockScope = BB ? BBMemInfo[BB] : RegionMemScope::Unknown;
+  RegionMemScope BlockScope = BB ? BBMemInfo.lookup(BB)
+                                 : RegionMemScope::Unknown;
 
   // If there are no memory accesses requiring synchronization in this block,
   // collapse all barriers to the single largest one.
@@ -650,7 +634,7 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
       auto Best = std::max_element(
           Barriers.begin(), Barriers.end(), [](auto &A, auto &B) {
             // First prefer the barrier whose semantics fence more memory +
-            // stronger ordering
+            // stronger ordering.
             if (semanticsSuperset(B.Semantic, A.Semantic) &&
                 !semanticsSuperset(A.Semantic, B.Semantic))
               return true;
@@ -759,7 +743,7 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
       Survivors.emplace_back(Cur);
   }
 
-  // If we removed any, replace Barriers with the survivors
+  // If we removed any, replace Barriers with the survivors.
   if (Survivors.size() != Barriers.size()) {
     Barriers.clear();
     Barriers.append(Survivors.begin(), Survivors.end());
@@ -773,7 +757,7 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
 // Cross-work-group barriers that are safely covered by another global fence.
 static bool optimizeBarriersCFG(SmallVectorImpl<BarrierDesc *> &Barriers,
                                 DominatorTree &DT, PostDominatorTree &PDT,
-                                BBMemInfoMap &BBMemInfo) {
+                                const BBMemInfoMap &BBMemInfo) {
   bool Changed = false;
 
   for (BarrierDesc *B : Barriers) {
@@ -910,10 +894,10 @@ static bool isAtKernelExit(BarrierDesc &BD) {
 
 // Remove barriers that appear at the very beginning or end of a kernel
 // function.
-static bool eliminateBoundaryBarriers(SmallVectorImpl<BarrierDesc *> &Barreirs,
+static bool eliminateBoundaryBarriers(SmallVectorImpl<BarrierDesc *> &Barriers,
                                       BBMemInfoMap &BBMemInfo) {
   bool Changed = false;
-  for (auto *BPtr : Barreirs) {
+  for (auto *BPtr : Barriers) {
     BarrierDesc &B = *BPtr;
     if (!B.CI)
       continue;
@@ -921,13 +905,13 @@ static bool eliminateBoundaryBarriers(SmallVectorImpl<BarrierDesc *> &Barreirs,
     if (B.CI->getFunction()->getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
     RegionMemScope Fence = getBarrierFencedScope(B);
-    // entry: no fenced accesses on *any* path from entry to B.CI
+    // entry: no fenced accesses on *any* path from entry to B.CI.
     if (isAtKernelEntry(B) && noFencedAccessesCFG(/*pretend A = entry*/ nullptr,
                                                   B.CI, Fence, BBMemInfo)) {
       Changed |= eraseBarrierWithITT(B);
       continue;
     }
-    // exit: no fenced accesses on every path from B.CI to return
+    // exit: no fenced accesses on every path from B.CI to return.
     if (isAtKernelExit(B) &&
         noFencedAccessesCFG(B.CI, /*pretend B = exit*/ nullptr, Fence,
                             BBMemInfo)) {
@@ -960,14 +944,14 @@ PreservedAnalyses SYCLOptimizeBarriersPass::run(Function &F,
       BarrierPtrs.push_back(&BD);
 
   bool Changed = false;
-  // First remove 'at entry' and 'at exit' barriers if the fence nothing.
+  // First remove 'at entry' and 'at exit' barriers if they fence nothing.
   Changed |= eliminateBoundaryBarriers(BarrierPtrs, BBMemInfo);
   // Then remove redundant barriers within a single basic block.
   for (auto &BarrierBBPair : BarriersByBB)
     Changed |= eliminateBackToBackInBB(BarrierBBPair.first,
                                        BarrierBBPair.second, BBMemInfo);
 
-  // TODO: hoist 2 barriers with the same predessor BBs.
+  // TODO: hoist 2 barriers with the same predecessor BBs.
 
   // In the end eliminate or narrow barriers depending on DT and PDT analyses.
   DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
