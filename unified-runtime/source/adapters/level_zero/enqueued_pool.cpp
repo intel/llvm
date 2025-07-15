@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "enqueued_pool.hpp"
+#include "usm.hpp"
 
 #include <ur_api.h>
 
@@ -57,15 +58,14 @@ void EnqueuedPool::insert(void *Ptr, size_t Size, ur_event_handle_t Event,
 bool EnqueuedPool::cleanup() {
   auto Lock = std::lock_guard(Mutex);
   auto FreedAllocations = !Freelist.empty();
-  for (auto It : Freelist) {
-    auto hPool = umfPoolByPtr(It.Ptr);
-    assert(hPool != nullptr);
 
-    auto umfRet [[maybe_unused]] = umfPoolFree(hPool, It.Ptr);
-    assert(umfRet == UMF_RESULT_SUCCESS);
+  auto Ret [[maybe_unused]] = UR_RESULT_SUCCESS;
+  for (auto It : Freelist) {
+    Ret = MemFreeFn(It.Ptr);
+    assert(Ret == UR_RESULT_SUCCESS);
 
     if (It.Event)
-      eventRelease(It.Event);
+      EventReleaseFn(It.Event);
   }
   Freelist.clear();
 
@@ -81,15 +81,13 @@ bool EnqueuedPool::cleanupForQueue(void *Queue) {
 
   bool FreedAllocations = false;
 
+  auto Ret [[maybe_unused]] = UR_RESULT_SUCCESS;
   while (It != Freelist.end() && It->Queue == Queue) {
-    auto hPool = umfPoolByPtr(It->Ptr);
-    assert(hPool != nullptr);
-
-    auto umfRet [[maybe_unused]] = umfPoolFree(hPool, It->Ptr);
-    assert(umfRet == UMF_RESULT_SUCCESS);
+    Ret = MemFreeFn(It->Ptr);
+    assert(Ret == UR_RESULT_SUCCESS);
 
     if (It->Event)
-      eventRelease(It->Event);
+      EventReleaseFn(It->Event);
 
     // Erase the current allocation and move to the next one
     It = Freelist.erase(It);

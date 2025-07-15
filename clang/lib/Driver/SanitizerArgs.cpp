@@ -1297,6 +1297,8 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       CmdArgs.push_back("-asan-stack-dynamic-alloca=0");
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-use-after-return=never");
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-asan-instrument-dynamic-allocas=0");
 
       if (!RecoverableSanitizers.empty())
         CmdArgs.push_back(Args.MakeArgString("-fsanitize-recover=" +

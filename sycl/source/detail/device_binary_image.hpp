@@ -296,7 +296,7 @@ public:
   }
 
   static DynRTDeviceBinaryImage
-  merge(const std::vector<RTDeviceBinaryImage *> &Imgs);
+  merge(const std::vector<const RTDeviceBinaryImage *> &Imgs);
 
 protected:
   DynRTDeviceBinaryImage();

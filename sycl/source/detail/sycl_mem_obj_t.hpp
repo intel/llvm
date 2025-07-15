@@ -34,7 +34,6 @@ namespace detail {
 class context_impl;
 class event_impl;
 class adapter_impl;
-using AdapterPtr = adapter_impl *;
 
 using EventImplPtr = std::shared_ptr<event_impl>;
 
@@ -90,7 +89,7 @@ public:
 
   virtual ~SYCLMemObjT() = default;
 
-  const AdapterPtr &getAdapter() const;
+  adapter_impl &getAdapter() const;
 
   size_t getSizeInBytes() const noexcept override { return MSizeInBytes; }
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")

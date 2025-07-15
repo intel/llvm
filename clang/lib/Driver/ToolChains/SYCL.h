@@ -222,7 +222,7 @@ StringRef resolveGenDevice(StringRef DeviceName);
 SmallString<64> getGenDeviceMacro(StringRef DeviceName);
 StringRef getGenGRFFlag(StringRef GRFMode);
 
-// // Prefix for GPU specific targets used for -fsycl-targets
+// Prefix for GPU specific targets used for -fsycl-targets
 constexpr char IntelGPU[] = "intel_gpu_";
 constexpr char NvidiaGPU[] = "nvidia_gpu_";
 constexpr char AmdGPU[] = "amd_gpu_";
@@ -257,11 +257,6 @@ public:
 
 } // end namespace SYCL
 } // end namespace tools
-
-inline bool isSYCLNativeCPU(const llvm::Triple &Triple) {
-  return Triple.getArch() == llvm::Triple::UnknownArch &&
-         Triple.str() == "native_cpu";
-}
 
 namespace toolchains {
 
@@ -303,12 +298,12 @@ public:
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override {
-    if (isSYCLNativeCPU(this->getTriple()))
+    if (this->getTriple().isNativeCPU())
       return this->HostTC.isPICDefault();
     return false;
   }
   llvm::codegenoptions::DebugInfoFormat getDefaultDebugFormat() const override {
-    if (isSYCLNativeCPU(this->getTriple()) &&
+    if (this->getTriple().isNativeCPU() &&
         this->HostTC.getTriple().isWindowsMSVCEnvironment())
       return this->HostTC.getDefaultDebugFormat();
     return ToolChain::getDefaultDebugFormat();
