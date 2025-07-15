@@ -1,6 +1,11 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+/*
+ * Test to check class/struct type with virtual methods as SYCL free function
+ * kernel arguments.
+ */
+
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
@@ -55,7 +60,7 @@ int check_result(float *ptr) {
   return 0;
 }
 
-static int call_kernel_code(sycl::queue &q, sycl::kernel &kernel) {
+int call_kernel_code(sycl::queue &q, sycl::kernel &kernel) {
   float *ptr = sycl::malloc_shared<float>(NUM, q);
   TestClass *obj = sycl::malloc_shared<TestClass>(1, q);
   obj->setData(offset);

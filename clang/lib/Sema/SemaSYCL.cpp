@@ -1470,6 +1470,10 @@ class KernelObjVisitor {
       if (isSyclSpecialType(BaseTy, SemaSYCLRef))
         (void)std::initializer_list<int>{
             (Handlers.handleSyclSpecialType(Owner, Base, BaseTy), 0)...};
+      else if (Base.isVirtual())
+        SemaSYCLRef.SemaRef.Diag(Owner->getLocation(),
+                                 diag::err_free_function_virtual_arg)
+            << Owner->getNameAsString() << Base.getType().getAsString();
       else
         // For all other bases, visit the record
         visitRecord(Owner, Base, BaseTy->getAsCXXRecordDecl(), BaseTy,
@@ -1576,27 +1580,6 @@ class KernelObjVisitor {
     else if (ParamTy->isStructureOrClassType()) {
       if (KP_FOR_EACH(handleStructType, Param, ParamTy)) {
         CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
-        llvm::SmallVector<const CXXRecordDecl *, 8> WorkList;
-        llvm::SmallPtrSet<const CXXRecordDecl *, 8> Visited;
-        if (RD)
-          WorkList.push_back(RD);
-        while (!WorkList.empty()) {
-          const CXXRecordDecl *Cur = WorkList.pop_back_val();
-          if (!Cur || !Visited.insert(Cur).second)
-            continue;
-          for (const auto &Base : Cur->bases()) {
-            if (Base.isVirtual()) {
-              SemaSYCLRef.SemaRef.Diag(Param->getLocation(),
-                                       diag::err_free_function_virtual_arg)
-                  << Cur->getNameAsString() << Param->getSourceRange();
-              return;
-            }
-            const CXXRecordDecl *BaseDecl =
-                Base.getType()->getAsCXXRecordDecl();
-            if (BaseDecl)
-              WorkList.push_back(BaseDecl);
-          }
-        }
         visitRecord(nullptr, Param, RD, ParamTy, Handlers...);
       }
     } else if (ParamTy->isUnionType())
