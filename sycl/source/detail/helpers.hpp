@@ -26,7 +26,7 @@ class CGExecKernel;
 class queue_impl;
 class RTDeviceBinaryImage;
 
-std::tuple<const RTDeviceBinaryImage *, ur_program_handle_t>
+const RTDeviceBinaryImage *
 retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
                      CGExecKernel *CGKernel = nullptr);
 
