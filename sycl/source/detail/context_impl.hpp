@@ -218,7 +218,7 @@ public:
 
   /// Adds a device global initializer.
   void addDeviceGlobalInitializer(ur_program_handle_t Program,
-                                  const std::vector<device> &Devs,
+                                  devices_range Devs,
                                   const RTDeviceBinaryImage *BinImage);
 
   /// Initializes device globals for a program on the associated queue.

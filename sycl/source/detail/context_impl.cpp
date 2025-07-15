@@ -326,13 +326,13 @@ void context_impl::removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
 }
 
 void context_impl::addDeviceGlobalInitializer(
-    ur_program_handle_t Program, const std::vector<device> &Devs,
+    ur_program_handle_t Program, devices_range Devs,
     const RTDeviceBinaryImage *BinImage) {
   if (BinImage->getDeviceGlobals().empty())
     return;
   std::lock_guard<std::mutex> Lock(MDeviceGlobalInitializersMutex);
-  for (const device &Dev : Devs) {
-    auto Key = std::make_pair(Program, getSyclObjImpl(Dev)->getHandleRef());
+  for (device_impl &Dev : Devs) {
+    auto Key = std::make_pair(Program, Dev.getHandleRef());
     auto [Iter, Inserted] = MDeviceGlobalInitializers.emplace(Key, BinImage);
     if (Inserted && !Iter->second.MDeviceGlobalsFullyInitialized)
       ++MDeviceGlobalNotInitializedCnt;
