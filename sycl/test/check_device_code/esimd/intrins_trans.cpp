@@ -107,7 +107,7 @@ test_mem_intrins(int *addr, const vec<float, 8> &xf,
   {
     uint32_t offset = 256;
     __esimd_slm_block_st<int, 8, 4>(offset, get8i());
-    // CHECK: store <8 x i32> %call16, ptr addrspace(3) inttoptr (i32 256 to ptr addrspace(3)), align 4
+    // CHECK: store <8 x i32> %{{[a-zA-Z0-9.]+}}, ptr addrspace(3) inttoptr (i32 256 to ptr addrspace(3)), align 4
   }
   {
     auto x = __esimd_svm_gather<unsigned char, 8>(get8ui64(), get8ui16());
