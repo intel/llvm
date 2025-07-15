@@ -347,9 +347,9 @@ private:
 };
 
 template <typename T, typename Capabilities>
-void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
+void GetCapabilitiesIntersectionSet(devices_range Devices,
                                     std::vector<T> &CapabilityList) {
-  for (const sycl::device &Device : Devices) {
+  for (device_impl &Device : Devices) {
     std::vector<T> NewCapabilityList;
     std::vector<T> DeviceCapabilities = Device.get_info<Capabilities>();
     std::set_intersection(
