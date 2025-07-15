@@ -1613,6 +1613,7 @@ def SYCLDeviceOnly : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLDeviceOnlyDocs];
 }
+def : MutualExclusions<[SYCLDevice, SYCLDeviceOnly]>;
 
 def SYCLGlobalVar : InheritableAttr {
   let Spellings = [GNU<"sycl_global_var">];

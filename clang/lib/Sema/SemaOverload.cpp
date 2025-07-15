@@ -1630,11 +1630,20 @@ static bool IsOverloadOrOverrideImpl(Sema &SemaRef, FunctionDecl *New,
   }
 
   // Allow overloads with SYCLDeviceOnlyAttr
-  if (SemaRef.getLangOpts().isSYCL()) {
-    if (Old->hasAttr<SYCLDeviceOnlyAttr>() !=
-        New->hasAttr<SYCLDeviceOnlyAttr>()) {
-      return true;
+  if (SemaRef.getLangOpts().isSYCL() && (Old->hasAttr<SYCLDeviceOnlyAttr>() !=
+                                         New->hasAttr<SYCLDeviceOnlyAttr>())) {
+    // SYCLDeviceOnlyAttr and SYCLDeviceAttr functions can't overload
+    if (((New->hasAttr<SYCLDeviceOnlyAttr>() &&
+          Old->hasAttr<SYCLDeviceAttr>()) ||
+         (New->hasAttr<SYCLDeviceAttr>() &&
+          Old->hasAttr<SYCLDeviceOnlyAttr>()))) {
+      SemaRef.Diag(New->getLocation(), diag::err_redefinition)
+          << New->getDeclName();
+      SemaRef.notePreviousDefinition(Old, New->getLocation());
+      return false;
     }
+
+    return true;
   }
 
   // The signatures match; this is not an overload.

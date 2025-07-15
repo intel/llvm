@@ -26,7 +26,7 @@
 
 #if defined(__NVPTX__) || defined(__AMDGCN__)
 #include "__sycl_cmath_wrapper_impl.hpp"
-#endif
+#else
 
 #include <sycl/detail/defines_elementary.hpp>
 
@@ -209,3 +209,4 @@ extern __DPCPP_SYCL_EXTERNAL float _hypotf(float x, float y);
 }
 #endif
 #endif // __SYCL_DEVICE_ONLY__
+#endif
