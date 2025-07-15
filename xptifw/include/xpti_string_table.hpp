@@ -71,8 +71,7 @@ public:
     if (!str)
       return xpti::invalid_id<xpti::string_id_t>;
 
-    std::string LocalStr = str;
-    return add(LocalStr, ref_str);
+    return add(std::move(str), ref_str);
   }
 
   xpti::string_id_t add(std::string str, const char **ref_str = nullptr) {

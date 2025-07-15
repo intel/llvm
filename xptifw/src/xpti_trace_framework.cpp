@@ -473,7 +473,7 @@ public:
         {
           std::lock_guard<std::mutex> Lock(MMutex);
           MNameLUT[Path] = Data;
-          MHandleLUT[Handle] = Data;
+          MHandleLUT[Handle] = std::move(Data);
         }
       } else {
         // We may have loaded another shared object that is not a tool plugin
@@ -1576,7 +1576,7 @@ public:
     auto Acc = StreamCBs.find(TraceType);
     if (Acc == StreamCBs.end()) {
       // Create a new slot and return the accessor for the trace type
-      auto Tmp = StreamCBs[TraceType];
+      auto& Tmp = StreamCBs[TraceType];
       Acc = StreamCBs.find(TraceType);
     }
     // If the key does not exist, a new entry is created and an accessor to it
