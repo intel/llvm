@@ -105,7 +105,7 @@ jobs:
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
+            target_devices: level_zero:gpu
             extra_lit_opts: --param matrix-xmx8=True
             use_igc_dev: true
             env: '{"LIT_FILTER":"Matrix/"}'
@@ -117,7 +117,7 @@ jobs:
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
+            target_devices: level_zero:gpu
             use_igc_dev: true
             env: '{"LIT_FILTER":"Matrix/"}'
           - name: Intel Battlemage Graphics
