@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: target-spir
-// XFAIL: run-mode && igc-dev
+// XFAIL: run-mode && igc-dev && gpu-intel-dg2
 // XFAIL-TRACKER: CMPLRLLVM-66371
 // REQUIRES: aspect-ext_intel_matrix
 
