@@ -514,6 +514,8 @@ CGDebugInfo::computeChecksum(FileID FID, SmallString<64> &Checksum) const {
   case clang::CodeGenOptions::DSH_SHA256:
     llvm::toHex(llvm::SHA256::hash(Data), /*LowerCase=*/true, Checksum);
     return llvm::DIFile::CSK_SHA256;
+  case clang::CodeGenOptions::DSH_NONE:
+    return std::nullopt;
   }
   llvm_unreachable("Unhandled DebugSrcHashKind enum");
 }
@@ -4640,6 +4642,7 @@ void CGDebugInfo::emitFunctionStart(GlobalDecl GD, SourceLocation Loc,
   llvm::DIFile *Unit = getOrCreateFile(Loc);
   llvm::DIScope *FDContext = Unit;
   llvm::DINodeArray TParamsArray;
+  bool KeyInstructions = CGM.getCodeGenOpts().DebugKeyInstructions;
   if (!HasDecl) {
     // Use llvm function name.
     LinkageName = Fn->getName();
@@ -4656,6 +4659,9 @@ void CGDebugInfo::emitFunctionStart(GlobalDecl GD, SourceLocation Loc,
     }
     collectFunctionDeclProps(GD, Unit, Name, LinkageName, FDContext,
                              TParamsArray, Flags);
+    // Disable KIs if this is a coroutine.
+    KeyInstructions =
+        KeyInstructions && !isa_and_present<CoroutineBodyStmt>(FD->getBody());
   } else if (const auto *OMD = dyn_cast<ObjCMethodDecl>(D)) {
     Name = getObjCMethodName(OMD);
     Flags |= llvm::DINode::FlagPrototyped;
@@ -4717,7 +4723,7 @@ void CGDebugInfo::emitFunctionStart(GlobalDecl GD, SourceLocation Loc,
   llvm::DISubprogram *SP = DBuilder.createFunction(
       FDContext, Name, LinkageName, Unit, LineNo, DIFnType, ScopeLine,
       FlagsForDef, SPFlagsForDef, TParamsArray.get(), Decl, nullptr,
-      Annotations, "", CGM.getCodeGenOpts().DebugKeyInstructions);
+      Annotations, "", KeyInstructions);
   Fn->setSubprogram(SP);
 
   // We might get here with a VarDecl in the case we're generating
