@@ -255,6 +255,9 @@ The value of `ExternalMemHandleType` must match the value passed to
 `ExternalMemHandleType` value that not match the value passed to
 `alloc_exportable_device_mem` results in undefined behavior.
 
+The implementation of this function does not have to be defined for every value
+of the `external_mem_handle_type` enum.
+
 The `syclDevice` and `syclContext` passed to `export_device_mem_handle` must
 match the device and context used when the `deviceMemory` was allocated using
 `alloc_exportable_device_mem`. If a `syclQueue` is passed, it must also be
@@ -353,6 +356,18 @@ allocation and deallocation APIs for both exportable and non-exportable memory.
 We are considering this approach for future versions of this extension, but for
 this initial draft we've have decided to provide explicit APIs to simplify the
 implementation and gather early feedback.
+
+=== Querying Supported External Memory Handle Types
+
+Currently, there is no way to query which external memory handle types are
+supported by the implementation. As this is an initial draft of an
+experimental extension intended to gather early feedback, we have not
+implemented this functionality yet. However, we are aware of this limitation
+and plan to address it in future versions of this extension.
+
+As noted above in the document, the {dpcpp} implementation currently
+supports exporting memory with the `opaque_fd` and `win32_nt_handle` handle
+types, and only on the Level Zero backend.
 
 == Revision History
 
