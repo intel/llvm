@@ -58,7 +58,7 @@ ur_result_t urMemoryExportFreeExportableMemoryExp(
 }
 
 ur_result_t urMemoryExportExportMemoryHandleExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_context_handle_t hContext, [[maybe_unused]] ur_device_handle_t hDevice,
     ur_exp_external_mem_type_t handleTypeToExport, void *pMem,
     void *pMemHandleRet) {
 
