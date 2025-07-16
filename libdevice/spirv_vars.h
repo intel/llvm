@@ -39,6 +39,7 @@ __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInNumWorkgroups;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupId;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupSize;
 
+__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupId;
 __SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupSize;
 
 __SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupLocalInvocationId;
