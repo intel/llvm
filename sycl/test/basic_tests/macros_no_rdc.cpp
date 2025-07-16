@@ -17,7 +17,7 @@
 //
 // With -fno-sycl-rdc, device code should not define or use SYCL_EXTERNAL
 // DEVICE-FULL-LINE: #define __DPCPP_SYCL_EXTERNAL __attribute__((sycl_device))
-// DEVICE-NOT:SYCL_EXTERNAL
+// DEVICE-NOT:{{[ #]}}SYCL_EXTERNAL
 //
 // With -fno-sycl-rdc, host code should have SYCL_EXTERNAL defined to empty
 // HOST-DAG: #define SYCL_EXTERNAL
