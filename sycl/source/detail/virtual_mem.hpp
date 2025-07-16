@@ -14,10 +14,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-size_t get_mem_granularity_for_allocation_size(const device &SyclDevice,
-                                               const context &SyclContext,
-                                               granularity_mode Mode,
-                                               size_t AllocationSize);
+size_t
+get_mem_granularity_for_allocation_size(const detail::device_impl &SyclDevice,
+                                        const detail::context_impl &SyclContext,
+                                        granularity_mode Mode,
+                                        size_t AllocationSize);
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1

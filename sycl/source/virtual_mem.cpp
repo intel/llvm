@@ -22,10 +22,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-size_t get_mem_granularity_for_allocation_size(const device &SyclDevice,
-                                               const context &SyclContext,
-                                               granularity_mode Mode,
-                                               const size_t AllocationSize) {
+size_t
+get_mem_granularity_for_allocation_size(const detail::device_impl &SyclDevice,
+                                        const detail::context_impl &SyclContext,
+                                        granularity_mode Mode,
+                                        const size_t AllocationSize) {
   if (!SyclDevice.has(aspect::ext_oneapi_virtual_mem))
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -65,8 +66,9 @@ size_t get_mem_granularity_for_allocation_size(const device &SyclDevice,
 __SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
                                          const context &SyclContext,
                                          granularity_mode Mode) {
-  return get_mem_granularity_for_allocation_size(SyclDevice, SyclContext, Mode,
-                                                 1);
+  return get_mem_granularity_for_allocation_size(
+      *detail::getSyclObjImpl(SyclDevice), *detail::getSyclObjImpl(SyclContext),
+      Mode, 1);
 }
 
 __SYCL_EXPORT size_t get_mem_granularity(const context &SyclContext,

@@ -40,11 +40,12 @@ void *graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
   switch (AllocType) {
   case usm::alloc::device: {
 
-    context_impl &CtxImpl = *getSyclObjImpl(MContext);
-    adapter_impl &Adapter = CtxImpl.getAdapter();
+    const context_impl &CtxImpl = *getSyclObjImpl(MContext);
+    const adapter_impl &Adapter = CtxImpl.getAdapter();
+    const device_impl &DeviceImpl = *getSyclObjImpl(MDevice);
 
     const size_t Granularity = get_mem_granularity_for_allocation_size(
-        MDevice, MContext, granularity_mode::recommended, Size);
+        DeviceImpl, CtxImpl, granularity_mode::recommended, Size);
     uintptr_t StartPtr = 0;
     size_t AlignedSize = alignByteSize(Size, Granularity);
     // See if we can find an allocation to reuse
