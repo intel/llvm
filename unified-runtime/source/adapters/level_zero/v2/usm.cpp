@@ -229,14 +229,8 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
 
   *ppRetMem = umfPoolAlignedMalloc(umfPool, size, alignment);
   if (*ppRetMem == nullptr) {
-    if (pool->asyncPool.cleanup()) { // true means that objects were deallocated
-      // let's try again
-      *ppRetMem = umfPoolAlignedMalloc(umfPool, size, alignment);
-    }
-    if (*ppRetMem == nullptr) {
-      auto umfRet = umfPoolGetLastAllocationError(umfPool);
-      return umf::umf2urResult(umfRet);
-    }
+    auto umfRet = umfPoolGetLastAllocationError(umfPool);
+    return umf::umf2urResult(umfRet);
   }
 
   return UR_RESULT_SUCCESS;
