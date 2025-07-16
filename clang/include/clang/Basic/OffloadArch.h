@@ -175,7 +175,8 @@ static inline bool IsAMDOffloadArch(OffloadArch A) {
 }
 
 static inline bool IsIntelCPUOffloadArch(OffloadArch Arch) {
-  return Arch >= OffloadArch::SKYLAKEAVX512 && Arch < OffloadArch::BMG_G21;
+  return Arch >= OffloadArch::SKYLAKEAVX512 &&
+         Arch <= OffloadArch::GRANITERAPIDS;
 }
 
 static inline bool IsIntelGPUOffloadArch(OffloadArch Arch) {
