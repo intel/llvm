@@ -82,7 +82,7 @@ int test_arg_with_virtual_method(sycl::queue &q, sycl::context &ctxt,
   auto exe_bndl =
       syclexp::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
   sycl::kernel k_func = exe_bndl.template ext_oneapi_get_kernel<Func>();
-  const int ret = call_kernel_code(q, k_func);
+  int ret = call_kernel_code(q, k_func);
   if (ret != 0)
     std::cerr << FFTestMark << name << " failed\n";
   return ret;
