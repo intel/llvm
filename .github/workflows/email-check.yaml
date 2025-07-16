@@ -55,6 +55,9 @@ jobs:
           [{"body" : "$COMMENT"}]
           EOF
 
+          # Fail this job.
+          false
+
       - uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 #v4.3.0
         if: always()
         with:
