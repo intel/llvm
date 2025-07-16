@@ -124,10 +124,10 @@ static bool isDeviceBinaryTypeSupported(context_impl &ContextImpl,
   if (ContextBackend == backend::ext_oneapi_cuda)
     return false;
 
-  const std::vector<device> &Devices = ContextImpl.getDevices();
+  devices_range Devices = ContextImpl.getDevices();
 
   // Program type is SPIR-V, so we need a device compiler to do JIT.
-  for (const device &D : Devices) {
+  for (device_impl &D : Devices) {
     if (!D.get_info<info::device::is_compiler_available>())
       return false;
   }
@@ -143,7 +143,7 @@ static bool isDeviceBinaryTypeSupported(context_impl &ContextImpl,
       return true;
   }
 
-  for (const device &D : Devices) {
+  for (device_impl &D : Devices) {
     // We need cl_khr_il_program extension to be present
     // and we can call clCreateProgramWithILKHR using the extension
     std::vector<std::string> Extensions =

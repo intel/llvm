@@ -102,6 +102,10 @@ public:
   iterator_range(IterTy Begin, IterTy End, size_t Size)
       : Begin(Begin), End(End), Size(Size) {}
 
+  iterator_range()
+      : iterator_range(static_cast<value_type *>(nullptr),
+                       static_cast<value_type *>(nullptr), 0) {}
+
   template <typename ContainerTy>
   iterator_range(const ContainerTy &Container)
       : iterator_range(Container.begin(), Container.end(), Container.size()) {}
