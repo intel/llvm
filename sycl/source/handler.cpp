@@ -1066,6 +1066,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
   }
 
   switch (Kind) {
+  case kernel_param_kind_t::kind_special_type_wrapper:
   case kernel_param_kind_t::kind_std_layout:
   case kernel_param_kind_t::kind_pointer: {
     addArg(Kind, Ptr, Size, Index + IndexShift);

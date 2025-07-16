@@ -61,6 +61,7 @@ enum class kernel_param_kind_t {
   kind_work_group_memory = 6,
   kind_dynamic_work_group_memory = 7,
   kind_dynamic_accessor = 8,
+  kind_special_type_wrapper = 9,
   kind_invalid = 0xf, // not a valid kernel kind
 };
 
