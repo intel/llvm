@@ -3,7 +3,8 @@
 
 // Modified example from issue #19450 which identified an issue with updating
 // multiple kernel nodes which share the same kernel.
-#include <sycl/sycl.hpp>
+
+#include "../graph_common.hpp"
 
 int main() {
   sycl::queue q;
