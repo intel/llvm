@@ -14,6 +14,7 @@
 #include <atomic>
 #include <unordered_map>
 
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 
 /// Implementation of UR Program on HIP Module object
@@ -22,7 +23,7 @@ struct ur_program_handle_t_ : ur::hip::handle_base {
   native_type Module;
   const char *Binary;
   size_t BinarySizeInBytes;
-  std::atomic_uint32_t RefCount;
+  ur::RefCount RefCount;
   ur_context_handle_t Context;
   ur_device_handle_t Device;
   std::string ExecutableCache;
@@ -49,7 +50,7 @@ struct ur_program_handle_t_ : ur::hip::handle_base {
 
   ur_program_handle_t_(ur_context_handle_t Ctxt, ur_device_handle_t Device)
       : handle_base(), Module{nullptr}, Binary{}, BinarySizeInBytes{0},
-        RefCount{1}, Context{Ctxt}, Device{Device}, KernelReqdWorkGroupSizeMD{},
+        Context{Ctxt}, Device{Device}, KernelReqdWorkGroupSizeMD{},
         KernelReqdSubGroupSizeMD{} {
     urContextRetain(Context);
 
@@ -70,12 +71,6 @@ struct ur_program_handle_t_ : ur::hip::handle_base {
   ur_device_handle_t getDevice() const { return Device; };
 
   native_type get() const noexcept { return Module; };
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   ur_result_t getGlobalVariablePointer(const char *name,
                                        hipDeviceptr_t *DeviceGlobal,

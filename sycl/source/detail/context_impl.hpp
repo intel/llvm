@@ -130,9 +130,7 @@ public:
   /// \return an instance of raw UR context handle.
   const ur_context_handle_t &getHandleRef() const;
 
-  /// Unlike `get_info<info::context::devices>', this function returns a
-  /// reference.
-  const std::vector<device> &getDevices() const { return MDevices; }
+  devices_range getDevices() const { return MDevices; }
 
   using CachedLibProgramsT =
       std::map<std::pair<DeviceLibExt, ur_device_handle_t>,

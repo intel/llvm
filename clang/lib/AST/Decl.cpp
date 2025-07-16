@@ -3729,6 +3729,13 @@ unsigned FunctionDecl::getBuiltinID(bool ConsiderWrapperFunctions) const {
       !(BuiltinID == Builtin::BIprintf || BuiltinID == Builtin::BImalloc))
     return 0;
 
+  // SYCL doesn't have a device-side standard library. SYCLDeviceOnlyAttr may
+  // be used to provide device-side definitions of standard functions, so
+  // anything with that attribute shouldn't be treated as a builtin.
+  if (Context.getLangOpts().isSYCL() && hasAttr<SYCLDeviceOnlyAttr>()) {
+    return 0;
+  }
+
   // As AMDGCN implementation of OpenMP does not have a device-side standard
   // library, none of the predefined library functions except printf and malloc
   // should be treated as a builtin i.e. 0 should be returned for them.

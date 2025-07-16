@@ -1396,8 +1396,6 @@ void CodeGenModule::Release() {
 
   if (LangOpts.SYCLIsDevice) {
     getModule().addModuleFlag(llvm::Module::Error, "sycl-device", 1);
-    if (LangOpts.SYCLIsNativeCPU)
-      getModule().addModuleFlag(llvm::Module::Error, "is-native-cpu", 1);
   }
 
   if (LangOpts.EHAsynch)
@@ -4359,6 +4357,12 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
     }
   }
 
+  // Don't emit 'sycl_device_only' function in SYCL host compilation.
+  if (LangOpts.SYCLIsHost && isa<FunctionDecl>(Global) &&
+      Global->hasAttr<SYCLDeviceOnlyAttr>()) {
+    return;
+  }
+
   if (LangOpts.OpenMP) {
     // If this is OpenMP, check if it is legal to emit this global normally.
     if (OpenMPRuntime && OpenMPRuntime->emitTargetGlobal(GD))
@@ -4445,6 +4449,34 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
           ASTContext::InlineVariableDefinitionKind::Strong)
         GetAddrOfGlobalVar(VD);
       return;
+    }
+  }
+
+  // When using SYCLDeviceOnlyAttr, there can be two functions with the same
+  // mangling, the host function and the device overload. So when compiling for
+  // device we need to make sure we're selecting the SYCLDeviceOnlyAttr
+  // overload and dropping the host overload.
+  if (LangOpts.SYCLIsDevice) {
+    StringRef MangledName = getMangledName(GD);
+    auto DDI = DeferredDecls.find(MangledName);
+    // If we have an existing declaration with the same mangling for this
+    // symbol it may be a SYCLDeviceOnlyAttr case.
+    if (DDI != DeferredDecls.end()) {
+      auto *PreviousGlobal = cast<ValueDecl>(DDI->second.getDecl());
+      // If the host declaration was already processed, replace it with the
+      // device only declaration.
+      if (!PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
+          Global->hasAttr<SYCLDeviceOnlyAttr>()) {
+        DeferredDecls[MangledName] = GD;
+        return;
+      }
+
+      // If the device only declaration was already processed, skip the
+      // host declaration.
+      if (PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
+          !Global->hasAttr<SYCLDeviceOnlyAttr>()) {
+        return;
+      }
     }
   }
 
@@ -6955,8 +6987,7 @@ void CodeGenModule::EmitGlobalFunctionDefinition(GlobalDecl GD,
     if (GD.getKernelReferenceKind() == KernelReferenceKind::Stub &&
         !D->hasAttr<NoInlineAttr>() &&
         !Fn->hasFnAttribute(llvm::Attribute::NoInline) &&
-        !D->hasAttr<OptimizeNoneAttr>() && !LangOpts.SYCLIsNativeCPU &&
-        !LangOpts.SYCLIsDevice &&
+        !D->hasAttr<OptimizeNoneAttr>() && !LangOpts.SYCLIsDevice &&
         !Fn->hasFnAttribute(llvm::Attribute::OptimizeNone) &&
         !ShouldAddOptNone) {
       Fn->addFnAttr(llvm::Attribute::AlwaysInline);

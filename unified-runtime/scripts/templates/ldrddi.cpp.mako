@@ -51,24 +51,21 @@ namespace ur_loader
         %if func_basename == "AdapterGet":
         auto context = getContext();
 
-        size_t adapterIndex = 0;
-        if( nullptr != ${obj['params'][1]['name']} && ${obj['params'][0]['name']} !=0)
-        {
-            for( auto& platform : context->platforms )
-            {
-                if(platform.initStatus != ${X}_RESULT_SUCCESS)
-                    continue;
-                platform.dditable.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)}( 1, &${obj['params'][1]['name']}[adapterIndex], nullptr );
-                adapterIndex++;
-                if (adapterIndex == NumEntries) {
-                    break;
-                }
-            }
+        uint32_t numAdapters = 0;
+        for (auto &platform : context->platforms) {
+            if (platform.initStatus != ${X}_RESULT_SUCCESS)
+                continue;
+
+            uint32_t adapter;
+            ur_adapter_handle_t *adapterHandle = numAdapters < NumEntries ? &${obj['params'][1]['name']}[numAdapters] : nullptr;
+            platform.dditable.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)}( 1, adapterHandle, &adapter );
+
+            numAdapters += adapter;
         }
 
         if( ${obj['params'][2]['name']} != nullptr )
         {
-            *${obj['params'][2]['name']} = static_cast<uint32_t>(context->platforms.size());
+            *${obj['params'][2]['name']} = numAdapters;
         }
 
         return ${X}_RESULT_SUCCESS;
