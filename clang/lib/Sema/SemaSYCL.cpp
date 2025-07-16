@@ -4531,8 +4531,8 @@ public:
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     // Being inside this function means there is a struct parameter to the free
     // function kernel that contains a special type.
-    //ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
-    Expr *Base = ArgExprs.back();
+    ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
+    Expr *Base = createParamReferenceExpr(ParentStruct);
     for (const auto &child : CurrentStructs) {
       Base = buildMemberExpr(Base, child);
     }
@@ -4670,39 +4670,6 @@ public:
 
   bool enterStruct(const CXXRecordDecl *RD, ParmVarDecl *PD,
                    QualType ParamTy) final {
- const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
-    AccessSpecifier DefaultConstructorAccess;
-    auto DefaultConstructor =
-        std::find_if(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
-                     [](auto it) { return it->isDefaultConstructor(); });
-    DefaultConstructorAccess = DefaultConstructor->getAccess();
-    DefaultConstructor->setAccess(AS_public);
-
-    ASTContext &Ctx = SemaSYCLRef.SemaRef.getASTContext();
-    VarDecl *SpecialObjectClone =
-        VarDecl::Create(Ctx, DeclCreator.getKernelDecl(), FreeFunctionSrcLoc,
-                        FreeFunctionSrcLoc, PD->getIdentifier(), ParamTy,
-                        Ctx.getTrivialTypeSourceInfo(ParamTy), SC_None);
-    InitializedEntity VarEntity =
-        InitializedEntity::InitializeVariable(SpecialObjectClone);
-    InitializationKind InitKind =
-        InitializationKind::CreateDefault(FreeFunctionSrcLoc);
-    InitializationSequence InitSeq(SemaSYCLRef.SemaRef, VarEntity, InitKind,
-                                   std::nullopt);
-    ExprResult Init =
-        InitSeq.Perform(SemaSYCLRef.SemaRef, VarEntity, InitKind, std::nullopt);
-    SpecialObjectClone->setInit(
-        SemaSYCLRef.SemaRef.MaybeCreateExprWithCleanups(Init.get()));
-    SpecialObjectClone->setInitStyle(VarDecl::CallInit);
-    DefaultConstructor->setAccess(DefaultConstructorAccess);
-
-    Stmt *DS = new (SemaSYCLRef.getASTContext())
-        DeclStmt(DeclGroupRef(SpecialObjectClone), FreeFunctionSrcLoc,
-                 FreeFunctionSrcLoc);
-    BodyStmts.push_back(DS);
-    Expr *MemberBaseExpr = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-        SpecialObjectClone, ParamTy, VK_PRValue, FreeFunctionSrcLoc);
-   ArgExprs.push_back(MemberBaseExpr);
 return true;
   }
 
@@ -4712,9 +4679,9 @@ return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    //ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
-    //ArgExprs.push_back(SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-      //  ParentStruct, ParentStruct->getType(), VK_PRValue, FreeFunctionSrcLoc));
+    ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
+    ArgExprs.push_back(SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+      ParentStruct, ParentStruct->getType(), VK_PRValue, FreeFunctionSrcLoc));
     return true;
   }
 
@@ -4926,7 +4893,7 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   int64_t CurOffset = 0;
   llvm::SmallVector<size_t, 16> ArrayBaseOffsets;
   int StructDepth = 0;
-
+  bool SpecialTypeWrapper = false;
   // A series of functions to calculate the change in offset based on the type.
   int64_t offsetOf(const FieldDecl *FD, QualType ArgTy) const {
     return isArrayElement(FD, ArgTy)
@@ -4965,7 +4932,8 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
     Size =
         SemaSYCLRef.getASTContext().getTypeSizeInChars(ParamTy).getQuantity();
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
-                        static_cast<unsigned>(CurOffset + OffsetAdj));
+                        static_cast<unsigned>(
+                            (SpecialTypeWrapper ? 0 : CurOffset) + OffsetAdj));
   }
 
 public:
@@ -5040,7 +5008,10 @@ public:
               ? SYCLIntegrationHeader::kind_dynamic_accessor
               : SYCLIntegrationHeader::kind_accessor;
 
-      Header.addParamDesc(ParamKind, Info, CurOffset + offsetOf(FD, FieldTy));
+    if (SpecialTypeWrapper)
+      Header.addParamDesc(ParamKind, Info, static_cast<unsigned int>(offsetOf(FD, FieldTy)));
+     else
+        Header.addParamDesc(ParamKind, Info, CurOffset + offsetOf(FD, FieldTy));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::stream)) {
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
@@ -5195,7 +5166,8 @@ public:
   }
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl * PD, QualType Ty) final {
-    addParam(PD, Ty, SYCLIntegrationHeader::kind_std_layout);
+    addParam(PD, Ty, SYCLIntegrationHeader::kind_special_type_wrapper);
+    SpecialTypeWrapper = true;
     return true;
   }
 
@@ -5206,7 +5178,8 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    return true;
+    SpecialTypeWrapper = false;    
+return true;
   }
 
   bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
