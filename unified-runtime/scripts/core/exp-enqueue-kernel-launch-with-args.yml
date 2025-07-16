@@ -151,8 +151,10 @@ returns:
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
         - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
-    - $X_RESULT_ERROR_INVALID_WORK_DIMENSION
-    - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+    - $X_RESULT_ERROR_INVALID_WORK_DIMENSION:
+        - "`pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 || pGlobalWorkSize[2] == 0`"
+    - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE:
+        - "`pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] == 0 || pLocalWorkSize[2] == 0)`"
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGS
         - "The kernel argument values have not been specified."

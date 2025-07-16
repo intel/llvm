@@ -10775,6 +10775,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     if (phEventWaitList != NULL && numEventsInWaitList == 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
 
+    if (pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 ||
+        pGlobalWorkSize[2] == 0)
+      return UR_RESULT_ERROR_INVALID_WORK_DIMENSION;
+
+    if (pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] == 0 ||
+                           pLocalWorkSize[2] == 0))
+      return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+
     if (phEventWaitList != NULL && numEventsInWaitList > 0) {
       for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
         if (phEventWaitList[i] == NULL) {

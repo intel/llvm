@@ -141,6 +141,17 @@ public:
       ClusterDimensions[I] = N[I];
   }
 
+  // UR expects a minimum of 1 in all three dimensions, this ensures we comply
+  // with that requirement.
+  inline void normalizeSizesForLaunch() {
+    GlobalSize[0] = std::max(GlobalSize[0], 1lu);
+    GlobalSize[1] = std::max(GlobalSize[1], 1lu);
+    GlobalSize[2] = std::max(GlobalSize[2], 1lu);
+    LocalSize[0] = std::max(LocalSize[0], 1lu);
+    LocalSize[1] = std::max(LocalSize[1], 1lu);
+    LocalSize[2] = std::max(LocalSize[2], 1lu);
+  }
+
   NDRDescT &operator=(const NDRDescT &Desc) = default;
   NDRDescT &operator=(NDRDescT &&Desc) = default;
 

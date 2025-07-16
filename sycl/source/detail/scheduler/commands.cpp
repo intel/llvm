@@ -2277,9 +2277,8 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
     WGSize = {1, 1, 1};
   }
 
-  // Our sizes are padded to 3D and the UR kernel launch entry point expects 3D.
-  for (size_t I = 0; I < 3; ++I) {
-    NDR.GlobalSize[I] = std::max(WGSize[I] * NDR.NumWorkGroups[I], 1lu);
+  for (size_t I = 0; I < NDR.Dims; ++I) {
+    NDR.GlobalSize[I] = WGSize[I] * NDR.NumWorkGroups[I];
     NDR.LocalSize[I] = WGSize[I];
   }
 }
@@ -2493,6 +2492,7 @@ static ur_result_t SetKernelParamsAndLaunch(
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
   ReverseRangeDimensionsForKernel(NDRDesc);
+  NDRDesc.normalizeSizesForLaunch();
 
   size_t RequiredWGSize[3] = {0, 0, 0};
   size_t *LocalSize = nullptr;
