@@ -15,7 +15,7 @@
 
 struct ur_adapter_handle_t_ : ur::native_cpu::handle_base {
   logger::Logger &logger = logger::get_logger("native_cpu");
-  ur::RefCount RefCount;
+  ur::RefCount RefCount{0};
 } Adapter;
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
