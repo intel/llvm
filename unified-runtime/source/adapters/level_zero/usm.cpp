@@ -1232,17 +1232,10 @@ ur_result_t ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
 
   *RetMem = umfPoolAlignedMalloc(UmfPool, Size, Alignment);
   if (*RetMem == nullptr) {
-    if (Pool->AsyncPool.cleanup()) { // true means that objects were deallocated
-      // let's try again
-      *RetMem = umfPoolAlignedMalloc(UmfPool, Size, Alignment);
-    }
-    if (*RetMem == nullptr) {
-      auto UmfRet = umfPoolGetLastAllocationError(UmfPool);
-      UR_LOG(ERR,
-             "enqueueUSMAllocHelper: allocation from the UMF pool {} failed",
-             UmfPool);
-      return umf::umf2urResult(UmfRet);
-    }
+    auto UmfRet = umfPoolGetLastAllocationError(UmfPool);
+    UR_LOG(ERR, "enqueueUSMAllocHelper: allocation from the UMF pool {} failed",
+           UmfPool);
+    return umf::umf2urResult(UmfRet);
   }
 
   if (IndirectAccessTrackingEnabled) {
