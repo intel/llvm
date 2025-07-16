@@ -111,8 +111,9 @@ handles to import SYCL allocated memory into external APIs.
 exporting memory by the implementation. Currently, the {dpcpp} implementation
 only supports exporting memory with the `opaque_fd` and `win32_nt_handle` handle
 types. This enum is shared with the memory import functionality defined in the
-Bindless Images extension, where more handle types may be supported for
-importing memory into SYCL.
+https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc[sycl_ext_oneapi_bindless_images]
+extension, where more handle types may be supported for importing memory into
+SYCL.
 _{endnote}_]
 
 ```c++
@@ -127,26 +128,26 @@ enum class external_mem_handle_type {
   win32_nt_dx11_resource = 4,
 };
 
-template <export_mem_handle_type ExportMemHandleType>
+template <external_mem_handle_type ExternalMemHandleType>
 struct exported_mem;
 
 template <>
-struct exported_mem<export_mem_handle_type::opaque_fd> {
+struct exported_mem<external_mem_handle_type::opaque_fd> {
   using type = int;
 };
 
 template <>
-struct exported_mem<export_mem_handle_type::win32_nt_handle> {
+struct exported_mem<external_mem_handle_type::win32_nt_handle> {
   using type = void *;
 };
 
-template <export_mem_handle_type ExportMemHandleType>
-using exported_mem_t = typename exported_mem<ExportMemHandleType>::type;
+template <external_mem_handle_type ExternalMemHandleType>
+using exported_mem_t = typename exported_mem<ExternalMemHandleType>::type;
 
 }
 ```
 
-The `export_mem_handle_type` enum class defines the types of external memory
+The `external_mem_handle_type` enum class defines the types of external memory
 resource handles that can be exported by this extension. The `opaque_fd` and
 `win32_nt_handle` values are used during allocation of exportable memory to
 indicate the type of handle that will later be returned by the
@@ -159,11 +160,11 @@ The `win32_nt_handle` handle type corresponds to a Windows NT handle, which is
 represented by a `void *`.
 
 The `exported_mem` template struct is specialized for each of the
-`export_mem_handle_type` values. Each specialization defines a `type` alias that
-represents the type of the exported memory handle for that specific handle.
+`external_mem_handle_type` values. Each specialization defines a `type` alias
+that represents the type of the exported memory handle for that specific handle.
 
 The `exported_mem_t` type alias allows the user to easily obtain the type of
-the exported memory handle based on the `export_mem_handle_type` template
+the exported memory handle based on the `external_mem_handle_type` template
 parameter.
 
 === API of the extension
@@ -174,13 +175,13 @@ namespace sycl::ext::oneapi::experimental {
 
 void *alloc_exportable_device_mem(
     size_t alignment, size_t size,
-    export_mem_handle_type exportMemHandleType,
+    external_mem_handle_type externalMemHandleType,
     const sycl::device &syclDevice, const sycl::context &syclContext,
     const property_list& propList = {});
 
 void *alloc_exportable_device_mem(
     size_t alignment, size_t size,
-    export_mem_handle_type exportMemHandleType,
+    external_mem_handle_type externalMemHandleType,
     const sycl::queue &syclQueue,
     const property_list& propList = {});
 }
@@ -209,8 +210,8 @@ instance of `sycl::property_list`. Currently, this extension does not define
 any properties that can be used with this function, so the `propList` parameter
 is ignored and reserved for future use.
 
-The passed `exportMemHandleType` must be supported by the operating system
-running the SYCL application. Passing an `exportMemHandleType` that is not
+The passed `externalMemHandleType` must be supported by the operating system
+running the SYCL application. Passing an `externalMemHandleType` that is not
 supported by the operating system running the SYCL application results in
 undefined behavior. The `win32_nt_handle` handle type is only supported on
 Windows operating systems, while the `opaque_fd` handle type is only supported
@@ -223,23 +224,21 @@ if the device `syclDevice` does not have
 This function will throw a `sycl::exception` with the `errc::runtime` code if
 any error occurs while allocating the memory.
 
-[_Note:_ The {dpcpp} implementation of this function will throw a
-`sycl::exception` with the code `errc::invalid` if the
-`external_mem_handle_type` passed is not either `opaque_fd` or
-`win32_nt_handle`. 
-_{endnote}_]
+This function will throw a `sycl::exception` with the code `errc::invalid` if
+the `externalMemHandleType` passed is not supported by the backend
+implementation.
 
 ```c++
 
 namespace sycl::ext::oneapi::experimental {
 
-template <export_mem_handle_type ExportMemHandleType>
-exported_mem_t<ExportMemHandleType>
+template <external_mem_handle_type ExternalMemHandleType>
+exported_mem_t<ExternalMemHandleType>
 export_device_mem_handle(void *deviceMemory, const sycl::device &syclDevice,
                          const sycl::context &syclContext);
 
-template <export_mem_handle_type ExportMemHandleType>
-exported_mem_t<ExportMemHandleType>
+template <external_mem_handle_type ExternalMemHandleType>
+exported_mem_t<ExternalMemHandleType>
 export_device_mem_handle(void *deviceMemory, const sycl::queue &syclQueue);
 
 }
@@ -249,11 +248,11 @@ The `export_device_mem_handle` function accepts a `void *` representing a device
 allocation made using `alloc_exportable_device_mem`.
 
 The return type is determined by the template parameter,
-`ExportMemHandleType`.
+`ExternalMemHandleType`.
 
-The value of `ExportMemHandleType` must match the value passed to
+The value of `ExternalMemHandleType` must match the value passed to
 `alloc_exportable_device_mem` when the memory was allocated. Passing an
-`ExportMemHandleType` value that not match the value passed to
+`ExternalMemHandleType` value that not match the value passed to
 `alloc_exportable_device_mem` results in undefined behavior.
 
 The `syclDevice` and `syclContext` passed to `export_device_mem_handle` must
@@ -264,12 +263,6 @@ allocated.
 
 This function will throw a `sycl::exception` with the `errc::runtime` code if
 any error occurs while exporting the memory handle.
-
-[_Note:_ The {dpcpp} implementation of this function will throw a
-`sycl::exception` with the code `errc::invalid` if the
-`external_mem_handle_type` passed is not either `opaque_fd` or
-`win32_nt_handle`. 
-_{endnote}_]
 
 [_Note:_ The returned handle may be used to import the SYCL allocated memory
 into an external API, such as Vulkan or DirectX.

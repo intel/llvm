@@ -2,8 +2,8 @@
 // REQUIRES: target-spir
 // REQUIRES: vulkan
 
-// RUN: %{build} %link-vulkan -o %t.out %if target-spir %{
-// -Wno-ignored-attributes %} RUN: %{run} %t.out
+// RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <numeric>
