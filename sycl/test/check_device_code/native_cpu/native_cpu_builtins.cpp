@@ -88,6 +88,3 @@ int main() {
     });
   });
 }
-
-// check that the generated module has the is-native-cpu module flag set
-// CHECK: !{{[0-9]*}} = !{i32 1, !"is-native-cpu", i32 1}

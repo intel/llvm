@@ -318,9 +318,7 @@ struct uid_t {
     return p1 == rhs.p1 && p2 == rhs.p2;
   }
 };
-} // namespace xpti
 
-namespace xpti {
 template <typename T = uint32_t>
 constexpr T invalid_id = std::numeric_limits<T>::max();
 constexpr uint64_t invalid_uid = 0;
@@ -351,6 +349,8 @@ enum class payload_flag_t {
   // A 64-bit hash is already available for this payload
   HashAvailable = 2 << 16
 };
+
+using stream_id_t = uint8_t;
 
 //
 //  Helper macros for creating new tracepoint and

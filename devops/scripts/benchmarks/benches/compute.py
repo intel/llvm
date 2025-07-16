@@ -50,7 +50,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "83b9ae3ebb3563552409f3a317cdc1cf3d3ca6bd"
+        return "e1ddda90c3e0c29bf1dc4e894ad6006cedac7070"
 
     def setup(self):
         if options.sycl is None:

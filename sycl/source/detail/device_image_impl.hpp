@@ -1259,7 +1259,7 @@ private:
     // Get the kernel names.
     size_t KernelNamesSize;
     Adapter.call<UrApiKind::urProgramGetInfo>(
-        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
+        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, 0u, nullptr, &KernelNamesSize);
 
     // semi-colon delimited list of kernel names.
     std::string KernelNamesStr(KernelNamesSize, ' ');

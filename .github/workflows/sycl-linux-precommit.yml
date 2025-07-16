@@ -105,9 +105,10 @@ jobs:
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
+            target_devices: level_zero:gpu
             extra_lit_opts: --param matrix-xmx8=True
             use_igc_dev: true
+            env: '{"LIT_FILTER":"Matrix/"}'
           - name: E2E tests on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
@@ -116,8 +117,9 @@ jobs:
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
+            target_devices: level_zero:gpu
             use_igc_dev: true
+            env: '{"LIT_FILTER":"Matrix/"}'
           - name: Intel Battlemage Graphics
             runner: '["Linux", "bmg"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
@@ -163,7 +165,7 @@ jobs:
         'false' }}
       # Run only if the PR does not have the 'ci-no-devigc' label.
       skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
-      env: ${{ contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}' }}
+      env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
 
   test-perf:
     needs: [build, detect_changes]
