@@ -10369,7 +10369,7 @@ __urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
     if ((hDevice == nullptr) || (hContext == nullptr))
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < handleTypeToExport)
+    if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE < handleTypeToExport)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (alignment != 0 && ((alignment & (alignment - 1)) != 0))
@@ -10474,7 +10474,7 @@ __urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
     if ((hDevice == nullptr) || (hContext == nullptr))
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < handleTypeToExport)
+    if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE < handleTypeToExport)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 

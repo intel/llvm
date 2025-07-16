@@ -10006,7 +10006,8 @@ ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 ///         + `NULL == hDevice`
 ///         + `(hDevice == nullptr) || (hContext == nullptr)`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < handleTypeToExport`
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         handleTypeToExport`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
@@ -10104,7 +10105,8 @@ ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
 ///         + `NULL == hDevice`
 ///         + `(hDevice == nullptr) || (hContext == nullptr)`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < handleTypeToExport`
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         handleTypeToExport`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
