@@ -737,7 +737,7 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   const bool xptiEnabled = xptiTraceEnabled();
-  int32_t StreamID = xpti::invalid_id<>;
+  auto StreamID = xpti::invalid_id<xpti::stream_id_t>;
   xpti_td *CmdTraceEvent = nullptr;
   uint64_t InstanceID = 0;
   if (xptiEnabled) {
@@ -1970,15 +1970,11 @@ void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
 
 std::vector<node> modifiable_command_graph::get_nodes() const {
   graph_impl::ReadLock Lock(impl->MMutex);
-  return createNodesFromImpls(impl->MNodeStorage);
+  return impl->nodes().to<std::vector<node>>();
 }
 std::vector<node> modifiable_command_graph::get_root_nodes() const {
   graph_impl::ReadLock Lock(impl->MMutex);
-  auto &Roots = impl->MRoots;
-  std::vector<node_impl *> Impls{};
-
-  std::copy(Roots.begin(), Roots.end(), std::back_inserter(Impls));
-  return createNodesFromImpls(Impls);
+  return impl->roots().to<std::vector<node>>();
 }
 
 void modifiable_command_graph::checkNodePropertiesAndThrow(
