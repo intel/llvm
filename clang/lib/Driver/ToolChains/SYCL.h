@@ -222,7 +222,7 @@ StringRef resolveGenDevice(StringRef DeviceName);
 SmallString<64> getGenDeviceMacro(StringRef DeviceName);
 StringRef getGenGRFFlag(StringRef GRFMode);
 
-// // Prefix for GPU specific targets used for -fsycl-targets
+// Prefix for GPU specific targets used for -fsycl-targets
 constexpr char IntelGPU[] = "intel_gpu_";
 constexpr char NvidiaGPU[] = "nvidia_gpu_";
 constexpr char AmdGPU[] = "amd_gpu_";

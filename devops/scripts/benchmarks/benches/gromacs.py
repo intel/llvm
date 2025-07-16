@@ -4,14 +4,15 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
-import subprocess
 from pathlib import Path
+import re
+
 from .base import Suite, Benchmark
 from options import options
 from utils.utils import git_clone, download, run, create_build_path
 from utils.result import Result
 from utils.oneapi import get_oneapi
-import re
+from utils.logger import log
 
 
 class GromacsBench(Suite):
@@ -210,8 +211,7 @@ class GromacsBenchmark(Benchmark):
 
         time = self._extract_execution_time(mdrun_output)
 
-        if options.verbose:
-            print(f"[{self.name()}] Time: {time:.3f} seconds")
+        log.debug(f"[{self.name()}] Time: {time:.3f} seconds")
 
         return [
             Result(
@@ -259,7 +259,7 @@ class GromacsBenchmark(Benchmark):
                             drift_value = float(match.group(1))
                             return abs(drift_value) <= threshold
                         except ValueError:
-                            print(
+                            log.warning(
                                 f"Parsed drift value: {drift_value} exceeds threshold"
                             )
                             return False

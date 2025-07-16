@@ -137,7 +137,7 @@ void SYCLMemObjT::updateHostMemory(void *const Ptr) {
 
   EventImplPtr Event = Scheduler::getInstance().addCopyBack(&Req);
   if (Event)
-    Event->wait(Event);
+    Event->wait();
 }
 
 void SYCLMemObjT::updateHostMemory() {
@@ -162,7 +162,7 @@ void SYCLMemObjT::updateHostMemory() {
 adapter_impl &SYCLMemObjT::getAdapter() const {
   assert((MInteropContext != nullptr) &&
          "Trying to get Adapter from SYCLMemObjT with nullptr ContextImpl.");
-  return *(MInteropContext->getAdapter());
+  return MInteropContext->getAdapter();
 }
 
 bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }

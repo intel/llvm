@@ -9,6 +9,8 @@ from urllib import request
 from pathlib import Path
 import argparse
 
+from utils.logger import log
+
 if __name__ == "__main__":
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from options import options
@@ -88,12 +90,12 @@ class DetectVersion:
         # matches up with the prefix of the l0 version patch, the cache is
         # indeed referring to the same version.
         if env_cache_patch == l0_ver_patch[: len(env_cache_patch)]:
-            print(
+            log.info(
                 f"Using compute_runtime tag from COMPUTE_RUNTIME_TAG_CACHE: {env_cache_ver}"
             )
             cls._instance.compute_runtime_ver_cache = env_cache_ver
         else:
-            print(
+            log.warning(
                 f"Mismatch between COMPUTE_RUNTIME_TAG_CACHE {env_cache_ver} and patch reported by level_zero {get_var('L0_VER')}"
             )
 
@@ -119,7 +121,7 @@ class DetectVersion:
         """
         return self.dpcpp_ver
 
-    def get_dpcpp_git_info(self) -> [str, str]:
+    def get_dpcpp_git_info(self) -> list[str]:
         """
         Returns: (git_repo, commit_hash)
         """
@@ -153,7 +155,7 @@ class DetectVersion:
         Returns the compute-runtime version by deriving from l0 version.
         """
         if self.compute_runtime_ver_cache is not None:
-            print(
+            log.info(
                 f"Using cached compute-runtime tag {self.compute_runtime_ver_cache}..."
             )
             return self.compute_runtime_ver_cache
@@ -164,7 +166,7 @@ class DetectVersion:
         # not work if we enable benchmark CI in precommit.
         url = options.detect_versions.compute_runtime_tag_api
 
-        print(f"Fetching compute-runtime tag from {url}...")
+        log.info(f"Fetching compute-runtime tag from {url}...")
         try:
             for _ in range(options.detect_versions.max_api_calls):
                 res = request.urlopen(url)
@@ -202,16 +204,16 @@ class DetectVersion:
                     break
 
         except urllib.error.HTTPError as e:
-            print(f"HTTP error {e.code}: {e.read().decode('utf-8')}")
+            log.error(f"HTTP error {e.code}: {e.read().decode('utf-8')}")
 
         except urllib.error.URLError as e:
-            print(f"URL error: {e.reason}")
+            log.error(f"URL error: {e.reason}")
 
-        print(f"WARNING: unable to find compute-runtime version")
+        log.warning(f"unable to find compute-runtime version")
         return options.detect_versions.not_found_placeholder
 
 
-def main(components: [str]):
+def main(components: list[str]):
     detect_res = DetectVersion.init(f"{os.path.dirname(__file__)}/detect_versions.cpp")
 
     str2fn = {
@@ -223,14 +225,14 @@ def main(components: [str]):
 
     def remove_undefined_components(component: str) -> bool:
         if component not in str2fn:
-            print(f"# Warn: unknown component: {component}", file=sys.stderr)
+            log.warning(f"unknown component: {component}")
             return False
         return True
 
     components_clean = filter(remove_undefined_components, components)
 
     for s in map(lambda c: f"{c.upper()}={str2fn[c]()}", components_clean):
-        print(s)
+        log.info(s)
 
 
 if __name__ == "__main__":

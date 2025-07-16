@@ -21,8 +21,8 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
                ur_kernel_handle_t *phKernel) {
   ur_kernel_handle_t Kernel = new ur_kernel_handle_t_;
 
-  auto Res = olGetKernel(hProgram->OffloadProgram, pKernelName,
-                         &Kernel->OffloadKernel);
+  auto Res = olGetSymbol(hProgram->OffloadProgram, pKernelName,
+                         OL_SYMBOL_KIND_KERNEL, &Kernel->OffloadKernel);
 
   if (Res != OL_SUCCESS) {
     delete Kernel;
