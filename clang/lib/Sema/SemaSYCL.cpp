@@ -1303,7 +1303,7 @@ constructKernelName(SemaSYCL &S, const FunctionDecl *KernelCallerFunc,
   // instead to always compile the NativeCPU device code in GNU mode which
   // may cause issues when compiling headers with non-standard extensions
   // written for compilers with different C++ ABIs (like MS VS).
-  if (S.getLangOpts().SYCLIsNativeCPU) {
+  if (S.getASTContext().getTargetInfo().getTriple().isNativeCPU()) {
     MangledName = StableName;
   }
 

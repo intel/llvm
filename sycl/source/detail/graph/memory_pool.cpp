@@ -114,12 +114,8 @@ graph_mem_pool::tryReuseExistingAllocation(size_t Size, usm::alloc AllocType,
   // free nodes. We do this in a breadth-first approach because we want to find
   // the shortest path to a reusable allocation.
 
-  std::queue<node_impl *> NodesToCheck;
-
   // Add all the dependent nodes to the queue, they will be popped first
-  for (node_impl &Dep : DepNodes) {
-    NodesToCheck.push(&Dep);
-  }
+  auto NodesToCheck = DepNodes.to<std::queue<node_impl *>>();
 
   // Called when traversing over nodes to check if the current node is a free
   // node for one of the available allocations. If it is we populate AllocInfo
