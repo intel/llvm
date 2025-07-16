@@ -578,8 +578,6 @@ PassBuilder::buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
       SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
   FPM.addPass(InstCombinePass());
   invokePeepholeEPCallbacks(FPM, Level);
-  if (SYCLOptimizationMode)
-    FPM.addPass(SYCLOptimizeBarriersPass());
 
   return FPM;
 }
@@ -813,8 +811,6 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
                                     .sinkCommonInsts(true)));
   FPM.addPass(InstCombinePass());
   invokePeepholeEPCallbacks(FPM, Level);
-  if (SYCLOptimizationMode)
-    FPM.addPass(SYCLOptimizeBarriersPass());
 
   return FPM;
 }
