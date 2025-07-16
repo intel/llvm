@@ -8,4 +8,19 @@
 
 #pragma once
 
+namespace sycl {
+inline namespace _V1 {
+namespace ext::oneapi::experimental {
 
+// Types of external memory handles
+enum class external_mem_handle_type {
+  opaque_fd = 0,
+  win32_nt_handle = 1,
+  win32_nt_dx12_resource = 2,
+  dma_buf = 3,
+  win32_nt_dx11_resource = 4,
+};
+
+} // namespace ext::oneapi::experimental
+} // namespace _V1
+} // namespace sycl

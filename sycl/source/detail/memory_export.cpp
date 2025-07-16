@@ -22,7 +22,7 @@ namespace ext::oneapi::experimental {
 
 __SYCL_EXPORT void *alloc_exportable_device_mem(
     size_t alignment, size_t size,
-    export_external_mem_handle_type externalMemHandleType,
+    external_mem_handle_type externalMemHandleType,
     const sycl::device &syclDevice, const sycl::context &syclContext,
     [[maybe_unused]] const sycl::property_list &propList) {
 
@@ -38,10 +38,10 @@ __SYCL_EXPORT void *alloc_exportable_device_mem(
 
   ur_exp_external_mem_type_t urExternalMemType;
   switch (externalMemHandleType) {
-  case export_external_mem_handle_type::opaque_fd:
+  case external_mem_handle_type::opaque_fd:
     urExternalMemType = UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD;
     break;
-  case export_external_mem_handle_type::win32_nt:
+  case external_mem_handle_type::win32_nt_handle:
     urExternalMemType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT;
     break;
   default:

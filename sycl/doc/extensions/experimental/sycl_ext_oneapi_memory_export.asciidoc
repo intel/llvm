@@ -136,7 +136,7 @@ struct exported_mem<export_mem_handle_type::opaque_fd> {
 };
 
 template <>
-struct exported_mem<export_mem_handle_type::win32_nt> {
+struct exported_mem<export_mem_handle_type::win32_nt_handle> {
   using type = void *;
 };
 
@@ -148,14 +148,14 @@ using exported_mem_t = typename exported_mem<ExportMemHandleType>::type;
 
 The `export_mem_handle_type` enum class defines the types of external memory
 resource handles that can be exported by this extension. The `opaque_fd` and
-`win32_nt` values are used during allocation of exportable memory to indicate
-the type of handle that will later be returned by the `export_device_mem_handle`
-function.
+`win32_nt_handle` values are used during allocation of exportable memory to
+indicate the type of handle that will later be returned by the
+`export_device_mem_handle` function.
 
 The `opaque_fd` handle type corresponds to a POSIX file descriptor, which is
 represented by an `int`.
 
-The `win32_nt` handle type corresponds to a Windows NT handle, which is
+The `win32_nt_handle` handle type corresponds to a Windows NT handle, which is
 represented by a `void *`.
 
 The `exported_mem` template struct is specialized for each of the
@@ -212,7 +212,7 @@ is ignored and reserved for future use.
 The passed `exportMemHandleType` must be supported by the operating system
 running the SYCL application. Passing an `exportMemHandleType` that is not
 supported by the operating system running the SYCL application results in
-undefined behavior. The `win32_nt` handle type is only supported on
+undefined behavior. The `win32_nt_handle` handle type is only supported on
 Windows operating systems, while the `opaque_fd` handle type is only supported
 on POSIX compliant operating systems.
 

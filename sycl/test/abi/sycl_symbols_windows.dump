@@ -3799,7 +3799,7 @@
 ?aligned_alloc_shared@_V1@sycl@@YAPEAX_K0AEBVdevice@12@AEBVcontext@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
 ?aligned_alloc_shared@_V1@sycl@@YAPEAX_K0AEBVqueue@12@AEBUcode_location@detail@12@@Z
 ?aligned_alloc_shared@_V1@sycl@@YAPEAX_K0AEBVqueue@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
-?alloc_exportable_device_mem@experimental@oneapi@ext@_V1@sycl@@YAPEAX_K0W4export_external_mem_handle_type@12345@AEBVdevice@45@AEBVcontext@45@AEBVproperty_list@45@@Z
+?alloc_exportable_device_mem@experimental@oneapi@ext@_V1@sycl@@YAPEAX_K0W4external_mem_handle_type@12345@AEBVdevice@45@AEBVcontext@45@AEBVproperty_list@45@@Z
 ?alloc_image_mem@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?alloc_image_mem@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?aspect_selector@_V1@sycl@@YA?AV?$function@$$A6AHAEBVdevice@_V1@sycl@@@Z@std@@AEBV?$vector@W4aspect@_V1@sycl@@V?$allocator@W4aspect@_V1@sycl@@@std@@@4@0@Z

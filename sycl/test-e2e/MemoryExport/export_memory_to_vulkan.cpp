@@ -2,8 +2,8 @@
 // REQUIRES: target-spir
 // REQUIRES: vulkan
 
-// RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
-// RUN: %{run} %t.out
+// RUN: %{build} %link-vulkan -o %t.out %if target-spir %{
+// -Wno-ignored-attributes %} RUN: %{run} %t.out
 
 #include <iostream>
 #include <numeric>
@@ -23,10 +23,9 @@ std::vector<DataT> vulkanOutput;
 
 #ifdef _WIN32
 constexpr auto exportHandleType =
-    syclexp::export_external_mem_handle_type::win32_nt;
+    syclexp::external_mem_handle_type::win32_nt_handle;
 #else
-constexpr auto exportHandleType =
-    syclexp::export_external_mem_handle_type::opaque_fd;
+constexpr auto exportHandleType = syclexp::external_mem_handle_type::opaque_fd;
 #endif // _WIN32
 
 syclexp::exported_mem_t<exportHandleType> exportableMemoryHandle;
