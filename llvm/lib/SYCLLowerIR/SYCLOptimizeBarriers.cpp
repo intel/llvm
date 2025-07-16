@@ -508,9 +508,15 @@ static bool noFencedMemAccessesBetween(CallInst *A, CallInst *B,
 // Helper to check if a whole block (or a slice) contains accesses fenced by
 // 'Required'.
 static bool hasFencedAccesses(BasicBlock *BB, RegionMemScope Required,
+                              const BBMemInfoMap &BBMemInfo,
                               Instruction *Start = nullptr,
                               Instruction *End = nullptr) {
   LLVM_DEBUG(dbgs() << "Checking for fenced accesses in basic block\n");
+  // Shortcut: whole BB without barrier scan - return based on BBMemInfo's info.
+  if (!Start && !End) {
+    RegionMemScope BlockScope = BBMemInfo.lookup(BB);
+    return BlockScope == RegionMemScope::Unknown || BlockScope >= Required;
+  }
   auto It = Start ? std::next(BasicBlock::iterator(Start)) : BB->begin();
   auto Finish = End ? BasicBlock::iterator(End) : BB->end();
   for (; It != Finish; ++It) {
@@ -574,7 +580,7 @@ static bool noFencedAccessesCFG(CallInst *A, CallInst *B,
 
     // If we've reached the block containing B, only scan up to B.
     if (B && BB == B->getParent()) {
-      if (hasFencedAccesses(BB, Required, StartInst, B))
+      if (hasFencedAccesses(BB, Required, BBMemInfo, StartInst, B))
         return false;
       // Do not descend past B block.
       continue;
@@ -584,7 +590,7 @@ static bool noFencedAccessesCFG(CallInst *A, CallInst *B,
     // block, check from StartInst to the end of BB and then continue to no
     // successors.
     if (!B && BB->getTerminator()->getNumSuccessors() == 0) {
-      if (hasFencedAccesses(BB, Required, StartInst, nullptr)) {
+      if (hasFencedAccesses(BB, Required, BBMemInfo, StartInst, nullptr)) {
         LLVM_DEBUG(dbgs() << "noFencedAccessesCFG(" << *A << ", " << *B
                           << ") returned " << false << "\n");
         return false;
@@ -594,7 +600,7 @@ static bool noFencedAccessesCFG(CallInst *A, CallInst *B,
     }
 
     // Otherwise, scan entire block.
-    if (hasFencedAccesses(BB, Required, StartInst, nullptr)) {
+    if (hasFencedAccesses(BB, Required, BBMemInfo, StartInst, nullptr)) {
       LLVM_DEBUG(dbgs() << "noFencedAccessesCFG(" << *A << ", " << *B
                         << ") returned " << false << "\n");
       return false;
@@ -618,8 +624,8 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
                                     const BBMemInfoMap &BBMemInfo) {
   SmallVector<BarrierDesc, 8> Survivors;
   bool Changed = false;
-  RegionMemScope BlockScope = BB ? BBMemInfo.lookup(BB)
-                                 : RegionMemScope::Unknown;
+  RegionMemScope BlockScope =
+      BB ? BBMemInfo.lookup(BB) : RegionMemScope::Unknown;
 
   // If there are no memory accesses requiring synchronization in this block,
   // collapse all barriers to the single largest one.
