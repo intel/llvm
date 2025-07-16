@@ -68,7 +68,7 @@ PreservedAnalyses RemoveIntPtrPass::run(Function &F,
 
         Instruction *insert = phi;
         while (isa<PHINode>(insert)) {
-          insert = insert->getNextNonDebugInstruction();
+          insert = insert->getNextNode();
         }
 
         // Populate the replacement PHI node

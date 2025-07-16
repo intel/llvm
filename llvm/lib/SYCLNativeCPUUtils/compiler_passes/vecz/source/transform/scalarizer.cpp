@@ -109,7 +109,7 @@ Value *Scalarizer::getGather(Value *V) {
 
   // Have to build after any PHI nodes.
   while (isa<PHINode>(insert)) {
-    insert = insert->getNextNonDebugInstruction();
+    insert = insert->getNextNode();
   }
   IRBuilder<> B(insert);
 
@@ -641,9 +641,9 @@ SimdPacket *Scalarizer::extractLanes(llvm::Value *V, PacketMask PM) {
     }
     insert = &*insertAfter;
   } else if (auto *Inst = dyn_cast<Instruction>(V)) {
-    insert = Inst->getNextNonDebugInstruction();
+    insert = Inst->getNextNode();
     while (isa<PHINode>(insert)) {
-      insert = insert->getNextNonDebugInstruction();
+      insert = insert->getNextNode();
     }
   } else {
     return nullptr;
