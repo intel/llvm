@@ -74,7 +74,7 @@ context kernel_bundle_plain::get_context() const noexcept {
 }
 
 std::vector<device> kernel_bundle_plain::get_devices() const noexcept {
-  return impl->get_devices();
+  return impl->get_devices().to<std::vector<device>>();
 }
 
 std::vector<kernel_id> kernel_bundle_plain::get_kernel_ids() const {
