@@ -464,9 +464,11 @@ protected:
       m_ServiceKernels;
 
   /// Caches all exported symbols to allow faster lookup when excluding these
-  // from kernel bundles.
+  /// from kernel bundles.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_multimap<KernelNameStrT, const RTDeviceBinaryImage *>
+  /// Owns its keys to support the bfloat16 use case with dynamic images,
+  /// where the symbol is taken from another image (that might be unloaded).
+  std::unordered_multimap<std::string, const RTDeviceBinaryImage *>
       m_ExportedSymbolImages;
 
   /// Keeps all device images we are refering to during program lifetime. Used
