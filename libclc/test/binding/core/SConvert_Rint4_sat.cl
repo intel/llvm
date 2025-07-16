@@ -21,26 +21,11 @@ test___spirv_SConvert_Rint4_sat(__clc_vec4_int8_t args_0) {
 }
 
 __attribute__((overloadable)) __clc_vec4_int32_t
-test___spirv_SConvert_Rint4_sat(__clc_vec4_uint8_t args_0) {
-  return __spirv_SConvert_Rint4_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec4_int32_t
 test___spirv_SConvert_Rint4_sat(__clc_vec4_int16_t args_0) {
   return __spirv_SConvert_Rint4_sat(args_0);
 }
 
 __attribute__((overloadable)) __clc_vec4_int32_t
-test___spirv_SConvert_Rint4_sat(__clc_vec4_uint16_t args_0) {
-  return __spirv_SConvert_Rint4_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec4_int32_t
 test___spirv_SConvert_Rint4_sat(__clc_vec4_int64_t args_0) {
-  return __spirv_SConvert_Rint4_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec4_int32_t
-test___spirv_SConvert_Rint4_sat(__clc_vec4_uint64_t args_0) {
   return __spirv_SConvert_Rint4_sat(args_0);
 }

@@ -5556,7 +5556,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-sycl-opt");
       }
       if (RawTriple.isNativeCPU()) {
-        CmdArgs.push_back("-fsycl-is-native-cpu");
         CmdArgs.push_back("-D");
         CmdArgs.push_back("__SYCL_NATIVE_CPU__");
         CmdArgs.push_back("-fno-autolink");

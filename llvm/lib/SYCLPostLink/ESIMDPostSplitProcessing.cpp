@@ -34,25 +34,21 @@ ModulePassManager buildESIMDLoweringPipeline(bool OptLevelO0, bool SplitESIMD) {
   ModulePassManager MPM;
   MPM.addPass(SYCLLowerESIMDPass(!SplitESIMD));
 
-  if (!OptLevelO0) {
-    FunctionPassManager FPM;
-    FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
-  }
+  FunctionPassManager FPM;
+  FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
+  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   MPM.addPass(ESIMDOptimizeVecArgCallConvPass{});
   FunctionPassManager MainFPM;
   MainFPM.addPass(ESIMDLowerLoadStorePass{});
 
-  if (!OptLevelO0) {
-    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MainFPM.addPass(EarlyCSEPass(true));
-    MainFPM.addPass(InstCombinePass{});
-    MainFPM.addPass(DCEPass{});
-    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MainFPM.addPass(EarlyCSEPass(true));
-    MainFPM.addPass(InstCombinePass{});
-    MainFPM.addPass(DCEPass{});
-  }
+  MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
+  MainFPM.addPass(EarlyCSEPass(true));
+  MainFPM.addPass(InstCombinePass{});
+  MainFPM.addPass(DCEPass{});
+  MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
+  MainFPM.addPass(EarlyCSEPass(true));
+  MainFPM.addPass(InstCombinePass{});
+  MainFPM.addPass(DCEPass{});
   MPM.addPass(ESIMDLowerSLMReservationCalls{});
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(MainFPM)));
   MPM.addPass(GenXSPIRVWriterAdaptor(/*RewriteTypes=*/true,

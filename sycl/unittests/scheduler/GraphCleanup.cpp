@@ -149,7 +149,7 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
 
   // Check waitForEvent
   MockCmd = addNewMockCmds();
-  MS.waitForEvent(LeafMockCmd->getEvent());
+  MS.waitForEvent(*LeafMockCmd->getEvent());
   verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
 
   // Check addCopyBack
@@ -326,7 +326,7 @@ TEST_F(SchedulerTest, StreamBufferDeallocation) {
     MockCGH.use_kernel_bundle(ExecBundle);
     stream Stream{1, 1, MockCGH};
     MockCGH.addStream(detail::getSyclObjImpl(Stream));
-    MockCGH.single_task<TestKernel<>>([] {});
+    MockCGH.single_task<TestKernel>([] {});
     std::unique_ptr<detail::CG> CG = MockCGH.finalize();
 
     EventImplPtr = MSPtr->addCG(std::move(CG), QueueImpl, /*EventNeeded=*/true);
@@ -334,7 +334,7 @@ TEST_F(SchedulerTest, StreamBufferDeallocation) {
 
   // The buffers should have been released with graph cleanup once the work is
   // finished.
-  EventImplPtr->wait(EventImplPtr);
+  EventImplPtr->wait();
   // Drain the thread pool to ensure that the cleanup is able to acquire
   // the graph lock.
   detail::GlobalHandler::instance().drainThreadPool();
@@ -397,7 +397,7 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
     MockCGH.use_kernel_bundle(ExecBundle);
     MockCGH.addReduction(std::move(MockAuxResourcePtr));
     MockCGH.addReduction(std::move(BufPtr));
-    MockCGH.single_task<TestKernel<>>([] {});
+    MockCGH.single_task<TestKernel>([] {});
     std::unique_ptr<detail::CG> CG = MockCGH.finalize();
 
     EventImplPtr = MSPtr->addCG(std::move(CG), QueueImpl, /*EventNeeded=*/true);

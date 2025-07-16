@@ -8314,7 +8314,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType)
+    if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE < memHandleType)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
@@ -8558,7 +8558,7 @@ urBindlessImagesSupportsImportingHandleTypeExp(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType)
+    if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE < memHandleType)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 

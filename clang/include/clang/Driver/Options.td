@@ -9051,10 +9051,6 @@ def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
 def fsycl_enable_int_header_diags: Flag<["-"], "fsycl-enable-int-header-diags">,
   HelpText<"Enable diagnostics that require the SYCL integration header.">,
   MarshallingInfoFlag<LangOpts<"SYCLEnableIntHeaderDiags">>;
-def fsycl_is_native_cpu : Flag<["-"], "fsycl-is-native-cpu">,
-  HelpText<"Perform device compilation for Native CPU.">,
-  Visibility<[CC1Option]>,
-  MarshallingInfoFlag<LangOpts<"SYCLIsNativeCPU">>;
 // TODO: This option can be removed once a fix goes in that can
 // work with the community changes for using the alloca address space.
 defm offload_use_alloca_addrspace_for_srets : BoolFOption<"offload-use-alloca-addrspace-for-srets",

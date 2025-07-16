@@ -213,10 +213,9 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(queue_impl *Queue,
     // which means that there is already an allocation(cl_mem) in some context.
     // Registering this allocation in the SYCL graph.
 
-    std::vector<sycl::device> Devices =
-        InteropCtxPtr->get_info<info::context::devices>();
-    assert(Devices.size() != 0);
-    device_impl &Dev = *detail::getSyclObjImpl(Devices[0]);
+    devices_range Devices = InteropCtxPtr->getDevices();
+    assert(!Devices.empty());
+    device_impl &Dev = Devices.front();
 
     // Since all the Scheduler commands require queue but we have only context
     // here, we need to create a dummy queue bound to the context and one of the
@@ -224,8 +223,8 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(queue_impl *Queue,
     std::shared_ptr<queue_impl> InteropQueuePtr = queue_impl::create(
         Dev, *InteropCtxPtr, async_handler{}, property_list{});
 
-    MemObject->MRecord.reset(
-        new MemObjRecord{InteropCtxPtr, LeafLimit, AllocateDependency});
+    MemObject->MRecord.reset(new MemObjRecord{InteropCtxPtr, LeafLimit,
+                                              std::move(AllocateDependency)});
     std::vector<Command *> ToEnqueue;
     getOrCreateAllocaForReq(MemObject->MRecord.get(), Req,
                             InteropQueuePtr.get(), ToEnqueue);
@@ -234,7 +233,8 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(queue_impl *Queue,
                                 "alloca or exceeding the leaf limit).");
   } else
     MemObject->MRecord.reset(new MemObjRecord{queue_impl::getContext(Queue),
-                                              LeafLimit, AllocateDependency});
+                                              LeafLimit,
+                                              std::move(AllocateDependency)});
 
   MMemObjs.push_back(MemObject);
   return MemObject->MRecord.get();
@@ -674,7 +674,7 @@ static bool checkHostUnifiedMemory(context_impl *Ctx) {
   if (Ctx == nullptr)
     return true;
 
-  for (const device &Device : Ctx->getDevices()) {
+  for (device_impl &Device : Ctx->getDevices()) {
     if (!Device.get_info<info::device::host_unified_memory>())
       return false;
   }
@@ -1246,8 +1246,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     // Dismiss the result here as it's not a connection now,
     // 'cause ConnectCmd is host one
     (void)ConnectCmd->addDep(Dep, ToCleanUp);
-    assert(reinterpret_cast<Command *>(DepEvent->getCommand()) ==
-           Dep.MDepCommand);
+    assert(DepEvent->getCommand() == Dep.MDepCommand);
     // add user to Dep.MDepCommand is already performed beyond this if branch
     {
       DepDesc DepOnConnect = Dep;
@@ -1260,7 +1259,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
   } else {
     // It is required condition in another a path and addUser will be set in
     // addDep
-    if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand()))
+    if (Command *DepCmd = DepEvent->getCommand())
       DepCmd->addUser(ConnectCmd);
 
     std::ignore = ConnectCmd->addDep(DepEvent, ToCleanUp);
@@ -1343,11 +1342,10 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
 
   // Register all the events as dependencies
   for (detail::EventImplPtr e : Events) {
-    if (e->getCommand() &&
-        e->getCommand() == static_cast<Command *>(NewCmd.get())) {
+    if (e->getCommand() && e->getCommand() == NewCmd.get()) {
       continue;
     }
-    if (Command *ConnCmd = NewCmd->addDep(e, ToCleanUp))
+    if (Command *ConnCmd = NewCmd->addDep(std::move(e), ToCleanUp))
       ToEnqueue.push_back(ConnCmd);
   }
 

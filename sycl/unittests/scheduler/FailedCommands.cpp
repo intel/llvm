@@ -61,7 +61,7 @@ void RunWithFailedCommandsAndCheck(bool SyncExceptionExpected,
     try {
       Queue.submit([&](sycl::handler &CGH) {
         Buf.get_access<sycl::access::mode::write>(CGH);
-        CGH.single_task<TestKernel<1>>([]() {});
+        CGH.single_task<TestKernel>([]() {});
       });
     } catch (...) {
       ExceptionThrown = true;
@@ -129,7 +129,7 @@ TEST(FailedCommandsTest, CheckUREventReleaseWithKernel) {
   {
     try {
       Queue.submit(
-          [&](sycl::handler &CGH) { CGH.single_task<TestKernel<1>>([]() {}); });
+          [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); });
     } catch (...) {
     }
   }
