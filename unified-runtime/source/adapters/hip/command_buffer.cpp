@@ -984,14 +984,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     UR_CHECK_ERROR(validateCommandDesc(hCommandBuffer, pUpdateKernelLaunch[i]));
   }
 
-  // Store changes in config struct in command handle object
+  // Store changes in config struct in command handle object and propagate
+  // changes to HIP Graph.
   for (uint32_t i = 0; i < numKernelUpdates; i++) {
     UR_CHECK_ERROR(updateCommand(pUpdateKernelLaunch[i]));
     UR_CHECK_ERROR(updateKernelArguments(pUpdateKernelLaunch[i]));
-  }
 
-  // Propagate changes to HIP driver API
-  for (uint32_t i = 0; i < numKernelUpdates; i++) {
     const auto &UpdateCommandDesc = pUpdateKernelLaunch[i];
 
     // If no worksize is provided make sure we pass nullptr to setKernelParams
