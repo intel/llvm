@@ -1631,6 +1631,23 @@ static bool IsOverloadOrOverrideImpl(Sema &SemaRef, FunctionDecl *New,
     }
   }
 
+  // Allow overloads with SYCLDeviceOnlyAttr
+  if (SemaRef.getLangOpts().isSYCL() && (Old->hasAttr<SYCLDeviceOnlyAttr>() !=
+                                         New->hasAttr<SYCLDeviceOnlyAttr>())) {
+    // SYCLDeviceOnlyAttr and SYCLDeviceAttr functions can't overload
+    if (((New->hasAttr<SYCLDeviceOnlyAttr>() &&
+          Old->hasAttr<SYCLDeviceAttr>()) ||
+         (New->hasAttr<SYCLDeviceAttr>() &&
+          Old->hasAttr<SYCLDeviceOnlyAttr>()))) {
+      SemaRef.Diag(New->getLocation(), diag::err_redefinition)
+          << New->getDeclName();
+      SemaRef.notePreviousDefinition(Old, New->getLocation());
+      return false;
+    }
+
+    return true;
+  }
+
   // The signatures match; this is not an overload.
   return false;
 }
@@ -11091,6 +11108,15 @@ bool clang::isBetterOverloadCandidate(
            S.CUDA().IdentifyPreference(Caller, Cand2.Function);
   }
 
+  // In SYCL device compilation mode prefer the overload with the
+  // SYCLDeviceOnly attribute.
+  if (S.getLangOpts().SYCLIsDevice && Cand1.Function && Cand2.Function) {
+    if (Cand1.Function->hasAttr<SYCLDeviceOnlyAttr>() !=
+        Cand2.Function->hasAttr<SYCLDeviceOnlyAttr>()) {
+      return Cand1.Function->hasAttr<SYCLDeviceOnlyAttr>();
+    }
+  }
+
   // General member function overloading is handled above, so this only handles
   // constructors with address spaces.
   // This only handles address spaces since C++ has no other
@@ -11444,6 +11470,15 @@ OverloadingResult OverloadCandidateSet::BestViableFunctionImpl(
 
   if (S.getLangOpts().CUDA)
     CudaExcludeWrongSideCandidates(S, Candidates);
+
+  // In SYCL host compilation remove candidates marked SYCLDeviceOnly.
+  if (S.getLangOpts().SYCLIsHost) {
+    auto IsDeviceCand = [&](const OverloadCandidate *Cand) {
+      return Cand->Viable && Cand->Function &&
+             Cand->Function->hasAttr<SYCLDeviceOnlyAttr>();
+    };
+    llvm::erase_if(Candidates, IsDeviceCand);
+  }
 
   Best = end();
   for (auto *Cand : Candidates) {

@@ -293,6 +293,7 @@ public:
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
 
   nodes_range roots() const { return MRoots; }
+  nodes_range nodes() const { return MNodeStorage; }
 
   /// Find the last node added to this graph from an in-order queue.
   /// @param Queue In-order queue to find the last node added to the graph from.
@@ -664,6 +665,8 @@ public:
   const std::vector<std::shared_ptr<partition>> &getPartitions() const {
     return MPartitions;
   }
+
+  nodes_range nodes() const { return MNodeStorage; }
 
   /// Query whether the graph contains any host-task nodes.
   /// @return True if the graph contains any host-task nodes. False otherwise.

@@ -90,7 +90,7 @@ static bool CurrentCodeLocationValid() {
          (FunctionName && FunctionName[0] != '\0');
 }
 
-void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
+void emitInstrumentationGeneral(xpti::stream_id_t StreamID, uint64_t InstanceID,
                                 xpti_td *TraceEvent, uint16_t Type,
                                 const void *Addr) {
   if (!(xptiCheckTraceEnabled(StreamID, Type) && TraceEvent))
@@ -2105,7 +2105,8 @@ void instrumentationFillCommonData(const std::string &KernelName,
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
-    int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    xpti::stream_id_t StreamID,
+    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     const std::string_view SyclKernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
@@ -3801,10 +3802,10 @@ bool ExecCGCommand::readyForCleanup() const {
 UpdateCommandBufferCommand::UpdateCommandBufferCommand(
     queue_impl *Queue,
     ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-    std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-        Nodes)
+    ext::oneapi::experimental::detail::nodes_range Nodes)
     : Command(CommandType::UPDATE_CMD_BUFFER, Queue), MGraph(Graph),
-      MNodes(std::move(Nodes)) {}
+      MNodes(Nodes.to<std::vector<std::shared_ptr<
+                 ext::oneapi::experimental::detail::node_impl>>>()) {}
 
 ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
