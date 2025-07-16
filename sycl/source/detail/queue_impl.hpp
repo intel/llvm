@@ -135,7 +135,7 @@ public:
       int Idx = get_property<ext::intel::property::queue::compute_index>()
                     .get_index();
       int NumIndices =
-          createSyclObjFromImpl<device>(Device)
+          Device
               .get_info<ext::intel::info::device::max_compute_queue_indices>();
       if (Idx < 0 || Idx >= NumIndices)
         throw sycl::exception(
