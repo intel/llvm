@@ -612,12 +612,12 @@ bool Packetizer::Impl::packetize() {
   for (auto &I : EntryBB) {
     auto *const alloca = dyn_cast<AllocaInst>(&I);
     if (!alloca) {
-      insertPt = I.getNextNonDebugInstruction();
+      insertPt = I.getNextNode();
       continue;
     }
 
     while (isa<AllocaInst>(insertPt)) {
-      insertPt = insertPt->getNextNonDebugInstruction();
+      insertPt = insertPt->getNextNode();
     }
 
     // It's possible for some uses of the alloca to be packetized and others
@@ -3484,7 +3484,7 @@ Value *Packetizer::Impl::vectorizeAlloca(AllocaInst *alloca) {
   // Put the GEP after all allocas.
   Instruction *insertPt = alloca;
   while (isa<AllocaInst>(*insertPt)) {
-    insertPt = insertPt->getNextNonDebugInstruction();
+    insertPt = insertPt->getNextNode();
   }
   B.SetInsertPoint(insertPt);
   deleteInstructionLater(alloca);

@@ -1188,7 +1188,7 @@ Function *compiler::utils::Barrier::GenerateNewKernel(BarrierRegion &region) {
   // The entry kernel might have allocas in it that don't get removed,
   // so better make sure to insert after them.
   while (isa<AllocaInst>(insert_point)) {
-    insert_point = insert_point->getNextNonDebugInstruction();
+    insert_point = insert_point->getNextNode();
   }
 
   // It puts all the GEPs at the start of the kernel, but only once
@@ -1258,9 +1258,9 @@ Function *compiler::utils::Barrier::GenerateNewKernel(BarrierRegion &region) {
       // Place the new store immediately after the definition, but if it's a
       // PHI node we have to make sure to put it after any other PHI nodes.
       Instruction *inst = cast<Instruction>(vmap[live_var]);
-      Instruction *insert_point = inst->getNextNonDebugInstruction();
+      Instruction *insert_point = inst->getNextNode();
       while (isa<PHINode>(insert_point)) {
-        insert_point = insert_point->getNextNonDebugInstruction();
+        insert_point = insert_point->getNextNode();
       }
       IRBuilder<> B(insert_point);
       if (!isStructWithScalables(live_var->getType())) {
