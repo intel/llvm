@@ -236,6 +236,8 @@ def do_configure(args, passthrough_args):
         cmake_cmd += args.cmake_opt
 
     if args.add_security_flags:
+        if args.add_security_flags != 'none':
+            cmake_cmd.extend(["-DCMAKE_POSITION_INDEPENDENT_CODE=ON"])
         cmake_cmd.extend(["-DEXTRA_SECURITY_FLAGS={}".format(args.add_security_flags)])
 
     # Add path to root CMakeLists.txt
