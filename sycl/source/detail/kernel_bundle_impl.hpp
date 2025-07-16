@@ -124,7 +124,7 @@ public:
   // Interop constructor
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      device_image_plain &DevImage, private_tag Tag)
-      : kernel_bundle_impl(Ctx, Devs, Tag) {
+      : kernel_bundle_impl(std::move(Ctx), std::move(Devs), Tag) {
     MDeviceImages.emplace_back(DevImage);
     MUniqueDeviceImages.emplace_back(DevImage);
   }
@@ -248,21 +248,26 @@ public:
 
     // Due to a bug in L0, specializations with conflicting IDs will overwrite
     // each other when linked together, so to avoid this issue we link
-    // regular offline-compiled SYCL device images in separation.
+    // images with specialization constants in separation.
     // TODO: Remove when spec const overwriting issue has been fixed in L0.
-    std::vector<const DevImgPlainWithDeps *> OfflineDeviceImages;
+    std::vector<const DevImgPlainWithDeps *> ImagesWithSpecConsts;
     std::unordered_set<std::shared_ptr<device_image_impl>>
-        OfflineDeviceImageSet;
+        ImagesWithSpecConstsSet;
     for (const kernel_bundle<bundle_state::object> &ObjectBundle :
          ObjectBundles) {
       for (const DevImgPlainWithDeps &DeviceImageWithDeps :
            getSyclObjImpl(ObjectBundle)->MDeviceImages) {
-        if (getSyclObjImpl(DeviceImageWithDeps.getMain())->getOriginMask() &
-            ImageOriginSYCLOffline) {
-          OfflineDeviceImages.push_back(&DeviceImageWithDeps);
-          for (const device_image_plain &DevImg : DeviceImageWithDeps)
-            OfflineDeviceImageSet.insert(getSyclObjImpl(DevImg));
-        }
+        if (std::none_of(DeviceImageWithDeps.begin(), DeviceImageWithDeps.end(),
+                         [](const device_image_plain &DevImg) {
+                           const RTDeviceBinaryImage *BinImg =
+                               getSyclObjImpl(DevImg)->get_bin_image_ref();
+                           return BinImg && BinImg->getSpecConstants().size();
+                         }))
+          continue;
+
+        ImagesWithSpecConsts.push_back(&DeviceImageWithDeps);
+        for (const device_image_plain &DevImg : DeviceImageWithDeps)
+          ImagesWithSpecConstsSet.insert(getSyclObjImpl(DevImg));
       }
     }
 
@@ -270,13 +275,24 @@ public:
     std::vector<device_image_plain> DevImages;
     {
       std::set<std::shared_ptr<device_image_impl>> DevImagesSet;
+      std::unordered_set<const RTDeviceBinaryImage *> SeenBinImgs;
       for (const kernel_bundle<bundle_state::object> &ObjectBundle :
-           ObjectBundles)
+           ObjectBundles) {
         for (const device_image_plain &DevImg :
-             getSyclObjImpl(ObjectBundle)->MUniqueDeviceImages)
-          if (OfflineDeviceImageSet.find(getSyclObjImpl(DevImg)) ==
-              OfflineDeviceImageSet.end())
-            DevImagesSet.insert(getSyclObjImpl(DevImg));
+             getSyclObjImpl(ObjectBundle)->MUniqueDeviceImages) {
+          auto &DevImgImpl = getSyclObjImpl(DevImg);
+          const RTDeviceBinaryImage *BinImg = DevImgImpl->get_bin_image_ref();
+          // We have duplicate images if either the underlying binary image has
+          // been seen before or the device image implementation is in the
+          // image set already.
+          if ((BinImg && SeenBinImgs.find(BinImg) != SeenBinImgs.end()) ||
+              ImagesWithSpecConstsSet.find(DevImgImpl) !=
+                  ImagesWithSpecConstsSet.end())
+            continue;
+          SeenBinImgs.insert(BinImg);
+          DevImagesSet.insert(DevImgImpl);
+        }
+      }
       DevImages.reserve(DevImagesSet.size());
       for (auto It = DevImagesSet.begin(); It != DevImagesSet.end();)
         DevImages.push_back(createSyclObjFromImpl<device_image_plain>(
@@ -391,7 +407,8 @@ public:
     }
 
     // ... And link the offline images in separation. (Workaround.)
-    for (const DevImgPlainWithDeps *DeviceImageWithDeps : OfflineDeviceImages) {
+    for (const DevImgPlainWithDeps *DeviceImageWithDeps :
+         ImagesWithSpecConsts) {
       // Skip images which are not compatible with devices provided
       if (std::none_of(MDevices.begin(), MDevices.end(),
                        [DeviceImageWithDeps](const device &Dev) {
@@ -730,7 +747,7 @@ public:
 
     device_impl &DeviceImpl = *getSyclObjImpl(Dev);
     bool SupportContextMemcpy = false;
-    DeviceImpl.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+    DeviceImpl.getAdapter().call<UrApiKind::urDeviceGetInfo>(
         DeviceImpl.getHandleRef(),
         UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP,
         sizeof(SupportContextMemcpy), &SupportContextMemcpy, nullptr);

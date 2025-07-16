@@ -129,7 +129,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     return nullptr;
 
   ur_context_handle_t C = CtxImpl->getHandleRef();
-  const AdapterPtr &Adapter = CtxImpl->getAdapter();
+  adapter_impl &Adapter = CtxImpl->getAdapter();
   ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
   ur_device_handle_t Dev;
 
@@ -155,7 +155,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       UsmDesc.pNext = &UsmLocationDesc;
     }
 
-    Error = Adapter->call_nocheck<detail::UrApiKind::urUSMDeviceAlloc>(
+    Error = Adapter.call_nocheck<detail::UrApiKind::urUSMDeviceAlloc>(
         C, Dev, &UsmDesc,
         /*pool=*/nullptr, Size, &RetVal);
 
@@ -192,7 +192,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       UsmDeviceDesc.pNext = &UsmLocationDesc;
     }
 
-    Error = Adapter->call_nocheck<detail::UrApiKind::urUSMSharedAlloc>(
+    Error = Adapter.call_nocheck<detail::UrApiKind::urUSMSharedAlloc>(
         C, Dev, &UsmDesc,
         /*pool=*/nullptr, Size, &RetVal);
 
@@ -249,8 +249,8 @@ void freeInternal(void *Ptr, const context_impl *CtxImpl) {
   if (Ptr == nullptr)
     return;
   ur_context_handle_t C = CtxImpl->getHandleRef();
-  const AdapterPtr &Adapter = CtxImpl->getAdapter();
-  Adapter->call<detail::UrApiKind::urUSMFree>(C, Ptr);
+  adapter_impl &Adapter = CtxImpl->getAdapter();
+  Adapter.call<detail::UrApiKind::urUSMFree>(C, Ptr);
 }
 
 void free(void *Ptr, const context &Ctxt,
