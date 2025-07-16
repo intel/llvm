@@ -73,6 +73,7 @@ static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
 
 class context_impl;
 class device_impl;
+class devices_range;
 class queue_impl;
 class event_impl;
 // DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
@@ -144,7 +145,7 @@ public:
 
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
                                       context_impl &ContextImpl,
-                                      const std::vector<device> &Devices);
+                                      devices_range Devices);
   /// Creates a UR program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
   /// \param Img The device image used to create the program.
@@ -167,7 +168,7 @@ public:
   std::pair<ur_program_handle_t, bool> getOrCreateURProgram(
       const RTDeviceBinaryImage &Img,
       const std::vector<const RTDeviceBinaryImage *> &AllImages,
-      context_impl &ContextImpl, const std::vector<device> &Devices,
+      context_impl &ContextImpl, devices_range Devices,
       const std::string &CompileAndLinkOptions, SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
@@ -193,7 +194,7 @@ public:
   /// the program should be built with.
   ur_program_handle_t
   getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
-                    context_impl &ContextImpl, const std::vector<device> &Devs,
+                    context_impl &ContextImpl, devices_range Devs,
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
                     const SerializedObj &SpecConsts = {});
 
@@ -292,12 +293,12 @@ public:
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
   std::vector<DevImgPlainWithDeps> getSYCLDeviceImagesWithCompatibleState(
-      const context &Ctx, const std::vector<device> &Devs,
-      bundle_state TargetState, const std::vector<kernel_id> &KernelIDs = {});
+      const context &Ctx, devices_range Devs, bundle_state TargetState,
+      const std::vector<kernel_id> &KernelIDs = {});
 
   // Creates a new dependency image for a given dependency binary image.
   device_image_plain createDependencyImage(const context &Ctx,
-                                           const std::vector<device> &Devs,
+                                           devices_range Devs,
                                            const RTDeviceBinaryImage *DepImage,
                                            bundle_state DepState);
 
@@ -312,15 +313,15 @@ public:
 
   // The function returns a vector of SYCL device images in required state,
   // which are compatible with at least one of the device from Devs.
-  std::vector<DevImgPlainWithDeps>
-  getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
-                      bundle_state State);
+  std::vector<DevImgPlainWithDeps> getSYCLDeviceImages(const context &Ctx,
+                                                       devices_range Devs,
+                                                       bundle_state State);
 
   // The function returns a vector of SYCL device images, for which Selector
   // callable returns true, in required state, which are compatible with at
   // least one of the device from Devs.
   std::vector<DevImgPlainWithDeps>
-  getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
+  getSYCLDeviceImages(const context &Ctx, devices_range Devs,
                       const DevImgSelectorImpl &Selector,
                       bundle_state TargetState);
 
@@ -328,27 +329,26 @@ public:
   // least one kernel from kernel ids vector in required state, which are
   // compatible with at least one of the device from Devs.
   std::vector<DevImgPlainWithDeps>
-  getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
+  getSYCLDeviceImages(const context &Ctx, devices_range Devs,
                       const std::vector<kernel_id> &KernelIDs,
                       bundle_state TargetState);
 
   // Produces new device image by convering input device image to the object
   // state
   DevImgPlainWithDeps compile(const DevImgPlainWithDeps &ImgWithDeps,
-                              const std::vector<device> &Devs,
+                              devices_range Devs,
                               const property_list &PropList);
 
   // Produces set of device images by convering input device images to object
   // the executable state
   std::vector<device_image_plain>
-  link(const std::vector<device_image_plain> &Imgs,
-       const std::vector<device> &Devs, const property_list &PropList);
+  link(const std::vector<device_image_plain> &Imgs, devices_range Devs,
+       const property_list &PropList);
 
   // Produces new device image by converting input device image to the
   // executable state
   device_image_plain build(const DevImgPlainWithDeps &ImgWithDeps,
-                           const std::vector<device> &Devs,
-                           const property_list &PropList);
+                           devices_range Devs, const property_list &PropList);
 
   std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *>
   getOrCreateKernel(const context &Context, KernelNameStrRefT KernelName,

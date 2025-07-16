@@ -1222,7 +1222,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       if (LangOpts.EnableDAEInSpirKernels)
         MPM.addPass(DeadArgumentEliminationSYCLPass());
 
-      if (LangOpts.SYCLIsNativeCPU)
+      if (TargetTriple.isNativeCPU())
         llvm::sycl::utils::addSYCLNativeCPUEarlyPasses(MPM);
       // Rerun aspect propagation without warning diagnostics.
       MPM.addPass(
