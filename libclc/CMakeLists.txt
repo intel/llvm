@@ -202,8 +202,14 @@ foreach ( t ${LIBCLC_TEST_TARGETS_ALL})
   endif()
 endforeach(t)
 
+# This needs to be set before any target that needs it
+# We need to use LLVM_INCLUDE_DIRS here, because if we are linking to an
+# llvm build directory, this includes $src/llvm/include which is where all the
+# headers are not $build/include/ which is what LLVM_INCLUDE_DIR is set to.
+include_directories( ${LLVM_INCLUDE_DIRS} )
+
 # Configure prepare_builtins
-add_subdirectory(utils)
+add_subdirectory( utils )
 
 # Setup arch devices
 set( r600--_devices cedar cypress barts cayman )
