@@ -91,7 +91,7 @@ using __sycl_promote_t =
   }                                                                            \
   template <typename T, typename U>                                            \
   __SYCL_DEVICE __sycl_promote_t<T, U> NAME(T x, U y) {                        \
-    typedef __sycl_promote_t<T, U> type;                                       \
+    using type = __sycl_promote_t<T, U>;                                       \
     return __spirv_ocl_##NAME((type)x, (type)y);                               \
   }
 
@@ -134,7 +134,7 @@ __SYCL_DEVICE double remquo(double x, double y, int *q) {
 }
 template <typename T, typename U>
 __SYCL_DEVICE __sycl_promote_t<T, U> remquo(T x, U y, int *q) {
-  typedef __sycl_promote_t<T, U> type;
+  using type = __sycl_promote_t<T, U>;
   return __spirv_ocl_remquo((type)x, (type)y, q);
 }
 
@@ -149,7 +149,7 @@ __SYCL_DEVICE double fma(double x, double y, double z) {
 }
 template <typename T, typename U, typename V>
 __SYCL_DEVICE __sycl_promote_t<T, U, V> fma(T x, U y, V z) {
-  typedef __sycl_promote_t<T, U, V> type;
+  using type = __sycl_promote_t<T, U, V>;
   return __spirv_ocl_fma((type)x, (type)y, (type)z);
 }
 
