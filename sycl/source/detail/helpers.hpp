@@ -54,8 +54,8 @@ public:
   variadic_iterator(const variadic_iterator &) = default;
   variadic_iterator(variadic_iterator &&) = default;
   variadic_iterator(variadic_iterator &) = default;
-  variadic_iterator& operator=(const variadic_iterator &) = default;
-  variadic_iterator& operator=(variadic_iterator &&) = default;
+  variadic_iterator &operator=(const variadic_iterator &) = default;
+  variadic_iterator &operator=(variadic_iterator &&) = default;
 
   template <typename IterTy>
   variadic_iterator(IterTy &&It) : It(std::forward<IterTy>(It)) {}
