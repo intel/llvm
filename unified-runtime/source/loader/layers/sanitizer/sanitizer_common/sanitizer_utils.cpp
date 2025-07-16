@@ -31,12 +31,9 @@ ur_usm_type_t GetUSMType(ur_context_handle_t Context, const void *MemPtr) {
 } // namespace
 
 ManagedQueue::ManagedQueue(ur_context_handle_t Context,
-                           ur_device_handle_t Device, bool IsOutOfOrder) {
-  ur_queue_properties_t Prop{UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
-                             UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
-                                 UR_QUEUE_FLAG_SUBMISSION_BATCHED};
+                           ur_device_handle_t Device) {
   [[maybe_unused]] auto Result = getContext()->urDdiTable.Queue.pfnCreate(
-      Context, Device, IsOutOfOrder ? &Prop : nullptr, &Handle);
+      Context, Device, nullptr, &Handle);
   assert(Result == UR_RESULT_SUCCESS && "Failed to create ManagedQueue");
   UR_LOG_L(getContext()->logger, DEBUG, ">>> ManagedQueue {}", (void *)Handle);
 }
