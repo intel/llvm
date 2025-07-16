@@ -1,6 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// REQUIRES: aspect-usm_shared_allocations
+
 // Modified example from issue #19450 which identified an issue with updating
 // multiple kernel nodes which share the same kernel.
 
@@ -36,24 +38,21 @@ int main() {
     }
 
     if (r == 0) {
-      printf("Building graph\n");
       const auto instance = modifiable_graph.finalize(
           sycl::ext::oneapi::experimental::property::graph::updatable{});
       graph = std::make_unique<sycl::ext::oneapi::experimental::command_graph<
           sycl::ext::oneapi::experimental::graph_state::executable>>(
           std::move(instance));
     } else {
-      printf("Updating graph\n");
       graph->update(modifiable_graph);
     }
-    printf("Launching graph\n");
     q.ext_oneapi_graph(*graph).wait();
   }
 
   q.wait();
-  std::array<int, 5> Ref{0, 10, 10, 10, 10};
+  std::array<int, I> Ref{0, R, R, R, R};
 
-  for (int i = 1; i < I; ++i) {
+  for (int i = 0; i < I; ++i) {
     assert(output[i] == Ref[i]);
   }
 }
