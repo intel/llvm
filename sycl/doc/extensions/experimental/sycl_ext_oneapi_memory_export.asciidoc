@@ -103,17 +103,28 @@ interoperable handle.
 
 === External Memory Resource Handle Types [[external_mem_res_handles]]
 
-This extension supports two types of external memory resource handles. These
-types are used to import the memory allocated by this extension into external
-APIs.
+This extension provides an enum `external_mem_handle_type` that defines several
+external memory resource handle types that can be used as interoperable
+handles to import SYCL allocated memory into external APIs.
+
+[_Note:_ Not all of the handle types defined in this enum may be supported for
+exporting memory by the implementation. Currently, the {dpcpp} implementation
+only supports exporting memory with the `opaque_fd` and `win32_nt_handle` handle
+types. This enum is shared with the memory import functionality defined in the
+Bindless Images extension, where more handle types may be supported for
+importing memory into SYCL.
+_{endnote}_]
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
 // External memory resource handle types.
-enum class export_mem_handle_type {
+enum class external_mem_handle_type {
   opaque_fd = 0,
-  win32_nt = 1,
+  win32_nt_handle = 1,
+  win32_nt_dx12_resource = 2,
+  dma_buf = 3,
+  win32_nt_dx11_resource = 4,
 };
 
 template <export_mem_handle_type ExportMemHandleType>
@@ -212,6 +223,12 @@ if the device `syclDevice` does not have
 This function will throw a `sycl::exception` with the `errc::runtime` code if
 any error occurs while allocating the memory.
 
+[_Note:_ The {dpcpp} implementation of this function will throw a
+`sycl::exception` with the code `errc::invalid` if the
+`external_mem_handle_type` passed is not either `opaque_fd` or
+`win32_nt_handle`. 
+_{endnote}_]
+
 ```c++
 
 namespace sycl::ext::oneapi::experimental {
@@ -247,6 +264,12 @@ allocated.
 
 This function will throw a `sycl::exception` with the `errc::runtime` code if
 any error occurs while exporting the memory handle.
+
+[_Note:_ The {dpcpp} implementation of this function will throw a
+`sycl::exception` with the code `errc::invalid` if the
+`external_mem_handle_type` passed is not either `opaque_fd` or
+`win32_nt_handle`. 
+_{endnote}_]
 
 [_Note:_ The returned handle may be used to import the SYCL allocated memory
 into an external API, such as Vulkan or DirectX.
