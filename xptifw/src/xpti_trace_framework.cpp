@@ -2262,8 +2262,11 @@ public:
     // check if the ID is valid and fits into uint8_t.
     if (StreamID == xpti::invalid_id<xpti::string_id_t>)
       return xpti::invalid_id<uint8_t>;
-    else
+    else {
+      assert(StreamID < std::numeric_limits<uint8_t>::max() &&
+             "StreamID exceeds the maximum value for uint8_t");
       return static_cast<uint8_t>(StreamID);
+    }
   }
 
   ///
@@ -2297,8 +2300,11 @@ public:
     // check if the ID is valid and fits into uint8_t.
     if (StreamID == xpti::invalid_id<xpti::string_id_t>)
       return xpti::invalid_id<uint8_t>;
-    else
+    else {
+      assert(StreamID < std::numeric_limits<uint8_t>::max() &&
+             "StreamID exceeds the maximum value for uint8_t");
       return static_cast<uint8_t>(StreamID);
+    }
   }
 
   string_id_t registerString(const char *String, char **TableString) {
