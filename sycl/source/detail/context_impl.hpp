@@ -68,7 +68,7 @@ public:
 
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
                adapter_impl &Adapter, private_tag tag)
-      : context_impl(UrContext, AsyncHandler, Adapter,
+      : context_impl(UrContext, std::move(AsyncHandler), Adapter,
                      std::vector<sycl::device>{},
                      /*OwnedByRuntime*/ true, tag) {}
 
@@ -130,9 +130,7 @@ public:
   /// \return an instance of raw UR context handle.
   const ur_context_handle_t &getHandleRef() const;
 
-  /// Unlike `get_info<info::context::devices>', this function returns a
-  /// reference.
-  const std::vector<device> &getDevices() const { return MDevices; }
+  devices_range getDevices() const { return MDevices; }
 
   using CachedLibProgramsT =
       std::map<std::pair<DeviceLibExt, ur_device_handle_t>,
@@ -295,7 +293,7 @@ private:
     }
 
     /// Clears all events of the initializer. This will not acquire the lock.
-    void ClearEvents(const AdapterPtr &Adapter);
+    void ClearEvents(adapter_impl &Adapter);
 
     /// The binary image of the program.
     const RTDeviceBinaryImage *MBinImage = nullptr;

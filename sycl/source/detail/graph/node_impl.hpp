@@ -10,9 +10,12 @@
 
 #include <detail/accessor_impl.hpp> // for AccessorImplHost
 #include <detail/cg.hpp>            // for CGExecKernel, CGHostTask, ArgDesc...
-#include <detail/host_task.hpp>     // for HostTask
-#include <sycl/detail/cg_types.hpp> // for CGType
+#include <detail/helpers.hpp>
+#include <detail/host_task.hpp>        // for HostTask
+#include <sycl/detail/cg_types.hpp>    // for CGType
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
+
+#include <sycl/ext/oneapi/experimental/graph/node.hpp> // for node
 
 #include <cstring>
 #include <fstream>
@@ -26,21 +29,12 @@ inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
-// Forward declarations
-class node;
 
 namespace detail {
 // Forward declarations
 class node_impl;
 class nodes_range;
 class exec_graph_impl;
-
-/// Takes a vector of weak_ptrs to node_impls and returns a vector of node
-/// objects created from those impls, in the same order.
-std::vector<node>
-createNodesFromImpls(const std::vector<std::weak_ptr<node_impl>> &Impls);
-
-std::vector<node> createNodesFromImpls(nodes_range Impls);
 
 inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
   using sycl::detail::CG;
@@ -121,27 +115,27 @@ public:
 
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
-  void registerSuccessor(const std::shared_ptr<node_impl> &Node) {
+  void registerSuccessor(node_impl &Node) {
     if (std::find_if(MSuccessors.begin(), MSuccessors.end(),
-                     [Node](const std::weak_ptr<node_impl> &Ptr) {
-                       return Ptr.lock() == Node;
+                     [&Node](const std::weak_ptr<node_impl> &Ptr) {
+                       return Ptr.lock().get() == &Node;
                      }) != MSuccessors.end()) {
       return;
     }
-    MSuccessors.push_back(Node);
-    Node->registerPredecessor(shared_from_this());
+    MSuccessors.push_back(Node.weak_from_this());
+    Node.registerPredecessor(*this);
   }
 
   /// Add predecessor to the node.
   /// @param Node Node to add as a predecessor.
-  void registerPredecessor(const std::shared_ptr<node_impl> &Node) {
+  void registerPredecessor(node_impl &Node) {
     if (std::find_if(MPredecessors.begin(), MPredecessors.end(),
                      [&Node](const std::weak_ptr<node_impl> &Ptr) {
-                       return Ptr.lock() == Node;
+                       return Ptr.lock().get() == &Node;
                      }) != MPredecessors.end()) {
       return;
     }
-    MPredecessors.push_back(Node);
+    MPredecessors.push_back(Node.weak_from_this());
   }
 
   /// Construct an empty node.
@@ -183,6 +177,9 @@ public:
     }
     return *this;
   }
+
+  ~node_impl() {}
+
   /// Checks if this node should be a dependency of another node based on
   /// accessor requirements. This is calculated using access modes if a
   /// requirement to the same buffer is found inside this node.
@@ -460,9 +457,9 @@ public:
   }
   /// Update this node with the command-group from another node.
   /// @param Other The other node to update, must be of the same node type.
-  void updateFromOtherNode(const std::shared_ptr<node_impl> &Other) {
-    assert(MNodeType == Other->MNodeType);
-    MCommandGroup = Other->getCGCopy();
+  void updateFromOtherNode(node_impl &Other) {
+    assert(MNodeType == Other.MNodeType);
+    MCommandGroup = Other.getCGCopy();
   }
 
   id_type getID() const { return MID; }
@@ -758,82 +755,45 @@ private:
   }
 };
 
-// Non-owning!
-class nodes_range {
-  template <typename... Containers>
-  using storage_iter_impl =
-      std::variant<typename Containers::const_iterator...>;
+struct nodes_deref_impl {
+  template <typename T> static node_impl &dereference(T &Elem) {
+    using Ty = std::decay_t<decltype(Elem)>;
+    if constexpr (std::is_same_v<Ty, std::weak_ptr<node_impl>>) {
+      // This assumes that weak_ptr doesn't actually manage lifetime and
+      // the object is guaranteed to be alive (which seems to be the
+      // assumption across all graph code).
+      return *Elem.lock();
+    } else if constexpr (std::is_same_v<Ty, node>) {
+      return *getSyclObjImpl(Elem);
+    } else {
+      return *Elem;
+    }
+  }
+};
 
-  using storage_iter = storage_iter_impl<
-      std::vector<std::shared_ptr<node_impl>>, std::vector<node_impl *>,
-      // Next one is temporary. It looks like `weak_ptr`s aren't
-      // used for the actual lifetime management and the objects are
-      // always guaranteed to be alive. Once the code is cleaned
-      // from `weak_ptr`s this alternative should be removed too.
-      std::vector<std::weak_ptr<node_impl>>,
-      //
-      std::set<std::shared_ptr<node_impl>>, std::set<node_impl *>,
-      //
-      std::list<node_impl *>>;
+template <typename... ContainerTy>
+using nodes_iterator_impl =
+    variadic_iterator<nodes_deref_impl, node,
+                      typename ContainerTy::const_iterator...>;
 
-  storage_iter Begin;
-  storage_iter End;
-  const size_t Size;
+using nodes_iterator = nodes_iterator_impl<
+    std::vector<std::shared_ptr<node_impl>>, std::vector<node_impl *>,
+    // Next one is temporary. It looks like `weak_ptr`s aren't
+    // used for the actual lifetime management and the objects are
+    // always guaranteed to be alive. Once the code is cleaned
+    // from `weak_ptr`s this alternative should be removed too.
+    std::vector<std::weak_ptr<node_impl>>,
+    //
+    std::set<std::shared_ptr<node_impl>>, std::set<node_impl *>,
+    //
+    std::list<node_impl *>, std::vector<node>>;
+
+class nodes_range : public iterator_range<nodes_iterator> {
+private:
+  using Base = iterator_range<nodes_iterator>;
 
 public:
-  nodes_range(const nodes_range &Other) = default;
-
-  template <
-      typename ContainerTy,
-      typename = std::enable_if_t<!std::is_same_v<nodes_range, ContainerTy>>>
-  nodes_range(ContainerTy &Container)
-      : Begin{Container.begin()}, End{Container.end()}, Size{Container.size()} {
-  }
-
-  class iterator {
-    storage_iter It;
-
-    iterator(storage_iter It) : It(It) {}
-    friend class nodes_range;
-
-  public:
-    iterator &operator++() {
-      It = std::visit(
-          [](auto &&It) {
-            ++It;
-            return storage_iter{It};
-          },
-          It);
-      return *this;
-    }
-    bool operator!=(const iterator &Other) const { return It != Other.It; }
-
-    node_impl &operator*() {
-      return std::visit(
-          [](auto &&It) -> node_impl & {
-            auto &Elem = *It;
-            if constexpr (std::is_same_v<std::decay_t<decltype(Elem)>,
-                                         std::weak_ptr<node_impl>>) {
-              // This assumes that weak_ptr doesn't actually manage lifetime and
-              // the object is guaranteed to be alive (which seems to be the
-              // assumption across all graph code).
-              return *Elem.lock();
-            } else {
-              return *Elem;
-            }
-          },
-          It);
-    }
-  };
-
-  iterator begin() const {
-    return {std::visit([](auto &&It) { return storage_iter{It}; }, Begin)};
-  }
-  iterator end() const {
-    return {std::visit([](auto &&It) { return storage_iter{It}; }, End)};
-  }
-  size_t size() const { return Size; }
-  bool empty() const { return Size == 0; }
+  using Base::Base;
 };
 
 inline nodes_range node_impl::successors() const { return MSuccessors; }

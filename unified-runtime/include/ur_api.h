@@ -9811,6 +9811,8 @@ typedef enum ur_exp_external_mem_type_t {
   UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE = 2,
   /// dma_buf file descriptor
   UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF = 3,
+  /// Win32 NT DirectX 11 resource handle
+  UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE = 4,
   /// @cond
   UR_EXP_EXTERNAL_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -10529,7 +10531,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType`
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalMemDesc`
 ///         + `NULL == phExternalMem`
@@ -10686,7 +10689,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType`
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pSupportedRet`
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE

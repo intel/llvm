@@ -406,6 +406,8 @@ to_ur_type(external_mem_handle_type externalMemHandleType) {
     return UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF;
   case external_mem_handle_type::win32_nt_handle:
     return UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT;
+  case external_mem_handle_type::win32_nt_dx11_resource:
+    return UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE;
   case external_mem_handle_type::win32_nt_dx12_resource:
     return UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE;
   default:
@@ -471,6 +473,7 @@ __SYCL_EXPORT external_mem import_external_memory<resource_win32_handle>(
 
   const auto urHandleType = detail::to_ur_type(externalMemDesc.handle_type);
   if ((urHandleType != UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT) &&
+      (urHandleType != UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE) &&
       (urHandleType != UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE)) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Invalid memory handle type");

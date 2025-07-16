@@ -104,7 +104,7 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(const context &Context) {
          "USM allocations should not be acquired for device_global with "
          "device_image_scope property.");
   context_impl &CtxImpl = *getSyclObjImpl(Context);
-  device_impl &DevImpl = *getSyclObjImpl(CtxImpl.getDevices().front());
+  device_impl &DevImpl = CtxImpl.getDevices().front();
   std::lock_guard<std::mutex> Lock(MDeviceToUSMPtrMapMutex);
 
   auto DGUSMPtr = MDeviceToUSMPtrMap.find({&DevImpl, &CtxImpl});
@@ -153,9 +153,8 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(const context &Context) {
 void DeviceGlobalMapEntry::removeAssociatedResources(
     const context_impl *CtxImpl) {
   std::lock_guard<std::mutex> Lock{MDeviceToUSMPtrMapMutex};
-  for (device Device : CtxImpl->getDevices()) {
-    auto USMPtrIt =
-        MDeviceToUSMPtrMap.find({getSyclObjImpl(Device).get(), CtxImpl});
+  for (device_impl &Device : CtxImpl->getDevices()) {
+    auto USMPtrIt = MDeviceToUSMPtrMap.find({&Device, CtxImpl});
     if (USMPtrIt != MDeviceToUSMPtrMap.end()) {
       DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
       detail::usm::freeInternal(USMMem.MPtr, CtxImpl);

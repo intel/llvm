@@ -742,9 +742,9 @@ __msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
                                 "__msan_unpoison_strided_copy"));
 
-  uptr shadow_dest = (uptr)__msan_get_shadow(dest, dest_as);
+  uptr shadow_dest = MemToShadow(dest, dest_as);
   if (shadow_dest != GetMsanLaunchInfo->CleanShadow) {
-    uptr shadow_src = (uptr)__msan_get_shadow(src, src_as);
+    uptr shadow_src = MemToShadow(src, src_as);
 
     switch (element_size) {
     case 1:

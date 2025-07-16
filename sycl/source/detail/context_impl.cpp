@@ -64,7 +64,7 @@ context_impl::context_impl(ur_context_handle_t UrContext,
                            async_handler AsyncHandler, adapter_impl &Adapter,
                            const std::vector<sycl::device> &DeviceList,
                            bool OwnedByRuntime, private_tag)
-    : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
+    : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(std::move(AsyncHandler)),
       MDevices(DeviceList), MContext(UrContext), MPlatform(),
       MSupportBufferLocationByDevices(NotChecked) {
   if (!MDevices.empty()) {
@@ -120,7 +120,7 @@ context_impl::~context_impl() {
   try {
     // Free all events associated with the initialization of device globals.
     for (auto &DeviceGlobalInitializer : MDeviceGlobalInitializers)
-      DeviceGlobalInitializer.second.ClearEvents(&getAdapter());
+      DeviceGlobalInitializer.second.ClearEvents(getAdapter());
     // Free all device_global USM allocations associated with this context.
     for (const void *DeviceGlobal : MAssociatedDeviceGlobals) {
       DeviceGlobalMapEntry *DGEntry =
@@ -146,7 +146,7 @@ const async_handler &context_impl::get_async_handler() const {
 template <>
 uint32_t context_impl::get_info<info::context::reference_count>() const {
   return get_context_info<info::context::reference_count>(this->getHandleRef(),
-                                                          &this->getAdapter());
+                                                          this->getAdapter());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
   return createSyclObjFromImpl<platform>(*MPlatform);
@@ -440,8 +440,8 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       void *const &USMPtr = DeviceGlobalUSM.getPtr();
       Adapter.call<UrApiKind::urEnqueueDeviceGlobalVariableWrite>(
           QueueImpl.getHandleRef(), NativePrg,
-          DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0,
-          &USMPtr, 0, nullptr, &InitEvent);
+          DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0u,
+          &USMPtr, 0u, nullptr, &InitEvent);
 
       InitEventsRef.push_back(InitEvent);
     }
@@ -449,10 +449,9 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
   }
 }
 
-void context_impl::DeviceGlobalInitializer::ClearEvents(
-    const AdapterPtr &Adapter) {
+void context_impl::DeviceGlobalInitializer::ClearEvents(adapter_impl &Adapter) {
   for (const ur_event_handle_t &Event : MDeviceGlobalInitEvents)
-    Adapter->call<UrApiKind::urEventRelease>(Event);
+    Adapter.call<UrApiKind::urEventRelease>(Event);
   MDeviceGlobalInitEvents.clear();
 }
 

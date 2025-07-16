@@ -628,10 +628,10 @@ config.substitutions.append(("%link-vulkan", link_vulkan))
 
 # Add DirectX 12 libraries to the configuration for substitution.
 if platform.system() == "Windows":
-    dx12libs = ["-ld3d12", "-ldxgi", "-ldxguid"]
+    directx_libs = ['-ld3d11', '-ld3d12', '-ldxgi', '-ldxguid']
     if cl_options:
-        dx12libs = ["/clang:" + l for l in dx12libs]
-    config.substitutions.append(("%link-directx", " ".join(dx12libs)))
+        directx_libs = ['/clang:' + l for l in directx_libs]
+    config.substitutions.append(("%link-directx", ' '.join(directx_libs)))
 
 if not config.gpu_aot_target_opts:
     config.gpu_aot_target_opts = '"-device *"'
@@ -981,6 +981,8 @@ for full_name, sycl_device in zip(
 
     if "v2" in full_name:
         env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "1"
+    else:
+        env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "0"
 
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):

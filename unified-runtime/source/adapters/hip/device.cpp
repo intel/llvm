@@ -478,7 +478,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue("HIP");
   }
   case UR_DEVICE_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hDevice->getReferenceCount());
+    return ReturnValue(hDevice->RefCount.getCount());
   }
   case UR_DEVICE_INFO_VERSION: {
     std::stringstream S;
