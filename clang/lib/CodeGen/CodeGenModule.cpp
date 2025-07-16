@@ -1503,8 +1503,6 @@ void CodeGenModule::Release() {
 
   if (LangOpts.SYCLIsDevice) {
     getModule().addModuleFlag(llvm::Module::Error, "sycl-device", 1);
-    if (LangOpts.SYCLIsNativeCPU)
-      getModule().addModuleFlag(llvm::Module::Error, "is-native-cpu", 1);
   }
 
   if (LangOpts.EHAsynch)
@@ -7072,8 +7070,7 @@ void CodeGenModule::EmitGlobalFunctionDefinition(GlobalDecl GD,
     if (GD.getKernelReferenceKind() == KernelReferenceKind::Stub &&
         !D->hasAttr<NoInlineAttr>() &&
         !Fn->hasFnAttribute(llvm::Attribute::NoInline) &&
-        !D->hasAttr<OptimizeNoneAttr>() && !LangOpts.SYCLIsNativeCPU &&
-        !LangOpts.SYCLIsDevice &&
+        !D->hasAttr<OptimizeNoneAttr>() && !LangOpts.SYCLIsDevice &&
         !Fn->hasFnAttribute(llvm::Attribute::OptimizeNone) &&
         !ShouldAddOptNone) {
       Fn->addFnAttr(llvm::Attribute::AlwaysInline);
