@@ -43,7 +43,7 @@ params:
           context.
     - type: size_t
       name: allocationSize
-      desc: "[in] size in bytes of allocation size which granurality we search for."
+      desc: "[in] allocation size in bytes for which the alignment is being queried."
     - type: $x_virtual_mem_granularity_info_t
       name: propName
       desc: "[in] type of the info to query."
