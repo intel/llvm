@@ -549,9 +549,6 @@ std::unique_ptr<TargetCodeGenInfo>
 createNativeCPUTargetCodeGenInfo(CodeGenModule &CGM,
                                  std::unique_ptr<TargetCodeGenInfo>);
 
-std::unique_ptr<TargetCodeGenInfo>
-createPNaClTargetCodeGenInfo(CodeGenModule &CGM);
-
 enum class PPC64_SVR4_ABIKind {
   ELFv1 = 0,
   ELFv2,
