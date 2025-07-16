@@ -50,7 +50,7 @@ void contextSetExtendedDeleter(const sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
   context_impl &Ctx = *getSyclObjImpl(context);
-  adapter_impl &Adapter = *Ctx.getAdapter();
+  adapter_impl &Adapter = Ctx.getAdapter();
   Adapter.call<UrApiKind::urContextSetExtendedDeleter>(
       Ctx.getHandleRef(), reinterpret_cast<ur_context_extended_deleter_t>(func),
       user_data);
@@ -96,7 +96,8 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
 bool XPTIInitDone = false;
 
 // Initializes all available Adapters.
-std::vector<AdapterPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
+std::vector<adapter_impl *> &
+initializeUr(ur_loader_config_handle_t LoaderConfig) {
   // This uses static variable initialization to work around a gcc bug with
   // std::call_once and exceptions.
   // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
@@ -207,7 +208,7 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
   }
 
   uint32_t adapterCount = 0;
-  CHECK_UR_SUCCESS(adapterGet(0, nullptr, &adapterCount));
+  CHECK_UR_SUCCESS(adapterGet(0u, nullptr, &adapterCount));
   std::vector<ur_adapter_handle_t> adapters(adapterCount);
   CHECK_UR_SUCCESS(adapterGet(adapterCount, adapters.data(), nullptr));
 

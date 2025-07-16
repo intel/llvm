@@ -33,7 +33,7 @@ getUrEvents(const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
   return RetUrEvents;
 }
 
-std::vector<std::shared_ptr<detail::node_impl>> getDepGraphNodes(
+std::vector<detail::node_impl *> getDepGraphNodes(
     sycl::handler &Handler, detail::queue_impl *Queue,
     const std::shared_ptr<detail::graph_impl> &Graph,
     const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
@@ -42,14 +42,14 @@ std::vector<std::shared_ptr<detail::node_impl>> getDepGraphNodes(
   auto DepNodes = Graph->getNodesForEvents(DepEvents);
   // If this node was added explicitly we may have node deps in the handler as
   // well, so add them to the list
-  DepNodes.insert(DepNodes.end(), HandlerImpl.MNodeDeps.begin(),
-                  HandlerImpl.MNodeDeps.end());
+  for (auto &N : HandlerImpl.MNodeDeps)
+    DepNodes.push_back(N.get());
   // If this is being recorded from an in-order queue we need to get the last
   // in-order node if any, since this will later become a dependency of the
   // node being processed here.
   if (detail::node_impl *LastInOrderNode = Graph->getLastInorderNode(Queue);
       LastInOrderNode) {
-    DepNodes.push_back(LastInOrderNode->shared_from_this());
+    DepNodes.push_back(LastInOrderNode);
   }
   return DepNodes;
 }
@@ -68,7 +68,7 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Only device backed asynchronous allocations are supported!");
 
-  auto &Adapter = h.getContextImpl().getAdapter();
+  detail::adapter_impl &Adapter = h.getContextImpl().getAdapter();
 
   // Get CG event dependencies for this allocation.
   const auto &DepEvents = h.impl->CGData.MEvents;
@@ -84,8 +84,8 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
     alloc = Graph->getMemPool().malloc(size, kind, DepNodes);
   } else {
     ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
-    Adapter->call<sycl::errc::runtime,
-                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
+    Adapter.call<sycl::errc::runtime,
+                 sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
         Q, (ur_usm_pool_handle_t)0, size, nullptr, UREvents.size(),
         UREvents.data(), &alloc, &Event);
   }
@@ -118,7 +118,7 @@ __SYCL_EXPORT void *async_malloc(const sycl::queue &q, sycl::usm::alloc kind,
 __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
                                            const memory_pool &pool) {
 
-  auto &Adapter = h.getContextImpl().getAdapter();
+  detail::adapter_impl &Adapter = h.getContextImpl().getAdapter();
   detail::memory_pool_impl &memPoolImpl = *detail::getSyclObjImpl(pool);
 
   // Get CG event dependencies for this allocation.
@@ -138,8 +138,8 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
                                        detail::getSyclObjImpl(pool).get());
   } else {
     ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
-    Adapter->call<sycl::errc::runtime,
-                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
+    Adapter.call<sycl::errc::runtime,
+                 sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
         Q, memPoolImpl.get_handle(), size, nullptr, UREvents.size(),
         UREvents.data(), &alloc, &Event);
   }

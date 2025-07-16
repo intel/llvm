@@ -1,3 +1,11 @@
+//==------------------------ cmath -----------------------------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #pragma once
 
 // Include real STL <cmath> header - the next one from the include search
@@ -16,6 +24,10 @@
 
 // *** <sycl/builtins.hpp> ***
 
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+#include "__sycl_cmath_wrapper_impl.hpp"
+#else
+
 #include <sycl/detail/defines_elementary.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -26,8 +38,7 @@ extern __DPCPP_SYCL_EXTERNAL_LIBC long long int llabs(long long int x);
 
 extern __DPCPP_SYCL_EXTERNAL_LIBC div_t div(int x, int y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC ldiv_t ldiv(long int x, long int y);
-extern __DPCPP_SYCL_EXTERNAL_LIBC lldiv_t lldiv(long long int x,
-                                                long long int y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC lldiv_t lldiv(long long int x, long long int y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float scalbnf(float x, int n);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double scalbn(double x, int n);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float logf(float x);
@@ -90,6 +101,24 @@ extern __DPCPP_SYCL_EXTERNAL_LIBC float powf(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double pow(double x, double y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float atan2f(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double atan2(double x, double y);
+
+extern __DPCPP_SYCL_EXTERNAL_LIBC float sinhf(float x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double sinh(double x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float coshf(float x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double cosh(double x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float tanhf(float x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double tanh(double x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float asinhf(float x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double asinh(double x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float acoshf(float x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double acosh(double x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float atanhf(float x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double atanh(double x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double frexp(double x, int *exp);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double ldexp(double x, int exp);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double hypot(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float rintf(float x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double rint(double x);
 
 extern __DPCPP_SYCL_EXTERNAL_LIBC float sinhf(float x);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double sinh(double x);
@@ -212,3 +241,4 @@ extern __DPCPP_SYCL_EXTERNAL_LIBC float _hypotf(float x, float y);
 }
 #endif
 #endif // __SYCL_DEVICE_ONLY__
+#endif
