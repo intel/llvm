@@ -10,7 +10,7 @@ The long-term goal of the project is to replace Unified Runtime with liboffload.
 
 The adapter should be used with an upstream build of LLVM with the `offload`
 runtime enabled. The in-tree version is unlikely to be usable, as there are
-frequent breaking API changes.
+frequent breaking API changes which happen out-of-sync with pulldowns.
 
 ## Building upstream LLVM with Offload enabled
 The `liboffload` library will be built if the `offload` runtime is enabled. An
