@@ -7760,10 +7760,9 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
 
   // For SYCL offloading with -fsycl-host-compiler enabled, we do not have the
   // ability to embed the packaged file.
-  bool SYCLBundleFile =
-      C.isOffloadingHostKind(Action::OFK_SYCL) &&
-      Args.hasArg(options::OPT_fsycl_host_compiler_EQ) &&
-      isa<AssembleJobAction>(HostAction);
+  bool SYCLBundleFile = C.isOffloadingHostKind(Action::OFK_SYCL) &&
+                        Args.hasArg(options::OPT_fsycl_host_compiler_EQ) &&
+                        isa<AssembleJobAction>(HostAction);
 
   // Don't build offloading actions if we do not have a compile action. If
   // preprocessing only ignore embedding.  When needing to do bundling for
