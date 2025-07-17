@@ -149,8 +149,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   bool isLocalSizeOne =
       ndr.LocalSize[0] == 1 && ndr.LocalSize[1] == 1 && ndr.LocalSize[2] == 1;
   if (isLocalSizeOne && ndr.GlobalSize[0] > numParallelThreads &&
-      !kernel->hasLocalArgs() && !hKernel->isNDRangeKernel()) {
-    // TODO: Check if  !kernel->hasLocalArgs() is needed
+      !hKernel->isNDRangeKernel()) {
     // If the local size is one, we make the assumption that we are running a
     // parallel_for over a sycl::range.
     // Todo: we could add more compiler checks and
