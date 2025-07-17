@@ -363,22 +363,26 @@ void GetCapabilitiesIntersectionSet(devices_range Devices,
 
 // We're under sycl/source and these won't be exported but it's way more
 // convenient to be able to reference them without extra `detail::`.
-inline auto get_ur_handles(sycl::detail::context_impl &Ctx) {
+inline auto get_ur_handles(const detail::context_impl &Ctx) {
   ur_context_handle_t urCtx = Ctx.getHandleRef();
   return std::tuple{urCtx, &Ctx.getAdapter()};
 }
-inline auto get_ur_handles(const sycl::context &syclContext) {
-  return get_ur_handles(*sycl::detail::getSyclObjImpl(syclContext));
+inline auto get_ur_handles(const context &syclContext) {
+  return get_ur_handles(*detail::getSyclObjImpl(syclContext));
 }
-inline auto get_ur_handles(const sycl::device &syclDevice,
-                           const sycl::context &syclContext) {
+inline auto get_ur_handles(const detail::device_impl &syclDevice,
+                           const detail::context_impl &syclContext) {
   auto [urCtx, Adapter] = get_ur_handles(syclContext);
-  ur_device_handle_t urDevice =
-      sycl::detail::getSyclObjImpl(syclDevice)->getHandleRef();
+  ur_device_handle_t urDevice = syclDevice.getHandleRef();
   return std::tuple{urDevice, urCtx, Adapter};
 }
-inline auto get_ur_handles(const sycl::device &syclDevice) {
-  auto &implDevice = *sycl::detail::getSyclObjImpl(syclDevice);
+inline auto get_ur_handles(const device &syclDevice,
+                           const context &syclContext) {
+  return get_ur_handles(*detail::getSyclObjImpl(syclDevice),
+                        *detail::getSyclObjImpl(syclContext));
+}
+inline auto get_ur_handles(const device &syclDevice) {
+  auto &implDevice = *detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t urDevice = implDevice.getHandleRef();
   return std::tuple{urDevice, &implDevice.getAdapter()};
 }
