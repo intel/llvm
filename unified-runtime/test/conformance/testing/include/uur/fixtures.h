@@ -976,9 +976,12 @@ struct urVirtualMemGranularityTest : urContextTest {
       GTEST_SKIP() << "Virtual memory is not supported.";
     }
 
+    const size_t allocationSize =
+        1; // assuming allocations in test are small enough and minimal granularity is used
     ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
-        context, device, UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
-        sizeof(granularity), &granularity, nullptr));
+        context, device, allocationSize,
+        UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM, sizeof(granularity),
+        &granularity, nullptr));
   }
   size_t granularity;
 };
@@ -995,10 +998,12 @@ struct urVirtualMemGranularityTestWithParam : urContextTestWithParam<T> {
     if (!virtual_memory_support) {
       GTEST_SKIP() << "Virtual memory is not supported.";
     }
-
+    const size_t allocationSize =
+        1; // assuming allocations in test are small and use smallest granularity
     ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
-        this->context, this->device, UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
-        sizeof(granularity), &granularity, nullptr));
+        this->context, this->device, allocationSize,
+        UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM, sizeof(granularity),
+        &granularity, nullptr));
     ASSERT_NE(granularity, 0);
   }
 

@@ -1834,8 +1834,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetUsmP2PExpProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urVirtualMemGranularityGetInfo
 typedef ur_result_t(UR_APICALL *ur_pfnVirtualMemGranularityGetInfo_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_virtual_mem_granularity_info_t,
-    size_t, void *, size_t *);
+    ur_context_handle_t, ur_device_handle_t, size_t,
+    ur_virtual_mem_granularity_info_t, size_t, void *, size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urVirtualMemReserve
