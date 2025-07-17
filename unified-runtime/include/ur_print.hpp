@@ -20334,6 +20334,11 @@ inline std::ostream &operator<<(
   ur::details::printPtr(os, *(params->phDevice));
 
   os << ", ";
+  os << ".allocationSize = ";
+
+  os << *(params->pallocationSize);
+
+  os << ", ";
   os << ".propName = ";
 
   os << *(params->ppropName);

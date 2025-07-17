@@ -293,6 +293,7 @@ public:
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
 
   nodes_range roots() const { return MRoots; }
+  nodes_range nodes() const { return MNodeStorage; }
 
   /// Find the last node added to this graph from an in-order queue.
   /// @param Queue In-order queue to find the last node added to the graph from.
@@ -665,6 +666,8 @@ public:
     return MPartitions;
   }
 
+  nodes_range nodes() const { return MNodeStorage; }
+
   /// Query whether the graph contains any host-task nodes.
   /// @return True if the graph contains any host-task nodes. False otherwise.
   bool containsHostTask() const { return MContainsHostTask; }
@@ -917,7 +920,7 @@ private:
 
   // Stores a cache of node ids from modifiable graph nodes to the companion
   // node(s) in this graph. Used for quick access when updating this graph.
-  std::multimap<node_impl::id_type, std::shared_ptr<node_impl>> MIDCache;
+  std::multimap<node_impl::id_type, node_impl *> MIDCache;
 
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.
