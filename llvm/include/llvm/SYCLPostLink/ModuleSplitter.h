@@ -140,9 +140,6 @@ public:
   std::string Name = "";
   Properties Props;
 
-  ModuleDesc(ModuleDesc &&) = default;
-  ModuleDesc& operator=(ModuleDesc &&) = default;
-
   ModuleDesc(std::unique_ptr<Module> &&M, StringRef Name = "TOP-LEVEL")
       : M(std::move(M)), IsTopLevel(true), Name(Name) {
     // DeviceLib module doesn't include any entry point,it can be constructed

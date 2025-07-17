@@ -73,7 +73,7 @@ Expected<ModuleDesc> linkModules(ModuleDesc MD1, ModuleDesc MD2) {
   ModuleDesc Res(MD1.releaseModulePtr(), std::move(Names));
   Res.assignMergedProperties(MD1, MD2);
   Res.Name = (Twine("linked[") + MD1.Name + "," + MD2.Name + "]").str();
-  return Res;
+  return std::move(Res);
 }
 
 } // anonymous namespace
@@ -128,7 +128,7 @@ llvm::sycl::handleESIMD(ModuleDesc MDesc,
   }
 
   if (Options.SplitESIMD || Result.size() == 1)
-    return Result;
+    return std::move(Result);
 
   // SYCL/ESIMD splitting is not requested, link back into single module.
   int ESIMDInd = Result[0].isESIMD() ? 0 : 1;
@@ -156,5 +156,5 @@ llvm::sycl::handleESIMD(ModuleDesc MDesc,
 #endif // LLVM_ENABLE_DUMP
   Modified = true;
 
-  return Result;
+  return std::move(Result);
 }
