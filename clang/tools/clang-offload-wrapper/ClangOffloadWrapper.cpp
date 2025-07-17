@@ -677,7 +677,7 @@ private:
     }
 
     // Add an empty entry that we use as end iterator
-    static auto *NativeCPUEndStr =
+    auto *NativeCPUEndStr =
         addStringToModule("__nativecpu_end", "__ncpu_end_str");
     auto *NullPtr = llvm::ConstantPointerNull::get(getPtrTy());
     NativeCPUEntries.push_back(
