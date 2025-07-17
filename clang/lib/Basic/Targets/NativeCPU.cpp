@@ -41,9 +41,9 @@ static const LangASMap NativeCPUASMap = {
     20, // wasm_funcref
 };
 
-NativeCPUTargetInfo::NativeCPUTargetInfo(const llvm::Triple &,
+NativeCPUTargetInfo::NativeCPUTargetInfo(const llvm::Triple &Triple,
                                          const TargetOptions &Opts)
-    : TargetInfo(llvm::Triple()) {
+    : TargetInfo(Triple) {
   AddrSpaceMap = &NativeCPUASMap;
   UseAddrSpaceMapMangling = true;
   HasLegalHalfType = true;
@@ -54,11 +54,11 @@ NativeCPUTargetInfo::NativeCPUTargetInfo(const llvm::Triple &,
     // Take the default target triple if no other host triple is specified so
     // that system headers work.
     if (Opts.HostTriple.empty())
-      return llvm::sys::getDefaultTargetTriple();
+      return llvm::Triple(llvm::sys::getDefaultTargetTriple());
 
-    return Opts.HostTriple;
+    return llvm::Triple(Opts.HostTriple);
   }());
-  if (HostTriple.getArch() != llvm::Triple::UnknownArch) {
+  if (!HostTriple.isNativeCPU()) {
     HostTarget = AllocateTarget(HostTriple, Opts);
     copyAuxTarget(&*HostTarget);
   }

@@ -115,7 +115,7 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
   bool has_info_desc(ur_device_info_t Desc) const {
     size_t return_size = 0;
     return getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
-               MDevice, Desc, 0, nullptr, &return_size) == UR_RESULT_SUCCESS;
+               MDevice, Desc, 0u, nullptr, &return_size) == UR_RESULT_SUCCESS;
   }
 
   // This should really be
@@ -154,7 +154,7 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
           !check_type_in_v<typename ur_ret_t::value_type, bool, std::string>);
       size_t ResultSize = 0;
       ur_result_t Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
-          getHandleRef(), Desc, 0, nullptr, &ResultSize);
+          getHandleRef(), Desc, 0u, nullptr, &ResultSize);
       if (Error != UR_RESULT_SUCCESS)
         return {Error};
       if (ResultSize == 0)
@@ -187,7 +187,7 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
         return urGetInfoString<UrApiKind::urDeviceGetInfo>(*this, Desc);
       } else if constexpr (is_std_vector_v<ur_ret_t>) {
         size_t ResultSize = 0;
-        getAdapter().call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0,
+        getAdapter().call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0u,
                                                       nullptr, &ResultSize);
         if (ResultSize == 0)
           return ur_ret_t{};
@@ -2295,9 +2295,11 @@ struct devices_deref_impl {
   }
 };
 using devices_iterator =
-    variadic_iterator<devices_deref_impl,
+    variadic_iterator<devices_deref_impl, device,
                       std::vector<std::shared_ptr<device_impl>>::const_iterator,
-                      std::vector<device>::const_iterator, device_impl *>;
+                      std::vector<device>::const_iterator,
+                      std::vector<device_impl *>::const_iterator,
+                      device_impl *>;
 
 class devices_range : public iterator_range<devices_iterator> {
 private:
@@ -2305,8 +2307,21 @@ private:
 
 public:
   using Base::Base;
-  devices_range(const device &Dev)
-      : devices_range(&*getSyclObjImpl(Dev), (&*getSyclObjImpl(Dev) + 1), 1) {}
+  template <typename Container>
+  decltype(std::declval<Base>().to<Container>()) to() const {
+    return this->Base::to<Container>();
+  }
+
+  template <typename Container>
+  std::enable_if_t<std::is_same_v<Container, std::vector<ur_device_handle_t>>,
+                   Container>
+  to() const {
+    std::vector<ur_device_handle_t> DeviceHandles;
+    DeviceHandles.reserve(size());
+    std::transform(begin(), end(), std::back_inserter(DeviceHandles),
+                   [](device_impl &Dev) { return Dev.getHandleRef(); });
+    return DeviceHandles;
+  }
 };
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

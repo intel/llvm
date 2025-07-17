@@ -130,9 +130,7 @@ public:
   /// \return an instance of raw UR context handle.
   const ur_context_handle_t &getHandleRef() const;
 
-  /// Unlike `get_info<info::context::devices>', this function returns a
-  /// reference.
-  const std::vector<device> &getDevices() const { return MDevices; }
+  devices_range getDevices() const { return MDevices; }
 
   using CachedLibProgramsT =
       std::map<std::pair<DeviceLibExt, ur_device_handle_t>,
@@ -218,7 +216,7 @@ public:
 
   /// Adds a device global initializer.
   void addDeviceGlobalInitializer(ur_program_handle_t Program,
-                                  const std::vector<device> &Devs,
+                                  devices_range Devs,
                                   const RTDeviceBinaryImage *BinImage);
 
   /// Initializes device globals for a program on the associated queue.
@@ -347,9 +345,9 @@ private:
 };
 
 template <typename T, typename Capabilities>
-void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
+void GetCapabilitiesIntersectionSet(devices_range Devices,
                                     std::vector<T> &CapabilityList) {
-  for (const sycl::device &Device : Devices) {
+  for (device_impl &Device : Devices) {
     std::vector<T> NewCapabilityList;
     std::vector<T> DeviceCapabilities = Device.get_info<Capabilities>();
     std::set_intersection(

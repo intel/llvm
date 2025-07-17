@@ -42,11 +42,11 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit 99ff81024f28ed37090f7910dfadc6aaf8dbb3ff
+    # commit c02a5525bd6165e137129f7c5691e0faf14b7ceb
     # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-    # Date:   Mon Jul 7 17:08:39 2025 +0200
-    # 1.0.0-rc1 release
-    set(UMF_TAG v1.0.0-rc1)
+    # Date:   Wed Jul 16 11:04:14 2025 +0200
+    # 1.0.0-rc2 release
+    set(UMF_TAG v1.0.0-rc2)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
