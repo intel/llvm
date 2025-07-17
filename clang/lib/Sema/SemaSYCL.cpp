@@ -2570,7 +2570,6 @@ public:
     return true;
   }
 
-
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *PD,
                    QualType ParamTy) final {
     return true;
@@ -2851,6 +2850,9 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       // For free function kernels the arguments are named in direct mapping
       // with the names they have in the __init method i.e __arg_Ptr for work
       // group memory since its init function takes a parameter with Ptr name.
+      if constexpr (std::is_same_v<ParentDecl, FieldDecl>)
+        addParam(decl, ParamTy.getCanonicalType());
+      else
         addParam(Param, ParamTy.getCanonicalType());
       // Propagate add_ir_attributes_kernel_parameter attribute.
       if (const auto *AddIRAttr =
@@ -2996,7 +2998,7 @@ public:
   }
 
   bool handleStructType(ParmVarDecl *PD, QualType Ty) final {
-  StringRef Name = "_arg_struct";
+    StringRef Name = "_arg_struct";
     addParam(Name, Ty);
     CurrentStruct = Params.back();
     return true;
@@ -4524,7 +4526,6 @@ public:
 
   ~FreeFunctionKernelBodyCreator() {
     CompoundStmt *KernelBody = createFreeFunctionKernelBody();
-    KernelBody->dumpPretty(SemaSYCLRef.SemaRef.getASTContext());
     DeclCreator.setBody(KernelBody);
   }
 
@@ -4757,19 +4758,22 @@ class FreeFunctionKernelParamDecomposer : public SyclKernelFieldHandler {
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
 
-  FreeFunctionKernelParamDecomposer(SemaSYCL &S, SYCLIntegrationHeader &Header, FunctionDecl *FF, SyclKernelDeclCreator &DC)
-      : SyclKernelFieldHandler(S), FreeFunctionSrcLoc(FF->getLocation()), FreeFunction(FF), H(Header), DeclCreator(DC) {}
+  FreeFunctionKernelParamDecomposer(SemaSYCL &S, SYCLIntegrationHeader &Header,
+                                    FunctionDecl *FF, SyclKernelDeclCreator &DC)
+      : SyclKernelFieldHandler(S), FreeFunctionSrcLoc(FF->getLocation()),
+        FreeFunction(FF), H(Header), DeclCreator(DC) {}
 
-bool handleSyclSpecialType(ParmVarDecl *, QualType) final { return true; }
+  bool handleSyclSpecialType(ParmVarDecl *, QualType) final { return true; }
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType Ty) final {
-    ParmVarDecl * ParentStruct = DeclCreator.getParentStructForCurrentField();
+    ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
     Expr *Base = createParamReferenceExpr(ParentStruct);
     for (const auto &child : CurrentStructs) {
       Base = buildMemberExpr(Base, child);
     }
     MemberExpr *MemberAccess = buildMemberExpr(Base, FD);
-    H.addFreeFunctionParamDecomposition(TopLevelStruct->getType(), MemberAccess);
+    H.addFreeFunctionParamDecomposition(TopLevelStruct->getType(),
+                                        MemberAccess);
     return true;
   }
 
@@ -4787,14 +4791,12 @@ bool handleSyclSpecialType(ParmVarDecl *, QualType) final { return true; }
     return true;
   }
 
-bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                              QualType Ty) final {
     return true;
   }
 
-  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    return true;
-  }
+  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final { return true; }
 
   bool handlePointerType(ParmVarDecl *PD, QualType ParamTy) final {
     return true;
@@ -4820,27 +4822,22 @@ bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
-    ParmVarDecl * ParentStruct = DeclCreator.getParentStructForCurrentField();
+    ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
     Expr *Base = createParamReferenceExpr(ParentStruct);
     for (const auto &child : CurrentStructs) {
       Base = buildMemberExpr(Base, child);
     }
     MemberExpr *MemberAccess = buildMemberExpr(Base, FD);
-    H.addFreeFunctionParamDecomposition(TopLevelStruct->getType(), MemberAccess);
+    H.addFreeFunctionParamDecomposition(TopLevelStruct->getType(),
+                                        MemberAccess);
     return true;
   }
 
-  bool handleScalarType(ParmVarDecl *, QualType) final {
-    return true;
-  }
+  bool handleScalarType(ParmVarDecl *, QualType) final { return true; }
 
-  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
-    return true;
-  }
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final { return true; }
 
-  bool handleUnionType(ParmVarDecl *, QualType) final {
-    return true;
-  }
+  bool handleUnionType(ParmVarDecl *, QualType) final { return true; }
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *FD, QualType Ty) final {
     return true;
   }
@@ -4893,6 +4890,7 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   int64_t CurOffset = 0;
   llvm::SmallVector<size_t, 16> ArrayBaseOffsets;
   int StructDepth = 0;
+  // Set if we are currently exploring fields of  a struct that contains special types
   bool SpecialTypeWrapper = false;
   // A series of functions to calculate the change in offset based on the type.
   int64_t offsetOf(const FieldDecl *FD, QualType ArgTy) const {
@@ -5178,8 +5176,8 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    SpecialTypeWrapper = false;    
-return true;
+    SpecialTypeWrapper = false;
+    return true;
   }
 
   bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
