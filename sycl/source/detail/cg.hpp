@@ -144,12 +144,13 @@ public:
   // UR expects a minimum of 1 in all three dimensions, this ensures we comply
   // with that requirement.
   inline void normalizeSizesForLaunch() {
-    GlobalSize[0] = std::max(GlobalSize[0], 1lu);
-    GlobalSize[1] = std::max(GlobalSize[1], 1lu);
-    GlobalSize[2] = std::max(GlobalSize[2], 1lu);
-    LocalSize[0] = std::max(LocalSize[0], 1lu);
-    LocalSize[1] = std::max(LocalSize[1], 1lu);
-    LocalSize[2] = std::max(LocalSize[2], 1lu);
+    // The brace initialized size_t looks odd, but is necessary for MSVC.
+    GlobalSize[0] = std::max(GlobalSize[0], std::size_t{1});
+    GlobalSize[1] = std::max(GlobalSize[1], std::size_t{1});
+    GlobalSize[2] = std::max(GlobalSize[2], std::size_t{1});
+    LocalSize[0] = std::max(LocalSize[0], std::size_t{1});
+    LocalSize[1] = std::max(LocalSize[1], std::size_t{1});
+    LocalSize[2] = std::max(LocalSize[2], std::size_t{1});
   }
 
   NDRDescT &operator=(const NDRDescT &Desc) = default;
