@@ -1341,6 +1341,18 @@ private:
   std::unique_ptr<DynRTDeviceBinaryImage> MMergedImageStorage = nullptr;
 };
 
+using device_images_iterator =
+    variadic_iterator<device_image_plain,
+                      std::vector<device_image_plain>::const_iterator,
+                      std::set<device_image_impl *>::const_iterator>;
+class device_images_range : public iterator_range<device_images_iterator> {
+private:
+  using Base = iterator_range<device_images_iterator>;
+
+public:
+  using Base::Base;
+};
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
