@@ -16,7 +16,11 @@ frequent breaking API changes.
 The `liboffload` library will be built if the `offload` runtime is enabled. An
 example CMake configuration is:
 ```sh
-cmake -S llvm -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS='clang;clang-tools-extra;lldb;lld;' -DLLVM_PARALLEL_LINK_JOBS=4 -DLLVM_ENABLE_RUNTIMES='offload;openmp' -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_INSTALL_PREFIX=$PWD/build/install
+cmake -S llvm -B build -GNinja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=$PWD/build/install
+  -DLLVM_ENABLE_PROJECTS='clang;clang-tools-extra;lldb;lld;' \
+  -DLLVM_ENABLE_RUNTIMES='offload;openmp'
 ```
 
 Because Offload's API header is generated with tablegen at build time, the
