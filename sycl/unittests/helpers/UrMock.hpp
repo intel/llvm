@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/ur.hpp>

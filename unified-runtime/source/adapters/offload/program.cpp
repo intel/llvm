@@ -87,11 +87,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   if (auto Parser = HipOffloadBundleParser::load(RealBinary, RealLength)) {
     std::string DevName{};
     size_t DevNameLength;
-    olGetDeviceInfoSize(phDevices[0]->OffloadDevice, OL_DEVICE_INFO_NAME,
-                        &DevNameLength);
-    DevName.resize(DevNameLength);
-    olGetDeviceInfo(phDevices[0]->OffloadDevice, OL_DEVICE_INFO_NAME,
-                    DevNameLength, DevName.data());
+    OL_RETURN_ON_ERR(olGetDeviceInfoSize(phDevices[0]->OffloadDevice,
+                                         OL_DEVICE_INFO_NAME, &DevNameLength));
+    DevName.resize(DevNameLength - 1);
+    OL_RETURN_ON_ERR(olGetDeviceInfo(phDevices[0]->OffloadDevice,
+                                     OL_DEVICE_INFO_NAME, DevNameLength,
+                                     DevName.data()));
 
     auto Res = Parser->extract(DevName, RealBinary, RealLength);
     if (Res != UR_RESULT_SUCCESS) {
@@ -107,7 +108,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
                                        phProgram);
   }
 
-  ur_program_handle_t Program = new ur_program_handle_t_();
+  ur_program_handle_t Program = new ur_program_handle_t_{};
+  Program->URContext = hContext;
+  Program->Binary = RealBinary;
+  Program->BinarySizeInBytes = RealLength;
   auto Res = olCreateProgram(hContext->Device->OffloadDevice, RealBinary,
                              RealLength, &Program->OffloadProgram);
 
@@ -119,6 +123,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   *phProgram = Program;
 
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
+                      size_t length, const ur_program_properties_t *pProperties,
+                      ur_program_handle_t *phProgram) {
+  // Liboffload consumes both IR and binaries through the same entrypoint
+  return urProgramCreateWithBinary(hContext, 1, &hContext->Device, &length,
+                                   reinterpret_cast<const uint8_t **>(&pIL),
+                                   pProperties, phProgram);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t,
@@ -136,6 +150,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(ur_context_handle_t,
+                                                     ur_program_handle_t,
+                                                     const char *) {
+  // Do nothing, program is built upon creation
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
                  size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
@@ -144,8 +165,42 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   switch (propName) {
   case UR_PROGRAM_INFO_REFERENCE_COUNT:
     return ReturnValue(hProgram->RefCount.load());
-  default:
+  case UR_PROGRAM_INFO_CONTEXT:
+    return ReturnValue(hProgram->URContext);
+  case UR_PROGRAM_INFO_NUM_DEVICES:
+    return ReturnValue(1);
+  case UR_PROGRAM_INFO_DEVICES:
+    return ReturnValue(&hProgram->URContext->Device, 1);
+  case UR_PROGRAM_INFO_IL:
+    return ReturnValue(reinterpret_cast<const char *>(0), 0);
+  case UR_PROGRAM_INFO_BINARY_SIZES:
+    return ReturnValue(&hProgram->BinarySizeInBytes, 1);
+  case UR_PROGRAM_INFO_BINARIES: {
+    if (!pPropValue && !pPropSizeRet) {
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (pPropValue != nullptr) {
+      if (propSize < sizeof(void *)) {
+        return UR_RESULT_ERROR_INVALID_SIZE;
+      }
+
+      std::memcpy(*reinterpret_cast<void **>(pPropValue), hProgram->Binary,
+                  hProgram->BinarySizeInBytes);
+    }
+
+    if (pPropSizeRet != nullptr) {
+      *pPropSizeRet = sizeof(void *);
+    }
+    break;
+  }
+  case UR_PROGRAM_INFO_NUM_KERNELS:
+  case UR_PROGRAM_INFO_KERNEL_NAMES:
+    // Program introspection is not available for liboffload (or generally,
+    // amdgpu/cuda)
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  default:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
   return UR_RESULT_SUCCESS;

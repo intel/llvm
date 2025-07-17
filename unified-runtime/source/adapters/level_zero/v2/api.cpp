@@ -63,21 +63,6 @@ ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t hPool,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_usm_pool_handle_t *pPool) {
-  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
-                                           ur_usm_pool_info_t propName,
-                                           void *pPropValue,
-                                           size_t *pPropSizeRet) {
-  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(ur_context_handle_t hContext,
                                                  ur_device_handle_t hDevice,
                                                  ur_usm_pool_handle_t *pPool) {

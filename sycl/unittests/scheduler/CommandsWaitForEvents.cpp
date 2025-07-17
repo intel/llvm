@@ -34,9 +34,8 @@ struct TestCtx {
   bool EventCtx2WasWaited = false;
 
   TestCtx(queue &Queue1, queue &Queue2)
-      : Q1(Queue1), Q2(Queue2),
-        Ctx1(*detail::getSyclObjImpl(Q1.get_context()).get()),
-        Ctx2(*detail::getSyclObjImpl(Q2.get_context()).get()) {
+      : Q1(Queue1), Q2(Queue2), Ctx1(*detail::getSyclObjImpl(Q1.get_context())),
+        Ctx2(*detail::getSyclObjImpl(Q2.get_context())) {
 
     EventCtx1 = mock::createDummyHandle<ur_event_handle_t>();
     EventCtx2 = mock::createDummyHandle<ur_event_handle_t>();
@@ -152,12 +151,10 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
     ASSERT_TRUE(QueueImpl.MStreamsServiceEvents.size() == 1)
         << "Expected 1 service stream event";
 
-    std::shared_ptr<sycl::detail::event_impl> EventImpl =
-        detail::getSyclObjImpl(Event);
+    auto &EventImplProxy =
+        static_cast<EventImplProxyT &>(*detail::getSyclObjImpl(Event));
 
-    auto EventImplProxy = std::static_pointer_cast<EventImplProxyT>(EventImpl);
-
-    ASSERT_EQ(EventImplProxy->MWeakPostCompleteEvents.size(), 1u)
+    ASSERT_EQ(EventImplProxy.MWeakPostCompleteEvents.size(), 1u)
         << "Expected 1 post complete event";
 
     Q.wait();

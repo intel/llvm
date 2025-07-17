@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#pragma once
 
 #include <OffloadAPI.h>
 #include <ur_api.h>
@@ -23,6 +24,8 @@ inline ur_result_t offloadResultToUR(ol_result_t Result) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   case OL_ERRC_UNSUPPORTED:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case OL_ERRC_INVALID_BINARY:
+    return UR_RESULT_ERROR_INVALID_BINARY;
   // Returned whenever a kernel can't be found
   case OL_ERRC_NOT_FOUND:
     return UR_RESULT_ERROR_INVALID_KERNEL_NAME;

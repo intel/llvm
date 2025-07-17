@@ -369,9 +369,9 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
   bool AllEventsEmptyOrNop = std::all_of(
       begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
-        auto EventImpl = detail::getSyclObjImpl(Event);
-        return (EventImpl->isDefaultConstructed() || EventImpl->isNOP()) &&
-               !EventImpl->hasCommandGraph();
+        detail::event_impl &EventImpl = *detail::getSyclObjImpl(Event);
+        return (EventImpl.isDefaultConstructed() || EventImpl.isNOP()) &&
+               !EventImpl.hasCommandGraph();
       });
   if (is_in_order() && !impl->hasCommandGraph() && !impl->MIsProfilingEnabled &&
       AllEventsEmptyOrNop) {

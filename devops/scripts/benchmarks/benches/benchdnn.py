@@ -3,12 +3,15 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+
 from pathlib import Path
+
 from .base import Suite, Benchmark
 from options import options
 from utils.utils import git_clone, run, create_build_path
 from utils.result import Result
 from utils.oneapi import get_oneapi
+from utils.logger import log
 from .benchdnn_list import get_bench_dnn_list
 
 
@@ -72,10 +75,12 @@ class OneDnnBench(Suite):
             f"-S {self.src_dir}",
             f"-B {self.build_dir}",
             f"-DCMAKE_PREFIX_PATH={options.sycl}",
+            "-DCMAKE_CXX_COMPILER=clang++",
+            "-DCMAKE_C_COMPILER=clang",
             "-DCMAKE_BUILD_TYPE=Release",
             "-DDNNL_BUILD_TESTS=ON",
             "-DDNNL_BUILD_EXAMPLES=OFF",
-            "-DDNNL_CPU_RUNTIME=NONE",  # Disable SYCL support
+            "-DDNNL_CPU_RUNTIME=NONE",  # Disable SYCL CPU support
             "-DDNNL_GPU_RUNTIME=SYCL",  # Enable SYCL GPU support
         ]
         run(
@@ -87,6 +92,7 @@ class OneDnnBench(Suite):
             f"cmake --build {self.build_dir} --target benchdnn -j {options.build_jobs}",
             add_sycl=True,
             ld_library=[str(self.build_dir) + "/src"] + self.oneapi.ld_libraries(),
+            timeout=60 * 20,
         )
 
     def teardown(self):
@@ -148,8 +154,7 @@ class OneDnnBenchmark(Benchmark):
         )
         result_value = self._extract_time(output)
 
-        if options.verbose:
-            print(f"[{self.name()}] Output: {output}")
+        log.debug(f"[{self.name()}] Output: {output}")
 
         return [
             Result(
@@ -158,14 +163,13 @@ class OneDnnBenchmark(Benchmark):
                 unit="ms",
                 command=command,
                 env=env_vars,
-                stdout=output,
                 git_url=self.suite.git_url(),
                 git_hash=self.suite.git_tag(),
             )
         ]
 
     # example output:
-    # Output template: perf, %engine%,%-time%,%-ops%,%-MB%,%-pr
+    # Output template: perf,%engine%,%0time%,%-ops%,%-MB%,%-pr
     # perf,gpu,0.000000,0.000000,0.000000,0
     # perf,gpu,0.000000,0.000000,0.000000,0
     def _extract_time(self, output):
@@ -176,7 +180,7 @@ class OneDnnBenchmark(Benchmark):
             if line.startswith("Output template:"):
                 template = line.replace("Output template: ", "").strip().split(",")
                 try:
-                    idx_time = template.index("%-time%")
+                    idx_time = template.index("%0time%")
                 except ValueError:
                     return 0.0
                 continue

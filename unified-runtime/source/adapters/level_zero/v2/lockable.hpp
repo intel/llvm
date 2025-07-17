@@ -18,6 +18,7 @@ public:
     object_ = object;
   }
   T *operator->() { return object_; }
+  auto &operator[](size_t index) { return (*object_)[index]; }
 
 private:
   std::unique_lock<ur_mutex> lock_;

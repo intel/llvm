@@ -29,7 +29,7 @@ static ur_result_t validateProcInputs(ur_api_version_t version,
 
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 namespace ur::level_zero {
-#elif defined(__cplusplus)
+#else
 extern "C" {
 #endif
 
@@ -92,6 +92,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
       ur::level_zero::urBindlessImagesReleaseExternalMemoryExp;
   pDdiTable->pfnFreeMappedLinearMemoryExp =
       ur::level_zero::urBindlessImagesFreeMappedLinearMemoryExp;
+  pDdiTable->pfnSupportsImportingHandleTypeExp =
+      ur::level_zero::urBindlessImagesSupportsImportingHandleTypeExp;
   pDdiTable->pfnImportExternalSemaphoreExp =
       ur::level_zero::urBindlessImagesImportExternalSemaphoreExp;
   pDdiTable->pfnReleaseExternalSemaphoreExp =
@@ -530,7 +532,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 } // namespace ur::level_zero
-#elif defined(__cplusplus)
+#else
 } // extern "C"
 #endif
 

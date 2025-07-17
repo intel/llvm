@@ -45,7 +45,7 @@ __SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
 #ifndef NDEBUG
   size_t InfoOutputSize = 0;
   Adapter->call<sycl::detail::UrApiKind::urVirtualMemGranularityGetInfo>(
-      urCtx, urDevice, GranularityQuery, 0, nullptr, &InfoOutputSize);
+      urCtx, urDevice, GranularityQuery, 0u, nullptr, &InfoOutputSize);
   assert(InfoOutputSize == sizeof(size_t) &&
          "Unexpected output size of granularity info query.");
 #endif // NDEBUG
@@ -139,7 +139,7 @@ __SYCL_EXPORT address_access_mode get_access_mode(const void *Ptr,
 #ifndef NDEBUG
   size_t InfoOutputSize = 0;
   Adapter->call<sycl::detail::UrApiKind::urVirtualMemGetInfo>(
-      urCtx, Ptr, NumBytes, UR_VIRTUAL_MEM_INFO_ACCESS_MODE, 0, nullptr,
+      urCtx, Ptr, NumBytes, UR_VIRTUAL_MEM_INFO_ACCESS_MODE, 0u, nullptr,
       &InfoOutputSize);
   assert(InfoOutputSize == sizeof(ur_virtual_mem_access_flags_t) &&
          "Unexpected output size of access mode info query.");

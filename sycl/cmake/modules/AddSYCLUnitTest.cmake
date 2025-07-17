@@ -115,4 +115,6 @@ macro(add_sycl_unittest test_dirname link_variant)
         -Wno-inconsistent-missing-override
     )
   endif()
+  
+  target_compile_definitions(${test_dirname} PRIVATE SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
 endmacro()
