@@ -1224,7 +1224,6 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                     "Invalid kernel param kind");
     break;
   }
-    std::cout << impl->MArgs.size() << std::endl;
 }
 
 void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {

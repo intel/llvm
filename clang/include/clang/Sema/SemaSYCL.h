@@ -119,9 +119,12 @@ public:
   /// integration header is required.
   void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
 
-void addFreeFunctionParamDecomposition(QualType Ty, MemberExpr *expr) {
-    DecompositionMap[Ty.getAsOpaquePtr()].push_back(expr);
-}
+  // Add the entry (Ty, Offset) to the SpecialTypeOffsetMap.
+  void addSpecialTypeOffset(const Type *ParentStruct, QualType Ty,
+                            int64_t offset) {
+    SpecialTypeOffsetMap[ParentStruct].push_back(std::make_pair(Ty, offset));
+  }
+
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
@@ -209,7 +212,11 @@ private:
   /// type and __sycl_host_pipe_registrar variable are required to emit.
   bool NeedToEmitHostPipeRegistration = false;
 
-  llvm::DenseMap<void *, llvm::SmallVector<MemberExpr *, 8>> DecompositionMap;
+  // A map that keeps track of type and offset of each special class contained
+  // inside a struct
+  llvm::DenseMap<const Type *,
+                 llvm::SmallVector<std::pair<QualType, int64_t>, 8>>
+      SpecialTypeOffsetMap;
 };
 
 class SYCLIntegrationFooter {

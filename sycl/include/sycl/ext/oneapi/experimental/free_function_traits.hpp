@@ -8,7 +8,6 @@
 
 #pragma once
 #include <type_traits>
-#include <iostream>
 
 namespace sycl {
 inline namespace _V1 {
@@ -47,12 +46,21 @@ template <auto *Func>
 inline constexpr bool is_kernel_v = is_kernel<Func>::value;
 
 namespace detail {
+// A special type wrapper is a struct type that contains special types.
+// The frontend defines this trait to be true after analyzing the struct at compile time.
 template <typename T> struct is_special_type_wrapper {
   inline static constexpr bool value = false;
 };
 
-template <typename T>
-struct special_type_wrapper_info {}; 
+// This struct is made to be specialized in the integration header.
+// It calls set_arg for every special type contained in the struct regardless of
+// the level of nesting. So if type Foo contains two accessors inside and the
+// user calls set_arg(Foo), that call will call this function which will call
+// set_arg for each of those two accessors.
+template <typename T> struct special_type_wrapper_info {
+  template <typename ArgT, typename HandlerT>
+  static void set_arg(int ArgIndex, ArgT &arg, HandlerT &cgh, int &NumArgs) {}
+};
 
 } // namespace detail
 } // namespace ext::oneapi::experimental

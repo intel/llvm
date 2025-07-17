@@ -162,10 +162,8 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
 } // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
-template <typename>
-struct is_special_type_wrapper;
-template <typename>
-struct special_type_wrapper_info;
+template <typename> struct is_special_type_wrapper;
+template <typename> struct special_type_wrapper_info;
 class dynamic_parameter_base;
 class dynamic_work_group_memory_base;
 class dynamic_local_accessor_base;
@@ -687,7 +685,6 @@ private:
   }
 
   void setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg);
-
 
   // setArgHelper for non local accessor argument.
   template <typename DataT, int Dims, access::mode AccessMode,
@@ -1894,7 +1891,7 @@ public:
   void
   set_arg(int ArgIndex,
           accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> Arg) {
-  setArgHelper(ArgIndex, std::move(Arg));
+    setArgHelper(ArgIndex, std::move(Arg));
   }
 
   template <typename DataT, int Dims>
@@ -1921,7 +1918,8 @@ public:
     setArgHelper(ArgIndex, Arg);
     int NumArgs;
     ext::oneapi::experimental::detail::special_type_wrapper_info<
-      remove_cv_ref_t<T>>::template set_arg(ArgIndex + 1, Arg, *this, NumArgs);
+        remove_cv_ref_t<T>>::template set_arg(ArgIndex + 1, Arg, *this,
+                                              NumArgs);
     MArgShift += NumArgs;
   }
 
@@ -3471,8 +3469,6 @@ private:
   friend class accessor;
   friend device detail::getDeviceFromHandler(handler &);
   friend detail::device_impl &detail::getDeviceImplFromHandler(handler &);
-  //template <typename, typename>
-  //friend struct ext::oneapi::experimental::detail::special_type_wrapper_info;
   template <typename DataT, int Dimensions, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
   friend class detail::image_accessor;
