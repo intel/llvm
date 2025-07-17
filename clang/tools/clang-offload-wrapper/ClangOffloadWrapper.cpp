@@ -629,6 +629,8 @@ private:
     return AutoGcBufs.back().get();
   }
 
+  /// Adds Native CPU declarations to the module so that they can be
+  /// referenced in the binary.
   Function *addDeclarationForNativeCPU(StringRef Name) {
     FunctionType *FTy =
         FunctionType::get(Type::getVoidTy(C), {getPtrTy(), getPtrTy()}, false);
@@ -640,6 +642,8 @@ private:
     return F;
   }
 
+  /// Adds declarations of NativeCPU kernels to the binary in a format so that
+  /// the NativeCPU UR adapter can extract the pointers and invoke the kernels.
   Expected<std::pair<Constant *, Constant *>> addDeclarationsForNativeCPU(
       StringRef EntriesFile,
       const std::optional<util::PropertySet> &NativeCPUProps) {

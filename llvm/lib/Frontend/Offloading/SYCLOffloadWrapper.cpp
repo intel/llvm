@@ -218,6 +218,8 @@ struct Wrapper {
         "__sycl.tgt_bin_desc");
   }
 
+  /// Adds Native CPU declarations to the module so that they can be
+  /// referenced in the binary.
   Function *addDeclarationForNativeCPU(StringRef Name) {
     FunctionType *FTy = FunctionType::get(
         Type::getVoidTy(C),
@@ -230,6 +232,8 @@ struct Wrapper {
     return F;
   }
 
+  /// Adds declarations of NativeCPU kernels to the binary in a format so that
+  /// the NativeCPU UR adapter can extract the pointers and invoke the kernels.
   std::pair<Constant *, Constant *> addDeclarationsForNativeCPU(
       std::string Entries,
       const std::optional<util::PropertySet> &NativeCPUProps) {
