@@ -124,9 +124,9 @@ public:
 
   // Interop constructor
   kernel_bundle_impl(context Ctx, devices_range Devs,
-                     device_image_plain &DevImage, private_tag Tag)
+                     device_image_plain &&DevImage, private_tag Tag)
       : kernel_bundle_impl(std::move(Ctx), Devs, Tag) {
-    MDeviceImages.emplace_back(DevImage);
+    MDeviceImages.emplace_back(std::move(DevImage));
     MUniqueDeviceImages.emplace_back(DevImage);
   }
 
@@ -162,9 +162,9 @@ public:
          InputBundleImpl.MDeviceImages) {
       // Skip images which are not compatible with devices provided
       if (std::none_of(get_devices().begin(), get_devices().end(),
-                       [&DevImgWithDeps](device_impl &Dev) {
-                         return getSyclObjImpl(DevImgWithDeps.getMain())
-                             ->compatible_with_device(Dev);
+                       [&MainImg = *getSyclObjImpl(DevImgWithDeps.getMain())](
+                           device_impl &Dev) {
+                         return MainImg.compatible_with_device(Dev);
                        }))
         continue;
 
@@ -249,8 +249,7 @@ public:
     // images with specialization constants in separation.
     // TODO: Remove when spec const overwriting issue has been fixed in L0.
     std::vector<const DevImgPlainWithDeps *> ImagesWithSpecConsts;
-    std::unordered_set<std::shared_ptr<device_image_impl>>
-        ImagesWithSpecConstsSet;
+    std::unordered_set<device_image_impl *> ImagesWithSpecConstsSet;
     for (const kernel_bundle<bundle_state::object> &ObjectBundle :
          ObjectBundles) {
       for (const DevImgPlainWithDeps &DeviceImageWithDeps :
@@ -265,7 +264,7 @@ public:
 
         ImagesWithSpecConsts.push_back(&DeviceImageWithDeps);
         for (const device_image_plain &DevImg : DeviceImageWithDeps)
-          ImagesWithSpecConstsSet.insert(getSyclObjImpl(DevImg));
+          ImagesWithSpecConstsSet.insert(&*getSyclObjImpl(DevImg));
       }
     }
 
@@ -284,8 +283,7 @@ public:
           // been seen before or the device image implementation is in the
           // image set already.
           if ((BinImg && SeenBinImgs.find(BinImg) != SeenBinImgs.end()) ||
-              ImagesWithSpecConstsSet.find(DevImgImpl) !=
-                  ImagesWithSpecConstsSet.end())
+              ImagesWithSpecConstsSet.count(&*DevImgImpl))
             continue;
           SeenBinImgs.insert(BinImg);
           DevImagesSet.insert(DevImgImpl);
@@ -401,9 +399,9 @@ public:
          ImagesWithSpecConsts) {
       // Skip images which are not compatible with devices provided
       if (std::none_of(get_devices().begin(), get_devices().end(),
-                       [DeviceImageWithDeps](device_impl &Dev) {
-                         return getSyclObjImpl(DeviceImageWithDeps->getMain())
-                             ->compatible_with_device(Dev);
+                       [&MainImg = *getSyclObjImpl(
+                            DeviceImageWithDeps->getMain())](device_impl &Dev) {
+                         return MainImg.compatible_with_device(Dev);
                        }))
         continue;
 
@@ -1016,9 +1014,10 @@ public:
             MContext, KernelID.get_name(), /*PropList=*/{},
             SelectedImage->get_ur_program_ref());
 
+    ur_program_handle_t UrProgram = SelectedImage->get_ur_program_ref();
     return std::make_shared<kernel_impl>(
-        Kernel, *detail::getSyclObjImpl(MContext), SelectedImage, *this,
-        ArgMask, SelectedImage->get_ur_program_ref(), CacheMutex);
+        Kernel, *detail::getSyclObjImpl(MContext), std::move(SelectedImage),
+        *this, ArgMask, UrProgram, CacheMutex);
   }
 
   std::shared_ptr<kernel_impl>

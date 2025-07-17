@@ -300,13 +300,12 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   // this by pre-building the device image and extracting kernel info. We can't
   // do the same to user images, since they may contain references to undefined
   // symbols (e.g. when kernel_bundle is supposed to be joined with another).
-  auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
-  auto DevImgImpl =
-      device_image_impl::create(nullptr, TargetContext, Devices, State,
-                                KernelIDs, UrProgram, ImageOriginInterop);
-  device_image_plain DevImg{DevImgImpl};
-
-  return kernel_bundle_impl::create(TargetContext, Devices, DevImg);
+  return kernel_bundle_impl::create(
+      TargetContext, Devices,
+      device_image_plain{
+          device_image_impl::create(nullptr, TargetContext, Devices, State,
+                                    std::make_shared<std::vector<kernel_id>>(),
+                                    UrProgram, ImageOriginInterop)});
 }
 
 // TODO: Unused. Remove when allowed.

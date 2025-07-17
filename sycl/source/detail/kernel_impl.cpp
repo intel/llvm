@@ -40,7 +40,7 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
 }
 
 kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
-                         DeviceImageImplPtr DeviceImageImpl,
+                         std::shared_ptr<device_image_impl> &&DeviceImageImpl,
                          const kernel_bundle_impl &KernelBundleImpl,
                          const KernelArgMask *ArgMask,
                          ur_program_handle_t Program, std::mutex *CacheMutex)
