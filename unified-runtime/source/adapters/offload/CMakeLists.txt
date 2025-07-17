@@ -10,11 +10,6 @@ if (UR_OFFLOAD_INSTALL_DIR STREQUAL "")
     message(FATAL_ERROR "UR_OFFLOAD_INSTALL_DIR must be defined for the Offload adapter")
 endif()
 
-set(UR_OFFLOAD_INCLUDE_DIR "" CACHE PATH "Path to the directory containing LLVM headers")
-if (UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
-    message(FATAL_ERROR "UR_OFFLOAD_INCLUDE_DIR must be defined for the Offload adapter")
-endif()
-
 # When targetting CUDA devices, we need a workaround to avoid sending PTX to
 # liboffload as the CUDA plugin doesn't support it yet. The workaround is to
 # simply always link the incoming program so it ends up as CUBIN. Try to find
@@ -68,6 +63,6 @@ target_link_libraries(${TARGET_NAME} PRIVATE
 )
 
 target_include_directories(${TARGET_NAME} PRIVATE
-    "${UR_OFFLOAD_INCLUDE_DIR}/offload"
+    "${UR_OFFLOAD_INSTALL_DIR}/include/offload"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../"
 )
