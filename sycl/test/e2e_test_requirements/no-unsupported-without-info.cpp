@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 229
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 228
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -200,7 +200,6 @@
 // CHECK-NEXT: Matrix/SG32/joint_matrix_uu_int8.cpp
 // CHECK-NEXT: Matrix/joint_matrix_annotated_ptr.cpp
 // CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_OOB.cpp
-// CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_prefetch.cpp
 // CHECK-NEXT: Matrix/joint_matrix_down_convert.cpp
 // CHECK-NEXT: Matrix/joint_matrix_rowmajorA_rowmajorB.cpp
 // CHECK-NEXT: NonUniformGroups/ballot_group.cpp

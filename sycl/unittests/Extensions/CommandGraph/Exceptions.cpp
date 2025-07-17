@@ -511,11 +511,11 @@ TEST_F(CommandGraphTest, MakeEdgeErrors) {
 
     ASSERT_EQ(NodeAImpl.MSuccessors.size(), 1lu);
     ASSERT_EQ(NodeAImpl.MPredecessors.size(), 0lu);
-    ASSERT_EQ(NodeAImpl.MSuccessors.front().lock().get(), &NodeBImpl);
+    ASSERT_EQ(NodeAImpl.MSuccessors.front(), &NodeBImpl);
 
     ASSERT_EQ(NodeBImpl.MSuccessors.size(), 0lu);
     ASSERT_EQ(NodeBImpl.MPredecessors.size(), 1lu);
-    ASSERT_EQ(NodeBImpl.MPredecessors.front().lock().get(), &NodeAImpl);
+    ASSERT_EQ(NodeBImpl.MPredecessors.front(), &NodeAImpl);
   };
   // Make a normal edge
   ASSERT_NO_THROW(Graph.make_edge(NodeA, NodeB));

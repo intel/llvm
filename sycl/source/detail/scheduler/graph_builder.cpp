@@ -213,10 +213,9 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(queue_impl *Queue,
     // which means that there is already an allocation(cl_mem) in some context.
     // Registering this allocation in the SYCL graph.
 
-    std::vector<sycl::device> Devices =
-        InteropCtxPtr->get_info<info::context::devices>();
-    assert(Devices.size() != 0);
-    device_impl &Dev = *detail::getSyclObjImpl(Devices[0]);
+    devices_range Devices = InteropCtxPtr->getDevices();
+    assert(!Devices.empty());
+    device_impl &Dev = Devices.front();
 
     // Since all the Scheduler commands require queue but we have only context
     // here, we need to create a dummy queue bound to the context and one of the
@@ -675,7 +674,7 @@ static bool checkHostUnifiedMemory(context_impl *Ctx) {
   if (Ctx == nullptr)
     return true;
 
-  for (const device &Device : Ctx->getDevices()) {
+  for (device_impl &Device : Ctx->getDevices()) {
     if (!Device.get_info<info::device::host_unified_memory>())
       return false;
   }
