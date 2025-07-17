@@ -6,48 +6,63 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact
-// mangling.
-#define __CLC_DECLARE_ATOMIC(ADDRSPACE, ADDRSPACE_MANGLED, TYPE, TYPE_MANGLED,                                                    \
-                             NAME, NAME_LEN)                                                                                      \
-  _CLC_DECL TYPE                                                                                                                  \
-      _Z##NAME_LEN##NAME##PU3##ADDRSPACE_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
-          volatile ADDRSPACE TYPE *, enum Scope, enum MemorySemanticsMask,                                                        \
-          TYPE);
+#ifdef __SPIRV_NO_VALUE_ARG
+#define __CLC_DECLARE_ATOMIC(ADDRSPACE, TYPE, NAME)                            \
+  _CLC_OVERLOAD _CLC_DECL TYPE NAME(ADDRSPACE TYPE *, int Scope,               \
+                                    int MemorySemanticsMask);
+#elif defined(__SPIRV_RETURN_VOID)
+#define __CLC_DECLARE_ATOMIC(ADDRSPACE, TYPE, NAME)                            \
+  _CLC_OVERLOAD _CLC_DECL void NAME(ADDRSPACE TYPE *, int Scope,               \
+                                    int MemorySemanticsMask, TYPE);
+#else
+#define __CLC_DECLARE_ATOMIC(ADDRSPACE, TYPE, NAME)                            \
+  _CLC_OVERLOAD _CLC_DECL TYPE NAME(ADDRSPACE TYPE *, int Scope,               \
+                                    int MemorySemanticsMask, TYPE);
+#endif
 
-#define __CLC_DECLARE_ATOMIC_ADDRSPACE(TYPE, TYPE_MANGLED, NAME, NAME_LEN)     \
-  __CLC_DECLARE_ATOMIC(global, AS1, TYPE, TYPE_MANGLED, NAME, NAME_LEN)        \
-  __CLC_DECLARE_ATOMIC(local, AS3, TYPE, TYPE_MANGLED, NAME, NAME_LEN)
+#define __CLC_DECLARE_ATOMIC_ADDRSPACE(TYPE, NAME)                             \
+  __CLC_DECLARE_ATOMIC(global, TYPE, NAME)                                     \
+  __CLC_DECLARE_ATOMIC(local, TYPE, NAME)                                      \
+  __CLC_DECLARE_ATOMIC(, TYPE, NAME)
 
-__CLC_DECLARE_ATOMIC_ADDRSPACE(int, i, __SPIRV_FUNCTION_S,
-                               __SPIRV_FUNCTION_S_LEN)
-__CLC_DECLARE_ATOMIC_ADDRSPACE(uint, j, __SPIRV_FUNCTION_U,
-                               __SPIRV_FUNCTION_U_LEN)
+__CLC_DECLARE_ATOMIC_ADDRSPACE(int, __SPIRV_FUNCTION_S)
+__CLC_DECLARE_ATOMIC_ADDRSPACE(uint, __SPIRV_FUNCTION_U)
 
 #ifdef __SPIRV_INT64_EXTENDED
 #ifdef cl_khr_int64_extended_atomics
-__CLC_DECLARE_ATOMIC_ADDRSPACE(long, l, __SPIRV_FUNCTION_S,
-                               __SPIRV_FUNCTION_S_LEN)
-__CLC_DECLARE_ATOMIC_ADDRSPACE(ulong, m, __SPIRV_FUNCTION_U,
-                               __SPIRV_FUNCTION_U_LEN)
+__CLC_DECLARE_ATOMIC_ADDRSPACE(long, __SPIRV_FUNCTION_S)
+__CLC_DECLARE_ATOMIC_ADDRSPACE(ulong, __SPIRV_FUNCTION_U)
 #endif
 #endif
 
 #ifdef __SPIRV_INT64_BASE
 #ifdef cl_khr_int64_base_atomics
-__CLC_DECLARE_ATOMIC_ADDRSPACE(long, l, __SPIRV_FUNCTION_S,
-                               __SPIRV_FUNCTION_S_LEN)
-__CLC_DECLARE_ATOMIC_ADDRSPACE(ulong, m, __SPIRV_FUNCTION_U,
-                               __SPIRV_FUNCTION_U_LEN)
+__CLC_DECLARE_ATOMIC_ADDRSPACE(long, __SPIRV_FUNCTION_S)
+__CLC_DECLARE_ATOMIC_ADDRSPACE(ulong, __SPIRV_FUNCTION_U)
+#endif
+#endif
+
+#ifdef __SPIRV_FLOATING_POINT
+#ifdef cl_khr_fp16
+__CLC_DECLARE_ATOMIC_ADDRSPACE(half, __SPIRV_FUNCTION)
+#endif // cl_khr_fp16
+__CLC_DECLARE_ATOMIC_ADDRSPACE(float, __SPIRV_FUNCTION)
+#if defined(cl_khr_fp64) && defined(cl_khr_int64_base_atomics) &&              \
+    defined(cl_khr_int64_extended_atomics)
+__CLC_DECLARE_ATOMIC_ADDRSPACE(double, __SPIRV_FUNCTION)
 #endif
 #endif
 
 #undef __CLC_DECLARE_ATOMIC_ADDRSPACE
 #undef __CLC_DECLARE_ATOMIC
 
+#undef __SPIRV_FUNCTION
 #undef __SPIRV_FUNCTION_S
 #undef __SPIRV_FUNCTION_S_LEN
 #undef __SPIRV_FUNCTION_U
 #undef __SPIRV_FUNCTION_U_LEN
 #undef __SPIRV_INT64_BASE
 #undef __SPIRV_INT64_EXTENDED
+#undef __SPIRV_NO_VALUE_ARG
+#undef __SPIRV_RETURN_VOID
+#undef __SPIRV_FLOATING_POINT

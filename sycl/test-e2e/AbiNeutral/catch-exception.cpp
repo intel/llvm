@@ -8,6 +8,7 @@
 // _GLIBCXX_USE_CXX11_ABI=0.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 int main() {
 #ifdef _GLIBCXX_USE_CXX11_ABI

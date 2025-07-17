@@ -9,6 +9,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "memory.hpp"
 #include "nativecpu_state.hpp"
 #include "program.hpp"
 #include <cstring>
@@ -35,9 +36,14 @@ struct ur_kernel_handle_t_ : RefCounted {
   ur_kernel_handle_t_(const ur_kernel_handle_t_ &other)
       : Args(other.Args), hProgram(other.hProgram), _name(other._name),
         _subhandler(other._subhandler), _localArgInfo(other._localArgInfo),
-        ReqdWGSize(other.ReqdWGSize) {}
+        ReqdWGSize(other.ReqdWGSize) {
+    takeArgReferences(other);
+  }
 
-  ~ur_kernel_handle_t_() { free(_localMemPool); }
+  ~ur_kernel_handle_t_() {
+    removeArgReferences();
+    native_cpu::aligned_free(_localMemPool);
+  }
 
   ur_kernel_handle_t_(ur_program_handle_t hProgram, const char *name,
                       nativecpu_task_t subhandler,
@@ -53,7 +59,6 @@ struct ur_kernel_handle_t_ : RefCounted {
     args_index_t Indices;
     std::vector<size_t> ParamSizes;
     std::vector<bool> OwnsMem;
-    static constexpr size_t MaxAlign = 16 * sizeof(double);
 
     arguments() = default;
 
@@ -103,11 +108,7 @@ struct ur_kernel_handle_t_ : RefCounted {
         }
       }
       if (NeedAlloc) {
-        size_t Align = MaxAlign;
-        while (Align > Size) {
-          Align >>= 1;
-        }
-        Indices[Index] = native_cpu::aligned_malloc(Align, Size);
+        Indices[Index] = native_cpu::aligned_malloc(Size);
         ParamSizes[Index] = Size;
         OwnsMem[Index] = true;
       }
@@ -152,8 +153,8 @@ struct ur_kernel_handle_t_ : RefCounted {
     if (reqSize == 0 || reqSize == _localMemPoolSize) {
       return;
     }
-    // realloc handles nullptr case
-    _localMemPool = (char *)realloc(_localMemPool, reqSize);
+    native_cpu::aligned_free(_localMemPool);
+    _localMemPool = static_cast<char *>(native_cpu::aligned_malloc(reqSize));
     _localMemPoolSize = reqSize;
   }
 
@@ -186,10 +187,26 @@ struct ur_kernel_handle_t_ : RefCounted {
 
   void addPtrArg(void *Ptr, size_t Index) { Args.addPtrArg(Index, Ptr); }
 
+  void addArgReference(ur_mem_handle_t Arg) {
+    Arg->incrementReferenceCount();
+    ReferencedArgs.push_back(Arg);
+  }
+
+private:
+  void removeArgReferences() {
+    for (auto arg : ReferencedArgs)
+      decrementOrDelete(arg);
+  }
+  void takeArgReferences(const ur_kernel_handle_t_ &other) {
+    for (auto arg : other.ReferencedArgs)
+      addArgReference(arg);
+  }
+
 private:
   char *_localMemPool = nullptr;
   size_t _localMemPoolSize = 0;
   std::optional<native_cpu::WGSize_t> ReqdWGSize = std::nullopt;
   std::optional<native_cpu::WGSize_t> MaxWGSize = std::nullopt;
   std::optional<uint64_t> MaxLinearWGSize = std::nullopt;
+  std::vector<ur_mem_handle_t> ReferencedArgs;
 };

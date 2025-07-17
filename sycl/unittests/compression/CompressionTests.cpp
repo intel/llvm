@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/compression.hpp>
+#include <sycl/sycl.hpp>
 
 #include <string>
 

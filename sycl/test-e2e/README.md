@@ -177,6 +177,13 @@ separated from comma-separated list of target devices with colon. Example:
 -DSYCL_TEST_E2E_TARGETS="opencl:cpu;level_zero:gpu;cuda:gpu;hip:gpu"
 ```
 
+In addition, device architecture as shown in sycl-ls is accepted with the
+"arch-" prefix. Example:
+
+```bash
+-DSYCL_TEST_E2E_TARGETS="cuda:arch-nvidia_gpu_sm_61;level_zero:arch-intel_gpu_bmg_b21"
+```
+
 ***OpenCL_LIBRARY*** - path to OpenCL ICD loader library. OpenCL
 interoperability tests require OpenCL ICD loader to be linked with. For such
 tests OpenCL ICD loader library should be installed in the system or available
@@ -189,6 +196,10 @@ at the full path specified by this variable.
 ***CUDA_INCLUDE*** - path to CUDA headers (autodetected).
 
 ***CUDA_LIBS_DIR*** - path to CUDA libraries (autodetected).
+
+***HIP_INCLUDE*** - path to HIP headers (autodetected).
+
+***HIP_LIBS_DIR*** - path to HIP libraries (autodetected).
 
 ***AMD_ARCH*** - flag may be set for when using HIP AMD triple. For example it
 may be set to "gfx906". Otherwise must be provided via the ***amd_arch*** LIT
@@ -269,7 +280,9 @@ configure specific single test execution in the command line:
 * **dpcpp_compiler** - full path to dpcpp compiler;
 * **sycl_devices** - `"backend0:device0[;backendN:deviceN]*"` where `backend` is
   one of `opencl`, `hip`, `cuda`, `level_zero` and `device` is one of `cpu`,
-  `gpu` or `acc`.
+  `gpu` or `acc`. Device may also be device architecture as listed in
+  `sycl-ls --verbose` prefixed with `arch-`. Example:
+  `level_zero:arch-intel_gpu_bmg_g21`
 * **dump_ir** - if IR dumping is supported for compiler (True, False);
 * **compatibility_testing** - forces LIT infra to skip the tests compilation to
   support compatibility testing (a SYCL application is built with one version of
@@ -289,6 +302,9 @@ configure specific single test execution in the command line:
 * **extra_environment** - comma-separated list of variables with values to be
   added to test environment. Can be also set by LIT_EXTRA_ENVIRONMENT variable
   in CMake.
+* **extra_system_environment** - comma-separated list of variables to be
+  propagated from the host environment to test environment. Can be also set by
+  LIT_EXTRA_SYSTEM_ENVIRONMENT variable in CMake.
 * **level_zero_include** - directory containing Level_Zero native headers, can
   be also set by CMake variable LEVEL_ZERO_INCLUDE.
 * **level_zero_libs_dir** - directory containing Level_Zero native libraries,
@@ -297,6 +313,10 @@ configure specific single test execution in the command line:
   CMake variable CUDA_INCLUDE (autodetected).
 * **cuda_libs_dir** - directory containing CUDA SDK libraries, can be also set
   by CMake variable CUDA_LIBS_DIR (autodetected).
+* **hip_include** - directory containing HIP SDK headers, can be also set by
+  CMake variable HIP_INCLUDE (autodetected).
+* **hip_libs_dir** - directory containing HIP SDK libraries, can be also set
+  by CMake variable HIP_LIBS_DIR (autodetected).
 * **run_launcher** - part of `%{run*}` expansion/substitution to alter execution
   of the test by, e.g., running it through Valgrind.
 

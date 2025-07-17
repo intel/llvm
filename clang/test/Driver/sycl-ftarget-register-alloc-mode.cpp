@@ -98,23 +98,23 @@
 
 // AUTO_AOT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch={{.*}},kind=sycl,compile-opts=-device_options [[DEVICE]] -ze-intel-enable-auto-large-GRF-mode{{.*}}"
 
-// LARGE_AOT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch=,kind=sycl,compile-opts=-device_options pvc -ze-opt-large-register-file"
+// LARGE_AOT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch=generic,kind=sycl,compile-opts=-device_options pvc -ze-opt-large-register-file"
 
-// SMALL_AOT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch=,kind=sycl,compile-opts=-device_options pvc -ze-intel-128-GRF-per-thread"
+// SMALL_AOT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch=generic,kind=sycl,compile-opts=-device_options pvc -ze-intel-128-GRF-per-thread"
 
 // DEFAULT_AOT-NOT: -device_options
 
-// MULTIPLE_ARGS_AOT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch=,kind=sycl,compile-opts=-device_options pvc -ze-intel-128-GRF-per-thread -device_options pvc -ze-opt-large-register-file"
+// MULTIPLE_ARGS_AOT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch=generic,kind=sycl,compile-opts=-device_options pvc -ze-intel-128-GRF-per-thread -device_options pvc -ze-opt-large-register-file"
 
 // AUTO_JIT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64-unknown-unknown,arch={{.*}},kind=sycl,compile-opts=-ftarget-register-alloc-mode=pvc:-ze-intel-enable-auto-large-GRF-mode"
 
-// LARGE_JIT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64-unknown-unknown,arch=,kind=sycl,compile-opts=-ftarget-register-alloc-mode=pvc:-ze-opt-large-register-file"
+// LARGE_JIT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=-ftarget-register-alloc-mode=pvc:-ze-opt-large-register-file"
 
-// SMALL_JIT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64-unknown-unknown,arch=,kind=sycl,compile-opts=-ftarget-register-alloc-mode=pvc:-ze-intel-128-GRF-per-thread"
+// SMALL_JIT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=-ftarget-register-alloc-mode=pvc:-ze-intel-128-GRF-per-thread"
 
 // DEFAULT_JIT-NOT: -ftarget-register-alloc-mode=
 
-// MULTIPLE_ARGS_JIT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64-unknown-unknown,arch=,kind=sycl,compile-opts=-ftarget-register-alloc-mode=pvc:-ze-intel-128-GRF-per-thread -ftarget-register-alloc-mode=pvc:-ze-opt-large-register-file"
+// MULTIPLE_ARGS_JIT: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=-ftarget-register-alloc-mode=pvc:-ze-intel-128-GRF-per-thread -ftarget-register-alloc-mode=pvc:-ze-opt-large-register-file"
 
 // BAD_DEVICE: unsupported argument 'dg2:auto' to option '-ftarget-register-alloc-mode='
 // BAD_MODE: unsupported argument 'pvc:superlarge' to option '-ftarget-register-alloc-mode='

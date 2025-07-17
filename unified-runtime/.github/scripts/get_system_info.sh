@@ -7,6 +7,8 @@
 
 # get_system_info.sh - Script for printing system info
 
+builddir="$(dirname "$(readlink -f "$0")")/../../../build"
+
 function check_L0_version {
     if command -v dpkg &> /dev/null; then
         dpkg -l | grep level-zero && return
@@ -52,8 +54,8 @@ function system_info {
 	lscpu
 	echo "**********/proc/meminfo**********"
 	cat /proc/meminfo
-	echo "**********build/bin/urinfo**********"
-	$(dirname "$(readlink -f "$0")")/../../build/bin/urinfo --no-linear-ids --verbose || true
+	echo "**********urinfo**********"
+	LD_LIBRARY_PATH=$builddir/lib $builddir/bin/urinfo --no-linear-ids --verbose || true
 	echo "******OpenCL*******"
 	# The driver version of OpenCL Graphics is the compute-runtime version
 	clinfo || echo "OpenCL not installed"

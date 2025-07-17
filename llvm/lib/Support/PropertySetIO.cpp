@@ -35,6 +35,11 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
   auto Res = std::make_unique<PropertySetRegistry>();
   PropertySet *CurPropSet = nullptr;
 
+  // special case when there is no property data, i.e. the resulting property
+  // set registry should be empty
+  if (Buf->getBufferSize() == 0)
+    return Expected<std::unique_ptr<PropertySetRegistry>>(std::move(Res));
+
   for (line_iterator LI(*Buf); !LI.is_at_end(); LI++) {
     // see if this line starts a new property set
     if (LI->starts_with("[")) {
@@ -94,8 +99,6 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
     }
     (*CurPropSet)[Parts.first] = std::move(Prop);
   }
-  if (!CurPropSet)
-    return makeError("invalid property set registry");
 
   return Expected<std::unique_ptr<PropertySetRegistry>>(std::move(Res));
 }
@@ -173,8 +176,8 @@ PropertyValue::PropertyValue(const PropertyValue &P) { *this = P; }
 PropertyValue::PropertyValue(PropertyValue &&P) { *this = std::move(P); }
 
 PropertyValue &PropertyValue::operator=(PropertyValue &&P) {
-  copy(P);
-
+  Ty = P.Ty;
+  Val = P.Val;
   if (P.getType() == BYTE_ARRAY)
     P.Val.ByteArrayVal = nullptr;
   P.Ty = NONE;
@@ -182,16 +185,13 @@ PropertyValue &PropertyValue::operator=(PropertyValue &&P) {
 }
 
 PropertyValue &PropertyValue::operator=(const PropertyValue &P) {
-  if (P.getType() == BYTE_ARRAY)
+  if (P.getType() == BYTE_ARRAY) {
     *this = PropertyValue(P.asByteArray(), P.getByteArraySizeInBits());
-  else
-    copy(P);
+  } else {
+    Ty = P.Ty;
+    Val = P.Val;
+  }
   return *this;
-}
-
-void PropertyValue::copy(const PropertyValue &P) {
-  Ty = P.Ty;
-  Val = P.Val;
 }
 
 constexpr char PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS[];
@@ -201,6 +201,7 @@ constexpr char PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO[];
 constexpr char PropertySetRegistry::SYCL_PROGRAM_METADATA[];
 constexpr char PropertySetRegistry::SYCL_MISC_PROP[];
 constexpr char PropertySetRegistry::SYCL_ASSERT_USED[];
+constexpr char PropertySetRegistry::SYCL_KERNEL_NAMES[];
 constexpr char PropertySetRegistry::SYCL_EXPORTED_SYMBOLS[];
 constexpr char PropertySetRegistry::SYCL_IMPORTED_SYMBOLS[];
 constexpr char PropertySetRegistry::SYCL_DEVICE_GLOBALS[];

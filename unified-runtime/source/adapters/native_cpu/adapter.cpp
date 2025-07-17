@@ -12,7 +12,7 @@
 #include "common.hpp"
 #include "ur_api.h"
 
-struct ur_adapter_handle_t_ {
+struct ur_adapter_handle_t_ : ur::native_cpu::handle_base {
   std::atomic<uint32_t> RefCount = 0;
   logger::Logger &logger = logger::get_logger("native_cpu");
 } Adapter;
@@ -55,7 +55,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
 
   switch (propName) {
   case UR_ADAPTER_INFO_BACKEND:
-    return ReturnValue(UR_ADAPTER_BACKEND_NATIVE_CPU);
+    return ReturnValue(UR_BACKEND_NATIVE_CPU);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
     return ReturnValue(Adapter.RefCount.load());
   case UR_ADAPTER_INFO_VERSION:
@@ -63,6 +63,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+    ur_adapter_handle_t, ur_logger_callback_t pfnLoggerCallback,
+    void *pUserData, ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET) {
+
+  Adapter.logger.setCallbackSink(pfnLoggerCallback, pUserData, level);
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterSetLoggerCallbackLevel(ur_adapter_handle_t, ur_logger_level_t level) {
+
+  Adapter.logger.setCallbackLevel(level);
 
   return UR_RESULT_SUCCESS;
 }

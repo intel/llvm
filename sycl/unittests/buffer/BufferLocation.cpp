@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
 #include <helpers/TestKernel.hpp>
 #include <helpers/UrMock.hpp>
 
@@ -99,16 +97,17 @@ static ur_result_t redefinedDeviceGetInfoAfter(void *pParams) {
 
 class BufferTest : public ::testing::Test {
 public:
-  BufferTest() : Mock{}, Plt{sycl::platform()} {}
+  BufferTest()
+      : Mock{}, Plt([]() {
+          // Make sure these are re-defined before we create device hierarchy.
+          mock::getCallbacks().set_before_callback(
+              "urMemBufferCreate", &redefinedMemBufferCreateBefore);
+          mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                                  &redefinedDeviceGetInfoAfter);
+          return sycl::platform{};
+        }()) {}
 
 protected:
-  void SetUp() override {
-    mock::getCallbacks().set_before_callback("urMemBufferCreate",
-                                             &redefinedMemBufferCreateBefore);
-    mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                            &redefinedDeviceGetInfoAfter);
-  }
-
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt;
 };
@@ -131,8 +130,7 @@ TEST_F(BufferTest, BufferLocationOnly) {
             sycl::ext::oneapi::accessor_property_list<
                 sycl::ext::intel::property::buffer_location::instance<2>>>
             Acc{Buf, cgh, sycl::read_write, PL};
-        constexpr size_t KS = sizeof(decltype(Acc));
-        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
+        cgh.single_task<TestKernelWithAcc>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, (uint64_t)2);
@@ -160,9 +158,7 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
                 sycl::ext::oneapi::property::no_alias::instance<true>,
                 sycl::ext::intel::property::buffer_location::instance<5>>>
             Acc{Buf, cgh, sycl::write_only, PL};
-
-        constexpr size_t KS = sizeof(decltype(Acc));
-        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
+        cgh.single_task<TestKernelWithAcc>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, (uint64_t)5);
@@ -182,10 +178,9 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
             Acc{Buf, cgh, sycl::write_only, PL};
       })
       .wait();
-  std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-      sycl::detail::getSyclObjImpl(Buf);
+  sycl::detail::buffer_impl &BufImpl = *sycl::detail::getSyclObjImpl(Buf);
   EXPECT_EQ(
-      BufImpl->get_property<sycl::property::buffer::detail::buffer_location>()
+      BufImpl.get_property<sycl::property::buffer::detail::buffer_location>()
           .get_buffer_location(),
       (uint64_t)3);
 
@@ -201,7 +196,7 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
       .wait();
 
   EXPECT_EQ(
-      BufImpl->has_property<sycl::property::buffer::detail::buffer_location>(),
+      BufImpl.has_property<sycl::property::buffer::detail::buffer_location>(),
       0);
 }
 
@@ -218,8 +213,7 @@ TEST_F(BufferTest, WOBufferLocation) {
                        sycl::access::placeholder::false_t,
                        sycl::ext::oneapi::accessor_property_list<>>
             Acc{Buf, cgh, sycl::read_write};
-        constexpr size_t KS = sizeof(decltype(Acc));
-        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
+        cgh.single_task<TestKernelWithAcc>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, DEFAULT_VALUE);

@@ -21,4 +21,10 @@ add_sycl_unittest(SchedulerTests OBJECT
     EnqueueWithDependsOnDeps.cpp
     AccessorDefaultCtor.cpp
     HostTaskAndBarrier.cpp
+    BarrierDependencies.cpp
 )
+
+if (SYCL_ENABLE_XPTI_TRACING)
+  target_compile_definitions(SchedulerTests
+    PRIVATE XPTI_ENABLE_INSTRUMENTATION XPTI_STATIC_LIBRARY)
+endif()

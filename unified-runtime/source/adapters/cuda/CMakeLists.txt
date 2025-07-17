@@ -73,12 +73,6 @@ else()
   )
 endif()
 
-if(UMF_ENABLE_POOL_TRACKING)
-  target_compile_definitions("ur_adapter_cuda" PRIVATE UMF_ENABLE_POOL_TRACKING)
-else()
-  message(WARNING "CUDA adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
-endif()
-
 # Only enable xpti tracing on Linux as tracing tools aren't available on
 # Windows yet.
 if (UR_ENABLE_TRACING AND UNIX)
@@ -108,6 +102,8 @@ if (UR_ENABLE_TRACING AND UNIX)
 
   target_include_directories(${TARGET_NAME} PRIVATE
     ${XPTI_INCLUDES}
+  )
+  target_include_directories(${TARGET_NAME} SYSTEM PRIVATE
     ${CUDAToolkit_CUPTI_INCLUDE_DIR}
   )
   target_sources(${TARGET_NAME} PRIVATE ${XPTI_PROXY_SRC})
@@ -119,6 +115,7 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::umf
     Threads::Threads
     cudadrv
+    CUDA::nvml
 )
 
 target_include_directories(${TARGET_NAME} PRIVATE

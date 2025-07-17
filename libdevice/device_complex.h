@@ -10,7 +10,8 @@
 
 #include "device.h"
 
-#if defined(__SPIR__) || defined(__SPIRV__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
+    defined(__AMDGCN__)
 
 // TODO: This needs to be more robust.
 // clang doesn't recognize the c11 CMPLX macro, but it does have

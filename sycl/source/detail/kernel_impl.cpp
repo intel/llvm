@@ -16,50 +16,52 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
-                         KernelBundleImplPtr KernelBundleImpl,
+kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
+                         kernel_bundle_impl *KernelBundleImpl,
                          const KernelArgMask *ArgMask)
-    : MKernel(Kernel), MContext(Context),
+    : MKernel(Kernel), MContext(Context.shared_from_this()),
       MProgram(ProgramManager::getInstance().getUrProgramFromUrKernel(Kernel,
                                                                       Context)),
-      MCreatedFromSource(true), MKernelBundleImpl(std::move(KernelBundleImpl)),
+      MCreatedFromSource(true),
+      MKernelBundleImpl(KernelBundleImpl ? KernelBundleImpl->shared_from_this()
+                                         : nullptr),
       MIsInterop(true), MKernelArgMaskPtr{ArgMask} {
   ur_context_handle_t UrContext = nullptr;
   // Using the adapter from the passed ContextImpl
-  getAdapter()->call<UrApiKind::urKernelGetInfo>(
+  getAdapter().call<UrApiKind::urKernelGetInfo>(
       MKernel, UR_KERNEL_INFO_CONTEXT, sizeof(UrContext), &UrContext, nullptr);
-  if (Context->getHandleRef() != UrContext)
+  if (Context.getHandleRef() != UrContext)
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Input context must be the same as the context of cl_kernel");
 
   // Enable USM indirect access for interoperability kernels.
-  // Some UR Adapters (like OpenCL) require this call to enable USM
-  // For others, UR will turn this into a NOP.
-  if (Context->getPlatformImpl()->supports_usm()) {
-    bool EnableAccess = true;
-    getAdapter()->call<UrApiKind::urKernelSetExecInfo>(
-        MKernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),
-        nullptr, &EnableAccess);
-  }
+  enableUSMIndirectAccess();
 }
 
-kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
+kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
                          DeviceImageImplPtr DeviceImageImpl,
-                         KernelBundleImplPtr KernelBundleImpl,
+                         const kernel_bundle_impl &KernelBundleImpl,
                          const KernelArgMask *ArgMask,
                          ur_program_handle_t Program, std::mutex *CacheMutex)
-    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(Program),
-      MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
-      MKernelBundleImpl(std::move(KernelBundleImpl)),
+    : MKernel(Kernel), MContext(ContextImpl.shared_from_this()),
+      MProgram(Program),
+      MCreatedFromSource(DeviceImageImpl->isNonSYCLSourceBased()),
+      MDeviceImageImpl(std::move(DeviceImageImpl)),
+      MKernelBundleImpl(KernelBundleImpl.shared_from_this()),
+      MIsInterop(MDeviceImageImpl->getOriginMask() & ImageOriginInterop),
       MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {
-  MIsInterop = MKernelBundleImpl->isInterop();
+  // Enable USM indirect access for interop and non-sycl-jit source kernels.
+  // sycl-jit kernels will enable this if needed through the regular kernel
+  // path.
+  if (MCreatedFromSource || MIsInterop)
+    enableUSMIndirectAccess();
 }
 
 kernel_impl::~kernel_impl() {
   try {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getAdapter()->call<UrApiKind::urKernelRelease>(MKernel);
+    getAdapter().call<UrApiKind::urKernelRelease>(MKernel);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
   }
@@ -81,6 +83,26 @@ bool kernel_impl::isCreatedFromSource() const {
   return MCreatedFromSource;
 }
 
+bool kernel_impl::isInteropOrSourceBased() const noexcept {
+  return isInterop() ||
+         (MDeviceImageImpl &&
+          (MDeviceImageImpl->getOriginMask() & ImageOriginKernelCompiler));
+}
+
+bool kernel_impl::hasSYCLMetadata() const noexcept {
+  return !isInteropOrSourceBased() ||
+         (MDeviceImageImpl &&
+          MDeviceImageImpl->isFromSourceLanguage(
+              sycl::ext::oneapi::experimental::source_language::sycl));
+}
+
+// TODO this is how kernel_impl::get_info<function_name> should behave instead.
+std::string_view kernel_impl::getName() const {
+  if (MName.empty())
+    MName = get_info<info::kernel::function_name>();
+  return MName;
+}
+
 bool kernel_impl::isBuiltInKernel(const device &Device) const {
   auto BuiltInKernels = Device.get_info<info::device::built_in_kernel_ids>();
   if (BuiltInKernels.empty())
@@ -92,7 +114,7 @@ bool kernel_impl::isBuiltInKernel(const device &Device) const {
 }
 
 void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
-  if (MKernelBundleImpl->isInterop())
+  if (isInteropOrSourceBased())
     return;
   auto Devices = MKernelBundleImpl->get_devices();
   if (std::any_of(Devices.begin(), Devices.end(),
@@ -104,6 +126,18 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
       "info::kernel::num_args descriptor may only be used to query a kernel "
       "that resides in a kernel bundle constructed using a backend specific"
       "interoperability function or to query a device built-in kernel");
+}
+
+void kernel_impl::enableUSMIndirectAccess() const {
+  if (!MContext->getPlatformImpl().supports_usm())
+    return;
+
+  // Some UR Adapters (like OpenCL) require this call to enable USM
+  // For others, UR will turn this into a NOP.
+  bool EnableAccess = true;
+  getAdapter().call<UrApiKind::urKernelSetExecInfo>(
+      MKernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),
+      nullptr, &EnableAccess);
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

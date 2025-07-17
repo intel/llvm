@@ -29,8 +29,12 @@
 ; CHECK-SPIRV-DAG: Constant [[#Int16Ty]] [[#QNanBitConst16:]] 32256
 ; CHECK-SPIRV-DAG: Constant [[#Int16Ty]] [[#MantissaConst16:]] 1023
 ; CHECK-SPIRV-DAG: Constant [[#DoubleTy]] [[#DoubleConst:]] 0 1072693248
-; CHECK-SPIRV-DAG: ConstantComposite [[#Int16VecTy:]] [[#QNanBitConstVec16:]] [[#QNanBitConst16]] [[#QNanBitConst16]]
-; CHECK-SPIRV-DAG: ConstantComposite [[#Int16VecTy:]] [[#MantissaConstVec16:]] [[#MantissaConst16]] [[#MantissaConst16]]
+; CHECK-SPIRV-DAG: Constant [[#Int32Ty]] [[#const32One:]] 1
+; CHECK-SPIRV-DAG: Constant [[#Int64Ty]] [[#const64One:]] 1 0
+; CHECK-SPIRV-DAG: Constant [[#Int16Ty]] [[#const16One:]] 1
+; CHECK-SPIRV-DAG: ConstantComposite [[#Int16VecTy]] [[#const16vecOne:]] [[#const16One]] [[#const16One]]
+; CHECK-SPIRV-DAG: ConstantComposite [[#Int16VecTy]] [[#QNanBitConstVec16:]] [[#QNanBitConst16]] [[#QNanBitConst16]]
+; CHECK-SPIRV-DAG: ConstantComposite [[#Int16VecTy]] [[#MantissaConstVec16:]] [[#MantissaConst16]] [[#MantissaConst16]]
 ; CHECK-SPIRV-DAG: ConstantNull [[#Int16VecTy]] [[#ZeroConst16:]]
 ; CHECK-SPIRV-DAG: ConstantTrue [[#BoolTy]] [[#True:]]
 ; CHECK-SPIRV-DAG: ConstantFalse [[#BoolTy]] [[#False:]]
@@ -262,8 +266,8 @@ define i1 @test_class_subnormal(float %arg) {
 ; CHECK-SPIRV-EMPTY:
 ; CHECK-SPIRV-NEXT: Label
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast:]] [[#Val]]
-; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#BitCast]] [[#MantissaConst:]]
-; CHECK-SPIRV-NEXT: ULessThan [[#BoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConst:]]
+; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#BitCast]] [[#const32One]]
+; CHECK-SPIRV-NEXT: ULessThan [[#BoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConst]]
 ; CHECK-SPIRV-NEXT: ReturnValue [[#Less]]
   %val = call i1 @llvm.is.fpclass.f32(float %arg, i32 144)
   ret i1 %val
@@ -276,8 +280,8 @@ define i1 @test_class_possubnormal(float %arg) {
 ; CHECK-SPIRV-EMPTY:
 ; CHECK-SPIRV-NEXT: Label
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast:]] [[#Val]]
-; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#BitCast]] [[#MantissaConst:]]
-; CHECK-SPIRV-NEXT: ULessThan [[#BoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConst:]]
+; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#BitCast]] [[#const32One]]
+; CHECK-SPIRV-NEXT: ULessThan [[#BoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConst]]
 ; CHECK-SPIRV-NEXT: SignBitSet [[#BoolTy]] [[#Sign:]] [[#Val]]
 ; CHECK-SPIRV-NEXT: LogicalNot [[#BoolTy]] [[#Not:]] [[#Sign]]
 ; CHECK-SPIRV-NEXT: LogicalAnd [[#BoolTy]] [[#And:]] [[#Not]] [[#Less]]
@@ -293,8 +297,8 @@ define i1 @test_class_negsubnormal(float %arg) {
 ; CHECK-SPIRV-EMPTY:
 ; CHECK-SPIRV-NEXT: Label
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast:]] [[#Val]]
-; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#BitCast]] [[#MantissaConst:]]
-; CHECK-SPIRV-NEXT: ULessThan [[#BoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConst:]]
+; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#BitCast]] [[#const32One]]
+; CHECK-SPIRV-NEXT: ULessThan [[#BoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConst]]
 ; CHECK-SPIRV-NEXT: SignBitSet [[#BoolTy]] [[#Sign:]] [[#Val]]
 ; CHECK-SPIRV-NEXT: LogicalAnd [[#BoolTy]] [[#And:]] [[#Sign]] [[#Less]]
 ; CHECK-SPIRV-NEXT: ReturnValue [[#And]]
@@ -376,7 +380,7 @@ define i1 @test_class_neginf_posnormal_negsubnormal_poszero_snan_f64(double %arg
 ; CHECK-SPIRV-NEXT: LogicalNot [[#BoolTy]] [[#Not2:]] [[#Sign]]
 ; CHECK-SPIRV-NEXT: LogicalAnd [[#BoolTy]] [[#And3:]] [[#Not2]] [[#IsNormal]]
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int64Ty]] [[#BitCast2:]] [[#Val]]
-; CHECK-SPIRV-NEXT: ISub [[#Int64Ty]] [[#Sub:]] [[#BitCast2]] [[#MantissaConst64]]
+; CHECK-SPIRV-NEXT: ISub [[#Int64Ty]] [[#Sub:]] [[#BitCast2]] [[#const64One]]
 ; CHECK-SPIRV-NEXT: ULessThan [[#BoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConst64]]
 ; CHECK-SPIRV-NEXT: LogicalAnd [[#BoolTy]] [[#And4:]] [[#Sign]] [[#Less]]
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int64Ty]] [[#BitCast3:]] [[#Val]]
@@ -408,7 +412,7 @@ define <2 x i1> @test_class_neginf_posnormal_negsubnormal_poszero_snan_v2f16(<2 
 ; CHECK-SPIRV-NEXT: LogicalNot [[#VecBoolTy]] [[#Not2:]] [[#Sign]]
 ; CHECK-SPIRV-NEXT: LogicalAnd [[#VecBoolTy]] [[#And3:]] [[#Not2]] [[#IsNormal]]
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int16VecTy]] [[#BitCast2:]] [[#Val]]
-; CHECK-SPIRV-NEXT: ISub [[#Int16VecTy]] [[#Sub:]] [[#BitCast2]] [[#MantissaConstVec16]]
+; CHECK-SPIRV-NEXT: ISub [[#Int16VecTy]] [[#Sub:]] [[#BitCast2]] [[#const16vecOne]]
 ; CHECK-SPIRV-NEXT: ULessThan [[#VecBoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConstVec16]]
 ; CHECK-SPIRV-NEXT: LogicalAnd [[#VecBoolTy]] [[#And4:]] [[#Sign]] [[#Less]]
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int16VecTy]] [[#BitCast3:]] [[#Val]]

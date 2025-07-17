@@ -9,9 +9,6 @@
 // REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_device_allocations
 
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
-
 // DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=7 SYCL_CACHE_DIR=%t/cache_dir
 // DEFINE: %{max_cache_size} = SYCL_CACHE_MAX_SIZE=30000
 // RUN: %{build} -o %t.out
@@ -51,11 +48,14 @@ int test_persistent_cache() {
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
-  sycl::queue q;
-  sycl::context ctx = q.get_context();
+  // This test uses a very small cache eviction threshold,
+  // so we make a queue with a context of exactly one device
+  // not "all devices" like the default context might have.
+  sycl::device d;
+  sycl::context ctx{d};
+  sycl::queue q{ctx, d};
 
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = q.get_device().ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     std::cout << "Apparently this device does not support `sycl` source kernel "
                  "bundle extension: "

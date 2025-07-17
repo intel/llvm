@@ -49,7 +49,7 @@ public:
 
 int main(void) {
   auto lambda_kernel = [&]__global__(){};
-  // com-error@-1 {{kernel function 'operator()' must be a free function or static member function}}
+  // com-error@-1 {{class method cannot be used to define a SYCL kernel free function kernel}}
 
   int b;
   [&](){ hd(b); }();

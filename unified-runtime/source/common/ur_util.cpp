@@ -45,14 +45,14 @@ int ur_duplicate_fd(int pid, int fd_in) {
   errno = 0;
   int pid_fd = syscall(__NR_pidfd_open, pid, 0);
   if (pid_fd == -1) {
-    logger::error("__NR_pidfd_open");
+    UR_LOG(ERR, "__NR_pidfd_open");
     return -1;
   }
 
   int fd_dup = syscall(__NR_pidfd_getfd, pid_fd, fd_in, 0);
   close(pid_fd);
   if (fd_dup == -1) {
-    logger::error("__NR_pidfd_getfd");
+    UR_LOG(ERR, "__NR_pidfd_getfd");
     return -1;
   }
 
@@ -63,7 +63,7 @@ int ur_duplicate_fd(int pid, int fd_in) {
   (void)pid;       // unused
   (void)fd_in;     // unused
   errno = ENOTSUP; // unsupported
-  logger::error("__NR_pidfd_open or __NR_pidfd_getfd not available");
+  UR_LOG(ERR, "__NR_pidfd_open or __NR_pidfd_getfd not available");
   return -1;
 #endif /* defined(__NR_pidfd_open) && defined(__NR_pidfd_getfd) */
 }
@@ -86,7 +86,7 @@ std::optional<std::string> ur_getenv(const char *name) {
   return std::nullopt;
 #else
   const char *tmp_env = getenv(name);
-  if (tmp_env != nullptr) {
+  if (tmp_env != nullptr && tmp_env[0] != '\0') {
     return std::string(tmp_env);
   } else {
     return std::nullopt;

@@ -106,6 +106,28 @@ void fileTreeWalk(const std::string Path,
                   std::function<void(const std::string)> Func,
                   bool ignoreErrors = false);
 
+void *dynLookup(const char *WinName, const char *LinName, const char *FunName);
+
+// Look up a function name that was dynamically linked
+// This is used by the runtime where it needs to manipulate native handles (e.g.
+// retaining OpenCL handles). On Windows, the symbol name is looked up in
+// `WinName`. In Linux, it uses `LinName`.
+//
+// The library must already have been loaded (perhaps by UR), otherwise this
+// function throws a SYCL runtime exception.
+template <typename fn>
+fn *dynLookupFunction(const char *WinName, const char *LinName,
+                      const char *FunName) {
+  return reinterpret_cast<fn *>(dynLookup(WinName, LinName, FunName));
+}
+// On Linux, the name of OpenCL that was used to link against may be either
+// `OpenCL.so`, `OpenCL.so.1` or possibly anything else.
+// `libur_adapter_opencl.so` is a more stable name, since it is hardcoded into
+// the loader.
+#define __SYCL_OCL_CALL(FN, ...)                                               \
+  (sycl::_V1::detail::dynLookupFunction<decltype(FN)>(                         \
+      "OpenCL", "libur_adapter_opencl.so", #FN)(__VA_ARGS__))
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

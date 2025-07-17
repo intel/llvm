@@ -28,6 +28,7 @@
 #include "Targets/MSP430.h"
 #include "Targets/Mips.h"
 #include "Targets/NVPTX.h"
+#include "Targets/NativeCPU.h"
 #include "Targets/OSTargets.h"
 #include "Targets/PNaCl.h"
 #include "Targets/PPC.h"
@@ -115,6 +116,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
 
   switch (Triple.getArch()) {
   default:
+    return nullptr;
+
+  case llvm::Triple::UnknownArch:
     return nullptr;
 
   case llvm::Triple::arc:
@@ -685,9 +689,17 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
       switch (HT.getEnvironment()) {
       default: // Assume MSVC for unknown environments
       case llvm::Triple::MSVC:
-        assert(HT.getArch() == llvm::Triple::x86_64 &&
-               "Unsupported host architecture");
-        return std::make_unique<MicrosoftX86_64_SPIR64TargetInfo>(Triple, Opts);
+        switch (HT.getArch()) {
+        case llvm::Triple::aarch64:
+          return std::make_unique<MicrosoftARM64_SPIR64TargetInfo>(Triple,
+                                                                   Opts);
+        case llvm::Triple::x86_64:
+          return std::make_unique<MicrosoftX86_64_SPIR64TargetInfo>(Triple,
+                                                                    Opts);
+        default:
+          llvm::report_fatal_error(
+              "Unsupported host architecture (not x86_64 or aarch64)");
+        }
       }
     case llvm::Triple::Linux:
       if (IsFPGASubArch)
@@ -733,10 +745,17 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
       switch (HT.getEnvironment()) {
       default: // Assume MSVC for unknown environments
       case llvm::Triple::MSVC:
-        assert(HT.getArch() == llvm::Triple::x86_64 &&
-               "Unsupported host architecture");
-        return std::make_unique<MicrosoftX86_64_SPIRV64TargetInfo>(Triple,
-                                                                   Opts);
+        switch (HT.getArch()) {
+        case llvm::Triple::aarch64:
+          return std::make_unique<MicrosoftARM64_SPIRV64TargetInfo>(Triple,
+                                                                    Opts);
+        case llvm::Triple::x86_64:
+          return std::make_unique<MicrosoftX86_64_SPIRV64TargetInfo>(Triple,
+                                                                     Opts);
+        default:
+          llvm::report_fatal_error(
+              "Unsupported host architecture (not x86_64 or aarch64)");
+        }
       }
     default:
       return std::make_unique<SPIRV64TargetInfo>(Triple, Opts);
@@ -803,8 +822,14 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
   case llvm::Triple::loongarch64:
     switch (os) {
     case llvm::Triple::Linux:
-      return std::make_unique<LinuxTargetInfo<LoongArch64TargetInfo>>(Triple,
-                                                                      Opts);
+      switch (Triple.getEnvironment()) {
+      default:
+        return std::make_unique<LinuxTargetInfo<LoongArch64TargetInfo>>(Triple,
+                                                                        Opts);
+      case llvm::Triple::OpenHOS:
+        return std::make_unique<OHOSTargetInfo<LoongArch64TargetInfo>>(Triple,
+                                                                       Opts);
+      }
     case llvm::Triple::FreeBSD:
       return std::make_unique<FreeBSDTargetInfo<LoongArch64TargetInfo>>(Triple,
                                                                         Opts);
@@ -814,6 +839,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
 
   case llvm::Triple::xtensa:
     return std::make_unique<XtensaTargetInfo>(Triple, Opts);
+
+  case llvm::Triple::native_cpu:
+    return std::make_unique<NativeCPUTargetInfo>(Triple, Opts);
   }
 }
 } // namespace targets
@@ -822,9 +850,10 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
 using namespace clang::targets;
 /// CreateTargetInfo - Return the target info object for the specified target
 /// options.
-TargetInfo *
-TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
-                             const std::shared_ptr<TargetOptions> &Opts) {
+TargetInfo *TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
+                                         TargetOptions &OptsRef) {
+  TargetOptions *Opts = &OptsRef;
+
   llvm::Triple Triple(llvm::Triple::normalize(Opts->Triple));
 
   // Construct the target

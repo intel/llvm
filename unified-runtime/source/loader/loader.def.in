@@ -5,6 +5,12 @@ EXPORTS
 	urAdapterGetLastError
 	urAdapterRelease
 	urAdapterRetain
+	urAdapterSetLoggerCallback
+	urAdapterSetLoggerCallbackLevel
+	urBindlessImagesFreeMappedLinearMemoryExp
+	urBindlessImagesGetImageMemoryHandleTypeSupportExp
+	urBindlessImagesGetImageSampledHandleSupportExp
+	urBindlessImagesGetImageUnsampledHandleSupportExp
 	urBindlessImagesImageAllocateExp
 	urBindlessImagesImageCopyExp
 	urBindlessImagesImageFreeExp
@@ -20,6 +26,7 @@ EXPORTS
 	urBindlessImagesSampledImageCreateExp
 	urBindlessImagesSampledImageHandleDestroyExp
 	urBindlessImagesSignalExternalSemaphoreExp
+	urBindlessImagesSupportsImportingHandleTypeExp
 	urBindlessImagesUnsampledImageCreateExp
 	urBindlessImagesUnsampledImageHandleDestroyExp
 	urBindlessImagesWaitExternalSemaphoreExp
@@ -63,14 +70,12 @@ EXPORTS
 	urDeviceRetain
 	urDeviceSelectBinary
 	urEnqueueCommandBufferExp
-	urEnqueueCooperativeKernelLaunchExp
 	urEnqueueDeviceGlobalVariableRead
 	urEnqueueDeviceGlobalVariableWrite
 	urEnqueueEventsWait
 	urEnqueueEventsWaitWithBarrier
 	urEnqueueEventsWaitWithBarrierExt
 	urEnqueueKernelLaunch
-	urEnqueueKernelLaunchCustomExp
 	urEnqueueMemBufferCopy
 	urEnqueueMemBufferCopyRect
 	urEnqueueMemBufferFill
@@ -105,6 +110,7 @@ EXPORTS
 	urEventRetain
 	urEventSetCallback
 	urEventWait
+	urGetAdapterProcAddrTable
 	urGetBindlessImagesExpProcAddrTable
 	urGetCommandBufferExpProcAddrTable
 	urGetContextProcAddrTable
@@ -112,8 +118,6 @@ EXPORTS
 	urGetEnqueueExpProcAddrTable
 	urGetEnqueueProcAddrTable
 	urGetEventProcAddrTable
-	urGetGlobalProcAddrTable
-	urGetKernelExpProcAddrTable
 	urGetKernelProcAddrTable
 	urGetMemProcAddrTable
 	urGetPhysicalMemProcAddrTable
@@ -142,7 +146,7 @@ EXPORTS
 	urKernelSetArgValue
 	urKernelSetExecInfo
 	urKernelSetSpecializationConstants
-	urKernelSuggestMaxCooperativeGroupCountExp
+	urKernelSuggestMaxCooperativeGroupCount
 	urLoaderConfigCreate
 	urLoaderConfigEnableLayer
 	urLoaderConfigGetInfo
@@ -172,16 +176,22 @@ EXPORTS
 	urPlatformGetBackendOption
 	urPlatformGetInfo
 	urPlatformGetNativeHandle
-	urPrintAdapterBackend
 	urPrintAdapterGetInfoParams
 	urPrintAdapterGetLastErrorParams
 	urPrintAdapterGetParams
 	urPrintAdapterInfo
 	urPrintAdapterReleaseParams
 	urPrintAdapterRetainParams
+	urPrintAdapterSetLoggerCallbackLevelParams
+	urPrintAdapterSetLoggerCallbackParams
 	urPrintApiVersion
+	urPrintBackend
 	urPrintBaseDesc
 	urPrintBaseProperties
+	urPrintBindlessImagesFreeMappedLinearMemoryExpParams
+	urPrintBindlessImagesGetImageMemoryHandleTypeSupportExpParams
+	urPrintBindlessImagesGetImageSampledHandleSupportExpParams
+	urPrintBindlessImagesGetImageUnsampledHandleSupportExpParams
 	urPrintBindlessImagesImageAllocateExpParams
 	urPrintBindlessImagesImageCopyExpParams
 	urPrintBindlessImagesImageFreeExpParams
@@ -197,6 +207,7 @@ EXPORTS
 	urPrintBindlessImagesSampledImageCreateExpParams
 	urPrintBindlessImagesSampledImageHandleDestroyExpParams
 	urPrintBindlessImagesSignalExternalSemaphoreExpParams
+	urPrintBindlessImagesSupportsImportingHandleTypeExpParams
 	urPrintBindlessImagesUnsampledImageCreateExpParams
 	urPrintBindlessImagesUnsampledImageHandleDestroyExpParams
 	urPrintBindlessImagesWaitExternalSemaphoreExpParams
@@ -263,16 +274,15 @@ EXPORTS
 	urPrintDeviceReleaseParams
 	urPrintDeviceRetainParams
 	urPrintDeviceSelectBinaryParams
+	urPrintDeviceThrottleReasonsFlags
 	urPrintDeviceType
 	urPrintDeviceUsmAccessCapabilityFlags
 	urPrintEnqueueCommandBufferExpParams
-	urPrintEnqueueCooperativeKernelLaunchExpParams
 	urPrintEnqueueDeviceGlobalVariableReadParams
 	urPrintEnqueueDeviceGlobalVariableWriteParams
 	urPrintEnqueueEventsWaitParams
 	urPrintEnqueueEventsWaitWithBarrierExtParams
 	urPrintEnqueueEventsWaitWithBarrierParams
-	urPrintEnqueueKernelLaunchCustomExpParams
 	urPrintEnqueueKernelLaunchParams
 	urPrintEnqueueMemBufferCopyParams
 	urPrintEnqueueMemBufferCopyRectParams
@@ -333,8 +343,7 @@ EXPORTS
 	urPrintExpFileDescriptor
 	urPrintExpImageCopyFlags
 	urPrintExpImageCopyRegion
-	urPrintExpLaunchProperty
-	urPrintExpLaunchPropertyId
+	urPrintExpImageMemType
 	urPrintExpPeerInfo
 	urPrintExpSamplerAddrModes
 	urPrintExpSamplerCubemapFilterMode
@@ -365,6 +374,9 @@ EXPORTS
 	urPrintKernelGetSuggestedLocalWorkSizeParams
 	urPrintKernelGroupInfo
 	urPrintKernelInfo
+	urPrintKernelLaunchPropertiesFlags
+	urPrintKernelLaunchProperty
+	urPrintKernelLaunchPropertyId
 	urPrintKernelNativeProperties
 	urPrintKernelReleaseParams
 	urPrintKernelRetainParams
@@ -376,7 +388,7 @@ EXPORTS
 	urPrintKernelSetExecInfoParams
 	urPrintKernelSetSpecializationConstantsParams
 	urPrintKernelSubGroupInfo
-	urPrintKernelSuggestMaxCooperativeGroupCountExpParams
+	urPrintKernelSuggestMaxCooperativeGroupCountParams
 	urPrintLoaderConfigCreateParams
 	urPrintLoaderConfigEnableLayerParams
 	urPrintLoaderConfigGetInfoParams
@@ -387,6 +399,7 @@ EXPORTS
 	urPrintLoaderConfigSetMockingEnabledParams
 	urPrintLoaderInitParams
 	urPrintLoaderTearDownParams
+	urPrintLoggerLevel
 	urPrintMapFlags
 	urPrintMemBufferCreateParams
 	urPrintMemBufferCreateWithNativeHandleParams
@@ -411,7 +424,6 @@ EXPORTS
 	urPrintPhysicalMemProperties
 	urPrintPhysicalMemReleaseParams
 	urPrintPhysicalMemRetainParams
-	urPrintPlatformBackend
 	urPrintPlatformCreateWithNativeHandleParams
 	urPrintPlatformGetApiVersionParams
 	urPrintPlatformGetBackendOptionParams
@@ -479,6 +491,7 @@ EXPORTS
 	urPrintUsmAdviceFlags
 	urPrintUsmAllocInfo
 	urPrintUsmAllocLocationDesc
+	urPrintUsmContextMemcpyExpParams
 	urPrintUsmDesc
 	urPrintUsmDeviceAllocParams
 	urPrintUsmDeviceDesc
@@ -494,6 +507,7 @@ EXPORTS
 	urPrintUsmP2pEnablePeerAccessExpParams
 	urPrintUsmP2pPeerAccessGetInfoExpParams
 	urPrintUsmPitchedAllocExpParams
+	urPrintUsmPoolBufferDesc
 	urPrintUsmPoolCreateExpParams
 	urPrintUsmPoolCreateParams
 	urPrintUsmPoolDesc
@@ -508,7 +522,7 @@ EXPORTS
 	urPrintUsmPoolReleaseParams
 	urPrintUsmPoolRetainParams
 	urPrintUsmPoolSetDevicePoolExpParams
-	urPrintUsmPoolSetThresholdExpParams
+	urPrintUsmPoolSetInfoExpParams
 	urPrintUsmPoolTrimToExpParams
 	urPrintUsmReleaseExpParams
 	urPrintUsmSharedAllocParams
@@ -554,6 +568,7 @@ EXPORTS
 	urSamplerGetNativeHandle
 	urSamplerRelease
 	urSamplerRetain
+	urUSMContextMemcpyExp
 	urUSMDeviceAlloc
 	urUSMFree
 	urUSMGetMemAllocInfo
@@ -570,7 +585,7 @@ EXPORTS
 	urUSMPoolRelease
 	urUSMPoolRetain
 	urUSMPoolSetDevicePoolExp
-	urUSMPoolSetThresholdExp
+	urUSMPoolSetInfoExp
 	urUSMPoolTrimToExp
 	urUSMReleaseExp
 	urUSMSharedAlloc

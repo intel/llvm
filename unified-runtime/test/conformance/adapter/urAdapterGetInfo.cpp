@@ -19,14 +19,14 @@ TEST_P(urAdapterGetInfoTest, SuccessBackend) {
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urAdapterGetInfo(adapter, property_name, 0, nullptr, &property_size),
       property_name);
-  ASSERT_EQ(property_size, sizeof(ur_adapter_backend_t));
+  ASSERT_EQ(property_size, sizeof(ur_backend_t));
 
-  ur_adapter_backend_t property_value = UR_ADAPTER_BACKEND_UNKNOWN;
+  ur_backend_t property_value = UR_BACKEND_UNKNOWN;
   ASSERT_SUCCESS(urAdapterGetInfo(adapter, property_name, property_size,
                                   &property_value, nullptr));
 
-  ASSERT_TRUE(property_value >= UR_ADAPTER_BACKEND_LEVEL_ZERO &&
-              property_value <= UR_ADAPTER_BACKEND_NATIVE_CPU);
+  ASSERT_TRUE(property_value >= UR_BACKEND_LEVEL_ZERO &&
+              property_value <= UR_BACKEND_OFFLOAD);
 }
 
 TEST_P(urAdapterGetInfoTest, SuccessReferenceCount) {
@@ -78,21 +78,21 @@ TEST_P(urAdapterGetInfoTest, InvalidEnumerationAdapterInfoType) {
 }
 
 TEST_P(urAdapterGetInfoTest, InvalidSizeZero) {
-  ur_adapter_backend_t backend = UR_ADAPTER_BACKEND_UNKNOWN;
+  ur_backend_t backend = UR_BACKEND_UNKNOWN;
   ASSERT_EQ_RESULT(
       urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND, 0, &backend, nullptr),
       UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urAdapterGetInfoTest, InvalidSizeSmall) {
-  ur_adapter_backend_t backend = UR_ADAPTER_BACKEND_UNKNOWN;
+  ur_backend_t backend = UR_BACKEND_UNKNOWN;
   ASSERT_EQ_RESULT(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND,
                                     sizeof(backend) - 1, &backend, nullptr),
                    UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urAdapterGetInfoTest, InvalidNullPointerPropValue) {
-  const ur_adapter_backend_t backend = UR_ADAPTER_BACKEND_UNKNOWN;
+  const ur_backend_t backend = UR_BACKEND_UNKNOWN;
   ASSERT_EQ_RESULT(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND,
                                     sizeof(backend), nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_NULL_POINTER);

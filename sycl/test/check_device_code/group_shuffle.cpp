@@ -17,7 +17,7 @@ using namespace sycl::ext::oneapi;
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META8:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META11:![0-9]+]])
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP14_I]]), !noalias [[META8]]
-// CHECK-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP14_I]], align 1, !noalias [[META8]]
+// CHECK-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP14_I]], align 8, !noalias [[META8]]
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[S_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -27,7 +27,7 @@ using namespace sycl::ext::oneapi;
 // CHECK-NEXT:    [[CONV_I_I_I:%.*]] = zext nneg i32 [[S_0_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr [[AGG_TMP14_I]], i64 0, i64 [[CONV_I_I_I]]
 // CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I_I_I]], align 2, !tbaa [[TBAA14:![0-9]+]], !noalias [[META18:![0-9]+]]
-// CHECK-NEXT:    [[CALL4_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z28__spirv_SubgroupShuffleINTELItET_S0_j(i16 noundef zeroext [[TMP1]], i32 noundef 1) #[[ATTR6:[0-9]+]], !noalias [[META19:![0-9]+]]
+// CHECK-NEXT:    [[CALL4_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z28__spirv_SubgroupShuffleINTELtj(i16 noundef zeroext [[TMP1]], i32 noundef 1) #[[ATTR6:[0-9]+]], !noalias [[META19:![0-9]+]]
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I12_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr [[REF_TMP]], i64 0, i64 [[CONV_I_I_I]]
 // CHECK-NEXT:    store i16 [[CALL4_I_I_I_I]], ptr [[ARRAYIDX_I_I_I12_I_I]], align 2, !tbaa [[TBAA14]], !alias.scope [[META18]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[S_0_I_I]], 1
@@ -55,7 +55,7 @@ SYCL_EXTERNAL void test_shuffle1(sycl::sub_group &sg, vec<bfloat16, 4> *buf,
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META26:![0-9]+]])
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META29:![0-9]+]])
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP14_I]]), !noalias [[META26]]
-// CHECK-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP14_I]], align 1, !noalias [[META26]]
+// CHECK-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP14_I]], align 8, !noalias [[META26]]
 // CHECK-NEXT:    br label [[ARRAYINIT_BODY_I_I_I:%.*]]
 // CHECK:       arrayinit.body.i.i.i:
 // CHECK-NEXT:    [[ARRAYINIT_CUR_IDX_I_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[ARRAYINIT_CUR_ADD_I_I_I:%.*]], [[ARRAYINIT_BODY_I_I_I]] ]
@@ -72,7 +72,7 @@ SYCL_EXTERNAL void test_shuffle1(sycl::sub_group &sg, vec<bfloat16, 4> *buf,
 // CHECK-NEXT:    [[CONV_I_I:%.*]] = zext nneg i32 [[S_0_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr [[AGG_TMP14_I]], i64 0, i64 [[CONV_I_I]]
 // CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA14]], !noalias [[META32]]
-// CHECK-NEXT:    [[CALL4_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z28__spirv_SubgroupShuffleINTELItET_S0_j(i16 noundef zeroext [[TMP1]], i32 noundef 1) #[[ATTR6]], !noalias [[META33:![0-9]+]]
+// CHECK-NEXT:    [[CALL4_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z28__spirv_SubgroupShuffleINTELtj(i16 noundef zeroext [[TMP1]], i32 noundef 1) #[[ATTR6]], !noalias [[META33:![0-9]+]]
 // CHECK-NEXT:    [[ARRAYIDX_I13_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr [[REF_TMP]], i64 0, i64 [[CONV_I_I]]
 // CHECK-NEXT:    store i16 [[CALL4_I_I_I_I]], ptr [[ARRAYIDX_I13_I_I]], align 2, !tbaa [[TBAA14]], !alias.scope [[META32]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[S_0_I_I]], 1
@@ -116,7 +116,7 @@ SYCL_EXTERNAL void test_shuffle2(sycl::sub_group &sg, marray<bfloat16, 4> *buf,
 // CHECK-NEXT:    [[CONV_I_I:%.*]] = zext nneg i32 [[S_0_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds [5 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr [[AGG_TMP14_I]], i64 0, i64 [[CONV_I_I]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA14]], !noalias [[META44]]
-// CHECK-NEXT:    [[CALL4_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z28__spirv_SubgroupShuffleINTELItET_S0_j(i16 noundef zeroext [[TMP0]], i32 noundef 1) #[[ATTR6]], !noalias [[META45:![0-9]+]]
+// CHECK-NEXT:    [[CALL4_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z28__spirv_SubgroupShuffleINTELtj(i16 noundef zeroext [[TMP0]], i32 noundef 1) #[[ATTR6]], !noalias [[META45:![0-9]+]]
 // CHECK-NEXT:    [[ARRAYIDX_I13_I_I:%.*]] = getelementptr inbounds [5 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr [[REF_TMP]], i64 0, i64 [[CONV_I_I]]
 // CHECK-NEXT:    store i16 [[CALL4_I_I_I_I]], ptr [[ARRAYIDX_I13_I_I]], align 2, !tbaa [[TBAA14]], !alias.scope [[META44]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[S_0_I_I]], 1
@@ -138,7 +138,7 @@ SYCL_EXTERNAL void test_shuffle3(sycl::sub_group &sg, marray<bfloat16, 5> *buf,
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds nuw ptr addrspace(4), ptr addrspace(4) [[BUF:%.*]], i64 [[ID:%.*]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[ARRAYIDX]], align 8, !tbaa [[TBAA51:![0-9]+]]
 // CHECK-NEXT:    [[TMP1:%.*]] = ptrtoint ptr addrspace(4) [[TMP0]] to i64
-// CHECK-NEXT:    [[CALL4_I_I_I:%.*]] = tail call spir_func noundef i64 @_Z28__spirv_SubgroupShuffleINTELImET_S0_j(i64 noundef [[TMP1]], i32 noundef 1) #[[ATTR6]]
+// CHECK-NEXT:    [[CALL4_I_I_I:%.*]] = tail call spir_func noundef i64 @_Z28__spirv_SubgroupShuffleINTELmj(i64 noundef [[TMP1]], i32 noundef 1) #[[ATTR6]]
 // CHECK-NEXT:    [[TMP2:%.*]] = inttoptr i64 [[CALL4_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    store ptr addrspace(4) [[TMP2]], ptr addrspace(4) [[ARRAYIDX]], align 8, !tbaa [[TBAA51]]
 // CHECK-NEXT:    ret void
@@ -153,7 +153,7 @@ SYCL_EXTERNAL void test_shuffle4(sycl::sub_group &sg, int **buf, size_t id) {
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds nuw ptr addrspace(4), ptr addrspace(4) [[BUF:%.*]], i64 [[ID:%.*]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[ARRAYIDX]], align 8, !tbaa [[TBAA51]]
 // CHECK-NEXT:    [[TMP1:%.*]] = ptrtoint ptr addrspace(4) [[TMP0]] to i64
-// CHECK-NEXT:    [[CALL4_I_I_I:%.*]] = tail call spir_func noundef i64 @_Z28__spirv_SubgroupShuffleINTELImET_S0_j(i64 noundef [[TMP1]], i32 noundef 1) #[[ATTR6]]
+// CHECK-NEXT:    [[CALL4_I_I_I:%.*]] = tail call spir_func noundef i64 @_Z28__spirv_SubgroupShuffleINTELmj(i64 noundef [[TMP1]], i32 noundef 1) #[[ATTR6]]
 // CHECK-NEXT:    [[TMP2:%.*]] = inttoptr i64 [[CALL4_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    store ptr addrspace(4) [[TMP2]], ptr addrspace(4) [[ARRAYIDX]], align 8, !tbaa [[TBAA51]]
 // CHECK-NEXT:    ret void

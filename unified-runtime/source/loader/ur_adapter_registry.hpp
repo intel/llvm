@@ -24,32 +24,38 @@ namespace fs = filesystem;
 
 namespace ur_loader {
 
+struct ur_device_tuple {
+  ur_backend_t backend;
+  ur_device_type_t device;
+};
+
 // Helper struct representing a ONEAPI_DEVICE_SELECTOR filter term.
 struct FilterTerm {
   std::string backend;
   std::vector<std::string> devices;
 
-  const std::map<std::string, ur_adapter_backend_t> backendNameMap = {
-      {"opencl", UR_ADAPTER_BACKEND_OPENCL},
-      {"level_zero", UR_ADAPTER_BACKEND_LEVEL_ZERO},
-      {"cuda", UR_ADAPTER_BACKEND_CUDA},
-      {"hip", UR_ADAPTER_BACKEND_HIP},
-      {"native_cpu", UR_ADAPTER_BACKEND_NATIVE_CPU},
+  const std::map<std::string, ur_backend_t> backendNameMap = {
+      {"opencl", UR_BACKEND_OPENCL},
+      {"level_zero", UR_BACKEND_LEVEL_ZERO},
+      {"cuda", UR_BACKEND_CUDA},
+      {"hip", UR_BACKEND_HIP},
+      {"native_cpu", UR_BACKEND_NATIVE_CPU},
+      {"offload", UR_BACKEND_OFFLOAD},
   };
 
-  bool matchesBackend(const ur_adapter_manifest &manifest) const {
+  bool matchesBackend(const ur_backend_t &match_backend) const {
     if (backend.front() == '*') {
       return true;
     }
 
     auto backendIter = backendNameMap.find(backend);
     if (backendIter == backendNameMap.end()) {
-      logger::debug(
-          "ONEAPI_DEVICE_SELECTOR Pre-Filter with illegal backend '{}' ",
-          backend);
+      UR_LOG(DEBUG,
+             "ONEAPI_DEVICE_SELECTOR Pre-Filter with illegal backend '{}' ",
+             backend);
       return false;
     }
-    if (backendIter->second == manifest.backend) {
+    if (backendIter->second == match_backend) {
       return true;
     }
     return false;
@@ -60,12 +66,7 @@ struct FilterTerm {
       {"gpu", UR_DEVICE_TYPE_GPU},
       {"fpga", UR_DEVICE_TYPE_FPGA}};
 
-  bool matchesDevices(const ur_adapter_manifest &manifest) const {
-    // If the adapter can report all device types then it matches.
-    if (std::find(manifest.device_types.begin(), manifest.device_types.end(),
-                  UR_DEVICE_TYPE_ALL) != manifest.device_types.end()) {
-      return true;
-    }
+  bool matchesDevices(const ur_device_type_t &match_device) const {
     for (auto deviceString : devices) {
       // We don't have a way to determine anything about device indices or
       // sub-devices at this stage so just match any numeric value we get.
@@ -74,25 +75,24 @@ struct FilterTerm {
       }
       auto deviceIter = deviceTypeMap.find(deviceString);
       if (deviceIter == deviceTypeMap.end()) {
-        logger::debug(
-            "ONEAPI_DEVICE_SELECTOR Pre-Filter with illegal device '{}' ",
-            deviceString);
+        UR_LOG(DEBUG,
+               "ONEAPI_DEVICE_SELECTOR Pre-Filter with illegal device '{}' ",
+               deviceString);
         continue;
       }
-      if (std::find(manifest.device_types.begin(), manifest.device_types.end(),
-                    deviceIter->second) != manifest.device_types.end()) {
+      if (deviceIter->second == match_device) {
         return true;
       }
     }
     return false;
   }
 
-  bool matches(const ur_adapter_manifest &manifest) const {
-    if (!matchesBackend(manifest)) {
+  bool matches(const ur_device_tuple &device_tuple) const {
+    if (!matchesBackend(device_tuple.backend)) {
       return false;
     }
 
-    return matchesDevices(manifest);
+    return matchesDevices(device_tuple.device);
   }
 };
 
@@ -103,16 +103,17 @@ public:
     try {
       forceLoadedAdaptersOpt = getenv_to_vec("UR_ADAPTERS_FORCE_LOAD");
     } catch (const std::invalid_argument &e) {
-      logger::error(e.what());
+      UR_LOG(ERR, e.what());
     }
 
     if (forceLoadedAdaptersOpt.has_value()) {
       for (const auto &s : forceLoadedAdaptersOpt.value()) {
         auto path = fs::path(s);
         if (path.filename().extension() == STATIC_LIBRARY_EXTENSION) {
-          logger::warning("UR_ADAPTERS_FORCE_LOAD contains a path to a static"
-                          "library {}, it will be skipped",
-                          s);
+          UR_LOG(WARN,
+                 "UR_ADAPTERS_FORCE_LOAD contains a path to a static"
+                 "library {}, it will be skipped",
+                 s);
           continue;
         }
 
@@ -120,16 +121,17 @@ public:
         try {
           exists = fs::exists(path);
         } catch (std::exception &e) {
-          logger::error(e.what());
+          UR_LOG(ERR, e.what());
         }
 
         if (exists) {
           forceLoaded = true;
           adaptersLoadPaths.emplace_back(std::vector{std::move(path)});
         } else {
-          logger::warning("Detected nonexistent path {} in environment "
-                          "variable UR_ADAPTERS_FORCE_LOAD",
-                          s);
+          UR_LOG(WARN,
+                 "Detected nonexistent path {} in environment "
+                 "variable UR_ADAPTERS_FORCE_LOAD",
+                 s);
         }
       }
     } else {
@@ -204,7 +206,7 @@ private:
     try {
       pathStringsOpt = getenv_to_vec("UR_ADAPTERS_SEARCH_PATH");
     } catch (const std::invalid_argument &e) {
-      logger::error(e.what());
+      UR_LOG(ERR, e.what());
       return std::nullopt;
     }
 
@@ -215,9 +217,10 @@ private:
         if (fs::exists(path)) {
           paths.emplace_back(path);
         } else {
-          logger::warning("Detected nonexistent path {} in environmental "
-                          "variable UR_ADAPTERS_SEARCH_PATH",
-                          s);
+          UR_LOG(WARN,
+                 "Detected nonexistent path {} in environmental "
+                 "variable UR_ADAPTERS_SEARCH_PATH",
+                 s);
         }
       }
     }
@@ -233,18 +236,39 @@ private:
     } catch (...) {
       // If the selector is malformed, then we ignore selector and return
       // success.
-      logger::error("ERROR: missing backend, format of filter = "
-                    "'[!]backend:filterStrings'");
-      return UR_RESULT_SUCCESS;
+      UR_LOG(ERR, "ERROR: missing backend, format of filter = "
+                  "'[!]backend:filterStrings'");
+      odsEnvMap = std::nullopt;
     }
-    logger::debug("getenv_to_map parsed env var and {} a map",
-                  (odsEnvMap.has_value() ? "produced" : "failed to produce"));
+    UR_LOG(DEBUG, "getenv_to_map parsed env var and {} a map",
+           (odsEnvMap.has_value() ? "produced" : "failed to produce"));
 
     // if the ODS env var is not set at all, then pretend it was set to the
     // default
     using EnvVarMap = std::map<std::string, std::vector<std::string>>;
     EnvVarMap mapODS =
         odsEnvMap.has_value() ? odsEnvMap.value() : EnvVarMap{{"*", {"*"}}};
+
+    // Check all backends are valid backend names
+    for (auto entry : mapODS) {
+      if (entry.first == "*" || entry.first == "!*") {
+        continue;
+      }
+      auto check = [&](const ur_adapter_manifest &m) {
+        if (entry.first == m.name || entry.first == "!" + m.name) {
+          return true;
+        }
+        return false;
+      };
+      if (std::any_of(ur_adapter_manifests.begin(), ur_adapter_manifests.end(),
+                      check)) {
+        continue;
+      }
+
+      // Backend name is not legal, wipe the list
+      mapODS = EnvVarMap{{"*", {"*"}}};
+      break;
+    }
 
     std::vector<FilterTerm> positiveFilters;
     std::vector<FilterTerm> negativeFilters;
@@ -255,22 +279,22 @@ private:
       // on the first error.
       if (backend.empty()) {
         // FIXME: never true because getenv_to_map rejects this case
-        // malformed term: missing backend -- output ERROR, then continue
-        logger::error("ERROR: missing backend, format of filter = "
-                      "'[!]backend:filterStrings'");
+        // malformed term: missing backend -- output ERR, then continue
+        UR_LOG(ERR, "ERROR: missing backend, format of filter = "
+                    "'[!]backend:filterStrings'");
         continue;
       }
-      logger::debug("ONEAPI_DEVICE_SELECTOR Pre-Filter with backend '{}' ",
-                    backend);
+      UR_LOG(DEBUG, "ONEAPI_DEVICE_SELECTOR Pre-Filter with backend '{}' ",
+             backend);
 
       bool PositiveFilter = backend.front() != '!';
-      logger::debug("term is a {} filter",
-                    (PositiveFilter ? "positive" : "negative"));
+      UR_LOG(DEBUG, "term is a {} filter",
+             (PositiveFilter ? "positive" : "negative"));
       if (!PositiveFilter) {
-        logger::debug("DEBUG: backend was '{}'", backend);
+        UR_LOG(DEBUG, "DEBUG: backend was '{}'", backend);
         // Trim off the "!" from the backend
         backend.erase(backend.cbegin());
-        logger::debug("DEBUG: backend now '{}'", backend);
+        UR_LOG(DEBUG, "DEBUG: backend now '{}'", backend);
       }
 
       // Make sure the backend is lower case
@@ -278,24 +302,34 @@ private:
                      [](unsigned char c) { return std::tolower(c); });
 
       if (PositiveFilter) {
-        positiveFilters.push_back({backend, termPair.second});
+        positiveFilters.push_back({std::move(backend), termPair.second});
       } else {
-        // To preserve the behaviour of the original pre-filter implementation,
-        // we interpret all negative filters as backend only. This isn't
-        // correct, see https://github.com/intel/llvm/issues/17086
-        negativeFilters.push_back({backend, {"*"}});
+        negativeFilters.push_back({std::move(backend), termPair.second});
       }
     }
 
+    // If ONEAPI_DEVICE_SELECTOR only specified negative filters then we
+    // implicitly add a positive filter accepting all backends and devices.
+    if (positiveFilters.empty()) {
+      positiveFilters.push_back({"*", {"*"}});
+    }
+
     for (const auto &manifest : ur_adapter_manifests) {
-      auto matchesFilter = [manifest](const FilterTerm &f) -> bool {
-        return f.matches(manifest);
-      };
-      if (std::any_of(positiveFilters.begin(), positiveFilters.end(),
-                      matchesFilter) &&
-          std::none_of(negativeFilters.begin(), negativeFilters.end(),
-                       matchesFilter)) {
-        adapterNames.insert(manifest.library);
+      // Check each device in the manifest.
+      for (const auto &device : manifest.device_types) {
+        ur_device_tuple single_device = {manifest.backend, device};
+
+        const auto matchesFilter =
+            [single_device](const FilterTerm &f) -> bool {
+          return f.matches(single_device);
+        };
+
+        if (std::any_of(positiveFilters.begin(), positiveFilters.end(),
+                        matchesFilter) &&
+            std::none_of(negativeFilters.begin(), negativeFilters.end(),
+                         matchesFilter)) {
+          adapterNames.insert(manifest.library);
+        }
       }
     }
 
@@ -321,22 +355,6 @@ private:
     }
 
     for (const auto &adapterName : adapterNames) {
-      // Skip legacy L0 adapter if the v2 adapter is requested, and vice versa.
-      if (std::string(adapterName).find("level_zero") != std::string::npos) {
-        auto v2Requested = getenv_tobool("UR_LOADER_USE_LEVEL_ZERO_V2", false);
-        v2Requested |= getenv_tobool("SYCL_UR_USE_LEVEL_ZERO_V2", false);
-        auto v2Adapter =
-            std::string(adapterName).find("v2") != std::string::npos;
-
-        if (v2Requested != v2Adapter) {
-          logger::info(
-              "The adapter '{}' is skipped because {} {}.", adapterName,
-              "UR_LOADER_USE_LEVEL_ZERO_V2 or SYCL_UR_USE_LEVEL_ZERO_V2",
-              v2Requested ? "is set" : "is not set");
-          continue;
-        }
-      }
-
       std::vector<fs::path> loadPaths;
 
       // Adapter search order:

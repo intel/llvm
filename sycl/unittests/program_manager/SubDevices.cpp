@@ -105,28 +105,26 @@ TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
   // Initialize root device
   rootDevice = sycl::detail::getSyclObjImpl(device)->getHandleRef();
   // Initialize sub-devices
-  auto PltImpl = sycl::detail::getSyclObjImpl(Plt);
-  auto subDev1 =
-      std::make_shared<sycl::detail::device_impl>(urSubDev1, PltImpl);
-  auto subDev2 =
-      std::make_shared<sycl::detail::device_impl>(urSubDev2, PltImpl);
+  sycl::detail::platform_impl &PltImpl = *sycl::detail::getSyclObjImpl(Plt);
+  sycl::detail::device_impl &subDev1 = PltImpl.getOrMakeDeviceImpl(urSubDev1);
+  sycl::detail::device_impl &subDev2 = PltImpl.getOrMakeDeviceImpl(urSubDev2);
   sycl::context Ctx{
       {device, sycl::detail::createSyclObjFromImpl<sycl::device>(subDev1),
        sycl::detail::createSyclObjFromImpl<sycl::device>(subDev2)}};
 
   // Create device binary description structures for getBuiltPIProgram API.
-  auto devBin = Img.convertToNativeType();
+  auto devBin = Imgs[0].convertToNativeType();
   sycl_device_binaries_struct devBinStruct{SYCL_DEVICE_BINARIES_VERSION, 1,
                                            &devBin, nullptr, nullptr};
   sycl::detail::ProgramManager::getInstance().addImages(&devBinStruct);
 
   // Build program via getBuiltPIProgram API
   sycl::detail::ProgramManager::getInstance().getBuiltURProgram(
-      sycl::detail::getSyclObjImpl(Ctx), subDev1,
-      sycl::detail::KernelInfo<TestKernel<>>::getName());
+      *sycl::detail::getSyclObjImpl(Ctx), subDev1,
+      sycl::detail::KernelInfo<TestKernel>::getName());
   // This call should re-use built binary from the cache. If urProgramBuild is
   // called again, the test will fail as second call of redefinedProgramBuild
   sycl::detail::ProgramManager::getInstance().getBuiltURProgram(
-      sycl::detail::getSyclObjImpl(Ctx), subDev2,
-      sycl::detail::KernelInfo<TestKernel<>>::getName());
+      *sycl::detail::getSyclObjImpl(Ctx), subDev2,
+      sycl::detail::KernelInfo<TestKernel>::getName());
 }

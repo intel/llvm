@@ -263,7 +263,19 @@ in current implementations, facilitating interchangeable handling of code object
 without differentiation based on offload kind.
 
 **target-triple**
-    The target triple of the code object.
+    The target triple of the code object. See `Target Triple
+    <https://clang.llvm.org/docs/CrossCompilation.html#target-triple>`_.
+
+    LLVM target triples can be with or without the optional environment field:
+
+    ``<arch><sub>-<vendor>-<sys>``, or
+    ``<arch><sub>-<vendor>-<sys>-<env>``
+
+    However, in order to standardize outputs for tools that consume bitcode bundles
+    and to parse target ID containing dashes, the bundler only accepts target
+    triples in the 4-field format:
+
+    ``<arch><sub>-<vendor>-<sys>-<env>``
 
 **target-id**
   The canonical target ID of the code object. Present only if the target

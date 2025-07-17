@@ -28,9 +28,9 @@ class: $xUsmP2P
 name: $x_exp_peer_info_t
 typed_etors: True
 etors:
-    - name: UR_PEER_ACCESS_SUPPORTED
+    - name: UR_PEER_ACCESS_SUPPORT
       desc: "[int] 1 if P2P access is supported otherwise P2P access is not supported."
-    - name: UR_PEER_ATOMICS_SUPPORTED
+    - name: UR_PEER_ATOMICS_SUPPORT
       desc: "[int] 1 if atomic operations are supported over the P2P link, otherwise such operations are not supported."
 --- #--------------------------------------------------------------------------
 type: function

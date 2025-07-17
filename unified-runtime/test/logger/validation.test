@@ -1,0 +1,23 @@
+COM: Multiple levels
+RUN: UR_LOG_ADAPTER_TEST="level:error;level:debug" logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+RUN: UR_LOG_ADAPTER_TEST="level:error;flush:debug;flush:error" logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+
+COM: Invalid param
+RUN: UR_LOG_ADAPTER_TEST=";;;;;;,,,,;;;" logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+RUN: UR_LOG_ADAPTER_TEST="asdfasdf" logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+RUN: UR_LOG_ADAPTER_TEST="invalid:value" logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+RUN: UR_LOG_ADAPTER_TEST="level:invalid" logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+
+COM: Invalid output
+RUN: UR_LOG_ADAPTER_TEST="level:error;output:invalid" logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+RUN: UR_LOG_ADAPTER_TEST="level:error;output:file" logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+RUN: UR_LOG_ADAPTER_TEST="level:error;output:file," logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+RUN: UR_LOG_ADAPTER_TEST="level:error;output:stdout,%t" logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+
+COM: Non-existant output file
+RUN: UR_LOG_ADAPTER_TEST="level:error;output:file,/invalid/path" logger-test 2>&1 1>%null | FileCheck --allow-empty %s
+
+CHECK-NOT: <ADAPTER_TEST>[DEBUG]: Test message: success
+CHECK-NOT: <ADAPTER_TEST>[INFO]: Test message: success
+CHECK-NOT: <ADAPTER_TEST>[WARNING]: Test message: success
+CHECK-NOT: <ADAPTER_TEST>[ERROR]: Test message: success

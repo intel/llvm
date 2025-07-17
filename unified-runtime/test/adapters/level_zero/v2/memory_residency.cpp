@@ -4,6 +4,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %with-v2 ZES_ENABLE_SYSMAN=1 ./memory_residency-test
+// REQUIRES: v2
+
 #include "uur/fixtures.h"
 #include "uur/utils.h"
 

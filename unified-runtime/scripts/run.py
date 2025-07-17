@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""
-Copyright (C) 2022 Intel Corporation
 
-Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-See LICENSE.TXT
-SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# Copyright (C) 2022 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""
 import argparse
 import re
 import util
@@ -20,12 +19,11 @@ import time
 import subprocess
 from version import Version
 
-"""
-    helper for adding mutually-exclusive boolean arguments "--name" and "--!name"
-"""
-
 
 def add_argument(parser, name, help, default=False):
+    """
+    helper for adding mutually-exclusive boolean arguments "--name" and "--!name"
+    """
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument(
         "--" + name, dest=name, help="Enable " + help, action="store_true"
@@ -36,24 +34,16 @@ def add_argument(parser, name, help, default=False):
     parser.set_defaults(**{name: default})
 
 
-"""
-    helper for cleaning previously generated files
-"""
-
-
 def clean():
+    """helper for cleaning previously generated files"""
     util.removePath("../include")
     util.makePath("../include")
     util.removePath("../build")
     util.makePath("../build")
 
 
-"""
-    help for updating spec documentation
-"""
-
-
 def update_spec(target):
+    """help for updating spec documentation"""
     inc = "%s/source/elements/l0/include" % target
     src = "%s/source/elements/l0/source" % target
     util.copyTree("../include", inc)
@@ -62,12 +52,8 @@ def update_spec(target):
     util.removePath("%s/experimental" % src)
 
 
-"""
-    helper for running cmake windows build
-"""
-
-
 def build():
+    """helper for running cmake windows build"""
     if "Windows" == platform.system():
         result = os.system('cmake -B ../build/ -S .. -G "Visual Studio 16 2019" -A x64')
     else:
@@ -77,13 +63,11 @@ def build():
     return result == 0
 
 
-"""
+def revision():
+    """
     helper for getting revision number from git repository
     revision is number of commits since tag 'v0'
-"""
-
-
-def revision():
+    """
     return "0"
     result = subprocess.run(
         ["git", "describe", "--tags", "--dirty"],
@@ -108,13 +92,11 @@ def revision():
     return "%s.%s" % (tag, count)
 
 
-"""
+def get_version_from_cmakelists():
+    """
     helper for getting the default version from the project() command in the
     root CMakeLists.txt file
-"""
-
-
-def get_version_from_cmakelists():
+    """
     cmakelists_path = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "CMakeLists.txt")
     )
@@ -124,12 +106,6 @@ def get_version_from_cmakelists():
             if line.startswith("project("):
                 return Version(re.findall(r"\d+\.\d+", line)[0])
     raise Exception(f"unable to read project version from {cmakelists_path}")
-
-
-"""
-Main entry:
-    Do everything...
-"""
 
 
 def main():
@@ -220,7 +196,6 @@ def main():
     for idx, specs in enumerate(input["specs"]):
         config = input["configs"][idx]
         if args[config["name"]]:
-
             generate_code.generate_api(
                 incpath,
                 srcpath,

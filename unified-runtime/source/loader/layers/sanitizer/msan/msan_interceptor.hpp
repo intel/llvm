@@ -83,6 +83,8 @@ struct KernelInfo {
   bool IsCheckLocals = true;
   // check private memory
   bool IsCheckPrivates = true;
+  // track origins
+  bool IsTrackOrigins = false;
 
   // lock this mutex if following fields are accessed
   ur_shared_mutex Mutex;
@@ -111,6 +113,7 @@ struct ProgramInfo {
   struct KernelMetada {
     bool CheckLocals;
     bool CheckPrivates;
+    bool TrackOrigins;
   };
 
   // Program is built only once, so we don't need to lock it
@@ -134,7 +137,7 @@ struct ProgramInfo {
 
 struct ContextInfo {
   ur_context_handle_t Handle;
-  size_t MaxAllocatedSize = 1024;
+  size_t CleanShadowSize = 1024;
   std::atomic<int32_t> RefCount = 1;
 
   std::vector<ur_device_handle_t> DeviceList;
@@ -148,8 +151,76 @@ struct ContextInfo {
   ~ContextInfo();
 };
 
+struct MsanRuntimeDataWrapper {
+  MsanRuntimeData Host{};
+
+  MsanRuntimeData *DevicePtr = nullptr;
+
+  ur_context_handle_t Context{};
+
+  ur_device_handle_t Device{};
+
+  MsanRuntimeDataWrapper(ur_context_handle_t Context, ur_device_handle_t Device)
+      : Context(Context), Device(Device) {}
+
+  MsanRuntimeDataWrapper(const MsanRuntimeDataWrapper &) = delete;
+
+  MsanRuntimeDataWrapper &operator=(const MsanRuntimeDataWrapper &) = delete;
+
+  ~MsanRuntimeDataWrapper();
+
+  MsanRuntimeData *getDevicePtr() {
+    if (DevicePtr == nullptr) {
+      ur_result_t Result = getContext()->urDdiTable.USM.pfnDeviceAlloc(
+          Context, Device, nullptr, nullptr, sizeof(MsanRuntimeData),
+          (void **)&DevicePtr);
+      if (Result != UR_RESULT_SUCCESS) {
+        UR_LOG_L(getContext()->logger, ERR,
+                 "Failed to alloc device usm for msan runtime data: {}",
+                 Result);
+      }
+    }
+    return DevicePtr;
+  }
+
+  ur_result_t syncFromDevice(ur_queue_handle_t Queue) {
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+        Queue, true, ur_cast<void *>(&Host), getDevicePtr(),
+        sizeof(MsanRuntimeData), 0, nullptr, nullptr));
+
+    return UR_RESULT_SUCCESS;
+  }
+
+  ur_result_t syncToDevice(ur_queue_handle_t Queue) {
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+        Queue, true, getDevicePtr(), ur_cast<void *>(&Host),
+        sizeof(MsanRuntimeData), 0, nullptr, nullptr));
+
+    return UR_RESULT_SUCCESS;
+  }
+
+  ur_result_t
+  importLocalArgsInfo(ur_queue_handle_t Queue,
+                      const std::vector<MsanLocalArgsInfo> &LocalArgs) {
+    assert(!LocalArgs.empty());
+
+    Host.NumLocalArgs = LocalArgs.size();
+    const size_t LocalArgsInfoSize =
+        sizeof(MsanLocalArgsInfo) * Host.NumLocalArgs;
+    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        Context, Device, nullptr, nullptr, LocalArgsInfoSize,
+        ur_cast<void **>(&Host.LocalArgs)));
+
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+        Queue, true, Host.LocalArgs, &LocalArgs[0], LocalArgsInfoSize, 0,
+        nullptr, nullptr));
+
+    return UR_RESULT_SUCCESS;
+  }
+};
+
 struct USMLaunchInfo {
-  MsanLaunchInfo *Data = nullptr;
+  MsanRuntimeDataWrapper Data;
 
   ur_context_handle_t Context = nullptr;
   ur_device_handle_t Device = nullptr;
@@ -161,8 +232,9 @@ struct USMLaunchInfo {
   USMLaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
                 const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
                 const size_t *GlobalWorkOffset, uint32_t WorkDim)
-      : Context(Context), Device(Device), GlobalWorkSize(GlobalWorkSize),
-        GlobalWorkOffset(GlobalWorkOffset), WorkDim(WorkDim) {
+      : Data(Context, Device), Context(Context), Device(Device),
+        GlobalWorkSize(GlobalWorkSize), GlobalWorkOffset(GlobalWorkOffset),
+        WorkDim(WorkDim) {
     if (LocalWorkSize) {
       this->LocalWorkSize =
           std::vector<size_t>(LocalWorkSize, LocalWorkSize + WorkDim);
@@ -171,9 +243,6 @@ struct USMLaunchInfo {
   ~USMLaunchInfo();
 
   ur_result_t initialize();
-  ur_result_t
-  importLocalArgsInfo(ur_queue_handle_t Queue,
-                      const std::vector<MsanLocalArgsInfo> &LocalArgs);
 };
 
 struct DeviceGlobalInfo {
@@ -184,8 +253,7 @@ struct DeviceGlobalInfo {
 struct SpirKernelInfo {
   uptr KernelName;
   uptr Size;
-  uptr CheckLocals;
-  uptr CheckPrivates;
+  uptr Flags;
 };
 
 class MsanInterceptor {
@@ -206,17 +274,17 @@ public:
 
   ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
                               ur_queue_handle_t Queue,
-                              msan::USMLaunchInfo &LaunchInfo);
+                              USMLaunchInfo &LaunchInfo);
   ur_result_t postLaunchKernel(ur_kernel_handle_t Kernel,
                                ur_queue_handle_t Queue,
-                               msan::USMLaunchInfo &LaunchInfo);
+                               USMLaunchInfo &LaunchInfo);
 
   ur_result_t insertContext(ur_context_handle_t Context,
-                            std::shared_ptr<msan::ContextInfo> &CI);
+                            std::shared_ptr<ContextInfo> &CI);
   ur_result_t eraseContext(ur_context_handle_t Context);
 
   ur_result_t insertDevice(ur_device_handle_t Device,
-                           std::shared_ptr<msan::DeviceInfo> &CI);
+                           std::shared_ptr<DeviceInfo> &CI);
   ur_result_t eraseDevice(ur_device_handle_t Device);
 
   ur_result_t insertProgram(ur_program_handle_t Program);
@@ -231,31 +299,24 @@ public:
     if (m_Adapters.find(Adapter) != m_Adapters.end()) {
       return UR_RESULT_SUCCESS;
     }
-    UR_CALL(getContext()->urDdiTable.Global.pfnAdapterRetain(Adapter));
+    UR_CALL(getContext()->urDdiTable.Adapter.pfnRetain(Adapter));
     m_Adapters.insert(Adapter);
     return UR_RESULT_SUCCESS;
   }
 
-  std::optional<MsanAllocationIterator> findAllocInfoByAddress(uptr Address);
-
-  std::vector<MsanAllocationIterator>
-  findAllocInfoByContext(ur_context_handle_t Context);
-
-  std::shared_ptr<msan::ContextInfo>
-  getContextInfo(ur_context_handle_t Context) {
+  std::shared_ptr<ContextInfo> getContextInfo(ur_context_handle_t Context) {
     std::shared_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
     assert(m_ContextMap.find(Context) != m_ContextMap.end());
     return m_ContextMap[Context];
   }
 
-  std::shared_ptr<msan::DeviceInfo> getDeviceInfo(ur_device_handle_t Device) {
+  std::shared_ptr<DeviceInfo> getDeviceInfo(ur_device_handle_t Device) {
     std::shared_lock<ur_shared_mutex> Guard(m_DeviceMapMutex);
     assert(m_DeviceMap.find(Device) != m_DeviceMap.end());
     return m_DeviceMap[Device];
   }
 
-  std::shared_ptr<msan::ProgramInfo>
-  getProgramInfo(ur_program_handle_t Program) {
+  std::shared_ptr<ProgramInfo> getProgramInfo(ur_program_handle_t Program) {
     std::shared_lock<ur_shared_mutex> Guard(m_ProgramMapMutex);
     assert(m_ProgramMap.find(Program) != m_ProgramMap.end());
     return m_ProgramMap[Program];
@@ -266,46 +327,44 @@ public:
 
   void exitWithErrors() {
     m_NormalExit = false;
-    exit(1);
+    std::abort();
   }
 
   bool isNormalExit() { return m_NormalExit; }
 
+  ur_shared_mutex KernelLaunchMutex;
+
 private:
   /// Initialize Global Variables & Kernel Name at first Launch
-  ur_result_t prepareLaunch(std::shared_ptr<msan::DeviceInfo> &DeviceInfo,
+  ur_result_t prepareLaunch(std::shared_ptr<DeviceInfo> &DeviceInfo,
                             ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
-                            msan::USMLaunchInfo &LaunchInfo);
+                            USMLaunchInfo &LaunchInfo);
 
   ur_result_t allocShadowMemory(ur_context_handle_t Context,
-                                std::shared_ptr<msan::DeviceInfo> &DeviceInfo);
+                                std::shared_ptr<DeviceInfo> &DeviceInfo);
 
   ur_result_t registerSpirKernels(ur_program_handle_t Program);
   ur_result_t registerDeviceGlobals(ur_program_handle_t Program);
 
 private:
-  std::unordered_map<ur_context_handle_t, std::shared_ptr<msan::ContextInfo>>
+  std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
       m_ContextMap;
   ur_shared_mutex m_ContextMapMutex;
-  std::unordered_map<ur_device_handle_t, std::shared_ptr<msan::DeviceInfo>>
+  std::unordered_map<ur_device_handle_t, std::shared_ptr<DeviceInfo>>
       m_DeviceMap;
   ur_shared_mutex m_DeviceMapMutex;
 
-  std::unordered_map<ur_program_handle_t, std::shared_ptr<msan::ProgramInfo>>
+  std::unordered_map<ur_program_handle_t, std::shared_ptr<ProgramInfo>>
       m_ProgramMap;
   ur_shared_mutex m_ProgramMapMutex;
 
-  std::unordered_map<ur_kernel_handle_t, std::shared_ptr<msan::KernelInfo>>
+  std::unordered_map<ur_kernel_handle_t, std::shared_ptr<KernelInfo>>
       m_KernelMap;
   ur_shared_mutex m_KernelMapMutex;
 
   std::unordered_map<ur_mem_handle_t, std::shared_ptr<MemBuffer>>
       m_MemBufferMap;
   ur_shared_mutex m_MemBufferMapMutex;
-
-  /// Assumption: all USM chunks are allocated in one VA
-  MsanAllocationMap m_AllocationMap;
-  ur_shared_mutex m_AllocationMapMutex;
 
   std::unordered_set<ur_adapter_handle_t> m_Adapters;
   ur_shared_mutex m_AdaptersMutex;

@@ -32,7 +32,7 @@ inline std::ostream &operator<<(std::ostream &out, const Result &result) {
 
 #define UUR_RETURN_ON_FATAL_FAILURE(...)                                       \
   __VA_ARGS__;                                                                 \
-  if (this->HasFatalFailure() || this->IsSkipped()) {                          \
+  if (::testing::Test::HasFatalFailure() || ::testing::Test::IsSkipped()) {    \
     return;                                                                    \
   }                                                                            \
   (void)0
@@ -41,7 +41,8 @@ inline std::ostream &operator<<(std::ostream &out, const Result &result) {
   do {                                                                         \
     auto status = ret;                                                         \
     if (status == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||                       \
-        status == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {                   \
+        status == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION ||                   \
+        status == UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE) {                    \
       GTEST_SKIP();                                                            \
     } else {                                                                   \
       ASSERT_EQ(status, UR_RESULT_SUCCESS);                                    \

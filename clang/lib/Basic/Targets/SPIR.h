@@ -41,16 +41,19 @@ static const unsigned SPIRDefIsPrivMap[] = {
     0, // cuda_constant
     0, // cuda_shared
     // SYCL address space values for this map are dummy
-    0, // sycl_global
-    0, // sycl_global_device
-    0, // sycl_global_host
-    0, // sycl_local
-    0, // sycl_private
-    0, // ptr32_sptr
-    0, // ptr32_uptr
-    0, // ptr64
-    0, // hlsl_groupshared
-    2, // hlsl_constant
+    0,  // sycl_global
+    0,  // sycl_global_device
+    0,  // sycl_global_host
+    0,  // sycl_local
+    0,  // sycl_private
+    0,  // ptr32_sptr
+    0,  // ptr32_uptr
+    0,  // ptr64
+    0,  // hlsl_groupshared
+    12, // hlsl_constant
+    10, // hlsl_private
+    11, // hlsl_device
+    7,  // hlsl_input
     // Wasm address space values for this target are dummy values,
     // as it is only enabled for Wasm targets.
     20, // wasm_funcref
@@ -59,35 +62,34 @@ static const unsigned SPIRDefIsPrivMap[] = {
 // Used by both the SPIR and SPIR-V targets.
 static const unsigned SPIRDefIsGenMap[] = {
     4, // Default
-    // OpenCL address space values for this map are dummy and they can't be used
-    // FIXME: reset opencl_global entry to 0. Currently CodeGen libary uses
-    // opencl_global in SYCL language mode, but we should switch to using
-    // sycl_global instead.
     1, // opencl_global
-    0, // opencl_local
+    3, // opencl_local
     2, // opencl_constant
     0, // opencl_private
-    0, // opencl_generic
-    0, // opencl_global_device
-    0, // opencl_global_host
+    4, // opencl_generic
+    5, // opencl_global_device
+    6, // opencl_global_host
     // cuda_* address space mapping is intended for HIPSPV (HIP to SPIR-V
     // translation). This mapping is enabled when the language mode is HIP.
     1, // cuda_device
     // cuda_constant pointer can be casted to default/"flat" pointer, but in
     // SPIR-V casts between constant and generic pointers are not allowed. For
     // this reason cuda_constant is mapped to SPIR-V CrossWorkgroup.
-    1, // cuda_constant
-    3, // cuda_shared
-    1, // sycl_global
-    5, // sycl_global_device
-    6, // sycl_global_host
-    3, // sycl_local
-    0, // sycl_private
-    0, // ptr32_sptr
-    0, // ptr32_uptr
-    0, // ptr64
-    0, // hlsl_groupshared
-    0, // hlsl_constant
+    1,  // cuda_constant
+    3,  // cuda_shared
+    1,  // sycl_global
+    5,  // sycl_global_device
+    6,  // sycl_global_host
+    3,  // sycl_local
+    0,  // sycl_private
+    0,  // ptr32_sptr
+    0,  // ptr32_uptr
+    0,  // ptr64
+    0,  // hlsl_groupshared
+    0,  // hlsl_constant
+    10, // hlsl_private
+    11, // hlsl_device
+    7,  // hlsl_input
     // Wasm address space values for this target are dummy values,
     // as it is only enabled for Wasm targets.
     20, // wasm_funcref
@@ -167,7 +169,9 @@ public:
   // memcpy as per section 3 of the SPIR spec.
   bool useFP16ConversionIntrinsics() const override { return false; }
 
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override { return {}; }
+  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override {
+    return {};
+  }
 
   std::string_view getClobbers() const override { return ""; }
 
@@ -392,12 +396,55 @@ public:
   }
 };
 
+// ARM64 SPIR64 Windows target
+class LLVM_LIBRARY_VISIBILITY WindowsARM64_SPIR64TargetInfo
+    : public WindowsTargetInfo<SPIR64TargetInfo> {
+public:
+  WindowsARM64_SPIR64TargetInfo(const llvm::Triple &Triple,
+                                const TargetOptions &Opts)
+      : WindowsTargetInfo<SPIR64TargetInfo>(Triple, Opts) {
+    LongWidth = LongAlign = 32;
+    DoubleAlign = LongLongAlign = 64;
+    IntMaxType = SignedLongLong;
+    Int64Type = SignedLongLong;
+    SizeType = UnsignedLongLong;
+    PtrDiffType = SignedLongLong;
+    IntPtrType = SignedLongLong;
+    WCharType = UnsignedShort;
+  }
+
+  BuiltinVaListKind getBuiltinVaListKind() const override {
+    return TargetInfo::CharPtrBuiltinVaList;
+  }
+
+  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
+                                                            : CCCR_Warning;
+  }
+};
+
+// ARM64 SPIR64 Windows Visual Studio target
+class LLVM_LIBRARY_VISIBILITY MicrosoftARM64_SPIR64TargetInfo
+    : public WindowsARM64_SPIR64TargetInfo {
+public:
+  MicrosoftARM64_SPIR64TargetInfo(const llvm::Triple &Triple,
+                                  const TargetOptions &Opts)
+      : WindowsARM64_SPIR64TargetInfo(Triple, Opts) {}
+
+  void getTargetDefines(const LangOptions &Opts,
+                        MacroBuilder &Builder) const override {
+    WindowsARM64_SPIR64TargetInfo::getTargetDefines(Opts, Builder);
+  }
+};
+
 class LLVM_LIBRARY_VISIBILITY BaseSPIRVTargetInfo : public BaseSPIRTargetInfo {
 public:
   BaseSPIRVTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : BaseSPIRTargetInfo(Triple, Opts) {
     assert(Triple.isSPIRV() && "Invalid architecture for SPIR-V.");
   }
+
+  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override;
 
   bool hasFeature(StringRef Feature) const override {
     return Feature == "spirv";
@@ -424,9 +471,9 @@ public:
     // SPIR-V IDs are represented with a single 32-bit word.
     SizeType = TargetInfo::UnsignedInt;
     resetDataLayout("e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-"
-                    "v256:256-v512:512-v1024:1024-n8:16:32:64-G1");
+                    "v256:256-v512:512-v1024:1024-n8:16:32:64-G10");
   }
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override;
+
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
 };
@@ -477,6 +524,24 @@ public:
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
+
+  const llvm::omp::GV &getGridValue() const override {
+    return llvm::omp::SPIRVGridValues;
+  }
+
+  std::optional<LangAS> getConstantAddressSpace() const override {
+    return ConstantAS;
+  }
+  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts) override {
+    BaseSPIRVTargetInfo::adjust(Diags, Opts);
+    // opencl_constant will map to UniformConstant in SPIR-V
+    if (Opts.OpenCL)
+      ConstantAS = LangAS::opencl_constant;
+  }
+
+private:
+  // opencl_global will map to CrossWorkgroup in SPIR-V
+  LangAS ConstantAS = LangAS::opencl_global;
 };
 
 // x86-32 SPIRV32 Windows target
@@ -569,6 +634,47 @@ public:
   }
 };
 
+// ARM64 SPIRV64 Windows target
+class LLVM_LIBRARY_VISIBILITY WindowsARM64_SPIRV64TargetInfo
+    : public WindowsTargetInfo<SPIRV64TargetInfo> {
+public:
+  WindowsARM64_SPIRV64TargetInfo(const llvm::Triple &Triple,
+                                 const TargetOptions &Opts)
+      : WindowsTargetInfo<SPIRV64TargetInfo>(Triple, Opts) {
+    LongWidth = LongAlign = 32;
+    DoubleAlign = LongLongAlign = 64;
+    IntMaxType = SignedLongLong;
+    Int64Type = SignedLongLong;
+    SizeType = UnsignedLongLong;
+    PtrDiffType = SignedLongLong;
+    IntPtrType = SignedLongLong;
+    WCharType = UnsignedShort;
+  }
+
+  BuiltinVaListKind getBuiltinVaListKind() const override {
+    return TargetInfo::CharPtrBuiltinVaList;
+  }
+
+  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
+                                                            : CCCR_Warning;
+  }
+};
+
+// ARM64 SPIRV64 Windows Visual Studio target
+class LLVM_LIBRARY_VISIBILITY MicrosoftARM64_SPIRV64TargetInfo
+    : public WindowsARM64_SPIRV64TargetInfo {
+public:
+  MicrosoftARM64_SPIRV64TargetInfo(const llvm::Triple &Triple,
+                                   const TargetOptions &Opts)
+      : WindowsARM64_SPIRV64TargetInfo(Triple, Opts) {}
+
+  void getTargetDefines(const LangOptions &Opts,
+                        MacroBuilder &Builder) const override {
+    WindowsARM64_SPIRV64TargetInfo::getTargetDefines(Opts, Builder);
+  }
+};
+
 class LLVM_LIBRARY_VISIBILITY SPIRV64AMDGCNTargetInfo final
     : public BaseSPIRVTargetInfo {
 public:
@@ -596,6 +702,8 @@ public:
     HasLegalHalfType = true;
     HasFloat16 = true;
     HalfArgsAndReturns = true;
+
+    MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
   }
 
   bool hasBFloat16Type() const override { return true; }
@@ -611,7 +719,7 @@ public:
 
   std::string convertConstraint(const char *&Constraint) const override;
 
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override;
+  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override;
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;

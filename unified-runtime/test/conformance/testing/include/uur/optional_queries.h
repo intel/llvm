@@ -42,6 +42,10 @@ constexpr std::array optional_ur_device_info_t = {
     UR_DEVICE_INFO_IP_VERSION,
     UR_DEVICE_INFO_COMPONENT_DEVICES,
     UR_DEVICE_INFO_COMPOSITE_DEVICE,
+    UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS,
+    UR_DEVICE_INFO_FAN_SPEED,
+    UR_DEVICE_INFO_MIN_POWER_LIMIT,
+    UR_DEVICE_INFO_MAX_POWER_LIMIT,
 };
 
 template <> inline bool isQueryOptional(ur_device_info_t query) {

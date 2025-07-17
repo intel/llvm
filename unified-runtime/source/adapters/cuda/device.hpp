@@ -16,7 +16,7 @@
 
 #include "common.hpp"
 
-struct ur_device_handle_t_ {
+struct ur_device_handle_t_ : ur::cuda::handle_base {
 private:
   using native_type = CUdevice;
 
@@ -34,15 +34,15 @@ private:
   int MaxRegsPerBlock{0};
   int MaxCapacityLocalMem{0};
   int MaxChosenLocalMem{0};
-  bool MaxLocalMemSizeChosen{false};
   uint32_t NumComputeUnits{0};
+  std::once_flag NVMLInitFlag;
+  std::optional<nvmlDevice_t> NVMLDevice;
 
 public:
   ur_device_handle_t_(native_type cuDevice, CUcontext cuContext, CUevent evBase,
                       ur_platform_handle_t platform, uint32_t DevIndex)
-      : CuDevice(cuDevice), CuContext(cuContext), EvBase(evBase), RefCount{1},
-        Platform(platform), DeviceIndex{DevIndex} {
-
+      : handle_base(), CuDevice(cuDevice), CuContext(cuContext), EvBase(evBase),
+        RefCount{1}, Platform(platform), DeviceIndex{DevIndex} {
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
         cuDevice));
@@ -68,12 +68,22 @@ public:
     static const char *LocalMemSizePtrPI =
         std::getenv("SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE");
     static const char *LocalMemSizePtr =
-        LocalMemSizePtrUR ? LocalMemSizePtrUR
-                          : (LocalMemSizePtrPI ? LocalMemSizePtrPI : nullptr);
+        LocalMemSizePtrUR ? LocalMemSizePtrUR : LocalMemSizePtrPI;
 
     if (LocalMemSizePtr) {
       MaxChosenLocalMem = std::atoi(LocalMemSizePtr);
-      MaxLocalMemSizeChosen = true;
+      if (MaxChosenLocalMem <= 0) {
+        setErrorMessage(LocalMemSizePtrUR ? "Invalid value specified for "
+                                            "UR_CUDA_MAX_LOCAL_MEM_SIZE"
+                                          : "Invalid value specified for "
+                                            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
+                        UR_RESULT_ERROR_INVALID_VALUE);
+        throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+
+      // Cap chosen local mem size to device capacity, kernel enqueue will fail
+      // if it actually needs more.
+      MaxChosenLocalMem = std::min(MaxChosenLocalMem, MaxCapacityLocalMem);
     }
 
     // Max size of memory object allocation in bytes.
@@ -102,10 +112,27 @@ public:
     if (MemoryProviderShared) {
       umfMemoryProviderDestroy(MemoryProviderShared);
     }
+    if (NVMLDevice.has_value()) {
+      UR_CHECK_ERROR(nvmlShutdown());
+    }
     cuDevicePrimaryCtxRelease(CuDevice);
   }
 
   native_type get() const noexcept { return CuDevice; };
+
+  nvmlDevice_t getNVML() {
+    // Initialization happens lazily once per device object. Call to nvmlInit by
+    // different objects will just increase the reference count. Each object's
+    // destructor calls shutdown method, so once there will be no NVML users
+    // left, resources will be released.
+    std::call_once(NVMLInitFlag, [this]() {
+      UR_CHECK_ERROR(nvmlInit());
+      nvmlDevice_t Handle;
+      UR_CHECK_ERROR(nvmlDeviceGetHandleByIndex(DeviceIndex, &Handle));
+      NVMLDevice = Handle;
+    });
+    return NVMLDevice.value();
+  };
 
   CUcontext getNativeContext() const noexcept { return CuContext; };
 
@@ -123,6 +150,10 @@ public:
     return MaxWorkItemSizes[index];
   }
 
+  const size_t *getMaxWorkItemSizes() const noexcept {
+    return MaxWorkItemSizes;
+  }
+
   size_t getMaxWorkGroupSize() const noexcept { return MaxWorkGroupSize; };
 
   size_t getMaxRegsPerBlock() const noexcept { return MaxRegsPerBlock; };
@@ -132,8 +163,6 @@ public:
   int getMaxCapacityLocalMem() const noexcept { return MaxCapacityLocalMem; };
 
   int getMaxChosenLocalMem() const noexcept { return MaxChosenLocalMem; };
-
-  bool maxLocalMemSizeChosen() { return MaxLocalMemSizeChosen; };
 
   uint32_t getNumComputeUnits() const noexcept { return NumComputeUnits; };
 

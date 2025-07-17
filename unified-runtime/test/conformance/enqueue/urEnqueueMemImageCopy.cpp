@@ -18,7 +18,7 @@ struct urEnqueueMemImageCopyTest
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::SetUp());
 
     ur_bool_t imageSupported;
-    ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+    ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORT,
                                    sizeof(ur_bool_t), &imageSupported,
                                    nullptr));
     if (!imageSupported) {
@@ -269,6 +269,8 @@ using urEnqueueMemImageCopyMultiDeviceTest =
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemImageCopyMultiDeviceTest);
 
 TEST_P(urEnqueueMemImageCopyMultiDeviceTest, CopyReadDifferentQueues) {
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+
   ur_mem_handle_t dstImage1D = nullptr;
   ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &format,
                                   &desc1D, nullptr, &dstImage1D));

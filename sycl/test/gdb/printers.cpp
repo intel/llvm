@@ -60,10 +60,9 @@ sycl::range<1> r(3);
 // CHECK:       120 |     void * MUserPtr
 
 // CHECK:         0 | class sycl::detail::platform_impl
-// CHECK:        16 |   backend MBackend
+// CHECK:        32 |   backend MBackend
 
 // CHECK:         0 | class sycl::detail::device_impl
-// CHECK:         8 |   ur_device_type_t MType
 // CHECK:        24 |   class std::shared_ptr<class sycl::detail::platform_impl> MPlatform
 // CHECK:        24 |       element_type * _M_ptr
 
@@ -73,10 +72,7 @@ sycl::range<1> r(3);
 // DEVICE:       16 |   class sycl::range<> MemRange
 
 // CHECK:         0 | class sycl::detail::queue_impl
-// CHECK:        40 |   class std::shared_ptr<class sycl::detail::device_impl> MDevice
-// CHECK:        40 |     class std::__shared_ptr<class sycl::detail::device_impl> (base)
-// CHECK:        40 |       class std::__shared_ptr_access<class sycl::detail::device_impl, __gnu_cxx::_S_atomic> (base) (empty)
-// CHECK:        40 |       element_type * _M_ptr
+// CHECK:        56 |   device_impl & MDevice
 
 // CHECK:         0 | class sycl::accessor<int>
 // HOST:          0 |     {{.*}} sycl::detail::AccessorImplHost{{.*}} impl

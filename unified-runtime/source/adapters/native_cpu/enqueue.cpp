@@ -30,7 +30,7 @@ struct NDRDescT {
            const size_t *GlobalWorkSize, const size_t *LocalWorkSize)
       : WorkDim(WorkDim) {
     for (uint32_t I = 0; I < WorkDim; I++) {
-      GlobalOffset[I] = GlobalWorkOffset[I];
+      GlobalOffset[I] = GlobalWorkOffset ? GlobalWorkOffset[I] : 0;
       GlobalSize[I] = GlobalWorkSize[I];
       LocalSize[I] = LocalWorkSize ? LocalWorkSize[I] : 1;
     }
@@ -66,13 +66,21 @@ static native_cpu::state getResizedState(const native_cpu::NDRDescT &ndr,
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  // We don't support any launch properties.
+  for (uint32_t propIndex = 0; propIndex < numPropsInLaunchPropList;
+       propIndex++) {
+    if (launchPropList[propIndex].id != UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE) {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+  }
 
   urEventWait(numEventsInWaitList, phEventWaitList);
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pGlobalWorkOffset, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
@@ -375,10 +383,9 @@ static inline ur_result_t doCopy_impl(ur_queue_handle_t hQueue, void *DstPtr,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool /*blockingRead*/,
     size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = blockingRead;
 
   void *FromPtr = /*Src*/ hBuffer->_mem + offset;
   auto res = doCopy_impl(hQueue, pDst, FromPtr, size, numEventsInWaitList,
@@ -387,10 +394,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool /*blockingWrite*/,
     size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = blockingWrite;
 
   void *ToPtr = hBuffer->_mem + offset;
   auto res = doCopy_impl(hQueue, ToPtr, pSrc, size, numEventsInWaitList,
@@ -475,72 +481,43 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingRead,
-    ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
-    size_t slicePitch, void *pDst, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hImage;
-  std::ignore = blockingRead;
-  std::ignore = origin;
-  std::ignore = region;
-  std::ignore = rowPitch;
-  std::ignore = slicePitch;
-  std::ignore = pDst;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_queue_handle_t /*hQueue*/, ur_mem_handle_t /*hImage*/,
+    bool /*blockingRead*/, ur_rect_offset_t /*origin*/,
+    ur_rect_region_t /*region*/, size_t /*rowPitch*/, size_t /*slicePitch*/,
+    void * /*pDst*/, uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingWrite,
-    ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
-    size_t slicePitch, void *pSrc, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hImage;
-  std::ignore = blockingWrite;
-  std::ignore = origin;
-  std::ignore = region;
-  std::ignore = rowPitch;
-  std::ignore = slicePitch;
-  std::ignore = pSrc;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_queue_handle_t /*hQueue*/, ur_mem_handle_t /*hImage*/,
+    bool /*blockingWrite*/, ur_rect_offset_t /*origin*/,
+    ur_rect_region_t /*region*/, size_t /*rowPitch*/, size_t /*slicePitch*/,
+    void * /*pSrc*/, uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hImageSrc,
-    ur_mem_handle_t hImageDst, ur_rect_offset_t srcOrigin,
-    ur_rect_offset_t dstOrigin, ur_rect_region_t region,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hImageSrc;
-  std::ignore = hImageDst;
-  std::ignore = srcOrigin;
-  std::ignore = dstOrigin;
-  std::ignore = region;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_queue_handle_t /*hQueue*/, ur_mem_handle_t /*hImageSrc*/,
+    ur_mem_handle_t /*hImageDst*/, ur_rect_offset_t /*srcOrigin*/,
+    ur_rect_offset_t /*dstOrigin*/, ur_rect_region_t /*region*/,
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingMap,
-    ur_map_flags_t mapFlags, size_t offset, size_t size,
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool /*blockingMap*/,
+    ur_map_flags_t /*mapFlags*/, size_t offset, size_t /*size*/,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent, void **ppRetMap) {
-  std::ignore = blockingMap;
-  std::ignore = mapFlags;
-  std::ignore = size;
 
   return withTimingEvent(UR_COMMAND_MEM_BUFFER_MAP, hQueue, numEventsInWaitList,
                          phEventWaitList, phEvent, [&]() {
@@ -550,11 +527,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hMem, void *pMappedPtr,
+    ur_queue_handle_t hQueue, ur_mem_handle_t /*hMem*/, void * /*pMappedPtr*/,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  std::ignore = hMem;
-  std::ignore = pMappedPtr;
   return withTimingEvent(UR_COMMAND_MEM_UNMAP, hQueue, numEventsInWaitList,
                          phEventWaitList, phEvent,
                          [&]() { return UR_RESULT_SUCCESS; });
@@ -571,14 +546,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
         UR_ASSERT(pPattern, UR_RESULT_ERROR_INVALID_NULL_POINTER);
         UR_ASSERT(patternSize != 0, UR_RESULT_ERROR_INVALID_SIZE)
         UR_ASSERT(size != 0, UR_RESULT_ERROR_INVALID_SIZE)
-        UR_ASSERT(patternSize < size, UR_RESULT_ERROR_INVALID_SIZE)
+        UR_ASSERT(patternSize <= size, UR_RESULT_ERROR_INVALID_SIZE)
         UR_ASSERT(size % patternSize == 0, UR_RESULT_ERROR_INVALID_SIZE)
         // TODO: add check for allocation size once the query is supported
 
         switch (patternSize) {
         case 1:
-          memset(ptr, *static_cast<const uint8_t *>(pPattern),
-                 size * patternSize);
+          memset(ptr, *static_cast<const uint8_t *>(pPattern), size);
           break;
         case 2: {
           const auto pattern = *static_cast<const uint16_t *>(pPattern);
@@ -617,10 +591,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
-    ur_queue_handle_t hQueue, bool blocking, void *pDst, const void *pSrc,
+    ur_queue_handle_t hQueue, bool /*blocking*/, void *pDst, const void *pSrc,
     size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = blocking;
   return withTimingEvent(
       UR_COMMAND_USM_MEMCPY, hQueue, numEventsInWaitList, phEventWaitList,
       phEvent, [&]() {
@@ -635,143 +608,79 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
-    ur_queue_handle_t hQueue, const void *pMem, size_t size,
-    ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = pMem;
-  std::ignore = size;
-  std::ignore = flags;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_queue_handle_t /*hQueue*/, const void * /*pMem*/, size_t /*size*/,
+    ur_usm_migration_flags_t /*flags*/, uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
 
   // TODO: properly implement USM prefetch
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
-                   ur_usm_advice_flags_t advice, ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = pMem;
-  std::ignore = size;
-  std::ignore = advice;
-  std::ignore = phEvent;
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
+    ur_queue_handle_t /*hQueue*/, const void * /*pMem*/, size_t /*size*/,
+    ur_usm_advice_flags_t /*advice*/, ur_event_handle_t * /*phEvent*/) {
 
   // TODO: properly implement USM advise
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
-    ur_queue_handle_t hQueue, void *pMem, size_t pitch, size_t patternSize,
-    const void *pPattern, size_t width, size_t height,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = pMem;
-  std::ignore = pitch;
-  std::ignore = patternSize;
-  std::ignore = pPattern;
-  std::ignore = width;
-  std::ignore = height;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_queue_handle_t /*hQueue*/, void * /*pMem*/, size_t /*pitch*/,
+    size_t /*patternSize*/, const void * /*pPattern*/, size_t /*width*/,
+    size_t /*height*/, uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
-    ur_queue_handle_t hQueue, bool blocking, void *pDst, size_t dstPitch,
-    const void *pSrc, size_t srcPitch, size_t width, size_t height,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = blocking;
-  std::ignore = pDst;
-  std::ignore = dstPitch;
-  std::ignore = pSrc;
-  std::ignore = srcPitch;
-  std::ignore = width;
-  std::ignore = height;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_queue_handle_t /*hQueue*/, bool /*blocking*/, void * /*pDst*/,
+    size_t /*dstPitch*/, const void * /*pSrc*/, size_t /*srcPitch*/,
+    size_t /*width*/, size_t /*height*/, uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
-    bool blockingWrite, size_t count, size_t offset, const void *pSrc,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hProgram;
-  std::ignore = name;
-  std::ignore = blockingWrite;
-  std::ignore = count;
-  std::ignore = offset;
-  std::ignore = pSrc;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_queue_handle_t /*hQueue*/, ur_program_handle_t /*hProgram*/,
+    const char * /*name*/, bool /*blockingWrite*/, size_t /*count*/,
+    size_t /*offset*/, const void * /*pSrc*/, uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
-    bool blockingRead, size_t count, size_t offset, void *pDst,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hProgram;
-  std::ignore = name;
-  std::ignore = blockingRead;
-  std::ignore = count;
-  std::ignore = offset;
-  std::ignore = pDst;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_queue_handle_t /*hQueue*/, ur_program_handle_t /*hProgram*/,
+    const char * /*name*/, bool /*blockingRead*/, size_t /*count*/,
+    size_t /*offset*/, void * /*pDst*/, uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
-    const char *pipe_symbol, bool blocking, void *pDst, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hProgram;
-  std::ignore = pipe_symbol;
-  std::ignore = blocking;
-  std::ignore = pDst;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_queue_handle_t /*hQueue*/, ur_program_handle_t /*hProgram*/,
+    const char * /*pipe_symbol*/, bool /*blocking*/, void * /*pDst*/,
+    size_t /*size*/, uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
-    ur_queue_handle_t hQueue, ur_program_handle_t hProgram,
-    const char *pipe_symbol, bool blocking, void *pSrc, size_t size,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hProgram;
-  std::ignore = pipe_symbol;
-  std::ignore = blocking;
-  std::ignore = pSrc;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_queue_handle_t /*hQueue*/, ur_program_handle_t /*hProgram*/,
+    const char * /*pipe_symbol*/, bool /*blocking*/, void * /*pSrc*/,
+    size_t /*size*/, uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
 
   DIE_NO_IMPLEMENTATION;
 }

@@ -108,27 +108,24 @@ int main(int argc, const char **argv) {
 
   cl::opt<std::string> FilesType(
       "type", cl::Required,
-      cl::desc("Type of the files to be bundled/unbundled/checked.\n"
-             "Current supported types are:\n"
-             "  i   - cpp-output\n"
-             "  ii  - c++-cpp-output\n"
-             "  cui - cuda/hip-output\n"
-             "  hipi - hip-cpp-output\n"
-             "  d   - dependency\n"
-             "  ll  - llvm\n"
-             "  bc  - llvm-bc\n"
-             "  s   - assembler\n"
-             "  o   - object\n"
-             "  gch - precompiled-header\n"
-             "  ast - clang AST file\n"
-             "  a   - archive of objects\n"
-             "  ao  - archive with one object; output is an unbundled object\n"
-             "  aocr - AOCR archive; output file is a list of unbundled\n"
-             "         .aocr files\n"
-             "  aocx - AOCX archive; output file is a list of unbundled\n"
-             "         .aocx files\n"
-             "  aoo - archive; output file is a list of unbundled objects\n"),
-    cl::cat(ClangOffloadBundlerCategory));
+      cl::desc(
+          "Type of the files to be bundled/unbundled/checked.\n"
+          "Current supported types are:\n"
+          "  i   - cpp-output\n"
+          "  ii  - c++-cpp-output\n"
+          "  cui - cuda/hip-output\n"
+          "  hipi - hip-cpp-output\n"
+          "  d   - dependency\n"
+          "  ll  - llvm\n"
+          "  bc  - llvm-bc\n"
+          "  s   - assembler\n"
+          "  o   - object\n"
+          "  gch - precompiled-header\n"
+          "  ast - clang AST file\n"
+          "  a   - archive of objects\n"
+          "  ao  - archive with one object; output is an unbundled object\n"
+          "  aoo - archive; output file is a list of unbundled objects\n"),
+      cl::cat(ClangOffloadBundlerCategory));
 
   cl::opt<bool>
     Unbundle("unbundle",
@@ -430,6 +427,15 @@ int main(int argc, const char **argv) {
           errc::invalid_argument, "Duplicate targets are not allowed"));
     }
 
+    if (!checkOffloadBundleID(Target)) {
+      return reportError(createStringError(
+          errc::invalid_argument,
+          "Targets need to follow the format '<offload kind>-<target triple>', "
+          "where '<target triple>' follows the format "
+          "'<kind>-<arch>-<vendor>-<os>-<env>[-<target id>[:target "
+          "features]]'."));
+    }
+
     auto OffloadInfo = OffloadTargetInfo(Target, BundlerConfig);
     bool KindIsValid = OffloadInfo.isOffloadKindValid();
     bool TripleIsValid = OffloadInfo.isTripleValid();
@@ -496,12 +502,9 @@ int main(int argc, const char **argv) {
   OffloadBundler Bundler(BundlerConfig);
 
   return doWork([&]() {
-    if (Unbundle) {
-      if (BundlerConfig.FilesType == "a")
-        return Bundler.UnbundleArchive();
-      else
-        return Bundler.UnbundleFiles();
-    } else
-      return Bundler.BundleFiles();
+    if (Unbundle)
+      return (BundlerConfig.FilesType == "a") ? Bundler.UnbundleArchive()
+                                              : Bundler.UnbundleFiles();
+    return Bundler.BundleFiles();
   });
 }

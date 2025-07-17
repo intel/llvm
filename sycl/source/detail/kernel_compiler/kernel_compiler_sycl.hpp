@@ -10,11 +10,16 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp> // __SYCL_EXPORT
+#include <sycl/detail/string_view.hpp>
 
 #include <detail/compiler.hpp> // sycl_device_binaries
 
 #include <string>
 #include <vector>
+
+namespace jit_compiler {
+enum class BinaryFormat : uint32_t;
+}
 
 namespace sycl {
 inline namespace _V1 {
@@ -23,7 +28,8 @@ namespace detail {
 
 using include_pairs_t = std::vector<std::pair<std::string, std::string>>;
 
-std::string userArgsAsString(const std::vector<std::string> &UserArguments);
+std::string
+userArgsAsString(const std::vector<sycl::detail::string_view> &UserArguments);
 
 // Compile the given SYCL source string and virtual include files into the image
 // format understood by the program manager.
@@ -32,7 +38,8 @@ std::string userArgsAsString(const std::vector<std::string> &UserArguments);
 // bundle-specific prefix used for loading the kernels.
 std::pair<sycl_device_binaries, std::string>
 SYCL_JIT_Compile(const std::string &Source, const include_pairs_t &IncludePairs,
-                 const std::vector<std::string> &UserArgs, std::string *LogPtr);
+                 const std::vector<sycl::detail::string_view> &UserArgs,
+                 std::string *LogPtr);
 
 void SYCL_JIT_Destroy(sycl_device_binaries Binaries);
 

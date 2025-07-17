@@ -8,14 +8,12 @@
 
 // REQUIRES: (opencl || level_zero)
 
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
-
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/platform.hpp>
 #include <sycl/usm.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -41,7 +39,7 @@ int main() {
       return false;
     }
     for (auto dev : devices) {
-      if (!dev.ext_oneapi_can_compile(syclexp::source_language::sycl)) {
+      if (!dev.ext_oneapi_can_build(syclexp::source_language::sycl)) {
         return false;
       }
     }

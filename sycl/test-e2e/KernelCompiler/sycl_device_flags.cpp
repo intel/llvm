@@ -119,8 +119,7 @@ int main(int argc, char *argv[]) {
   sycl::queue q;
   sycl::context ctx = q.get_context();
 
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = q.get_device().ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     std::cout << "compiling from SYCL source not supported" << std::endl;
     return 0; // if kernel compilation is not supported, do nothing.

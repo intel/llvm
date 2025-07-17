@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/access/access.hpp>                     // for target, mode
-#include <sycl/atomic.hpp>                            // for atomic
 #include <sycl/buffer.hpp>                            // for range
 #include <sycl/detail/accessor_iterator.hpp>          // for accessor_iterator
 #include <sycl/detail/common.hpp>                     // for code_location
@@ -215,6 +214,8 @@
 namespace sycl {
 inline namespace _V1 {
 class stream;
+template <typename T, access::address_space addressSpace> class atomic;
+
 namespace ext::intel::esimd::detail {
 // Forward declare a "back-door" access class to support ESIMD.
 class AccessorPrivateProxy;
@@ -227,6 +228,10 @@ template <typename DataT, int Dimensions = 1,
           typename PropertyListT = ext::oneapi::accessor_property_list<>>
 class accessor;
 
+namespace ext::oneapi::experimental {
+template <typename, int> class dynamic_local_accessor;
+}
+
 namespace detail {
 
 template <typename... Ts>
@@ -236,7 +241,7 @@ template <typename... Ts>
 void cannot_be_called_on_host([[maybe_unused]] const char *API,
                               Ts &&.../* ignore */) {
 #ifndef __SYCL_DEVICE_ONLY__
-  std::fprintf(stderr, "%s cannot be called on host!\n", API);
+  std::cerr << API << " cannot be called on host!" << std::endl;
   std::abort();
 #endif
 }
@@ -1751,14 +1756,14 @@ public:
   }
 
   template <int Dims = Dimensions>
-  operator typename std::enable_if_t<Dims == 0 &&
-                                         AccessMode == access::mode::atomic,
+  operator typename std::enable_if_t<
+      Dims == 0 && AccessMode == access::mode::atomic,
 #ifdef __ENABLE_USM_ADDR_SPACE__
-                                     atomic<DataT>
+      atomic<DataT, access::address_space::global_space>
 #else
-                                     atomic<DataT, AS>
+      atomic<DataT, AS>
 #endif
-                                     >() const {
+      >() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + LinearIndex));
@@ -2638,6 +2643,8 @@ public:
 
 private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
+  template <typename, int>
+  friend class ext::oneapi::experimental::dynamic_local_accessor;
 };
 
 template <typename DataT, int Dimensions = 1,

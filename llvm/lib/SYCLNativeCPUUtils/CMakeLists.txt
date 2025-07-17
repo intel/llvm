@@ -3,8 +3,6 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
   ConvertToMuxBuiltinsSYCLNativeCPU.cpp
-  FixABIMuxBuiltinsSYCLNativeCPU.cpp
-  FAtomicsNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -35,15 +33,15 @@ endif()
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
-    # commit 652f9943b0bfcf61123a0f82b2bdd499738c5391
-    # Merge: c24c971bcb e0f02ae739
-    # Author: Colin Davidson <colin.davidson@codeplay.com>
-    # Date:   Fri Feb 28 15:59:50 2025 +0000
+    # commit d0a32d701e34b3285de7ce776ea36abfec673df7
+    # Merge: a9f848e0e8 56473a8c25
+    # Author: Harald van Dijk <harald.vandijk@codeplay.com>
+    # Date:   Mon Jun 30 12:24:46 2025 +0100
     # 
-    #     Merge pull request #677 from coldav/colin/build_installed_llvm
+    #     Merge pull request #878 from hvdijk/specify-fuse-ld-lld
     #     
-    #     Change llvm over to a choice of install or cache, default PRs to install
-    set(OCK_GIT_INTERNAL_TAG 652f9943b0bfcf61123a0f82b2bdd499738c5391)
+    #     [RefSi] Explicitly specify -fuse-ld=lld.
+    set(OCK_GIT_INTERNAL_TAG d0a32d701e34b3285de7ce776ea36abfec673df7)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)

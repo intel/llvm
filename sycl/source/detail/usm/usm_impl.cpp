@@ -62,10 +62,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
   if (Size == 0)
     return nullptr;
 
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(Ctxt);
-  ur_context_handle_t C = CtxImpl->getHandleRef();
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  auto [urCtx, Adapter] = get_ur_handles(Ctxt);
   ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
 
     ur_usm_desc_t UsmDesc{};
@@ -87,7 +84,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
     }
 
     Error = Adapter->call_nocheck<sycl::detail::UrApiKind::urUSMHostAlloc>(
-        C, &UsmDesc,
+        urCtx, &UsmDesc,
         /* pool= */ nullptr, Size, &RetVal);
 
     // Error is for debugging purposes.
@@ -132,7 +129,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     return nullptr;
 
   ur_context_handle_t C = CtxImpl->getHandleRef();
-  const AdapterPtr &Adapter = CtxImpl->getAdapter();
+  adapter_impl &Adapter = CtxImpl->getAdapter();
   ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
   ur_device_handle_t Dev;
 
@@ -158,7 +155,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       UsmDesc.pNext = &UsmLocationDesc;
     }
 
-    Error = Adapter->call_nocheck<detail::UrApiKind::urUSMDeviceAlloc>(
+    Error = Adapter.call_nocheck<detail::UrApiKind::urUSMDeviceAlloc>(
         C, Dev, &UsmDesc,
         /*pool=*/nullptr, Size, &RetVal);
 
@@ -195,7 +192,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       UsmDeviceDesc.pNext = &UsmLocationDesc;
     }
 
-    Error = Adapter->call_nocheck<detail::UrApiKind::urUSMSharedAlloc>(
+    Error = Adapter.call_nocheck<detail::UrApiKind::urUSMSharedAlloc>(
         C, Dev, &UsmDesc,
         /*pool=*/nullptr, Size, &RetVal);
 
@@ -252,8 +249,8 @@ void freeInternal(void *Ptr, const context_impl *CtxImpl) {
   if (Ptr == nullptr)
     return;
   ur_context_handle_t C = CtxImpl->getHandleRef();
-  const AdapterPtr &Adapter = CtxImpl->getAdapter();
-  Adapter->call<detail::UrApiKind::urUSMFree>(C, Ptr);
+  adapter_impl &Adapter = CtxImpl->getAdapter();
+  Adapter.call<detail::UrApiKind::urUSMFree>(C, Ptr);
 }
 
 void free(void *Ptr, const context &Ctxt,
@@ -521,20 +518,18 @@ void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind,
 ///
 /// \param Ptr is the USM pointer to query
 /// \param Ctxt is the sycl context the ptr was allocated in
-alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
+namespace detail {
+alloc get_pointer_type(const void *Ptr, context_impl &Ctxt) {
   if (!Ptr)
     return alloc::unknown;
 
-  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-
-  ur_context_handle_t URCtx = CtxImpl->getHandleRef();
+  auto [urCtx, Adapter] = get_ur_handles(Ctxt);
   ur_usm_type_t AllocTy;
 
   // query type using UR function
-  const detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
   ur_result_t Err =
       Adapter->call_nocheck<detail::UrApiKind::urUSMGetMemAllocInfo>(
-          URCtx, Ptr, UR_USM_ALLOC_INFO_TYPE, sizeof(ur_usm_type_t), &AllocTy,
+          urCtx, Ptr, UR_USM_ALLOC_INFO_TYPE, sizeof(ur_usm_type_t), &AllocTy,
           nullptr);
 
   // UR_RESULT_ERROR_INVALID_VALUE means USM doesn't know about this ptr
@@ -565,6 +560,12 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 
   return ResultAlloc;
 }
+} // namespace detail
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_EXPORT alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
+  return get_pointer_type(Ptr, *getSyclObjImpl(Ctxt));
+}
+#endif
 
 /// Queries the device against which the pointer was allocated
 ///
@@ -576,35 +577,32 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
     throw exception(make_error_code(errc::invalid),
                     "Ptr not a valid USM allocation!");
 
-  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  auto [urCtx, Adapter] = get_ur_handles(Ctxt);
 
   // Check if ptr is a host allocation
   if (get_pointer_type(Ptr, Ctxt) == alloc::host) {
-    auto Devs = CtxImpl->getDevices();
+    detail::devices_range Devs = detail::getSyclObjImpl(Ctxt)->getDevices();
     if (Devs.size() == 0)
       throw exception(make_error_code(errc::invalid),
                       "No devices in passed context!");
 
     // Just return the first device in the context
-    return Devs[0];
+    return detail::createSyclObjFromImpl<device>(Devs.front());
   }
 
-  ur_context_handle_t URCtx = CtxImpl->getHandleRef();
   ur_device_handle_t DeviceId;
 
   // query device using UR function
-  const detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
   Adapter->call<detail::UrApiKind::urUSMGetMemAllocInfo>(
-      URCtx, Ptr, UR_USM_ALLOC_INFO_DEVICE, sizeof(ur_device_handle_t),
+      urCtx, Ptr, UR_USM_ALLOC_INFO_DEVICE, sizeof(ur_device_handle_t),
       &DeviceId, nullptr);
 
   // The device is not necessarily a member of the context, it could be a
   // member's descendant instead. Fetch the corresponding device from the cache.
-  std::shared_ptr<detail::platform_impl> PltImpl = CtxImpl->getPlatformImpl();
-  std::shared_ptr<detail::device_impl> DevImpl =
-      PltImpl->getDeviceImpl(DeviceId);
-  if (DevImpl)
-    return detail::createSyclObjFromImpl<device>(DevImpl);
+  if (detail::device_impl *DevImpl =
+          detail::getSyclObjImpl(Ctxt)->getPlatformImpl().getDeviceImpl(
+              DeviceId))
+    return detail::createSyclObjFromImpl<device>(*DevImpl);
   throw exception(make_error_code(errc::runtime),
                   "Cannot find device associated with USM allocation!");
 }
@@ -613,20 +611,16 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 
 static void prepare_for_usm_device_copy(const void *Ptr, size_t Size,
                                         const context &Ctxt) {
-  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-  ur_context_handle_t URCtx = CtxImpl->getHandleRef();
+  auto [urCtx, Adapter] = get_ur_handles(Ctxt);
   // Call the UR function
-  const detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
   Adapter->call<detail::UrApiKind::urUSMImportExp>(
-      URCtx, const_cast<void *>(Ptr), Size);
+      urCtx, const_cast<void *>(Ptr), Size);
 }
 
 static void release_from_usm_device_copy(const void *Ptr, const context &Ctxt) {
-  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-  ur_context_handle_t URCtx = CtxImpl->getHandleRef();
+  auto [urCtx, Adapter] = get_ur_handles(Ctxt);
   // Call the UR function
-  const detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
-  Adapter->call<detail::UrApiKind::urUSMReleaseExp>(URCtx,
+  Adapter->call<detail::UrApiKind::urUSMReleaseExp>(urCtx,
                                                     const_cast<void *>(Ptr));
 }
 

@@ -22,23 +22,21 @@
 namespace sycl {
 inline namespace _V1 {
 
-event::event() : impl(std::make_shared<detail::event_impl>(std::nullopt)) {}
+event::event() : impl(detail::event_impl::create_default_event()) {}
 
 event::event(cl_event ClEvent, const context &SyclContext)
-    : impl(std::make_shared<detail::event_impl>(
+    : impl(detail::event_impl::create_from_handle(
           detail::ur::cast<ur_event_handle_t>(ClEvent), SyclContext)) {
   // This is a special interop constructor for OpenCL, so the event must be
   // retained.
-  // TODO(pi2ur): Don't just cast from cl_event above
-  impl->getAdapter()->call<detail::UrApiKind::urEventRetain>(
-      detail::ur::cast<ur_event_handle_t>(ClEvent));
+  __SYCL_OCL_CALL(clRetainEvent, ClEvent);
 }
 
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
 
-void event::wait() { impl->wait(impl); }
+void event::wait() { impl->wait(); }
 
 void event::wait(const std::vector<event> &EventList) {
   for (auto E : EventList) {
@@ -46,7 +44,7 @@ void event::wait(const std::vector<event> &EventList) {
   }
 }
 
-void event::wait_and_throw() { impl->wait_and_throw(impl); }
+void event::wait_and_throw() { impl->wait_and_throw(); }
 
 void event::wait_and_throw(const std::vector<event> &EventList) {
   for (auto E : EventList) {
@@ -89,7 +87,7 @@ event::get_profiling_info() const {
   }
 
   if constexpr (!std::is_same_v<Param, info::event_profiling::command_submit>) {
-    impl->wait(impl);
+    impl->wait();
   }
   return impl->template get_profiling_info<Param>();
 }

@@ -26,6 +26,7 @@
 #include "queue.hpp"
 #include "usm.hpp"
 
+#include "common/ur_ref_count.hpp"
 #include <umf_helpers.hpp>
 
 struct l0_command_list_cache_info {
@@ -54,16 +55,18 @@ typedef struct _ze_intel_event_sync_mode_exp_desc_t {
 
 extern const bool UseUSMAllocator;
 
-struct ur_context_handle_t_ : _ur_object {
+struct ur_context_handle_t_ : ur_object {
   ur_context_handle_t_(ze_context_handle_t ZeContext, uint32_t NumDevices,
                        const ur_device_handle_t *Devs, bool OwnZeContext)
       : ZeContext{ZeContext}, Devices{Devs, Devs + NumDevices},
-        NumDevices{NumDevices}, DefaultPool{this, nullptr, !UseUSMAllocator} {
+        NumDevices{NumDevices}, DefaultPool{this, nullptr, !UseUSMAllocator},
+        AsyncPool{this, nullptr, !UseUSMAllocator} {
     OwnNativeHandle = OwnZeContext;
   }
 
   ur_context_handle_t_(ze_context_handle_t ZeContext)
-      : ZeContext{ZeContext}, DefaultPool{this, nullptr, !UseUSMAllocator} {}
+      : ZeContext{ZeContext}, DefaultPool{this, nullptr, !UseUSMAllocator},
+        AsyncPool{this, nullptr, !UseUSMAllocator} {}
 
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
@@ -125,6 +128,9 @@ struct ur_context_handle_t_ : _ur_object {
   // internally pool memory. Actual implementation during runtime is decided by
   // the 'UseUSMAllocator' variable value.
   ur_usm_pool_handle_t_ DefaultPool;
+
+  // USM pools for async allocations.
+  ur_usm_pool_handle_t_ AsyncPool;
 
   // Map associating pools created with urUsmPoolCreate and internal pools
   std::list<ur_usm_pool_handle_t> UsmPoolHandles{};
@@ -352,6 +358,8 @@ struct ur_context_handle_t_ : _ur_object {
 
   // Get handle to the L0 context
   ze_context_handle_t getZeHandle() const;
+
+  ur::RefCount RefCount;
 
 private:
   enum EventFlags {
