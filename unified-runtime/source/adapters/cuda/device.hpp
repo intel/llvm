@@ -15,6 +15,7 @@
 #include <umf/memory_provider.h>
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 
 struct ur_device_handle_t_ : ur::cuda::handle_base {
 private:
@@ -23,7 +24,6 @@ private:
   native_type CuDevice;
   CUcontext CuContext;
   CUevent EvBase; // CUDA event used as base counter
-  std::atomic_uint32_t RefCount;
   ur_platform_handle_t Platform;
   uint32_t DeviceIndex;
 
@@ -42,7 +42,7 @@ public:
   ur_device_handle_t_(native_type cuDevice, CUcontext cuContext, CUevent evBase,
                       ur_platform_handle_t platform, uint32_t DevIndex)
       : handle_base(), CuDevice(cuDevice), CuContext(cuContext), EvBase(evBase),
-        RefCount{1}, Platform(platform), DeviceIndex{DevIndex} {
+        Platform(platform), DeviceIndex{DevIndex} {
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
         cuDevice));
@@ -136,8 +136,6 @@ public:
 
   CUcontext getNativeContext() const noexcept { return CuContext; };
 
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
-
   ur_platform_handle_t getPlatform() const noexcept { return Platform; };
 
   // Returns the index of the device relative to the other devices in the same
@@ -178,6 +176,8 @@ public:
   // (UMF_MEMORY_TYPE_SHARED)
   umf_memory_provider_handle_t MemoryProviderShared;
   umf_memory_pool_handle_t MemoryPoolShared;
+
+  ur::RefCount RefCount;
 };
 
 int getAttribute(ur_device_handle_t Device, CUdevice_attribute Attribute);

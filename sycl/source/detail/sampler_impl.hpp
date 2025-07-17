@@ -30,7 +30,6 @@ enum class coordinate_normalization_mode : unsigned int;
 namespace detail {
 
 class context_impl;
-using ContextImplPtr = std::shared_ptr<context_impl>;
 
 class sampler_impl {
 public:
@@ -38,7 +37,7 @@ public:
                addressing_mode addressingMode, filtering_mode filteringMode,
                const property_list &propList);
 
-  sampler_impl(cl_sampler clSampler, const ContextImplPtr &syclContext);
+  sampler_impl(cl_sampler clSampler, context_impl &syclContext);
 
   addressing_mode get_addressing_mode() const;
 
@@ -46,7 +45,7 @@ public:
 
   coordinate_normalization_mode get_coordinate_normalization_mode() const;
 
-  ur_sampler_handle_t getOrCreateSampler(const ContextImplPtr &ContextImpl);
+  ur_sampler_handle_t getOrCreateSampler(context_impl &ContextImpl);
 
   ~sampler_impl();
 
@@ -56,7 +55,8 @@ private:
   /// Protects all the fields that can be changed by class' methods.
   std::mutex MMutex;
 
-  std::unordered_map<ContextImplPtr, ur_sampler_handle_t> MContextToSampler;
+  std::unordered_map<std::shared_ptr<context_impl>, ur_sampler_handle_t>
+      MContextToSampler;
 
   coordinate_normalization_mode MCoordNormMode;
   addressing_mode MAddrMode;

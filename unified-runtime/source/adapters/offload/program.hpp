@@ -17,4 +17,7 @@
 
 struct ur_program_handle_t_ : RefCounted {
   ol_program_handle_t OffloadProgram;
+  ur_context_handle_t URContext;
+  const uint8_t *Binary;
+  size_t BinarySizeInBytes;
 };

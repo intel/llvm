@@ -1,5 +1,7 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17339
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19116
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: spirv-backend

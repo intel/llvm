@@ -82,6 +82,8 @@ struct TsanLocalArgsInfo {
 constexpr uint64_t TSAN_MAX_NUM_REPORTS = 128;
 
 struct TsanRuntimeData {
+  uint32_t RecordedReportCount = 0;
+
   uintptr_t GlobalShadowOffset = 0;
 
   uintptr_t GlobalShadowOffsetEnd = 0;
@@ -102,8 +104,6 @@ struct TsanRuntimeData {
   uint32_t Debug = 0;
 
   int Lock = 0;
-
-  uint32_t RecordedReportCount = 0;
 
   TsanErrorReport Report[TSAN_MAX_NUM_REPORTS];
 };

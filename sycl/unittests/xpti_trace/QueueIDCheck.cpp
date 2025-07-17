@@ -87,8 +87,8 @@ TEST_F(QueueID, QueueID_QueueCreationAndDestroy) {
   std::string Queue1IDSTr;
   {
     sycl::queue Q0{Context, sycl::default_selector{}};
-    auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
-    Queue0IDSTr = std::to_string(Queue0ImplPtr->getQueueID());
+    sycl::detail::queue_impl &Queue0Impl = *sycl::detail::getSyclObjImpl(Q0);
+    Queue0IDSTr = std::to_string(Queue0Impl.getQueueID());
     ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
     EXPECT_EQ(TraceType, xpti::trace_queue_create);
     EXPECT_THAT(Message, HasSubstr("create:queue_id:" + Queue0IDSTr));
@@ -97,8 +97,8 @@ TEST_F(QueueID, QueueID_QueueCreationAndDestroy) {
                                    std::to_string(size_t(QueueHandle))));
 
     sycl::queue Q1{Context, sycl::default_selector{}};
-    auto Queue1ImplPtr = sycl::detail::getSyclObjImpl(Q1);
-    Queue1IDSTr = std::to_string(Queue1ImplPtr->getQueueID());
+    sycl::detail::queue_impl &Queue1Impl = *sycl::detail::getSyclObjImpl(Q1);
+    Queue1IDSTr = std::to_string(Queue1Impl.getQueueID());
     ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
     EXPECT_EQ(TraceType, xpti::trace_queue_create);
     EXPECT_THAT(Message, HasSubstr("create:queue_id:" + Queue1IDSTr));
@@ -118,18 +118,18 @@ TEST_F(QueueID, QueueID_QueueCreationAndDestroy) {
 TEST_F(QueueID, QueueCreationAndKernelWithDeps) {
   sycl::queue Q0;
   sycl::queue Q1;
-  auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
-  auto Queue1ImplPtr = sycl::detail::getSyclObjImpl(Q1);
+  sycl::detail::queue_impl &Queue0Impl = *sycl::detail::getSyclObjImpl(Q0);
+  sycl::detail::queue_impl &Queue1Impl = *sycl::detail::getSyclObjImpl(Q1);
   sycl::buffer<int, 1> buf(sycl::range<1>(1));
   Q1.submit(
         [&](handler &Cgh) {
           sycl::accessor acc(buf, Cgh, sycl::read_write);
-          Cgh.parallel_for<TestKernel<1>>(1, [=](sycl::id<1> idx) {});
+          Cgh.parallel_for<TestKernel>(1, [=](sycl::id<1> idx) {});
         },
         {FileName, FunctionName, 1, 0})
       .wait();
-  EXPECT_NE(Queue1ImplPtr->getQueueID(), Queue0ImplPtr->getQueueID());
-  auto QueueIDSTr = std::to_string(Queue1ImplPtr->getQueueID());
+  EXPECT_NE(Queue1Impl.getQueueID(), Queue0Impl.getQueueID());
+  auto QueueIDSTr = std::to_string(Queue1Impl.getQueueID());
   // alloca
   checkTaskBeginEnd(QueueIDSTr);
   // kernel
@@ -140,8 +140,8 @@ TEST_F(QueueID, QueueCreationAndKernelWithDeps) {
 // https://github.com/intel/llvm/issues/12963
 TEST_F(QueueID, DISABLED_QueueCreationUSMOperations) {
   sycl::queue Q0;
-  auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
-  auto QueueIDSTr = std::to_string(Queue0ImplPtr->getQueueID());
+  sycl::detail::queue_impl &Queue0Impl = *sycl::detail::getSyclObjImpl(Q0);
+  auto QueueIDSTr = std::to_string(Queue0Impl.getQueueID());
 
   unsigned char *AllocSrc = (unsigned char *)sycl::malloc_device(1, Q0);
   unsigned char *AllocDst = (unsigned char *)sycl::malloc_device(1, Q0);
@@ -165,15 +165,15 @@ TEST_F(QueueID, QueueCreationAndKernelNoDeps) {
   sycl::queue Q0;
   sycl::queue Q1;
 
-  auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
-  auto Queue0IDSTr = std::to_string(Queue0ImplPtr->getQueueID());
+  sycl::detail::queue_impl &Queue0Impl = *sycl::detail::getSyclObjImpl(Q0);
+  auto Queue0IDSTr = std::to_string(Queue0Impl.getQueueID());
 
-  auto Queue1ImplPtr = sycl::detail::getSyclObjImpl(Q1);
-  auto Queue1IDSTr = std::to_string(Queue1ImplPtr->getQueueID());
+  sycl::detail::queue_impl &Queue1Impl = *sycl::detail::getSyclObjImpl(Q1);
+  auto Queue1IDSTr = std::to_string(Queue1Impl.getQueueID());
 
   Q0.submit(
         [&](handler &Cgh) {
-          Cgh.parallel_for<TestKernel<1>>(1, [=](sycl::id<1> idx) {});
+          Cgh.parallel_for<TestKernel>(1, [=](sycl::id<1> idx) {});
         },
         {FileName, FunctionName, 2, 0})
       .wait();
@@ -181,7 +181,7 @@ TEST_F(QueueID, QueueCreationAndKernelNoDeps) {
 
   Q1.submit(
         [&](handler &Cgh) {
-          Cgh.parallel_for<TestKernel<1>>(1, [=](sycl::id<1> idx) {});
+          Cgh.parallel_for<TestKernel>(1, [=](sycl::id<1> idx) {});
         },
         {FileName, FunctionName, 3, 0})
       .wait();
