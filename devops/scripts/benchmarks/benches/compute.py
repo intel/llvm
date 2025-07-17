@@ -94,7 +94,7 @@ class ComputeBench(Suite):
         self.built = True
 
     def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
-        return {
+        metadata = {
             "SubmitKernel": BenchmarkMetadata(
                 type="group",
                 description="Measures CPU time overhead of submitting kernels through different APIs.",
@@ -118,13 +118,43 @@ class ComputeBench(Suite):
             ),
         }
 
+        # Add metadata for all SubmitKernel group variants
+        base_metadata = metadata["SubmitKernel"]
+
+        for order in ["in order", "out of order"]:
+            for completion in ["", " with completion"]:
+                for events in ["", " using events"]:
+                    group_name = f"SubmitKernel {order}{completion}{events} long kernel"
+                    metadata[group_name] = BenchmarkMetadata(
+                        type="group",
+                        description=f"Measures CPU time overhead of submitting {order} kernels with longer execution times through different APIs.",
+                        notes=base_metadata.notes,
+                        tags=base_metadata.tags,
+                        range_min=base_metadata.range_min,
+                    )
+
+                    # CPU count variants
+                    cpu_count_group = f"{group_name}, CPU count"
+                    metadata[cpu_count_group] = BenchmarkMetadata(
+                        type="group",
+                        description=f"Measures CPU time overhead of submitting {order} kernels with longer execution times through different APIs.",
+                        notes=base_metadata.notes,
+                        tags=base_metadata.tags,
+                        range_min=base_metadata.range_min,
+                    )
+
+        return metadata
+
     def benchmarks(self) -> list[Benchmark]:
         benches = []
 
         # hand-picked value so that total execution time of the benchmark is
         # similar on all architectures
-        long_lernel_exec_time_ioq = 20
-        long_kernel_exec_time_ooo = 200 if "bmg" in options.device_architecture else 20
+        long_lernel_exec_time_ioq = [20]
+        # For BMG server, a new value 200 is used, but we have to create metadata
+        # for both values to keep the dashboard consistent.
+        # See SubmitKernel.enabled()
+        long_kernel_exec_time_ooo = [20, 200]
 
         for runtime in list(RUNTIMES):
             # Add SubmitKernel benchmarks using loops
@@ -136,7 +166,7 @@ class ComputeBench(Suite):
                             if in_order_queue
                             else long_kernel_exec_time_ooo
                         )
-                        for kernel_exec_time in [1, long_kernel_exec_time]:
+                        for kernel_exec_time in [1, *long_kernel_exec_time]:
                             benches.append(
                                 SubmitKernel(
                                     self,
@@ -369,6 +399,16 @@ class SubmitKernel(ComputeBenchmark):
     def supported_runtimes(self) -> list[RUNTIMES]:
         return super().supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
+    def enabled(self) -> bool:
+        # This is a workaround for the BMG server where we have old results for self.KernelExecTime=20
+        # The benchmark instance gets created just to make metadata for these old results
+        if not super().enabled():
+            return False
+        if "bmg" in options.device_architecture and self.KernelExecTime == 20:
+            # Disable this benchmark for BMG server, just create metadata
+            return False
+        return True
+
     def get_tags(self):
         return ["submit", "latency", runtime_to_tag_name(self.runtime), "micro"]
 
@@ -403,9 +443,7 @@ class SubmitKernel(ComputeBenchmark):
         completion_str = " with completion" if self.MeasureCompletion else ""
         events_str = " using events" if self.UseEvents else ""
 
-        kernel_exec_time_str = (
-            f" KernelExecTime={self.KernelExecTime}" if self.KernelExecTime != 1 else ""
-        )
+        kernel_exec_time_str = f" long kernel" if self.KernelExecTime != 1 else ""
 
         return f"SubmitKernel {order}{completion_str}{events_str}{kernel_exec_time_str}"
 
