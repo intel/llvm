@@ -22,6 +22,7 @@ config.backend_to_target = {
     "cuda": "target-nvidia",
     "hip": "target-amd",
     "native_cpu": "target-native_cpu",
+    "offload": config.offload_build_target,
 }
 config.target_to_triple = {
     "target-spir": "spir64",
@@ -683,6 +684,7 @@ available_devices = {
     "level_zero": "gpu",
     "hip": "gpu",
     "native_cpu": "cpu",
+    "offload": "gpu",
 }
 for d in remove_level_zero_suffix(config.sycl_devices):
     be, dev = d.split(":")
@@ -962,6 +964,8 @@ for full_name, sycl_device in zip(
 
     if "v2" in full_name:
         env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "1"
+    else:
+        env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "0"
 
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
