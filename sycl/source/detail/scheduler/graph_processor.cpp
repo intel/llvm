@@ -17,15 +17,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-static Command *getCommand(const EventImplPtr &Event) {
-  return (Command *)Event->getCommand();
-}
-
-void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
+void Scheduler::GraphProcessor::waitForEvent(event_impl &Event,
                                              ReadLockT &GraphReadLock,
                                              std::vector<Command *> &ToCleanUp,
                                              bool LockTheLock, bool *Success) {
-  Command *Cmd = getCommand(Event);
+  Command *Cmd = Event.getCommand();
   // Command can be nullptr if user creates sycl::event explicitly or the
   // event has been waited on by another thread
   if (!Cmd)
@@ -38,10 +34,10 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
     // TODO: Reschedule commands.
     throw exception(make_error_code(errc::runtime), "Enqueue process failed.");
 
-  assert(Cmd->getEvent() == Event);
+  assert(Cmd->getEvent().get() == &Event);
 
   GraphReadLock.unlock();
-  Event->waitInternal(Success);
+  Event.waitInternal(Success);
 
   if (LockTheLock)
     GraphReadLock.lock();
@@ -84,17 +80,10 @@ bool Scheduler::GraphProcessor::enqueueCommand(
     return false;
   }
 
-  // Reset enqueue status if reattempting
-
-  if (!Cmd->isHostTask() &&
-      Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed) {
-    Cmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-  }
-
   // Recursively enqueue all the implicit + explicit backend level dependencies
   // first and exit immediately if any of the commands cannot be enqueued.
   for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents()) {
-    if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
+    if (Command *DepCmd = Event->getCommand())
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
                           RootCommand, Blocking))
         return false;
@@ -107,7 +96,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // MHostDepsEvents. TO FIX: implement enqueue of blocked commands on host task
   // completion stage and eliminate this event waiting in enqueue.
   for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
-    if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
+    if (Command *DepCmd = Event->getCommand())
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
                           RootCommand, Blocking))
         return false;

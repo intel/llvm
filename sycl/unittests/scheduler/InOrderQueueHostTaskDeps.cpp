@@ -23,11 +23,8 @@ using namespace sycl;
 
 size_t GEventsWaitCounter = 0;
 
-inline ur_result_t redefinedEventsWait(void *pParams) {
-  auto params = *static_cast<ur_event_wait_params_t *>(pParams);
-  if (*params.pnumEvents > 0) {
-    GEventsWaitCounter++;
-  }
+inline ur_result_t redefinedEventsWaitWithBarrier(void *pParams) {
+  GEventsWaitCounter++;
   return UR_RESULT_SUCCESS;
 }
 
@@ -35,7 +32,8 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   GEventsWaitCounter = 0;
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
-  mock::getCallbacks().set_before_callback("urEventWait", &redefinedEventsWait);
+  mock::getCallbacks().set_before_callback("urEnqueueEventsWaitWithBarrier",
+                                           &redefinedEventsWaitWithBarrier);
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
@@ -46,7 +44,8 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   InOrderQueue.submit([&](sycl::handler &CGH) { CGH.host_task([=] {}); })
       .wait();
 
-  EXPECT_EQ(GEventsWaitCounter, 1u);
+  size_t expectedCount = 1u;
+  EXPECT_EQ(GEventsWaitCounter, expectedCount);
 }
 
 enum class CommandType { KERNEL = 1, MEMSET = 2 };
@@ -101,7 +100,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
 
   event Ev2 = InOrderQueue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel<>>([] {});
+    CGH.single_task<TestKernel>([] {});
   });
 
   {
@@ -147,7 +146,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
 
   event Ev1 = InOrderQueue.memset(buf, 0, sizeof(buf[0]));
 
-  event Ev2 = InOrderQueue.single_task<TestKernel<>>([] {});
+  event Ev2 = InOrderQueue.single_task<TestKernel>([] {});
 
   {
     std::unique_lock<std::mutex> lk(CvMutex);

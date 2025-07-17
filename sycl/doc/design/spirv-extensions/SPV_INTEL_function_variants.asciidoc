@@ -1,0 +1,765 @@
+:extension_name: SPV_INTEL_function_variants
+:spec_capability_name: SpecConditionalINTEL
+:fnvar_capability_name: FunctionVariantsINTEL
+:conditional_name: ConditionalINTEL
+:conditional_capability_name: OpConditionalCapabilityINTEL
+:conditional_extension_name: OpConditionalExtensionINTEL
+:conditional_entry_point_name: OpConditionalEntryPointINTEL
+:spec_const_target_name: OpSpecConstantTargetINTEL
+:spec_const_architecture_name: OpSpecConstantArchitectureINTEL
+:spec_const_capabilities_name: OpSpecConstantCapabilitiesINTEL
+:conditional_copy_name: OpConditionalCopyObjectINTEL
+
+:spec_capability_token:         6245 (TBD)
+:fnvar_capability_token:        6246 (TBD)
+:conditional_token:             6247 (TBD)
+:conditional_extension_token:   6248 (TBD)
+:conditional_entry_point_token: 6249 (TBD)
+:conditional_capability_token:  6250 (TBD)
+:spec_const_target_token:       6251 (TBD)
+:spec_const_architecture_token: 6252 (TBD)
+:spec_const_capabilities_token: 6253 (TBD)
+:conditional_copy_token:        6254 (TBD)
+
+
+{extension_name}
+================
+
+
+== Name Strings
+
+{extension_name}
+
+
+== Contact
+
+To report problems or to provide input on this extension, please open a new issue at:
+
+https://github.com/KhronosGroup/SPIRV-Registry
+
+
+== Contributors
+
+// spell-checker: disable
+- Jakub Žádník, Intel +
+- Pekka Jääskeläinen, Intel +
+- Greg Lueck, Intel +
+// spell-checker: enable
+
+
+== Notice
+
+Copyright (c) 2025 Intel Corporation. All rights reserved.
+
+
+== Status
+
+* Draft
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2025-05-08
+| Revision           | 0.11
+|========================================
+
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.6, Revision 5, Unified
+
+This extension requires SPIR-V 1.0.
+
+
+== Overview
+
+This extension adds support for multi-target SPIR-V modules.
+A multi-target module allows specifying target-specific "variants" of a function within the same module.
+The target-specific variants can utilize https://github.com/intel/llvm/blob/sycl/sycl/doc/design/spirv-extensions/SPV_INTEL_inline_assembly.asciidoc[inline assembly] and other constructs available only on a specific target.
+
+Retargetable SPIR-V modules are "targeted" at JIT or pre-JIT time to produce a module containing only the target-specific variant.
+
+The idea is similar to the OpenMP 5 "variants" (https://passlab.github.io/Examples/contents/Chap_program_control/6_declare_variant_Directive.html[declare variant], see the saxpy example), but with the difference that the "targeting" (choosing the correct variant function for a target) is delayed to JIT or pre-JIT "preprocessing" time instead of performing the choice at the frontend.
+
+The intended workflow can be visualized as follows:
+```
+kernel_fallback.spv -----\
+                          +--> kernel_multitarget.spv --> kernel_target1.spv
+kernel_target1.spv ------/
+                        /
+kernel_target2.spv ----/
+```
+While a consumer that supports this extension can consume multi-target SPIR-V modules directly and choose the correct variant internally, the intention is to provide two helper tools to assist in usage of the extension:
+
+* The "producer" combining modules with target-specific variants of functions into a multi-target SPIR-V.
+* The "consumer" converting the multi-target module to a target-specific one by pruning out all variants except the chosen one.
+
+The "consumer" tool produces a (possibly single-target) SPIR-V which doesn't require the targeted device driver to support this extension.
+
+The specialization of the multi-target module into a target-specific one is done by extending the specialization rules and comparing the user-provided target device's target, features and architecture.
+These are compared to known values defined by a "target registry".
+See the Specialization section for more details.
+Support for more values can be added by submitting a pull request to the registry.
+
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the following
+*OpExtension* must be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+
+== New Capabilities
+
+This extension introduces new capabilities:
+
+[subs="attributes"]
+----
+{spec_capability_name}
+{fnvar_capability_name}
+----
+
+
+== New Decorations
+
+Decorations added under the *{spec_capability_name}* capability:
+
+[subs="attributes"]
+----
+{conditional_name}
+----
+
+
+== New Instructions
+
+Instructions added under the *{spec_capability_name}* capability:
+
+[subs="attributes"]
+----
+{conditional_extension_name}
+{conditional_capability_name}
+{conditional_entry_point_name}
+{conditional_copy_name}
+----
+
+Instructions added under the *{fnvar_capability_name}* capability:
+
+[subs="attributes"]
+----
+{spec_const_target_name}
+{spec_const_architecture_name}
+{spec_const_capabilities_name}
+----
+
+
+== Token Number Assignments
+
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+|*{spec_capability_name}* | {spec_capability_token}
+|*{fnvar_capability_name}* | {fnvar_capability_token}
+|*{conditional_name}* | {conditional_token}
+|*{conditional_extension_name}* | {conditional_extension_token}
+|*{conditional_entry_point_name}* | {conditional_entry_point_token}
+|*{conditional_capability_name}* | {conditional_capability_token}
+|*{spec_const_target_name}* | {spec_const_target_token}
+|*{spec_const_architecture_name}* | {spec_const_architecture_token}
+|*{spec_const_capabilities_name}* | {spec_const_capabilities_token}
+|*{conditional_copy_name}* | {conditional_copy_token}
+|====
+
+
+== Modifications to the SPIR-V Specification, Version 1.6, Revision 5, Unified
+
+=== Logical Layout of a Module
+
+Modify section 2.4, Logical Layout of a Module, changing item 1 in the layout
+list to say:
+
+1. All *OpCapability* and *{conditional_capability_name}* instructions.  If
+   there are any *{conditional_capability_name}* instructions in this section,
+   they must come after the *OpCapability* instruction defining the *{spec_capability_name}* capability.
+
+Then, changing item 2 in the layout list to say:
+
+[start=2]
+. Optional *OpExtension* and *{conditional_extension_name}* instructions (extensions to SPIR-V).
+
+Then, changing item 5 in the layout list to say:
+
+[start=5]
+. All entry point declarations, using *OpEntryPoint* or *{conditional_entry_point_name}*.
+
+Furthermore, add the following to the cases when forward references are allowed:
+
+* The list of '<id>' provided in the *{conditional_entry_point_name}*, *{conditional_extension_name}* and *{conditional_capability_name}* instructions.
+
+=== Specialization
+
+Modify section 2.12, Specialization, adding the following rules to the specialization algorithm:
+
+If the *{fnvar_capability_name}* capability is declared, the following specialization algorithm uses enumerator values 'target', 'architecture category', 'architecture family' and 'architecture', as well as one or more 'feature' values, defined for the "target device".
+The "target device" is the device on which the SPIR-V module executes.
+The recognized values of these enumerators are defined in the "targets registry" (the exact format of the registry is WIP).
+The consumer implementation can support only a subset of the values and the following rules ensure the behavior is well-defined even if an unknown value is encountered by the consumer.
+
+* The *{spec_const_target_name}* instruction becomes *OpConstantTrue* if all the following conditions are *true*, otherwise it becomes *OpConstantFalse*:
+** The 'Target' operand is recognized by the consumer and equal to the 'target' enumerator value defined for the "target device".
+** If present, the 'Features' operands are recognized by the consumer and form a subset of the 'features' enumerator values defined for the "target device".
+
+* The of *{spec_const_architecture_name}* becomes *OpConstantTrue* if all the following conditions are *true*, otherwise it becomes *OpConstantFalse*:
+** The 'Category' operand is recognized by the consumer and equal to the 'architecture category' enumerator value defined for the "target device".
+** The 'Family' operand is recognized by the consumer and equal to the 'architecture family' enumerator value defined for the "target device".
+** The result of the operation defined by the 'Opcode' operand is *true*. The operation performed is `Opcode <architecture> <Architecture operand>` where `<architecture>` is the 'architecture' enumerator value defined for the "target device". Because later architectures are guaranteed to have larger enumerator values than the earlier ones within the same registry version, if the consumer does not recognize the 'Architecture' operand value, the result of *OpIEqual*, *OpUGreaterThan* or *OpUGreaterThanEqual* operation is *false* and the result of *OpINotEqual*, *OpULessThan* or *OpULessThanEqual* is *true*.
+
+* The *{spec_const_capabilities_name}* instruction becomes *OpConstantTrue* if all capabilities in its 'Capabilities' operand are supported by the "target device", otherwise it becomes *OpConstantFalse*.
+
+If the *{spec_capability_name}* capability is declared:
+
+* If the 'Condition' for an *{conditional_capability_name}* instruction has been specialized to a known value:
+** If the 'Condition' is *false*, the *{conditional_capability_name}* instruction is removed.
+** If the 'Condition' is *true*, the *{conditional_capability_name}*
+   instruction is replaced with *OpCapability* with the same 'Capability' operand.
+   (Note: This is not a replace-in-place operation because the instructions have different sizes.)
+
+* If the 'Condition' for an *{conditional_extension_name}* instruction has been specialized to a known value:
+** If the 'Condition' is *false*, the *{conditional_extension_name}* instruction is removed.
+** If the 'Condition' is *true*, the *{conditional_extension_name}*
+   instruction is replaced with *OpExtension* with the same 'Name' operand.
+   (Note: This is not a replace-in-place operation because the instructions have different sizes.)
+
+* If the 'Condition' for an *{conditional_entry_point_name}* instruction has been specialized to a known value:
+** If the 'Condition' is *false*, the *{conditional_entry_point_name}*
+   instruction is removed as well as any *OpExecutionMode* and *OpExecutionModeId* instructions referencing its 'Entry Point'.
+** If the 'Condition' is *true*, the *{conditional_entry_point_name}*
+   instruction is replaced with *OpEntryPoint* with the same 'Entry Point', 'Name' and 'Interface' operands.
+   (Note: This is not a replace-in-place operation because the instructions have different sizes.)
+
+* If the 'Condition' for a *{conditional_name}* decoration has been specialized to a known value and the value is *true*, the decoration itself is removed. If the value is *false*, the following happens:
+** If the decorated instruction is *OpFunction*:
+*** All decorations for the function and the instructions in its body are removed.
+*** Any *OpName* or *OpMemberName* that reference the *OpFunction* or any of the instructions in its body are also removed.
+*** The function and all of the instructions in its body are removed.
+** If the decorated instruction is not *OpFunction*, the instruction is
+   removed.  All decorations for the instruction are also removed, and any
+   *OpName* or *OpMemberName* referencing the instruction are removed.
+** The decoration itself is removed.
+
+* If all 'Condition' operands of *{conditional_copy_name}* have been specialized to a known value, replace *{conditional_copy_name}* with *OpCopyObject* using the 'Operand' whose 'Condition' is *true*.
+
+* If the module does not contain any decorations or instructions defined by this extension, any present *OpCapability {spec_capability_name}*, *OpCapability {fnvar_capability_name}* or *OpExtension {extension_name}* instructions are removed.
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding this row to the Capability table:
+
+--
+[cols="1,15,5",options="header",width = "100%"]
+|===
+2+| Capability         | Implicitly Declares
+| {spec_capability_token} | *{spec_capability_name}* +
+Module is multi-target and can be targeted using external boolean specialization constants.
+|
+|===
+--
+
+--
+[cols="1,15,5",options="header",width = "100%"]
+|===
+2+| Capability         | Implicitly Declares
+| {fnvar_capability_token} | *{fnvar_capability_name}* +
+Module enables new specialization constants for specializing according to device targets, features and architectures.
+| *{spec_capability_name}*
+|===
+--
+
+
+=== Decorations
+
+Modify Section 3.20, Decoration, adding these rows to the Decoration table:
+
+--
+[cols="1,5,2,2",options="header"]
+|====
+2+| Decoration | Extra Operands | <<Capability,Enabling Capabilities>>
+
+| {conditional_token}
+|
+*{conditional_name}* +
+Indicates that the decorated instruction must be removed during specialization if the value of the specialization constant identified by 'Condition' is *false*.  The Specialization section describes the rules for removing instructions decorated this way.
+
+The 'Condition' must be the result of a specialization constant of scalar 'Boolean type'.
+
+| '<id>' +
+'Condition'
+| *{spec_capability_name}*
+
+|====
+--
+
+=== Instructions
+
+Add to Section 3.56.4, Extension Instructions:
+
+--
+[cols="1,1,2*3",width="100%"]
+|=====
+3+|[[{conditional_extension_name}]]*{conditional_extension_name}* +
+ +
+Declare an extension that is conditionally used by this module, depending on the value of a specialization constant.
+
+The 'Condition' must be the result of a specialization constant of scalar 'Boolean type'.
+
+The 'Name' is the extension's name string declared by this instruction if 'Condition' is *true*.
+
+See also *Specialization* and *OpExtension*.
+
+|Capability: +
+*{spec_capability_name}*
+
+| 3 | {conditional_extension_token}
+| '<id>' +
+'Condition'
+| 'Literal' +
+'Name'
+|=====
+--
+
+Add to Section 3.56.5, Mode-Setting Instructions:
+
+--
+[cols="1,1,2,3,3,3,3",width="100%"]
+|=====
+5+|[[{conditional_entry_point_name}]]*{conditional_entry_point_name}* +
+ +
+Declare an entry point that is conditionally used by this module, depending on
+the value of a specialization constant.
+
+The 'Condition' must be the result of a specialization constant of scalar
+'Boolean type'.
+
+The rest of the operands matches *OpEntryPoint*. Unlike *OpEntryPoint*, a module can contain multiple *{conditional_entry_point_name}* instructions with the same name and 'Execution Model'.
+
+See also *Specialization* and *OpEntryPoint*.
+
+2+|Capability: +
+*{spec_capability_name}*
+
+| 5 + variable | {conditional_entry_point_token}
+| '<id>' +
+'Condition'
+| 'Execution Model'
+| '<id>' +
+'Entry Point'
+| 'Literal' +
+'Name'
+| '<id>', '<id>', ... +
+'Interface'
+|=====
+--
+
+--
+[cols="1,1,2*3",width="100%"]
+|=====
+3+|[[{conditional_capability_name}]]*{conditional_capability_name}* +
+ +
+Declare a capability that is conditionally used by this module, depending on
+the value of a specialization constant.
+
+The 'Condition' must be the result of a specialization constant of scalar 'Boolean type'.
+
+The 'Capability' is the capability declared by this instruction if 'Condition' is *true*.
+
+See also *Specialization* and *OpCapability*.
+
+|Capability: +
+*{spec_capability_name}*
+
+| 3 | {conditional_capability_token}
+| '<id>' +
+'Condition'
+| 'Capability' +
+'Capability'
+|=====
+--
+
+Add to Section 3.56.7, Constant-Creation Instructions:
+
+--
+[cols="1,1,3,2,3,3",width="100%"]
+|=====
+5+|[[{spec_const_target_name}]]*{spec_const_target_name}* +
+ +
+Declare a 'Boolean-type' scalar specialization constant that results from comparing the 'Target' and 'Features' with the target and features supported by the consumer implementation.
+
+When specialized, this instruction becomes either an *OpConstantTrue* or *OpConstantFalse* instruction.
+
+'Result Type' must be a scalar 'Boolean type'.
+
+'Target' and 'Features' (if present) must be 32-bit unsigned integer literals.
+
+See *Specialization*.
+
+1+|Capability: +
+*{fnvar_capability_name}*
+
+| 4 + variable | {spec_const_target_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| 'Literal' +
+'Target'
+| 'Literal', 'Literal', ... +
+'Features'
+|=====
+--
+
+--
+[cols="1,1,3,2,3,2,2,2",width="100%"]
+|=====
+6+|[[{spec_const_architecture_name}]]*{spec_const_architecture_name}* +
+ +
+Declare a 'Boolean-type' scalar specialization constant that results from comparing the 'Category', 'Family' and 'Architecture' with the architecture supported by the consumer implementation according to 'Opcode'.
+
+When specialized, this instruction becomes either an *OpConstantTrue* or *OpConstantFalse* instruction.
+
+'Result Type' must be a scalar 'Boolean type'.
+
+'Category', 'Family' and 'Architecture' must be 32-bit unsigned integer literals.
+
+'Opcode' is an unsigned 32-bit integer. It must be one of the following opcodes: *OpIEqual*, *OpINotEqual*, *OpULessThan*, *OpULessThanEqual*, *OpUGreaterThan*, *OpUGreaterThanEqual*.
+'Note: Despite being allowed, the use of solely *OpUGreaterThan* and *OpUGreaterThanEqual* is discouraged because it would imply compatibility with all devices later than 'Architecture', including yet unreleased ones, which cannot be guaranteed.'
+
+See *Specialization*.
+
+2+|Capability: +
+*{fnvar_capability_name}*
+
+| 7 | {spec_const_architecture_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| 'Literal' +
+'Category'
+| 'Literal' +
+'Family'
+| 'Literal' +
+'Opcode'
+| 'Literal' +
+'Architecture'
+|=====
+--
+
+--
+[cols="1,1,3,2,3",width="100%"]
+|=====
+4+|[[{spec_const_capabilities_name}]]*{spec_const_capabilities_name}* +
+ +
+Declare a 'Boolean-type' scalar specialization constant that results from comparing the 'Capabilities' with the capabilities supported by consumer implementation.
+
+When specialized, this instruction becomes either an *OpConstantTrue* or *OpConstantFalse* instruction.
+
+'Result Type' must be a scalar 'Boolean type'.
+
+'Capabilities' must be a one or more Capabilities.
+
+See *Specialization*.
+
+1+|Capability: +
+*{fnvar_capability_name}*
+
+| 4 + variable | {spec_const_capabilities_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| 'Capability', 'Capability', ... +
+'Capabilities'
+|=====
+--
+
+Add to Section 3.56.9, Function Instructions:
+
+--
+[cols="1,1,3,2,3",width="100%"]
+|=====
+4+|[[{conditional_copy_name}]]*{conditional_copy_name}* +
+ +
+ Make a copy of 'Operand X' if 'Condition X' is *true*.
+
+ From all 'Condition X'-'Operand X' pairs, 'exactly' one 'Condition X' must be *true*. Consequently, at least one 'Condition X'-'Operand X' pair must be present.
+
+ Each 'Condition X' must be the result of a specialization constant of scalar 'Boolean' type.
+
+ 'Result Type' can be any type except *OpTypeVoid*. The types of all 'Operand X' operands must match the 'Result Type'.
+
+ See also *Specialization* and *OpCopyObject*.
+
+1+|Capability: +
+*{spec_capability_name}*
+
+| 5 + variable | {conditional_copy_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| '<id>', '<id>', '<id>', '<id>'... +
+'Condition 0', 'Operand 0,' +
+'Condition 1', 'Operand 1,' +
+...
+|=====
+--
+
+== Validation Rules
+
+_(Validation rules are numbered for easier tracking in implementations.)_
+
+If the *{spec_capability_name}* capability is declared:
+
+. All remaining function definitions after specialization must be compatible with the shared *OpMemoryModel* and *OpExtInstrSet* instructions and the remaining set of *OpCapability* instructions.
+
+. 'Condition' operands of *{conditional_name}*, *{conditional_extension_name}*, *{conditional_entry_point_name}* and *{conditional_capability_name}* must be the results of a specialization constant of a 'Boolean type'.
+
+. For *{conditional_entry_point_name}* and *{conditional_capability_name}*, the same validation rules apply as to their unconditional counterparts, with the exception that a module can contain multiple *{conditional_entry_point_name}* instructions with the same name and 'Execution Model'.
+
+. *{conditional_copy_name}*:
+.. Exactly one 'Condition' must be *true*.
+.. The types of 'Operand' operands must not be *OpTypeVoid* and must match the 'Result Type'.
+.. All 'Condition X' operands must be results of specialization constant of a scalar 'Boolean type'.
+
+. *{conditional_name}* :
+.. Only one <id> can be annotated with the *{conditional_name}* decoration.
+.. The *{conditional_name}* decoration must be applied only to *OpFunction*, *OpFunctionCall*, global (module scope) *OpVariable*, type declarations (*OpTypeXXX*), extended instruction set import (*OpExstInstImport*), or constant instructions (*OpConstantXXX* or *OpSpecConstantXXX*).
+.. If the SPV_INTEL_function_pointers extension is used, the *{conditional_name}* decoration can be applied also to *OpConstantFunctionPointerINTEL* and *OpFunctionPointerCallINTEL*.
+
+In addition, if the *{fnvar_capability_name}* capability is declared:
+
+. The 'Opcode' operand of *{spec_const_architecture_name}* is supported by the instruction.
+
+== Issues
+
+. After the initial implementation: Investigate the possibility of an OpenCL extension for defining the error handling etc. For example, when inputting a SPIR-V which cannot be targeted to the device.
++
+*UNRESOLVED*
+
+. Decide whether the current Targets repository solution is sufficient.
++
+*RESOLVED*: Adding targets/features/architectures is done by incrementing the enumerator value, i.e., always backwards-compatible. Version bump is required if the addition is backwards-incompatible. Then, if the consumer sees an unknown enumerator value, it sets the related spec. constant to false, except _architecture_ with a relational operator >, >=, < or <=. Less than unknown is always true, greater than unknown is always false because newer architectures within the same version are guaranteed to have a larger enumerator value.
+
+
+. Does it make sense to place *{conditional_capability_name}* instructions in
+   the same layout section as *OpCapability*?  This means they will come before
+   the *OpExtension* that declares this extension.  The alternative is to place
+   them later in the layout, but this could make specialization harder.  The
+   nice thing about the current position is that the specializer can just
+   replace *{conditional_capability_name}* with *OpCapability* without changing
+   its position.
++
+*PROPOSAL*: The current version places *{conditional_capability_name}* in the capabilities section which proved practical during producer and consumer implementations.
+
+. Should we allow *{conditional_name}* to be applied to any instruction? That would allow supporting future extensions without specifically naming them, like SPV_INTEL_function_pointers. It would be up to the producer to generate a module that is valid after specialization.
++
+*PROPOSAL*: I'd keep it restricted at least initially to avoid accidental complexity. Extension authors can extend this extension to support their extensions.
+
+. Should we split this extension into two along the boundary between the *{spec_capability_name}* and *{fnvar_capability_name}* capabilities?
++
+*PROPOSAL*: The two capabilities are now more tightly coupled, so it would make sense to keep them under one extension.
+
+. Conditional capabilities can bring in additional extensions. Do we also need conditional extensions?
++
+*RESOLVED*: Yes
+
+. Do we need conditional extended instruction set imports?
++
+*PROPOSAL*: Since *OpExtInstImport* has a result ID, we can annotate that ID with the *ConditionalINTEL* decoration. The rest is handled by the specialization algorithm.
+
+== Example
+
+The following multi-target SPIR-V module can be generated by the "producer" combining two function variant groups: `foo` and `bar`.
+Each group contains a base function (`foo1`, `bar1`) and two variants of the base function (`foo2`, `foo3` and `bar2`, `bar3`) with different architecture/target/features.
+
+[subs="attributes"]
+```
+        ...
+        {conditional_capability_name} %b7 Matrix
+
+        OpExtension "{extension_name}"
+
+   %1 = OpExtInstImport "OpenCL.std"     ; supported by all function variants, does not need ConditionalINTEL
+        OpMemoryModel Physical64 OpenCL  ; must be supported by all function variants
+
+        ; Function variants are allowed to share the same conditional entry point name
+        {conditional_entry_point_name} %b4 Kernel %bar1 "bar" ...
+        {conditional_entry_point_name} %b5 Kernel %bar2 "bar" ...
+        {conditional_entry_point_name} %b6 Kernel %bar3 "bar" ...
+
+        OpExecutionMode %bar2 VecTypeHint 3
+        OpExecutionMode %bar3 ContractionOff
+
+        OpName %foo1 foo
+        OpName %foo2 foo
+        OpName %foo3 foo
+        OpName %bar1 bar
+        OpName %bar2 bar
+        OpName %bar3 bar
+
+        OpDecorate %foo1 {conditional_name} %b1
+        OpDecorate %foo2 {conditional_name} %b2
+        OpDecorate %foo3 {conditional_name} %b3
+        OpDecorate %bar1 {conditional_name} %b4
+        OpDecorate %bar2 {conditional_name} %b5
+        OpDecorate %bar3 {conditional_name} %b6
+
+        ; the matrix %5 is used in two functions (foo3 and bar3)
+        OpDecorate %4 {conditional_name} %b7
+        OpDecorate %5 {conditional_name} %b7
+
+   %2 = OpTypeInt 32 0
+   %3 = OpTypeFunction %2 %2 %2
+
+   %4 = OpTypeMatrix ...
+   %5 = OpVariable %4 ...
+
+ %bool = OpTypeBool
+
+;;; spec constant for foo2
+ %tgt2 = OpSpecConstantTarget %bool (x86_64) (avx2)
+    %6 = OpSpecConstantArchitecture %bool (cpu) (intel) UGreaterThan (intel_cpu_hsw)
+    %7 = OpSpecConstantArchitecture %bool (cpu) (intel) ULessThanEqual (intel_cpu_gnr)
+%arch2 = OpSpecConstantOp %bool LogicalAnd %6 %7
+   %b2 = OpSpecConstantOp %bool LogicalAnd %tgt2 %arch2
+
+;;; spec constant for foo3
+ %tgt3 = OpSpecConstantTarget %bool (pisa)
+    %8 = OpSpecConstantArchitecture %bool (gpu) (intel) UGreaterThanEqual (intel_gpu_mtl_u)
+    %9 = OpSpecConstantArchitecture %bool (gpu) (intel) ULessThanEqual (intel_gpu_lnl_m)
+%arch3 = OpSpecConstOp %bool LogicalAnd %8 %9
+ %cap3 = OpSpecConstantCapabilities %bool Matrix
+   %10 = OpSpecConstantOp %bool LogicalAnd %tgt3 %arch3
+   %b3 = OpSpecConstantOp %bool LogicalAnd %10 %cap3
+
+;;; spec constant for foo1 (base)
+   %11 = OpSpecConstantOp %bool LogicalOr %b2 %b3
+   %b1 = OpSpecConstantOp %bool LogicalNot %11
+
+;;; spec constant for bar2
+ %tgt5 = OpSpecConstantTarget %bool (x86_64) (avx2)
+   %12 = OpSpecConstantArchitecture %bool (cpu) (intel) UGreaterThan (intel_cpu_hsw)
+   %13 = OpSpecConstantArchitecture %bool (cpu) (intel) ULessThanEqual (intel_cpu_gnr)
+%arch5 = OpSpecConstOp %bool LogicalAnd %12 %13
+   %b5 = OpSpecConstantOp %bool LogicalAnd %tgt5 %arch5
+
+;;; spec constant for bar3
+ %tgt6 = OpSpecConstantTarget %bool (x86_64) (avx2) (avx512f)
+ %cap6 = OpSpecConstantCapabilities %bool Matrix
+   %b6 = OpSpecConstantOp %bool LogicalAnd %tgt6 %cap6
+
+;;; spec constant for bar1 (base)
+    %14 = OpSpecConstantOp %bool LogicalOr %b5 %b6
+    %15 = OpSpecConstantOp %bool LogicalNot %14
+ %tgt4 = OpSpecConstantTarget %bool (x86_64)
+   %b4 = OpSpecConstantOp %bool LogicalAnd %15 %tgt4
+
+;;; required by foo3 and bar3:
+   %b7 = OpSpecConstantOp %bool LogicalOr %b3 %b6
+
+ %foo1 = OpFunction %2 None %3  ; base function
+        ...
+        OpFunctionEnd
+
+ %foo2 = OpFunction %2 None %3  ; variant of foo1
+         ...
+         OpFunctionEnd
+
+ %foo3 = OpFunction %2 None %3  ; variant of foo1
+         ... (uses %5)
+         OpFunctionEnd
+
+ %bar1 = OpFunction %2 None %3  ; base function
+         ...
+         OpFunctionEnd
+
+ %bar2 = OpFunction %2 None %3  ; variant of bar1
+         ...
+         OpFunctionEnd
+
+ %bar3 = OpFunction %2 None %3  ; variant of bar1
+         ... (uses %5)
+         OpFunctionEnd
+
+;;; Call site:
+       ...
+   %out1 = OpFunctionCall %2 %foo1 %arg1 %arg2
+   %out2 = OpFunctionCall %2 %foo2 %arg1 %arg2
+   %out3 = OpFunctionCall %2 %foo3 %arg1 %arg2
+ %outfoo = {conditional_copy_name} %2 %b1 %out1 %b2 %out2 %b3 %out3
+       ...
+```
+
+Given the target `x86_64`, features `avx2,avx512f` and architecture `intel_cpu_spr`, the "consumer" selected variants `foo1` and `bar3`:
+
+[subs="attributes"]
+```
+       ...
+       OpCapability Matrix  ; needed by bar3
+
+       ; Removed 'OpExtension {extension_name}'
+
+       OpEntryPoint Kernel %foo1 "foo" ...
+       OpEntryPoint Kernel %bar3 "bar" ...
+
+       OpName %foo1 foo
+       OpName %bar3 bar
+
+  %2 = OpTypeInt 32 0
+  %3 = OpTypeFunction %2 %2 %2
+
+  %4 = OpTypeMatrix ...
+  %5 = OpVariable %4 ...
+
+; Consumer can easily optimize away the remaining specialized constants because their IDs will be unused
+
+; Remaining functions
+%foo1 = OpFunction %2 None %3
+        ...
+        OpFunctionEnd
+
+%bar3 = OpFunction %2 None %3
+        ... (uses %5)
+        OpFunctionEnd
+
+;;; Call site:
+       ...
+ %out1   = OpFunctionCall %2 %foo1 %arg1 %arg2
+ %outfoo = OpCopyObject %2 %out1  ; can be easily optimized by the consumer
+
+ %out2   = OpFunctionCall %2 %bar3 %arg1 %arg2
+ %outbar = OpCopyObject %2 %out2  ; can be easily optimized by the consumer
+       ...
+```
+
+== Revision History
+
+[cols="5,15,17,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|0.1|2024-10-30|Jakub Žádník, Pekka Jääskeläinen|Initial revision for feedback
+|0.2|2024-10-31|Jakub Žádník, Pekka Jääskeläinen|Applied comments from Pekka on GitHub
+|0.3|2024-11-05|Jakub Žádník|New design based on specialization constants applying comments from Greg on GitHub
+|0.4|2024-11-08|Jakub Žádník|Refactor to use conditional copy
+|0.5|2024-11-27|Jakub Žádník|Refer to external repo for target strings. Split capabilities.
+|0.6|2024-11-29|Jakub Žádník|Improve wording; Relax target registry versions.
+|0.7|2024-12-04|Jakub Žádník|Use targets repository; Reformulate using Targets repository
+|0.8|2025-03-20|Jakub Žádník|Major refactor; Use spec constants instead of decorations
+|0.9|2025-04-02|Jakub Žádník|Add conditional extension and specialization by capabilities
+|0.10|2025-04-22|Jakub Žádník|Added more precise wording regarding architecture comparisons
+|0.11|2025-05-08|Jakub Žádník|Misc corrections and clarifications
+|========================================

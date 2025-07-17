@@ -1,3 +1,11 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #include <clc/clc_convert.h>
 #include <clc/integer/clc_hadd.h>
 #include <clc/integer/definitions.h>
@@ -106,7 +114,6 @@ _CLC_OVERLOAD _CLC_DEF ulong __clc_mul_hi(ulong x, ulong y) {
 
 #define __CLC_MUL_HI_TYPES()                                                   \
   __CLC_MUL_HI_DEC_IMPL(short, char, 8)                                        \
-  __CLC_MUL_HI_DEC_IMPL(short, schar, 8)                                       \
   __CLC_MUL_HI_DEC_IMPL(ushort, uchar, 8)                                      \
   __CLC_MUL_HI_DEC_IMPL(int, short, 16)                                        \
   __CLC_MUL_HI_DEC_IMPL(uint, ushort, 16)                                      \

@@ -1,3 +1,11 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef __CLC_CLC_CONVERT_H__
 #define __CLC_CLC_CONVERT_H__
 
@@ -16,7 +24,6 @@
 
 #define _CLC_VECTOR_CONVERT_FROM1(FROM_TYPE, SUFFIX)                           \
   _CLC_VECTOR_CONVERT_DECL(FROM_TYPE, char, SUFFIX)                            \
-  _CLC_VECTOR_CONVERT_DECL(FROM_TYPE, schar, SUFFIX)                           \
   _CLC_VECTOR_CONVERT_DECL(FROM_TYPE, uchar, SUFFIX)                           \
   _CLC_VECTOR_CONVERT_DECL(FROM_TYPE, int, SUFFIX)                             \
   _CLC_VECTOR_CONVERT_DECL(FROM_TYPE, uint, SUFFIX)                            \
@@ -50,7 +57,6 @@
 
 #define _CLC_VECTOR_CONVERT_TO1(SUFFIX)                                        \
   _CLC_VECTOR_CONVERT_FROM(char, SUFFIX)                                       \
-  _CLC_VECTOR_CONVERT_FROM(schar, SUFFIX)                                      \
   _CLC_VECTOR_CONVERT_FROM(uchar, SUFFIX)                                      \
   _CLC_VECTOR_CONVERT_FROM(int, SUFFIX)                                        \
   _CLC_VECTOR_CONVERT_FROM(uint, SUFFIX)                                       \

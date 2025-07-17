@@ -8,6 +8,7 @@
 
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
+#include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/ur.hpp>
@@ -24,12 +25,14 @@ inline namespace _V1 {
 platform::platform() : platform(default_selector_v) {}
 
 platform::platform(cl_platform_id PlatformId) {
-  auto Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
+  detail::adapter_impl &Adapter =
+      sycl::detail::ur::getAdapter<backend::opencl>();
   ur_platform_handle_t UrPlatform = nullptr;
-  Adapter->call<detail::UrApiKind::urPlatformCreateWithNativeHandle>(
-      detail::ur::cast<ur_native_handle_t>(PlatformId), Adapter->getUrAdapter(),
+  Adapter.call<detail::UrApiKind::urPlatformCreateWithNativeHandle>(
+      detail::ur::cast<ur_native_handle_t>(PlatformId), Adapter.getUrAdapter(),
       /* pProperties = */ nullptr, &UrPlatform);
-  impl = detail::platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter);
+  impl = detail::platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter)
+             .shared_from_this();
 }
 
 // protected constructor for internal use
@@ -42,7 +45,7 @@ platform::platform(const device_selector &dev_selector) {
 cl_platform_id platform::get() const { return impl->get(); }
 
 bool platform::has_extension(detail::string_view ExtName) const {
-  return impl->has_extension(ExtName.data());
+  return impl->has_extension(std::string(std::string_view(ExtName)));
 }
 
 std::vector<device> platform::get_devices(info::device_type DeviceType) const {
@@ -88,22 +91,8 @@ platform::get_backend_info() const {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 context platform::khr_get_default_context() const {
-  // Keeping the default context for platforms in the global cache to avoid
-  // shared_ptr based circular dependency between platform and context classes
-  std::unordered_map<detail::PlatformImplPtr, detail::ContextImplPtr>
-      &PlatformToDefaultContextCache =
-          detail::GlobalHandler::instance().getPlatformToDefaultContextCache();
-
-  std::lock_guard<std::mutex> Lock{
-      detail::GlobalHandler::instance()
-          .getPlatformToDefaultContextCacheMutex()};
-
-  auto It = PlatformToDefaultContextCache.find(impl);
-  if (PlatformToDefaultContextCache.end() == It)
-    std::tie(It, std::ignore) = PlatformToDefaultContextCache.insert(
-        {impl, detail::getSyclObjImpl(context{get_devices()})});
-
-  return detail::createSyclObjFromImpl<context>(It->second);
+  return detail::createSyclObjFromImpl<context>(
+      impl->khr_get_default_context());
 }
 
 context platform::ext_oneapi_get_default_context() const {

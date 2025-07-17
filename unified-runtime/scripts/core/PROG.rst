@@ -10,6 +10,26 @@
  Programming Guide
 ========================
 
+Adapters
+========
+
+The top level abstraction in the unified runtime is the adapter handle. It owns
+the platform handles as well as any backend specific global state, for instance
+if a backend has global setup/teardown type entry-points these will typically
+be tied to the adapter handle's constructor and destructor.
+
+Adapter handles are reference counted via ${x}AdapterRetain and
+${x}AdapterRelease. Once their reference count reaches zero any objects
+associated with the adapter in question should be considered invalid. Calling
+${x}AdapterGet after any adapter handle's reference count has reached zero will
+result in undefined behavior. An adapter handle's reference count may be
+changed by the adapter itself.
+
+Adapter implementers should ensure the adapter handle is dynamically allocated
+rather than having a static or global lifetime. Due to how destructor order
+works for static and global objects this is the only way to ensure the adapter
+handle stays alive as long as its reference count remains above zero.
+
 Platforms and Devices
 ======================
 
@@ -31,6 +51,7 @@ A platform object represents a collection of physical devices in the system acce
 - More than one platform may be available in the system. For example, one platform may support two GPUs from one vendor, another platform supports a GPU from a different vendor, and finally a different platform may support an FPGA.
 - Platform objects are read-only, global constructs. i.e. multiple calls to ${x}PlatformGet will return identical platform handles.
 - A platform handle is primarily used during device discovery and during creation and management of contexts.
+- Platform handles are not reference counted, they are owned by the adapter handle and their lifetime is tied to the adapter handle's reference count.
 
 Device
 ------
@@ -41,6 +62,7 @@ A device object represents a physical device in the system that supports the pla
 - Device objects are read-only, global constructs. i.e. multiple calls to ${x}DeviceGet will return identical device handles.
 - A device handle is primarily used during creation and management of resources that are specific to a device.
 - Device may expose sub-devices that allow finer-grained control of physical or logical partitions of a device.
+- Device handles are not reference counted, they are owned by their respective platform handles, whose lifetime is in turn tied to the associated adapter handle.
 
 The following diagram illustrates the relationship between the platform, device, context and other objects described in this document.
 
@@ -78,27 +100,6 @@ Initialization and Discovery
     std::vector<${x}_device_handle_t> devices(deviceCount);
     ${x}DeviceGet(platforms[0], ${X}_DEVICE_TYPE_GPU, &deviceCount, 
                   devices.data(), devices.size());
-
-Device handle lifetime
-----------------------
-
-Device objects are reference-counted, using ${x}DeviceRetain and ${x}DeviceRelease.
-The ref-count of a device is automatically incremented when a device is obtained by ${x}DeviceGet.
-After a device is no longer needed by the application it must call ${x}DeviceRelease.
-When the ref-count of the underlying device handle becomes zero then that device object is deleted.
-Note that a Unified Runtime adapter may internally increment and decrement a device's ref-count.
-So after the call to ${x}DeviceRelease below, the device may stay active until other
-objects using it, such as a command-queue, are deleted. However, an application
-may not use the device after it releases its last reference.
-
-.. parsed-literal::
-
-    // Get the handle of the first GPU device in the platform
-    ${x}_device_handle_t hDevice;
-    uint32_t deviceCount = 1;
-    ${x}DeviceGet(hPlatforms[0], ${X}_DEVICE_TYPE_GPU, &deviceCount, &hDevice, 1);
-    ${x}DeviceRelease(hDevice);
-
 
 Retrieve info about device
 --------------------------
@@ -162,6 +163,11 @@ An implementation will return "0" in the count if no further partitioning is sup
     if(count == 0){
         // no further partitioning allowed
     }
+
+Note that unlike a normal device handle, sub-devices *are* reference counted
+objects. Their reference count is affected by ${x}DeviceRetain and
+${x}DeviceRelease, and once that reference count reaches zero the handle should
+no longer be considered valid.
     
 Contexts
 ========
@@ -287,7 +293,7 @@ event dependencies that are passed to each Enqueue command.
     const size_t gWorkSize = {128, 128, 128};
     const size_t lWorkSize = {1, 8, 8}; 
     ${x}EnqueueKernelLaunch(hQueue, hKernel, nDim, gWorkOffset, gWorkSize, 
-                            lWorkSize, 0, nullptr, nullptr);
+                            lWorkSize, 0, nullptr, 0, nullptr, nullptr);
 
 Queue object lifetime
 ---------------------

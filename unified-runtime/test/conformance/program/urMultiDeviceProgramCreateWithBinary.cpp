@@ -74,9 +74,9 @@ TEST_P(urMultiDeviceProgramCreateWithBinaryTest,
     ASSERT_SUCCESS(
         urKernelCreate(binary_program, kernelName.data(), kernel.ptr()));
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[i], kernel.get(), n_dimensions,
-                                         &global_offset, &local_size,
-                                         &global_size, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(
+        queues[i], kernel.get(), n_dimensions, &global_offset, &local_size,
+        &global_size, 0, nullptr, 0, nullptr, nullptr));
 
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }
@@ -87,10 +87,10 @@ TEST_P(urMultiDeviceProgramCreateWithBinaryTest, CheckCompileAndLink) {
   // Level Zero and link only programs in Object state. OpenCL allows to compile
   // and link programs created from native binaries, so probably we should align
   // those two.
-  ur_platform_backend_t backend;
+  ur_backend_t backend;
   ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                    sizeof(backend), &backend, nullptr));
-  if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+  if (backend == UR_BACKEND_LEVEL_ZERO) {
     ASSERT_EQ(urProgramCompile(binary_program, devices.size(), devices.data(),
                                nullptr),
               UR_RESULT_ERROR_INVALID_OPERATION);
@@ -98,7 +98,7 @@ TEST_P(urMultiDeviceProgramCreateWithBinaryTest, CheckCompileAndLink) {
     ASSERT_EQ(urProgramLink(context, devices.size(), devices.data(), 1,
                             &binary_program, nullptr, linked_program.ptr()),
               UR_RESULT_ERROR_INVALID_OPERATION);
-  } else if (backend == UR_PLATFORM_BACKEND_OPENCL) {
+  } else if (backend == UR_BACKEND_OPENCL) {
     ASSERT_SUCCESS(urProgramCompile(binary_program, devices.size(),
                                     devices.data(), nullptr));
     uur::raii::Program linked_program;

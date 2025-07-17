@@ -24,6 +24,7 @@ namespace sycl {
 struct GlobalBinImageProps {
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
+  bool EmitKernelNames;
   bool EmitExportedSymbols;
   bool EmitImportedSymbols;
   bool EmitDeviceGlobalPropSet;
@@ -39,7 +40,8 @@ PropSetRegTy computeDeviceLibProperties(const Module &M,
 
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
-                                     const GlobalBinImageProps &GlobProps);
+                                     const GlobalBinImageProps &GlobProps,
+                                     bool AllowDeviceImageDependencies);
 
 std::string computeModuleSymbolTable(const Module &M,
                                      const EntryPointSet &EntryPoints);

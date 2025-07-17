@@ -333,6 +333,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 dev_features = test.config.sycl_dev_features[full_dev_name]
                 if "level_zero_v2_adapter" in dev_features:
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=1"
+                else:
+                    expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=0"
 
                 expanded += " ONEAPI_DEVICE_SELECTOR={} {}".format(
                     parsed_dev_name, test.config.run_launcher
@@ -393,4 +395,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         if len(devices_for_test) == 1:
             device = devices_for_test[0]
             result.code = map_result(test.config.sycl_dev_features[device], result.code)
+
+        # Set this to empty so internal lit code won't change our result if it incorrectly
+        # thinks the test should XFAIL. This can happen when our XFAIL condition relies on
+        # device features, since the internal lit code doesn't have knowledge of these.
+        test.xfails = []
+
         return result

@@ -66,7 +66,7 @@ std::vector<ur_image_format_t> all_image_formats;
 
 struct urMemImageCreateTestWithImageFormatParam
     : uur::urContextTestWithParam<ur_image_format_t> {
-  void SetUp() {
+  void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::urContextTestWithParam<ur_image_format_t>::SetUp());
     bool image_support = false;
@@ -75,7 +75,7 @@ struct urMemImageCreateTestWithImageFormatParam
       GTEST_SKIP() << "Device doesn't support images";
     }
   }
-  void TearDown() {
+  void TearDown() override {
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::urContextTestWithParam<ur_image_format_t>::TearDown());
   }

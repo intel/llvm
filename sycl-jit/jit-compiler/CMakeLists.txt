@@ -1,15 +1,15 @@
 
 add_llvm_library(sycl-jit
-   lib/KernelFusion.cpp
-   lib/translation/KernelTranslation.cpp
+   lib/translation/JITContext.cpp
    lib/translation/SPIRVLLVMTranslation.cpp
-   lib/fusion/FusionPipeline.cpp
-   lib/fusion/FusionHelper.cpp
-   lib/fusion/JITContext.cpp
-   lib/fusion/ModuleHelper.cpp
+   lib/translation/Translation.cpp
+   lib/materializer/MaterializerPipeline.cpp
+   lib/materializer/Materializer.cpp
    lib/rtc/DeviceCompilation.cpp
    lib/rtc/ESIMD.cpp
+   lib/rtc/RTC.cpp
    lib/helper/ConfigHelper.cpp
+   lib/helper/ErrorHelper.cpp
 
    SHARED
 
@@ -35,7 +35,6 @@ add_llvm_library(sycl-jit
    MC
    SYCLLowerIR
    SYCLPostLink
-   GenXIntrinsics
    ${LLVM_TARGETS_TO_BUILD}
 
    LINK_LIBS
@@ -67,7 +66,6 @@ target_include_directories(sycl-jit
   PUBLIC
   $<INSTALL_INTERFACE:include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<BUILD_INTERFACE:${SYCL_JIT_BASE_DIR}/common/include>
   PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
@@ -76,9 +74,8 @@ find_package(Threads REQUIRED)
 
 target_link_libraries(sycl-jit
   PRIVATE
-  sycl-jit-common
   LLVMSPIRVLib
-  SYCLKernelJITPasses
+  SYCLJITPasses
   ${CMAKE_THREAD_LIBS_INIT}
 )
 

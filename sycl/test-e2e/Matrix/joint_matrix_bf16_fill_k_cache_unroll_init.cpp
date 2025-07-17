@@ -5,12 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: target-nvidia, target-amd
-// UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
-// other triples
-
-// XFAIL: run-mode
-// XFAIL-TRACKER: CMPLRLLVM-66371
+// REQUIRES: target-spir
 
 // REQUIRES: aspect-ext_intel_matrix, gpu
 

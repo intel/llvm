@@ -45,7 +45,7 @@ class TestSuite(Suite):
 
         return result
 
-    def additionalMetadata(self) -> dict[str, BenchmarkMetadata]:
+    def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
         return {
             "Foo Group": BenchmarkMetadata(
                 type="group",
@@ -93,11 +93,9 @@ class TestBench(Benchmark):
         return [
             Result(
                 label=self.name(),
-                explicit_group=self.group,
                 value=random_value,
                 command=["test", "--arg1", "foo"],
                 env={"A": "B"},
-                stdout="no output",
                 unit="ms",
             )
         ]

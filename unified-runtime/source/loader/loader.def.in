@@ -7,6 +7,10 @@ EXPORTS
 	urAdapterRetain
 	urAdapterSetLoggerCallback
 	urAdapterSetLoggerCallbackLevel
+	urBindlessImagesFreeMappedLinearMemoryExp
+	urBindlessImagesGetImageMemoryHandleTypeSupportExp
+	urBindlessImagesGetImageSampledHandleSupportExp
+	urBindlessImagesGetImageUnsampledHandleSupportExp
 	urBindlessImagesImageAllocateExp
 	urBindlessImagesImageCopyExp
 	urBindlessImagesImageFreeExp
@@ -22,6 +26,7 @@ EXPORTS
 	urBindlessImagesSampledImageCreateExp
 	urBindlessImagesSampledImageHandleDestroyExp
 	urBindlessImagesSignalExternalSemaphoreExp
+	urBindlessImagesSupportsImportingHandleTypeExp
 	urBindlessImagesUnsampledImageCreateExp
 	urBindlessImagesUnsampledImageHandleDestroyExp
 	urBindlessImagesWaitExternalSemaphoreExp
@@ -65,14 +70,12 @@ EXPORTS
 	urDeviceRetain
 	urDeviceSelectBinary
 	urEnqueueCommandBufferExp
-	urEnqueueCooperativeKernelLaunchExp
 	urEnqueueDeviceGlobalVariableRead
 	urEnqueueDeviceGlobalVariableWrite
 	urEnqueueEventsWait
 	urEnqueueEventsWaitWithBarrier
 	urEnqueueEventsWaitWithBarrierExt
 	urEnqueueKernelLaunch
-	urEnqueueKernelLaunchCustomExp
 	urEnqueueMemBufferCopy
 	urEnqueueMemBufferCopyRect
 	urEnqueueMemBufferFill
@@ -115,8 +118,6 @@ EXPORTS
 	urGetEnqueueExpProcAddrTable
 	urGetEnqueueProcAddrTable
 	urGetEventProcAddrTable
-	urGetGlobalProcAddrTable
-	urGetKernelExpProcAddrTable
 	urGetKernelProcAddrTable
 	urGetMemProcAddrTable
 	urGetPhysicalMemProcAddrTable
@@ -144,7 +145,7 @@ EXPORTS
 	urKernelSetArgValue
 	urKernelSetExecInfo
 	urKernelSetSpecializationConstants
-	urKernelSuggestMaxCooperativeGroupCountExp
+	urKernelSuggestMaxCooperativeGroupCount
 	urLoaderConfigCreate
 	urLoaderConfigEnableLayer
 	urLoaderConfigGetInfo
@@ -174,7 +175,6 @@ EXPORTS
 	urPlatformGetBackendOption
 	urPlatformGetInfo
 	urPlatformGetNativeHandle
-	urPrintAdapterBackend
 	urPrintAdapterGetInfoParams
 	urPrintAdapterGetLastErrorParams
 	urPrintAdapterGetParams
@@ -184,8 +184,13 @@ EXPORTS
 	urPrintAdapterSetLoggerCallbackLevelParams
 	urPrintAdapterSetLoggerCallbackParams
 	urPrintApiVersion
+	urPrintBackend
 	urPrintBaseDesc
 	urPrintBaseProperties
+	urPrintBindlessImagesFreeMappedLinearMemoryExpParams
+	urPrintBindlessImagesGetImageMemoryHandleTypeSupportExpParams
+	urPrintBindlessImagesGetImageSampledHandleSupportExpParams
+	urPrintBindlessImagesGetImageUnsampledHandleSupportExpParams
 	urPrintBindlessImagesImageAllocateExpParams
 	urPrintBindlessImagesImageCopyExpParams
 	urPrintBindlessImagesImageFreeExpParams
@@ -201,6 +206,7 @@ EXPORTS
 	urPrintBindlessImagesSampledImageCreateExpParams
 	urPrintBindlessImagesSampledImageHandleDestroyExpParams
 	urPrintBindlessImagesSignalExternalSemaphoreExpParams
+	urPrintBindlessImagesSupportsImportingHandleTypeExpParams
 	urPrintBindlessImagesUnsampledImageCreateExpParams
 	urPrintBindlessImagesUnsampledImageHandleDestroyExpParams
 	urPrintBindlessImagesWaitExternalSemaphoreExpParams
@@ -271,13 +277,11 @@ EXPORTS
 	urPrintDeviceType
 	urPrintDeviceUsmAccessCapabilityFlags
 	urPrintEnqueueCommandBufferExpParams
-	urPrintEnqueueCooperativeKernelLaunchExpParams
 	urPrintEnqueueDeviceGlobalVariableReadParams
 	urPrintEnqueueDeviceGlobalVariableWriteParams
 	urPrintEnqueueEventsWaitParams
 	urPrintEnqueueEventsWaitWithBarrierExtParams
 	urPrintEnqueueEventsWaitWithBarrierParams
-	urPrintEnqueueKernelLaunchCustomExpParams
 	urPrintEnqueueKernelLaunchParams
 	urPrintEnqueueMemBufferCopyParams
 	urPrintEnqueueMemBufferCopyRectParams
@@ -338,8 +342,7 @@ EXPORTS
 	urPrintExpFileDescriptor
 	urPrintExpImageCopyFlags
 	urPrintExpImageCopyRegion
-	urPrintExpLaunchProperty
-	urPrintExpLaunchPropertyId
+	urPrintExpImageMemType
 	urPrintExpPeerInfo
 	urPrintExpSamplerAddrModes
 	urPrintExpSamplerCubemapFilterMode
@@ -370,6 +373,9 @@ EXPORTS
 	urPrintKernelGetSuggestedLocalWorkSizeParams
 	urPrintKernelGroupInfo
 	urPrintKernelInfo
+	urPrintKernelLaunchPropertiesFlags
+	urPrintKernelLaunchProperty
+	urPrintKernelLaunchPropertyId
 	urPrintKernelNativeProperties
 	urPrintKernelReleaseParams
 	urPrintKernelRetainParams
@@ -381,7 +387,7 @@ EXPORTS
 	urPrintKernelSetExecInfoParams
 	urPrintKernelSetSpecializationConstantsParams
 	urPrintKernelSubGroupInfo
-	urPrintKernelSuggestMaxCooperativeGroupCountExpParams
+	urPrintKernelSuggestMaxCooperativeGroupCountParams
 	urPrintLoaderConfigCreateParams
 	urPrintLoaderConfigEnableLayerParams
 	urPrintLoaderConfigGetInfoParams
@@ -417,7 +423,6 @@ EXPORTS
 	urPrintPhysicalMemProperties
 	urPrintPhysicalMemReleaseParams
 	urPrintPhysicalMemRetainParams
-	urPrintPlatformBackend
 	urPrintPlatformCreateWithNativeHandleParams
 	urPrintPlatformGetApiVersionParams
 	urPrintPlatformGetBackendOptionParams
@@ -482,6 +487,7 @@ EXPORTS
 	urPrintUsmAdviceFlags
 	urPrintUsmAllocInfo
 	urPrintUsmAllocLocationDesc
+	urPrintUsmContextMemcpyExpParams
 	urPrintUsmDesc
 	urPrintUsmDeviceAllocParams
 	urPrintUsmDeviceDesc
@@ -555,6 +561,7 @@ EXPORTS
 	urSamplerGetNativeHandle
 	urSamplerRelease
 	urSamplerRetain
+	urUSMContextMemcpyExp
 	urUSMDeviceAlloc
 	urUSMFree
 	urUSMGetMemAllocInfo

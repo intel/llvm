@@ -211,3 +211,15 @@
 // RUN: %clangxx -fsycl -### --offload-new-driver %s 2>&1 \
 // RUN:  | FileCheck -check-prefix CHECK_NO_DYNAMIC_LINKING %s
 // CHECK_NO_DYNAMIC_LINKING-NOT: clang-linker-wrapper{{.*}} "-sycl-allow-device-image-dependencies"
+
+// Check if fsycl-targets correctly processes multiple NVidia
+// and AMD GPU targets.
+// RUN:   %clang -### -fsycl -fsycl-targets=nvidia_gpu_sm_60,nvidia_gpu_sm_70 -nocudalib --offload-new-driver  %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-MACRO-SM-60,CHK-MACRO-SM-70 %s
+// CHK-MACRO-SM-60: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_NVIDIA_GPU_SM_60__"{{.*}}
+// CHK-MACRO-SM-70: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_NVIDIA_GPU_SM_70__"{{.*}}
+// RUN:   %clang -### -fsycl -fsycl-targets=amd_gpu_gfx90a,amd_gpu_gfx90c -fno-sycl-libspirv -nogpulib --offload-new-driver  %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-MACRO-GFX90A,CHK-MACRO-GFX90C %s
+// CHK-MACRO-GFX90A: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_AMD_GPU_GFX90A__"{{.*}}
+// CHK-MACRO-GFX90C: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_AMD_GPU_GFX90C__"{{.*}}
+

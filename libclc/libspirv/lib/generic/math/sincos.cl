@@ -6,7 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_sincos.h>
 #include <libspirv/spirv.h>
 
-#define __CLC_BODY <sincos.inc>
+#define FUNCTION __spirv_ocl_sincos
+#define __CLC_FUNCTION(x) __clc_sincos
+#define __CLC_BODY <clc/math/unary_def_with_ptr.inc>
 #include <clc/math/gentype.inc>

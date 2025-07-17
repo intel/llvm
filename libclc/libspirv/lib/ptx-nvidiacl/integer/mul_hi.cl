@@ -7,9 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clcmacro.h>
-#include <core/clc_core.h>
-#include <libspirv/spirv.h>
 #include <libspirv/ptx-nvidiacl/intrinsics.h>
+#include <libspirv/spirv.h>
 
 _CLC_OVERLOAD _CLC_DEF int __spirv_ocl_s_mul_hi(int x, int y) {
   return __nvvm_mulhi_i(x, y);
@@ -34,15 +33,12 @@ _CLC_OVERLOAD _CLC_DEF ulong __spirv_ocl_u_mul_hi(ulong x, ulong y) {
   }
 
 __CLC_MUL_HI_IMPL(short, __spirv_ocl_s_mul_hi, char, 8)
-__CLC_MUL_HI_IMPL(short, __spirv_ocl_s_mul_hi, schar, 8)
 __CLC_MUL_HI_IMPL(ushort, __spirv_ocl_u_mul_hi, uchar, 8)
 __CLC_MUL_HI_IMPL(int, __spirv_ocl_s_mul_hi, short, 16)
 __CLC_MUL_HI_IMPL(uint, __spirv_ocl_u_mul_hi, ushort, 16)
 
 _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, char, __spirv_ocl_s_mul_hi, char,
                       char)
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, schar, __spirv_ocl_s_mul_hi,
-                      schar, schar)
 _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, short, __spirv_ocl_s_mul_hi,
                       short, short)
 _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, int, __spirv_ocl_s_mul_hi, int,

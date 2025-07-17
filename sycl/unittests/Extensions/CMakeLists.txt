@@ -12,7 +12,6 @@ add_sycl_unittest(ExtensionsTests OBJECT
   CompositeDevice.cpp
   OneAPIProd.cpp
   EnqueueFunctionsEvents.cpp
-  DiscardEvent.cpp
   ProfilingTag.cpp
   KernelProperties.cpp
   NoDeviceIPVersion.cpp
@@ -22,6 +21,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   LaunchQueries.cpp
   EventMode.cpp
   DeviceInfo.cpp
+  RootGroup.cpp
 )
 
 add_subdirectory(CommandGraph)

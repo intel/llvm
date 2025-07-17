@@ -24,14 +24,6 @@
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size,
     const ur_buffer_properties_t *pProperties, ur_mem_handle_t *phBuffer) {
-  // Validate flags
-  if (flags &
-      (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) {
-    UR_ASSERT(pProperties && pProperties->pHost,
-              UR_RESULT_ERROR_INVALID_HOST_PTR);
-  }
-  UR_ASSERT(size != 0, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
-
   // Currently, USE_HOST_PTR is not implemented using host register
   // since this triggers a weird segfault after program ends.
   // Setting this constant to true enables testing that behavior.
@@ -95,30 +87,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
 /// If this is zero, calls the relevant CUDA Free function
 /// \return UR_RESULT_SUCCESS unless deallocation error
 UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
-
     // Do nothing if there are other references
     if (hMem->decrementReferenceCount() > 0) {
       return UR_RESULT_SUCCESS;
     }
 
     // Call destructor
-    std::unique_ptr<ur_mem_handle_t_> MemObjPtr(hMem);
-
+    delete hMem;
   } catch (ur_result_t Err) {
-    Result = Err;
-  } catch (...) {
-    Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
-  }
-
-  if (Result != UR_RESULT_SUCCESS) {
     // A reported CUDA error is either an implementation or an asynchronous CUDA
     // error for which it is unclear if the function that reported it succeeded
     // or not. Either way, the state of the program is compromised and likely
     // unrecoverable.
-    die("Unrecoverable program state reached in urMemRelease");
+    setErrorMessage("Error in native free, program state may be "
+                    "compromised.",
+                    Err);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  } catch (...) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
 
   return UR_RESULT_SUCCESS;
@@ -201,18 +188,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     void *pHost, ur_mem_handle_t *phMem) {
-  if (flags &
-      (UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER | UR_MEM_FLAG_USE_HOST_POINTER)) {
-    UR_ASSERT(pHost, UR_RESULT_ERROR_INVALID_HOST_PTR);
-  }
   const bool PerformInitialCopy =
       (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) ||
       ((flags & UR_MEM_FLAG_USE_HOST_POINTER));
-
-  UR_ASSERT(pImageDesc->stype == UR_STRUCTURE_TYPE_IMAGE_DESC,
-            UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-  UR_ASSERT(pImageDesc->type <= UR_MEM_TYPE_IMAGE1D_ARRAY,
-            UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
 
   // We only support RBGA channel order
   // TODO: check SYCL CTS and spec. May also have to support BGRA
@@ -360,12 +338,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
 /// A buffer partition (or a sub-buffer, in OpenCL terms) is simply implemented
 /// as an offset over an existing CUDA allocation.
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
-    ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
-    ur_buffer_create_type_t bufferCreateType, const ur_buffer_region_t *pRegion,
-    ur_mem_handle_t *phMem) {
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT((flags & UR_MEM_FLAGS_MASK) == 0,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
+    ur_mem_handle_t hBuffer, ur_mem_flags_t flags, ur_buffer_create_type_t,
+    const ur_buffer_region_t *pRegion, ur_mem_handle_t *phMem) {
   UR_ASSERT(hBuffer->isBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT(!hBuffer->isSubBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
@@ -386,13 +360,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
     UR_ASSERT(!(flags & (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)),
               UR_RESULT_ERROR_INVALID_VALUE);
   }
-
-  UR_ASSERT(bufferCreateType == UR_BUFFER_CREATE_TYPE_REGION,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
-  UR_ASSERT(pRegion != nullptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
-  UR_ASSERT(pRegion->size != 0u, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
 
   auto &BufferImpl = std::get<BufferMem>(hBuffer->Mem);
   UR_ASSERT(((pRegion->origin + pRegion->size) <= BufferImpl.getSize()),

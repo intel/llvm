@@ -18,22 +18,31 @@
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17255
-
 #include <sycl/detail/core.hpp>
 
 int main() {
-  uint8_t *h_A = (uint8_t *)malloc(256);
+
   static sycl::buffer<uint8_t> bufs[2] = {sycl::range<1>(256),
                                           sycl::range<1>(256)};
   sycl::queue q;
   q.submit([&](sycl::handler &cgh) {
-    cgh.copy(h_A, bufs[0].get_access<sycl::access::mode::write>(cgh));
+    auto acc = bufs[0].get_access<sycl::access::mode::write>(cgh);
+    cgh.single_task([=]() {
+      for (int i = 0; i < 256; i++) {
+        acc[i] = 24;
+      }
+    });
   });
+
   q.submit([&](sycl::handler &cgh) {
-    cgh.copy(h_A, bufs[1].get_access<sycl::access::mode::write>(cgh));
+    auto acc = bufs[1].get_access<sycl::access::mode::write>(cgh);
+    cgh.single_task([=]() {
+      for (int i = 0; i < 256; i++) {
+        acc[i] = 25;
+      }
+    });
   });
-  free(h_A);
+
+  // no q.wait()
   return 0;
 }

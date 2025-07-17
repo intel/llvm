@@ -305,6 +305,28 @@ from the same dynamic command-group object. This allows the SYCL runtime to
 access the list of alternative kernels when calling the UR API to append a
 kernel command to a command-buffer.
 
+## Graph-Owned Memory Allocations
+### Device Allocations
+
+Device allocations for graphs are implemented using virtual memory. Allocation
+commands performing a virtual reservation for the provided size, and physical
+memory is created and mapped only during graph finalization. This allows valid
+device addresses to be returned immediately when building the graph without the
+penalty of doing any memory allocations during graph building, which could have
+a negative impact on features such as whole-graph update through increased
+overhead.
+
+### Behaviour of async_free
+
+`async_free` nodes are treated as hints rather than an actual memory free
+operation. This is because deallocating during graph execution is both
+undesirable for performance and not feasible with the current
+implementation/backends. Instead a free node represents a promise from the user
+that the memory is no longer in use. This enables optimizations such as
+potentially reusing that memory for subsequent allocation nodes in the graph.
+This allows us to reduce the total amount of concurrent memory required by a
+single graph.
+
 ## Optimizations
 ### Interactions with Profiling
 
@@ -326,6 +348,26 @@ This optimization is only performed in this very limited case where it can be
 safely assumed to be more performant. It is not likely we'll try to allow
 in-order execution in more scenarios through a complicated (and imperfect)
 heuristic but rather expose this as a hint the user can provide.
+
+### Graph Allocation Memory Reuse
+
+When adding a new allocation node to a graph, memory allocations which have
+previously been freed are checked to see if they can be reused. Because we have
+to return a pointer to the user immediately when the CGF for a node is
+processed, we have to do this eagerly anytime `async_malloc()` is called.
+Allocations track the last free node associated with them to represent the most
+recent use of that allocation.
+
+ To be reused, the two allocations must meet these criteria:
+
+- They must be of the same allocation type (device/host/shared).
+- They must have a matching size.
+- They must have the same properties (currently only read-only matters).
+- There must be a path from the last free node associated with a given
+  allocation to the new allocation node being added.
+
+If these criteria are met we update the last free node for the allocation and
+return the existing pointer to the user.
 
 ## Backend Implementation
 
@@ -567,6 +609,22 @@ The `urCommandBufferAppendUSMPrefetchExp` and
 adapter as empty nodes enforcing the node dependencies. As such the
 optimization hints are a no-op.
 
+#### Native Command
+
+CUDA child graphs are used to implement the `urCommandBufferAppendNativeCommandExp`
+entry-point for `sycl_ext_codeplay_enqueue_native_command` SYCL-Graph support.
+The SYCL native-command node exposes a CUDA-Graph object to the user, which is
+then added as a child graph of the parent graph from the SYCL-graph. Therefore
+any CUDA limitations that apply to the usage of child nodes in a graph, apply
+to native-command nodes.
+
+Using CUDA asynchronous allocation/free nodes in child graphs is only supported
+[from CUDA 12.9](https://docs.nvidia.com/cuda/cuda-c-programming-guide/#memory-nodes-in-child-graphs).
+As a result adding these async alloc & free nodes to the CUDA-Graph handle
+given to a user inside a native-command is only supported in DPC++ builds
+against CUDA 12.9 and later when the SYCL-RT can take advantage of this CUDA
+functionality in the backend.
+
 ### HIP
 
 The HIP backend offers a graph management API very similar to CUDA Graph
@@ -597,6 +655,20 @@ The `urCommandBufferAppendUSMPrefetchExp` and
 adapter as empty nodes enforcing the node dependencies. As such the
 optimization hints are a no-op.
 
+#### Native Command
+
+HIP child graphs are used to implement the `urCommandBufferAppendNativeCommandExp`
+entry-point for `sycl_ext_codeplay_enqueue_native_command` SYCL-Graph support.
+The SYCL native-command node exposes a HIP-Graph object to the user, which is
+then added as a child graph of the parent graph from the SYCL-graph. Therefore
+any CUDA limitations that apply to the usage of child nodes in a graph, apply
+to native-command nodes.
+
+Using HIP-Graph asynchronous allocation/free nodes in child graphs is not
+supported, and as a result adding async alloc & free nodes to the native
+HIP-Graph handle exposed to the user in a native-command will result in an
+exception when the graph is finalized.
+
 ### OpenCL
 
 SYCL-Graph is only enabled for an OpenCL backend when the
@@ -626,8 +698,8 @@ adapter where there is matching support for each function in the list.
 | urCommandBufferReleaseExp | clReleaseCommandBufferKHR | Yes |
 | urCommandBufferFinalizeExp | clFinalizeCommandBufferKHR | Yes |
 | urCommandBufferAppendKernelLaunchExp | clCommandNDRangeKernelKHR | Yes |
-| urCommandBufferAppendUSMMemcpyExp |  | No |
-| urCommandBufferAppendUSMFillExp |  | No |
+| urCommandBufferAppendUSMMemcpyExp | clCommandSVMMemcpyKHR | Partial, [see below](#unsupported-command-types) |
+| urCommandBufferAppendUSMFillExp | clCommandSVMMemFillKHR | Partial, [see below](#unsupported-command-types) |
 | urCommandBufferAppendMembufferCopyExp | clCommandCopyBufferKHR | Yes |
 | urCommandBufferAppendMemBufferWriteExp |  | No |
 | urCommandBufferAppendMemBufferReadExp |  | No |
@@ -637,14 +709,13 @@ adapter where there is matching support for each function in the list.
 | urCommandBufferAppendMemBufferFillExp | clCommandFillBufferKHR | Yes |
 | urCommandBufferAppendUSMPrefetchExp |  | No |
 | urCommandBufferAppendUSMAdviseExp |  | No |
+| urCommandBufferAppendNativeCommandExp| | Yes |
 | urEnqueueCommandBufferExp | clEnqueueCommandBufferKHR | Yes |
 |  | clCommandBarrierWithWaitListKHR | No |
 |  | clCommandCopyImageKHR | No |
 |  | clCommandCopyImageToBufferKHR | No |
 |  | clCommandFillImageKHR | No |
 |  | clGetCommandBufferInfoKHR | No |
-|  | clCommandSVMMemcpyKHR | No |
-|  | clCommandSVMMemFillKHR | No |
 | urCommandBufferUpdateKernelLaunchExp | clUpdateMutableCommandsKHR | Partial [See Update Section](#update-support) |
 
 We are looking to address these gaps in the future so that SYCL-Graph can be
@@ -664,17 +735,21 @@ terminate called after throwing an instance of 'sycl::_V1::exception'
 what():  USM copy command not supported by graph backend
 ```
 
-The types of commands which are unsupported, and lead to this exception are:
+The types of commands which are unsupported, and may lead to this exception are:
 * `handler::copy(src, dest)` - Where `src` is an accessor and `dest` is a pointer.
    This corresponds to a memory buffer read command.
 * `handler::copy(src, dest)` - Where `src` is an pointer and `dest` is an accessor.
   This corresponds to a memory buffer write command.
 * `handler::copy(src, dest)` or `handler::memcpy(dest, src)` - Where both `src` and
-   `dest` are USM pointers. This corresponds to a USM copy command.
+   `dest` are USM pointers. This corresponds to a USM copy command that is
+   mapped to `clCommandSVMMemcpyKHR`, which will only work on OpenCL devices
+   which don't differentiate between USM and SVM.
 * `handler::fill(ptr, pattern, count)` - This corresponds to a USM memory
-  fill command.
+  fill command that is mapped to `clCommandSVMMemFillKHR`, which will only work
+  on OpenCL devices which don't differentiate between USM and SVM.
 * `handler::memset(ptr, value, numBytes)` - This corresponds to a USM memory
-  fill command.
+  fill command that is mapped to `clCommandSVMMemFillKHR`, which will only work
+  on OpenCL devices which don't differentiate between USM and SVM.
 * `handler::prefetch()`.
 * `handler::mem_advise()`.
 

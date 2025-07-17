@@ -1,0 +1,39 @@
+# Github Actions launch scheduled workflows of the main branch only (sycl).
+# This is a workaround to set a scheduled launch of the sycl-rel-nightly.yml
+# workflow, which is located on the sycl-rel-* branch.
+
+name: Scheduled sycl-rel-nightly launch
+
+permissions: read-all
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  launch:
+    if: github.repository == 'intel/llvm'
+    permissions:
+      actions: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Launch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # To avoid excessive scheduled runs this script also checks if there are
+        # new commits since the last run - it checks if the latest commit is
+        # older >24h. That means the previous run already tested this commit.
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            latest_commit_time=$(curl -s https://api.github.com/repos/intel/llvm/commits/sycl-rel-6_2 | jq -r '.commit.committer.date')
+            echo $latest_commit_time
+            latest_commit_epoch=$(date -d "$latest_commit_time" +%s)
+            now_epoch=$(date +%s)
+            diff=$((now_epoch - latest_commit_epoch))
+            if [ "$diff" -lt 86400 ]; then
+              gh workflow run sycl-rel-nightly.yml --repo "${GITHUB_REPOSITORY}" --ref sycl-rel-6_2
+            fi
+          else
+            gh workflow run sycl-rel-nightly.yml --repo "${GITHUB_REPOSITORY}" --ref sycl-rel-6_2
+          fi

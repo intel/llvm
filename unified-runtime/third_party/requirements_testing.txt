@@ -1,3 +1,6 @@
 # Note: Filecheck 1.0.1 requires Python 3.10
 filecheck==1.0.1
 lit==18.1.8
+
+# For timeouts in lit
+psutil==7.0.0

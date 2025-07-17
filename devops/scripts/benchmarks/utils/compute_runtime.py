@@ -7,7 +7,6 @@ import os
 import re
 import yaml
 
-from pathlib import Path
 from .utils import *
 from options import options
 
@@ -30,8 +29,8 @@ class ComputeRuntime:
 
     def ld_libraries(self) -> list[str]:
         paths = [
-            os.path.join(self.gmmlib, "lib64"),
-            os.path.join(self.level_zero, "lib64"),
+            os.path.join(self.gmmlib, "lib"),
+            os.path.join(self.level_zero, "lib"),
             os.path.join(self.compute_runtime, "bin"),
         ]
 
@@ -51,6 +50,7 @@ class ComputeRuntime:
         }
 
     def build_gmmlib(self, repo, commit):
+        log.info("Building GMMLib...")
         self.gmmlib_repo = git_clone(options.workdir, "gmmlib-repo", repo, commit)
         self.gmmlib_build = os.path.join(options.workdir, "gmmlib-build")
         self.gmmlib_install = os.path.join(options.workdir, "gmmlib-install")
@@ -64,9 +64,11 @@ class ComputeRuntime:
         run(configure_command)
         run(f"cmake --build {self.gmmlib_build} -j {options.build_jobs}")
         run(f"cmake --install {self.gmmlib_build}")
+        log.info("GMMLib build complete.")
         return self.gmmlib_install
 
     def build_level_zero(self, repo, commit):
+        log.info("Building Level Zero...")
         self.level_zero_repo = git_clone(
             options.workdir, "level-zero-repo", repo, commit
         )
@@ -89,46 +91,48 @@ class ComputeRuntime:
         run(configure_command)
         run(f"cmake --build {self.level_zero_build} -j {options.build_jobs}")
         run(f"cmake --install {self.level_zero_build}")
+        log.info("Level Zero build complete.")
         return self.level_zero_install
 
     def build_igc(self, repo, commit):
+        log.info("Building IGC...")
         self.igc_repo = git_clone(options.workdir, "igc", repo, commit)
         self.vc_intr = git_clone(
             options.workdir,
             "vc-intrinsics",
             "https://github.com/intel/vc-intrinsics",
-            "b980474c99859f7e4eb157828c5e80202b062177",
+            "9d255266e1df8f1dc5d11e1fbb03213acfaa4fc7",
         )
         self.llvm_project = git_clone(
             options.workdir,
             "llvm-project",
             "https://github.com/llvm/llvm-project",
-            "llvmorg-14.0.5",
+            "llvmorg-15.0.7",
         )
         llvm_projects = os.path.join(self.llvm_project, "llvm", "projects")
         self.ocl = git_clone(
             llvm_projects,
             "opencl-clang",
             "https://github.com/intel/opencl-clang",
-            "ocl-open-140",
+            "ocl-open-150",
         )
         self.translator = git_clone(
             llvm_projects,
             "llvm-spirv",
             "https://github.com/KhronosGroup/SPIRV-LLVM-Translator",
-            "llvm_release_140",
+            "llvm_release_150",
         )
         self.spirv_tools = git_clone(
             options.workdir,
             "SPIRV-Tools",
             "https://github.com/KhronosGroup/SPIRV-Tools.git",
-            "173fe3c60a8d9c7d35d7842ae267bb9df267a127",
+            "f289d047f49fb60488301ec62bafab85573668cc",
         )
         self.spirv_headers = git_clone(
             options.workdir,
             "SPIRV-Headers",
             "https://github.com/KhronosGroup/SPIRV-Headers.git",
-            "2b2e05e088841c63c0b6fd4c9fb380d8688738d3",
+            "0e710677989b4326ac974fd80c5308191ed80965",
         )
 
         self.igc_build = os.path.join(options.workdir, "igc-build")
@@ -151,6 +155,7 @@ class ComputeRuntime:
         )
         # cmake --install doesn't work...
         run("make install", cwd=self.igc_build)
+        log.info("IGC build complete.")
         return self.igc_install
 
     def read_manifest(self, manifest_path):
@@ -204,6 +209,7 @@ class ComputeRuntime:
         # Remove -Werror...
         replace_in_file(cmakelists_path, r"\s-Werror(?:=[a-zA-Z]*)?", "")
 
+        log.info("Building Compute Runtime...")
         configure_command = [
             "cmake",
             f"-B {self.compute_runtime_build}",
@@ -220,6 +226,7 @@ class ComputeRuntime:
 
         run(configure_command)
         run(f"cmake --build {self.compute_runtime_build} -j {options.build_jobs}")
+        log.info("Compute Runtime build complete.")
         return self.compute_runtime_build
 
 

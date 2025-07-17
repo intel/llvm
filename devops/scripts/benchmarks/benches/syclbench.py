@@ -14,9 +14,6 @@ from options import options
 
 class SyclBench(Suite):
     def __init__(self, directory):
-        if options.sycl is None:
-            return
-
         self.directory = directory
         return
 
@@ -67,9 +64,6 @@ class SyclBench(Suite):
         self.built = True
 
     def benchmarks(self) -> list[Benchmark]:
-        if options.sycl is None:
-            return []
-
         return [
             # Blocked_transform(self), # run time < 1ms
             DagTaskI(self),
@@ -117,6 +111,9 @@ class SyclBenchmark(Benchmark):
         self.bench_name = name
         self.test = test
 
+    def enabled(self) -> bool:
+        return options.sycl is not None
+
     def bin_args(self) -> list[str]:
         return []
 
@@ -161,14 +158,15 @@ class SyclBenchmark(Benchmark):
             res_list = []
             for row in reader:
                 if not row[0].startswith("#"):
+                    # Check if the test passed
+                    if row[1] != "PASS":
+                        raise Exception(f"{row[0]} failed")
                     res_list.append(
                         Result(
                             label=f"{self.name()} {row[0]}",
                             value=float(row[12]) * 1000,  # convert to ms
-                            passed=(row[1] == "PASS"),
                             command=command,
                             env=env_vars,
-                            stdout=row,
                             unit="ms",
                             git_url=self.bench.git_url(),
                             git_hash=self.bench.git_hash(),

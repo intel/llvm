@@ -9,15 +9,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "enqueued_pool.hpp"
-#include "event.hpp"
+#include "usm.hpp"
 
 #include <ur_api.h>
 
 EnqueuedPool::~EnqueuedPool() { cleanup(); }
 
 std::optional<EnqueuedPool::Allocation>
-EnqueuedPool::getBestFit(size_t Size, size_t Alignment,
-                         ur_queue_handle_t Queue) {
+EnqueuedPool::getBestFit(size_t Size, size_t Alignment, void *Queue) {
   auto Lock = std::lock_guard(Mutex);
 
   Allocation Alloc = {nullptr, Size, nullptr, Queue, Alignment};
@@ -47,12 +46,11 @@ EnqueuedPool::getBestFit(size_t Size, size_t Alignment,
 }
 
 void EnqueuedPool::insert(void *Ptr, size_t Size, ur_event_handle_t Event,
-                          ur_queue_handle_t Queue) {
+                          void *Queue) {
   auto Lock = std::lock_guard(Mutex);
 
   uintptr_t Address = (uintptr_t)Ptr;
   size_t Alignment = Address & (~Address + 1);
-  Event->RefCount.increment();
 
   Freelist.emplace(Allocation{Ptr, Size, Event, Queue, Alignment});
 }
@@ -60,22 +58,21 @@ void EnqueuedPool::insert(void *Ptr, size_t Size, ur_event_handle_t Event,
 bool EnqueuedPool::cleanup() {
   auto Lock = std::lock_guard(Mutex);
   auto FreedAllocations = !Freelist.empty();
+
+  auto Ret [[maybe_unused]] = UR_RESULT_SUCCESS;
   for (auto It : Freelist) {
-    auto hPool = umfPoolByPtr(It.Ptr);
-    assert(hPool != nullptr);
+    Ret = MemFreeFn(It.Ptr);
+    assert(Ret == UR_RESULT_SUCCESS);
 
-    auto umfRet = umfPoolFree(hPool, It.Ptr);
-    assert(umfRet == UMF_RESULT_SUCCESS);
-    std::ignore = umfRet;
-
-    urEventReleaseInternal(It.Event);
+    if (It.Event)
+      EventReleaseFn(It.Event);
   }
   Freelist.clear();
 
   return FreedAllocations;
 }
 
-bool EnqueuedPool::cleanupForQueue(ur_queue_handle_t Queue) {
+bool EnqueuedPool::cleanupForQueue(void *Queue) {
   auto Lock = std::lock_guard(Mutex);
 
   Allocation Alloc = {nullptr, 0, nullptr, Queue, 0};
@@ -84,15 +81,13 @@ bool EnqueuedPool::cleanupForQueue(ur_queue_handle_t Queue) {
 
   bool FreedAllocations = false;
 
+  auto Ret [[maybe_unused]] = UR_RESULT_SUCCESS;
   while (It != Freelist.end() && It->Queue == Queue) {
-    auto hPool = umfPoolByPtr(It->Ptr);
-    assert(hPool != nullptr);
+    Ret = MemFreeFn(It->Ptr);
+    assert(Ret == UR_RESULT_SUCCESS);
 
-    auto umfRet = umfPoolFree(hPool, It->Ptr);
-    assert(umfRet == UMF_RESULT_SUCCESS);
-    std::ignore = umfRet;
-
-    urEventReleaseInternal(It->Event);
+    if (It->Event)
+      EventReleaseFn(It->Event);
 
     // Erase the current allocation and move to the next one
     It = Freelist.erase(It);

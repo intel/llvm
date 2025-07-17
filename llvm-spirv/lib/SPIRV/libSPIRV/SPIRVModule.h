@@ -244,7 +244,7 @@ public:
   // Type creation functions
   virtual SPIRVTypeArray *addArrayType(SPIRVType *, SPIRVValue *) = 0;
   virtual SPIRVTypeBool *addBoolType() = 0;
-  virtual SPIRVTypeFloat *addFloatType(unsigned) = 0;
+  virtual SPIRVTypeFloat *addFloatType(unsigned, unsigned = FPEncodingMax) = 0;
   virtual SPIRVTypeFunction *
   addFunctionType(SPIRVType *, const std::vector<SPIRVType *> &) = 0;
   virtual SPIRVTypeImage *addImageType(SPIRVType *,
@@ -257,10 +257,7 @@ public:
   virtual SPIRVTypeSampledImage *addSampledImageType(SPIRVTypeImage *T) = 0;
   virtual SPIRVTypeInt *addIntegerType(unsigned) = 0;
   virtual SPIRVTypeOpaque *addOpaqueType(const std::string &) = 0;
-  virtual SPIRVTypePointer *addPointerType(SPIRVStorageClassKind,
-                                           SPIRVType *) = 0;
-  virtual SPIRVTypeUntypedPointerKHR *
-      addUntypedPointerKHRType(SPIRVStorageClassKind) = 0;
+  virtual SPIRVType *addPointerType(SPIRVStorageClassKind, SPIRVType *) = 0;
   virtual SPIRVTypeStruct *openStructType(unsigned, const std::string &) = 0;
   virtual SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) = 0;
   virtual void closeStructType(SPIRVTypeStruct *, bool) = 0;

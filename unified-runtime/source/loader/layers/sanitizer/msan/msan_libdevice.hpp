@@ -19,6 +19,8 @@
 namespace ur_sanitizer_layer {
 #endif // !__SPIR__ && !__SPIRV__
 
+constexpr unsigned MSAN_ORIGIN_GRANULARITY = 4U;
+
 struct MsanErrorReport {
   int Flag = 0;
 
@@ -37,20 +39,21 @@ struct MsanErrorReport {
 
   uint32_t AccessSize = 0;
   ErrorType ErrorTy = ErrorType::UNKNOWN;
-  uintptr_t Origin;
+  uint32_t Origin;
 };
 
 struct MsanLocalArgsInfo {
   uint64_t Size = 0;
 };
 
-struct MsanLaunchInfo {
+struct MsanRuntimeData {
   uintptr_t GlobalShadowOffset = 0;
   uintptr_t GlobalShadowOffsetEnd = 0;
 
   uintptr_t LocalShadowOffset = 0;
   uintptr_t LocalShadowOffsetEnd = 0;
 
+  uintptr_t *PrivateBase = nullptr;
   uintptr_t PrivateShadowOffset = 0;
   uintptr_t PrivateShadowOffsetEnd = 0;
 

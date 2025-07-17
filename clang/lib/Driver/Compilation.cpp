@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Driver/Compilation.h"
-#include "ToolChains/SYCL.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Driver.h"
@@ -128,8 +127,7 @@ Compilation::getArgsForToolChain(const ToolChain *TC, StringRef BoundArch,
     if (DeviceOffloadKind == Action::OFK_OpenMP ||
         DeviceOffloadKind == Action::OFK_SYCL) {
       const ToolChain *HostTC = getSingleOffloadToolChain<Action::OFK_Host>();
-      bool SameTripleAsHost = (TC->getTriple() == HostTC->getTriple()) ||
-                              isSYCLNativeCPU(TC->getTriple());
+      bool SameTripleAsHost = (TC->getTriple() == HostTC->getTriple());
       OffloadArgs = TC->TranslateOffloadTargetArgs(
           *TranslatedArgs, SameTripleAsHost, AllocatedArgs, DeviceOffloadKind);
     }
@@ -184,12 +182,12 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
   // able to remove), or non-regular files. Underlying tools may have
   // intentionally not overwritten them.
 
-  // Save the device code files if -fsycl-dump-device-code option is enabled.
-  if (TheDriver.isDumpDeviceCodeEnabled()) {
-    Arg *DumpDeviceCodeArg =
-        getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+  // Save the device code files if -save-offload-code option is enabled.
+  if (TheDriver.isSaveOffloadCodeEnabled()) {
+    Arg *SaveOffloadCodeArg =
+        getArgs().getLastArg(options::OPT_save_offload_code_EQ);
     std::string ExpectedDir =
-        DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "";
+        SaveOffloadCodeArg ? SaveOffloadCodeArg->getValue() : "";
     std::string ActualFile(File);
 
     if (ActualFile.find(ExpectedDir) != std::string::npos) {
@@ -225,8 +223,7 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
     // Temporary file lists contain files that need to be cleaned. The
     // file containing the information is also removed
     if (File.second == types::TY_Tempfilelist ||
-        File.second == types::TY_Tempfiletable ||
-        File.second == types::TY_FPGA_Dependencies_List) {
+        File.second == types::TY_Tempfiletable) {
       // These are temporary files and need to be removed.
       bool IsTable = File.second == types::TY_Tempfiletable;
 

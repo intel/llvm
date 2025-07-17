@@ -112,6 +112,7 @@ static inline fs::path write_data_to_file(char const *const data, size_t size) {
 
   // create private directory
   std::stringstream directory;
+  directory.imbue(std::locale::classic()); // avoid locale issues, like commas
   fs::path directory_path;
   constexpr int max_attempts = 5;
   int i;
@@ -134,6 +135,7 @@ static inline fs::path write_data_to_file(char const *const data, size_t size) {
 
   // random filename in private directory
   std::stringstream filename;
+  filename.imbue(std::locale::classic());
   filename << std::hex << rand(prng);
 #ifdef _WIN32
   auto filepath = directory_path / (filename.str() + ".dll");

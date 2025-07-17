@@ -9,26 +9,33 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "adapter.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 #include "program.hpp"
 
 #include <vector>
 
-struct ur_kernel_handle_t_ {
+struct ur_kernel_handle_t_ : ur::opencl::handle_base {
   using native_type = cl_kernel;
   native_type CLKernel;
   ur_program_handle_t Program;
   ur_context_handle_t Context;
-  std::atomic<uint32_t> RefCount = 0;
   bool IsNativeHandleOwned = true;
+  clSetKernelArgMemPointerINTEL_fn clSetKernelArgMemPointerINTEL = nullptr;
+  ur::RefCount RefCount;
 
   ur_kernel_handle_t_(native_type Kernel, ur_program_handle_t Program,
                       ur_context_handle_t Context)
-      : CLKernel(Kernel), Program(Program), Context(Context) {
-    RefCount = 1;
+      : handle_base(), CLKernel(Kernel), Program(Program), Context(Context) {
     urProgramRetain(Program);
     urContextRetain(Context);
+
+    cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
+        Context->CLContext,
+        ur::cl::getAdapter()->fnCache.clSetKernelArgMemPointerINTELCache,
+        cl_ext::SetKernelArgMemPointerName, &clSetKernelArgMemPointerINTEL);
   }
 
   ~ur_kernel_handle_t_() {
@@ -38,12 +45,6 @@ struct ur_kernel_handle_t_ {
       clReleaseKernel(CLKernel);
     }
   }
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   static ur_result_t makeWithNative(native_type NativeKernel,
                                     ur_program_handle_t Program,

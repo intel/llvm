@@ -1,3 +1,4 @@
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: vulkan
@@ -122,10 +123,10 @@ void cleanup_sycl(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
                                       ctxt);
   syclexp::destroy_image_handle(handles.input, dev, ctxt);
   syclexp::destroy_image_handle(handles.output, dev, ctxt);
-  syclexp::free_image_mem(handles.inputMemHandle, syclexp::image_type::standard,
-                          dev, ctxt);
-  syclexp::free_image_mem(handles.outputMemHandle,
-                          syclexp::image_type::standard, dev, ctxt);
+  syclexp::unmap_external_image_memory(
+      handles.inputMemHandle, syclexp::image_type::standard, dev, ctxt);
+  syclexp::unmap_external_image_memory(
+      handles.outputMemHandle, syclexp::image_type::standard, dev, ctxt);
   syclexp::release_external_memory(handles.inputExternalMem, dev, ctxt);
   syclexp::release_external_memory(handles.outputExternalMem, dev, ctxt);
 }
@@ -480,8 +481,7 @@ int main() {
 
   sycl::device dev;
 
-  if (vkutil::setupDevice(dev.get_info<sycl::info::device::name>()) !=
-      VK_SUCCESS) {
+  if (vkutil::setupDevice(dev) != VK_SUCCESS) {
     std::cerr << "Device setup failed!\n";
     return EXIT_FAILURE;
   }

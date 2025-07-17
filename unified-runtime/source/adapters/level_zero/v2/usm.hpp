@@ -12,10 +12,15 @@
 
 #include "ur_api.h"
 
+#include "../enqueued_pool.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
+#include "event.hpp"
 #include "ur_pool_manager.hpp"
 
-struct ur_usm_pool_handle_t_ : _ur_object {
+struct UsmPool;
+
+struct ur_usm_pool_handle_t_ : ur_object {
   ur_usm_pool_handle_t_(ur_context_handle_t hContext,
                         ur_usm_pool_desc_t *pPoolDes);
 
@@ -26,9 +31,35 @@ struct ur_usm_pool_handle_t_ : _ur_object {
                        size_t size, void **ppRetMem);
   ur_result_t free(void *ptr);
 
+  bool hasPool(const umf_memory_pool_handle_t hPool);
+
+  std::optional<std::pair<void *, ur_event_handle_t>>
+  allocateEnqueued(ur_context_handle_t hContext, void *hQueue,
+                   bool isInOrderQueue, ur_device_handle_t hDevice,
+                   const ur_usm_desc_t *pUSMDesc, ur_usm_type_t type,
+                   size_t size);
+
+  void cleanupPools();
+  void cleanupPoolsForQueue(void *hQueue);
+
+  ur::RefCount RefCount;
+
 private:
   ur_context_handle_t hContext;
-  usm::pool_manager<usm::pool_descriptor, umf_memory_pool_t> poolManager;
+  usm::pool_manager<usm::pool_descriptor, UsmPool> poolManager;
 
-  umf_memory_pool_handle_t getPool(const usm::pool_descriptor &desc);
+  UsmPool *getPool(const usm::pool_descriptor &desc);
+};
+
+struct UsmPool {
+  UsmPool(ur_usm_pool_handle_t urPool, umf::pool_unique_handle_t umfPool)
+      : umfPool(std::move(umfPool)),
+        asyncPool([](ur_event_handle_t hEvent) { return hEvent->release(); },
+                  [context = urPool->getContextHandle()](void *ptr) {
+                    return ur::level_zero::urUSMFree(context, ptr);
+                  }) {}
+  umf::pool_unique_handle_t umfPool;
+  // 'asyncPool' needs to be declared after 'umfPool' so its destructor is
+  // invoked first.
+  EnqueuedPool asyncPool;
 };

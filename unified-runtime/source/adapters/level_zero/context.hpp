@@ -26,6 +26,7 @@
 #include "queue.hpp"
 #include "usm.hpp"
 
+#include "common/ur_ref_count.hpp"
 #include <umf_helpers.hpp>
 
 struct l0_command_list_cache_info {
@@ -54,7 +55,7 @@ typedef struct _ze_intel_event_sync_mode_exp_desc_t {
 
 extern const bool UseUSMAllocator;
 
-struct ur_context_handle_t_ : _ur_object {
+struct ur_context_handle_t_ : ur_object {
   ur_context_handle_t_(ze_context_handle_t ZeContext, uint32_t NumDevices,
                        const ur_device_handle_t *Devs, bool OwnZeContext)
       : ZeContext{ZeContext}, Devices{Devs, Devs + NumDevices},
@@ -357,6 +358,8 @@ struct ur_context_handle_t_ : _ur_object {
 
   // Get handle to the L0 context
   ze_context_handle_t getZeHandle() const;
+
+  ur::RefCount RefCount;
 
 private:
   enum EventFlags {

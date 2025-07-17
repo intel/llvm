@@ -91,8 +91,8 @@ TEST_P(urEventGetProfilingInfoTest, SuccessCommandComplete) {
 }
 
 TEST_P(urEventGetProfilingInfoTest, Success) {
-  // AMD devices may report a "start" time before the "submit" time
-  UUR_KNOWN_FAILURE_ON(uur::HIP{});
+  // AMD/CUDA devices may report a "start" time before the "submit" time
+  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{});
 
   // If a and b are supported, asserts that a <= b
   auto test_timing = [=](ur_profiling_info_t a, ur_profiling_info_t b) {
@@ -126,6 +126,30 @@ TEST_P(urEventGetProfilingInfoTest, Success) {
   test_timing(UR_PROFILING_INFO_COMMAND_START, UR_PROFILING_INFO_COMMAND_END);
   test_timing(UR_PROFILING_INFO_COMMAND_END,
               UR_PROFILING_INFO_COMMAND_COMPLETE);
+}
+
+TEST_P(urEventGetProfilingInfoTest, ReleaseEventAfterQueueRelease) {
+  void *ptr;
+  ASSERT_SUCCESS(
+      urUSMSharedAlloc(context, device, nullptr, nullptr, 1024 * 1024, &ptr));
+
+  // Enqueue an operation to keep the device busy
+  uint8_t pattern = 0xFF;
+  ur_event_handle_t event1;
+  ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(uint8_t), &pattern,
+                                  1024 * 1024, 0, nullptr, &event1));
+
+  ASSERT_SUCCESS(urQueueRelease(queue));
+  queue = nullptr;
+
+  uint64_t queuedTime = 0;
+  auto ret = urEventGetProfilingInfo(event1, UR_PROFILING_INFO_COMMAND_QUEUED,
+                                     sizeof(uint64_t), &queuedTime, nullptr);
+  ASSERT_TRUE(ret == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION ||
+              ret == UR_RESULT_SUCCESS);
+
+  ASSERT_SUCCESS(urEventRelease(event1));
+  ASSERT_SUCCESS(urUSMFree(context, ptr));
 }
 
 TEST_P(urEventGetProfilingInfoTest, InvalidNullHandle) {

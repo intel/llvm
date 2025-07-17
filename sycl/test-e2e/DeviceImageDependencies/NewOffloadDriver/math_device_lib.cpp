@@ -1,10 +1,8 @@
 // REQUIRES: aspect-fp64
-// UNSUPPORTED: target-amd || target-nvidia
-// UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
-// RUN: %{build} --offload-new-driver -fsycl-allow-device-image-dependencies -fsycl-device-lib-jit-link %{mathflags} -o %t.out
+// RUN: %{build} --offload-new-driver -fsycl-allow-device-image-dependencies %if target-spir %{ -fsycl-device-lib-jit-link -Wno-deprecated %} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
 #include <cmath>

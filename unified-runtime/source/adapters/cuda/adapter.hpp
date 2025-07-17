@@ -19,7 +19,7 @@
 #include <atomic>
 #include <memory>
 
-struct ur_adapter_handle_t_ {
+struct ur_adapter_handle_t_ : ur::cuda::handle_base {
   std::atomic<uint32_t> RefCount = 0;
   struct cuda_tracing_context_t_ *TracingCtx = nullptr;
   logger::Logger &logger;

@@ -66,7 +66,7 @@ auto get_native(const SyclObjectT &Obj)
 namespace detail {
 class queue_impl;
 
-inline event submitAssertCapture(queue &, event &, queue *,
+inline event submitAssertCapture(const queue &, event &, queue *,
                                  const detail::code_location &);
 
 // Function to postprocess submitted command
@@ -77,6 +77,7 @@ inline event submitAssertCapture(queue &, event &, queue *,
 // event &Event - event after which post processing should be executed
 using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct SubmissionInfoImpl;
 
 class __SYCL_EXPORT SubmissionInfo {
@@ -95,6 +96,60 @@ public:
 private:
   std::shared_ptr<SubmissionInfoImpl> impl = nullptr;
 };
+#endif
+
+namespace v1 {
+
+// This class is a part of the ABI, so it's moved to a separate namespace to
+// simplify changes.
+// To perform non-ABI breaking changes:
+// * namespace v(N+1) can be added,
+// * functions that use SubmissionInfo and are NOT part of the ABI should be
+//   switched to use v(N+1) namespace,
+// * functions that use SubmissionInfo and are part of the ABI should be
+//   overloaded with a new variant using v(N+1) namespace,
+// * old namespace vN should be moved under #ifndef
+//   __INTEL_PREVIEW_BREAKING_CHANGES guard.
+// TODO: inline namespace can be employed here after SubmissionInfo removed from
+// the enclosing scope.
+
+class __SYCL_EXPORT SubmissionInfo {
+public:
+  SubmissionInfo() {}
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  SubmissionInfo(const detail::SubmissionInfo &SI)
+      : MPostProcessorFunc(SI.PostProcessorFunc()),
+        MSecondaryQueue(SI.SecondaryQueue()), MEventMode(SI.EventMode()) {}
+#endif
+
+  sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() {
+    return MPostProcessorFunc;
+  }
+  const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const {
+    return MPostProcessorFunc;
+  }
+
+  std::shared_ptr<detail::queue_impl> &SecondaryQueue() {
+    return MSecondaryQueue;
+  }
+  const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const {
+    return MSecondaryQueue;
+  }
+
+  ext::oneapi::experimental::event_mode_enum &EventMode() { return MEventMode; }
+  const ext::oneapi::experimental::event_mode_enum &EventMode() const {
+    return MEventMode;
+  }
+
+private:
+  optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
+  std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
+  ext::oneapi::experimental::event_mode_enum MEventMode =
+      ext::oneapi::experimental::event_mode_enum::none;
+};
+
+} // namespace v1
 } // namespace detail
 
 namespace ext ::oneapi ::experimental {
@@ -105,11 +160,11 @@ struct image_descriptor;
 
 namespace detail {
 template <typename CommandGroupFunc, typename PropertiesT>
-void submit_impl(queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
+void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc);
 
 template <typename CommandGroupFunc, typename PropertiesT>
-event submit_with_event_impl(queue &Q, PropertiesT Props,
+event submit_with_event_impl(const queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc);
 } // namespace detail
@@ -373,8 +428,7 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
         sycl::ext::oneapi::experimental::empty_properties_t{},
-        detail::type_erased_cgfo_ty{CGF},
-        /*SecondaryQueuePtr=*/nullptr, CodeLoc);
+        detail::type_erased_cgfo_ty{CGF}, CodeLoc);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -3487,11 +3541,19 @@ public:
   /// \return the backend associated with this queue.
   backend get_backend() const noexcept;
 
-  /// Allows to check status of the queue (completed vs noncompleted).
+  /// Allows to check status of the queue (completed vs incomplete).
   ///
   /// \return returns true if all enqueued commands in the queue have been
   /// completed, otherwise returns false.
   bool ext_oneapi_empty() const;
+
+  /// Allows to check status of the queue (completed vs incomplete).
+  ///
+  /// \return returns true if all enqueued commands in the queue have been
+  /// completed, otherwise returns false.
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  bool khr_empty() const;
+#endif
 
   ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
 
@@ -3520,22 +3582,23 @@ private:
       -> backend_return_t<BackendName, SyclObjectT>;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-  friend event detail::submitAssertCapture(queue &, event &, queue *,
+  friend event detail::submitAssertCapture(const queue &, event &, queue *,
                                            const detail::code_location &);
 #endif
 
   template <typename CommandGroupFunc, typename PropertiesT>
   friend void ext::oneapi::experimental::detail::submit_impl(
-      queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
+      const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
       const sycl::detail::code_location &CodeLoc);
 
   template <typename CommandGroupFunc, typename PropertiesT>
   friend event ext::oneapi::experimental::detail::submit_with_event_impl(
-      queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
+      const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
       const sycl::detail::code_location &CodeLoc);
 
   template <typename PropertiesT>
-  void ProcessSubmitProperties(PropertiesT Props, detail::SubmissionInfo &SI) {
+  void ProcessSubmitProperties(PropertiesT Props,
+                               detail::v1::SubmissionInfo &SI) const {
     if constexpr (Props.template has_property<
                       ext::oneapi::experimental::event_mode_key>()) {
       ext::oneapi::experimental::event_mode EventModeProp =
@@ -3590,25 +3653,45 @@ private:
                                  const detail::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc);
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
-  /// A template-free versions of submit.
   event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                const detail::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc);
-
-  /// A template-free version of submit_without_event.
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                  const detail::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc);
+
+  /// A template-free versions of submit.
+  event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                               const detail::v1::SubmissionInfo &SubmitInfo,
+                               const detail::code_location &CodeLoc,
+                               bool IsTopCodeLoc);
+  /// A template-free version of submit_without_event.
+  void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                                 const detail::v1::SubmissionInfo &SubmitInfo,
+                                 const detail::code_location &CodeLoc,
+                                 bool IsTopCodeLoc);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+  /// A template-free version of submit as const member function.
+  event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                               const detail::v1::SubmissionInfo &SubmitInfo,
+                               const detail::code_location &CodeLoc,
+                               bool IsTopCodeLoc) const;
+
+  /// A template-free version of submit_without_event as const member function.
+  void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                                 const detail::v1::SubmissionInfo &SubmitInfo,
+                                 const detail::code_location &CodeLoc,
+                                 bool IsTopCodeLoc) const;
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
   /// \param Props is a property list with submission properties.
   /// \param CGF is a function object containing command group.
+  /// \param SecondaryQueuePtr is a pointer to the secondary queue.
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
   //
@@ -3616,12 +3699,13 @@ private:
   // to prevent ODR-violation between TUs built with different fallback assert
   // modes.
   template <bool UseFallbackAssert, typename PropertiesT>
-  event submit_with_event(
-      PropertiesT Props, const detail::type_erased_cgfo_ty &CGF,
-      queue *SecondaryQueuePtr,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
+  event submit_with_event(PropertiesT Props,
+                          const detail::type_erased_cgfo_ty &CGF,
+                          queue *SecondaryQueuePtr,
+                          const detail::code_location &CodeLoc =
+                              detail::code_location::current()) const {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::SubmissionInfo SI{};
+    detail::v1::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
     if (SecondaryQueuePtr)
       SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
@@ -3649,6 +3733,42 @@ private:
   /// \param Props is a property list with submission properties.
   /// \param CGF is a function object containing command group.
   /// \param CodeLoc is the code location of the submit call (default argument)
+  /// \return a SYCL event object for the submitted command group.
+  //
+  // UseFallBackAssert as template param vs `#if` in function body is necessary
+  // to prevent ODR-violation between TUs built with different fallback assert
+  // modes.
+  template <bool UseFallbackAssert, typename PropertiesT>
+  event submit_with_event(PropertiesT Props,
+                          const detail::type_erased_cgfo_ty &CGF,
+                          const detail::code_location &CodeLoc =
+                              detail::code_location::current()) const {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    detail::v1::SubmissionInfo SI{};
+    ProcessSubmitProperties(Props, SI);
+    if constexpr (UseFallbackAssert)
+      SI.PostProcessorFunc() = [this, &TlsCodeLocCapture](bool IsKernel,
+                                                          bool KernelUsesAssert,
+                                                          event &E) {
+        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+            KernelUsesAssert && !device_has(aspect::accelerator)) {
+          // __devicelib_assert_fail isn't supported by Device-side Runtime
+          // Linking against fallback impl of __devicelib_assert_fail is
+          // performed by program manager class
+          // Fallback assert isn't supported for FPGA
+          submitAssertCapture(*this, E, nullptr, TlsCodeLocCapture.query());
+        }
+      };
+    return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
+                                  TlsCodeLocCapture.isToplevel());
+  }
+
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// \param Props is a property list with submission properties.
+  /// \param CGF is a function object containing command group.
+  /// \param CodeLoc is the code location of the submit call (default argument)
   //
   // UseFallBackAssert as template param vs `#if` in function body is necessary
   // to prevent ODR-violation between TUs built with different fallback assert
@@ -3656,14 +3776,14 @@ private:
   template <bool UseFallbackAssert, typename PropertiesT>
   void submit_without_event(PropertiesT Props,
                             const detail::type_erased_cgfo_ty &CGF,
-                            const detail::code_location &CodeLoc) {
+                            const detail::code_location &CodeLoc) const {
     if constexpr (UseFallbackAssert) {
       // If post-processing is needed, fall back to the regular submit.
       // TODO: Revisit whether we can avoid this.
-      submit_with_event<UseFallbackAssert>(Props, CGF, nullptr, CodeLoc);
+      submit_with_event<UseFallbackAssert>(Props, CGF, CodeLoc);
     } else {
       detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-      detail::SubmissionInfo SI{};
+      detail::v1::SubmissionInfo SI{};
       ProcessSubmitProperties(Props, SI);
       submit_without_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                 TlsCodeLocCapture.isToplevel());
@@ -3842,7 +3962,8 @@ class AssertInfoCopier;
  * which it gets compiled and exported without any integration header and, thus,
  * with no proper KernelInfo instance.
  */
-event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
+event submitAssertCapture(const queue &Self, event &Event,
+                          queue *SecondaryQueue,
                           const detail::code_location &CodeLoc) {
   buffer<detail::AssertHappened, 1> Buffer{1};
 

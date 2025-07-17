@@ -10,36 +10,20 @@
 #include <libspirv/spirv.h>
 #include <libspirv/spirv_types.h>
 
-__CLC_NVVM_ATOMIC(int, i, int, i, min, _Z18__spirv_AtomicSMin)
-__CLC_NVVM_ATOMIC(long, l, long, l, min, _Z18__spirv_AtomicSMin)
-__CLC_NVVM_ATOMIC(uint, j, uint, ui, min, _Z18__spirv_AtomicUMin)
-__CLC_NVVM_ATOMIC(ulong, m, ulong, ul, min, _Z18__spirv_AtomicUMin)
+__CLC_NVVM_ATOMIC(int, int, i, min, __spirv_AtomicSMin)
+__CLC_NVVM_ATOMIC(long, long, l, min, __spirv_AtomicSMin)
+__CLC_NVVM_ATOMIC(uint, uint, ui, min, __spirv_AtomicUMin)
+__CLC_NVVM_ATOMIC(ulong, ulong, ul, min, __spirv_AtomicUMin)
 
 #undef __CLC_NVVM_ATOMIC_TYPES
 #undef __CLC_NVVM_ATOMIC
 #undef __CLC_NVVM_ATOMIC_IMPL
 
-#define __CLC_NVVM_ATOMIC_MIN_IMPL(                                            \
-    TYPE, TYPE_MANGLED, TYPE_INT, TYPE_INT_MANGLED, OP_MANGLED, ADDR_SPACE,    \
-    POINTER_AND_ADDR_SPACE_MANGLED, SUBSTITUTION1, SUBSTITUTION2)              \
-  TYPE_INT                                                                     \
-  _Z18__spirv_\
-AtomicLoad##POINTER_AND_ADDR_SPACE_MANGLED##K##TYPE_INT_MANGLED##N5__spv5Scope4\
-FlagENS1_19MemorySemanticsMask4FlagE(volatile ADDR_SPACE const TYPE_INT *,     \
-                                     enum Scope, enum MemorySemanticsMask);    \
-  TYPE_INT                                                                     \
-  _Z29__spirv_\
-AtomicCompareExchange##POINTER_AND_ADDR_SPACE_MANGLED##TYPE_INT_MANGLED##N5__sp\
-v5Scope4FlagENS##SUBSTITUTION1##_19MemorySemanticsMask4\
-FlagES##SUBSTITUTION2##_##TYPE_INT_MANGLED##TYPE_INT_MANGLED(                  \
-      volatile ADDR_SPACE TYPE_INT *, enum Scope, enum MemorySemanticsMask,    \
-      enum MemorySemanticsMask, TYPE_INT, TYPE_INT);                           \
-  __attribute__((always_inline)) _CLC_DECL TYPE _Z21__spirv_\
-Atomic##OP_MANGLED##POINTER_AND_ADDR_SPACE_MANGLED##TYPE_MANGLED##N5__spv5Scope\
-4FlagENS##SUBSTITUTION1##_19MemorySemanticsMask4FlagE##TYPE_MANGLED(           \
-      volatile ADDR_SPACE TYPE *pointer, enum Scope scope,                     \
-      enum MemorySemanticsMask semantics, TYPE val) {                          \
-    enum MemorySemanticsMask load_order;                                       \
+#define __CLC_NVVM_ATOMIC_MIN_IMPL(TYPE, TYPE_INT, OP_MANGLED, ADDR_SPACE)     \
+  __attribute__((always_inline)) _CLC_OVERLOAD _CLC_DECL TYPE                  \
+      __spirv_Atomic##OP_MANGLED(ADDR_SPACE TYPE *pointer, int scope,          \
+                                 int semantics, TYPE val) {                    \
+    int load_order;                                                            \
     switch (semantics) {                                                       \
     case SequentiallyConsistent:                                               \
       load_order = SequentiallyConsistent;                                     \
@@ -51,18 +35,12 @@ Atomic##OP_MANGLED##POINTER_AND_ADDR_SPACE_MANGLED##TYPE_MANGLED##N5__spv5Scope\
     default:                                                                   \
       load_order = None;                                                       \
     }                                                                          \
-    volatile ADDR_SPACE TYPE_INT *pointer_int =                                \
-        (volatile ADDR_SPACE TYPE_INT *)pointer;                               \
+    ADDR_SPACE TYPE_INT *pointer_int = (ADDR_SPACE TYPE_INT *)pointer;         \
     TYPE_INT val_int = *(TYPE_INT *)&val;                                      \
-    TYPE_INT old_int = _Z18__spirv_\
-AtomicLoad##POINTER_AND_ADDR_SPACE_MANGLED##K##TYPE_INT_MANGLED##N5__spv5Scope4\
-FlagENS1_19MemorySemanticsMask4FlagE(pointer_int, scope, load_order);          \
+    TYPE_INT old_int = __spirv_AtomicLoad(pointer_int, scope, load_order);     \
     TYPE old = *(TYPE *)&old_int;                                              \
     while (val < old) {                                                        \
-      TYPE_INT tmp_int = _Z29__spirv_\
-AtomicCompareExchange##POINTER_AND_ADDR_SPACE_MANGLED##TYPE_INT_MANGLED##N5__sp\
-v5Scope4FlagENS##SUBSTITUTION1##_19MemorySemanticsMask4\
-FlagES##SUBSTITUTION2##_##TYPE_INT_MANGLED##TYPE_INT_MANGLED(                  \
+      TYPE_INT tmp_int = __spirv_AtomicCompareExchange(                        \
           pointer_int, scope, semantics, semantics, val_int, old_int);         \
       if (old_int == tmp_int) {                                                \
         return *(TYPE *)&tmp_int;                                              \
@@ -73,14 +51,10 @@ FlagES##SUBSTITUTION2##_##TYPE_INT_MANGLED##TYPE_INT_MANGLED(                  \
     return old;                                                                \
   }
 
-#define __CLC_NVVM_ATOMIC_MIN(TYPE, TYPE_MANGLED, TYPE_INT, TYPE_INT_MANGLED,  \
-                              OP_MANGLED)                                      \
-  __CLC_NVVM_ATOMIC_MIN_IMPL(TYPE, TYPE_MANGLED, TYPE_INT, TYPE_INT_MANGLED,   \
-                             OP_MANGLED, __global, PU3AS1, 1, 5)               \
-  __CLC_NVVM_ATOMIC_MIN_IMPL(TYPE, TYPE_MANGLED, TYPE_INT, TYPE_INT_MANGLED,   \
-                             OP_MANGLED, __local, PU3AS3, 1, 5)                \
-  __CLC_NVVM_ATOMIC_MIN_IMPL(TYPE, TYPE_MANGLED, TYPE_INT, TYPE_INT_MANGLED,   \
-                             OP_MANGLED, , P, 0, 4)
+#define __CLC_NVVM_ATOMIC_MIN(TYPE, TYPE_INT, OP_MANGLED)                      \
+  __CLC_NVVM_ATOMIC_MIN_IMPL(TYPE, TYPE_INT, OP_MANGLED, __global)             \
+  __CLC_NVVM_ATOMIC_MIN_IMPL(TYPE, TYPE_INT, OP_MANGLED, __local)              \
+  __CLC_NVVM_ATOMIC_MIN_IMPL(TYPE, TYPE_INT, OP_MANGLED, )
 
-__CLC_NVVM_ATOMIC_MIN(float, f, int, i, FMinEXT)
-__CLC_NVVM_ATOMIC_MIN(double, d, long, l, FMinEXT)
+__CLC_NVVM_ATOMIC_MIN(float, int, FMinEXT)
+__CLC_NVVM_ATOMIC_MIN(double, long, FMinEXT)

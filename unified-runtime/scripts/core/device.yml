@@ -462,6 +462,8 @@ etors:
       desc: "[int32_t][optional-query] return max power limit in milliwatts."
     - name: BFLOAT16_CONVERSIONS_NATIVE
       desc: "[$x_bool_t] support for native bfloat16 conversions"
+    - name: KERNEL_LAUNCH_CAPABILITIES
+      desc: "[$x_kernel_launch_properties_flags_t] Bitfield of supported kernel launch properties."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
@@ -835,6 +837,8 @@ decl: static
 ordinal: "0"
 details:
     - "Creates runtime device handle from native driver device handle."
+    - "Will always return the same handle in `phDevice` for a given `hNativeDevice`."
+    - "If `hNativeDevice` is a root-level device, the handle returned in `phDevice` will be one of the handles that can be obtained by calling $xDeviceGet with the $X_DEVICE_TYPE_ALL device type."
     - "The application may call this function from simultaneous threads for the same context."
     - "The implementation of this function should be thread-safe."
 params:
@@ -855,7 +859,7 @@ returns:
         - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Returns synchronized Host and Device global timestamps."
+desc: "Returns synchronized Host and Device global timestamps in nanoseconds."
 class: $xDevice
 name: GetGlobalTimestamps
 decl: static
@@ -969,3 +973,21 @@ etors:
     - name: OTHER
       desc: "The clock frequency is throttled due to other reason."
       value: "$X_BIT(6)"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Kernel launch properties support"
+class: $xDevice
+name: $x_kernel_launch_properties_flags_t
+etors:
+    - name: COOPERATIVE
+      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE and $xKernelSuggestMaxCooperativeGroupCount"
+      value: "$X_BIT(0)"
+    - name: CLUSTER_DIMENSION
+      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION"
+      value: "$X_BIT(1)"
+    - name: WORK_GROUP_MEMORY
+      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY"
+      value: "$X_BIT(2)"
+    - name: OPPORTUNISTIC_QUEUE_SERIALIZE
+      desc: "Supports $X_KERNEL_LAUNCH_PROPERTY_ID_OPPORTUNISTIC_QUEUE_SERIALIZE"
+      value: "$X_BIT(3)"

@@ -60,11 +60,6 @@ constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
 constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
 
-cl::opt<bool> AllowDeviceImageDependencies{
-    "allow-device-image-dependencies",
-    cl::desc("Allow dependencies between device images"),
-    cl::cat(getModuleSplitCategory()), cl::init(false)};
-
 EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
                                                  IRSplitMode Mode,
                                                  bool AutoSplitIsGlobalScope) {
@@ -178,7 +173,7 @@ class DependencyGraph {
 public:
   using GlobalSet = SmallPtrSet<const GlobalValue *, 16>;
 
-  DependencyGraph(const Module &M) {
+  DependencyGraph(const Module &M, bool AllowDeviceImageDependencies) {
     // Group functions by their signature to handle case (2) described above
     DenseMap<const FunctionType *, DependencyGraph::GlobalSet>
         FuncTypeToFuncsMap;
@@ -196,7 +191,7 @@ public:
     }
 
     for (const auto &F : M.functions()) {
-      if (canBeImportedFunction(F))
+      if (canBeImportedFunction(F, AllowDeviceImageDependencies))
         continue;
 
       // case (1), see comment above the class definition
@@ -311,7 +306,9 @@ static bool isIntrinsicOrBuiltin(const Function &F) {
 }
 
 // Checks for use of undefined user functions and emits a warning message.
-static void checkForCallsToUndefinedFunctions(const Module &M) {
+static void
+checkForCallsToUndefinedFunctions(const Module &M,
+                                  bool AllowDeviceImageDependencies) {
   if (AllowDeviceImageDependencies)
     return;
   for (const Function &F : M) {
@@ -391,22 +388,24 @@ ModuleDesc extractSubModule(const ModuleDesc &MD,
 // The function produces a copy of input LLVM IR module M with only those
 // functions and globals that can be called from entry points that are specified
 // in ModuleEntryPoints vector, in addition to the entry point functions.
-ModuleDesc extractCallGraph(const ModuleDesc &MD,
-                            EntryPointGroup &&ModuleEntryPoints,
-                            const DependencyGraph &CG,
-                            const std::function<bool(const Function *)>
-                                &IncludeFunctionPredicate = nullptr) {
+ModuleDesc extractCallGraph(
+    const ModuleDesc &MD, EntryPointGroup &&ModuleEntryPoints,
+    const DependencyGraph &CG, bool AllowDeviceImageDependencies,
+    const std::function<bool(const Function *)> &IncludeFunctionPredicate =
+        nullptr) {
   SetVector<const GlobalValue *> GVs;
   collectFunctionsAndGlobalVariablesToExtract(
       GVs, MD.getModule(), ModuleEntryPoints, CG, IncludeFunctionPredicate);
 
-  ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
+  ModuleDesc SplitM =
+      extractSubModule(MD, std::move(GVs), std::move(ModuleEntryPoints));
   // TODO: cleanup pass is now called for each output module at the end of
   // sycl-post-link. This call is redundant. However, we subsequently run
   // GenXSPIRVWriterAdaptor pass that relies on this cleanup. This cleanup call
   // can be removed once that pass no longer depends on this cleanup.
-  SplitM.cleanup();
-  checkForCallsToUndefinedFunctions(SplitM.getModule());
+  SplitM.cleanup(AllowDeviceImageDependencies);
+  checkForCallsToUndefinedFunctions(SplitM.getModule(),
+                                    AllowDeviceImageDependencies);
 
   return SplitM;
 }
@@ -414,11 +413,11 @@ ModuleDesc extractCallGraph(const ModuleDesc &MD,
 // The function is similar to 'extractCallGraph', but it produces a copy of
 // input LLVM IR module M with _all_ ESIMD functions and kernels included,
 // regardless of whether or not they are listed in ModuleEntryPoints.
-ModuleDesc extractESIMDSubModule(const ModuleDesc &MD,
-                                 EntryPointGroup &&ModuleEntryPoints,
-                                 const DependencyGraph &CG,
-                                 const std::function<bool(const Function *)>
-                                     &IncludeFunctionPredicate = nullptr) {
+ModuleDesc extractESIMDSubModule(
+    const ModuleDesc &MD, EntryPointGroup &&ModuleEntryPoints,
+    const DependencyGraph &CG, bool AllowDeviceImageDependencies,
+    const std::function<bool(const Function *)> &IncludeFunctionPredicate =
+        nullptr) {
   SetVector<const GlobalValue *> GVs;
   for (const auto &F : MD.getModule().functions())
     if (isESIMDFunction(F))
@@ -427,12 +426,13 @@ ModuleDesc extractESIMDSubModule(const ModuleDesc &MD,
   collectFunctionsAndGlobalVariablesToExtract(
       GVs, MD.getModule(), ModuleEntryPoints, CG, IncludeFunctionPredicate);
 
-  ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
+  ModuleDesc SplitM =
+      extractSubModule(MD, std::move(GVs), std::move(ModuleEntryPoints));
   // TODO: cleanup pass is now called for each output module at the end of
   // sycl-post-link. This call is redundant. However, we subsequently run
   // GenXSPIRVWriterAdaptor pass that relies on this cleanup. This cleanup call
   // can be removed once that pass no longer depends on this cleanup.
-  SplitM.cleanup();
+  SplitM.cleanup(AllowDeviceImageDependencies);
 
   return SplitM;
 }
@@ -449,19 +449,22 @@ public:
     // sycl-post-link. This call is redundant. However, we subsequently run
     // GenXSPIRVWriterAdaptor pass that relies on this cleanup. This cleanup
     // call can be removed once that pass no longer depends on this cleanup.
-    Desc.cleanup();
+    Desc.cleanup(AllowDeviceImageDependencies);
     return Desc;
   }
 };
 
 class ModuleSplitter : public ModuleSplitterBase {
 public:
-  ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec)
-      : ModuleSplitterBase(std::move(MD), std::move(GroupVec)),
-        CG(Input.getModule()) {}
+  ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec,
+                 bool AllowDeviceImageDependencies)
+      : ModuleSplitterBase(std::move(MD), std::move(GroupVec),
+                           AllowDeviceImageDependencies),
+        CG(Input.getModule(), AllowDeviceImageDependencies) {}
 
   ModuleDesc nextSplit() override {
-    return extractCallGraph(Input, nextGroup(), CG);
+    return extractCallGraph(Input, nextGroup(), CG,
+                            AllowDeviceImageDependencies);
   }
 
 private:
@@ -487,11 +490,6 @@ std::optional<IRSplitMode> convertStringToSplitMode(StringRef S) {
 
 bool isESIMDFunction(const Function &F) {
   return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
-}
-
-cl::OptionCategory &getModuleSplitCategory() {
-  static cl::OptionCategory ModuleSplitCategory{"Module Split options"};
-  return ModuleSplitCategory;
 }
 
 Error ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
@@ -692,7 +690,8 @@ void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
 // tries to internalize absolutely everything. This function serves as "input
 // from a linker" that tells the pass what must be preserved in order to make
 // the transformation safe.
-static bool mustPreserveGV(const GlobalValue &GV) {
+static bool mustPreserveGV(const GlobalValue &GV,
+                           bool AllowDeviceImageDependencies) {
   if (const Function *F = dyn_cast<Function>(&GV)) {
     // When dynamic linking is supported, we internalize everything (except
     // kernels which are the entry points from host code to device code) that
@@ -703,7 +702,8 @@ static bool mustPreserveGV(const GlobalValue &GV) {
       const bool SpirOrGPU = CC == CallingConv::SPIR_KERNEL ||
                              CC == CallingConv::AMDGPU_KERNEL ||
                              CC == CallingConv::PTX_Kernel;
-      return SpirOrGPU || canBeImportedFunction(*F);
+      return SpirOrGPU ||
+             canBeImportedFunction(*F, AllowDeviceImageDependencies);
     }
 
     // Otherwise, we are being even more aggressive: SYCL modules are expected
@@ -754,7 +754,7 @@ void cleanupSYCLRegisteredKernels(Module *M) {
 
 // TODO: try to move all passes (cleanup, spec consts, compile time properties)
 // in one place and execute MPM.run() only once.
-void ModuleDesc::cleanup() {
+void ModuleDesc::cleanup(bool AllowDeviceImageDependencies) {
   // Any definitions of virtual functions should be removed and turned into
   // declarations, they are supposed to be provided by a different module.
   if (!EntryPoints.Props.HasVirtualFunctionDefinitions) {
@@ -781,7 +781,10 @@ void ModuleDesc::cleanup() {
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   ModulePassManager MPM;
   // Do cleanup.
-  MPM.addPass(InternalizePass(mustPreserveGV));
+  MPM.addPass(
+      InternalizePass([AllowDeviceImageDependencies](const GlobalValue &GV) {
+        return mustPreserveGV(GV, AllowDeviceImageDependencies);
+      }));
   MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
   MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
   MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
@@ -912,304 +915,138 @@ std::string ModuleDesc::makeSymbolTable() const {
 }
 
 namespace {
-// This is a helper class, which allows to group/categorize function based on
-// provided rules. It is intended to be used in device code split
-// implementation.
-//
-// "Rule" is a simple routine, which returns a string for an llvm::Function
-// passed to it. There could be more than one rule and they are applied in order
-// of their registration. Results obtained from those rules are concatenated
-// together to produce the final result.
-//
-// There are some predefined rules for the most popular use-cases, like grouping
-// functions together based on an attribute value or presence of a metadata.
-// However, there is also a possibility to register a custom callback function
-// as a rule, to implement custom/more complex logic.
-class FunctionsCategorizer {
-public:
-  FunctionsCategorizer() = default;
 
-  std::string computeCategoryFor(Function *) const;
-
-  // Accepts a callback, which should return a string based on provided
-  // function, which will be used as an entry points group identifier.
-  void registerRule(const std::function<std::string(Function *)> &Callback) {
-    Rules.emplace_back(Rule::RKind::K_Callback, Callback);
+void computeFuncCategoryFromAttribute(const Function &F,
+                                      const StringRef AttrName,
+                                      SmallString<256> &Result) {
+  if (F.hasFnAttribute(AttrName)) {
+    const Attribute &Attr = F.getFnAttribute(AttrName);
+    Result += Attr.getValueAsString();
   }
 
-  // Creates a simple rule, which adds a value of a string attribute into a
-  // resulting identifier.
-  void registerSimpleStringAttributeRule(StringRef AttrName) {
-    Rules.emplace_back(Rule::RKind::K_SimpleStringAttribute, AttrName);
-  }
-
-  // Creates a simple rule, which adds a value of a string metadata into a
-  // resulting identifier.
-  void registerSimpleStringMetadataRule(StringRef MetadataName) {
-    Rules.emplace_back(Rule::RKind::K_SimpleStringMetadata, MetadataName);
-  }
-
-  // Creates a simple rule, which adds one or another value to a resulting
-  // identifier based on the presence of a metadata on a function.
-  void registerSimpleFlagAttributeRule(StringRef AttrName,
-                                       StringRef IfPresentStr,
-                                       StringRef IfAbsentStr = "") {
-    Rules.emplace_back(Rule::RKind::K_FlagAttribute,
-                       Rule::FlagRuleData{AttrName, IfPresentStr, IfAbsentStr});
-  }
-
-  // Creates a simple rule, which adds one or another value to a resulting
-  // identifier based on the presence of a metadata on a function.
-  void registerSimpleFlagMetadataRule(StringRef MetadataName,
-                                      StringRef IfPresentStr,
-                                      StringRef IfAbsentStr = "") {
-    Rules.emplace_back(
-        Rule::RKind::K_FlagMetadata,
-        Rule::FlagRuleData{MetadataName, IfPresentStr, IfAbsentStr});
-  }
-
-  // Creates a rule, which adds a list of dash-separated integers converted
-  // into strings listed in a metadata to a resulting identifier.
-  void registerListOfIntegersInMetadataRule(StringRef MetadataName) {
-    Rules.emplace_back(Rule::RKind::K_IntegersListMetadata, MetadataName);
-  }
-
-  // Creates a rule, which adds a list of sorted dash-separated integers
-  // converted into strings listed in a metadata to a resulting identifier.
-  void registerListOfIntegersInMetadataSortedRule(StringRef MetadataName) {
-    Rules.emplace_back(Rule::RKind::K_SortedIntegersListMetadata, MetadataName);
-  }
-
-  // Creates a rule, which adds a list of sorted dash-separated integers from
-  // converted into strings listed in a metadata to a resulting identifier.
-  // The form of the metadata is expected to be a metadata node, with its
-  // operands being either an integer or another metadata node with the
-  // form of {!"<aspect_name>", iN <aspect_value>}.
-  void registerAspectListRule(StringRef MetadataName) {
-    registerRule([MetadataName](Function *F) {
-      SmallString<128> Result;
-      if (MDNode *UsedAspects = F->getMetadata(MetadataName)) {
-        SmallVector<std::uint64_t, 8> Values;
-        for (const MDOperand &MDOp : UsedAspects->operands()) {
-          if (auto MDN = dyn_cast<MDNode>(MDOp)) {
-            assert(MDN->getNumOperands() == 2);
-            Values.push_back(mdconst::extract<ConstantInt>(MDN->getOperand(1))
-                                 ->getZExtValue());
-          } else if (auto C = mdconst::dyn_extract<ConstantInt>(MDOp)) {
-            Values.push_back(C->getZExtValue());
-          }
-        }
-
-        llvm::sort(Values);
-
-        for (std::uint64_t V : Values)
-          Result += ("-" + Twine(V)).str();
-      }
-
-      return std::string(Result);
-    });
-  }
-
-private:
-  struct Rule {
-    struct FlagRuleData {
-      StringRef Name, IfPresentStr, IfAbsentStr;
-    };
-
-  private:
-    std::variant<StringRef, FlagRuleData,
-                 std::function<std::string(Function *)>>
-        Storage;
-
-  public:
-    enum class RKind {
-      // Custom callback function
-      K_Callback,
-      // Copy value of the specified attribute, if present
-      K_SimpleStringAttribute,
-      // Copy value of the specified metadata, if present
-      K_SimpleStringMetadata,
-      // Use one or another string based on the specified metadata presence
-      K_FlagMetadata,
-      // Use one or another string based on the specified attribute presence
-      K_FlagAttribute,
-      // Concatenate and use list of integers from the specified metadata
-      K_IntegersListMetadata,
-      // Sort, concatenate and use list of integers from the specified metadata
-      K_SortedIntegersListMetadata
-    };
-    RKind Kind;
-
-    // Returns an index into std::variant<...> Storage defined above, which
-    // corresponds to the specified rule Kind.
-    constexpr static std::size_t storage_index(RKind K) {
-      switch (K) {
-      case RKind::K_SimpleStringAttribute:
-      case RKind::K_IntegersListMetadata:
-      case RKind::K_SimpleStringMetadata:
-      case RKind::K_SortedIntegersListMetadata:
-        return 0;
-      case RKind::K_Callback:
-        return 2;
-      case RKind::K_FlagMetadata:
-      case RKind::K_FlagAttribute:
-        return 1;
-      }
-      // can't use llvm_unreachable in constexpr context
-      return std::variant_npos;
-    }
-
-    template <RKind K> auto getStorage() const {
-      return std::get<storage_index(K)>(Storage);
-    }
-
-    template <typename... Args>
-    Rule(RKind K, Args... args) : Storage(args...), Kind(K) {
-      assert(storage_index(K) == Storage.index());
-    }
-
-    Rule(Rule &&Other) = default;
-  };
-
-  std::vector<Rule> Rules;
-};
-
-std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
-  SmallString<256> Result;
-  for (const auto &R : Rules) {
-    switch (R.Kind) {
-    case Rule::RKind::K_Callback:
-      Result += R.getStorage<Rule::RKind::K_Callback>()(F);
-      break;
-
-    case Rule::RKind::K_SimpleStringAttribute: {
-      StringRef AttrName = R.getStorage<Rule::RKind::K_SimpleStringAttribute>();
-      if (F->hasFnAttribute(AttrName)) {
-        Attribute Attr = F->getFnAttribute(AttrName);
-        Result += Attr.getValueAsString();
-      }
-    } break;
-
-    case Rule::RKind::K_SimpleStringMetadata: {
-      StringRef MetadataName =
-          R.getStorage<Rule::RKind::K_SimpleStringMetadata>();
-      if (F->hasMetadata(MetadataName)) {
-        auto *MDN = F->getMetadata(MetadataName);
-        for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
-          MDString *S = cast<llvm::MDString>(MDN->getOperand(I).get());
-          Result += "-" + S->getString().str();
-        }
-      }
-    } break;
-
-    case Rule::RKind::K_FlagMetadata: {
-      Rule::FlagRuleData Data = R.getStorage<Rule::RKind::K_FlagMetadata>();
-      if (F->hasMetadata(Data.Name))
-        Result += Data.IfPresentStr;
-      else
-        Result += Data.IfAbsentStr;
-    } break;
-
-    case Rule::RKind::K_IntegersListMetadata: {
-      StringRef MetadataName =
-          R.getStorage<Rule::RKind::K_IntegersListMetadata>();
-      if (F->hasMetadata(MetadataName)) {
-        auto *MDN = F->getMetadata(MetadataName);
-        for (const MDOperand &MDOp : MDN->operands())
-          Result +=
-              "-" + std::to_string(
-                        mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
-      }
-    } break;
-
-    case Rule::RKind::K_SortedIntegersListMetadata: {
-      StringRef MetadataName =
-          R.getStorage<Rule::RKind::K_IntegersListMetadata>();
-      if (F->hasMetadata(MetadataName)) {
-        MDNode *MDN = F->getMetadata(MetadataName);
-
-        SmallVector<std::uint64_t, 8> Values;
-        for (const MDOperand &MDOp : MDN->operands())
-          Values.push_back(mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
-
-        llvm::sort(Values);
-
-        for (std::uint64_t V : Values)
-          Result += "-" + std::to_string(V);
-      }
-    } break;
-
-    case Rule::RKind::K_FlagAttribute: {
-      Rule::FlagRuleData Data = R.getStorage<Rule::RKind::K_FlagAttribute>();
-      if (F->hasFnAttribute(Data.Name))
-        Result += Data.IfPresentStr;
-      else
-        Result += Data.IfAbsentStr;
-    } break;
-    }
-
-    Result += "-";
-  }
-
-  return (std::string)Result;
+  Result += "-";
 }
-} // namespace
 
-std::unique_ptr<ModuleSplitterBase>
-getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
-                      bool EmitOnlyKernelsAsEntryPoints) {
-  FunctionsCategorizer Categorizer;
+void computeFuncCategoryFromStringMetadata(const Function &F,
+                                           const StringRef MetadataName,
+                                           SmallString<256> &Result) {
+  if (F.hasMetadata(MetadataName)) {
+    const auto *MDN = F.getMetadata(MetadataName);
+    for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
+      MDString *S = cast<llvm::MDString>(MDN->getOperand(I).get());
+      Result += '-';
+      Result += S->getString();
+    }
+  }
 
-  EntryPointsGroupScope Scope =
-      selectDeviceCodeGroupScope(MD.getModule(), Mode, IROutputOnly);
+  Result += "-";
+}
 
+void computeFuncCategoryFromIntegersListMetadata(const Function &F,
+                                                 const StringRef MetadataName,
+                                                 SmallString<256> &Result) {
+  if (F.hasMetadata(MetadataName)) {
+    auto *MDN = F.getMetadata(MetadataName);
+    for (const MDOperand &MDOp : MDN->operands()) {
+      Result += '-';
+      Result +=
+          std::to_string(mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
+    }
+  }
+
+  Result += "-";
+}
+
+void computeFuncCategoryFromSYCLUsedAspects(const Function &F,
+                                            SmallString<256> &Result) {
+  if (const MDNode *UsedAspects = F.getMetadata("sycl_used_aspects")) {
+    SmallVector<std::uint64_t, 8> Values;
+    for (const MDOperand &MDOp : UsedAspects->operands()) {
+      if (auto MDN = dyn_cast<MDNode>(MDOp)) {
+        assert(MDN->getNumOperands() == 2);
+        Values.push_back(
+            mdconst::extract<ConstantInt>(MDN->getOperand(1))->getZExtValue());
+      } else if (auto C = mdconst::dyn_extract<ConstantInt>(MDOp)) {
+        Values.push_back(C->getZExtValue());
+      }
+    }
+
+    llvm::sort(Values);
+    for (std::uint64_t V : Values) {
+      Result += '-';
+      Result += std::to_string(V);
+    }
+  }
+
+  Result += "-";
+}
+
+/// The function computes a string category for the given \p F.
+/// The categories are used to separate functions during the splitting
+/// meaning if functions get different categories they shouldn't end up
+/// in the same split module.
+std::string computeFuncCategoryForSplittingPerSource(const Function &F) {
+  SmallString<256> Result;
+  computeFuncCategoryFromAttribute(F, sycl::utils::ATTR_SYCL_MODULE_ID, Result);
+
+  // This attribute marks virtual functions and effectively dictates how they
+  // should be grouped together. By design we won't split those groups of
+  // virtual functions further even if functions from the same group use
+  // different optional features and therefore this distinction is put here.
+  // TODO: for AOT use case we shouldn't be outlining those and instead should
+  // only select those functions which are compatible with the target device.
+  computeFuncCategoryFromAttribute(F, "indirectly-callable", Result);
+
+  // Optional features
+  // NOTE: Add more categories at the end of the list to avoid changing orders
+  // of output files in existing tests.
+  computeFuncCategoryFromAttribute(F, "sycl-register-alloc-mode", Result);
+  computeFuncCategoryFromAttribute(F, "sycl-grf-size", Result);
+  computeFuncCategoryFromSYCLUsedAspects(F, Result);
+  computeFuncCategoryFromIntegersListMetadata(F, "reqd_work_group_size",
+                                              Result);
+  computeFuncCategoryFromIntegersListMetadata(F, "work_group_num_dim", Result);
+  computeFuncCategoryFromIntegersListMetadata(F, "intel_reqd_sub_group_size",
+                                              Result);
+  computeFuncCategoryFromAttribute(F, sycl::utils::ATTR_SYCL_OPTLEVEL, Result);
+  computeFuncCategoryFromStringMetadata(F, "sycl_joint_matrix", Result);
+  computeFuncCategoryFromStringMetadata(F, "sycl_joint_matrix_mad", Result);
+  return std::string(Result);
+}
+
+std::string computeFuncCategoryForSplitting(const Function &F,
+                                            EntryPointsGroupScope Scope) {
+  std::string Category;
   switch (Scope) {
   case Scope_Global:
     // We simply perform entry points filtering, but group all of them together.
-    Categorizer.registerRule(
-        [](Function *) -> std::string { return GLOBAL_SCOPE_NAME; });
+    Category = GLOBAL_SCOPE_NAME;
     break;
   case Scope_PerKernel:
     // Per-kernel split is quite simple: every kernel goes into a separate
     // module and that's it, no other rules required.
-    Categorizer.registerRule(
-        [](Function *F) -> std::string { return F->getName().str(); });
+    Category = F.getName().str();
     break;
   case Scope_PerModule:
     // The most complex case, because we should account for many other features
     // like aspects used in a kernel, large-grf mode, reqd-work-group-size, etc.
 
     // This is core of per-source device code split
-    Categorizer.registerSimpleStringAttributeRule(
-        sycl::utils::ATTR_SYCL_MODULE_ID);
-
-    // This attribute marks virtual functions and effectively dictates how they
-    // should be groupped together. By design we won't split those groups of
-    // virtual functions further even if functions from the same group use
-    // different optional features and therefore this rule is put here.
-    // Strictly speaking, we don't even care about module-id splitting for
-    // those, but to avoid that we need to refactor the whole categorizer.
-    // However, this is good enough as it is for an initial version.
-    // TODO: for AOT use case we shouldn't be outlining those and instead should
-    // only select those functions which are compatible with the target device
-    Categorizer.registerSimpleStringAttributeRule("indirectly-callable");
-
-    // Optional features
-    // Note: Add more rules at the end of the list to avoid chaning orders of
-    // output files in existing tests.
-    Categorizer.registerSimpleStringAttributeRule("sycl-register-alloc-mode");
-    Categorizer.registerSimpleStringAttributeRule("sycl-grf-size");
-    Categorizer.registerAspectListRule("sycl_used_aspects");
-    Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
-    Categorizer.registerListOfIntegersInMetadataRule("work_group_num_dim");
-    Categorizer.registerListOfIntegersInMetadataRule(
-        "intel_reqd_sub_group_size");
-    Categorizer.registerSimpleStringAttributeRule(
-        sycl::utils::ATTR_SYCL_OPTLEVEL);
-    Categorizer.registerSimpleStringMetadataRule("sycl_joint_matrix");
-    Categorizer.registerSimpleStringMetadataRule("sycl_joint_matrix_mad");
+    Category = computeFuncCategoryForSplittingPerSource(F);
     break;
   }
+
+  return Category;
+}
+
+} // namespace
+
+std::unique_ptr<ModuleSplitterBase>
+getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
+                      bool EmitOnlyKernelsAsEntryPoints,
+                      bool AllowDeviceImageDependencies) {
+  EntryPointsGroupScope Scope =
+      selectDeviceCodeGroupScope(MD.getModule(), Mode, IROutputOnly);
 
   // std::map is used here to ensure stable ordering of entry point groups,
   // which is based on their contents, this greatly helps LIT tests
@@ -1220,7 +1057,7 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints))
       continue;
 
-    std::string Key = Categorizer.computeCategoryFor(&F);
+    std::string Key = computeFuncCategoryForSplitting(F, Scope);
     EntryPointsMap[std::move(Key)].insert(&F);
   }
 
@@ -1252,9 +1089,11 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                   (Groups.size() > 1 || !Groups.cbegin()->Functions.empty()));
 
   if (DoSplit)
-    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
+    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups),
+                                            AllowDeviceImageDependencies);
 
-  return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
+  return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups),
+                                        AllowDeviceImageDependencies);
 }
 
 // Splits input module into two:
@@ -1277,7 +1116,8 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 // avoid undefined behavior at later stages. That is done at higher level,
 // outside of this function.
 SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
-                                        bool EmitOnlyKernelsAsEntryPoints) {
+                                        bool EmitOnlyKernelsAsEntryPoints,
+                                        bool AllowDeviceImageDependencies) {
 
   SmallVector<module_split::ModuleDesc, 2> Result;
   EntryPointGroupVec EntryPointGroups{};
@@ -1320,12 +1160,13 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
     return Result;
   }
 
-  DependencyGraph CG(MD.getModule());
+  DependencyGraph CG(MD.getModule(), AllowDeviceImageDependencies);
   for (auto &Group : EntryPointGroups) {
     if (Group.isEsimd()) {
       // For ESIMD module, we use full call graph of all entry points and all
       // ESIMD functions.
-      Result.emplace_back(extractESIMDSubModule(MD, std::move(Group), CG));
+      Result.emplace_back(extractESIMDSubModule(MD, std::move(Group), CG,
+                                                AllowDeviceImageDependencies));
     } else {
       // For non-ESIMD module we only use non-ESIMD functions. Additional filter
       // is needed, because there could be uses of ESIMD functions from
@@ -1334,7 +1175,7 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
       // were processed and therefore it is fine to return an "incomplete"
       // module here.
       Result.emplace_back(extractCallGraph(
-          MD, std::move(Group), CG,
+          MD, std::move(Group), CG, AllowDeviceImageDependencies,
           [=](const Function *F) -> bool { return !isESIMDFunction(*F); }));
     }
   }
@@ -1477,7 +1318,8 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   // FIXME: false arguments are temporary for now.
   auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
                                         /*IROutputOnly=*/false,
-                                        /*EmitOnlyKernelsAsEntryPoints=*/false);
+                                        /*EmitOnlyKernelsAsEntryPoints=*/false,
+                                        Settings.AllowDeviceImageDependencies);
 
   size_t ID = 0;
   std::vector<SplitModule> OutputImages;
@@ -1498,7 +1340,8 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   return OutputImages;
 }
 
-bool canBeImportedFunction(const Function &F) {
+bool canBeImportedFunction(const Function &F,
+                           bool AllowDeviceImageDependencies) {
 
   // We use sycl dynamic library mechanism to involve bf16 devicelib when
   // necessary, all __devicelib_* functions from native or fallback bf16

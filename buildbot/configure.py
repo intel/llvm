@@ -66,6 +66,7 @@ def do_configure(args, passthrough_args):
     xpti_enable_werror = "OFF"
     llvm_enable_zstd = "ON"
     spirv_enable_dis = "OFF"
+    sycl_install_device_config_file = "OFF"
 
     if sys.platform != "darwin":
         # For more info on the enablement of level_zero_v2 refer to this document:
@@ -77,10 +78,6 @@ def do_configure(args, passthrough_args):
         if args.level_zero_adapter_version == "ALL":
             sycl_enabled_backends.append("level_zero")
             sycl_enabled_backends.append("level_zero_v2")
-
-    # lld is needed on Windows or for the HIP adapter on AMD
-    if platform.system() == "Windows" or (args.hip and args.hip_platform == "AMD"):
-        llvm_enable_projects += ";lld"
 
     libclc_enabled = args.cuda or args.hip or args.native_cpu
     if libclc_enabled:
@@ -134,6 +131,9 @@ def do_configure(args, passthrough_args):
     if args.use_lld:
         llvm_enable_lld = "ON"
 
+    if args.use_zstd:
+        llvm_enable_zstd = "FORCE_ON"
+
     # CI Default conditionally appends to options, keep it at the bottom of
     # args handling
     if args.ci_defaults:
@@ -161,12 +161,20 @@ def do_configure(args, passthrough_args):
                 libclc_targets_to_build += libclc_nvidia_target_names
             libclc_gen_remangled_variants = "ON"
             spirv_enable_dis = "ON"
+            sycl_install_device_config_file = "ON"
+
+        # Build compiler with zstd in CI.
+        llvm_enable_zstd = "FORCE_ON"
 
     if args.enable_backends:
         sycl_enabled_backends += args.enable_backends
 
     if args.disable_preview_lib:
         sycl_preview_lib = "OFF"
+
+    # lld is needed on Windows or when building AMDGPU
+    if platform.system() == "Windows" or "AMDGPU" in llvm_targets_to_build:
+        llvm_enable_projects += ";lld"
 
     install_dir = os.path.join(abs_obj_dir, "install")
 
@@ -205,6 +213,7 @@ def do_configure(args, passthrough_args):
         "-DSYCL_ENABLE_EXTENSION_JIT={}".format(sycl_enable_jit),
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
+        "-DSYCL_INSTALL_DEVICE_CONFIG_FILE={}".format(sycl_install_device_config_file),
     ]
 
     if libclc_enabled:
@@ -416,6 +425,9 @@ def main():
     parser.add_argument(
         "--native-cpu-libclc-targets",
         help="Target triples for libclc, used by the Native CPU backend",
+    )
+    parser.add_argument(
+        "--use-zstd", action="store_true", help="Force zstd linkage while building."
     )
     args, passthrough_args = parser.parse_known_intermixed_args()
 

@@ -58,8 +58,7 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
 
   context Ctx{Plt.get_devices()[0]};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
-  sycl::detail::QueueImplPtr InOrderQueueImpl =
-      detail::getSyclObjImpl(InOrderQueue);
+  detail::queue_impl &InOrderQueueImpl = *detail::getSyclObjImpl(InOrderQueue);
 
   MockScheduler MS;
 
@@ -68,9 +67,9 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   detail::Requirement Req = getMockRequirement(Buf);
 
   detail::MemObjRecord *Record =
-      MS.getOrInsertMemObjRecord(InOrderQueueImpl, &Req);
+      MS.getOrInsertMemObjRecord(&InOrderQueueImpl, &Req);
   std::vector<detail::Command *> AuxCmds;
-  MS.getOrCreateAllocaForReq(Record, &Req, InOrderQueueImpl, AuxCmds);
+  MS.getOrCreateAllocaForReq(Record, &Req, &InOrderQueueImpl, AuxCmds);
   MS.getOrCreateAllocaForReq(Record, &Req, nullptr, AuxCmds);
 
   // Check that sequential memory movements submitted to the same in-order
@@ -79,7 +78,7 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   detail::EnqueueResultT Res;
   auto ReadLock = MS.acquireGraphReadLock();
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
-  Cmd = MS.insertMemoryMove(Record, &Req, InOrderQueueImpl, AuxCmds);
+  Cmd = MS.insertMemoryMove(Record, &Req, &InOrderQueueImpl, AuxCmds);
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
   Cmd = MS.insertMemoryMove(Record, &Req, nullptr, AuxCmds);
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
@@ -97,8 +96,7 @@ ur_result_t redefinedEnqueueEventsWaitWithBarrierExt(void *pParams) {
 }
 
 sycl::event submitKernel(sycl::queue &Q) {
-  return Q.submit(
-      [&](handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  return Q.submit([&](handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 }
 
 TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
@@ -150,10 +148,10 @@ TEST_F(SchedulerTest, TwoInOrderQueuesOnSameContext) {
                            property::queue::in_order()};
 
   event EvFirst = InOrderQueueFirst.submit(
-      [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([] {}); });
   std::ignore = InOrderQueueSecond.submit([&](sycl::handler &CGH) {
     CGH.depends_on(EvFirst);
-    CGH.single_task<TestKernel<>>([] {});
+    CGH.single_task<TestKernel>([] {});
   });
 
   InOrderQueueFirst.wait();
@@ -176,10 +174,10 @@ TEST_F(SchedulerTest, InOrderQueueNoSchedulerPath) {
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
 
   event EvFirst = InOrderQueue.submit(
-      [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([] {}); });
   std::ignore = InOrderQueue.submit([&](sycl::handler &CGH) {
     CGH.depends_on(EvFirst);
-    CGH.single_task<TestKernel<>>([] {});
+    CGH.single_task<TestKernel>([] {});
   });
 
   InOrderQueue.wait();
@@ -189,37 +187,6 @@ TEST_F(SchedulerTest, InOrderQueueNoSchedulerPath) {
   // native device events for device kernel submitted to the same in-order queue
   // don't need to be explicitly passed as dependencies
   EXPECT_EQ(KernelEventListSize[1] /*EventsCount*/, 0u);
-}
-
-// Test that barrier is not filtered out when waitlist contains an event
-// produced by command which is bypassing the scheduler.
-TEST_F(SchedulerTest, BypassSchedulerWithBarrier) {
-  sycl::unittest::UrMock<> Mock;
-  sycl::platform Plt = sycl::platform();
-
-  mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrierExt",
-      &redefinedEnqueueEventsWaitWithBarrierExt);
-  BarrierCalled = false;
-
-  context Ctx{Plt};
-  queue Q1{Ctx, default_selector_v, property::queue::in_order()};
-  queue Q2{Ctx, default_selector_v, property::queue::in_order()};
-  static constexpr size_t Size = 10;
-
-  int *X = malloc_host<int>(Size, Ctx);
-
-  // Submit a command which bypasses the scheduler.
-  auto FillEvent = Q2.memset(X, 0, sizeof(int) * Size);
-  // Submit a barrier which depends on that event.
-  ExpectedEvent = detail::getSyclObjImpl(FillEvent)->getHandle();
-  auto BarrierQ1 = Q1.ext_oneapi_submit_barrier({FillEvent});
-  Q1.wait();
-  Q2.wait();
-  // Verify that barrier is not filtered out.
-  EXPECT_EQ(BarrierCalled, true);
-
-  free(X, Ctx);
 }
 
 } // anonymous namespace
