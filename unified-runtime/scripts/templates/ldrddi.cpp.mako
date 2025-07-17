@@ -90,9 +90,7 @@ namespace ur_loader
     %endfor
 } // namespace ur_loader
 
-#if defined(__cplusplus)
 extern "C" {
-#endif
 
 %for tbl in th.get_pfntables(specs, meta, n, tags):
 %if 'guard' in tbl:
@@ -176,6 +174,4 @@ ${tbl['export']['name']}(
 
 %endfor
 
-#if defined(__cplusplus)
 }
-#endif

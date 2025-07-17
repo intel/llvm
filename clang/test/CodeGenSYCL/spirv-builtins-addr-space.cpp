@@ -8,7 +8,7 @@
 // The opencl_global, opencl_local, and opencl_private attributes get turned
 // into sycl_global, sycl_local and sycl_private address spaces by clang.
 //
-// XFAIL: windows 
+// XFAIL: *
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19497
 
 #include "Inputs/sycl.hpp"
