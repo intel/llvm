@@ -217,6 +217,17 @@ undefined behavior. The `win32_nt_handle` handle type is only supported on
 Windows operating systems, while the `opaque_fd` handle type is only supported
 on POSIX compliant operating systems.
 
+Only two values of `externalMemHandleType` are supported by this extension:
+
+- `external_mem_handle_type::opaque_fd` is supported when the host is a Posix
+  compliant operating system.
+
+- `external_mem_handle_type::win32_nt_handle`` is supported when the host is
+  Windows.
+
+No other values are supported. This function will throw a `sycl::exception` with
+the `errc::feature_not_supported` code if an unsupported value is passed.
+
 This function will throw a `sycl::exception` with `errc::feature_not_supported`
 if the device `syclDevice` does not have
 `aspect::ext_oneapi_exportable_device_mem`.
@@ -224,25 +235,31 @@ if the device `syclDevice` does not have
 This function will throw a `sycl::exception` with the `errc::runtime` code if
 any error occurs while allocating the memory.
 
-This function will throw a `sycl::exception` with the code `errc::invalid` if
-the `externalMemHandleType` passed is not supported by the backend
-implementation.
-
 ```c++
 
 namespace sycl::ext::oneapi::experimental {
 
 template <external_mem_handle_type ExternalMemHandleType>
-exported_mem_t<ExternalMemHandleType>
+__return_type__
 export_device_mem_handle(void *deviceMemory, const sycl::device &syclDevice,
                          const sycl::context &syclContext);
 
 template <external_mem_handle_type ExternalMemHandleType>
-exported_mem_t<ExternalMemHandleType>
+__return_type__
 export_device_mem_handle(void *deviceMemory, const sycl::queue &syclQueue);
 
 }
 ```
+
+Constraints: `ExternalMemHandleType` is either
+`external_mem_handle_type::opaque_fd` or
+`external_mem_handle_type::win32_nt_handle`.
+
+When `ExternalMemHandleType` is `external_mem_handle_type::opaque_fd`, the
+`__return_type__` is `int`.
+
+When `ExternalMemHandleType` is `external_mem_handle_type::win32_nt_handle`, the
+`__return_type__` is `void *`.
 
 The `export_device_mem_handle` function accepts a `void *` representing a device
 allocation made using `alloc_exportable_device_mem`.
@@ -254,9 +271,6 @@ The value of `ExternalMemHandleType` must match the value passed to
 `alloc_exportable_device_mem` when the memory was allocated. Passing an
 `ExternalMemHandleType` value that not match the value passed to
 `alloc_exportable_device_mem` results in undefined behavior.
-
-The implementation of this function does not have to be defined for every value
-of the `external_mem_handle_type` enum.
 
 The `syclDevice` and `syclContext` passed to `export_device_mem_handle` must
 match the device and context used when the `deviceMemory` was allocated using
@@ -364,10 +378,6 @@ supported by the implementation. As this is an initial draft of an
 experimental extension intended to gather early feedback, we have not
 implemented this functionality yet. However, we are aware of this limitation
 and plan to address it in future versions of this extension.
-
-As noted above in the document, the {dpcpp} implementation currently
-supports exporting memory with the `opaque_fd` and `win32_nt_handle` handle
-types, and only on the Level Zero backend.
 
 == Revision History
 
