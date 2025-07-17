@@ -229,14 +229,14 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
                              const sycl::detail::code_location &CodeLoc);
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-template <typename PropertiesT, typename KernelName,
+template <typename KernelName, typename PropertiesT,
           typename KernelType, int Dims>
 void submit_direct_impl(const queue &Q, PropertiesT Props,
                         nd_range<Dims> Range,
                         const KernelType &KernelFunc,
                         const sycl::detail::code_location &CodeLoc);
 
-template <typename PropertiesT, typename KernelName,
+template <typename KernelName, typename PropertiesT,
           typename KernelType, int Dims>
 event submit_direct_with_event_impl(const queue &Q, PropertiesT Props,
                         nd_range<Dims> Range,
@@ -3279,6 +3279,31 @@ public:
         TlsCodeLocCapture.query());
   }
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// \param Range specifies the global and local work spaces of the kernel
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
+  parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    if constexpr (sizeof...(RestT) == 1) {
+      return submit_direct_with_event<KernelName, false>(ext::oneapi::experimental::empty_properties_t{},
+        Range, Rest...);
+    } else {
+      return submit(
+          [&](handler &CGH) {
+            CGH.template parallel_for<KernelName>(Range, Rest...);
+          },
+          TlsCodeLocCapture.query());
+    }
+  }
+#else
   /// parallel_for version with a kernel represented as a lambda + nd_range that
   /// specifies global, local sizes and offset.
   ///
@@ -3297,7 +3322,7 @@ public:
         },
         TlsCodeLocCapture.query());
   }
-
+#endif
   /// parallel_for version with a kernel represented as a lambda + nd_range that
   /// specifies global, local sizes and offset.
   ///
@@ -3673,14 +3698,14 @@ private:
       const sycl::detail::code_location &CodeLoc);
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  template <typename PropertiesT, typename KernelName,
+  template <typename KernelName, typename PropertiesT,
             typename KernelType, int Dims>
   friend void ext::oneapi::experimental::detail::submit_direct_impl(
       const queue &Q, PropertiesT Props, nd_range<Dims> Range,
       const KernelType &KernelFunc,
       const sycl::detail::code_location &CodeLoc);
 
-  template <typename PropertiesT, typename KernelName,
+  template <typename KernelName, typename PropertiesT,
             typename KernelType, int Dims>
   friend event ext::oneapi::experimental::detail::submit_direct_with_event_impl(
       const queue &Q, PropertiesT Props, nd_range<Dims> Range,
@@ -3710,7 +3735,7 @@ private:
   };
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  template <typename PropertiesT, typename KernelName, typename KernelType,
+  template <typename KernelName, typename PropertiesT, typename KernelType,
             int Dims>
   void ProcessKernelRuntimeInfo(
       PropertiesT Props, const KernelType &KernelFunc,
@@ -3961,9 +3986,8 @@ private:
 #endif
   }
 
-  template <bool UseFallbackAssert, typename PropertiesT,
-            typename KernelName = detail::auto_name,
-            typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, bool UseFallbackAssert,
+            typename PropertiesT, typename KernelType, int Dims>
   event submit_direct_with_event(PropertiesT Props, nd_range<Dims> Range,
                           const KernelType &KernelFunc,
                           const detail::code_location &CodeLoc =
@@ -3976,11 +4000,11 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
     ProcessSubmitProperties(Props, SI);
-    ProcessKernelRuntimeInfo<PropertiesT, NameT, KernelType, Dims>(Props,
+    ProcessKernelRuntimeInfo<NameT, PropertiesT, KernelType, Dims>(Props,
       KernelFunc, KRInfo);
 
     kernel_parallel_for<NameT, sycl::nd_item<Dims>, KernelType,
-      ext::oneapi::experimental::empty_properties_t>(KernelFunc);
+      PropertiesT>(KernelFunc);
 
     // TODO UseFallbackAssert
 
@@ -3988,9 +4012,8 @@ private:
       TlsCodeLocCapture.query(), TlsCodeLocCapture.isToplevel());
   }
 
-  template <bool UseFallbackAssert, typename PropertiesT,
-            typename KernelName = detail::auto_name,
-            typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, bool UseFallbackAssert,
+            typename PropertiesT, typename KernelType, int Dims>
   void submit_direct_without_event(PropertiesT Props, nd_range<Dims> Range,
                           const KernelType &KernelFunc,
                           const detail::code_location &CodeLoc =
@@ -4003,11 +4026,11 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
     ProcessSubmitProperties(Props, SI);
-    ProcessKernelRuntimeInfo<PropertiesT, NameT, KernelType, Dims>(Props,
+    ProcessKernelRuntimeInfo<NameT, PropertiesT, KernelType, Dims>(Props,
       KernelFunc, KRInfo);
 
     kernel_parallel_for<NameT, sycl::nd_item<Dims>, KernelType,
-      ext::oneapi::experimental::empty_properties_t>(KernelFunc);
+      PropertiesT>(KernelFunc);
 
     // TODO UseFallbackAssert
 
