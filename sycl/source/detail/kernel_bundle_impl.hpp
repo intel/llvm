@@ -124,10 +124,10 @@ public:
 
   // Interop constructor
   kernel_bundle_impl(context Ctx, devices_range Devs,
-                     device_image_plain &DevImage, private_tag Tag)
+                     device_image_plain &&DevImage, private_tag Tag)
       : kernel_bundle_impl(std::move(Ctx), Devs, Tag) {
     MDeviceImages.emplace_back(DevImage);
-    MUniqueDeviceImages.emplace_back(DevImage);
+    MUniqueDeviceImages.emplace_back(std::move(DevImage));
   }
 
   // Matches sycl::build and sycl::compile
@@ -161,11 +161,11 @@ public:
     for (const DevImgPlainWithDeps &DevImgWithDeps :
          InputBundleImpl.MDeviceImages) {
       // Skip images which are not compatible with devices provided
-      if (std::none_of(get_devices().begin(), get_devices().end(),
-                       [&DevImgWithDeps](device_impl &Dev) {
-                         return getSyclObjImpl(DevImgWithDeps.getMain())
-                             ->compatible_with_device(Dev);
-                       }))
+      if (none_of(get_devices(),
+                  [&MainImg = *getSyclObjImpl(DevImgWithDeps.getMain())](
+                      device_impl &Dev) {
+                    return MainImg.compatible_with_device(Dev);
+                  }))
         continue;
 
       switch (TargetState) {
@@ -395,11 +395,11 @@ public:
     for (const DevImgPlainWithDeps *DeviceImageWithDeps :
          ImagesWithSpecConsts) {
       // Skip images which are not compatible with devices provided
-      if (std::none_of(get_devices().begin(), get_devices().end(),
-                       [DeviceImageWithDeps](device_impl &Dev) {
-                         return getSyclObjImpl(DeviceImageWithDeps->getMain())
-                             ->compatible_with_device(Dev);
-                       }))
+      if (none_of(get_devices(),
+                  [&MainImg = *getSyclObjImpl(DeviceImageWithDeps->getMain())](
+                      device_impl &Dev) {
+                    return MainImg.compatible_with_device(Dev);
+                  }))
         continue;
 
       std::vector<device_image_plain> LinkedResults =
@@ -995,8 +995,8 @@ public:
             SelectedImage->get_ur_program());
 
     return std::make_shared<kernel_impl>(
-        Kernel, *detail::getSyclObjImpl(MContext), SelectedImage, *this,
-        ArgMask, SelectedImage->get_ur_program(), CacheMutex);
+        Kernel, *detail::getSyclObjImpl(MContext), std::move(SelectedImage),
+        *this, ArgMask, SelectedImage->get_ur_program(), CacheMutex);
   }
 
   std::shared_ptr<kernel_impl>
