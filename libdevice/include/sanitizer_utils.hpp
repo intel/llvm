@@ -28,11 +28,8 @@ static inline size_t LocalLinearId() {
 
 // For GPU device, each sub group is a hardware thread
 inline size_t SubGroupLinearId() {
-  const size_t NumSGPerWG =
-      (__spirv_BuiltInWorkgroupSize.x * __spirv_BuiltInWorkgroupSize.y *
-       __spirv_BuiltInWorkgroupSize.z) /
-      __spirv_BuiltInSubgroupSize;
-  return WorkGroupLinearId() * NumSGPerWG + __spirv_BuiltInSubgroupId;
+  return WorkGroupLinearId() * __spirv_BuiltInNumSubgroups +
+         __spirv_BuiltInSubgroupId;
 }
 
 inline void SubGroupBarrier() {
