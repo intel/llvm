@@ -1919,10 +1919,10 @@ public:
       void>
   set_arg(int ArgIndex, T &Arg) {
     setArgHelper(ArgIndex, Arg);
-    int Shift;
+    int NumArgs;
     ext::oneapi::experimental::detail::special_type_wrapper_info<
-      remove_cv_ref_t<T>>::template set_arg(ArgIndex + 1, Arg, *this, Shift);
-    MArgShift += Shift;
+      remove_cv_ref_t<T>>::template set_arg(ArgIndex + 1, Arg, *this, NumArgs);
+    MArgShift += NumArgs;
   }
 
   // set_arg for graph dynamic_parameters
@@ -3455,6 +3455,11 @@ private:
   event MLastEventDoNotUse;
 #endif
 
+  // Certain arguments such as structs that contain SYCL special types entail
+  // several hidden set_arg calls for every set_arg called by the user. This
+  // shift is required to make sure the following arguments set by the user have
+  // the correct index. It keeps track of how many of these hidden set_arg calls
+  // have been made so far.
   int MArgShift = 0;
 
   // Make queue_impl class friend to be able to call finalize method.

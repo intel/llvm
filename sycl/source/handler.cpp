@@ -1253,8 +1253,6 @@ void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
   std::vector<detail::ArgDesc> UnPreparedArgs = std::move(impl->MArgs);
   clearArgs();
-  MArgShift = 0;
-  //std::cout << detail::KernelInfo<getKernelName()>::getNumParams() << std::endl;
   std::sort(
       UnPreparedArgs.begin(), UnPreparedArgs.end(),
       [](const detail::ArgDesc &first, const detail::ArgDesc &second) -> bool {
@@ -2420,7 +2418,10 @@ void handler::addArg(detail::kernel_param_kind_t ArgKind, void *Req,
   impl->MArgs.emplace_back(ArgKind, Req, AccessTarget, ArgIndex + MArgShift);
 }
 
-void handler::clearArgs() { impl->MArgs.clear(); }
+void handler::clearArgs() {
+  impl->MArgs.clear();
+  MArgShift = 0;
+}
 
 void handler::setArgsToAssociatedAccessors() {
   impl->MArgs = impl->MAssociatedAccesors;
