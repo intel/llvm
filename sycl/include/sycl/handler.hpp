@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <iostream>
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/detail/cg_types.hpp>
@@ -693,7 +692,6 @@ private:
   setArgHelper(
       int ArgIndex,
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> &&Arg) {
-    std::cout << "Called accessor " << ArgIndex << std::endl;
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Arg;
     const detail::AccessorImplPtr &AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::AccessorImplHost *Req = AccImpl.get();
@@ -704,6 +702,7 @@ private:
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = storePlainArg(Arg);
+
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
       addArg(detail::kernel_param_kind_t::kind_pointer, StoredArg, sizeof(T),
              ArgIndex);
@@ -3469,6 +3468,7 @@ private:
   friend class accessor;
   friend device detail::getDeviceFromHandler(handler &);
   friend detail::device_impl &detail::getDeviceImplFromHandler(handler &);
+
   template <typename DataT, int Dimensions, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
   friend class detail::image_accessor;

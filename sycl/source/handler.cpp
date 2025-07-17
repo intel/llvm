@@ -1248,10 +1248,12 @@ void handler::setArgHelper(int ArgIndex, stream &&Str) {
 // TODO: the constant can be removed if the size of MArgs will be calculated at
 // compile time.
 inline constexpr size_t MaxNumAdditionalArgs = 13;
+
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
   std::vector<detail::ArgDesc> UnPreparedArgs = std::move(impl->MArgs);
   clearArgs();
+
   std::sort(
       UnPreparedArgs.begin(), UnPreparedArgs.end(),
       [](const detail::ArgDesc &first, const detail::ArgDesc &second) -> bool {

@@ -190,6 +190,7 @@ private:
     return KernelDescs.size() > 0 ? &KernelDescs[KernelDescs.size() - 1]
                                   : nullptr;
   }
+
 private:
   /// Keeps invocation descriptors for each kernel invocation started by
   /// SYCLIntegrationHeader::startKernel
