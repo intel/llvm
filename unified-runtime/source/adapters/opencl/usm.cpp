@@ -524,6 +524,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     [[maybe_unused]] ur_usm_migration_flags_t flags,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  cl_mem_migration_flags MigrationFlag;
+  switch (flags) {
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    MigrationFlag = 0;
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    MigrationFlag = CL_MIGRATE_MEM_OBJECT_HOST;
+    break;
+  default:
+    cl_adapter::setErrorMessage("Invalid USM migration flag",
+                                UR_RESULT_ERROR_INVALID_ENUMERATION);
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
   // Have to look up the context from the kernel
   cl_context CLContext = hQueue->Context->CLContext;
 
@@ -537,20 +551,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   for (uint32_t i = 0; i < numEventsInWaitList; i++) {
     CLWaitEvents[i] = phEventWaitList[i]->CLEvent;
-  }
-
-  cl_mem_migration_flags MigrationFlag;
-  switch (flags) {
-  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
-    MigrationFlag = 0;
-    break;
-  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
-    MigrationFlag = CL_MIGRATE_MEM_OBJECT_HOST;
-    break;
-  default:
-    cl_adapter::setErrorMessage("Invalid USM migration flag",
-                                UR_RESULT_ERROR_INVALID_ENUMERATION);
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
   CL_RETURN_ON_FAILURE(EnqueueMigrateMem(

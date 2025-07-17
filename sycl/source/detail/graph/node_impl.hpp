@@ -62,6 +62,7 @@ inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
   case sycl::detail::CGType::FillUSM:
     return node_type::memfill;
   case sycl::detail::CGType::PrefetchUSM:
+  case sycl::detail::CGType::PrefetchUSMExpD2H:
     return node_type::prefetch;
   case sycl::detail::CGType::AdviseUSM:
     return node_type::memadvise;
@@ -258,6 +259,8 @@ public:
       return createCGCopy<sycl::detail::CGFillUSM>();
     case sycl::detail::CGType::PrefetchUSM:
       return createCGCopy<sycl::detail::CGPrefetchUSM>();
+    case sycl::detail::CGType::PrefetchUSMExpD2H:
+      return createCGCopy<sycl::detail::CGPrefetchUSMExpD2H>();
     case sycl::detail::CGType::AdviseUSM:
       return createCGCopy<sycl::detail::CGAdviseUSM>();
     case sycl::detail::CGType::Copy2DUSM:
@@ -667,6 +670,15 @@ private:
       if (Verbose) {
         sycl::detail::CGPrefetchUSM *Prefetch =
             static_cast<sycl::detail::CGPrefetchUSM *>(MCommandGroup.get());
+        Stream << "Dst: " << Prefetch->getDst()
+               << " Length: " << Prefetch->getLength() << "\\n";
+      }
+      break;
+    case sycl::detail::CGType::PrefetchUSMExpD2H:
+      Stream << "CGPrefetchUSMExpD2H (Experimental, Device to host) \\n";
+      if (Verbose) {
+        sycl::detail::CGPrefetchUSMExpD2H *Prefetch =
+            static_cast<sycl::detail::CGPrefetchUSMExpD2H *>(MCommandGroup.get());
         Stream << "Dst: " << Prefetch->getDst()
                << " Length: " << Prefetch->getLength() << "\\n";
       }

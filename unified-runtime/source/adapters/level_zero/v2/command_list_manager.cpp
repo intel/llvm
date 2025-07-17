@@ -283,7 +283,7 @@ ur_result_t ur_command_list_manager::appendUSMFill(
 }
 
 ur_result_t ur_command_list_manager::appendUSMPrefetch(
-    const void *pMem, size_t size, ur_usm_migration_flags_t /*flags*/,
+    const void *pMem, size_t size, ur_usm_migration_flags_t flags,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMPrefetch");
@@ -296,9 +296,11 @@ ur_result_t ur_command_list_manager::appendUSMPrefetch(
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                (zeCommandList.get(), numWaitEvents, pWaitEvents));
   }
-  // TODO: figure out how to translate "flags"
-  ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
-             (zeCommandList.get(), pMem, size));
+  // TODO: Support migration flags after L0 backend support is added
+  if (flags == UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE) {
+    ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
+              (zeCommandList.get(), pMem, size));
+  }
   if (zeSignalEvent) {
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
                (zeCommandList.get(), zeSignalEvent));

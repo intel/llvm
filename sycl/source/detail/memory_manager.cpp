@@ -1543,22 +1543,15 @@ void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
     sycl::detail::context_impl *Context,
     ur_exp_command_buffer_handle_t CommandBuffer, void *Mem, size_t Length,
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,
-<<<<<<< HEAD
     ur_exp_command_buffer_sync_point_t *OutSyncPoint, 
     sycl::ext::oneapi::experimental::prefetch_type Dest) {
-  const AdapterPtr &Adapter = Context->getAdapter();
+  adapter_impl &Adapter = Context->getAdapter();
   ur_usm_migration_flags_t MigrationFlag =
       (Dest == sycl::ext::oneapi::experimental::prefetch_type::device)
           ? UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE
           : UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST;
-  Adapter->call<UrApiKind::urCommandBufferAppendUSMPrefetchExp>(
-      CommandBuffer, Mem, Length, MigrationFlag, Deps.size(),
-=======
-    ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
-  adapter_impl &Adapter = Context->getAdapter();
   Adapter.call<UrApiKind::urCommandBufferAppendUSMPrefetchExp>(
-      CommandBuffer, Mem, Length, ur_usm_migration_flags_t(0), Deps.size(),
->>>>>>> c2eaf0f95b0aac823118912b648fb385593c99b9
+      CommandBuffer, Mem, Length, MigrationFlag, Deps.size(),
       Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
 }
 
