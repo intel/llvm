@@ -86,11 +86,11 @@ public:
   /// Unique identifier for this node.
   id_type MID = getNextNodeID();
   /// List of successors to this node.
-  std::vector<std::weak_ptr<node_impl>> MSuccessors;
+  std::vector<node_impl *> MSuccessors;
   /// List of predecessors to this node.
   ///
   /// Using weak_ptr here to prevent circular references between nodes.
-  std::vector<std::weak_ptr<node_impl>> MPredecessors;
+  std::vector<node_impl *> MPredecessors;
   /// Type of the command-group for the node.
   sycl::detail::CGType MCGType = sycl::detail::CGType::None;
   /// User facing type of the node.
@@ -116,26 +116,22 @@ public:
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
   void registerSuccessor(node_impl &Node) {
-    if (std::find_if(MSuccessors.begin(), MSuccessors.end(),
-                     [&Node](const std::weak_ptr<node_impl> &Ptr) {
-                       return Ptr.lock().get() == &Node;
-                     }) != MSuccessors.end()) {
+    if (std::find(MSuccessors.begin(), MSuccessors.end(), &Node) !=
+        MSuccessors.end()) {
       return;
     }
-    MSuccessors.push_back(Node.weak_from_this());
+    MSuccessors.push_back(&Node);
     Node.registerPredecessor(*this);
   }
 
   /// Add predecessor to the node.
   /// @param Node Node to add as a predecessor.
   void registerPredecessor(node_impl &Node) {
-    if (std::find_if(MPredecessors.begin(), MPredecessors.end(),
-                     [&Node](const std::weak_ptr<node_impl> &Ptr) {
-                       return Ptr.lock().get() == &Node;
-                     }) != MPredecessors.end()) {
+    if (std::find(MPredecessors.begin(), MPredecessors.end(), &Node) !=
+        MPredecessors.end()) {
       return;
     }
-    MPredecessors.push_back(Node.weak_from_this());
+    MPredecessors.push_back(&Node);
   }
 
   /// Construct an empty node.
@@ -386,15 +382,13 @@ public:
     Visited.push_back(this);
 
     printDotCG(Stream, Verbose);
-    for (const auto &Dep : MPredecessors) {
-      auto NodeDep = Dep.lock();
-      Stream << "  \"" << NodeDep.get() << "\" -> \"" << this << "\""
-             << std::endl;
+    for (node_impl *Pred : MPredecessors) {
+      Stream << "  \"" << Pred << "\" -> \"" << this << "\"" << std::endl;
     }
 
-    for (std::weak_ptr<node_impl> Succ : MSuccessors) {
-      if (MPartitionNum == Succ.lock()->MPartitionNum)
-        Succ.lock()->printDotRecursive(Stream, Visited, Verbose);
+    for (node_impl *Succ : MSuccessors) {
+      if (MPartitionNum == Succ->MPartitionNum)
+        Succ->printDotRecursive(Stream, Visited, Verbose);
     }
   }
 

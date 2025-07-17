@@ -32,8 +32,8 @@ namespace detail {
 context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList, private_tag)
-    : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(Devices),
-      MContext(nullptr),
+    : MOwnedByRuntime(true), MAsyncHandler(std::move(AsyncHandler)),
+      MDevices(std::move(Devices)), MContext(nullptr),
       MPlatform(detail::getSyclObjImpl(MDevices[0].get_platform())),
       MPropList(PropList), MSupportBufferLocationByDevices(NotChecked) {
   verifyProps(PropList);
