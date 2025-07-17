@@ -2282,24 +2282,10 @@ private:
 
 }; // class device_impl
 
-struct devices_deref_impl {
-  template <typename T> static device_impl &dereference(T &Elem) {
-    using Ty = std::decay_t<decltype(Elem)>;
-    if constexpr (std::is_same_v<Ty, device>) {
-      return *getSyclObjImpl(Elem);
-    } else if constexpr (std::is_same_v<Ty, device_impl>) {
-      return Elem;
-    } else {
-      return *Elem;
-    }
-  }
-};
-using devices_iterator =
-    variadic_iterator<devices_deref_impl, device,
-                      std::vector<std::shared_ptr<device_impl>>::const_iterator,
-                      std::vector<device>::const_iterator,
-                      std::vector<device_impl *>::const_iterator,
-                      device_impl *>;
+using devices_iterator = variadic_iterator<
+    device, std::vector<std::shared_ptr<device_impl>>::const_iterator,
+    std::vector<device>::const_iterator,
+    std::vector<device_impl *>::const_iterator, device_impl *>;
 
 class devices_range : public iterator_range<devices_iterator> {
 private:
