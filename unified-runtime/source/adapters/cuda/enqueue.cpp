@@ -1506,6 +1506,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
+  ur_device_handle_t Device = hQueue->getDevice();
   int dstDevice;
   switch (flags) {
   case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
@@ -1519,8 +1520,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
                     UR_RESULT_ERROR_INVALID_ENUMERATION);
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
-
-  ur_device_handle_t Device = hQueue->getDevice();
 
   size_t PointerRangeSize = 0;
   UR_CHECK_ERROR(cuPointerGetAttribute(
