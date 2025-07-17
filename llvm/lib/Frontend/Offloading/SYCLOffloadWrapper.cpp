@@ -229,11 +229,10 @@ struct Wrapper {
       report_fatal_error("Unexpected callee");
     return F;
   }
-  std::optional<util::PropertySet> SYCLNativeCPUPropSet = std::nullopt;
 
-  std::pair<Constant *, Constant *>
-  addDeclarationsForNativeCPU(std::string Entries,
-                              std::optional<util::PropertySet> NativeCPUProps) {
+  std::pair<Constant *, Constant *> addDeclarationsForNativeCPU(
+      std::string Entries,
+      const std::optional<util::PropertySet> &NativeCPUProps) {
     auto *NullPtr = llvm::ConstantPointerNull::get(PointerType::getUnqual(C));
     if (Entries.empty())
       return {NullPtr, NullPtr};
@@ -530,8 +529,9 @@ struct Wrapper {
   ///
   /// \returns Pair of pointers to the beginning and end of the property set
   /// array, or a pair of nullptrs in case the properties file wasn't specified.
-  std::pair<Constant *, Constant *>
-  addPropertySetRegistry(const PropertySetRegistry &PropRegistry) {
+  std::pair<Constant *, Constant *> addPropertySetRegistry(
+      const PropertySetRegistry &PropRegistry,
+      std::optional<util::PropertySet> &SYCLNativeCPUPropSet) {
     // transform all property sets to IR and get the middle column image into
     // the PropSetsInits
     SmallVector<Constant *> PropSetsInits;
@@ -597,8 +597,9 @@ struct Wrapper {
     auto *LinkOptions = addStringToModule(
         Options.LinkOptions, Twine(OffloadKindTag) + "opts.link." + ImageID);
 
+    std::optional<util::PropertySet> SYCLNativeCPUPropSet;
     std::pair<Constant *, Constant *> PropSets =
-        addPropertySetRegistry(Image.PropertyRegistry);
+        addPropertySetRegistry(Image.PropertyRegistry,  SYCLNativeCPUPropSet);
 
     std::pair<Constant *, Constant *> Binary;
     if (Image.Target == "native_cpu")

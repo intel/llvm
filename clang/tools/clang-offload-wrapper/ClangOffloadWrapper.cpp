@@ -369,8 +369,6 @@ private:
   /// Records all created memory buffers for safe auto-gc
   llvm::SmallVector<std::unique_ptr<MemoryBuffer>, 4> AutoGcBufs;
 
-  std::optional<util::PropertySet> SYCLNativeCPUPropSet = std::nullopt;
-
 public:
   void addImage(const OffloadKind Kind, llvm::StringRef File,
                 llvm::StringRef Manif, llvm::StringRef Tgt,
@@ -642,9 +640,9 @@ private:
     return F;
   }
 
-  Expected<std::pair<Constant *, Constant *>>
-  addDeclarationsForNativeCPU(StringRef EntriesFile,
-                              std::optional<util::PropertySet> NativeCPUProps) {
+  Expected<std::pair<Constant *, Constant *>> addDeclarationsForNativeCPU(
+      StringRef EntriesFile,
+      const std::optional<util::PropertySet> &NativeCPUProps) {
     Expected<MemoryBuffer *> MBOrErr = loadFile(EntriesFile);
     if (!MBOrErr)
       return MBOrErr.takeError();
@@ -922,7 +920,9 @@ private:
   // Returns a pair of pointers to the beginning and end of the property set
   // array, or a pair of nullptrs in case the properties file wasn't specified.
   Expected<std::pair<Constant *, Constant *>>
-  tformSYCLPropertySetRegistryFileToIR(StringRef PropRegistryFile) {
+  tformSYCLPropertySetRegistryFileToIR(
+      StringRef PropRegistryFile,
+      std::optional<util::PropertySet> &SYCLNativeCPUPropSet) {
 
     std::unique_ptr<llvm::util::PropertySetRegistry> PropRegistry;
 
@@ -1101,9 +1101,10 @@ private:
             ArrayRef<char>(Mnf->getBufferStart(), Mnf->getBufferSize()),
             Twine(OffloadKindTag) + Twine(ImgId) + Twine(".manifest"));
       }
-
+      std::optional<util::PropertySet> SYCLNativeCPUPropSet;
       Expected<std::pair<Constant *, Constant *>> PropSets =
-          tformSYCLPropertySetRegistryFileToIR(Img.PropsFile);
+          tformSYCLPropertySetRegistryFileToIR(Img.PropsFile,
+                                               SYCLNativeCPUPropSet);
       if (!PropSets)
         return PropSets.takeError();
 
