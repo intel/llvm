@@ -7238,7 +7238,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
     ParmListWithNamesOstream.flush();
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
-      if (DecompositionMap.count(Param->getType().getAsOpaquePtr())) {
+      if (DecompositionMap.count(Param->getType().getTypePtr())) {
         //  this is a struct that contains a special type so its neither a
         //  special type nor a trivially copyable type. We therefore need to
         //  explicitly communicate to the runtime that this argument should be
@@ -7253,7 +7253,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         Param->getType().print(O, Policy);
         O << "> {\n";
         O << " inline static constexpr bool value = true;\n};\n\n";
-        O << " namespace sycl { inline namespace _V1 { namespace ext { namespace oneapi { namespace "
+        O << "namespace sycl { inline namespace _V1 { namespace ext { "
+             "namespace oneapi { namespace "
              "experimental { namespace detail { \n";
         O << "template <> struct special_type_wrapper_info<";
         Param->getType().print(O, Policy);
@@ -7263,17 +7264,21 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         Param->getType().print(O, Policy);
         O << ">>>\n";
         O << "static void set_arg(int ArgIndex, DataT& ";
-        O << "_arg_struct";
-        O << ", HandlerT& cgh, int &Shift) {\n";
+        O << "arg";
+        O << ", HandlerT& cgh, int &NumArgs) {\n";
         for (const MemberExpr *wrappedSpecialType :
-             DecompositionMap[Param->getType().getAsOpaquePtr()]) {
+             DecompositionMap[Param->getType().getTypePtr()]) {
           O << "  cgh.set_arg(ArgIndex, ";
           wrappedSpecialType->printPretty(O, nullptr, Policy);
           O << ");\n";
           O << "  ++ArgIndex;\n";
         }
-        O << "  Shift = " << DecompositionMap[Param->getType().getAsOpaquePtr()].size() << ";\n"; 
-        O << "}\n };\n} // namespace detail \n} // namespace experimental \n} // namespace oneapi \n} // namespace ext \n} // namespace _V1\n} //namespace sycl\n";
+        O << "  NumArgs = "
+          << DecompositionMap[Param->getType().getTypePtr()].size()
+          << ";\n";
+        O << "}\n};\n} // namespace detail \n} // namespace experimental \n} "
+             "// namespace oneapi \n} // namespace ext \n} // namespace _V1\n} "
+             "//namespace sycl\n";
       }
     }
     Policy.SuppressTagKeyword = false;
