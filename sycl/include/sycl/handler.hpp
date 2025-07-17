@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/detail/cg_types.hpp>
