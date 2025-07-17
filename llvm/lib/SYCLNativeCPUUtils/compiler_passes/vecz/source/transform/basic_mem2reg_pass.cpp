@@ -181,11 +181,6 @@ bool BasicMem2RegPass::promoteAlloca(AllocaInst *Alloca) const {
     if (StoreInst *Store = dyn_cast<StoreInst>(U)) {
       StoredValue = Store->getValueOperand();
       ToDelete.push_back(Store);
-      DIBuilder DIB(*Alloca->getModule(), /*AllowUnresolved*/ false);
-      auto DbgIntrinsics = findDbgDeclares(Alloca);
-      for (auto oldDII : DbgIntrinsics) {
-        ConvertDebugDeclareToDebugValue(oldDII, Store, DIB);
-      }
       break;
     }
   }
