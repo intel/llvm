@@ -512,6 +512,16 @@ event handler::finalize() {
   }
 
   if (type == detail::CGType::Kernel) {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    if (impl->MKernelNameBasedCachePtr) {
+      impl->MKernelNameBasedCachePtr->initIfNeeded(
+          toKernelNameStrT(MKernelName));
+    } else {
+      impl->MKernelNameBasedCachePtr =
+          detail::ProgramManager::getInstance().getOrCreateKernelNameBasedCache(
+              toKernelNameStrT(MKernelName));
+    }
+#endif
     // If there were uses of set_specialization_constant build the kernel_bundle
     detail::kernel_bundle_impl *KernelBundleImpPtr =
         getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
@@ -585,10 +595,8 @@ event handler::finalize() {
           !impl->MEventNeeded && impl->get_queue().supportsDiscardingPiEvents();
       if (DiscardEvent) {
         // Kernel only uses assert if it's non interop one
-        bool KernelUsesAssert =
-            !(MKernel && MKernel->isInterop()) &&
-            detail::ProgramManager::getInstance().kernelUsesAssert(
-                toKernelNameStrT(MKernelName), impl->MKernelNameBasedCachePtr);
+        bool KernelUsesAssert = !(MKernel && MKernel->isInterop()) &&
+                                impl->MKernelNameBasedCachePtr->usesAssert();
         DiscardEvent = !KernelUsesAssert;
       }
 

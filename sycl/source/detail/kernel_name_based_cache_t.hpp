@@ -10,6 +10,7 @@
 #include <detail/hashers.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <emhash/hash_table8.hpp>
+#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 
@@ -83,13 +84,33 @@ struct FastKernelSubcacheT {
   FastKernelSubcacheMutexT Mutex;
 };
 
-struct KernelNameBasedCacheT {
-  FastKernelSubcacheT FastKernelSubcache;
-  std::optional<bool> UsesAssert;
-  // Implicit local argument position is represented by an optional int, this
-  // uses another optional on top of that to represent lazy initialization of
-  // the cached value.
-  std::optional<std::optional<int>> ImplicitLocalArgPos;
+// This class is used for caching kernel name based information.
+// Pointers to instances of this class are stored in header function templates
+// as a static variable to avoid repeated runtime lookup overhead.
+class KernelNameBasedCacheT {
+public:
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  KernelNameBasedCacheT() = default;
+#endif
+  KernelNameBasedCacheT(KernelNameStrRefT KernelName);
+
+  void init(KernelNameStrRefT KernelName);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  void initIfNeeded(KernelNameStrRefT KernelName);
+#endif
+  FastKernelSubcacheT &getKernelSubcache();
+  bool usesAssert();
+  const std::optional<int> &getImplicitLocalArgPos();
+
+private:
+  void assertInitialized();
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  std::atomic<bool> MInitialized = false;
+#endif
+  FastKernelSubcacheT MFastKernelSubcache;
+  bool MUsesAssert;
+  std::optional<int> MImplicitLocalArgPos;
 };
 
 } // namespace detail
