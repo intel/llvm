@@ -110,6 +110,11 @@ public:
   iterator_range(const ContainerTy &Container)
       : iterator_range(Container.begin(), Container.end(), Container.size()) {}
 
+  iterator_range(value_type &Obj) : iterator_range(&Obj, &Obj + 1, 1) {}
+
+  iterator_range(const sycl_type &Obj)
+      : iterator_range(&*getSyclObjImpl(Obj), (&*getSyclObjImpl(Obj) + 1), 1) {}
+
   iterator begin() const { return Begin; }
   iterator end() const { return End; }
   size_t size() const { return Size; }
