@@ -549,11 +549,8 @@ public:
 
   devices_range get_devices() const noexcept { return MDevices; }
 
-  bool compatible_with_device(const device &Dev) const {
-    return std::any_of(MDevices.begin(), MDevices.end(),
-                       [Dev = &*getSyclObjImpl(Dev)](device_impl *DevCand) {
-                         return Dev == DevCand;
-                       });
+  bool compatible_with_device(device_impl &Dev) const {
+    return get_devices().contains(Dev);
   }
 
   const ur_program_handle_t &get_ur_program_ref() const noexcept {
