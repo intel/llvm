@@ -167,7 +167,7 @@ kernel_impl::get_backend_info<info::device::version>() const {
                           "the info::device::version info descriptor can only "
                           "be queried with an OpenCL backend");
   }
-  auto Devices = MKernelBundleImpl->get_devices();
+  auto Devices = MKernelBundleImpl->get_devices().to<std::vector<device>>();
   if (Devices.empty()) {
     return "No available device";
   }

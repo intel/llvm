@@ -607,8 +607,26 @@ ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t /*Context*/,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t,
-                                           ur_usm_pool_info_t, void *, size_t) {
+ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t /*Pool*/,
+                                           ur_usm_pool_info_t PropName,
+                                           void * /*PropValue*/,
+                                           size_t PropSize) {
+  if (PropSize < sizeof(size_t)) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+
+  switch (PropName) {
+  // TODO: Support for pool release threshold and maximum size hints.
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+  case UR_USM_POOL_INFO_MAXIMUM_SIZE_EXP:
+  // TODO: Allow user to overwrite pool peak statistics.
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    break;
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
