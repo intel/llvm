@@ -105,8 +105,10 @@ CheckNDRangeSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
       // Check for local memory args
       for (auto &A : F.args()) {
         if (auto Ptr = dyn_cast<PointerType>(A.getType());
-            Ptr && Ptr->getAddressSpace() == 3) {
+            Ptr &&
+            Ptr->getAddressSpace() == sycl::utils::SyclNativeCpuLocalAS) {
           IsNDRange = true;
+          break;
         }
       }
 
