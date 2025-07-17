@@ -15,42 +15,14 @@ inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
-namespace detail {
-
-/// Takes a vector of weak_ptrs to node_impls and returns a vector of node
-/// objects created from those impls, in the same order.
-std::vector<node> createNodesFromImpls(
-    const std::vector<std::weak_ptr<detail::node_impl>> &Impls) {
-  std::vector<node> Nodes{};
-  Nodes.reserve(Impls.size());
-
-  for (std::weak_ptr<detail::node_impl> Impl : Impls) {
-    Nodes.push_back(sycl::detail::createSyclObjFromImpl<node>(Impl.lock()));
-  }
-
-  return Nodes;
-}
-
-std::vector<node> createNodesFromImpls(nodes_range Impls) {
-  std::vector<node> Nodes{};
-  Nodes.reserve(Impls.size());
-
-  for (detail::node_impl &Impl : Impls) {
-    Nodes.push_back(sycl::detail::createSyclObjFromImpl<node>(Impl));
-  }
-
-  return Nodes;
-}
-} // namespace detail
-
 node_type node::get_type() const { return impl->MNodeType; }
 
 std::vector<node> node::get_predecessors() const {
-  return detail::createNodesFromImpls(impl->MPredecessors);
+  return impl->predecessors().to<std::vector<node>>();
 }
 
 std::vector<node> node::get_successors() const {
-  return detail::createNodesFromImpls(impl->MSuccessors);
+  return impl->successors().to<std::vector<node>>();
 }
 
 node node::get_node_from_event(event nodeEvent) {

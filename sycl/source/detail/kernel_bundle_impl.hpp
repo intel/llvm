@@ -1138,6 +1138,29 @@ private:
   DeviceGlobalMap MDeviceGlobals{/*OwnerControlledCleanup=*/false};
 };
 
+inline bool is_compatible(const std::vector<kernel_id> &KernelIDs,
+                          device_impl &Dev) {
+  if (KernelIDs.empty())
+    return true;
+  // One kernel may be contained in several binary images depending on the
+  // number of targets. This kernel is compatible with the device if there is
+  // at least one image (containing this kernel) whose aspects are supported by
+  // the device and whose target matches the device.
+  for (const auto &KernelID : KernelIDs) {
+    std::set<const detail::RTDeviceBinaryImage *> BinImages =
+        detail::ProgramManager::getInstance().getRawDeviceImages({KernelID});
+
+    if (std::none_of(BinImages.begin(), BinImages.end(),
+                     [&](const detail::RTDeviceBinaryImage *Img) {
+                       return doesDevSupportDeviceRequirements(Dev, *Img) &&
+                              doesImageTargetMatchDevice(*Img, Dev);
+                     }))
+      return false;
+  }
+
+  return true;
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
