@@ -25,6 +25,9 @@ inputs:
   preset:
     type: string
     required: True
+  dry_run:
+    type: string
+    required: False
 
 runs:
   using: "composite"
@@ -157,12 +160,18 @@ runs:
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime
+
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
+        --avg-type EWMA \
+        --cutoff "$(date -u -d '7 days ago' +'%Y%m%d_%H%M%S')" \
         --name "$SAVE_NAME" \
         --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
         --results-dir "./llvm-ci-perf-results/results/" \
-        --regression-filter '^[a-z_]+_sycl '
+        --regression-filter '^[a-z_]+_sycl ' \
+        --verbose \
+        ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \
+
       echo "-----"
 
   - name: Cache changes to benchmark folder for archival purposes

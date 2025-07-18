@@ -22,6 +22,7 @@ config.backend_to_target = {
     "cuda": "target-nvidia",
     "hip": "target-amd",
     "native_cpu": "target-native_cpu",
+    "offload": config.offload_build_target,
 }
 config.target_to_triple = {
     "target-spir": "spir64",
@@ -630,6 +631,12 @@ sycl_ls = FindTool("sycl-ls").resolve(
 if not sycl_ls:
     lit_config.fatal("can't find `sycl-ls`")
 
+syclbin_dump = FindTool("syclbin-dump").resolve(
+    llvm_config, os.pathsep.join([config.dpcpp_bin_dir, config.llvm_tools_dir])
+)
+if not syclbin_dump:
+    lit_config.fatal("can't find `syclbin-dump`")
+
 if (
     len(config.sycl_build_targets) == 1
     and next(iter(config.sycl_build_targets)) == "target-all"
@@ -677,6 +684,7 @@ available_devices = {
     "level_zero": "gpu",
     "hip": "gpu",
     "native_cpu": "cpu",
+    "offload": "gpu",
 }
 for d in remove_level_zero_suffix(config.sycl_devices):
     be, dev = d.split(":")
@@ -807,6 +815,7 @@ tools = [
         r"\| \bnot\b", command=FindTool("not"), verbatim=True, unresolved="ignore"
     ),
     ToolSubst("sycl-ls", command=sycl_ls, unresolved="ignore"),
+    ToolSubst("syclbin-dump", command=syclbin_dump, unresolved="ignore"),
 ] + feature_tools
 
 # Try and find each of these tools in the DPC++ bin directory, in the llvm tools directory
@@ -955,6 +964,8 @@ for full_name, sycl_device in zip(
 
     if "v2" in full_name:
         env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "1"
+    else:
+        env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "0"
 
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):

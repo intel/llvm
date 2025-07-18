@@ -117,9 +117,8 @@ static bool SYCLCUDAIsSYCLDevice(const clang::LangOptions &LangOpts) {
 }
 
 static std::unique_ptr<TargetCodeGenInfo>
-createTargetCodeGenInfo(CodeGenModule &CGM) {
-  const TargetInfo &Target = CGM.getTarget();
-  const llvm::Triple &Triple = Target.getTriple();
+createTargetCodeGenInfo(CodeGenModule &CGM, const TargetInfo &Target,
+                        const llvm::Triple &Triple) {
   const CodeGenOptions &CodeGenOpts = CGM.getCodeGenOpts();
 
   switch (Triple.getArch()) {
@@ -335,7 +334,44 @@ createTargetCodeGenInfo(CodeGenModule &CGM) {
     return createLoongArchTargetCodeGenInfo(
         CGM, Target.getPointerWidth(LangAS::Default), ABIFRLen);
   }
+
+  case llvm::Triple::native_cpu: {
+    std::unique_ptr<TargetCodeGenInfo> HostTargetCodeGenInfo;
+    const auto &TargetOpts = Target.getTargetOpts();
+
+    // Normally we will be compiling in SYCL mode, in which the options have
+    // been overwritten with the host options, we get the host triple in
+    // TargetOpts.Triple, and TargetOpts.HostTriple is meaningless. However,
+    // during the libclc build, this is not the case and we need to figure it
+    // out from TargetOpts.HostTriple.
+    llvm::Triple HostTriple(TargetOpts.Triple);
+    if (HostTriple.isNativeCPU()) {
+      // This should be kept in sync with NativeCPUTargetInfo's constructor.
+      // Ideally we would cast to NativeCPUTargetInfo and just access the host
+      // target directly but ASTContext does not guarantee that it is a
+      // NativeCPUTargetInfo.
+      HostTriple = [&] {
+        if (TargetOpts.HostTriple.empty())
+          return llvm::Triple(llvm::sys::getDefaultTargetTriple());
+
+        return llvm::Triple(TargetOpts.HostTriple);
+      }();
+    }
+    if (!HostTriple.isNativeCPU()) {
+      HostTargetCodeGenInfo = createTargetCodeGenInfo(CGM, Target, HostTriple);
+    }
+
+    return createNativeCPUTargetCodeGenInfo(CGM,
+                                            std::move(HostTargetCodeGenInfo));
   }
+  }
+}
+
+static std::unique_ptr<TargetCodeGenInfo>
+createTargetCodeGenInfo(CodeGenModule &CGM) {
+  const TargetInfo &Target = CGM.getTarget();
+  const llvm::Triple &Triple = Target.getTriple();
+  return createTargetCodeGenInfo(CGM, Target, Triple);
 }
 
 const TargetCodeGenInfo &CodeGenModule::getTargetCodeGenInfo() {
@@ -1360,8 +1396,6 @@ void CodeGenModule::Release() {
 
   if (LangOpts.SYCLIsDevice) {
     getModule().addModuleFlag(llvm::Module::Error, "sycl-device", 1);
-    if (LangOpts.SYCLIsNativeCPU)
-      getModule().addModuleFlag(llvm::Module::Error, "is-native-cpu", 1);
   }
 
   if (LangOpts.EHAsynch)
@@ -4323,6 +4357,12 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
     }
   }
 
+  // Don't emit 'sycl_device_only' function in SYCL host compilation.
+  if (LangOpts.SYCLIsHost && isa<FunctionDecl>(Global) &&
+      Global->hasAttr<SYCLDeviceOnlyAttr>()) {
+    return;
+  }
+
   if (LangOpts.OpenMP) {
     // If this is OpenMP, check if it is legal to emit this global normally.
     if (OpenMPRuntime && OpenMPRuntime->emitTargetGlobal(GD))
@@ -4409,6 +4449,34 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
           ASTContext::InlineVariableDefinitionKind::Strong)
         GetAddrOfGlobalVar(VD);
       return;
+    }
+  }
+
+  // When using SYCLDeviceOnlyAttr, there can be two functions with the same
+  // mangling, the host function and the device overload. So when compiling for
+  // device we need to make sure we're selecting the SYCLDeviceOnlyAttr
+  // overload and dropping the host overload.
+  if (LangOpts.SYCLIsDevice) {
+    StringRef MangledName = getMangledName(GD);
+    auto DDI = DeferredDecls.find(MangledName);
+    // If we have an existing declaration with the same mangling for this
+    // symbol it may be a SYCLDeviceOnlyAttr case.
+    if (DDI != DeferredDecls.end()) {
+      auto *PreviousGlobal = cast<ValueDecl>(DDI->second.getDecl());
+      // If the host declaration was already processed, replace it with the
+      // device only declaration.
+      if (!PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
+          Global->hasAttr<SYCLDeviceOnlyAttr>()) {
+        DeferredDecls[MangledName] = GD;
+        return;
+      }
+
+      // If the device only declaration was already processed, skip the
+      // host declaration.
+      if (PreviousGlobal->hasAttr<SYCLDeviceOnlyAttr>() &&
+          !Global->hasAttr<SYCLDeviceOnlyAttr>()) {
+        return;
+      }
     }
   }
 
@@ -6919,8 +6987,7 @@ void CodeGenModule::EmitGlobalFunctionDefinition(GlobalDecl GD,
     if (GD.getKernelReferenceKind() == KernelReferenceKind::Stub &&
         !D->hasAttr<NoInlineAttr>() &&
         !Fn->hasFnAttribute(llvm::Attribute::NoInline) &&
-        !D->hasAttr<OptimizeNoneAttr>() && !LangOpts.SYCLIsNativeCPU &&
-        !LangOpts.SYCLIsDevice &&
+        !D->hasAttr<OptimizeNoneAttr>() && !LangOpts.SYCLIsDevice &&
         !Fn->hasFnAttribute(llvm::Attribute::OptimizeNone) &&
         !ShouldAddOptNone) {
       Fn->addFnAttr(llvm::Attribute::AlwaysInline);

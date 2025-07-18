@@ -9086,7 +9086,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
   } break;
   case UR_PROGRAM_INFO_BINARIES: {
 
-    const unsigned char *tptr = (const unsigned char *)ptr;
+    const unsigned char *const *tptr = (const unsigned char *const *)ptr;
     printPtr(os, tptr);
   } break;
   case UR_PROGRAM_INFO_NUM_KERNELS: {
@@ -11340,6 +11340,9 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF:
     os << "UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF";
+    break;
+  case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE:
+    os << "UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE";
     break;
   default:
     os << "unknown enumerator";
@@ -20567,6 +20570,11 @@ inline std::ostream &operator<<(
   os << ".hDevice = ";
 
   ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".allocationSize = ";
+
+  os << *(params->pallocationSize);
 
   os << ", ";
   os << ".propName = ";

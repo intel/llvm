@@ -2236,6 +2236,9 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     /// device is null then the granularity is suitable for all devices in
     /// context.
     ur_device_handle_t hDevice,
+    /// [in] allocation size in bytes for which the alignment is being
+    /// queried.
+    size_t allocationSize,
     /// [in] type of the info to query.
     ur_virtual_mem_granularity_info_t propName,
     /// [in] size in bytes of the memory pointed to by pPropValue.
@@ -2255,7 +2258,8 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   ur_virtual_mem_granularity_get_info_params_t params = {
-      &hContext, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
+      &hContext, &hDevice,    &allocationSize, &propName,
+      &propSize, &pPropValue, &pPropSizeRet};
   uint64_t instance =
       getContext()->notify_begin(UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO,
                                  "urVirtualMemGranularityGetInfo", &params);
@@ -2263,8 +2267,9 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urVirtualMemGranularityGetInfo\n");
 
-  ur_result_t result = pfnGranularityGetInfo(
-      hContext, hDevice, propName, propSize, pPropValue, pPropSizeRet);
+  ur_result_t result =
+      pfnGranularityGetInfo(hContext, hDevice, allocationSize, propName,
+                            propSize, pPropValue, pPropSizeRet);
 
   getContext()->notify_end(UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO,
                            "urVirtualMemGranularityGetInfo", &params, &result,

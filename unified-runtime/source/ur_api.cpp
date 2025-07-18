@@ -2410,6 +2410,9 @@ ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     /// device is null then the granularity is suitable for all devices in
     /// context.
     ur_device_handle_t hDevice,
+    /// [in] allocation size in bytes for which the alignment is being
+    /// queried.
+    size_t allocationSize,
     /// [in] type of the info to query.
     ur_virtual_mem_granularity_info_t propName,
     /// [in] size in bytes of the memory pointed to by pPropValue.
@@ -7027,7 +7030,8 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType`
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalMemDesc`
 ///         + `NULL == phExternalMem`
@@ -7199,7 +7203,8 @@ ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType`
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pSupportedRet`
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
