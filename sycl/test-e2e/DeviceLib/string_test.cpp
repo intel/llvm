@@ -52,6 +52,48 @@ bool kernel_test_memcpy(sycl::queue &deviceQueue) {
   return success;
 }
 
+class KernelTestStrcpy;
+bool kernel_test_strcpy(sycl::queue &deviceQueue) {
+  bool success = true;
+  char src[20] = "abcdefg012345xyzvvv";
+  char dst[5][20];
+  typedef char CStr[20];
+  {
+    sycl::buffer<CStr, 1> dst_buffer(dst, sycl::range<1>(5));
+    deviceQueue.submit([&](sycl::handler &cgh) {
+      auto dst_acc = dst_buffer.get_access<sycl::access::mode::write>(cgh);
+      cgh.single_task<class KernelTestStrcpy>([=]() {
+        char str[20] = "abcdefg012345xyzvvv";
+        strcpy(dst_acc[0], str);
+        str[17] = '\0';
+        strcpy(dst_acc[1], str);
+        str[12] = '\0';
+        strcpy(dst_acc[2], str);
+        str[8] = '\0';
+        strcpy(dst_acc[3], str);
+        str[0] = '\0';
+        strcpy(dst_acc[4], str);
+      });
+    });
+  }
+
+  if (strcmp(src, dst[0]) != 0)
+    success = false;
+  src[17] = '\0';
+  if (strcmp(src, dst[1]) != 0)
+    success = false;
+  src[12] = '\0';
+  if (strcmp(src, dst[2]) != 0)
+    success = false;
+  src[8] = '\0';
+  if (strcmp(src, dst[3]) != 0)
+    success = false;
+  src[0] = '\0';
+  if (strcmp(src, dst[4]) != 0)
+    success = false;
+  return success;
+}
+
 class KernelTestStrlen;
 bool kernel_test_strlen(sycl::queue &deviceQueue) {
   bool success = true;
@@ -531,6 +573,9 @@ int main() {
 
   success = kernel_test_strlen(deviceQueue);
   assert(((void)"strlen test failed!", success));
+
+  success = kernel_test_strcpy(deviceQueue);
+  assert(((void)"strcpy test failed!", success));
   std::cout << "passed!" << std::endl;
   return 0;
 }
