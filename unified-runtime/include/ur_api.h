@@ -2312,9 +2312,9 @@ typedef enum ur_device_info_t {
   /// [::ur_kernel_launch_properties_flags_t] Bitfield of supported kernel
   /// launch properties.
   UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES = 128,
-  /// [uint8_t[]][optional-query] return device LUID
+  /// [uint8_t[]][optional-query] return device Windows LUID
   UR_DEVICE_INFO_LUID = 129,
-  /// [uint32_t][optional-query] return device node mask
+  /// [uint32_t][optional-query] return device Windows node mask
   UR_DEVICE_INFO_NODE_MASK = 130,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
