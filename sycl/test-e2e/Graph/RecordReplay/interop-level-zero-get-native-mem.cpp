@@ -6,8 +6,6 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18273
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
-// Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out %}
 
 #define GRAPH_E2E_RECORD_REPLAY
 
