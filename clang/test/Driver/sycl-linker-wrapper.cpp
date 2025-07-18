@@ -216,3 +216,15 @@
 // CHK-CMDS-NATIVE-CPU-NEXT:  offload-wrapper: input: [[OUT1]], output: [[OUT2:.*\.bc]]
 // CHK-CMDS-NATIVE-CPU-NEXT: "{{.*}}clang" --target=x86_64-unknown-linux-gnu -c -o [[OUT3:.*\.o]] [[OUT2]]
 // CHK-CMDS-NATIVE-CPU-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[OUT1]] [[OUT3]] {{.*\.o}}
+
+// Verify that host linker is not called when --sycl-device-link is passed to clang-linker-wrapper
+// RUN: clang-linker-wrapper --sycl-device-link -sycl-device-libraries=%t.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEVLINK-CMDS %s
+// CHK-DEVLINK-CMDS: "{{.*}}spirv-to-ir-wrapper" {{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-DEVLINK-CMDS-NEXT: "{{.*}}llvm-link" [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc --suppress-warnings
+// CHK-DEVLINK-CMDS-NEXT: "{{.*}}llvm-link" -only-needed [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc --suppress-warnings
+// CHK-DEVLINK-CMDS-NEXT: "{{.*}}sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
+// CHK-DEVLINK-CMDS-NEXT: "{{.*}}llvm-spirv"{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
+// CHK-DEVLINK-CMDS-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
+// CHK-DEVLINK-CMDS-NEXT: "{{.*}}clang"{{.*}} -c -o [[CLANGOUT:.*]] [[WRAPPEROUT]].bc
+// CHK-DEVLINK-CMDS-NEXT: "{{.*}}cp"{{.*}} [[CLANGOUT]] a.out
+// CHK-DEVLINK-CMDS-NOT: "{{.*}}/ld"
