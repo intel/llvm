@@ -781,8 +781,8 @@ public:
       UrProgram = createProgramFromSource(Devices, BuildOptions, LogPtr);
 
     std::string XsFlags = extractXsFlags(BuildOptions, MRTCBinInfo->MLanguage);
-    Adapter.call<UrApiKind::urProgramBuild>(
-        UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
+    Adapter.call<UrApiKind::urProgramBuild>(UrProgram, DeviceVec.size(),
+                                            DeviceVec.data(), XsFlags.c_str());
 
     // Get the number of kernels in the program.
     size_t NumKernels;

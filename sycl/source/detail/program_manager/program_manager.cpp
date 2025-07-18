@@ -1332,11 +1332,11 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
   return Ext->second;
 }
 
-static ur_result_t doCompile(adapter_impl &Adapter,
-                             ur_program_handle_t Program, uint32_t NumDevs,
-                             ur_device_handle_t *Devs, const char *Opts) {
+static ur_result_t doCompile(adapter_impl &Adapter, ur_program_handle_t Program,
+                             uint32_t NumDevs, ur_device_handle_t *Devs,
+                             const char *Opts) {
   return Adapter.call_nocheck<UrApiKind::urProgramCompile>(Program, NumDevs,
-                                                            Devs, Opts);
+                                                           Devs, Opts);
 }
 
 static ur_program_handle_t
