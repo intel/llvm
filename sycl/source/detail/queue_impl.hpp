@@ -370,6 +370,68 @@ public:
     return createSyclObjFromImpl<event>(ResEvent);
   }
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+  event
+  submit_direct_with_event(nd_range<1> Range,
+                    const detail::v1::SubmissionInfo &SubmitInfo,
+                    const detail::v1::KernelRuntimeInfo &KRInfo,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    detail::EventImplPtr EventImpl =
+        submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, true, CodeLoc,
+                    IsTopCodeLoc);
+    return createSyclObjFromImpl<event>(EventImpl);
+  }
+
+  event
+  submit_direct_with_event(nd_range<2> Range,
+                    const detail::v1::SubmissionInfo &SubmitInfo,
+                    const detail::v1::KernelRuntimeInfo &KRInfo,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    detail::EventImplPtr EventImpl =
+        submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, true, CodeLoc,
+                    IsTopCodeLoc);
+    return createSyclObjFromImpl<event>(EventImpl);
+  }
+
+  event
+  submit_direct_with_event(nd_range<3> Range,
+                    const detail::v1::SubmissionInfo &SubmitInfo,
+                    const detail::v1::KernelRuntimeInfo &KRInfo,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    detail::EventImplPtr EventImpl =
+        submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, true, CodeLoc,
+                    IsTopCodeLoc);
+    return createSyclObjFromImpl<event>(EventImpl);
+  }
+
+  void
+  submit_direct_without_event(nd_range<1> Range,
+                    const detail::v1::SubmissionInfo &SubmitInfo,
+                    const detail::v1::KernelRuntimeInfo &KRInfo,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, false, CodeLoc,
+                    IsTopCodeLoc);
+  }
+
+  void
+  submit_direct_without_event(nd_range<2> Range,
+                    const detail::v1::SubmissionInfo &SubmitInfo,
+                    const detail::v1::KernelRuntimeInfo &KRInfo,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, false, CodeLoc,
+                    IsTopCodeLoc);
+  }
+
+  void
+  submit_direct_without_event(nd_range<3> Range,
+                    const detail::v1::SubmissionInfo &SubmitInfo,
+                    const detail::v1::KernelRuntimeInfo &KRInfo,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, false, CodeLoc,
+                    IsTopCodeLoc);
+  }
+#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
                             const v1::SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
@@ -905,6 +967,10 @@ protected:
               bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
 #endif
 
+  std::vector<ArgDesc> extractArgsAndReqsFromLambda(
+    char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
+    size_t NumKernelParams);
+
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -921,6 +987,14 @@ protected:
                                    bool IsTopCodeLoc,
                                    const v1::SubmissionInfo &SubmitInfo);
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+  detail::EventImplPtr submit_direct_impl(const NDRDescT &NDRDesc,
+                                   const v1::SubmissionInfo &SubmitInfo,
+                                   const v1::KernelRuntimeInfo &KRInfo,
+                                   bool CallerNeedsEvent,
+                                   const detail::code_location &CodeLoc,
+                                   bool IsTopCodeLoc);
+#endif
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.
   /// \param HandlerFunc is a function that submits the operation with a
