@@ -54,10 +54,10 @@ template <typename T> struct is_struct_with_special_type {
 };
 
 // This struct is made to be specialized in the integration header.
-// It calls set_arg for every special type contained in the struct regardless of
-// the level of nesting. So if type Foo contains two accessors inside and the
-// user calls set_arg(Foo), that call will call this function which will call
-// set_arg for each of those two accessors.
+// It calls set_arg for every member contained in the struct at any level of
+// composition. So if type Foo contains two accessors and an integer inside and
+// the user calls set_arg(Foo), that call will call this function which will
+// call set_arg for each of those two accessors and for the int.
 template <typename T> struct struct_with_special_type_info {
   template <typename ArgT, typename HandlerT>
   static void set_arg(int ArgIndex, ArgT &arg, HandlerT &cgh, int &NumArgs) {

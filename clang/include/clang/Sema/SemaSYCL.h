@@ -119,10 +119,9 @@ public:
   /// integration header is required.
   void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
 
-  // Add the entry (Ty, Offset) to the SpecialTypeOffsetMap.
-  void addSpecialTypeOffset(const Type *ParentStruct, QualType Ty,
-                            int64_t offset) {
-    SpecialTypeOffsetMap[ParentStruct].push_back(std::make_pair(Ty, offset));
+  // Add ParentStruct to StructsWithSpecialTypes.
+  void addStructWithSpecialType(const RecordDecl *ParentStruct) {
+    StructsWithSpecialTypes[ParentStruct] = true;
   }
 
 private:
@@ -213,11 +212,9 @@ private:
   /// type and __sycl_host_pipe_registrar variable are required to emit.
   bool NeedToEmitHostPipeRegistration = false;
 
-  // A map that keeps track of type and offset of each special class contained
-  // inside a struct
-  llvm::DenseMap<const Type *,
-                 llvm::SmallVector<std::pair<QualType, int64_t>, 8>>
-      SpecialTypeOffsetMap;
+  // A map that keeps track of all structs encountered with
+  // special types inside.
+  llvm::DenseMap<const RecordDecl *, bool> StructsWithSpecialTypes;
 };
 
 class SYCLIntegrationFooter {

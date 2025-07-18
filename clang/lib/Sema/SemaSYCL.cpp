@@ -2960,7 +2960,7 @@ public:
     // diagnosed on the actual kernel.
     KernelDecl->addAttr(
         SYCLKernelAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
-
+    KernelDecl->dump();
     SemaSYCLRef.addSyclDeviceDecl(KernelDecl);
   }
 
@@ -2974,7 +2974,6 @@ public:
     StringRef Name = "_arg_struct";
     addParam(Name, Ty);
     CurrentStruct = Params.back();
-
     return true;
   }
 
@@ -4890,7 +4889,7 @@ public:
           "Unexpected SYCL special class when generating integration header");
     }
     if (ParentStruct)
-      Header.addSpecialTypeOffset(ParentStruct, FieldTy, offsetOf(FD, FieldTy));
+      Header.addStructWithSpecialType(ParentStruct->getAsCXXRecordDecl());
 
     return true;
   }
@@ -7135,13 +7134,16 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
 
     // Now we handle all parameters that are structs that contain special types
-    // inside. Their information is contained in SpecialTypeOffsetMap with keys
-    // the structs and values a vector of pairs representing the type and the
-    // offset of each special type inside this struct.
-    llvm::DenseMap<const Type *, bool> visited;
+    // inside. Their information is contained in StructsWithSpecialTypes.
+    llvm::DenseMap<const RecordDecl *, bool> visited;
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
-      if (SpecialTypeOffsetMap.count(Param->getType().getTypePtr()) &&
-          !visited[Param->getType().getTypePtr()]) {
+      if (StructsWithSpecialTypes.count(
+              Param->getType()->getAsCXXRecordDecl()) &&
+          !visited[Param->getType()->getAsCXXRecordDecl()]) {
+        const RecordDecl *decl = Param->getType()->getAsCXXRecordDecl();
+        int NumFields = 0;
+        for (const auto member : decl->fields())
+          ++NumFields;
         //  this is a struct that contains a special type so its neither a
         //  special type nor a trivially copyable type. We therefore need to
         //  explicitly communicate to the runtime that this argument should be
@@ -7157,13 +7159,13 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         O << " inline static constexpr bool value = true;\n};\n\n";
         // Now we define the set_arg function for this struct that contains
         // special types. It takes the handler as an argument so that we can
-        // ultimately call set_arg on the handler for each special type
+        // ultimately call set_arg on the handler for each member
         // contained in the struct. First, emit forward declarations for the
-        // special types contained within.
-        for (const auto TypeOffsetPair :
-             SpecialTypeOffsetMap[Param->getType().getTypePtr()])
-          FwdDeclEmitter.Visit(
-              TypeOffsetPair.first.getDesugaredType(S.getASTContext()));
+        // types contained within.
+        for (const auto member : decl->fields())
+          if (isSyclSpecialType(member->getType(), S))
+            FwdDeclEmitter.Visit(
+                member->getType().getDesugaredType(S.getASTContext()));
         O << "namespace sycl { inline namespace _V1 { namespace ext { "
              "namespace oneapi { namespace "
              "experimental { namespace detail { \n";
@@ -7177,26 +7179,22 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         O << "  static void set_arg(int ArgIndex, ArgT& ";
         O << "arg";
         O << ", HandlerT& cgh, int &NumArgs) {\n";
-        for (const auto TypeOffsetPair :
-             SpecialTypeOffsetMap[Param->getType().getTypePtr()]) {
-          FwdDeclEmitter.Visit(
-              TypeOffsetPair.first.getDesugaredType(S.getASTContext()));
+        for (const auto member : decl->fields()) {
           O << "    cgh.set_arg(ArgIndex, *(";
-          TypeOffsetPair.first.print(O, Policy);
+          member->getType().print(O, Policy);
           O << " *)";
-          O << "((char *)(&arg) + " << TypeOffsetPair.second << ")";
+          O << "((char *)(&arg) + "
+            << S.getASTContext().getFieldOffset(member) / 8 << ")";
           O << ");\n";
           O << "    ++ArgIndex;\n";
         }
-        O << "    NumArgs = "
-          << SpecialTypeOffsetMap[Param->getType().getTypePtr()].size()
-          << ";\n";
+        O << "    NumArgs = " << NumFields << ";\n";
         O << "  }\n};\n} // namespace detail \n} // namespace experimental "
              "\n} "
              "// namespace oneapi \n} // namespace ext \n} // namespace "
              "_V1\n} "
              "// namespace sycl\n\n";
-        visited[Param->getType().getTypePtr()] = true;
+        visited[Param->getType()->getAsCXXRecordDecl()] = true;
       }
     }
     Policy.SuppressTagKeyword = false;
