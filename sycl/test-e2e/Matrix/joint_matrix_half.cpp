@@ -31,9 +31,9 @@ int main() {
            layout::ext_intel_packed, 2>();
      // VNNI transform does not work for half yet (CMPLRLLVM-69129)
      //  test<half, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16,
-     //       layout::row_major, 2>();
+     //       layout::row_major, 1>();
      //  test<half, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 32,
-     //       layout::row_major, 2>();
+     //       layout::row_major, 1>();
       break;
     }
 
