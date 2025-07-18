@@ -6257,7 +6257,7 @@ public:
   }
 
   void Visit(QualType T) {
-    if (T.isNull())
+if (T.isNull())
       return;
     InnerTypeVisitor::Visit(T.getTypePtr());
   }
@@ -7095,59 +7095,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
     ParmListWithNamesOstream.flush();
 
-    // Now we handle all parameters that are structs that contain special types
-    // inside. Their information is coontained in SpecialTypeOffsetMap with keys
-    // the structs and values a vector of pairs representing the type and the
-    // offset of each special type inside this struct.
-    llvm::DenseMap<const Type *, bool> visited;
-    for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
-      if (SpecialTypeOffsetMap.count(Param->getType().getTypePtr()) &&
-          !visited[Param->getType().getTypePtr()]) {
-        //  this is a struct that contains a special type so its neither a
-        //  special type nor a trivially copyable type. We therefore need to
-        //  explicitly communicate to the runtime that this argument should be
-        //  allowed as a free function kernel argument. We do this by defining
-        //   is_special_type_wrapper to be true.
-        O << "template <>\n";
-        O << "struct "
-             "sycl::ext::oneapi::experimental::detail::is_special_type_"
-             "wrapper<";
-        Policy.SuppressTagKeyword = true;
-
-        Param->getType().print(O, Policy);
-        O << "> {\n";
-        O << " inline static constexpr bool value = true;\n};\n\n";
-        O << "namespace sycl { inline namespace _V1 { namespace ext { "
-             "namespace oneapi { namespace "
-             "experimental { namespace detail { \n";
-        O << "template <> struct special_type_wrapper_info<";
-        Param->getType().print(O, Policy);
-        O << "> {\n";
-        O << "template< typename ArgT, typename HandlerT, typename = "
-             "std::enable_if_t<std::is_same_v<std::remove_cv_t<DataT>, ";
-        Param->getType().print(O, Policy);
-        O << ">>>\n";
-        O << "  static void set_arg(int ArgIndex, ArgT& ";
-        O << "arg";
-        O << ", HandlerT& cgh, int &NumArgs) {\n";
-        for (const auto TypeOffsetPair :
-             SpecialTypeOffsetMap[Param->getType().getTypePtr()]) {
-          O << "    cgh.set_arg(ArgIndex, *(";
-          TypeOffsetPair.first.print(O, Policy);
-          O << " *)";
-          O << "((char *)(&arg) + " << TypeOffsetPair.second << ")";
-          O << ");\n";
-          O << "    ++ArgIndex;\n";
-        }
-        O << "    NumArgs = "
-          << SpecialTypeOffsetMap[Param->getType().getTypePtr()].size()
-          << ";\n";
-        O << "  }\n};\n} // namespace detail \n} // namespace experimental \n} "
-             "// namespace oneapi \n} // namespace ext \n} // namespace _V1\n} "
-             "// namespace sycl\n\n";
-        visited[Param->getType().getTypePtr()] = true;
-      }
-    }
     Policy.SuppressTagKeyword = false;
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.PrintAsCanonical = false;
@@ -7192,6 +7139,61 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     } else {
       FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
+    }
+
+    // Now we handle all parameters that are structs that contain special types
+    // inside. Their information is coontained in SpecialTypeOffsetMap with keys
+    // the structs and values a vector of pairs representing the type and the
+    // offset of each special type inside this struct.
+    llvm::DenseMap<const Type *, bool> visited;
+    for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
+      if (SpecialTypeOffsetMap.count(Param->getType().getTypePtr()) &&
+          !visited[Param->getType().getTypePtr()]) {
+        //  this is a struct that contains a special type so its neither a
+        //  special type nor a trivially copyable type. We therefore need to
+        //  explicitly communicate to the runtime that this argument should be
+        //  allowed as a free function kernel argument. We do this by defining
+        //   is_special_type_wrapper to be true.
+        O << "template <>\n";
+        O << "struct "
+             "sycl::ext::oneapi::experimental::detail::is_special_type_"
+             "wrapper<";
+        Policy.SuppressTagKeyword = true;
+        Param->getType().print(O, Policy);
+        O << "> {\n";
+        O << " inline static constexpr bool value = true;\n};\n\n";
+        O << "namespace sycl { inline namespace _V1 { namespace ext { "
+             "namespace oneapi { namespace "
+             "experimental { namespace detail { \n";
+        O << "template <> struct special_type_wrapper_info<";
+        Param->getType().print(O, Policy);
+        O << "> {\n";
+        O << "template< typename ArgT, typename HandlerT, typename = "
+             "std::enable_if_t<std::is_same_v<std::remove_cv_t<DataT>, ";
+        Param->getType().print(O, Policy);
+        O << ">>>\n";
+        O << "  static void set_arg(int ArgIndex, ArgT& ";
+        O << "arg";
+        O << ", HandlerT& cgh, int &NumArgs) {\n";
+        for (const auto TypeOffsetPair :
+             SpecialTypeOffsetMap[Param->getType().getTypePtr()]) {
+          O << "    cgh.set_arg(ArgIndex, *(";
+          TypeOffsetPair.first.print(O, Policy);
+          O << " *)";
+          O << "((char *)(&arg) + " << TypeOffsetPair.second << ")";
+          O << ");\n";
+          O << "    ++ArgIndex;\n";
+        }
+        O << "    NumArgs = "
+          << SpecialTypeOffsetMap[Param->getType().getTypePtr()].size()
+          << ";\n";
+        O << "  }\n};\n} // namespace detail \n} // namespace experimental "
+             "\n} "
+             "// namespace oneapi \n} // namespace ext \n} // namespace "
+             "_V1\n} "
+             "// namespace sycl\n\n";
+        visited[Param->getType().getTypePtr()] = true;
+      }
     }
 
     FFPrinter.printFreeFunctionShim(K.SyclKernel, ShimCounter, ParmList);
