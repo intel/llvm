@@ -1,8 +1,14 @@
 
 // REQUIRES: aspect-usm_device_allocations, aspect-usm_shared_allocations
 
-// RUN: %clangxx --offload-new-driver -fsyclbin=input %{sycl_target_opts} -fsycl-allow-device-image-dependencies -DSYCLBIN_INPUT %s -o %t.input.syclbin
-// RUN: %clangxx --offload-new-driver -fsyclbin=object %{sycl_target_opts} -fsycl-allow-device-image-dependencies -DSYCLBIN_OBJECT -Xclang -fsycl-allow-func-ptr %s -o %t.object.syclbin
+// ptxas currently fails to compile images with unresolved symbols. Disable for
+// other targets than SPIR-V until this has been resolved. (CMPLRLLVM-68810)
+// Note: %{sycl_target_opts} should be added to the SYCLBIN compilation lines
+// once fixed.
+// REQUIRES: target-spir
+
+// RUN: %clangxx --offload-new-driver -fsyclbin=input -fsycl-allow-device-image-dependencies -DSYCLBIN_INPUT %s -o %t.input.syclbin
+// RUN: %clangxx --offload-new-driver -fsyclbin=object -fsycl-allow-device-image-dependencies -DSYCLBIN_OBJECT -Xclang -fsycl-allow-func-ptr %s -o %t.object.syclbin
 // RUN: %{build} -o %t.out
 //
 // RUN: %{l0_leak_check} %{run} %t.out %t.input.syclbin %t.object.syclbin
