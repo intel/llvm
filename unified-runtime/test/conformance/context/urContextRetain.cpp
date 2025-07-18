@@ -20,7 +20,7 @@ TEST_P(urContextRetainTest, Success) {
 
   ASSERT_LT(prevRefCount, refCount);
 
-  EXPECT_SUCCESS(urContextRelease(context));
+  ASSERT_SUCCESS(urContextRelease(context));
 }
 
 TEST_P(urContextRetainTest, InvalidNullHandleContext) {
