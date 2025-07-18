@@ -20,6 +20,8 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
+namespace detail {
+
 template <external_mem_handle_type ExternalMemHandleType> struct exported_mem;
 
 template <> struct exported_mem<external_mem_handle_type::opaque_fd> {
@@ -32,8 +34,6 @@ template <> struct exported_mem<external_mem_handle_type::win32_nt_handle> {
 
 template <external_mem_handle_type ExternalMemHandleType>
 using exported_mem_t = typename exported_mem<ExternalMemHandleType>::type;
-
-namespace detail {
 
 __SYCL_EXPORT int export_device_mem_opaque_fd(void *deviceMemory,
                                               const sycl::device &syclDevice,
@@ -76,7 +76,7 @@ template <external_mem_handle_type ExternalMemHandleType,
           std::enable_if_t<ExternalMemHandleType ==
                                external_mem_handle_type::opaque_fd,
                            bool> = true>
-inline exported_mem_t<ExternalMemHandleType>
+inline detail::exported_mem_t<ExternalMemHandleType>
 export_device_mem_handle(void *deviceMemory, const sycl::device &syclDevice,
                          const sycl::context &syclContext) {
   return detail::export_device_mem_opaque_fd(deviceMemory, syclDevice,
@@ -89,7 +89,7 @@ template <external_mem_handle_type ExternalMemHandleType,
           std::enable_if_t<ExternalMemHandleType ==
                                external_mem_handle_type::opaque_fd,
                            bool> = true>
-inline exported_mem_t<ExternalMemHandleType>
+inline detail::exported_mem_t<ExternalMemHandleType>
 export_device_mem_handle(void *deviceMemory, const sycl::queue &syclQueue) {
   return export_device_mem_handle<ExternalMemHandleType>(
       deviceMemory, syclQueue.get_device(), syclQueue.get_context());
@@ -101,7 +101,7 @@ template <external_mem_handle_type ExternalMemHandleType,
           std::enable_if_t<ExternalMemHandleType ==
                                external_mem_handle_type::win32_nt_handle,
                            bool> = true>
-inline exported_mem_t<ExternalMemHandleType>
+inline detail::exported_mem_t<ExternalMemHandleType>
 export_device_mem_handle(void *deviceMemory, const sycl::device &syclDevice,
                          const sycl::context &syclContext) {
   return detail::export_device_mem_win32_nt(deviceMemory, syclDevice,
@@ -114,7 +114,7 @@ template <external_mem_handle_type ExternalMemHandleType,
           std::enable_if_t<ExternalMemHandleType ==
                                external_mem_handle_type::win32_nt_handle,
                            bool> = true>
-inline exported_mem_t<ExternalMemHandleType>
+inline detail::exported_mem_t<ExternalMemHandleType>
 export_device_mem_handle(void *deviceMemory, const sycl::queue &syclQueue) {
   return export_device_mem_handle<ExternalMemHandleType>(
       deviceMemory, syclQueue.get_device(), syclQueue.get_context());

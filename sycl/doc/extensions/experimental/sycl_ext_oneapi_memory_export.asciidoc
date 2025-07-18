@@ -128,22 +128,6 @@ enum class external_mem_handle_type {
   win32_nt_dx11_resource = 4,
 };
 
-template <external_mem_handle_type ExternalMemHandleType>
-struct exported_mem;
-
-template <>
-struct exported_mem<external_mem_handle_type::opaque_fd> {
-  using type = int;
-};
-
-template <>
-struct exported_mem<external_mem_handle_type::win32_nt_handle> {
-  using type = void *;
-};
-
-template <external_mem_handle_type ExternalMemHandleType>
-using exported_mem_t = typename exported_mem<ExternalMemHandleType>::type;
-
 }
 ```
 
@@ -158,14 +142,6 @@ represented by an `int`.
 
 The `win32_nt_handle` handle type corresponds to a Windows NT handle, which is
 represented by a `void *`.
-
-The `exported_mem` template struct is specialized for each of the
-`external_mem_handle_type` values. Each specialization defines a `type` alias
-that represents the type of the exported memory handle for that specific handle.
-
-The `exported_mem_t` type alias allows the user to easily obtain the type of
-the exported memory handle based on the `external_mem_handle_type` template
-parameter.
 
 === API of the extension
 
@@ -209,13 +185,6 @@ Zero or more properties can be passed in the `propList` parameter via an
 instance of `sycl::property_list`. Currently, this extension does not define
 any properties that can be used with this function, so the `propList` parameter
 is ignored and reserved for future use.
-
-The passed `externalMemHandleType` must be supported by the operating system
-running the SYCL application. Passing an `externalMemHandleType` that is not
-supported by the operating system running the SYCL application results in
-undefined behavior. The `win32_nt_handle` handle type is only supported on
-Windows operating systems, while the `opaque_fd` handle type is only supported
-on POSIX compliant operating systems.
 
 Only two values of `externalMemHandleType` are supported by this extension:
 
@@ -263,9 +232,6 @@ When `ExternalMemHandleType` is `external_mem_handle_type::win32_nt_handle`, the
 
 The `export_device_mem_handle` function accepts a `void *` representing a device
 allocation made using `alloc_exportable_device_mem`.
-
-The return type is determined by the template parameter,
-`ExternalMemHandleType`.
 
 The value of `ExternalMemHandleType` must match the value passed to
 `alloc_exportable_device_mem` when the memory was allocated. Passing an
@@ -384,5 +350,5 @@ and plan to address it in future versions of this extension.
 [frame="none",options="header"]
 |===============================================================================
 |Rev  |Date       | Author        | Changes
-|1.0  |2025-07-08 | Przemek Malon | Initial draft
+|1.0  |2025-07-18 | Przemek Malon | Initial draft
 |===============================================================================

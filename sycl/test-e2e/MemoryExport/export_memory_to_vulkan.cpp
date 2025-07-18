@@ -15,6 +15,11 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 
 using DataT = uint32_t;
 
+#ifdef _WIN32
+using exported_handle_type = void *;
+#else
+using exported_handle_type = int;
+#endif // _WIN32
 namespace {
 void *syclExportableLinearMemory;
 
@@ -28,7 +33,7 @@ constexpr auto exportHandleType =
 constexpr auto exportHandleType = syclexp::external_mem_handle_type::opaque_fd;
 #endif // _WIN32
 
-syclexp::exported_mem_t<exportHandleType> exportableMemoryHandle;
+exported_handle_type exportableMemoryHandle;
 
 } // namespace
 
@@ -81,9 +86,8 @@ int runTest(sycl::device &syclDevice, const size_t memorySizeBytes) {
     auto inputBufferMemTypeIndex = vkutil::getBufferMemoryTypeIndex(
         vkImportedBuffer, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    vkImportedBufferMemory =
-        vkutil::importDeviceMemory<syclexp::exported_mem_t<exportHandleType>>(
-            memorySizeBytes, inputBufferMemTypeIndex, exportableMemoryHandle);
+    vkImportedBufferMemory = vkutil::importDeviceMemory<exported_handle_type>(
+        memorySizeBytes, inputBufferMemTypeIndex, exportableMemoryHandle);
 
     VK_CHECK_CALL(vkBindBufferMemory(vk_device, vkImportedBuffer,
                                      vkImportedBufferMemory,

@@ -9,6 +9,12 @@
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
+#ifdef _WIN32
+using exported_handle_type = void *;
+#else
+using exported_handle_type = int;
+#endif // _WIN32
+
 int main() {
   sycl::device device;
   sycl::context context = sycl::context(device);
@@ -40,7 +46,7 @@ int main() {
         0 /* alignment */, size, exportHandleType, device, context);
 
     // Export the memory handle.
-    syclexp::exported_mem_t<exportHandleType> exportableMemoryHandle =
+    exported_handle_type exportableMemoryHandle =
         syclexp::export_device_mem_handle<exportHandleType>(mem, device,
                                                             context);
     std::cout << "Exported memory handle == " << exportableMemoryHandle << "\n";
