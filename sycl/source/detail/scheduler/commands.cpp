@@ -321,8 +321,10 @@ bool Command::isFusable() const {
   }
   const auto &CG = (static_cast<const ExecCGCommand &>(*this)).getCG();
   return (CG.getType() == CGType::Kernel) &&
-         (!static_cast<const CGExecKernel &>(CG).MKernelIsCooperative) &&
-         (!static_cast<const CGExecKernel &>(CG).MKernelUsesClusterLaunch);
+         (!static_cast<const CGExecKernel &>(CG)
+               .MCustomLaunchArgs.KernelIsCooperative) &&
+         (!static_cast<const CGExecKernel &>(CG)
+               .MCustomLaunchArgs.KernelUsesClusterLaunch);
 }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
@@ -2405,8 +2407,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    bool IsCooperative, bool KernelUsesClusterLaunch,
-    uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
+    CustomLaunchArguments CustomLuanchArgs, const RTDeviceBinaryImage *BinImage,
     KernelNameStrRefT KernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr,
     void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
@@ -2465,7 +2466,8 @@ static ur_result_t SetKernelParamsAndLaunch(
   // this indicates the buffer is actually unused and was elided.
   if (ImplicitLocalArg.has_value() && ImplicitLocalArg.value() != -1) {
     Adapter.call<UrApiKind::urKernelSetArgLocal>(
-        Kernel, ImplicitLocalArg.value(), WorkGroupMemorySize, nullptr);
+        Kernel, ImplicitLocalArg.value(),
+        CustomLuanchArgs.KernelWorkGroupMemorySize, nullptr);
   }
 
   adjustNDRangePerKernel(NDRDesc, Kernel, Queue.getDeviceImpl());
@@ -2499,7 +2501,7 @@ static ur_result_t SetKernelParamsAndLaunch(
 
   std::vector<ur_kernel_launch_property_t> property_list;
 
-  if (KernelUsesClusterLaunch) {
+  if (CustomLuanchArgs.KernelUsesClusterLaunch) {
     ur_kernel_launch_property_value_t launch_property_value_cluster_range;
     launch_property_value_cluster_range.clusterDim[0] =
         NDRDesc.ClusterDimensions[0];
@@ -2511,16 +2513,19 @@ static ur_result_t SetKernelParamsAndLaunch(
     property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION,
                              launch_property_value_cluster_range});
   }
-  if (IsCooperative) {
+  if (CustomLuanchArgs.KernelIsCooperative) {
     ur_kernel_launch_property_value_t launch_property_value_cooperative;
     launch_property_value_cooperative.cooperative = 1;
     property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE,
                              launch_property_value_cooperative});
   }
   // If there is no implicit arg, let the driver handle it via a property
-  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
-    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY,
-                             {{WorkGroupMemorySize}}});
+  if (CustomLuanchArgs.KernelWorkGroupMemorySize &&
+      !ImplicitLocalArg.has_value()) {
+    property_list.push_back(
+        {UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY,
+         {{static_cast<uint32_t>(
+             CustomLuanchArgs.KernelWorkGroupMemorySize)}}});
   }
   ur_event_handle_t UREvent = nullptr;
   ur_result_t Error = Adapter.call_nocheck<UrApiKind::urEnqueueKernelLaunch>(
@@ -2681,9 +2686,9 @@ void enqueueImpKernel(
     KernelNameBasedCacheT *KernelNameBasedCachePtr,
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
-    const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
-    const RTDeviceBinaryImage *BinImage, void *KernelFuncPtr, int KernelNumArgs,
+    ur_kernel_cache_config_t KernelCacheConfig,
+    CustomLaunchArguments CustomLaunchArgs, const RTDeviceBinaryImage *BinImage,
+    void *KernelFuncPtr, int KernelNumArgs,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
     bool KernelHasSpecialCaptures) {
   // Run OpenCL kernel
@@ -2770,8 +2775,7 @@ void enqueueImpKernel(
 
     Error = SetKernelParamsAndLaunch(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
-        OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
-        KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
+        OutEventImpl, EliminatedArgMask, getMemAllocationFunc, CustomLaunchArgs,
         BinImage, KernelName, KernelNameBasedCachePtr, KernelFuncPtr,
         KernelNumArgs, KernelParamDescGetter, KernelHasSpecialCaptures);
   }
@@ -3264,13 +3268,12 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       BinImage = retrieveKernelBinary(*MQueue, KernelName);
       assert(BinImage && "Failed to obtain a binary image.");
     }
-    enqueueImpKernel(
-        *MQueue, NDRDesc, Args, ExecKernel->getKernelBundle().get(),
-        SyclKernel.get(), KernelName, ExecKernel->MKernelNameBasedCachePtr,
-        RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative,
-        ExecKernel->MKernelUsesClusterLaunch,
-        ExecKernel->MKernelWorkGroupMemorySize, BinImage);
+    enqueueImpKernel(*MQueue, NDRDesc, Args,
+                     ExecKernel->getKernelBundle().get(), SyclKernel.get(),
+                     KernelName, ExecKernel->MKernelNameBasedCachePtr,
+                     RawEvents, EventImpl, getMemAllocationFunc,
+                     ExecKernel->MKernelCacheConfig,
+                     ExecKernel->MCustomLaunchArgs, BinImage);
 
     return UR_RESULT_SUCCESS;
   }
