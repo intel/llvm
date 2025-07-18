@@ -162,6 +162,11 @@ struct ur_queue_t_ {
   virtual ur_result_t enqueueTimestampRecordingExp(bool, uint32_t,
                                                    const ur_event_handle_t *,
                                                    ur_event_handle_t *) = 0;
+  virtual ur_result_t enqueueKernelLaunchWithArgsExp(
+      ur_kernel_handle_t, const size_t[3], const size_t[3], const size_t[3],
+      uint32_t, const ur_exp_kernel_arg_properties_t *, uint32_t,
+      const ur_kernel_launch_property_t *, uint32_t, const ur_event_handle_t *,
+      ur_event_handle_t *) = 0;
   virtual ur_result_t
   enqueueEventsWaitWithBarrierExt(const ur_exp_enqueue_ext_properties_t *,
                                   uint32_t, const ur_event_handle_t *,

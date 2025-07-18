@@ -231,6 +231,15 @@ struct ur_command_list_manager {
                                const ur_event_handle_t *phEventWaitList,
                                ur_event_handle_t phEvent);
 
+  ur_result_t appendKernelLaunchWithArgsExp(
+      ur_kernel_handle_t hKernel, const size_t pGlobalWorkOffset[3],
+      const size_t pGlobalWorkSize[3], const size_t pLocalWorkSize[3],
+      uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs,
+      uint32_t numPropsInLaunchPropList,
+      const ur_kernel_launch_property_t *launchPropList,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t phEvent);
+
 private:
   ur_result_t appendGenericCommandListsExp(
       uint32_t numCommandLists, ze_command_list_handle_t *phCommandLists,
