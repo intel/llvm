@@ -190,7 +190,7 @@ struct ur_kernel_handle_t_ {
   void addPtrArg(void *Ptr, size_t Index) { Args.addPtrArg(Index, Ptr); }
 
   void addArgReference(ur_mem_handle_t Arg) {
-    Arg->RefCount.getCount();
+    Arg->RefCount.retain();
     ReferencedArgs.push_back(Arg);
   }
 
