@@ -384,7 +384,7 @@ inline void prefetch(queue Q, void *Ptr, size_t NumBytes,
                      const sycl::detail::code_location &CodeLoc =
                          sycl::detail::code_location::current()) {
   submit(
-      std::move(Q), [&](handler &CGH) { prefetch(CGH, Ptr, NumBytes); },
+      std::move(Q), [&](handler &CGH) { prefetch(CGH, Ptr, NumBytes, Type); },
       CodeLoc);
 }
 
