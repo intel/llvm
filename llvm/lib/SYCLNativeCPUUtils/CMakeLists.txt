@@ -1,4 +1,5 @@
 add_llvm_component_library(LLVMSYCLNativeCPUUtils
+  CheckNDRangeSYCLNativeCPU.cpp
   PipelineSYCLNativeCPU.cpp
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp

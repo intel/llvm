@@ -1222,6 +1222,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       if (LangOpts.EnableDAEInSpirKernels)
         MPM.addPass(DeadArgumentEliminationSYCLPass());
 
+      if (TargetTriple.isNativeCPU())
+        llvm::sycl::utils::addSYCLNativeCPUEarlyPasses(MPM);
       // Rerun aspect propagation without warning diagnostics.
       MPM.addPass(
           SYCLPropagateAspectsUsagePass(/*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
