@@ -15,6 +15,8 @@
 #include <cstddef> // for size_t
 #include <cstdint> // for uint32_t
 
+// SPIR-V built-in variables mapped to function call.
+
 __DPCPP_SYCL_EXTERNAL size_t __spirv_BuiltInGlobalInvocationId(int);
 __DPCPP_SYCL_EXTERNAL size_t __spirv_BuiltInGlobalSize(int);
 __DPCPP_SYCL_EXTERNAL size_t __spirv_BuiltInGlobalOffset(int);

@@ -15,6 +15,8 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
+// SPIR-V built-in variables mapped to function call.
+
 DEVICE_EXTERNAL size_t __spirv_BuiltInGlobalInvocationId(int);
 DEVICE_EXTERNAL size_t __spirv_BuiltInGlobalSize(int);
 DEVICE_EXTERNAL size_t __spirv_BuiltInGlobalOffset(int);
