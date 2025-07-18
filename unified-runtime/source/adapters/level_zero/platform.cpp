@@ -295,6 +295,12 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeBindlessImagesExtensionSupported = true;
       }
     }
+    if (strncmp(extension.name, ZE_DEVICE_LUID_EXT_NAME,
+                strlen(ZE_DEVICE_LUID_EXT_NAME) + 1) == 0) {
+      if (extension.version == ZE_DEVICE_LUID_EXT_VERSION_1_0) {
+        ZeLUIDSupported = true;
+      }
+    }
     zeDriverExtensionMap[extension.name] = extension.version;
   }
 
