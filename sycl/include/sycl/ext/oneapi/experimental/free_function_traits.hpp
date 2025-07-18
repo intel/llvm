@@ -46,9 +46,10 @@ template <auto *Func>
 inline constexpr bool is_kernel_v = is_kernel<Func>::value;
 
 namespace detail {
-// A special type wrapper is a struct type that contains special types.
-// The frontend defines this trait to be true after analyzing the struct at compile time.
-template <typename T> struct is_special_type_wrapper {
+// A struct with special type is a struct type that contains special types.
+// The frontend defines this trait to be true after analyzing the struct at
+// compile time.
+template <typename T> struct is_struct_with_special_type {
   inline static constexpr bool value = false;
 };
 
@@ -57,7 +58,7 @@ template <typename T> struct is_special_type_wrapper {
 // the level of nesting. So if type Foo contains two accessors inside and the
 // user calls set_arg(Foo), that call will call this function which will call
 // set_arg for each of those two accessors.
-template <typename T> struct special_type_wrapper_info {
+template <typename T> struct struct_with_special_type_info {
   template <typename ArgT, typename HandlerT>
   static void set_arg(int ArgIndex, ArgT &arg, HandlerT &cgh, int &NumArgs) {}
 };

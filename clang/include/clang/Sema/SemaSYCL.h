@@ -65,8 +65,8 @@ public:
     kind_work_group_memory,
     kind_dynamic_work_group_memory,
     kind_dynamic_accessor,
-    kind_special_type_wrapper,
-    kind_last = kind_special_type_wrapper
+    kind_struct_with_special_type,
+    kind_last = kind_struct_with_special_type
   };
 
 public:

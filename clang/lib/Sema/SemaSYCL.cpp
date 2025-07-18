@@ -5024,7 +5024,7 @@ public:
   }
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *PD, QualType Ty) final {
-    addParam(PD, Ty, SYCLIntegrationHeader::kind_special_type_wrapper);
+    addParam(PD, Ty, SYCLIntegrationHeader::kind_struct_with_special_type);
     ParentStruct = Ty.getTypePtr();
     return true;
   }
@@ -6124,7 +6124,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(work_group_memory);
     CASE(dynamic_work_group_memory);
     CASE(dynamic_accessor);
-    CASE(special_type_wrapper);
+    CASE(struct_with_special_type);
   }
   return "<ERROR>";
 
@@ -6257,7 +6257,7 @@ public:
   }
 
   void Visit(QualType T) {
-if (T.isNull())
+    if (T.isNull())
       return;
     InnerTypeVisitor::Visit(T.getTypePtr());
   }
@@ -7094,7 +7094,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       }
     }
     ParmListWithNamesOstream.flush();
-
     Policy.SuppressTagKeyword = false;
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.PrintAsCanonical = false;
@@ -7142,7 +7141,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
 
     // Now we handle all parameters that are structs that contain special types
-    // inside. Their information is coontained in SpecialTypeOffsetMap with keys
+    // inside. Their information is contained in SpecialTypeOffsetMap with keys
     // the structs and values a vector of pairs representing the type and the
     // offset of each special type inside this struct.
     llvm::DenseMap<const Type *, bool> visited;
@@ -7153,11 +7152,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         //  special type nor a trivially copyable type. We therefore need to
         //  explicitly communicate to the runtime that this argument should be
         //  allowed as a free function kernel argument. We do this by defining
-        //   is_special_type_wrapper to be true.
+        //   is_struct_with_special_type to be true.
         O << "template <>\n";
         O << "struct "
-             "sycl::ext::oneapi::experimental::detail::is_special_type_"
-             "wrapper<";
+             "sycl::ext::oneapi::experimental::detail::is_struct_with_special_"
+             "type";
         Policy.SuppressTagKeyword = true;
         Param->getType().print(O, Policy);
         O << "> {\n";
@@ -7165,7 +7164,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         O << "namespace sycl { inline namespace _V1 { namespace ext { "
              "namespace oneapi { namespace "
              "experimental { namespace detail { \n";
-        O << "template <> struct special_type_wrapper_info<";
+        O << "template <> struct struct_with_special_type_info<";
         Param->getType().print(O, Policy);
         O << "> {\n";
         O << "template< typename ArgT, typename HandlerT, typename = "

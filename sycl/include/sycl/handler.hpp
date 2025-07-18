@@ -162,8 +162,8 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
 } // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
-template <typename> struct is_special_type_wrapper;
-template <typename> struct special_type_wrapper_info;
+template <typename> struct is_struct_with_special_type;
+template <typename> struct struct_with_special_type_info;
 class dynamic_parameter_base;
 class dynamic_work_group_memory_base;
 class dynamic_local_accessor_base;
@@ -707,9 +707,9 @@ private:
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
       addArg(detail::kernel_param_kind_t::kind_pointer, StoredArg, sizeof(T),
              ArgIndex);
-    } else if (ext::oneapi::experimental::detail::is_special_type_wrapper<
+    } else if (ext::oneapi::experimental::detail::is_struct_with_special_type<
                    remove_cv_ref_t<T>>::value) {
-      addArg(detail::kernel_param_kind_t::kind_special_type_wrapper, StoredArg,
+      addArg(detail::kernel_param_kind_t::kind_struct_with_special_type, StoredArg,
              sizeof(T), ArgIndex);
     } else {
       addArg(detail::kernel_param_kind_t::kind_std_layout, StoredArg, sizeof(T),
@@ -1871,7 +1871,9 @@ public:
         || (!is_same_type<cl_mem, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
         || is_same_type<cl_mem, T>::value          // Interop
-        || is_same_type<stream, T>::value;         // Stream
+        || is_same_type<stream, T>::value          // Stream
+        || ext::oneapi::experimental::detail::is_struct_with_special_type<
+               remove_cv_ref_t<T>>::value; // Structs that contain special types
   };
 
   /// Sets argument for OpenCL interoperability kernels.
@@ -1884,6 +1886,13 @@ public:
   typename std::enable_if_t<ShouldEnableSetArg<T>::value, void>
   set_arg(int ArgIndex, T &&Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
+    if constexpr (ext::oneapi::experimental::detail::
+                      is_struct_with_special_type<remove_cv_ref_t<T>>::value) {
+      int NumArgs;
+      ext::oneapi::experimental::detail::struct_with_special_type_info<
+          remove_cv_ref_t<T>>::set_arg(ArgIndex + 1, Arg, *this, NumArgs);
+      MArgShift += NumArgs;
+    }
   }
 
   template <typename DataT, int Dims, access::mode AccessMode,
@@ -1907,20 +1916,6 @@ public:
     // slice the base class object out of Arg
     detail::work_group_memory_impl &ArgImpl = Arg;
     setArgHelper(ArgIndex, ArgImpl);
-  }
-
-  template <typename T>
-  typename std::enable_if_t<
-      ext::oneapi::experimental::detail::is_special_type_wrapper<
-          remove_cv_ref_t<T>>::value,
-      void>
-  set_arg(int ArgIndex, T &Arg) {
-    setArgHelper(ArgIndex, Arg);
-    int NumArgs;
-    ext::oneapi::experimental::detail::special_type_wrapper_info<
-        remove_cv_ref_t<T>>::template set_arg(ArgIndex + 1, Arg, *this,
-                                              NumArgs);
-    MArgShift += NumArgs;
   }
 
   // set_arg for graph dynamic_parameters

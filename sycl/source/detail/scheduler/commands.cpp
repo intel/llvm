@@ -2360,6 +2360,11 @@ static void SetArgBasedOnType(
 
     break;
   }
+  case kernel_param_kind_t::kind_struct_with_special_type: {
+    Adapter.call<UrApiKind::urKernelSetArgValue>(Kernel, NextTrueIndex,
+                                                 Arg.MSize, nullptr, Arg.MPtr);
+    break;
+  }
   case kernel_param_kind_t::kind_sampler: {
     sampler *SamplerPtr = (sampler *)Arg.MPtr;
     ur_sampler_handle_t Sampler =
