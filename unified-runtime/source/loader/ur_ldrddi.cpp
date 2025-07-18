@@ -1238,6 +1238,9 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     /// device is null then the granularity is suitable for all devices in
     /// context.
     ur_device_handle_t hDevice,
+    /// [in] allocation size in bytes for which the alignment is being
+    /// queried.
+    size_t allocationSize,
     /// [in] type of the info to query.
     ur_virtual_mem_granularity_info_t propName,
     /// [in] size in bytes of the memory pointed to by pPropValue.
@@ -1258,8 +1261,8 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnGranularityGetInfo(hContext, hDevice, propName, propSize,
-                               pPropValue, pPropSizeRet);
+  return pfnGranularityGetInfo(hContext, hDevice, allocationSize, propName,
+                               propSize, pPropValue, pPropSizeRet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5667,9 +5670,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 
 } // namespace ur_loader
 
-#if defined(__cplusplus)
 extern "C" {
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Adapter table
@@ -6916,7 +6917,4 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 
   return result;
 }
-
-#if defined(__cplusplus)
 }
-#endif

@@ -47,7 +47,7 @@ const RTDeviceBinaryImage *retrieveKernelBinary(queue_impl &Queue,
   bool isHIP = Dev.getBackend() == backend::ext_oneapi_hip;
   if (isNvidia || isHIP) {
     auto KernelID = ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    std::vector<kernel_id> KernelIds{KernelID};
+    std::vector<kernel_id> KernelIds{std::move(KernelID)};
     auto DeviceImages =
         ProgramManager::getInstance().getRawDeviceImages(KernelIds);
     auto DeviceImage = std::find_if(

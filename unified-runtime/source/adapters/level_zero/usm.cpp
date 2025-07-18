@@ -607,8 +607,26 @@ ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t /*Context*/,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t,
-                                           ur_usm_pool_info_t, void *, size_t) {
+ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t /*Pool*/,
+                                           ur_usm_pool_info_t PropName,
+                                           void * /*PropValue*/,
+                                           size_t PropSize) {
+  if (PropSize < sizeof(size_t)) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+
+  switch (PropName) {
+  // TODO: Support for pool release threshold and maximum size hints.
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+  case UR_USM_POOL_INFO_MAXIMUM_SIZE_EXP:
+  // TODO: Allow user to overwrite pool peak statistics.
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    break;
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -903,8 +921,10 @@ umf_result_t L0MemoryProvider::ext_close_ipc_handle(void *Ptr,
   return UMF_RESULT_SUCCESS;
 }
 
-umf_result_t L0MemoryProvider::ext_ctl(int, const char *Name, void *Arg,
-                                       size_t Size, umf_ctl_query_type_t) {
+umf_result_t L0MemoryProvider::ext_ctl(umf_ctl_query_source_t /*Source*/,
+                                       const char *Name, void *Arg, size_t Size,
+                                       umf_ctl_query_type_t /*QueryType*/,
+                                       va_list /*Args*/) {
   if (std::string(Name) == "stats.allocated_memory") {
     if (!Arg && Size < sizeof(size_t)) {
       return UMF_RESULT_ERROR_INVALID_ARGUMENT;
@@ -1230,17 +1250,10 @@ ur_result_t ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
 
   *RetMem = umfPoolAlignedMalloc(UmfPool, Size, Alignment);
   if (*RetMem == nullptr) {
-    if (Pool->AsyncPool.cleanup()) { // true means that objects were deallocated
-      // let's try again
-      *RetMem = umfPoolAlignedMalloc(UmfPool, Size, Alignment);
-    }
-    if (*RetMem == nullptr) {
-      auto UmfRet = umfPoolGetLastAllocationError(UmfPool);
-      UR_LOG(ERR,
-             "enqueueUSMAllocHelper: allocation from the UMF pool {} failed",
-             UmfPool);
-      return umf::umf2urResult(UmfRet);
-    }
+    auto UmfRet = umfPoolGetLastAllocationError(UmfPool);
+    UR_LOG(ERR, "enqueueUSMAllocHelper: allocation from the UMF pool {} failed",
+           UmfPool);
+    return umf::umf2urResult(UmfRet);
   }
 
   if (IndirectAccessTrackingEnabled) {
@@ -1309,51 +1322,51 @@ void ur_usm_pool_handle_t_::cleanupPoolsForQueue(ur_queue_handle_t Queue) {
 }
 
 size_t ur_usm_pool_handle_t_::getTotalReservedSize() {
-  size_t totalAllocatedSize = 0;
+  size_t TotalAllocatedSize = 0;
   umf_result_t UmfRet = UMF_RESULT_SUCCESS;
   PoolManager.forEachPool([&](UsmPool *p) {
     umf_memory_provider_handle_t hProvider = nullptr;
-    size_t allocatedSize = 0;
+    size_t AllocatedSize = 0;
     UmfRet = umfPoolGetMemoryProvider(p->UmfPool.get(), &hProvider);
     if (UmfRet != UMF_RESULT_SUCCESS) {
       return false;
     }
 
-    UmfRet = umfCtlGet("umf.provider.by_handle.stats.allocated_memory",
-                       hProvider, &allocatedSize, sizeof(allocatedSize));
+    UmfRet = umfCtlGet("umf.provider.by_handle.{}.stats.allocated_memory",
+                       &AllocatedSize, sizeof(AllocatedSize), hProvider);
     if (UmfRet != UMF_RESULT_SUCCESS) {
       return false;
     }
 
-    totalAllocatedSize += allocatedSize;
+    TotalAllocatedSize += AllocatedSize;
     return true;
   });
 
-  return UmfRet == UMF_RESULT_SUCCESS ? totalAllocatedSize : 0;
+  return UmfRet == UMF_RESULT_SUCCESS ? TotalAllocatedSize : 0;
 }
 
 size_t ur_usm_pool_handle_t_::getPeakReservedSize() {
-  size_t totalAllocatedSize = 0;
+  size_t MaxPeakSize = 0;
   umf_result_t Ret = UMF_RESULT_SUCCESS;
   PoolManager.forEachPool([&](UsmPool *p) {
     umf_memory_provider_handle_t hProvider = nullptr;
-    size_t allocatedSize = 0;
+    size_t PeakSize = 0;
     Ret = umfPoolGetMemoryProvider(p->UmfPool.get(), &hProvider);
     if (Ret != UMF_RESULT_SUCCESS) {
       return false;
     }
 
-    Ret = umfCtlGet("umf.provider.by_handle.stats.peak_memory", hProvider,
-                    &allocatedSize, sizeof(allocatedSize));
+    Ret = umfCtlGet("umf.provider.by_handle.{}.stats.peak_memory", &PeakSize,
+                    sizeof(PeakSize), hProvider);
     if (Ret != UMF_RESULT_SUCCESS) {
       return false;
     }
 
-    totalAllocatedSize += allocatedSize;
+    MaxPeakSize = std::max(MaxPeakSize, PeakSize);
     return true;
   });
 
-  return Ret == UMF_RESULT_SUCCESS ? totalAllocatedSize : 0;
+  return Ret == UMF_RESULT_SUCCESS ? MaxPeakSize : 0;
 }
 
 size_t ur_usm_pool_handle_t_::getTotalUsedSize() {
