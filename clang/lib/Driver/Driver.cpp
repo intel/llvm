@@ -7730,7 +7730,8 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
                                        Action *HostAction) const {
   // Don't build offloading actions if explicitly disabled or we do not have a
   // valid source input.
-  if (offloadHostOnly() || !types::isSrcFile(Input.first))
+  if (offloadHostOnly() ||
+      !(types::isSrcFile(Input.first) || Input.first == types::TY_PP_CXX))
     return HostAction;
 
   bool HIPNoRDC =
@@ -7795,6 +7796,25 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
       llvm::sort(Sorted);
       for (StringRef Arch : Sorted) {
         TCAndArchs.push_back(std::make_pair(TC, Arch));
+        // Check if the InputArg is a preprocessed file that is created by the
+        // clang-offload-packager.
+        if (InputType == types::TY_PP_CXX &&
+            isOffloadBinaryFile(InputArg->getAsString(Args))) {
+          // Extract the specific preprocessed file given the current arch
+          // and triple.  Add to DeviceActions if one was extracted.
+          ActionList PPActions;
+          OffloadAction::DeviceDependences DDep;
+          Action *IA = C.MakeAction<InputAction>(*InputArg, InputType, CUID);
+          PPActions.push_back(IA);
+          Action *PackagerAction =
+              C.MakeAction<OffloadPackagerExtractJobAction>(PPActions,
+                                                            types::TY_PP_CXX);
+          DDep.add(*PackagerAction,
+                   *C.getSingleOffloadToolChain<Action::OFK_Host>(), nullptr,
+                   C.getActiveOffloadKinds());
+          DeviceActions.push_back(PackagerAction);
+          continue;
+        }
         DeviceActions.push_back(
             C.MakeAction<InputAction>(*InputArg, InputType, CUID));
       }
@@ -7953,6 +7973,41 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
              nullptr, C.getActiveOffloadKinds());
     return C.MakeAction<OffloadAction>(DDep, types::TY_Nothing);
   } else if (C.isOffloadingHostKind(Action::OFK_SYCL) &&
+             isa<PreprocessJobAction>(HostAction) &&
+             getFinalPhase(Args) == phases::Preprocess &&
+             Args.hasArg(options::OPT_o, options::OPT__SLASH_P,
+                         options::OPT__SLASH_o)) {
+    // Performing preprocessing only. Take the host and device preprocessed
+    // files and package them together.
+    ActionList PackagerActions;
+    // Only add the preprocess actions from the device side.  When one is
+    // found, add an additional compilation to generate the integration
+    // header/footer that is used for the host compile.
+    for (auto OA : OffloadActions) {
+      if (const OffloadAction *CurOA = dyn_cast<OffloadAction>(OA)) {
+        CurOA->doOnEachDependence(
+            [&](Action *A, const ToolChain *TC, const char *BoundArch) {
+              assert(TC && "Unknown toolchain");
+              if (isa<PreprocessJobAction>(A)) {
+                PackagerActions.push_back(OA);
+                // DDep.add(*A, *TC, BoundArch, Action::OFK_SYCL);
+                // Action *AA = C.MakeAction<OffloadAction>(DDep,
+                // types::TY_PP_CXX);
+                A->setCannotBeCollapsedWithNextDependentAction();
+                Action *CompileAction =
+                    C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
+                DDeps.add(*CompileAction, *TC, BoundArch, Action::OFK_SYCL);
+                // PackagerActions.push_back(AA);
+              }
+            });
+      }
+    }
+    PackagerActions.push_back(HostAction);
+    Action *PackagerAction = C.MakeAction<OffloadPackagerJobAction>(
+        PackagerActions, types::TY_PP_CXX);
+    DDeps.add(*PackagerAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
+              nullptr, C.getActiveOffloadKinds());
+  } else if (C.isOffloadingHostKind(Action::OFK_SYCL) &&
              Args.hasArg(options::OPT_fsycl_host_compiler_EQ)) {
     // -fsycl-host-compiler will create a bundled object instead of an
     // embedded packaged object.  Effectively avoid doing the packaging.
@@ -7974,7 +8029,7 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
   // add each device output as a host dependency to ensure they are still built.
   bool SingleDeviceOutput = !llvm::any_of(OffloadActions, [](Action *A) {
     return A->getType() == types::TY_Nothing;
-  }) && isa<CompileJobAction>(HostAction);
+  }) && (isa<CompileJobAction>(HostAction));
   OffloadAction::HostDependence HDep(
       *HostAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
       /*BoundArch=*/nullptr, SingleDeviceOutput ? DDep : DDeps);
@@ -8100,6 +8155,23 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<VerifyPCHJobAction>(Input, types::TY_Nothing);
     if (Args.hasArg(options::OPT_extract_api))
       return C.MakeAction<ExtractAPIJobAction>(Input, types::TY_API_INFO);
+    // New offload driver enabled with a Preprocessed input file - check to make
+    // sure that the input file is an offload binary - if so, we need to
+    // extract the actual preprocessed file from the package, and that is what
+    // we will compile.
+    if (getUseNewOffloadingDriver() &&
+        TargetDeviceOffloadKind == Action::OFK_None &&
+        Input->getType() == types::TY_PP_CXX) {
+      const InputAction *IA = dyn_cast<InputAction>(Input);
+      if (IA && isOffloadBinaryFile(IA->getInputArg().getAsString(Args))) {
+        ActionList PPActions;
+        PPActions.push_back(Input);
+        Action *PackagerAction = C.MakeAction<OffloadPackagerExtractJobAction>(
+            PPActions, types::TY_PP_CXX);
+        return C.MakeAction<CompileJobAction>(PackagerAction,
+                                              types::TY_LLVM_BC);
+      }
+    }
     return C.MakeAction<CompileJobAction>(Input, types::TY_LLVM_BC);
   }
   case phases::Backend: {
@@ -9379,7 +9451,8 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   // For /P, preprocess to file named after BaseInput.
   if (C.getArgs().hasArg(options::OPT__SLASH_P) &&
       ((AtTopLevel && isa<PreprocessJobAction>(JA)) ||
-       isa<OffloadBundlingJobAction>(JA))) {
+       isa<OffloadBundlingJobAction>(JA) ||
+       isa<OffloadPackagerJobAction>(JA))) {
     StringRef BaseName = llvm::sys::path::filename(BaseInput);
     StringRef NameArg;
     if (Arg *A = C.getArgs().getLastArg(options::OPT__SLASH_Fi))
@@ -9413,6 +9486,14 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       }
       return C.addTempFile(C.getArgs().MakeArgString(OutName));
     }
+  }
+
+  // When generating preprocessed files (-E) with offloading enabled, redirect
+  // the output to a properly named output file.
+  if (JA.getType() == types::TY_PP_CXX && isa<OffloadPackagerJobAction>(JA)) {
+    if (Arg *FinalOutput =
+            C.getArgs().getLastArg(options::OPT_o, options::OPT__SLASH_o))
+      return C.addResultFile(FinalOutput->getValue(), &JA);
   }
 
   // Default to writing to stdout?
@@ -10381,6 +10462,12 @@ bool clang::driver::isStaticArchiveFile(const StringRef &FileName) {
   llvm::identify_magic(FileName, Magic);
   // Only .lib and archive files are to be considered.
   return (Magic == llvm::file_magic::archive);
+}
+
+bool clang::driver::isOffloadBinaryFile(const StringRef &FileName) {
+  llvm::file_magic Magic;
+  llvm::identify_magic(FileName, Magic);
+  return (Magic == llvm::file_magic::offload_binary);
 }
 
 bool clang::driver::willEmitRemarks(const ArgList &Args) {
