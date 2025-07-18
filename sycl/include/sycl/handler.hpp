@@ -1633,8 +1633,6 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
-    KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, PropertiesT>::wrap(
-        this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();
@@ -1651,7 +1649,14 @@ private:
     } else {
       setNDRangeDescriptor(std::move(params)...);
     }
-
+#endif
+    // NOTE: KernelWrapper::wrap() was moved here to support properties that are
+    // included in kernel functor with a
+    // get(sycl::ext::oneapi::experimental::properties_tag) and need modify
+    // NDRangeDescriptor values after NDRangeDescriptor was set.
+    KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, PropertiesT>::wrap(
+        this, KernelFunc);
+#ifndef __SYCL_DEVICE_ONLY__
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
     processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
 #endif
