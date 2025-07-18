@@ -100,6 +100,7 @@ set(LLVM_TEST_DEPENDS
           llvm-extract
           llvm-foreach
           llvm-gsymutil
+          llvm-ir2vec
           llvm-isel-fuzzer
           llvm-ifs
           llvm-install-name-tool
