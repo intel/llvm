@@ -7094,8 +7094,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       }
     }
     ParmListWithNamesOstream.flush();
-
-    Policy.SuppressTagKeyword = false;
+    
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.PrintAsCanonical = false;
     Policy.SuppressDefinition = true;
