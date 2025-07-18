@@ -19,7 +19,8 @@
 #include <sycl/kernel.hpp>              // for kernel, kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/property_list.hpp>       // for property_list
-#include <ur_api.h>                     // for ur_native_handle_t
+#include <sycl/sycl_span.hpp>
+#include <ur_api.h>
 
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>     // PropertyT
@@ -638,6 +639,10 @@ namespace detail {
 __SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State);
+
+__SYCL_EXPORT detail::KernelBundleImplPtr
+get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+                       const sycl::span<char> &Bytes, bundle_state State);
 
 __SYCL_EXPORT const std::vector<device>
 removeDuplicateDevices(const std::vector<device> &Devs);

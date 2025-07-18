@@ -14,6 +14,7 @@
 
 #include "context.hpp"
 #include "device.hpp"
+#include "offload_bundle_parser.hpp"
 #include "platform.hpp"
 #include "program.hpp"
 #include "ur2offload.hpp"
@@ -70,85 +71,6 @@ ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t, const uint8_t *,
 }
 #endif
 
-// https://clang.llvm.org/docs/ClangOffloadBundler.html#bundled-binary-file-layout
-class HipOffloadBundleParser {
-  static constexpr std::string_view Magic = "__CLANG_OFFLOAD_BUNDLE__";
-  const uint8_t *Buff;
-  size_t Length;
-
-  struct __attribute__((packed)) BundleEntry {
-    uint64_t ObjectOffset;
-    uint64_t ObjectSize;
-    uint64_t EntryIdSize;
-    char EntryIdStart;
-  };
-
-  struct __attribute__((packed)) BundleHeader {
-    const char HeaderMagic[Magic.size()];
-    uint64_t EntryCount;
-    BundleEntry FirstEntry;
-  };
-
-  HipOffloadBundleParser() = delete;
-  HipOffloadBundleParser(const uint8_t *Buff, size_t Length)
-      : Buff(Buff), Length(Length) {}
-
-public:
-  static std::optional<HipOffloadBundleParser> load(const uint8_t *Buff,
-                                                    size_t Length) {
-    if (std::string_view{reinterpret_cast<const char *>(Buff), Length}.find(
-            Magic) != 0) {
-      return std::nullopt;
-    }
-    return HipOffloadBundleParser(Buff, Length);
-  }
-
-  ur_result_t extract(std::string_view SearchTargetId,
-                      const uint8_t *&OutBinary, size_t &OutLength) {
-    const char *Limit = reinterpret_cast<const char *>(&Buff[Length]);
-
-    // The different check here means that a binary consisting of only the magic
-    // bytes (but nothing else) will result in INVALID_PROGRAM rather than being
-    // treated as a non-bundle
-    auto *Header = reinterpret_cast<const BundleHeader *>(Buff);
-    if (reinterpret_cast<const char *>(&Header->FirstEntry) > Limit) {
-      return UR_RESULT_ERROR_INVALID_PROGRAM;
-    }
-
-    const auto *CurrentEntry = &Header->FirstEntry;
-    for (uint64_t I = 0; I < Header->EntryCount; I++) {
-      if (&CurrentEntry->EntryIdStart > Limit) {
-        return UR_RESULT_ERROR_INVALID_PROGRAM;
-      }
-      auto EntryId = std::string_view(&CurrentEntry->EntryIdStart,
-                                      CurrentEntry->EntryIdSize);
-      if (EntryId.end() > Limit) {
-        return UR_RESULT_ERROR_INVALID_PROGRAM;
-      }
-
-      // Will match either "hip" or "hipv4"
-      bool isHip = EntryId.find("hip") == 0;
-      bool VersionMatches =
-          EntryId.find_last_of(SearchTargetId) == EntryId.size() - 1;
-
-      if (isHip && VersionMatches) {
-        OutBinary = reinterpret_cast<const uint8_t *>(
-            &Buff[CurrentEntry->ObjectOffset]);
-        OutLength = CurrentEntry->ObjectSize;
-
-        if (reinterpret_cast<const char *>(&OutBinary[OutLength]) > Limit) {
-          return UR_RESULT_ERROR_INVALID_PROGRAM;
-        }
-        return UR_RESULT_SUCCESS;
-      }
-
-      CurrentEntry = reinterpret_cast<const BundleEntry *>(EntryId.end());
-    }
-
-    return UR_RESULT_ERROR_INVALID_PROGRAM;
-  }
-};
-
 } // namespace
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
@@ -165,11 +87,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   if (auto Parser = HipOffloadBundleParser::load(RealBinary, RealLength)) {
     std::string DevName{};
     size_t DevNameLength;
-    olGetDeviceInfoSize(phDevices[0]->OffloadDevice, OL_DEVICE_INFO_NAME,
-                        &DevNameLength);
-    DevName.resize(DevNameLength);
-    olGetDeviceInfo(phDevices[0]->OffloadDevice, OL_DEVICE_INFO_NAME,
-                    DevNameLength, DevName.data());
+    OL_RETURN_ON_ERR(olGetDeviceInfoSize(phDevices[0]->OffloadDevice,
+                                         OL_DEVICE_INFO_NAME, &DevNameLength));
+    DevName.resize(DevNameLength - 1);
+    OL_RETURN_ON_ERR(olGetDeviceInfo(phDevices[0]->OffloadDevice,
+                                     OL_DEVICE_INFO_NAME, DevNameLength,
+                                     DevName.data()));
 
     auto Res = Parser->extract(DevName, RealBinary, RealLength);
     if (Res != UR_RESULT_SUCCESS) {
@@ -185,7 +108,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
                                        phProgram);
   }
 
-  ur_program_handle_t Program = new ur_program_handle_t_();
+  ur_program_handle_t Program = new ur_program_handle_t_{};
+  Program->URContext = hContext;
+  Program->Binary = RealBinary;
+  Program->BinarySizeInBytes = RealLength;
   auto Res = olCreateProgram(hContext->Device->OffloadDevice, RealBinary,
                              RealLength, &Program->OffloadProgram);
 
@@ -197,6 +123,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   *phProgram = Program;
 
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
+                      size_t length, const ur_program_properties_t *pProperties,
+                      ur_program_handle_t *phProgram) {
+  // Liboffload consumes both IR and binaries through the same entrypoint
+  return urProgramCreateWithBinary(hContext, 1, &hContext->Device, &length,
+                                   reinterpret_cast<const uint8_t **>(&pIL),
+                                   pProperties, phProgram);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t,
@@ -214,6 +150,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(ur_context_handle_t,
+                                                     ur_program_handle_t,
+                                                     const char *) {
+  // Do nothing, program is built upon creation
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
                  size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
@@ -222,8 +165,42 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   switch (propName) {
   case UR_PROGRAM_INFO_REFERENCE_COUNT:
     return ReturnValue(hProgram->RefCount.load());
-  default:
+  case UR_PROGRAM_INFO_CONTEXT:
+    return ReturnValue(hProgram->URContext);
+  case UR_PROGRAM_INFO_NUM_DEVICES:
+    return ReturnValue(1);
+  case UR_PROGRAM_INFO_DEVICES:
+    return ReturnValue(&hProgram->URContext->Device, 1);
+  case UR_PROGRAM_INFO_IL:
+    return ReturnValue(reinterpret_cast<const char *>(0), 0);
+  case UR_PROGRAM_INFO_BINARY_SIZES:
+    return ReturnValue(&hProgram->BinarySizeInBytes, 1);
+  case UR_PROGRAM_INFO_BINARIES: {
+    if (!pPropValue && !pPropSizeRet) {
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (pPropValue != nullptr) {
+      if (propSize < sizeof(void *)) {
+        return UR_RESULT_ERROR_INVALID_SIZE;
+      }
+
+      std::memcpy(*reinterpret_cast<void **>(pPropValue), hProgram->Binary,
+                  hProgram->BinarySizeInBytes);
+    }
+
+    if (pPropSizeRet != nullptr) {
+      *pPropSizeRet = sizeof(void *);
+    }
+    break;
+  }
+  case UR_PROGRAM_INFO_NUM_KERNELS:
+  case UR_PROGRAM_INFO_KERNEL_NAMES:
+    // Program introspection is not available for liboffload (or generally,
+    // amdgpu/cuda)
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  default:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
   return UR_RESULT_SUCCESS;

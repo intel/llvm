@@ -9,8 +9,6 @@
 
 #include "sanitizer_defs.hpp"
 #include "sanitizer_utils.hpp"
-#include "spir_global_var.hpp"
-#include <cstdint>
 
 // Treat this header as system one to workaround frontend's restriction
 #pragma clang system_header

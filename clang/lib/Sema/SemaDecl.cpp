@@ -1486,6 +1486,17 @@ void Sema::ActOnExitFunctionContext() {
 static bool AllowOverloadingOfFunction(const LookupResult &Previous,
                                        ASTContext &Context,
                                        const FunctionDecl *New) {
+  // SYCLDeviceOnlyAttr allows device side overloads of SYCL function, but it
+  // is incompatible with SYCLDeviceAttr, so don't allow overloads when both
+  // attributes are present.
+  if (Context.getLangOpts().isSYCL() &&
+      Previous.getResultKind() == LookupResultKind::Found &&
+      ((New->hasAttr<SYCLDeviceOnlyAttr>() &&
+        Previous.getFoundDecl()->hasAttr<SYCLDeviceAttr>()) ||
+       (New->hasAttr<SYCLDeviceAttr>() &&
+        Previous.getFoundDecl()->hasAttr<SYCLDeviceOnlyAttr>())))
+    return false;
+
   if (Context.getLangOpts().CPlusPlus || New->hasAttr<OverloadableAttr>())
     return true;
 
@@ -3701,6 +3712,11 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
         << Old << Old->getType();
     return true;
   }
+
+  // Never merge SYCLDeviceOnlyAttr functions in their host variant
+  if (getLangOpts().isSYCL() &&
+      Old->hasAttr<SYCLDeviceOnlyAttr>() != New->hasAttr<SYCLDeviceOnlyAttr>())
+    return false;
 
   diag::kind PrevDiag;
   SourceLocation OldLocation;
@@ -7353,6 +7369,10 @@ static bool isIncompleteDeclExternC(Sema &S, const T *D) {
     // So do CUDA's host/device attributes.
     if (S.getLangOpts().CUDA && (D->template hasAttr<CUDADeviceAttr>() ||
                                  D->template hasAttr<CUDAHostAttr>()))
+      return false;
+
+    // So does SYCL's device_only attribute.
+    if (S.getLangOpts().isSYCL() && D->template hasAttr<SYCLDeviceOnlyAttr>())
       return false;
   }
   return D->isExternC();
@@ -11169,6 +11189,12 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // `routine(name)`.
   if (getLangOpts().OpenACC)
     OpenACC().ActOnFunctionDeclarator(NewFD);
+
+  // Handle free functions.
+  if (LangOpts.SYCLIsDevice && !NewFD->isDependentContext() &&
+      !D.isRedeclaration() &&
+      D.getFunctionDefinitionKind() == FunctionDefinitionKind::Declaration)
+    SYCL().processFreeFunctionDeclaration(NewFD);
 
   return NewFD;
 }

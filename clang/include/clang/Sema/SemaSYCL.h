@@ -65,7 +65,8 @@ public:
     kind_work_group_memory,
     kind_dynamic_work_group_memory,
     kind_dynamic_accessor,
-    kind_last = kind_dynamic_accessor
+    kind_struct_with_special_type,
+    kind_last = kind_struct_with_special_type
   };
 
 public:
@@ -117,6 +118,12 @@ public:
   /// declaration of variable __sycl_host_pipe_registrar of this type in
   /// integration header is required.
   void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
+
+  // Add the entry (Ty, Offset) to the SpecialTypeOffsetMap.
+  void addSpecialTypeOffset(const Type *ParentStruct, QualType Ty,
+                            int64_t offset) {
+    SpecialTypeOffsetMap[ParentStruct].push_back(std::make_pair(Ty, offset));
+  }
 
 private:
   // Kernel actual parameter descriptor.
@@ -205,6 +212,12 @@ private:
   /// Keeps track of whether declaration of __sycl_host_pipe_registration
   /// type and __sycl_host_pipe_registrar variable are required to emit.
   bool NeedToEmitHostPipeRegistration = false;
+
+  // A map that keeps track of type and offset of each special class contained
+  // inside a struct
+  llvm::DenseMap<const Type *,
+                 llvm::SmallVector<std::pair<QualType, int64_t>, 8>>
+      SpecialTypeOffsetMap;
 };
 
 class SYCLIntegrationFooter {
@@ -264,6 +277,8 @@ private:
   bool DiagnosingSYCLKernel = false;
 
   llvm::DenseSet<const FunctionDecl *> SYCLKernelFunctions;
+
+  llvm::DenseSet<const FunctionDecl *> FreeFunctionDeclarations;
 
 public:
   SemaSYCL(Sema &S);
@@ -357,7 +372,9 @@ public:
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void SetSYCLKernelNames();
   void MarkDevices();
+  void processFreeFunctionDeclaration(const FunctionDecl *FD);
   void ProcessFreeFunction(FunctionDecl *FD);
+  void finalizeFreeFunctionKernels();
 
   /// Get the number of fields or captures within the parsed type.
   ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);

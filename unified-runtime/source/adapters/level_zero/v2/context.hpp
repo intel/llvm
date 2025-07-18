@@ -14,6 +14,7 @@
 
 #include "command_list_cache.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "event_pool_cache.hpp"
 #include "usm.hpp"
 
@@ -63,6 +64,8 @@ struct ur_context_handle_t_ : ur_object {
   // Checks if Device is covered by this context.
   // For that the Device or its root devices need to be in the context.
   bool isValidDevice(ur_device_handle_t Device) const;
+
+  ur::RefCount RefCount;
 
 private:
   const v2::raii::ze_context_handle_t hContext;
