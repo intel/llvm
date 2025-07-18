@@ -74,7 +74,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                      hKernel->Args.getStorageSize(), &LaunchArgs, &EventOut));
 
   if (phEvent) {
-    auto *Event = new ur_event_handle_t_();
+    auto *Event = new ur_event_handle_t_(UR_COMMAND_KERNEL_LAUNCH, hQueue);
     Event->OffloadEvent = EventOut;
     *phEvent = Event;
   }
@@ -117,7 +117,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
   }
 
   if (phEvent) {
-    auto *Event = new ur_event_handle_t_();
+    auto *Event = new ur_event_handle_t_(UR_COMMAND_MEM_BUFFER_READ, hQueue);
     Event->OffloadEvent = EventOut;
     *phEvent = Event;
   }
@@ -149,7 +149,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   }
 
   if (phEvent) {
-    auto *Event = new ur_event_handle_t_();
+    auto *Event = new ur_event_handle_t_(UR_COMMAND_MEM_BUFFER_WRITE, hQueue);
     Event->OffloadEvent = EventOut;
     *phEvent = Event;
   }
@@ -157,13 +157,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t enqueueNoOp(ur_queue_handle_t hQueue, ur_event_handle_t *phEvent) {
+ur_result_t enqueueNoOp(ur_command_t Type, ur_queue_handle_t hQueue,
+                        ur_event_handle_t *phEvent) {
   // This path is a no-op, but we can't output a real event because
   // Offload doesn't currently support creating arbitrary events, and we
   // don't know the last real event in the queue. Instead we just have to
   // wait on the whole queue and then return an empty (implicitly
   // finished) event.
-  *phEvent = ur_event_handle_t_::createEmptyEvent();
+  *phEvent = ur_event_handle_t_::createEmptyEvent(Type, hQueue);
   return urQueueFinish(hQueue);
 }
 
@@ -197,7 +198,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     }
 
     if (phEvent) {
-      enqueueNoOp(hQueue, phEvent);
+      enqueueNoOp(UR_COMMAND_MEM_BUFFER_MAP, hQueue, phEvent);
     }
   }
   *ppRetMap = MapPtr;
@@ -231,7 +232,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     }
 
     if (phEvent) {
-      enqueueNoOp(hQueue, phEvent);
+      enqueueNoOp(UR_COMMAND_MEM_UNMAP, hQueue, phEvent);
     }
   }
   BufferImpl.unmap(pMappedPtr);
