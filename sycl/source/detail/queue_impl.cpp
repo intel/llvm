@@ -457,6 +457,9 @@ queue_impl::submit_direct_impl(const NDRDescT &NDRDesc,
   // Graphs are not supported yet for the no-handler path
   assert(!hasCommandGraph());
 
+  // No special captures supported yet for the no-handler path
+  assert(!KRInfo.KernelHasSpecialCaptures);
+
   // Set the No Last Event Mode to false, since the no-handler path
   // does not support it yet.
   MNoLastEventMode.store(false, std::memory_order_relaxed);
