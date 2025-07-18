@@ -125,15 +125,15 @@ static bool isDeviceBinaryTypeSupported(context_impl &ContextImpl,
   devices_range Devices = ContextImpl.getDevices();
 
   // Program type is SPIR-V, so we need a device compiler to do JIT.
-  for (device_impl &D : Devices) {
-    if (!D.get_info<info::device::is_compiler_available>())
-      return false;
-  }
+  if (!all_of(Devices, [](device_impl &D) {
+        return D.get_info<info::device::is_compiler_available>();
+      }))
+    return false;
 
   // OpenCL 2.1 and greater require clCreateProgramWithIL
   if (ContextBackend == backend::opencl) {
-    std::string ver = ContextImpl.get_info<info::context::platform>()
-                          .get_info<info::platform::version>();
+    std::string ver =
+        ContextImpl.getPlatformImpl().get_info<info::platform::version>();
     if (ver.find("OpenCL 1.0") == std::string::npos &&
         ver.find("OpenCL 1.1") == std::string::npos &&
         ver.find("OpenCL 1.2") == std::string::npos &&
@@ -141,17 +141,11 @@ static bool isDeviceBinaryTypeSupported(context_impl &ContextImpl,
       return true;
   }
 
-  for (device_impl &D : Devices) {
-    // We need cl_khr_il_program extension to be present
-    // and we can call clCreateProgramWithILKHR using the extension
-    std::vector<std::string> Extensions =
-        D.get_info<info::device::extensions>();
-    if (Extensions.end() ==
-        std::find(Extensions.begin(), Extensions.end(), "cl_khr_il_program"))
-      return false;
-  }
-
-  return true;
+  // We need cl_khr_il_program extension to be present
+  // and we can call clCreateProgramWithILKHR using the extension
+  return all_of(Devices, [](device_impl &D) {
+    return D.has_extension("cl_khr_il_program");
+  });
 }
 
 // getFormatStr is used for debug-printing, so it may be unused.

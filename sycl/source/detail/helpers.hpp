@@ -167,6 +167,18 @@ private:
   iterator Begin;
   iterator End;
   const size_t Size;
+
+  template <class Pred> friend bool all_of(iterator_range R, Pred &&P) {
+    return std::all_of(R.begin(), R.end(), std::forward<Pred>(P));
+  }
+
+  template <class Pred> friend bool any_of(iterator_range R, Pred &&P) {
+    return std::any_of(R.begin(), R.end(), std::forward<Pred>(P));
+  }
+
+  template <class Pred> friend bool none_of(iterator_range R, Pred &&P) {
+    return std::none_of(R.begin(), R.end(), std::forward<Pred>(P));
+  }
 };
 } // namespace detail
 } // namespace _V1

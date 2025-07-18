@@ -397,9 +397,8 @@ public:
                   const device &DeviceCand) const noexcept {
     // If the device is in the device list and the kernel ID is in the kernel
     // bundle, return true.
-    for (device_impl &Device : get_devices())
-      if (&Device == &*getSyclObjImpl(DeviceCand))
-        return has_kernel(KernelIDCand);
+    if (get_devices().contains(*getSyclObjImpl(DeviceCand)))
+      return has_kernel(KernelIDCand);
 
     // Otherwise, if the device candidate is a sub-device it is also valid if
     // its parent is valid.
