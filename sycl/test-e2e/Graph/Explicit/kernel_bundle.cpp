@@ -9,7 +9,7 @@
 // CHECK-SAME: .phProgram = {{.*}} ([[PROGRAM_HANDLE1:[0-9a-fA-Fx]+]])
 
 //
-// CHECK:<--- urProgramBuildExp(
+// CHECK:<--- urProgramBuild(
 // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE1]]
 //
 // CHECK:<--- urProgramRetain(.hProgram = [[PROGRAM_HANDLE1]]) -> UR_RESULT_SUCCESS

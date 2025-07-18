@@ -85,7 +85,7 @@ generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
 }
 
 inline ur_result_t redefinedProgramLink(void *pParams) {
-  auto params = *static_cast<ur_program_link_exp_params_t *>(pParams);
+  auto params = *static_cast<ur_program_link_params_t *>(pParams);
   assert(*params.ppOptions != nullptr);
   auto add_link_opts = std::string(*params.ppOptions);
   if (!add_link_opts.empty()) {
@@ -97,7 +97,7 @@ inline ur_result_t redefinedProgramLink(void *pParams) {
 }
 
 inline ur_result_t redefinedProgramCompile(void *pParams) {
-  auto params = *static_cast<ur_program_compile_exp_params_t *>(pParams);
+  auto params = *static_cast<ur_program_compile_params_t *>(pParams);
   assert(*params.ppOptions != nullptr);
   auto add_compile_opts = std::string(*params.ppOptions);
   if (!add_compile_opts.empty()) {
@@ -109,7 +109,7 @@ inline ur_result_t redefinedProgramCompile(void *pParams) {
 }
 
 inline ur_result_t redefinedProgramBuild(void *pParams) {
-  auto params = *static_cast<ur_program_build_exp_params_t *>(pParams);
+  auto params = *static_cast<ur_program_build_params_t *>(pParams);
   assert(*params.ppOptions != nullptr);
   current_build_opts = std::string(*params.ppOptions);
   return UR_RESULT_SUCCESS;
@@ -118,9 +118,9 @@ inline ur_result_t redefinedProgramBuild(void *pParams) {
 TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
-  mock::getCallbacks().set_before_callback("urProgramCompileExp",
+  mock::getCallbacks().set_before_callback("urProgramCompile",
                                            &redefinedProgramCompile);
-  mock::getCallbacks().set_before_callback("urProgramLinkExp",
+  mock::getCallbacks().set_before_callback("urProgramLink",
                                            &redefinedProgramLink);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
@@ -145,9 +145,9 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
 TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
-  mock::getCallbacks().set_before_callback("urProgramCompileExp",
+  mock::getCallbacks().set_before_callback("urProgramCompile",
                                            &redefinedProgramCompile);
-  mock::getCallbacks().set_before_callback("urProgramLinkExp",
+  mock::getCallbacks().set_before_callback("urProgramLink",
                                            &redefinedProgramLink);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
@@ -180,11 +180,11 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
 TEST(Link_Compile_Options, check_sycl_build) {
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
-  mock::getCallbacks().set_before_callback("urProgramCompileExp",
+  mock::getCallbacks().set_before_callback("urProgramCompile",
                                            &redefinedProgramCompile);
-  mock::getCallbacks().set_before_callback("urProgramLinkExp",
+  mock::getCallbacks().set_before_callback("urProgramLink",
                                            &redefinedProgramLink);
-  mock::getCallbacks().set_before_callback("urProgramBuildExp",
+  mock::getCallbacks().set_before_callback("urProgramBuild",
                                            &redefinedProgramBuild);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();

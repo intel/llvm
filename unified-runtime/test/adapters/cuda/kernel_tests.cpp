@@ -80,7 +80,7 @@ TEST_P(cudaKernelTest, CreateProgramAndKernel) {
                                            (const uint8_t **)(&ptxSource),
                                            nullptr, program.ptr()));
   ASSERT_NE(program, nullptr);
-  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+  ASSERT_SUCCESS(urProgramBuild(program, 1, &device, nullptr));
 
   uur::raii::Kernel kernel = nullptr;
   ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
@@ -123,7 +123,7 @@ TEST_P(cudaKernelTest, CreateProgramAndKernelWithMetadata) {
                                            &programProps, program.ptr()));
   ASSERT_NE(program, nullptr);
 
-  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+  ASSERT_SUCCESS(urProgramBuild(program, 1, &device, nullptr));
 
   uur::raii::Kernel kernel = nullptr;
   ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
@@ -145,7 +145,7 @@ TEST_P(cudaKernelTest, URKernelArgumentSimple) {
                                            (const uint8_t **)(&ptxSource),
                                            nullptr, program.ptr()));
   ASSERT_NE(program, nullptr);
-  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+  ASSERT_SUCCESS(urProgramBuild(program, 1, &device, nullptr));
 
   uur::raii::Kernel kernel = nullptr;
   ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
@@ -167,7 +167,7 @@ TEST_P(cudaKernelTest, URKernelArgumentLarge) {
                                            (const uint8_t **)(&ptxSource),
                                            nullptr, program.ptr()));
   ASSERT_NE(program, nullptr);
-  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+  ASSERT_SUCCESS(urProgramBuild(program, 1, &device, nullptr));
 
   uur::raii::Kernel kernel = nullptr;
   ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
@@ -188,7 +188,7 @@ TEST_P(cudaKernelTest, URKernelArgumentSetTwice) {
                                            (const uint8_t **)(&ptxSource),
                                            nullptr, program.ptr()));
   ASSERT_NE(program, nullptr);
-  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+  ASSERT_SUCCESS(urProgramBuild(program, 1, &device, nullptr));
 
   uur::raii::Kernel kernel = nullptr;
   ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
@@ -217,7 +217,7 @@ TEST_P(cudaKernelTest, URKernelDispatch) {
                                            (const uint8_t **)(&ptxSource),
                                            nullptr, program.ptr()));
   ASSERT_NE(program, nullptr);
-  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+  ASSERT_SUCCESS(urProgramBuild(program, 1, &device, nullptr));
 
   uur::raii::Kernel kernel = nullptr;
   ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
@@ -247,7 +247,7 @@ TEST_P(cudaKernelTest, URKernelDispatchTwo) {
                                            (const uint8_t **)(&twoParams),
                                            nullptr, program.ptr()));
   ASSERT_NE(program, nullptr);
-  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+  ASSERT_SUCCESS(urProgramBuild(program, 1, &device, nullptr));
 
   uur::raii::Kernel kernel = nullptr;
   ASSERT_SUCCESS(urKernelCreate(program, "twoParamKernel", kernel.ptr()));

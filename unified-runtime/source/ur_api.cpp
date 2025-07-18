@@ -2833,17 +2833,20 @@ ur_result_t UR_APICALL urProgramCreateWithBinary(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
 ///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phDevices`
 ///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
 ///         + If `hProgram` isn't a valid program object.
 ///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
 ///         + If an error occurred when building `hProgram`.
 ur_result_t UR_APICALL urProgramBuild(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
     /// [in] Handle of the program to build.
     ur_program_handle_t hProgram,
+    /// [in] number of devices to build for
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   ur_result_t result = UR_RESULT_SUCCESS;
@@ -2869,17 +2872,20 @@ ur_result_t UR_APICALL urProgramBuild(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
 ///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phDevices`
 ///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
 ///         + If `hProgram` isn't a valid program object.
 ///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
 ///         + If an error occurred while compiling `hProgram`.
 ur_result_t UR_APICALL urProgramCompile(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
     /// [in][out] handle of the program to compile.
     ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   ur_result_t result = UR_RESULT_SUCCESS;
@@ -2913,6 +2919,7 @@ ur_result_t UR_APICALL urProgramCompile(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phDevices`
 ///         + `NULL == phPrograms`
 ///         + `NULL == phProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
@@ -2925,6 +2932,10 @@ ur_result_t UR_APICALL urProgramCompile(
 ur_result_t UR_APICALL urProgramLink(
     /// [in] handle of the context instance.
     ur_context_handle_t hContext,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
@@ -8697,141 +8708,6 @@ ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     /// not NULL, phEvent must not refer to an element of the phEventWaitList
     /// array.
     ur_event_handle_t *phEvent) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Produces an executable program from one program, negates need for the
-///        linking step.
-///
-/// @details
-///     - The application may call this function from simultaneous threads.
-///     - Following a successful call to this entry point, the program passed
-///       will contain a binary of the ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type
-///       for each device in `phDevices`.
-///
-/// @remarks
-///   _Analogues_
-///     - **clBuildProgram**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hProgram`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phDevices`
-///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
-///         + If `hProgram` isn't a valid program object.
-///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
-///         + If an error occurred when building `hProgram`.
-ur_result_t UR_APICALL urProgramBuildExp(
-    /// [in] Handle of the program to build.
-    ur_program_handle_t hProgram,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *pOptions) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Produces an executable program from one or more programs.
-///
-/// @details
-///     - The application may call this function from simultaneous threads.
-///     - Following a successful call to this entry point `hProgram` will
-///       contain a binary of the ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type
-///       for each device in `phDevices`.
-///
-/// @remarks
-///   _Analogues_
-///     - **clCompileProgram**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hProgram`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phDevices`
-///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
-///         + If `hProgram` isn't a valid program object.
-///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
-///         + If an error occurred while compiling `hProgram`.
-ur_result_t UR_APICALL urProgramCompileExp(
-    /// [in][out] handle of the program to compile.
-    ur_program_handle_t hProgram,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *pOptions) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Produces an executable program from one or more programs.
-///
-/// @details
-///     - The application may call this function from simultaneous threads.
-///     - Following a successful call to this entry point the program returned
-///       in `phProgram` will contain a binary of the
-///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
-///       `phDevices`.
-///     - If a non-success code is returned, adapters may store a program in
-///       `phProgram`. This program should only be used with
-///       `::urProgramGetBuildInfo` to get the build log for the failure.
-///       Adapters which do not do not support producing build logs must set
-///       this value to `nullptr`.
-///
-/// @remarks
-///   _Analogues_
-///     - **clLinkProgram**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phDevices`
-///         + `NULL == phPrograms`
-///         + `NULL == phProgram`
-///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
-///         + If one of the programs in `phPrograms` isn't a valid program
-///         object.
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `count == 0`
-///     - ::UR_RESULT_ERROR_PROGRAM_LINK_FAILURE
-///         + If an error occurred while linking `phPrograms`.
-ur_result_t UR_APICALL urProgramLinkExp(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in] number of program handles in `phPrograms`.
-    uint32_t count,
-    /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *phPrograms,
-    /// [in][optional] pointer to linker options null-terminated string.
-    const char *pOptions,
-    /// [out][alloc] pointer to handle of program object created.
-    ur_program_handle_t *phProgram) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }

@@ -109,7 +109,6 @@ context_t::context_t() {
   urGetPhysicalMemProcAddrTable(version, &urDdiTable.PhysicalMem);
   urGetPlatformProcAddrTable(version, &urDdiTable.Platform);
   urGetProgramProcAddrTable(version, &urDdiTable.Program);
-  urGetProgramExpProcAddrTable(version, &urDdiTable.ProgramExp);
   urGetQueueProcAddrTable(version, &urDdiTable.Queue);
   urGetSamplerProcAddrTable(version, &urDdiTable.Sampler);
   urGetUSMProcAddrTable(version, &urDdiTable.USM);

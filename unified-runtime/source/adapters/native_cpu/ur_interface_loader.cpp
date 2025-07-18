@@ -422,20 +422,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
-UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
-    ur_api_version_t version, ur_program_exp_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
-  }
-
-  pDdiTable->pfnBuildExp = urProgramBuildExp;
-  pDdiTable->pfnCompileExp = urProgramCompileExp;
-  pDdiTable->pfnLinkExp = urProgramLinkExp;
-
-  return UR_RESULT_SUCCESS;
-}
-
 UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
                                                    ur_dditable_t *pDdiTable) {
   urGetAdapterProcAddrTable(version, &pDdiTable->Adapter);
@@ -450,7 +436,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   urGetPhysicalMemProcAddrTable(version, &pDdiTable->PhysicalMem);
   urGetPlatformProcAddrTable(version, &pDdiTable->Platform);
   urGetProgramProcAddrTable(version, &pDdiTable->Program);
-  urGetProgramExpProcAddrTable(version, &pDdiTable->ProgramExp);
   urGetQueueProcAddrTable(version, &pDdiTable->Queue);
   urGetSamplerProcAddrTable(version, &pDdiTable->Sampler);
   urGetUSMProcAddrTable(version, &pDdiTable->USM);

@@ -33,7 +33,7 @@ struct KernelInfo<BuildOptsTestKernel> : public unittest::MockKernelInfoBase {
 } // namespace sycl
 
 static ur_result_t redefinedProgramBuild(void *pParams) {
-  auto params = *static_cast<ur_program_build_exp_params_t *>(pParams);
+  auto params = *static_cast<ur_program_build_params_t *>(pParams);
   if (*params.ppOptions)
     BuildOpts = *params.ppOptions;
   else
@@ -42,7 +42,7 @@ static ur_result_t redefinedProgramBuild(void *pParams) {
 }
 
 static ur_result_t redefinedProgramCompile(void *pParams) {
-  auto params = *static_cast<ur_program_compile_exp_params_t *>(pParams);
+  auto params = *static_cast<ur_program_compile_params_t *>(pParams);
   if (*params.ppOptions)
     BuildOpts = *params.ppOptions;
   else
@@ -51,7 +51,7 @@ static ur_result_t redefinedProgramCompile(void *pParams) {
 }
 
 static ur_result_t redefinedProgramLink(void *pParams) {
-  auto params = *static_cast<ur_program_link_exp_params_t *>(pParams);
+  auto params = *static_cast<ur_program_link_params_t *>(pParams);
   if (*params.ppOptions)
     BuildOpts = *params.ppOptions;
   else
@@ -61,11 +61,11 @@ static ur_result_t redefinedProgramLink(void *pParams) {
 
 static void setupCommonMockAPIs(sycl::unittest::UrMock<> &Mock) {
   using namespace sycl::detail;
-  mock::getCallbacks().set_before_callback("urProgramCompileExp",
+  mock::getCallbacks().set_before_callback("urProgramCompile",
                                            &redefinedProgramCompile);
-  mock::getCallbacks().set_before_callback("urProgramLinkExp",
+  mock::getCallbacks().set_before_callback("urProgramLink",
                                            &redefinedProgramLink);
-  mock::getCallbacks().set_before_callback("urProgramBuildExp",
+  mock::getCallbacks().set_before_callback("urProgramBuild",
                                            &redefinedProgramBuild);
 }
 

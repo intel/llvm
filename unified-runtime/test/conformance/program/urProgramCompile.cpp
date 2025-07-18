@@ -17,22 +17,23 @@ TEST_P(urProgramCompileWithParamTest, Success) {
   ASSERT_SUCCESS(urPlatformGetBackendOption(platform, getParam().c_str(),
                                             &platformOption));
 
-  ASSERT_SUCCESS(urProgramCompile(context, program, platformOption));
+  ASSERT_SUCCESS(urProgramCompile(program, 1, &device, platformOption));
 }
 
 using urProgramCompileTest = uur::urProgramTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramCompileTest);
 
 TEST_P(urProgramCompileTest, Success) {
-  ASSERT_SUCCESS(urProgramCompile(context, program, nullptr));
+  ASSERT_SUCCESS(urProgramCompile(program, 1, &device, nullptr));
 }
 
+/* TODO invalid device list + numDevices tests
 TEST_P(urProgramCompileTest, InvalidNullHandleContext) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urProgramCompile(nullptr, program, nullptr));
-}
+}*/
 
 TEST_P(urProgramCompileTest, InvalidNullHandleProgram) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                   urProgramCompile(context, nullptr, nullptr));
+                   urProgramCompile(nullptr, 1, &device, nullptr));
 }

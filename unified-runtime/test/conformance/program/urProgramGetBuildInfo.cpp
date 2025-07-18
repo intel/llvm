@@ -10,7 +10,7 @@
 struct urProgramGetBuildInfoTest : uur::urProgramTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
-    ASSERT_SUCCESS(urProgramBuild(this->context, program, nullptr));
+    ASSERT_SUCCESS(urProgramBuild(program, 1, &this->device, nullptr));
   }
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramGetBuildInfoTest);
