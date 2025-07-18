@@ -709,8 +709,8 @@ private:
              ArgIndex);
     } else if (ext::oneapi::experimental::detail::is_struct_with_special_type<
                    remove_cv_ref_t<T>>::value) {
-      addArg(detail::kernel_param_kind_t::kind_struct_with_special_type, StoredArg,
-             sizeof(T), ArgIndex);
+      addArg(detail::kernel_param_kind_t::kind_struct_with_special_type,
+             StoredArg, sizeof(T), ArgIndex);
     } else {
       addArg(detail::kernel_param_kind_t::kind_std_layout, StoredArg, sizeof(T),
              ArgIndex);
