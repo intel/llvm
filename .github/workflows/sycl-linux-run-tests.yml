@@ -132,6 +132,12 @@ on:
         type: string
         default: 'Minimal'
         required: False
+      benchmark_dry_run:
+        description: |
+          Whether or not to fail the workflow upon a regression.
+        type: string
+        default: 'false'
+        required: False
 
   workflow_dispatch:
     inputs:
@@ -335,6 +341,7 @@ jobs:
         upload_results: ${{ inputs.benchmark_upload_results }}
         save_name: ${{ inputs.benchmark_save_name }}
         preset: ${{ inputs.benchmark_preset }}
+        dry_run: ${{ inputs.benchmark_dry_run }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
