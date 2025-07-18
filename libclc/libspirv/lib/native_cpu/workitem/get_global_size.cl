@@ -11,14 +11,5 @@
 ulong __mux_get_global_size(int);
 
 _CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInGlobalSize(int dim) {
-  switch (dim) {
-  case 0:
-    return __mux_get_global_size(0);
-  case 1:
-    return __mux_get_global_size(1);
-  case 2:
-    return __mux_get_global_size(2);
-  default:
-    return 1;
-  }
+  return __mux_get_global_size(dim);
 }

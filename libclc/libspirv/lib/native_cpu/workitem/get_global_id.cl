@@ -11,14 +11,5 @@
 ulong __mux_get_global_id(int);
 
 _CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInGlobalInvocationId(int dim) {
-  switch (dim) {
-  case 0:
-    return __mux_get_global_id(0);
-  case 1:
-    return __mux_get_global_id(1);
-  case 2:
-    return __mux_get_global_id(2);
-  default:
-    return 0;
-  }
+  return __mux_get_global_id(dim);
 }

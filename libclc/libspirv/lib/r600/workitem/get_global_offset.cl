@@ -9,25 +9,16 @@
 #include <libspirv/spirv.h>
 
 _CLC_DEF _CLC_OVERLOAD uint __spirv_BuiltInGlobalOffset(int dim) {
+  __attribute__((address_space(7))) uint *ptr =
+      (__attribute__((address_space(7)))
+       uint *)__builtin_r600_implicitarg_ptr();
   switch (dim) {
-  case 0: {
-    __attribute__((address_space(7))) uint *ptr =
-        (__attribute__((address_space(7)))
-         uint *)__builtin_r600_implicitarg_ptr();
+  case 0:
     return ptr[1];
-  }
-  case 1: {
-    __attribute__((address_space(7))) uint *ptr =
-        (__attribute__((address_space(7)))
-         uint *)__builtin_r600_implicitarg_ptr();
+  case 1:
     return ptr[2];
-  }
-  case 2: {
-    __attribute__((address_space(7))) uint *ptr =
-        (__attribute__((address_space(7)))
-         uint *)__builtin_r600_implicitarg_ptr();
+  case 2:
     return ptr[3];
-  }
   default:
     return 0;
   }

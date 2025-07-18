@@ -9,35 +9,10 @@
 #include <libspirv/spirv.h>
 
 _CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInNumWorkgroups(int dim) {
-  switch (dim) {
-  case 0: {
-    size_t global_size = __spirv_BuiltInGlobalSize(0);
-    size_t local_size = __spirv_BuiltInWorkgroupSize(0);
-    size_t num_groups = global_size / local_size;
-    if (global_size % local_size != 0) {
-      num_groups++;
-    }
-    return num_groups;
-  }
-  case 1: {
-    size_t global_size = __spirv_BuiltInGlobalSize(1);
-    size_t local_size = __spirv_BuiltInWorkgroupSize(1);
-    size_t num_groups = global_size / local_size;
-    if (global_size % local_size != 0) {
-      num_groups++;
-    }
-    return num_groups;
-  }
-  case 2: {
-    size_t global_size = __spirv_BuiltInGlobalSize(2);
-    size_t local_size = __spirv_BuiltInWorkgroupSize(2);
-    size_t num_groups = global_size / local_size;
-    if (global_size % local_size != 0) {
-      num_groups++;
-    }
-    return num_groups;
-  }
-  default:
-    return 0;
-  }
+  size_t global_size = __spirv_BuiltInGlobalSize(dim);
+  size_t local_size = __spirv_BuiltInWorkgroupSize(dim);
+  size_t num_groups = global_size / local_size;
+  if (global_size % local_size != 0)
+    num_groups++;
+  return num_groups;
 }
