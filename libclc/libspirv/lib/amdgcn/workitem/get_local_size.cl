@@ -21,6 +21,6 @@ _CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInWorkgroupSize(int dim) {
   case 2:
     return __clc_amdgcn_get_local_size_z();
   default:
-    return 0;
+    return 1;
   }
 }

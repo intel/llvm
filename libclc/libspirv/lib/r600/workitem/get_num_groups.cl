@@ -21,6 +21,6 @@ _CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInNumWorkgroups(int dim) {
   case 2:
     return __clc_r600_get_num_groups_z();
   default:
-    return 0;
+    return 1;
   }
 }

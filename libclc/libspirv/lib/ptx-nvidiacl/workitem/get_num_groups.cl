@@ -17,6 +17,6 @@ _CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInNumWorkgroups(int dim) {
   case 2:
     return __nvvm_read_ptx_sreg_nctaid_z();
   default:
-    return 0;
+    return 1;
   }
 }
