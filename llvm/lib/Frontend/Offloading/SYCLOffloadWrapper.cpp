@@ -603,7 +603,7 @@ struct Wrapper {
 
     std::optional<util::PropertySet> SYCLNativeCPUPropSet;
     std::pair<Constant *, Constant *> PropSets =
-        addPropertySetRegistry(Image.PropertyRegistry,  SYCLNativeCPUPropSet);
+        addPropertySetRegistry(Image.PropertyRegistry, SYCLNativeCPUPropSet);
 
     std::pair<Constant *, Constant *> Binary;
     if (Image.Target == "native_cpu")
