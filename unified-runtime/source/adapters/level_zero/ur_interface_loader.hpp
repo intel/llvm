@@ -165,8 +165,8 @@ ur_result_t urUSMPoolGetInfo(ur_usm_pool_handle_t hPool,
                              void *pPropValue, size_t *pPropSizeRet);
 ur_result_t urVirtualMemGranularityGetInfo(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_virtual_mem_granularity_info_t propName, size_t propSize,
-    void *pPropValue, size_t *pPropSizeRet);
+    size_t allocationSize, ur_virtual_mem_granularity_info_t propName,
+    size_t propSize, void *pPropValue, size_t *pPropSizeRet);
 ur_result_t urVirtualMemReserve(ur_context_handle_t hContext,
                                 const void *pStart, size_t size,
                                 void **ppStart);

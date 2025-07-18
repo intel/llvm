@@ -296,14 +296,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolRetain(
     /// [in] pointer to USM memory pool
     ur_usm_pool_handle_t Pool) {
-  Pool->incrementReferenceCount();
+  Pool->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolRelease(
     /// [in] pointer to USM memory pool
     ur_usm_pool_handle_t Pool) {
-  if (Pool->decrementReferenceCount() > 0) {
+  if (!Pool->RefCount.release()) {
     return UR_RESULT_SUCCESS;
   }
   Pool->Context->removePool(Pool);
@@ -326,7 +326,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfo(
 
   switch (propName) {
   case UR_USM_POOL_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hPool->getReferenceCount());
+    return ReturnValue(hPool->RefCount.getCount());
   }
   case UR_USM_POOL_INFO_CONTEXT: {
     return ReturnValue(hPool->Context);
@@ -575,7 +575,9 @@ urUSMPoolTrimToExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
-                                                          void *, const void *,
-                                                          size_t) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+                                                          void *pDst,
+                                                          const void *pSrc,
+                                                          size_t Size) {
+  UR_CHECK_ERROR(cuMemcpy((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size));
+  return UR_RESULT_SUCCESS;
 }

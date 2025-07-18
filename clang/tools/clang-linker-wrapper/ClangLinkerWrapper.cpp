@@ -674,9 +674,8 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   // because it only increases amount of code for device compiler to handle,
   // without any actual benefits.
   // TODO: Try to extend this feature for non-Intel GPUs.
-  if ((!Args.hasFlag(OPT_no_sycl_remove_unused_external_funcs,
-                     OPT_sycl_remove_unused_external_funcs, false) &&
-       !Triple.isNativeCPU()) &&
+  if (!Args.hasFlag(OPT_no_sycl_remove_unused_external_funcs,
+                    OPT_sycl_remove_unused_external_funcs, false) &&
       !Args.hasArg(OPT_sycl_allow_device_image_dependencies) &&
       !Triple.isNVPTX() && !Triple.isAMDGPU())
     PostLinkArgs.push_back("-emit-only-kernels-as-entry-points");
@@ -1567,8 +1566,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     return ClangPath.takeError();
 
   llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  if (Triple.isNativeCPU())
-    Triple = llvm::Triple(Args.getLastArgValue(OPT_host_triple_EQ));
+  llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
 
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
   // Create a new file to write the linked device image to. Assume that the
@@ -1585,7 +1583,9 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
       "--no-default-config",
       "-o",
       *TempFileOrErr,
-      Args.MakeArgString("--target=" + Triple.getTriple()),
+      Args.MakeArgString(
+          "--target=" +
+          (Triple.isNativeCPU() ? HostTriple : Triple).getTriple()),
   };
 
   if (!Arch.empty())
@@ -1602,16 +1602,24 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
         {"-Xlinker",
          Args.MakeArgString("--plugin-opt=" + StringRef(Arg->getValue()))});
 
-  if (!Triple.isNVPTX() && !Triple.isSPIRV())
+  if (!Triple.isNVPTX() && !Triple.isSPIRV() && !Triple.isNativeCPU())
     CmdArgs.push_back("-Wl,--no-undefined");
 
   if (IsSYCLKind && Triple.isNVPTX())
     CmdArgs.push_back("-S");
+
+  if (IsSYCLKind && Triple.isNativeCPU()) {
+    CmdArgs.push_back("-Wno-override-module");
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-sycl-native-cpu-backend");
+    CmdArgs.push_back("-c");
+  }
+
   for (StringRef InputFile : InputFiles)
     CmdArgs.push_back(InputFile);
 
   // If this is CPU offloading we copy the input libraries.
-  if (!Triple.isGPU()) {
+  if (!Triple.isGPU() && !Triple.isNativeCPU()) {
     CmdArgs.push_back("-Wl,-Bsymbolic");
     CmdArgs.push_back("-shared");
     ArgStringList LinkerArgs;
@@ -1662,6 +1670,38 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     if (llvm::Triple(Arg.split('=').first) == Triple)
       CmdArgs.append({"-Xclang", "-mlink-builtin-bitcode", "-Xclang",
                       Args.MakeArgString(Arg.split('=').second)});
+  }
+
+  // link NativeCPU utils lib if needed
+  if (Triple.isNativeCPU()) {
+    if (auto *A = Args.getLastArg(OPT_sycl_device_library_location_EQ)) {
+      std::string NativeCPUUtilsLib = "";
+
+      SmallVector<std::string, 8> LibraryPaths;
+      for (const auto &Path : A->getValues()) {
+        SmallString<128> LPath(Path);
+        if (llvm::sys::fs::exists(LPath)) {
+          LibraryPaths.emplace_back(LPath);
+        }
+      }
+
+      for (auto &LPath : LibraryPaths) {
+        // Call llvm-link without --only-needed to link to the nativecpu_utils
+        // lib
+        const char LibNativeCPUUtilsName[] = "libsycl-nativecpu_utils.bc";
+        SmallString<128> LibNativeCPUUtilsPath(LPath);
+        llvm::sys::path::append(LibNativeCPUUtilsPath, LibNativeCPUUtilsName);
+        if (llvm::sys::fs::exists(LibNativeCPUUtilsPath)) {
+          NativeCPUUtilsLib = LibNativeCPUUtilsPath.str();
+          break;
+        }
+      }
+
+      if (NativeCPUUtilsLib != "") {
+        CmdArgs.append({"-Xclang", "-mlink-bitcode-file", "-Xclang",
+                        Args.MakeArgString(NativeCPUUtilsLib)});
+      }
+    }
   }
 
   // The OpenMPOpt pass can introduce new calls and is expensive, we do
@@ -2137,6 +2177,13 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
           SplitModules[I].ModuleFilePath = *BundledFileOrErr;
         } else {
           SplitModules[I].ModuleFilePath = *ClangOutputOrErr;
+          if (Triple.isNativeCPU()) {
+            // Add to WrappedOutput directly rather than combining this with the
+            // below because WrappedOutput holds references and
+            // SplitModules[I].ModuleFilePath will go out of scope too soon.
+            std::scoped_lock Guard(ImageMtx);
+            WrappedOutput.push_back(*ClangOutputOrErr);
+          }
         }
       }
 

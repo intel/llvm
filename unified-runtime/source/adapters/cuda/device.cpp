@@ -593,7 +593,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue("CUDA");
   }
   case UR_DEVICE_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hDevice->getReferenceCount());
+    return ReturnValue(hDevice->RefCount.getCount());
   }
   case UR_DEVICE_INFO_VERSION: {
     std::stringstream SS;
@@ -1164,7 +1164,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
-    return ReturnValue(false);
+    return ReturnValue(true);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
