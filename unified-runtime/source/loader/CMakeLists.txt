@@ -211,21 +211,10 @@ if(UR_ENABLE_SANITIZER)
         # In in-tree build, if LLVM is built with libc++, we also need to build
         # symbolizer.cpp with libc++ abi and link libc++ in.
         if(NOT UR_STANDALONE_BUILD AND LLVM_LIBCXX_USED)
-            execute_process(
-                COMMAND ${CMAKE_CXX_COMPILER} --print-file-name=libc++.a
-                OUTPUT_VARIABLE LIBCXX_PATH
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
-            execute_process(
-                COMMAND ${CMAKE_CXX_COMPILER} --print-file-name=libc++abi.a
-                OUTPUT_VARIABLE LIBCXX_ABI_PATH
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
             set_property(SOURCE
                 ${symbolizer_sources}
                 APPEND_STRING PROPERTY COMPILE_FLAGS
                 " -stdlib=libc++ ")
-            if(NOT EXISTS ${LIBCXX_PATH} OR NOT EXISTS ${LIBCXX_ABI_PATH})
-                message(FATAL_ERROR "libc++ is required but can't find the libraries")
-            endif()
             # Link with gcc_s fisrt to avoid some symbols resolve to libc++/libc++abi/libunwind's one
             target_link_libraries(ur_loader PRIVATE gcc_s ${LIBCXX_PATH} ${LIBCXX_ABI_PATH})
         endif()

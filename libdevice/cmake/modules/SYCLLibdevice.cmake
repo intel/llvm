@@ -55,8 +55,16 @@ set(compile_opts
 
 set(SYCL_LIBDEVICE_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
 
+set(SYCL_LIBDEVICE_CXX_FLAGS "" CACHE STRING "C++ compiler flags for SYCL libdevice")
 if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
   list(APPEND compile_opts "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
+endif()
+if(NOT SYCL_LIBDEVICE_CXX_FLAGS STREQUAL "")
+  separate_arguments(SYCL_LIBDEVICE_CXX_FLAGS NATIVE_COMMAND ${SYCL_LIBDEVICE_CXX_FLAGS})
+  list(APPEND compile_opts ${SYCL_LIBDEVICE_CXX_FLAGS})
+endif()
+if(LLVM_LIBCXX_USED)
+  list(APPEND compile_opts "-stdlib=libc++")
 endif()
 
 if (WIN32)
@@ -642,6 +650,10 @@ set(imf_host_cxx_flags -c
 
 if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
   list(APPEND imf_host_cxx_flags "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
+endif()
+
+if(LLVM_LIBCXX_USED)
+  list(APPEND  imf_host_cxx_flags "-stdlib=libc++")
 endif()
 
 macro(mangle_name str output)
