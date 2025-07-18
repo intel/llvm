@@ -261,6 +261,16 @@ ur_result_t urEnqueueUSMPrefetch(ur_queue_handle_t hQueue, const void *pMem,
                                  uint32_t numEventsInWaitList,
                                  const ur_event_handle_t *phEventWaitList,
                                  ur_event_handle_t *phEvent) try {
+  switch(flags) {
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    UR_LOG(WARN, "enqueueUSMPrefetch: L0 does not support prefetch to host yet");
+    break;
+  default:
+    UR_LOG(ERR, "enqueueUSMPrefetch: invalid USM migration flag");
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
   return hQueue->get().enqueueUSMPrefetch(
       pMem, size, flags, numEventsInWaitList, phEventWaitList, phEvent);
 } catch (...) {

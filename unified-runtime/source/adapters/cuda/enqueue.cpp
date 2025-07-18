@@ -1503,14 +1503,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
-    ur_usm_migration_flags_t /*flags*/, uint32_t numEventsInWaitList,
+    ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  ur_device_handle_t Device = hQueue->getDevice();
+  int dstDevice;
+  switch (flags) {
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    dstDevice = Device->get();
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    dstDevice = CU_DEVICE_CPU;
+    break;
+  default:
+    setErrorMessage("Invalid USM migration flag",
+                    UR_RESULT_ERROR_INVALID_ENUMERATION);
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
 
   size_t PointerRangeSize = 0;
   UR_CHECK_ERROR(cuPointerGetAttribute(
       &PointerRangeSize, CU_POINTER_ATTRIBUTE_RANGE_SIZE, (CUdeviceptr)pMem));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
-  ur_device_handle_t Device = hQueue->getDevice();
 
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
   try {
@@ -1551,7 +1565,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     }
 
     UR_CHECK_ERROR(
-        cuMemPrefetchAsync((CUdeviceptr)pMem, size, Device->get(), CuStream));
+        cuMemPrefetchAsync((CUdeviceptr)pMem, size, dstDevice, CuStream));
   } catch (ur_result_t Err) {
     return Err;
   }
