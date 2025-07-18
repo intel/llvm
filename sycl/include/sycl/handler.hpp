@@ -1892,7 +1892,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Kernel;
-    kernel_single_task<NameT>(KernelFunc);
+    KernelWrapperSingletonFunc::kernel_single_task<NameT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     constexpr detail::string_view Name{detail::getKernelName<NameT>()};

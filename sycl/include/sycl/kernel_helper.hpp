@@ -47,6 +47,8 @@ struct GetMergedKernelProperties<
 };
 } // namespace detail
 
+struct KernelWrapperSingletonFunc {
+
 #ifdef SYCL_LANGUAGE_VERSION
 #ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
 #define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel_entry_point(KernelName)]]
@@ -57,120 +59,121 @@ struct GetMergedKernelProperties<
 #define __SYCL_KERNEL_ATTR__
 #endif // SYCL_LANGUAGE_VERSION
 
-// NOTE: the name of this function - "kernel_single_task" - is used by the
-// Front End to determine kernel invocation kind.
-template <typename KernelName, typename KernelType, typename... Props>
+  // NOTE: the name of this function - "kernel_single_task" - is used by the
+  // Front End to determine kernel invocation kind.
+  template <typename KernelName, typename KernelType, typename... Props>
 #ifdef __SYCL_DEVICE_ONLY__
-[[__sycl_detail__::add_ir_attributes_function(
-    "sycl-single-task",
-    ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-    nullptr,
-    ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+  [[__sycl_detail__::add_ir_attributes_function(
+      "sycl-single-task",
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      nullptr,
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
 
-__SYCL_KERNEL_ATTR__ static void
-kernel_single_task(const KernelType &KernelFunc) {
+  __SYCL_KERNEL_ATTR__ static void
+  kernel_single_task(const KernelType &KernelFunc) {
 #ifdef __SYCL_DEVICE_ONLY__
-  KernelFunc();
+    KernelFunc();
 #else
-  (void)KernelFunc;
+    (void)KernelFunc;
 #endif
-}
+  }
 
-// NOTE: the name of this function - "kernel_single_task" - is used by the
-// Front End to determine kernel invocation kind.
-template <typename KernelName, typename KernelType, typename... Props>
+  // NOTE: the name of this function - "kernel_single_task" - is used by the
+  // Front End to determine kernel invocation kind.
+  template <typename KernelName, typename KernelType, typename... Props>
 #ifdef __SYCL_DEVICE_ONLY__
-[[__sycl_detail__::add_ir_attributes_function(
-    "sycl-single-task",
-    ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-    nullptr,
-    ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+  [[__sycl_detail__::add_ir_attributes_function(
+      "sycl-single-task",
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      nullptr,
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-__SYCL_KERNEL_ATTR__ static void
-kernel_single_task(const KernelType &KernelFunc, kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ static void
+  kernel_single_task(const KernelType &KernelFunc, kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
-  KernelFunc(KH);
+    KernelFunc(KH);
 #else
-  (void)KernelFunc;
-  (void)KH;
+    (void)KernelFunc;
+    (void)KH;
 #endif
-}
+  }
 
-// NOTE: the name of these functions - "kernel_parallel_for" - are used by the
-// Front End to determine kernel invocation kind.
-template <typename KernelName, typename ElementType, typename KernelType,
-          typename... Props>
+  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
+  // Front End to determine kernel invocation kind.
+  template <typename KernelName, typename ElementType, typename KernelType,
+            typename... Props>
 #ifdef __SYCL_DEVICE_ONLY__
-[[__sycl_detail__::add_ir_attributes_function(
-    ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-    ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+  [[__sycl_detail__::add_ir_attributes_function(
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-__SYCL_KERNEL_ATTR__ static void
-kernel_parallel_for(const KernelType &KernelFunc) {
+  __SYCL_KERNEL_ATTR__ static void
+  kernel_parallel_for(const KernelType &KernelFunc) {
 #ifdef __SYCL_DEVICE_ONLY__
-  KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
+    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
 #else
-  (void)KernelFunc;
+    (void)KernelFunc;
 #endif
-}
+  }
 
-// NOTE: the name of these functions - "kernel_parallel_for" - are used by the
-// Front End to determine kernel invocation kind.
-template <typename KernelName, typename ElementType, typename KernelType,
-          typename... Props>
+  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
+  // Front End to determine kernel invocation kind.
+  template <typename KernelName, typename ElementType, typename KernelType,
+            typename... Props>
 #ifdef __SYCL_DEVICE_ONLY__
-[[__sycl_detail__::add_ir_attributes_function(
-    ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-    ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+  [[__sycl_detail__::add_ir_attributes_function(
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-__SYCL_KERNEL_ATTR__ static void
-kernel_parallel_for(const KernelType &KernelFunc, kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ static void
+  kernel_parallel_for(const KernelType &KernelFunc, kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
-  KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
+    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
 #else
-  (void)KernelFunc;
-  (void)KH;
+    (void)KernelFunc;
+    (void)KH;
 #endif
-}
+  }
 
-// NOTE: the name of this function - "kernel_parallel_for_work_group" - is
-// used by the Front End to determine kernel invocation kind.
-template <typename KernelName, typename ElementType, typename KernelType,
-          typename... Props>
+  // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
+  // used by the Front End to determine kernel invocation kind.
+  template <typename KernelName, typename ElementType, typename KernelType,
+            typename... Props>
 #ifdef __SYCL_DEVICE_ONLY__
-[[__sycl_detail__::add_ir_attributes_function(
-    ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-    ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+  [[__sycl_detail__::add_ir_attributes_function(
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-__SYCL_KERNEL_ATTR__ static void
-kernel_parallel_for_work_group(const KernelType &KernelFunc) {
+  __SYCL_KERNEL_ATTR__ static void
+  kernel_parallel_for_work_group(const KernelType &KernelFunc) {
 #ifdef __SYCL_DEVICE_ONLY__
-  KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
+    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
 #else
-  (void)KernelFunc;
+    (void)KernelFunc;
 #endif
-}
+  }
 
-// NOTE: the name of this function - "kernel_parallel_for_work_group" - is
-// used by the Front End to determine kernel invocation kind.
-template <typename KernelName, typename ElementType, typename KernelType,
-          typename... Props>
+  // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
+  // used by the Front End to determine kernel invocation kind.
+  template <typename KernelName, typename ElementType, typename KernelType,
+            typename... Props>
 #ifdef __SYCL_DEVICE_ONLY__
-[[__sycl_detail__::add_ir_attributes_function(
-    ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-    ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+  [[__sycl_detail__::add_ir_attributes_function(
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-__SYCL_KERNEL_ATTR__ static void
-kernel_parallel_for_work_group(const KernelType &KernelFunc,
-                               kernel_handler KH) {
+  __SYCL_KERNEL_ATTR__ static void
+  kernel_parallel_for_work_group(const KernelType &KernelFunc,
+                                 kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
-  KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
+    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
 #else
-  (void)KernelFunc;
-  (void)KH;
+    (void)KernelFunc;
+    (void)KH;
 #endif
-}
+  }
+}; // KernelWrapperSingletonFunc
 
 /// Process kernel properties.
 ///
@@ -230,7 +233,9 @@ template <WrapAs WrapAsVal, typename KernelName, typename KernelType,
 struct KernelWrapper<
     WrapAsVal, KernelName, KernelType, ElementType, PropertyProcessor,
     PropertiesT,
-    ext::oneapi::experimental::detail::properties_t<MergedProps...>> {
+    ext::oneapi::experimental::detail::properties_t<MergedProps...>>
+    : public KernelWrapperSingletonFunc {
+
   static void wrap([[maybe_unused]] PropertyProcessor h,
                    [[maybe_unused]] const KernelType &KernelFunc) {
 #ifdef __SYCL_DEVICE_ONLY__
