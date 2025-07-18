@@ -50,7 +50,7 @@ public:
   /// \param ContextImpl is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
   kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
-              DeviceImageImplPtr DeviceImageImpl,
+              std::shared_ptr<device_image_impl> &&DeviceImageImpl,
               const kernel_bundle_impl &KernelBundleImpl,
               const KernelArgMask *ArgMask, ur_program_handle_t Program,
               std::mutex *CacheMutex);
@@ -213,7 +213,7 @@ public:
   bool isInteropOrSourceBased() const noexcept;
   bool hasSYCLMetadata() const noexcept;
 
-  const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
+  device_image_impl &getDeviceImage() const { return *MDeviceImageImpl; }
 
   ur_native_handle_t getNative() const {
     adapter_impl &Adapter = MContext->getAdapter();
@@ -247,7 +247,7 @@ private:
   const std::shared_ptr<context_impl> MContext;
   const ur_program_handle_t MProgram = nullptr;
   bool MCreatedFromSource = true;
-  const DeviceImageImplPtr MDeviceImageImpl;
+  const std::shared_ptr<device_image_impl> MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;
   bool MIsInterop = false;
   mutable std::mutex MNoncacheableEnqueueMutex;
