@@ -7226,7 +7226,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "};\n";
     O << "}\n";
     ++ShimCounter;
-    }
+  }
 
   if (FreeFunctionCount > 0) {
     O << "\n#include <sycl/kernel_bundle.hpp>\n";
