@@ -79,13 +79,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
     return ReturnValue(uint32_t{3});
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
+  case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
     return ReturnValue(true);
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
     // TODO: Implement subgroups in Offload
     return ReturnValue(1);
   // Unimplemented features
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
-  case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
   case UR_DEVICE_INFO_IMAGE_SUPPORT:

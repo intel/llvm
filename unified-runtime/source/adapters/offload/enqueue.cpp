@@ -93,11 +93,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
-    size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
+namespace {
+ur_result_t doMemcpy(ur_queue_handle_t hQueue, void *DestPtr,
+                     ol_device_handle_t DestDevice, const void *SrcPtr,
+                     ol_device_handle_t SrcDevice, size_t size, bool blocking,
+                     uint32_t numEventsInWaitList,
+                     const ur_event_handle_t *phEventWaitList,
+                     ur_event_handle_t *phEvent) {
   // Ignore wait list for now
   (void)numEventsInWaitList;
   (void)phEventWaitList;
@@ -105,14 +107,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
 
   ol_event_handle_t EventOut = nullptr;
 
-  char *DevPtr =
-      reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
+  OL_RETURN_ON_ERR(olMemcpy(hQueue->OffloadQueue, DestPtr, DestDevice, SrcPtr,
+                            SrcDevice, size, phEvent ? &EventOut : nullptr));
 
-  OL_RETURN_ON_ERR(olMemcpy(hQueue->OffloadQueue, pDst, Adapter->HostDevice,
-                            DevPtr + offset, hQueue->OffloadDevice, size,
-                            phEvent ? &EventOut : nullptr));
-
-  if (blockingRead) {
+  if (blocking) {
     OL_RETURN_ON_ERR(olWaitQueue(hQueue->OffloadQueue));
   }
 
@@ -124,37 +122,63 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
 
   return UR_RESULT_SUCCESS;
 }
+} // namespace
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
+    size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  char *DevPtr =
+      reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
+
+  return doMemcpy(hQueue, pDst, Adapter->HostDevice, DevPtr + offset,
+                  hQueue->OffloadDevice, size, blockingRead,
+                  numEventsInWaitList, phEventWaitList, phEvent);
+}
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
     size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  // Ignore wait list for now
-  (void)numEventsInWaitList;
-  (void)phEventWaitList;
-  //
-
-  ol_event_handle_t EventOut = nullptr;
-
   char *DevPtr =
       reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
 
-  OL_RETURN_ON_ERR(olMemcpy(hQueue->OffloadQueue, DevPtr + offset,
-                            hQueue->OffloadDevice, pSrc, Adapter->HostDevice,
-                            size, phEvent ? &EventOut : nullptr));
+  return doMemcpy(hQueue, DevPtr + offset, hQueue->OffloadDevice, pSrc,
+                  Adapter->HostDevice, size, blockingWrite, numEventsInWaitList,
+                  phEventWaitList, phEvent);
+}
 
-  if (blockingWrite) {
-    OL_RETURN_ON_ERR(olWaitQueue(hQueue->OffloadQueue));
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
+    ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
+    bool blockingRead, size_t count, size_t offset, void *pDst,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  void *Ptr;
+  if (auto Err = urProgramGetGlobalVariablePointer(nullptr, hProgram, name,
+                                                   nullptr, &Ptr)) {
+    return Err;
   }
 
-  if (phEvent) {
-    auto *Event = new ur_event_handle_t_();
-    Event->OffloadEvent = EventOut;
-    *phEvent = Event;
+  return doMemcpy(hQueue, pDst, Adapter->HostDevice,
+                  reinterpret_cast<const char *>(Ptr) + offset,
+                  hQueue->OffloadDevice, count, blockingRead,
+                  numEventsInWaitList, phEventWaitList, phEvent);
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
+    ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
+    bool blockingWrite, size_t count, size_t offset, const void *pSrc,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  void *Ptr;
+  if (auto Err = urProgramGetGlobalVariablePointer(nullptr, hProgram, name,
+                                                   nullptr, &Ptr)) {
+    return Err;
   }
 
-  return UR_RESULT_SUCCESS;
+  return doMemcpy(hQueue, reinterpret_cast<char *>(Ptr) + offset,
+                  hQueue->OffloadDevice, pSrc, Adapter->HostDevice, count,
+                  blockingWrite, numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ur_result_t enqueueNoOp(ur_queue_handle_t hQueue, ur_event_handle_t *phEvent) {
