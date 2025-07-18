@@ -2971,6 +2971,10 @@ public:
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *PD, QualType Ty) final {
     ++StructDepth;
+    StringRef Name = "_arg_struct";
+    addParam(Name, Ty);
+    CurrentStruct = Params.back();
+
     return true;
   }
 
@@ -2995,15 +2999,6 @@ public:
     --StructDepth;
     return true;
   }
-
-  bool handleStructType(ParmVarDecl *PD, QualType Ty) final {
-    StringRef Name = "_arg_struct";
-    addParam(Name, Ty);
-    CurrentStruct = Params.back();
-    return true;
-  }
-
-  bool handleStructType(FieldDecl *, QualType) final { return true; }
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                              QualType FieldTy) final {
@@ -7155,11 +7150,20 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         O << "template <>\n";
         O << "struct "
              "sycl::ext::oneapi::experimental::detail::is_struct_with_special_"
-             "type";
+             "type<";
         Policy.SuppressTagKeyword = true;
         Param->getType().print(O, Policy);
         O << "> {\n";
         O << " inline static constexpr bool value = true;\n};\n\n";
+        // Now we define the set_arg function for this struct that contains
+        // special types. It takes the handler as an argument so that we can
+        // ultimately call set_arg on the handler for each special type
+        // contained in the struct. First, emit forward declarations for the
+        // special types contained within.
+        for (const auto TypeOffsetPair :
+             SpecialTypeOffsetMap[Param->getType().getTypePtr()])
+          FwdDeclEmitter.Visit(
+              TypeOffsetPair.first.getDesugaredType(S.getASTContext()));
         O << "namespace sycl { inline namespace _V1 { namespace ext { "
              "namespace oneapi { namespace "
              "experimental { namespace detail { \n";
@@ -7167,7 +7171,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         Param->getType().print(O, Policy);
         O << "> {\n";
         O << "template< typename ArgT, typename HandlerT, typename = "
-             "std::enable_if_t<std::is_same_v<std::remove_cv_t<DataT>, ";
+             "std::enable_if_t<std::is_same_v<std::remove_cv_t<ArgT>, ";
         Param->getType().print(O, Policy);
         O << ">>>\n";
         O << "  static void set_arg(int ArgIndex, ArgT& ";
@@ -7175,6 +7179,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         O << ", HandlerT& cgh, int &NumArgs) {\n";
         for (const auto TypeOffsetPair :
              SpecialTypeOffsetMap[Param->getType().getTypePtr()]) {
+          FwdDeclEmitter.Visit(
+              TypeOffsetPair.first.getDesugaredType(S.getASTContext()));
           O << "    cgh.set_arg(ArgIndex, *(";
           TypeOffsetPair.first.print(O, Policy);
           O << " *)";
@@ -7193,7 +7199,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         visited[Param->getType().getTypePtr()] = true;
       }
     }
-
+    Policy.SuppressTagKeyword = false;
     FFPrinter.printFreeFunctionShim(K.SyclKernel, ShimCounter, ParmList);
     O << ";\n";
     O << "}\n";
@@ -7222,7 +7228,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "};\n";
     O << "}\n";
     ++ShimCounter;
-  }
+    }
 
   if (FreeFunctionCount > 0) {
     O << "\n#include <sycl/kernel_bundle.hpp>\n";
