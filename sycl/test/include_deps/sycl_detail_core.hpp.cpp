@@ -146,6 +146,7 @@
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/work_group_scratch_memory.hpp
 // CHECK-NEXT: detail/sycl_local_mem_builtins.hpp
+// CHECK-NEXT: kernel_helper.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: feature_test.hpp

@@ -21,7 +21,7 @@ int main() {
           [=](sycl::kernel_handler kh) SYCL_ESIMD_KERNEL {
             slm_init(kh.get_specialization_constant<Size>());
           });
-      // CHECK: define weak_odr dso_local spir_kernel void @{{.*}}() local_unnamed_addr #1
+      // CHECK: define dso_local spir_kernel void @{{.*}}() local_unnamed_addr #1
     });
   }
 

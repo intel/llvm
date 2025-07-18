@@ -10,7 +10,7 @@
 using namespace sycl;
 queue q;
 
-// CHECK-ASPECTS: define weak_odr dso_local spir_kernel void @{{.*}}kernel_name_1{{.*}} !sycl_declared_aspects ![[ASPECTS1:[0-9]+]] {{.*}}
+// CHECK-ASPECTS: define dso_local spir_kernel void @{{.*}}kernel_name_1{{.*}} !sycl_declared_aspects ![[ASPECTS1:[0-9]+]] {{.*}}
 
 // CHECK-ASPECTS: define {{.*}}spir_func void @{{.*}}func1{{.*}} !sycl_declared_aspects ![[ASPECTS1]]
 // CHECK-ASPECTS-SAME: !sycl_used_aspects ![[ASPECTS1]]
@@ -53,7 +53,7 @@ void foo() {
   q.submit([&](handler &h) {
     KernelFunctor f1;
     h.single_task<class kernel_name_1>(f1);
-    // CHECK-ASPECTS: define weak_odr dso_local spir_kernel void @{{.*}}kernel_name_2{{.*}} !sycl_declared_aspects ![[ASPECTS4:[0-9]+]]
+    // CHECK-ASPECTS: define dso_local spir_kernel void @{{.*}}kernel_name_2{{.*}} !sycl_declared_aspects ![[ASPECTS4:[0-9]+]]
     h.single_task<class kernel_name_2>(
         []() [[sycl::device_has(sycl::aspect::gpu)]] {});
   });

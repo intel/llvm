@@ -95,28 +95,28 @@ int main() {
   Q.parallel_for<class WGSizeKernel26>(R3, {Ev}, Props3, Redu1,
                                        [](sycl::id<3>, auto &) {});
 
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel27(){{.*}} #[[WGSizeAttr4]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel27(){{.*}} #[[WGSizeAttr10:[0-9]+]]
   Q.parallel_for<class WGSizeKernel27>(NDR1, Props1, [](sycl::nd_item<1>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel28(){{.*}} #[[WGSizeAttr4]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel28(){{.*}} #[[WGSizeAttr10]]
   Q.parallel_for<class WGSizeKernel28>(NDR1, Ev, Props1,
                                        [](sycl::nd_item<1>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel29(){{.*}} #[[WGSizeAttr4]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel29(){{.*}} #[[WGSizeAttr10]]
   Q.parallel_for<class WGSizeKernel29>(NDR1, {Ev}, Props1,
                                        [](sycl::nd_item<1>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel30(){{.*}} #[[WGSizeAttr5]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel30(){{.*}} #[[WGSizeAttr11:[0-9]+]]
   Q.parallel_for<class WGSizeKernel30>(NDR2, Props2, [](sycl::nd_item<2>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel31(){{.*}} #[[WGSizeAttr5]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel31(){{.*}} #[[WGSizeAttr11]]
   Q.parallel_for<class WGSizeKernel31>(NDR2, Ev, Props2,
                                        [](sycl::nd_item<2>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel32(){{.*}} #[[WGSizeAttr5]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel32(){{.*}} #[[WGSizeAttr11]]
   Q.parallel_for<class WGSizeKernel32>(NDR2, {Ev}, Props2,
                                        [](sycl::nd_item<2>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel33(){{.*}} #[[WGSizeAttr6]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel33(){{.*}} #[[WGSizeAttr12:[0-9]+]]
   Q.parallel_for<class WGSizeKernel33>(NDR3, Props3, [](sycl::nd_item<3>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel34(){{.*}} #[[WGSizeAttr6]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel34(){{.*}} #[[WGSizeAttr12]]
   Q.parallel_for<class WGSizeKernel34>(NDR3, Ev, Props3,
                                        [](sycl::nd_item<3>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel35(){{.*}} #[[WGSizeAttr6]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel35(){{.*}} #[[WGSizeAttr12]]
   Q.parallel_for<class WGSizeKernel35>(NDR3, {Ev}, Props3,
                                        [](sycl::nd_item<3>) {});
 
@@ -218,17 +218,20 @@ int main() {
                                            [](sycl::id<3>, auto &) {});
   });
 
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel63(){{.*}} #[[WGSizeAttr4]]
+  // 15
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel63(){{.*}} #[[WGSizeAttr10]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeKernel63>(NDR1, Props1,
                                            [](sycl::nd_item<1>) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel64(){{.*}} #[[WGSizeAttr5]]
+  // 16
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel64(){{.*}} #[[WGSizeAttr11]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeKernel64>(NDR2, Props2,
                                            [](sycl::nd_item<2>) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel65(){{.*}} #[[WGSizeAttr6]]
+  // 17
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel65(){{.*}} #[[WGSizeAttr12]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeKernel65>(NDR3, Props3,
                                            [](sycl::nd_item<3>) {});
@@ -300,3 +303,6 @@ int main() {
 // CHECK-IR: attributes #[[WGSizeAttr7]] = { {{.*}}"sycl-work-group-size"="1"
 // CHECK-IR: attributes #[[WGSizeAttr8]] = { {{.*}}"sycl-work-group-size"="1,2"
 // CHECK-IR: attributes #[[WGSizeAttr9]] = { {{.*}}"sycl-work-group-size"="1,2,3"
+// CHECK-IR: attributes #[[WGSizeAttr10]] = { {{.*}}"sycl-work-group-size"="1"
+// CHECK-IR: attributes #[[WGSizeAttr11]] = { {{.*}}"sycl-work-group-size"="1,2"
+// CHECK-IR: attributes #[[WGSizeAttr12]] = { {{.*}}"sycl-work-group-size"="1,2,3"

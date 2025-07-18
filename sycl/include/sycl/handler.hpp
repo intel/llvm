@@ -47,6 +47,7 @@
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/kernel_handler.hpp>
+#include <sycl/kernel_helper.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
@@ -263,28 +264,6 @@ __SYCL_EXPORT bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr);
 __SYCL_EXPORT void *getValueFromDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_base
         &DynamicParamBase);
-
-// Helper for merging properties with ones defined in an optional kernel functor
-// getter.
-template <typename KernelType, typename PropertiesT, typename Cond = void>
-struct GetMergedKernelProperties {
-  using type = PropertiesT;
-};
-template <typename KernelType, typename PropertiesT>
-struct GetMergedKernelProperties<
-    KernelType, PropertiesT,
-    std::enable_if_t<ext::oneapi::experimental::detail::
-                         HasKernelPropertiesGetMethod<KernelType>::value>> {
-  using get_method_properties =
-      typename ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
-          KernelType>::properties_t;
-  static_assert(
-      ext::oneapi::experimental::is_property_list<get_method_properties>::value,
-      "get(sycl::ext::oneapi::experimental::properties_tag) member in kernel "
-      "functor class must return a valid property list.");
-  using type = ext::oneapi::experimental::detail::merged_properties_t<
-      PropertiesT, get_method_properties>;
-};
 
 template <int Dims> class RoundedRangeIDGenerator {
   id<Dims> Id;
@@ -923,6 +902,7 @@ private:
     }
   }
 
+public:
   /// Process runtime kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
@@ -988,36 +968,7 @@ private:
     checkAndSetClusterRange(Props);
   }
 
-  /// Process kernel properties.
-  ///
-  /// Stores information about kernel properties into the handler.
-  ///
-  /// Note: it is important that this function *does not* depend on kernel
-  /// name or kernel type, because then it will be instantiated for every
-  /// kernel, even though body of those instantiated functions could be almost
-  /// the same, thus unnecessary increasing compilation time.
-  template <
-      bool IsESIMDKernel,
-      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void processProperties(PropertiesT Props) {
-    static_assert(
-        ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-        "Template type is not a property list.");
-    static_assert(
-        !PropertiesT::template has_property<
-            sycl::ext::intel::experimental::fp_control_key>() ||
-            (PropertiesT::template has_property<
-                 sycl::ext::intel::experimental::fp_control_key>() &&
-             IsESIMDKernel),
-        "Floating point control property is supported for ESIMD kernels only.");
-    static_assert(
-        !PropertiesT::template has_property<
-            sycl::ext::oneapi::experimental::indirectly_callable_key>(),
-        "indirectly_callable property cannot be applied to SYCL kernels");
-
-    processLaunchProperties(Props);
-  }
-
+private:
   /// Checks whether it is possible to copy the source shape to the destination
   /// shape(the shapes are described by the accessor ranges) by using
   /// copying by regions of memory and not copying element by element
@@ -1320,7 +1271,8 @@ private:
                                        decltype(Wrapper), NameWT>;
 
       KernelWrapper<WrapAs::parallel_for, KName, decltype(Wrapper),
-                    TransformedArgType, PropertiesT>::wrap(this, Wrapper);
+                    TransformedArgType, decltype(this),
+                    PropertiesT>::wrap(this, Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr detail::string_view Name{detail::getKernelName<NameT>()};
       verifyUsedKernelBundleInternal(Name);
@@ -1345,7 +1297,7 @@ private:
       // If parallel_for range rounding is forced then only range rounded
       // kernel is generated
       KernelWrapper<WrapAs::parallel_for, NameT, KernelType, TransformedArgType,
-                    PropertiesT>::wrap(this, KernelFunc);
+                    decltype(this), PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr detail::string_view Name{detail::getKernelName<NameT>()};
 
@@ -1412,215 +1364,6 @@ private:
 #endif
   }
 
-#ifdef SYCL_LANGUAGE_VERSION
-#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
-#define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel_entry_point(KernelName)]]
-#else
-#define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel]]
-#endif // __INTEL_SYCL_USE_INTEGRATION_HEADERS
-#else
-#define __SYCL_KERNEL_ATTR__
-#endif // SYCL_LANGUAGE_VERSION
-
-  // NOTE: the name of this function - "kernel_single_task" - is used by the
-  // Front End to determine kernel invocation kind.
-  template <typename KernelName, typename KernelType, typename... Props>
-#ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_function(
-      "sycl-single-task",
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-      nullptr,
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-
-  __SYCL_KERNEL_ATTR__ static void
-  kernel_single_task(const KernelType &KernelFunc) {
-#ifdef __SYCL_DEVICE_ONLY__
-    KernelFunc();
-#else
-    (void)KernelFunc;
-#endif
-  }
-
-  // NOTE: the name of this function - "kernel_single_task" - is used by the
-  // Front End to determine kernel invocation kind.
-  template <typename KernelName, typename KernelType, typename... Props>
-#ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_function(
-      "sycl-single-task",
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-      nullptr,
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-  __SYCL_KERNEL_ATTR__ static void
-  kernel_single_task(const KernelType &KernelFunc, kernel_handler KH) {
-#ifdef __SYCL_DEVICE_ONLY__
-    KernelFunc(KH);
-#else
-    (void)KernelFunc;
-    (void)KH;
-#endif
-  }
-
-  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
-  // Front End to determine kernel invocation kind.
-  template <typename KernelName, typename ElementType, typename KernelType,
-            typename... Props>
-#ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_function(
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-  __SYCL_KERNEL_ATTR__ static void
-  kernel_parallel_for(const KernelType &KernelFunc) {
-#ifdef __SYCL_DEVICE_ONLY__
-    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
-#else
-    (void)KernelFunc;
-#endif
-  }
-
-  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
-  // Front End to determine kernel invocation kind.
-  template <typename KernelName, typename ElementType, typename KernelType,
-            typename... Props>
-#ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_function(
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-  __SYCL_KERNEL_ATTR__ static void
-  kernel_parallel_for(const KernelType &KernelFunc, kernel_handler KH) {
-#ifdef __SYCL_DEVICE_ONLY__
-    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
-#else
-    (void)KernelFunc;
-    (void)KH;
-#endif
-  }
-
-  // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
-  // used by the Front End to determine kernel invocation kind.
-  template <typename KernelName, typename ElementType, typename KernelType,
-            typename... Props>
-#ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_function(
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-  __SYCL_KERNEL_ATTR__ static void
-  kernel_parallel_for_work_group(const KernelType &KernelFunc) {
-#ifdef __SYCL_DEVICE_ONLY__
-    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
-#else
-    (void)KernelFunc;
-#endif
-  }
-
-  // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
-  // used by the Front End to determine kernel invocation kind.
-  template <typename KernelName, typename ElementType, typename KernelType,
-            typename... Props>
-#ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_function(
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-  __SYCL_KERNEL_ATTR__ static void
-  kernel_parallel_for_work_group(const KernelType &KernelFunc,
-                                 kernel_handler KH) {
-#ifdef __SYCL_DEVICE_ONLY__
-    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
-#else
-    (void)KernelFunc;
-    (void)KH;
-#endif
-  }
-
-  // The KernelWrapper below has two purposes.
-  //
-  // First, from SYCL 2020, Table 129 (Member functions of the `handler ` class)
-  //   > The callable ... can optionally take a `kernel_handler` ... in
-  //   > which case the SYCL runtime will construct an instance of
-  //   > `kernel_handler` and pass it to the callable.
-  //
-  // Note: "..." due to slight wording variability between
-  // single_task/parallel_for (e.g. only parameter vs last). This helper class
-  // calls `kernel_*` entry points (both hardcoded names known to FE and special
-  // device-specific entry point attributes) with proper arguments (with/without
-  // `kernel_handler` argument, depending on the signature of the SYCL kernel
-  // function).
-  //
-  // Second, it performs a few checks and some properties processing (including
-  // the one provided via `sycl_ext_oneapi_kernel_properties` extension by
-  // embedding them into the kernel's type).
-
-  enum class WrapAs { single_task, parallel_for, parallel_for_work_group };
-
-  template <
-      WrapAs WrapAsVal, typename KernelName, typename KernelType,
-      typename ElementType,
-      typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
-      typename MergedPropertiesT = typename detail::GetMergedKernelProperties<
-          KernelType, PropertiesT>::type>
-  struct KernelWrapper;
-  template <WrapAs WrapAsVal, typename KernelName, typename KernelType,
-            typename ElementType, typename PropertiesT, typename... MergedProps>
-  struct KernelWrapper<
-      WrapAsVal, KernelName, KernelType, ElementType, PropertiesT,
-      ext::oneapi::experimental::detail::properties_t<MergedProps...>> {
-    static void wrap(handler *h, const KernelType &KernelFunc) {
-#ifdef __SYCL_DEVICE_ONLY__
-      detail::CheckDeviceCopyable<KernelType>();
-#else
-      // If there are properties provided by get method then process them.
-      if constexpr (ext::oneapi::experimental::detail::
-                        HasKernelPropertiesGetMethod<
-                            const KernelType &>::value) {
-        h->processProperties<detail::isKernelESIMD<KernelName>()>(
-            KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
-      }
-#endif
-      // Note: the static_assert below need to be run on both the host and the
-      // device ends to avoid test issues, so don't put it into the #ifdef
-      // __SYCL_DEVICE_ONLY__ directive above print out diagnostic message if
-      // the kernel functor has a get(properties_tag) member, but it's not const
-      static_assert(
-          (ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
-              const KernelType &>::value) ||
-              !(ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
-                  KernelType>::value),
-          "get(sycl::ext::oneapi::experimental::properties_tag) member in "
-          "kernel functor class must be declared as a const member function");
-      auto L = [&](auto &&...args) {
-        if constexpr (WrapAsVal == WrapAs::single_task) {
-          h->kernel_single_task<KernelName, KernelType, MergedProps...>(
-              std::forward<decltype(args)>(args)...);
-        } else if constexpr (WrapAsVal == WrapAs::parallel_for) {
-          h->kernel_parallel_for<KernelName, ElementType, KernelType,
-                                 MergedProps...>(
-              std::forward<decltype(args)>(args)...);
-        } else if constexpr (WrapAsVal == WrapAs::parallel_for_work_group) {
-          h->kernel_parallel_for_work_group<KernelName, ElementType, KernelType,
-                                            MergedProps...>(
-              std::forward<decltype(args)>(args)...);
-        } else {
-          // Always false, but template-dependent. Can't compare `WrapAsVal`
-          // with itself because of `-Wtautological-compare` warning.
-          static_assert(!std::is_same_v<KernelName, KernelName>,
-                        "Unexpected WrapAsVal");
-        }
-      };
-      if constexpr (detail::KernelLambdaHasKernelHandlerArgT<
-                        KernelType, ElementType>::value) {
-        kernel_handler KH;
-        L(KernelFunc, KH);
-      } else {
-        L(KernelFunc);
-      }
-    }
-  };
-
   template <
       WrapAs WrapAsVal, typename KernelName, typename ElementType = void,
       int Dims = 1, bool SetNumWorkGroups = false,
@@ -1633,8 +1376,8 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
-    KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, PropertiesT>::wrap(
-        this, KernelFunc);
+    KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, decltype(this),
+                  PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();
@@ -1674,8 +1417,8 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
     (void)Kernel;
-    KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, PropertiesT>::wrap(
-        this, KernelFunc);
+    KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, decltype(this),
+                  PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();

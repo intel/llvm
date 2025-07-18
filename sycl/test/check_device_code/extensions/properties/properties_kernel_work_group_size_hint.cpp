@@ -98,31 +98,31 @@ int main() {
   Q.parallel_for<class WGSizeHintKernel26>(R3, {Ev}, Props3, Redu1,
                                            [](sycl::id<3>, auto &) {});
 
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel27(){{.*}} #[[WGSizeHintAttr4]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel27(){{.*}} #[[WGSizeHintAttr10:[0-9]+]]
   Q.parallel_for<class WGSizeHintKernel27>(NDR1, Props1,
                                            [](sycl::nd_item<1>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel28(){{.*}} #[[WGSizeHintAttr4]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel28(){{.*}} #[[WGSizeHintAttr10]]
   Q.parallel_for<class WGSizeHintKernel28>(NDR1, Ev, Props1,
                                            [](sycl::nd_item<1>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel29(){{.*}} #[[WGSizeHintAttr4]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel29(){{.*}} #[[WGSizeHintAttr10]]
   Q.parallel_for<class WGSizeHintKernel29>(NDR1, {Ev}, Props1,
                                            [](sycl::nd_item<1>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel30(){{.*}} #[[WGSizeHintAttr5]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel30(){{.*}} #[[WGSizeHintAttr11:[0-9]+]]
   Q.parallel_for<class WGSizeHintKernel30>(NDR2, Props2,
                                            [](sycl::nd_item<2>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel31(){{.*}} #[[WGSizeHintAttr5]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel31(){{.*}} #[[WGSizeHintAttr11]]
   Q.parallel_for<class WGSizeHintKernel31>(NDR2, Ev, Props2,
                                            [](sycl::nd_item<2>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel32(){{.*}} #[[WGSizeHintAttr5]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel32(){{.*}} #[[WGSizeHintAttr11]]
   Q.parallel_for<class WGSizeHintKernel32>(NDR2, {Ev}, Props2,
                                            [](sycl::nd_item<2>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel33(){{.*}} #[[WGSizeHintAttr6]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel33(){{.*}} #[[WGSizeHintAttr12:[0-9]+]]
   Q.parallel_for<class WGSizeHintKernel33>(NDR3, Props3,
                                            [](sycl::nd_item<3>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel34(){{.*}} #[[WGSizeHintAttr6]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel34(){{.*}} #[[WGSizeHintAttr12]]
   Q.parallel_for<class WGSizeHintKernel34>(NDR3, Ev, Props3,
                                            [](sycl::nd_item<3>) {});
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel35(){{.*}} #[[WGSizeHintAttr6]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel35(){{.*}} #[[WGSizeHintAttr12]]
   Q.parallel_for<class WGSizeHintKernel35>(NDR3, {Ev}, Props3,
                                            [](sycl::nd_item<3>) {});
 
@@ -227,17 +227,17 @@ int main() {
                                                [](sycl::id<3>, auto &) {});
   });
 
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel63(){{.*}} #[[WGSizeHintAttr4]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel63(){{.*}} #[[WGSizeHintAttr10]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeHintKernel63>(NDR1, Props1,
                                                [](sycl::nd_item<1>) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel64(){{.*}} #[[WGSizeHintAttr5]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel64(){{.*}} #[[WGSizeHintAttr11]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeHintKernel64>(NDR2, Props2,
                                                [](sycl::nd_item<2>) {});
   });
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel65(){{.*}} #[[WGSizeHintAttr6]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel65(){{.*}} #[[WGSizeHintAttr12]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for<class WGSizeHintKernel65>(NDR3, Props3,
                                                [](sycl::nd_item<3>) {});
@@ -309,3 +309,6 @@ int main() {
 // CHECK-IR: attributes #[[WGSizeHintAttr7]] = { {{.*}}"sycl-work-group-size-hint"="1"
 // CHECK-IR: attributes #[[WGSizeHintAttr8]] = { {{.*}}"sycl-work-group-size-hint"="1,2"
 // CHECK-IR: attributes #[[WGSizeHintAttr9]] = { {{.*}}"sycl-work-group-size-hint"="1,2,3"
+// CHECK-IR: attributes #[[WGSizeHintAttr10]] = { {{.*}}"sycl-work-group-size-hint"="1"
+// CHECK-IR: attributes #[[WGSizeHintAttr11]] = { {{.*}}"sycl-work-group-size-hint"="1,2"
+// CHECK-IR: attributes #[[WGSizeHintAttr12]] = { {{.*}}"sycl-work-group-size-hint"="1,2,3"
