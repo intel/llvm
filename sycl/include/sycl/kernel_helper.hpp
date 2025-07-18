@@ -47,7 +47,7 @@ struct GetMergedKernelProperties<
 };
 } // namespace detail
 
-struct KernelWrapperSingletonFunc {
+struct KernelWrapperSingletonFuncs {
 
 #ifdef SYCL_LANGUAGE_VERSION
 #ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
@@ -175,32 +175,6 @@ struct KernelWrapperSingletonFunc {
   }
 }; // KernelWrapperSingletonFunc
 
-/// Process kernel properties.
-///
-/// Stores information about kernel properties into the handler.
-///
-/// Note: it is important that this function *does not* depend on kernel
-/// name or kernel type, because then it will be instantiated for every
-/// kernel, even though body of those instantiated functions could be almost
-/// the same, thus unnecessary increasing compilation time.
-template <bool IsESIMDKernel,
-          typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-void processProperties([[maybe_unused]] PropertiesT Props) {
-  static_assert(ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-                "Template type is not a property list.");
-  static_assert(
-      !PropertiesT::template has_property<
-          sycl::ext::intel::experimental::fp_control_key>() ||
-          (PropertiesT::template has_property<
-               sycl::ext::intel::experimental::fp_control_key>() &&
-           IsESIMDKernel),
-      "Floating point control property is supported for ESIMD kernels only.");
-  static_assert(
-      !PropertiesT::template has_property<
-          sycl::ext::oneapi::experimental::indirectly_callable_key>(),
-      "indirectly_callable property cannot be applied to SYCL kernels");
-}
-
 // The KernelWrapper below has two purposes.
 //
 // First, from SYCL 2020, Table 129 (Member functions of the `handler ` class)
@@ -234,7 +208,7 @@ struct KernelWrapper<
     WrapAsVal, KernelName, KernelType, ElementType, PropertyProcessor,
     PropertiesT,
     ext::oneapi::experimental::detail::properties_t<MergedProps...>>
-    : public KernelWrapperSingletonFunc {
+    : public KernelWrapperSingletonFuncs {
 
   static void wrap([[maybe_unused]] PropertyProcessor h,
                    [[maybe_unused]] const KernelType &KernelFunc) {
@@ -245,9 +219,7 @@ struct KernelWrapper<
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<const KernelType &>::value) {
 
-      processProperties<detail::isKernelESIMD<KernelName>()>(
-          KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
-      h->processLaunchProperties(
+      h->template processProperties<detail::isKernelESIMD<KernelName>()>(
           KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
     }
 #endif

@@ -902,7 +902,6 @@ private:
     }
   }
 
-public:
   /// Process runtime kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
@@ -966,6 +965,37 @@ public:
     }
 
     checkAndSetClusterRange(Props);
+  }
+
+public:
+  /// Process kernel properties.
+  ///
+  /// Stores information about kernel properties into the handler.
+  ///
+  /// Note: it is important that this function *does not* depend on kernel
+  /// name or kernel type, because then it will be instantiated for every
+  /// kernel, even though body of those instantiated functions could be almost
+  /// the same, thus unnecessary increasing compilation time.
+  template <
+      bool IsESIMDKernel,
+      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
+  void processProperties(PropertiesT Props) {
+    static_assert(
+        ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+        "Template type is not a property list.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::intel::experimental::fp_control_key>() ||
+            (PropertiesT::template has_property<
+                 sycl::ext::intel::experimental::fp_control_key>() &&
+             IsESIMDKernel),
+        "Floating point control property is supported for ESIMD kernels only.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::oneapi::experimental::indirectly_callable_key>(),
+        "indirectly_callable property cannot be applied to SYCL kernels");
+
+    processLaunchProperties(Props);
   }
 
 private:
@@ -1892,7 +1922,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Kernel;
-    KernelWrapperSingletonFunc::kernel_single_task<NameT>(KernelFunc);
+    KernelWrapperSingletonFuncs::kernel_single_task<NameT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     constexpr detail::string_view Name{detail::getKernelName<NameT>()};
