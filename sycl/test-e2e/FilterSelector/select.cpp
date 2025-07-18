@@ -22,12 +22,10 @@ using namespace sycl::ext::oneapi;
 int main() {
   std::vector<device> CPUs;
   std::vector<device> GPUs;
-  std::vector<device> Accels;
   std::vector<device> Devs;
 
   CPUs = device::get_devices(sycl::info::device_type::cpu);
   GPUs = device::get_devices(sycl::info::device_type::gpu);
-  Accels = device::get_devices(sycl::info::device_type::accelerator);
   Devs = device::get_devices();
 
   bool HasLevelZeroDevices = false;
@@ -168,11 +166,6 @@ int main() {
     assert(d17.is_gpu() &&
            d17.get_platform().get_backend() == backend::ext_oneapi_cuda &&
            "filter_selector(\"cuda:gpu\") failed");
-  }
-
-  if (!Accels.empty()) {
-    device d18(filter_selector("accelerator"));
-    assert(d18.is_accelerator() && "filter_selector(\"accelerator\") failed");
   }
 
   if (HasHIPDevices) {
