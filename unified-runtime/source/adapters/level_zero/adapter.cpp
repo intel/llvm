@@ -518,7 +518,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
           return;
         }
 #endif
-      }
+  }
 
       // Check if the user has enabled the default L0 SysMan initialization.
       const int UrSysmanZesinitEnable = [&UserForcedSysManInit] {
@@ -560,7 +560,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
           sysManInitFunctionPtr) {
         ze_init_flags_t L0ZesInitFlags = 0;
         UR_LOG(DEBUG, "\nzesInit with flags value of {}\n",
-              static_cast<int>(L0ZesInitFlags));
+               static_cast<int>(L0ZesInitFlags));
         ZesResult = ZE_CALL_NOCHECK(sysManInitFunctionPtr, (L0ZesInitFlags));
       } else {
         ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
