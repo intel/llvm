@@ -188,18 +188,9 @@ inline ur_result_t redefinedurKernelGetInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t redefinedDeviceGetInfo(void *pParams) {
-  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
-  if (*params.ppropName == UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP) {
-    auto *Result = reinterpret_cast<ur_bool_t *>(*params.ppPropValue);
-    *Result = true;
-  }
-  return UR_RESULT_SUCCESS;
-}
-
-static int ProgramBuildExpCounter = 0;
-static ur_result_t redefinedurProgramBuildExp(void *) {
-  ++ProgramBuildExpCounter;
+static int ProgramBuildCounter = 0;
+static ur_result_t redefinedurProgramBuild(void *) {
+  ++ProgramBuildCounter;
   return UR_RESULT_SUCCESS;
 }
 
@@ -209,15 +200,15 @@ static ur_result_t redefinedurProgramCreateWithIL(void *) {
   return UR_RESULT_SUCCESS;
 }
 
-static int ProgramLinkExpCounter = 0;
-static ur_result_t redefinedurProgramLinkExp(void *) {
-  ++ProgramLinkExpCounter;
+static int ProgramLinkCounter = 0;
+static ur_result_t redefinedurProgramLink(void *) {
+  ++ProgramLinkCounter;
   return UR_RESULT_SUCCESS;
 }
 
-static int ProgramCompileExpCounter = 0;
-static ur_result_t redefinedurProgramCompileExp(void *) {
-  ++ProgramCompileExpCounter;
+static int ProgramCompileCounter = 0;
+static ur_result_t redefinedurProgramCompile(void *) {
+  ++ProgramCompileCounter;
   return UR_RESULT_SUCCESS;
 }
 
@@ -235,18 +226,16 @@ public:
 protected:
   void SetUp() override {
     mock::getCallbacks().set_after_callback("urDeviceGet", &redefinedDeviceGet);
-    mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                            &redefinedDeviceGetInfo);
     mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                             &redefinedurKernelGetInfo);
-    mock::getCallbacks().set_after_callback("urProgramBuildExp",
-                                            &redefinedurProgramBuildExp);
+    mock::getCallbacks().set_after_callback("urProgramBuild",
+                                            &redefinedurProgramBuild);
     mock::getCallbacks().set_after_callback("urProgramCreateWithIL",
                                             &redefinedurProgramCreateWithIL);
-    mock::getCallbacks().set_after_callback("urProgramLinkExp",
-                                            &redefinedurProgramLinkExp);
-    mock::getCallbacks().set_after_callback("urProgramCompileExp",
-                                            &redefinedurProgramCompileExp);
+    mock::getCallbacks().set_after_callback("urProgramLink",
+                                            &redefinedurProgramLink);
+    mock::getCallbacks().set_after_callback("urProgramCompile",
+                                            &redefinedurProgramCompile);
     mock::getCallbacks().set_after_callback("urDeviceSelectBinary",
                                             &redefinedDeviceSelectBinary);
     mock::getCallbacks().set_after_callback(
@@ -263,7 +252,7 @@ protected:
 TEST_P(MultipleDevsKernelBundleTest, BuildTwiceWithOverlappingDevices) {
   // Reset counters
   ProgramCreateWithILCounter = 0;
-  ProgramBuildExpCounter = 0;
+  ProgramBuildCounter = 0;
 
   // Get devices and create a context with at least 3 devices
   std::vector<sycl::device> Devices =
@@ -320,8 +309,8 @@ TEST_P(MultipleDevsKernelBundleTest, BuildTwiceWithOverlappingDevices) {
   EXPECT_EQ(ProgramCreateWithILCounter, 2)
       << "Expect 2 urProgramCreateWithIL calls";
 
-  // Verify the number of urProgramBuildExp calls
-  EXPECT_EQ(ProgramBuildExpCounter, 2) << "Expect 2 urProgramBuildExp calls";
+  // Verify the number of urProgramBuild calls
+  EXPECT_EQ(ProgramBuildCounter, 2) << "Expect 2 urProgramBuild calls";
 }
 
 // Test to check several use cases for multi-device kernel bundles.
@@ -353,9 +342,9 @@ TEST_P(MultipleDevsKernelBundleTest, DeviceLibs) {
 
     // Reset counters
     ProgramCreateWithILCounter = 0;
-    ProgramBuildExpCounter = 0;
-    ProgramLinkExpCounter = 0;
-    ProgramCompileExpCounter = 0;
+    ProgramBuildCounter = 0;
+    ProgramLinkCounter = 0;
+    ProgramCompileCounter = 0;
     ProgramCreateWithBinaryCounter = 0;
 
     // Get bundle in executable state for multiple devices in a context, enqueue
@@ -378,19 +367,17 @@ TEST_P(MultipleDevsKernelBundleTest, DeviceLibs) {
       EXPECT_EQ(ProgramCreateWithILCounter, 3)
           << "Expect 3 urProgramCreateWithIL calls";
 
-      // Verify the number of urProgramBuildExp calls: none expected as we
+      // Verify the number of urProgramBuild calls: none expected as we
       // compile and link in this case.
-      EXPECT_EQ(ProgramBuildExpCounter, 0)
-          << "Expect 0 urProgramBuildExp calls";
+      EXPECT_EQ(ProgramBuildCounter, 0) << "Expect 0 urProgramBuild calls";
 
-      // Verify the number of urProgramCompileExp calls: we expect 2 calls to
+      // Verify the number of urProgramCompile calls: we expect 2 calls to
       // compile fallback libraries and 1 call to compile the main program.
-      EXPECT_EQ(ProgramCompileExpCounter, 3)
-          << "Expect 3 urProgramCompileExp calls";
+      EXPECT_EQ(ProgramCompileCounter, 3) << "Expect 3 urProgramCompile calls";
 
-      // Verify the number of urProgramLinkExp calls: we expect 1 call which
+      // Verify the number of urProgramLink calls: we expect 1 call which
       // links the main program and fallback libraries.
-      EXPECT_EQ(ProgramLinkExpCounter, 1) << "Expect 1 urProgramLinkExp calls";
+      EXPECT_EQ(ProgramLinkCounter, 1) << "Expect 1 urProgramLink calls";
     }
     if (GetParam() == SYCL_DEVICE_BINARY_TYPE_NATIVE) {
       // In case of AOT compilation, we expect 1 call to
@@ -398,10 +385,9 @@ TEST_P(MultipleDevsKernelBundleTest, DeviceLibs) {
       EXPECT_EQ(ProgramCreateWithBinaryCounter, 1)
           << "Expect 3 urProgramCreateWithIL calls";
 
-      // And a single call to urProgramBuildExp. In this case libraries are
+      // And a single call to urProgramBuild. In this case libraries are
       // linked beforehand, so we don't compile/link them online.
-      EXPECT_EQ(ProgramBuildExpCounter, 1)
-          << "Expect 0 urProgramBuildExp calls";
+      EXPECT_EQ(ProgramBuildCounter, 1) << "Expect 0 urProgramBuild calls";
     }
   }
 
@@ -414,9 +400,9 @@ TEST_P(MultipleDevsKernelBundleTest, DeviceLibs) {
 
     // Reset counters
     ProgramCreateWithILCounter = 0;
-    ProgramBuildExpCounter = 0;
-    ProgramLinkExpCounter = 0;
-    ProgramCompileExpCounter = 0;
+    ProgramBuildCounter = 0;
+    ProgramLinkCounter = 0;
+    ProgramCompileCounter = 0;
     ProgramCreateWithBinaryCounter = 0;
     sycl::kernel_id KernelID = sycl::get_kernel_id<DevLibTestKernel>();
     // Program associated with {dev1, dev2, dev3} is supposed to be cached from
@@ -437,8 +423,8 @@ TEST_P(MultipleDevsKernelBundleTest, DeviceLibs) {
         sycl::get_kernel_bundle<sycl::bundle_state::executable>(Context, {Dev3},
                                                                 {KernelID});
     EXPECT_EQ(ProgramCreateWithILCounter, 0);
-    EXPECT_EQ(ProgramCompileExpCounter, 0);
-    EXPECT_EQ(ProgramLinkExpCounter, 0);
+    EXPECT_EQ(ProgramCompileCounter, 0);
+    EXPECT_EQ(ProgramLinkCounter, 0);
 
     // Next we create a bundle with a different set of devices which includes
     // dev4, so we expect new UR program creation. Also main program will be
@@ -452,16 +438,14 @@ TEST_P(MultipleDevsKernelBundleTest, DeviceLibs) {
     if (GetParam() == SYCL_DEVICE_BINARY_TYPE_SPIRV) {
       EXPECT_EQ(ProgramCreateWithILCounter, 1)
           << "Expect 1 urProgramCreateWithIL calls";
-      EXPECT_EQ(ProgramCompileExpCounter, 3)
-          << "Expect 3 urProgramCompileExp calls";
-      EXPECT_EQ(ProgramLinkExpCounter, 1) << "Expect 1 urProgramLinkExp calls";
+      EXPECT_EQ(ProgramCompileCounter, 3) << "Expect 3 urProgramCompile calls";
+      EXPECT_EQ(ProgramLinkCounter, 1) << "Expect 1 urProgramLink calls";
     }
 
     if (GetParam() == SYCL_DEVICE_BINARY_TYPE_NATIVE) {
       EXPECT_EQ(ProgramCreateWithBinaryCounter, 1)
           << "Expect 1 urProgramCreateWithBinary calls";
-      EXPECT_EQ(ProgramBuildExpCounter, 1)
-          << "Expect 1 urProgramBuildExp calls";
+      EXPECT_EQ(ProgramBuildCounter, 1) << "Expect 1 urProgramBuild calls";
     }
 
     for (int i = 0; i < 3; i++) {
