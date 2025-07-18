@@ -113,6 +113,19 @@ bool kernel_impl::isBuiltInKernel(device_impl &Device) const {
       [&KernelName](kernel_id &Id) { return Id.get_name() == KernelName; }));
 }
 
+bool kernel_impl::isFreeFunctionKernel() const {
+  const auto ids = MKernelBundleImpl->get_kernel_ids();
+  return std::any_of(ids.begin(), ids.end(), [this](const kernel_id &Id) {
+    const std::string KernelName = Id.get_name();
+    const auto pos = KernelName.find("__sycl_kernel_");
+    return pos != std::string::npos;
+  });
+}
+
+void kernel_impl::setKerenlFreeFuncArgNum(unsigned Num) {
+  FreeFuncKernelArgNum = Num;
+}
+
 void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
   if (isInteropOrSourceBased())
     return;
@@ -120,6 +133,9 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
   if (std::any_of(Devices.begin(), Devices.end(), [this](device_impl &Device) {
         return isBuiltInKernel(Device);
       }))
+    return;
+
+  if (isFreeFunctionKernel())
     return;
 
   throw sycl::exception(

@@ -6666,6 +6666,32 @@ public:
           FD->getTemplateSpecializationArgs());
   }
 
+  /// Emits free function kernel info specialization for shimN.
+  /// \param ShimCounter The counter for the shim function.
+  /// \param KParamsSize The number of kernel free function arguments.
+  /// \param KName The name of the kernel free function.
+  void printFreeFunctionKernelInfo(const unsigned ShimCounter,
+                                   const size_t KParamsSize,
+                                   std::string_view KName) {
+    O << "\nnamespace sycl {\n";
+    O << "inline namespace _V1 {\n";
+    O << "namespace detail {\n";
+    O << "//Free Function Kernel info specialization for shim" << ShimCounter
+      << "\n";
+    O << "template <> struct FreeFunctionInfoData<__sycl_shim" << ShimCounter
+      << "()> {\n";
+    O << "\t__SYCL_DLL_LOCAL\n";
+    O << "\tstatic constexpr unsigned getNumParams() { return " << KParamsSize
+      << "; }\n";
+    O << "\t__SYCL_DLL_LOCAL\n";
+    O << "\tstatic constexpr const char *getFunctionName() { return ";
+    O << "\"" << KName << "\"; }\n";
+    O << "};\n";
+    O << "} // namespace detail\n"
+      << "} // namespace _V1\n"
+      << "} // namespace sycl\n\n";
+  }
+
 private:
   /// Helper method to get string with template types
   /// \param TAL The template argument list.
@@ -7127,6 +7153,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     FFPrinter.printFreeFunctionShim(K.SyclKernel, ShimCounter, ParmList);
     O << ";\n";
     O << "}\n";
+    FFPrinter.printFreeFunctionKernelInfo(ShimCounter, K.Params.size(), K.Name);
     Policy.SuppressDefaultTemplateArgs = true;
     Policy.EnforceDefaultTemplateArgs = false;
 
@@ -7167,8 +7194,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "template <>\n";
     O << "inline kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim"
       << ShimCounter << "()>() {\n";
-    O << "  return sycl::detail::get_kernel_id_impl(std::string_view{\""
-      << K.Name << "\"});\n";
+    O << "  return sycl::detail::get_kernel_id_impl(std::string_view{"
+      << "sycl::detail::FreeFunctionInfoData<__sycl_shim" << ShimCounter
+      << "()>::getFunctionName()});\n";
     O << "}\n";
     O << "}\n";
     ++ShimCounter;

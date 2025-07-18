@@ -508,8 +508,12 @@ public:
             typename = std::enable_if_t<_State == bundle_state::executable>>
   std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>, kernel>
   ext_oneapi_get_kernel() {
-    return detail::kernel_bundle_plain::get_kernel(
+    sycl::kernel Kernel = detail::kernel_bundle_plain::get_kernel(
         ext::oneapi::experimental::get_kernel_id<Func>());
+    const unsigned FreeFuncKernelArgNum =
+        sycl::detail::FreeFunctionInfoData<Func>::getNumParams();
+    Kernel.setFreeFuncKernelArgNum(FreeFuncKernelArgNum);
+    return Kernel;
   }
 
   /////////////////////////

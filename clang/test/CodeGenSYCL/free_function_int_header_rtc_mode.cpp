@@ -74,7 +74,6 @@ int main(){
 // CHECK-NORTC-NEXT:  static constexpr bool value = true;
 
 // CHECK-NORTC:       kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim[[#FIRST]]()>() {
-// CHECK-NORTC-NEXT:  return sycl::detail::get_kernel_id_impl(std::string_view{"{{.*}}__sycl_kernel_free_function_singlePiii"});
-
+// CHECK-NORTC-NEXT:  return sycl::detail::get_kernel_id_impl(std::string_view{sycl::detail::FreeFunctionInfoData<__sycl_shim1()>::getFunctionName()});
 // CHECK-NORTC:       kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim[[#SECOND]]()>() {
-// CHECK-NORTC-NEXT:  return sycl::detail::get_kernel_id_impl(std::string_view{"{{.*}}__sycl_kernel_free_function_nd_rangePiii"});
+// CHECK-NORTC-NEXT:  return sycl::detail::get_kernel_id_impl(std::string_view{sycl::detail::FreeFunctionInfoData<__sycl_shim2()>::getFunctionName()});
