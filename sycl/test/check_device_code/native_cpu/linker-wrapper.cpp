@@ -1,7 +1,6 @@
-// REQUIRES: native_cpu
+// REQUIRES: native_cpu_ock
 // This test checks that the clang-linker-wrapper generates the expected output for Native CPU kernels
-
-// RUN: %clang --offload-new-driver -fsycl -fsycl-targets=native_cpu %s -Xlinker --print-wrapped-module 2>&1 | FileCheck %s
+// RUN: %clangxx --offload-new-driver -fsycl -fsycl-targets=native_cpu %s -Xlinker --print-wrapped-module 2>&1 | FileCheck %s
 
 #include <sycl/sycl.hpp>
 using namespace sycl;
