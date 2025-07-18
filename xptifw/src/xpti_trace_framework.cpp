@@ -1573,12 +1573,7 @@ public:
                                       // What we get is a concurrent_hash_map
                                       // of vectors holding the callbacks we
                                       // need access to;
-    auto Acc = StreamCBs.find(TraceType);
-    if (Acc == StreamCBs.end()) {
-      // Create a new slot and return the accessor for the trace type
-      auto& Tmp = StreamCBs[TraceType];
-      Acc = StreamCBs.find(TraceType);
-    }
+    auto &Acc = StreamCBs[TraceType]; 
     // If the key does not exist, a new entry is created and an accessor to it
     // is returned. If it exists, we have access to the previous entry.
     //
@@ -1588,7 +1583,7 @@ public:
     // If not, we set the first element of new entry to 'true' indicating that
     // it is valid. Unregister will just set this flag to false, indicating
     // that it is no longer valid and is unregistered.
-    for (auto &Ele : Acc->second) {
+    for (auto &Ele : Acc) {
       if (Ele.second == cbFunc) {
         if (Ele.first) // Already here and active
           return xpti::result_t::XPTI_RESULT_DUPLICATE;
@@ -1600,7 +1595,7 @@ public:
     }
     // If we come here, then we did not find the callback being registered
     // already in the framework. So, we insert it.
-    Acc->second.push_back(std::make_pair(true, cbFunc));
+    Acc.push_back(std::make_pair(true, cbFunc));
     return xpti::result_t::XPTI_RESULT_SUCCESS;
   }
 
