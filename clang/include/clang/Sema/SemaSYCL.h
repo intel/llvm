@@ -65,7 +65,8 @@ public:
     kind_work_group_memory,
     kind_dynamic_work_group_memory,
     kind_dynamic_accessor,
-    kind_last = kind_dynamic_accessor
+    kind_struct_with_special_type,
+    kind_last = kind_struct_with_special_type
   };
 
 public:
@@ -117,6 +118,11 @@ public:
   /// declaration of variable __sycl_host_pipe_registrar of this type in
   /// integration header is required.
   void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
+
+  // Add ParentStruct to StructsWithSpecialTypes.
+  void addStructWithSpecialType(const RecordDecl *ParentStruct) {
+    StructsWithSpecialTypes[ParentStruct] = true;
+  }
 
 private:
   // Kernel actual parameter descriptor.
@@ -205,6 +211,10 @@ private:
   /// Keeps track of whether declaration of __sycl_host_pipe_registration
   /// type and __sycl_host_pipe_registrar variable are required to emit.
   bool NeedToEmitHostPipeRegistration = false;
+
+  // A map that keeps track of all structs encountered with
+  // special types inside.
+  llvm::DenseMap<const RecordDecl *, bool> StructsWithSpecialTypes;
 };
 
 class SYCLIntegrationFooter {
