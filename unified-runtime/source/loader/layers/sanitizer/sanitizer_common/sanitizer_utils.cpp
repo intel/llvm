@@ -272,10 +272,13 @@ size_t GetKernelPrivateMemorySize(ur_kernel_handle_t Kernel,
 size_t GetVirtualMemGranularity(ur_context_handle_t Context,
                                 ur_device_handle_t Device) {
   size_t Size;
+  const size_t allocationSize =
+      1; // probably we want to use actual allocation size
   [[maybe_unused]] auto Result =
       getContext()->urDdiTable.VirtualMem.pfnGranularityGetInfo(
-          Context, Device, UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED,
-          sizeof(Size), &Size, nullptr);
+          Context, Device, allocationSize,
+          UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED, sizeof(Size), &Size,
+          nullptr);
   assert(Result == UR_RESULT_SUCCESS);
   return Size;
 }
