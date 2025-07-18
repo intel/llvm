@@ -12,6 +12,7 @@
 #include <ur_api.h>
 
 #include "event.hpp"
+#include "queue.hpp"
 #include "ur2offload.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
@@ -22,6 +23,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
+  case UR_EVENT_INFO_CONTEXT:
+    return ReturnValue(hEvent->UrQueue->UrContext);
+  case UR_EVENT_INFO_COMMAND_QUEUE:
+    return ReturnValue(hEvent->UrQueue);
+  case UR_EVENT_INFO_COMMAND_TYPE:
+    return ReturnValue(hEvent->Type);
   case UR_EVENT_INFO_REFERENCE_COUNT:
     return ReturnValue(hEvent->RefCount.load());
   default:
@@ -61,9 +68,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
     if (Res) {
       return offloadResultToUR(Res);
     }
+    delete hEvent;
   }
 
-  delete hEvent;
   return UR_RESULT_SUCCESS;
 }
 
