@@ -125,6 +125,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
+                      size_t length, const ur_program_properties_t *pProperties,
+                      ur_program_handle_t *phProgram) {
+  // Liboffload consumes both IR and binaries through the same entrypoint
+  return urProgramCreateWithBinary(hContext, 1, &hContext->Device, &length,
+                                   reinterpret_cast<const uint8_t **>(&pIL),
+                                   pProperties, phProgram);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t,
                                                    ur_program_handle_t,
                                                    const char *) {
@@ -145,12 +155,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(ur_context_handle_t,
                                                      const char *) {
   // Do nothing, program is built upon creation
   return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL
-urProgramCreateWithIL(ur_context_handle_t, const void *, size_t,
-                      const ur_program_properties_t *, ur_program_handle_t *) {
-  return UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL

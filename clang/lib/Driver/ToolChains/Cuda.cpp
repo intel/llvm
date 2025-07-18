@@ -1162,6 +1162,20 @@ void CudaToolChain::AddIAMCUIncludeArgs(const ArgList &Args,
   HostTC.AddIAMCUIncludeArgs(Args, CC1Args);
 }
 
+llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
+CudaToolChain::getDeviceLibs(
+    const llvm::opt::ArgList &DriverArgs,
+    const Action::OffloadKind DeviceOffloadingKind) const {
+  StringRef GpuArch = DriverArgs.getLastArgValue(options::OPT_march_EQ);
+  std::string LibDeviceFile = CudaInstallation.getLibDeviceFile(GpuArch);
+  if (LibDeviceFile.empty()) {
+    getDriver().Diag(diag::err_drv_no_cuda_libdevice) << GpuArch;
+    return {};
+  }
+
+  return {BitCodeLibraryInfo{LibDeviceFile}};
+}
+
 SanitizerMask CudaToolChain::getSupportedSanitizers() const {
   // The CudaToolChain only supports sanitizers in the sense that it allows
   // sanitizer arguments on the command line if they are supported by the host
