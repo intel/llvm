@@ -60,7 +60,12 @@ template <typename T> struct is_struct_with_special_type {
 // set_arg for each of those two accessors.
 template <typename T> struct struct_with_special_type_info {
   template <typename ArgT, typename HandlerT>
-  static void set_arg(int ArgIndex, ArgT &arg, HandlerT &cgh, int &NumArgs) {}
+  static void set_arg(int ArgIndex, ArgT &arg, HandlerT &cgh, int &NumArgs) {
+    (void)ArgIndex;
+    (void)arg;
+    (void)cgh;
+    (void)NumArgs;
+  }
 };
 
 } // namespace detail
