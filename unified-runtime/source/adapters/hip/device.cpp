@@ -333,8 +333,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
     hipDeviceProp_t Props;
-    detail::ur::assertion(hipGetDeviceProperties(&Props, hDevice->get()) ==
-                          hipSuccess);
+    UR_CHECK_ERROR(hipGetDeviceProperties(&Props, hDevice->get()));
 
     if (Props.arch.hasDoubles) {
       ur_device_fp_capability_flags_t Config =
