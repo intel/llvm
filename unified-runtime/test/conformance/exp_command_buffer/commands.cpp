@@ -138,16 +138,25 @@ TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferFillExp) {
       0, nullptr, 0, nullptr, nullptr, nullptr, nullptr));
 }
 
-TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMPrefetchExp) {
+struct urCommandBufferCommandsPrefetchTest : urCommandBufferCommandsTest { };
+
+UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+    urCommandBufferCommandsPrefetchTest,
+    ::testing::Values(UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE,
+                      UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST),
+    uur::deviceTestWithParamPrinter<ur_usm_migration_flag_t>);
+
+TEST_P(urCommandBufferCommandsPrefetchTest,
+       urCommandBufferAppendUSMPrefetchExp) {
   // No Prefetch command in cl_khr_command_buffer
-  // UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+  if (getParam() == UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST) {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZero);
+  }
 
   ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
-      cmd_buf_handle, device_ptrs[0], allocation_size, UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 0, nullptr, 0,
-      nullptr, nullptr, nullptr, nullptr));
-  ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
-      cmd_buf_handle, device_ptrs[0], allocation_size, UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST, 0, nullptr, 0,
-      nullptr, nullptr, nullptr, nullptr));
+      cmd_buf_handle, device_ptrs[0], allocation_size, getParam(), 0, nullptr,
+      0, nullptr, nullptr, nullptr, nullptr));
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMAdviseExp) {
