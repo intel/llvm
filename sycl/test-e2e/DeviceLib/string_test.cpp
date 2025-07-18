@@ -52,6 +52,87 @@ bool kernel_test_memcpy(sycl::queue &deviceQueue) {
   return success;
 }
 
+class KernelTestStrcpy;
+bool kernel_test_strcpy(sycl::queue &deviceQueue) {
+  bool success = true;
+  char src[20] = "abcdefg012345xyzvvv";
+  char dst[5][20];
+  typedef char CStr[20];
+  {
+    sycl::buffer<CStr, 1> dst_buffer(dst, sycl::range<1>(5));
+    deviceQueue.submit([&](sycl::handler &cgh) {
+      auto dst_acc = dst_buffer.get_access<sycl::access::mode::write>(cgh);
+      cgh.single_task<class KernelTestStrcpy>([=]() {
+        char str[20] = "abcdefg012345xyzvvv";
+        strcpy(dst_acc[0], str);
+        str[17] = '\0';
+        strcpy(dst_acc[1], str);
+        str[12] = '\0';
+        strcpy(dst_acc[2], str);
+        str[8] = '\0';
+        strcpy(dst_acc[3], str);
+        str[0] = '\0';
+        strcpy(dst_acc[4], str);
+      });
+    });
+  }
+
+  if (strcmp(src, dst[0]) != 0)
+    success = false;
+  src[17] = '\0';
+  if (strcmp(src, dst[1]) != 0)
+    success = false;
+  src[12] = '\0';
+  if (strcmp(src, dst[2]) != 0)
+    success = false;
+  src[8] = '\0';
+  if (strcmp(src, dst[3]) != 0)
+    success = false;
+  src[0] = '\0';
+  if (strcmp(src, dst[4]) != 0)
+    success = false;
+  return success;
+}
+
+class KernelTestStrlen;
+bool kernel_test_strlen(sycl::queue &deviceQueue) {
+  bool success = true;
+  char src[20] = "abcdefg012345xyzvvv";
+  size_t len[5] = {
+      0,
+  };
+  {
+    sycl::buffer<char, 1> buffer1(src, sycl::range<1>(20));
+    sycl::buffer<size_t, 1> buffer2(len, sycl::range<1>(5));
+    deviceQueue.submit([&](sycl::handler &cgh) {
+      auto len_acc = buffer2.get_access<sycl::access::mode::write>(cgh);
+      auto src_acc = buffer1.get_access<sycl::access::mode::read_write>(cgh);
+      cgh.single_task<class KernelTestStrlen>([=]() {
+        len_acc[0] =
+            strlen(src_acc.get_multi_ptr<sycl::access::decorated::no>().get());
+        src_acc[17] = '\0';
+        len_acc[1] =
+            strlen(src_acc.get_multi_ptr<sycl::access::decorated::no>().get());
+        src_acc[12] = '\0';
+        len_acc[2] =
+            strlen(src_acc.get_multi_ptr<sycl::access::decorated::no>().get());
+        src_acc[7] = '\0';
+        len_acc[3] =
+            strlen(src_acc.get_multi_ptr<sycl::access::decorated::no>().get());
+        src_acc[0] = '\0';
+        len_acc[4] =
+            strlen(src_acc.get_multi_ptr<sycl::access::decorated::no>().get());
+      });
+    });
+  }
+
+  if ((len[0] != 19) || (len[1] != 17) || (len[2] != 12) || (len[3] != 7) ||
+      (len[4] != 0))
+    success = false;
+
+  return success;
+}
+
 class KernelTestMemcpyInit;
 class KernelTestMemcpyUSM0;
 class KernelTestMemcpyUSM1;
@@ -489,6 +570,12 @@ int main() {
 
   success = kernel_test_memcpy_addr_space(deviceQueue);
   assert(((void)"memcpy test with address space failed!", success));
+
+  success = kernel_test_strlen(deviceQueue);
+  assert(((void)"strlen test failed!", success));
+
+  success = kernel_test_strcpy(deviceQueue);
+  assert(((void)"strcpy test failed!", success));
   std::cout << "passed!" << std::endl;
   return 0;
 }
