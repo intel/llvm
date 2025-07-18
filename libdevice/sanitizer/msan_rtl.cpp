@@ -46,7 +46,7 @@ const __SYCL_CONSTANT__ char __msan_print_func_end[] =
     "[kernel] ===== END   %s()\n";
 
 const __SYCL_CONSTANT__ char __msan_print_private_shadow_out_of_bound[] =
-    "[kernel] Private shadow memory out-of-bound(ptr: %p -> %p, wid: %llu, "
+    "[kernel] Private shadow memory out-of-bound(ptr: %p -> %p, "
     "sid: %llu, base: "
     "%p)\n";
 
@@ -168,17 +168,16 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
            shadow_base;
   } else if (as == ADDRESS_SPACE_LOCAL) {
     const auto shadow_offset = GetMsanLaunchInfo->LocalShadowOffset;
-    if (shadow_offset != 0) {
+    const size_t wid = WorkGroupLinearId();
+    if (shadow_offset != 0 && wid < MSAN_MAX_WG_LOCAL) {
       // The size of SLM is 128KB on PVC
       constexpr unsigned SLM_SIZE = 128 * 1024;
-      const size_t wid = WorkGroupLinearId();
       return shadow_offset + (wid * SLM_SIZE) + (addr & (SLM_SIZE - 1));
     }
   } else if (as == ADDRESS_SPACE_PRIVATE) {
     const auto shadow_offset = GetMsanLaunchInfo->PrivateShadowOffset;
-    if (shadow_offset != 0) {
-      const size_t wid = WorkGroupLinearId();
-      const size_t sid = SubGroupLinearId();
+    const size_t sid = SubGroupLinearId();
+    if (shadow_offset != 0 && sid < MSAN_MAX_SG_PRIVATE) {
       const uptr private_base = GetMsanLaunchInfo->PrivateBase[sid];
 
       // FIXME: The recorded private_base may not be the most bottom one,
@@ -188,12 +187,12 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
       }
 
       uptr shadow_ptr =
-          shadow_offset + (wid * MSAN_PRIVATE_SIZE) + (addr - private_base);
+          shadow_offset + (sid * MSAN_PRIVATE_SIZE) + (addr - private_base);
 
       const auto shadow_offset_end = GetMsanLaunchInfo->PrivateShadowOffsetEnd;
       if (shadow_ptr > shadow_offset_end) {
         __spirv_ocl_printf(__msan_print_private_shadow_out_of_bound, addr,
-                           shadow_ptr, wid, sid, private_base);
+                           shadow_ptr, sid, private_base);
         return GetMsanLaunchInfo->CleanShadow;
       };
 
@@ -718,12 +717,13 @@ static __SYCL_CONSTANT__ const char __msan_print_private_base[] =
 
 DEVICE_EXTERN_C_NOINLINE void
 __msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
-  if (!GetMsanLaunchInfo || GetMsanLaunchInfo->PrivateShadowOffset == 0 ||
+  const size_t sid = SubGroupLinearId();
+  if (!GetMsanLaunchInfo || sid >= MSAN_MAX_SG_PRIVATE ||
+      GetMsanLaunchInfo->PrivateShadowOffset == 0 ||
       GetMsanLaunchInfo->PrivateBase == 0)
     return;
   // Only set on the first sub-group item
   if (__spirv_BuiltInSubgroupLocalInvocationId() == 0) {
-    const size_t sid = SubGroupLinearId();
     GetMsanLaunchInfo->PrivateBase[sid] = (uptr)ptr;
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_private_base, sid, ptr));
   }
@@ -743,9 +743,9 @@ __msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
                                 "__msan_unpoison_strided_copy"));
 
-  uptr shadow_dest = (uptr)__msan_get_shadow(dest, dest_as);
+  uptr shadow_dest = MemToShadow(dest, dest_as);
   if (shadow_dest != GetMsanLaunchInfo->CleanShadow) {
-    uptr shadow_src = (uptr)__msan_get_shadow(src, src_as);
+    uptr shadow_src = MemToShadow(src, src_as);
 
     switch (element_size) {
     case 1:

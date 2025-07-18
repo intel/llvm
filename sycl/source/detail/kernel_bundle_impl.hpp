@@ -48,18 +48,17 @@ bool is_source_kernel_bundle_supported(
 
 namespace detail {
 
-static bool checkAllDevicesAreInContext(const std::vector<device> &Devices,
+inline bool checkAllDevicesAreInContext(devices_range Devices,
                                         const context &Context) {
-  return std::all_of(
-      Devices.begin(), Devices.end(), [&Context](const device &Dev) {
-        return getSyclObjImpl(Context)->isDeviceValid(*getSyclObjImpl(Dev));
-      });
+  return std::all_of(Devices.begin(), Devices.end(),
+                     [&Context](device_impl &Dev) {
+                       return getSyclObjImpl(Context)->isDeviceValid(Dev);
+                     });
 }
 
-static bool checkAllDevicesHaveAspect(const std::vector<device> &Devices,
-                                      aspect Aspect) {
+inline bool checkAllDevicesHaveAspect(devices_range Devices, aspect Aspect) {
   return std::all_of(Devices.begin(), Devices.end(),
-                     [&Aspect](const device &Dev) { return Dev.has(Aspect); });
+                     [&Aspect](device_impl &Dev) { return Dev.has(Aspect); });
 }
 
 namespace syclex = sycl::ext::oneapi::experimental;
@@ -100,9 +99,10 @@ class kernel_bundle_impl
   }
 
 public:
-  kernel_bundle_impl(context Ctx, std::vector<device> Devs, bundle_state State,
+  kernel_bundle_impl(context Ctx, devices_range Devs, bundle_state State,
                      private_tag)
-      : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
+      : MContext(std::move(Ctx)),
+        MDevices(Devs.to<std::vector<device_impl *>>()), MState(State) {
 
     common_ctor_checks();
 
@@ -112,8 +112,9 @@ public:
   }
 
   // Interop constructor used by make_kernel
-  kernel_bundle_impl(context Ctx, std::vector<device> Devs, private_tag)
-      : MContext(Ctx), MDevices(Devs), MState(bundle_state::executable) {
+  kernel_bundle_impl(context Ctx, devices_range Devs, private_tag)
+      : MContext(Ctx), MDevices(Devs.to<std::vector<device_impl *>>()),
+        MState(bundle_state::executable) {
     if (!checkAllDevicesAreInContext(Devs, Ctx))
       throw sycl::exception(
           make_error_code(errc::invalid),
@@ -122,9 +123,9 @@ public:
   }
 
   // Interop constructor
-  kernel_bundle_impl(context Ctx, std::vector<device> Devs,
+  kernel_bundle_impl(context Ctx, devices_range Devs,
                      device_image_plain &DevImage, private_tag Tag)
-      : kernel_bundle_impl(Ctx, Devs, Tag) {
+      : kernel_bundle_impl(std::move(Ctx), Devs, Tag) {
     MDeviceImages.emplace_back(DevImage);
     MUniqueDeviceImages.emplace_back(DevImage);
   }
@@ -133,22 +134,19 @@ public:
   // Have one constructor because sycl::build and sycl::compile have the same
   // signature
   kernel_bundle_impl(const kernel_bundle<bundle_state::input> &InputBundle,
-                     std::vector<device> Devs, const property_list &PropList,
+                     devices_range Devs, const property_list &PropList,
                      bundle_state TargetState, private_tag)
-      : MContext(InputBundle.get_context()), MDevices(std::move(Devs)),
-        MState(TargetState) {
+      : MContext(InputBundle.get_context()),
+        MDevices(Devs.to<std::vector<device_impl *>>()), MState(TargetState) {
 
     kernel_bundle_impl &InputBundleImpl = *getSyclObjImpl(InputBundle);
     MSpecConstValues = InputBundleImpl.get_spec_const_map_ref();
 
-    const std::vector<device> &InputBundleDevices =
-        InputBundleImpl.get_devices();
+    devices_range InputBundleDevices = InputBundleImpl.get_devices();
     const bool AllDevsAssociatedWithInputBundle =
-        std::all_of(MDevices.begin(), MDevices.end(),
-                    [&InputBundleDevices](const device &Dev) {
-                      return InputBundleDevices.end() !=
-                             std::find(InputBundleDevices.begin(),
-                                       InputBundleDevices.end(), Dev);
+        std::all_of(get_devices().begin(), get_devices().end(),
+                    [&InputBundleDevices](device_impl &Dev) {
+                      return InputBundleDevices.contains(Dev);
                     });
     if (MDevices.empty() || !AllDevsAssociatedWithInputBundle)
       throw sycl::exception(
@@ -163,8 +161,8 @@ public:
     for (const DevImgPlainWithDeps &DevImgWithDeps :
          InputBundleImpl.MDeviceImages) {
       // Skip images which are not compatible with devices provided
-      if (std::none_of(MDevices.begin(), MDevices.end(),
-                       [&DevImgWithDeps](const device &Dev) {
+      if (std::none_of(get_devices().begin(), get_devices().end(),
+                       [&DevImgWithDeps](device_impl &Dev) {
                          return getSyclObjImpl(DevImgWithDeps.getMain())
                              ->compatible_with_device(Dev);
                        }))
@@ -206,8 +204,9 @@ public:
   // Matches sycl::link
   kernel_bundle_impl(
       const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
-      std::vector<device> Devs, const property_list &PropList, private_tag)
-      : MDevices(std::move(Devs)), MState(bundle_state::executable) {
+      devices_range Devs, const property_list &PropList, private_tag)
+      : MDevices(Devs.to<std::vector<device_impl *>>()),
+        MState(bundle_state::executable) {
     if (MDevices.empty())
       throw sycl::exception(make_error_code(errc::invalid),
                             "Vector of devices is empty");
@@ -226,16 +225,15 @@ public:
     // Check if any of the devices in devs are not in the set of associated
     // devices for any of the bundles in ObjectBundles
     const bool AllDevsAssociatedWithInputBundles = std::all_of(
-        MDevices.begin(), MDevices.end(), [&ObjectBundles](const device &Dev) {
+        get_devices().begin(), get_devices().end(),
+        [&ObjectBundles](device_impl &Dev) {
           // Number of devices is expected to be small
           return std::all_of(
               ObjectBundles.begin(), ObjectBundles.end(),
               [&Dev](const kernel_bundle<bundle_state::object> &KernelBundle) {
-                const std::vector<device> &BundleDevices =
+                devices_range BundleDevices =
                     getSyclObjImpl(KernelBundle)->get_devices();
-                return BundleDevices.end() != std::find(BundleDevices.begin(),
-                                                        BundleDevices.end(),
-                                                        Dev);
+                return BundleDevices.contains(Dev);
               });
         });
     if (!AllDevsAssociatedWithInputBundles)
@@ -363,41 +361,33 @@ public:
     }
 
     // Create a link graph and clone it for each device.
-    device_impl &FirstDevice = *getSyclObjImpl(MDevices[0]);
-    std::map<std::shared_ptr<device_impl>, LinkGraph<device_image_plain>>
-        DevImageLinkGraphs;
+    device_impl &FirstDevice = get_devices().front();
+    std::map<device_impl *, LinkGraph<device_image_plain>> DevImageLinkGraphs;
     const auto &FirstGraph =
         DevImageLinkGraphs
-            .emplace(FirstDevice.shared_from_this(),
+            .emplace(&FirstDevice,
                      LinkGraph<device_image_plain>{DevImages, Dependencies})
             .first->second;
-    for (size_t I = 1; I < MDevices.size(); ++I)
-      DevImageLinkGraphs.emplace(getSyclObjImpl(MDevices[I]),
-                                 FirstGraph.Clone());
+    for (device_impl &Dev : get_devices())
+      DevImageLinkGraphs.emplace(&Dev, FirstGraph.Clone());
 
     // Poison the images based on whether the corresponding device supports it.
     for (auto &GraphIt : DevImageLinkGraphs) {
-      device Dev = createSyclObjFromImpl<device>(GraphIt.first);
+      device_impl &Dev = *GraphIt.first;
       GraphIt.second.Poison([&Dev](const device_image_plain &DevImg) {
         return !getSyclObjImpl(DevImg)->compatible_with_device(Dev);
       });
     }
 
     // Unify graphs after poisoning.
-    std::map<std::vector<std::shared_ptr<device_impl>>,
-             LinkGraph<device_image_plain>>
+    std::map<std::vector<device_impl *>, LinkGraph<device_image_plain>>
         UnifiedGraphs = UnifyGraphs(DevImageLinkGraphs);
 
     // Link based on the resulting graphs.
     for (auto &GraphIt : UnifiedGraphs) {
-      std::vector<device> DeviceGroup;
-      DeviceGroup.reserve(GraphIt.first.size());
-      for (const auto &DeviceImgImpl : GraphIt.first)
-        DeviceGroup.emplace_back(createSyclObjFromImpl<device>(DeviceImgImpl));
-
       std::vector<device_image_plain> LinkedResults =
           detail::ProgramManager::getInstance().link(
-              GraphIt.second.GetNodeValues(), DeviceGroup, PropList);
+              GraphIt.second.GetNodeValues(), GraphIt.first, PropList);
       MDeviceImages.insert(MDeviceImages.end(), LinkedResults.begin(),
                            LinkedResults.end());
       MUniqueDeviceImages.insert(MUniqueDeviceImages.end(),
@@ -410,8 +400,8 @@ public:
     for (const DevImgPlainWithDeps *DeviceImageWithDeps :
          ImagesWithSpecConsts) {
       // Skip images which are not compatible with devices provided
-      if (std::none_of(MDevices.begin(), MDevices.end(),
-                       [DeviceImageWithDeps](const device &Dev) {
+      if (std::none_of(get_devices().begin(), get_devices().end(),
+                       [DeviceImageWithDeps](device_impl &Dev) {
                          return getSyclObjImpl(DeviceImageWithDeps->getMain())
                              ->compatible_with_device(Dev);
                        }))
@@ -438,10 +428,11 @@ public:
     }
   }
 
-  kernel_bundle_impl(context Ctx, std::vector<device> Devs,
+  kernel_bundle_impl(context Ctx, devices_range Devs,
                      const std::vector<kernel_id> &KernelIDs,
                      bundle_state State, private_tag)
-      : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
+      : MContext(std::move(Ctx)),
+        MDevices(Devs.to<std::vector<device_impl *>>()), MState(State) {
 
     common_ctor_checks();
 
@@ -450,10 +441,11 @@ public:
     fillUniqueDeviceImages();
   }
 
-  kernel_bundle_impl(context Ctx, std::vector<device> Devs,
+  kernel_bundle_impl(context Ctx, devices_range Devs,
                      const DevImgSelectorImpl &Selector, bundle_state State,
                      private_tag)
-      : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
+      : MContext(std::move(Ctx)),
+        MDevices(Devs.to<std::vector<device_impl *>>()), MState(State) {
 
     common_ctor_checks();
 
@@ -548,7 +540,9 @@ public:
   kernel_bundle_impl(const context &Context, syclex::source_language Lang,
                      const std::string &Src, include_pairs_t IncludePairsVec,
                      private_tag)
-      : MContext(Context), MDevices(Context.get_devices()),
+      : MContext(Context), MDevices(getSyclObjImpl(Context)
+                                        ->getDevices()
+                                        .to<std::vector<device_impl *>>()),
         MDeviceImages{device_image_plain{device_image_impl::create(
             Src, MContext, MDevices, Lang, std::move(IncludePairsVec))}},
         MUniqueDeviceImages{MDeviceImages[0].getMain()},
@@ -560,7 +554,9 @@ public:
   // construct from source bytes
   kernel_bundle_impl(const context &Context, syclex::source_language Lang,
                      const std::vector<std::byte> &Bytes, private_tag)
-      : MContext(Context), MDevices(Context.get_devices()),
+      : MContext(Context), MDevices(getSyclObjImpl(Context)
+                                        ->getDevices()
+                                        .to<std::vector<device_impl *>>()),
         MDeviceImages{device_image_plain{
             device_image_impl::create(Bytes, MContext, MDevices, Lang)}},
         MUniqueDeviceImages{MDeviceImages[0].getMain()},
@@ -571,11 +567,11 @@ public:
   // oneapi_ext_kernel_compiler
   // construct from built source files
   kernel_bundle_impl(
-      const context &Context, const std::vector<device> &Devs,
+      const context &Context, devices_range Devs,
       std::vector<device_image_plain> &&DevImgs,
       std::vector<std::shared_ptr<ManagedDeviceBinaries>> &&DevBinaries,
       bundle_state State, private_tag)
-      : MContext(Context), MDevices(Devs),
+      : MContext(Context), MDevices(Devs.to<std::vector<device_impl *>>()),
         MSharedDeviceBinaries(std::move(DevBinaries)),
         MUniqueDeviceImages(std::move(DevImgs)), MState(State) {
     common_ctor_checks();
@@ -587,10 +583,11 @@ public:
   }
 
   // SYCLBIN constructor
-  kernel_bundle_impl(const context &Context, const std::vector<device> &Devs,
+  kernel_bundle_impl(const context &Context, devices_range Devs,
                      const sycl::span<char> Bytes, bundle_state State,
                      private_tag)
-      : MContext(Context), MDevices(Devs), MState(State) {
+      : MContext(Context), MDevices(Devs.to<std::vector<device_impl *>>()),
+        MState(State) {
     common_ctor_checks();
 
     auto &SYCLBIN = MSYCLBINs.emplace_back(
@@ -622,7 +619,7 @@ public:
   }
 
   std::shared_ptr<kernel_bundle_impl> build_from_source(
-      const std::vector<device> Devices,
+      devices_range Devices,
       const std::vector<sycl::detail::string_view> &BuildOptions,
       std::string *LogPtr,
       const std::vector<sycl::detail::string_view> &RegisteredKernelNames) {
@@ -645,7 +642,7 @@ public:
   }
 
   std::shared_ptr<kernel_bundle_impl> compile_from_source(
-      const std::vector<device> Devices,
+      devices_range Devices,
       const std::vector<sycl::detail::string_view> &CompileOptions,
       std::string *LogPtr,
       const std::vector<sycl::detail::string_view> &RegisteredKernelNames) {
@@ -733,8 +730,9 @@ public:
   void *ext_oneapi_get_device_global_address(const std::string &Name,
                                              const device &Dev) const {
     DeviceGlobalMapEntry *Entry = getDeviceGlobalEntry(Name);
+    device_impl &DeviceImpl = *getSyclObjImpl(Dev);
 
-    if (std::find(MDevices.begin(), MDevices.end(), Dev) == MDevices.end()) {
+    if (!get_devices().contains(DeviceImpl)) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "kernel_bundle not built for device");
     }
@@ -745,9 +743,8 @@ public:
                             "'device_image_scope' property");
     }
 
-    device_impl &DeviceImpl = *getSyclObjImpl(Dev);
     bool SupportContextMemcpy = false;
-    DeviceImpl.getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+    DeviceImpl.getAdapter().call<UrApiKind::urDeviceGetInfo>(
         DeviceImpl.getHandleRef(),
         UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP,
         sizeof(SupportContextMemcpy), &SupportContextMemcpy, nullptr);
@@ -772,7 +769,7 @@ public:
 
   context get_context() const noexcept { return MContext; }
 
-  const std::vector<device> &get_devices() const noexcept { return MDevices; }
+  devices_range get_devices() const noexcept { return MDevices; }
 
   std::vector<kernel_id> get_kernel_ids() const {
     // Collect kernel ids from all device images, then remove duplicates
@@ -1111,7 +1108,7 @@ private:
   }
 
   context MContext;
-  std::vector<device> MDevices;
+  std::vector<device_impl *> MDevices;
 
   // For sycl_jit, building from source may have produced sycl binaries that
   // the kernel_bundles now manage.
@@ -1137,6 +1134,29 @@ private:
   // corresponding owner contexts.
   DeviceGlobalMap MDeviceGlobals{/*OwnerControlledCleanup=*/false};
 };
+
+inline bool is_compatible(const std::vector<kernel_id> &KernelIDs,
+                          device_impl &Dev) {
+  if (KernelIDs.empty())
+    return true;
+  // One kernel may be contained in several binary images depending on the
+  // number of targets. This kernel is compatible with the device if there is
+  // at least one image (containing this kernel) whose aspects are supported by
+  // the device and whose target matches the device.
+  for (const auto &KernelID : KernelIDs) {
+    std::set<const detail::RTDeviceBinaryImage *> BinImages =
+        detail::ProgramManager::getInstance().getRawDeviceImages({KernelID});
+
+    if (std::none_of(BinImages.begin(), BinImages.end(),
+                     [&](const detail::RTDeviceBinaryImage *Img) {
+                       return doesDevSupportDeviceRequirements(Dev, *Img) &&
+                              doesImageTargetMatchDevice(*Img, Dev);
+                     }))
+      return false;
+  }
+
+  return true;
+}
 
 } // namespace detail
 } // namespace _V1

@@ -15,9 +15,8 @@ kernel_SubgroupLocalInvocationId(size_t *DoNotOptimize,
   DoNotOptimize[0] = __spirv_BuiltInSubgroupLocalInvocationId();
   DoNotOptimize32[0] = __spirv_BuiltInSubgroupLocalInvocationId() + 3;
   // CHECK-LABEL: @{{.*}}kernel_SubgroupLocalInvocationId
-  // CHECK: [[ZEXT0:%.*]] = zext i32 0 to i64
-  // CHECK: store i64 [[ZEXT0]]
-  // CHECK: add i32 0, 3
+  // CHECK: store i64 0, ptr addrspace(4) %{{[a-zA-Z0-9.]+}}, align 8
+  // CHECK: store i32 3, ptr addrspace(4) %{{[a-zA-Z0-9.]+}}, align 4
 }
 
 SYCL_ESIMD_KERNEL SYCL_EXTERNAL void
@@ -25,9 +24,8 @@ kernel_SubgroupSize(size_t *DoNotOptimize, uint32_t *DoNotOptimize32) {
   DoNotOptimize[0] = __spirv_BuiltInSubgroupSize();
   DoNotOptimize32[0] = __spirv_BuiltInSubgroupSize() + 7;
   // CHECK-LABEL: @{{.*}}kernel_SubgroupSize
-  // CHECK: [[ZEXT0:%.*]] = zext i32 1 to i64
-  // CHECK: store i64 [[ZEXT0]]
-  // CHECK: add i32 1, 7
+  // CHECK: store i64 1, ptr addrspace(4) %{{[a-zA-Z0-9.]+}}, align 8
+  // CHECK: store i32 8, ptr addrspace(4) %{{[a-zA-Z0-9.]+}}, align 4
 }
 
 SYCL_ESIMD_KERNEL SYCL_EXTERNAL void
@@ -35,7 +33,6 @@ kernel_SubgroupMaxSize(size_t *DoNotOptimize, uint32_t *DoNotOptimize32) {
   DoNotOptimize[0] = __spirv_BuiltInSubgroupMaxSize();
   DoNotOptimize32[0] = __spirv_BuiltInSubgroupMaxSize() + 9;
   // CHECK-LABEL: @{{.*}}kernel_SubgroupMaxSize
-  // CHECK: [[ZEXT0:%.*]] = zext i32 1 to i64
-  // CHECK: store i64 [[ZEXT0]]
-  // CHECK: add i32 1, 9
+  // CHECK: store i64 1, ptr addrspace(4) %{{[a-zA-Z0-9.]+}}, align 8
+  // CHECK: store i32 10, ptr addrspace(4) %{{[a-zA-Z0-9.]+}}, align 4
 }

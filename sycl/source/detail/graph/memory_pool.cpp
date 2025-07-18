@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "memory_pool.hpp"
+#include "detail/virtual_mem.hpp"
 #include "graph_impl.hpp"
 
 #include <optional>
@@ -19,10 +20,8 @@ namespace oneapi {
 namespace experimental {
 namespace detail {
 
-void *
-graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
-                       const std::vector<std::shared_ptr<node_impl>> &DepNodes,
-                       memory_pool_impl *MemPool) {
+void *graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
+                             nodes_range DepNodes, memory_pool_impl *MemPool) {
   // We are potentially modifying contents of this memory pool and the owning
   // graph, so take a lock here.
   graph_impl::WriteLock Lock(MGraph.MMutex);
@@ -41,10 +40,12 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
   switch (AllocType) {
   case usm::alloc::device: {
 
-    context_impl &CtxImpl = *getSyclObjImpl(MContext);
-    auto &Adapter = CtxImpl.getAdapter();
+    const context_impl &CtxImpl = *getSyclObjImpl(MContext);
+    const adapter_impl &Adapter = CtxImpl.getAdapter();
+    const device_impl &DeviceImpl = *getSyclObjImpl(MDevice);
 
-    size_t Granularity = get_mem_granularity(MDevice, MContext);
+    const size_t Granularity = get_mem_granularity_for_allocation_size(
+        DeviceImpl, CtxImpl, granularity_mode::recommended, Size);
     uintptr_t StartPtr = 0;
     size_t AlignedSize = alignByteSize(Size, Granularity);
     // See if we can find an allocation to reuse
@@ -58,8 +59,8 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
     }
 
     // If no allocation could be reused, do a new virtual reservation
-    Adapter->call<sycl::errc::runtime,
-                  sycl::detail::UrApiKind::urVirtualMemReserve>(
+    Adapter.call<sycl::errc::runtime,
+                 sycl::detail::UrApiKind::urVirtualMemReserve>(
         CtxImpl.getHandleRef(), reinterpret_cast<void *>(StartPtr), AlignedSize,
         &Alloc);
 
@@ -81,9 +82,9 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
 }
 
 std::optional<graph_mem_pool::alloc_info>
-graph_mem_pool::tryReuseExistingAllocation(
-    size_t Size, usm::alloc AllocType, bool ReadOnly,
-    const std::vector<std::shared_ptr<node_impl>> &DepNodes) {
+graph_mem_pool::tryReuseExistingAllocation(size_t Size, usm::alloc AllocType,
+                                           bool ReadOnly,
+                                           nodes_range DepNodes) {
   // If we have no dependencies this is a no-op because allocations must connect
   // to a free node for reuse to be possible.
   if (DepNodes.empty()) {
@@ -116,12 +117,8 @@ graph_mem_pool::tryReuseExistingAllocation(
   // free nodes. We do this in a breadth-first approach because we want to find
   // the shortest path to a reusable allocation.
 
-  std::queue<node_impl *> NodesToCheck;
-
   // Add all the dependent nodes to the queue, they will be popped first
-  for (auto &Dep : DepNodes) {
-    NodesToCheck.push(&*Dep);
-  }
+  auto NodesToCheck = DepNodes.to<std::queue<node_impl *>>();
 
   // Called when traversing over nodes to check if the current node is a free
   // node for one of the available allocations. If it is we populate AllocInfo
@@ -175,10 +172,9 @@ graph_mem_pool::tryReuseExistingAllocation(
   return std::nullopt;
 }
 
-void graph_mem_pool::markAllocationAsAvailable(
-    void *Ptr, const std::shared_ptr<node_impl> &FreeNode) {
+void graph_mem_pool::markAllocationAsAvailable(void *Ptr, node_impl &FreeNode) {
   MFreeAllocations.push_back(Ptr);
-  MAllocations.at(Ptr).LastFreeNode = FreeNode.get();
+  MAllocations.at(Ptr).LastFreeNode = &FreeNode;
 }
 
 } // namespace detail
