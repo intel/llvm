@@ -30,47 +30,90 @@ struct stream_queue_t {
   static constexpr int DefaultNumComputeStreams = CS;
   static constexpr int DefaultNumTransferStreams = TS;
 
+  // Mutex to guard modifications to the ComputeStreams vector, and
+  // NumComputeStreams.
+  std::mutex ComputeStreamMutex;
   std::vector<native_type> ComputeStreams;
+  // Number of compute streams that have been created
+  unsigned int NumComputeStreams{0};
+
+  // Mutex to guard modifications to the TransferStreams vector, and
+  // NumTransferStreams.
+  std::mutex TransferStreamMutex;
   std::vector<native_type> TransferStreams;
+  // Number of transfer streams that have been created
+  unsigned int NumTransferStreams{0};
+
+  // The stream indices are incremented every time we return a stream. This
+  // means that they encode both the index of the next stream in the round
+  // robin, as well as which iteration of the round robin we're on. Dividing
+  // the stream index by the size of the associated stream vector will give the
+  // number of round robins we've done as quotient, and the index of the next
+  // stream to use as remainder.
+  std::atomic_uint32_t ComputeStreamIndex{0};
+  std::atomic_uint32_t TransferStreamIndex{0};
+
+  // The LastSync indices keep track of the index based on ComputeStreamIndex
+  // or TransferStreamIndex of the last stream that was synchronized during a
+  // syncStreams operation.
+  unsigned int LastSyncComputeStreams{0};
+  unsigned int LastSyncTransferStreams{0};
+
   // Stream used for recording EvQueue, which holds information about when the
   // command in question is enqueued on host, as opposed to started. It is
   // created only if profiling is enabled - either for queue or per event.
   native_type HostSubmitTimeStream{0};
+  // Flag to keep track of the creation og HostSubmitTimeStream, it is created
+  // either in the queue constructor when profiling is enabled or whenever it
+  // is requested for the first time through timestamp entry points.
   std::once_flag HostSubmitTimeStreamFlag;
-  // delay_compute_ keeps track of which streams have been recently reused and
+
+  // DelayCompute keeps track of which streams have been recently reused and
   // their next use should be delayed. If a stream has been recently reused it
   // will be skipped the next time it would be selected round-robin style. When
   // skipped, its delay flag is cleared.
   std::vector<bool> DelayCompute;
-  // keep track of which streams have applied barrier
-  std::vector<bool> ComputeAppliedBarrier;
-  std::vector<bool> TransferAppliedBarrier;
-  ur_context_handle_t_ *Context;
-  ur_device_handle_t_ *Device;
-  ur::RefCount RefCount;
-  std::atomic_uint32_t EventCount{0};
-  std::atomic_uint32_t ComputeStreamIndex{0};
-  std::atomic_uint32_t TransferStreamIndex{0};
-  unsigned int NumComputeStreams{0};
-  unsigned int NumTransferStreams{0};
-  unsigned int LastSyncComputeStreams{0};
-  unsigned int LastSyncTransferStreams{0};
-  unsigned int Flags;
-  ur_queue_flags_t URFlags;
-  int Priority;
+
+  // ComputeStreamSyncMutex is used to guard compute streams when they are
+  // being re-used.
+  //
   // When ComputeStreamSyncMutex and ComputeStreamMutex both need to be
   // locked at the same time, ComputeStreamSyncMutex should be locked first
-  // to avoid deadlocks
+  // to avoid deadlocks.
   std::mutex ComputeStreamSyncMutex;
-  std::mutex ComputeStreamMutex;
-  std::mutex TransferStreamMutex;
+
+  // Guards barrier insertion in urEnqueueEventsWaitWithBarrier.
   std::mutex BarrierMutex;
-  bool HasOwnership;
   BarrierEventT BarrierEvent = nullptr;
   BarrierEventT BarrierTmpEvent = nullptr;
 
-  stream_queue_t(bool IsOutOfOrder, ur_context_handle_t_ *Context,
-                 ur_device_handle_t_ *Device, unsigned int Flags,
+  // Keep track of which streams have applied barrier.
+  std::vector<bool> ComputeAppliedBarrier;
+  std::vector<bool> TransferAppliedBarrier;
+
+  ur_context_handle_t Context;
+  ur_device_handle_t Device;
+
+  // Reference count for the queue object.
+  ur::RefCount RefCount;
+
+  // Event count used to give events an ordering used in the event class
+  // forLatestEvents.
+  std::atomic_uint32_t EventCount{0};
+
+  // Queue flags in the native API format as well as UR format.
+  unsigned int Flags;
+  ur_queue_flags_t URFlags;
+
+  // Priority of this queue, matches underlying API priority.
+  int Priority;
+
+  // Tracks if the queue owns the underlying native streams, this may happen
+  // for queues created from interop.
+  bool HasOwnership;
+
+  stream_queue_t(bool IsOutOfOrder, ur_context_handle_t Context,
+                 ur_device_handle_t Device, unsigned int Flags,
                  ur_queue_flags_t URFlags, int Priority)
       : ComputeStreams(IsOutOfOrder ? DefaultNumComputeStreams : 1),
         TransferStreams(IsOutOfOrder ? DefaultNumTransferStreams : 0),
@@ -87,16 +130,16 @@ struct stream_queue_t {
     }
   }
 
-  // Create a queue from a native handle
-  stream_queue_t(native_type stream, ur_context_handle_t_ *Context,
-                 ur_device_handle_t_ *Device, unsigned int Flags,
+  // Create a queue from a native handle.
+  stream_queue_t(native_type stream, ur_context_handle_t Context,
+                 ur_device_handle_t Device, unsigned int Flags,
                  ur_queue_flags_t URFlags, bool BackendOwns)
-      : ComputeStreams(1, stream), TransferStreams(0),
+      : ComputeStreams(1, stream), NumComputeStreams{1}, TransferStreams(0),
         DelayCompute(this->ComputeStreams.size(), false),
         ComputeAppliedBarrier(this->ComputeStreams.size()),
         TransferAppliedBarrier(this->TransferStreams.size()), Context{Context},
-        Device{Device}, NumComputeStreams{1}, Flags(Flags), URFlags(URFlags),
-        Priority(0), HasOwnership{BackendOwns} {
+        Device{Device}, Flags(Flags), URFlags(URFlags), Priority(0),
+        HasOwnership{BackendOwns} {
     urContextRetain(Context);
 
     // Create timing stream if profiling is enabled.
@@ -107,6 +150,7 @@ struct stream_queue_t {
 
   ~stream_queue_t() { urContextRelease(Context); }
 
+  // Methods defined by the specific adapters.
   void computeStreamWaitForBarrierIfNeeded(native_type Strean,
                                            uint32_t StreamI);
   void transferStreamWaitForBarrierIfNeeded(native_type Stream,
@@ -205,9 +249,6 @@ struct stream_queue_t {
     transferStreamWaitForBarrierIfNeeded(Result, StreamI);
     return Result;
   }
-
-  native_type get() { return getNextComputeStream(); };
-  ur_device_handle_t getDevice() const noexcept { return Device; };
 
   native_type getHostSubmitTimeStream() { return HostSubmitTimeStream; }
 
@@ -345,7 +386,8 @@ struct stream_queue_t {
     }
   }
 
-  ur_context_handle_t_ *getContext() const { return Context; };
+  ur_device_handle_t getDevice() const noexcept { return Device; };
+  ur_context_handle_t getContext() const noexcept { return Context; };
 
   uint32_t getNextEventId() noexcept { return ++EventCount; }
 

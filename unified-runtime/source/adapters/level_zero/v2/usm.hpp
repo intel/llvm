@@ -55,6 +55,9 @@ private:
 struct ur_usm_pool_handle_t_ : ur_object {
   ur_usm_pool_handle_t_(ur_context_handle_t hContext,
                         ur_usm_pool_desc_t *pPoolDes);
+  ur_usm_pool_handle_t_(ur_context_handle_t hContext,
+                        ur_device_handle_t hDevice,
+                        ur_usm_pool_desc_t *pPoolDes);
 
   ur_context_handle_t getContextHandle() const;
 

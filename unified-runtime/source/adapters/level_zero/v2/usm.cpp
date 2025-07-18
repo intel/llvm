@@ -188,6 +188,68 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
   }
 }
 
+ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
+                                             ur_device_handle_t hDevice,
+                                             ur_usm_pool_desc_t *pPoolDesc)
+    : hContext(hContext) {
+  // TODO: handle UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK from pPoolDesc
+  auto disjointPoolConfigs = initializeDisjointPoolConfig();
+
+  if (disjointPoolConfigs.has_value()) {
+    if (auto limits = find_stype_node<ur_usm_pool_limits_desc_t>(pPoolDesc)) {
+      for (auto &config : disjointPoolConfigs.value().Configs) {
+        config.MaxPoolableSize = limits->maxPoolableSize;
+        config.SlabMinSize = limits->minDriverAllocSize;
+      }
+    }
+  } else {
+    // If pooling is disabled, do nothing.
+    UR_LOG(INFO, "USM pooling is disabled. Skiping pool limits adjustment.");
+  }
+
+  // Create pool descriptor for single device provided
+  std::vector<usm::pool_descriptor> descriptors;
+  {
+    auto &desc = descriptors.emplace_back();
+    desc.poolHandle = this;
+    desc.hContext = hContext;
+    desc.hDevice = hDevice;
+    desc.type = UR_USM_TYPE_DEVICE;
+  }
+  {
+    auto &desc = descriptors.emplace_back();
+    desc.poolHandle = this;
+    desc.hContext = hContext;
+    desc.hDevice = hDevice;
+    desc.type = UR_USM_TYPE_SHARED;
+    desc.deviceReadOnly = false;
+  }
+  {
+    auto &desc = descriptors.emplace_back();
+    desc.poolHandle = this;
+    desc.hContext = hContext;
+    desc.hDevice = hDevice;
+    desc.type = UR_USM_TYPE_SHARED;
+    desc.deviceReadOnly = true;
+  }
+
+  for (auto &desc : descriptors) {
+    std::unique_ptr<UsmPool> usmPool;
+    if (disjointPoolConfigs.has_value()) {
+      auto &poolConfig =
+          disjointPoolConfigs.value().Configs[descToDisjoinPoolMemType(desc)];
+      auto pool = usm::makeDisjointPool(makeProvider(desc), poolConfig);
+      usmPool = std::make_unique<UsmPool>(this, std::move(pool));
+    } else {
+      auto pool = usm::makeProxyPool(makeProvider(desc));
+      usmPool = std::make_unique<UsmPool>(this, std::move(pool));
+    }
+    UMF_CALL_THROWS(
+        umfPoolSetTag(usmPool->umfPool.get(), usmPool.get(), nullptr));
+    poolManager.addPool(desc, std::move(usmPool));
+  }
+}
+
 ur_context_handle_t ur_usm_pool_handle_t_::getContextHandle() const {
   return hContext;
 }
@@ -358,27 +420,27 @@ size_t ur_usm_pool_handle_t_::getTotalReservedSize() {
 }
 
 size_t ur_usm_pool_handle_t_::getPeakReservedSize() {
-  size_t totalAllocatedSize = 0;
+  size_t maxPeakSize = 0;
   umf_result_t umfRet = UMF_RESULT_SUCCESS;
   poolManager.forEachPool([&](UsmPool *p) {
     umf_memory_provider_handle_t hProvider = nullptr;
-    size_t allocatedSize = 0;
+    size_t peakSize = 0;
     umfRet = umfPoolGetMemoryProvider(p->umfPool.get(), &hProvider);
     if (umfRet != UMF_RESULT_SUCCESS) {
       return false;
     }
 
-    umfRet = umfCtlGet("umf.provider.by_handle.{}.stats.peak_memory",
-                       &allocatedSize, sizeof(allocatedSize), hProvider);
+    umfRet = umfCtlGet("umf.provider.by_handle.{}.stats.peak_memory", &peakSize,
+                       sizeof(peakSize), hProvider);
     if (umfRet != UMF_RESULT_SUCCESS) {
       return false;
     }
 
-    totalAllocatedSize += allocatedSize;
+    maxPeakSize = std::max(maxPeakSize, peakSize);
     return true;
   });
 
-  return umfRet == UMF_RESULT_SUCCESS ? totalAllocatedSize : 0;
+  return umfRet == UMF_RESULT_SUCCESS ? maxPeakSize : 0;
 }
 
 size_t ur_usm_pool_handle_t_::getTotalUsedSize() {
@@ -460,6 +522,32 @@ ur_result_t urUSMPoolGetInfo(
   return exceptionToResult(std::current_exception());
 }
 
+ur_result_t urUSMPoolCreateExp(ur_context_handle_t hContext,
+                               ur_device_handle_t hDevice,
+                               ur_usm_pool_desc_t *pPoolDesc,
+                               ur_usm_pool_handle_t *pPool) try {
+  *pPool = new ur_usm_pool_handle_t_(hContext, hDevice, pPoolDesc);
+  hContext->addUsmPool(*pPool);
+  return UR_RESULT_SUCCESS;
+} catch (umf_result_t e) {
+  return umf::umf2urResult(e);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urUSMPoolDestroyExp(ur_context_handle_t, ur_device_handle_t,
+                                ur_usm_pool_handle_t hPool) try {
+  if (hPool->RefCount.release()) {
+    hPool->getContextHandle()->removeUsmPool(hPool);
+    delete hPool;
+  }
+  return UR_RESULT_SUCCESS;
+} catch (umf_result_t e) {
+  return umf::umf2urResult(e);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
 ur_result_t urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
                                 ur_usm_pool_info_t propName, void *pPropValue,
                                 size_t *pPropSizeRet) {
@@ -492,6 +580,28 @@ ur_result_t urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
 
   if (pPropSizeRet) {
     *(size_t *)pPropSizeRet = sizeof(size_t);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urUSMPoolSetInfoExp(ur_usm_pool_handle_t /*hPool*/,
+                                ur_usm_pool_info_t propName,
+                                void * /*pPropValue*/, size_t propSize) {
+  if (propSize < sizeof(size_t)) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+
+  switch (propName) {
+  // TODO: Support for pool release threshold and maximum size hints.
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+  case UR_USM_POOL_INFO_MAXIMUM_SIZE_EXP:
+  // TODO: Allow user to overwrite pool peak statistics.
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    break;
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
 
   return UR_RESULT_SUCCESS;
