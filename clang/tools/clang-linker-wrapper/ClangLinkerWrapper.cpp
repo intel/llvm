@@ -1244,9 +1244,11 @@ Error copyFileToFinalExecutable(StringRef File, const ArgList &Args) {
 Error mergeSYCLBIN(ArrayRef<StringRef> Files, const ArgList &Args) {
   // Fast path for the general case where there's only one file. In this case we
   // do not need to parse it and can instead simply copy it.
-  if (Files.size() == 1)
+  if (Files.size() == 1) {
     if (Error Err = copyFileToFinalExecutable(Files[0], Args))
       reportError(std::move(Err));
+    return Error::success();
+  }
   // TODO: Merge SYCLBIN files here and write to ExecutableName output.
   // Use the first file as the base and modify.
   assert(Files.size() == 1);
@@ -2801,23 +2803,18 @@ int main(int Argc, char **Argv) {
     if (OutputSYCLBIN) {
       if (Error Err = sycl::mergeSYCLBIN(*FilesOrErr, Args))
         reportError(std::move(Err));
+    } else if (Args.hasArg(OPT_sycl_device_link)) {
+      // Skip host linker if --sycl-device-link option is set.
+      // Just copy the output of device linking and wrapping action.
+      if (FilesOrErr->size() != 1)
+        reportError(
+            createStringError("Expect single output from the device linker."));
+      if (Error Err = sycl::copyFileToFinalExecutable((*FilesOrErr)[0], Args))
+        reportError(std::move(Err));
     } else {
-      if (Args.hasArg(OPT_sycl_device_link)) {
-        // Skip host linker if --sycl-device-link option is set.
-        // Just copy the output of device linking and wrapping action.
-        if (FilesOrErr->size() == 1) {
-          if (Error Err =
-                  sycl::copyFileToFinalExecutable((*FilesOrErr)[0], Args))
-            reportError(std::move(Err));
-        } else {
-          reportError(createStringError(
-              "Expect single output from the device linker."));
-        }
-      } else {
-        // Run the host linking job with the rendered arguments.
-        if (Error Err = runLinker(*FilesOrErr, Args))
-          reportError(std::move(Err));
-      }
+      // Run the host linking job with the rendered arguments.
+      if (Error Err = runLinker(*FilesOrErr, Args))
+        reportError(std::move(Err));
     }
   }
 
