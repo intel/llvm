@@ -147,6 +147,9 @@
 #include "llvm/Transforms/Vectorize/SLPVectorizer.h"
 #include "llvm/Transforms/Vectorize/VectorCombine.h"
 
+// TODO: move it elsewhere
+#include "llvm/SYCLLowerIR/SYCLOptimizeBarriers.h"
+
 using namespace llvm;
 
 static cl::opt<InliningAdvisorMode> UseInlineAdvisor(

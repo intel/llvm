@@ -52,6 +52,7 @@
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
 #include "llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h"
+#include "llvm/SYCLLowerIR/SYCLOptimizeBarriers.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 #include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
@@ -1093,6 +1094,16 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
              ThinOrFullLTOPhase) {
             MPM.addPass(createModuleToFunctionPassAdaptor(
                 InferAddressSpacesPass(clang::targets::SPIR_GENERIC_AS)));
+          });
+    }
+
+    // Add SYCLOptimizeBarriers pass for SYCL device code.
+    if (LangOpts.SYCLIsDevice) {
+      PB.registerOptimizerLastEPCallback(
+          [](ModulePassManager &MPM, OptimizationLevel Level,
+             ThinOrFullLTOPhase) {
+            MPM.addPass(
+                createModuleToFunctionPassAdaptor(SYCLOptimizeBarriersPass()));
           });
     }
 
