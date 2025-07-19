@@ -284,14 +284,35 @@ using BarriersMap = DenseMap<BasicBlock *, SmallVector<BarrierDesc, 2>>;
 
 // Map SPIR-V Barrier Scope to the RegionMemScope that a barrier of that kind
 // actually fences.
-static RegionMemScope getBarrierFencedScope(const BarrierDesc &BD) {
+template <RegionMemScope SearchFor = RegionMemScope::Local>
+static inline RegionMemScope getBarrierFencedScopeImpl(const BarrierDesc &BD) {
   uint32_t Sem = canonicalizeSemantic(BD.Semantic);
-  if (Sem & static_cast<uint32_t>(MemorySemantics::CrossWorkgroupMemory))
-    return RegionMemScope::Global;
-  if (Sem & (static_cast<uint32_t>(MemorySemantics::WorkgroupMemory) |
-             static_cast<uint32_t>(MemorySemantics::SubgroupMemory)))
-    return RegionMemScope::Local;
+  constexpr uint32_t LocalMask  =
+      static_cast<uint32_t>(MemorySemantics::WorkgroupMemory) |
+      static_cast<uint32_t>(MemorySemantics::SubgroupMemory);
+  constexpr uint32_t GlobalMask =
+      static_cast<uint32_t>(MemorySemantics::CrossWorkgroupMemory);
+
+  if constexpr (SearchFor == RegionMemScope::Local) {
+    if (Sem & LocalMask)
+      return RegionMemScope::Local;
+    if (Sem & GlobalMask)
+      return RegionMemScope::Global;
+  } else {
+    if (Sem & GlobalMask)
+      return RegionMemScope::Global;
+    if (Sem & LocalMask)
+      return RegionMemScope::Local;
+  }
+
   return RegionMemScope::None;
+}
+
+static inline RegionMemScope getBarrierFencedScope(const BarrierDesc &BD) {
+  return getBarrierFencedScopeImpl<RegionMemScope::Local>(BD);
+}
+static inline RegionMemScope getBarrierMaxFencedScope(const BarrierDesc &BD) {
+  return getBarrierFencedScopeImpl<RegionMemScope::Global>(BD);
 }
 
 // Classify a single instruction's memory scope. Used to set/update memory
@@ -307,8 +328,16 @@ static RegionMemScope classifyMemScope(Instruction *I) {
         // SPIR-V atomics all have the same signature:
         // arg0 = ptr, arg1 = SPIR-V Scope, arg2 = Semantics
         auto *ScopeC = dyn_cast<ConstantInt>(CI->getArgOperand(1));
-        if (!ScopeC)
+        auto *SemC = dyn_cast<ConstantInt>(CI->getArgOperand(2));
+        if (!ScopeC || !SemC)
           return RegionMemScope::Unknown;
+          // If the semantics mention CrossWorkgroupMemory, treat as global.
+        uint32_t SemVal = canonicalizeSemantic(SemC->getZExtValue());
+        if (SemVal & (uint32_t)MemorySemantics::CrossWorkgroupMemory)
+          return RegionMemScope::Global;
+        if (SemVal & ((uint32_t)MemorySemantics::WorkgroupMemory |
+            (uint32_t)MemorySemantics::SubgroupMemory))
+          return RegionMemScope::Local;
         switch (ScopeC->getZExtValue()) {
         case static_cast<uint32_t>(Scope::CrossDevice):
         case static_cast<uint32_t>(Scope::Device):
@@ -595,7 +624,7 @@ static bool noFencedAccessesCFG(CallInst *A, CallInst *B,
                           << ") returned " << false << "\n");
         return false;
       }
-      // do not enqueue successors (there are none).
+      // Do not enqueue successors (there are none).
       continue;
     }
 
@@ -647,7 +676,7 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
             if (semanticsSuperset(A.Semantic, B.Semantic) &&
                 !semanticsSuperset(B.Semantic, A.Semantic))
               return false;
-            // then fall back to exec/mem‐scope width as before:
+            // Then fall back to exec/mem‐scope width as before:
             auto CmpExec = compareScopesWithWeights(B.ExecScope, A.ExecScope);
             if (CmpExec != CompareRes::EQUAL)
               return CmpExec == CompareRes::BIGGER;
@@ -692,9 +721,10 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
       // If the execution and memory scopes of the barriers are equal, we can
       // merge them if there are no accesses that only one of the barriers
       // would need to fence.
+      RegionMemScope BetweenScope = std::min(FenceLast, FenceCur);
       if (CmpExec == CompareRes::EQUAL && CmpMem == CompareRes::EQUAL) {
         if (semanticsSuperset(LastSem, CurSem) &&
-            noFencedMemAccessesBetween(Last.CI, Cur.CI, FenceLast, BBMemInfo)) {
+            noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope, BBMemInfo)) {
           if (MergedSem != LastSem) {
             Last.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
             Last.Semantic = MergedSem;
@@ -703,7 +733,7 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
           break;
         }
         if (semanticsSuperset(CurSem, LastSem) &&
-            noFencedMemAccessesBetween(Last.CI, Cur.CI, FenceCur, BBMemInfo)) {
+            noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope, BBMemInfo)) {
           if (MergedSem != CurSem) {
             Cur.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
             Cur.Semantic = MergedSem;
@@ -712,7 +742,7 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
           Survivors.pop_back();
           continue;
         }
-        if (noFencedMemAccessesBetween(Last.CI, Cur.CI, FenceLast, BBMemInfo)) {
+        if (noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope, BBMemInfo)) {
           Last.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
           Last.Semantic = MergedSem;
           Changed |= eraseBarrierWithITT(Cur);
@@ -724,7 +754,7 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
       // accesses that only the other barrier would need to fence.
       if ((CmpExec == CompareRes::BIGGER || CmpMem == CompareRes::BIGGER) &&
           semanticsSuperset(LastSem, CurSem) &&
-          noFencedMemAccessesBetween(Last.CI, Cur.CI, FenceCur, BBMemInfo)) {
+          noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope, BBMemInfo)) {
         if (MergedSem != LastSem) {
           Last.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
           Last.Semantic = MergedSem;
@@ -734,7 +764,7 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
       }
       if ((CmpExec == CompareRes::SMALLER || CmpMem == CompareRes::SMALLER) &&
           semanticsSuperset(CurSem, LastSem) &&
-          noFencedMemAccessesBetween(Last.CI, Cur.CI, FenceLast, BBMemInfo)) {
+          noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope, BBMemInfo)) {
         if (MergedSem != CurSem) {
           Cur.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
           Cur.Semantic = MergedSem;
@@ -745,7 +775,7 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
       }
       break;
     }
-    if (Cur.CI) // still alive?
+    if (Cur.CI) // Still alive?
       Survivors.emplace_back(Cur);
   }
 
@@ -790,7 +820,7 @@ static bool optimizeBarriersCFG(SmallVectorImpl<BarrierDesc *> &Barriers,
       bool SemCover = (A->Semantic & B->Semantic) == B->Semantic;
       bool ADominatesB = DT.dominates(A->CI, B->CI);
       if (ScopesCover && SemCover) {
-        RegionMemScope Fence = getBarrierFencedScope(*A);
+        RegionMemScope Fence = getBarrierMaxFencedScope(*A);
         // FIXME: this check is way too conservative.
         if (Fence != RegionMemScope::Unknown && ADominatesB &&
             PDT.dominates(B->CI, A->CI) &&
@@ -868,7 +898,7 @@ static bool optimizeBarriersCFG(SmallVectorImpl<BarrierDesc *> &Barriers,
 }
 
 // True if BD is the first real instruction of the function.
-static bool isAtKernelEntry(BarrierDesc &BD) {
+static bool isAtKernelEntry(const BarrierDesc &BD) {
   BasicBlock &Entry = BD.CI->getFunction()->getEntryBlock();
   if (BD.CI->getParent() != &Entry)
     return false;
@@ -884,7 +914,7 @@ static bool isAtKernelEntry(BarrierDesc &BD) {
 }
 
 // True if BD is immediately before a return/unreachable and nothing follows.
-static bool isAtKernelExit(BarrierDesc &BD) {
+static bool isAtKernelExit(const BarrierDesc &BD) {
   BasicBlock *BB = BD.CI->getParent();
   Instruction *Term = BB->getTerminator();
   if (!isa<ReturnInst>(Term) && !isa<UnreachableInst>(Term))
