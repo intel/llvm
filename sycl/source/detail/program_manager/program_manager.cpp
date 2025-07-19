@@ -79,7 +79,6 @@ createBinaryProgram(context_impl &Context, devices_range Devices,
   adapter_impl &Adapter = Context.getAdapter();
   ur_program_handle_t Program;
   auto DeviceHandles = Devices.to<std::vector<ur_device_handle_t>>();
-  ur_result_t BinaryStatus = UR_RESULT_SUCCESS;
   ur_program_properties_t Properties = {};
   Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
   Properties.pNext = nullptr;
@@ -89,12 +88,6 @@ createBinaryProgram(context_impl &Context, devices_range Devices,
   Adapter.call<UrApiKind::urProgramCreateWithBinary>(
       Context.getHandleRef(), DeviceHandles.size(), DeviceHandles.data(),
       Lengths, Binaries, &Properties, &Program);
-  if (BinaryStatus != UR_RESULT_SUCCESS) {
-    throw detail::set_ur_error(
-        exception(make_error_code(errc::runtime),
-                  "Creating program with binary failed."),
-        BinaryStatus);
-  }
 
   return Program;
 }
