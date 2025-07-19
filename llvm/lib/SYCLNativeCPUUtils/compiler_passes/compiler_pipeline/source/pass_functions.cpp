@@ -125,22 +125,6 @@ bool funcContainsDebugMetadata(const llvm::Function &func,
         vmap.MD()[loc].reset(loc);
         foundDI = true;
       }
-
-      if (auto DebugIntrinsic = llvm::dyn_cast<llvm::DbgInfoIntrinsic>(&Inst)) {
-        llvm::DILocalVariable *DIVar = nullptr;
-        if (auto DbgVarIntrinsic =
-                llvm::dyn_cast<llvm::DbgVariableIntrinsic>(DebugIntrinsic)) {
-          DIVar = DbgVarIntrinsic->getVariable();
-        } else {
-          continue;  // TODO CA-1115 - we don't handle DbgLabelInsts yet
-        }
-        if (DIVar) {
-          vmap.MD()[DIVar].reset(DIVar);
-          auto varLoc = DIVar->getScope();
-          vmap.MD()[varLoc].reset(varLoc);
-          foundDI = true;
-        }
-      }
     }
   }
 

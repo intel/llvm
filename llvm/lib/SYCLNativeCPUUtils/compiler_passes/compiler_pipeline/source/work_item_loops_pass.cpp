@@ -234,10 +234,6 @@ struct ScheduleGenerator {
 
       DummyInst->eraseFromParent();
     };
-    for (auto debug_pair : barrier.getDebugIntrinsics()) {
-      RecreateDebugIntrinsic(debug_pair.first->getVariable(),
-                             debug_pair.second);
-    }
     for (auto debug_pair : barrier.getDebugDbgVariableRecords()) {
       RecreateDebugIntrinsic(debug_pair.first->getVariable(),
                              debug_pair.second);

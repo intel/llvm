@@ -957,12 +957,6 @@ void compiler::utils::Barrier::MakeLiveVariableMemType() {
 
     // Check if the alloca has a debug info source variable attached. If
     // so record this and the matching byte offset into the struct.
-    auto DbgIntrinsics = findDbgDeclares(member.value);
-    for (auto DII : DbgIntrinsics) {
-      if (auto dbgDeclare = dyn_cast<DbgDeclareInst>(DII)) {
-        debug_intrinsics_.push_back(std::make_pair(dbgDeclare, offset));
-      }
-    }
     const auto DVRDeclares = findDVRDeclares(member.value);
     for (auto *const DVRDeclare : DVRDeclares) {
       debug_variable_records_.push_back(std::make_pair(DVRDeclare, offset));
@@ -1425,12 +1419,6 @@ BasicBlock *compiler::utils::Barrier::CloneBasicBlock(
 
   // Loop over all instructions, and copy them over.
   for (Instruction &i : *bb) {
-    // Don't clone over debug intrinsics since we're going to create them
-    // manually later.
-    if (isa<DbgDeclareInst>(&i)) {
-      continue;
-    }
-
     Instruction *new_inst = i.clone();
     if (i.hasName()) new_inst->setName(i.getName() + name_suffix);
     new_inst->insertInto(new_bb, new_bb->end());

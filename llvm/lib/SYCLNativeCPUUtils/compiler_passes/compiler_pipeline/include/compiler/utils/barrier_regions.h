@@ -38,7 +38,6 @@
 namespace llvm {
 class BasicBlock;
 class CallInst;
-class DbgDeclareInst;
 class FenceInst;
 class Function;
 class Instruction;
@@ -152,15 +151,6 @@ class Barrier {
   /// @brief replaces a subkernel with a given function
   void replaceSubkernel(llvm::Function *from, llvm::Function *to);
 
-  /// @brief Type containing list of debug intrinsics and the source variable
-  /// byte offset in the live variables struct.
-  // TODO CA-1115 llvm.dbg.declare is being deprecated
-  using debug_intrinsics_t =
-      llvm::SmallVector<std::pair<llvm::DbgDeclareInst *, unsigned>, 4>;
-  const debug_intrinsics_t &getDebugIntrinsics() const {
-    return debug_intrinsics_;
-  }
-
   using debug_variable_records_t =
       llvm::SmallVector<std::pair<llvm::DbgVariableRecord *, unsigned>, 4>;
   const debug_variable_records_t &getDebugDbgVariableRecords() const {
@@ -269,8 +259,6 @@ class Barrier {
   barrier_block_block_set_t barrier_successor_set_;
   /// @brief Map between barrier ids and call instructions invoking stubs
   debug_stub_map_t barrier_stub_call_map_;
-  /// @brief List of debug intrinsics and byte offsets into live variable struct
-  debug_intrinsics_t debug_intrinsics_;
   /// @brief List of debug DbgVariableRecords and byte offsets into live
   /// variable struct
   debug_variable_records_t debug_variable_records_;

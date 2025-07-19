@@ -685,7 +685,21 @@ void Scalarizer::scalarizeDI(Instruction *Original, const SimdPacket *Packet,
 
   multi_llvm::DIBuilder DIB(*Original->getModule(), false);
 
-  auto CreateAndInsertDIExpr = [&](auto InsertDIExpr) {
+  for (DbgVariableRecord *const DVR : LAM->getAllDbgVariableRecordUsers()) {
+    DILocalVariable *DILocal = nullptr;
+    DebugLoc DILoc;
+
+    switch (DVR->getType()) {
+      case DbgVariableRecord::LocationType::Value:
+      case DbgVariableRecord::LocationType::Declare:
+        DILocal = DVR->getVariable();
+        DILoc = DVR->getDebugLoc();
+        break;
+      default:
+        continue;
+    }
+
+    // Create new DbgVariableRecord across enabled SIMD lanes
     const auto bitSize = Original->getType()->getScalarSizeInBits();
     for (unsigned lane = 0; lane < Width; ++lane) {
       Value *LaneVal = Packet->at(lane);
@@ -703,61 +717,17 @@ void Scalarizer::scalarizeDI(Instruction *Original, const SimdPacket *Packet,
             DIExpression::createFragmentExpression(DIB.createExpression(),
                                                    lane * bitSize, bitSize);
         if (DIExpr) {
-          InsertDIExpr(LaneVal, *DIExpr);
+          DIB.insertDbgValueIntrinsic(LaneVal, DILocal, *DIExpr, DILoc,
+                                      Original->getIterator());
           VectorElements.insert(LaneVal);
         }
       }
     }
-  };
-
-  for (DbgVariableRecord *const DVR : LAM->getAllDbgVariableRecordUsers()) {
-    DILocalVariable *DILocal = nullptr;
-    DebugLoc DILoc;
-
-    switch (DVR->getType()) {
-      case DbgVariableRecord::LocationType::Value:
-      case DbgVariableRecord::LocationType::Declare:
-        DILocal = DVR->getVariable();
-        DILoc = DVR->getDebugLoc();
-        break;
-      default:
-        continue;
-    }
-
-    // Create new DbgVariableRecord across enabled SIMD lanes
-    CreateAndInsertDIExpr([&](Value *LaneVal, DIExpression *DIExpr) {
-      DIB.insertDbgValueIntrinsic(LaneVal, DILocal, DIExpr, DILoc,
-                                  Original->getIterator());
-    });
   }
 
   auto *const MDV = MetadataAsValue::getIfExists(Original->getContext(), LAM);
   if (!MDV) {
     return;
-  }
-
-  for (User *U : MDV->users()) {
-    DILocalVariable *DILocal = nullptr;
-    DebugLoc DILoc;
-
-    // These methods aren't virtual in DbgInfoIntrinsic for some reason
-    // TODO CA-1115 - Support llvm.dbg.addr() intrinsic
-    if (DbgValueInst *const DVI = dyn_cast<DbgValueInst>(U)) {
-      DILocal = DVI->getVariable();
-      DILoc = DVI->getDebugLoc();
-    } else if (DbgDeclareInst *const DDI = dyn_cast<DbgDeclareInst>(U)) {
-      DILocal = DDI->getVariable();
-      DILoc = DDI->getDebugLoc();
-    } else {
-      continue;
-    }
-
-    // Create new llvm.dbg.value() intrinsic across enabled SIMD lanes
-    CreateAndInsertDIExpr(
-        [&](Value *const LaneVal, DIExpression *const DIExpr) {
-          DIB.insertDbgValueIntrinsic(LaneVal, DILocal, DIExpr, DILoc,
-                                      Original->getIterator());
-        });
   }
 }
 
