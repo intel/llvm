@@ -940,23 +940,22 @@ Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
     IRBuilder<> Bld(Ctx);
     Bld.SetInsertPoint(&Before);
 
-    auto CreateCallee = [&](StringRef Name) {
-      FunctionCallee Callee = M.getOrInsertFunction(Name, RetTy);
+    auto CreateCallee = [&](StringRef Name, int Dim) {
+      auto *ArgTy = Type::getInt32Ty(Ctx);
+      FunctionCallee Callee = M.getOrInsertFunction(Name, RetTy, ArgTy);
       assert(Callee.getCallee() && "spirv intrinsic creation failed");
-      return Bld.CreateCall(Callee, {});
+      return Bld.CreateCall(Callee, {ConstantInt::get(ArgTy, Dim)});
     };
 
-    Value *LocalInvocationIdX =
-        CreateCallee("_Z27__spirv_LocalInvocationId_xv");
-    Value *LocalInvocationIdY =
-        CreateCallee("_Z27__spirv_LocalInvocationId_yv");
-    Value *LocalInvocationIdZ =
-        CreateCallee("_Z27__spirv_LocalInvocationId_zv");
+    StringRef LocalInvocationIdName = "_Z32__spirv_BuiltInLocalInvocationIdi";
+    Value *LocalInvocationIdX = CreateCallee(LocalInvocationIdName, 0);
+    Value *LocalInvocationIdY = CreateCallee(LocalInvocationIdName, 1);
+    Value *LocalInvocationIdZ = CreateCallee(LocalInvocationIdName, 2);
 
     // 1: returns
-    //   __spirv_LocalInvocationId_x() |
-    //   __spirv_LocalInvocationId_y() |
-    //   __spirv_LocalInvocationId_z()
+    //   __spirv_BuiltInLocalInvocationId() |
+    //   __spirv_BuiltInLocalInvocationId() |
+    //   __spirv_BuiltInLocalInvocationId()
     //
     return Bld.CreateOr(LocalInvocationIdX,
                         Bld.CreateOr(LocalInvocationIdY, LocalInvocationIdZ));

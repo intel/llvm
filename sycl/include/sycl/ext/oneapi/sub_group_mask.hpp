@@ -312,7 +312,7 @@ struct sub_group_mask {
 private:
   static size_t GetMaxLocalRangeSize() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupMaxSize();
+    return __spirv_BuiltInSubgroupMaxSize();
 #else
     return max_bits;
 #endif

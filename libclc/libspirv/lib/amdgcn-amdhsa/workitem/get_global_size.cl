@@ -24,17 +24,16 @@ CONST_AS uchar *
 __clc_amdgcn_dispatch_ptr(void) __asm("llvm.amdgcn.dispatch.ptr");
 #endif
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalSize_x() {
-    CONST_AS uint * ptr = (CONST_AS uint *) __dispatch_ptr();
+_CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInGlobalSize(int dim) {
+  CONST_AS uint *ptr = (CONST_AS uint *)__dispatch_ptr();
+  switch (dim) {
+  case 0:
     return ptr[3];
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalSize_y() {
-    CONST_AS uint * ptr = (CONST_AS uint *) __dispatch_ptr();
+  case 1:
     return ptr[4];
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalSize_z() {
-    CONST_AS uint * ptr = (CONST_AS uint *) __dispatch_ptr();
+  case 2:
     return ptr[5];
+  default:
+    return 1;
+  }
 }

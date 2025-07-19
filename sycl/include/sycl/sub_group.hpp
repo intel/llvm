@@ -146,7 +146,7 @@ struct sub_group {
 
   id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupLocalInvocationId();
+    return __spirv_BuiltInSubgroupLocalInvocationId();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");
@@ -164,7 +164,7 @@ struct sub_group {
 
   range_type get_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupSize();
+    return __spirv_BuiltInSubgroupSize();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");
@@ -173,7 +173,7 @@ struct sub_group {
 
   range_type get_max_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupMaxSize();
+    return __spirv_BuiltInSubgroupMaxSize();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");
@@ -182,7 +182,7 @@ struct sub_group {
 
   id_type get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupId();
+    return __spirv_BuiltInSubgroupId();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");
@@ -200,7 +200,7 @@ struct sub_group {
 
   range_type get_group_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_NumSubgroups();
+    return __spirv_BuiltInNumSubgroups();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");

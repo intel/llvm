@@ -10,14 +10,6 @@
 
 ulong __mux_get_global_id(int);
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalInvocationId_x() {
-  return __mux_get_global_id(0);
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalInvocationId_y() {
-  return __mux_get_global_id(1);
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalInvocationId_z() {
-  return __mux_get_global_id(2);
+_CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInGlobalInvocationId(int dim) {
+  return __mux_get_global_id(dim);
 }
