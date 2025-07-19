@@ -114,7 +114,7 @@ int main() {
 }
 
 // Check Kernel_Accessor parameters
-// CHECK: FunctionDecl {{.*}}Kernel_Accessor{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
+// CHECK: FunctionDecl {{.*}}Kernel_Accessor{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ReadWriteAccessor '__global int *'
 // CHECK-NEXT: SYCLAccessorPtrAttr
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ReadWriteAccessor 'sycl::range<1>'
@@ -131,7 +131,7 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}}__init
 
 // Check Kernel_Array parameters
-// CHECK: FunctionDecl {{.*}}Kernel_Array{{.*}} 'void (__wrapper_class)'
+// CHECK: FunctionDecl {{.*}}Kernel_Array{{.*}} 'void (__wrapper_class) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_Array '__wrapper_class'
 // Check Kernel_Array inits
 // CHECK-NEXT: CompoundStmt
@@ -150,7 +150,7 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_Array' '__wrapper_class'
 
 // Check Kernel_Array_Ptrs parameters
-// CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs{{.*}} 'void (__wrapper_class)'
+// CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs{{.*}} 'void (__wrapper_class) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPointers '__wrapper_class'
 // Check Kernel_Array_Ptrs inits
 // CHECK-NEXT: CompoundStmt
@@ -180,7 +180,7 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} 1
 
 // Check Kernel_StructAccArray parameters
-// CHECK: FunctionDecl {{.*}}Kernel_StructAccArray{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
+// CHECK: FunctionDecl {{.*}}Kernel_StructAccArray{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
 // CHECK-NEXT: SYCLAccessorPtrAttr
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::range<1>'
@@ -207,7 +207,7 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}}__init
 
 // Check Kernel_TemplatedStructArray parameters
-// CHECK: FunctionDecl {{.*}}Kernel_TemplatedStructArray{{.*}} 'void (S<int>)'
+// CHECK: FunctionDecl {{.*}}Kernel_TemplatedStructArray{{.*}} 'void (S<int>) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_s 'S<int>'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
@@ -218,7 +218,7 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'S<int>' lvalue ParmVar {{.*}} '_arg_s' 'S<int>'
 
 // Check Kernel_Array_2D parameters
-// CHECK: FunctionDecl {{.*}}Kernel_Array_2D{{.*}} 'void (__wrapper_class)'
+// CHECK: FunctionDecl {{.*}}Kernel_Array_2D{{.*}} 'void (__wrapper_class) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_array_2D '__wrapper_class'
 // Check Kernel_Array_2D inits
 // CHECK-NEXT: CompoundStmt
@@ -250,7 +250,7 @@ int main() {
 // CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
 
 // Check Kernel_NonDecomposedStruct parameters.
-// CHECK: FunctionDecl {{.*}}Kernel_NonDecomposedStruct{{.*}} 'void (__wrapper_class)'
+// CHECK: FunctionDecl {{.*}}Kernel_NonDecomposedStruct{{.*}} 'void (__wrapper_class) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_NonDecompStructArray '__wrapper_class'
 // Check Kernel_NonDecomposedStruct inits
 // CHECK-NEXT: CompoundStmt
@@ -271,7 +271,7 @@ int main() {
 // CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
 
 // Check Kernel_StructWithPointers parameters.
-// CHECK: FunctionDecl {{.*}}Kernel_StructWithPointers{{.*}} 'void (__wrapper_class)'
+// CHECK: FunctionDecl {{.*}}Kernel_StructWithPointers{{.*}} 'void (__wrapper_class) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_StructWithPointersArray '__wrapper_class'
 // Check Kernel_StructWithPointers inits
 // CHECK-NEXT: CompoundStmt
@@ -303,7 +303,7 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} 1
 
 // Check Kernel_Array_Ptrs_2D parameters
-// CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs_2D{{.*}} 'void (__wrapper_class, __wrapper_class)'
+// CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs_2D{{.*}} 'void (__wrapper_class, __wrapper_class) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPointers_2D '__wrapper_class'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPointers '__wrapper_class'
 
