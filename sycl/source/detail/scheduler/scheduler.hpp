@@ -178,6 +178,7 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental::detail {
 class exec_graph_impl;
 class node_impl;
+class nodes_range;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 class queue_impl;
@@ -477,9 +478,8 @@ public:
   /// \param Events List of events that this update operation depends on
   EventImplPtr addCommandGraphUpdate(
       ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-          Nodes,
-      queue_impl *Queue, std::vector<Requirement *> Requirements,
+      ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
+      std::vector<Requirement *> Requirements,
       std::vector<detail::EventImplPtr> &Events);
 
   static bool CheckEventReadiness(context_impl &Context,
@@ -654,10 +654,8 @@ protected:
     /// \param ToEnqueue List of commands which need to be enqueued.
     Command *addCommandGraphUpdate(
         ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-        std::vector<
-            std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-            Nodes,
-        queue_impl *Queue, std::vector<Requirement *> Requirements,
+        ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
+        std::vector<Requirement *> Requirements,
         std::vector<detail::EventImplPtr> &Events,
         std::vector<Command *> &ToEnqueue);
 
