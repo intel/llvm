@@ -376,19 +376,13 @@ std::set<node_impl *> graph_impl::getCGEdges(
   for (auto &Req : Requirements) {
     // Look through the graph for nodes which share this requirement
     for (node_impl &Node : nodes()) {
-      if (Node.hasRequirementDependency(Req)) {
-        bool ShouldAddDep = true;
-        // If any of this node's successors have this requirement then we skip
-        // adding the current node as a dependency.
-        for (node_impl &Succ : Node.successors()) {
-          if (Succ.hasRequirementDependency(Req)) {
-            ShouldAddDep = false;
-            break;
-          }
-        }
-        if (ShouldAddDep) {
-          UniqueDeps.insert(&Node);
-        }
+      if (Node.hasRequirementDependency(Req) &&
+          // If any of this node's successors have this requirement then we skip
+          // adding the current node as a dependency.
+          none_of(Node.successors(), [&](node_impl &Succ) {
+            return Succ.hasRequirementDependency(Req);
+          })) {
+        UniqueDeps.insert(&Node);
       }
     }
   }
