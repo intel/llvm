@@ -515,6 +515,14 @@ static bool noFencedMemAccessesBetween(CallInst *A, CallInst *B,
                       << ") returned " << false << "\n");
     return false;
   }
+
+  // Early exit in case if the whole block has no accesses wider or equal to required.
+  if (BBMemScope < Required) {
+    LLVM_DEBUG(dbgs() << "noFencedMemAccessesBetween(" << *A << ", " << *B
+                      << ") returned " << true << "\n");
+    return true;
+  }
+
   if (BBMemScope == RegionMemScope::None) {
     LLVM_DEBUG(dbgs() << "noFencedMemAccessesBetween(" << *A << ", " << *B
                       << ") returned " << true << "\n");
