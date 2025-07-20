@@ -1099,12 +1099,12 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
     // Add SYCLOptimizeBarriers pass for SYCL device code.
     if (LangOpts.SYCLIsDevice) {
-      PB.registerOptimizerLastEPCallback(
-          [](ModulePassManager &MPM, OptimizationLevel Level,
-             ThinOrFullLTOPhase) {
-            MPM.addPass(
-                createModuleToFunctionPassAdaptor(SYCLOptimizeBarriersPass()));
-          });
+      PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM,
+                                            OptimizationLevel Level,
+                                            ThinOrFullLTOPhase) {
+        MPM.addPass(
+            createModuleToFunctionPassAdaptor(SYCLOptimizeBarriersPass()));
+      });
     }
 
     const bool PrepareForThinLTO = CodeGenOpts.PrepareForThinLTO;
