@@ -287,7 +287,7 @@ using BarriersMap = DenseMap<BasicBlock *, SmallVector<BarrierDesc, 2>>;
 template <RegionMemScope SearchFor = RegionMemScope::Local>
 static inline RegionMemScope getBarrierFencedScopeImpl(const BarrierDesc &BD) {
   uint32_t Sem = canonicalizeSemantic(BD.Semantic);
-  constexpr uint32_t LocalMask  =
+  constexpr uint32_t LocalMask =
       static_cast<uint32_t>(MemorySemantics::WorkgroupMemory) |
       static_cast<uint32_t>(MemorySemantics::SubgroupMemory);
   constexpr uint32_t GlobalMask =
@@ -331,12 +331,12 @@ static RegionMemScope classifyMemScope(Instruction *I) {
         auto *SemC = dyn_cast<ConstantInt>(CI->getArgOperand(2));
         if (!ScopeC || !SemC)
           return RegionMemScope::Unknown;
-          // If the semantics mention CrossWorkgroupMemory, treat as global.
+        // If the semantics mention CrossWorkgroupMemory, treat as global.
         uint32_t SemVal = canonicalizeSemantic(SemC->getZExtValue());
         if (SemVal & (uint32_t)MemorySemantics::CrossWorkgroupMemory)
           return RegionMemScope::Global;
         if (SemVal & ((uint32_t)MemorySemantics::WorkgroupMemory |
-            (uint32_t)MemorySemantics::SubgroupMemory))
+                      (uint32_t)MemorySemantics::SubgroupMemory))
           return RegionMemScope::Local;
         switch (ScopeC->getZExtValue()) {
         case static_cast<uint32_t>(Scope::CrossDevice):
@@ -516,7 +516,8 @@ static bool noFencedMemAccessesBetween(CallInst *A, CallInst *B,
     return false;
   }
 
-  // Early exit in case if the whole block has no accesses wider or equal to required.
+  // Early exit in case if the whole block has no accesses wider or equal to
+  // required.
   if (BBMemScope < Required) {
     LLVM_DEBUG(dbgs() << "noFencedMemAccessesBetween(" << *A << ", " << *B
                       << ") returned " << true << "\n");
@@ -732,7 +733,8 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
       RegionMemScope BetweenScope = std::min(FenceLast, FenceCur);
       if (CmpExec == CompareRes::EQUAL && CmpMem == CompareRes::EQUAL) {
         if (semanticsSuperset(LastSem, CurSem) &&
-            noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope, BBMemInfo)) {
+            noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope,
+                                       BBMemInfo)) {
           if (MergedSem != LastSem) {
             Last.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
             Last.Semantic = MergedSem;
@@ -741,7 +743,8 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
           break;
         }
         if (semanticsSuperset(CurSem, LastSem) &&
-            noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope, BBMemInfo)) {
+            noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope,
+                                       BBMemInfo)) {
           if (MergedSem != CurSem) {
             Cur.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
             Cur.Semantic = MergedSem;
@@ -750,7 +753,8 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
           Survivors.pop_back();
           continue;
         }
-        if (noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope, BBMemInfo)) {
+        if (noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope,
+                                       BBMemInfo)) {
           Last.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
           Last.Semantic = MergedSem;
           Changed |= eraseBarrierWithITT(Cur);
@@ -762,7 +766,8 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
       // accesses that only the other barrier would need to fence.
       if ((CmpExec == CompareRes::BIGGER || CmpMem == CompareRes::BIGGER) &&
           semanticsSuperset(LastSem, CurSem) &&
-          noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope, BBMemInfo)) {
+          noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope,
+                                     BBMemInfo)) {
         if (MergedSem != LastSem) {
           Last.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
           Last.Semantic = MergedSem;
@@ -772,7 +777,8 @@ static bool eliminateBackToBackInBB(BasicBlock *BB,
       }
       if ((CmpExec == CompareRes::SMALLER || CmpMem == CompareRes::SMALLER) &&
           semanticsSuperset(CurSem, LastSem) &&
-          noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope, BBMemInfo)) {
+          noFencedMemAccessesBetween(Last.CI, Cur.CI, BetweenScope,
+                                     BBMemInfo)) {
         if (MergedSem != CurSem) {
           Cur.CI->setArgOperand(2, ConstantInt::get(Int32Ty, MergedSem));
           Cur.Semantic = MergedSem;
