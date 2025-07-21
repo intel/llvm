@@ -24,8 +24,6 @@
 //      loads from __spirv_BuiltIn GVs)
 //      – Unknown  : any other mayReadOrWriteMemory() (intrinsics, calls,
 //      generic addrspace)
-//    * Walk the function and record every barrier call into a list of
-//      BarrierDesc structures.
 //    * At the same time, build a per-basic block summary of memory accesses:
 //      - None   : only private/constant or no accesses
 //      - Local  : at least one addrspace(3) access
@@ -502,6 +500,17 @@ static bool eraseBarrierWithITT(BarrierDesc &BD) {
   return !ToErase.empty();
 }
 
+// Helper to check if a whole block contains accesses fenced by
+// 'Required'.
+static bool hasFencedAccesses(BasicBlock *BB, RegionMemScope Required,
+                              const BBMemInfoMap &BBMemInfo) {
+  LLVM_DEBUG(dbgs() << "Checking for fenced accesses in basic block\n");
+  RegionMemScope S = BBMemInfo.lookup(BB);
+  if (S == RegionMemScope::Unknown)
+    return true;
+  return S >= Required;
+}
+
 // True if no fenced accesses of MemScope appear in [A->next, B).
 static bool noFencedMemAccessesBetween(CallInst *A, CallInst *B,
                                        RegionMemScope Required,
@@ -509,8 +518,7 @@ static bool noFencedMemAccessesBetween(CallInst *A, CallInst *B,
   LLVM_DEBUG(dbgs() << "Checking for fenced accesses between: " << *A << " and "
                     << *B << "\n");
   RegionMemScope BBMemScope = BBMemInfo.lookup(A->getParent());
-  if (BBMemScope == RegionMemScope::Unknown ||
-      Required == RegionMemScope::Unknown) {
+  if (Required == RegionMemScope::Unknown) {
     LLVM_DEBUG(dbgs() << "noFencedMemAccessesBetween(" << *A << ", " << *B
                       << ") returned " << false << "\n");
     return false;
@@ -524,11 +532,6 @@ static bool noFencedMemAccessesBetween(CallInst *A, CallInst *B,
     return true;
   }
 
-  if (BBMemScope == RegionMemScope::None) {
-    LLVM_DEBUG(dbgs() << "noFencedMemAccessesBetween(" << *A << ", " << *B
-                      << ") returned " << true << "\n");
-    return true;
-  }
   for (auto It = ++BasicBlock::iterator(A), End = BasicBlock::iterator(B);
        It != End; ++It) {
     auto InstScope = classifyMemScope(&*It);
@@ -543,28 +546,6 @@ static bool noFencedMemAccessesBetween(CallInst *A, CallInst *B,
   return true;
 }
 
-// Helper to check if a whole block (or a slice) contains accesses fenced by
-// 'Required'.
-static bool hasFencedAccesses(BasicBlock *BB, RegionMemScope Required,
-                              const BBMemInfoMap &BBMemInfo,
-                              Instruction *Start = nullptr,
-                              Instruction *End = nullptr) {
-  LLVM_DEBUG(dbgs() << "Checking for fenced accesses in basic block\n");
-  // Shortcut: whole BB without barrier scan - return based on BBMemInfo's info.
-  if (!Start && !End) {
-    RegionMemScope BlockScope = BBMemInfo.lookup(BB);
-    return BlockScope == RegionMemScope::Unknown || BlockScope >= Required;
-  }
-  auto It = Start ? std::next(BasicBlock::iterator(Start)) : BB->begin();
-  auto Finish = End ? BasicBlock::iterator(End) : BB->end();
-  for (; It != Finish; ++It) {
-    RegionMemScope S = classifyMemScope(&*It);
-    if (S == RegionMemScope::Unknown || S >= Required)
-      return true;
-  }
-  return false;
-}
-
 /// Return true if no accesses of >= Required scope occur on *every* path
 /// from A to B through the CFG.  If A==nullptr, start at EntryBlock; if
 /// B==nullptr, end at all exit blocks.
@@ -575,6 +556,11 @@ static bool noFencedAccessesCFG(CallInst *A, CallInst *B,
                     << *B << " in CFG" << "\n");
   if (Required == RegionMemScope::Unknown)
     return false;
+
+  // Shortcut: same block and both non-null.
+  if (A && B && A->getParent() == B->getParent())
+    return noFencedMemAccessesBetween(A, B, Required, BBMemInfo);
+
   // Build the set of blocks that can reach B.
   SmallPtrSet<BasicBlock *, 32> ReachB;
   if (B) {
@@ -588,68 +574,44 @@ static bool noFencedAccessesCFG(CallInst *A, CallInst *B,
     }
   }
 
-  // Shortcut: same block and both non-null.
-  if (A && B && A->getParent() == B->getParent())
-    return noFencedMemAccessesBetween(A, B, Required, BBMemInfo);
-
   Function *F = (A ? A->getFunction() : B->getFunction());
   BasicBlock *Entry = &F->getEntryBlock();
 
-  // Worklist entries: (BasicBlock, Instruction* startPoint).
-  SmallVector<std::pair<BasicBlock *, Instruction *>, 8> Worklist;
+  // Worklist entries.
+  SmallVector<BasicBlock *, 16> Worklist;
   SmallPtrSet<BasicBlock *, 16> Visited;
 
+  auto enqueue = [&](BasicBlock *BB) {
+    if (Visited.insert(BB).second)
+      Worklist.push_back(BB);
+  };
+
   // Initialize the worklist from CI or ...
-  if (A) {
-    Worklist.emplace_back(A->getParent(), A);
-    Visited.insert(A->getParent());
-  } else {
+  if (A)
+    enqueue(A->getParent());
+  else
     // ... from kernel's entry.
-    Worklist.emplace_back(Entry, /*start at beginning*/ nullptr);
-    Visited.insert(Entry);
-  }
+    enqueue(Entry);
 
   // Simple BFS-like traversal of the CFG to find all paths from A to B.
   while (!Worklist.empty()) {
-    auto [BB, StartInst] = Worklist.pop_back_val();
+    BasicBlock *BB = Worklist.pop_back_val();
     // Check if BB is reachable from B.
     if (B && !ReachB.contains(BB))
       continue;
 
-    // If we've reached the block containing B, only scan up to B.
-    if (B && BB == B->getParent()) {
-      if (hasFencedAccesses(BB, Required, BBMemInfo, StartInst, B))
-        return false;
-      // Do not descend past B block.
-      continue;
-    }
-
-    // If we're scanning to exit and this is a terminator
-    // block, check from StartInst to the end of BB and then continue to no
-    // successors.
-    if (!B && BB->getTerminator()->getNumSuccessors() == 0) {
-      if (hasFencedAccesses(BB, Required, BBMemInfo, StartInst, nullptr)) {
-        LLVM_DEBUG(dbgs() << "noFencedAccessesCFG(" << *A << ", " << *B
-                          << ") returned " << false << "\n");
-        return false;
-      }
-      // Do not enqueue successors (there are none).
-      continue;
-    }
-
-    // Otherwise, scan entire block.
-    if (hasFencedAccesses(BB, Required, BBMemInfo, StartInst, nullptr)) {
-      LLVM_DEBUG(dbgs() << "noFencedAccessesCFG(" << *A << ", " << *B
-                        << ") returned " << false << "\n");
+    // If the BB may contain a violating access - exit.
+    if (hasFencedAccesses(BB, Required, BBMemInfo))
       return false;
-    }
+
+    // Do not traverse beyond sink block if B is specified.
+    if (B && BB == B->getParent())
+      continue;
 
     // Enqueue successors.
     for (BasicBlock *Succ : successors(BB))
-      if ((!B || ReachB.contains(Succ)) && Visited.insert(Succ).second)
-        Worklist.emplace_back(Succ, /*no partial start*/ nullptr);
+      enqueue(Succ);
   }
-
   // If we never saw a disallowed memory access on any path, it's safe.
   LLVM_DEBUG(dbgs() << "noFencedAccessesCFG(" << *A << ", " << *B
                     << ") returned " << true << "\n");
@@ -916,14 +878,6 @@ static bool isAtKernelEntry(const BarrierDesc &BD) {
   BasicBlock &Entry = BD.CI->getFunction()->getEntryBlock();
   if (BD.CI->getParent() != &Entry)
     return false;
-
-  for (Instruction &I : Entry) {
-    if (&I == BD.CI)
-      break;
-    if (classifyMemScope(&I) != RegionMemScope::None)
-      return false;
-  }
-
   return true;
 }
 
@@ -933,12 +887,6 @@ static bool isAtKernelExit(const BarrierDesc &BD) {
   Instruction *Term = BB->getTerminator();
   if (!isa<ReturnInst>(Term) && !isa<UnreachableInst>(Term))
     return false;
-
-  for (Instruction *I = BD.CI->getNextNode(); I && I != Term;
-       I = I->getNextNode())
-    if (classifyMemScope(I) != RegionMemScope::None)
-      return false;
-
   return BD.CI->getNextNonDebugInstruction() == Term;
 }
 
@@ -955,17 +903,17 @@ static bool eliminateBoundaryBarriers(SmallVectorImpl<BarrierDesc *> &Barriers,
     if (B.CI->getFunction()->getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
     RegionMemScope Fence = getBarrierFencedScope(B);
-    // entry: no fenced accesses on *any* path from entry to B.CI.
-    if (isAtKernelEntry(B) && noFencedAccessesCFG(/*pretend A = entry*/ nullptr,
-                                                  B.CI, Fence, BBMemInfo)) {
+    bool HasFencedAccesses =
+        hasFencedAccesses(B.CI->getParent(), Fence, BBMemInfo);
+    // entry: no fenced accesses at entry BB.
+    if (isAtKernelEntry(B) && !HasFencedAccesses) {
       Changed |= eraseBarrierWithITT(B);
       continue;
     }
-    // exit: no fenced accesses on every path from B.CI to return.
-    if (isAtKernelExit(B) &&
-        noFencedAccessesCFG(B.CI, /*pretend B = exit*/ nullptr, Fence,
-                            BBMemInfo)) {
+    // exit: no fenced accesses at termination BB.
+    if (isAtKernelExit(B) && !HasFencedAccesses) {
       Changed |= eraseBarrierWithITT(B);
+      continue;
     }
   }
   return Changed;

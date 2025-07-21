@@ -11,7 +11,7 @@ target triple = "spirv64-unknown-unknown"
 define spir_kernel void @acq_rel_merge() {
 ; CHECK-LABEL: define spir_kernel void @acq_rel_merge() {
 ; CHECK-NEXT:    [[VAL:%.*]] = load i32, ptr addrspace(3) @GV, align 4
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 258)
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 264)
 ; CHECK-NEXT:    ret void
 ;
   %val = load i32, ptr addrspace(3) @GV

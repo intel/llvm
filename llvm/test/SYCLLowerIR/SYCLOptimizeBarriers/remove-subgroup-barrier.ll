@@ -6,17 +6,19 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spirv64-unknown-unknown"
 
-@GV = external addrspace(3) global i32
+declare spir_func void @foo()
 
 define spir_kernel void @remove_subgroup() {
 ; CHECK-LABEL: define spir_kernel void @remove_subgroup() {
-; CHECK-NEXT:    [[VAL:%.*]] = load i32, ptr addrspace(3) @GV, align 4
+; CHECK-NEXT:    call void @foo()
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
+; CHECK-NEXT:    call void @foo()
 ; CHECK-NEXT:    ret void
 ;
-  %val = load i32, ptr addrspace(3) @GV
+  call void @foo()
   call void @_Z22__spirv_ControlBarrieriii(i32 noundef 3, i32 noundef 3, i32 noundef 0)
   call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
+  call void @foo()
   ret void
 }
 

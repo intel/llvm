@@ -1087,24 +1087,17 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             MPM.addPass(ESIMDRemoveHostCodePass());
           });
 
-    // Add the InferAddressSpaces pass for all the SPIR[V] targets
+    // Add the InferAddressSpaces and SYCLOptimizeBarriers passes for all
+    // the SPIR[V] targets
     if (TargetTriple.isSPIR() || TargetTriple.isSPIRV()) {
       PB.registerOptimizerLastEPCallback(
           [](ModulePassManager &MPM, OptimizationLevel Level,
              ThinOrFullLTOPhase) {
             MPM.addPass(createModuleToFunctionPassAdaptor(
                 InferAddressSpacesPass(clang::targets::SPIR_GENERIC_AS)));
+            MPM.addPass(
+                createModuleToFunctionPassAdaptor(SYCLOptimizeBarriersPass()));
           });
-    }
-
-    // Add SYCLOptimizeBarriers pass for SYCL device code.
-    if (LangOpts.SYCLIsDevice) {
-      PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM,
-                                            OptimizationLevel Level,
-                                            ThinOrFullLTOPhase) {
-        MPM.addPass(
-            createModuleToFunctionPassAdaptor(SYCLOptimizeBarriersPass()));
-      });
     }
 
     const bool PrepareForThinLTO = CodeGenOpts.PrepareForThinLTO;

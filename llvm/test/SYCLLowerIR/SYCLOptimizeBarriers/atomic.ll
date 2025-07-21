@@ -12,12 +12,14 @@ target triple = "spirv64-unknown-unknown"
 define spir_kernel void @spv_atomic_local() {
 ; CHECK-LABEL: @spv_atomic_local(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    call spir_func void @_Z19__spirv_AtomicStorePU3AS3iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(ptr addrspace(3) @L, i32 2, i32 896, i32 0)
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 1, i32 2, i32 400)
+; CHECK-NEXT:    call spir_func void @_Z19__spirv_AtomicStorePU3AS3iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(ptr addrspace(3) @L, i32 2, i32 258, i32 0)
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 1, i32 1, i32 912)
 ; CHECK-NEXT:    ret void
 ;
 entry:
   call void @_Z22__spirv_ControlBarrieriii(i32 1, i32 1, i32 912)
-  call spir_func void @_Z19__spirv_AtomicStorePU3AS3iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(ptr addrspace(3) @L, i32 2, i32 896, i32 0)
+  call spir_func void @_Z19__spirv_AtomicStorePU3AS3iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(ptr addrspace(3) @L, i32 2, i32 258, i32 0)
   call void @_Z22__spirv_ControlBarrieriii(i32 1, i32 1, i32 912)
   ret void
 }
@@ -25,7 +27,9 @@ entry:
 define spir_kernel void @llvm_atomic_local(ptr addrspace(3) %p) {
 ; CHECK-LABEL: @llvm_atomic_local(
 ; CHECK-NEXT:  entry:
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 1, i32 2, i32 400)
 ; CHECK-NEXT:    [[TMP0:%.*]] = atomicrmw add ptr addrspace(3) [[P:%.*]], i32 1 syncscope("workgroup") seq_cst, align 4
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 1, i32 1, i32 912)
 ; CHECK-NEXT:    ret void
 ;
 entry:

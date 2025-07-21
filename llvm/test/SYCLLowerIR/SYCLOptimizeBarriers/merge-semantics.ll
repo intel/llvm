@@ -3,41 +3,47 @@
 
 ; Test merging of adjacent barriers with different semantics.
 
-@GV = external addrspace(3) global i32
+declare spir_func void @foo()
 
 define spir_kernel void @merge_mem() {
 ; CHECK-LABEL: define spir_kernel void @merge_mem() {
-; CHECK-NEXT:    [[VAL:%.*]] = load i32, ptr addrspace(3) @GV, align 4
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 256)
+; CHECK-NEXT:    call void @foo()
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 768)
+; CHECK-NEXT:    call void @foo()
 ; CHECK-NEXT:    ret void
 ;
-  %val = load i32, ptr addrspace(3) @GV
+  call void @foo()
   call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 256)
   call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 512)
+  call void @foo()
   ret void
 }
 
 define spir_kernel void @combine_acq_rel() {
 ; CHECK-LABEL: define spir_kernel void @combine_acq_rel() {
-; CHECK-NEXT:    [[VAL:%.*]] = load i32, ptr addrspace(3) @GV, align 4
+; CHECK-NEXT:    call void @foo()
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 8)
+; CHECK-NEXT:    call void @foo()
 ; CHECK-NEXT:    ret void
 ;
-  %val = load i32, ptr addrspace(3) @GV
+  call void @foo()
   call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 2)
   call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 4)
+  call void @foo()
   ret void
 }
 
 define spir_kernel void @drop_no_fence() {
 ; CHECK-LABEL: define spir_kernel void @drop_no_fence() {
-; CHECK-NEXT:    [[VAL:%.*]] = load i32, ptr addrspace(3) @GV, align 4
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
+; CHECK-NEXT:    call void @foo()
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 256)
+; CHECK-NEXT:    call void @foo()
 ; CHECK-NEXT:    ret void
 ;
-  %val = load i32, ptr addrspace(3) @GV
+  call void @foo()
   call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
   call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 256)
+  call void @foo()
   ret void
 }
 
