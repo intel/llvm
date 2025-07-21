@@ -119,11 +119,6 @@ public:
   /// integration header is required.
   void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
 
-  // Add ParentStruct to StructsWithSpecialTypes.
-  void addStructWithSpecialType(const RecordDecl *ParentStruct) {
-    StructsWithSpecialTypes[ParentStruct] = true;
-  }
-
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
@@ -211,10 +206,6 @@ private:
   /// Keeps track of whether declaration of __sycl_host_pipe_registration
   /// type and __sycl_host_pipe_registrar variable are required to emit.
   bool NeedToEmitHostPipeRegistration = false;
-
-  // A map that keeps track of all structs encountered with
-  // special types inside.
-  llvm::DenseMap<const RecordDecl *, bool> StructsWithSpecialTypes;
 };
 
 class SYCLIntegrationFooter {
@@ -277,6 +268,9 @@ private:
 
   llvm::DenseSet<const FunctionDecl *> FreeFunctionDeclarations;
 
+  // A map that keeps track of all structs encountered with
+  // special types inside. Relevant for free function kernels only
+  llvm::DenseMap<const RecordDecl *, QualType> StructsWithSpecialTypes;
 public:
   SemaSYCL(Sema &S);
 
@@ -326,6 +320,13 @@ public:
   void addSYCLKernelFunction(const FunctionDecl *FD) {
     SYCLKernelFunctions.insert(FD);
   }
+
+  /// Add ParentStruct to StructsWithSpecialTypes.
+  void addStructWithSpecialType(const RecordDecl *ParentStruct, QualType Ty) {
+    StructsWithSpecialTypes[ParentStruct] = Ty;
+  }
+
+  auto &getStructsWithSpecialType() const { return StructsWithSpecialTypes; }
 
   /// Lazily creates and returns SYCL integration header instance.
   SYCLIntegrationHeader &getSyclIntegrationHeader() {

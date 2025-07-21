@@ -2277,7 +2277,7 @@ public:
     CollectionStack.back() = true;
     return true;
   }
-  bool handleSyclSpecialType(FieldDecl *, QualType) final {
+  bool handleSyclSpecialType(FieldDecl *FD, QualType) final {
     CollectionStack.back() = true;
     return true;
   }
@@ -2960,7 +2960,6 @@ public:
     // diagnosed on the actual kernel.
     KernelDecl->addAttr(
         SYCLKernelAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
-    KernelDecl->dump();
     SemaSYCLRef.addSyclDeviceDecl(KernelDecl);
   }
 
@@ -3090,7 +3089,12 @@ public:
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy);
+    // if ParentStruct is non-null, we are dealing with a
+    // free function kernel.
+    // In this case, do not pass the scalar as a separate argument since it
+    // can be passed directly as part of its parent struct
+    if (!CurrentStruct)
+      addParam(FD, FieldTy);
     return true;
   }
 
@@ -4530,9 +4534,18 @@ public:
     for (const auto &child : CurrentStructs) {
       Base = buildMemberExpr(Base, child);
     }
+    for (auto it = CurrentStructs.rbegin(); it != CurrentStructs.rend(); ++it)
+      SemaSYCLRef.addStructWithSpecialType((*it)->getParent(),
+                                           (it + 1) == CurrentStructs.rend()
+                                               ? ParentStruct->getType()
+                                               : (*(it + 1))->getType());
     MemberExpr *MemberAccess = buildMemberExpr(Base, FD);
     createSpecialMethodCall(FieldTy->getAsCXXRecordDecl(), InitMethodName,
                             MemberAccess, BodyStmts);
+    SemaSYCLRef.addStructWithSpecialType(FD->getParent(),
+                                         CurrentStructs.size()
+                                             ? CurrentStructs.back()->getType()
+                                             : ParentStruct->getType());
     return true;
   }
 
@@ -4541,8 +4554,8 @@ public:
   // typically if this is the case the default constructor will be private and
   // in such cases we must manually override the access specifier from private
   // to public just for the duration of this default initialization.
-  // TODO: Revisit this approach once https://github.com/intel/llvm/issues/16061
-  // is closed.
+  // TODO: Revisit this approach once
+  // https://github.com/intel/llvm/issues/16061 is closed.
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
     // The code produced looks like this in the case of a work group memory
     // parameter:
@@ -4589,137 +4602,141 @@ public:
     return true;
   }
 
-  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &,
-                             QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                               QualType) final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  bool handlePointerType(FieldDecl *, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool handlePointerType(FieldDecl *, QualType) final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  bool handlePointerType(ParmVarDecl *, QualType ParamTy) final {
-    Expr *PointerRef = createPointerParamReferenceExpr(ParamTy);
-    ArgExprs.push_back(PointerRef);
-    return true;
-  }
+    bool handlePointerType(ParmVarDecl *, QualType ParamTy) final {
+      Expr *PointerRef = createPointerParamReferenceExpr(ParamTy);
+      ArgExprs.push_back(PointerRef);
+      return true;
+    }
 
-  bool handleSimpleArrayType(FieldDecl *, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool handleSimpleArrayType(FieldDecl *, QualType) final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *,
-                             QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *, QualType)
+        final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD,
-                             QualType) final {
-    Expr *TempCopy = createCopyInitExpr(PD);
-    ArgExprs.push_back(TempCopy);
-    return true;
-  }
+    bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD, QualType)
+        final {
+      Expr *TempCopy = createCopyInitExpr(PD);
+      ArgExprs.push_back(TempCopy);
+      return true;
+    }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
-                             QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool handleNonDecompStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                               QualType) final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  bool handleScalarType(FieldDecl *FD, QualType FieldTy) final { return true; }
+    bool handleScalarType(FieldDecl * FD, QualType FieldTy) final {
+      return true;
+    }
 
-  bool handleScalarType(ParmVarDecl *, QualType) final {
-    Expr *ParamRef = createParamReferenceExpr();
-    ArgExprs.push_back(ParamRef);
-    return true;
-  }
+    bool handleScalarType(ParmVarDecl *, QualType) final {
+      Expr *ParamRef = createParamReferenceExpr();
+      ArgExprs.push_back(ParamRef);
+      return true;
+    }
 
-  bool handleUnionType(FieldDecl *, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool handleUnionType(FieldDecl *, QualType) final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  bool handleUnionType(ParmVarDecl *, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool handleUnionType(ParmVarDecl *, QualType) final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  bool enterStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
-    CurrentStructs.push_back(FD);
-    return true;
-  }
+    bool enterStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty)
+        final {
+      CurrentStructs.push_back(FD);
+      return true;
+    }
 
-  bool enterStruct(const CXXRecordDecl *RD, ParmVarDecl *PD,
-                   QualType ParamTy) final {
-    return true;
-  }
+    bool enterStruct(const CXXRecordDecl *RD, ParmVarDecl *PD, QualType ParamTy)
+        final {
+      return true;
+    }
 
-  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
-    CurrentStructs.pop_back();
-    return true;
-  }
+    bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
+      CurrentStructs.pop_back();
+      return true;
+    }
 
-  bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
-    ArgExprs.push_back(SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-        ParentStruct, ParentStruct->getType(), VK_PRValue, FreeFunctionSrcLoc));
-    return true;
-  }
+    bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
+      ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
+      ArgExprs.push_back(SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+          ParentStruct, ParentStruct->getType(), VK_PRValue,
+          FreeFunctionSrcLoc));
+      return true;
+    }
 
-  bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
-                   QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &, QualType)
+        final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
-                   QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &, QualType)
+        final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  bool enterArray(FieldDecl *, QualType, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool enterArray(FieldDecl *, QualType, QualType) final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  bool enterArray(ParmVarDecl *, QualType, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool enterArray(ParmVarDecl *, QualType, QualType) final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  bool leaveArray(FieldDecl *, QualType, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool leaveArray(FieldDecl *, QualType, QualType) final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  bool leaveArray(ParmVarDecl *, QualType, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
-  FieldDecl *getCurrentStruct() {
-    assert(CurrentStructs.size() &&
-           "Current free function parameter is not inside a structure!");
-    return CurrentStructs.back();
-  }
-};
+    bool leaveArray(ParmVarDecl *, QualType, QualType) final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
+    FieldDecl *getCurrentStruct() {
+      assert(CurrentStructs.size() &&
+             "Current free function parameter is not inside a structure!");
+      return CurrentStructs.back();
+    }
+  };
 
 // Kernels are only the unnamed-lambda feature if the feature is enabled, AND
 // the first template argument has been corrected by the library to match the
@@ -4739,9 +4756,6 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   llvm::SmallVector<size_t, 16> ArrayBaseOffsets;
   int StructDepth = 0;
 
-  // Set if we are currently exploring fields of a struct that is a free
-  // function kernel parameter
-  const Type *ParentStruct = nullptr;
 
   // A series of functions to calculate the change in offset based on the type.
   int64_t offsetOf(const FieldDecl *FD, QualType ArgTy) const {
@@ -4780,9 +4794,8 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
     uint64_t Size;
     Size =
         SemaSYCLRef.getASTContext().getTypeSizeInChars(ParamTy).getQuantity();
-    Header.addParamDesc(
-        Kind, static_cast<unsigned>(Size),
-        static_cast<unsigned>((ParentStruct ? 0 : CurOffset) + OffsetAdj));
+    Header.addParamDesc(Kind, static_cast<unsigned>(Size),
+                        static_cast<unsigned>(CurOffset + OffsetAdj));
   }
 
 public:
@@ -4857,10 +4870,7 @@ public:
               ? SYCLIntegrationHeader::kind_dynamic_accessor
               : SYCLIntegrationHeader::kind_accessor;
 
-      if (ParentStruct)
-        Header.addParamDesc(ParamKind, Info, offsetOf(FD, FieldTy));
-      else
-        Header.addParamDesc(ParamKind, Info, CurOffset + offsetOf(FD, FieldTy));
+      Header.addParamDesc(ParamKind, Info, CurOffset + offsetOf(FD, FieldTy));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::stream)) {
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
@@ -4888,9 +4898,6 @@ public:
       llvm_unreachable(
           "Unexpected SYCL special class when generating integration header");
     }
-    if (ParentStruct)
-      Header.addStructWithSpecialType(ParentStruct->getAsCXXRecordDecl());
-
     return true;
   }
 
@@ -5019,7 +5026,6 @@ public:
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *PD, QualType Ty) final {
     addParam(PD, Ty, SYCLIntegrationHeader::kind_struct_with_special_type);
-    ParentStruct = Ty.getTypePtr();
     return true;
   }
 
@@ -5030,7 +5036,6 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    ParentStruct = nullptr;
     return true;
   }
 
@@ -7048,6 +7053,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   unsigned ShimCounter = 1;
   int FreeFunctionCount = 0;
+  // Structs with special types inside needs some special code generation in the
+  // header and we keep this visited map to not have duplicates in case several
+  // free function kernels
+  // use the same structs as parameters.
+  llvm::DenseMap<const RecordDecl *, bool> visitedStructWithSpecialType;
   for (const KernelDesc &K : KernelDescs) {
     if (!S.isFreeFunction(K.SyclKernel))
       continue;
@@ -7133,69 +7143,91 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     }
 
-    // Now we handle all parameters that are structs that contain special types
-    // inside. Their information is contained in StructsWithSpecialTypes.
-    llvm::DenseMap<const RecordDecl *, bool> visited;
+    // Now we handle all structs that contain special types
+    // inside. Their information is contained in StructsWithSpecialTypes of
+    // SemaSYCL.
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
-      if (StructsWithSpecialTypes.count(
-              Param->getType()->getAsCXXRecordDecl()) &&
-          !visited[Param->getType()->getAsCXXRecordDecl()]) {
-        const RecordDecl *decl = Param->getType()->getAsCXXRecordDecl();
-        int NumFields = 0;
-        for (const auto member : decl->fields())
-          ++NumFields;
-        //  this is a struct that contains a special type so its neither a
-        //  special type nor a trivially copyable type. We therefore need to
-        //  explicitly communicate to the runtime that this argument should be
-        //  allowed as a free function kernel argument. We do this by defining
-        //   is_struct_with_special_type to be true.
-        O << "template <>\n";
-        O << "struct "
-             "sycl::ext::oneapi::experimental::detail::is_struct_with_special_"
-             "type<";
-        Policy.SuppressTagKeyword = true;
-        Param->getType().print(O, Policy);
-        O << "> {\n";
-        O << " inline static constexpr bool value = true;\n};\n\n";
-        // Now we define the set_arg function for this struct that contains
-        // special types. It takes the handler as an argument so that we can
-        // ultimately call set_arg on the handler for each member
-        // contained in the struct. First, emit forward declarations for the
-        // types contained within.
-        for (const auto member : decl->fields())
-          if (isSyclSpecialType(member->getType(), S))
+      if (!Param->getType()->isStructureType())
+        continue;
+      const RecordDecl *Struct =
+          Param->getType()->getAsStructureType()->getDecl();
+      QualType type = Param->getType();
+      if (!S.getStructsWithSpecialType().count(Struct) ||
+          visitedStructWithSpecialType.count(Struct))
+        continue;
+
+      FwdDeclEmitter.Visit(type.getDesugaredType(S.getASTContext()));
+
+      //  this is a struct that contains a special type so its neither a
+      //  special type nor a trivially copyable type. We therefore need to
+      //  explicitly communicate to the runtime that this argument should be
+      //  allowed as a free function kernel argument. We do this by defining
+      //   is_struct_with_special_type to be true.
+      O << "template <>\n";
+      O << "struct "
+           "sycl::ext::oneapi::experimental::detail::is_struct_with_special_"
+           "type<";
+      Policy.SuppressTagKeyword = true;
+      type.print(O, Policy);
+      O << "> {\n";
+      O << " inline static constexpr bool value = true;\n};\n\n";
+      // Now we define the set_arg function for this struct that contains
+      // special types. It takes the handler as an argument so that we can
+      // ultimately call set_arg on the handler for each special type member
+      // contained in the struct. First, emit needed forward declarations for
+      // all special types contained in the struct by doing a depth first search
+      // exploration of the struct. Also collect the offsets of all special
+      // types inside the struct while we're at it.
+      llvm::SmallVector<std::pair<const FieldDecl *, uint64_t>, 8> offsets;
+      llvm::SmallVector<const RecordDecl *, 8> dfs;
+      dfs.emplace_back(Struct);
+      while (!dfs.empty()) {
+        const auto top = dfs.pop_back_val();
+        for (const auto member : top->fields()) {
+          if (isSyclSpecialType(member->getType(), S)) {
             FwdDeclEmitter.Visit(
                 member->getType().getDesugaredType(S.getASTContext()));
-        O << "namespace sycl { inline namespace _V1 { namespace ext { "
-             "namespace oneapi { namespace "
-             "experimental { namespace detail { \n";
-        O << "template <> struct struct_with_special_type_info<";
-        Param->getType().print(O, Policy);
-        O << "> {\n";
-        O << "template< typename ArgT, typename HandlerT, typename = "
-             "std::enable_if_t<std::is_same_v<std::remove_cv_t<ArgT>, ";
-        Param->getType().print(O, Policy);
-        O << ">>>\n";
-        O << "  static void set_arg(int ArgIndex, ArgT& ";
-        O << "arg";
-        O << ", HandlerT& cgh, int &NumArgs) {\n";
-        for (const auto member : decl->fields()) {
-          O << "    cgh.set_arg(ArgIndex, *(";
-          member->getType().print(O, Policy);
-          O << " *)";
-          O << "((char *)(&arg) + "
-            << S.getASTContext().getFieldOffset(member) / 8 << ")";
-          O << ");\n";
-          O << "    ++ArgIndex;\n";
+            offsets.emplace_back(std::make_pair(
+                member, S.getASTContext().getFieldOffset(member) / 8));
+          } else if (member->getType()->isStructureType() &&
+                     S.getStructsWithSpecialType().count(
+                         member->getType()->getAsStructureType()->getDecl())) {
+            dfs.emplace_back(
+                member->getType()->getAsStructureType()->getDecl());
+          }
         }
-        O << "    NumArgs = " << NumFields << ";\n";
-        O << "  }\n};\n} // namespace detail \n} // namespace experimental "
-             "\n} "
-             "// namespace oneapi \n} // namespace ext \n} // namespace "
-             "_V1\n} "
-             "// namespace sycl\n\n";
-        visited[Param->getType()->getAsCXXRecordDecl()] = true;
       }
+
+      O << "namespace sycl { inline namespace _V1 { namespace ext { "
+           "namespace oneapi { namespace "
+           "experimental { namespace detail { \n";
+      O << "template <> struct struct_with_special_type_info<";
+      type.print(O, Policy);
+      O << "> {\n";
+      O << "template< typename ArgT, typename HandlerT, typename = "
+           "std::enable_if_t<std::is_same_v<std::remove_cv_t<ArgT>, ";
+      type.print(O, Policy);
+      O << ">>>\n";
+      O << "  static void set_arg(int ArgIndex, ArgT& ";
+      O << "arg";
+      O << ", HandlerT& cgh, int &NumArgs) {\n";
+      int NumFields = 0;
+      for (const auto fieldoffset : offsets) {
+        O << "    cgh.set_arg(ArgIndex, *(";
+        fieldoffset.first->getType().print(O, Policy);
+        O << " *)";
+        O << "((char *)(&arg) + " << fieldoffset.second << ")";
+        O << ");\n";
+        O << "    ++ArgIndex;\n";
+        ++NumFields;
+      }
+      O << "    NumArgs = " << NumFields << ";\n";
+      O << "  }\n};\n} // namespace detail \n} // namespace experimental "
+           "\n} "
+           "// namespace oneapi \n} // namespace ext \n} // namespace "
+           "_V1\n} "
+           "// namespace sycl\n\n";
+      visitedStructWithSpecialType[Struct] = true;
     }
     Policy.SuppressTagKeyword = false;
     FFPrinter.printFreeFunctionShim(K.SyclKernel, ShimCounter, ParmList);

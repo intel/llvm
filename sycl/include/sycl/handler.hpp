@@ -1891,7 +1891,7 @@ public:
       int NumArgs;
       ext::oneapi::experimental::detail::struct_with_special_type_info<
           remove_cv_ref_t<T>>::set_arg(ArgIndex + 1, Arg, *this, NumArgs);
-      MArgShift += NumArgs;
+      updateArgShift(NumArgs);
     }
   }
 
@@ -3448,13 +3448,6 @@ private:
   event MLastEventDoNotUse;
 #endif
 
-  // Certain arguments such as structs that contain SYCL special types entail
-  // several hidden set_arg calls for every set_arg called by the user. This
-  // shift is required to make sure the following arguments set by the user have
-  // the correct index. It keeps track of how many of these hidden set_arg calls
-  // have been made so far.
-  int MArgShift = 0;
-
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;
   // Make accessor class friend to keep the list of associated accessors.
@@ -3844,6 +3837,9 @@ private:
   void addArg(detail::kernel_param_kind_t ArgKind, void *Req, int AccessTarget,
               int ArgIndex);
   void clearArgs();
+
+  void updateArgShift(int);
+
   void setArgsToAssociatedAccessors();
 
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,

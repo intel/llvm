@@ -9,7 +9,7 @@
 #include "sycl/detail/helpers.hpp"
 #include "ur_api.h"
 #include <algorithm>
-
+#include <iostream>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/graph/dynamic_impl.hpp>
@@ -1067,6 +1067,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
 
   switch (Kind) {
   case kernel_param_kind_t::kind_struct_with_special_type:
+    addArg(kernel_param_kind_t::kind_struct_with_special_type, Ptr, Size,
+           Index + IndexShift);
+    break;
   case kernel_param_kind_t::kind_std_layout:
   case kernel_param_kind_t::kind_pointer: {
     addArg(Kind, Ptr, Size, Index + IndexShift);
@@ -2416,13 +2419,15 @@ void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
 
 void handler::addArg(detail::kernel_param_kind_t ArgKind, void *Req,
                      int AccessTarget, int ArgIndex) {
-  impl->MArgs.emplace_back(ArgKind, Req, AccessTarget, ArgIndex + MArgShift);
+  impl->MArgs.emplace_back(ArgKind, Req, AccessTarget, ArgIndex + impl->MArgShift);
 }
 
 void handler::clearArgs() {
   impl->MArgs.clear();
-  MArgShift = 0;
+  impl->MArgShift = 0;
 }
+
+void handler::updateArgShift(int add) { impl->MArgShift += add; }
 
 void handler::setArgsToAssociatedAccessors() {
   impl->MArgs = impl->MAssociatedAccesors;
