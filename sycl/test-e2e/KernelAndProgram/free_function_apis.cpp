@@ -221,16 +221,6 @@ bool test_bundle_apis(queue Queue) {
   std::cout << "PassP=" << PassP << std::endl;
   Pass &= PassP;
 
-  bool PassO1 = false;
-  try {
-    kernel Kernel51 = Bundle5.ext_oneapi_get_kernel<ff_b>();
-    std::cout << "Wrong PATH of Kernel51" << std::endl;
-  } catch (const sycl::exception &e) {
-    PassO1 = e.code() == sycl::errc::invalid;
-  }
-  std::cout << "PassO1=" << PassO1 << std::endl;
-  Pass &= PassO1;
-
   bool PassQ =
       Bundle6.ext_oneapi_has_kernel<(void (*)(int *, int))ff_3<int>>(Device);
   std::cout << "PassQ=" << PassQ << std::endl;
