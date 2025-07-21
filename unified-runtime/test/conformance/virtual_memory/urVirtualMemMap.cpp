@@ -17,7 +17,7 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
 TEST_P(urVirtualMemMapWithFlagsTest, Success) {
   ASSERT_SUCCESS(
       urVirtualMemMap(context, virtual_ptr, size, physical_mem, 0, getParam()));
-  EXPECT_SUCCESS(urVirtualMemUnmap(context, virtual_ptr, size));
+  ASSERT_SUCCESS(urVirtualMemUnmap(context, virtual_ptr, size));
 }
 
 using urVirtualMemMapTest = uur::urVirtualMemTest;

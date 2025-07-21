@@ -54,6 +54,8 @@ public:
   variadic_iterator(const variadic_iterator &) = default;
   variadic_iterator(variadic_iterator &&) = default;
   variadic_iterator(variadic_iterator &) = default;
+  variadic_iterator &operator=(const variadic_iterator &) = default;
+  variadic_iterator &operator=(variadic_iterator &&) = default;
 
   template <typename IterTy>
   variadic_iterator(IterTy &&It) : It(std::forward<IterTy>(It)) {}
@@ -149,6 +151,12 @@ public:
       return Result;
     else
       return Container{std::move(Result)};
+  }
+
+  bool contains(value_type &Other) const {
+    return std::find_if(begin(), end(), [&Other](value_type &Elem) {
+             return &Elem == &Other;
+           }) != end();
   }
 
 protected:

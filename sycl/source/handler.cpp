@@ -432,6 +432,28 @@ detail::EventImplPtr handler::finalize() {
 #else
 event handler::finalize() {
 #endif
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Old reduction implementation, prior to
+  //   https://github.com/intel/llvm/pull/18794
+  //   https://github.com/intel/llvm/pull/18898
+  //   https://github.com/intel/llvm/pull/19203
+  // relied on explicit calls to handler::finalize and those calls were inlined
+  // into the user applications. As such, we have to preserve the following
+  // behavior for ABI-compatibility purposes:
+  if (MIsFinalizedDoNotUse)
+    return MLastEventDoNotUse;
+
+  MIsFinalizedDoNotUse = true;
+  // Use macros to trick clang-format:
+#define WRAP_BODY_BEGIN MLastEventDoNotUse = [this]() {
+#define WRAP_BODY_END                                                          \
+  }                                                                            \
+  ();                                                                          \
+  return MLastEventDoNotUse;
+
+  WRAP_BODY_BEGIN
+#endif
+
   const auto &type = getType();
   detail::queue_impl *Queue = impl->get_queue_or_null();
   ext::oneapi::experimental::detail::graph_impl *Graph =
@@ -868,8 +890,7 @@ event handler::finalize() {
   if (auto GraphImpl = Queue->getCommandGraph(); GraphImpl) {
     auto EventImpl = detail::event_impl::create_completed_host_event();
     EventImpl->setSubmittedQueue(Queue->weak_from_this());
-    std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
-        nullptr;
+    ext::oneapi::experimental::detail::node_impl *NodeImpl = nullptr;
 
     // GraphImpl is read and written in this scope so we lock this graph
     // with full priviledges.
@@ -891,8 +912,7 @@ event handler::finalize() {
               GraphImpl->getLastInorderNode(Queue)) {
         Deps.push_back(DependentNode);
       }
-      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps)
-                     .shared_from_this();
+      NodeImpl = &GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       // If we are recording an in-order queue remember the new node, so it
       // can be used as a dependency for any more nodes recorded from this
@@ -907,8 +927,7 @@ event handler::finalize() {
       if (LastBarrierRecordedFromQueue) {
         Deps.push_back(LastBarrierRecordedFromQueue);
       }
-      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps)
-                     .shared_from_this();
+      NodeImpl = &GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       if (NodeImpl->MCGType == sycl::detail::CGType::Barrier) {
         GraphImpl->setBarrierDep(Queue->weak_from_this(), *NodeImpl);
@@ -936,6 +955,13 @@ event handler::finalize() {
   return DiscardEvent ? nullptr : Event;
 #else
   return detail::createSyclObjFromImpl<event>(Event);
+#endif
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  WRAP_BODY_END
+
+#undef WRAP_BODY_BEGIN
+#undef WRAP_BODY_END
 #endif
 }
 

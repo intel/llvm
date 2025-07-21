@@ -378,7 +378,8 @@ ur_result_t MsanShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
                                                   uint32_t NumWG, uptr &Begin,
                                                   uptr &End) {
   const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
-  const size_t RequiredShadowSize = NumWG * LocalMemorySize;
+  const size_t RequiredShadowSize =
+      std::min(NumWG, MSAN_MAX_WG_LOCAL) * LocalMemorySize;
   static size_t LastAllocedSize = 0;
   if (RequiredShadowSize > LastAllocedSize) {
     auto ContextInfo = getMsanInterceptor()->getContextInfo(Context);
@@ -414,16 +415,17 @@ ur_result_t MsanShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
 }
 
 ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
-                                                    uint64_t NumWI,
-                                                    uint32_t NumWG, uptr *&Base,
+                                                    uint32_t NumSG, uptr *&Base,
                                                     uptr &Begin, uptr &End) {
   // Trying to allocate private base array and private shadow, and any one of
   // them fail to allocate would be a failure
   static size_t LastPrivateBaseAllocedSize = 0;
   static size_t LastPrivateShadowAllocedSize = 0;
 
+  NumSG = std::min(NumSG, MSAN_MAX_SG_PRIVATE);
+
   try {
-    const size_t NewPrivateBaseSize = NumWI * sizeof(uptr);
+    const size_t NewPrivateBaseSize = NumSG * sizeof(uptr);
     if (NewPrivateBaseSize > LastPrivateBaseAllocedSize) {
       if (PrivateBasePtr) {
         UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnFree(
@@ -445,7 +447,7 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
       LastPrivateBaseAllocedSize = NewPrivateBaseSize;
     }
 
-    const size_t NewPrivateShadowSize = NumWG * MSAN_PRIVATE_SIZE;
+    const size_t NewPrivateShadowSize = NumSG * MSAN_PRIVATE_SIZE;
     if (NewPrivateShadowSize > LastPrivateShadowAllocedSize) {
 
       if (PrivateShadowOffset) {

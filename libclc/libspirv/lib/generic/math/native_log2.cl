@@ -20,10 +20,11 @@
  * THE SOFTWARE.
  */
 
+#include <clc/math/clc_native_log2.h>
 #include <libspirv/spirv.h>
 
-#define __CLC_NATIVE_INTRINSIC log2
-
-#define __CLC_BODY <native_unary_intrinsic.inc>
 #define __FLOAT_ONLY
+#define FUNCTION __spirv_ocl_native_log2
+#define __CLC_FUNCTION(x) __clc_native_log2
+#define __CLC_BODY <clc/shared/unary_def.inc>
 #include <clc/math/gentype.inc>
