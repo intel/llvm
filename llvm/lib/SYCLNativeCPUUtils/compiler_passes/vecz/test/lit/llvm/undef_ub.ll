@@ -14,8 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %pp-llvm-ver -o %t < %s --llvm-ver %LLVMVER
-; RUN: veczc -k test -w 4 -S < %s | FileCheck %t
+; RUN: veczc -k test -w 4 -S < %s | FileCheck %s
 
 ; ModuleID = 'Unknown buffer'
 source_filename = "Unknown buffer"
@@ -41,6 +40,4 @@ entry:
 ; The "undefs" in the above IR should "optimize" to a trap call and an unreachable
 ; terminator instruction.
 ; CHECK: define spir_kernel void @__vecz_v4_test
-; Before LLVM 17 there's no such trap: the UB is just that the function returns early.
-; CHECK-LT17: ret void
-; CHECK-GE17: unreachable
+; CHECK: unreachable
