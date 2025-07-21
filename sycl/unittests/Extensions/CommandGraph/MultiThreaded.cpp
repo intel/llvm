@@ -252,7 +252,7 @@ TEST_F(MultiThreadGraphTest, RecordAddNodesInOrderQueue) {
     } else {
       // Check other nodes have 1 successor
       EXPECT_EQ(CurrentNode->MSuccessors.size(), 1lu);
-      CurrentNode = CurrentNode->MSuccessors[0].lock().get();
+      CurrentNode = CurrentNode->MSuccessors[0];
     }
   }
 }
