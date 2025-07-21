@@ -139,6 +139,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(1u);
   }
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF: {
+    int Major = 0;
+    int Minor = 0;
+
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, hDevice->get()));
+
+    if ((Major >= 6) || ((Major == 5) && (Minor >= 3))) {
+      return ReturnValue(1u);
+    }
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR: {
@@ -160,6 +171,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(1u);
   }
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF: {
+    int Major = 0;
+    int Minor = 0;
+
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, hDevice->get()));
+
+    if ((Major >= 6) || ((Major == 5) && (Minor >= 3))) {
+      return ReturnValue(1u);
+    }
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {

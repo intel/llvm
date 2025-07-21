@@ -147,7 +147,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(1u);
   }
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF: {
-    return ReturnValue(0u);
+    return ReturnValue(1u);
   }
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR: {
     return ReturnValue(1u);
@@ -168,7 +168,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(1u);
   }
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF: {
-    return ReturnValue(0u);
+    return ReturnValue(1u);
   }
   case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Number of sub-groups = max block size / warp size + possible remainder

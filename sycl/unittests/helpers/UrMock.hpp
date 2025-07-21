@@ -281,6 +281,16 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
       **params->ppPropSizeRet = sizeof(ur_device_fp_capability_flags_t);
     }
     return UR_RESULT_SUCCESS;
+  // SYCL requires these to be reported by devices supporting fp16/fp64
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
+    if (*params->ppPropValue) {
+      *static_cast<uint32_t *>(*params->ppPropValue) = 1u;
+    }
+    if (*params->ppPropSizeRet) {
+      **params->ppPropSizeRet = sizeof(uint32_t);
+    }
+    return UR_RESULT_SUCCESS;
   default: {
     // In the default case we fill the return value with 0's. This may not be
     // valid for all device queries, but it will mean a consistent return value

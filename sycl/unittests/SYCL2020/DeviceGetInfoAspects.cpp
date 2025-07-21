@@ -32,8 +32,8 @@ TEST(DeviceGetInfo, SupportedDeviceAspects) {
       Dev.get_info<info::device::aspects>();
 
   // Tests to examine aspects of default mock device, as defined in
-  // helpers/UrMockAdapter.hpp so these tests all need to be kept in sync with
-  // changes to that file.
+  // helpers/UrMock.hpp so these tests all need to be kept in sync with changes
+  // to that file.
   EXPECT_TRUE(containsAspect(DeviceAspects, aspect::gpu));
   EXPECT_TRUE(containsAspect(DeviceAspects, aspect::fp16));
   EXPECT_TRUE(containsAspect(DeviceAspects, aspect::fp64));
