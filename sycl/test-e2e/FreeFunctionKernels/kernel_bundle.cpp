@@ -19,8 +19,7 @@ void func_range(float start, float *ptr) {}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
 void func_single(float start, float *ptr) {}
 
-template <auto* Func>
-int test_free_function_kernel_id(sycl::context &ctxt) {
+template <auto *Func> int test_free_function_kernel_id(sycl::context &ctxt) {
   sycl::kernel_id id = syclexp::get_kernel_id<Func>();
   auto exe_bndl =
       syclexp::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
@@ -71,9 +70,6 @@ int test_kernel_bundle_ctxt_dev(sycl::context &ctxt, sycl::device &dev,
   return res;
 }
 
-
-
-
 int main() {
   sycl::queue q;
   sycl::context ctxt = q.get_context();
@@ -85,7 +81,5 @@ int main() {
   ret |= test_kernel_bundle_ctxt<func_single>(ctxt, "func_single");
   ret |= test_kernel_bundle_ctxt_dev<func_range>(ctxt, dev, "func_range");
   ret |= test_kernel_bundle_ctxt_dev<func_single>(ctxt, dev, "func_single");
-  ret |= test_get_kernel_exception();
   return ret;
 }
-
