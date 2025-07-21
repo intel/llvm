@@ -84,6 +84,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
     // TODO: Implement subgroups in Offload
     return ReturnValue(1);
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
+    // OL dimensions are uint32_t while UR is size_t, so they need to be mapped
+    if (pPropSizeRet) {
+      *pPropSizeRet = sizeof(size_t) * 3;
+    }
+
+    if (pPropValue) {
+      ol_dimensions_t olVec;
+      size_t *urVec = reinterpret_cast<size_t *>(pPropValue);
+      OL_RETURN_ON_ERR(olGetDeviceInfo(hDevice->OffloadDevice,
+                                       OL_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                                       sizeof(olVec), &olVec));
+
+      urVec[0] = olVec.x;
+      urVec[1] = olVec.y;
+      urVec[2] = olVec.z;
+    }
+
+    return UR_RESULT_SUCCESS;
+  }
   // Unimplemented features
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
