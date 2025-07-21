@@ -60,3 +60,5 @@ int open(const char *pathname, int flags, ...) {
   errno = EACCES;
   return -1;
 }
+
+int close(int fd) { return 0; }
