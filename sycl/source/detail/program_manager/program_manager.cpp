@@ -70,14 +70,14 @@ ProgramManager &ProgramManager::getInstance() {
   return GlobalHandler::instance().getProgramManager();
 }
 
-static ur_program_handle_t
+static Managed<ur_program_handle_t>
 createBinaryProgram(context_impl &Context, devices_range Devices,
                     const uint8_t **Binaries, size_t *Lengths,
                     const std::vector<ur_program_metadata_t> &Metadata) {
   assert(!Devices.empty() && "No devices provided for program creation");
 
   adapter_impl &Adapter = Context.getAdapter();
-  ur_program_handle_t Program;
+  Managed<ur_program_handle_t> Program{Adapter};
   auto DeviceHandles = Devices.to<std::vector<ur_device_handle_t>>();
   ur_program_properties_t Properties = {};
   Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
@@ -92,11 +92,11 @@ createBinaryProgram(context_impl &Context, devices_range Devices,
   return Program;
 }
 
-static ur_program_handle_t createSpirvProgram(context_impl &Context,
+static Managed<ur_program_handle_t> createSpirvProgram(context_impl &Context,
                                               const unsigned char *Data,
                                               size_t DataLen) {
-  ur_program_handle_t Program = nullptr;
   adapter_impl &Adapter = Context.getAdapter();
+  Managed<ur_program_handle_t> Program{Adapter};
   Adapter.call<UrApiKind::urProgramCreateWithIL>(Context.getHandleRef(), Data,
                                                  DataLen, nullptr, &Program);
   return Program;
@@ -217,7 +217,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
   std::vector<const uint8_t *> Binaries(
       Devices.size(), const_cast<uint8_t *>(RawImg.BinaryStart));
   std::vector<size_t> Lengths(Devices.size(), ImgSize);
-  ur_program_handle_t Res =
+  Managed<ur_program_handle_t> Res =
       Format == SYCL_DEVICE_BINARY_TYPE_SPIRV
           ? createSpirvProgram(ContextImpl, RawImg.BinaryStart, ImgSize)
           : createBinaryProgram(ContextImpl, Devices, Binaries.data(),
@@ -235,7 +235,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
     std::cerr << "created program: " << Res
               << "; image format: " << getFormatStr(Format) << "\n";
 
-  return Res;
+  return Res.release();
 }
 
 static void appendLinkOptionsFromImage(std::string &LinkOpts,
@@ -518,7 +518,7 @@ std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
                                 ImgProgMetadata.begin(), ImgProgMetadata.end());
     }
     NativePrg = createBinaryProgram(ContextImpl, Devices, BinPtrs.data(),
-                                    Lengths.data(), ProgMetadataVector);
+                                    Lengths.data(), ProgMetadataVector).release();
   } else {
     NativePrg = createURProgram(MainImg, ContextImpl, Devices);
   }
@@ -1244,8 +1244,8 @@ static bool loadDeviceLib(context_impl &Context, const char *Name,
   File.read(&FileContent[0], FileSize);
   File.close();
 
-  Prog =
-      createSpirvProgram(Context, (unsigned char *)&FileContent[0], FileSize);
+  Prog = createSpirvProgram(Context, (unsigned char *)&FileContent[0], FileSize)
+             .release();
   return Prog != nullptr;
 }
 
