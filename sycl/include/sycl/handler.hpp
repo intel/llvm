@@ -1293,8 +1293,8 @@ private:
                                        decltype(Wrapper), NameWT>;
 
       detail::KernelWrapper<WrapAs::parallel_for, KName, decltype(Wrapper),
-                    TransformedArgType, decltype(this),
-                    PropertiesT>::wrap(this, Wrapper);
+                            TransformedArgType, decltype(this),
+                            PropertiesT>::wrap(this, Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr detail::string_view Name{detail::getKernelName<NameT>()};
       verifyUsedKernelBundleInternal(Name);
@@ -1318,8 +1318,9 @@ private:
 #ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
       // If parallel_for range rounding is forced then only range rounded
       // kernel is generated
-      detail::KernelWrapper<WrapAs::parallel_for, NameT, KernelType, TransformedArgType,
-                    decltype(this), PropertiesT>::wrap(this, KernelFunc);
+      detail::KernelWrapper<WrapAs::parallel_for, NameT, KernelType,
+                            TransformedArgType, decltype(this),
+                            PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr detail::string_view Name{detail::getKernelName<NameT>()};
 
@@ -1398,8 +1399,8 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
-    detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, decltype(this),
-                  PropertiesT>::wrap(this, KernelFunc);
+    detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
+                          decltype(this), PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();
@@ -1439,8 +1440,8 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
     (void)Kernel;
-    detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, decltype(this),
-                  PropertiesT>::wrap(this, KernelFunc);
+    detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
+                          decltype(this), PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();
@@ -3641,8 +3642,7 @@ private:
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
   friend class detail::HandlerAccess;
-  template <WrapAs, typename, typename, typename, typename,
-  typename, typename>
+  template <WrapAs, typename, typename, typename, typename, typename, typename>
   friend struct detail::KernelWrapper;
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
