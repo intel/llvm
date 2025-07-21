@@ -57,15 +57,10 @@ TEST_P(urMultiDeviceProgramTest, urMultiDeviceProgramGetInfo) {
   }
 }
 
-// Build program for the second device only and check validity of the binary returned by urProgramGetInfo
-// by recreating program from the binary and building it.
+// Build program for the second device only and check validity of the binary
+// returned by urProgramGetInfo by recreating program from the binary and
+// building it.
 TEST_P(urMultiDeviceProgramTest, urMultiDeviceProgramGetInfoBinaries) {
-  ur_backend_t backend;
-  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                   sizeof(backend), &backend, nullptr));
-  if (backend != UR_BACKEND_LEVEL_ZERO) {
-    GTEST_SKIP();
-  }
   std::vector<ur_device_handle_t> associated_devices(devices.size());
   ASSERT_SUCCESS(
       urProgramGetInfo(program, UR_PROGRAM_INFO_DEVICES,
@@ -77,7 +72,7 @@ TEST_P(urMultiDeviceProgramTest, urMultiDeviceProgramGetInfoBinaries) {
 
   // Build program for the second device only.
   ASSERT_SUCCESS(
-      urProgramBuildExp(program, 1, associated_devices.data() + 1, nullptr));
+      urProgramBuild(program, 1, associated_devices.data() + 1, nullptr));
   std::vector<size_t> binary_sizes(associated_devices.size());
   ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARY_SIZES,
                                   binary_sizes.size() * sizeof(size_t),
@@ -99,7 +94,7 @@ TEST_P(urMultiDeviceProgramTest, urMultiDeviceProgramGetInfoBinaries) {
       context, 1, associated_devices.data() + 1, binary_sizes.data() + 1,
       pointers.data() + 1, nullptr, &program_from_binary));
   ASSERT_NE(program_from_binary, nullptr);
-  ASSERT_SUCCESS(urProgramBuildExp(program_from_binary, 1,
-                                   associated_devices.data() + 1, nullptr));
+  ASSERT_SUCCESS(urProgramBuild(program_from_binary, 1,
+                                associated_devices.data() + 1, nullptr));
   ASSERT_SUCCESS(urProgramRelease(program_from_binary));
 }
