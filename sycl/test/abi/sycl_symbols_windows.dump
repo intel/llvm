@@ -4037,6 +4037,7 @@
 ?get@device@_V1@sycl@@QEBAPEAU_cl_device_id@@XZ
 ?get@kernel@_V1@sycl@@QEBAPEAU_cl_kernel@@XZ
 ?setFreeFuncKernelArgNum@kernel@_V1@sycl@@QEAAXI@Z
+?updateFreeFuncKernelCache@kernel@_V1@sycl@@QEAAXXZ
 ?get@platform@_V1@sycl@@QEBAPEAU_cl_platform_id@@XZ
 ?get@queue@_V1@sycl@@QEBAPEAU_cl_command_queue@@XZ
 ?getAccData@AccessorBaseHost@detail@_V1@sycl@@QEAAAEAUAccHostDataT@234@XZ
