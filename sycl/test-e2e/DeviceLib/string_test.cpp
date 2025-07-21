@@ -173,9 +173,9 @@ bool kernel_test_strcmp(sycl::queue &deviceQueue) {
 
 class KernelTestStrncmp;
 bool kernel_test_strncmp(sycl::queue &deviceQueue) {
-  int res[9];
+  int res[10];
   {
-    sycl::buffer<int, 1> res_buffer(res, sycl::range<1>(9));
+    sycl::buffer<int, 1> res_buffer(res, sycl::range<1>(10));
     deviceQueue.submit([&](sycl::handler &cgh) {
       auto res_acc = res_buffer.get_access<sycl::access::mode::write>(cgh);
       cgh.single_task<class KernelTestStrncmp>([=]() {
@@ -196,13 +196,15 @@ bool kernel_test_strncmp(sycl::queue &deviceQueue) {
         res_acc[6] = strncmp(str2, str3, 6);
         res_acc[7] = strncmp(str5, str5, 12);
         res_acc[8] = strncmp(str6, str7, 7);
+        str2[0] = str3[0] = '\0';
+        res_acc[9] = strncmp(str2, str3, 4);
       });
     });
   }
 
   if ((res[0] != 0) || (res[1] != 0) || (res[2] != 0) || (res[3] != 0) ||
       (res[4] >= 0) || (res[5] != 0) || (res[6] <= 0) || (res[7] != 0) ||
-      (res[8] != 0))
+      (res[8] != 0) || (res[9] != 0))
     return false;
   return true;
 }
