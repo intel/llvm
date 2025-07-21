@@ -774,11 +774,12 @@ public:
     ur_program_handle_t UrProgram = nullptr;
     // SourceStrPtr will be null when source is Spir-V bytes.
     const std::string *SourceStrPtr = std::get_if<std::string>(&MBinImage);
-    bool FetchedFromCache = false;
     if (PersistentDeviceCodeCache::isEnabled() && SourceStrPtr) {
-      FetchedFromCache = extKernelCompilerFetchFromCache(
-          Devices, BuildOptions, *SourceStrPtr, UrProgram);
+      UrProgram =
+          extKernelCompilerFetchFromCache(Devices, BuildOptions, *SourceStrPtr)
+              .release();
     }
+    bool FetchedFromCache = (UrProgram != nullptr);
 
     adapter_impl &Adapter = ContextImpl.getAdapter();
 
@@ -907,10 +908,10 @@ private:
     return SS.str();
   }
 
-  bool extKernelCompilerFetchFromCache(
+  Managed<ur_program_handle_t> extKernelCompilerFetchFromCache(
       devices_range Devices,
       const std::vector<sycl::detail::string_view> &BuildOptions,
-      const std::string &SourceStr, ur_program_handle_t &UrProgram) const {
+      const std::string &SourceStr) const {
     sycl::detail::context_impl &ContextImpl = *getSyclObjImpl(MContext);
     adapter_impl &Adapter = ContextImpl.getAdapter();
 
@@ -924,7 +925,7 @@ private:
         PersistentDeviceCodeCache::getCompiledKernelFromDisc(Devices, UserArgs,
                                                              SourceStr);
     if (BinProgs.empty()) {
-      return false;
+      return {};
     }
     for (auto &BinProg : BinProgs) {
       Binaries.push_back((uint8_t *)(BinProg.data()));
@@ -937,11 +938,12 @@ private:
     Properties.count = 0;
     Properties.pMetadatas = nullptr;
 
+    Managed<ur_program_handle_t> UrProgram{Adapter};
     Adapter.call<UrApiKind::urProgramCreateWithBinary>(
         ContextImpl.getHandleRef(), DeviceHandles.size(), DeviceHandles.data(),
         Lengths.data(), Binaries.data(), &Properties, &UrProgram);
 
-    return true;
+    return UrProgram;
   }
 
   // Get the specialization constant default value blob.
