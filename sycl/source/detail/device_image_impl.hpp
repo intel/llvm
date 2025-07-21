@@ -771,13 +771,12 @@ public:
 
     auto DeviceVec = Devices.to<std::vector<ur_device_handle_t>>();
 
-    ur_program_handle_t UrProgram = nullptr;
+    Managed<ur_program_handle_t> UrProgram;
     // SourceStrPtr will be null when source is Spir-V bytes.
     const std::string *SourceStrPtr = std::get_if<std::string>(&MBinImage);
     if (PersistentDeviceCodeCache::isEnabled() && SourceStrPtr) {
       UrProgram =
-          extKernelCompilerFetchFromCache(Devices, BuildOptions, *SourceStrPtr)
-              .release();
+          extKernelCompilerFetchFromCache(Devices, BuildOptions, *SourceStrPtr);
     }
     bool FetchedFromCache = (UrProgram != nullptr);
 
@@ -814,7 +813,7 @@ public:
     }
     return std::vector<std::shared_ptr<device_image_impl>>{
         device_image_impl::create(MContext, Devices, bundle_state::executable,
-                                  UrProgram, MRTCBinInfo->MLanguage,
+                                  UrProgram.release(), MRTCBinInfo->MLanguage,
                                   std::move(KernelNameSet))};
   }
 
@@ -1228,7 +1227,7 @@ private:
     return Result;
   }
 
-  ur_program_handle_t
+  Managed<ur_program_handle_t>
   createProgramFromSource(devices_range Devices,
                           const std::vector<sycl::detail::string_view> &Options,
                           std::string *LogPtr) const {
@@ -1268,11 +1267,10 @@ private:
           "languages at this time");
     }();
 
-    ur_program_handle_t UrProgram = nullptr;
+    Managed<ur_program_handle_t> UrProgram{Adapter};
     Adapter.call<UrApiKind::urProgramCreateWithIL>(ContextImpl.getHandleRef(),
                                                    spirv.data(), spirv.size(),
                                                    nullptr, &UrProgram);
-    // program created by urProgramCreateWithIL is implicitly retained.
     if (UrProgram == nullptr)
       throw sycl::exception(
           sycl::make_error_code(errc::invalid),
