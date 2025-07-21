@@ -111,27 +111,17 @@ public:
     }
   };
 
-  struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
-    const adapter_impl &MAdapter;
-    ProgramBuildResult(const adapter_impl &Adapter) : MAdapter(Adapter) {
-      Val = nullptr;
+  struct ProgramBuildResult : public BuildResult<Managed<ur_program_handle_t>> {
+    ProgramBuildResult(adapter_impl &Adapter) {
+      Val = Managed<ur_program_handle_t>{Adapter};
     }
-    ProgramBuildResult(const adapter_impl &Adapter, BuildState InitialState)
-        : MAdapter(Adapter) {
-      Val = nullptr;
+    ProgramBuildResult(adapter_impl &Adapter, BuildState InitialState) {
+      Val = Managed<ur_program_handle_t>{Adapter};
       this->State.store(InitialState);
     }
-    ~ProgramBuildResult() {
-      try {
-        if (Val) {
-          ur_result_t Err =
-              MAdapter.call_nocheck<UrApiKind::urProgramRelease>(Val);
-          __SYCL_CHECK_UR_CODE_NO_EXC(Err, MAdapter.getBackend());
-        }
-      } catch (std::exception &e) {
-        __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
-                                          e);
-      }
+    ~ProgramBuildResult() try {
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult", e);
     }
   };
   using ProgramBuildResultPtr = std::shared_ptr<ProgramBuildResult>;
@@ -434,7 +424,7 @@ public:
     if (DidInsert) {
       It->second = std::make_shared<ProgramBuildResult>(getAdapter(),
                                                         BuildState::BS_Done);
-      It->second->Val = Program;
+      It->second->Val = Managed<ur_program_handle_t>{Program, getAdapter()};
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
@@ -794,7 +784,9 @@ public:
 
       // only the building thread will run this
       try {
-        BuildResult->Val = Build();
+        // Remove `adapter_impl` from `ProgramBuildResult`'s ctors once `Build`
+        // returns `Managed<ur_platform_handle_t`:
+        *(&BuildResult->Val) = Build();
 
         if constexpr (!std::is_same_v<EvictFT, void *>)
           EvictFunc(BuildResult->Val, /*IsBuilt=*/true);
@@ -868,7 +860,7 @@ private:
 
   friend class ::MockKernelProgramCache;
 
-  const adapter_impl &getAdapter();
+  adapter_impl &getAdapter();
   ur_context_handle_t getURContext() const;
 };
 } // namespace detail

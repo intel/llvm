@@ -1014,11 +1014,11 @@ public:
     auto [Kernel, CacheMutex, ArgMask] =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             MContext, KernelID.get_name(), /*PropList=*/{},
-            SelectedImage->get_ur_program_ref());
+            SelectedImage->get_ur_program());
 
     return std::make_shared<kernel_impl>(
         Kernel, *detail::getSyclObjImpl(MContext), SelectedImage, *this,
-        ArgMask, SelectedImage->get_ur_program_ref(), CacheMutex);
+        ArgMask, SelectedImage->get_ur_program(), CacheMutex);
   }
 
   std::shared_ptr<kernel_impl>

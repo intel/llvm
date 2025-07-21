@@ -2719,7 +2719,7 @@ void enqueueImpKernel(
     Kernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
 
-    Program = DeviceImageImpl->get_ur_program_ref();
+    Program = DeviceImageImpl->get_ur_program();
 
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
     KernelMutex = SyclKernelImpl->getCacheMutex();
@@ -2806,7 +2806,7 @@ ur_result_t enqueueReadWriteHostPipe(queue_impl &Queue,
             hostPipeEntry->getDevBinImage(), Queue.get_context(), Device);
     device_image_plain BuiltImage = ProgramManager::getInstance().build(
         std::move(devImgPlain), {std::move(Device)}, {});
-    Program = getSyclObjImpl(BuiltImage)->get_ur_program_ref();
+    Program = getSyclObjImpl(BuiltImage)->get_ur_program();
   }
   assert(Program && "Program for this hostpipe is not compiled.");
 
