@@ -40,8 +40,9 @@ __SYCL_EXPORT int export_device_mem_opaque_fd(void *deviceMemory,
                                               const sycl::context &syclContext);
 
 __SYCL_EXPORT void *
-export_device_mem_win32_nt(void *deviceMemory, const sycl::device &syclDevice,
-                           const sycl::context &syclContext);
+export_device_mem_win32_nt_handle(void *deviceMemory,
+                                  const sycl::device &syclDevice,
+                                  const sycl::context &syclContext);
 } // namespace detail
 
 __SYCL_EXPORT void *alloc_exportable_device_mem(
@@ -104,8 +105,8 @@ template <external_mem_handle_type ExternalMemHandleType,
 inline detail::exported_mem_t<ExternalMemHandleType>
 export_device_mem_handle(void *deviceMemory, const sycl::device &syclDevice,
                          const sycl::context &syclContext) {
-  return detail::export_device_mem_win32_nt(deviceMemory, syclDevice,
-                                            syclContext);
+  return detail::export_device_mem_win32_nt_handle(deviceMemory, syclDevice,
+                                                   syclContext);
 }
 
 // Available only when
