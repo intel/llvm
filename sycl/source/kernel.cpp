@@ -54,9 +54,7 @@ void kernel::setFreeFuncKernelArgNum(unsigned Num) {
   impl->setKerenlFreeFuncArgNum(Num);
 }
 
-void kernel::updateFreeFuncKernelCache() {
-  impl->updateFreeFuncKernelCache();
-}
+void kernel::updateFreeFuncKernelCache() { impl->updateFreeFuncKernelCache(); }
 
 template <typename Param>
 detail::ABINeutralT_t<typename detail::is_kernel_info_desc<Param>::return_type>
