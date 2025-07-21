@@ -48,7 +48,7 @@ struct GetMergedKernelProperties<
       PropertiesT, get_method_properties>;
 };
 
-struct KernelWrapperSingletonFuncs {
+struct KernelWrapperHelperFuncs {
 
 #ifdef SYCL_LANGUAGE_VERSION
 #ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
@@ -207,7 +207,7 @@ struct KernelWrapper<
     WrapAsVal, KernelName, KernelType, ElementType, PropertyProcessor,
     PropertiesT,
     ext::oneapi::experimental::detail::properties_t<MergedProps...>>
-    : public KernelWrapperSingletonFuncs {
+    : public KernelWrapperHelperFuncs {
 
   static void wrap([[maybe_unused]] PropertyProcessor h,
                    [[maybe_unused]] const KernelType &KernelFunc) {

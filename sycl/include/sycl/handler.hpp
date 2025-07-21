@@ -17,6 +17,7 @@
 #include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/kernel_launch_helper.hpp>
 #include <sycl/detail/kernel_name_based_cache.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/reduction_forward.hpp>
@@ -41,7 +42,6 @@
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
-#include <sycl/detail/kernel_launch_helper.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
@@ -1292,9 +1292,9 @@ private:
       using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
                                        decltype(Wrapper), NameWT>;
 
-      detail::KernelWrapper<detail::WrapAs::parallel_for, KName, decltype(Wrapper),
-                            TransformedArgType, decltype(this),
-                            PropertiesT>::wrap(this, Wrapper);
+      detail::KernelWrapper<detail::WrapAs::parallel_for, KName,
+                            decltype(Wrapper), TransformedArgType,
+                            decltype(this), PropertiesT>::wrap(this, Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr detail::string_view Name{detail::getKernelName<NameT>()};
       verifyUsedKernelBundleInternal(Name);
@@ -1388,8 +1388,8 @@ private:
   }
 
   template <
-      detail::WrapAs WrapAsVal, typename KernelName, typename ElementType = void,
-      int Dims = 1, bool SetNumWorkGroups = false,
+      detail::WrapAs WrapAsVal, typename KernelName,
+      typename ElementType = void, int Dims = 1, bool SetNumWorkGroups = false,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
       typename KernelType, typename... RangeParams>
   void wrap_kernel(const KernelType &KernelFunc, const PropertiesT &Props,
@@ -1427,8 +1427,8 @@ private:
   // Implementation for something that had to be removed long ago but now stuck
   // until next major release...
   template <
-      detail::WrapAs WrapAsVal, typename KernelName, typename ElementType = void,
-      int Dims = 1, bool SetNumWorkGroups = false,
+      detail::WrapAs WrapAsVal, typename KernelName,
+      typename ElementType = void, int Dims = 1, bool SetNumWorkGroups = false,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
       typename KernelType, typename... RangeParams>
   void wrap_kernel_legacy(const KernelType &KernelFunc, kernel &Kernel,
@@ -1717,8 +1717,8 @@ public:
   /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType>
   void single_task(const KernelType &KernelFunc) {
-    wrap_kernel<detail::WrapAs::single_task, KernelName>(KernelFunc, {} /*Props*/,
-                                                 range<1>{1});
+    wrap_kernel<detail::WrapAs::single_task, KernelName>(
+        KernelFunc, {} /*Props*/, range<1>{1});
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
@@ -1784,8 +1784,8 @@ public:
     using TransformedArgType = std::conditional_t<
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
         typename TransformUserItemType<Dims, LambdaArgType>::type>;
-    wrap_kernel<detail::WrapAs::parallel_for, KernelName, TransformedArgType, Dims>(
-        KernelFunc, {} /*Props*/, NumWorkItems, WorkItemOffset);
+    wrap_kernel<detail::WrapAs::parallel_for, KernelName, TransformedArgType,
+                Dims>(KernelFunc, {} /*Props*/, NumWorkItems, WorkItemOffset);
   }
 
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
@@ -1915,7 +1915,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Kernel;
-    detail::KernelWrapperSingletonFuncs::kernel_single_task<NameT>(KernelFunc);
+    detail::KernelWrapperHelperFuncs::kernel_single_task<NameT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     constexpr detail::string_view Name{detail::getKernelName<NameT>()};
@@ -1951,8 +1951,8 @@ public:
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-    wrap_kernel_legacy<detail::WrapAs::parallel_for, KernelName, LambdaArgType, Dims>(
-        KernelFunc, Kernel, {} /*Props*/, NumWorkItems);
+    wrap_kernel_legacy<detail::WrapAs::parallel_for, KernelName, LambdaArgType,
+                       Dims>(KernelFunc, Kernel, {} /*Props*/, NumWorkItems);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -1970,8 +1970,9 @@ public:
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
                     id<Dims> WorkItemOffset, const KernelType &KernelFunc) {
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-    wrap_kernel_legacy<detail::WrapAs::parallel_for, KernelName, LambdaArgType, Dims>(
-        KernelFunc, Kernel, {} /*Props*/, NumWorkItems, WorkItemOffset);
+    wrap_kernel_legacy<detail::WrapAs::parallel_for, KernelName, LambdaArgType,
+                       Dims>(KernelFunc, Kernel, {} /*Props*/, NumWorkItems,
+                             WorkItemOffset);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -1990,8 +1991,8 @@ public:
                     const KernelType &KernelFunc) {
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-    wrap_kernel_legacy<detail::WrapAs::parallel_for, KernelName, LambdaArgType, Dims>(
-        KernelFunc, Kernel, {} /*Props*/, NDRange);
+    wrap_kernel_legacy<detail::WrapAs::parallel_for, KernelName, LambdaArgType,
+                       Dims>(KernelFunc, Kernel, {} /*Props*/, NDRange);
   }
 
   /// Hierarchical kernel invocation method of a kernel.
@@ -2061,7 +2062,7 @@ public:
       PropertiesT>::value> single_task(PropertiesT Props,
                                        const KernelType &KernelFunc) {
     wrap_kernel<detail::WrapAs::single_task, KernelName>(KernelFunc, Props,
-                                                 range<1>{1});
+                                                         range<1>{1});
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType,
@@ -2124,8 +2125,8 @@ public:
         "must be either sycl::nd_item or be convertible from sycl::nd_item");
     using TransformedArgType = sycl::nd_item<Dims>;
 
-    wrap_kernel<detail::WrapAs::parallel_for, KernelName, TransformedArgType, Dims>(
-        KernelFunc, Properties, Range);
+    wrap_kernel<detail::WrapAs::parallel_for, KernelName, TransformedArgType,
+                Dims>(KernelFunc, Properties, Range);
   }
 
   /// Reductions @{
@@ -3642,7 +3643,8 @@ private:
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
   friend class detail::HandlerAccess;
-  template <detail::WrapAs, typename, typename, typename, typename, typename, typename>
+  template <detail::WrapAs, typename, typename, typename, typename, typename,
+            typename>
   friend struct detail::KernelWrapper;
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
