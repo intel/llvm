@@ -296,102 +296,9 @@ void cloneDebugInfo(const VectorizationUnit &VU) {
   // Changing the scope to point to the new vectorized function, rather
   // than the scalar function.
 
-  std::vector<Instruction *> DIIntrinsicsToDelete;
-  std::vector<Metadata *> VectorizedLocals;
-
   for (auto &BBItr : *VU.vectorizedFunction()) {
     for (auto &InstItr : BBItr) {
-      // Instruction is a llvm.dbg.value() or llvm.dbg.declare() intrinsic
-      // TODO CA-1115 - Support llvm.dbg.addr() intrinsic
-      if (DbgInfoIntrinsic *const DII = dyn_cast<DbgInfoIntrinsic>(&InstItr)) {
-        // Delete this intrinsic later
-        DIIntrinsicsToDelete.push_back(DII);
-
-        // Generate a new DebugLoc pointing to vectorized function
-        const DebugLoc &ScalarLoc = DII->getDebugLoc();
-
-        // If location is inlined, we need to change the function it's inlined
-        // into to our vectorized kernel, keeping the base location the same.
-        DebugLoc VectorLoc;
-        const DILocation *InlinedLoc = ScalarLoc.getInlinedAt();
-        DISubprogram *OriginalFunc = VectorDI;
-
-        if (InlinedLoc) {
-          OriginalFunc = ScalarLoc->getScope()->getSubprogram();
-          if (InlinedLoc->getInlinedAt()) {
-            // We don't support nested inlined locations currently, abandon
-            // creating dbg intrinsic as otherwise it will fail in validation.
-            continue;
-          }
-
-          const DebugLoc InlinedAtLoc = getDILocation(
-              InlinedLoc->getLine(), InlinedLoc->getColumn(), VectorDI);
-          VectorLoc = getDILocation(ScalarLoc.getLine(), ScalarLoc.getCol(),
-                                    ScalarLoc.getScope(), InlinedAtLoc);
-        } else {
-          VectorLoc =
-              getDILocation(ScalarLoc.getLine(), ScalarLoc.getCol(), VectorDI);
-        }
-
-        // New DILocalVariable in the scope of vectorized function
-        DILocalVariable *VectorLocal = nullptr;
-        if (DbgValueInst *const DVI = dyn_cast<DbgValueInst>(DII)) {
-          if (!DVI->getValue()) {
-            // Debug value has been optimized out
-            continue;
-          }
-
-          // Find DILocalVariable the intrinsic references
-          const DILocalVariable *const ScalarLocal = DVI->getVariable();
-
-          // Create a copy of DILocalVariable but in vectorized function scope
-          if (ScalarLocal->getArg() == 0) {
-            VectorLocal = DIB.createAutoVariable(
-                OriginalFunc, ScalarLocal->getName(), ScalarLocal->getFile(),
-                ScalarLocal->getLine(),
-                dyn_cast<DIType>(ScalarLocal->getType()));
-          } else {
-            VectorLocal = DIB.createParameterVariable(
-                OriginalFunc, ScalarLocal->getName(), ScalarLocal->getArg(),
-                ScalarLocal->getFile(), ScalarLocal->getLine(),
-                dyn_cast<DIType>(ScalarLocal->getType()));
-          }
-
-          // New llvm.dbg.value() with correct scope
-          DIB.insertDbgValueIntrinsic(DVI->getValue(), VectorLocal,
-                                      DVI->getExpression(), VectorLoc,
-                                      DVI->getIterator());
-        } else if (DbgDeclareInst *const DDI = dyn_cast<DbgDeclareInst>(DII)) {
-          // Find DILocalVariable the intrinsic references
-          const DILocalVariable *const ScalarLocal = DDI->getVariable();
-
-          // Create a copy of DILocalVariable but in vectorized function scope
-          if (ScalarLocal->getArg() == 0) {
-            VectorLocal = DIB.createAutoVariable(
-                OriginalFunc, ScalarLocal->getName(), ScalarLocal->getFile(),
-                ScalarLocal->getLine(),
-                dyn_cast<DIType>(ScalarLocal->getType()));
-          } else {
-            VectorLocal = DIB.createParameterVariable(
-                OriginalFunc, ScalarLocal->getName(), ScalarLocal->getArg(),
-                ScalarLocal->getFile(), ScalarLocal->getLine(),
-                dyn_cast<DIType>(ScalarLocal->getType()));
-          }
-
-          // New llvm.dbg.declare() with correct scope
-          DIB.insertDeclare(DDI->getAddress(), VectorLocal,
-                            DDI->getExpression(), VectorLoc,
-                            DDI->getIterator());
-        } else {
-          continue;  // No other DbgInfoIntrinsic subclasses
-        }
-
-        if (VectorizedLocals.end() == std::find(VectorizedLocals.begin(),
-                                                VectorizedLocals.end(),
-                                                VectorLocal)) {
-          VectorizedLocals.push_back(VectorLocal);
-        }
-      } else if (InstItr.getDebugLoc()) {
+      if (InstItr.getDebugLoc()) {
         // Update debug info line numbers to have vectorized kernel scope,
         // taking care to preserve inlined locations.
         const DebugLoc &ScalarLoc = InstItr.getDebugLoc();
@@ -413,19 +320,14 @@ void cloneDebugInfo(const VectorizationUnit &VU) {
     }
   }
 
-  // Delete intrinsics we have replaced
-  for (auto Instr : DIIntrinsicsToDelete) {
-    Instr->eraseFromParent();
-  }
-
   // Replace temporary MDNode with list of vectorized DILocals we have created
   // In LLVM 7.0 the variables attribute of DISubprogram was changed to
   // retainedNodes
   auto *VectorizedKernelVariables = VectorDI->getRetainedNodes().get();
   assert(VectorizedKernelVariables && "Could not get retained nodes");
   if (VectorizedKernelVariables->isTemporary()) {
-    auto NewLocals = MDTuple::getTemporary(
-        VectorizedKernelVariables->getContext(), VectorizedLocals);
+    auto NewLocals =
+        MDTuple::getTemporary(VectorizedKernelVariables->getContext(), {});
     VectorizedKernelVariables->replaceAllUsesWith(NewLocals.get());
   }
 
