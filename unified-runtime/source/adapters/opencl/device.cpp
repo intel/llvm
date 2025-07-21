@@ -1439,7 +1439,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                         sizeof(cl_bool), &isLuidValid, nullptr));
 
     if (!isLuidValid) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
 
     static_assert(CL_LUID_SIZE_KHR == 8);
