@@ -144,6 +144,69 @@ bool kernel_test_strncpy(sycl::queue &deviceQueue) {
   return true;
 }
 
+class KernelTestStrcmp;
+bool kernel_test_strcmp(sycl::queue &deviceQueue) {
+  int res[5];
+  {
+    sycl::buffer<int, 1> res_buffer(res, sycl::range<1>(5));
+    deviceQueue.submit([&](sycl::handler &cgh) {
+      auto res_acc = res_buffer.get_access<sycl::access::mode::write>(cgh);
+      cgh.single_task<class KernelTestStrcmp>([=]() {
+        char str1[20] = "abcdefg012";
+        char str2[20] = "abcd";
+        char str3[20] = "124ddf";
+        char str4[20] = "abcdefg015";
+        res_acc[0] = strcmp(str1, str1);
+        res_acc[1] = strcmp(str1, str2);
+        res_acc[2] = strcmp(str3, str1);
+        res_acc[3] = strcmp(str4, str1);
+        res_acc[4] = strcmp(str1, str4);
+      });
+    });
+  }
+
+  if ((res[0] != 0) || (res[1] <= 0) || (res[2] >= 0) || (res[3] <= 0) ||
+      (res[4] >= 0))
+    return false;
+  return true;
+}
+
+class KernelTestStrncmp;
+bool kernel_test_strncmp(sycl::queue &deviceQueue) {
+  int res[9];
+  {
+    sycl::buffer<int, 1> res_buffer(res, sycl::range<1>(9));
+    deviceQueue.submit([&](sycl::handler &cgh) {
+      auto res_acc = res_buffer.get_access<sycl::access::mode::write>(cgh);
+      cgh.single_task<class KernelTestStrncmp>([=]() {
+        char str1[20] = "abcdefg012";
+        char str2[20] = "abcd";
+        char str3[20] = "124ddf";
+        char str4[20] = "abcdefg015";
+        char str5[20] = "";
+        char str6[20] = "abcdEFG";
+        char str7[20] = "abcdefg";
+        str6[3] = str7[3] = '\0';
+        res_acc[0] = strncmp(str1, str1, 12);
+        res_acc[1] = strncmp(str1, str2, 4);
+        res_acc[2] = strncmp(str3, str1, 0);
+        res_acc[3] = strncmp(str4, str1, 9);
+        res_acc[4] = strncmp(str1, str4, 10);
+        res_acc[5] = strncmp(str3, str3, 20);
+        res_acc[6] = strncmp(str2, str3, 6);
+        res_acc[7] = strncmp(str5, str5, 12);
+        res_acc[8] = strncmp(str6, str7, 7);
+      });
+    });
+  }
+
+  if ((res[0] != 0) || (res[1] != 0) || (res[2] != 0) || (res[3] != 0) ||
+      (res[4] >= 0) || (res[5] != 0) || (res[6] <= 0) || (res[7] != 0) ||
+      (res[8] != 0))
+    return false;
+  return true;
+}
+
 class KernelTestStrlen;
 bool kernel_test_strlen(sycl::queue &deviceQueue) {
   bool success = true;
@@ -630,6 +693,11 @@ int main() {
   success = kernel_test_strncpy(deviceQueue);
   assert(((void)"strncpy test failed!", success));
 
+  success = kernel_test_strcmp(deviceQueue);
+  assert(((void)"strcmp test failed!", success));
+
+  success = kernel_test_strncmp(deviceQueue);
+  assert(((void)"strncmp test failed!", success));
   std::cout << "passed!" << std::endl;
   return 0;
 }

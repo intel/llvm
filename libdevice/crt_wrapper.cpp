@@ -74,22 +74,15 @@ int strcmp(const char *s1, const char *s2) {
 
 DEVICE_EXTERN_C_INLINE
 int strncmp(const char *s1, const char *s2, size_t n) {
-  size_t i = 0;
-  while ((i < n) && (s1[i] != '\0') && (s2[i] != '\0')) {
-    if (s1[i] != s2[i])
-      return static_cast<const unsigned char>(s1[i]) -
-             static_cast<const unsigned char>(s2[i]);
 
-    ++i;
-  }
+  size_t idx = 0;
+  while ((idx < n) && (s1[idx] != '\0') && (s1[idx] == s2[idx]))
+    idx++;
 
-  if (i < n) {
-    if (s1[i] == '\0')
-      return 1;
-    else
-      return -1;
-  } else
+  if (idx == n)
     return 0;
+
+  return s1[idx] - s2[idx];
 }
 
 // This simple rand is for ease of use only, the implementation aligns with
