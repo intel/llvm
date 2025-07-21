@@ -56,10 +56,10 @@ TEST_F(CommandGraphTest, AddNode) {
   ASSERT_TRUE(GraphImpl.MRoots.empty());
 
   auto Node1 = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   ASSERT_FALSE(getSyclObjImpl(Node1)->isEmpty());
   ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
-  ASSERT_EQ(GraphImpl.MRoots.begin()->lock().get(), &*getSyclObjImpl(Node1));
+  ASSERT_EQ(*GraphImpl.MRoots.begin(), &*getSyclObjImpl(Node1));
   ASSERT_TRUE(getSyclObjImpl(Node1)->MSuccessors.empty());
   ASSERT_TRUE(getSyclObjImpl(Node1)->MPredecessors.empty());
 
@@ -71,7 +71,7 @@ TEST_F(CommandGraphTest, AddNode) {
   ASSERT_TRUE(getSyclObjImpl(Node2)->isEmpty());
   ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
   ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.size(), 1lu);
-  ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.front().lock().get(),
+  ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.front(),
             &*getSyclObjImpl(Node2));
   ASSERT_TRUE(getSyclObjImpl(Node1)->MPredecessors.empty());
   ASSERT_EQ(getSyclObjImpl(Node2)->MPredecessors.size(), 1lu);
@@ -105,17 +105,17 @@ TEST_F(CommandGraphTest, Finalize) {
   sycl::buffer<int> Buf(1);
   auto Node1 = Graph.add([&](sycl::handler &cgh) {
     sycl::accessor A(Buf, cgh, sycl::write_only, sycl::no_init);
-    cgh.single_task<TestKernel<>>([]() {});
+    cgh.single_task<TestKernel>([]() {});
   });
 
   // Add independent node
   auto Node2 = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   // Add a node that depends on Node1 due to the accessor
   auto Node3 = Graph.add([&](sycl::handler &cgh) {
     sycl::accessor A(Buf, cgh, sycl::read_write);
-    cgh.single_task<TestKernel<>>([]() {});
+    cgh.single_task<TestKernel>([]() {});
   });
 
   // Guarantee order of independent nodes 1 and 2
@@ -142,7 +142,7 @@ TEST_F(CommandGraphTest, MakeEdge) {
 
   // Add two independent nodes
   auto Node1 = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node2 = Graph.add([&](sycl::handler &cgh) {});
   ASSERT_EQ(GraphImpl.MRoots.size(), 2ul);
   ASSERT_TRUE(getSyclObjImpl(Node1)->MSuccessors.empty());
@@ -154,7 +154,7 @@ TEST_F(CommandGraphTest, MakeEdge) {
   Graph.make_edge(Node1, Node2);
   ASSERT_EQ(GraphImpl.MRoots.size(), 1ul);
   ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.size(), 1lu);
-  ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.front().lock().get(),
+  ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.front(),
             &*getSyclObjImpl(Node2));
   ASSERT_TRUE(getSyclObjImpl(Node1)->MPredecessors.empty());
   ASSERT_TRUE(getSyclObjImpl(Node2)->MSuccessors.empty());
@@ -195,7 +195,7 @@ TEST_F(CommandGraphTest, BeginEndRecording) {
 TEST_F(CommandGraphTest, GetCGCopy) {
   auto Node1 = Graph.add([&](sycl::handler &cgh) {});
   auto Node2 = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(Node1)});
 
   // Get copy of CG of Node2 and check equality
@@ -217,11 +217,11 @@ TEST_F(CommandGraphTest, GetCGCopy) {
 
 TEST_F(CommandGraphTest, DependencyLeavesKeyword1) {
   auto Node1Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node2Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node3Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   auto EmptyNode =
       Graph.add([&](sycl::handler &cgh) { /*empty node */ },
@@ -241,24 +241,24 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword1) {
 
   experimental::detail::node_impl &Node1Impl = *getSyclObjImpl(Node1Graph);
   ASSERT_EQ(Node1Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node1Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node1Impl.MSuccessors[0], &EmptyImpl);
   experimental::detail::node_impl &Node2Impl = *getSyclObjImpl(Node2Graph);
   ASSERT_EQ(Node2Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node2Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node2Impl.MSuccessors[0], &EmptyImpl);
   experimental::detail::node_impl &Node3Impl = *getSyclObjImpl(Node3Graph);
   ASSERT_EQ(Node3Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node3Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node3Impl.MSuccessors[0], &EmptyImpl);
 }
 
 TEST_F(CommandGraphTest, DependencyLeavesKeyword2) {
   auto Node1Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node2Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node3Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node4Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(Node3Graph)});
 
   auto EmptyNode =
@@ -280,32 +280,32 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword2) {
 
   experimental::detail::node_impl &Node1Impl = *getSyclObjImpl(Node1Graph);
   ASSERT_EQ(Node1Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node1Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node1Impl.MSuccessors[0], &EmptyImpl);
   experimental::detail::node_impl &Node2Impl = *getSyclObjImpl(Node2Graph);
   ASSERT_EQ(Node2Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node2Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node2Impl.MSuccessors[0], &EmptyImpl);
   experimental::detail::node_impl &Node3Impl = *getSyclObjImpl(Node3Graph);
   ASSERT_EQ(Node3Impl.MSuccessors.size(), 1lu);
 
   experimental::detail::node_impl &Node4Impl = *getSyclObjImpl(Node4Graph);
   ASSERT_EQ(Node4Impl.MPredecessors.size(), 1lu);
   ASSERT_EQ(Node4Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node4Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node4Impl.MSuccessors[0], &EmptyImpl);
 }
 
 TEST_F(CommandGraphTest, DependencyLeavesKeyword3) {
   auto Node1Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node2Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto EmptyNode =
       Graph.add([&](sycl::handler &cgh) { /*empty node */ },
                 {experimental::property::node::depends_on_all_leaves()});
   auto Node3Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(Node1Graph)});
   auto Node4Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(EmptyNode)});
 
   experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
@@ -325,27 +325,27 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword3) {
   experimental::detail::node_impl &Node2Impl = *getSyclObjImpl(Node2Graph);
   ASSERT_EQ(Node1Impl.MSuccessors.size(), 2lu);
   ASSERT_EQ(Node2Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node2Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node2Impl.MSuccessors[0], &EmptyImpl);
 
   experimental::detail::node_impl &Node3Impl = *getSyclObjImpl(Node3Graph);
   ASSERT_EQ(Node3Impl.MPredecessors.size(), 1lu);
-  ASSERT_EQ(Node3Impl.MPredecessors[0].lock().get(), &Node1Impl);
+  ASSERT_EQ(Node3Impl.MPredecessors[0], &Node1Impl);
 
   experimental::detail::node_impl &Node4Impl = *getSyclObjImpl(Node4Graph);
   ASSERT_EQ(Node4Impl.MPredecessors.size(), 1lu);
-  ASSERT_EQ(Node4Impl.MPredecessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node4Impl.MPredecessors[0], &EmptyImpl);
 }
 
 TEST_F(CommandGraphTest, DependencyLeavesKeyword4) {
   auto Node1Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node2Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto EmptyNode =
       Graph.add([&](sycl::handler &cgh) { /*empty node */ },
                 {experimental::property::node::depends_on_all_leaves()});
   auto Node3Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto EmptyNode2 =
       Graph.add([&](sycl::handler &cgh) { /*empty node */ },
                 {experimental::property::node::depends_on_all_leaves()});
@@ -365,16 +365,16 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword4) {
 
   experimental::detail::node_impl &Node1Impl = *getSyclObjImpl(Node1Graph);
   ASSERT_EQ(Node1Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node1Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node1Impl.MSuccessors[0], &EmptyImpl);
   experimental::detail::node_impl &Node2Impl = *getSyclObjImpl(Node2Graph);
   ASSERT_EQ(Node2Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node2Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node2Impl.MSuccessors[0], &EmptyImpl);
 
   experimental::detail::node_impl &EmptyImpl2 = *getSyclObjImpl(EmptyNode2);
   experimental::detail::node_impl &Node3Impl = *getSyclObjImpl(Node3Graph);
   ASSERT_EQ(Node3Impl.MPredecessors.size(), 0lu);
   ASSERT_EQ(Node3Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node3Impl.MSuccessors[0].lock().get(), &EmptyImpl2);
+  ASSERT_EQ(Node3Impl.MSuccessors[0], &EmptyImpl2);
 
   ASSERT_EQ(EmptyImpl2.MPredecessors.size(), 2lu);
 }
@@ -383,25 +383,25 @@ TEST_F(CommandGraphTest, GraphPartitionsMerging) {
   // Tests that the parition merging algo works as expected in case of backward
   // dependencies
   auto NodeA = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto NodeB = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(NodeA)});
   auto NodeHT1 = Graph.add([&](sycl::handler &cgh) { cgh.host_task([=]() {}); },
                            {experimental::property::node::depends_on(NodeB)});
   auto NodeC = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(NodeHT1)});
   auto NodeD = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(NodeB)});
   auto NodeHT2 = Graph.add([&](sycl::handler &cgh) { cgh.host_task([=]() {}); },
                            {experimental::property::node::depends_on(NodeD)});
   auto NodeE = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(NodeHT2)});
   auto NodeF = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(NodeHT2)});
 
   // Backward dependency
@@ -424,7 +424,7 @@ TEST_F(CommandGraphTest, GetNodeFromEvent) {
   // for an explicit node
   Graph.begin_recording(Queue);
   auto EventKernel = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Graph.end_recording();
 
   experimental::node NodeKernelA =
@@ -432,12 +432,12 @@ TEST_F(CommandGraphTest, GetNodeFromEvent) {
 
   // Add node as a dependency with the property
   auto NodeKernelB = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       experimental::property::node::depends_on(NodeKernelA));
 
   // Test adding a dependency through make_edge
   auto NodeKernelC = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   ASSERT_NO_THROW(Graph.make_edge(NodeKernelA, NodeKernelC));
 
   auto GraphExec = Graph.finalize();
@@ -516,12 +516,12 @@ void testAccessorModeCombo(sycl::queue Queue) {
   // Create the first node with a write mode
   auto EventFirst = Queue.submit([&](handler &CGH) {
     auto Acc = Buffer.get_access<FirstMode>(CGH);
-    CGH.single_task<TestKernel<>>([]() {});
+    CGH.single_task<TestKernel>([]() {});
   });
 
   auto EventSecond = Queue.submit([&](handler &CGH) {
     auto Acc = Buffer.get_access<SecondMode>(CGH);
-    CGH.single_task<TestKernel<>>([]() {});
+    CGH.single_task<TestKernel>([]() {});
   });
   Graph.end_recording(Queue);
 

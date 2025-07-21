@@ -13,9 +13,8 @@
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
 
-// SYCLBIN currently only properly detects SPIR-V binaries.
-// XFAIL: !target-spir
-// XFAIL-TRACKER: CMPLRLLVM-68811
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19533
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=input %{sycl_target_opts} %S/Inputs/dg_kernel.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out

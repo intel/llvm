@@ -2729,6 +2729,9 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     /// device is null then the granularity is suitable for all devices in
     /// context.
     ur_device_handle_t hDevice,
+    /// [in] allocation size in bytes for which the alignment is being
+    /// queried.
+    size_t allocationSize,
     /// [in] type of the info to query.
     ur_virtual_mem_granularity_info_t propName,
     /// [in] size in bytes of the memory pointed to by pPropValue.
@@ -2744,7 +2747,8 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
   ur_result_t result = UR_RESULT_SUCCESS;
 
   ur_virtual_mem_granularity_get_info_params_t params = {
-      &hContext, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
+      &hContext, &hDevice,    &allocationSize, &propName,
+      &propSize, &pPropValue, &pPropSizeRet};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback(
@@ -9184,6 +9188,58 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesSupportsImportingHandleTypeExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesSupportsImportingHandleTypeExp(
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] type of external memory handle
+    ur_exp_external_mem_type_t memHandleType,
+    /// [out] whether the device supports importing the specified external
+    /// memory handle type
+    ur_bool_t *pSupportedRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_bindless_images_supports_importing_handle_type_exp_params_t params = {
+      &hDevice, &memHandleType, &pSupportedRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urBindlessImagesSupportsImportingHandleTypeExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urBindlessImagesSupportsImportingHandleTypeExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urBindlessImagesSupportsImportingHandleTypeExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImportExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     /// [in] handle of the context object
@@ -11844,9 +11900,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 
 } // namespace driver
 
-#if defined(__cplusplus)
 extern "C" {
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Adapter table
@@ -11957,6 +12011,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
 
   pDdiTable->pfnFreeMappedLinearMemoryExp =
       driver::urBindlessImagesFreeMappedLinearMemoryExp;
+
+  pDdiTable->pfnSupportsImportingHandleTypeExp =
+      driver::urBindlessImagesSupportsImportingHandleTypeExp;
 
   pDdiTable->pfnImportExternalSemaphoreExp =
       driver::urBindlessImagesImportExternalSemaphoreExp;
@@ -12826,7 +12883,4 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-
-#if defined(__cplusplus)
 }
-#endif

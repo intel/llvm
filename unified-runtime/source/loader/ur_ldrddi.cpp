@@ -34,21 +34,21 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
 
   auto context = getContext();
 
-  size_t adapterIndex = 0;
-  if (nullptr != phAdapters && NumEntries != 0) {
-    for (auto &platform : context->platforms) {
-      if (platform.initStatus != UR_RESULT_SUCCESS)
-        continue;
-      platform.dditable.Adapter.pfnGet(1, &phAdapters[adapterIndex], nullptr);
-      adapterIndex++;
-      if (adapterIndex == NumEntries) {
-        break;
-      }
-    }
+  uint32_t numAdapters = 0;
+  for (auto &platform : context->platforms) {
+    if (platform.initStatus != UR_RESULT_SUCCESS)
+      continue;
+
+    uint32_t adapter;
+    ur_adapter_handle_t *adapterHandle =
+        numAdapters < NumEntries ? &phAdapters[numAdapters] : nullptr;
+    platform.dditable.Adapter.pfnGet(1, adapterHandle, &adapter);
+
+    numAdapters += adapter;
   }
 
   if (pNumAdapters != nullptr) {
-    *pNumAdapters = static_cast<uint32_t>(context->platforms.size());
+    *pNumAdapters = numAdapters;
   }
 
   return UR_RESULT_SUCCESS;
@@ -1238,6 +1238,9 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     /// device is null then the granularity is suitable for all devices in
     /// context.
     ur_device_handle_t hDevice,
+    /// [in] allocation size in bytes for which the alignment is being
+    /// queried.
+    size_t allocationSize,
     /// [in] type of the info to query.
     ur_virtual_mem_granularity_info_t propName,
     /// [in] size in bytes of the memory pointed to by pPropValue.
@@ -1258,8 +1261,8 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnGranularityGetInfo(hContext, hDevice, propName, propSize,
-                               pPropValue, pPropSizeRet);
+  return pfnGranularityGetInfo(hContext, hDevice, allocationSize, propName,
+                               propSize, pPropValue, pPropSizeRet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4395,6 +4398,30 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesSupportsImportingHandleTypeExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesSupportsImportingHandleTypeExp(
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] type of external memory handle
+    ur_exp_external_mem_type_t memHandleType,
+    /// [out] whether the device supports importing the specified external
+    /// memory handle type
+    ur_bool_t *pSupportedRet) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+
+  auto *pfnSupportsImportingHandleTypeExp =
+      dditable->BindlessImagesExp.pfnSupportsImportingHandleTypeExp;
+  if (nullptr == pfnSupportsImportingHandleTypeExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnSupportsImportingHandleTypeExp(hDevice, memHandleType,
+                                           pSupportedRet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImportExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     /// [in] handle of the context object
@@ -5709,9 +5736,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 
 } // namespace ur_loader
 
-#if defined(__cplusplus)
 extern "C" {
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Adapter table
@@ -5848,6 +5873,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
           ur_loader::urBindlessImagesReleaseExternalMemoryExp;
       pDdiTable->pfnFreeMappedLinearMemoryExp =
           ur_loader::urBindlessImagesFreeMappedLinearMemoryExp;
+      pDdiTable->pfnSupportsImportingHandleTypeExp =
+          ur_loader::urBindlessImagesSupportsImportingHandleTypeExp;
       pDdiTable->pfnImportExternalSemaphoreExp =
           ur_loader::urBindlessImagesImportExternalSemaphoreExp;
       pDdiTable->pfnReleaseExternalSemaphoreExp =
@@ -7011,7 +7038,4 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 
   return result;
 }
-
-#if defined(__cplusplus)
 }
-#endif
