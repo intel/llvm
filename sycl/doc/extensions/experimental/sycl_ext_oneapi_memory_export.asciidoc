@@ -225,10 +225,10 @@ Constraints: `ExternalMemHandleType` is either
 `external_mem_handle_type::win32_nt_handle`.
 
 When `ExternalMemHandleType` is `external_mem_handle_type::opaque_fd`, the
-`__return_type__` is `int`.
+`+__return_type__+` is `int`.
 
 When `ExternalMemHandleType` is `external_mem_handle_type::win32_nt_handle`, the
-`__return_type__` is `void *`.
+`+__return_type__+` is `void *`.
 
 The `export_device_mem_handle` function accepts a `void *` representing a device
 allocation made using `alloc_exportable_device_mem`.
