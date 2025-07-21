@@ -1274,9 +1274,8 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
 
 Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
     ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-    std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-        Nodes,
-    queue_impl *Queue, std::vector<Requirement *> Requirements,
+    ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
+    std::vector<Requirement *> Requirements,
     std::vector<detail::EventImplPtr> &Events,
     std::vector<Command *> &ToEnqueue) {
   auto NewCmd =

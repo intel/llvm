@@ -79,7 +79,6 @@ createBinaryProgram(context_impl &Context, devices_range Devices,
   adapter_impl &Adapter = Context.getAdapter();
   ur_program_handle_t Program;
   auto DeviceHandles = Devices.to<std::vector<ur_device_handle_t>>();
-  ur_result_t BinaryStatus = UR_RESULT_SUCCESS;
   ur_program_properties_t Properties = {};
   Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
   Properties.pNext = nullptr;
@@ -89,12 +88,6 @@ createBinaryProgram(context_impl &Context, devices_range Devices,
   Adapter.call<UrApiKind::urProgramCreateWithBinary>(
       Context.getHandleRef(), DeviceHandles.size(), DeviceHandles.data(),
       Lengths, Binaries, &Properties, &Program);
-  if (BinaryStatus != UR_RESULT_SUCCESS) {
-    throw detail::set_ur_error(
-        exception(make_error_code(errc::runtime),
-                  "Creating program with binary failed."),
-        BinaryStatus);
-  }
 
   return Program;
 }
@@ -2690,9 +2683,9 @@ ProgramManager::createDependencyImage(const context &Ctx, devices_range Devs,
 
   assert(DepState == getBinImageState(DepImage) &&
          "State mismatch between main image and its dependency");
-  DeviceImageImplPtr DepImpl =
-      device_image_impl::create(DepImage, Ctx, Devs, DepState, DepKernelIDs,
-                                /*PIProgram=*/nullptr, ImageOriginSYCLOffline);
+  DeviceImageImplPtr DepImpl = device_image_impl::create(
+      DepImage, Ctx, Devs, DepState, std::move(DepKernelIDs),
+      /*PIProgram=*/nullptr, ImageOriginSYCLOffline);
 
   return createSyclObjFromImpl<device_image_plain>(std::move(DepImpl));
 }
@@ -2905,10 +2898,8 @@ mergeImageData(const std::vector<device_image_plain> &Imgs,
   for (const device_image_plain &Img : Imgs) {
     device_image_impl &DeviceImageImpl = *getSyclObjImpl(Img);
     // Duplicates are not expected here, otherwise urProgramLink should fail
-    if (DeviceImageImpl.get_kernel_ids_ptr())
-      KernelIDs.insert(KernelIDs.end(),
-                       DeviceImageImpl.get_kernel_ids_ptr()->begin(),
-                       DeviceImageImpl.get_kernel_ids_ptr()->end());
+    KernelIDs.insert(KernelIDs.end(), DeviceImageImpl.get_kernel_ids().begin(),
+                     DeviceImageImpl.get_kernel_ids().end());
     // To be able to answer queries about specialziation constants, the new
     // device image should have the specialization constants from all the linked
     // images.

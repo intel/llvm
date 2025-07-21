@@ -115,9 +115,7 @@ public:
   /// @param NodeImpl The node to be registered
   /// @param ArgIndex The arg index for the kernel arg associated with this
   /// dynamic_parameter in NodeImpl
-  void registerNode(std::shared_ptr<node_impl> NodeImpl, int ArgIndex) {
-    MNodes.emplace_back(NodeImpl, ArgIndex);
-  }
+  void registerNode(node_impl &NodeImpl, int ArgIndex);
 
   /// Struct detailing an instance of the usage of the dynamic parameter in a
   /// dynamic CG.
