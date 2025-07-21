@@ -7,26 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "Clang.h"
-#include "AMDGPU.h"
-#include "Arch/AArch64.h"
 #include "Arch/ARM.h"
-#include "Arch/CSKY.h"
 #include "Arch/LoongArch.h"
-#include "Arch/M68k.h"
 #include "Arch/Mips.h"
 #include "Arch/PPC.h"
 #include "Arch/RISCV.h"
 #include "Arch/Sparc.h"
 #include "Arch/SystemZ.h"
-#include "Arch/VE.h"
-#include "Arch/X86.h"
 #include "CommonArgs.h"
 #include "Hexagon.h"
-#include "MSP430.h"
 #include "PS4CPU.h"
-#include "SYCL.h"
 #include "clang/Basic/CLWarnings.h"
-#include "clang/Basic/CharInfo.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/HeaderInclude.h"
 #include "clang/Basic/LangOptions.h"
@@ -37,7 +28,6 @@
 #include "clang/Config/config.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Distro.h"
-#include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
@@ -1690,7 +1680,7 @@ static void CollectARMPACBTIOptions(const ToolChain &TC, const ArgList &Args,
         return pauthlr_extension.PosTargetFeature == member;
       };
 
-      if (std::any_of(CmdArgs.begin(), CmdArgs.end(), isPAuthLR))
+      if (llvm::any_of(CmdArgs, isPAuthLR))
         EnablePAuthLR = true;
     }
     if (!llvm::ARM::parseBranchProtection(A->getValue(), PBP, DiagMsg,
@@ -3875,11 +3865,11 @@ static void RenderSSPOptions(const Driver &D, const ToolChain &TC,
   // --param ssp-buffer-size=
   for (const Arg *A : Args.filtered(options::OPT__param)) {
     StringRef Str(A->getValue());
-    if (Str.starts_with("ssp-buffer-size=")) {
+    if (Str.consume_front("ssp-buffer-size=")) {
       if (StackProtectorLevel) {
         CmdArgs.push_back("-stack-protector-buffer-size");
         // FIXME: Verify the argument is a valid integer.
-        CmdArgs.push_back(Args.MakeArgString(Str.drop_front(16)));
+        CmdArgs.push_back(Args.MakeArgString(Str));
       }
       A->claim();
     }
@@ -5438,19 +5428,13 @@ static void ProcessVSRuntimeLibrary(const ToolChain &TC, const ArgList &Args,
     // Add SYCL dependent library
     if (Args.hasArg(options::OPT_fsycl) &&
         !Args.hasArg(options::OPT_nolibsycl)) {
-      if (RTOptionID == options::OPT__SLASH_MDd) {
-        if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
-                            "-previewd");
-        else
-          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
-      } else {
-        if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
-                            "-preview");
-        else
-          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION);
-      }
+      SmallString<128> SYCLLibName("sycl" SYCL_MAJOR_VERSION);
+      if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+        SYCLLibName += "-preview";
+      if (RTOptionID == options::OPT__SLASH_MDd)
+        SYCLLibName += "d";
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine("--dependent-lib=") + SYCLLibName));
       CmdArgs.push_back("--dependent-lib=sycl-devicelib-host");
     }
   }
@@ -5570,8 +5554,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Adjust for SYCL NativeCPU compilations.  When compiling in device mode, the
   // first compilation uses the NativeCPU target for LLVM IR generation, the
   // second compilation uses the host target for machine code generation.
-  const bool IsSYCLNativeCPU = isSYCLNativeCPU(Triple);
-  if (IsSYCL && IsSYCLDevice && IsSYCLNativeCPU && AuxTriple &&
+  if (IsSYCL && IsSYCLDevice && Triple.isNativeCPU() && AuxTriple &&
       isa<AssembleJobAction>(JA)) {
     Triple = *AuxTriple;
     TripleStr = Triple.getTriple();
@@ -5654,6 +5637,20 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  bool SkipO =
+      Args.hasArg(options::OPT_fsycl_link_EQ) && ContainsWrapperAction(&JA);
+  const Arg *OArg = Args.getLastArg(options::OPT_O_Group);
+  // Optimization level for CodeGen.
+  // When compiling a wrapped binary, do not optimize.
+  if (!SkipO && OArg) {
+      if (OArg->getOption().matches(options::OPT_O4)) {
+        CmdArgs.push_back("-O3");
+        D.Diag(diag::warn_O4_is_O3);
+      } else {
+        OArg->render(Args, CmdArgs);
+      }
+  }
+
   // Unconditionally claim the printf option now to avoid unused diagnostic.
   if (const Arg *PF = Args.getLastArg(options::OPT_mprintf_kind_EQ))
     PF->claim();
@@ -5692,8 +5689,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-mllvm");
         CmdArgs.push_back("-sycl-opt");
       }
-      if (IsSYCLNativeCPU) {
-        CmdArgs.push_back("-fsycl-is-native-cpu");
+      if (RawTriple.isNativeCPU()) {
         CmdArgs.push_back("-D");
         CmdArgs.push_back("__SYCL_NATIVE_CPU__");
         CmdArgs.push_back("-fno-autolink");
@@ -6073,14 +6069,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fdirectives-only");
     }
   } else if (isa<AssembleJobAction>(JA)) {
-    if (IsSYCLDevice && !IsSYCLNativeCPU) {
+    if (IsSYCLDevice && !RawTriple.isNativeCPU()) {
       CmdArgs.push_back("-emit-llvm-bc");
     } else {
       CmdArgs.push_back("-emit-obj");
       CollectArgsForIntegratedAssembler(C, Args, CmdArgs, D);
     }
-    if (IsSYCLDevice && IsSYCLNativeCPU) {
-      // NativeCPU generates an initial LLVM module for an unknown target, then
+    if (IsSYCLDevice && RawTriple.isNativeCPU()) {
+      // NativeCPU generates an initial LLVM module for a dummy target, then
       // compiles that for host. Avoid generating a warning for that.
       CmdArgs.push_back("-Wno-override-module");
       CmdArgs.push_back("-mllvm");
@@ -6345,16 +6341,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     case llvm::Triple::aarch64_be:
       RenderAArch64ABI(Triple, Args, CmdArgs);
       break;
-    }
-
-    // Optimization level for CodeGen.
-    if (const Arg *A = Args.getLastArg(options::OPT_O_Group)) {
-      if (A->getOption().matches(options::OPT_O4)) {
-        CmdArgs.push_back("-O3");
-        D.Diag(diag::warn_O4_is_O3);
-      } else {
-        A->render(Args, CmdArgs);
-      }
     }
 
     // Input/Output file.
@@ -7052,11 +7038,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Add the sycld debug library when --dependent-lib=msvcrtd is used from
   // the command line.  This is to allow for CMake based builds using the
   // Linux based driver on Windows to correctly pull in the expected debug
-  // library.
+  // library.  Do not add when -fms-runtime-lib is used, as that pulls in the
+  // libraries separately.
   if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl) &&
       !D.IsCLMode()) {
     if (TC.getTriple().isWindowsMSVCEnvironment()) {
-      if (isDependentLibAdded(Args, "msvcrtd")) {
+      if (isDependentLibAdded(Args, "msvcrtd") &&
+          !Args.hasArg(options::OPT_fms_runtime_lib_EQ)) {
         if (Args.hasArg(options::OPT_fpreview_breaking_changes))
           CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
                             "-previewd");
@@ -7300,20 +7288,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // When building with ccache, it will pass -D options to clang even on
   // preprocessed inputs and configure concludes that -fPIC is not supported.
   Args.ClaimAllArgs(options::OPT_D);
-
-  bool SkipO =
-      Args.hasArg(options::OPT_fsycl_link_EQ) && ContainsWrapperAction(&JA);
-  const Arg *OArg = Args.getLastArg(options::OPT_O_Group);
-  // Manually translate -O4 to -O3; let clang reject others.
-  // When compiling a wrapped binary, do not optimize.
-  if (!SkipO && OArg) {
-    if (OArg->getOption().matches(options::OPT_O4)) {
-      CmdArgs.push_back("-O3");
-      D.Diag(diag::warn_O4_is_O3);
-    } else {
-      OArg->render(Args, CmdArgs);
-    }
-  }
 
   // Warn about ignored options to clang.
   for (const Arg *A :
@@ -7771,7 +7745,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("--offload-new-driver");
   }
 
-  const XRayArgs &XRay = TC.getXRayArgs();
+  const XRayArgs &XRay = TC.getXRayArgs(Args);
   XRay.addArgs(TC, Args, CmdArgs, InputType);
 
   for (const auto &Filename :
@@ -10906,7 +10880,7 @@ static bool shouldEmitOnlyKernelsAsEntryPoints(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
                      options::OPT_fsycl_remove_unused_external_funcs, false))
     return false;
-  if (isSYCLNativeCPU(Triple))
+  if (Triple.isNativeCPU())
     return true;
   // When supporting dynamic linking, non-kernels in a device image can be
   // called.
@@ -10964,7 +10938,7 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (!Triple.isAMDGCN())
     addArgs(PostLinkArgs, TCArgs, {"-emit-param-info"});
   // Enable program metadata
-  if (Triple.isNVPTX() || Triple.isAMDGCN() || isSYCLNativeCPU(Triple))
+  if (Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isNativeCPU())
     addArgs(PostLinkArgs, TCArgs, {"-emit-program-metadata"});
   if (OutputType != types::TY_LLVM_BC) {
     assert(OutputType == types::TY_Tempfiletable);

@@ -1,4 +1,4 @@
-// REQUIRES: xptifw, opencl, (cpu || accelerator)
+// REQUIRES: xptifw, opencl, cpu
 // RUN: %build_collector
 // RUN: %{build} -o %t.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.out | FileCheck %s

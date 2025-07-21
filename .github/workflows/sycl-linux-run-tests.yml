@@ -40,11 +40,6 @@ on:
         required: True
         description: |
           Commit SHA or branch to checkout the intel/llvm repo.
-      devops_ref:
-        type: string
-        required: False
-        description: |
-          Commit SHA or branch to checkout the devops directory.
       tests_ref:
         type: string
         required: False
@@ -137,6 +132,12 @@ on:
         type: string
         default: 'Minimal'
         required: False
+      benchmark_dry_run:
+        description: |
+          Whether or not to fail the workflow upon a regression.
+        type: string
+        default: 'false'
+        required: False
 
   workflow_dispatch:
     inputs:
@@ -217,9 +218,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        ref: ${{ inputs.devops_ref || inputs.repo_ref }}
         sparse-checkout: |
           devops
+          sycl/cts_exclude_filter
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
     - name: Reset Intel GPU
@@ -326,7 +327,6 @@ jobs:
       timeout-minutes: 35
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
-        cts_exclude_ref: ${{ inputs.repo_ref }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         cts_testing_mode: ${{ inputs.cts_testing_mode }}
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
@@ -341,6 +341,7 @@ jobs:
         upload_results: ${{ inputs.benchmark_upload_results }}
         save_name: ${{ inputs.benchmark_save_name }}
         preset: ${{ inputs.benchmark_preset }}
+        dry_run: ${{ inputs.benchmark_dry_run }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

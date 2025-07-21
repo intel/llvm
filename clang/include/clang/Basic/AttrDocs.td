@@ -4518,6 +4518,20 @@ implicitly inherit this attribute.
   }];
 }
 
+def SYCLDeviceOnlyDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "sycl_device_only";
+  let Content = [{
+This attribute can only be applied to functions and indicates that the function
+is only available for the device. It allows functions marked with it to
+overload existing functions without the attribute, in which case the overload
+with the attribute will be used on the device side and the overload without
+will be used on the host side. Note: as opposed to ``sycl_device`` this does
+not mark the function as being exported, both attributes are incompatible and
+can't be used together.
+  }];
+}
+
 def RISCVInterruptDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "interrupt (RISC-V)";
@@ -10228,6 +10242,29 @@ into the callee).
 
 Parameters annotated with `inout` are copied into the callee via a temporary,
 and copied back to the argument after the callee returns.
+  }];
+}
+
+def HLSLVkExtBuiltinInputDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+Vulkan shaders have `Input` builtins. Those variables are externally
+initialized by the driver/pipeline, but each copy is private to the current
+lane.
+
+Those builtins can be declared using the `[[vk::ext_builtin_input]]` attribute
+like follows:
+
+.. code-block:: c++
+
+  [[vk::ext_builtin_input(/* WorkgroupId */ 26)]]
+  static const uint3 groupid;
+
+This variable will be lowered into a module-level variable, with the `Input`
+storage class, and the `BuiltIn 26` decoration.
+
+The full documentation for this inline SPIR-V attribute can be found here:
+https://github.com/microsoft/hlsl-specs/blob/main/proposals/0011-inline-spirv.md
   }];
 }
 

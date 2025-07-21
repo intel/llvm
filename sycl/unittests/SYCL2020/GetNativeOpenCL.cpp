@@ -111,8 +111,7 @@ TEST(GetNative, GetNativeHandle) {
   sycl::buffer<int, 1> Buffer(&Data[0], sycl::range<1>(1));
   Queue.submit([&](sycl::handler &cgh) {
     auto Acc = Buffer.get_access<sycl::access::mode::read_write>(cgh);
-    constexpr size_t KS = sizeof(decltype(Acc));
-    cgh.single_task<TestKernel<KS>>([=]() { (void)Acc; });
+    cgh.single_task<TestKernelWithAcc>([=]() { (void)Acc; });
   });
 
   EXPECT_EQ(mockOpenCLNumContextRetains(), 0ul);

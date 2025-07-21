@@ -5,9 +5,6 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out %S/../Inputs/Kernels/update_with_indices_accessor.spv 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-// XFAIL: preview-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18911
-
 // REQUIRES: level_zero
 
 // Tests updating an accessor argument to a graph node created from SPIR-V
