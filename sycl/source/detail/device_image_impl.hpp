@@ -311,9 +311,7 @@ public:
                     private_tag)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(Devices.to<std::vector<device_impl *>>()), MState(State),
-        MProgram(Program),
-        MKernelIDs(std::make_shared<std::vector<kernel_id>>()),
-        MKernelNames{std::move(KernelNames)},
+        MProgram(Program), MKernelNames{std::move(KernelNames)},
         MEliminatedKernelArgMasks{std::move(EliminatedKernelArgMasks)},
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
@@ -347,7 +345,6 @@ public:
       : MBinImage(Src), MContext(std::move(Context)),
         MDevices(Devices.to<std::vector<device_impl *>>()),
         MState(bundle_state::ext_oneapi_source), MProgram(nullptr),
-        MKernelIDs(std::make_shared<std::vector<kernel_id>>()),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
         MRTCBinInfo(
@@ -361,7 +358,6 @@ public:
       : MBinImage(Bytes), MContext(std::move(Context)),
         MDevices(Devices.to<std::vector<device_impl *>>()),
         MState(bundle_state::ext_oneapi_source), MProgram(nullptr),
-        MKernelIDs(std::make_shared<std::vector<kernel_id>>()),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
         MRTCBinInfo(KernelCompilerBinaryInfo{Lang}) {
@@ -375,9 +371,7 @@ public:
       : MBinImage(static_cast<const RTDeviceBinaryImage *>(nullptr)),
         MContext(std::move(Context)),
         MDevices(Devices.to<std::vector<device_impl *>>()), MState(State),
-        MProgram(Program),
-        MKernelIDs(std::make_shared<std::vector<kernel_id>>()),
-        MKernelNames{std::move(KernelNames)},
+        MProgram(Program), MKernelNames{std::move(KernelNames)},
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
         MRTCBinInfo(KernelCompilerBinaryInfo{Lang}) {}
@@ -389,6 +383,8 @@ public:
   }
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
+    if (!MKernelIDs)
+      return false;
     return std::binary_search(MKernelIDs->begin(), MKernelIDs->end(),
                               KernelIDCand, LessByHash<kernel_id>{});
   }
@@ -414,8 +410,18 @@ public:
     return false;
   }
 
-  const std::vector<kernel_id> &get_kernel_ids() const noexcept {
-    return *MKernelIDs;
+  iterator_range<std::vector<kernel_id>::const_iterator>
+  get_kernel_ids() const noexcept {
+    if (MKernelIDs)
+      return *MKernelIDs;
+    else
+      return {};
+  }
+  // This should only be used when creating new device_image_impls that have the
+  // exact same set of kernels as the source one. In all other scenarios the
+  // getter above is the one needed:
+  std::shared_ptr<std::vector<kernel_id>> &get_kernel_ids_ptr() noexcept {
+    return MKernelIDs;
   }
 
   bool has_specialization_constants() const noexcept {
@@ -562,10 +568,6 @@ public:
   }
 
   const context &get_context() const noexcept { return MContext; }
-
-  std::shared_ptr<std::vector<kernel_id>> &get_kernel_ids_ptr() noexcept {
-    return MKernelIDs;
-  }
 
   std::vector<unsigned char> &get_spec_const_blob_ref() noexcept {
     return MSpecConstsBlob;
@@ -1300,7 +1302,9 @@ private:
   ur_program_handle_t MProgram = nullptr;
 
   // List of kernel ids available in this image, elements should be sorted
-  // according to LessByNameComp
+  // according to LessByNameComp. Shared between images for performance reasons
+  // (e.g. when we compile a single image it keeps the same kernels in it as the
+  // original source image).
   std::shared_ptr<std::vector<kernel_id>> MKernelIDs;
 
   // List of known kernel names.

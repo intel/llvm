@@ -782,7 +782,7 @@ public:
       if (DevImgImpl.getRTCInfo())
         continue;
 
-      const std::vector<kernel_id> &KernelIDs = DevImgImpl.get_kernel_ids();
+      auto KernelIDs = DevImgImpl.get_kernel_ids();
 
       Result.insert(Result.end(), KernelIDs.begin(), KernelIDs.end());
     }
