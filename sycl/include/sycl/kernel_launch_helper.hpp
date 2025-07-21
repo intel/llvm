@@ -22,12 +22,10 @@
 
 namespace sycl {
 inline namespace _V1 {
+namespace detail {
 
-// TODO: Move WrapAs to detail:: namespace as well and move this header to
-// include/sycl/detail directory.
 enum class WrapAs { single_task, parallel_for, parallel_for_work_group };
 
-namespace detail {
 // Helper for merging properties with ones defined in an optional kernel functor
 // getter.
 template <typename KernelType, typename PropertiesT, typename Cond = void>
