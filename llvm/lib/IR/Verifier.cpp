@@ -2979,6 +2979,16 @@ void Verifier::visitFunction(const Function &F) {
           "perfect forwarding!",
           &F);
     break;
+  case CallingConv::AMDGPU_Gfx_WholeWave:
+    Check(!F.arg_empty() && F.arg_begin()->getType()->isIntegerTy(1),
+          "Calling convention requires first argument to be i1", &F);
+    Check(!F.arg_begin()->hasInRegAttr(),
+          "Calling convention requires first argument to not be inreg", &F);
+    Check(!F.isVarArg(),
+          "Calling convention does not support varargs or "
+          "perfect forwarding!",
+          &F);
+    break;
   }
 
   // Check that the argument values match the function type for this function...
@@ -6710,6 +6720,11 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
           "llvm.threadlocal.address operand isThreadLocal() must be true");
     break;
   }
+  case Intrinsic::lifetime_start:
+  case Intrinsic::lifetime_end:
+    Check(isa<AllocaInst>(Call.getArgOperand(1)),
+          "llvm.lifetime.start/end can only be used on alloca", &Call);
+    break;
   };
 
   // Verify that there aren't any unmediated control transfers between funclets.
