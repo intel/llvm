@@ -1549,7 +1549,7 @@ SimdPacket *Scalarizer::scalarizeGEP(GetElementPtrInst *GEP, PacketMask PM) {
     SmallVector<Value *, 4> scalarIndices;
     unsigned indexN = 1U;
     for (auto *idx : indexPackets) {
-      if (idx->at(i)) {
+      if (idx) {
         scalarIndices.push_back(idx->at(i));
       } else {
         scalarIndices.push_back(GEP->getOperand(indexN));
