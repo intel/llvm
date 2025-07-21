@@ -41,7 +41,7 @@
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
-#include <sycl/kernel_launch_helper.hpp>
+#include <sycl/detail/kernel_launch_helper.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
