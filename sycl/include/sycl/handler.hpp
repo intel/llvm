@@ -1298,7 +1298,7 @@ private:
       using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
                                        decltype(Wrapper), NameWT>;
 
-      KernelWrapper<WrapAs::parallel_for, KName, decltype(Wrapper),
+      detail::KernelWrapper<WrapAs::parallel_for, KName, decltype(Wrapper),
                     TransformedArgType, decltype(this),
                     PropertiesT>::wrap(this, Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1324,7 +1324,7 @@ private:
 #ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
       // If parallel_for range rounding is forced then only range rounded
       // kernel is generated
-      KernelWrapper<WrapAs::parallel_for, NameT, KernelType, TransformedArgType,
+      detail::KernelWrapper<WrapAs::parallel_for, NameT, KernelType, TransformedArgType,
                     decltype(this), PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr detail::string_view Name{detail::getKernelName<NameT>()};
@@ -1404,7 +1404,7 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
-    KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, decltype(this),
+    detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, decltype(this),
                   PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == WrapAs::single_task) {
@@ -1445,7 +1445,7 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
     (void)Kernel;
-    KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, decltype(this),
+    detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, decltype(this),
                   PropertiesT>::wrap(this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == WrapAs::single_task) {
@@ -1480,7 +1480,7 @@ private:
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // NOTE: to support kernel_handler argument in kernel lambdas, only
-  // KernelWrapper<...>::wrap() must be called in this code.
+  // detail::KernelWrapper<...>::wrap() must be called in this code.
 
   void setStateExplicitKernelBundle();
   void setStateSpecConstSet();
@@ -1920,7 +1920,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Kernel;
-    KernelWrapperSingletonFuncs::kernel_single_task<NameT>(KernelFunc);
+    detail::KernelWrapperSingletonFuncs::kernel_single_task<NameT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     constexpr detail::string_view Name{detail::getKernelName<NameT>()};
@@ -3649,7 +3649,7 @@ private:
   friend class detail::HandlerAccess;
   template <WrapAs, typename, typename, typename, typename,
   typename, typename>
-  friend struct KernelWrapper;
+  friend struct detail::KernelWrapper;
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl; }

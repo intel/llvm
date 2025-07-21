@@ -23,6 +23,8 @@
 namespace sycl {
 inline namespace _V1 {
 
+enum class WrapAs { single_task, parallel_for, parallel_for_work_group };
+
 namespace detail {
 // Helper for merging properties with ones defined in an optional kernel functor
 // getter.
@@ -45,7 +47,6 @@ struct GetMergedKernelProperties<
   using type = ext::oneapi::experimental::detail::merged_properties_t<
       PropertiesT, get_method_properties>;
 };
-} // namespace detail
 
 struct KernelWrapperSingletonFuncs {
 
@@ -193,8 +194,6 @@ struct KernelWrapperSingletonFuncs {
 // the one provided via `sycl_ext_oneapi_kernel_properties` extension by
 // embedding them into the kernel's type).
 
-enum class WrapAs { single_task, parallel_for, parallel_for_work_group };
-
 template <WrapAs WrapAsVal, typename KernelName, typename KernelType,
           typename ElementType, typename PropertyProcessor,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
@@ -263,5 +262,6 @@ struct KernelWrapper<
   }
 }; // KernelWrapper struct
 
+} // namespace detail
 } // namespace _V1
 } // namespace sycl
