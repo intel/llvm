@@ -617,6 +617,12 @@ public:
     return NativeProgram;
   }
 
+#ifdef _MSC_VER
+#pragma warning(push)
+// https://developercommunity.visualstudio.com/t/False-C4297-warning-while-using-function/1130300
+// https://godbolt.org/z/xsMvKf84f
+#pragma warning(disable : 4297)
+#endif
   ~device_image_impl() try {
     if (MSpecConstsBuffer) {
       std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
@@ -625,7 +631,11 @@ public:
     }
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_image_impl", e);
+    return; // Don't re-throw.
   }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
   std::string adjustKernelName(std::string_view Name) const {
     if (MOrigins & ImageOriginSYCLBIN) {

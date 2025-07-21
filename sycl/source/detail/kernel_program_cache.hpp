@@ -119,10 +119,20 @@ public:
       Val = Managed<ur_program_handle_t>{Adapter};
       this->State.store(InitialState);
     }
+#ifdef _MSC_VER
+#pragma warning(push)
+// https://developercommunity.visualstudio.com/t/False-C4297-warning-while-using-function/1130300
+// https://godbolt.org/z/xsMvKf84f
+#pragma warning(disable : 4297)
+#endif
     ~ProgramBuildResult() try {
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult", e);
+      return; // Don't re-throw.
     }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
   };
   using ProgramBuildResultPtr = std::shared_ptr<ProgramBuildResult>;
 
