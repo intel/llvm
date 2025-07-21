@@ -334,12 +334,10 @@ GEN_u32(__spirv_BuiltInSubgroupMaxSize, __mux_get_max_sub_group_size);
 GEN_u32(__spirv_BuiltInSubgroupId, __mux_get_sub_group_id);
 
 // I64_I32
-#define GEN_p(bname, muxname)                                                  \
+#define GEN_xyz(bname, muxname)                                                \
   DEVICE_EXTERN_C GET_PROPS uint64_t muxname(uint32_t);                        \
   DEVICE_EXTERNAL GET_PROPS uint64_t bname(int dim) { return muxname(dim); }   \
   static_assert(true)
-
-#define GEN_xyz(bname, ncpu_name) GEN_p(bname, ncpu_name);
 
 GEN_xyz(__spirv_BuiltInGlobalOffset, __mux_get_global_offset);
 GEN_xyz(__spirv_BuiltInLocalInvocationId, __mux_get_local_id);
