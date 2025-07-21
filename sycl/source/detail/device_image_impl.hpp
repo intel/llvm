@@ -349,14 +349,13 @@ public:
   }
 
   device_image_impl(const context &Context, devices_range Devices,
-                    bundle_state State, ur_program_handle_t Program,
+                    bundle_state State, Managed<ur_program_handle_t> Program,
                     syclex::source_language Lang, KernelNameSetT &&KernelNames,
                     private_tag)
       : MBinImage(static_cast<const RTDeviceBinaryImage *>(nullptr)),
         MContext(std::move(Context)),
         MDevices(Devices.to<std::vector<device_impl *>>()), MState(State),
-        MProgram(Program, getSyclObjImpl(MContext)->getAdapter()),
-        MKernelNames{std::move(KernelNames)},
+        MProgram(std::move(Program)), MKernelNames{std::move(KernelNames)},
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
         MRTCBinInfo(KernelCompilerBinaryInfo{Lang}) {}
@@ -796,7 +795,7 @@ public:
     }
     return std::vector<std::shared_ptr<device_image_impl>>{
         device_image_impl::create(MContext, Devices, bundle_state::executable,
-                                  UrProgram.release(), MRTCBinInfo->MLanguage,
+                                  std::move(UrProgram), MRTCBinInfo->MLanguage,
                                   std::move(KernelNameSet))};
   }
 
