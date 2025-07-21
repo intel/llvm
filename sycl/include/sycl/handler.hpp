@@ -967,7 +967,6 @@ private:
     checkAndSetClusterRange(Props);
   }
 
-public:
   /// Process kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
@@ -998,7 +997,6 @@ public:
     processLaunchProperties(Props);
   }
 
-private:
   /// Checks whether it is possible to copy the source shape to the destination
   /// shape(the shapes are described by the accessor ranges) by using
   /// copying by regions of memory and not copying element by element
@@ -3649,6 +3647,9 @@ private:
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
   friend class detail::HandlerAccess;
+  template <WrapAs, typename, typename, typename, typename,
+  typename, typename>
+  friend struct KernelWrapper;
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl; }
