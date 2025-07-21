@@ -170,7 +170,7 @@ static bool isDeviceBinaryTypeSupported(context_impl &ContextImpl,
   return Out.str();
 };
 
-ur_program_handle_t
+Managed<ur_program_handle_t>
 ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
                                 context_impl &ContextImpl,
                                 devices_range Devices) {
@@ -235,7 +235,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
     std::cerr << "created program: " << Res
               << "; image format: " << getFormatStr(Format) << "\n";
 
-  return Res.release();
+  return Res;
 }
 
 static void appendLinkOptionsFromImage(std::string &LinkOpts,
@@ -497,7 +497,7 @@ std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
     const std::vector<const RTDeviceBinaryImage *> &AllImages,
     context_impl &ContextImpl, devices_range Devices,
     const std::string &CompileAndLinkOptions, SerializedObj SpecConsts) {
-  ur_program_handle_t NativePrg;
+  Managed<ur_program_handle_t> NativePrg;
 
   // Get binaries for each device (1:1 correpsondence with input Devices).
   auto Binaries = PersistentDeviceCodeCache::getItemFromDisc(
@@ -518,11 +518,11 @@ std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
                                 ImgProgMetadata.begin(), ImgProgMetadata.end());
     }
     NativePrg = createBinaryProgram(ContextImpl, Devices, BinPtrs.data(),
-                                    Lengths.data(), ProgMetadataVector).release();
+                                    Lengths.data(), ProgMetadataVector);
   } else {
     NativePrg = createURProgram(MainImg, ContextImpl, Devices);
   }
-  return {NativePrg, Binaries.size()};
+  return {NativePrg.release(), Binaries.size()};
 }
 
 /// Emits information about built programs if the appropriate contitions are
@@ -947,8 +947,8 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
         if (UseDeviceLibs)
           DeviceLibReqMask |= getDeviceLibReqMask(*BinImg);
 
-        Managed<ur_program_handle_t> NativePrg{
-            createURProgram(*BinImg, ContextImpl, Devs), Adapter};
+        Managed<ur_program_handle_t> NativePrg =
+            createURProgram(*BinImg, ContextImpl, Devs);
 
         if (BinImg->supportsSpecConstants()) {
           enableITTAnnotationsIfNeeded(NativePrg, Adapter);
@@ -2833,7 +2833,7 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
     adapter_impl &Adapter =
         getSyclObjImpl(InputImpl.get_context())->getAdapter();
 
-    ur_program_handle_t Prog =
+    Managed<ur_program_handle_t> Prog =
         createURProgram(*InputImpl.get_bin_image_ref(),
                         *getSyclObjImpl(InputImpl.get_context()), Devs);
 
@@ -2848,7 +2848,7 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
         InputImpl.getRTCInfo();
     DeviceImageImplPtr ObjectImpl = device_image_impl::create(
         InputImpl.get_bin_image_ref(), InputImpl.get_context(), Devs,
-        bundle_state::object, InputImpl.get_kernel_ids_ptr(), Prog,
+        bundle_state::object, InputImpl.get_kernel_ids_ptr(), Prog.release(),
         InputImpl.get_spec_const_data_ref(),
         InputImpl.get_spec_const_blob_ref(), InputImpl.getOriginMask(),
         std::move(RTCInfo), std::move(KernelNames),
@@ -3247,10 +3247,11 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
   if constexpr (DbgProgMgr > 0)
     std::cerr << ">>> Adding the kernel to the cache.\n";
   context_impl &ContextImpl = *detail::getSyclObjImpl(Context);
-  auto Program = createURProgram(Img, ContextImpl, {Device});
   detail::device_impl &DeviceImpl = *detail::getSyclObjImpl(Device);
   adapter_impl &Adapter = DeviceImpl.getAdapter();
-  Managed<ur_program_handle_t> ProgramManaged(Program, Adapter);
+
+  Managed<ur_program_handle_t> ProgramManaged =
+      createURProgram(Img, ContextImpl, {Device});
 
   std::string CompileOpts;
   std::string LinkOpts;

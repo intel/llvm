@@ -143,9 +143,9 @@ public:
       const std::unordered_set<const RTDeviceBinaryImage *> &ImagesToVerify,
       context_impl &ContextImpl, const device_impl &DeviceImpl);
 
-  ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
-                                      context_impl &ContextImpl,
-                                      devices_range Devices);
+  Managed<ur_program_handle_t> createURProgram(const RTDeviceBinaryImage &Img,
+                                               context_impl &ContextImpl,
+                                               devices_range Devices);
   /// Creates a UR program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
   /// \param Img The device image used to create the program.
