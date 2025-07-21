@@ -840,7 +840,7 @@ static void setSpecializationConstants(device_image_impl &InputImpl,
 
 // When caching is enabled, the returned UrProgram will already have
 // its ref count incremented.
-ur_program_handle_t ProgramManager::getBuiltURProgram(
+Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
     context_impl &ContextImpl, device_impl &DeviceImpl,
     KernelNameStrRefT KernelName, const NDRDescT &NDRDesc) {
   device_impl *RootDevImpl;
@@ -888,8 +888,9 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   std::copy(DeviceImagesToLink.begin(), DeviceImagesToLink.end(),
             std::back_inserter(AllImages));
 
-  return getBuiltURProgram(std::move(AllImages), ContextImpl,
-                           {RootOrSubDevImpl});
+  return Managed<ur_program_handle_t>{
+      getBuiltURProgram(std::move(AllImages), ContextImpl, {RootOrSubDevImpl}),
+      ContextImpl.getAdapter()};
 }
 
 ur_program_handle_t
@@ -1110,9 +1111,8 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     }
   }
 
-  Managed<ur_program_handle_t> Program{
-      getBuiltURProgram(ContextImpl, DeviceImpl, KernelName, NDRDesc),
-      ContextImpl.getAdapter()};
+  Managed<ur_program_handle_t> Program =
+      getBuiltURProgram(ContextImpl, DeviceImpl, KernelName, NDRDesc);
 
   auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
     ur_kernel_handle_t Kernel = nullptr;

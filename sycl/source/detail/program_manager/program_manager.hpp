@@ -177,10 +177,10 @@ public:
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
-  ur_program_handle_t getBuiltURProgram(context_impl &ContextImpl,
-                                        device_impl &DeviceImpl,
-                                        KernelNameStrRefT KernelName,
-                                        const NDRDescT &NDRDesc = {});
+  Managed<ur_program_handle_t> getBuiltURProgram(context_impl &ContextImpl,
+                                                 device_impl &DeviceImpl,
+                                                 KernelNameStrRefT KernelName,
+                                                 const NDRDescT &NDRDesc = {});
 
   /// Builds a program from a given set of images or retrieves that program from
   /// cache.
