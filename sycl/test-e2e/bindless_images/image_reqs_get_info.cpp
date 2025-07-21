@@ -48,13 +48,13 @@ int main() {
 
 #ifdef VERBOSE_PRINT
     if (backend == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "image_row_pitch_align: " << pitchAlign
-              << "\nmax_image_linear_row_pitch: " << maxPitch
-              << "\nmax_image_linear_width: " << maxWidth
-              << "\nmax_image_linear_height: " << maxheight << "\n";
+      std::cout << "image_row_pitch_align: " << pitchAlign
+                << "\nmax_image_linear_row_pitch: " << maxPitch
+                << "\nmax_image_linear_width: " << maxWidth
+                << "\nmax_image_linear_height: " << maxheight << "\n";
     } else if (backend == sycl::backend::ext_oneapi_level_zero) {
-    std::cout << "\nmax_image_linear_width: " << maxWidth
-              << "\nmax_image_linear_height: " << maxheight << "\n";
+      std::cout << "\nmax_image_linear_width: " << maxWidth
+                << "\nmax_image_linear_height: " << maxheight << "\n";
     }
 #endif
 

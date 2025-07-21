@@ -1147,7 +1147,8 @@ ur_result_t urDeviceGetInfo(
     ze_device_image_properties_t imageProps = {};
     imageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
     ze_device_pitched_alloc_exp_properties_t imageAllocProps = {};
-    imageAllocProps.stype = ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
+    imageAllocProps.stype =
+        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
     imageProps.pNext = (void *)&imageAllocProps;
 
     ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &imageProps));
@@ -1158,7 +1159,8 @@ ur_result_t urDeviceGetInfo(
     ze_device_image_properties_t imageProps = {};
     imageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
     ze_device_pitched_alloc_exp_properties_t imageAllocProps = {};
-    imageAllocProps.stype = ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
+    imageAllocProps.stype =
+        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
     imageProps.pNext = (void *)&imageAllocProps;
 
     ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &imageProps));
