@@ -30,19 +30,24 @@ int main() {
 
     sycl::backend backend = dev.get_backend();
 
+    size_t pitchAlign = 0;
+    size_t maxPitch = 0;
+    size_t maxWidth = 0;
+    size_t maxheight = 0;
+
     // Level Zero does not currently support these queries. Only CUDA does.
     if (backend == sycl::backend::ext_oneapi_cuda) {
-      auto pitchAlign = dev.get_info<sycl::ext::oneapi::experimental::info::
+      pitchAlign = dev.get_info<sycl::ext::oneapi::experimental::info::
                                          device::image_row_pitch_align>();
-      auto maxPitch = dev.get_info<sycl::ext::oneapi::experimental::info::
+      maxPitch = dev.get_info<sycl::ext::oneapi::experimental::info::
                                        device::max_image_linear_row_pitch>();
     }
 
     if (backend == sycl::backend::ext_oneapi_cuda ||
         backend == sycl::backend::ext_oneapi_level_zero) {
-      auto maxWidth = dev.get_info<sycl::ext::oneapi::experimental::info::
+      maxWidth = dev.get_info<sycl::ext::oneapi::experimental::info::
                                        device::max_image_linear_width>();
-      auto maxheight = dev.get_info<sycl::ext::oneapi::experimental::info::
+      maxheight = dev.get_info<sycl::ext::oneapi::experimental::info::
                                         device::max_image_linear_height>();
     }
 
