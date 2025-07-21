@@ -192,8 +192,8 @@ std::pair<std::string, std::string> Translator::getTargetCPUAndFeatureAttrs(
   auto *KernelFunc = (M && KernelName) ? M->getFunction(KernelName) : nullptr;
   auto CPUVal = ConfigHelper::get<option::JITTargetCPU>();
   auto FeaturesVal = ConfigHelper::get<option::JITTargetFeatures>();
-  llvm::StringRef CPU = CPUVal.begin();
-  llvm::StringRef Features = FeaturesVal.begin();
+  llvm::StringRef CPU{CPUVal.begin(), CPUVal.size()};
+  llvm::StringRef Features{FeaturesVal.begin(), FeaturesVal.size()};
   if (CPU.empty()) {
     // Set to the lowest tested target according to the GetStartedGuide, section
     // "Build DPC++ toolchain with support for HIP AMD"

@@ -67,7 +67,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     // Capture the dependencies
     DepCommands.insert(Cmd);
 #endif
-    GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
+    GraphProcessor::waitForEvent(*Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
@@ -82,7 +82,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     DepCommands.insert(Cmd);
 #endif
-    GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
+    GraphProcessor::waitForEvent(*Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
     Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
@@ -97,7 +97,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     // reported as edges
     ReleaseCmd->resolveReleaseDependencies(DepCommands);
 #endif
-    GraphProcessor::waitForEvent(ReleaseCmd->getEvent(), GraphReadLock,
+    GraphProcessor::waitForEvent(*ReleaseCmd->getEvent(), GraphReadLock,
                                  ToCleanUp);
   }
 }
@@ -159,8 +159,7 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
   {
     ReadLockT Lock = acquireReadLock();
 
-    Command *NewCmd =
-        (NewEvent) ? static_cast<Command *>(NewEvent->getCommand()) : nullptr;
+    Command *NewCmd = (NewEvent) ? NewEvent->getCommand() : nullptr;
 
     EnqueueResultT Res;
     bool Enqueued;
@@ -279,12 +278,12 @@ bool Scheduler::isInstanceAlive() {
   return GlobalHandler::instance().isSchedulerAlive();
 }
 
-void Scheduler::waitForEvent(const EventImplPtr &Event, bool *Success) {
+void Scheduler::waitForEvent(event_impl &Event, bool *Success) {
   ReadLockT Lock = acquireReadLock();
   // It's fine to leave the lock unlocked upon return from waitForEvent as
   // there's no more actions to do here with graph
   std::vector<Command *> ToCleanUp;
-  GraphProcessor::waitForEvent(std::move(Event), Lock, ToCleanUp,
+  GraphProcessor::waitForEvent(Event, Lock, ToCleanUp,
                                /*LockTheLock=*/false, Success);
   cleanupCommands(ToCleanUp);
 }
@@ -366,7 +365,7 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
                         "Enqueue process failed.");
     }
 
-    if (Command *NewCmd = static_cast<Command *>(NewCmdEvent->getCommand())) {
+    if (Command *NewCmd = NewCmdEvent->getCommand()) {
       Enqueued =
           GraphProcessor::enqueueCommand(NewCmd, Lock, Res, ToCleanUp, NewCmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
@@ -418,7 +417,7 @@ void Scheduler::enqueueUnblockedCommands(
     const std::vector<EventImplPtr> &ToEnqueue, ReadLockT &GraphReadLock,
     std::vector<Command *> &ToCleanUp) {
   for (auto &Event : ToEnqueue) {
-    Command *Cmd = static_cast<Command *>(Event->getCommand());
+    Command *Cmd = Event->getCommand();
     if (!Cmd)
       continue;
     EnqueueResultT Res;
@@ -644,9 +643,8 @@ ur_kernel_handle_t Scheduler::completeSpecConstMaterialization(
 
 EventImplPtr Scheduler::addCommandGraphUpdate(
     ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-    std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-        Nodes,
-    queue_impl *Queue, std::vector<Requirement *> Requirements,
+    ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
+    std::vector<Requirement *> Requirements,
     std::vector<detail::EventImplPtr> &Events) {
   std::vector<Command *> AuxiliaryCmds;
   EventImplPtr NewCmdEvent = nullptr;
@@ -655,7 +653,8 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
     WriteLockT Lock = acquireWriteLock();
 
     Command *NewCmd = MGraphBuilder.addCommandGraphUpdate(
-        Graph, Nodes, Queue, Requirements, Events, AuxiliaryCmds);
+        Graph, std::move(Nodes), Queue, std::move(Requirements), Events,
+        AuxiliaryCmds);
     if (!NewCmd)
       return nullptr;
     NewCmdEvent = NewCmd->getEvent();
@@ -674,7 +673,7 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
                         "Enqueue process failed.");
     }
 
-    if (Command *NewCmd = static_cast<Command *>(NewCmdEvent->getCommand())) {
+    if (Command *NewCmd = NewCmdEvent->getCommand()) {
       Enqueued =
           GraphProcessor::enqueueCommand(NewCmd, Lock, Res, ToCleanUp, NewCmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)

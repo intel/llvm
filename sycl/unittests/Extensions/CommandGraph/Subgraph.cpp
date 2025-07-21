@@ -14,21 +14,21 @@ using namespace sycl::ext::oneapi;
 TEST_F(CommandGraphTest, SubGraph) {
   // Add sub-graph with two nodes
   auto Node1Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node2Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(Node1Graph)});
   auto GraphExec = Graph.finalize();
 
   // Add node to main graph followed by sub-graph and another node
   experimental::command_graph MainGraph(Queue.get_context(), Dev);
   auto Node1MainGraph = MainGraph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node2MainGraph =
       MainGraph.add([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); },
                     {experimental::property::node::depends_on(Node1MainGraph)});
   auto Node3MainGraph = MainGraph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(Node2MainGraph)});
 
   // Assert order of the added sub-graph
@@ -39,9 +39,8 @@ TEST_F(CommandGraphTest, SubGraph) {
   // Subgraph nodes are duplicated when inserted to parent graph on
   // finalization. we thus check the node content only.
   const bool CompareContentOnly = true;
-  ASSERT_TRUE(
-      getSyclObjImpl(Node1MainGraph)->MSuccessors.front().lock()->MNodeType ==
-      experimental::node_type::subgraph);
+  ASSERT_TRUE(getSyclObjImpl(Node1MainGraph)->MSuccessors.front()->MNodeType ==
+              experimental::node_type::subgraph);
   ASSERT_EQ(getSyclObjImpl(Node2MainGraph)->MSuccessors.size(), 1lu);
   ASSERT_EQ(getSyclObjImpl(Node1MainGraph)->MPredecessors.size(), 0lu);
   ASSERT_EQ(getSyclObjImpl(Node2MainGraph)->MPredecessors.size(), 1lu);
@@ -70,12 +69,12 @@ TEST_F(CommandGraphTest, SubGraph) {
 TEST_F(CommandGraphTest, SubGraphWithEmptyNode) {
   // Add sub-graph with two nodes
   auto Node1Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Empty1Graph =
       Graph.add([&](sycl::handler &cgh) { /*empty node */ },
                 {experimental::property::node::depends_on(Node1Graph)});
   auto Node2Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(Empty1Graph)});
 
   auto GraphExec = Graph.finalize();
@@ -83,12 +82,12 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNode) {
   // Add node to main graph followed by sub-graph and another node
   experimental::command_graph MainGraph(Queue.get_context(), Dev);
   auto Node1MainGraph = MainGraph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node2MainGraph =
       MainGraph.add([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); },
                     {experimental::property::node::depends_on(Node1MainGraph)});
   auto Node3MainGraph = MainGraph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(Node2MainGraph)});
 
   // Assert order of the added sub-graph
@@ -101,9 +100,8 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNode) {
   // Subgraph nodes are duplicated when inserted to parent graph.
   // we thus check the node content only.
   const bool CompareContentOnly = true;
-  ASSERT_TRUE(
-      getSyclObjImpl(Node1MainGraph)->MSuccessors.front().lock()->MNodeType ==
-      experimental::node_type::subgraph);
+  ASSERT_TRUE(getSyclObjImpl(Node1MainGraph)->MSuccessors.front()->MNodeType ==
+              experimental::node_type::subgraph);
   ASSERT_EQ(getSyclObjImpl(Node1MainGraph)->MSuccessors.size(), 1lu);
   ASSERT_EQ(getSyclObjImpl(Node2MainGraph)->MSuccessors.size(), 1lu);
   ASSERT_EQ(getSyclObjImpl(Node1MainGraph)->MPredecessors.size(), 0lu);
@@ -135,9 +133,9 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNode) {
 TEST_F(CommandGraphTest, SubGraphWithEmptyNodeLast) {
   // Add sub-graph with two nodes
   auto Node1Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node2Graph = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(Node1Graph)});
   auto EmptyGraph =
       Graph.add([&](sycl::handler &cgh) { /*empty node */ },
@@ -148,12 +146,12 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNodeLast) {
   // Add node to main graph followed by sub-graph and another node
   experimental::command_graph MainGraph(Queue.get_context(), Dev);
   auto Node1MainGraph = MainGraph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node2MainGraph =
       MainGraph.add([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); },
                     {experimental::property::node::depends_on(Node1MainGraph)});
   auto Node3MainGraph = MainGraph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(Node2MainGraph)});
 
   // Assert order of the added sub-graph
@@ -166,9 +164,8 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNodeLast) {
   // Subgraph nodes are duplicated when inserted to parent graph.
   // we thus check the node content only.
   const bool CompareContentOnly = true;
-  ASSERT_TRUE(
-      getSyclObjImpl(Node1MainGraph)->MSuccessors.front().lock()->MNodeType ==
-      experimental::node_type::subgraph);
+  ASSERT_TRUE(getSyclObjImpl(Node1MainGraph)->MSuccessors.front()->MNodeType ==
+              experimental::node_type::subgraph);
   ASSERT_EQ(getSyclObjImpl(Node1MainGraph)->MSuccessors.size(), 1lu);
   ASSERT_EQ(getSyclObjImpl(Node2MainGraph)->MSuccessors.size(), 1lu);
   ASSERT_EQ(getSyclObjImpl(Node1MainGraph)->MPredecessors.size(), 0lu);
@@ -201,10 +198,10 @@ TEST_F(CommandGraphTest, RecordSubGraph) {
   // Record sub-graph with two nodes
   Graph.begin_recording(Queue);
   auto Node1Graph = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node2Graph = Queue.submit([&](sycl::handler &cgh) {
     cgh.depends_on(Node1Graph);
-    cgh.single_task<TestKernel<>>([]() {});
+    cgh.single_task<TestKernel>([]() {});
   });
   Graph.end_recording(Queue);
   auto GraphExec = Graph.finalize();
@@ -213,14 +210,14 @@ TEST_F(CommandGraphTest, RecordSubGraph) {
   experimental::command_graph MainGraph(Queue.get_context(), Dev);
   MainGraph.begin_recording(Queue);
   auto Node1MainGraph = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Node2MainGraph = Queue.submit([&](handler &cgh) {
     cgh.depends_on(Node1MainGraph);
     cgh.ext_oneapi_graph(GraphExec);
   });
   auto Node3MainGraph = Queue.submit([&](sycl::handler &cgh) {
     cgh.depends_on(Node2MainGraph);
-    cgh.single_task<TestKernel<>>([]() {});
+    cgh.single_task<TestKernel>([]() {});
   });
   MainGraph.end_recording(Queue);
 

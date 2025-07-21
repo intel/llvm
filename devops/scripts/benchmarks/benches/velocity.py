@@ -29,7 +29,7 @@ class VelocityBench(Suite):
     def git_hash(self) -> str:
         return "b22215c16f789100449c34bf4eaa3fb178983d69"
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
@@ -146,7 +146,6 @@ class VelocityBase(Benchmark):
                 value=self.parse_output(result),
                 command=command,
                 env=env_vars,
-                stdout=result,
                 unit=self.unit,
                 git_url=self.vb.git_url(),
                 git_hash=self.vb.git_hash(),

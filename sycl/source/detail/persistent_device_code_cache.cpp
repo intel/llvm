@@ -126,22 +126,22 @@ std::string getUniqueFilename(const std::string &base_name) {
  */
 std::vector<std::vector<char>>
 getProgramBinaryData(const ur_program_handle_t &NativePrg,
-                     const std::vector<device> &Devices) {
+                     devices_range Devices) {
   assert(!Devices.empty() && "At least one device is expected");
   // We expect all devices to be from the same platform/adpater.
-  auto Adapter = detail::getSyclObjImpl(Devices[0])->getAdapter();
+  adapter_impl &Adapter = Devices.front().getAdapter();
   unsigned int DeviceNum = 0;
-  Adapter->call<UrApiKind::urProgramGetInfo>(
+  Adapter.call<UrApiKind::urProgramGetInfo>(
       NativePrg, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
       nullptr);
 
   std::vector<ur_device_handle_t> URDevices(DeviceNum);
-  Adapter->call<UrApiKind::urProgramGetInfo>(
+  Adapter.call<UrApiKind::urProgramGetInfo>(
       NativePrg, UR_PROGRAM_INFO_DEVICES,
       sizeof(ur_device_handle_t) * URDevices.size(), URDevices.data(), nullptr);
 
   std::vector<size_t> BinarySizes(DeviceNum);
-  Adapter->call<UrApiKind::urProgramGetInfo>(
+  Adapter.call<UrApiKind::urProgramGetInfo>(
       NativePrg, UR_PROGRAM_INFO_BINARY_SIZES,
       sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
@@ -152,24 +152,24 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
     Pointers.push_back(Binaries[I].data());
   }
 
-  Adapter->call<UrApiKind::urProgramGetInfo>(
-      NativePrg, UR_PROGRAM_INFO_BINARIES, sizeof(char *) * Pointers.size(),
-      Pointers.data(), nullptr);
+  Adapter.call<UrApiKind::urProgramGetInfo>(NativePrg, UR_PROGRAM_INFO_BINARIES,
+                                            sizeof(char *) * Pointers.size(),
+                                            Pointers.data(), nullptr);
 
   // Select only binaries for the input devices preserving one to one
   // correpsondence.
   std::vector<std::vector<char>> Result(Devices.size());
-  for (size_t DeviceIndex = 0; DeviceIndex < Devices.size(); DeviceIndex++) {
-    auto DeviceIt = std::find_if(
-        URDevices.begin(), URDevices.end(),
-        [&Devices, &DeviceIndex](const ur_device_handle_t &URDevice) {
-          return URDevice ==
-                 detail::getSyclObjImpl(Devices[DeviceIndex])->getHandleRef();
-        });
+  auto ResultIt = Result.begin();
+  for (device_impl &Device : Devices) {
+    auto DeviceIt = std::find_if(URDevices.begin(), URDevices.end(),
+                                 [&Device](const ur_device_handle_t &URDevice) {
+                                   return URDevice == Device.getHandleRef();
+                                 });
     assert(DeviceIt != URDevices.end() &&
            "Device is not associated with the program");
     auto URDeviceIndex = std::distance(URDevices.begin(), DeviceIt);
-    Result[DeviceIndex] = std::move(Binaries[URDeviceIndex]);
+    *ResultIt = std::move(Binaries[URDeviceIndex]);
+    ++ResultIt;
   }
 
   // Return binaries correpsonding to the input devices.
@@ -433,8 +433,7 @@ void PersistentDeviceCodeCache::updateCacheFileSizeAndTriggerEviction(
  * device in the list to a separate file.
  */
 void PersistentDeviceCodeCache::putItemToDisc(
-    const std::vector<device> &Devices,
-    const std::vector<const RTDeviceBinaryImage *> &Imgs,
+    devices_range Devices, const std::vector<const RTDeviceBinaryImage *> &Imgs,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
     const ur_program_handle_t &NativePrg) {
 
@@ -456,12 +455,13 @@ void PersistentDeviceCodeCache::putItemToDisc(
 
   // Total size of the item that we just wrote to the cache.
   size_t TotalSize = 0;
-  for (size_t DeviceIndex = 0; DeviceIndex < Devices.size(); DeviceIndex++) {
+  auto BinaryDataIt = BinaryData.begin();
+  for (device_impl &Device : Devices) {
     // If we don't have binary for the device, skip it.
-    if (BinaryData[DeviceIndex].empty())
+    if (BinaryDataIt->empty())
       continue;
-    std::string DirName = getCacheItemPath(Devices[DeviceIndex], SortedImgs,
-                                           SpecConsts, BuildOptionsString);
+    std::string DirName =
+        getCacheItemPath(Device, SortedImgs, SpecConsts, BuildOptionsString);
 
     if (DirName.empty())
       return;
@@ -473,10 +473,10 @@ void PersistentDeviceCodeCache::putItemToDisc(
       LockCacheItem Lock{FileName};
       if (Lock.isOwned()) {
         std::string FullFileName = FileName + ".bin";
-        writeBinaryDataToFile(FullFileName, BinaryData[DeviceIndex]);
+        writeBinaryDataToFile(FullFileName, *BinaryDataIt);
         trace("device binary has been cached: ", FullFileName);
-        writeSourceItem(FileName + ".src", Devices[DeviceIndex], SortedImgs,
-                        SpecConsts, BuildOptionsString);
+        writeSourceItem(FileName + ".src", Device, SortedImgs, SpecConsts,
+                        BuildOptionsString);
 
         // Update Total cache size after adding the new items.
         TotalSize += getFileSize(FileName + ".src");
@@ -495,6 +495,7 @@ void PersistentDeviceCodeCache::putItemToDisc(
           std::string("error outputting persistent cache: ") +
           std::strerror(errno));
     }
+    ++BinaryDataIt;
   }
 
   // Update the cache size file and trigger cache eviction if needed.
@@ -503,7 +504,7 @@ void PersistentDeviceCodeCache::putItemToDisc(
 }
 
 void PersistentDeviceCodeCache::putCompiledKernelToDisc(
-    const std::vector<device> &Devices, const std::string &BuildOptionsString,
+    devices_range Devices, const std::string &BuildOptionsString,
     const std::string &SourceStr, const ur_program_handle_t &NativePrg) {
 
   repopulateCacheSizeFile(getRootDir());
@@ -520,12 +521,13 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
   // Total size of the item that we are writing to the cache.
   size_t TotalSize = 0;
 
-  for (size_t DeviceIndex = 0; DeviceIndex < Devices.size(); DeviceIndex++) {
+  auto BinaryDataIt = BinaryData.begin();
+  for (device_impl &Device : Devices) {
     // If we don't have binary for the device, skip it.
-    if (BinaryData[DeviceIndex].empty())
+    if (BinaryDataIt->empty())
       continue;
-    std::string DirName = getCompiledKernelItemPath(
-        Devices[DeviceIndex], BuildOptionsString, SourceStr);
+    std::string DirName =
+        getCompiledKernelItemPath(Device, BuildOptionsString, SourceStr);
 
     try {
       OSUtil::makeDir(DirName.c_str());
@@ -533,7 +535,7 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
       LockCacheItem Lock{FileName};
       if (Lock.isOwned()) {
         std::string FullFileName = FileName + ".bin";
-        writeBinaryDataToFile(FullFileName, BinaryData[DeviceIndex]);
+        writeBinaryDataToFile(FullFileName, *BinaryDataIt);
         PersistentDeviceCodeCache::trace_KernelCompiler(
             "binary has been cached: ", FullFileName);
 
@@ -550,6 +552,7 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
       PersistentDeviceCodeCache::trace_KernelCompiler(
           std::string("error outputting cache: ") + std::strerror(errno));
     }
+    ++BinaryDataIt;
   }
 
   // Update the cache size file and trigger cache eviction if needed.
@@ -611,8 +614,7 @@ void PersistentDeviceCodeCache::putDeviceCodeIRToDisc(
  * devices.
  */
 std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
-    const std::vector<device> &Devices,
-    const std::vector<const RTDeviceBinaryImage *> &Imgs,
+    devices_range Devices, const std::vector<const RTDeviceBinaryImage *> &Imgs,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
   assert(!Devices.empty());
   if (!areImagesCacheable(Imgs))
@@ -621,9 +623,10 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
   std::vector<const RTDeviceBinaryImage *> SortedImgs = getSortedImages(Imgs);
   std::vector<std::vector<char>> Binaries(Devices.size());
   std::string FileNames;
-  for (size_t DeviceIndex = 0; DeviceIndex < Devices.size(); DeviceIndex++) {
-    std::string Path = getCacheItemPath(Devices[DeviceIndex], SortedImgs,
-                                        SpecConsts, BuildOptionsString);
+  auto BinariesIt = Binaries.begin();
+  for (device_impl &Device : Devices) {
+    std::string Path =
+        getCacheItemPath(Device, SortedImgs, SpecConsts, BuildOptionsString);
 
     if (Path.empty() || !OSUtil::isPathPresent(Path))
       return {};
@@ -635,11 +638,11 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
            OSUtil::isPathPresent(FileName + ".src")) {
 
       if (!LockCacheItem::isLocked(FileName) &&
-          isCacheItemSrcEqual(FileName + ".src", Devices[DeviceIndex],
-                              SortedImgs, SpecConsts, BuildOptionsString)) {
+          isCacheItemSrcEqual(FileName + ".src", Device, SortedImgs, SpecConsts,
+                              BuildOptionsString)) {
         try {
           std::string FullFileName = FileName + ".bin";
-          Binaries[DeviceIndex] = readBinaryDataFromFile(FullFileName);
+          *BinariesIt = readBinaryDataFromFile(FullFileName);
 
           // Explicitly update the access time of the file. This is required for
           // eviction.
@@ -655,8 +658,9 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
       FileName = Path + "/" + std::to_string(++i);
     }
     // If there is no binary for any device, return empty vector.
-    if (Binaries[DeviceIndex].empty())
+    if (BinariesIt->empty())
       return {};
+    ++BinariesIt;
   }
   PersistentDeviceCodeCache::trace("using cached device binary: ", FileNames);
   return Binaries;
@@ -667,14 +671,15 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
  */
 std::vector<std::vector<char>>
 PersistentDeviceCodeCache::getCompiledKernelFromDisc(
-    const std::vector<device> &Devices, const std::string &BuildOptionsString,
+    devices_range Devices, const std::string &BuildOptionsString,
     const std::string &SourceStr) {
   assert(!Devices.empty());
   std::vector<std::vector<char>> Binaries(Devices.size());
   std::string FileNames;
-  for (size_t DeviceIndex = 0; DeviceIndex < Devices.size(); DeviceIndex++) {
-    std::string DirName = getCompiledKernelItemPath(
-        Devices[DeviceIndex], BuildOptionsString, SourceStr);
+  auto BinariesIt = Binaries.begin();
+  for (device_impl &Device : Devices) {
+    std::string DirName =
+        getCompiledKernelItemPath(Device, BuildOptionsString, SourceStr);
 
     if (DirName.empty() || !OSUtil::isPathPresent(DirName))
       return {};
@@ -687,7 +692,7 @@ PersistentDeviceCodeCache::getCompiledKernelFromDisc(
       if (!LockCacheItem::isLocked(FileName)) {
         try {
           std::string FullFileName = FileName + ".bin";
-          Binaries[DeviceIndex] = readBinaryDataFromFile(FullFileName);
+          *BinariesIt = readBinaryDataFromFile(FullFileName);
 
           // Explicitly update the access time of the file. This is required for
           // eviction.
@@ -703,8 +708,9 @@ PersistentDeviceCodeCache::getCompiledKernelFromDisc(
       FileName = DirName + "/" + std::to_string(++i);
     }
     // If there is no binary for any device, return empty vector.
-    if (Binaries[DeviceIndex].empty())
+    if (BinariesIt->empty())
       return {};
+    ++BinariesIt;
   }
   PersistentDeviceCodeCache::trace_KernelCompiler("using cached binary: ",
                                                   FileNames);
@@ -746,7 +752,7 @@ PersistentDeviceCodeCache::getDeviceCodeIRFromDisc(const std::string &Key) {
 
 /* Returns string value which can be used to identify different device
  */
-std::string PersistentDeviceCodeCache::getDeviceIDString(const device &Device) {
+std::string PersistentDeviceCodeCache::getDeviceIDString(device_impl &Device) {
   return Device.get_platform().get_info<sycl::info::platform::name>() + "/" +
          Device.get_info<sycl::info::device::name>() + "/" +
          Device.get_info<sycl::info::device::version>() + "/" +
@@ -814,7 +820,7 @@ PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
  * specialization constant values, device code SPIR-V images.
  */
 void PersistentDeviceCodeCache::writeSourceItem(
-    const std::string &FileName, const device &Device,
+    const std::string &FileName, device_impl &Device,
     const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
   std::ofstream FileStream{FileName, std::ios::binary};
@@ -850,7 +856,7 @@ void PersistentDeviceCodeCache::writeSourceItem(
  * If file read operations fail cache item is treated as not equal.
  */
 bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
-    const std::string &FileName, const device &Device,
+    const std::string &FileName, device_impl &Device,
     const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
   std::ifstream FileStream{FileName, std::ios::binary};
@@ -900,7 +906,7 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
  * device, build options and specialization constants values.
  */
 std::string PersistentDeviceCodeCache::getCacheItemPath(
-    const device &Device, const std::vector<const RTDeviceBinaryImage *> &Imgs,
+    device_impl &Device, const std::vector<const RTDeviceBinaryImage *> &Imgs,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
   std::string cache_root{getRootDir()};
   if (cache_root.empty()) {
@@ -926,7 +932,7 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
 }
 
 std::string PersistentDeviceCodeCache::getCompiledKernelItemPath(
-    const device &Device, const std::string &BuildOptionsString,
+    device_impl &Device, const std::string &BuildOptionsString,
     const std::string &SourceString) {
 
   std::string cache_root{getRootDir()};
