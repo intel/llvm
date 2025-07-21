@@ -1,5 +1,14 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+//
+// Opencl currently does not support:
+// - Prefetching from device to host for any device, as there is no driver
+//   support yet
+// - Prefetching from host to device on specifically CPU, due to a bug that
+//   required a spec change: Currently waiting for said spec change to be
+//   implemented.
+//   See: https://github.com/KhronosGroup/OpenCL-Docs/pull/1412/files#diff-7e4c12789cfc81c40637d32b7113b0cca2c3ee0beabaabb9acd9da743f7b5780R974
+//
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 // Extra run to check for immediate-command-list in Level Zero
@@ -84,6 +93,9 @@ int main() {
   // Check device-to-host prefetch results
   for (int i = 0; i < N; i++)
     assert(Dst[i] == Pattern + 1);
+
+  free(Src, Q);
+  free(Dst, Q);
 
   return 0;
 }
