@@ -1228,13 +1228,13 @@ ProgramManager::getProgramBuildLog(const ur_program_handle_t &Program,
 // TODO device libraries may use scpecialization constants, manifest files, etc.
 // To support that they need to be delivered in a different container - so that
 // sycl_device_binary_struct can be created for each of them.
-static bool loadDeviceLib(context_impl &Context, const char *Name,
-                          ur_program_handle_t &Prog) {
+static Managed<ur_program_handle_t> loadDeviceLib(context_impl &Context,
+                                                  const char *Name) {
   std::string LibSyclDir = OSUtil::getCurrentDSODir();
   std::ifstream File(LibSyclDir + OSUtil::DirSep + Name,
                      std::ifstream::in | std::ifstream::binary);
   if (!File.good()) {
-    return false;
+    return {};
   }
 
   File.seekg(0, std::ios::end);
@@ -1244,9 +1244,8 @@ static bool loadDeviceLib(context_impl &Context, const char *Name,
   File.read(&FileContent[0], FileSize);
   File.close();
 
-  Prog = createSpirvProgram(Context, (unsigned char *)&FileContent[0], FileSize)
-             .release();
-  return Prog != nullptr;
+  return createSpirvProgram(Context, (unsigned char *)&FileContent[0],
+                            FileSize);
 }
 
 // For each extension, a pair of library names. The first uses native support,
@@ -1367,10 +1366,17 @@ loadDeviceLibFallback(context_impl &Context, DeviceLibExt Extension,
   bool IsProgramCreated = !URProgram;
 
   // Create UR program for device lib if we don't have it yet.
-  if (!URProgram && !loadDeviceLib(Context, LibFileName, URProgram)) {
-    EraseProgramForDevices();
-    throw exception(make_error_code(errc::build),
-                    std::string("Failed to load ") + LibFileName);
+  if (!URProgram) {
+    Managed<ur_program_handle_t> DeviceLibProgram =
+        loadDeviceLib(Context, LibFileName);
+    if (DeviceLibProgram == nullptr) {
+      EraseProgramForDevices();
+      throw exception(make_error_code(errc::build),
+                      std::string("Failed to load ") + LibFileName);
+    }
+
+    // TODO: How isn't this a leak?
+    URProgram = DeviceLibProgram.release();
   }
 
   // Insert URProgram into the cache for all devices that we compiled it for.
