@@ -165,7 +165,7 @@ public:
   /// \return A pair consisting of the UR program created with the corresponding
   ///         device code binary and a boolean that is true if the device code
   ///         binary was found in the persistent cache and false otherwise.
-  std::pair<ur_program_handle_t, bool> getOrCreateURProgram(
+  std::pair<Managed<ur_program_handle_t>, bool> getOrCreateURProgram(
       const RTDeviceBinaryImage &Img,
       const std::vector<const RTDeviceBinaryImage *> &AllImages,
       context_impl &ContextImpl, devices_range Devices,

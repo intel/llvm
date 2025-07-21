@@ -492,7 +492,8 @@ static void applyOptionsFromEnvironment(std::string &CompileOpts,
   applyLinkOptionsFromEnvironment(LinkOpts);
 }
 
-std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
+std::pair<Managed<ur_program_handle_t>, bool>
+ProgramManager::getOrCreateURProgram(
     const RTDeviceBinaryImage &MainImg,
     const std::vector<const RTDeviceBinaryImage *> &AllImages,
     context_impl &ContextImpl, devices_range Devices,
@@ -502,27 +503,26 @@ std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
   // Get binaries for each device (1:1 correpsondence with input Devices).
   auto Binaries = PersistentDeviceCodeCache::getItemFromDisc(
       Devices, AllImages, SpecConsts, CompileAndLinkOptions);
-  if (!Binaries.empty()) {
-    std::vector<const uint8_t *> BinPtrs;
-    std::vector<size_t> Lengths;
-    for (auto &Bin : Binaries) {
-      Lengths.push_back(Bin.size());
-      BinPtrs.push_back(reinterpret_cast<const uint8_t *>(Bin.data()));
-    }
+  if (Binaries.empty())
+    return {createURProgram(MainImg, ContextImpl, Devices), false};
 
-    // Get program metadata from properties
-    std::vector<ur_program_metadata_t> ProgMetadataVector;
-    for (const RTDeviceBinaryImage *Img : AllImages) {
-      auto &ImgProgMetadata = Img->getProgramMetadataUR();
-      ProgMetadataVector.insert(ProgMetadataVector.end(),
-                                ImgProgMetadata.begin(), ImgProgMetadata.end());
-    }
-    NativePrg = createBinaryProgram(ContextImpl, Devices, BinPtrs.data(),
-                                    Lengths.data(), ProgMetadataVector);
-  } else {
-    NativePrg = createURProgram(MainImg, ContextImpl, Devices);
+  std::vector<const uint8_t *> BinPtrs;
+  std::vector<size_t> Lengths;
+  for (auto &Bin : Binaries) {
+    Lengths.push_back(Bin.size());
+    BinPtrs.push_back(reinterpret_cast<const uint8_t *>(Bin.data()));
   }
-  return {NativePrg.release(), Binaries.size()};
+
+  // Get program metadata from properties
+  std::vector<ur_program_metadata_t> ProgMetadataVector;
+  for (const RTDeviceBinaryImage *Img : AllImages) {
+    auto &ImgProgMetadata = Img->getProgramMetadataUR();
+    ProgMetadataVector.insert(ProgMetadataVector.end(), ImgProgMetadata.begin(),
+                              ImgProgMetadata.end());
+  }
+  return {createBinaryProgram(ContextImpl, Devices, BinPtrs.data(),
+                              Lengths.data(), ProgMetadataVector),
+          true};
 }
 
 /// Emits information about built programs if the appropriate contitions are
@@ -920,8 +920,6 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
                                    NativePrg, Adapter);
     }
 
-    Managed<ur_program_handle_t> ProgramManaged(NativePrg, Adapter);
-
     // Link a fallback implementation of device libraries if they are not
     // supported by a device compiler.
     // Pre-compiled programs (after AOT compilation or read from persitent
@@ -964,7 +962,7 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
     auto URDevices = Devs.to<std::vector<ur_device_handle_t>>();
 
     Managed<ur_program_handle_t> BuiltProgram =
-        build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
+        build(std::move(NativePrg), ContextImpl, CompileOpts, LinkOpts,
               URDevices, DeviceLibReqMask, ProgramsToLink,
               /*CreatedFromBinary*/ MainImg.getFormat() !=
                   SYCL_DEVICE_BINARY_TYPE_SPIRV);
