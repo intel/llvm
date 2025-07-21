@@ -253,6 +253,10 @@ public:
   /// \param Num is the number of arguments of the free function kernel.
   void setFreeFuncKernelArgNum(unsigned Num);
 
+  /// Update free function kernel cache to return the correct values of info
+  /// requests
+  void updateFreeFuncKernelCache();
+
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
   kernel(std::shared_ptr<detail::kernel_impl> Impl);

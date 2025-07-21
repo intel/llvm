@@ -243,6 +243,7 @@ public:
   std::string_view getName() const;
 
   void setKerenlFreeFuncArgNum(unsigned Num);
+  void updateFreeFuncKernelCache();
 
 private:
   ur_kernel_handle_t MKernel = nullptr;
@@ -257,9 +258,9 @@ private:
   std::mutex *MCacheMutex = nullptr;
   mutable std::string MName;
   unsigned FreeFuncKernelArgNum = 0;
+  bool isFreeFuncKernel = false;
 
   bool isBuiltInKernel(device_impl &Device) const;
-  bool isFreeFunctionKernel() const;
   void checkIfValidForNumArgsInfoQuery() const;
 
   /// Check if the occupancy limits are exceeded for the given kernel launch
@@ -315,7 +316,8 @@ inline typename Param::return_type kernel_impl::get_info() const {
                 "Invalid kernel information descriptor");
   if constexpr (std::is_same_v<Param, info::kernel::num_args>) {
     checkIfValidForNumArgsInfoQuery();
-    return FreeFuncKernelArgNum;
+    if (isFreeFuncKernel)
+      return FreeFuncKernelArgNum;
   }
   return get_kernel_info<Param>(this->getHandleRef(), getAdapter());
 }

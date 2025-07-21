@@ -512,6 +512,7 @@ public:
         ext::oneapi::experimental::get_kernel_id<Func>());
     const unsigned FreeFuncKernelArgNum =
         sycl::detail::FreeFunctionInfoData<Func>::getNumParams();
+    Kernel.updateFreeFuncKernelCache();
     Kernel.setFreeFuncKernelArgNum(FreeFuncKernelArgNum);
     return Kernel;
   }
