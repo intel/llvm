@@ -149,7 +149,7 @@ TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMPrefetchExp) {
 
 TEST_P(urCommandBufferCommandsTest,
   urCommandBufferAppendUSMPrefetchExpDeviceToHost) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero);
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
   ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
       cmd_buf_handle, device_ptrs[0], allocation_size,
