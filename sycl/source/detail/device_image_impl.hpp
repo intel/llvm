@@ -304,23 +304,6 @@ public:
         MRTCBinInfo(std::move(RTCInfo)),
         MMergedImageStorage(std::move(MergedImageStorage)) {}
 
-  device_image_impl(const RTDeviceBinaryImage *BinImage, const context &Context,
-                    devices_range Devices, bundle_state State,
-                    ur_program_handle_t Program, syclex::source_language Lang,
-                    KernelNameSetT &&KernelNames,
-                    KernelNameToArgMaskMap &&EliminatedKernelArgMasks,
-                    private_tag)
-      : MBinImage(BinImage), MContext(std::move(Context)),
-        MDevices(Devices.to<std::vector<device_impl *>>()), MState(State),
-        MProgram(Program, getSyclObjImpl(MContext)->getAdapter()),
-        MKernelNames{std::move(KernelNames)},
-        MEliminatedKernelArgMasks{std::move(EliminatedKernelArgMasks)},
-        MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
-        MOrigins(ImageOriginKernelCompiler),
-        MRTCBinInfo(KernelCompilerBinaryInfo{Lang}) {
-    updateSpecConstSymMap();
-  }
-
   device_image_impl(
       const RTDeviceBinaryImage *BinImage, const context &Context,
       devices_range Devices, bundle_state State,
