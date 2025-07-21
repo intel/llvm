@@ -20,9 +20,11 @@ struct ur_event_handle_t_ : RefCounted {
   ur_command_t Type;
   ur_queue_handle_t UrQueue;
 
-  ur_event_handle_t_(ur_command_t Type, ur_queue_handle_t Queue) : Type(Type), UrQueue(Queue) {}
+  ur_event_handle_t_(ur_command_t Type, ur_queue_handle_t Queue)
+      : Type(Type), UrQueue(Queue) {}
 
-  static ur_event_handle_t createEmptyEvent(ur_command_t Type, ur_queue_handle_t Queue) {
+  static ur_event_handle_t createEmptyEvent(ur_command_t Type,
+                                            ur_queue_handle_t Queue) {
     auto *Event = new ur_event_handle_t_(Type, Queue);
     // Null event represents an empty event. Waiting on it is a no-op.
     Event->OffloadEvent = nullptr;
