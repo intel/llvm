@@ -28,7 +28,7 @@ class LlamaCppBench(Suite):
     def git_hash(self) -> str:
         return "916c83bfe7f8b08ada609c3b8e583cf5301e594b"
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
