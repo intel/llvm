@@ -257,10 +257,10 @@ public:
   device_image_impl(const RTDeviceBinaryImage *BinImage, context Context,
                     devices_range Devices, bundle_state State,
                     std::shared_ptr<std::vector<kernel_id>> KernelIDs,
-                    ur_program_handle_t Program, uint8_t Origins, private_tag)
+                    Managed<ur_program_handle_t> &&Program, uint8_t Origins, private_tag)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(Devices.to<std::vector<device_impl *>>()), MState(State),
-        MProgram(Program, getSyclObjImpl(MContext)->getAdapter()),
+        MProgram(std::move(Program)),
         MKernelIDs(std::move(KernelIDs)),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()), MOrigins(Origins) {
     updateSpecConstSymMap();

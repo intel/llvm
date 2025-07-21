@@ -597,7 +597,8 @@ public:
     for (const detail::RTDeviceBinaryImage *Image : BestImages)
       MDeviceImages.emplace_back(device_image_impl::create(
           Image, Context, Devs, ProgramManager::getBinImageState(Image),
-          /*KernelIDs=*/nullptr, /*URProgram=*/nullptr, ImageOriginSYCLBIN));
+          /*KernelIDs=*/nullptr, Managed<ur_program_handle_t>{},
+          ImageOriginSYCLBIN));
     ProgramManager::getInstance().bringSYCLDeviceImagesToState(MDeviceImages,
                                                                State);
     fillUniqueDeviceImages();

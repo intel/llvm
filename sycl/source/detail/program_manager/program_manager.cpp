@@ -2481,9 +2481,9 @@ device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
     KernelIDs = m_BinImg2KernelIDs[BinImage];
   }
 
-  DeviceImageImplPtr Impl =
-      device_image_impl::create(BinImage, Ctx, Dev, ImgState, KernelIDs,
-                                /*PIProgram=*/nullptr, ImageOriginSYCLOffline);
+  DeviceImageImplPtr Impl = device_image_impl::create(
+      BinImage, Ctx, Dev, ImgState, KernelIDs, Managed<ur_program_handle_t>{},
+      ImageOriginSYCLOffline);
 
   return createSyclObjFromImpl<device_image_plain>(std::move(Impl));
 }
@@ -2645,7 +2645,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
 
     DeviceImageImplPtr MainImpl = device_image_impl::create(
         ImgInfoPair.first, Ctx, Devs, ImgInfoPair.second.State,
-        ImgInfoPair.second.KernelIDs, /*PIProgram=*/nullptr,
+        ImgInfoPair.second.KernelIDs, Managed<ur_program_handle_t>{},
         ImageOriginSYCLOffline);
 
     std::vector<device_image_plain> Images;
@@ -2680,7 +2680,7 @@ ProgramManager::createDependencyImage(const context &Ctx, devices_range Devs,
          "State mismatch between main image and its dependency");
   DeviceImageImplPtr DepImpl = device_image_impl::create(
       DepImage, Ctx, Devs, DepState, std::move(DepKernelIDs),
-      /*PIProgram=*/nullptr, ImageOriginSYCLOffline);
+      Managed<ur_program_handle_t>{}, ImageOriginSYCLOffline);
 
   return createSyclObjFromImpl<device_image_plain>(std::move(DepImpl));
 }
