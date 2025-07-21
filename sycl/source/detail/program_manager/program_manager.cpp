@@ -2853,7 +2853,7 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
         InputImpl.getRTCInfo();
     DeviceImageImplPtr ObjectImpl = device_image_impl::create(
         InputImpl.get_bin_image_ref(), InputImpl.get_context(), Devs,
-        bundle_state::object, InputImpl.get_kernel_ids_ptr(), Prog.release(),
+        bundle_state::object, InputImpl.get_kernel_ids_ptr(), std::move(Prog),
         InputImpl.get_spec_const_data_ref(),
         InputImpl.get_spec_const_blob_ref(), InputImpl.getOriginMask(),
         std::move(RTCInfo), std::move(KernelNames),
@@ -3051,8 +3051,10 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
 
   DeviceImageImplPtr ExecutableImpl = device_image_impl::create(
       NewBinImg, Context, Devs, bundle_state::executable, std::move(KernelIDs),
-      LinkedProg, std::move(NewSpecConstMap), std::move(NewSpecConstBlob),
-      CombinedOrigins, std::move(MergedRTCInfo), std::move(MergedKernelNames),
+      // TODO: Move creation of `Managed` up:
+      Managed<ur_program_handle_t>{LinkedProg, Adapter},
+      std::move(NewSpecConstMap), std::move(NewSpecConstBlob), CombinedOrigins,
+      std::move(MergedRTCInfo), std::move(MergedKernelNames),
       std::move(MergedEliminatedKernelArgMasks), std::move(MergedImageStorage));
 
   // TODO: Make multiple sets of device images organized by devices they are
@@ -3133,10 +3135,12 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
 
   DeviceImageImplPtr ExecImpl = device_image_impl::create(
       ResultBinImg, Context, Devs, bundle_state::executable,
-      std::move(KernelIDs), ResProgram, std::move(SpecConstMap),
-      std::move(SpecConstBlob), CombinedOrigins, std::move(MergedRTCInfo),
-      std::move(MergedKernelNames), std::move(MergedEliminatedKernelArgMasks),
-      std::move(MergedImageStorage));
+      std::move(KernelIDs),
+      // Move creation of `Managed` up:
+      Managed<ur_program_handle_t>{ResProgram, ContextImpl.getAdapter()},
+      std::move(SpecConstMap), std::move(SpecConstBlob), CombinedOrigins,
+      std::move(MergedRTCInfo), std::move(MergedKernelNames),
+      std::move(MergedEliminatedKernelArgMasks), std::move(MergedImageStorage));
   return createSyclObjFromImpl<device_image_plain>(std::move(ExecImpl));
 }
 
