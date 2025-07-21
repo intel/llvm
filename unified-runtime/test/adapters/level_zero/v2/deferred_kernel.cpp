@@ -105,7 +105,7 @@ struct urMultiQueueLaunchKernelDeferFreeTest
         context, il_binary->data(), il_binary->size(), &properties, &program));
 
     UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-        urProgramBuild(context, program, nullptr));
+        urProgramBuild(program, devices.size(), devices.data(), nullptr));
     ASSERT_SUCCESS(urKernelCreate(program, KernelName.data(), &kernel));
   }
 

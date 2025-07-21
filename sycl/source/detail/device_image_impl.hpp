@@ -782,13 +782,8 @@ public:
       UrProgram = createProgramFromSource(Devices, BuildOptions, LogPtr);
 
     std::string XsFlags = extractXsFlags(BuildOptions, MRTCBinInfo->MLanguage);
-    auto Res = Adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
-        UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
-    if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Res = Adapter.call_nocheck<UrApiKind::urProgramBuild>(
-          ContextImpl.getHandleRef(), UrProgram, XsFlags.c_str());
-    }
-    Adapter.checkUrResult<errc::build>(Res);
+    Adapter.call<UrApiKind::urProgramBuild>(UrProgram, DeviceVec.size(),
+                                            DeviceVec.data(), XsFlags.c_str());
 
     // Get the number of kernels in the program.
     size_t NumKernels;

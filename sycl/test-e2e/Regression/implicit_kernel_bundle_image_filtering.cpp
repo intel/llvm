@@ -42,5 +42,5 @@ int main() {
 }
 
 // --- Check that only a single program is built:
-// CHECK: <--- urProgramBuildExp
-// CHECK-NOT: <--- urProgramBuildExp
+// CHECK: <--- urProgramBuild
+// CHECK-NOT: <--- urProgramBuild

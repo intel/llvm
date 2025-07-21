@@ -48,8 +48,8 @@ static ur_result_t redefined_urProgramCreateWithBinary(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t redefined_urProgramLinkExp(void *pParams) {
-  auto Params = *static_cast<ur_program_link_exp_params_t *>(pParams);
+static ur_result_t redefined_urProgramLink(void *pParams) {
+  auto Params = *static_cast<ur_program_link_params_t *>(pParams);
   unsigned ResProgram = 1;
   auto Programs = *Params.pphPrograms;
   for (uint32_t I = 0; I < *Params.pcount; ++I) {
@@ -82,8 +82,8 @@ static void setupRuntimeLinkingMock() {
                                             redefined_urProgramCreateWithIL);
   mock::getCallbacks().set_replace_callback(
       "urProgramCreateWithBinary", redefined_urProgramCreateWithBinary);
-  mock::getCallbacks().set_replace_callback("urProgramLinkExp",
-                                            redefined_urProgramLinkExp);
+  mock::getCallbacks().set_replace_callback("urProgramLink",
+                                            redefined_urProgramLink);
   mock::getCallbacks().set_replace_callback("urKernelCreate",
                                             redefined_urKernelCreate);
 }

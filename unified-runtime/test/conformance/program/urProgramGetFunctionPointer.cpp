@@ -10,7 +10,7 @@
 struct urProgramGetFunctionPointerTest : uur::urProgramTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
-    ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+    ASSERT_SUCCESS(urProgramBuild(program, 1, &device, nullptr));
     auto kernel_names = uur::KernelsEnvironment::instance->GetEntryPointNames(
         this->program_name);
     function_name = kernel_names[0];

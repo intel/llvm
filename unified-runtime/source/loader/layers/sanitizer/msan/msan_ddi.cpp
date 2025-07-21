@@ -298,31 +298,6 @@ urProgramRetain(ur_program_handle_t
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuild
 ur_result_t urProgramBuild(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the program object
-    ur_program_handle_t hProgram,
-    /// [in] string of build options
-    const char *pOptions) {
-  auto pfnProgramBuild = getContext()->urDdiTable.Program.pfnBuild;
-
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramBuild");
-
-  auto UrRes = pfnProgramBuild(hContext, hProgram, pOptions);
-  if (UrRes != UR_RESULT_SUCCESS) {
-    auto Devices = GetDevices(hContext);
-    PrintUrBuildLogIfError(UrRes, hProgram, Devices.data(), Devices.size());
-    return UrRes;
-  }
-
-  UR_CALL(getMsanInterceptor()->registerProgram(hProgram));
-
-  return UR_RESULT_SUCCESS;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramBuildExp
-ur_result_t urProgramBuildExp(
     /// [in] Handle of the program to build.
     ur_program_handle_t hProgram,
     /// [in] number of devices
@@ -331,11 +306,11 @@ ur_result_t urProgramBuildExp(
     ur_device_handle_t *phDevices,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
-  auto pfnBuildExp = getContext()->urDdiTable.ProgramExp.pfnBuildExp;
+  auto pfnBuild = getContext()->urDdiTable.Program.pfnBuild;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramBuildExp");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramBuild");
 
-  auto UrRes = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+  auto UrRes = pfnBuild(hProgram, numDevices, phDevices, pOptions);
   if (UrRes != UR_RESULT_SUCCESS) {
     PrintUrBuildLogIfError(UrRes, hProgram, phDevices, numDevices);
     return UrRes;
@@ -351,36 +326,6 @@ ur_result_t urProgramBuildExp(
 ur_result_t urProgramLink(
     /// [in] handle of the context instance.
     ur_context_handle_t hContext,
-    /// [in] number of program handles in `phPrograms`.
-    uint32_t count,
-    /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *phPrograms,
-    /// [in][optional] pointer to linker options null-terminated string.
-    const char *pOptions,
-    /// [out] pointer to handle of program object created.
-    ur_program_handle_t *phProgram) {
-  auto pfnProgramLink = getContext()->urDdiTable.Program.pfnLink;
-
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramLink");
-
-  auto UrRes = pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram);
-  if (UrRes != UR_RESULT_SUCCESS) {
-    auto Devices = GetDevices(hContext);
-    PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
-    return UrRes;
-  }
-
-  UR_CALL(getMsanInterceptor()->insertProgram(*phProgram));
-  UR_CALL(getMsanInterceptor()->registerProgram(*phProgram));
-
-  return UR_RESULT_SUCCESS;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramLinkExp
-ur_result_t urProgramLinkExp(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
     /// [in] number of devices
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
@@ -393,12 +338,12 @@ ur_result_t urProgramLinkExp(
     const char *pOptions,
     /// [out] pointer to handle of program object created.
     ur_program_handle_t *phProgram) {
-  auto pfnProgramLinkExp = getContext()->urDdiTable.ProgramExp.pfnLinkExp;
+  auto pfnProgramLink = getContext()->urDdiTable.Program.pfnLink;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramLinkExp");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramLink");
 
-  auto UrRes = pfnProgramLinkExp(hContext, numDevices, phDevices, count,
-                                 phPrograms, pOptions, phProgram);
+  auto UrRes = pfnProgramLink(hContext, numDevices, phDevices, count,
+                              phPrograms, pOptions, phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
     PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
     return UrRes;
@@ -1916,22 +1861,6 @@ ur_result_t urGetMemProcAddrTable(
 
   return result;
 }
-/// @brief Exported function for filling application's ProgramExp table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-ur_result_t urGetProgramExpProcAddrTable(
-    /// [in,out] pointer to table of DDI function pointers
-    ur_program_exp_dditable_t *pDdiTable) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  pDdiTable->pfnBuildExp = ur_sanitizer_layer::msan::urProgramBuildExp;
-  pDdiTable->pfnLinkExp = ur_sanitizer_layer::msan::urProgramLinkExp;
-
-  return result;
-}
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Enqueue table
 ///        with current process' addresses
@@ -2036,11 +1965,6 @@ ur_result_t initMsanDDITable(ur_dditable_t *dditable) {
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::msan::urGetMemProcAddrTable(&dditable->Mem);
-  }
-
-  if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::msan::urGetProgramExpProcAddrTable(
-        &dditable->ProgramExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {

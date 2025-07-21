@@ -12,7 +12,6 @@
 		urGetPhysicalMemProcAddrTable;
 		urGetPlatformProcAddrTable;
 		urGetProgramProcAddrTable;
-		urGetProgramExpProcAddrTable;
 		urGetQueueProcAddrTable;
 		urGetSamplerProcAddrTable;
 		urGetUSMProcAddrTable;
