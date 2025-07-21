@@ -135,19 +135,19 @@
 // CHECK-NEXT: detail/reduction_forward.hpp
 // CHECK-NEXT: detail/ur.hpp
 // CHECK-NEXT: ur_api_funcs.def
-// CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
-// CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_mem_handle.hpp
 // CHECK-NEXT: ext/oneapi/experimental/cluster_group_prop.hpp
 // CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp
 // CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
-// CHECK-NEXT: ext/oneapi/experimental/virtual_functions.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
+// CHECK-NEXT: kernel.hpp
+// CHECK-NEXT: kernel_launch_helper.hpp
+// CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
+// CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
+// CHECK-NEXT: ext/oneapi/experimental/virtual_functions.hpp
 // CHECK-NEXT: ext/oneapi/work_group_scratch_memory.hpp
 // CHECK-NEXT: detail/sycl_local_mem_builtins.hpp
-// CHECK-NEXT: kernel.hpp
-// CHECK-NEXT: kernel_helper.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-EMPTY:

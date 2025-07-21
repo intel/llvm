@@ -10,7 +10,6 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
-#include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
@@ -27,8 +26,6 @@
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
-#include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
 #include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
@@ -37,17 +34,14 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
-#include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
-#include <sycl/kernel_handler.hpp>
-#include <sycl/kernel_helper.hpp>
+#include <sycl/kernel_launch_helper.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>

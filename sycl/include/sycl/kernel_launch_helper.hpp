@@ -1,4 +1,4 @@
-//==-------- kernel_helper.hpp --- SYCL kernel helper utilities ---------==//
+//==-------- kernel_launch_helper.hpp --- SYCL kernel launch utilities ----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -23,6 +23,8 @@
 namespace sycl {
 inline namespace _V1 {
 
+// TODO: Move WrapAs to detail:: namespace as well and move this header to
+// include/sycl/detail directory.
 enum class WrapAs { single_task, parallel_for, parallel_for_work_group };
 
 namespace detail {
@@ -218,6 +220,7 @@ struct KernelWrapper<
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<const KernelType &>::value) {
 
+      // TODO: decouple property processing from KernelWrapper.
       h->template processProperties<detail::isKernelESIMD<KernelName>()>(
           KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
     }
