@@ -2973,7 +2973,7 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
   context_impl &ContextImpl = *getSyclObjImpl(Context);
   adapter_impl &Adapter = ContextImpl.getAdapter();
 
-  ur_program_handle_t LinkedProg = nullptr;
+  Managed<ur_program_handle_t> LinkedProg{Adapter};
   auto doLink = [&] {
     auto Res = Adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
         ContextImpl.getHandleRef(), URDevices.size(), URDevices.data(),
@@ -3051,11 +3051,10 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
 
   DeviceImageImplPtr ExecutableImpl = device_image_impl::create(
       NewBinImg, Context, Devs, bundle_state::executable, std::move(KernelIDs),
-      // TODO: Move creation of `Managed` up:
-      Managed<ur_program_handle_t>{LinkedProg, Adapter},
-      std::move(NewSpecConstMap), std::move(NewSpecConstBlob), CombinedOrigins,
-      std::move(MergedRTCInfo), std::move(MergedKernelNames),
-      std::move(MergedEliminatedKernelArgMasks), std::move(MergedImageStorage));
+      std::move(LinkedProg), std::move(NewSpecConstMap),
+      std::move(NewSpecConstBlob), CombinedOrigins, std::move(MergedRTCInfo),
+      std::move(MergedKernelNames), std::move(MergedEliminatedKernelArgMasks),
+      std::move(MergedImageStorage));
 
   // TODO: Make multiple sets of device images organized by devices they are
   // compiled for.
