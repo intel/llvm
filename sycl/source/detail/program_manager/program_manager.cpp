@@ -1110,8 +1110,9 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     }
   }
 
-  ur_program_handle_t Program =
-      getBuiltURProgram(ContextImpl, DeviceImpl, KernelName, NDRDesc);
+  Managed<ur_program_handle_t> Program{
+      getBuiltURProgram(ContextImpl, DeviceImpl, KernelName, NDRDesc),
+      ContextImpl.getAdapter()};
 
   auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
     ur_kernel_handle_t Kernel = nullptr;
@@ -1136,7 +1137,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     return std::make_pair(Kernel, ArgMask);
   };
 
-  auto GetCachedBuildF = [&Cache, &KernelName, Program]() {
+  auto GetCachedBuildF = [&Cache, &KernelName, &Program]() {
     return Cache.getOrInsertKernel(Program, KernelName);
   };
 
@@ -1146,7 +1147,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     // nullptr for the mutex.
     auto [Kernel, ArgMask] = BuildF();
     return std::make_shared<FastKernelCacheVal>(
-        Kernel, nullptr, ArgMask, Program, ContextImpl.getAdapter());
+        Kernel, nullptr, ArgMask, std::move(Program), ContextImpl.getAdapter());
   }
 
   std::shared_ptr<KernelProgramCache::KernelBuildResult> BuildResult =
@@ -1156,7 +1157,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
       &KernelArgMaskPair = BuildResult->Val;
   auto ret_val = std::make_shared<FastKernelCacheVal>(
       KernelArgMaskPair.first, &(BuildResult->MBuildResultMutex),
-      KernelArgMaskPair.second, Program, ContextImpl.getAdapter());
+      KernelArgMaskPair.second, std::move(Program), ContextImpl.getAdapter());
   // If caching is enabled, one copy of the kernel handle will be
   // stored in FastKernelCacheVal, and one is in
   // KernelProgramCache::MKernelsPerProgramCache. To cover
