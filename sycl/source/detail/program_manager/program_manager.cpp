@@ -888,12 +888,11 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
   std::copy(DeviceImagesToLink.begin(), DeviceImagesToLink.end(),
             std::back_inserter(AllImages));
 
-  return Managed<ur_program_handle_t>{
-      getBuiltURProgram(std::move(AllImages), ContextImpl, {RootOrSubDevImpl}),
-      ContextImpl.getAdapter()};
+  return getBuiltURProgram(std::move(AllImages), ContextImpl,
+                           {RootOrSubDevImpl});
 }
 
-ur_program_handle_t
+Managed<ur_program_handle_t>
 ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
                                   context_impl &ContextImpl, devices_range Devs,
                                   const DevImgPlainWithDeps *DevImgWithDeps,
@@ -999,7 +998,7 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
   };
 
   if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get())
-    return BuildF().release();
+    return BuildF();
 
   uint32_t ImgId = ImgWithDeps.getMain()->getImageID();
   std::set<ur_device_handle_t> URDevicesSet;
@@ -1087,7 +1086,7 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
   // caller. In that case, we need to increase the ref count of the
   // program.
   Adapter.call<UrApiKind::urProgramRetain>(ResProgram);
-  return ResProgram;
+  return Managed<ur_program_handle_t>{ResProgram, Adapter};
 }
 
 FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
@@ -3108,7 +3107,7 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
     SpecConstMap = MainInputImpl.get_spec_const_data_ref();
   }
 
-  ur_program_handle_t ResProgram = getBuiltURProgram(
+  Managed<ur_program_handle_t> ResProgram = getBuiltURProgram(
       std::move(BinImgs), ContextImpl, Devs, &DevImgWithDeps, SpecConstBlob);
 
   // The origin becomes the combination of all the origins.
@@ -3134,12 +3133,10 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
 
   DeviceImageImplPtr ExecImpl = device_image_impl::create(
       ResultBinImg, Context, Devs, bundle_state::executable,
-      std::move(KernelIDs),
-      // Move creation of `Managed` up:
-      Managed<ur_program_handle_t>{ResProgram, ContextImpl.getAdapter()},
-      std::move(SpecConstMap), std::move(SpecConstBlob), CombinedOrigins,
-      std::move(MergedRTCInfo), std::move(MergedKernelNames),
-      std::move(MergedEliminatedKernelArgMasks), std::move(MergedImageStorage));
+      std::move(KernelIDs), std::move(ResProgram), std::move(SpecConstMap),
+      std::move(SpecConstBlob), CombinedOrigins, std::move(MergedRTCInfo),
+      std::move(MergedKernelNames), std::move(MergedEliminatedKernelArgMasks),
+      std::move(MergedImageStorage));
   return createSyclObjFromImpl<device_image_plain>(std::move(ExecImpl));
 }
 

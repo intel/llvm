@@ -192,7 +192,7 @@ public:
   /// represents the images.
   /// \param SpecConsts is an optional parameter containing spec constant values
   /// the program should be built with.
-  ur_program_handle_t
+  Managed<ur_program_handle_t>
   getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
                     context_impl &ContextImpl, devices_range Devs,
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
