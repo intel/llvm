@@ -994,11 +994,11 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
           BuiltProgram);
     }
 
-    return BuiltProgram.release();
+    return BuiltProgram;
   };
 
   if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get())
-    return BuildF();
+    return BuildF().release();
 
   uint32_t ImgId = ImgWithDeps.getMain()->getImageID();
   std::set<ur_device_handle_t> URDevicesSet;
