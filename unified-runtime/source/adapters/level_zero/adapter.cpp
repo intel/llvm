@@ -21,6 +21,8 @@
 #include <umf.h>
 #endif
 
+ZeUSMImportExtension ZeUSMImport;
+
 // Due to multiple DLLMain definitions with SYCL, Global Adapter is init at
 // variable creation.
 #if defined(_WIN32)
@@ -503,19 +505,22 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
       PlatformVec platforms;
 
+      bool forceLoadedAdapter = ur_getenv("UR_ADAPTERS_FORCE_LOAD").has_value();
+      if (!forceLoadedAdapter) {
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
-      auto [useV2, reason] = shouldUseV2Adapter();
-      if (!useV2) {
-        UR_LOG(INFO, "Skipping L0 V2 adapter: {}", reason);
-        return;
-      }
+        auto [useV2, reason] = shouldUseV2Adapter();
+        if (!useV2) {
+          UR_LOG(INFO, "Skipping L0 V2 adapter: {}", reason);
+          return;
+        }
 #else
-      auto [useV1, reason] = shouldUseV1Adapter();
-      if (!useV1) {
-        UR_LOG(INFO, "Skipping L0 V1 adapter: {}", reason);
-        return;
-      }
+        auto [useV1, reason] = shouldUseV1Adapter();
+        if (!useV1) {
+          UR_LOG(INFO, "Skipping L0 V1 adapter: {}", reason);
+          return;
+        }
 #endif
+      }
 
       // Check if the user has enabled the default L0 SysMan initialization.
       const int UrSysmanZesinitEnable = [&UserForcedSysManInit] {

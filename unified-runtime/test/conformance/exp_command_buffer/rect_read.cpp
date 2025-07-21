@@ -132,7 +132,7 @@ TEST_P(urCommandBufferAppendMemBufferReadRectTestWithParam, Success) {
 
   // Enqueue the rectangular read.
   std::vector<uint8_t> output(host_size, 0x0);
-  EXPECT_SUCCESS(urCommandBufferAppendMemBufferReadRectExp(
+  ASSERT_SUCCESS(urCommandBufferAppendMemBufferReadRectExp(
       cmd_buf_handle, buffer, buffer_origin, host_origin, region,
       buffer_row_pitch, buffer_slice_pitch, host_row_pitch, host_slice_pitch,
       output.data(), 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr));

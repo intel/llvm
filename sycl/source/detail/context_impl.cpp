@@ -32,8 +32,8 @@ namespace detail {
 context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList, private_tag)
-    : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(Devices),
-      MContext(nullptr),
+    : MOwnedByRuntime(true), MAsyncHandler(std::move(AsyncHandler)),
+      MDevices(std::move(Devices)), MContext(nullptr),
       MPlatform(detail::getSyclObjImpl(MDevices[0].get_platform())),
       MPropList(PropList), MSupportBufferLocationByDevices(NotChecked) {
   verifyProps(PropList);
@@ -326,13 +326,13 @@ void context_impl::removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
 }
 
 void context_impl::addDeviceGlobalInitializer(
-    ur_program_handle_t Program, const std::vector<device> &Devs,
+    ur_program_handle_t Program, devices_range Devs,
     const RTDeviceBinaryImage *BinImage) {
   if (BinImage->getDeviceGlobals().empty())
     return;
   std::lock_guard<std::mutex> Lock(MDeviceGlobalInitializersMutex);
-  for (const device &Dev : Devs) {
-    auto Key = std::make_pair(Program, getSyclObjImpl(Dev)->getHandleRef());
+  for (device_impl &Dev : Devs) {
+    auto Key = std::make_pair(Program, Dev.getHandleRef());
     auto [Iter, Inserted] = MDeviceGlobalInitializers.emplace(Key, BinImage);
     if (Inserted && !Iter->second.MDeviceGlobalsFullyInitialized)
       ++MDeviceGlobalNotInitializedCnt;
