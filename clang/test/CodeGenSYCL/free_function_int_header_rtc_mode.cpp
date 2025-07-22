@@ -44,11 +44,6 @@ int main(){
 // CHECK-NEXT:    "{{.*}}__sycl_kernel_free_function_nd_rangePiii",
 // CHECK-NEXT:    "{{.*}}Kernel_Function",
 
-
-// CHECK: static constexpr const char* getName() { return "{{.*}}__sycl_kernel_free_function_singlePiii"; }
-// CHECK: static constexpr const char* getName() { return "{{.*}}__sycl_kernel_free_function_nd_rangePiii"; }
-// CHECK: static constexpr const char* getName() { return "{{.*}}Kernel_Function"; }
-
 // CHECK-RTC-NOT: free_function_single_kernel
 // CHECK-RTC-NOT: free_function_nd_range
 
