@@ -244,6 +244,10 @@ template <typename URResource> class Managed {
     if constexpr (std::is_same_v<URResource, ur_program_handle_t>)
       return UrApiKind::urProgramRelease;
   }();
+  static constexpr auto Retain = []() constexpr {
+    if constexpr (std::is_same_v<URResource, ur_program_handle_t>)
+      return UrApiKind::urProgramRetain;
+  }();
 
 public:
   Managed() = default;
@@ -290,6 +294,13 @@ public:
 
     std::cerr << "Dtor releasing: " << R << std::endl;
     Adapter->call<Release>(R);
+  }
+
+  Managed retain() {
+    assert(R && "Cannot retain unintialized resource!");
+    std::cerr << "Retaining " << R << std::endl;
+    Adapter->call<Retain>(R);
+    return Managed{R, *Adapter};
   }
 
 private:

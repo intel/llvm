@@ -1022,7 +1022,7 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
       Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF, EvictFunc);
   assert(BuildResult && "getOrBuild isn't supposed to return nullptr!");
 
-  ur_program_handle_t ResProgram = BuildResult->Val;
+  Managed<ur_program_handle_t> &ResProgram = BuildResult->Val;
 
   // Here we have multiple devices a program is built for, so add the program to
   // the cache for all subsets of provided list of devices.
@@ -1039,12 +1039,6 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
       bool DidInsert = Cache.insertBuiltProgram(CacheKey, ResProgram);
       // Add to the eviction list.
       Cache.registerProgramFetch(CacheKey, ResProgram, DidInsert);
-      if (DidInsert) {
-        // For every cached copy of the program, we need to increment its
-        // refcount
-        Adapter.call<UrApiKind::urProgramRetain>(ResProgram);
-        std::cerr << "Old manual retain " << ResProgram << std::endl;
-      }
     }
   };
   CacheLinkedImages();
@@ -1073,12 +1067,7 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
       // Change device in the cache key to reduce copying of spec const data.
       CacheKey.second = std::move(Subset);
       bool DidInsert = Cache.insertBuiltProgram(CacheKey, ResProgram);
-      if (DidInsert) {
-        // For every cached copy of the program, we need to increment its
-        // refcount
-        Adapter.call<UrApiKind::urProgramRetain>(ResProgram);
-        std::cerr << "Old manual retain2 " << ResProgram << std::endl;
-      }
+      (void)DidInsert;
       CacheLinkedImages();
     }
   }

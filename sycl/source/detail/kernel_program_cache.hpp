@@ -423,14 +423,13 @@ public:
   //
   // Returns whether or not an insertion took place.
   bool insertBuiltProgram(const ProgramCacheKeyT &CacheKey,
-                          ur_program_handle_t Program) {
+                          Managed<ur_program_handle_t> &Program) {
     auto LockedCache = acquireCachedPrograms();
     ProgramCache &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<ProgramBuildResult>(
-          BuildState::BS_Done,
-          Managed<ur_program_handle_t>{Program, getAdapter()});
+      It->second = std::make_shared<ProgramBuildResult>(BuildState::BS_Done,
+                                                        Program.retain());
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
@@ -642,8 +641,7 @@ public:
   // If it is the first time the program is fetched, add it to the eviction
   // list.
   void registerProgramFetch(const ProgramCacheKeyT &CacheKey,
-                            const ur_program_handle_t &Program,
-                            const bool IsBuilt) {
+                            ur_program_handle_t Program, const bool IsBuilt) {
 
     size_t ProgramCacheEvictionThreshold =
         SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::getProgramCacheSize();
