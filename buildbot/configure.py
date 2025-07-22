@@ -376,9 +376,7 @@ def main():
         help="Additional CMake option not configured via script parameters",
     )
     parser.add_argument("--cmake-gen", default="Ninja", help="CMake generator")
-    parser.add_argument(
-        "--use-libcxx", action="store_true", help="build with libcxx"
-    )
+    parser.add_argument("--use-libcxx", action="store_true", help="build with libcxx")
     parser.add_argument(
         "--use-lld", action="store_true", help="Use LLD linker for build"
     )
