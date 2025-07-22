@@ -95,11 +95,12 @@ define spir_kernel void @downgrade_global(ptr addrspace(3) %p) {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
 ; CHECK-NEXT:    [[TMP0:%.*]] = alloca i32, align 4
 ; CHECK-NEXT:    store i32 0, ptr [[TMP0]], align 4
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 2, i32 noundef 400)
 ; CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr [[TMP0]], align 4
 ; CHECK-NEXT:    store i32 [[TMP1]], ptr addrspace(3) [[P]], align 4
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 2, i32 noundef 400)
 ; CHECK-NEXT:    br label %[[BB1:.*]]
 ; CHECK:       [[BB1]]:
+; CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(3) [[P]], align 4
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 1, i32 noundef 912)
 ; CHECK-NEXT:    br label %[[BB2:.*]]
 ; CHECK:       [[BB2]]:
@@ -108,11 +109,12 @@ define spir_kernel void @downgrade_global(ptr addrspace(3) %p) {
 entry:
   %0 = alloca i32
   store i32 0, ptr %0
-  call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 1, i32 noundef 912)
   %1 = load i32, ptr %0
   store i32 %1, ptr addrspace(3) %p
+  call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 1, i32 noundef 912)
   br label %bb1
 bb1:
+  %2 = load i32, ptr addrspace(3) %p
   call void @_Z22__spirv_ControlBarrieriii(i32 noundef 1, i32 noundef 1, i32 noundef 912)
   br label %bb2
 bb2:

@@ -89,6 +89,7 @@
 
 #include "llvm/SYCLLowerIR/SYCLOptimizeBarriers.h"
 
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/IR/Dominators.h"
@@ -278,7 +279,7 @@ struct BarrierDesc {
 using BBMemInfoMap = DenseMap<BasicBlock *, RegionMemScope>;
 
 // Per-BB summary of Barriers.
-using BarriersMap = DenseMap<BasicBlock *, SmallVector<BarrierDesc, 2>>;
+using BarriersMap = MapVector<BasicBlock *, SmallVector<BarrierDesc, 2>>;
 
 // Map SPIR-V Barrier Scope to the RegionMemScope that a barrier of that kind
 // actually fences.
