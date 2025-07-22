@@ -22,6 +22,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/LangOptions.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/ModuleLoader.h"
 #include "clang/Lex/Preprocessor.h"
@@ -788,7 +789,7 @@ static void GetProgModelBuiltinFctOverloads(
     std::vector<QualType> &FunctionList, SmallVector<QualType, 1> &RetTypes,
     SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes, bool IsVariadic) {
   FunctionProtoType::ExtProtoInfo PI(
-      Context.getDefaultCallingConvention(false, false, true));
+      Context.getTargetInfo().getDefaultCallingConv());
   PI.Variadic = IsVariadic;
   PI.ExceptionSpec = FunctionProtoType::ExceptionSpecInfo{EST_BasicNoexcept};
 
@@ -4611,15 +4612,14 @@ static void getNestedNameSpecifierIdentifiers(
     II = NNS->getAsIdentifier();
     break;
 
-  case NestedNameSpecifier::Namespace:
-    if (NNS->getAsNamespace()->isAnonymousNamespace())
+  case NestedNameSpecifier::Namespace: {
+    const NamespaceBaseDecl *Namespace = NNS->getAsNamespace();
+    if (const auto *NS = dyn_cast<NamespaceDecl>(Namespace);
+        NS && NS->isAnonymousNamespace())
       return;
-    II = NNS->getAsNamespace()->getIdentifier();
+    II = Namespace->getIdentifier();
     break;
-
-  case NestedNameSpecifier::NamespaceAlias:
-    II = NNS->getAsNamespaceAlias()->getIdentifier();
-    break;
+  }
 
   case NestedNameSpecifier::TypeSpec:
     II = QualType(NNS->getAsType(), 0).getBaseTypeIdentifier();

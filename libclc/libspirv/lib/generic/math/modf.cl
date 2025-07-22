@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_modf.h>
 #include <libspirv/spirv.h>
-#include <clc/utils.h>
 
-#include <clc/math/math.h>
-
-#define __CLC_BODY <modf.inc>
+#define FUNCTION __spirv_ocl_modf
+#define __IMPL_FUNCTION(x) __clc_modf
+#define __CLC_BODY <clc/math/unary_def_with_ptr.inc>
 #include <clc/math/gentype.inc>

@@ -4279,8 +4279,8 @@ void FunctionStackPoisoner::processDynamicAllocas() {
 static void findStoresToUninstrumentedArgAllocas(
     AddressSanitizer &ASan, Instruction &InsBefore,
     SmallVectorImpl<Instruction *> &InitInsts) {
-  Instruction *Start = InsBefore.getNextNonDebugInstruction();
-  for (Instruction *It = Start; It; It = It->getNextNonDebugInstruction()) {
+  Instruction *Start = InsBefore.getNextNode();
+  for (Instruction *It = Start; It; It = It->getNextNode()) {
     // Argument initialization looks like:
     // 1) store <Argument>, <Alloca> OR
     // 2) <CastArgument> = cast <Argument> to ...
@@ -4307,7 +4307,7 @@ static void findStoresToUninstrumentedArgAllocas(
           isa<Argument>(cast<CastInst>(Val)->getOperand(0)) &&
           // Check that the cast appears directly before the store. Otherwise
           // moving the cast before InsBefore may break the IR.
-          Val == It->getPrevNonDebugInstruction();
+          Val == It->getPrevNode();
       bool IsArgInit = IsDirectArgInit || IsArgInitViaCast;
       if (!IsArgInit)
         continue;
@@ -4520,6 +4520,7 @@ void FunctionStackPoisoner::processStaticAllocas() {
          "Variable descriptions relative to ASan stack base will be dropped");
 
   // Replace Alloca instructions with base+offset.
+  SmallVector<Value *> NewAllocaPtrs;
   for (const auto &Desc : SVD) {
     AllocaInst *AI = Desc.AI;
     replaceDbgDeclare(AI, LocalStackBaseAllocaPtr, DIB, DIExprFlags,
@@ -4528,6 +4529,7 @@ void FunctionStackPoisoner::processStaticAllocas() {
         IRB.CreateAdd(LocalStackBase, ConstantInt::get(IntptrTy, Desc.Offset)),
         AI->getType());
     AI->replaceAllUsesWith(NewAllocaPtr);
+    NewAllocaPtrs.push_back(NewAllocaPtr);
   }
 
   const auto &TargetTriple = Triple(F.getParent()->getTargetTriple());
@@ -4582,6 +4584,15 @@ void FunctionStackPoisoner::processStaticAllocas() {
       copyToShadow(ShadowAfterScope,
                    APC.DoPoison ? ShadowAfterScope : ShadowInScope, Begin, End,
                    IRB, ShadowBase);
+    }
+  }
+
+  // Remove lifetime markers now that these are no longer allocas.
+  for (Value *NewAllocaPtr : NewAllocaPtrs) {
+    for (User *U : make_early_inc_range(NewAllocaPtr->users())) {
+      auto *I = cast<Instruction>(U);
+      if (I->isLifetimeStartOrEnd())
+        I->eraseFromParent();
     }
   }
 
@@ -4720,6 +4731,13 @@ void FunctionStackPoisoner::handleDynamicAllocaCall(AllocaInst *AI) {
   IRB.CreateStore(IRB.CreatePtrToInt(NewAlloca, IntptrTy), DynamicAllocaLayout);
 
   Value *NewAddressPtr = IRB.CreateIntToPtr(NewAddress, AI->getType());
+
+  // Remove lifetime markers now that this is no longer an alloca.
+  for (User *U : make_early_inc_range(AI->users())) {
+    auto *I = cast<Instruction>(U);
+    if (I->isLifetimeStartOrEnd())
+      I->eraseFromParent();
+  }
 
   // Replace all uses of AddessReturnedByAlloca with NewAddressPtr.
   AI->replaceAllUsesWith(NewAddressPtr);

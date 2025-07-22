@@ -238,3 +238,5 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/debuginfo-tests)
     add_subdirectory(debuginfo-tests)
   endif()
 endif()
+
+add_subdirectory(Analysis/LifetimeSafety)

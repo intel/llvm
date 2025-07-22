@@ -8,10 +8,10 @@ void bar() {
 }
 
 void foo() {
-  // expected-error@+1 {{'loop_unroll' attribute cannot be applied to a declaration}}
+  // expected-error@+1 {{'clang::loop_unroll' attribute cannot be applied to a declaration}}
   [[clang::loop_unroll(8)]] int a[10];
 
-  // expected-error@+1 {{'loop_unroll' attribute takes no more than 1 argument}}
+  // expected-error@+1 {{'clang::loop_unroll' attribute takes no more than 1 argument}}
   [[clang::loop_unroll(2,2)]]
   for (int i = 0; i < 10; ++i);
 
@@ -27,7 +27,7 @@ void foo() {
   [[clang::loop_unroll("str123")]]
   for (int i = 0; i < 10; ++i);
 
-  // expected-error@+2 {{duplicate unroll loop attribute 'loop_unroll'}}
+  // expected-error@+2 {{duplicate unroll loop attribute 'clang::loop_unroll'}}
   [[clang::loop_unroll(2)]]
   [[clang::loop_unroll(4)]]
   for (int i = 0; i < 10; ++i);

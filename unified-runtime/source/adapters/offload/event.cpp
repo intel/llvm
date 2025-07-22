@@ -57,12 +57,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
   if (--hEvent->RefCount == 0) {
-    // There's a small bug in olDestroyEvent that will crash. Leak the event
-    // in the meantime.
-    // auto Res = olDestroyEvent(hEvent->OffloadEvent);
-    // if (Res) {
-    //   return offloadResultToUR(Res);
-    // }
+    auto Res = olDestroyEvent(hEvent->OffloadEvent);
+    if (Res) {
+      return offloadResultToUR(Res);
+    }
   }
 
   delete hEvent;

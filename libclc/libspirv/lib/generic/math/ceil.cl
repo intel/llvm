@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/math/clc_ceil.h>
-#include <clc/opencl/clc.h>
 
 #define FUNCTION __spirv_ocl_ceil
 #define __IMPL_FUNCTION(x) __clc_ceil

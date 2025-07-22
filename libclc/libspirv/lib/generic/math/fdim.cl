@@ -6,21 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_fdim.h>
 #include <libspirv/spirv.h>
 
-#include <clc/math/math.h>
-
-#define __CLC_BODY <fdim.inc>
-#include <clc/math/gentype.inc>
-
-#ifdef cl_khr_fp16
-
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-
-#define __HALF_ONLY
 #define FUNCTION __spirv_ocl_fdim
-#define __IMPL_FUNCTION __builtin_fdimf
-#define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
+#define __IMPL_FUNCTION(x) __clc_fdim
+#define __CLC_BODY <clc/shared/binary_def.inc>
 #include <clc/math/gentype.inc>
-
-#endif
