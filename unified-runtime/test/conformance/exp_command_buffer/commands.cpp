@@ -139,7 +139,8 @@ TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferFillExp) {
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMPrefetchExp) {
-  //UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+  // No Prefetch command in cl_khr_command_buffer
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
 
   ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
       cmd_buf_handle, device_ptrs[0], allocation_size,
@@ -149,7 +150,9 @@ TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMPrefetchExp) {
 
 TEST_P(urCommandBufferCommandsTest,
   urCommandBufferAppendUSMPrefetchExpDeviceToHost) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  // No Prefetch command in cl_khr_command_buffer
+  // No driver support for prefetching from device to host on Intel GPUs 
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{}, uur::LevelZero{});
 
   ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
       cmd_buf_handle, device_ptrs[0], allocation_size,
