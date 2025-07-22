@@ -121,8 +121,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   const unsigned numWG = numWG0 * numWG1 * numWG2;
   const unsigned numWGPerThread = numWG / numParallelThreads;
-  const unsigned remainderWG =
-      numWG - numWGPerThread * numParallelThreads;
+  const unsigned remainderWG = numWG - numWGPerThread * numParallelThreads;
   // The fourth value is the linearized value.
   std::array<unsigned, 4> rangeStart = {0, 0, 0, 0};
   for (unsigned t = 0; t < numParallelThreads; ++t) {
