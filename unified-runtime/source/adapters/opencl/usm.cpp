@@ -524,13 +524,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     [[maybe_unused]] ur_usm_migration_flags_t flags,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  cl_mem_migration_flags MigrationFlag;
+  // TODO: Uncomment implementation when issues with impl are resolved.
+
+  // cl_mem_migration_flags MigrationFlag;
   switch (flags) {
   case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
-    MigrationFlag = 0;
+    // Note: currently opencl:cpu will break with this value, but opencl:gpu 
+    // will work just fine.  A spec change has been made to address this issue,
+    // and is waiting to be implemented:
+    // https://github.com/KhronosGroup/OpenCL-Docs/pull/1412/files#diff-7e4c12789cfc81c40637d32b7113b0cca2c3ee0beabaabb9acd9da743f7b5780R974
+
+    // MigrationFlag = 0; // OpenCL spec stipulates 0 as host
     break;
   case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
-    MigrationFlag = CL_MIGRATE_MEM_OBJECT_HOST;
+    // Note: there is currently no driver support for this.
+
+    // MigrationFlag = CL_MIGRATE_MEM_OBJECT_HOST;
     break;
   default:
     cl_adapter::setErrorMessage("Invalid USM migration flag",
@@ -538,6 +547,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
+  /*
   // Have to look up the context from the kernel
   cl_context CLContext = hQueue->Context->CLContext;
 
@@ -546,6 +556,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     cl_ext::getExtFuncFromContext<clEnqueueMigrateMemINTEL_fn>(
       CLContext, ur::cl::getAdapter()->fnCache.clEnqueueMigrateMemINTELCache,
       cl_ext::EnqueueMigrateMemName, &EnqueueMigrateMem));
+  */
 
   cl_event Event = nullptr;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
@@ -553,9 +564,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     CLWaitEvents[i] = phEventWaitList[i]->CLEvent;
   }
 
+  /*
   CL_RETURN_ON_FAILURE(EnqueueMigrateMem(
     hQueue->CLQueue, pMem, size, MigrationFlag, numEventsInWaitList,
     CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
+  */
+
+  // TODO: when issues with impl are fully resolved, delete this and use
+  // waitlisting from EnqueueMigrateMem instead.
+  CL_RETURN_ON_FAILURE(clEnqueueMarkerWithWaitList(
+    hQueue->CLQueue, numEventsInWaitList, CLWaitEvents.data(),
+    ifUrEvent(phEvent, Event)));
 
   UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
   return UR_RESULT_SUCCESS;
