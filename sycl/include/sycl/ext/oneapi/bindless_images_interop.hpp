@@ -8,11 +8,10 @@
 
 #pragma once
 
+#include "interop_common.hpp" // For external_mem_handle_type.
+
 #include <ur_api.h>
-
-#include <stddef.h> // for size_t
-
-#include "interop_common.hpp" // for external_mem_handle_type
+#include <stddef.h> // For size_t.
 
 namespace sycl {
 inline namespace _V1 {

@@ -12,7 +12,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-// Types of external memory handles
+// Types of external memory handles.
 enum class external_mem_handle_type {
   opaque_fd = 0,
   win32_nt_handle = 1,

@@ -6,43 +6,43 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+#include <sycl/detail/export.hpp> // For __SYCL_EXPORT.
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/memory_export.hpp>
 
 #include <detail/context_impl.hpp>
 #include <detail/queue_impl.hpp>
 
-#include <assert.h> // for assert
-#include <stddef.h> // for size_t
+#include <cassert> // For assert.
+#include <cstddef> // For size_t.
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 __SYCL_EXPORT void *alloc_exportable_device_mem(
-    size_t alignment, size_t size,
-    external_mem_handle_type externalMemHandleType,
-    const sycl::device &syclDevice, const sycl::context &syclContext,
-    [[maybe_unused]] const sycl::property_list &propList) {
+    size_t Alignment, size_t Size,
+    external_mem_handle_type ExternalMemHandleType,
+    const sycl::device &SyclDevice, const sycl::context &SyclContext,
+    [[maybe_unused]] const sycl::property_list &PropList) {
 
-  if (!syclDevice.has(sycl::aspect::ext_oneapi_exportable_device_mem)) {
+  if (!SyclDevice.has(sycl::aspect::ext_oneapi_exportable_device_mem)) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Device does not support memory export");
   }
 
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+  auto [UrDevice, UrCtx, Adapter] = get_ur_handles(SyclDevice, SyclContext);
 
-  void *retDeviceMemory = nullptr;
+  void *RetDeviceMemory = nullptr;
 
-  ur_exp_external_mem_type_t urExternalMemType;
-  switch (externalMemHandleType) {
+  ur_exp_external_mem_type_t UrExternalMemType;
+  switch (ExternalMemHandleType) {
   case external_mem_handle_type::opaque_fd:
-    urExternalMemType = UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD;
+    UrExternalMemType = UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD;
     break;
   case external_mem_handle_type::win32_nt_handle:
-    urExternalMemType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT;
+    UrExternalMemType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT;
     break;
   default:
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
@@ -52,20 +52,20 @@ __SYCL_EXPORT void *alloc_exportable_device_mem(
   Adapter
       ->call<sycl::errc::runtime,
              sycl::detail::UrApiKind::urMemoryExportAllocExportableMemoryExp>(
-          urCtx, urDevice, alignment, size, urExternalMemType,
-          &retDeviceMemory);
+          UrCtx, UrDevice, Alignment, Size, UrExternalMemType,
+          &RetDeviceMemory);
 
-  return retDeviceMemory;
+  return RetDeviceMemory;
 }
 
-__SYCL_EXPORT void free_exportable_memory(void *deviceMemory,
-                                          const sycl::device &syclDevice,
-                                          const sycl::context &syclContext) {
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+__SYCL_EXPORT void free_exportable_memory(void *DeviceMemory,
+                                          const sycl::device &SyclDevice,
+                                          const sycl::context &SyclContext) {
+  auto [UrDevice, UrCtx, Adapter] = get_ur_handles(SyclDevice, SyclContext);
 
   Adapter->call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::urMemoryExportFreeExportableMemoryExp>(
-      urCtx, urDevice, deviceMemory);
+      UrCtx, UrDevice, DeviceMemory);
 
   return;
 }
@@ -73,40 +73,40 @@ __SYCL_EXPORT void free_exportable_memory(void *deviceMemory,
 namespace detail {
 
 __SYCL_EXPORT int
-export_device_mem_opaque_fd(void *deviceMemory, const sycl::device &syclDevice,
-                            const sycl::context &syclContext) {
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+export_device_mem_opaque_fd(void *DeviceMemory, const sycl::device &SyclDevice,
+                            const sycl::context &SyclContext) {
+  auto [UrDevice, UrCtx, Adapter] = get_ur_handles(SyclDevice, SyclContext);
 
-  ur_exp_external_mem_type_t urExternalMemType =
+  ur_exp_external_mem_type_t UrExternalMemType =
       UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD;
 
-  int retFDHandle = 0;
+  int RetFDHandle = 0;
 
   Adapter->call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::urMemoryExportExportMemoryHandleExp>(
-      urCtx, urDevice, urExternalMemType, deviceMemory,
-      reinterpret_cast<void *>(&retFDHandle));
+      UrCtx, UrDevice, UrExternalMemType, DeviceMemory,
+      reinterpret_cast<void *>(&RetFDHandle));
 
-  return retFDHandle;
+  return RetFDHandle;
 }
 
 __SYCL_EXPORT void *
-export_device_mem_win32_nt_handle(void *deviceMemory,
-                                  const sycl::device &syclDevice,
-                                  const sycl::context &syclContext) {
-  auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
+export_device_mem_win32_nt_handle(void *DeviceMemory,
+                                  const sycl::device &SyclDevice,
+                                  const sycl::context &SyclContext) {
+  auto [UrDevice, UrCtx, Adapter] = get_ur_handles(SyclDevice, SyclContext);
 
-  ur_exp_external_mem_type_t urExternalMemType =
+  ur_exp_external_mem_type_t UrExternalMemType =
       UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT;
 
-  void *retNTHandle;
+  void *RetNTHandle;
 
   Adapter->call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::urMemoryExportExportMemoryHandleExp>(
-      urCtx, urDevice, urExternalMemType, deviceMemory,
-      static_cast<void *>(&retNTHandle));
+      UrCtx, UrDevice, UrExternalMemType, DeviceMemory,
+      static_cast<void *>(&RetNTHandle));
 
-  return retNTHandle;
+  return RetNTHandle;
 }
 
 } // namespace detail

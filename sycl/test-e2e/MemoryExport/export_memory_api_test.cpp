@@ -16,15 +16,15 @@ using exported_handle_type = int;
 #endif // _WIN32
 
 int main() {
-  sycl::device device;
-  sycl::context context = sycl::context(device);
-  sycl::queue queue(context, device);
+  sycl::device Device;
+  sycl::context Context = sycl::context(Device);
+  sycl::queue Queue(Context, Device);
 
   // Check if the device supports memory export.
-  bool hasExportSupport =
-      device.has(sycl::aspect::ext_oneapi_exportable_device_mem);
+  bool HasExportSupport =
+      Device.has(sycl::aspect::ext_oneapi_exportable_device_mem);
 
-  if (!hasExportSupport) {
+  if (!HasExportSupport) {
     std::cerr << "Device does not support memory export.\n";
     return 1;
   } else {
@@ -32,27 +32,27 @@ int main() {
   }
 
 #ifdef _WIN32
-  constexpr auto exportHandleType =
+  constexpr auto ExportHandleType =
       syclexp::external_mem_handle_type::win32_nt_handle;
 #else
-  constexpr auto exportHandleType =
+  constexpr auto ExportHandleType =
       syclexp::external_mem_handle_type::opaque_fd;
 #endif // _WIN32
 
   try {
     // Allocate exportable memory.
-    size_t size = 1024;
-    void *mem = syclexp::alloc_exportable_device_mem(
-        0 /* alignment */, size, exportHandleType, device, context);
+    size_t Size = 1024;
+    void *Mem = syclexp::alloc_exportable_device_mem(
+        0 /* alignment */, Size, ExportHandleType, Device, Context);
 
     // Export the memory handle.
-    exported_handle_type exportableMemoryHandle =
-        syclexp::export_device_mem_handle<exportHandleType>(mem, device,
-                                                            context);
-    std::cout << "Exported memory handle == " << exportableMemoryHandle << "\n";
+    exported_handle_type ExportableMemoryHandle =
+        syclexp::export_device_mem_handle<ExportHandleType>(Mem, Device,
+                                                            Context);
+    std::cout << "Exported memory handle == " << ExportableMemoryHandle << "\n";
 
     // Free the exportable memory.
-    syclexp::free_exportable_memory(mem, device, context);
+    syclexp::free_exportable_memory(Mem, Device, Context);
 
   } catch (const sycl::exception &e) {
     std::cerr << "SYCL exception caught: " << e.what() << "\n";
