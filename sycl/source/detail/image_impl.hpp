@@ -35,6 +35,7 @@ class accessor;
 class handler;
 
 namespace detail {
+class devices_range;
 
 // utility functions and typedefs for image_impl
 using image_allocator = aligned_allocator<byte>;
@@ -70,11 +71,10 @@ private:
 
   void setPitches(const range<2> &Pitch) {
     MRowPitch = Pitch[0];
-    MSlicePitch =
-        (MDimensions == 3) ? Pitch[1] : MRowPitch; // Dimensions will be 2/3.
-    // NumSlices is depth when dim==3, and height when dim==2.
+    MSlicePitch = (MDimensions == 3) ? Pitch[1] : MRowPitch * MRange[1];
+    // NumSlices is depth when dim==3, and 1 when dim==2.
     size_t NumSlices =
-        (MDimensions == 3) ? MRange[2] : MRange[1]; // Dimensions will be 2/3.
+        (MDimensions == 3) ? MRange[2] : 1; // Dimensions will be 2/3.
 
     BaseT::MSizeInBytes = MSlicePitch * NumSlices;
   }
@@ -298,8 +298,6 @@ public:
   void unsampledImageDestructorNotification(void *UserObj);
 
 private:
-  std::vector<device> getDevices(context_impl *Context);
-
   ur_mem_type_t getImageType() {
     if (MDimensions == 1)
       return (MIsArrayImage ? UR_MEM_TYPE_IMAGE1D_ARRAY : UR_MEM_TYPE_IMAGE1D);

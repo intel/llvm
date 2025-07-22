@@ -1,7 +1,7 @@
 // RUN: %{build} -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -o %t1.out
 // RUN: %{run} %t1.out
 //
-// RUN: %if target-spir %{ %{build} -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -fsycl-device-lib-jit-link -o %t2.out %}
+// RUN: %if target-spir %{ %{build} -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -fsycl-device-lib-jit-link -Wno-deprecated -o %t2.out %}
 // RUN: %if target-spir && !gpu %{ %{run} %t2.out %}
 
 #include <cassert>
@@ -401,7 +401,7 @@ bool kernel_test_memcpy_addr_space(sycl::queue &deviceQueue) {
     sycl::buffer<char, 1> buffer3(dst1, sycl::range<1>(16));
     deviceQueue.submit([&](sycl::handler &cgh) {
       sycl::accessor<char, 1, sycl::access::mode::read,
-                     sycl::access::target::constant_buffer,
+                     sycl::access::target::device,
                      sycl::access::placeholder::false_t>
           src_acc(buffer1, cgh);
 
@@ -420,7 +420,8 @@ bool kernel_test_memcpy_addr_space(sycl::queue &deviceQueue) {
           sycl::nd_range<1>{16, 16}, [=](sycl::nd_item<1>) {
             // memcpy from constant buffer to local buffer
             memcpy(local_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
-                   src_acc.get_pointer(), 8);
+                   src_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+                   8);
             for (size_t idx = 0; idx < 7; ++idx)
               local_acc[idx] += 1;
             // memcpy from local buffer to global buffer
@@ -429,7 +430,9 @@ bool kernel_test_memcpy_addr_space(sycl::queue &deviceQueue) {
                    8);
             char device_buf[16];
             // memcpy from constant buffer to private memory
-            memcpy(device_buf, src_acc.get_pointer(), 8);
+            memcpy(device_buf,
+                   src_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+                   8);
             for (size_t idx = 0; idx < 7; ++idx) {
               device_buf[idx] += 2;
               // memcpy from private to global buffer

@@ -23,17 +23,22 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/access/access.hpp>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+#include <xpti/xpti_data_types.h>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 
 namespace ext::oneapi::experimental::detail {
 class exec_graph_impl;
 class node_impl;
+class nodes_range;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
+void emitInstrumentationGeneral(xpti::stream_id_t StreamID, uint64_t InstanceID,
                                 xpti_td *TraceEvent, uint16_t Type,
                                 const void *Addr);
 #endif
@@ -44,7 +49,6 @@ class context_impl;
 class DispatchHostTask;
 
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
 class Command;
@@ -221,7 +225,7 @@ public:
 
   /// Get the context of the queue this command will be submitted to. Could
   /// differ from the context of MQueue for memory copy commands.
-  virtual ContextImplPtr getWorkerContext() const;
+  virtual context_impl *getWorkerContext() const;
 
   /// Returns true iff the command produces a UR event on non-host devices.
   virtual bool producesPiEvent() const;
@@ -348,10 +352,12 @@ public:
 
   /// The event for node_create and task_begin.
   void *MTraceEvent = nullptr;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   /// The stream under which the traces are emitted.
   ///
   /// Stream ids are positive integers and we set it to an invalid value.
-  int32_t MStreamID = -1;
+  xpti::stream_id_t MStreamID = xpti::invalid_id<xpti::stream_id_t>;
+#endif
   /// Reserved for storing the object address such as SPIR-V or memory object
   /// address.
   void *MAddress = nullptr;
@@ -454,7 +460,7 @@ private:
 /// Base class for memory allocation commands.
 class AllocaCommandBase : public Command {
 public:
-  AllocaCommandBase(CommandType Type, queue_impl *Queue, Requirement Req,
+  AllocaCommandBase(CommandType Type, queue_impl *Queue, const Requirement &Req,
                     AllocaCommandBase *LinkedAllocaCmd, bool IsConst);
 
   ReleaseCommand *getReleaseCmd() { return &MReleaseCmd; }
@@ -499,7 +505,7 @@ protected:
 /// or underlying framework.
 class AllocaCommand : public AllocaCommandBase {
 public:
-  AllocaCommand(queue_impl *Queue, Requirement Req,
+  AllocaCommand(queue_impl *Queue, const Requirement &Req,
                 bool InitFromUserData = true,
                 AllocaCommandBase *LinkedAllocaCmd = nullptr,
                 bool IsConst = false);
@@ -519,7 +525,7 @@ private:
 /// The AllocaSubBuf command enqueues creation of sub-buffer of memory object.
 class AllocaSubBufCommand : public AllocaCommandBase {
 public:
-  AllocaSubBufCommand(queue_impl *Queue, Requirement Req,
+  AllocaSubBufCommand(queue_impl *Queue, const Requirement &Req,
                       AllocaCommandBase *ParentAlloca,
                       std::vector<Command *> &ToEnqueue,
                       std::vector<Command *> &ToCleanUp);
@@ -538,8 +544,8 @@ private:
 /// The map command enqueues mapping of device memory onto host memory.
 class MapMemObject : public Command {
 public:
-  MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req, void **DstPtr,
-               queue_impl *Queue, access::mode MapMode);
+  MapMemObject(AllocaCommandBase *SrcAllocaCmd, const Requirement &Req,
+               void **DstPtr, queue_impl *Queue, access::mode MapMode);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MSrcReq; }
@@ -557,7 +563,7 @@ private:
 /// The unmap command removes mapping of host memory onto device memory.
 class UnMapMemObject : public Command {
 public:
-  UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
+  UnMapMemObject(AllocaCommandBase *DstAllocaCmd, const Requirement &Req,
                  void **SrcPtr, queue_impl *Queue);
 
   void printDot(std::ostream &Stream) const final;
@@ -577,14 +583,14 @@ private:
 /// object.
 class MemCpyCommand : public Command {
 public:
-  MemCpyCommand(Requirement SrcReq, AllocaCommandBase *SrcAllocaCmd,
-                Requirement DstReq, AllocaCommandBase *DstAllocaCmd,
+  MemCpyCommand(const Requirement &SrcReq, AllocaCommandBase *SrcAllocaCmd,
+                const Requirement &DstReq, AllocaCommandBase *DstAllocaCmd,
                 queue_impl *SrcQueue, queue_impl *DstQueue);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  ContextImplPtr getWorkerContext() const final;
+  context_impl *getWorkerContext() const final;
   bool producesPiEvent() const final;
 
 private:
@@ -601,14 +607,14 @@ private:
 /// memory object.
 class MemCpyCommandHost : public Command {
 public:
-  MemCpyCommandHost(Requirement SrcReq, AllocaCommandBase *SrcAllocaCmd,
-                    Requirement DstReq, void **DstPtr, queue_impl *SrcQueue,
-                    queue_impl *DstQueue);
+  MemCpyCommandHost(const Requirement &SrcReq, AllocaCommandBase *SrcAllocaCmd,
+                    const Requirement &DstReq, void **DstPtr,
+                    queue_impl *SrcQueue, queue_impl *DstQueue);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  ContextImplPtr getWorkerContext() const final;
+  context_impl *getWorkerContext() const final;
 
 private:
   ur_result_t enqueueImp() final;
@@ -687,7 +693,8 @@ private:
 // Very close to ExecCGCommand::emitInstrumentationData content.
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
-    int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    xpti::stream_id_t StreamID,
+    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     std::string_view SyclKernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
@@ -697,7 +704,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 
 class UpdateHostRequirementCommand : public Command {
 public:
-  UpdateHostRequirementCommand(queue_impl *Queue, Requirement Req,
+  UpdateHostRequirementCommand(queue_impl *Queue, const Requirement &Req,
                                AllocaCommandBase *SrcAllocaCmd, void **DstPtr);
 
   void printDot(std::ostream &Stream) const final;
@@ -717,8 +724,7 @@ public:
   explicit UpdateCommandBufferCommand(
       queue_impl *Queue,
       ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-          Nodes);
+      ext::oneapi::experimental::detail::nodes_range Nodes);
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() final;
@@ -741,16 +747,6 @@ ur_result_t enqueueImpCommandBufferKernel(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint,
     ur_exp_command_buffer_command_handle_t *OutCommand,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
-
-// Sets arguments for a given kernel and device based on the argument type.
-// Refactored from SetKernelParamsAndLaunch to allow it to be used in the graphs
-// extension.
-void SetArgBasedOnType(
-    const detail::AdapterPtr &Adapter, ur_kernel_handle_t Kernel,
-    const std::shared_ptr<device_image_impl> &DeviceImageImpl,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const ContextImplPtr &ContextImpl, detail::ArgDesc &Arg,
-    size_t NextTrueIndex);
 
 template <typename FuncT>
 void applyFuncOnFilteredArgs(const KernelArgMask *EliminatedArgMask,

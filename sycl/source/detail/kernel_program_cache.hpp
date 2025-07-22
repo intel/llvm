@@ -111,32 +111,28 @@ public:
     }
   };
 
-  struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
-    std::weak_ptr<Adapter> AdapterWeakPtr;
-    ProgramBuildResult(const AdapterPtr &Adapter) : AdapterWeakPtr(Adapter) {
-      Val = nullptr;
+  struct ProgramBuildResult : public BuildResult<Managed<ur_program_handle_t>> {
+    ProgramBuildResult(adapter_impl &Adapter) {
+      Val = Managed<ur_program_handle_t>{Adapter};
     }
-    ProgramBuildResult(const AdapterPtr &Adapter, BuildState InitialState)
-        : AdapterWeakPtr(Adapter) {
-      Val = nullptr;
+    ProgramBuildResult(adapter_impl &Adapter, BuildState InitialState) {
+      Val = Managed<ur_program_handle_t>{Adapter};
       this->State.store(InitialState);
     }
-    ~ProgramBuildResult() {
-      try {
-        if (Val) {
-          AdapterPtr AdapterSharedPtr = AdapterWeakPtr.lock();
-          if (AdapterSharedPtr) {
-            ur_result_t Err =
-                AdapterSharedPtr->call_nocheck<UrApiKind::urProgramRelease>(
-                    Val);
-            __SYCL_CHECK_UR_CODE_NO_EXC(Err, AdapterSharedPtr->getBackend());
-          }
-        }
-      } catch (std::exception &e) {
-        __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
-                                          e);
-      }
+#ifdef _MSC_VER
+#pragma warning(push)
+// https://developercommunity.visualstudio.com/t/False-C4297-warning-while-using-function/1130300
+// https://godbolt.org/z/xsMvKf84f
+#pragma warning(disable : 4297)
+#endif
+    ~ProgramBuildResult() try {
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult", e);
+      return; // Don't re-throw.
     }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
   };
   using ProgramBuildResultPtr = std::shared_ptr<ProgramBuildResult>;
 
@@ -202,20 +198,16 @@ public:
   using KernelArgMaskPairT =
       std::pair<ur_kernel_handle_t, const KernelArgMask *>;
   struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
-    std::weak_ptr<Adapter> AdapterWeakPtr;
-    KernelBuildResult(const AdapterPtr &Adapter) : AdapterWeakPtr(Adapter) {
+    const adapter_impl &MAdapter;
+    KernelBuildResult(const adapter_impl &Adapter) : MAdapter(Adapter) {
       Val.first = nullptr;
     }
     ~KernelBuildResult() {
       try {
         if (Val.first) {
-          AdapterPtr AdapterSharedPtr = AdapterWeakPtr.lock();
-          if (AdapterSharedPtr) {
-            ur_result_t Err =
-                AdapterSharedPtr->call_nocheck<UrApiKind::urKernelRelease>(
-                    Val.first);
-            __SYCL_CHECK_UR_CODE_NO_EXC(Err, AdapterSharedPtr->getBackend());
-          }
+          ur_result_t Err =
+              MAdapter.call_nocheck<UrApiKind::urKernelRelease>(Val.first);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err, MAdapter.getBackend());
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
@@ -442,7 +434,7 @@ public:
     if (DidInsert) {
       It->second = std::make_shared<ProgramBuildResult>(getAdapter(),
                                                         BuildState::BS_Done);
-      It->second->Val = Program;
+      It->second->Val = Managed<ur_program_handle_t>{Program, getAdapter()};
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
@@ -676,18 +668,18 @@ public:
       // Store size of the program and check if we need to evict some entries.
       // Get Size of the program.
       size_t ProgramSize = 0;
-      auto Adapter = getAdapter();
+      const adapter_impl &Adapter = getAdapter();
 
       try {
         // Get number of devices this program was built for.
         unsigned int DeviceNum = 0;
-        Adapter->call<UrApiKind::urProgramGetInfo>(
+        Adapter.call<UrApiKind::urProgramGetInfo>(
             Program, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
             nullptr);
 
         // Get binary sizes for each device.
         std::vector<size_t> BinarySizes(DeviceNum);
-        Adapter->call<UrApiKind::urProgramGetInfo>(
+        Adapter.call<UrApiKind::urProgramGetInfo>(
             Program, UR_PROGRAM_INFO_BINARY_SIZES,
             sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
@@ -802,7 +794,9 @@ public:
 
       // only the building thread will run this
       try {
-        BuildResult->Val = Build();
+        // Remove `adapter_impl` from `ProgramBuildResult`'s ctors once `Build`
+        // returns `Managed<ur_platform_handle_t`:
+        *(&BuildResult->Val) = Build();
 
         if constexpr (!std::is_same_v<EvictFT, void *>)
           EvictFunc(BuildResult->Val, /*IsBuilt=*/true);
@@ -876,7 +870,7 @@ private:
 
   friend class ::MockKernelProgramCache;
 
-  const AdapterPtr &getAdapter();
+  adapter_impl &getAdapter();
   ur_context_handle_t getURContext() const;
 };
 } // namespace detail
