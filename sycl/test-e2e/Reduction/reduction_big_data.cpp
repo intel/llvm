@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // where the bigger data size and/or non-uniform work-group sizes may cause
 // errors.

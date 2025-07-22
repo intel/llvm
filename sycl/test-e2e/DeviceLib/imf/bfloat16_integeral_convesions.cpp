@@ -4,7 +4,6 @@
 // RUN: %{build} -fno-builtin %if target-spir %{ -fsycl-device-lib-jit-link -Wno-deprecated %} -o %t2.out
 // RUN: %{run} %t2.out
 
-
 #include "imf_utils.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/math.hpp>

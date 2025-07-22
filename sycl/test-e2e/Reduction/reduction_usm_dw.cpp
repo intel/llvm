@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with USM var and
 // property::reduction::initialize_to_identity property.

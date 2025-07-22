@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-
 // This test performs basic checks of parallel_for(range, reduction, lambda)
 // with reductions initialized with a one element buffer.
 

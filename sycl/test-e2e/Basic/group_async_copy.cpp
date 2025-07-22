@@ -1,7 +1,6 @@
 // RUN: %{build} %cxx_std_optionc++17 -o %t.run
 // RUN: %{run} %t.run
 
-
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/vector.hpp>

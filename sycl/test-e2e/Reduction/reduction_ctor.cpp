@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-
 // This performs basic checks such as reduction creation, identity methods,
 // and the combine() method of the aux class 'reducer'.
 // Note: This test relies on non-standard implementation details.

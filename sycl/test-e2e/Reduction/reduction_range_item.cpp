@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-
 #include <sycl/detail/core.hpp>
 
 #include <sycl/reduction.hpp>
