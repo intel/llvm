@@ -1,5 +1,9 @@
-// RUN: %{build} -fsycl-host-compiler=g++ -o %t.out
+// RUN: %clangxx -fsycl -fsycl-host-compiler=g++ %s
 // REQUIRES: linux
+
+// This test serves as a sanity check that compilation succeeds
+// for a simple free function kernel when using the host compiler
+// flag.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
