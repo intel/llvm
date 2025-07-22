@@ -7603,14 +7603,18 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
             Diag(clang::diag::err_drv_invalid_sycl_target) << SYCLTargetValue;
             continue;
           }
-          Arch = Device->data();
+          if (IsIntelGPUOffloadArch(StringToOffloadArch(
+                  getProcessorFromTargetID(TC->getTriple(), Device->data()))))
+            Arch = Device->data();
         } else if (auto Device = tools::SYCL::gen::isGPUTarget<
                        tools::SYCL::gen::NvidiaGPU>(SYCLTargetValue)) {
           if (Device->empty()) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << SYCLTargetValue;
             continue;
           }
-          Arch = Device->data();
+          if (IsSYCLSupportedNVidiaGPUArch(StringToOffloadArch(
+                  getProcessorFromTargetID(TC->getTriple(), Device->data()))))
+            Arch = Device->data();
         } else if (auto Device = tools::SYCL::gen::isGPUTarget<
                        clang::driver::tools::SYCL::gen::AmdGPU>(
                        SYCLTargetValue)) {
@@ -7618,36 +7622,33 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
             Diag(clang::diag::err_drv_invalid_sycl_target) << SYCLTargetValue;
             continue;
           }
-          Arch = Device->data();
+          if (IsSYCLSupportedAMDGPUArch(StringToOffloadArch(
+                  getProcessorFromTargetID(TC->getTriple(), Device->data()))))
+            Arch = Device->data();
         } else {
           Arch = StringRef();
         }
 
-        /*
-                      if (getSYCLDeviceTriple(SYCLTargetValue).isSPIRAOT() &&
-           Arch.empty() && TC->getTriple().getSubArch() ==
-           llvm::Triple::SPIRSubArch_gen) { const ToolChain *HostTC =
-                            C.getSingleOffloadToolChain<Action::OFK_Host>();
-                        auto DeviceTC =
-           std::make_unique<toolchains::SYCLToolChain>( *this, TC->getTriple(),
-           *HostTC, C.getInputArgs()); assert(DeviceTC && "Device toolchain not
-           defined."); ArgStringList TargetArgs;
-                        DeviceTC->TranslateBackendTargetArgs(DeviceTC->getTriple(),
-                                                            C.getInputArgs(),
-           TargetArgs);
-                        // Look for -device <string> and use that as the known
-           arch to
-                        // be associated with the current spir64_gen entry. Grab
-           the
-                        // right most entry.
-                        for (int i = TargetArgs.size() - 2; i >= 0; --i) {
-                          if (StringRef(TargetArgs[i]) == "-device") {
-                            Arch = TargetArgs[i + 1];
-                            break;
-                          }
-                        }
-                      }
-        */
+        if (TC->getTriple().isSPIRAOT() && llvm::Triple::SPIRSubArch_gen) {
+          const ToolChain *HostTC =
+              C.getSingleOffloadToolChain<Action::OFK_Host>();
+          auto DeviceTC = std::make_unique<toolchains::SYCLToolChain>(
+              *this, TC->getTriple(), *HostTC, C.getInputArgs());
+          assert(DeviceTC && "Device toolchain not defined.");
+          ArgStringList TargetArgs;
+          DeviceTC->TranslateBackendTargetArgs(DeviceTC->getTriple(),
+                                               C.getInputArgs(), TargetArgs);
+          // Look for -device <string> and use that as the known
+          // arch to be associated with the current spir64_gen entry. Grab
+          // the right most entry.
+          for (int i = TargetArgs.size() - 2; i >= 0; --i) {
+            if (StringRef(TargetArgs[i]) == "-device") {
+              Arch = TargetArgs[i + 1];
+              break;
+            }
+          }
+        }
+
         if (!Arch.empty())
           Archs.insert(Arch);
       }
