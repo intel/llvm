@@ -1490,11 +1490,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       return;
     }
 
-    /*    for (const auto &ToolChainAndArchs : OffloadArchs) {
-            UniqueSYCLTriplesVec.push_back(ToolChainAndArchs.first->getTriple());
-          }
-    */
-
   } else {
     // If -fsycl is supplied without -fsycl-targets we will assume SPIR-V.
     // For -fsycl-device-only, we also setup the implied triple as needed.

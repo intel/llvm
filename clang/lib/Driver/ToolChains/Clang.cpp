@@ -10329,10 +10329,6 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     if (Input.getType() == types::TY_Tempfilelist)
       File = C.getArgs().MakeArgString("@" + File);
 
-    //    StringRef Arch = OffloadAction->getOffloadingArch()
-    //                         ? OffloadAction->getOffloadingArch()
-    //                        : TCArgs.getLastArgValue(options::OPT_march_EQ);
-
     StringRef Arch;
     if (OffloadAction->getOffloadingArch()) {
       if (TC->getTripleString() == "spir64_gen-unknown-unknown") {
