@@ -9,7 +9,7 @@
 #include "sycl/detail/helpers.hpp"
 #include "ur_api.h"
 #include <algorithm>
-#include <iostream>
+
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/graph/dynamic_impl.hpp>
