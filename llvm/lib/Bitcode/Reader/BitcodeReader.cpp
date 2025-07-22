@@ -293,10 +293,18 @@ static Expected<bool> hasObjCCategoryInModule(BitstreamCursor &Stream) {
       std::string S;
       if (convertToString(Record, 0, S))
         return error("Invalid section name record");
+
       // Check for the i386 and other (x86_64, ARM) conventions
-      if (S.find("__DATA,__objc_catlist") != std::string::npos ||
-          S.find("__OBJC,__category") != std::string::npos ||
-          S.find("__TEXT,__swift") != std::string::npos)
+
+      auto [Segment, Section] = StringRef(S).split(",");
+      Segment = Segment.trim();
+      Section = Section.trim();
+
+      if (Segment == "__DATA" && Section.starts_with("__objc_catlist"))
+        return true;
+      if (Segment == "__OBJC" && Section.starts_with("__category"))
+        return true;
+      if (Segment == "__TEXT" && Section.starts_with("__swift"))
         return true;
       break;
     }
@@ -5084,7 +5092,9 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
 
       unsigned Line = Record[0], Col = Record[1];
       unsigned ScopeID = Record[2], IAID = Record[3];
-      bool isImplicitCode = Record.size() == 5 && Record[4];
+      bool isImplicitCode = Record.size() >= 5 && Record[4];
+      uint64_t AtomGroup = Record.size() == 7 ? Record[5] : 0;
+      uint8_t AtomRank = Record.size() == 7 ? Record[6] : 0;
 
       MDNode *Scope = nullptr, *IA = nullptr;
       if (ScopeID) {
@@ -5099,8 +5109,9 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         if (!IA)
           return error("Invalid record");
       }
+
       LastLoc = DILocation::get(Scope->getContext(), Line, Col, Scope, IA,
-                                isImplicitCode);
+                                isImplicitCode, AtomGroup, AtomRank);
       I->setDebugLoc(LastLoc);
       I = nullptr;
       continue;
@@ -7113,9 +7124,11 @@ Error BitcodeReader::materializeModule() {
       if (CallInst *CI = dyn_cast<CallInst>(U))
         UpgradeIntrinsicCall(CI, I.second);
     }
-    if (!I.first->use_empty())
-      I.first->replaceAllUsesWith(I.second);
-    I.first->eraseFromParent();
+    if (I.first != I.second) {
+      if (!I.first->use_empty())
+        I.first->replaceAllUsesWith(I.second);
+      I.first->eraseFromParent();
+    }
   }
   UpgradedIntrinsics.clear();
 

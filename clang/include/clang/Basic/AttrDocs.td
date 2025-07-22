@@ -1803,9 +1803,9 @@ to guard against use of uninitialized memory.
 
 Rather, it is intended for use in "parameter-objects", used to simulate,
 for example, the passing of named parameters.
-The attribute generates a warning when explicit initializers for such
-variables are not provided (this occurs regardless of whether any in-class field
-initializers exist):
+Except inside unevaluated contexts, the attribute generates a warning when
+explicit initializers for such variables are not provided (this occurs
+regardless of whether any in-class field initializers exist):
 
 .. code-block:: c++
 
@@ -4519,6 +4519,20 @@ This attribute can only be applied to functions and indicates that the
 function must be treated as a device function and must be emitted even if it has
 no direct uses from other device functions. All ``sycl_device`` function callees
 implicitly inherit this attribute.
+  }];
+}
+
+def SYCLDeviceOnlyDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "sycl_device_only";
+  let Content = [{
+This attribute can only be applied to functions and indicates that the function
+is only available for the device. It allows functions marked with it to
+overload existing functions without the attribute, in which case the overload
+with the attribute will be used on the device side and the overload without
+will be used on the host side. Note: as opposed to ``sycl_device`` this does
+not mark the function as being exported, both attributes are incompatible and
+can't be used together.
   }];
 }
 

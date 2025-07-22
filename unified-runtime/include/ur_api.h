@@ -4993,6 +4993,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     /// device is null then the granularity is suitable for all devices in
     /// context.
     ur_device_handle_t hDevice,
+    /// [in] allocation size in bytes for which the alignment is being
+    /// queried.
+    size_t allocationSize,
     /// [in] type of the info to query.
     ur_virtual_mem_granularity_info_t propName,
     /// [in] size in bytes of the memory pointed to by pPropValue.
@@ -5779,8 +5782,8 @@ typedef enum ur_program_info_t {
   UR_PROGRAM_INFO_IL = 4,
   /// [size_t[]] Return program binary sizes for each device.
   UR_PROGRAM_INFO_BINARY_SIZES = 5,
-  /// [unsigned char[]] Return program binaries for all devices for this
-  /// Program. These are not null-terminated.
+  /// [unsigned char *[]] Write program binaries into caller-provided
+  /// buffers for each device. These are not null-terminated.
   UR_PROGRAM_INFO_BINARIES = 6,
   /// [size_t][optional-query] Number of kernels in Program, return type
   /// size_t.
@@ -9800,6 +9803,8 @@ typedef enum ur_exp_external_mem_type_t {
   UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE = 2,
   /// dma_buf file descriptor
   UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF = 3,
+  /// Win32 NT DirectX 11 resource handle
+  UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE = 4,
   /// @cond
   UR_EXP_EXTERNAL_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -10518,7 +10523,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType`
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalMemDesc`
 ///         + `NULL == phExternalMem`
@@ -10675,7 +10681,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF < memHandleType`
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pSupportedRet`
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
@@ -15320,6 +15327,7 @@ typedef struct ur_loader_init_params_t {
 typedef struct ur_virtual_mem_granularity_get_info_params_t {
   ur_context_handle_t *phContext;
   ur_device_handle_t *phDevice;
+  size_t *pallocationSize;
   ur_virtual_mem_granularity_info_t *ppropName;
   size_t *ppropSize;
   void **ppPropValue;

@@ -2454,7 +2454,8 @@ bool VarDecl::hasInitWithSideEffects() const {
     ES->HasSideEffects =
         E->HasSideEffects(getASTContext()) &&
         // We can get a value-dependent initializer during error recovery.
-        (E->isValueDependent() || !evaluateValue());
+        (E->isValueDependent() || getType()->isDependentType() ||
+         !evaluateValue());
     ES->CheckedForSideEffects = true;
   }
   return ES->HasSideEffects;
@@ -3744,6 +3745,13 @@ unsigned FunctionDecl::getBuiltinID(bool ConsiderWrapperFunctions) const {
       !(BuiltinID == Builtin::BIprintf || BuiltinID == Builtin::BImalloc))
     return 0;
 
+  // SYCL doesn't have a device-side standard library. SYCLDeviceOnlyAttr may
+  // be used to provide device-side definitions of standard functions, so
+  // anything with that attribute shouldn't be treated as a builtin.
+  if (Context.getLangOpts().isSYCL() && hasAttr<SYCLDeviceOnlyAttr>()) {
+    return 0;
+  }
+
   // As AMDGCN implementation of OpenMP does not have a device-side standard
   // library, none of the predefined library functions except printf and malloc
   // should be treated as a builtin i.e. 0 should be returned for them.
@@ -4680,11 +4688,14 @@ void FieldDecl::setLazyInClassInitializer(LazyDeclStmtPtr NewInit) {
     Init = NewInit;
 }
 
+bool FieldDecl::hasConstantIntegerBitWidth() const {
+  const auto *CE = dyn_cast_if_present<ConstantExpr>(getBitWidth());
+  return CE && CE->getAPValueResult().isInt();
+}
+
 unsigned FieldDecl::getBitWidthValue() const {
   assert(isBitField() && "not a bitfield");
-  assert(isa<ConstantExpr>(getBitWidth()));
-  assert(cast<ConstantExpr>(getBitWidth())->hasAPValueResult());
-  assert(cast<ConstantExpr>(getBitWidth())->getAPValueResult().isInt());
+  assert(hasConstantIntegerBitWidth());
   return cast<ConstantExpr>(getBitWidth())
       ->getAPValueResult()
       .getInt()
@@ -5137,11 +5148,6 @@ RecordDecl *RecordDecl::CreateDeserialized(const ASTContext &C,
                  SourceLocation(), nullptr, nullptr);
   R->setMayHaveOutOfDateDef(C.getLangOpts().Modules);
   return R;
-}
-
-bool RecordDecl::isInjectedClassName() const {
-  return isImplicit() && getDeclName() && getDeclContext()->isRecord() &&
-    cast<RecordDecl>(getDeclContext())->getDeclName() == getDeclName();
 }
 
 bool RecordDecl::isLambda() const {

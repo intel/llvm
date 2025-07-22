@@ -20,14 +20,17 @@
 #define FUNCTION __CLC_FUNCTION
 #define __CLC_MIN_VECSIZE 1
 
+#if (!defined(__HALF_ONLY) && !defined(__DOUBLE_ONLY))
+
 #define __IMPL_FUNCTION __CLC_BUILTIN_F
 #define __CLC_GENTYPE float
 #include <clc/shared/unary_def_scalarize.inc>
 #undef __CLC_GENTYPE
 #undef __IMPL_FUNCTION
 
-#ifndef __FLOAT_ONLY
+#endif // (!defined(__HALF_ONLY) && !defined(__DOUBLE_ONLY))
 
+#if (!defined(__HALF_ONLY) && !defined(__FLOAT_ONLY))
 #ifdef cl_khr_fp64
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
@@ -39,7 +42,9 @@
 #undef __IMPL_FUNCTION
 
 #endif
+#endif // (!defined(__HALF_ONLY) && !defined(__FLOAT_ONLY))
 
+#if (!defined(__FLOAT_ONLY) && !defined(__DOUBLE_ONLY))
 #ifdef cl_khr_fp16
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
@@ -51,8 +56,7 @@
 #undef __IMPL_FUNCTION
 
 #endif
-
-#endif // !__FLOAT_ONLY
+#endif // (!defined(__FLOAT_ONLY) && !defined(__DOUBLE_ONLY))
 
 #undef __CLC_SCALAR
 #undef FUNCTION

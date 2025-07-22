@@ -35,6 +35,7 @@ add_llvm_library(sycl-jit
    MC
    SYCLLowerIR
    SYCLPostLink
+   SPIRVLib
    ${LLVM_TARGETS_TO_BUILD}
 
    LINK_LIBS
@@ -74,7 +75,6 @@ find_package(Threads REQUIRED)
 
 target_link_libraries(sycl-jit
   PRIVATE
-  LLVMSPIRVLib
   SYCLJITPasses
   ${CMAKE_THREAD_LIBS_INIT}
 )

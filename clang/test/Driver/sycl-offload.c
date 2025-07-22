@@ -292,8 +292,20 @@
 // RUN: %clangxx -fsycl --offload-new-driver -Xclang --dependent-lib=msvcrtd \
 // RUN:   -target x86_64-unknown-windows-msvc -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
+/// Check sycld.lib is pulled in with -fms-runtime-lib=dll_dbg
+// RUN: %clangxx -fsycl --offload-new-driver -fms-runtime-lib=dll_dbg \
+// RUN:   -target x86_64-unknown-windows-msvc -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
 // CHECK-LINK-SYCL-DEBUG: "--dependent-lib=sycl{{[0-9]*}}d"
 // CHECK-LINK-SYCL-DEBUG-NOT: "-defaultlib:sycl{{[0-9]*}}.lib"
+
+/// Only a single instance of sycld should be pulled in when both the
+/// -Xclang --dependent-lib=msvcrtd and -fms-runtime-lib=dll_dbg is used.
+// RUN: %clangxx -fsycl --offload-new-driver -fms-runtime-lib=dll_dbg -Xclang \
+// RUN:  --dependent-lib=msvcrtd --target=x86_64-unknown-windows-msvc -### %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHECK-LINK-SYCLD %s
+// CHECK-LINK-SYCLD: "--dependent-lib=sycl{{[0-9]*}}d"
+// CHECK-LINK-SYCLD-NOT: "--dependent-lib=sycl{{[0-9]*}}d"
 
 /// ###########################################################################
 

@@ -1630,6 +1630,23 @@ static bool IsOverloadOrOverrideImpl(Sema &SemaRef, FunctionDecl *New,
     }
   }
 
+  // Allow overloads with SYCLDeviceOnlyAttr
+  if (SemaRef.getLangOpts().isSYCL() && (Old->hasAttr<SYCLDeviceOnlyAttr>() !=
+                                         New->hasAttr<SYCLDeviceOnlyAttr>())) {
+    // SYCLDeviceOnlyAttr and SYCLDeviceAttr functions can't overload
+    if (((New->hasAttr<SYCLDeviceOnlyAttr>() &&
+          Old->hasAttr<SYCLDeviceAttr>()) ||
+         (New->hasAttr<SYCLDeviceAttr>() &&
+          Old->hasAttr<SYCLDeviceOnlyAttr>()))) {
+      SemaRef.Diag(New->getLocation(), diag::err_redefinition)
+          << New->getDeclName();
+      SemaRef.notePreviousDefinition(Old, New->getLocation());
+      return false;
+    }
+
+    return true;
+  }
+
   // The signatures match; this is not an overload.
   return false;
 }
@@ -7718,18 +7735,6 @@ void Sema::AddMethodCandidate(
   EnterExpressionEvaluationContext Unevaluated(
       *this, Sema::ExpressionEvaluationContext::Unevaluated);
 
-  // Add this candidate
-  OverloadCandidate &Candidate =
-      CandidateSet.addCandidate(Args.size() + 1, EarlyConversions);
-  Candidate.FoundDecl = FoundDecl;
-  Candidate.Function = Method;
-  Candidate.RewriteKind =
-      CandidateSet.getRewriteInfo().getRewriteKind(Method, PO);
-  Candidate.TookAddressOfOverload =
-      CandidateSet.getKind() == OverloadCandidateSet::CSK_AddressOfOverloadSet;
-  Candidate.ExplicitCallArguments = Args.size();
-  Candidate.StrictPackMatch = StrictPackMatch;
-
   bool IgnoreExplicitObject =
       (Method->isExplicitObjectMemberFunction() &&
        CandidateSet.getKind() ==
@@ -7744,6 +7749,23 @@ void Sema::AddMethodCandidate(
 
   unsigned NumParams = Method->getNumParams() - ExplicitOffset +
                        int(ImplicitObjectMethodTreatedAsStatic);
+
+  unsigned ExtraArgs =
+      CandidateSet.getKind() == OverloadCandidateSet::CSK_AddressOfOverloadSet
+          ? 0
+          : 1;
+
+  // Add this candidate
+  OverloadCandidate &Candidate =
+      CandidateSet.addCandidate(Args.size() + ExtraArgs, EarlyConversions);
+  Candidate.FoundDecl = FoundDecl;
+  Candidate.Function = Method;
+  Candidate.RewriteKind =
+      CandidateSet.getRewriteInfo().getRewriteKind(Method, PO);
+  Candidate.TookAddressOfOverload =
+      CandidateSet.getKind() == OverloadCandidateSet::CSK_AddressOfOverloadSet;
+  Candidate.ExplicitCallArguments = Args.size();
+  Candidate.StrictPackMatch = StrictPackMatch;
 
   // (C++ 13.3.2p2): A candidate function having fewer than m
   // parameters is viable only if it has an ellipsis in its parameter
@@ -7775,29 +7797,31 @@ void Sema::AddMethodCandidate(
   Candidate.Viable = true;
 
   unsigned FirstConvIdx = PO == OverloadCandidateParamOrder::Reversed ? 1 : 0;
-  if (ObjectType.isNull())
-    Candidate.IgnoreObjectArgument = true;
-  else if (Method->isStatic()) {
-    // [over.best.ics.general]p8
-    // When the parameter is the implicit object parameter of a static member
-    // function, the implicit conversion sequence is a standard conversion
-    // sequence that is neither better nor worse than any other standard
-    // conversion sequence.
-    //
-    // This is a rule that was introduced in C++23 to support static lambdas. We
-    // apply it retroactively because we want to support static lambdas as an
-    // extension and it doesn't hurt previous code.
-    Candidate.Conversions[FirstConvIdx].setStaticObjectArgument();
-  } else {
-    // Determine the implicit conversion sequence for the object
-    // parameter.
-    Candidate.Conversions[FirstConvIdx] = TryObjectArgumentInitialization(
-        *this, CandidateSet.getLocation(), ObjectType, ObjectClassification,
-        Method, ActingContext, /*InOverloadResolution=*/true);
-    if (Candidate.Conversions[FirstConvIdx].isBad()) {
-      Candidate.Viable = false;
-      Candidate.FailureKind = ovl_fail_bad_conversion;
-      return;
+  if (!IgnoreExplicitObject) {
+    if (ObjectType.isNull())
+      Candidate.IgnoreObjectArgument = true;
+    else if (Method->isStatic()) {
+      // [over.best.ics.general]p8
+      // When the parameter is the implicit object parameter of a static member
+      // function, the implicit conversion sequence is a standard conversion
+      // sequence that is neither better nor worse than any other standard
+      // conversion sequence.
+      //
+      // This is a rule that was introduced in C++23 to support static lambdas.
+      // We apply it retroactively because we want to support static lambdas as
+      // an extension and it doesn't hurt previous code.
+      Candidate.Conversions[FirstConvIdx].setStaticObjectArgument();
+    } else {
+      // Determine the implicit conversion sequence for the object
+      // parameter.
+      Candidate.Conversions[FirstConvIdx] = TryObjectArgumentInitialization(
+          *this, CandidateSet.getLocation(), ObjectType, ObjectClassification,
+          Method, ActingContext, /*InOverloadResolution=*/true);
+      if (Candidate.Conversions[FirstConvIdx].isBad()) {
+        Candidate.Viable = false;
+        Candidate.FailureKind = ovl_fail_bad_conversion;
+        return;
+      }
     }
   }
 
@@ -7825,7 +7849,7 @@ void Sema::AddMethodCandidate(
   // arguments.
   for (unsigned ArgIdx = 0; ArgIdx < Args.size(); ++ArgIdx) {
     unsigned ConvIdx =
-        PO == OverloadCandidateParamOrder::Reversed ? 0 : (ArgIdx + 1);
+        PO == OverloadCandidateParamOrder::Reversed ? 0 : (ArgIdx + ExtraArgs);
     if (Candidate.Conversions[ConvIdx].isInitialized()) {
       // We already formed a conversion sequence for this parameter during
       // template argument deduction.
@@ -7894,6 +7918,7 @@ static void AddMethodTemplateCandidateImmediately(
   //   function template are combined with the set of non-template candidate
   //   functions.
   TemplateDeductionInfo Info(CandidateSet.getLocation());
+  auto *Method = cast<CXXMethodDecl>(MethodTmpl->getTemplatedDecl());
   FunctionDecl *Specialization = nullptr;
   ConversionSequenceList Conversions;
   if (TemplateDeductionResult Result = S.DeduceTemplateArguments(
@@ -7915,14 +7940,18 @@ static void AddMethodTemplateCandidateImmediately(
     OverloadCandidate &Candidate =
         CandidateSet.addCandidate(Conversions.size(), Conversions);
     Candidate.FoundDecl = FoundDecl;
-    Candidate.Function = MethodTmpl->getTemplatedDecl();
+    Candidate.Function = Method;
     Candidate.Viable = false;
     Candidate.RewriteKind =
       CandidateSet.getRewriteInfo().getRewriteKind(Candidate.Function, PO);
     Candidate.IsSurrogate = false;
+    Candidate.TookAddressOfOverload =
+        CandidateSet.getKind() ==
+        OverloadCandidateSet::CSK_AddressOfOverloadSet;
+
     Candidate.IgnoreObjectArgument =
-        cast<CXXMethodDecl>(Candidate.Function)->isStatic() ||
-        ObjectType.isNull();
+        Method->isStatic() ||
+        (!Method->isExplicitObjectMemberFunction() && ObjectType.isNull());
     Candidate.ExplicitCallArguments = Args.size();
     if (Result == TemplateDeductionResult::NonDependentConversionFailure)
       Candidate.FailureKind = ovl_fail_bad_conversion;
@@ -8042,9 +8071,16 @@ static void AddTemplateOverloadCandidateImmediately(
     Candidate.IsADLCandidate = llvm::to_underlying(IsADLCandidate);
     // Ignore the object argument if there is one, since we don't have an object
     // type.
+    Candidate.TookAddressOfOverload =
+        CandidateSet.getKind() ==
+        OverloadCandidateSet::CSK_AddressOfOverloadSet;
+
     Candidate.IgnoreObjectArgument =
         isa<CXXMethodDecl>(Candidate.Function) &&
+        cast<CXXMethodDecl>(Candidate.Function)
+            ->isImplicitObjectMemberFunction() &&
         !isa<CXXConstructorDecl>(Candidate.Function);
+
     Candidate.ExplicitCallArguments = Args.size();
     if (Result == TemplateDeductionResult::NonDependentConversionFailure)
       Candidate.FailureKind = ovl_fail_bad_conversion;
@@ -8111,9 +8147,12 @@ bool Sema::CheckNonDependentConversions(
   // that is correct.
   const bool AllowExplicit = false;
 
+  bool ForOverloadSetAddressResolution =
+      CandidateSet.getKind() == OverloadCandidateSet::CSK_AddressOfOverloadSet;
   auto *FD = FunctionTemplate->getTemplatedDecl();
   auto *Method = dyn_cast<CXXMethodDecl>(FD);
-  bool HasThisConversion = Method && !isa<CXXConstructorDecl>(Method);
+  bool HasThisConversion = !ForOverloadSetAddressResolution && Method &&
+                           !isa<CXXConstructorDecl>(Method);
   unsigned ThisConversions = HasThisConversion ? 1 : 0;
 
   if (Conversions.empty())
@@ -8183,7 +8222,8 @@ bool Sema::CheckNonDependentConversions(
   };
 
   unsigned Offset =
-      Method && Method->hasCXXExplicitFunctionObjectParameter() ? 1 : 0;
+      HasThisConversion && Method->hasCXXExplicitFunctionObjectParameter() ? 1
+                                                                           : 0;
 
   for (unsigned I = 0, N = std::min(ParamTypes.size() - Offset, Args.size());
        I != N; ++I) {
@@ -10798,7 +10838,8 @@ bool clang::isBetterOverloadCandidate(
   //      any function G, and, symmetrically, ICS1(G) is neither
   //      better nor worse than ICS1(F).
   unsigned StartArg = 0;
-  if (Cand1.IgnoreObjectArgument || Cand2.IgnoreObjectArgument)
+  if (!Cand1.TookAddressOfOverload &&
+      (Cand1.IgnoreObjectArgument || Cand2.IgnoreObjectArgument))
     StartArg = 1;
 
   auto IsIllFormedConversion = [&](const ImplicitConversionSequence &ICS) {
@@ -11053,6 +11094,15 @@ bool clang::isBetterOverloadCandidate(
     FunctionDecl *Caller = S.getCurFunctionDecl(/*AllowLambda=*/true);
     return S.CUDA().IdentifyPreference(Caller, Cand1.Function) >
            S.CUDA().IdentifyPreference(Caller, Cand2.Function);
+  }
+
+  // In SYCL device compilation mode prefer the overload with the
+  // SYCLDeviceOnly attribute.
+  if (S.getLangOpts().SYCLIsDevice && Cand1.Function && Cand2.Function) {
+    if (Cand1.Function->hasAttr<SYCLDeviceOnlyAttr>() !=
+        Cand2.Function->hasAttr<SYCLDeviceOnlyAttr>()) {
+      return Cand1.Function->hasAttr<SYCLDeviceOnlyAttr>();
+    }
   }
 
   // General member function overloading is handled above, so this only handles
@@ -11348,53 +11398,16 @@ OverloadingResult OverloadCandidateSet::BestViableFunction(Sema &S,
       DeferredCandidatesCount != 0 && !ResolutionByPerfectCandidateIsDisabled;
 
   if (TwoPhaseResolution) {
-
-    PerfectViableFunction(S, Loc, Best);
-    if (Best != end())
-      return ResultForBestCandidate(Best);
+    OverloadingResult Res = BestViableFunctionImpl(S, Loc, Best);
+    if (Best != end() && Best->isPerfectMatch(S.Context)) {
+      if (!(HasDeferredTemplateConstructors &&
+            isa_and_nonnull<CXXConversionDecl>(Best->Function)))
+        return Res;
+    }
   }
 
   InjectNonDeducedTemplateCandidates(S);
   return BestViableFunctionImpl(S, Loc, Best);
-}
-
-void OverloadCandidateSet::PerfectViableFunction(
-    Sema &S, SourceLocation Loc, OverloadCandidateSet::iterator &Best) {
-
-  Best = end();
-  for (auto It = Candidates.begin(); It != Candidates.end(); ++It) {
-
-    if (!It->isPerfectMatch(S.getASTContext()))
-      continue;
-
-    // We found a suitable conversion function
-    // but if there is a template constructor in the target class
-    // we might prefer that instead.
-    if (HasDeferredTemplateConstructors &&
-        isa_and_nonnull<CXXConversionDecl>(It->Function)) {
-      Best = end();
-      break;
-    }
-
-    if (Best == end()) {
-      Best = It;
-      continue;
-    }
-    if (Best->Function && It->Function) {
-      FunctionDecl *D =
-          S.getMoreConstrainedFunction(Best->Function, It->Function);
-      if (D == nullptr) {
-        Best = end();
-        break;
-      }
-      if (D == It->Function)
-        Best = It;
-      continue;
-    }
-    // ambiguous
-    Best = end();
-    break;
-  }
 }
 
 OverloadingResult OverloadCandidateSet::BestViableFunctionImpl(
@@ -11408,6 +11421,15 @@ OverloadingResult OverloadCandidateSet::BestViableFunctionImpl(
 
   if (S.getLangOpts().CUDA)
     CudaExcludeWrongSideCandidates(S, Candidates);
+
+  // In SYCL host compilation remove candidates marked SYCLDeviceOnly.
+  if (S.getLangOpts().SYCLIsHost) {
+    auto IsDeviceCand = [&](const OverloadCandidate *Cand) {
+      return Cand->Viable && Cand->Function &&
+             Cand->Function->hasAttr<SYCLDeviceOnlyAttr>();
+    };
+    llvm::erase_if(Candidates, IsDeviceCand);
+  }
 
   Best = end();
   for (auto *Cand : Candidates) {
@@ -11824,7 +11846,8 @@ static void DiagnoseBadConversion(Sema &S, OverloadCandidate *Cand,
   // non-constructor method.  Note that 'I' corresponds the
   // conversion-slot index.
   bool isObjectArgument = false;
-  if (isa<CXXMethodDecl>(Fn) && !isa<CXXConstructorDecl>(Fn)) {
+  if (!TakingCandidateAddress && isa<CXXMethodDecl>(Fn) &&
+      !isa<CXXConstructorDecl>(Fn)) {
     if (I == 0)
       isObjectArgument = true;
     else if (!Fn->hasCXXExplicitFunctionObjectParameter())
@@ -12323,7 +12346,7 @@ static void DiagnoseBadDeduction(Sema &S, NamedDecl *Found, Decl *Templated,
   }
   case TemplateDeductionResult::TooManyArguments:
   case TemplateDeductionResult::TooFewArguments:
-    DiagnoseArityMismatch(S, Found, Templated, NumArgs);
+    DiagnoseArityMismatch(S, Found, Templated, NumArgs, TakingCandidateAddress);
     return;
 
   case TemplateDeductionResult::InstantiationDepth:
@@ -13100,8 +13123,10 @@ CompleteNonViableCandidate(Sema &S, OverloadCandidate *Cand,
 
   // Attempt to fix the bad conversion.
   unsigned ConvCount = Cand->Conversions.size();
-  for (unsigned ConvIdx = (Cand->IgnoreObjectArgument ? 1 : 0); /**/;
-       ++ConvIdx) {
+  for (unsigned ConvIdx =
+           ((!Cand->TookAddressOfOverload && Cand->IgnoreObjectArgument) ? 1
+                                                                         : 0);
+       /**/; ++ConvIdx) {
     assert(ConvIdx != ConvCount && "no bad conversion in candidate");
     if (Cand->Conversions[ConvIdx].isInitialized() &&
         Cand->Conversions[ConvIdx].isBad()) {
@@ -13131,7 +13156,8 @@ CompleteNonViableCandidate(Sema &S, OverloadCandidate *Cand,
     ParamTypes =
         Cand->Function->getType()->castAs<FunctionProtoType>()->getParamTypes();
     if (isa<CXXMethodDecl>(Cand->Function) &&
-        !isa<CXXConstructorDecl>(Cand->Function) && !Reversed) {
+        !isa<CXXConstructorDecl>(Cand->Function) && !Reversed &&
+        !Cand->Function->hasCXXExplicitFunctionObjectParameter()) {
       // Conversion 0 is 'this', which doesn't have a corresponding parameter.
       ConvIdx = 1;
       if (CSK == OverloadCandidateSet::CSK_Operator &&
@@ -13149,9 +13175,8 @@ CompleteNonViableCandidate(Sema &S, OverloadCandidate *Cand,
 
   // Fill in the rest of the conversions.
   for (unsigned ParamIdx = Reversed ? ParamTypes.size() - 1 : 0;
-       ConvIdx != ConvCount;
+       ConvIdx != ConvCount && ArgIdx < Args.size();
        ++ConvIdx, ++ArgIdx, ParamIdx += (Reversed ? -1 : 1)) {
-    assert(ArgIdx < Args.size() && "no argument for this arg conversion");
     if (Cand->Conversions[ConvIdx].isInitialized()) {
       // We've already checked this conversion.
     } else if (ParamIdx < ParamTypes.size()) {
@@ -13286,7 +13311,7 @@ void OverloadCandidateSet::NoteCandidates(Sema &S, ArrayRef<Expr *> Args,
 
     if (Cand->Function)
       NoteFunctionCandidate(S, Cand, Args.size(),
-                            /*TakingCandidateAddress=*/false, DestAS);
+                            Kind == CSK_AddressOfOverloadSet, DestAS);
     else if (Cand->IsSurrogate)
       NoteSurrogateCandidate(S, Cand);
     else {

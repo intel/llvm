@@ -839,20 +839,26 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(phEventWaitList, numEventsInWaitList);
 
-  umf_memory_pool_handle_t hPool = umfPoolByPtr(pMem);
-  if (!hPool) {
+  umf_memory_pool_handle_t hPool = nullptr;
+  auto umfRet = umfPoolByPtr(pMem, &hPool);
+  if (umfRet != UMF_RESULT_SUCCESS || !hPool) {
     return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
   }
 
   UsmPool *usmPool = nullptr;
-  auto ret = umfPoolGetTag(hPool, (void **)&usmPool);
-  if (ret != UMF_RESULT_SUCCESS || !usmPool) {
+  umfRet = umfPoolGetTag(hPool, (void **)&usmPool);
+  if (umfRet != UMF_RESULT_SUCCESS || !usmPool) {
     // This should never happen
     UR_LOG(ERR, "enqueueUSMFreeExp: invalid pool tag");
     return UR_RESULT_ERROR_UNKNOWN;
   }
 
-  size_t size = umfPoolMallocUsableSize(hPool, pMem);
+  size_t size = 0;
+  umfRet = umfPoolMallocUsableSize(hPool, pMem, &size);
+  if (umfRet != UMF_RESULT_SUCCESS) {
+    UR_LOG(ERR, "enqueueUSMFreeExp: failed to retrieve usable malloc size");
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
 
   if (numWaitEvents > 0) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,

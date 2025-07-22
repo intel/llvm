@@ -29,7 +29,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
     const llvm::opt::ArgList &Args)
-    : D(D) {}
+    : SYCLInstallationDetector(D) {}
 
 static llvm::SmallString<64>
 getLibSpirvBasename(const llvm::Triple &DeviceTriple,
@@ -1527,6 +1527,12 @@ void SYCLToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
     Action::OffloadKind DeviceOffloadingKind) const {
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
+
+  if (DeviceOffloadingKind == Action::OFK_SYCL &&
+      !getTriple().isSPIROrSPIRV()) {
+    SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
+                                         HostTC.getTriple(), CC1Args);
+  }
 }
 
 llvm::opt::DerivedArgList *
