@@ -30,12 +30,12 @@ using namespace llvm::module_split;
 
 namespace {
 
-ModulePassManager buildESIMDLoweringPipeline(bool ForceDisableOpt,
+ModulePassManager buildESIMDLoweringPipeline(bool ForceDisableESIMDOpt,
                                              bool SplitESIMD) {
   ModulePassManager MPM;
   MPM.addPass(SYCLLowerESIMDPass(!SplitESIMD));
 
-  if (!ForceDisableOpt) {
+  if (!ForceDisableESIMDOpt) {
     FunctionPassManager FPM;
     FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
@@ -44,7 +44,7 @@ ModulePassManager buildESIMDLoweringPipeline(bool ForceDisableOpt,
   FunctionPassManager MainFPM;
   MainFPM.addPass(ESIMDLowerLoadStorePass{});
 
-  if (!ForceDisableOpt) {
+  if (!ForceDisableESIMDOpt) {
     MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MainFPM.addPass(EarlyCSEPass(true));
     MainFPM.addPass(InstCombinePass{});
@@ -65,7 +65,7 @@ ModulePassManager buildESIMDLoweringPipeline(bool ForceDisableOpt,
 
 // When ESIMD code was separated from the regular SYCL code,
 // we can safely process ESIMD part.
-bool sycl::lowerESIMDConstructs(ModuleDesc &MD, bool ForceDisableOpt,
+bool sycl::lowerESIMDConstructs(ModuleDesc &MD, bool ForceDisableESIMDOpt,
                                 bool SplitESIMD) {
   // TODO: support options like -debug-pass, -print-[before|after], and others
   LoopAnalysisManager LAM;
@@ -83,7 +83,7 @@ bool sycl::lowerESIMDConstructs(ModuleDesc &MD, bool ForceDisableOpt,
   std::vector<std::string> Names;
   MD.saveEntryPointNames(Names);
   ModulePassManager MPM =
-      buildESIMDLoweringPipeline(ForceDisableOpt, SplitESIMD);
+      buildESIMDLoweringPipeline(ForceDisableESIMDOpt, SplitESIMD);
   PreservedAnalyses Res = MPM.run(MD.getModule(), MAM);
 
   // GenXSPIRVWriterAdaptor pass replaced some functions with "rewritten"
