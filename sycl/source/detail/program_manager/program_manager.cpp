@@ -1043,6 +1043,7 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
         // For every cached copy of the program, we need to increment its
         // refcount
         Adapter.call<UrApiKind::urProgramRetain>(ResProgram);
+        std::cerr << "Old manual retain " << ResProgram << std::endl;
       }
     }
   };
@@ -1076,6 +1077,7 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
         // For every cached copy of the program, we need to increment its
         // refcount
         Adapter.call<UrApiKind::urProgramRetain>(ResProgram);
+        std::cerr << "Old manual retain2 " << ResProgram << std::endl;
       }
       CacheLinkedImages();
     }
