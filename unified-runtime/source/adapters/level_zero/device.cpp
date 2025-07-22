@@ -1381,6 +1381,8 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
+  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_LUID: {
     // LUID is only available on Windows.
     // Intel extension for device LUID. This returns the LUID as

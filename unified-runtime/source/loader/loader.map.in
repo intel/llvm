@@ -120,6 +120,7 @@
 		urGetEventProcAddrTable;
 		urGetKernelProcAddrTable;
 		urGetMemProcAddrTable;
+		urGetMemoryExportExpProcAddrTable;
 		urGetPhysicalMemProcAddrTable;
 		urGetPlatformProcAddrTable;
 		urGetProgramExpProcAddrTable;
@@ -166,6 +167,9 @@
 		urMemImageGetInfo;
 		urMemRelease;
 		urMemRetain;
+		urMemoryExportAllocExportableMemoryExp;
+		urMemoryExportExportMemoryHandleExp;
+		urMemoryExportFreeExportableMemoryExp;
 		urPhysicalMemCreate;
 		urPhysicalMemGetInfo;
 		urPhysicalMemRelease;
@@ -415,6 +419,9 @@
 		urPrintMemReleaseParams;
 		urPrintMemRetainParams;
 		urPrintMemType;
+		urPrintMemoryExportAllocExportableMemoryExpParams;
+		urPrintMemoryExportExportMemoryHandleExpParams;
+		urPrintMemoryExportFreeExportableMemoryExpParams;
 		urPrintMemoryOrderCapabilityFlags;
 		urPrintMemoryScopeCapabilityFlags;
 		urPrintPhysicalMemCreateParams;

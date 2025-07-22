@@ -305,26 +305,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_ENQUEUE_USM_FILL_2D = 151,
   /// Enumerator for ::urEnqueueUSMMemcpy2D
   UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D = 152,
-  /// Enumerator for ::urVirtualMemGranularityGetInfo
-  UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO = 153,
-  /// Enumerator for ::urVirtualMemReserve
-  UR_FUNCTION_VIRTUAL_MEM_RESERVE = 154,
-  /// Enumerator for ::urVirtualMemFree
-  UR_FUNCTION_VIRTUAL_MEM_FREE = 155,
-  /// Enumerator for ::urVirtualMemMap
-  UR_FUNCTION_VIRTUAL_MEM_MAP = 156,
-  /// Enumerator for ::urVirtualMemUnmap
-  UR_FUNCTION_VIRTUAL_MEM_UNMAP = 157,
-  /// Enumerator for ::urVirtualMemSetAccess
-  UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS = 158,
-  /// Enumerator for ::urVirtualMemGetInfo
-  UR_FUNCTION_VIRTUAL_MEM_GET_INFO = 159,
-  /// Enumerator for ::urPhysicalMemCreate
-  UR_FUNCTION_PHYSICAL_MEM_CREATE = 160,
-  /// Enumerator for ::urPhysicalMemRetain
-  UR_FUNCTION_PHYSICAL_MEM_RETAIN = 161,
-  /// Enumerator for ::urPhysicalMemRelease
-  UR_FUNCTION_PHYSICAL_MEM_RELEASE = 162,
   /// Enumerator for ::urUSMImportExp
   UR_FUNCTION_USM_IMPORT_EXP = 163,
   /// Enumerator for ::urUSMReleaseExp
@@ -421,8 +401,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP = 245,
   /// Enumerator for ::urEnqueueEventsWaitWithBarrierExt
   UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT = 246,
-  /// Enumerator for ::urPhysicalMemGetInfo
-  UR_FUNCTION_PHYSICAL_MEM_GET_INFO = 249,
   /// Enumerator for ::urEnqueueUSMDeviceAllocExp
   UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP = 250,
   /// Enumerator for ::urEnqueueUSMSharedAllocExp
@@ -467,8 +445,36 @@ typedef enum ur_function_t {
   UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT = 272,
   /// Enumerator for ::urUSMContextMemcpyExp
   UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP = 273,
+  /// Enumerator for ::urVirtualMemGranularityGetInfo
+  UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO = 274,
+  /// Enumerator for ::urVirtualMemReserve
+  UR_FUNCTION_VIRTUAL_MEM_RESERVE = 275,
+  /// Enumerator for ::urVirtualMemFree
+  UR_FUNCTION_VIRTUAL_MEM_FREE = 276,
+  /// Enumerator for ::urVirtualMemMap
+  UR_FUNCTION_VIRTUAL_MEM_MAP = 277,
+  /// Enumerator for ::urVirtualMemUnmap
+  UR_FUNCTION_VIRTUAL_MEM_UNMAP = 278,
+  /// Enumerator for ::urVirtualMemSetAccess
+  UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS = 279,
+  /// Enumerator for ::urVirtualMemGetInfo
+  UR_FUNCTION_VIRTUAL_MEM_GET_INFO = 280,
+  /// Enumerator for ::urPhysicalMemCreate
+  UR_FUNCTION_PHYSICAL_MEM_CREATE = 281,
+  /// Enumerator for ::urPhysicalMemRetain
+  UR_FUNCTION_PHYSICAL_MEM_RETAIN = 282,
+  /// Enumerator for ::urPhysicalMemRelease
+  UR_FUNCTION_PHYSICAL_MEM_RELEASE = 283,
+  /// Enumerator for ::urPhysicalMemGetInfo
+  UR_FUNCTION_PHYSICAL_MEM_GET_INFO = 284,
+  /// Enumerator for ::urMemoryExportAllocExportableMemoryExp
+  UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP = 285,
+  /// Enumerator for ::urMemoryExportFreeExportableMemoryExp
+  UR_FUNCTION_MEMORY_EXPORT_FREE_EXPORTABLE_MEMORY_EXP = 286,
+  /// Enumerator for ::urMemoryExportExportMemoryHandleExp
+  UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP = 287,
   /// Enumerator for ::urBindlessImagesSupportsImportingHandleTypeExp
-  UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP = 274,
+  UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP = 288,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -534,8 +540,6 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,
   /// ::ur_kernel_arg_mem_obj_properties_t
   UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 27,
-  /// ::ur_physical_mem_properties_t
-  UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 28,
   /// ::ur_kernel_arg_pointer_properties_t
   UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES = 29,
   /// ::ur_kernel_arg_sampler_properties_t
@@ -550,6 +554,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC = 35,
   /// ::ur_usm_pool_buffer_desc_t
   UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC = 36,
+  /// ::ur_physical_mem_properties_t
+  UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 37,
   /// ::ur_exp_command_buffer_desc_t
   UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,
   /// ::ur_exp_command_buffer_update_kernel_launch_desc_t
@@ -2430,6 +2436,10 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports
   /// ::urUSMContextMemcpyExp
   UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP = 0x7000,
+  /// [::ur_bool_t] returns true if the device supports the allocation of
+  /// exportable linear layout device memory and exporting that memory to
+  /// an interoperable handle.
+  UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP = 0x8000,
   /// @cond
   UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2455,7 +2465,8 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP <
+///         propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -12333,6 +12344,127 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Memory Export Extension APIs
+#if !defined(__GNUC__)
+#pragma region memory_export_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Allocate an exportable memory region and return a pointer to that
+///        allocation.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `(hDevice == nullptr) || (hContext == nullptr)`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         handleTypeToExport`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `ppMem == nullptr`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT
+///         + `alignment != 0 && ((alignment & (alignment-1)) != 0)`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + If `alignment` exceeds largest supported data type by `hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_USM_SIZE
+///         + `size == 0`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_SIZE
+///         + `size` is greater than ::UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE.
+///     -
+///     ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE:DEVICE_INFO_MEMORY_EXPORT_LINEAR_MEMORY_EXPORT_SUPPORT_EXP
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Free an exportable memory allocation.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `(hDevice == nullptr) || (hContext == nullptr)`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `pMem == nullptr`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
+    /// [in] Handle to context in which to free memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to free memory.
+    ur_device_handle_t hDevice,
+    /// [in][release] Pointer to exportable memory to be deallocated.
+    void *pMem);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Obtain an exportable handle to a memory allocated with
+///        `AllocExportableMemoryExp`.The returned external memory type will be
+///        that which was specified upon
+///        allocation of the exportable memory (e.g. `opaque_fd` or
+///        `win32_nt_handle`).
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `(hDevice == nullptr) || (hContext == nullptr)`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         handleTypeToExport`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `pMemHandleRet == nullptr || pMem == nullptr`
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
+    /// [in] Handle to context in which the exportable memory was allocated.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which the exportable memory was allocated.
+    ur_device_handle_t hDevice,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [in] Pointer to exportable memory handle.
+    void *pMem,
+    /// [out] Returned exportable handle to memory allocated in `pMem`
+    void *pMemHandleRet);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for multi-device compile
 #if !defined(__GNUC__)
 #pragma region multi_device_compile_(experimental)
@@ -15283,6 +15415,41 @@ typedef struct ur_command_buffer_get_native_handle_exp_params_t {
   ur_exp_command_buffer_handle_t *phCommandBuffer;
   ur_native_handle_t **pphNativeCommandBuffer;
 } ur_command_buffer_get_native_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urMemoryExportAllocExportableMemoryExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_memory_export_alloc_exportable_memory_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  size_t *palignment;
+  size_t *psize;
+  ur_exp_external_mem_type_t *phandleTypeToExport;
+  void ***pppMem;
+} ur_memory_export_alloc_exportable_memory_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urMemoryExportFreeExportableMemoryExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_memory_export_free_exportable_memory_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  void **ppMem;
+} ur_memory_export_free_exportable_memory_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urMemoryExportExportMemoryHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_memory_export_export_memory_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  ur_exp_external_mem_type_t *phandleTypeToExport;
+  void **ppMem;
+  void **ppMemHandleRet;
+} ur_memory_export_export_memory_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUsmP2PEnablePeerAccessExp
