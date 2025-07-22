@@ -1072,12 +1072,15 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
     }
   }
 
-  // If caching is enabled, one copy of the program handle will be
-  // stored in the cache, and one handle is returned to the
-  // caller. In that case, we need to increase the ref count of the
-  // program.
-  Adapter.call<UrApiKind::urProgramRetain>(ResProgram);
-  return Managed<ur_program_handle_t>{ResProgram, Adapter};
+  // We don't know if `BuildResult` above is a single owner of this program (no
+  // caching) or not (shared ownership with the record in the cache), so we
+  // can't just `std::move(ResProgram)` that references
+  // `Managed<ur_program_handle_t>` inside `BuildResult` and have to `retain`.
+  //
+  // If this a single owner indeed, then `BuildResult` will be automatically
+  // destructed upon return and would cause automatic `urProgramRelease` which
+  // might be unoptimal but still correct.
+  return ResProgram.retain();
 }
 
 FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
