@@ -21,6 +21,8 @@
 #include <umf.h>
 #endif
 
+ZeUSMImportExtension ZeUSMImport;
+
 // Due to multiple DLLMain definitions with SYCL, Global Adapter is init at
 // variable creation.
 #if defined(_WIN32)

@@ -55,14 +55,11 @@ void ur_usm_handle_t::unmapHostPtr(void * /*pMappedPtr*/,
 
 ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     ur_context_handle_t hContext, void *hostPtr, size_t size,
-    host_ptr_action_t hostPtrAction, device_access_mode_t accessMode)
+    device_access_mode_t accessMode)
     : ur_mem_buffer_t(hContext, size, accessMode) {
-  bool hostPtrImported = false;
-  if (hostPtrAction == host_ptr_action_t::import) {
-    hostPtrImported =
-        maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
-                       hContext->getZeHandle(), hostPtr, size);
-  }
+  bool hostPtrImported =
+      maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
+                     hContext->getZeHandle(), hostPtr, size);
 
   if (hostPtrImported) {
     this->ptr = usm_unique_ptr_t(hostPtr, [hContext](void *ptr) {
@@ -201,8 +198,23 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
     device_access_mode_t accessMode)
     : ur_mem_buffer_t(hContext, size, accessMode),
       deviceAllocations(hContext->getPlatform()->getNumDevices()),
-      activeAllocationDevice(nullptr), mapToPtr(hostPtr), hostAllocations() {
+      activeAllocationDevice(nullptr), mapToPtr(nullptr, nullptr),
+      hostAllocations() {
   if (hostPtr) {
+    // Try importing the pointer to speed up memory copies for map/unmap
+    bool hostPtrImported =
+        maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
+                       hContext->getZeHandle(), hostPtr, size);
+
+    if (hostPtrImported) {
+      mapToPtr = usm_unique_ptr_t(hostPtr, [hContext](void *ptr) {
+        ZeUSMImport.doZeUSMRelease(
+            hContext->getPlatform()->ZeDriverHandleExpTranslated, ptr);
+      });
+    } else {
+      mapToPtr = usm_unique_ptr_t(hostPtr, [](void *) {});
+    }
+
     auto initialDevice = hContext->getDevices()[0];
     UR_CALL_THROWS(migrateBufferTo(initialDevice, hostPtr, size));
   }
@@ -305,18 +317,18 @@ void *ur_discrete_buffer_handle_t::mapHostPtr(ur_map_flags_t flags,
   TRACK_SCOPE_LATENCY("ur_discrete_buffer_handle_t::mapHostPtr");
   // TODO: use async alloc?
 
-  void *ptr = mapToPtr;
+  void *ptr = mapToPtr.get();
   if (!ptr) {
     UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
         hContext, nullptr, nullptr, UR_USM_TYPE_HOST, size, &ptr));
   }
 
   usm_unique_ptr_t mappedPtr =
-      usm_unique_ptr_t(ptr, [ownsAlloc = bool(mapToPtr), this](void *p) {
+      usm_unique_ptr_t(ptr, [ownsAlloc = !bool(mapToPtr), this](void *p) {
         if (ownsAlloc) {
           auto ret = hContext->getDefaultUSMPool()->free(p);
           if (ret != UR_RESULT_SUCCESS) {
-            UR_LOG(ERR, "Failed to mapped memory: {}", ret);
+            UR_LOG(ERR, "Failed to free mapped memory: {}", ret);
           }
         }
       });
@@ -541,16 +553,16 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
     // ignore the flag for now.
   }
 
+  if (flags & UR_MEM_FLAG_USE_HOST_POINTER) {
+    // To speed up copies, we always import the host ptr to USM memory
+  }
+
   void *hostPtr = pProperties ? pProperties->pHost : nullptr;
   auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
   if (useHostBuffer(hContext)) {
-    auto hostPtrAction =
-        flags & UR_MEM_FLAG_USE_HOST_POINTER
-            ? ur_integrated_buffer_handle_t::host_ptr_action_t::import
-            : ur_integrated_buffer_handle_t::host_ptr_action_t::copy;
     *phBuffer = ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
-        hContext, hostPtr, size, hostPtrAction, accessMode);
+        hContext, hostPtr, size, accessMode);
   } else {
     *phBuffer = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
         hContext, hostPtr, size, accessMode);

@@ -74,7 +74,7 @@ context kernel_bundle_plain::get_context() const noexcept {
 }
 
 std::vector<device> kernel_bundle_plain::get_devices() const noexcept {
-  return impl->get_devices();
+  return impl->get_devices().to<std::vector<device>>();
 }
 
 std::vector<kernel_id> kernel_bundle_plain::get_kernel_ids() const {
@@ -288,8 +288,8 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
       const std::shared_ptr<device_image_impl> &DeviceImageImpl =
           getSyclObjImpl(DeviceImage);
 
-      CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ptr()->begin(),
-                               DeviceImageImpl->get_kernel_ids_ptr()->end());
+      CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids().begin(),
+                               DeviceImageImpl->get_kernel_ids().end());
     }
   }
 

@@ -58,7 +58,7 @@ class OneDnnBench(Suite):
                 )
         return benchmarks
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 

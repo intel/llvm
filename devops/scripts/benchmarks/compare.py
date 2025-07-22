@@ -347,6 +347,11 @@ if __name__ == "__main__":
         help="If provided, only regressions matching provided regex will cause exit status 1.",
         default=None,
     )
+    parser_avg.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Do not return error upon regressions.",
+    )
 
     args = parser.parse_args()
 
@@ -408,7 +413,8 @@ if __name__ == "__main__":
             log.warning("#")
             for test in regressions_of_concern:
                 print_regression(test, is_warning=True)
-            exit(1)  # Exit 1 to trigger github test failure
+            if not args.dry_run:
+                exit(1)  # Exit 1 to trigger github test failure
         log.info("No unexpected regressions found!")
     else:
         log.error("Unsupported operation: exiting.")
