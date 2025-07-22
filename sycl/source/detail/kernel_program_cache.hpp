@@ -134,7 +134,6 @@ public:
 #pragma warning(pop)
 #endif
   };
-  using ProgramBuildResultPtr = std::shared_ptr<ProgramBuildResult>;
 
   /* Drop LinkOptions and CompileOptions from CacheKey since they are only used
    * when debugging environment variables are set and we can just ignore them
@@ -179,7 +178,8 @@ public:
   };
 
   struct ProgramCache {
-    emhash8::HashMap<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
+    emhash8::HashMap<ProgramCacheKeyT, std::shared_ptr<ProgramBuildResult>>
+        Cache;
     UnorderedMultimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
     // Mapping between a UR program and its size.
     std::unordered_map<ur_program_handle_t, size_t> ProgramSizeMap;
@@ -193,11 +193,9 @@ public:
     size_t size() const noexcept { return Cache.size(); }
   };
 
-  using ContextPtr = context_impl *;
-
-  using KernelArgMaskPairT =
-      std::pair<ur_kernel_handle_t, const KernelArgMask *>;
-  struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
+  struct KernelBuildResult
+      : public BuildResult<
+            std::pair<ur_kernel_handle_t, const KernelArgMask *>> {
     const adapter_impl &MAdapter;
     KernelBuildResult(const adapter_impl &Adapter) : MAdapter(Adapter) {
       Val.first = nullptr;
@@ -214,10 +212,10 @@ public:
       }
     }
   };
-  using KernelBuildResultPtr = std::shared_ptr<KernelBuildResult>;
 
-  using KernelByNameT = emhash8::HashMap<KernelNameStrT, KernelBuildResultPtr>;
-  using KernelCacheT = emhash8::HashMap<ur_program_handle_t, KernelByNameT>;
+  using KernelCacheT = emhash8::HashMap<
+      ur_program_handle_t,
+      emhash8::HashMap<KernelNameStrT, std::shared_ptr<KernelBuildResult>>>;
 
   class FastKernelSubcacheWrapper {
   public:
@@ -339,8 +337,7 @@ public:
   };
 
   ~KernelProgramCache() = default;
-
-  void setContextPtr(const ContextPtr &AContext) { MParentContext = AContext; }
+  KernelProgramCache(context_impl &Ctx) : MParentContext(Ctx) {}
 
   // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
   // set.
@@ -404,7 +401,7 @@ public:
     return {MEvictionList, MProgramEvictionListMutex};
   }
 
-  std::pair<ProgramBuildResultPtr, bool>
+  std::pair<std::shared_ptr<ProgramBuildResult>, bool>
   getOrInsertProgram(const ProgramCacheKeyT &CacheKey) {
     auto LockedCache = acquireCachedPrograms();
     auto &ProgCache = LockedCache.get();
@@ -444,7 +441,7 @@ public:
     return DidInsert;
   }
 
-  std::pair<KernelBuildResultPtr, bool>
+  std::pair<std::shared_ptr<KernelBuildResult>, bool>
   getOrInsertKernel(ur_program_handle_t Program, KernelNameStrRefT KernelName) {
     auto LockedCache = acquireKernelsPerProgramCache();
     auto &Cache = LockedCache.get()[Program];
@@ -850,7 +847,7 @@ private:
 
   ProgramCache MCachedPrograms;
   KernelCacheT MKernelsPerProgramCache;
-  ContextPtr MParentContext;
+  context_impl &MParentContext;
 
   using FastKernelCacheMutexT = SpinLock;
   using FastKernelCacheReadLockT = std::lock_guard<FastKernelCacheMutexT>;

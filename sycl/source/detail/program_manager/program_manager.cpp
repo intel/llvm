@@ -1104,8 +1104,6 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
               << ", " << &DeviceImpl << ", " << KernelName << ")\n";
   }
 
-  using KernelArgMaskPairT = KernelProgramCache::KernelArgMaskPairT;
-
   KernelProgramCache &Cache = ContextImpl.getKernelProgramCache();
   ur_device_handle_t UrDevice = DeviceImpl.getHandleRef();
   FastKernelSubcacheT *CacheHintPtr =
@@ -1160,7 +1158,8 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
   auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
-  const KernelArgMaskPairT &KernelArgMaskPair = BuildResult->Val;
+  const std::pair<ur_kernel_handle_t, const KernelArgMask *>
+      &KernelArgMaskPair = BuildResult->Val;
   auto ret_val = std::make_shared<FastKernelCacheVal>(
       KernelArgMaskPair.first, &(BuildResult->MBuildResultMutex),
       KernelArgMaskPair.second, Program, ContextImpl.getAdapter());
