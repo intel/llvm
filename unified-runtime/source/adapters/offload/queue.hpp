@@ -39,6 +39,7 @@ struct ur_queue_handle_t_ : RefCounted {
 
   ol_result_t nextQueue(ol_queue_handle_t &Handle) {
     auto &Slot = OffloadQueues[QueueOffset++];
+    QueueOffset %= OffloadQueues.size();
 
     if (!Slot) {
       if (auto Res = olCreateQueue(OffloadDevice, &Slot)) {
