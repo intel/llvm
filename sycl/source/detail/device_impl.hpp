@@ -1194,6 +1194,20 @@ public:
             "The device does not have the ext_intel_power_limits aspect");
       return get_info_impl<UR_DEVICE_INFO_MIN_POWER_LIMIT>();
     }
+    CASE(ext::intel::info::device::luid) {
+      if (!has(aspect::ext_intel_device_info_luid))
+        throw exception(
+            make_error_code(errc::feature_not_supported),
+            "The device does not have the ext_intel_device_info_luid aspect");
+      return get_info_impl<UR_DEVICE_INFO_LUID>();
+    }
+    CASE(ext::intel::info::device::node_mask) {
+      if (!has(aspect::ext_intel_device_info_node_mask))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_device_info_node_mask aspect");
+      return get_info_impl<UR_DEVICE_INFO_NODE_MASK>();
+    }
     else {
       constexpr auto Desc = UrInfoCode<Param>::value;
       return static_cast<typename Param::return_type>(get_info_impl<Desc>());
@@ -1303,6 +1317,12 @@ public:
     }
     CASE(ext_intel_device_info_uuid) {
       return has_info_desc(UR_DEVICE_INFO_UUID);
+    }
+    CASE(ext_intel_device_info_luid) {
+      return has_info_desc(UR_DEVICE_INFO_LUID);
+    }
+    CASE(ext_intel_device_info_node_mask) {
+      return has_info_desc(UR_DEVICE_INFO_NODE_MASK);
     }
     CASE(ext_intel_max_mem_bandwidth) {
       // currently not supported
@@ -2287,24 +2307,10 @@ private:
 
 }; // class device_impl
 
-struct devices_deref_impl {
-  template <typename T> static device_impl &dereference(T &Elem) {
-    using Ty = std::decay_t<decltype(Elem)>;
-    if constexpr (std::is_same_v<Ty, device>) {
-      return *getSyclObjImpl(Elem);
-    } else if constexpr (std::is_same_v<Ty, device_impl>) {
-      return Elem;
-    } else {
-      return *Elem;
-    }
-  }
-};
-using devices_iterator =
-    variadic_iterator<devices_deref_impl, device,
-                      std::vector<std::shared_ptr<device_impl>>::const_iterator,
-                      std::vector<device>::const_iterator,
-                      std::vector<device_impl *>::const_iterator,
-                      device_impl *>;
+using devices_iterator = variadic_iterator<
+    device, std::vector<std::shared_ptr<device_impl>>::const_iterator,
+    std::vector<device>::const_iterator,
+    std::vector<device_impl *>::const_iterator, device_impl *>;
 
 class devices_range : public iterator_range<devices_iterator> {
 private:
