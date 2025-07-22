@@ -251,9 +251,7 @@ template <typename URResource> class Managed {
 
 public:
   Managed() = default;
-  Managed(URResource R, adapter_impl &Adapter) : R(R), Adapter(&Adapter) {
-    std::cerr << "Ctor created: " << R << std::endl;
-  }
+  Managed(URResource R, adapter_impl &Adapter) : R(R), Adapter(&Adapter) {}
   Managed(adapter_impl &Adapter) : Adapter(&Adapter) {}
   Managed(const Managed &) = delete;
   Managed(Managed &&Other) : Adapter(Other.Adapter) {
@@ -262,10 +260,9 @@ public:
   }
   Managed &operator=(const Managed &) = delete;
   Managed &operator=(Managed &&Other) {
-    if (R) {
-      std::cerr << "Assign releasing: " << R << std::endl;
+    if (R)
       Adapter->call<Release>(R);
-    }
+
     R = Other.R;
     Other.R = nullptr;
     Adapter = Other.Adapter;
@@ -275,7 +272,6 @@ public:
   operator URResource() const { return R; }
 
   URResource release() {
-    std::cerr << "Manually releasing: " << R << std::endl;
     URResource Res = R;
     R = nullptr;
     return Res;
@@ -284,7 +280,6 @@ public:
   URResource *operator&() {
     assert(!R && "Already initialized!");
     assert(Adapter && "Adapter must be set for this API!");
-    std::cerr << "Creating externally..." << std::endl;
     return &R;
   }
 
@@ -292,13 +287,11 @@ public:
     if (!R)
       return;
 
-    std::cerr << "Dtor releasing: " << R << std::endl;
     Adapter->call<Release>(R);
   }
 
   Managed retain() {
     assert(R && "Cannot retain unintialized resource!");
-    std::cerr << "Retaining " << R << std::endl;
     Adapter->call<Retain>(R);
     return Managed{R, *Adapter};
   }
