@@ -35,7 +35,8 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
     : MOwnedByRuntime(true), MAsyncHandler(std::move(AsyncHandler)),
       MDevices(std::move(Devices)), MContext(nullptr),
       MPlatform(detail::getSyclObjImpl(MDevices[0].get_platform())),
-      MPropList(PropList), MSupportBufferLocationByDevices(NotChecked) {
+      MPropList(PropList), MKernelProgramCache(*this),
+      MSupportBufferLocationByDevices(NotChecked) {
   verifyProps(PropList);
   std::vector<ur_device_handle_t> DeviceIds;
   for (const auto &D : MDevices) {
@@ -56,8 +57,6 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
 
   getAdapter().call<UrApiKind::urContextCreate>(
       DeviceIds.size(), DeviceIds.data(), nullptr, &MContext);
-
-  MKernelProgramCache.setContextPtr(this);
 }
 
 context_impl::context_impl(ur_context_handle_t UrContext,
@@ -66,7 +65,7 @@ context_impl::context_impl(ur_context_handle_t UrContext,
                            bool OwnedByRuntime, private_tag)
     : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(std::move(AsyncHandler)),
       MDevices(DeviceList), MContext(UrContext), MPlatform(),
-      MSupportBufferLocationByDevices(NotChecked) {
+      MKernelProgramCache(*this), MSupportBufferLocationByDevices(NotChecked) {
   if (!MDevices.empty()) {
     MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   } else {
@@ -104,7 +103,6 @@ context_impl::context_impl(ur_context_handle_t UrContext,
   if (getBackend() == sycl::backend::opencl) {
     getAdapter().call<UrApiKind::urContextRetain>(MContext);
   }
-  MKernelProgramCache.setContextPtr(this);
 }
 
 cl_context context_impl::get() const {
@@ -501,7 +499,7 @@ std::optional<ur_program_handle_t> context_impl::getProgramForDevImgs(
     const device &Device, const std::set<std::uintptr_t> &ImgIdentifiers,
     const std::string &ObjectTypeName) {
 
-  KernelProgramCache::ProgramBuildResultPtr BuildRes = nullptr;
+  std::shared_ptr<KernelProgramCache::ProgramBuildResult> BuildRes = nullptr;
   {
     auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
     auto &KeyMap = LockedCache.get().KeyMap;
