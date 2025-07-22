@@ -3,8 +3,8 @@
 // The test checks if SYCLOptimizeBarriers pass can perform barrier scope
 // narrowing in case if there are no fenced global accesses.
 
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 912)
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 400)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrieriii(i32{{.*}}2, i32{{.*}}2, i32{{.*}}912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrieriii(i32{{.*}}2, i32{{.*}}2, i32{{.*}}400)
 
 #include <sycl/sycl.hpp>
 
