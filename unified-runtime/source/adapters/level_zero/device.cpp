@@ -1381,6 +1381,48 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
+  case UR_DEVICE_INFO_LUID: {
+    // LUID is only available on Windows.
+    // Intel extension for device LUID. This returns the LUID as
+    // std::array<std::byte, 8>. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+    if (Device->Platform->ZeLUIDSupported) {
+      ze_device_properties_t DeviceProp = {};
+      DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+      ze_device_luid_ext_properties_t LuidDesc = {};
+      LuidDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_LUID_EXT_PROPERTIES;
+      DeviceProp.pNext = (void *)&LuidDesc;
+
+      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+
+      const auto &LUID = LuidDesc.luid.id;
+      return ReturnValue(LUID, sizeof(LUID));
+    } else {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+  }
+  case UR_DEVICE_INFO_NODE_MASK: {
+    // Device node mask is only available on Windows.
+    // Intel extension for device node mask. This returns the node mask as
+    // uint32_t. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+
+    // Node mask is provided through the L0 LUID extension so support for this
+    // extension must be checked.
+    if (Device->Platform->ZeLUIDSupported) {
+      ze_device_properties_t DeviceProp = {};
+      DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+      ze_device_luid_ext_properties_t LuidDesc = {};
+      LuidDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_LUID_EXT_PROPERTIES;
+      DeviceProp.pNext = (void *)&LuidDesc;
+
+      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+
+      return ReturnValue(LuidDesc.nodeMask);
+    } else {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+  }
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
