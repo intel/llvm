@@ -349,7 +349,7 @@ public:
   }
 
   device_image_impl(const context &Context, devices_range Devices,
-                    bundle_state State, Managed<ur_program_handle_t> Program,
+                    bundle_state State, Managed<ur_program_handle_t> &&Program,
                     syclex::source_language Lang, KernelNameSetT &&KernelNames,
                     private_tag)
       : MBinImage(static_cast<const RTDeviceBinaryImage *>(nullptr)),
