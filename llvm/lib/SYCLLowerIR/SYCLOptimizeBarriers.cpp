@@ -874,7 +874,8 @@ static bool optimizeBarriersCFG(SmallVectorImpl<BarrierDesc *> &Barriers,
 }
 
 // True if BD is the first real instruction of the function.
-static bool isAtKernelEntry(const BarrierDesc &BD, const BBMemInfoMap &BBMemInfo) {
+static bool isAtKernelEntry(const BarrierDesc &BD,
+                            const BBMemInfoMap &BBMemInfo) {
   BasicBlock &Entry = BD.CI->getFunction()->getEntryBlock();
   if (BD.CI->getParent() != &Entry)
     return false;
@@ -891,7 +892,8 @@ static bool isAtKernelEntry(const BarrierDesc &BD, const BBMemInfoMap &BBMemInfo
 }
 
 // True if BD is immediately before a return/unreachable and nothing follows.
-static bool isAtKernelExit(const BarrierDesc &BD, const BBMemInfoMap &BBMemInfo) {
+static bool isAtKernelExit(const BarrierDesc &BD,
+                           const BBMemInfoMap &BBMemInfo) {
   BasicBlock *BB = BD.CI->getParent();
   Instruction *Term = BB->getTerminator();
   if (!isa<ReturnInst>(Term) && !isa<UnreachableInst>(Term))
