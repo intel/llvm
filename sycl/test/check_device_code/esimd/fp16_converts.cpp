@@ -34,7 +34,9 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void bf16_vector() {
   simd<float, 8> F32 = 0;
   simd<bfloat16, 8> BF16 = F32;
+  // CHECK: call <8 x half> @llvm.genx.bf.cvt.v8f16.v8f32(<8 x float> {{[^)]+}})
   simd<float, 8> F32_conv = BF16;
+  // CHECK: call <8 x float> @llvm.genx.bf.cvt.v8f32.v8f16(<8 x half> {{[^)]+}})
 }
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void bf16_scalar() {
