@@ -343,7 +343,7 @@ kernel make_kernel(const context &TargetContext,
     const device_image<bundle_state::executable> &DeviceImage =
         *KernelBundle.begin();
     device_image_impl &DeviceImageImpl = *getSyclObjImpl(DeviceImage);
-    UrProgram = DeviceImageImpl.get_ur_program_ref();
+    UrProgram = DeviceImageImpl.get_ur_program();
   }
 
   // Create UR kernel first.

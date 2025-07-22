@@ -1152,7 +1152,7 @@ getOrBuildProgramForDeviceGlobal(queue_impl &Queue,
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
   device_image_plain BuiltImage =
       PM.build(std::move(DeviceImage), {std::move(Device)}, {});
-  return getSyclObjImpl(BuiltImage)->get_ur_program_ref();
+  return getSyclObjImpl(BuiltImage)->get_ur_program();
 }
 
 static void

@@ -134,7 +134,7 @@ public:
 
   using CachedLibProgramsT =
       std::map<std::pair<DeviceLibExt, ur_device_handle_t>,
-               ur_program_handle_t>;
+               Managed<ur_program_handle_t>>;
 
   /// In contrast to user programs, which are compiled from user code, library
   /// programs come from the SYCL runtime. They are identified by the
