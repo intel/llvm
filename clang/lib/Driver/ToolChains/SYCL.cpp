@@ -1306,7 +1306,7 @@ StringRef clang::driver::mapIntelGPUArchName(StringRef ArchName) {
              .Case("arl_h", "arl_h")
              .Case("bmg_g21", "bmg_g21")
              .Case("lnl_m", "lnl_m")
-             .Default("");
+             .Default(ArchName);
   return Arch;
 }
 

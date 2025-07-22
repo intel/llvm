@@ -7594,6 +7594,10 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
         if (auto Device =
                 tools::SYCL::gen::isGPUTarget<tools::SYCL::gen::IntelGPU>(
                     SYCLTargetValue)) {
+          if (SpecificToolchain &&
+              !(TC->getTriple().isSPIRAOT() &&
+                TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen))
+            continue;
           if (Device->empty()) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << SYCLTargetValue;
             continue;
