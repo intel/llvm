@@ -196,7 +196,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   adapter_impl &Adapter = getAdapter(Backend);
   context_impl &ContextImpl = *getSyclObjImpl(TargetContext);
 
-  ur_program_handle_t UrProgram = nullptr;
+  Managed<ur_program_handle_t> UrProgram{Adapter};
   ur_program_native_properties_t Properties{};
   Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES;
   Properties.isNativeHandleOwned = !KeepOwnership;
@@ -258,7 +258,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
             "Program and kernel_bundle state mismatch " +
                 detail::codeToString(UR_RESULT_ERROR_INVALID_VALUE));
       if (State == bundle_state::executable) {
-        ur_program_handle_t UrLinkedProgram = nullptr;
+        Managed<ur_program_handle_t> UrLinkedProgram{Adapter};
         auto Res = Adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
             ContextImpl.getHandleRef(), 1u, &Dev, 1u, &UrProgram, nullptr,
             &UrLinkedProgram);
@@ -269,7 +269,8 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
         }
         Adapter.checkUrResult<errc::build>(Res);
         if (UrLinkedProgram != nullptr) {
-          UrProgram = UrLinkedProgram;
+          UrProgram.release(); // Isn't that a leak?
+          UrProgram = std::move(UrLinkedProgram);
         }
       }
       break;
@@ -302,9 +303,8 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   // symbols (e.g. when kernel_bundle is supposed to be joined with another).
   auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
   auto DevImgImpl = device_image_impl::create(
-      nullptr, TargetContext, Devices, State, KernelIDs,
-      // TODO: Move creation of `Managed` up.
-      Managed<ur_program_handle_t>{UrProgram, Adapter}, ImageOriginInterop);
+      nullptr, TargetContext, Devices, State, KernelIDs, std::move(UrProgram),
+      ImageOriginInterop);
   device_image_plain DevImg{DevImgImpl};
 
   return kernel_bundle_impl::create(TargetContext, Devices, DevImg);
