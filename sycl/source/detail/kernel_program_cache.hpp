@@ -796,9 +796,6 @@ public:
 
       // only the building thread will run this
       try {
-        // Remove `adapter_impl` from `ProgramBuildResult`'s ctors once `Build`
-        // returns `Managed<ur_platform_handle_t`:
-
         static_assert(
             std::is_same_v<decltype(Build()), decltype(BuildResult->Val)>,
             "Are we casting from Managed<URResource> to plain URResource?");
