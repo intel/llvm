@@ -25,6 +25,8 @@ extern __DPCPP_SYCL_EXTERNAL char *strcpy(char *dest, const char *src);
 extern __DPCPP_SYCL_EXTERNAL char *strncpy(char *dest, const char *src,
                                            size_t n);
 extern __DPCPP_SYCL_EXTERNAL int strcmp(const char *s1, const char *s2);
+extern __DPCPP_SYCL_EXTERNAL int strncmp(const char *s1, const char *s2,
+                                         size_t n);
 extern __DPCPP_SYCL_EXTERNAL int rand();
 extern __DPCPP_SYCL_EXTERNAL void srand(unsigned int seed);
 extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmax(long long int x,
