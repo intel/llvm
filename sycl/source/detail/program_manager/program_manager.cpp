@@ -1016,15 +1016,13 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
   };
 
   auto EvictFunc = [&Cache, &CacheKey](ur_program_handle_t Program,
-                                       bool isBuilt) {
-    return Cache.registerProgramFetch(CacheKey, Program, isBuilt);
+                                       bool isBuilt) -> void {
+    Cache.registerProgramFetch(CacheKey, Program, isBuilt);
   };
 
-  auto BuildResult =
+  std::shared_ptr<KernelProgramCache::ProgramBuildResult> BuildResult =
       Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF, EvictFunc);
-
-  // getOrBuild is not supposed to return nullptr
-  assert(BuildResult != nullptr && "Invalid build result");
+  assert(BuildResult && "getOrBuild isn't supposed to return nullptr!");
 
   ur_program_handle_t ResProgram = BuildResult->Val;
 
@@ -1082,8 +1080,6 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
         Adapter.call<UrApiKind::urProgramRetain>(ResProgram);
       }
       CacheLinkedImages();
-      // getOrBuild is not supposed to return nullptr
-      assert(BuildResult != nullptr && "Invalid build result");
     }
   }
 
@@ -1155,9 +1151,9 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
         Kernel, nullptr, ArgMask, Program, ContextImpl.getAdapter());
   }
 
-  auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
-  // getOrBuild is not supposed to return nullptr
-  assert(BuildResult != nullptr && "Invalid build result");
+  std::shared_ptr<KernelProgramCache::KernelBuildResult> BuildResult =
+      Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
+  assert(BuildResult && "getOrBuild isn't supposed to return nullptr!");
   const std::pair<ur_kernel_handle_t, const KernelArgMask *>
       &KernelArgMaskPair = BuildResult->Val;
   auto ret_val = std::make_shared<FastKernelCacheVal>(
@@ -3192,9 +3188,9 @@ ProgramManager::getOrCreateKernel(const context &Context,
     return make_tuple(Kernel, nullptr, ArgMask);
   }
 
-  auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
-  // getOrBuild is not supposed to return nullptr
-  assert(BuildResult != nullptr && "Invalid build result");
+  std::shared_ptr<KernelProgramCache::KernelBuildResult> BuildResult =
+      Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
+  assert(BuildResult && "getOrBuild isn't supposed to return nullptr!");
   // If caching is enabled, one copy of the kernel handle will be
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
