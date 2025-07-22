@@ -874,26 +874,44 @@ static bool optimizeBarriersCFG(SmallVectorImpl<BarrierDesc *> &Barriers,
 }
 
 // True if BD is the first real instruction of the function.
-static bool isAtKernelEntry(const BarrierDesc &BD) {
+static bool isAtKernelEntry(const BarrierDesc &BD, const BBMemInfoMap &BBMemInfo) {
   BasicBlock &Entry = BD.CI->getFunction()->getEntryBlock();
   if (BD.CI->getParent() != &Entry)
     return false;
-  return true;
+
+  RegionMemScope Fence = getBarrierFencedScope(BD);
+  bool EntryHasFenced = hasFencedAccesses(&Entry, Fence, BBMemInfo);
+
+  // Entry block has no such accesses at all -> barrier redundant.
+  if (!EntryHasFenced)
+    return true;
+
+  // Otherwise it is redundant only if it is the first inst.
+  return &*Entry.getFirstNonPHIOrDbgOrAlloca() == BD.CI;
 }
 
 // True if BD is immediately before a return/unreachable and nothing follows.
-static bool isAtKernelExit(const BarrierDesc &BD) {
+static bool isAtKernelExit(const BarrierDesc &BD, const BBMemInfoMap &BBMemInfo) {
   BasicBlock *BB = BD.CI->getParent();
   Instruction *Term = BB->getTerminator();
   if (!isa<ReturnInst>(Term) && !isa<UnreachableInst>(Term))
     return false;
+
+  RegionMemScope Fence = getBarrierFencedScope(BD);
+  bool ExitHasFenced = hasFencedAccesses(BB, Fence, BBMemInfo);
+
+  // Exit block has no such accesses at all -> barrier redundant.
+  if (!ExitHasFenced)
+    return true;
+
+  // Otherwise it is redundant only if it is the last inst.
   return BD.CI->getNextNonDebugInstruction() == Term;
 }
 
 // Remove barriers that appear at the very beginning or end of a kernel
 // function.
 static bool eliminateBoundaryBarriers(SmallVectorImpl<BarrierDesc *> &Barriers,
-                                      BBMemInfoMap &BBMemInfo) {
+                                      const BBMemInfoMap &BBMemInfo) {
   bool Changed = false;
   for (auto *BPtr : Barriers) {
     BarrierDesc &B = *BPtr;
@@ -902,16 +920,14 @@ static bool eliminateBoundaryBarriers(SmallVectorImpl<BarrierDesc *> &Barriers,
     // Only for real SPIR kernels:
     if (B.CI->getFunction()->getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
-    RegionMemScope Fence = getBarrierFencedScope(B);
-    bool HasFencedAccesses =
-        hasFencedAccesses(B.CI->getParent(), Fence, BBMemInfo);
+
     // entry: no fenced accesses at entry BB.
-    if (isAtKernelEntry(B) && !HasFencedAccesses) {
+    if (isAtKernelEntry(B, BBMemInfo)) {
       Changed |= eraseBarrierWithITT(B);
       continue;
     }
     // exit: no fenced accesses at termination BB.
-    if (isAtKernelExit(B) && !HasFencedAccesses) {
+    if (isAtKernelExit(B, BBMemInfo)) {
       Changed |= eraseBarrierWithITT(B);
       continue;
     }
