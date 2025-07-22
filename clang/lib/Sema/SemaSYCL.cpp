@@ -6673,23 +6673,25 @@ public:
   void printFreeFunctionKernelInfo(const unsigned ShimCounter,
                                    const size_t KParamsSize,
                                    std::string_view KName) {
-    O << "\nnamespace sycl {\n";
+    O << "\n";
+    O << "namespace sycl {\n";
     O << "inline namespace _V1 {\n";
     O << "namespace detail {\n";
     O << "//Free Function Kernel info specialization for shim" << ShimCounter
       << "\n";
     O << "template <> struct FreeFunctionInfoData<__sycl_shim" << ShimCounter
       << "()> {\n";
-    O << "\t__SYCL_DLL_LOCAL\n";
-    O << "\tstatic constexpr unsigned getNumParams() { return " << KParamsSize
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getNumParams() { return " << KParamsSize
       << "; }\n";
-    O << "\t__SYCL_DLL_LOCAL\n";
-    O << "\tstatic constexpr const char *getFunctionName() { return ";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char *getFunctionName() { return ";
     O << "\"" << KName << "\"; }\n";
     O << "};\n";
     O << "} // namespace detail\n"
       << "} // namespace _V1\n"
-      << "} // namespace sycl\n\n";
+      << "} // namespace sycl\n";
+    O << "\n";
   }
 
 private:

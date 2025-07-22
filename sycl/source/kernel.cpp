@@ -50,12 +50,6 @@ kernel::get_kernel_bundle() const {
       kernel_bundle<sycl::bundle_state::executable>>(impl->get_kernel_bundle());
 }
 
-void kernel::setFreeFuncKernelArgNum(unsigned Num) {
-  impl->setKerenlFreeFuncArgNum(Num);
-}
-
-void kernel::updateFreeFuncKernelCache() { impl->updateFreeFuncKernelCache(); }
-
 template <typename Param>
 detail::ABINeutralT_t<typename detail::is_kernel_info_desc<Param>::return_type>
 kernel::get_info_impl() const {

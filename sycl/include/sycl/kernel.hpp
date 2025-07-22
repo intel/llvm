@@ -249,14 +249,6 @@ public:
   typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
   ext_oneapi_get_info(queue Queue, const range<1> &WG) const;
 
-  /// Set kernel free function argument number.
-  /// \param Num is the number of arguments of the free function kernel.
-  void setFreeFuncKernelArgNum(unsigned Num);
-
-  /// Update free function kernel cache to return the correct values of info
-  /// requests
-  void updateFreeFuncKernelCache();
-
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
   kernel(std::shared_ptr<detail::kernel_impl> Impl);

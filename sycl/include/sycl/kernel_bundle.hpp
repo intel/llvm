@@ -292,6 +292,8 @@ protected:
   // a value different from default value.
   bool is_specialization_constant_set(const char *SpecName) const noexcept;
 
+  void addFreeFuncKernelArgsSize(unsigned Size, const kernel_id &KernelID);
+
   detail::KernelBundleImplPtr impl;
 
 private:
@@ -508,13 +510,11 @@ public:
             typename = std::enable_if_t<_State == bundle_state::executable>>
   std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>, kernel>
   ext_oneapi_get_kernel() {
-    sycl::kernel Kernel = detail::kernel_bundle_plain::get_kernel(
-        ext::oneapi::experimental::get_kernel_id<Func>());
+    auto KernelID = ext::oneapi::experimental::get_kernel_id<Func>();
     const unsigned FreeFuncKernelArgNum =
         sycl::detail::FreeFunctionInfoData<Func>::getNumParams();
-    Kernel.updateFreeFuncKernelCache();
-    Kernel.setFreeFuncKernelArgNum(FreeFuncKernelArgNum);
-    return Kernel;
+    addFreeFuncKernelArgsSize(FreeFuncKernelArgNum, KernelID);
+    return detail::kernel_bundle_plain::get_kernel(KernelID);
   }
 
   /////////////////////////

@@ -37,6 +37,9 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
 
   // Enable USM indirect access for interoperability kernels.
   enableUSMIndirectAccess();
+  const std::string KernelName = get_info<info::kernel::function_name>();
+  const auto pos = KernelName.find("__sycl_kernel_");
+  isFreeFuncKernel = pos != std::string::npos;
 }
 
 kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
@@ -56,6 +59,10 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
   // path.
   if (MCreatedFromSource || MIsInterop)
     enableUSMIndirectAccess();
+
+  const std::string KernelName = get_info<info::kernel::function_name>();
+  const auto pos = KernelName.find("__sycl_kernel_");
+  isFreeFuncKernel = pos != std::string::npos;
 }
 
 kernel_impl::~kernel_impl() {
@@ -113,20 +120,6 @@ bool kernel_impl::isBuiltInKernel(device_impl &Device) const {
       [&KernelName](kernel_id &Id) { return Id.get_name() == KernelName; }));
 }
 
-void kernel_impl::updateFreeFuncKernelCache() {
-  const auto ids = MKernelBundleImpl->get_kernel_ids();
-  isFreeFuncKernel =
-      std::any_of(ids.begin(), ids.end(), [](const kernel_id &Id) {
-        const std::string KernelName = Id.get_name();
-        const auto pos = KernelName.find("__sycl_kernel_");
-        return pos != std::string::npos;
-      });
-}
-
-void kernel_impl::setKerenlFreeFuncArgNum(unsigned Num) {
-  FreeFuncKernelArgNum = Num;
-}
-
 void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
   if (isInteropOrSourceBased())
     return;
@@ -144,6 +137,11 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
       "info::kernel::num_args descriptor may only be used to query a kernel "
       "that resides in a kernel bundle constructed using a backend specific"
       "interoperability function or to query a device built-in kernel");
+}
+
+unsigned kernel_impl ::getFreeFuncKernelArgSize() const {
+  const std::string KernelName = get_info<info::kernel::function_name>();
+  return MKernelBundleImpl->GetKernelArgsSize(KernelName);
 }
 
 void kernel_impl::enableUSMIndirectAccess() const {

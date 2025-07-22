@@ -28,6 +28,7 @@
 #include <cstring>
 #include <memory>
 #include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 #include "split_string.hpp"
@@ -1047,6 +1048,20 @@ public:
 
   DeviceGlobalMap &getDeviceGlobalMap() { return MDeviceGlobals; }
 
+  void AddKernelArgsSize(const std::string &KernelName, unsigned Size) {
+    auto It = MFreeFuncKernelArgsSizeMap.find(KernelName);
+    if (It == MFreeFuncKernelArgsSizeMap.end()) {
+      MFreeFuncKernelArgsSizeMap[KernelName] = Size;
+    }
+  }
+
+  unsigned GetKernelArgsSize(const std::string &KernelName) const {
+    auto It = MFreeFuncKernelArgsSizeMap.find(KernelName);
+    if (It == MFreeFuncKernelArgsSizeMap.end())
+      return 0;
+    return It->second;
+  }
+
 private:
   DeviceGlobalMapEntry *getDeviceGlobalEntry(const std::string &Name) const {
     if (!hasSourceBasedImages() && !hasSYCLBINImages()) {
@@ -1109,6 +1124,7 @@ private:
 
   context MContext;
   std::vector<device_impl *> MDevices;
+  std::unordered_map<std::string, unsigned> MFreeFuncKernelArgsSizeMap;
 
   // For sycl_jit, building from source may have produced sycl binaries that
   // the kernel_bundles now manage.
