@@ -112,12 +112,11 @@ public:
   };
 
   struct ProgramBuildResult : public BuildResult<Managed<ur_program_handle_t>> {
-    ProgramBuildResult(adapter_impl &Adapter) {
-      Val = Managed<ur_program_handle_t>{Adapter};
-    }
-    ProgramBuildResult(adapter_impl &Adapter, BuildState InitialState) {
-      Val = Managed<ur_program_handle_t>{Adapter};
+    ProgramBuildResult() = default;
+    ProgramBuildResult(BuildState InitialState,
+                       Managed<ur_program_handle_t> &&Prog) {
       this->State.store(InitialState);
+      this->Val = std::move(Prog);
     }
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -407,7 +406,7 @@ public:
     ProgramCache &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<ProgramBuildResult>(getAdapter());
+      It->second = std::make_shared<ProgramBuildResult>();
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
@@ -429,9 +428,9 @@ public:
     ProgramCache &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<ProgramBuildResult>(getAdapter(),
-                                                        BuildState::BS_Done);
-      It->second->Val = Managed<ur_program_handle_t>{Program, getAdapter()};
+      It->second = std::make_shared<ProgramBuildResult>(
+          BuildState::BS_Done,
+          Managed<ur_program_handle_t>{Program, getAdapter()});
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
