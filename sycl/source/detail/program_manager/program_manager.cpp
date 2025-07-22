@@ -1026,11 +1026,10 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
 
   // Here we have multiple devices a program is built for, so add the program to
   // the cache for all subsets of provided list of devices.
-  adapter_impl &Adapter = ContextImpl.getAdapter();
+
   // If we linked any extra device images, then we need to
   // cache them as well.
-  auto CacheLinkedImages = [&Adapter, &Cache, &CacheKey, &ResProgram,
-                            &ImgWithDeps] {
+  auto CacheLinkedImages = [&Cache, &CacheKey, &ResProgram, &ImgWithDeps] {
     for (auto It = ImgWithDeps.depsBegin(); It != ImgWithDeps.depsEnd(); ++It) {
       const RTDeviceBinaryImage *BImg = *It;
       // CacheKey is captured by reference by GetCachedBuildF, so we can simply
