@@ -163,7 +163,7 @@ size_t kernel_bundle_plain::ext_oneapi_get_device_global_size(
 }
 
 void kernel_bundle_plain::addFreeFuncKernelArgsSize(unsigned Size,
-                                              const kernel_id &KernelID) {                          
+                                                    const kernel_id &KernelID) {
   impl->AddKernelArgsSize(KernelID.get_name(), Size);
 }
 
