@@ -37,18 +37,18 @@ int main() {
 
     // Level Zero does not currently support these queries. Only CUDA does.
     if (backend == sycl::backend::ext_oneapi_cuda) {
-      pitchAlign = dev.get_info<sycl::ext::oneapi::experimental::info::
-                                         device::image_row_pitch_align>();
-      maxPitch = dev.get_info<sycl::ext::oneapi::experimental::info::
-                                       device::max_image_linear_row_pitch>();
+      pitchAlign = dev.get_info<sycl::ext::oneapi::experimental::info::device::
+                                    image_row_pitch_align>();
+      maxPitch = dev.get_info<sycl::ext::oneapi::experimental::info::device::
+                                  max_image_linear_row_pitch>();
     }
 
     if (backend == sycl::backend::ext_oneapi_cuda ||
         backend == sycl::backend::ext_oneapi_level_zero) {
-      maxWidth = dev.get_info<sycl::ext::oneapi::experimental::info::
-                                       device::max_image_linear_width>();
-      maxheight = dev.get_info<sycl::ext::oneapi::experimental::info::
-                                        device::max_image_linear_height>();
+      maxWidth = dev.get_info<sycl::ext::oneapi::experimental::info::device::
+                                  max_image_linear_width>();
+      maxheight = dev.get_info<sycl::ext::oneapi::experimental::info::device::
+                                   max_image_linear_height>();
     }
 
 #ifdef VERBOSE_PRINT
