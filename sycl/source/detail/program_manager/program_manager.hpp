@@ -393,15 +393,12 @@ private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
-  using ProgramPtr = std::unique_ptr<std::remove_pointer_t<ur_program_handle_t>,
-                                     decltype(&::urProgramRelease)>;
-  ProgramPtr build(ProgramPtr Program, context_impl &Context,
-                   const std::string &CompileOptions,
-                   const std::string &LinkOptions,
-                   std::vector<ur_device_handle_t> &Devices,
-                   uint32_t DeviceLibReqMask,
-                   const std::vector<ur_program_handle_t> &ProgramsToLink,
-                   bool CreatedFromBinary = false);
+  Managed<ur_program_handle_t>
+  build(Managed<ur_program_handle_t> Program, context_impl &Context,
+        const std::string &CompileOptions, const std::string &LinkOptions,
+        std::vector<ur_device_handle_t> &Devices, uint32_t DeviceLibReqMask,
+        const std::vector<Managed<ur_program_handle_t>> &ProgramsToLink,
+        bool CreatedFromBinary = false);
 
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;

@@ -102,9 +102,6 @@ void initializeAMDGPUAlwaysInlinePass(PassRegistry&);
 
 void initializeAMDGPUAsmPrinterPass(PassRegistry &);
 
-Pass *createAMDGPUAttributorLegacyPass();
-void initializeAMDGPUAttributorLegacyPass(PassRegistry &);
-
 // DPP/Iterative option enables the atomic optimizer with given strategy
 // whereas None disables the atomic optimizer.
 enum class ScanOptions { DPP, Iterative, None };
@@ -251,10 +248,6 @@ extern char &AMDGPUPreloadKernelArgumentsLegacyID;
 FunctionPass *createAMDGPUPromoteAlloca();
 void initializeAMDGPUPromoteAllocaPass(PassRegistry&);
 extern char &AMDGPUPromoteAllocaID;
-
-FunctionPass *createAMDGPUPromoteAllocaToVector();
-void initializeAMDGPUPromoteAllocaToVectorPass(PassRegistry&);
-extern char &AMDGPUPromoteAllocaToVectorID;
 
 struct AMDGPUPromoteAllocaPass : PassInfoMixin<AMDGPUPromoteAllocaPass> {
   AMDGPUPromoteAllocaPass(TargetMachine &TM) : TM(TM) {}
@@ -452,10 +445,6 @@ struct AMDGPUPrintfRuntimeBindingPass
     : PassInfoMixin<AMDGPUPrintfRuntimeBindingPass> {
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
-
-ModulePass* createAMDGPUUnifyMetadataPass();
-void initializeAMDGPUUnifyMetadataPass(PassRegistry&);
-extern char &AMDGPUUnifyMetadataID;
 
 struct AMDGPUUnifyMetadataPass : PassInfoMixin<AMDGPUUnifyMetadataPass> {
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);

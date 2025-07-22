@@ -128,10 +128,7 @@ context_impl::~context_impl() {
               DeviceGlobal);
       DGEntry->removeAssociatedResources(this);
     }
-    for (auto LibProg : MCachedLibPrograms) {
-      assert(LibProg.second && "Null program must not be kept in the cache");
-      getAdapter().call<UrApiKind::urProgramRelease>(LibProg.second);
-    }
+    MCachedLibPrograms.clear();
     // TODO catch an exception and put it to list of asynchronous exceptions
     getAdapter().call_nocheck<UrApiKind::urContextRelease>(MContext);
   } catch (std::exception &e) {
