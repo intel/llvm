@@ -7555,19 +7555,44 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
   }
 
   llvm::DenseSet<StringRef> Archs;
+  StringRef Arch;
   for (auto *Arg : C.getArgsForToolChain(TC, /*BoundArch=*/"", Kind)) {
     // Extract any '--[no-]offload-arch' arguments intended for this toolchain.
     std::unique_ptr<llvm::opt::Arg> ExtractedArg = nullptr;
     if (Kind == Action::OFK_SYCL) {
+      // -Xsycl-target-backend=spir64_gen "-device pvc,bdw"
+      // -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc"
+      if (TC->getTriple().isSPIRAOT() && TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+          const ToolChain *HostTC =
+              C.getSingleOffloadToolChain<Action::OFK_Host>();
+          auto DeviceTC = std::make_unique<toolchains::SYCLToolChain>(
+              *this, TC->getTriple(), *HostTC, C.getInputArgs());
+          assert(DeviceTC && "Device toolchain not defined.");
+          ArgStringList TargetArgs;
+          DeviceTC->TranslateBackendTargetArgs(DeviceTC->getTriple(),
+                                               C.getInputArgs(), TargetArgs);
+          // Look for -device <string> and use that as the known
+          // arch to be associated with the current spir64_gen entry. Grab
+          // the right most entry.
+          for (int i = TargetArgs.size() - 2; i >= 0; --i) {
+            if (StringRef(TargetArgs[i]) == "-device") {
+              Arch = TargetArgs[i + 1];
+              break;
+            }
+          }
+        }
       // For SYCL based offloading, we allow for -Xsycl-target-backend
-      // and -Xsycl-target-backend=<target> for specifying options.
-      if (Arg->getOption().matches(options::OPT_Xsycl_backend_EQ) &&
+      // and -Xsycl-target-backend=amdgcn-amd-hsa --offload-arch=gfx908 for specifying options.
+      if (!(TC->getTriple().isSPIRAOT() && TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
+       && Arg->getOption().matches(options::OPT_Xsycl_backend_EQ) &&
           llvm::Triple(Arg->getValue(0)) == TC->getTriple()) {
         Arg->claim();
         unsigned Index = Args.getBaseArgs().MakeIndex(Arg->getValue(1));
         ExtractedArg = getOpts().ParseOneArg(Args, Index);
         Arg = ExtractedArg.get();
-      } else if (Arg->getOption().matches(options::OPT_Xsycl_backend)) {
+      // -Xsycl-target-backend --offload-arch=gfx1150
+      } else if (!(TC->getTriple().isSPIRAOT() && TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
+                  && Arg->getOption().matches(options::OPT_Xsycl_backend)) {
         unsigned Index = Args.getBaseArgs().MakeIndex(Arg->getValue(0));
         ExtractedArg = getOpts().ParseOneArg(Args, Index);
         Arg = ExtractedArg.get();
@@ -7588,9 +7613,9 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
       }
     }
 
-    if (Arg->getOption().matches(options::OPT_fsycl_targets_EQ)) {
+    if (Kind == Action::OFK_SYCL && Arg->getOption().matches(options::OPT_fsycl_targets_EQ)) {
       for (StringRef SYCLTargetValue : Arg->getValues()) {
-        StringRef Arch;
+
         if (auto Device =
                 tools::SYCL::gen::isGPUTarget<tools::SYCL::gen::IntelGPU>(
                     SYCLTargetValue)) {
@@ -7628,25 +7653,7 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
           Arch = StringRef();
         }
 
-        if (TC->getTriple().isSPIRAOT() && llvm::Triple::SPIRSubArch_gen) {
-          const ToolChain *HostTC =
-              C.getSingleOffloadToolChain<Action::OFK_Host>();
-          auto DeviceTC = std::make_unique<toolchains::SYCLToolChain>(
-              *this, TC->getTriple(), *HostTC, C.getInputArgs());
-          assert(DeviceTC && "Device toolchain not defined.");
-          ArgStringList TargetArgs;
-          DeviceTC->TranslateBackendTargetArgs(DeviceTC->getTriple(),
-                                               C.getInputArgs(), TargetArgs);
-          // Look for -device <string> and use that as the known
-          // arch to be associated with the current spir64_gen entry. Grab
-          // the right most entry.
-          for (int i = TargetArgs.size() - 2; i >= 0; --i) {
-            if (StringRef(TargetArgs[i]) == "-device") {
-              Arch = TargetArgs[i + 1];
-              break;
-            }
-          }
-        }
+
 
         if (!Arch.empty())
           Archs.insert(Arch);
