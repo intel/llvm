@@ -377,17 +377,7 @@ def main():
     )
     parser.add_argument("--cmake-gen", default="Ninja", help="CMake generator")
     parser.add_argument(
-        "--use-libcxx", action="store_true", help="build sycl runtime with libcxx"
-    )
-    parser.add_argument(
-        "--libcxx-include",
-        metavar="LIBCXX_INCLUDE_PATH",
-        help="libcxx include path (deprecated)",
-    )
-    parser.add_argument(
-        "--libcxx-library",
-        metavar="LIBCXX_LIBRARY_PATH",
-        help="libcxx library path (deprecated)",
+        "--use-libcxx", action="store_true", help="build with libcxx"
     )
     parser.add_argument(
         "--use-lld", action="store_true", help="Use LLD linker for build"
