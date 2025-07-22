@@ -17,6 +17,11 @@
 namespace clang {
 namespace driver {
 
+// This is a mapping between the user provided --offload-arch value for Intel
+// GPU targets and the spir64_gen device name accepted by OCLOC (the Intel GPU
+// AOT compiler).
+StringRef mapIntelGPUArchName(StringRef ArchName);
+
 class SYCLInstallationDetector {
 public:
   SYCLInstallationDetector(const Driver &D);

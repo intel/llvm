@@ -1273,6 +1273,43 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
   return Device;
 }
 
+// This is a mapping between the user provided --offload-arch value for Intel
+// GPU targets and the spir64_gen device name accepted by OCLOC (the Intel GPU
+// AOT compiler).
+StringRef clang::driver::mapIntelGPUArchName(StringRef ArchName) {
+  StringRef Arch;
+  Arch = llvm::StringSwitch<StringRef>(ArchName)
+             .Case("bdw", "bdw")
+             .Case("skl", "skl")
+             .Case("kbl", "kbl")
+             .Case("cfl", "cfl")
+             .Cases("apl", "bxt", "apl")
+             .Case("glk", "glk")
+             .Case("whl", "whl")
+             .Case("aml", "aml")
+             .Case("cml", "cml")
+             .Cases("icllp", "icl", "icllp")
+             .Cases("ehl", "jsl", "ehl")
+             .Cases("tgllp", "tgl", "tgllp")
+             .Case("rkl", "rkl")
+             .Cases("adl_s", "rpl_s", "adl_s")
+             .Case("adl_p", "adl_p")
+             .Case("adl_n", "adl_n")
+             .Case("dg1", "dg1")
+             .Cases("acm_g10", "dg2_g10", "acm_g10")
+             .Cases("acm_g11", "dg2_g11", "acm_g11")
+             .Cases("acm_g12", "dg2_g12", "acm_g12")
+             .Case("pvc", "pvc")
+             .Case("pvc_vg", "pvc_vg")
+             .Cases("mtl_u", "mtl_s", "arl_u", "arl_s", "mtl_u")
+             .Case("mtl_h", "mtl_h")
+             .Case("arl_h", "arl_h")
+             .Case("bmg_g21", "bmg_g21")
+             .Case("lnl_m", "lnl_m")
+             .Default("");
+  return Arch;
+}
+
 SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
   SmallString<64> Macro;
   StringRef Ext =

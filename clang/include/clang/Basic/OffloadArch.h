@@ -11,6 +11,7 @@
 
 namespace llvm {
 class StringRef;
+template <typename T, typename R> class StringSwitch;
 } // namespace llvm
 
 namespace clang {

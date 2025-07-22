@@ -89,9 +89,9 @@ static const OffloadArchToStringMap ArchNames[] = {
     GFX(1250), // gfx1250
     {OffloadArch::AMDGCNSPIRV, "amdgcnspirv", "compute_amdgcn"},
     // Intel CPUs
-    {OffloadArch::SKYLAKEAVX512, "skylakeavx512", ""},
-    {OffloadArch::COREAVX2, "coreavx2", ""},
-    {OffloadArch::COREI7AVX, "corei7avx", ""},
+    {OffloadArch::SKYLAKEAVX512, "skylake-avx512", ""},
+    {OffloadArch::COREAVX2, "core-avx2", ""},
+    {OffloadArch::COREI7AVX, "corei7-avx", ""},
     {OffloadArch::COREI7, "corei7", ""},
     {OffloadArch::WESTMERE, "westmere", ""},
     {OffloadArch::SANDYBRIDGE, "sandybridge", ""},
@@ -102,8 +102,8 @@ static const OffloadArchToStringMap ArchNames[] = {
     {OffloadArch::SKYLAKE, "skylake", ""},
     {OffloadArch::SKX, "skx", ""},
     {OffloadArch::CASCADELAKE, "cascadelake", ""},
-    {OffloadArch::ICELAKECLIENT, "icelakeclient", ""},
-    {OffloadArch::ICELAKESERVER, "icelakeserver", ""},
+    {OffloadArch::ICELAKECLIENT, "icelake-client", ""},
+    {OffloadArch::ICELAKESERVER, "icelake-server", ""},
     {OffloadArch::SAPPHIRERAPIDS, "sapphirerapids", ""},
     {OffloadArch::GRANITERAPIDS, "graniterapids", ""},
     // Intel GPUS
