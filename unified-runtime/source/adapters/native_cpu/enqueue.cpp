@@ -129,11 +129,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     rangeEnd[3] += numWGPerThread + (t < remainderWG);
     if (rangeEnd[3] == rangeStart[3])
       break;
-    rangeEnd[2] = rangeEnd[3] % numWG2;
-    rangeEnd[1] = (rangeEnd[3] / numWG2) % numWG1;
-    rangeEnd[0] = rangeEnd[3] / (numWG2 * numWG1);
+    rangeEnd[0] = rangeEnd[3] % numWG0;
+    rangeEnd[1] = (rangeEnd[3] / numWG0) % numWG1;
+    rangeEnd[2] = rangeEnd[3] / (numWG0 * numWG1);
     futures.emplace_back(tp.schedule_task(
-        [state, &kernel = *kernel, rangeStart, rangeEnd, numWG1, numWG2,
+        [state, &kernel = *kernel, rangeStart, rangeEnd, numWG0, numWG1,
 #ifndef NATIVECPU_USE_OCK
          localSize = ndr.LocalSize,
 #endif
@@ -146,9 +146,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
             kernel._subhandler(
                 kernel.getArgs(numParallelThreads, threadId).data(), &state);
 #else
-            for (unsigned local0 = 0; local0 < localSize[0]; ++local0) {
+            for (unsigned local2 = 0; local2 < localSize[2]; ++local2) {
               for (unsigned local1 = 0; local1 < localSize[1]; ++local1) {
-                for (unsigned local2 = 0; local2 < localSize[2]; ++local2) {
+                for (unsigned local0 = 0; local0 < localSize[0]; ++local0) {
                   state.update(g0, g1, g2, local0, local1, local2);
                   kernel._subhandler(
                       kernel.getArgs(numParallelThreads, threadId).data(),
@@ -157,11 +157,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
               }
             }
 #endif
-            if (++g2 == numWG2) {
-              g2 = 0;
+            if (++g0 == numWG0) {
+              g0 = 0;
               if (++g1 == numWG1) {
                 g1 = 0;
-                ++g0;
+                ++g2;
               }
             }
           }
