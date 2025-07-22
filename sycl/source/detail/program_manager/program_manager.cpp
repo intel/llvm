@@ -92,9 +92,9 @@ createBinaryProgram(context_impl &Context, devices_range Devices,
   return Program;
 }
 
-static Managed<ur_program_handle_t> createSpirvProgram(context_impl &Context,
-                                              const unsigned char *Data,
-                                              size_t DataLen) {
+static Managed<ur_program_handle_t>
+createSpirvProgram(context_impl &Context, const unsigned char *Data,
+                   size_t DataLen) {
   adapter_impl &Adapter = Context.getAdapter();
   Managed<ur_program_handle_t> Program{Adapter};
   Adapter.call<UrApiKind::urProgramCreateWithIL>(Context.getHandleRef(), Data,
