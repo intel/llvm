@@ -177,7 +177,7 @@ cl::opt<bool> OptLevelO3("O3",
                          cl::desc("Optimization level 3. Similar to clang -O3"),
                          cl::cat(PostLinkCat));
 
-cl::opt<bool> ForceDisableOpt("force-disable-opt",
+cl::opt<bool> ForceDisableOpt("force-disable-opt", cl::Hidden,
                               cl::desc("Force no optimizations."),
                               cl::cat(PostLinkCat));
 
