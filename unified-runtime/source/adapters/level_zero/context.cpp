@@ -423,9 +423,7 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     if (NumEventsAvailableInEventPool[ZePoolCache->front()] == 0) {
       if (DisableEventsCaching) {
         // Remove full pool from the cache if events caching is disabled.
-        for (auto &ZePool : *ZePoolCache) {
-          ZE_CALL_NOCHECK(zeEventPoolDestroy, (ZePool));
-        }
+        ZE_CALL_NOCHECK(zeEventPoolDestroy, (ZePoolCache->front()));
         ZePoolCache->erase(ZePoolCache->begin());
       } else {
         // If event caching is enabled then we don't destroy events so there is
