@@ -138,6 +138,7 @@
 // CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
 // CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp
+// CHECK-NEXT: ext/oneapi/interop_common.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_mem_handle.hpp
 // CHECK-NEXT: ext/oneapi/experimental/cluster_group_prop.hpp
 // CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp

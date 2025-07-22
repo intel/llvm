@@ -12,7 +12,7 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-const adapter_impl &KernelProgramCache::getAdapter() {
+adapter_impl &KernelProgramCache::getAdapter() {
   return MParentContext->getAdapter();
 }
 

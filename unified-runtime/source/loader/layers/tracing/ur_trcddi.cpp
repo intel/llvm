@@ -9575,6 +9575,148 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem) {
+  auto pfnAllocExportableMemoryExp =
+      getContext()->urDdiTable.MemoryExportExp.pfnAllocExportableMemoryExp;
+
+  if (nullptr == pfnAllocExportableMemoryExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_memory_export_alloc_exportable_memory_exp_params_t params = {
+      &hContext, &hDevice, &alignment, &size, &handleTypeToExport, &ppMem};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP,
+      "urMemoryExportAllocExportableMemoryExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urMemoryExportAllocExportableMemoryExp\n");
+
+  ur_result_t result = pfnAllocExportableMemoryExp(
+      hContext, hDevice, alignment, size, handleTypeToExport, ppMem);
+
+  getContext()->notify_end(
+      UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP,
+      "urMemoryExportAllocExportableMemoryExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP,
+        &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urMemoryExportAllocExportableMemoryExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportFreeExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
+    /// [in] Handle to context in which to free memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to free memory.
+    ur_device_handle_t hDevice,
+    /// [in][release] Pointer to exportable memory to be deallocated.
+    void *pMem) {
+  auto pfnFreeExportableMemoryExp =
+      getContext()->urDdiTable.MemoryExportExp.pfnFreeExportableMemoryExp;
+
+  if (nullptr == pfnFreeExportableMemoryExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_memory_export_free_exportable_memory_exp_params_t params = {
+      &hContext, &hDevice, &pMem};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_MEMORY_EXPORT_FREE_EXPORTABLE_MEMORY_EXP,
+      "urMemoryExportFreeExportableMemoryExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urMemoryExportFreeExportableMemoryExp\n");
+
+  ur_result_t result = pfnFreeExportableMemoryExp(hContext, hDevice, pMem);
+
+  getContext()->notify_end(UR_FUNCTION_MEMORY_EXPORT_FREE_EXPORTABLE_MEMORY_EXP,
+                           "urMemoryExportFreeExportableMemoryExp", &params,
+                           &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_MEMORY_EXPORT_FREE_EXPORTABLE_MEMORY_EXP,
+        &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urMemoryExportFreeExportableMemoryExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportExportMemoryHandleExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
+    /// [in] Handle to context in which the exportable memory was allocated.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which the exportable memory was allocated.
+    ur_device_handle_t hDevice,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [in] Pointer to exportable memory handle.
+    void *pMem,
+    /// [out] Returned exportable handle to memory allocated in `pMem`
+    void *pMemHandleRet) {
+  auto pfnExportMemoryHandleExp =
+      getContext()->urDdiTable.MemoryExportExp.pfnExportMemoryHandleExp;
+
+  if (nullptr == pfnExportMemoryHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_memory_export_export_memory_handle_exp_params_t params = {
+      &hContext, &hDevice, &handleTypeToExport, &pMem, &pMemHandleRet};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP,
+      "urMemoryExportExportMemoryHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urMemoryExportExportMemoryHandleExp\n");
+
+  ur_result_t result = pfnExportMemoryHandleExp(
+      hContext, hDevice, handleTypeToExport, pMem, pMemHandleRet);
+
+  getContext()->notify_end(UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP,
+                           "urMemoryExportExportMemoryHandleExp", &params,
+                           &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urMemoryExportExportMemoryHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuildExp
 __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     /// [in] Handle of the program to build.
@@ -10789,6 +10931,46 @@ __urdlllocal ur_result_t UR_APICALL urGetMemProcAddrTable(
   return result;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's MemoryExportExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetMemoryExportExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_memory_export_exp_dditable_t *pDdiTable) {
+  auto &dditable = ur_tracing_layer::getContext()->urDdiTable.MemoryExportExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnAllocExportableMemoryExp = pDdiTable->pfnAllocExportableMemoryExp;
+  pDdiTable->pfnAllocExportableMemoryExp =
+      ur_tracing_layer::urMemoryExportAllocExportableMemoryExp;
+
+  dditable.pfnFreeExportableMemoryExp = pDdiTable->pfnFreeExportableMemoryExp;
+  pDdiTable->pfnFreeExportableMemoryExp =
+      ur_tracing_layer::urMemoryExportFreeExportableMemoryExp;
+
+  dditable.pfnExportMemoryHandleExp = pDdiTable->pfnExportMemoryHandleExp;
+  pDdiTable->pfnExportMemoryHandleExp =
+      ur_tracing_layer::urMemoryExportExportMemoryHandleExp;
+
+  return result;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's PhysicalMem table
 ///        with current process' addresses
 ///
@@ -11416,6 +11598,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_tracing_layer::urGetMemProcAddrTable(UR_API_VERSION_CURRENT,
                                                      &dditable->Mem);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_tracing_layer::urGetMemoryExportExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->MemoryExportExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {
