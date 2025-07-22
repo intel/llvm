@@ -1327,82 +1327,74 @@ loadDeviceLibFallback(context_impl &Context, DeviceLibExt Extension,
   // compiled for a device if there is a corresponding record in the per-context
   // cache.
   std::vector<ur_device_handle_t> DevicesToCompile;
-  ur_program_handle_t URProgram = nullptr;
+  Managed<ur_program_handle_t> *UrProgram = nullptr;
   assert(Devices.size() > 0 &&
          "At least one device is expected in the input vector");
   // Vector of devices that don't have the library cached.
-  for (auto Dev : Devices) {
-    auto CacheResult = CachedLibPrograms.emplace(std::make_pair(
-        std::make_pair(Extension, Dev), Managed<ur_program_handle_t>{}));
-    bool Cached = !CacheResult.second;
-    if (!Cached) {
-      DevicesToCompile.push_back(Dev);
-    } else {
-      ur_program_handle_t CachedURProgram = CacheResult.first->second;
-      assert(CachedURProgram && "If device lib UR program was cached then is "
+  for (ur_device_handle_t Dev : Devices) {
+    auto [It, Inserted] = CachedLibPrograms.emplace(
+        std::make_pair(Extension, Dev), Managed<ur_program_handle_t>{});
+    if (!Inserted) {
+      Managed<ur_program_handle_t> &CachedUrProgram = It->second;
+      assert(CachedUrProgram && "If device lib UR program was cached then is "
                                 "expected to be not a nullptr");
-      assert(((URProgram && URProgram == CachedURProgram) || (!URProgram)) &&
-             "All cached UR programs should be the same");
-      if (!URProgram)
-        URProgram = CachedURProgram;
+      assert(!UrProgram || *UrProgram == CachedUrProgram);
+      // Managed<ur_program_handle_t>::operator& is overloaded, use
+      // `std::addressof`:
+      UrProgram = std::addressof(CachedUrProgram);
+    } else {
+      DevicesToCompile.push_back(Dev);
     }
   }
+
   if (DevicesToCompile.empty())
-    return URProgram;
+    return *UrProgram;
 
   auto EraseProgramForDevices = [&]() {
     for (auto Dev : DevicesToCompile)
       CachedLibPrograms.erase(std::make_pair(Extension, Dev));
   };
-  bool IsProgramCreated = !URProgram;
 
+  Managed<ur_program_handle_t> NewlyCreated;
   // Create UR program for device lib if we don't have it yet.
-  if (!URProgram) {
-    Managed<ur_program_handle_t> DeviceLibProgram =
-        loadDeviceLib(Context, LibFileName);
-    if (DeviceLibProgram == nullptr) {
+  if (!UrProgram) {
+    NewlyCreated = loadDeviceLib(Context, LibFileName);
+    if (NewlyCreated == nullptr) {
       EraseProgramForDevices();
       throw exception(make_error_code(errc::build),
                       std::string("Failed to load ") + LibFileName);
     }
-
-    // TODO: How isn't this a leak?
-    URProgram = DeviceLibProgram.release();
   }
 
-  // Insert URProgram into the cache for all devices that we compiled it for.
-  // Retain UR program for each record in the cache.
+  // Insert UrProgram into the cache for all devices that we will compile for.
+  for (auto Dev : DevicesToCompile) {
+    Managed<ur_program_handle_t> &Cached =
+        CachedLibPrograms[std::make_pair(Extension, Dev)];
+    if (NewlyCreated) {
+      Cached = std::move(NewlyCreated);
+      UrProgram = std::addressof(Cached);
+    } else {
+      Cached = UrProgram->retain();
+    }
+  }
+
   adapter_impl &Adapter = Context.getAdapter();
-
-  // UR program handle is stored in the cache for each device that we compiled
-  // it for. We have to retain UR program for each record in the cache. We need
-  // to take into account that UR program creation makes its reference count to
-  // be 1.
-  size_t RetainCount =
-      IsProgramCreated ? DevicesToCompile.size() - 1 : DevicesToCompile.size();
-  for (size_t I = 0; I < RetainCount; ++I)
-    Adapter.call<UrApiKind::urProgramRetain>(URProgram);
-
-  for (auto Dev : DevicesToCompile)
-    CachedLibPrograms[std::make_pair(Extension, Dev)] =
-        Managed<ur_program_handle_t>{URProgram, Adapter};
-
   // TODO no spec constants are used in the std libraries, support in the future
   // Do not use compile options for library programs: it is not clear if user
   // options (image options) are supposed to be applied to library program as
   // well, and what actually happens to a SPIR-V program if we apply them.
   ur_result_t Error =
-      doCompile(Adapter, URProgram, DevicesToCompile.size(),
+      doCompile(Adapter, *UrProgram, DevicesToCompile.size(),
                 DevicesToCompile.data(), Context.getHandleRef(), "");
   if (Error != UR_RESULT_SUCCESS) {
     EraseProgramForDevices();
     throw detail::set_ur_error(
         exception(make_error_code(errc::build),
-                  ProgramManager::getProgramBuildLog(URProgram, Context)),
+                  ProgramManager::getProgramBuildLog(*UrProgram, Context)),
         Error);
   }
 
-  return URProgram;
+  return *UrProgram;
 }
 
 ProgramManager::ProgramManager()

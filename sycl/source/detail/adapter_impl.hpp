@@ -303,6 +303,12 @@ public:
     return Managed{R, *Adapter};
   }
 
+  bool operator==(const Managed &Other) const {
+    assert((!Adapter || !Other.Adapter || Adapter == Other.Adapter) &&
+           "Objects must belong to the same adapter!");
+    return R == Other.R;
+  }
+
 private:
   URResource R = nullptr;
   adapter_impl *Adapter = nullptr;
