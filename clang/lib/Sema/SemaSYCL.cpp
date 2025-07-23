@@ -4603,141 +4603,137 @@ public:
     return true;
   }
 
-    bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &,
-                               QualType) final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                             QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    bool handlePointerType(FieldDecl *, QualType) final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool handlePointerType(FieldDecl *, QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    bool handlePointerType(ParmVarDecl *, QualType ParamTy) final {
-      Expr *PointerRef = createPointerParamReferenceExpr(ParamTy);
-      ArgExprs.push_back(PointerRef);
-      return true;
-    }
+  bool handlePointerType(ParmVarDecl *, QualType ParamTy) final {
+    Expr *PointerRef = createPointerParamReferenceExpr(ParamTy);
+    ArgExprs.push_back(PointerRef);
+    return true;
+  }
 
-    bool handleSimpleArrayType(FieldDecl *, QualType) final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool handleSimpleArrayType(FieldDecl *, QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *, QualType)
-        final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *,
+                             QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD, QualType)
-        final {
-      Expr *TempCopy = createCopyInitExpr(PD);
-      ArgExprs.push_back(TempCopy);
-      return true;
-    }
+  bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD,
+                             QualType) final {
+    Expr *TempCopy = createCopyInitExpr(PD);
+    ArgExprs.push_back(TempCopy);
+    return true;
+  }
 
-    bool handleNonDecompStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
-                               QualType) final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool handleNonDecompStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                             QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    bool handleScalarType(FieldDecl * FD, QualType FieldTy) final {
-      return true;
-    }
+  bool handleScalarType(FieldDecl *FD, QualType FieldTy) final { return true; }
 
-    bool handleScalarType(ParmVarDecl *, QualType) final {
-      Expr *ParamRef = createParamReferenceExpr();
-      ArgExprs.push_back(ParamRef);
-      return true;
-    }
+  bool handleScalarType(ParmVarDecl *, QualType) final {
+    Expr *ParamRef = createParamReferenceExpr();
+    ArgExprs.push_back(ParamRef);
+    return true;
+  }
 
-    bool handleUnionType(FieldDecl *, QualType) final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool handleUnionType(FieldDecl *, QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    bool handleUnionType(ParmVarDecl *, QualType) final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool handleUnionType(ParmVarDecl *, QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    bool enterStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty)
-        final {
-      CurrentStructs.push_back(FD);
-      return true;
-    }
+  bool enterStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
+    CurrentStructs.push_back(FD);
+    return true;
+  }
 
-    bool enterStruct(const CXXRecordDecl *RD, ParmVarDecl *PD, QualType ParamTy)
-        final {
-      return true;
-    }
+  bool enterStruct(const CXXRecordDecl *RD, ParmVarDecl *PD,
+                   QualType ParamTy) final {
+    return true;
+  }
 
-    bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
-      CurrentStructs.pop_back();
-      return true;
-    }
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
+    CurrentStructs.pop_back();
+    return true;
+  }
 
-    bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-      ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
-      ArgExprs.push_back(SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-          ParentStruct, ParentStruct->getType(), VK_PRValue,
-          FreeFunctionSrcLoc));
-      return true;
-    }
+  bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
+    ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
+    ArgExprs.push_back(SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+        ParentStruct, ParentStruct->getType(), VK_PRValue, FreeFunctionSrcLoc));
+    return true;
+  }
 
-    bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &, QualType)
-        final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                   QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &, QualType)
-        final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                   QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    bool enterArray(FieldDecl *, QualType, QualType) final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool enterArray(FieldDecl *, QualType, QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    bool enterArray(ParmVarDecl *, QualType, QualType) final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool enterArray(ParmVarDecl *, QualType, QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    bool leaveArray(FieldDecl *, QualType, QualType) final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool leaveArray(FieldDecl *, QualType, QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    bool leaveArray(ParmVarDecl *, QualType, QualType) final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
-    FieldDecl *getCurrentStruct() {
-      assert(CurrentStructs.size() &&
-             "Current free function parameter is not inside a structure!");
-      return CurrentStructs.back();
-    }
-  };
+  bool leaveArray(ParmVarDecl *, QualType, QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
+  FieldDecl *getCurrentStruct() {
+    assert(CurrentStructs.size() &&
+           "Current free function parameter is not inside a structure!");
+    return CurrentStructs.back();
+  }
+};
 
 // Kernels are only the unnamed-lambda feature if the feature is enabled, AND
 // the first template argument has been corrected by the library to match the
@@ -4756,7 +4752,6 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   int64_t CurOffset = 0;
   llvm::SmallVector<size_t, 16> ArrayBaseOffsets;
   int StructDepth = 0;
-
 
   // A series of functions to calculate the change in offset based on the type.
   int64_t offsetOf(const FieldDecl *FD, QualType ArgTy) const {

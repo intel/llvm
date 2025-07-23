@@ -2445,7 +2445,8 @@ void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
 
 void handler::addArg(detail::kernel_param_kind_t ArgKind, void *Req,
                      int AccessTarget, int ArgIndex) {
-  impl->MArgs.emplace_back(ArgKind, Req, AccessTarget, ArgIndex + impl->MArgShift);
+  impl->MArgs.emplace_back(ArgKind, Req, AccessTarget,
+                           ArgIndex + impl->MArgShift);
 }
 
 void handler::clearArgs() {

@@ -269,8 +269,11 @@ private:
   llvm::DenseSet<const FunctionDecl *> FreeFunctionDeclarations;
 
   // A map that keeps track of all structs encountered with
-  // special types inside. Relevant for free function kernels only
+  // special types inside. Relevant for free function kernels only.
+  // The key stores the struct as a declaration and the value stores the struct
+  // as a QualType just to make it easier to use it.
   llvm::DenseMap<const RecordDecl *, QualType> StructsWithSpecialTypes;
+
 public:
   SemaSYCL(Sema &S);
 
