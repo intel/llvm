@@ -254,7 +254,6 @@ private:
   const KernelArgMask *MKernelArgMaskPtr;
   std::mutex *MCacheMutex = nullptr;
   mutable std::string MName;
-  bool isFreeFuncKernel = false;
 
   bool isBuiltInKernel(device_impl &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
@@ -271,7 +270,7 @@ private:
                                size_t DynamicLocalMemorySize) const;
 
   void enableUSMIndirectAccess() const;
-  unsigned getFreeFuncKernelArgSize() const;
+  std::optional<unsigned> getFreeFuncKernelArgSize() const;
 };
 
 template <int Dimensions>
@@ -312,9 +311,9 @@ inline typename Param::return_type kernel_impl::get_info() const {
   static_assert(is_kernel_info_desc<Param>::value,
                 "Invalid kernel information descriptor");
   if constexpr (std::is_same_v<Param, info::kernel::num_args>) {
+    if (std::optional<unsigned> FFArgSize = getFreeFuncKernelArgSize())
+      return *FFArgSize;
     checkIfValidForNumArgsInfoQuery();
-    if (isFreeFuncKernel)
-      return getFreeFuncKernelArgSize();
   }
   return get_kernel_info<Param>(this->getHandleRef(), getAdapter());
 }

@@ -37,9 +37,6 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
 
   // Enable USM indirect access for interoperability kernels.
   enableUSMIndirectAccess();
-  const std::string KernelName = get_info<info::kernel::function_name>();
-  const auto pos = KernelName.find("__sycl_kernel_");
-  isFreeFuncKernel = pos != std::string::npos;
 }
 
 kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
@@ -59,10 +56,6 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
   // path.
   if (MCreatedFromSource || MIsInterop)
     enableUSMIndirectAccess();
-
-  const std::string KernelName = get_info<info::kernel::function_name>();
-  const auto pos = KernelName.find("__sycl_kernel_");
-  isFreeFuncKernel = pos != std::string::npos;
 }
 
 kernel_impl::~kernel_impl() {
@@ -129,9 +122,6 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
       }))
     return;
 
-  if (isFreeFuncKernel)
-    return;
-
   throw sycl::exception(
       sycl::make_error_code(errc::invalid),
       "info::kernel::num_args descriptor may only be used to query a kernel "
@@ -139,9 +129,9 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
       "interoperability function or to query a device built-in kernel");
 }
 
-unsigned kernel_impl ::getFreeFuncKernelArgSize() const {
+std::optional<unsigned> kernel_impl ::getFreeFuncKernelArgSize() const {
   const std::string KernelName = get_info<info::kernel::function_name>();
-  return MKernelBundleImpl->GetKernelArgsSize(KernelName);
+  return MKernelBundleImpl->tryGetKernelArgsSize(KernelName);
 }
 
 void kernel_impl::enableUSMIndirectAccess() const {
