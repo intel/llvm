@@ -408,7 +408,27 @@ public:
   size_t getLength() { return MLength; }
 };
 
-/// "Prefetch USM" command group class.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+/// Enqueue_functions extension USM Prefetch command group class 
+class CGPrefetchUSMExp : public CG {
+  void *MDst;
+  size_t MLength;
+  ext::oneapi::experimental::prefetch_type MPrefetchType;
+
+public:
+  CGPrefetchUSMExp(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
+                ext::oneapi::experimental::prefetch_type PrefetchType,
+                detail::code_location loc = {})
+      : CG(CGType::PrefetchUSMExp, std::move(CGData), std::move(loc)),
+        MDst(DstPtr), MLength(Length), MPrefetchType(PrefetchType) {}
+  void *getDst() { return MDst; }
+  size_t getLength() { return MLength; }
+  ext::oneapi::experimental::prefetch_type getPrefetchType() {
+    return MPrefetchType;
+  }
+};
+#else
+/// Enqueue_functions USM device-to-host prefetch command group class 
 class CGPrefetchUSMExpD2H : public CG {
   void *MDst;
   size_t MLength;
@@ -421,6 +441,7 @@ public:
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
 };
+#endif
 
 /// "Advise USM" command group class.
 class CGAdviseUSM : public CG {

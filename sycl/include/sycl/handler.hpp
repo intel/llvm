@@ -3424,6 +3424,10 @@ private:
   void *MDstPtr = nullptr;
   /// Length to copy or fill (for USM operations).
   size_t MLength = 0;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Prefetch direction for ext_oneapi_prefetch_exp
+  ext::oneapi::experimental::prefetch_type MPrefetchType;
+#endif
   /// Pattern that is used to fill memory object in case command type is fill.
   std::vector<unsigned char> MPattern;
   /// Storage for a lambda or function object.
@@ -3690,14 +3694,27 @@ private:
   void ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
                                 size_t Width, size_t Height);
 
-  // Implementation of prefetch from device back to host
-  void ext_oneapi_prefetch_d2h(const void *Ptr, size_t Count);
 
-  // The enqueue_functions module's prefetch function is friended in order for
-  // it to be able to call private handler function ext_oneapi_prefetch_d2h.
-  friend void sycl::ext::oneapi::experimental::prefetch(
+// Implementation of enqueue_functions extension's USM prefetch, allowing for
+// prefetching memory from both host to device and vice versa. 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Prefetch implementation that accounts for prefetching both directions, but
+  // introduces a "prefetch type" field to handler/CG nodes: this results in an
+  // ABI break.
+  void ext_oneapi_prefetch_exp(const void *Ptr, size_t Count,
+     ext::oneapi::experimental::prefetch_type Type);
+#else
+  // Non-ABI breaking implementation that implements prefetching from device to
+  // host as a separate function.
+  void ext_oneapi_prefetch_d2h(const void *Ptr, size_t Count);
+  // TODO upon next ABI-breaking cycle, decide which approach to go with.
+#endif
+
+  // Enqueue_functions extension's prefetch function is friended in order to
+  // call private handler function ext_oneapi_prefetch_d2h.
+  friend void ext::oneapi::experimental::prefetch(
     handler &CGH, void *Ptr, size_t NumBytes,
-    sycl::ext::oneapi::experimental::prefetch_type Type);
+    ext::oneapi::experimental::prefetch_type Type);
 
   // Implementation of memcpy to device_global.
   void memcpyToDeviceGlobal(const void *DeviceGlobalPtr, const void *Src,

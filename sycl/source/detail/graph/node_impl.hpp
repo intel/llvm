@@ -16,6 +16,7 @@
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
 
 #include <sycl/ext/oneapi/experimental/graph/node.hpp> // for node
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp> // for prefetchType
 
 #include <cstring>
 #include <fstream>
@@ -55,7 +56,11 @@ inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
   case sycl::detail::CGType::FillUSM:
     return node_type::memfill;
   case sycl::detail::CGType::PrefetchUSM:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  case sycl::detail::CGType::PrefetchUSMExp:
+#else
   case sycl::detail::CGType::PrefetchUSMExpD2H:
+#endif
     return node_type::prefetch;
   case sycl::detail::CGType::AdviseUSM:
     return node_type::memadvise;
@@ -248,8 +253,13 @@ public:
       return createCGCopy<sycl::detail::CGFillUSM>();
     case sycl::detail::CGType::PrefetchUSM:
       return createCGCopy<sycl::detail::CGPrefetchUSM>();
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    case sycl::detail::CGType::PrefetchUSMExp:
+      return createCGCopy<sycl::detail::CGPrefetchUSMExp>();
+#else
     case sycl::detail::CGType::PrefetchUSMExpD2H:
       return createCGCopy<sycl::detail::CGPrefetchUSMExpD2H>();
+#endif
     case sycl::detail::CGType::AdviseUSM:
       return createCGCopy<sycl::detail::CGAdviseUSM>();
     case sycl::detail::CGType::Copy2DUSM:
@@ -661,6 +671,20 @@ private:
                << " Length: " << Prefetch->getLength() << "\\n";
       }
       break;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    case sycl::detail::CGType::PrefetchUSMExp:
+      Stream << "CGPrefetchUSMExp \\n";
+      if (Verbose) {
+        sycl::detail::CGPrefetchUSMExp *PrefetchExp =
+            static_cast<sycl::detail::CGPrefetchUSMExp *>(MCommandGroup.get());
+        Stream << "Dst: " << PrefetchExp->getDst()
+               << " Length: " << PrefetchExp->getLength()
+               << " PrefetchType: "
+               << sycl::ext::oneapi::experimental::prefetchTypeToString(
+                    PrefetchExp->getPrefetchType()) << "\\n";
+      }
+      break;
+#else
     case sycl::detail::CGType::PrefetchUSMExpD2H:
       Stream << "CGPrefetchUSMExpD2H (Experimental, Device to host) \\n";
       if (Verbose) {
@@ -670,6 +694,7 @@ private:
                << " Length: " << Prefetch->getLength() << "\\n";
       }
       break;
+#endif
     case sycl::detail::CGType::AdviseUSM:
       Stream << "CGAdviseUSM \\n";
       if (Verbose) {
