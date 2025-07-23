@@ -18,21 +18,39 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+// Declare the global variables used for XPTI streams
+uint8_t GBufferStreamID = xpti::invalid_id<xpti::stream_id_t>;
+uint8_t GImageStreamID = xpti::invalid_id<xpti::stream_id_t>;
+uint8_t GMemAllocStreamID = xpti::invalid_id<xpti::stream_id_t>;
+uint8_t GCudaCallStreamID = xpti::invalid_id<xpti::stream_id_t>;
+uint8_t GCudaDebugStreamID = xpti::invalid_id<xpti::stream_id_t>;
+uint8_t GSYCLStreamID = xpti::invalid_id<xpti::stream_id_t>;
+uint8_t GUrCallStreamID = xpti::invalid_id<xpti::stream_id_t>;
+uint8_t GUrApiStreamID = xpti::invalid_id<xpti::stream_id_t>;
+
+xpti::trace_event_data_t *GMemAllocEvent = nullptr;
+xpti::trace_event_data_t *GSYCLGraphEvent = nullptr;
+xpti::trace_event_data_t *GSYCLCallEvent = nullptr;
+xpti::trace_event_data_t *GApiEvent = nullptr;
+
 xpti::trace_event_data_t *XPTIRegistry::createTraceEvent(
     const void *Obj, const void *FuncPtr, uint64_t &IId,
     const detail::code_location &CodeLoc, uint16_t TraceEventType) {
-  xpti::utils::StringHelper NG;
-  auto Name = NG.nameWithAddress<void *>(CodeLoc.functionName(),
-                                         const_cast<void *>(FuncPtr));
-  xpti::payload_t Payload(Name.c_str(),
-                          (CodeLoc.fileName() ? CodeLoc.fileName() : ""),
-                          CodeLoc.lineNumber(), CodeLoc.columnNumber(), Obj);
+  (void)FuncPtr;
+  auto TP = xptiCreateTracepoint(CodeLoc.functionName(), CodeLoc.fileName(),
+                                 CodeLoc.lineNumber(), CodeLoc.columnNumber(),
+                                 const_cast<void *>(Obj));
+  // Send the instance ID back to the caller
+  IId = TP->instance();
 
+  auto TPEvent = TP->event_ref();
+  // Set the trace event type- see trace_event_type_t
+  if (TPEvent)
+    TPEvent->event_type = TraceEventType;
   // Calls could be at different user-code locations; We create a new event
   // based on the code location info and if this has been seen before, a
   // previously created event will be returned.
-  return xptiMakeEvent(Name.c_str(), &Payload, TraceEventType, xpti_at::active,
-                       &IId);
+  return TPEvent;
 }
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
