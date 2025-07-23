@@ -41,14 +41,14 @@ template <> struct __sycl_promote<float> {
 template <> struct __sycl_promote<double> {
   using type = double;
 };
-// long double is not supported yet, SFINAE it away explicitly.
+// long double is not supported yet, so we don't define it,
+// letting it SFINAE away too.
 // We don't provide these overloads to makes sure that
 // mixed precision calls that include long double are
 // resolved to the "host" overload (defined by the real <cmath>),
-// matching the behaviour without promotion.
-// our long double overloads would fail to compile because
-// we'd be trying to call non SPIR-V built-ins that don't support long double.
-template <> struct __sycl_promote<long double> {};
+// matching the behavior without promotion.
+// Our long double overloads would fail to compile because
+// we'd be trying to call SPIR-V built-ins that don't support long double.
 
 // With two or three parameters we need to promote integers and possibly
 // floating point types. We rely on operator+ with decltype to deduce the
