@@ -14,21 +14,21 @@
 // CHECK: <--- urProgramRelease(.hProgram = [[PROG1]]) -> UR_RESULT_SUCCESS
 // CHECK: <--- urProgramCreateWithNativeHandle{{.*}} .phProgram = {{.*}} ([[PROG4:.*]])) -> UR_RESULT_SUCCESS
 // CHECK: <--- urProgramCreateWithNativeHandle{{.*}} .phProgram = {{.*}} ([[PROG5:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramRelease(.hProgram = [[PROG5]]) -> UR_RESULT_SUCCESS
 // CHECK: <--- urProgramCreateWithNativeHandle{{.*}} .phProgram = {{.*}} ([[PROG6:.*]])) -> UR_RESULT_SUCCESS
 // CHECK: <--- urProgramLinkExp{{.*}} -> UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 // CHECK: <--- urProgramLink{{.*}} .phProgram = {{.*}} ([[PROG7:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramRelease(.hProgram = [[PROG6]]) -> UR_RESULT_SUCCESS
 // CHECK: <--- urProgramRelease(.hProgram = [[PROG7]]) -> UR_RESULT_SUCCESS
 // CHECK: <--- urProgramRelease(.hProgram = [[PROG4]]) -> UR_RESULT_SUCCESS
 // CHECK: <--- urProgramCreateWithNativeHandle{{.*}}.phProgram = {{.*}} ([[PROG8:.*]])) -> UR_RESULT_SUCCESS
 // CHECK: <--- urProgramCreateWithNativeHandle{{.*}}.phProgram = {{.*}} ([[PROG9:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramRelease(.hProgram = [[PROG9]]) -> UR_RESULT_SUCCESS
 // CHECK: <--- urProgramCreateWithNativeHandle{{.*}}.phProgram = {{.*}} ([[PROG10:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramRelease(.hProgram = [[PROG10]]) -> UR_RESULT_SUCCESS
 // CHECK: <--- urProgramRelease(.hProgram = [[PROG8]]) -> UR_RESULT_SUCCESS
 // CHECK: <--- urProgramRelease(.hProgram = [[PROG0]]) -> UR_RESULT_SUCCESS
 // CHECK: <--- urProgramRelease(.hProgram = [[PROG0]]) -> UR_RESULT_SUCCESS
-
-// 21 lines total, 8 releases, 1 unsuccessful
-// 12 create/link/retain, 8 release
-// Leaked: PROG5, PROG6, PROG9, PROG10
 
 #include <CL/cl.h>
 #include <sycl/backend.hpp>
