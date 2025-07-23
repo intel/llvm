@@ -92,7 +92,7 @@ jobs:
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: cuda:gpu
           - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
+            runner: '["amdgpu-test"]'
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
             extra_lit_opts: -j 1
@@ -207,7 +207,7 @@ jobs:
             runner: '["Linux", "arc"]'
             image_extra_opts: --device=/dev/dri
           - name: AMD system
-            runner: '["Linux", "amdgpu"]'
+            runner: '["amdgpu-test"]'
             image_extra_opts: --device=/dev/dri --device=/dev/kfd
           - name: CUDA system
             runner: '["Linux", "cuda"]'
