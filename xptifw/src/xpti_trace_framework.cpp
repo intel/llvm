@@ -1573,7 +1573,7 @@ public:
                                       // What we get is a concurrent_hash_map
                                       // of vectors holding the callbacks we
                                       // need access to;
-    auto &Acc = StreamCBs[TraceType]; 
+    auto &Acc = StreamCBs[TraceType];
     // If the key does not exist, a new entry is created and an accessor to it
     // is returned. If it exists, we have access to the previous entry.
     //
