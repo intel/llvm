@@ -41,7 +41,7 @@ template <> struct __sycl_promote<float> {
 template <> struct __sycl_promote<double> {
   using type = double;
 };
-// long double is not supported yet, SFNIAE it away explicitly.
+// long double is not supported yet, SFINAE it away explicitly.
 // We don't provide these overloads to makes sure that
 // mixed precision calls that include long double are
 // resolved to the "host" overload (defined by the real <cmath>),
