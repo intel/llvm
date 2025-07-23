@@ -101,6 +101,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   // TODO: add proper error checking
   native_cpu::NDRDescT ndr(workDim, pGlobalWorkOffset, pGlobalWorkSize,
                            pLocalWorkSize);
+  unsigned long long numWI;
+  if (__builtin_umulll_overflow(ndr.GlobalSize[0], ndr.GlobalSize[1], &numWI) ||
+      __builtin_umulll_overflow(numWI, ndr.GlobalSize[2], &numWI) ||
+      numWI > SIZE_MAX) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  }
+
   auto &tp = hQueue->getDevice()->tp;
   const size_t numParallelThreads = tp.num_threads();
   std::vector<std::future<void>> futures;
@@ -119,11 +126,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   auto kernel = std::make_unique<ur_kernel_handle_t_>(*hKernel);
   kernel->updateMemPool(numParallelThreads);
 
-  const unsigned numWG = numWG0 * numWG1 * numWG2;
-  const unsigned numWGPerThread = numWG / numParallelThreads;
-  const unsigned remainderWG = numWG - numWGPerThread * numParallelThreads;
+  const size_t numWG = numWG0 * numWG1 * numWG2;
+  const size_t numWGPerThread = numWG / numParallelThreads;
+  const size_t remainderWG = numWG - numWGPerThread * numParallelThreads;
   // The fourth value is the linearized value.
-  std::array<unsigned, 4> rangeStart = {0, 0, 0, 0};
+  std::array<size_t, 4> rangeStart = {0, 0, 0, 0};
   for (unsigned t = 0; t < numParallelThreads; ++t) {
     auto rangeEnd = rangeStart;
     rangeEnd[3] += numWGPerThread + (t < remainderWG);
@@ -138,17 +145,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
          localSize = ndr.LocalSize,
 #endif
          numParallelThreads](size_t threadId) mutable {
-          for (unsigned g0 = rangeStart[0], g1 = rangeStart[1],
-                        g2 = rangeStart[2], g3 = rangeStart[3];
+          for (size_t g0 = rangeStart[0], g1 = rangeStart[1],
+                      g2 = rangeStart[2], g3 = rangeStart[3];
                g3 < rangeEnd[3]; ++g3) {
 #ifdef NATIVECPU_USE_OCK
             state.update(g0, g1, g2);
             kernel._subhandler(
                 kernel.getArgs(numParallelThreads, threadId).data(), &state);
 #else
-            for (unsigned local2 = 0; local2 < localSize[2]; ++local2) {
-              for (unsigned local1 = 0; local1 < localSize[1]; ++local1) {
-                for (unsigned local0 = 0; local0 < localSize[0]; ++local0) {
+            for (size_t local2 = 0; local2 < localSize[2]; ++local2) {
+              for (size_t local1 = 0; local1 < localSize[1]; ++local1) {
+                for (size_t local0 = 0; local0 < localSize[0]; ++local0) {
                   state.update(g0, g1, g2, local0, local1, local2);
                   kernel._subhandler(
                       kernel.getArgs(numParallelThreads, threadId).data(),
