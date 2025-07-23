@@ -1327,11 +1327,12 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
       UR_COMMAND_USM_PREFETCH, CommandBuffer,
       CommandBuffer->ZeComputeCommandList, NumSyncPointsInWaitList,
       SyncPointWaitList, true, RetSyncPoint, ZeEventList, ZeLaunchEvent));
-  switch(Flags) {
+  switch (Flags) {
   case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
     break;
   case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
-    UR_LOG(WARN, "commandBufferAppendUSMPrefetch: L0 does not support prefetch to host yet");
+    UR_LOG(WARN, "commandBufferAppendUSMPrefetch: L0 does not support prefetch "
+                 "to host yet");
     break;
   default:
     UR_LOG(ERR, "commandBufferAppendUSMPrefetch: invalid USM migration flag");
@@ -1348,7 +1349,7 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
   // TODO Support migration flags after L0 backend support is added.
   if (Flags == UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE) {
     ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
-              (CommandBuffer->ZeComputeCommandList, Mem, Size));
+               (CommandBuffer->ZeComputeCommandList, Mem, Size));
   }
 
   if (!CommandBuffer->IsInOrderCmdList) {

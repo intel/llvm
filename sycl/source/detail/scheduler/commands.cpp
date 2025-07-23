@@ -3022,7 +3022,8 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   }
 #else
   case CGType::PrefetchUSMExpD2H: {
-    CGPrefetchUSMExpD2H *PrefetchD2H = (CGPrefetchUSMExpD2H *)MCommandGroup.get();
+    CGPrefetchUSMExpD2H *PrefetchD2H =
+        (CGPrefetchUSMExpD2H *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer,
             &MQueue->getContextImpl(), MCommandBuffer, PrefetchD2H->getDst(),
@@ -3362,7 +3363,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   }
 #else
   case CGType::PrefetchUSMExpD2H: {
-    CGPrefetchUSMExpD2H *PrefetchD2H = (CGPrefetchUSMExpD2H *)MCommandGroup.get();
+    CGPrefetchUSMExpD2H *PrefetchD2H =
+        (CGPrefetchUSMExpD2H *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::prefetch_usm, PrefetchD2H->getDst(), *MQueue,
             PrefetchD2H->getLength(), std::move(RawEvents), Event,

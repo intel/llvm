@@ -1398,8 +1398,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
       return UR_RESULT_SUCCESS;
     }
 
-    UR_CHECK_ERROR(
-        hipMemPrefetchAsync(pMem, size, TargetDevice, HIPStream));
+    UR_CHECK_ERROR(hipMemPrefetchAsync(pMem, size, TargetDevice, HIPStream));
     releaseEvent();
   } catch (ur_result_t Err) {
     return Err;

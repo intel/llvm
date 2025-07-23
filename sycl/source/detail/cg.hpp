@@ -409,7 +409,7 @@ public:
 };
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-/// Enqueue_functions extension USM Prefetch command group class 
+/// Enqueue_functions extension USM Prefetch command group class
 class CGPrefetchUSMExp : public CG {
   void *MDst;
   size_t MLength;
@@ -417,8 +417,8 @@ class CGPrefetchUSMExp : public CG {
 
 public:
   CGPrefetchUSMExp(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
-                ext::oneapi::experimental::prefetch_type PrefetchType,
-                detail::code_location loc = {})
+                   ext::oneapi::experimental::prefetch_type PrefetchType,
+                   detail::code_location loc = {})
       : CG(CGType::PrefetchUSMExp, std::move(CGData), std::move(loc)),
         MDst(DstPtr), MLength(Length), MPrefetchType(PrefetchType) {}
   void *getDst() { return MDst; }
@@ -428,14 +428,14 @@ public:
   }
 };
 #else
-/// Enqueue_functions USM device-to-host prefetch command group class 
+/// Enqueue_functions USM device-to-host prefetch command group class
 class CGPrefetchUSMExpD2H : public CG {
   void *MDst;
   size_t MLength;
 
 public:
   CGPrefetchUSMExpD2H(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
-                detail::code_location loc = {})
+                      detail::code_location loc = {})
       : CG(CGType::PrefetchUSMExpD2H, std::move(CGData), std::move(loc)),
         MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }

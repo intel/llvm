@@ -288,6 +288,18 @@ ur_result_t ur_command_list_manager::appendUSMPrefetch(
     ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMPrefetch");
 
+  switch (flags) {
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    UR_LOG(WARN,
+           "appendUSMPrefetch: L0v2 does not support prefetch to host yet");
+    break;
+  default:
+    UR_LOG(ERR, "appendUSMPrefetch: invalid USM migration flag");
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_PREFETCH);
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(phEventWaitList, numEventsInWaitList);
@@ -299,7 +311,7 @@ ur_result_t ur_command_list_manager::appendUSMPrefetch(
   // TODO: Support migration flags after L0 backend support is added
   if (flags == UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE) {
     ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
-              (zeCommandList.get(), pMem, size));
+               (zeCommandList.get(), pMem, size));
   }
   if (zeSignalEvent) {
     ZE2UR_CALL(zeCommandListAppendSignalEvent,

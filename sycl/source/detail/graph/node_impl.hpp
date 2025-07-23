@@ -15,8 +15,8 @@
 #include <sycl/detail/cg_types.hpp>    // for CGType
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
 
-#include <sycl/ext/oneapi/experimental/graph/node.hpp> // for node
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp> // for prefetchType
+#include <sycl/ext/oneapi/experimental/graph/node.hpp>    // for node
 
 #include <cstring>
 #include <fstream>
@@ -678,10 +678,10 @@ private:
         sycl::detail::CGPrefetchUSMExp *PrefetchExp =
             static_cast<sycl::detail::CGPrefetchUSMExp *>(MCommandGroup.get());
         Stream << "Dst: " << PrefetchExp->getDst()
-               << " Length: " << PrefetchExp->getLength()
-               << " PrefetchType: "
+               << " Length: " << PrefetchExp->getLength() << " PrefetchType: "
                << sycl::ext::oneapi::experimental::prefetchTypeToString(
-                    PrefetchExp->getPrefetchType()) << "\\n";
+                      PrefetchExp->getPrefetchType())
+               << "\\n";
       }
       break;
 #else
@@ -689,7 +689,8 @@ private:
       Stream << "CGPrefetchUSMExpD2H (Experimental, Device to host) \\n";
       if (Verbose) {
         sycl::detail::CGPrefetchUSMExpD2H *Prefetch =
-            static_cast<sycl::detail::CGPrefetchUSMExpD2H *>(MCommandGroup.get());
+            static_cast<sycl::detail::CGPrefetchUSMExpD2H *>(
+                MCommandGroup.get());
         Stream << "Dst: " << Prefetch->getDst()
                << " Length: " << Prefetch->getLength() << "\\n";
       }

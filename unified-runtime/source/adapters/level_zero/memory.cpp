@@ -1276,11 +1276,12 @@ ur_result_t urEnqueueUSMPrefetch(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *OutEvent) {
-  switch(Flags) {
+  switch (Flags) {
   case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
     break;
   case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
-    UR_LOG(WARN, "enqueueUSMPrefetch: L0 does not support prefetch to host yet");
+    UR_LOG(WARN,
+           "enqueueUSMPrefetch: L0 does not support prefetch to host yet");
     break;
   default:
     UR_LOG(ERR, "enqueueUSMPrefetch: invalid USM migration flag");

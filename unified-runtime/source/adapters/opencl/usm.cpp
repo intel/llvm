@@ -529,7 +529,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   // cl_mem_migration_flags MigrationFlag;
   switch (flags) {
   case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
-    // Note: currently opencl:cpu will break with this value, but opencl:gpu 
+    // Note: currently opencl:cpu will break with this value, but opencl:gpu
     // will work just fine.  A spec change has been made to address this issue,
     // and is waiting to be implemented:
     // https://github.com/KhronosGroup/OpenCL-Docs/pull/1412/files#diff-7e4c12789cfc81c40637d32b7113b0cca2c3ee0beabaabb9acd9da743f7b5780R974
@@ -573,8 +573,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   // TODO: when issues with impl are fully resolved, delete this and use
   // waitlisting from EnqueueMigrateMem instead.
   CL_RETURN_ON_FAILURE(clEnqueueMarkerWithWaitList(
-    hQueue->CLQueue, numEventsInWaitList, CLWaitEvents.data(),
-    ifUrEvent(phEvent, Event)));
+      hQueue->CLQueue, numEventsInWaitList, CLWaitEvents.data(),
+      ifUrEvent(phEvent, Event)));
 
   UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
   return UR_RESULT_SUCCESS;

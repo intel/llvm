@@ -589,16 +589,6 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
 
   // the same issue as in urCommandBufferAppendKernelLaunchExp
 
-  switch(flags) {
-  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
-    break;
-  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
-    UR_LOG(WARN, "commandBufferAppendUSMPrefetch: L0 does not support prefetch to host yet");
-    break;
-  default:
-    UR_LOG(ERR, "commandBufferAppendUSMPrefetch: invalid USM migration flag");
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
-  }
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   auto eventsWaitList = hCommandBuffer->getWaitListFromSyncPoints(
       pSyncPointWaitList, numSyncPointsInWaitList);

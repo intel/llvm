@@ -9,7 +9,7 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-// Tests prefetch functionality in enqueue functions 
+// Tests prefetch functionality in enqueue functions
 
 #include "../graph_common.hpp"
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
@@ -42,9 +42,8 @@ int main() {
 
     exp_ext::submit(Q, [&](handler &CGH) {
       CGH.depends_on(TestH2D);
-      exp_ext::parallel_for(CGH, range<1>(N), [=](id<1> i) {
-        Dst[i] = Src[i] * 2;
-      });
+      exp_ext::parallel_for(CGH, range<1>(N),
+                            [=](id<1> i) { Dst[i] = Src[i] * 2; });
     });
 
     Graph.end_recording();
@@ -66,9 +65,8 @@ int main() {
 
     // Test submitting device-to-host prefetch
     event TestD2H = exp_ext::submit_with_event(Q, [&](handler &CGH) {
-      exp_ext::parallel_for(CGH, range<1>(N), [=](id<1> i) {
-        Dst[i] = Src[i] + 1;
-      });
+      exp_ext::parallel_for(CGH, range<1>(N),
+                            [=](id<1> i) { Dst[i] = Src[i] + 1; });
     });
 
     exp_ext::submit(Q, [&](handler &CGH) {

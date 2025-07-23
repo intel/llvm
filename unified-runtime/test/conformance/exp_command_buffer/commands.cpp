@@ -149,9 +149,9 @@ TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMPrefetchExp) {
 }
 
 TEST_P(urCommandBufferCommandsTest,
-  urCommandBufferAppendUSMPrefetchExpDeviceToHost) {
+       urCommandBufferAppendUSMPrefetchExpDeviceToHost) {
   // No Prefetch command in cl_khr_command_buffer
-  // No driver support for prefetching from device to host on Intel GPUs 
+  // No driver support for prefetching from device to host on Intel GPUs
   UUR_KNOWN_FAILURE_ON(uur::OpenCL{}, uur::LevelZero{});
 
   ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
