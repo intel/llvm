@@ -1048,15 +1048,12 @@ public:
   DeviceGlobalMap &getDeviceGlobalMap() { return MDeviceGlobals; }
 
   std::optional<unsigned>
-  tryGetKernelArgsSize(const std::string &KernelName) const {
+  tryGetKernelArgsSize(const std::string_view KernelName) const {
     auto &PM = sycl::detail::ProgramManager::getInstance();
-    const void *GlobalPointer = PM.getKernelGlobalInfoDesc(KernelName.c_str());
+    const void *GlobalPointer = PM.getKernelGlobalInfoDesc(KernelName.data());
     if (!GlobalPointer)
       return std::nullopt;
-    const unsigned *SizePtr = reinterpret_cast<const unsigned *>(GlobalPointer);
-    if (!SizePtr)
-      return std::nullopt;
-    return *SizePtr;
+    return *reinterpret_cast<const unsigned *>(GlobalPointer);
   }
 
 private:

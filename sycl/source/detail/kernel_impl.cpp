@@ -130,8 +130,7 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
 }
 
 std::optional<unsigned> kernel_impl ::getFreeFuncKernelArgSize() const {
-  const std::string KernelName = get_info<info::kernel::function_name>();
-  return MKernelBundleImpl->tryGetKernelArgsSize(KernelName);
+  return MKernelBundleImpl->tryGetKernelArgsSize(getName());
 }
 
 void kernel_impl::enableUSMIndirectAccess() const {
