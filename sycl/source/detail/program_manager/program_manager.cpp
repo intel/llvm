@@ -1752,8 +1752,6 @@ Managed<ur_program_handle_t> ProgramManager::build(
                          Context.getHandleRef(), CompileOptions.c_str());
     Adapter.checkUrResult<errc::build>(Res);
   }
-  // Should be `std::move(Program)` once `LinkPrograms` is switched to
-  // `Managed<ur_program_handle_t`:
   LinkPrograms.push_back(Program);
 
   for (ur_program_handle_t Prg : ExtraProgramsToLink) {
