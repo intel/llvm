@@ -93,7 +93,7 @@ public:
 private:
   bool OkToDefer = true;
 
-  friend void shutdown_early();
+  friend void shutdown_early(bool);
   friend void shutdown_late();
   friend class ObjectUsageCounter;
   static GlobalHandler *&getInstancePtr();

@@ -32,10 +32,11 @@ namespace detail {
 context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList, private_tag)
-    : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(Devices),
-      MContext(nullptr),
+    : MOwnedByRuntime(true), MAsyncHandler(std::move(AsyncHandler)),
+      MDevices(std::move(Devices)), MContext(nullptr),
       MPlatform(detail::getSyclObjImpl(MDevices[0].get_platform())),
-      MPropList(PropList), MSupportBufferLocationByDevices(NotChecked) {
+      MPropList(PropList), MKernelProgramCache(*this),
+      MSupportBufferLocationByDevices(NotChecked) {
   verifyProps(PropList);
   std::vector<ur_device_handle_t> DeviceIds;
   for (const auto &D : MDevices) {
@@ -56,8 +57,6 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
 
   getAdapter().call<UrApiKind::urContextCreate>(
       DeviceIds.size(), DeviceIds.data(), nullptr, &MContext);
-
-  MKernelProgramCache.setContextPtr(this);
 }
 
 context_impl::context_impl(ur_context_handle_t UrContext,
@@ -66,7 +65,7 @@ context_impl::context_impl(ur_context_handle_t UrContext,
                            bool OwnedByRuntime, private_tag)
     : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(std::move(AsyncHandler)),
       MDevices(DeviceList), MContext(UrContext), MPlatform(),
-      MSupportBufferLocationByDevices(NotChecked) {
+      MKernelProgramCache(*this), MSupportBufferLocationByDevices(NotChecked) {
   if (!MDevices.empty()) {
     MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   } else {
@@ -104,7 +103,6 @@ context_impl::context_impl(ur_context_handle_t UrContext,
   if (getBackend() == sycl::backend::opencl) {
     getAdapter().call<UrApiKind::urContextRetain>(MContext);
   }
-  MKernelProgramCache.setContextPtr(this);
 }
 
 cl_context context_impl::get() const {
@@ -128,10 +126,7 @@ context_impl::~context_impl() {
               DeviceGlobal);
       DGEntry->removeAssociatedResources(this);
     }
-    for (auto LibProg : MCachedLibPrograms) {
-      assert(LibProg.second && "Null program must not be kept in the cache");
-      getAdapter().call<UrApiKind::urProgramRelease>(LibProg.second);
-    }
+    MCachedLibPrograms.clear();
     // TODO catch an exception and put it to list of asynchronous exceptions
     getAdapter().call_nocheck<UrApiKind::urContextRelease>(MContext);
   } catch (std::exception &e) {
@@ -326,13 +321,13 @@ void context_impl::removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
 }
 
 void context_impl::addDeviceGlobalInitializer(
-    ur_program_handle_t Program, const std::vector<device> &Devs,
+    ur_program_handle_t Program, devices_range Devs,
     const RTDeviceBinaryImage *BinImage) {
   if (BinImage->getDeviceGlobals().empty())
     return;
   std::lock_guard<std::mutex> Lock(MDeviceGlobalInitializersMutex);
-  for (const device &Dev : Devs) {
-    auto Key = std::make_pair(Program, getSyclObjImpl(Dev)->getHandleRef());
+  for (device_impl &Dev : Devs) {
+    auto Key = std::make_pair(Program, Dev.getHandleRef());
     auto [Iter, Inserted] = MDeviceGlobalInitializers.emplace(Key, BinImage);
     if (Inserted && !Iter->second.MDeviceGlobalsFullyInitialized)
       ++MDeviceGlobalNotInitializedCnt;
@@ -504,7 +499,7 @@ std::optional<ur_program_handle_t> context_impl::getProgramForDevImgs(
     const device &Device, const std::set<std::uintptr_t> &ImgIdentifiers,
     const std::string &ObjectTypeName) {
 
-  KernelProgramCache::ProgramBuildResultPtr BuildRes = nullptr;
+  std::shared_ptr<KernelProgramCache::ProgramBuildResult> BuildRes = nullptr;
   {
     auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
     auto &KeyMap = LockedCache.get().KeyMap;

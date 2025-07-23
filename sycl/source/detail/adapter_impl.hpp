@@ -239,6 +239,56 @@ private:
   UrFuncPtrMapT UrFuncPtrs;
 }; // class adapter_impl
 
+template <typename URResource> class Managed {
+  static constexpr auto Release = []() constexpr {
+    if constexpr (std::is_same_v<URResource, ur_program_handle_t>)
+      return UrApiKind::urProgramRelease;
+  }();
+
+public:
+  Managed() = default;
+  Managed(URResource R, adapter_impl &Adapter) : R(R), Adapter(&Adapter) {}
+  Managed(adapter_impl &Adapter) : Adapter(&Adapter) {}
+  Managed(const Managed &) = delete;
+  Managed(Managed &&Other) : Adapter(Other.Adapter) {
+    R = Other.R;
+    Other.R = nullptr;
+  }
+  Managed &operator=(const Managed &) = delete;
+  Managed &operator=(Managed &&Other) {
+    if (R)
+      Adapter->call<Release>(R);
+    R = Other.R;
+    Other.R = nullptr;
+    Adapter = Other.Adapter;
+    return *this;
+  }
+
+  operator URResource() const { return R; }
+
+  URResource release() {
+    URResource Res = R;
+    R = nullptr;
+    return Res;
+  }
+
+  URResource *operator&() {
+    assert(!R && "Already initialized!");
+    assert(Adapter && "Adapter must be set for this API!");
+    return &R;
+  }
+
+  ~Managed() {
+    if (!R)
+      return;
+
+    Adapter->call<Release>(R);
+  }
+
+private:
+  URResource R = nullptr;
+  adapter_impl *Adapter = nullptr;
+};
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -71,32 +71,23 @@ ProgramManager &ProgramManager::getInstance() {
 }
 
 static ur_program_handle_t
-createBinaryProgram(context_impl &Context, const std::vector<device> &Devices,
+createBinaryProgram(context_impl &Context, devices_range Devices,
                     const uint8_t **Binaries, size_t *Lengths,
                     const std::vector<ur_program_metadata_t> &Metadata) {
+  assert(!Devices.empty() && "No devices provided for program creation");
+
   adapter_impl &Adapter = Context.getAdapter();
   ur_program_handle_t Program;
-  std::vector<ur_device_handle_t> DeviceHandles;
-  std::transform(
-      Devices.begin(), Devices.end(), std::back_inserter(DeviceHandles),
-      [](const device &Dev) { return getSyclObjImpl(Dev)->getHandleRef(); });
-  ur_result_t BinaryStatus = UR_RESULT_SUCCESS;
+  auto DeviceHandles = Devices.to<std::vector<ur_device_handle_t>>();
   ur_program_properties_t Properties = {};
   Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
   Properties.pNext = nullptr;
   Properties.count = Metadata.size();
   Properties.pMetadatas = Metadata.data();
 
-  assert(Devices.size() > 0 && "No devices provided for program creation");
   Adapter.call<UrApiKind::urProgramCreateWithBinary>(
       Context.getHandleRef(), DeviceHandles.size(), DeviceHandles.data(),
       Lengths, Binaries, &Properties, &Program);
-  if (BinaryStatus != UR_RESULT_SUCCESS) {
-    throw detail::set_ur_error(
-        exception(make_error_code(errc::runtime),
-                  "Creating program with binary failed."),
-        BinaryStatus);
-  }
 
   return Program;
 }
@@ -124,18 +115,18 @@ static bool isDeviceBinaryTypeSupported(context_impl &ContextImpl,
   if (ContextBackend == backend::ext_oneapi_cuda)
     return false;
 
-  const std::vector<device> &Devices = ContextImpl.getDevices();
+  devices_range Devices = ContextImpl.getDevices();
 
   // Program type is SPIR-V, so we need a device compiler to do JIT.
-  for (const device &D : Devices) {
-    if (!D.get_info<info::device::is_compiler_available>())
-      return false;
-  }
+  if (!all_of(Devices, [](device_impl &D) {
+        return D.get_info<info::device::is_compiler_available>();
+      }))
+    return false;
 
   // OpenCL 2.1 and greater require clCreateProgramWithIL
   if (ContextBackend == backend::opencl) {
-    std::string ver = ContextImpl.get_info<info::context::platform>()
-                          .get_info<info::platform::version>();
+    std::string ver =
+        ContextImpl.getPlatformImpl().get_info<info::platform::version>();
     if (ver.find("OpenCL 1.0") == std::string::npos &&
         ver.find("OpenCL 1.1") == std::string::npos &&
         ver.find("OpenCL 1.2") == std::string::npos &&
@@ -143,17 +134,11 @@ static bool isDeviceBinaryTypeSupported(context_impl &ContextImpl,
       return true;
   }
 
-  for (const device &D : Devices) {
-    // We need cl_khr_il_program extension to be present
-    // and we can call clCreateProgramWithILKHR using the extension
-    std::vector<std::string> Extensions =
-        D.get_info<info::device::extensions>();
-    if (Extensions.end() ==
-        std::find(Extensions.begin(), Extensions.end(), "cl_khr_il_program"))
-      return false;
-  }
-
-  return true;
+  // We need cl_khr_il_program extension to be present
+  // and we can call clCreateProgramWithILKHR using the extension
+  return all_of(Devices, [](device_impl &D) {
+    return D.has_extension("cl_khr_il_program");
+  });
 }
 
 // getFormatStr is used for debug-printing, so it may be unused.
@@ -188,12 +173,9 @@ static bool isDeviceBinaryTypeSupported(context_impl &ContextImpl,
 ur_program_handle_t
 ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
                                 context_impl &ContextImpl,
-                                const std::vector<device> &Devices) {
+                                devices_range Devices) {
   if constexpr (DbgProgMgr > 0) {
-    std::vector<ur_device_handle_t> URDevices;
-    std::transform(
-        Devices.begin(), Devices.end(), std::back_inserter(URDevices),
-        [](const device &Dev) { return getSyclObjImpl(Dev)->getHandleRef(); });
+    auto URDevices = Devices.to<std::vector<ur_device_handle_t>>();
     std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ", "
               << ContextImpl.get() << ", " << VecToString(URDevices) << ")\n";
   }
@@ -336,8 +318,7 @@ appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
 
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img,
-                                          const std::vector<device> &Devs,
-                                          adapter_impl &) {
+                                          devices_range Devs, adapter_impl &) {
   // Build options are overridden if environment variables are present.
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
@@ -367,8 +348,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
 
   appendCompileOptionsForGRFSizeProperties(CompileOpts, Img, isEsimdImage);
 
-  const platform_impl &PlatformImpl =
-      detail::getSyclObjImpl(Devs[0])->getPlatformImpl();
+  const platform_impl &PlatformImpl = Devs.front().getPlatformImpl();
 
   // Add optimization flags.
   auto str = getUint32PropAsOptStr(Img, "optLevel");
@@ -381,8 +361,8 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       optLevelStr[0] != '\0') {
     // Making sure all devices have the same platform.
     assert(!Devs.empty() &&
-           std::all_of(Devs.begin(), Devs.end(), [&](const device &Dev) {
-             return Dev.get_platform() == Devs[0].get_platform();
+           std::all_of(Devs.begin(), Devs.end(), [&](device_impl &Dev) {
+             return &Dev.getPlatformImpl() == &PlatformImpl;
            }));
     const char *backend_option = nullptr;
     // Empty string is returned in backend_option when no appropriate backend
@@ -397,7 +377,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   bool IsIntelGPU =
       (PlatformImpl.getBackend() == backend::ext_oneapi_level_zero ||
        PlatformImpl.getBackend() == backend::opencl) &&
-      std::all_of(Devs.begin(), Devs.end(), [](const device &Dev) {
+      std::all_of(Devs.begin(), Devs.end(), [](device_impl &Dev) {
         return Dev.is_gpu() &&
                Dev.get_info<info::device::vendor_id>() == 0x8086;
       });
@@ -427,7 +407,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       auto Device = OptValue.substr(0, ColonPos);
       std::string BackendStrToAdd;
       bool IsPVC =
-          std::all_of(Devs.begin(), Devs.end(), [&](const device &Dev) {
+          std::all_of(Devs.begin(), Devs.end(), [&](device_impl &Dev) {
             return IsIntelGPU &&
                    (Dev.get_info<ext::intel::info::device::device_id>() &
                     0xFF00) == 0x0B00;
@@ -480,7 +460,7 @@ static void appendLinkEnvironmentVariablesThatAppend(std::string &LinkOpts) {
 static void applyOptionsFromImage(std::string &CompileOpts,
                                   std::string &LinkOpts,
                                   const RTDeviceBinaryImage &Img,
-                                  const std::vector<device> &Devices,
+                                  devices_range Devices,
                                   adapter_impl &Adapter) {
   appendCompileOptionsFromImage(CompileOpts, Img, Devices, Adapter);
   appendLinkOptionsFromImage(LinkOpts, Img);
@@ -515,7 +495,7 @@ static void applyOptionsFromEnvironment(std::string &CompileOpts,
 std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
     const RTDeviceBinaryImage &MainImg,
     const std::vector<const RTDeviceBinaryImage *> &AllImages,
-    context_impl &ContextImpl, const std::vector<device> &Devices,
+    context_impl &ContextImpl, devices_range Devices,
     const std::string &CompileAndLinkOptions, SerializedObj SpecConsts) {
   ur_program_handle_t NativePrg;
 
@@ -909,13 +889,14 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
             std::back_inserter(AllImages));
 
   return getBuiltURProgram(std::move(AllImages), ContextImpl,
-                           {createSyclObjFromImpl<device>(RootOrSubDevImpl)});
+                           {RootOrSubDevImpl});
 }
 
-ur_program_handle_t ProgramManager::getBuiltURProgram(
-    const BinImgWithDeps &ImgWithDeps, context_impl &ContextImpl,
-    const std::vector<device> &Devs, const DevImgPlainWithDeps *DevImgWithDeps,
-    const SerializedObj &SpecConsts) {
+ur_program_handle_t
+ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
+                                  context_impl &ContextImpl, devices_range Devs,
+                                  const DevImgPlainWithDeps *DevImgWithDeps,
+                                  const SerializedObj &SpecConsts) {
   std::string CompileOpts;
   std::string LinkOpts;
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
@@ -939,10 +920,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
                                    NativePrg, Adapter);
     }
 
-    UrFuncInfo<UrApiKind::urProgramRelease> programReleaseInfo;
-    auto programRelease =
-        programReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
-    ProgramPtr ProgramManaged(NativePrg, programRelease);
+    Managed<ur_program_handle_t> ProgramManaged(NativePrg, Adapter);
 
     // Link a fallback implementation of device libraries if they are not
     // supported by a device compiler.
@@ -957,7 +935,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     if (UseDeviceLibs)
       DeviceLibReqMask = getDeviceLibReqMask(MainImg);
 
-    std::vector<ur_program_handle_t> ProgramsToLink;
+    std::vector<Managed<ur_program_handle_t>> ProgramsToLink;
     // If we had a program in cache, then it should have been the fully linked
     // program already.
     if (!DeviceCodeWasInCache) {
@@ -969,8 +947,8 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
         if (UseDeviceLibs)
           DeviceLibReqMask |= getDeviceLibReqMask(*BinImg);
 
-        ur_program_handle_t NativePrg =
-            createURProgram(*BinImg, ContextImpl, Devs);
+        Managed<ur_program_handle_t> NativePrg{
+            createURProgram(*BinImg, ContextImpl, Devs), Adapter};
 
         if (BinImg->supportsSpecConstants()) {
           enableITTAnnotationsIfNeeded(NativePrg, Adapter);
@@ -979,24 +957,22 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
                 *getSyclObjImpl(DevImgWithDeps->getAll()[I]), NativePrg,
                 Adapter);
         }
-        ProgramsToLink.push_back(NativePrg);
+        ProgramsToLink.push_back(std::move(NativePrg));
       }
     }
 
-    std::vector<ur_device_handle_t> URDevices;
-    for (auto &Dev : Devs)
-      URDevices.push_back(getSyclObjImpl(Dev).get()->getHandleRef());
+    auto URDevices = Devs.to<std::vector<ur_device_handle_t>>();
 
-    ProgramPtr BuiltProgram =
+    Managed<ur_program_handle_t> BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
               URDevices, DeviceLibReqMask, ProgramsToLink,
               /*CreatedFromBinary*/ MainImg.getFormat() !=
                   SYCL_DEVICE_BINARY_TYPE_SPIRV);
 
-    // Those extra programs won't be used anymore, just the final linked result
-    for (ur_program_handle_t Prg : ProgramsToLink)
-      Adapter.call<UrApiKind::urProgramRelease>(Prg);
-    emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
+    // Those extra programs won't be used anymore, just the final
+    // linked result:
+    ProgramsToLink.clear();
+    emitBuiltProgramInfo(BuiltProgram, ContextImpl);
 
     {
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
@@ -1004,20 +980,20 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
       // so keys in the map can be invalid (reference count went to zero and the
       // underlying program disposed of). Protecting from incorrect values by
       // removal of map entries with same handle (obviously invalid entries).
-      std::ignore = NativePrograms.erase(BuiltProgram.get());
+      std::ignore = NativePrograms.erase(BuiltProgram);
       for (const RTDeviceBinaryImage *Img : ImgWithDeps) {
         NativePrograms.insert(
-            {BuiltProgram.get(), {ContextImpl.shared_from_this(), Img}});
+            {BuiltProgram, {ContextImpl.shared_from_this(), Img}});
       }
     }
 
-    ContextImpl.addDeviceGlobalInitializer(BuiltProgram.get(), Devs, &MainImg);
+    ContextImpl.addDeviceGlobalInitializer(BuiltProgram, Devs, &MainImg);
 
     // Save program to persistent cache if it is not there
     if (!DeviceCodeWasInCache) {
       PersistentDeviceCodeCache::putItemToDisc(
           Devs, ImgWithDeps.getAll(), SpecConsts, CompileOpts + LinkOpts,
-          BuiltProgram.get());
+          BuiltProgram);
     }
 
     return BuiltProgram.release();
@@ -1030,9 +1006,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   std::set<ur_device_handle_t> URDevicesSet;
   std::transform(Devs.begin(), Devs.end(),
                  std::inserter(URDevicesSet, URDevicesSet.begin()),
-                 [](const device &Dev) {
-                   return getSyclObjImpl(Dev).get()->getHandleRef();
-                 });
+                 [](device_impl &Dev) { return Dev.getHandleRef(); });
   auto CacheKey =
       std::make_pair(std::make_pair(SpecConsts, ImgId), URDevicesSet);
 
@@ -1042,15 +1016,13 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   };
 
   auto EvictFunc = [&Cache, &CacheKey](ur_program_handle_t Program,
-                                       bool isBuilt) {
-    return Cache.registerProgramFetch(CacheKey, Program, isBuilt);
+                                       bool isBuilt) -> void {
+    Cache.registerProgramFetch(CacheKey, Program, isBuilt);
   };
 
-  auto BuildResult =
+  std::shared_ptr<KernelProgramCache::ProgramBuildResult> BuildResult =
       Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF, EvictFunc);
-
-  // getOrBuild is not supposed to return nullptr
-  assert(BuildResult != nullptr && "Invalid build result");
+  assert(BuildResult && "getOrBuild isn't supposed to return nullptr!");
 
   ur_program_handle_t ResProgram = BuildResult->Val;
 
@@ -1108,8 +1080,6 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
         Adapter.call<UrApiKind::urProgramRetain>(ResProgram);
       }
       CacheLinkedImages();
-      // getOrBuild is not supposed to return nullptr
-      assert(BuildResult != nullptr && "Invalid build result");
     }
   }
 
@@ -1129,8 +1099,6 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << &ContextImpl
               << ", " << &DeviceImpl << ", " << KernelName << ")\n";
   }
-
-  using KernelArgMaskPairT = KernelProgramCache::KernelArgMaskPairT;
 
   KernelProgramCache &Cache = ContextImpl.getKernelProgramCache();
   ur_device_handle_t UrDevice = DeviceImpl.getHandleRef();
@@ -1183,10 +1151,11 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
         Kernel, nullptr, ArgMask, Program, ContextImpl.getAdapter());
   }
 
-  auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
-  // getOrBuild is not supposed to return nullptr
-  assert(BuildResult != nullptr && "Invalid build result");
-  const KernelArgMaskPairT &KernelArgMaskPair = BuildResult->Val;
+  std::shared_ptr<KernelProgramCache::KernelBuildResult> BuildResult =
+      Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
+  assert(BuildResult && "getOrBuild isn't supposed to return nullptr!");
+  const std::pair<ur_kernel_handle_t, const KernelArgMask *>
+      &KernelArgMaskPair = BuildResult->Val;
   auto ret_val = std::make_shared<FastKernelCacheVal>(
       KernelArgMaskPair.first, &(BuildResult->MBuildResultMutex),
       KernelArgMaskPair.second, Program, ContextImpl.getAdapter());
@@ -1373,13 +1342,13 @@ loadDeviceLibFallback(context_impl &Context, DeviceLibExt Extension,
          "At least one device is expected in the input vector");
   // Vector of devices that don't have the library cached.
   for (auto Dev : Devices) {
-    auto CacheResult = CachedLibPrograms.emplace(
-        std::make_pair(std::make_pair(Extension, Dev), nullptr));
-    auto Cached = !CacheResult.second;
+    auto CacheResult = CachedLibPrograms.emplace(std::make_pair(
+        std::make_pair(Extension, Dev), Managed<ur_program_handle_t>{}));
+    bool Cached = !CacheResult.second;
     if (!Cached) {
       DevicesToCompile.push_back(Dev);
     } else {
-      auto CachedURProgram = CacheResult.first->second;
+      ur_program_handle_t CachedURProgram = CacheResult.first->second;
       assert(CachedURProgram && "If device lib UR program was cached then is "
                                 "expected to be not a nullptr");
       assert(((URProgram && URProgram == CachedURProgram) || (!URProgram)) &&
@@ -1418,7 +1387,8 @@ loadDeviceLibFallback(context_impl &Context, DeviceLibExt Extension,
     Adapter.call<UrApiKind::urProgramRetain>(URProgram);
 
   for (auto Dev : DevicesToCompile)
-    CachedLibPrograms[std::make_pair(Extension, Dev)] = URProgram;
+    CachedLibPrograms[std::make_pair(Extension, Dev)] =
+        Managed<ur_program_handle_t>{URProgram, Adapter};
 
   // TODO no spec constants are used in the std libraries, support in the future
   // Do not use compile options for library programs: it is not clear if user
@@ -1733,15 +1703,16 @@ static inline bool isDeviceImageCompressed(sycl_device_binary Bin) {
   return currFormat == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE;
 }
 
-ProgramManager::ProgramPtr ProgramManager::build(
-    ProgramPtr Program, context_impl &Context,
+Managed<ur_program_handle_t> ProgramManager::build(
+    Managed<ur_program_handle_t> Program, context_impl &Context,
     const std::string &CompileOptions, const std::string &LinkOptions,
     std::vector<ur_device_handle_t> &Devices, uint32_t DeviceLibReqMask,
-    const std::vector<ur_program_handle_t> &ExtraProgramsToLink,
+    const std::vector<Managed<ur_program_handle_t>> &ExtraProgramsToLink,
     bool CreatedFromBinary) {
 
   if constexpr (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
+    std::cerr << ">>> ProgramManager::build("
+              << static_cast<ur_program_handle_t>(Program) << ", "
               << CompileOptions << ", " << LinkOptions << ", "
               << VecToString(Devices) << ", " << std::hex << DeviceLibReqMask
               << std::dec << ", " << VecToString(ExtraProgramsToLink) << ", "
@@ -1771,16 +1742,16 @@ ProgramManager::ProgramPtr ProgramManager::build(
                                      ? CompileOptions
                                      : (CompileOptions + " " + LinkOptions);
     ur_result_t Error = Adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
-        Program.get(), Devices.size(), Devices.data(), Options.c_str());
+        Program, Devices.size(), Devices.data(), Options.c_str());
     if (Error == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       Error = Adapter.call_nocheck<UrApiKind::urProgramBuild>(
-          Context.getHandleRef(), Program.get(), Options.c_str());
+          Context.getHandleRef(), Program, Options.c_str());
     }
 
     if (Error != UR_RESULT_SUCCESS)
       throw detail::set_ur_error(
           exception(make_error_code(errc::build),
-                    getProgramBuildLog(Program.get(), Context)),
+                    getProgramBuildLog(Program, Context)),
           Error);
 
     return Program;
@@ -1788,11 +1759,13 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   // Include the main program and compile/link everything together
   if (!CreatedFromBinary) {
-    auto Res = doCompile(Adapter, Program.get(), Devices.size(), Devices.data(),
+    auto Res = doCompile(Adapter, Program, Devices.size(), Devices.data(),
                          Context.getHandleRef(), CompileOptions.c_str());
     Adapter.checkUrResult<errc::build>(Res);
   }
-  LinkPrograms.push_back(Program.get());
+  // Should be `std::move(Program)` once `LinkPrograms` is switched to
+  // `Managed<ur_program_handle_t`:
+  LinkPrograms.push_back(Program);
 
   for (ur_program_handle_t Prg : ExtraProgramsToLink) {
     if (!CreatedFromBinary) {
@@ -1803,7 +1776,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
     LinkPrograms.push_back(Prg);
   }
 
-  ur_program_handle_t LinkedProg = nullptr;
+  Managed<ur_program_handle_t> LinkedProg{Adapter};
   auto doLink = [&] {
     auto Res = Adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
         Context.getHandleRef(), Devices.size(), Devices.data(),
@@ -1825,12 +1798,12 @@ ProgramManager::ProgramPtr ProgramManager::build(
   }
 
   // Link program call returns a new program object if all parameters are valid,
-  // or NULL otherwise. Release the original (user) program.
-  Program.reset(LinkedProg);
+  // or NULL otherwise.
   if (Error != UR_RESULT_SUCCESS) {
     if (LinkedProg) {
       // A non-trivial error occurred during linkage: get a build log, release
-      // an incomplete (but valid) LinkedProg, and throw.
+      // an incomplete (but valid) LinkedProg (via implicit dtor call), and
+      // throw.
       throw detail::set_ur_error(
           exception(make_error_code(errc::build),
                     getProgramBuildLog(LinkedProg, Context)),
@@ -1838,7 +1811,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
     }
     Adapter.checkUrResult(Error);
   }
-  return Program;
+  return LinkedProg;
 }
 
 void ProgramManager::cacheKernelUsesAssertInfo(const RTDeviceBinaryImage &Img) {
@@ -2503,17 +2476,17 @@ device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
     KernelIDs = m_BinImg2KernelIDs[BinImage];
   }
 
-  DeviceImageImplPtr Impl = device_image_impl::create(
-      BinImage, Ctx, std::vector<device>{Dev}, ImgState, KernelIDs,
-      /*PIProgram=*/nullptr, ImageOriginSYCLOffline);
+  DeviceImageImplPtr Impl =
+      device_image_impl::create(BinImage, Ctx, Dev, ImgState, KernelIDs,
+                                /*PIProgram=*/nullptr, ImageOriginSYCLOffline);
 
   return createSyclObjFromImpl<device_image_plain>(std::move(Impl));
 }
 
 std::vector<DevImgPlainWithDeps>
 ProgramManager::getSYCLDeviceImagesWithCompatibleState(
-    const context &Ctx, const std::vector<device> &Devs,
-    bundle_state TargetState, const std::vector<kernel_id> &KernelIDs) {
+    const context &Ctx, devices_range Devs, bundle_state TargetState,
+    const std::vector<kernel_id> &KernelIDs) {
 
   // Collect unique raw device images taking into account kernel ids passed
   // TODO: Can we avoid repacking?
@@ -2521,8 +2494,8 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
   if (!KernelIDs.empty()) {
     for (const auto &KID : KernelIDs) {
       bool isCompatibleWithAtLeastOneDev =
-          std::any_of(Devs.begin(), Devs.end(), [&KID](const auto &Dev) {
-            return sycl::is_compatible({KID}, Dev);
+          std::any_of(Devs.begin(), Devs.end(), [&KID](device_impl &Dev) {
+            return detail::is_compatible({KID}, Dev);
           });
       if (!isCompatibleWithAtLeastOneDev)
         throw sycl::exception(
@@ -2568,9 +2541,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
   std::unordered_map<const RTDeviceBinaryImage *, DeviceBinaryImageInfo>
       ImageInfoMap;
 
-  for (const sycl::device &Dev : Devs) {
-
-    device_impl &DevImpl = *getSyclObjImpl(Dev);
+  for (device_impl &Dev : Devs) {
     // Track the highest image state for each requested kernel.
     using StateImagesPairT =
         std::pair<bundle_state, std::vector<const RTDeviceBinaryImage *>>;
@@ -2582,8 +2553,8 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
         KernelImageMap.insert({KernelID, {}});
 
     for (const RTDeviceBinaryImage *BinImage : BinImages) {
-      if (!compatibleWithDevice(BinImage, DevImpl) ||
-          !doesDevSupportDeviceRequirements(DevImpl, *BinImage))
+      if (!compatibleWithDevice(BinImage, Dev) ||
+          !doesDevSupportDeviceRequirements(Dev, *BinImage))
         continue;
 
       auto InsertRes = ImageInfoMap.insert({BinImage, {}});
@@ -2596,7 +2567,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
           ImgInfo.KernelIDs = m_BinImg2KernelIDs[BinImage];
         }
         ImgInfo.Deps =
-            collectDeviceImageDeps(*BinImage, {DevImpl},
+            collectDeviceImageDeps(*BinImage, Dev,
                                    /*ErrorOnUnresolvableImport=*/TargetState ==
                                        bundle_state::executable);
       }
@@ -2686,9 +2657,10 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
   return SYCLDeviceImages;
 }
 
-device_image_plain ProgramManager::createDependencyImage(
-    const context &Ctx, const std::vector<device> &Devs,
-    const RTDeviceBinaryImage *DepImage, bundle_state DepState) {
+device_image_plain
+ProgramManager::createDependencyImage(const context &Ctx, devices_range Devs,
+                                      const RTDeviceBinaryImage *DepImage,
+                                      bundle_state DepState) {
   std::shared_ptr<std::vector<sycl::kernel_id>> DepKernelIDs;
   {
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
@@ -2701,9 +2673,9 @@ device_image_plain ProgramManager::createDependencyImage(
 
   assert(DepState == getBinImageState(DepImage) &&
          "State mismatch between main image and its dependency");
-  DeviceImageImplPtr DepImpl =
-      device_image_impl::create(DepImage, Ctx, Devs, DepState, DepKernelIDs,
-                                /*PIProgram=*/nullptr, ImageOriginSYCLOffline);
+  DeviceImageImplPtr DepImpl = device_image_impl::create(
+      DepImage, Ctx, Devs, DepState, std::move(DepKernelIDs),
+      /*PIProgram=*/nullptr, ImageOriginSYCLOffline);
 
   return createSyclObjFromImpl<device_image_plain>(std::move(DepImpl));
 }
@@ -2773,8 +2745,7 @@ void ProgramManager::bringSYCLDeviceImagesToState(
 }
 
 std::vector<DevImgPlainWithDeps>
-ProgramManager::getSYCLDeviceImages(const context &Ctx,
-                                    const std::vector<device> &Devs,
+ProgramManager::getSYCLDeviceImages(const context &Ctx, devices_range Devs,
                                     bundle_state TargetState) {
   // Collect device images with compatible state
   std::vector<DevImgPlainWithDeps> DeviceImages =
@@ -2784,9 +2755,10 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
   return DeviceImages;
 }
 
-std::vector<DevImgPlainWithDeps> ProgramManager::getSYCLDeviceImages(
-    const context &Ctx, const std::vector<device> &Devs,
-    const DevImgSelectorImpl &Selector, bundle_state TargetState) {
+std::vector<DevImgPlainWithDeps>
+ProgramManager::getSYCLDeviceImages(const context &Ctx, devices_range Devs,
+                                    const DevImgSelectorImpl &Selector,
+                                    bundle_state TargetState) {
   // Collect device images with compatible state
   std::vector<DevImgPlainWithDeps> DeviceImages =
       getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState);
@@ -2806,9 +2778,10 @@ std::vector<DevImgPlainWithDeps> ProgramManager::getSYCLDeviceImages(
   return DeviceImages;
 }
 
-std::vector<DevImgPlainWithDeps> ProgramManager::getSYCLDeviceImages(
-    const context &Ctx, const std::vector<device> &Devs,
-    const std::vector<kernel_id> &KernelIDs, bundle_state TargetState) {
+std::vector<DevImgPlainWithDeps>
+ProgramManager::getSYCLDeviceImages(const context &Ctx, devices_range Devs,
+                                    const std::vector<kernel_id> &KernelIDs,
+                                    bundle_state TargetState) {
   // Fast path for when no kernel IDs are requested
   if (KernelIDs.empty())
     return {};
@@ -2836,8 +2809,7 @@ std::vector<DevImgPlainWithDeps> ProgramManager::getSYCLDeviceImages(
 
 DevImgPlainWithDeps
 ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
-                        const std::vector<device> &Devs,
-                        const property_list &PropList) {
+                        devices_range Devs, const property_list &PropList) {
   {
     auto NoAllowedPropertiesCheck = [](int) { return false; };
     detail::PropertyValidator::checkPropsAndThrow(
@@ -2850,10 +2822,8 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
   // TODO: Probably we could have cached compiled device images.
 
   // TODO: Handle zero sized Device list.
-  std::vector<ur_device_handle_t> URDevices;
-  URDevices.reserve(Devs.size());
-  for (const device &Dev : Devs)
-    URDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
+
+  auto URDevices = Devs.to<std::vector<ur_device_handle_t>>();
 
   std::vector<device_image_plain> CompiledImages;
   CompiledImages.reserve(ImgWithDeps.size());
@@ -2877,9 +2847,8 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
     std::optional<detail::KernelCompilerBinaryInfo> RTCInfo =
         InputImpl.getRTCInfo();
     DeviceImageImplPtr ObjectImpl = device_image_impl::create(
-        InputImpl.get_bin_image_ref(), InputImpl.get_context(),
-        std::vector<device>{Devs}, bundle_state::object,
-        InputImpl.get_kernel_ids_ptr(), Prog,
+        InputImpl.get_bin_image_ref(), InputImpl.get_context(), Devs,
+        bundle_state::object, InputImpl.get_kernel_ids_ptr(), Prog,
         InputImpl.get_spec_const_data_ref(),
         InputImpl.get_spec_const_blob_ref(), InputImpl.getOriginMask(),
         std::move(RTCInfo), std::move(KernelNames),
@@ -2891,15 +2860,14 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
         CompileOptions, *(InputImpl.get_bin_image_ref()), Devs, Adapter);
     // Should always come last!
     appendCompileEnvironmentVariablesThatAppend(CompileOptions);
-    ur_result_t Error =
-        doCompile(Adapter, ObjectImpl->get_ur_program_ref(), Devs.size(),
-                  URDevices.data(),
-                  getSyclObjImpl(InputImpl.get_context()).get()->getHandleRef(),
-                  CompileOptions.c_str());
+    ur_result_t Error = doCompile(
+        Adapter, ObjectImpl->get_ur_program(), Devs.size(), URDevices.data(),
+        getSyclObjImpl(InputImpl.get_context()).get()->getHandleRef(),
+        CompileOptions.c_str());
     if (Error != UR_RESULT_SUCCESS)
       throw sycl::exception(
           make_error_code(errc::build),
-          getProgramBuildLog(ObjectImpl->get_ur_program_ref(),
+          getProgramBuildLog(ObjectImpl->get_ur_program(),
                              *getSyclObjImpl(ObjectImpl->get_context())));
 
     CompiledImages.push_back(
@@ -2919,10 +2887,8 @@ mergeImageData(const std::vector<device_image_plain> &Imgs,
   for (const device_image_plain &Img : Imgs) {
     device_image_impl &DeviceImageImpl = *getSyclObjImpl(Img);
     // Duplicates are not expected here, otherwise urProgramLink should fail
-    if (DeviceImageImpl.get_kernel_ids_ptr())
-      KernelIDs.insert(KernelIDs.end(),
-                       DeviceImageImpl.get_kernel_ids_ptr()->begin(),
-                       DeviceImageImpl.get_kernel_ids_ptr()->end());
+    KernelIDs.insert(KernelIDs.end(), DeviceImageImpl.get_kernel_ids().begin(),
+                     DeviceImageImpl.get_kernel_ids().end());
     // To be able to answer queries about specialziation constants, the new
     // device image should have the specialization constants from all the linked
     // images.
@@ -2975,8 +2941,7 @@ mergeImageData(const std::vector<device_image_plain> &Imgs,
 
 std::vector<device_image_plain>
 ProgramManager::link(const std::vector<device_image_plain> &Imgs,
-                     const std::vector<device> &Devs,
-                     const property_list &PropList) {
+                     devices_range Devs, const property_list &PropList) {
   {
     auto NoAllowedPropertiesCheck = [](int) { return false; };
     detail::PropertyValidator::checkPropsAndThrow(
@@ -2986,12 +2951,10 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
   std::vector<ur_program_handle_t> URPrograms;
   URPrograms.reserve(Imgs.size());
   for (const device_image_plain &Img : Imgs)
-    URPrograms.push_back(getSyclObjImpl(Img)->get_ur_program_ref());
+    URPrograms.push_back(getSyclObjImpl(Img)->get_ur_program());
 
-  std::vector<ur_device_handle_t> URDevices;
-  URDevices.reserve(Devs.size());
-  for (const device &Dev : Devs)
-    URDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
+  auto URDevices = Devs.to<std::vector<ur_device_handle_t>>();
+
   // FIXME: Linker options are picked from the first object, but is that safe?
   std::string LinkOptionsStr;
   applyLinkOptionsFromEnvironment(LinkOptionsStr);
@@ -3082,11 +3045,10 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
   auto MergedRTCInfo = detail::KernelCompilerBinaryInfo::Merge(RTCInfoPtrs);
 
   DeviceImageImplPtr ExecutableImpl = device_image_impl::create(
-      NewBinImg, Context, std::vector<device>{Devs}, bundle_state::executable,
-      std::move(KernelIDs), LinkedProg, std::move(NewSpecConstMap),
-      std::move(NewSpecConstBlob), CombinedOrigins, std::move(MergedRTCInfo),
-      std::move(MergedKernelNames), std::move(MergedEliminatedKernelArgMasks),
-      std::move(MergedImageStorage));
+      NewBinImg, Context, Devs, bundle_state::executable, std::move(KernelIDs),
+      LinkedProg, std::move(NewSpecConstMap), std::move(NewSpecConstBlob),
+      CombinedOrigins, std::move(MergedRTCInfo), std::move(MergedKernelNames),
+      std::move(MergedEliminatedKernelArgMasks), std::move(MergedImageStorage));
 
   // TODO: Make multiple sets of device images organized by devices they are
   // compiled for.
@@ -3099,8 +3061,7 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
 // Supports caching of a program built for multiple devices
 device_image_plain
 ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
-                      const std::vector<device> &Devs,
-                      const property_list &PropList) {
+                      devices_range Devs, const property_list &PropList) {
   {
     auto NoAllowedPropertiesCheck = [](int) { return false; };
     detail::PropertyValidator::checkPropsAndThrow(
@@ -3166,11 +3127,11 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
   auto MergedRTCInfo = detail::KernelCompilerBinaryInfo::Merge(RTCInfoPtrs);
 
   DeviceImageImplPtr ExecImpl = device_image_impl::create(
-      ResultBinImg, Context, std::vector<device>{Devs},
-      bundle_state::executable, std::move(KernelIDs), ResProgram,
-      std::move(SpecConstMap), std::move(SpecConstBlob), CombinedOrigins,
-      std::move(MergedRTCInfo), std::move(MergedKernelNames),
-      std::move(MergedEliminatedKernelArgMasks), std::move(MergedImageStorage));
+      ResultBinImg, Context, Devs, bundle_state::executable,
+      std::move(KernelIDs), ResProgram, std::move(SpecConstMap),
+      std::move(SpecConstBlob), CombinedOrigins, std::move(MergedRTCInfo),
+      std::move(MergedKernelNames), std::move(MergedEliminatedKernelArgMasks),
+      std::move(MergedImageStorage));
   return createSyclObjFromImpl<device_image_plain>(std::move(ExecImpl));
 }
 
@@ -3227,9 +3188,9 @@ ProgramManager::getOrCreateKernel(const context &Context,
     return make_tuple(Kernel, nullptr, ArgMask);
   }
 
-  auto BuildResult = Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
-  // getOrBuild is not supposed to return nullptr
-  assert(BuildResult != nullptr && "Invalid build result");
+  std::shared_ptr<KernelProgramCache::KernelBuildResult> BuildResult =
+      Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
+  assert(BuildResult && "getOrBuild isn't supposed to return nullptr!");
   // If caching is enabled, one copy of the kernel handle will be
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
@@ -3289,16 +3250,13 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
   auto Program = createURProgram(Img, ContextImpl, {Device});
   detail::device_impl &DeviceImpl = *detail::getSyclObjImpl(Device);
   adapter_impl &Adapter = DeviceImpl.getAdapter();
-  UrFuncInfo<UrApiKind::urProgramRelease> programReleaseInfo;
-  auto programRelease =
-      programReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
-  ProgramPtr ProgramManaged(Program, programRelease);
+  Managed<ur_program_handle_t> ProgramManaged(Program, Adapter);
 
   std::string CompileOpts;
   std::string LinkOpts;
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
   // No linking of extra programs reqruired.
-  std::vector<ur_program_handle_t> ExtraProgramsToLink;
+  std::vector<Managed<ur_program_handle_t>> ExtraProgramsToLink;
   std::vector<ur_device_handle_t> Devs = {DeviceImpl.getHandleRef()};
   auto BuildProgram =
       build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts, Devs,
@@ -3306,7 +3264,7 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
             ExtraProgramsToLink);
   ur_kernel_handle_t UrKernel{nullptr};
   Adapter.call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
-      BuildProgram.get(), KernelName.data(), &UrKernel);
+      BuildProgram, KernelName.data(), &UrKernel);
   {
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
     m_MaterializedKernels[KernelName][SpecializationConsts] = UrKernel;
@@ -3813,6 +3771,24 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
   if (PropIt == PropRange.end()) {
     sycl::backend BE = DevImpl.getBackend();
     const char *Target = Img.getRawData().DeviceTargetSpec;
+    // On Offload, the image format depends on the platform. As with the UR CTS,
+    // the easiest way to check this is the platform name which corresponds with
+    // the Offload plugin name. In the future the true backend type will be
+    // transparently passed through instead.
+    if (BE == sycl::backend::ext_oneapi_offload) {
+      std::string PlatformName =
+          DevImpl.getPlatformImpl().get_info<info::platform::name>();
+      if (PlatformName == "CUDA") {
+        return (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0 ||
+                strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_LLVM_NVPTX64) == 0);
+      }
+      if (PlatformName == "AMDGPU") {
+        return (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0 ||
+                strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_LLVM_AMDGCN) == 0);
+      }
+      assert(false && "Unhandled liboffload platform");
+      return false;
+    }
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
       return (BE == sycl::backend::opencl ||
               BE == sycl::backend::ext_oneapi_level_zero);
