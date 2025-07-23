@@ -111,7 +111,7 @@ ur_result_t doMemcpy(ur_queue_handle_t hQueue, void *DestPtr,
                             SrcDevice, size, phEvent ? &EventOut : nullptr));
 
   if (blocking) {
-    OL_RETURN_ON_ERR(olWaitQueue(hQueue->OffloadQueue));
+    OL_RETURN_ON_ERR(olSyncQueue(hQueue->OffloadQueue));
   }
 
   if (phEvent) {
