@@ -51,8 +51,8 @@ TEST_P(urDeviceRetainTest, SuccessSubdevices) {
 
   ASSERT_LT(prevRefCount, refCount);
 
-  EXPECT_SUCCESS(urDeviceRelease(sub_device));
-  EXPECT_SUCCESS(urDeviceRelease(sub_device));
+  ASSERT_SUCCESS(urDeviceRelease(sub_device));
+  ASSERT_SUCCESS(urDeviceRelease(sub_device));
 }
 
 TEST_P(urDeviceRetainTest, InvalidNullHandle) {

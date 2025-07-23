@@ -22,6 +22,10 @@ void ff_2(int *ptr, int start) {
   ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + start;
 }
 
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::nd_range_kernel<2>))
+void ff_b(int *ptr, int start) {}
+
 // Templated free function definition.
 template <typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
@@ -97,6 +101,21 @@ bool test_kernel_apis(queue Queue) {
   return Pass;
 }
 
+template <auto *Func>
+bool check_kernel_id(const sycl::kernel k, const sycl::context &ctx) {
+  namespace exp = ext::oneapi::experimental;
+  const auto id = exp::get_kernel_id<Func>();
+  auto exe_bndl =
+      exp::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctx);
+  if (!exe_bndl.has_kernel(id))
+    return false;
+  const auto kb = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctx);
+  const auto kernel_ids = kb.get_kernel_ids();
+  bool ret =
+      std::find(kernel_ids.begin(), kernel_ids.end(), id) != kernel_ids.end();
+  return ret;
+}
+
 bool test_bundle_apis(queue Queue) {
   bool Pass = true;
 
@@ -134,6 +153,10 @@ bool test_bundle_apis(queue Queue) {
   std::cout << "PassE=" << PassE << std::endl;
   Pass &= PassE;
 
+  bool PassE2 = ext::oneapi::experimental::is_compatible<ff_2>(Device);
+  std::cout << "PassE2=" << PassE2 << std::endl;
+  Pass &= PassE2;
+
   // Check that ff_2 is found in bundle.
   kernel_bundle Bundle2 = ext::oneapi::experimental::get_kernel_bundle<
       ff_2, bundle_state::executable>(Context);
@@ -145,7 +168,7 @@ bool test_bundle_apis(queue Queue) {
   std::cout << "PassG=" << PassG << std::endl;
   Pass &= PassG;
   kernel Kernel2 = Bundle2.ext_oneapi_get_kernel<ff_2>();
-  bool PassH = true;
+  bool PassH = check_kernel_id<ff_2>(Kernel2, Context);
   std::cout << "PassH=" << PassH << std::endl;
   Pass &= PassH;
 
@@ -162,7 +185,8 @@ bool test_bundle_apis(queue Queue) {
   Pass &= PassJ;
   kernel Kernel3 =
       Bundle3.ext_oneapi_get_kernel<(void (*)(int *, int))ff_3<int>>();
-  bool PassK = true;
+  bool PassK =
+      check_kernel_id<(void (*)(int *, int))ff_3<int>>(Kernel3, Context);
   std::cout << "PassK=" << PassK << std::endl;
   Pass &= PassK;
 

@@ -1164,7 +1164,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
-    return ReturnValue(false);
+    return ReturnValue(true);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
@@ -1185,6 +1185,46 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     }
 
     return ReturnValue(0);
+  }
+  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_LUID: {
+    // LUID is only available on Windows.
+    // Intel extension for device LUID. This returns the LUID as
+    // std::array<std::byte, 8>. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+    std::array<char, 8> LUID{};
+    cuDeviceGetLuid(LUID.data(), nullptr, hDevice->get());
+
+    bool isAllZeros = true;
+    for (char num : LUID) {
+      if (num != 0) {
+        isAllZeros = false;
+      }
+    }
+
+    if (isAllZeros) {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    std::array<unsigned char, 8> Name{};
+    std::copy(LUID.begin(), LUID.end(), Name.begin());
+    return ReturnValue(Name.data(), 8);
+  }
+  case UR_DEVICE_INFO_NODE_MASK: {
+    // Device node mask is only available on Windows.
+    // Intel extension for device node mask. This returns the node mask as
+    // uint32_t. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+    uint32_t nodeMask = 0;
+    cuDeviceGetLuid(nullptr, &nodeMask, hDevice->get());
+
+    // If nodeMask has not changed, return unsupported.
+    if (nodeMask == 0) {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    return ReturnValue(nodeMask);
   }
   default:
     break;
