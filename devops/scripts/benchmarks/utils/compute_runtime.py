@@ -95,12 +95,14 @@ class ComputeRuntime:
                 "9d255266e1df8f1dc5d11e1fbb03213acfaa4fc7",
                 Path(options.workdir),
                 "vc-intrinsics",
+                no_suffix_src=True,
             )
             llvm_project = GitProject(
                 "https://github.com/llvm/llvm-project",
                 "llvmorg-15.0.7",
                 Path(options.workdir),
                 "llvm-project",
+                no_suffix_src=True,
             )
             llvm_projects = llvm_project.src_dir / "llvm" / "projects"
             GitProject(
@@ -108,24 +110,28 @@ class ComputeRuntime:
                 "ocl-open-150",
                 llvm_projects,
                 "opencl-clang",
+                no_suffix_src=True,
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-LLVM-Translator",
                 "llvm_release_150",
                 llvm_projects,
                 "llvm-spirv",
+                no_suffix_src=True,
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-Tools.git",
                 "f289d047f49fb60488301ec62bafab85573668cc",
                 Path(options.workdir),
                 "SPIRV-Tools",
+                no_suffix_src=True,
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-Headers.git",
                 "0e710677989b4326ac974fd80c5308191ed80965",
                 Path(options.workdir),
                 "SPIRV-Headers",
+                no_suffix_src=True,
             )
 
             configure_args = [

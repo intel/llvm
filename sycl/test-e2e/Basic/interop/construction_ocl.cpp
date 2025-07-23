@@ -1,6 +1,34 @@
 // REQUIRES: opencl, opencl_icd
 // RUN: %{build} %opencl_lib -o %t.ocl.out
-// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="opencl:*" %t.ocl.out
+// RUN: env SYCL_UR_TRACE=-1 ONEAPI_DEVICE_SELECTOR="opencl:*" %{run-unfiltered-devices} %t.ocl.out 2>&1 | FileCheck %s --implicit-check-not "<--- urProgramRelease"
+
+// To check for leaks/document current ones:
+
+// CHECK: <--- urProgramCreateWithIL{{.*}} .phProgram = {{.*}} ([[PROG0:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramRetain(.hProgram = [[PROG0]]) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramCreateWithNativeHandle{{.*}} .phProgram = {{.*}} ([[PROG1:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramCreateWithNativeHandle{{.*}} .phProgram = {{.*}} ([[PROG2:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramCreateWithNativeHandle{{.*}} .phProgram = {{.*}} ([[PROG3:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramRelease(.hProgram = [[PROG3]]) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramRelease(.hProgram = [[PROG2]]) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramRelease(.hProgram = [[PROG1]]) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramCreateWithNativeHandle{{.*}} .phProgram = {{.*}} ([[PROG4:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramCreateWithNativeHandle{{.*}} .phProgram = {{.*}} ([[PROG5:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramCreateWithNativeHandle{{.*}} .phProgram = {{.*}} ([[PROG6:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramLinkExp{{.*}} -> UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+// CHECK: <--- urProgramLink{{.*}} .phProgram = {{.*}} ([[PROG7:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramRelease(.hProgram = [[PROG7]]) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramRelease(.hProgram = [[PROG4]]) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramCreateWithNativeHandle{{.*}}.phProgram = {{.*}} ([[PROG8:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramCreateWithNativeHandle{{.*}}.phProgram = {{.*}} ([[PROG9:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramCreateWithNativeHandle{{.*}}.phProgram = {{.*}} ([[PROG10:.*]])) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramRelease(.hProgram = [[PROG8]]) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramRelease(.hProgram = [[PROG0]]) -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramRelease(.hProgram = [[PROG0]]) -> UR_RESULT_SUCCESS
+
+// 21 lines total, 8 releases, 1 unsuccessful
+// 12 create/link/retain, 8 release
+// Leaked: PROG5, PROG6, PROG9, PROG10
 
 #include <CL/cl.h>
 #include <sycl/backend.hpp>
