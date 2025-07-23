@@ -92,8 +92,8 @@ ur_result_t urEnqueueKernelLaunch(
     /// particular kernel execution instance.
     ur_event_handle_t *OutEvent) {
   using ZeKernelLaunchFuncT = ze_result_t (*)(
-      ze_command_list_handle_t, ze_kernel_handle_t, const ze_group_count_t*,
-      ze_event_handle_t, uint32_t, ze_event_handle_t*);
+      ze_command_list_handle_t, ze_kernel_handle_t, const ze_group_count_t *,
+      ze_event_handle_t, uint32_t, ze_event_handle_t *);
   ZeKernelLaunchFuncT ZeKernelLaunchFunc = &zeCommandListAppendLaunchKernel;
   for (uint32_t PropIndex = 0; PropIndex < NumPropsInLaunchPropList;
        PropIndex++) {
