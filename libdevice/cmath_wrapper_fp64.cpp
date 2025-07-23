@@ -9,8 +9,7 @@
 
 #include "device_math.h"
 
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
-    defined(__AMDGCN__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 // All exported functions in math and complex device libraries are weak
 // reference. If users provide their own math or complex functions(with
@@ -180,25 +179,8 @@ double atanh(double x) { return __devicelib_atanh(x); }
 DEVICE_EXTERN_C_INLINE
 double scalbn(double x, int exp) { return __devicelib_scalbn(x, exp); }
 
-#ifdef __NVPTX__
-extern "C" SYCL_EXTERNAL double __nv_nearbyint(double);
 DEVICE_EXTERN_C_INLINE
-double nearbyint(double x) { return __nv_nearbyint(x); }
-
-extern "C" SYCL_EXTERNAL double __nv_rint(double);
-DEVICE_EXTERN_C_INLINE
-double rint(double x) { return __nv_rint(x); }
-#endif // __NVPTX__
-
-#ifdef __AMDGCN__
-extern "C" SYCL_EXTERNAL double __ocml_nearbyint_f64(double);
-DEVICE_EXTERN_C_INLINE
-double nearbyint(double x) { return __ocml_nearbyint_f64(x); }
-
-extern "C" SYCL_EXTERNAL double __ocml_rint_f64(double);
-DEVICE_EXTERN_C_INLINE
-double rint(double x) { return __ocml_rint_f64(x); }
-#endif // __AMDGCN__
+double rint(double x) { return __spirv_ocl_rint(x); }
 
 #if defined(_MSC_VER)
 #include <math.h>
@@ -507,4 +489,4 @@ double _Sinh(double x, double y) { // compute y * sinh(x), |y| <= 1
   }
 }
 #endif // defined(_WIN32)
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
+#endif // __SPIR__ || __SPIRV__

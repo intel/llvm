@@ -5,9 +5,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import collections
+
 from utils.result import Result, BenchmarkMetadata
+from utils.logger import log
 from options import options, MarkdownSize
-import ast
 
 
 class OutputLine:
@@ -114,17 +115,12 @@ def is_content_in_size_limit(content_size: int, current_markdown_size: int):
 
 
 def get_explicit_group_name(result: Result, metadata: dict[str, BenchmarkMetadata]):
-    explicit_group_name = ""
     try:
-        explicit_group_name = metadata[result.label].explicit_group
-    except Exception as e:
-        print(
-            f"Warning: Unexpected error when getting explicit_group for '{result.label}': {e}"
-        )
+        group_name = metadata[result.label].explicit_group
+        return group_name if group_name else "Other"
+    except Exception:
+        log.debug(f"No explicit group found for {result.label}, using 'Other'")
         return "Other"
-
-    return explicit_group_name if explicit_group_name else "Other"
-
 
 # Function to generate the markdown collapsible sections for each variant
 def generate_markdown_details(
@@ -226,8 +222,7 @@ def generate_summary_table(
         # Generate the row with all the results from saved runs specified by
         # --compare,
         # Highlight the best value in the row with data
-        if options.verbose:
-            print(f"Results: {results}")
+        log.debug(f"Results: {results}")
         for key in chart_data.keys():
             if key in results:
                 intv = results[key].value
@@ -278,8 +273,7 @@ def generate_summary_table(
                     else:
                         regressed_rows.append(oln.row + " | \n")
 
-            if options.verbose:
-                print(oln.row)
+            log.debug(oln.row)
 
             summary_table += oln.row + "\n"
     else:
@@ -323,8 +317,7 @@ def generate_summary_table(
     if not is_at_least_one_diff:
         summary_line = f"No diffs to calculate performance change"
 
-    if options.verbose:
-        print(summary_line)
+    log.debug(summary_line)
 
     summary_table = "\n## Performance change in benchmark groups\n"
 

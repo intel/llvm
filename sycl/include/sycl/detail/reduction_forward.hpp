@@ -46,11 +46,6 @@ enum class strategy : int {
   multi,
 };
 
-// Reductions implementation need access to private members of handler. Those
-// are limited to those below.
-inline void finalizeHandler(handler &CGH);
-template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func);
-
 template <int Dims>
 item<Dims, false> getDelinearizedItem(range<Dims> Range, id<Dims> Id) {
   return Builder::createItem<Dims, false>(Range, Id);

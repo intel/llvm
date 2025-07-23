@@ -833,7 +833,7 @@ ur_result_t UR_APICALL urDeviceGetSelected(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -2410,6 +2410,9 @@ ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     /// device is null then the granularity is suitable for all devices in
     /// context.
     ur_device_handle_t hDevice,
+    /// [in] allocation size in bytes for which the alignment is being
+    /// queried.
+    size_t allocationSize,
     /// [in] type of the info to query.
     ur_virtual_mem_granularity_info_t propName,
     /// [in] size in bytes of the memory pointed to by pPropValue.
@@ -2892,11 +2895,11 @@ ur_result_t UR_APICALL urProgramCompile(
 ///       in `phProgram` will contain a binary of the
 ///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
 ///       `hContext`.
-///     - If a non-success code is returned and `phProgram` is not `nullptr`, it
-///       will contain an unspecified program or `nullptr`. Implementations may
-///       use the build log of this program (accessible via
-///       ::urProgramGetBuildInfo) to provide an error log for the linking
-///       failure.
+///     - If a non-success code is returned, adapters may store a program in
+///       `phProgram`. This program should only be used with
+///       `::urProgramGetBuildInfo` to get the build log for the failure.
+///       Adapters which do not do not support producing build logs must set
+///       this value to `nullptr`.
 ///
 /// @remarks
 ///   _Analogues_
@@ -7027,7 +7030,7 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE <
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
 ///         memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalMemDesc`
@@ -7184,6 +7187,36 @@ ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
     ur_device_handle_t hDevice,
     /// [in][release] pointer to mapped linear memory region to be freed
     void *pMem) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Checks whether the device supports importing the specified external
+///        memory handle type
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         memHandleType`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pSupportedRet`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+ur_result_t UR_APICALL urBindlessImagesSupportsImportingHandleTypeExp(
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] type of external memory handle
+    ur_exp_external_mem_type_t memHandleType,
+    /// [out] whether the device supports importing the specified external
+    /// memory handle type
+    ur_bool_t *pSupportedRet) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
@@ -7406,7 +7439,10 @@ ur_result_t UR_APICALL urCommandBufferRetainExp(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Decrement the command-buffer object's reference count and delete the
-///        command-buffer object if the reference count becomes zero.
+///        command-buffer object if the reference count becomes zero. It is
+///        legal to call the entry-point while `hCommandBuffer` is still
+///        executing, which will block on completion if the reference count of
+///        `hCommandBuffer` becomes zero.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -8753,11 +8789,11 @@ ur_result_t UR_APICALL urProgramCompileExp(
 ///       in `phProgram` will contain a binary of the
 ///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
 ///       `phDevices`.
-///     - If a non-success code is returned and `phProgram` is not `nullptr`, it
-///       will contain an unspecified program or `nullptr`. Implementations may
-///       use the build log of this program (accessible via
-///       ::urProgramGetBuildInfo) to provide an error log for the linking
-///       failure.
+///     - If a non-success code is returned, adapters may store a program in
+///       `phProgram`. This program should only be used with
+///       `::urProgramGetBuildInfo` to get the build log for the failure.
+///       Adapters which do not do not support producing build logs must set
+///       this value to `nullptr`.
 ///
 /// @remarks
 ///   _Analogues_
@@ -8796,6 +8832,39 @@ ur_result_t UR_APICALL urProgramLinkExp(
     const char *pOptions,
     /// [out][alloc] pointer to handle of program object created.
     ur_program_handle_t *phProgram) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Perform a synchronous, blocking memcpy operation between USM
+///        allocations.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pDst`
+///         + `NULL == pSrc`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `size == 0`
+///         + If `size` is higher than the allocation size of `pSrc` or `pDst`
+ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    /// [in] Context associated with the device(s) that own the allocations
+    /// `pSrc` and `pDst`.
+    ur_context_handle_t hContext,
+    /// [in] Destination pointer to copy to.
+    void *pDst,
+    /// [in] Source pointer to copy from.
+    const void *pSrc,
+    /// [in] Size in bytes to be copied.
+    size_t size) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }

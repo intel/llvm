@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023-2024 Intel Corporation
+ * Copyright (C) 2023 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -1376,6 +1376,15 @@ ur_result_t urPrintBindlessImagesReleaseExternalMemoryExpParams(
 
 ur_result_t urPrintBindlessImagesFreeMappedLinearMemoryExpParams(
     const struct ur_bindless_images_free_mapped_linear_memory_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintBindlessImagesSupportsImportingHandleTypeExpParams(
+    const struct ur_bindless_images_supports_importing_handle_type_exp_params_t
         *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
@@ -2782,6 +2791,14 @@ ur_result_t urPrintUsmPoolTrimToExpParams(
 
 ur_result_t urPrintUsmPitchedAllocExpParams(
     const struct ur_usm_pitched_alloc_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintUsmContextMemcpyExpParams(
+    const struct ur_usm_context_memcpy_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;

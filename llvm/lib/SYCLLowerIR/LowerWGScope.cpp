@@ -144,7 +144,9 @@ template <typename T> static unsigned asUInt(T val) {
 
 static IntegerType *getSizeTTy(Module &M) {
   LLVMContext &Ctx = M.getContext();
-  auto PtrSize = M.getDataLayout().getPointerTypeSize(PointerType::getUnqual(Ctx));
+  const DataLayout &DL = M.getDataLayout();
+  auto PtrSize = DL.getPointerTypeSize(
+      PointerType::get(Ctx, DL.getDefaultGlobalsAddressSpace()));
   return PtrSize == 8 ? Type::getInt64Ty(Ctx) : Type::getInt32Ty(Ctx);
 }
 
@@ -931,7 +933,7 @@ GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
 // Return a value equals to 0 if and only if the local linear id is 0.
 Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
-  if (TT.isNVPTX() || TT.isAMDGCN() || sycl::utils::isSYCLNativeCPU(M)) {
+  if (TT.isNVPTX() || TT.isAMDGCN() || TT.isNativeCPU()) {
     LLVMContext &Ctx = Before.getContext();
     Type *RetTy = getSizeTTy(M);
 

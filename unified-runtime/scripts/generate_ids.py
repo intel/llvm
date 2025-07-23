@@ -65,21 +65,24 @@ def generate_function_type(
     }
     max_etor = get_max_enum(existing_function_type)
     functions = [
-        obj["class"][len("$x") :] + obj["name"]
-        for s in specs
-        for obj in s["objects"]
-        if obj["type"] == "function"
+        obj for s in specs for obj in s["objects"] if obj["type"] == "function"
     ]
     registry = list()
-    for fname in functions:
+    for function in functions:
+        fname = function["class"][len("$x") :] + function["name"]
         etor_name = "$X_FUNCTION_" + util.to_snake_case(fname).upper()
         id = existing_etors.get(etor_name)
         if id is None:
             max_etor += 1
             id = max_etor
-        registry.append(
-            {"name": etor_name, "desc": f"Enumerator for $x{fname}", "value": str(id)}
-        )
+        entry = {
+            "name": etor_name,
+            "desc": f"Enumerator for $x{fname}",
+            "value": str(id),
+        }
+        if "guard" in function:
+            entry["guard"] = function["guard"]
+        registry.append(entry)
     registry = sorted(registry, key=lambda x: int(x["value"]))
     existing_function_type["etors"] = registry
     update_fn(existing_function_type, meta)

@@ -38,12 +38,9 @@ int main() {
         [&](sycl::handler &CGH) { CGH.single_task<class Kernel2>([=]() {}); });
     Q.wait_and_throw();
   }
-  std::cout << "passed" << std::endl;
   return 0;
 }
 
 // --- Check that only a single program is built:
 // CHECK: <--- urProgramBuildExp
 // CHECK-NOT: <--- urProgramBuildExp
-// --- Check that the test completed with expected results:
-// CHECK: passed

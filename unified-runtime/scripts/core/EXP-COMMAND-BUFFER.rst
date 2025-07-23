@@ -563,3 +563,4 @@ Contributors
 * Maxime France-Pillois `maxime.francepillois@codeplay.com <maxime.francepillois@codeplay.com>`_
 * Aaron Greig `aaron.greig@codeplay.com <aaron.greig@codeplay.com>`_
 * Fábio Mestre `fabio.mestre@codeplay.com <fabio.mestre@codeplay.com>`_
+* Konrad Kusiak `konrad.kusiak@codeplay.com <konrad.kusiak@codeplay.com>`_

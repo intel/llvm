@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/helpers.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/aspects.hpp>
@@ -15,7 +16,9 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
+#include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/platform.hpp>
 
 #include <memory>
 #include <mutex>
@@ -25,10 +28,41 @@
 namespace sycl {
 inline namespace _V1 {
 
-// Forward declaration
-class platform;
-
 namespace detail {
+
+inline info::partition_property
+ConvertPartitionProperty(const ur_device_partition_t &Partition) {
+  switch (Partition) {
+  case UR_DEVICE_PARTITION_EQUALLY:
+    return info::partition_property::partition_equally;
+  case UR_DEVICE_PARTITION_BY_COUNTS:
+    return info::partition_property::partition_by_counts;
+  case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
+    return info::partition_property::partition_by_affinity_domain;
+  case UR_DEVICE_PARTITION_BY_CSLICE:
+    return info::partition_property::ext_intel_partition_by_cslice;
+  default:
+    return info::partition_property::no_partition;
+  }
+}
+
+inline info::partition_affinity_domain
+ConvertAffinityDomain(const ur_device_affinity_domain_flags_t Domain) {
+  switch (Domain) {
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA:
+    return info::partition_affinity_domain::numa;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE:
+    return info::partition_affinity_domain::L1_cache;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE:
+    return info::partition_affinity_domain::L2_cache;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE:
+    return info::partition_affinity_domain::L3_cache;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE:
+    return info::partition_affinity_domain::L4_cache;
+  default:
+    return info::partition_affinity_domain::not_applicable;
+  }
+}
 
 // Note that UR's enums have weird *_FORCE_UINT32 values, we ignore them in the
 // callers. But we also can't write a fully-covered switch without mentioning it
@@ -80,8 +114,8 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
 
   bool has_info_desc(ur_device_info_t Desc) const {
     size_t return_size = 0;
-    return getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-               MDevice, Desc, 0, nullptr, &return_size) == UR_RESULT_SUCCESS;
+    return getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+               MDevice, Desc, 0u, nullptr, &return_size) == UR_RESULT_SUCCESS;
   }
 
   // This should really be
@@ -119,25 +153,23 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
       static_assert(
           !check_type_in_v<typename ur_ret_t::value_type, bool, std::string>);
       size_t ResultSize = 0;
-      ur_result_t Error =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-              getHandleRef(), Desc, 0, nullptr, &ResultSize);
+      ur_result_t Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getHandleRef(), Desc, 0u, nullptr, &ResultSize);
       if (Error != UR_RESULT_SUCCESS)
         return {Error};
       if (ResultSize == 0)
         return {ur_ret_t{}};
 
       ur_ret_t Result(ResultSize / sizeof(typename ur_ret_t::value_type));
-      Error = getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+      Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
       if (Error != UR_RESULT_SUCCESS)
         return {Error};
       return {Result};
     } else {
       ur_ret_t Result;
-      ur_result_t Error =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-              getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
+      ur_result_t Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
       if (Error == UR_RESULT_SUCCESS)
         return {Result};
       else
@@ -155,18 +187,18 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
         return urGetInfoString<UrApiKind::urDeviceGetInfo>(*this, Desc);
       } else if constexpr (is_std_vector_v<ur_ret_t>) {
         size_t ResultSize = 0;
-        getAdapter()->call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0,
-                                                       nullptr, &ResultSize);
+        getAdapter().call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0u,
+                                                      nullptr, &ResultSize);
         if (ResultSize == 0)
           return ur_ret_t{};
 
         ur_ret_t Result(ResultSize / sizeof(typename ur_ret_t::value_type));
-        getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        getAdapter().call<UrApiKind::urDeviceGetInfo>(
             getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
         return Result;
       } else {
         ur_ret_t Result;
-        getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        getAdapter().call<UrApiKind::urDeviceGetInfo>(
             getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
         return Result;
       }
@@ -435,7 +467,7 @@ public:
   platform get_platform() const;
 
   /// \return the associated adapter with this device.
-  const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
+  adapter_impl &getAdapter() const { return MPlatform->getAdapter(); }
 
   /// Check SYCL extension support by device
   ///
@@ -504,10 +536,6 @@ public:
 
   /// Queries this SYCL device for information requested by the template
   /// parameter param
-  ///
-  /// Specializations of info::param_traits must be defined in accordance
-  /// with the info parameters in Table 4.20 of SYCL Spec to facilitate
-  /// returning the type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
 
@@ -730,7 +758,7 @@ public:
       for (auto &entry : ur_dev_partitions) {
         // OpenCL extensions may have partition_properties that
         // are not yet defined for SYCL (eg. CL_DEVICE_PARTITION_BY_NAMES_INTEL)
-        info::partition_property pp(info::ConvertPartitionProperty(entry));
+        info::partition_property pp(detail::ConvertPartitionProperty(entry));
         switch (pp) {
         case info::partition_property::no_partition:
         case info::partition_property::partition_equally:
@@ -769,7 +797,7 @@ public:
         return info::partition_property::no_partition;
       // The old UR implementation also just checked the first element, is that
       // correct?
-      return info::ConvertPartitionProperty(PartitionProperties[0].type);
+      return detail::ConvertPartitionProperty(PartitionProperties[0].type);
     }
     CASE(info::device::partition_type_affinity_domain) {
       std::vector<ur_device_partition_property_t> PartitionProperties =
@@ -778,7 +806,7 @@ public:
         return info::partition_affinity_domain::not_applicable;
       for (const auto &PartitionProp : PartitionProperties) {
         if (PartitionProp.type == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN)
-          return info::ConvertAffinityDomain(
+          return detail::ConvertAffinityDomain(
               PartitionProp.value.affinity_domain);
       }
 
@@ -911,7 +939,7 @@ public:
 
       // TODO: std::array<size_t, 3> ?
       size_t result[3];
-      getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+      getAdapter().call<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(result),
           &result, nullptr);
       return id<3>(std::min(Limit, result[2]), std::min(Limit, result[1]),
@@ -982,7 +1010,7 @@ public:
         ur_result_t Err = Devs.error();
         if (Err == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION)
           return std::vector<sycl::device>{};
-        getAdapter()->checkUrResult(Err);
+        getAdapter().checkUrResult(Err);
       }
 
       std::vector<sycl::device> Result;
@@ -1459,7 +1487,7 @@ public:
     CASE(ext_oneapi_graph) {
       ur_device_command_buffer_update_capability_flags_t UpdateCapabilities;
       bool CallSuccessful =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
               MDevice, UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP,
               sizeof(UpdateCapabilities), &UpdateCapabilities,
               nullptr) == UR_RESULT_SUCCESS;
@@ -1467,8 +1495,6 @@ public:
         return false;
       }
 
-      /* The kernel handle update capability is not yet required for the
-       * ext_oneapi_graph aspect */
       ur_device_command_buffer_update_capability_flags_t RequiredCapabilities =
           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS |
           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE |
@@ -1483,7 +1509,7 @@ public:
     CASE(ext_oneapi_limited_graph) {
       bool SupportsCommandBuffers = false;
       bool CallSuccessful =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
               MDevice, UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP,
               sizeof(SupportsCommandBuffers), &SupportsCommandBuffers,
               nullptr) == UR_RESULT_SUCCESS;
@@ -1821,6 +1847,7 @@ public:
         {0x05004000, oneapi_exp_arch::intel_gpu_bmg_g21}, // A0
         {0x05004001, oneapi_exp_arch::intel_gpu_bmg_g21}, // A1
         {0x05004004, oneapi_exp_arch::intel_gpu_bmg_g21}, // B0
+        {0x05008000, oneapi_exp_arch::intel_gpu_bmg_g31}, // A0
         {0x05010000, oneapi_exp_arch::intel_gpu_lnl_m},   // A0
         {0x05010001, oneapi_exp_arch::intel_gpu_lnl_m},   // A1
         {0x05010004, oneapi_exp_arch::intel_gpu_lnl_m},   // B0
@@ -1828,6 +1855,7 @@ public:
         {0x07800004, oneapi_exp_arch::intel_gpu_ptl_h},   // B0
         {0x07804000, oneapi_exp_arch::intel_gpu_ptl_u},   // A0
         {0x07804001, oneapi_exp_arch::intel_gpu_ptl_u},   // A1
+        {0x0780c000, oneapi_exp_arch::intel_gpu_wcl},     // A0
     };
 
     // Only for Intel CPU architectures
@@ -1846,7 +1874,7 @@ public:
           // Not all devices support this device info query
           return std::nullopt;
         }
-        getAdapter()->checkUrResult(Err);
+        getAdapter().checkUrResult(Err);
       }
 
       auto Val = static_cast<int>(DeviceIp.value());
@@ -2253,6 +2281,48 @@ private:
       MCache;
 
 }; // class device_impl
+
+struct devices_deref_impl {
+  template <typename T> static device_impl &dereference(T &Elem) {
+    using Ty = std::decay_t<decltype(Elem)>;
+    if constexpr (std::is_same_v<Ty, device>) {
+      return *getSyclObjImpl(Elem);
+    } else if constexpr (std::is_same_v<Ty, device_impl>) {
+      return Elem;
+    } else {
+      return *Elem;
+    }
+  }
+};
+using devices_iterator =
+    variadic_iterator<devices_deref_impl, device,
+                      std::vector<std::shared_ptr<device_impl>>::const_iterator,
+                      std::vector<device>::const_iterator,
+                      std::vector<device_impl *>::const_iterator,
+                      device_impl *>;
+
+class devices_range : public iterator_range<devices_iterator> {
+private:
+  using Base = iterator_range<devices_iterator>;
+
+public:
+  using Base::Base;
+  template <typename Container>
+  decltype(std::declval<Base>().to<Container>()) to() const {
+    return this->Base::to<Container>();
+  }
+
+  template <typename Container>
+  std::enable_if_t<std::is_same_v<Container, std::vector<ur_device_handle_t>>,
+                   Container>
+  to() const {
+    std::vector<ur_device_handle_t> DeviceHandles;
+    DeviceHandles.reserve(size());
+    std::transform(begin(), end(), std::back_inserter(DeviceHandles),
+                   [](device_impl &Dev) { return Dev.getHandleRef(); });
+    return DeviceHandles;
+  }
+};
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename Param>

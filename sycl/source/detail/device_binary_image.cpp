@@ -162,7 +162,7 @@ RTDeviceBinaryImage::getProperty(const char *PropName) const {
   return *It;
 }
 
-void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
+RTDeviceBinaryImage::RTDeviceBinaryImage(sycl_device_binary Bin) {
   ImageId = ImageCounter++;
 
   // If there was no binary, we let the owner handle initialization as they see
@@ -199,6 +199,7 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
     ProgramMetadataUR.push_back(
         ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
   }
+  KernelNames.init(Bin, __SYCL_PROPERTY_SET_SYCL_KERNEL_NAMES);
   ExportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
   ImportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS);
   DeviceGlobals.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
@@ -211,7 +212,8 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
 
 std::atomic<uintptr_t> RTDeviceBinaryImage::ImageCounter = 1;
 
-DynRTDeviceBinaryImage::DynRTDeviceBinaryImage() : RTDeviceBinaryImage() {
+DynRTDeviceBinaryImage::DynRTDeviceBinaryImage()
+    : RTDeviceBinaryImage(nullptr) {
   Bin = new sycl_device_binary_struct();
   Bin->Version = SYCL_DEVICE_BINARY_VERSION;
   Bin->Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
@@ -227,12 +229,11 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage() : RTDeviceBinaryImage() {
   Bin->DeviceTargetSpec = __SYCL_DEVICE_BINARY_TARGET_UNKNOWN;
 }
 
-DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
-    std::unique_ptr<char[], std::function<void(void *)>> &&DataPtr,
-    size_t DataSize)
-    : DynRTDeviceBinaryImage() {
-  Data = std::move(DataPtr);
-  Bin->BinaryStart = reinterpret_cast<unsigned char *>(Data.get());
+std::unique_ptr<sycl_device_binary_struct> CreateDefaultDynBinary(
+    const std::unique_ptr<char[], std::function<void(void *)>> &DataPtr,
+    size_t DataSize) {
+  auto Bin = std::make_unique<sycl_device_binary_struct>();
+  Bin->BinaryStart = reinterpret_cast<unsigned char *>(DataPtr.get());
   Bin->BinaryEnd = Bin->BinaryStart + DataSize;
   Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, DataSize);
   switch (Bin->Format) {
@@ -242,8 +243,14 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   default:
     Bin->DeviceTargetSpec = __SYCL_DEVICE_BINARY_TARGET_UNKNOWN;
   }
-  init(Bin);
+  return Bin;
 }
+
+DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
+    std::unique_ptr<char[], std::function<void(void *)>> &&DataPtr,
+    size_t DataSize)
+    : RTDeviceBinaryImage(CreateDefaultDynBinary(DataPtr, DataSize).release()),
+      Data{std::move(DataPtr)} {}
 
 DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
   delete Bin;
@@ -273,16 +280,21 @@ naiveMergeBinaryProperties(const std::vector<const RTDeviceBinaryImage *> &Imgs,
 
 // Exclusive property merge logic. If IgnoreDuplicates is false it assumes there
 // are no cases where properties have different values and throws otherwise.
-template <typename RangeGetterT>
+template <typename RangeGetterT, typename DropPropertyT>
 static std::unordered_map<std::string_view, const sycl_device_binary_property>
 exclusiveMergeBinaryProperties(
     const std::vector<const RTDeviceBinaryImage *> &Imgs,
-    const RangeGetterT &RangeGetter, bool IgnoreDuplicates = false) {
+    const RangeGetterT &RangeGetter, bool IgnoreDuplicates,
+    const DropPropertyT &DropProperty) {
   std::unordered_map<std::string_view, const sycl_device_binary_property>
       MergeMap;
   for (const RTDeviceBinaryImage *Img : Imgs) {
     const RTDeviceBinaryImage::PropertyRange &Range = RangeGetter(*Img);
     for (const sycl_device_binary_property Prop : Range) {
+      // Skip adding the property if we can drop it.
+      if (DropProperty(std::string_view{Prop->Name}))
+        continue;
+
       const auto [It, Inserted] =
           MergeMap.try_emplace(std::string_view{Prop->Name}, Prop);
       if (IgnoreDuplicates || Inserted)
@@ -299,6 +311,17 @@ exclusiveMergeBinaryProperties(
     }
   }
   return MergeMap;
+}
+
+template <typename RangeGetterT,
+          typename DropPropertyT = std::function<bool(std::string_view)>>
+static std::unordered_map<std::string_view, const sycl_device_binary_property>
+exclusiveMergeBinaryProperties(
+    const std::vector<const RTDeviceBinaryImage *> &Imgs,
+    const RangeGetterT &RangeGetter, bool IgnoreDuplicates = false) {
+  return exclusiveMergeBinaryProperties(
+      Imgs, RangeGetter, IgnoreDuplicates,
+      /*DropProperty=*/[](std::string_view) { return false; });
 }
 
 // Device requirements needs the ability to produce new properties. The
@@ -479,8 +502,6 @@ static void copyProperty(sycl_device_binary_property &NextFreeProperty,
 DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
     const std::vector<const RTDeviceBinaryImage *> &Imgs)
     : DynRTDeviceBinaryImage() {
-  init(nullptr);
-
   // Naive merges.
   auto MergedSpecConstants =
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
@@ -510,6 +531,10 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getImplicitLocalArg();
       });
+  auto MergedKernelNames =
+      naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getKernelNames();
+      });
   auto MergedExportedSymbols =
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getExportedSymbols();
@@ -519,12 +544,13 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
         return Img.getRegisteredKernels();
       });
 
-  std::array<const std::vector<sycl_device_binary_property> *, 10> MergedVecs{
+  std::array<const std::vector<sycl_device_binary_property> *, 11> MergedVecs{
       &MergedSpecConstants,      &MergedSpecConstantsDefaultValues,
       &MergedKernelParamOptInfo, &MergedAssertUsed,
       &MergedDeviceGlobals,      &MergedHostPipes,
       &MergedVirtualFunctions,   &MergedImplicitLocalArg,
-      &MergedExportedSymbols,    &MergedRegisteredKernels};
+      &MergedKernelNames,        &MergedExportedSymbols,
+      &MergedRegisteredKernels};
 
   // Exclusive merges.
   auto MergedDeviceLibReqMask =
@@ -539,10 +565,11 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
       Imgs,
       [](const RTDeviceBinaryImage &Img) { return Img.getImportedSymbols(); },
       /*IgnoreDuplicates=*/true);
-  auto MergedMisc =
-      exclusiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
-        return Img.getMiscProperties();
-      });
+  auto MergedMisc = exclusiveMergeBinaryProperties(
+      Imgs,
+      [](const RTDeviceBinaryImage &Img) { return Img.getMiscProperties(); },
+      /*IgnoreDuplicates=*/true, /*DropProperty=*/
+      [](std::string_view PropertyName) { return PropertyName == "optLevel"; });
 
   std::array<const std::unordered_map<std::string_view,
                                       const sycl_device_binary_property> *,
@@ -648,6 +675,7 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   CopyPropertiesVec(MergedHostPipes, HostPipes);
   CopyPropertiesVec(MergedVirtualFunctions, VirtualFunctions);
   CopyPropertiesVec(MergedImplicitLocalArg, ImplicitLocalArg);
+  CopyPropertiesVec(MergedKernelNames, KernelNames);
   CopyPropertiesVec(MergedExportedSymbols, ExportedSymbols);
   CopyPropertiesVec(MergedRegisteredKernels, RegisteredKernels);
 
@@ -672,21 +700,14 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   }
 }
 
-#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+#ifdef SYCL_RT_ZSTD_AVAILABLE
 CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
     sycl_device_binary CompressedBin)
-    : RTDeviceBinaryImage() {
-
-  // 'CompressedBin' is part of the executable image loaded into memory
-  // which can't be modified easily. So, we need to make a copy of it.
-  Bin = new sycl_device_binary_struct(*CompressedBin);
-
+    : RTDeviceBinaryImage(new sycl_device_binary_struct(*CompressedBin)) {
   // Get the decompressed size of the binary image.
   m_ImageSize = ZSTDCompressor::GetDecompressedSize(
       reinterpret_cast<const char *>(Bin->BinaryStart),
       static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart));
-
-  init(Bin);
 }
 
 void CompressedRTDeviceBinaryImage::Decompress() {
@@ -712,7 +733,7 @@ CompressedRTDeviceBinaryImage::~CompressedRTDeviceBinaryImage() {
   delete Bin;
   Bin = nullptr;
 }
-#endif // SYCL_RT_ZSTD_NOT_AVAIABLE
+#endif // SYCL_RT_ZSTD_AVAILABLE
 
 } // namespace detail
 } // namespace _V1

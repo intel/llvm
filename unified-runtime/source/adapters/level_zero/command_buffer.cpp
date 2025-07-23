@@ -12,6 +12,7 @@
 #include "helpers/kernel_helpers.hpp"
 #include "helpers/mutable_helpers.hpp"
 #include "logger/ur_logger.hpp"
+#include "ur/ur.hpp"
 #include "ur_api.h"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
@@ -312,9 +313,6 @@ ur_result_t createSyncPointAndGetZeEvents(
   if (CommandBuffer->IsInOrderCmdList) {
     UR_CALL(createSyncPointBetweenCopyAndCompute(CommandBuffer, ZeCommandList,
                                                  ZeEventList));
-    if (!ZeEventList.empty()) {
-      NumSyncPointsInWaitList = ZeEventList.size();
-    }
     return UR_RESULT_SUCCESS;
   }
 
@@ -488,16 +486,16 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       IsUpdatable(Desc->isUpdatable), IsProfilingEnabled(Desc->enableProfiling),
       InOrderRequested(Desc->isInOrder), IsInOrderCmdList(IsInOrderCmdList),
       UseImmediateAppendPath(UseImmediateAppendPath) {
-  ur::level_zero::urContextRetain(Context);
-  ur::level_zero::urDeviceRetain(Device);
+  UR_CALL_NOCHECK(ur::level_zero::urContextRetain(Context));
+  UR_CALL_NOCHECK(ur::level_zero::urDeviceRetain(Device));
 }
 
 void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
   // Release the memory allocated to the Context stored in the command_buffer
-  ur::level_zero::urContextRelease(Context);
+  UR_CALL_NOCHECK(ur::level_zero::urContextRelease(Context));
 
   // Release the device
-  ur::level_zero::urDeviceRelease(Device);
+  UR_CALL_NOCHECK(ur::level_zero::urDeviceRelease(Device));
 
   // Release the memory allocated to the CommandList stored in the
   // command_buffer
@@ -589,7 +587,7 @@ void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
 
   for (auto &AssociatedKernel : KernelsList) {
     ReleaseIndirectMem(AssociatedKernel);
-    ur::level_zero::urKernelRelease(AssociatedKernel);
+    UR_CALL_NOCHECK(ur::level_zero::urKernelRelease(AssociatedKernel));
   }
 }
 
@@ -667,6 +665,25 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
 
   ZE2UR_CALL(zeCommandListCreate, (Context->ZeContext, Device->ZeDevice,
                                    &ZeCommandListDesc, &CommandList));
+
+  return UR_RESULT_SUCCESS;
+}
+
+/**
+ * Waits for any ongoing executions of the command-buffer to finish
+ * @param CommandBuffer The command-buffer to wait for.
+ * @return UR_RESULT_SUCCESS or an error code on failure
+ */
+ur_result_t
+waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
+
+  if (ur_event_handle_t &CurrentSubmissionEvent =
+          CommandBuffer->CurrentSubmissionEvent) {
+    ZE2UR_CALL(zeEventHostSynchronize,
+               (CurrentSubmissionEvent->ZeEvent, UINT64_MAX));
+    UR_CALL(urEventReleaseInternal(CurrentSubmissionEvent));
+    CurrentSubmissionEvent = nullptr;
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -823,15 +840,16 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
 
 ur_result_t
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t CommandBuffer) {
-  CommandBuffer->RefCount.increment();
+  CommandBuffer->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t CommandBuffer) {
-  if (!CommandBuffer->RefCount.decrementAndTest())
+  if (!CommandBuffer->RefCount.release())
     return UR_RESULT_SUCCESS;
 
+  UR_CALL(waitForOngoingExecution(CommandBuffer));
   CommandBuffer->cleanupCommandBufferResources();
   delete CommandBuffer;
   return UR_RESULT_SUCCESS;
@@ -1051,10 +1069,10 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     CommandBuffer->KernelsList.push_back(KernelAlternatives[i]);
   }
 
-  ur::level_zero::urKernelRetain(Kernel);
+  UR_CALL(ur::level_zero::urKernelRetain(Kernel));
   // Retain alternative kernels if provided
   for (size_t i = 0; i < NumKernelAlternatives; i++) {
-    ur::level_zero::urKernelRetain(KernelAlternatives[i]);
+    UR_CALL(ur::level_zero::urKernelRetain(KernelAlternatives[i]));
   }
 
   if (Command) {
@@ -1310,9 +1328,9 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
       CommandBuffer->ZeComputeCommandList, NumSyncPointsInWaitList,
       SyncPointWaitList, true, RetSyncPoint, ZeEventList, ZeLaunchEvent));
 
-  if (NumSyncPointsInWaitList) {
+  if (!ZeEventList.empty()) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (CommandBuffer->ZeComputeCommandList, NumSyncPointsInWaitList,
+               (CommandBuffer->ZeComputeCommandList, ZeEventList.size(),
                 ZeEventList.data()));
   }
 
@@ -1374,9 +1392,9 @@ ur_result_t urCommandBufferAppendUSMAdviseExp(
       NumSyncPointsInWaitList, SyncPointWaitList, true, RetSyncPoint,
       ZeEventList, ZeLaunchEvent));
 
-  if (NumSyncPointsInWaitList) {
+  if (!ZeEventList.empty()) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (CommandBuffer->ZeComputeCommandList, NumSyncPointsInWaitList,
+               (CommandBuffer->ZeComputeCommandList, ZeEventList.size(),
                 ZeEventList.data()));
   }
 
@@ -1454,25 +1472,6 @@ ur_result_t getZeCommandQueue(ur_queue_handle_t Queue, bool UseCopyEngine,
 }
 
 /**
- * Waits for any ongoing executions of the command-buffer to finish.
- * @param CommandBuffer The command-buffer to wait for.
- * @return UR_RESULT_SUCCESS or an error code on failure
- */
-ur_result_t
-waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
-
-  if (ur_event_handle_t &CurrentSubmissionEvent =
-          CommandBuffer->CurrentSubmissionEvent) {
-    ZE2UR_CALL(zeEventHostSynchronize,
-               (CurrentSubmissionEvent->ZeEvent, UINT64_MAX));
-    UR_CALL(urEventReleaseInternal(CurrentSubmissionEvent));
-    CurrentSubmissionEvent = nullptr;
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
-/**
  * Waits for the all the dependencies of the command-buffer
  * @param[in] CommandBuffer The command-buffer.
  * @param[in] Queue The UR queue used to submit the command-buffer.
@@ -1487,34 +1486,33 @@ ur_result_t waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
   std::scoped_lock<ur_shared_mutex> Guard(CommandBuffer->Mutex);
   const bool UseCopyEngine = false;
   bool MustSignalWaitEvent = true;
-  if (NumEventsInWaitList) {
-    ur_ze_event_list_t TmpWaitList;
-    UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
-        NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
-    // Update the WaitList of the Wait Event
-    // Events are appended to the WaitList if the WaitList is not empty
-    if (CommandBuffer->WaitEvent->WaitList.isEmpty())
-      CommandBuffer->WaitEvent->WaitList = TmpWaitList;
-    else
-      CommandBuffer->WaitEvent->WaitList.insert(TmpWaitList);
+  ur_ze_event_list_t TmpWaitList;
+  UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
+      NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
-    if (!CommandBuffer->WaitEvent->WaitList.isEmpty()) {
-      // Create command-list to execute before `CommandListPtr` and will signal
-      // when `EventWaitList` dependencies are complete.
-      ur_command_list_ptr_t WaitCommandList{};
-      UR_CALL(Queue->Context->getAvailableCommandList(
-          Queue, WaitCommandList, false /*UseCopyEngine*/, NumEventsInWaitList,
-          EventWaitList, false /*AllowBatching*/, nullptr /*ForcedCmdQueue*/));
+  // Update the WaitList of the Wait Event
+  // Events are appended to the WaitList if the WaitList is not empty
+  if (CommandBuffer->WaitEvent->WaitList.isEmpty())
+    CommandBuffer->WaitEvent->WaitList = TmpWaitList;
+  else
+    CommandBuffer->WaitEvent->WaitList.insert(TmpWaitList);
 
-      ZE2UR_CALL(zeCommandListAppendBarrier,
-                 (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent,
-                  CommandBuffer->WaitEvent->WaitList.Length,
-                  CommandBuffer->WaitEvent->WaitList.ZeEventList));
-      Queue->executeCommandList(WaitCommandList, false /*IsBlocking*/,
-                                false /*OKToBatchCommand*/);
-      MustSignalWaitEvent = false;
-    }
+  if (!CommandBuffer->WaitEvent->WaitList.isEmpty()) {
+    // Create command-list to execute before `CommandListPtr` and will signal
+    // when `EventWaitList` dependencies are complete.
+    ur_command_list_ptr_t WaitCommandList{};
+    UR_CALL(Queue->Context->getAvailableCommandList(
+        Queue, WaitCommandList, false /*UseCopyEngine*/, NumEventsInWaitList,
+        EventWaitList, false /*AllowBatching*/, nullptr /*ForcedCmdQueue*/));
+
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent,
+                CommandBuffer->WaitEvent->WaitList.Length,
+                CommandBuffer->WaitEvent->WaitList.ZeEventList));
+    UR_CALL(Queue->executeCommandList(WaitCommandList, false /*IsBlocking*/,
+                                      false /*OKToBatchCommand*/));
+    MustSignalWaitEvent = false;
   }
   // Given WaitEvent was created without specifying Counting Events, then this
   // event can be signalled on the host.
@@ -1643,7 +1641,7 @@ ur_result_t enqueueImmediateAppendPath(
   if (CommandBuffer->CurrentSubmissionEvent) {
     UR_CALL(urEventReleaseInternal(CommandBuffer->CurrentSubmissionEvent));
   }
-  (*Event)->RefCount.increment();
+  (*Event)->RefCount.retain();
   CommandBuffer->CurrentSubmissionEvent = *Event;
 
   UR_CALL(Queue->executeCommandList(CommandListHelper, false, false));
@@ -1726,7 +1724,7 @@ ur_result_t enqueueWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer,
   if (CommandBuffer->CurrentSubmissionEvent) {
     UR_CALL(urEventReleaseInternal(CommandBuffer->CurrentSubmissionEvent));
   }
-  (*Event)->RefCount.increment();
+  (*Event)->RefCount.retain();
   CommandBuffer->CurrentSubmissionEvent = *Event;
 
   UR_CALL(Queue->executeCommandList(SignalCommandList, false /*IsBlocking*/,
@@ -1850,7 +1848,7 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{hCommandBuffer->RefCount.load()});
+    return ReturnValue(uint32_t{hCommandBuffer->RefCount.getCount()});
   case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
     ur_exp_command_buffer_desc_t Descriptor{};
     Descriptor.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;

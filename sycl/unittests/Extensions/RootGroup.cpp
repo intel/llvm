@@ -42,15 +42,16 @@ struct KernelInfo<QueryKernel> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
+static sycl::unittest::MockDeviceImage Img =
+    sycl::unittest::generateDefaultImage({"QueryKernel"});
+static const sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
+
 // Test that querying max_num_work_groups with an invalid (zero) work-group size
 // throws the correct exception
 TEST(RootGroupTests, InvalidWorkGroupSize) {
   namespace syclex = sycl::ext::oneapi::experimental;
 
-  // Create a mock device image containing the QueryKernel
-  sycl::unittest::MockDeviceImage Img =
-      sycl::unittest::generateDefaultImage({"QueryKernel"});
-  const sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
+  // Create a UR mock for testing
   const sycl::unittest::UrMock<> Mock;
 
   const sycl::queue q;
@@ -75,10 +76,7 @@ TEST(RootGroupTests, InvalidWorkGroupSize) {
 TEST(RootGroupTests, ValidNumWorkGroupsQuery) {
   namespace syclex = sycl::ext::oneapi::experimental;
 
-  // Create a mock device image containing the QueryKernel
-  sycl::unittest::MockDeviceImage Img =
-      sycl::unittest::generateDefaultImage({"QueryKernel"});
-  const sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
+  // Create a UR mock for testing
   const sycl::unittest::UrMock<> Mock;
 
   // Set up a mock callback to return a specific group count when queried

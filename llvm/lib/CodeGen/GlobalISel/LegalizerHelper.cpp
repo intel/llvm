@@ -118,7 +118,7 @@ LegalizerHelper::LegalizerHelper(MachineFunction &MF, const LegalizerInfo &LI,
 LegalizerHelper::LegalizeResult
 LegalizerHelper::legalizeInstrStep(MachineInstr &MI,
                                    LostDebugLocObserver &LocObserver) {
-  LLVM_DEBUG(dbgs() << "Legalizing: " << MI);
+  LLVM_DEBUG(dbgs() << "\nLegalizing: " << MI);
 
   MIRBuilder.setInstrAndDebugLoc(MI);
 
@@ -3221,6 +3221,8 @@ LegalizerHelper::widenScalar(MachineInstr &MI, unsigned TypeIdx, LLT WideTy) {
   case TargetOpcode::G_FMAXNUM_IEEE:
   case TargetOpcode::G_FMINIMUM:
   case TargetOpcode::G_FMAXIMUM:
+  case TargetOpcode::G_FMINIMUMNUM:
+  case TargetOpcode::G_FMAXIMUMNUM:
   case TargetOpcode::G_FDIV:
   case TargetOpcode::G_FREM:
   case TargetOpcode::G_FCEIL:
@@ -4070,6 +4072,21 @@ LegalizerHelper::LegalizeResult LegalizerHelper::lowerLoad(GAnyLoad &LoadMI) {
     if (MemTy != DstTy)
       return UnableToLegalize;
 
+    Align Alignment = LoadMI.getAlign();
+    // Given an alignment larger than the size of the memory, we can increase
+    // the size of the load without needing to scalarize it.
+    if (Alignment.value() * 8 > MemSizeInBits &&
+        isPowerOf2_64(DstTy.getScalarSizeInBits())) {
+      LLT MoreTy = LLT::fixed_vector(NextPowerOf2(DstTy.getNumElements()),
+                                     DstTy.getElementType());
+      MachineMemOperand *NewMMO = MF.getMachineMemOperand(&MMO, 0, MoreTy);
+      auto NewLoad = MIRBuilder.buildLoad(MoreTy, PtrReg, *NewMMO);
+      MIRBuilder.buildDeleteTrailingVectorElements(LoadMI.getReg(0),
+                                                   NewLoad.getReg(0));
+      LoadMI.eraseFromParent();
+      return Legalized;
+    }
+
     // TODO: We can do better than scalarizing the vector and at least split it
     // in half.
     return reduceLoadStoreWidth(LoadMI, 0, DstTy.getElementType());
@@ -4591,6 +4608,8 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT LowerHintTy) {
     return lowerFCopySign(MI);
   case G_FMINNUM:
   case G_FMAXNUM:
+  case G_FMINIMUMNUM:
+  case G_FMAXIMUMNUM:
     return lowerFMinNumMaxNum(MI);
   case G_MERGE_VALUES:
     return lowerMergeValues(MI);
@@ -5379,6 +5398,8 @@ LegalizerHelper::fewerElementsVector(MachineInstr &MI, unsigned TypeIdx,
   case G_FMAXNUM_IEEE:
   case G_FMINIMUM:
   case G_FMAXIMUM:
+  case G_FMINIMUMNUM:
+  case G_FMAXIMUMNUM:
   case G_FSHL:
   case G_FSHR:
   case G_ROTL:
@@ -6090,6 +6111,8 @@ LegalizerHelper::moreElementsVector(MachineInstr &MI, unsigned TypeIdx,
   case TargetOpcode::G_FMAXNUM_IEEE:
   case TargetOpcode::G_FMINIMUM:
   case TargetOpcode::G_FMAXIMUM:
+  case TargetOpcode::G_FMINIMUMNUM:
+  case TargetOpcode::G_FMAXIMUMNUM:
   case TargetOpcode::G_STRICT_FADD:
   case TargetOpcode::G_STRICT_FSUB:
   case TargetOpcode::G_STRICT_FMUL:
@@ -8139,8 +8162,27 @@ LegalizerHelper::lowerFCopySign(MachineInstr &MI) {
 
 LegalizerHelper::LegalizeResult
 LegalizerHelper::lowerFMinNumMaxNum(MachineInstr &MI) {
-  unsigned NewOp = MI.getOpcode() == TargetOpcode::G_FMINNUM ?
-    TargetOpcode::G_FMINNUM_IEEE : TargetOpcode::G_FMAXNUM_IEEE;
+  // FIXME: fminnum/fmaxnum and fminimumnum/fmaximumnum should not have
+  // identical handling. fminimumnum/fmaximumnum also need a path that do not
+  // depend on fminnum/fmaxnum.
+
+  unsigned NewOp;
+  switch (MI.getOpcode()) {
+  case TargetOpcode::G_FMINNUM:
+    NewOp = TargetOpcode::G_FMINNUM_IEEE;
+    break;
+  case TargetOpcode::G_FMINIMUMNUM:
+    NewOp = TargetOpcode::G_FMINNUM;
+    break;
+  case TargetOpcode::G_FMAXNUM:
+    NewOp = TargetOpcode::G_FMAXNUM_IEEE;
+    break;
+  case TargetOpcode::G_FMAXIMUMNUM:
+    NewOp = TargetOpcode::G_FMAXNUM;
+    break;
+  default:
+    llvm_unreachable("unexpected min/max opcode");
+  }
 
   auto [Dst, Src0, Src1] = MI.getFirst3Regs();
   LLT Ty = MRI.getType(Dst);
@@ -8419,10 +8461,10 @@ LegalizerHelper::lowerShuffleVector(MachineInstr &MI) {
     }
   }
 
-  if (DstTy.isScalar())
-    MIRBuilder.buildCopy(DstReg, BuildVec[0]);
-  else
+  if (DstTy.isVector())
     MIRBuilder.buildBuildVector(DstReg, BuildVec);
+  else
+    MIRBuilder.buildCopy(DstReg, BuildVec[0]);
   MI.eraseFromParent();
   return Legalized;
 }
@@ -9065,8 +9107,18 @@ LegalizerHelper::lowerReadWriteRegister(MachineInstr &MI) {
     cast<MDNode>(MI.getOperand(NameOpIdx).getMetadata())->getOperand(0));
 
   Register PhysReg = TLI.getRegisterByName(RegStr->getString().data(), Ty, MF);
-  if (!PhysReg.isValid())
-    return UnableToLegalize;
+  if (!PhysReg) {
+    const Function &Fn = MF.getFunction();
+    Fn.getContext().diagnose(DiagnosticInfoGenericWithLoc(
+        "invalid register \"" + Twine(RegStr->getString().data()) + "\" for " +
+            (IsRead ? "llvm.read_register" : "llvm.write_register"),
+        Fn, MI.getDebugLoc()));
+    if (IsRead)
+      MIRBuilder.buildUndef(ValReg);
+
+    MI.eraseFromParent();
+    return Legalized;
+  }
 
   if (IsRead)
     MIRBuilder.buildCopy(ValReg, PhysReg);

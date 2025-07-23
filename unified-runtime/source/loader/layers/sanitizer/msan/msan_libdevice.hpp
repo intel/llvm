@@ -19,6 +19,12 @@
 namespace ur_sanitizer_layer {
 #endif // !__SPIR__ && !__SPIRV__
 
+constexpr unsigned MSAN_ORIGIN_GRANULARITY = 4U;
+
+constexpr uint32_t MSAN_MAX_WG_LOCAL = 1024;
+
+constexpr uint32_t MSAN_MAX_SG_PRIVATE = 32;
+
 struct MsanErrorReport {
   int Flag = 0;
 
@@ -37,7 +43,7 @@ struct MsanErrorReport {
 
   uint32_t AccessSize = 0;
   ErrorType ErrorTy = ErrorType::UNKNOWN;
-  uintptr_t Origin;
+  uint32_t Origin;
 };
 
 struct MsanLocalArgsInfo {

@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 
 #include <vector>
 
@@ -17,12 +18,11 @@ struct ur_sampler_handle_t_ : ur::opencl::handle_base {
   using native_type = cl_sampler;
   native_type CLSampler;
   ur_context_handle_t Context;
-  std::atomic<uint32_t> RefCount = 0;
   bool IsNativeHandleOwned = false;
+  ur::RefCount RefCount;
 
   ur_sampler_handle_t_(native_type Sampler, ur_context_handle_t Ctx)
       : handle_base(), CLSampler(Sampler), Context(Ctx) {
-    RefCount = 1;
     urContextRetain(Context);
   }
 
@@ -32,10 +32,4 @@ struct ur_sampler_handle_t_ : ur::opencl::handle_base {
       clReleaseSampler(CLSampler);
     }
   }
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 };

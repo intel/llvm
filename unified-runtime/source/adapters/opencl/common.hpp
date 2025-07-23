@@ -7,6 +7,11 @@
 //===-----------------------------------------------------------------===//
 #pragma once
 
+// Include symbols for beta extensions
+#ifndef CL_ENABLE_BETA_EXTENSIONS
+#define CL_ENABLE_BETA_EXTENSIONS
+#endif
+
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
 #include <climits>

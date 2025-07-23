@@ -5,6 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "common.h"
+
+// Include symbols for beta extensions
+#ifndef CL_ENABLE_BETA_EXTENSIONS
+#define CL_ENABLE_BETA_EXTENSIONS
+#endif
+
 #include <CL/cl_ext.h>
 
 // Test using using OpenCL cl_khr_command_buffer to add commands to a native

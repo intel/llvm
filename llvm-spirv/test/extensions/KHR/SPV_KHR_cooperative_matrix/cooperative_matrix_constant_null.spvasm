@@ -1,0 +1,25 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+
+OpCapability Addresses
+OpCapability Kernel
+OpCapability CooperativeMatrixKHR
+OpExtension "SPV_KHR_cooperative_matrix"
+OpMemoryModel Physical64 OpenCL
+OpEntryPoint Kernel %1 "test"
+%uint = OpTypeInt 32 0
+%uint_0 = OpConstantNull %uint
+%uint_12 = OpConstant %uint 12
+%uint_2 = OpConstant %uint 2
+%void = OpTypeVoid
+%fnTy = OpTypeFunction %void
+%matTy = OpTypeCooperativeMatrixKHR %uint %uint_0 %uint_12 %uint_12 %uint_0
+%1 = OpFunction %void None %fnTy
+%2 = OpLabel
+%3 = OpCompositeConstruct %matTy %uint_0
+OpReturn
+OpFunctionEnd
+
+; CHECK: call spir_func target("spirv.CooperativeMatrixKHR", i32, 0, 12, 12, 0) @_Z26__spirv_CompositeConstructi(i32 0)

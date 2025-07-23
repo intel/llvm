@@ -28,6 +28,9 @@ set(UR_BUILD_TESTS "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
 # UR tests require the examples to be built
 set(UR_BUILD_EXAMPLES "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
 
+option(SYCL_UR_FORMAT_CPP_STYLE "Format code style of UR C++ sources" OFF)
+set(UR_FORMAT_CPP_STYLE "${SYCL_UR_FORMAT_CPP_STYLE}" CACHE BOOL "" FORCE)
+
 # Here we override the defaults to unified-runtime
 set(UR_BUILD_XPTI_LIBS OFF CACHE BOOL "")
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
@@ -358,6 +361,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       -DUMF_BUILD_SHARED_LIBRARY:BOOL=${UMF_BUILD_SHARED_LIBRARY}
       -DUMF_LINK_HWLOC_STATICALLY:BOOL=${UMF_LINK_HWLOC_STATICALLY}
       -DUMF_DISABLE_HWLOC:BOOL=${UMF_DISABLE_HWLOC}
+      -DSYCL_EMHASH_DIR:STRING=${SYCL_EMHASH_DIR}
       # Enable d suffix in UMF
       -DUMF_USE_DEBUG_POSTFIX:BOOL=ON
   )
@@ -424,7 +428,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   endif()
 endif()
 
-install(TARGETS umf
-  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
-  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
-  RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)
+if(NOT UR_USE_EXTERNAL_UMF)
+  install(TARGETS umf
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+    RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)
+endif()

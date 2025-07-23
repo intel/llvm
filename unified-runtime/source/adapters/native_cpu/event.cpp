@@ -128,7 +128,7 @@ void ur_event_handle_t_::wait(bool queue_already_locked) {
     return;
   }
   this->futures.wait_all();
-  queue->removeEvent(this, queue_already_locked);
+  queue->removeEvent(this);
   done = true;
   // The callback may need to acquire the lock, so we unlock it here
   lock.unlock();

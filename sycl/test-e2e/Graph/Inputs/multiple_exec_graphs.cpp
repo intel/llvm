@@ -2,9 +2,10 @@
 // graph.
 
 #include "../graph_common.hpp"
+#include <sycl/properties/queue_properties.hpp>
 
 int main() {
-  queue Queue{};
+  queue Queue{{sycl::property::queue::in_order{}}};
 
   using T = int;
 

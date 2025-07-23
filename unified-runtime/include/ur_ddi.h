@@ -1318,6 +1318,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMPitchedAllocExp_t)(
     ur_usm_pool_handle_t, size_t, size_t, size_t, void **, size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMContextMemcpyExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMContextMemcpyExp_t)(
+    ur_context_handle_t, void *, const void *, size_t);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUSMImportExp
 typedef ur_result_t(UR_APICALL *ur_pfnUSMImportExp_t)(ur_context_handle_t,
                                                       void *, size_t);
@@ -1339,6 +1344,7 @@ typedef struct ur_usm_exp_dditable_t {
   ur_pfnUSMPoolGetDevicePoolExp_t pfnPoolGetDevicePoolExp;
   ur_pfnUSMPoolTrimToExp_t pfnPoolTrimToExp;
   ur_pfnUSMPitchedAllocExp_t pfnPitchedAllocExp;
+  ur_pfnUSMContextMemcpyExp_t pfnContextMemcpyExp;
   ur_pfnUSMImportExp_t pfnImportExp;
   ur_pfnUSMReleaseExp_t pfnReleaseExp;
 } ur_usm_exp_dditable_t;
@@ -1481,6 +1487,12 @@ typedef ur_result_t(
     ur_context_handle_t, ur_device_handle_t, void *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesSupportsImportingHandleTypeExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesSupportsImportingHandleTypeExp_t)(
+    ur_device_handle_t, ur_exp_external_mem_type_t, ur_bool_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesImportExternalSemaphoreExp
 typedef ur_result_t(
     UR_APICALL *ur_pfnBindlessImagesImportExternalSemaphoreExp_t)(
@@ -1534,6 +1546,8 @@ typedef struct ur_bindless_images_exp_dditable_t {
       pfnMapExternalLinearMemoryExp;
   ur_pfnBindlessImagesReleaseExternalMemoryExp_t pfnReleaseExternalMemoryExp;
   ur_pfnBindlessImagesFreeMappedLinearMemoryExp_t pfnFreeMappedLinearMemoryExp;
+  ur_pfnBindlessImagesSupportsImportingHandleTypeExp_t
+      pfnSupportsImportingHandleTypeExp;
   ur_pfnBindlessImagesImportExternalSemaphoreExp_t
       pfnImportExternalSemaphoreExp;
   ur_pfnBindlessImagesReleaseExternalSemaphoreExp_t
@@ -1820,8 +1834,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetUsmP2PExpProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urVirtualMemGranularityGetInfo
 typedef ur_result_t(UR_APICALL *ur_pfnVirtualMemGranularityGetInfo_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_virtual_mem_granularity_info_t,
-    size_t, void *, size_t *);
+    ur_context_handle_t, ur_device_handle_t, size_t,
+    ur_virtual_mem_granularity_info_t, size_t, void *, size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urVirtualMemReserve

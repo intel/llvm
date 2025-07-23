@@ -3,7 +3,6 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
   ConvertToMuxBuiltinsSYCLNativeCPU.cpp
-  FAtomicsNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -34,15 +33,15 @@ endif()
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
-    # commit 03e6497dfcc06b0ef6bdeeb8fefd7fdc24de4287
-    # Merge: df8de76a56 413b59ebe2
+    # commit d0a32d701e34b3285de7ce776ea36abfec673df7
+    # Merge: a9f848e0e8 56473a8c25
     # Author: Harald van Dijk <harald.vandijk@codeplay.com>
-    # Date:   Sat May 17 20:52:27 2025 +0100
+    # Date:   Mon Jun 30 12:24:46 2025 +0100
     # 
-    #     Merge pull request #822 from coldav/colin/remove_ca_enable_api
+    #     Merge pull request #878 from hvdijk/specify-fuse-ld-lld
     #     
-    #     Remove CA_ENABLE_API as a CMake option
-    set(OCK_GIT_INTERNAL_TAG 03e6497dfcc06b0ef6bdeeb8fefd7fdc24de4287)
+    #     [RefSi] Explicitly specify -fuse-ld=lld.
+    set(OCK_GIT_INTERNAL_TAG d0a32d701e34b3285de7ce776ea36abfec673df7)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)

@@ -22,6 +22,7 @@ config.backend_to_target = {
     "cuda": "target-nvidia",
     "hip": "target-amd",
     "native_cpu": "target-native_cpu",
+    "offload": config.offload_build_target,
 }
 config.target_to_triple = {
     "target-spir": "spir64",
@@ -316,9 +317,8 @@ with test_env():
 # check if the compiler was built in NDEBUG configuration
 has_ndebug = False
 ps = subprocess.Popen(
-    [config.dpcpp_compiler, "-mllvm", "-debug", "-x", "c", "-", "-S", "-o", "-"],
+    [config.dpcpp_compiler, "-mllvm", "-debug", "-x", "c", "-", "-S", "-o", os.devnull],
     stdin=subprocess.PIPE,
-    stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
 )
 _ = ps.communicate(input=b"int main(){}\n")
@@ -382,7 +382,7 @@ with test_env():
     else:
         config.substitutions.append(("%level_zero_options", ""))
 
-if lit_config.params.get("test-preview-mode", False):
+if lit_config.params.get("test-preview-mode", "False") != "False":
     config.available_features.add("preview-mode")
 else:
     # Check for sycl-preview library
@@ -426,10 +426,9 @@ ps = subprocess.Popen(
         "c++",
         "-",
         "-o",
-        "-",
+        os.devnull,
     ],
     stdin=subprocess.PIPE,
-    stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
 )
 op = ps.communicate(input=b"")
@@ -574,7 +573,7 @@ if cl_options:
     )
     config.substitutions.append(("%include_option", "/FI"))
     config.substitutions.append(("%debug_option", "/Zi /DEBUG"))
-    config.substitutions.append(("%cxx_std_option", "/std:"))
+    config.substitutions.append(("%cxx_std_option", "/clang:-std="))
     config.substitutions.append(("%fPIC", ""))
     config.substitutions.append(("%shared_lib", "/LD"))
     config.substitutions.append(("%O0", "/Od"))
@@ -632,6 +631,12 @@ sycl_ls = FindTool("sycl-ls").resolve(
 if not sycl_ls:
     lit_config.fatal("can't find `sycl-ls`")
 
+syclbin_dump = FindTool("syclbin-dump").resolve(
+    llvm_config, os.pathsep.join([config.dpcpp_bin_dir, config.llvm_tools_dir])
+)
+if not syclbin_dump:
+    lit_config.fatal("can't find `syclbin-dump`")
+
 if (
     len(config.sycl_build_targets) == 1
     and next(iter(config.sycl_build_targets)) == "target-all"
@@ -679,6 +684,7 @@ available_devices = {
     "level_zero": "gpu",
     "hip": "gpu",
     "native_cpu": "cpu",
+    "offload": "gpu",
 }
 for d in remove_level_zero_suffix(config.sycl_devices):
     be, dev = d.split(":")
@@ -809,6 +815,7 @@ tools = [
         r"\| \bnot\b", command=FindTool("not"), verbatim=True, unresolved="ignore"
     ),
     ToolSubst("sycl-ls", command=sycl_ls, unresolved="ignore"),
+    ToolSubst("syclbin-dump", command=syclbin_dump, unresolved="ignore"),
 ] + feature_tools
 
 # Try and find each of these tools in the DPC++ bin directory, in the llvm tools directory
@@ -932,6 +939,18 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
 
 for target in config.sycl_build_targets:
     config.available_features.add("any-target-is-" + target.replace("target-", ""))
+
+if config.llvm_main_include_dir:
+    lit_config.note("Using device config file built from LLVM")
+    config.available_features.add("device-config-file")
+    config.substitutions.append(
+        ("%device_config_file_include_flag", f"-I {config.llvm_main_include_dir}")
+    )
+elif os.path.exists(f"{config.sycl_include}/llvm/SYCLLowerIR/DeviceConfigFile.hpp"):
+    lit_config.note("Using installed device config file")
+    config.available_features.add("device-config-file")
+    config.substitutions.append(("%device_config_file_include_flag", ""))
+
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}
@@ -945,6 +964,8 @@ for full_name, sycl_device in zip(
 
     if "v2" in full_name:
         env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "1"
+    else:
+        env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "0"
 
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
@@ -1086,7 +1107,7 @@ for full_name, sycl_device in zip(
     else:
         config.intel_driver_ver[full_name] = {}
 
-if lit_config.params.get("compatibility_testing", False):
+if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))
     config.substitutions.append(("%clang", " true "))
 else:
