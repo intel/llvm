@@ -102,9 +102,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   native_cpu::NDRDescT ndr(workDim, pGlobalWorkOffset, pGlobalWorkSize,
                            pLocalWorkSize);
   unsigned long long numWI;
-  if (__builtin_umulll_overflow(ndr.GlobalSize[0], ndr.GlobalSize[1], &numWI) ||
-      __builtin_umulll_overflow(numWI, ndr.GlobalSize[2], &numWI) ||
-      numWI > SIZE_MAX) {
+  auto umulll_overflow = [](unsigned long long a, unsigned long long b,
+                            unsigned long long *c) -> bool {
+#ifdef __GNUC__
+    return __builtin_umulll_overflow(a, b, c);
+#else
+    *c = a * b;
+    return a != 0 && b != *c / a;
+#endif
+  };
+  if (umulll_overflow(ndr.GlobalSize[0], ndr.GlobalSize[1], &numWI) ||
+      umulll_overflow(numWI, ndr.GlobalSize[2], &numWI) || numWI > SIZE_MAX) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
 
