@@ -257,8 +257,8 @@ public:
 
   // The function inserts or initializes a kernel global desc into the
   // kernel global map.
-  void registerKernelGlobalInfo(const void *KernelGlobalPtr,
-                                const char *UniqueId);
+  void registerKernelGlobalInfo(const char *UniqueId,
+                                const void *KernelGlobalPtr);
 
   // The function returns a pointer to the kernel global desc identified by
   // the unique ID from the kernel global map.

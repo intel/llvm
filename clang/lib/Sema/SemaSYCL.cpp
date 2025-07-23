@@ -7203,9 +7203,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     if (!S.isFreeFunction(K.SyclKernel))
       continue;
     O << "sycl::detail::free_function_info_map::add("
-      << "reinterpret_cast<const void*>(sycl::detail::kernel_args_sizes + "
-      << ShimCounter << "), sycl::detail::kernel_names[" << ShimCounter
-      << "]);\n";
+      << "sycl::detail::kernel_names[" << ShimCounter
+      << "], reinterpret_cast<const void*>(sycl::detail::kernel_args_sizes + "
+      << ShimCounter << "));\n";
     ++ShimCounter;
   }
   O << "  }\n";

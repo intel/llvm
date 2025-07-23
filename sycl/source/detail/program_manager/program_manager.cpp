@@ -2407,8 +2407,8 @@ void ProgramManager::addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
   m_DeviceGlobals.addOrInitialize(DeviceGlobalPtr, UniqueId);
 }
 
-void ProgramManager::registerKernelGlobalInfo(const void *KernelGlobalPtr,
-                                              const char *UniqueId) {
+void ProgramManager::registerKernelGlobalInfo(const char *UniqueId,
+                                              const void *KernelGlobalPtr) {
   std::lock_guard<std::mutex> Guard(MNativeProgramsMutex);
   m_KernelGlobalInfo.emplace(std::string_view(UniqueId), KernelGlobalPtr);
 }
