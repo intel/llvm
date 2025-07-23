@@ -139,15 +139,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     rangeEnd[0] = rangeEnd[3] % numWG0;
     rangeEnd[1] = (rangeEnd[3] / numWG0) % numWG1;
     rangeEnd[2] = rangeEnd[3] / (numWG0 * numWG1);
-    futures.emplace_back(tp.schedule_task(
-        [state, &kernel = *kernel, rangeStart, rangeEnd, numWG0, numWG1,
+    futures.emplace_back(
+        tp.schedule_task([state, &kernel = *kernel, rangeStart,
+                          rangeEnd = rangeEnd[3], numWG0, numWG1,
 #ifndef NATIVECPU_USE_OCK
-         localSize = ndr.LocalSize,
+                          localSize = ndr.LocalSize,
 #endif
-         numParallelThreads](size_t threadId) mutable {
+                          numParallelThreads](size_t threadId) mutable {
           for (size_t g0 = rangeStart[0], g1 = rangeStart[1],
                       g2 = rangeStart[2], g3 = rangeStart[3];
-               g3 < rangeEnd[3]; ++g3) {
+               g3 < rangeEnd; ++g3) {
 #ifdef NATIVECPU_USE_OCK
             state.update(g0, g1, g2);
             kernel._subhandler(
