@@ -175,8 +175,18 @@ public:
 
   bool leader() const { return (get_local_linear_id() == 0); }
 
+  // Note: These signatures for parallel_for_work_item are intentionally
+  // non-conforming. The spec says this should take const WorkItemFunctionT &,
+  // but we take it by value, and rely on passing by value being done as passing
+  // a copy by reference (ptr byval) to ensure that the special handling in
+  // SYCLLowerWGScopePass to mutate the passed functor object works.
+
   template <typename WorkItemFunctionT>
-  void parallel_for_work_item(WorkItemFunctionT Func) const {
+#ifdef __NativeCPU__
+  __attribute__((__libclc_call__))
+#endif
+  void
+  parallel_for_work_item(WorkItemFunctionT Func) const {
     // need barriers to enforce SYCL semantics for the work item loop -
     // compilers are expected to optimize when possible
     detail::workGroupBarrier();
@@ -227,8 +237,12 @@ public:
   }
 
   template <typename WorkItemFunctionT>
-  void parallel_for_work_item(range<Dimensions> flexibleRange,
-                              WorkItemFunctionT Func) const {
+#ifdef __NativeCPU__
+  __attribute__((__libclc_call__))
+#endif
+  void
+  parallel_for_work_item(range<Dimensions> flexibleRange,
+                         WorkItemFunctionT Func) const {
     detail::workGroupBarrier();
 #ifdef __SYCL_DEVICE_ONLY__
     range<Dimensions> GlobalSize{

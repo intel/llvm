@@ -334,6 +334,9 @@ static CallingConv getCallingConventionForDecl(const ObjCMethodDecl *D,
     }
   }
 
+  if (D->hasAttr<NativeCPULibclcCallAttr>())
+    return CC_SpirFunction;
+
   return CC_C;
 }
 

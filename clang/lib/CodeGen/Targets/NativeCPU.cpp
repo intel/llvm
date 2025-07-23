@@ -20,6 +20,8 @@ private:
 public:
   NativeCPUABIInfo(CodeGen::CodeGenTypes &CGT, const ABIInfo *HostABIInfo)
       : DefaultABIInfo(CGT), HostABIInfo(HostABIInfo) {}
+
+  void computeInfo(CGFunctionInfo &FI) const override;
 };
 
 class NativeCPUTargetCodeGenInfo : public TargetCodeGenInfo {
@@ -36,6 +38,17 @@ public:
         HostTargetCodeGenInfo(std::move(HostTargetCodeGenInfo)) {}
 };
 } // namespace
+
+void NativeCPUABIInfo::computeInfo(CGFunctionInfo &FI) const {
+  if (HostABIInfo &&
+      FI.getCallingConvention() != llvm::CallingConv::SPIR_FUNC) {
+    HostABIInfo->computeInfo(FI);
+    return;
+  }
+
+  DefaultABIInfo::computeInfo(FI);
+  FI.setEffectiveCallingConvention(llvm::CallingConv::C);
+}
 
 std::unique_ptr<TargetCodeGenInfo> CodeGen::createNativeCPUTargetCodeGenInfo(
     CodeGenModule &CGM,
