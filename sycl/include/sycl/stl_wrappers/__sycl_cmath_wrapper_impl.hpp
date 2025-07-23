@@ -71,7 +71,7 @@ using __sycl_promote_t =
 // TODO: Enable long double support where possible.
 // TODO: float16_t and bfloat16_t support if the standard library
 //       supports C++23.
-// TODO: constexpr support for these functions (C++23, C++)
+// TODO: constexpr support for these functions (C++23, C++26)
 //
 // The following two macros provide an easy way to define these overloads for
 // basic built-ins with one or two floating-point parameters.
