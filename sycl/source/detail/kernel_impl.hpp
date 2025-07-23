@@ -39,7 +39,7 @@ public:
   /// \param Kernel is a valid UrKernel instance
   /// \param Context is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
+  kernel_impl(Managed<ur_kernel_handle_t> &&Kernel, context_impl &Context,
               kernel_bundle_impl *KernelBundleImpl,
               const KernelArgMask *ArgMask = nullptr);
 
@@ -49,7 +49,7 @@ public:
   /// \param Kernel is a valid UrKernel instance
   /// \param ContextImpl is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
+  kernel_impl(Managed<ur_kernel_handle_t> &&Kernel, context_impl &ContextImpl,
               DeviceImageImplPtr DeviceImageImpl,
               const kernel_bundle_impl &KernelBundleImpl,
               const KernelArgMask *ArgMask, ur_program_handle_t Program,
@@ -198,11 +198,7 @@ public:
   typename Param::return_type ext_oneapi_get_info(queue Queue,
                                                   const range<1> &WG) const;
 
-  /// Get a constant reference to a raw kernel object.
-  ///
-  /// \return a constant reference to a valid UrKernel instance with raw
-  /// kernel object.
-  const ur_kernel_handle_t &getHandleRef() const { return MKernel; }
+  ur_kernel_handle_t getHandleRef() const { return MKernel; }
 
   /// Check if kernel was created from a program that had been created from
   /// source.
@@ -243,7 +239,7 @@ public:
   std::string_view getName() const;
 
 private:
-  ur_kernel_handle_t MKernel = nullptr;
+  Managed<ur_kernel_handle_t> MKernel;
   const std::shared_ptr<context_impl> MContext;
   const ur_program_handle_t MProgram = nullptr;
   bool MCreatedFromSource = true;

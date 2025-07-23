@@ -995,8 +995,8 @@ public:
             SelectedImage->get_ur_program());
 
     return std::make_shared<kernel_impl>(
-        Kernel, *detail::getSyclObjImpl(MContext), SelectedImage, *this,
-        ArgMask, SelectedImage->get_ur_program(), CacheMutex);
+        std::move(Kernel), *detail::getSyclObjImpl(MContext), SelectedImage,
+        *this, ArgMask, SelectedImage->get_ur_program(), CacheMutex);
   }
 
   std::shared_ptr<kernel_impl>
