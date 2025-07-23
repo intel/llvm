@@ -270,7 +270,6 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
         }
         Adapter.checkUrResult<errc::build>(Res);
         if (UrLinkedProgram != nullptr) {
-          UrProgram.release(); // Isn't that a leak?
           UrProgram = std::move(UrLinkedProgram);
         }
       }
