@@ -58,6 +58,8 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
 
 inline ur_result_t KernelSetArgValueHelper(
     ur_kernel_handle_t Kernel,
+    /// [in][optional] the native handle of the kernel
+    ze_kernel_handle_t ZeKernel,
     /// [in] argument index in range [0, num args - 1]
     uint32_t ArgIndex,
     /// [in] size of argument type
@@ -81,15 +83,20 @@ inline ur_result_t KernelSetArgValueHelper(
   }
 
   ze_result_t ZeResult = ZE_RESULT_SUCCESS;
-  if (Kernel->ZeKernelMap.empty()) {
-    auto ZeKernel = Kernel->ZeKernel;
+  if (ZeKernel) {
     ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
                                (ZeKernel, ArgIndex, ArgSize, PArgValue));
   } else {
-    for (auto It : Kernel->ZeKernelMap) {
-      auto ZeKernel = It.second;
+    if (Kernel->ZeKernelMap.empty()) {
+      auto ZeKernel = Kernel->ZeKernel;
       ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
                                  (ZeKernel, ArgIndex, ArgSize, PArgValue));
+    } else {
+      for (auto It : Kernel->ZeKernelMap) {
+        auto ZeKernel = It.second;
+        ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
+                                   (ZeKernel, ArgIndex, ArgSize, PArgValue));
+      }
     }
   }
 
@@ -143,120 +150,15 @@ inline ur_result_t KernelSetArgMemObjHelper(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urEnqueueKernelLaunchWithArgsExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t Queue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t Kernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *GlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *GlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *LocalWorkSize,
-    /// [in] size of the event wait list
-    uint32_t NumArgs,
-    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
-    /// properties.
+// Helper for kernel launch APIs.
+static ur_result_t EnqueueKernelLaunchCommon(
+    ur_queue_handle_t Queue, ur_kernel_handle_t Kernel, uint32_t WorkDim,
+    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize, uint32_t NumArgs,
     const ur_exp_kernel_arg_properties_t *Args,
-    /// [in] size of the launch prop list
     uint32_t NumPropsInLaunchPropList,
-    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
-    /// properties
     const ur_kernel_launch_property_t *LaunchPropList,
-    uint32_t NumEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution. If
-    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *EventWaitList,
-    /// [in,out][optional] return an event object that identifies this
-    /// particular kernel execution instance.
-    ur_event_handle_t *OutEvent) {
-  {
-    std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
-    for (uint32_t i = 0; i < NumArgs; i++) {
-      switch (Args[i].type) {
-      case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        nullptr));
-        break;
-      case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        Args[i].value.value));
-        break;
-      case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        &Args[i].value.pointer));
-        break;
-      case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
-        ur_kernel_arg_mem_obj_properties_t Properties = {
-            UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
-            Args[i].value.memObjTuple.flags};
-        UR_CALL(KernelSetArgMemObjHelper(Kernel, Args[i].index, &Properties,
-                                         Args[i].value.memObjTuple.hMem));
-        break;
-      }
-      case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        &Args[i].value.sampler->ZeSampler));
-        break;
-      }
-      default:
-        return UR_RESULT_ERROR_INVALID_ENUMERATION;
-      }
-    }
-  }
-  // Normalize so each dimension has at least one work item
-  return level_zero::urEnqueueKernelLaunch(
-      Queue, Kernel, workDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize,
-      NumPropsInLaunchPropList, LaunchPropList, NumEventsInWaitList,
-      EventWaitList, OutEvent);
-}
-
-ur_result_t urEnqueueKernelLaunch(
-    /// [in] handle of the queue object
-    ur_queue_handle_t Queue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t Kernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t WorkDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *GlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *GlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that
-    /// will execute the kernel function. If nullptr, the runtime
-    /// implementation will choose the work-group size.
-    const size_t *LocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t NumPropsInLaunchPropList,
-    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
-    /// properties
-    const ur_kernel_launch_property_t *LaunchPropList,
-    /// [in] size of the event wait list
-    uint32_t NumEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution. If
-    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *EventWaitList,
-    /// [in,out][optional] return an event object that identifies this
-    /// particular kernel execution instance.
+    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *OutEvent) {
   using ZeKernelLaunchFuncT = ze_result_t (*)(
       ze_command_list_handle_t, ze_kernel_handle_t, const ze_group_count_t *,
@@ -285,6 +187,39 @@ ur_result_t urEnqueueKernelLaunch(
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
       Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
+  for (uint32_t i = 0; i < NumArgs; i++) {
+    switch (Args[i].type) {
+    case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+      UR_CALL(KernelSetArgValueHelper(Kernel, ZeKernel, Args[i].index,
+                                      Args[i].size, nullptr));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+      UR_CALL(KernelSetArgValueHelper(Kernel, ZeKernel, Args[i].index,
+                                      Args[i].size, Args[i].value.value));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+      UR_CALL(KernelSetArgValueHelper(Kernel, ZeKernel, Args[i].index,
+                                      Args[i].size, &Args[i].value.pointer));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
+      ur_kernel_arg_mem_obj_properties_t Properties = {
+          UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
+          Args[i].value.memObjTuple.flags};
+      UR_CALL(KernelSetArgMemObjHelper(Kernel, Args[i].index, &Properties,
+                                       Args[i].value.memObjTuple.hMem));
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+      UR_CALL(KernelSetArgValueHelper(Kernel, ZeKernel, Args[i].index,
+                                      Args[i].size,
+                                      &Args[i].value.sampler->ZeSampler));
+      break;
+    }
+    default:
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+  }
+
   if (GlobalWorkOffset != NULL) {
     UR_CALL(setKernelGlobalOffset(Queue->Context, ZeKernel, WorkDim,
                                   GlobalWorkOffset));
@@ -389,6 +324,90 @@ ur_result_t urEnqueueKernelLaunch(
                                     true /*OKToBatchCommand*/));
 
   return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// offset used to calculate the global ID of a work-item
+    const size_t GlobalWorkOffset[3],
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t GlobalWorkSize[3],
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that
+    /// will execute the kernel function. If nullptr, the runtime
+    /// implementation will choose the work-group size.
+    const size_t LocalWorkSize[3],
+    /// [in] size of the event wait list
+    uint32_t NumArgs, const ur_exp_kernel_arg_properties_t *Args,
+    /// [in] size of the launch prop list
+    uint32_t NumPropsInLaunchPropList,
+    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+    /// properties
+    const ur_kernel_launch_property_t *LaunchPropList,
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular kernel execution instance.
+    ur_event_handle_t *OutEvent) {
+  // Normalize so each dimension has at least one work item
+  return EnqueueKernelLaunchCommon(
+      Queue, Kernel, workDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize,
+      NumArgs, Args, NumPropsInLaunchPropList, LaunchPropList,
+      NumEventsInWaitList, EventWaitList, OutEvent);
+}
+
+ur_result_t urEnqueueKernelLaunch(
+    /// [in] handle of the queue object
+    ur_queue_handle_t Queue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t Kernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t WorkDim,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t *GlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *GlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that
+    /// will execute the kernel function. If nullptr, the runtime
+    /// implementation will choose the work-group size.
+    const size_t *LocalWorkSize,
+    /// [in] size of the launch prop list
+    uint32_t NumPropsInLaunchPropList,
+    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+    /// properties
+    const ur_kernel_launch_property_t *LaunchPropList,
+    /// [in] size of the event wait list
+    uint32_t NumEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *EventWaitList,
+    /// [in,out][optional] return an event object that identifies this
+    /// particular kernel execution instance.
+    ur_event_handle_t *OutEvent) {
+  return EnqueueKernelLaunchCommon(
+      Queue, Kernel, WorkDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize,
+      0 /* NumArgs */, nullptr /* Args */, NumPropsInLaunchPropList,
+      LaunchPropList, NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
 ur_result_t urEnqueueDeviceGlobalVariableWrite(
