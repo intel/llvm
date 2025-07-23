@@ -1,6 +1,6 @@
 // REQUIRES: opencl, opencl_icd
 // RUN: %{build} %opencl_lib -o %t.ocl.out
-// RUN: env SYCL_UR_TRACE=-1 ONEAPI_DEVICE_SELECTOR="opencl:*" %{run-unfiltered-devices} %t.ocl.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=-1 ONEAPI_DEVICE_SELECTOR="opencl:*" %{run-unfiltered-devices} %t.ocl.out 2>&1 | FileCheck %s --implicit-check-not "<--- urProgramRelease"
 
 // To check for leaks/document current ones:
 
