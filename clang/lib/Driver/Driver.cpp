@@ -1419,19 +1419,19 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
               getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, &TC,
                               /*SpecificToolchain=*/true);
           UniqueSYCLTriplesVec.push_back(TT);
-       }
-       if (addSYCLDefaultTriple(C, UniqueSYCLTriplesVec)) {
-         // Add the default triple (spir64) toolchain.
-         llvm::Triple DefaultTriple =
-             C.getDriver().getSYCLDeviceTriple(getDefaultSYCLArch(C));
-         auto &TC = getOffloadToolChain(C.getInputArgs(), Action::OFK_SYCL,
-                                        DefaultTriple,
-                                        C.getDefaultToolChain().getTriple());
-         C.addOffloadDeviceToolChain(&TC, Action::OFK_SYCL);
-         OffloadArchs[&TC] =
-             getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, &TC,
-                             /*SpecificToolchain=*/true);
-       }
+        }
+        if (addSYCLDefaultTriple(C, UniqueSYCLTriplesVec)) {
+          // Add the default triple (spir64) toolchain.
+          llvm::Triple DefaultTriple =
+              C.getDriver().getSYCLDeviceTriple(getDefaultSYCLArch(C));
+          auto &TC = getOffloadToolChain(C.getInputArgs(), Action::OFK_SYCL,
+                                         DefaultTriple,
+                                         C.getDefaultToolChain().getTriple());
+          C.addOffloadDeviceToolChain(&TC, Action::OFK_SYCL);
+          OffloadArchs[&TC] =
+              getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, &TC,
+                              /*SpecificToolchain=*/true);
+        }
       } else
         Diag(clang::diag::warn_drv_empty_joined_argument)
             << SYCLTargetsValues->getAsString(C.getInputArgs());
@@ -7568,7 +7568,7 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
       // -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc"
       if (TC->getTriple().isSPIRAOT() &&
           TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-        Arg->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
+          Arg->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
         const ToolChain *HostTC =
             C.getSingleOffloadToolChain<Action::OFK_Host>();
         auto DeviceTC = std::make_unique<toolchains::SYCLToolChain>(
@@ -7584,7 +7584,7 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
           if (StringRef(TargetArgs[i]) == "-device") {
             Arch = TargetArgs[i + 1];
             if (!Arch.empty())
-                Archs.insert(Arch);
+              Archs.insert(Arch);
             break;
           }
         }
@@ -7602,7 +7602,9 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
         Arg = ExtractedArg.get();
       // -Xsycl-target-backend --offload-arch=gfx1150
       } else if (!(TC->getTriple().isSPIRAOT() &&
-                   TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen) && Arg->getOption().matches(options::OPT_Xsycl_backend)) {
+                   TC->getTriple().getSubArch() ==
+                       llvm::Triple::SPIRSubArch_gen) &&
+                 Arg->getOption().matches(options::OPT_Xsycl_backend)) {
         unsigned Index = Args.getBaseArgs().MakeIndex(Arg->getValue(0));
         ExtractedArg = getOpts().ParseOneArg(Args, Index);
         Arg = ExtractedArg.get();
