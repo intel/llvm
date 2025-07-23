@@ -144,7 +144,7 @@ static const OffloadArchToStringMap ArchNames[] = {
     {OffloadArch::MTL_H, "mtl_h", ""},
     {OffloadArch::ARL_H, "arl_h", ""},
     {OffloadArch::BMG_G21, "bmg_g21", ""},
-    {OffloadArch::LNL_M, "lnl_m", ""},                                                                            
+    {OffloadArch::LNL_M, "lnl_m", ""},
     {OffloadArch::Generic, "generic", ""},
     // clang-format on
 };
