@@ -166,8 +166,6 @@ python %DPCPP_HOME%\llvm\buildbot\configure.py --use-libcxx
 python %DPCPP_HOME%\llvm\buildbot\compile.py
 ```
 
-Note that base LLVM must have also been built with libc++.
-
 ### Build DPC++ toolchain with support for NVIDIA CUDA
 
 To enable support for CUDA devices, follow the instructions for the Linux or
