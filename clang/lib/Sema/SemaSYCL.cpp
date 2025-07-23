@@ -3089,10 +3089,10 @@ public:
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
-    // if ParentStruct is non-null, we are dealing with a
+    // if CurrentStruct is non-null, we are dealing with a
     // free function kernel.
     // In this case, do not pass the scalar as a separate argument since it
-    // can be passed directly as part of its parent struct
+    // can be passed directly as part of the struct that contains it.
     if (!CurrentStruct)
       addParam(FD, FieldTy);
     return true;
