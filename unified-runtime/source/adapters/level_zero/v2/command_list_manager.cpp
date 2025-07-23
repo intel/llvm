@@ -990,20 +990,24 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
       "ur_queue_immediate_in_order_t::enqueueKernelLaunchWithArgsExp");
   {
     std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
+    auto singleDeviceKernel = hKernel->getSingleDeviceKernel(hDevice.get());
+    if (!singleDeviceKernel.has_value()) {
+      return UR_RESULT_ERROR_INVALID_DEVICE;
+    }
     for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
       switch (pArgs[argIndex].type) {
       case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-        UR_CALL(hKernel->setArgValue(pArgs[argIndex].index,
-                                     pArgs[argIndex].size, nullptr, nullptr));
+        UR_CALL(singleDeviceKernel->get().setArgValue(
+            pArgs[argIndex].index, pArgs[argIndex].size, nullptr, nullptr));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-        UR_CALL(hKernel->setArgValue(pArgs[argIndex].index,
-                                     pArgs[argIndex].size, nullptr,
-                                     pArgs[argIndex].value.value));
+        UR_CALL(singleDeviceKernel->get().setArgValue(
+            pArgs[argIndex].index, pArgs[argIndex].size, nullptr,
+            pArgs[argIndex].value.value));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-        UR_CALL(hKernel->setArgPointer(pArgs[argIndex].index, nullptr,
-                                       pArgs[argIndex].value.pointer));
+        UR_CALL(singleDeviceKernel->get().setArgPointer(
+            pArgs[argIndex].index, nullptr, pArgs[argIndex].value.pointer));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
         // TODO: import helper for converting ur flags to internal equivalent
@@ -1013,9 +1017,9 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
              pArgs[argIndex].index}));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-        UR_CALL(
-            hKernel->setArgValue(argIndex, sizeof(void *), nullptr,
-                                 &pArgs[argIndex].value.sampler->ZeSampler));
+        UR_CALL(singleDeviceKernel->get().setArgValue(
+            argIndex, sizeof(void *), nullptr,
+            &pArgs[argIndex].value.sampler->ZeSampler));
         break;
       }
       default:
