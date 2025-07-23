@@ -19,7 +19,6 @@
 #define __SYCL_DEVICE_C                                                        \
   extern "C" __attribute__((sycl_device_only, always_inline))
 
-// For std::enable_if, std::is_integral, std::is_same and std::conjunction
 #include <type_traits>
 
 // Promotion templates: the C++ standard library provides overloads that allow
