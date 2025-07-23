@@ -39,6 +39,11 @@ macro(add_sycl_unittest test_dirname link_variant)
     )
   endif()
 
+  if (SYCL_ENABLE_XPTI_TRACING)
+    target_compile_definitions(${test_dirname}
+      PRIVATE XPTI_ENABLE_INSTRUMENTATION XPTI_STATIC_LIBRARY)
+  endif()
+
   # check-sycl-unittests was using an old sycl library. So, to get
   # around this problem, we add the new sycl library to the PATH and
   # LD_LIBRARY_PATH on Windows and Linux respectively.
