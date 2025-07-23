@@ -7555,7 +7555,8 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
     if (Kind == Action::OFK_SYCL) {
       // -Xsycl-target-backend=spir64_gen "-device pvc,bdw"
       // -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc"
-      if (TC->getTriple().isSPIRAOT() && TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+      if (TC->getTriple().isSPIRAOT() && TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen
+                   && Arg->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
           const ToolChain *HostTC =
               C.getSingleOffloadToolChain<Action::OFK_Host>();
           auto DeviceTC = std::make_unique<toolchains::SYCLToolChain>(
@@ -7570,6 +7571,8 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
           for (int i = TargetArgs.size() - 2; i >= 0; --i) {
             if (StringRef(TargetArgs[i]) == "-device") {
               Arch = TargetArgs[i + 1];
+              if (!Arch.empty())
+                  Archs.insert(Arch);
               break;
             }
           }
