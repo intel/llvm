@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/geometric/clc_fast_distance.h>
 #include <libspirv/spirv.h>
 
-#define __CLC_BODY <fast_distance.inc>
 #define __FLOAT_ONLY
-#include <libspirv/generic/math/floatn.inc>
-#undef __FLOAT_ONLY
+#define __CLC_BODY <fast_distance.inc>
+#include <clc/math/gentype.inc>

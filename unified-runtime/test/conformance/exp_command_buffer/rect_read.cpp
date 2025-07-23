@@ -75,6 +75,10 @@ struct urCommandBufferAppendMemBufferReadRectTestWithParam
     : public uur::command_buffer::urCommandBufferExpTestWithParam<
           uur::test_parameters_t> {
   void SetUp() override {
+    // Buffer read not supported on OpenCL
+    // see https://github.com/KhronosGroup/OpenCL-Docs/issues/1281
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::command_buffer::urCommandBufferExpTestWithParam<
             uur::test_parameters_t>::SetUp());
@@ -128,7 +132,7 @@ TEST_P(urCommandBufferAppendMemBufferReadRectTestWithParam, Success) {
 
   // Enqueue the rectangular read.
   std::vector<uint8_t> output(host_size, 0x0);
-  EXPECT_SUCCESS(urCommandBufferAppendMemBufferReadRectExp(
+  ASSERT_SUCCESS(urCommandBufferAppendMemBufferReadRectExp(
       cmd_buf_handle, buffer, buffer_origin, host_origin, region,
       buffer_row_pitch, buffer_slice_pitch, host_row_pitch, host_slice_pitch,
       output.data(), 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr));

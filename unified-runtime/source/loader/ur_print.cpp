@@ -1383,6 +1383,15 @@ ur_result_t urPrintBindlessImagesFreeMappedLinearMemoryExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintBindlessImagesSupportsImportingHandleTypeExpParams(
+    const struct ur_bindless_images_supports_importing_handle_type_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintBindlessImagesImportExternalSemaphoreExpParams(
     const struct ur_bindless_images_import_external_semaphore_exp_params_t
         *params,
@@ -2284,6 +2293,30 @@ urPrintMemGetInfoParams(const struct ur_mem_get_info_params_t *params,
 ur_result_t urPrintMemImageGetInfoParams(
     const struct ur_mem_image_get_info_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintMemoryExportAllocExportableMemoryExpParams(
+    const struct ur_memory_export_alloc_exportable_memory_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintMemoryExportFreeExportableMemoryExpParams(
+    const struct ur_memory_export_free_exportable_memory_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintMemoryExportExportMemoryHandleExpParams(
+    const struct ur_memory_export_export_memory_handle_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);

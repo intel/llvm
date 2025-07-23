@@ -4,18 +4,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
-import subprocess
 from pathlib import Path
+import re
+
 from .base import Suite, Benchmark
 from options import options
 from utils.utils import git_clone, download, run, create_build_path
 from utils.result import Result
 from utils.oneapi import get_oneapi
-import re
+from utils.logger import log
 
 
 class GromacsBench(Suite):
-
     def git_url(self):
         return "https://gitlab.com/gromacs/gromacs.git"
 
@@ -50,7 +50,7 @@ class GromacsBench(Suite):
             # GromacsBenchmark(self, "0192", "rf", "eager"),
         ]
 
-    def setup(self):
+    def setup(self) -> None:
         self.gromacs_src = git_clone(
             self.directory,
             "gromacs-repo",
@@ -154,9 +154,11 @@ class GromacsBenchmark(Benchmark):
             f"{str(model_dir)}/{self.type}.tpr",
         ]
 
+        env_vars = {"GMX_MAXBACKUP": "-1"}
         # Generate configuration files
         self.conf_result = run(
             cmd_list,
+            env_vars=env_vars,
             add_sycl=True,
             ld_library=self.suite.oneapi.ld_libraries(),
         )
@@ -209,8 +211,7 @@ class GromacsBenchmark(Benchmark):
 
         time = self._extract_execution_time(mdrun_output)
 
-        if options.verbose:
-            print(f"[{self.name()}] Time: {time:.3f} seconds")
+        log.debug(f"[{self.name()}] Time: {time:.3f} seconds")
 
         return [
             Result(
@@ -219,7 +220,6 @@ class GromacsBenchmark(Benchmark):
                 unit="s",
                 command=command,
                 env=env_vars,
-                stdout=mdrun_output,
                 git_url=self.suite.git_url(),
                 git_hash=self.suite.git_tag(),
             )
@@ -259,7 +259,7 @@ class GromacsBenchmark(Benchmark):
                             drift_value = float(match.group(1))
                             return abs(drift_value) <= threshold
                         except ValueError:
-                            print(
+                            log.warning(
                                 f"Parsed drift value: {drift_value} exceeds threshold"
                             )
                             return False

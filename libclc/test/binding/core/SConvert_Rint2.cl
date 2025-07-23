@@ -21,26 +21,11 @@ test___spirv_SConvert_Rint2(__clc_vec2_int8_t args_0) {
 }
 
 __attribute__((overloadable)) __clc_vec2_int32_t
-test___spirv_SConvert_Rint2(__clc_vec2_uint8_t args_0) {
-  return __spirv_SConvert_Rint2(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec2_int32_t
 test___spirv_SConvert_Rint2(__clc_vec2_int16_t args_0) {
   return __spirv_SConvert_Rint2(args_0);
 }
 
 __attribute__((overloadable)) __clc_vec2_int32_t
-test___spirv_SConvert_Rint2(__clc_vec2_uint16_t args_0) {
-  return __spirv_SConvert_Rint2(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec2_int32_t
 test___spirv_SConvert_Rint2(__clc_vec2_int64_t args_0) {
-  return __spirv_SConvert_Rint2(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec2_int32_t
-test___spirv_SConvert_Rint2(__clc_vec2_uint64_t args_0) {
   return __spirv_SConvert_Rint2(args_0);
 }

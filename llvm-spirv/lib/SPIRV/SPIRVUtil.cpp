@@ -2619,6 +2619,10 @@ public:
     case OpenCLLIB::Nan:
       addUnsignedArg(0);
       break;
+    case OpenCLLIB::Prefetch:
+      setArgAttr(0, SPIR::ATTR_CONST);
+      addUnsignedArg(1);
+      break;
     case OpenCLLIB::Shuffle:
       addUnsignedArg(1);
       break;

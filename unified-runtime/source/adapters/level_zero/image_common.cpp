@@ -1237,6 +1237,18 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
       auto FileDescriptor =
           static_cast<const ur_exp_file_descriptor_t *>(pNext);
       importFd->fd = FileDescriptor->fd;
+      switch (memHandleType) {
+      case UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD:
+        importFd->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_FD;
+        break;
+      case UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF:
+        importFd->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_DMA_BUF;
+        break;
+      default:
+        delete importFd;
+        delete externalMemoryData;
+        return UR_RESULT_ERROR_INVALID_VALUE;
+      }
       importFd->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_FD;
       externalMemoryData->importExtensionDesc = importFd;
       externalMemoryData->type = UR_ZE_EXTERNAL_OPAQUE_FD;
@@ -1254,7 +1266,9 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
       case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE:
         importWin32->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_D3D12_RESOURCE;
         break;
-      case UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD:
+      case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE:
+        importWin32->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_D3D11_TEXTURE;
+        break;
       default:
         delete importWin32;
         delete externalMemoryData;
@@ -1596,6 +1610,20 @@ ur_result_t urBindlessImagesGetImageSampledHandleSupportExp(
   *pSupportedRet = verifyCommonImagePropertiesSupport(
       hDevice, pImageDesc, pImageFormat, imageMemHandleType);
 
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urBindlessImagesSupportsImportingHandleTypeExp(
+    [[maybe_unused]] ur_device_handle_t hDevice,
+    ur_exp_external_mem_type_t memHandleType, ur_bool_t *pSupportedRet) {
+#if defined(_WIN32)
+  *pSupportedRet =
+      (memHandleType == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT) ||
+      (memHandleType == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE);
+#else
+  *pSupportedRet = (memHandleType == UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD) ||
+                   (memHandleType == UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF);
+#endif
   return UR_RESULT_SUCCESS;
 }
 

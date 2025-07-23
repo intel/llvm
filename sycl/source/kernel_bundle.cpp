@@ -74,7 +74,7 @@ context kernel_bundle_plain::get_context() const noexcept {
 }
 
 std::vector<device> kernel_bundle_plain::get_devices() const noexcept {
-  return impl->get_devices();
+  return impl->get_devices().to<std::vector<device>>();
 }
 
 std::vector<kernel_id> kernel_bundle_plain::get_kernel_ids() const {
@@ -211,6 +211,12 @@ get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
 }
 
 detail::KernelBundleImplPtr
+get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+                       const sycl::span<char> &Bytes, bundle_state State) {
+  return detail::kernel_bundle_impl::create(Ctx, Devs, Bytes, State);
+}
+
+detail::KernelBundleImplPtr
 get_empty_interop_kernel_bundle_impl(const context &Ctx,
                                      const std::vector<device> &Devs) {
   return detail::kernel_bundle_impl::create(Ctx, Devs);
@@ -282,8 +288,8 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
       const std::shared_ptr<device_image_impl> &DeviceImageImpl =
           getSyclObjImpl(DeviceImage);
 
-      CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ptr()->begin(),
-                               DeviceImageImpl->get_kernel_ids_ptr()->end());
+      CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids().begin(),
+                               DeviceImageImpl->get_kernel_ids().end());
     }
   }
 
@@ -360,26 +366,7 @@ std::vector<kernel_id> get_kernel_ids() {
 }
 
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
-  if (KernelIDs.empty())
-    return true;
-  // One kernel may be contained in several binary images depending on the
-  // number of targets. This kernel is compatible with the device if there is
-  // at least one image (containing this kernel) whose aspects are supported by
-  // the device and whose target matches the device.
-  detail::device_impl &DevImpl = *getSyclObjImpl(Dev);
-  for (const auto &KernelID : KernelIDs) {
-    std::set<detail::RTDeviceBinaryImage *> BinImages =
-        detail::ProgramManager::getInstance().getRawDeviceImages({KernelID});
-
-    if (std::none_of(BinImages.begin(), BinImages.end(),
-                     [&](const detail::RTDeviceBinaryImage *Img) {
-                       return doesDevSupportDeviceRequirements(DevImpl, *Img) &&
-                              doesImageTargetMatchDevice(*Img, DevImpl);
-                     }))
-      return false;
-  }
-
-  return true;
+  return detail::is_compatible(KernelIDs, *getSyclObjImpl(Dev));
 }
 
 /////////////////////////
@@ -403,8 +390,10 @@ bool is_source_kernel_bundle_supported(
     const std::vector<device_impl *> &DeviceImplVec) {
   backend BE = DeviceImplVec[0]->getBackend();
   // Support is limited to the opencl and level_zero backends.
-  bool BE_Acceptable = (BE == sycl::backend::ext_oneapi_level_zero) ||
-                       (BE == sycl::backend::opencl);
+  bool BE_Acceptable = BE == sycl::backend::ext_oneapi_level_zero ||
+                       BE == sycl::backend::opencl ||
+                       BE == sycl::backend::ext_oneapi_hip ||
+                       BE == sycl::backend::ext_oneapi_cuda;
   if (!BE_Acceptable)
     return false;
 
@@ -416,7 +405,7 @@ bool is_source_kernel_bundle_supported(
     if (DeviceImplVec.empty())
       return false;
 
-    const AdapterPtr &Adapter = DeviceImplVec[0]->getAdapter();
+    detail::adapter_impl &Adapter = DeviceImplVec[0]->getAdapter();
     std::vector<uint32_t> IPVersionVec;
     IPVersionVec.reserve(DeviceImplVec.size());
 
@@ -424,7 +413,7 @@ bool is_source_kernel_bundle_supported(
                    std::back_inserter(IPVersionVec), [&](device_impl *Dev) {
                      uint32_t ipVersion = 0;
                      ur_device_handle_t DeviceHandle = Dev->getHandleRef();
-                     Adapter->call<UrApiKind::urDeviceGetInfo>(
+                     Adapter.call<UrApiKind::urDeviceGetInfo>(
                          DeviceHandle, UR_DEVICE_INFO_IP_VERSION,
                          sizeof(uint32_t), &ipVersion, nullptr);
                      return ipVersion;
@@ -518,8 +507,8 @@ obj_kb compile_from_source(
     LogPtr = &Log;
   std::vector<device> UniqueDevices =
       sycl::detail::removeDuplicateDevices(Devices);
-  std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
-  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->compile_from_source(
+  kernel_bundle_impl &sourceImpl = *getSyclObjImpl(SourceKB);
+  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl.compile_from_source(
       UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
   auto result = sycl::detail::createSyclObjFromImpl<obj_kb>(KBImpl);
   if (LogView)
@@ -542,9 +531,8 @@ exe_kb build_from_source(
     LogPtr = &Log;
   std::vector<device> UniqueDevices =
       sycl::detail::removeDuplicateDevices(Devices);
-  const std::shared_ptr<kernel_bundle_impl> &sourceImpl =
-      getSyclObjImpl(SourceKB);
-  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->build_from_source(
+  kernel_bundle_impl &sourceImpl = *getSyclObjImpl(SourceKB);
+  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl.build_from_source(
       UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
   auto result = sycl::detail::createSyclObjFromImpl<exe_kb>(std::move(KBImpl));
   if (LogView)
