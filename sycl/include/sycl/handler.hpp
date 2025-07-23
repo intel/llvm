@@ -3559,16 +3559,7 @@ private:
   template <
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>
   void throwIfGraphAssociated() const {
-
-    if (getCommandGraph()) {
-      std::string FeatureString =
-          ext::oneapi::experimental::detail::UnsupportedFeatureToString(
-              FeatureT);
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "The " + FeatureString +
-                                " feature is not yet available "
-                                "for use with the SYCL Graph extension.");
-    }
+    detail::KernelLaunchProperties::throwIfGraphAssociated<FeatureT>(getCommandGraph() != nullptr);
   }
 #endif
 
