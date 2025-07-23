@@ -533,7 +533,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   // If requested, use a custom linker script to handle very large device code
   // sections.
-  if (Args.hasArg(options::OPT_fsycl, options::OPT_fopenmp_targets_EQ) &&
+  if (Args.hasArg(options::OPT_fsycl, options::OPT_offload_targets_EQ) &&
       Args.hasFlag(options::OPT_flink_huge_device_code,
                    options::OPT_fno_link_huge_device_code, false)) {
     // Create temporary linker script. Keep it if save-temps is enabled.
