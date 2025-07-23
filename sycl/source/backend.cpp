@@ -259,12 +259,13 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
                 detail::codeToString(UR_RESULT_ERROR_INVALID_VALUE));
       if (State == bundle_state::executable) {
         Managed<ur_program_handle_t> UrLinkedProgram{Adapter};
+        ur_program_handle_t ProgramsToLink[] = {UrProgram};
         auto Res = Adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
-            ContextImpl.getHandleRef(), 1u, &Dev, 1u, &UrProgram, nullptr,
+            ContextImpl.getHandleRef(), 1u, &Dev, 1u, ProgramsToLink, nullptr,
             &UrLinkedProgram);
         if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
           Res = Adapter.call_nocheck<UrApiKind::urProgramLink>(
-              ContextImpl.getHandleRef(), 1u, &UrProgram, nullptr,
+              ContextImpl.getHandleRef(), 1u, ProgramsToLink, nullptr,
               &UrLinkedProgram);
         }
         Adapter.checkUrResult<errc::build>(Res);
