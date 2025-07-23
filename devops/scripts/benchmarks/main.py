@@ -27,7 +27,7 @@ from utils.compute_runtime import *
 from utils.validate import Validate
 from utils.detect_versions import DetectVersion
 from utils.logger import log
-from utils.unitrace import get_unitrace, create_unitrace
+from utils.unitrace import get_unitrace
 from presets import enabled_suites, presets
 
 # Update this if you are changing the layout of the results files
@@ -45,7 +45,7 @@ def run_iterations(
     for iter in range(iters):
         log.info(f"running {benchmark.name()}, iteration {iter}... ")
         try:
-            bench_results = benchmark.run(env_vars)
+            bench_results = benchmark.run(env_vars, run_unitrace=run_unitrace)
             if bench_results is None:
                 if options.exit_on_failure:
                     raise RuntimeError(f"Benchmark produced no results!")
@@ -173,15 +173,17 @@ def main(directory, additional_env_vars, compare_names, filter):
         log.info("Dry run mode enabled. No benchmarks will be executed.")
 
     if args.unitrace == "inclusive":
-        create_unitrace(inclusive=True)
-    elif args.unitrace is True:
-        create_unitrace(inclusive=False)
+        options.unitrace = True
+        get_unitrace().inclusive = True
+    elif args.unitrace == "exclusive":
+        options.unitrace = True
+        get_unitrace().inclusive = False
     elif args.unitrace is not None:
         parser.error(
             "Invalid value for --unitrace. Use 'inclusive' for tracing along regular benchmarks or no argument for tracing only."
         )
 
-    if get_unitrace() is not None and options.save_name is None:
+    if options.unitrace and options.save_name is None:
         raise ValueError(
             "Unitrace requires a save name to be specified via --save option."
         )
@@ -268,8 +270,8 @@ def main(directory, additional_env_vars, compare_names, filter):
             merged_env_vars = {**additional_env_vars}
             intermediate_results: dict[str, list[Result]] = {}
             processed: list[Result] = []
-            # regular run of the benchmark
-            if get_unitrace() is None or get_unitrace().inclusive:
+            # regular run of the benchmark (if no unitrace or unitrace inclusive)
+            if not options.unitrace or get_unitrace().inclusive:
                 for _ in range(options.iterations_stddev):
                     run_iterations(
                         benchmark,
@@ -284,8 +286,8 @@ def main(directory, additional_env_vars, compare_names, filter):
                     )
                     if valid:
                         break
-            # single unitrace run independent of benchmark iterations
-            if get_unitrace() is not None:
+            # single unitrace run independent of benchmark iterations (if unitrace enabled)
+            if options.unitrace and benchmark.traceable():
                 run_iterations(
                     benchmark,
                     merged_env_vars,
@@ -561,10 +563,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--unitrace",
         nargs="?",
-        const=True,
+        const="exclusive",
         default=None,
         help="Unitrace tracing for single iteration of benchmarks. Inclusive tracing is done along regular benchmarks.",
-        choices=["inclusive", True],
+        choices=["inclusive", "exclusive"],
     )
 
     # Options intended for CI:

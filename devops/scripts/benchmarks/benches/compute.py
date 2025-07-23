@@ -264,24 +264,6 @@ def parse_unit_type(compute_unit):
 
 
 class ComputeBenchmark(Benchmark):
-
-    # List of benchmarks that should not be traced by Unitrace
-    not_traceable = [
-        # timeouts with v2 adapter
-        "graph_api_benchmark_l0 SubmitGraph numKernels:4 ioq 0 measureCompletion 0",
-        "graph_api_benchmark_l0 SubmitGraph numKernels:4 ioq 0 measureCompletion 1",
-        "graph_api_benchmark_l0 SubmitGraph numKernels:10 ioq 0 measureCompletion 0",
-        "graph_api_benchmark_l0 SubmitGraph numKernels:10 ioq 0 measureCompletion 1",
-        "graph_api_benchmark_l0 SubmitGraph numKernels:32 ioq 0 measureCompletion 0",
-        "graph_api_benchmark_l0 SubmitGraph numKernels:32 ioq 0 measureCompletion 1",
-        "graph_api_benchmark_l0 SubmitGraph numKernels:4 ioq 1 measureCompletion 0",
-        "graph_api_benchmark_l0 SubmitGraph numKernels:4 ioq 1 measureCompletion 1",
-        "graph_api_benchmark_l0 SubmitGraph numKernels:32 ioq 1 measureCompletion 0",
-        "graph_api_benchmark_l0 SubmitGraph numKernels:32 ioq 1 measureCompletion 1",
-        "graph_api_benchmark_ur SubmitGraph numKernels:10 ioq 0 measureCompletion 0",
-        "graph_api_benchmark_ur SubmitGraph numKernels:10 ioq 0 measureCompletion 1",
-    ]
-
     def __init__(self, bench, name, test, runtime: RUNTIMES = None):
         super().__init__(bench.directory, bench)
         self.bench = bench
@@ -321,8 +303,14 @@ class ComputeBenchmark(Benchmark):
         # Check if the specific runtime is enabled (or no specific runtime required)
         return self.runtime is None or self.runtime in self.enabled_runtimes()
 
+    def name(self):
+        """Returns the name of the benchmark, can be overridden."""
+        return self.bench_name
+
     def traceable(self) -> bool:
-        return self.bench_name not in self.not_traceable
+        # List of benchmarks that should not be traced by Unitrace
+        not_traceable = []
+        return self.name() not in not_traceable
 
     def bin_args(self) -> list[str]:
         return []

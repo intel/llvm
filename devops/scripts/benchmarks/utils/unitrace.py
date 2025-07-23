@@ -13,11 +13,11 @@ from datetime import datetime, timezone
 
 
 class Unitrace:
+    """Unitrace wrapper for managing Unitrace tool execution and results."""
 
     inclusive: bool = False
 
-    def __init__(self, inclusive: bool = False):
-        self.inclusive = inclusive
+    def __init__(self):
         self.timestamp = (
             datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
             if options.timestamp_override is None
@@ -53,10 +53,7 @@ class Unitrace:
                 ],
                 add_sycl=True,
             )
-            run(
-                ["cmake", "--build", build_dir, "-j", str(options.build_jobs)],
-                add_sycl=True,
-            )
+            run(["cmake", "--build", build_dir, "-j", str(options.build_jobs)])
         log.info("Unitrace built successfully.")
 
         if options.results_directory_override == None:
@@ -65,6 +62,7 @@ class Unitrace:
             self.traces_dir = os.path.join(options.results_directory_override, "traces")
 
     def _prune_unitrace_dirs(self, res_dir: str, FILECNT: int = 10):
+        """Keep only the last FILECNT files in the traces directory."""
         files = os.listdir(res_dir)
         files.sort()  # Lexicographical sort matches timestamp order
         if len(files) > 2 * FILECNT:
@@ -77,7 +75,9 @@ class Unitrace:
                     log.debug(f"Removing old unitrace file: {full_path}")
 
     def cleanup(self, bench_cwd: str, unitrace_output: str):
-        # Remove .pid files from the benchmark directory and .json files from cwd
+        """
+        Remove incomplete output files in case of failure.
+        """
         unitrace_dir = os.path.dirname(unitrace_output)
         unitrace_base = os.path.basename(unitrace_output)
         for f in os.listdir(unitrace_dir):
@@ -93,6 +93,10 @@ class Unitrace:
     def setup(
         self, bench_name: str, command: list[str], extra_unitrace_opt: list[str] = None
     ):
+        """
+        Prepare Unitrace output file name and full command for the benchmark run.
+        Returns a tuple of (unitrace_output, unitrace_command).
+        """
         unitrace_bin = os.path.join(options.workdir, "unitrace-build", "unitrace")
         if not os.path.exists(unitrace_bin):
             raise FileNotFoundError(f"Unitrace binary not found: {unitrace_bin}. ")
@@ -128,17 +132,26 @@ class Unitrace:
         return unitrace_output, unitrace_command
 
     def handle_output(self, unitrace_output: str):
+        """
+        Handle .json trace files in cwd: move and rename to {self.name()}_{timestamp}.{pid}.json,
+        to make them have the same name as unitrace log file and moved to the same directory.
+        """
 
-        # Handle {name}.{pid}.json files in cwd: move and rename to {self.name()}_{timestamp}.{pid}.json
         pid_json_files = []
         pid = ""
         for f in os.listdir(options.benchmark_cwd):
             parts = f.split(".")
             l = len(parts)
+            # make sure if filename is in the format {name}.{pid}.json
             if len(parts) >= 3 and parts[l - 1] == "json" and parts[l - 2].isdigit():
                 pid_json_files.append(f)
                 pid = parts[l - 2]
+            else:
+                log.debug(
+                    f"Skipping renaming of {f} as the name does not match the expected format."
+                )
 
+        # If nothing went wrong, cwd contains only one .pid.json file, but we cannot be sure
         if len(pid_json_files) == 0:
             raise FileNotFoundError(
                 f"No .pid.json files found in {options.benchmark_cwd}."
@@ -150,37 +163,21 @@ class Unitrace:
             )
             for f in pid_json_files[:-1]:
                 os.remove(os.path.join(options.benchmark_cwd, f))
-            pid_json_files = [pid_json_files[-1]]
 
-        dst = (
-            unitrace_output[:-4] + f".{pid}.json"
-            if unitrace_output.endswith(".out")
-            else unitrace_output + f".{pid}.json"
-        )
+        # unitrace_output variable is in the format {name}.out, but unitrace makes
+        # the actual file name as {name}.{pid}.out and we want .json file name to follow the same pattern
+        json_name = unitrace_output[:-4] + f".{pid}.json"
 
-        shutil.move(os.path.join(options.benchmark_cwd, pid_json_files[0]), dst)
-        log.debug(f"Moved {pid_json_files[0]} to {dst}")
+        # even if the pid_json_files contains more entries, only the last one is valid
+        shutil.move(os.path.join(options.benchmark_cwd, pid_json_files[-1]), json_name)
+        log.debug(f"Moved {pid_json_files[-1]} to {json_name}")
 
         # Prune old unitrace directories
         self._prune_unitrace_dirs(os.path.dirname(unitrace_output))
 
 
-_unitrace_instance = None
-
-
-def create_unitrace(inclusive: bool) -> None:
-    global _unitrace_instance
-    if _unitrace_instance is None:
-        try:
-            _unitrace_instance = Unitrace(inclusive)
-        except Exception as e:
-            log.error(f"Failed to build Unitrace: {e}")
-            _unitrace_instance = None
-        if _unitrace_instance is not None:
-            log.info("Unitrace instance created successfully.")
-    else:
-        raise ValueError("Unitrace instance already created")
-
-
-def get_unitrace() -> Unitrace | None:
-    return _unitrace_instance
+# Singleton pattern to ensure only one instance of Unitrace is created
+def get_unitrace() -> Unitrace:
+    if not hasattr(get_unitrace, "_instance"):
+        get_unitrace._instance = Unitrace()
+    return get_unitrace._instance

@@ -12,6 +12,7 @@ from options import options
 from utils.utils import download, run
 from abc import ABC, abstractmethod
 from utils.unitrace import get_unitrace
+from utils.logger import log
 
 benchmark_tags = [
     BenchmarkTag("SYCL", "Benchmark uses SYCL runtime"),
@@ -76,11 +77,12 @@ class Benchmark(ABC):
         pass
 
     @abstractmethod
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         """Execute the benchmark with the given environment variables.
 
         Args:
             env_vars: Environment variables to use when running the benchmark.
+            run_unitrace: Whether to run benchmark under Unitrace.
 
         Returns:
             A list of Result objects with the benchmark results.
@@ -129,6 +131,8 @@ class Benchmark(ABC):
             unitrace_output, command = get_unitrace().setup(
                 self.name(), command, extra_unitrace_opt
             )
+            log.debug(f"Unitrace output: {unitrace_output}")
+            log.debug(f"Unitrace command: {' '.join(command)}")
 
         try:
             result = run(

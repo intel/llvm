@@ -162,7 +162,7 @@ class BenchmarkHistory:
         results_dir = Path(os.path.join(self.dir, "results"))
         os.makedirs(results_dir, exist_ok=True)
 
-        if get_unitrace() is not None:
+        if options.unitrace:
             timestamp = get_unitrace().timestamp  # type: ignore
         elif options.timestamp_override is not None:
             timestamp = options.timestamp_override
