@@ -27,7 +27,6 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -1048,18 +1047,15 @@ public:
 
   DeviceGlobalMap &getDeviceGlobalMap() { return MDeviceGlobals; }
 
-  void AddKernelArgsSize(const std::string &KernelName, unsigned Size) {
-    auto It = MFreeFuncKernelArgsSizeMap.find(KernelName);
-    if (It == MFreeFuncKernelArgsSizeMap.end()) {
-      MFreeFuncKernelArgsSizeMap[KernelName] = Size;
-    }
-  }
-
   unsigned GetKernelArgsSize(const std::string &KernelName) const {
-    auto It = MFreeFuncKernelArgsSizeMap.find(KernelName);
-    if (It == MFreeFuncKernelArgsSizeMap.end())
+    auto &PM = sycl::detail::ProgramManager::getInstance();
+    const void *GlobalPointer = PM.getKernelGLobalInfoDesc(KernelName.c_str());
+    if (!GlobalPointer)
       return 0;
-    return It->second;
+    const unsigned *SizePtr = reinterpret_cast<const unsigned *>(GlobalPointer);
+    if (!SizePtr)
+      return 0;
+    return *SizePtr;
   }
 
 private:
@@ -1124,7 +1120,6 @@ private:
 
   context MContext;
   std::vector<device_impl *> MDevices;
-  std::unordered_map<std::string, unsigned> MFreeFuncKernelArgsSizeMap;
 
   // For sycl_jit, building from source may have produced sycl binaries that
   // the kernel_bundles now manage.

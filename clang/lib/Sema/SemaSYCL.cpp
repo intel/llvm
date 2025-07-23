@@ -6943,6 +6943,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "  \"\",\n";
   O << "};\n\n";
 
+  O << "static constexpr unsigned kernel_args_sizes[] = {";
+  for (unsigned I = 0; I < KernelDescs.size(); I++) {
+    O << KernelDescs[I].Params.size() << ", ";
+  }
+  O << "};\n\n";
   O << "// array representing signatures of all kernels defined in the\n";
   O << "// corresponding source\n";
   O << "static constexpr\n";
@@ -7203,6 +7208,38 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "}\n";
     ++ShimCounter;
   }
+  O << "#include <sycl/detail/kernel_global_info.hpp>\n";
+
+  ShimCounter = 0;
+  O << "namespace sycl {\n";
+  O << "inline namespace _V1 {\n";
+  O << "namespace detail {\n";
+  O << "namespace free_function_map {\n";
+  O << "inline void update_device_global_map() {\n";
+  for (const KernelDesc &K : KernelDescs) {
+    if (!S.isFreeFunction(K.SyclKernel))
+      continue;
+    O << "sycl::detail::free_function_info_map::add("
+      << "reinterpret_cast<const void*>(sycl::detail::kernel_args_sizes + "
+      << ShimCounter << "), sycl::detail::kernel_names[" << ShimCounter
+      << "]);\n";
+    ++ShimCounter;
+  }
+  O << "}\n";
+  O << "struct GlobalMapUpdater {\n";
+  O << "  GlobalMapUpdater() {\n";
+  O << "    update_device_global_map();\n";
+  O << "    std::cout << \"Device global map updated for free function "
+       "kernels. "
+       "Total: "
+    << ShimCounter << " kernels.\" << std::endl;\n";
+  O << "  }\n";
+  O << "};\n";
+  O << "static GlobalMapUpdater updater;\n";
+  O << "} // namespace free_function_map\n";
+  O << "} // namespace detail\n";
+  O << "} // namespace _V1\n";
+  O << "} // namespace sycl\n";
 }
 
 bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
