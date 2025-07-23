@@ -23,6 +23,8 @@ add_ur_library(ur_common STATIC
     ur_util.cpp
     ur_util.hpp
     latency_tracker.hpp
+    offload_bundle_parser.cpp
+    offload_bundle_parser.hpp
     $<$<PLATFORM_ID:Windows>:windows/ur_lib_loader.cpp>
     $<$<PLATFORM_ID:Linux,Darwin>:linux/ur_lib_loader.cpp>
 )
@@ -40,12 +42,11 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit 0a63bbd489e8e910c3f9a2129b287bfc63925716 (HEAD -> main, upstream/main)
-    # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
-    # Date:   Mon May 12 09:46:48 2025 +0200
-    # Merge pull request #1308 from lukaszstolarczuk/depr-hwloc-disable-cmake
-    # [CMake] Warn about UMF_DISABLE_HWLOC being deprecated
-    set(UMF_TAG 0a63bbd489e8e910c3f9a2129b287bfc63925716)
+    # commit c02a5525bd6165e137129f7c5691e0faf14b7ceb
+    # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+    # Date:   Wed Jul 16 11:04:14 2025 +0200
+    # 1.0.0-rc2 release
+    set(UMF_TAG v1.0.0-rc2)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")

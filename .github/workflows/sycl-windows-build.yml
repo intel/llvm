@@ -240,6 +240,7 @@ jobs:
         retention-days: ${{ inputs.retention-days }}
 
     - name: Setup SYCL toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       run: |
         echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "LIB=$env:GITHUB_WORKSPACE\\install\\lib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append

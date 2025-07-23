@@ -61,10 +61,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
   if (--hQueue->RefCount == 0) {
-    auto Res = olDestroyQueue(hQueue->OffloadQueue);
-    if (Res) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(olDestroyQueue(hQueue->OffloadQueue));
     delete hQueue;
   }
 

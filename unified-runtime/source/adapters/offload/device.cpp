@@ -29,7 +29,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
       std::min(static_cast<uint32_t>(hPlatform->Devices.size()), NumEntries);
 
   for (size_t I = 0; I < NumDevices; I++) {
-    phDevices[I] = &hPlatform->Devices[I];
+    phDevices[I] = hPlatform->Devices[I].get();
   }
 
   return UR_RESULT_SUCCESS;
@@ -67,6 +67,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PLATFORM:
     return ReturnValue(hDevice->Platform);
     break;
+  case UR_DEVICE_INFO_USM_DEVICE_SUPPORT:
+  case UR_DEVICE_INFO_USM_HOST_SUPPORT:
   case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
     return ReturnValue(UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
   case UR_DEVICE_INFO_BUILD_ON_SUBDEVICE:
@@ -74,35 +76,71 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_REFERENCE_COUNT:
     // Devices are never allocated or freed
     return ReturnValue(uint32_t{1});
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
+    return ReturnValue(uint32_t{3});
+  case UR_DEVICE_INFO_COMPILER_AVAILABLE:
+  case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
+    // TODO: Implement subgroups in Offload
+    return ReturnValue(1);
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
+    // OL dimensions are uint32_t while UR is size_t, so they need to be mapped
+    if (pPropSizeRet) {
+      *pPropSizeRet = sizeof(size_t) * 3;
+    }
+
+    if (pPropValue) {
+      ol_dimensions_t olVec;
+      size_t *urVec = reinterpret_cast<size_t *>(pPropValue);
+      OL_RETURN_ON_ERR(olGetDeviceInfo(hDevice->OffloadDevice,
+                                       OL_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                                       sizeof(olVec), &olVec));
+
+      urVec[0] = olVec.x;
+      urVec[1] = olVec.y;
+      urVec[2] = olVec.z;
+    }
+
+    return UR_RESULT_SUCCESS;
+  }
   // Unimplemented features
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
-  case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
   case UR_DEVICE_INFO_IMAGE_SUPPORT:
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
+  case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
+  // TODO: Atomic queries in Offload
+  case UR_DEVICE_INFO_ATOMIC_64:
+  case UR_DEVICE_INFO_IMAGE_SRGB:
+  case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
+  case UR_DEVICE_INFO_LINKER_AVAILABLE:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
-  case UR_DEVICE_INFO_USM_DEVICE_SUPPORT:
-  case UR_DEVICE_INFO_USM_HOST_SUPPORT:
   case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT:
     return ReturnValue(uint32_t{0});
+  case UR_DEVICE_INFO_QUEUE_PROPERTIES:
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    return ReturnValue(0);
+  case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
+  }
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
 
   if (pPropSizeRet) {
-    if (auto Res =
-            olGetDeviceInfoSize(hDevice->OffloadDevice, olInfo, pPropSizeRet)) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(
+        olGetDeviceInfoSize(hDevice->OffloadDevice, olInfo, pPropSizeRet));
   }
 
   if (pPropValue) {
-    if (auto Res = olGetDeviceInfo(hDevice->OffloadDevice, olInfo, propSize,
-                                   pPropValue)) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(
+        olGetDeviceInfo(hDevice->OffloadDevice, olInfo, propSize, pPropValue));
     // Need to explicitly map this type
     if (olInfo == OL_DEVICE_INFO_TYPE) {
       auto urPropPtr = reinterpret_cast<ur_device_type_t *>(pPropValue);
@@ -147,8 +185,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
     uint32_t NumBinaries, uint32_t *pSelectedBinary) {
 
   ol_platform_backend_t Backend;
-  olGetPlatformInfo(hDevice->Platform->OffloadPlatform,
-                    OL_PLATFORM_INFO_BACKEND, sizeof(Backend), &Backend);
+  OL_RETURN_ON_ERR(olGetPlatformInfo(hDevice->Platform->OffloadPlatform,
+                                     OL_PLATFORM_INFO_BACKEND, sizeof(Backend),
+                                     &Backend));
 
   const char *ImageTarget = UR_DEVICE_BINARY_TARGET_UNKNOWN;
   if (Backend == OL_PLATFORM_BACKEND_CUDA) {

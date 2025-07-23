@@ -15,16 +15,16 @@
 //===----------------------------------------------------------------------===//
 
 // A 11-bit signed immediate where the least significant bit is zero.
-def simm11_lsb0 : Operand<OtherVT> {
-  let ParserMatchClass = SImmAsmOperand<11, "Lsb0">;
+def bare_simm11_lsb0 : Operand<OtherVT> {
+  let ParserMatchClass = BareSImmNLsb0AsmOperand<11>;
   let PrintMethod = "printBranchOperand";
   let EncoderMethod = "getImmOpValueAsrN<1>";
   let DecoderMethod = "decodeSImmOperandAndLslN<11, 1>";
   let MCOperandPredicate = [{
     int64_t Imm;
-    if (!MCOp.evaluateAsConstantImm(Imm))
-      return false;
-    return isShiftedInt<10, 1>(Imm);
+    if (MCOp.evaluateAsConstantImm(Imm))
+      return isShiftedInt<10, 1>(Imm);
+    return MCOp.isBareSymbolRef();
   }];
   let OperandType = "OPERAND_PCREL";
 }
@@ -58,8 +58,8 @@ def simm20_lsb000 : Operand<XLenVT> {
 //===----------------------------------------------------------------------===//
 
 class NDSRVInstBB<bit cs, string opcodestr>
-    : RVInst<(outs), (ins GPR:$rs1, uimmlog2xlen:$cimm, simm11_lsb0:$imm10),
-             opcodestr, "$rs1, $cimm, $imm10", [], InstFormatOther>,
+    : RVInst<(outs), (ins GPR:$rs1, uimmlog2xlen:$cimm, bare_simm11_lsb0:$imm10),
+             opcodestr, "$rs1, $cimm, $imm10", [], InstFormatNDS_BRANCH_10>,
       Sched<[WriteJmp, ReadIALU]> {
   bits<10> imm10;
   bits<5> rs1;
@@ -82,8 +82,8 @@ class NDSRVInstBB<bit cs, string opcodestr>
 }
 
 class NDSRVInstBC<bits<3> funct3, string opcodestr>
-    : RVInst<(outs), (ins GPR:$rs1, uimm7:$cimm, simm11_lsb0:$imm10),
-             opcodestr, "$rs1, $cimm, $imm10", [], InstFormatOther>,
+    : RVInst<(outs), (ins GPR:$rs1, uimm7:$cimm, bare_simm11_lsb0:$imm10),
+             opcodestr, "$rs1, $cimm, $imm10", [], InstFormatNDS_BRANCH_10>,
       Sched<[WriteJmp, ReadIALU]> {
   bits<10> imm10;
   bits<5> rs1;
@@ -361,6 +361,25 @@ class NDSRVInstVD4DOT<bits<6> funct6, string opcodestr>
   let RVVConstraint = VMConstraint;
 }
 
+class NDSRVInstVBFHCvt<bits<7> funct7, bits<5> vs1, string opcodestr>
+    : RVInst<(outs VR:$vd), (ins VR:$vs2, VMaskOp:$vm),
+             opcodestr, "$vd, $vs2", [], InstFormatR> {
+  bits<5> vs2;
+  bits<5> vd;
+
+  let Inst{31-25} = funct7;
+  let Inst{24-20} = vs2;
+  let Inst{19-15} = vs1;
+  let Inst{14-12} = 0b100;
+  let Inst{11-7} = vd;
+  let Inst{6-0} = OPC_CUSTOM_2.Value;
+  let hasSideEffects = 0;
+  let mayLoad = 0;
+  let mayStore = 0;
+
+  let Uses = [VL, VTYPE];
+}
+
 //===----------------------------------------------------------------------===//
 // Multiclass
 //===----------------------------------------------------------------------===//
@@ -385,6 +404,27 @@ multiclass VPatVFPMADBinaryV_VX_RM<string intrinsic, string instruction,
                                   vti.Vector, vti.Vector, f32, vti.Mask,
                                   vti.Log2SEW, vti.RegClass,
                                   vti.RegClass, FPR32>;
+  }
+}
+
+multiclass VPseudoVD4DOT_VV {
+  foreach m = [V_MF2, V_M1, V_M2, V_M4, V_M8] in {
+    defm "" : VPseudoBinaryV_VV<m>,
+              SchedBinary<"WriteVIALUV", "ReadVIALUV", "ReadVIALUV", m.MX,
+                          forcePassthruRead=true>;
+  }
+}
+
+multiclass VPatTernaryVD4DOT_VV<string intrinsic, string instruction,
+                                list<VTypeInfoToWide> vtilist> {
+  foreach vtiToWti = vtilist in {
+    defvar vti = vtiToWti.Vti;
+    defvar wti = vtiToWti.Wti;
+    let Predicates = GetVTypePredicates<wti>.Predicates in
+    defm : VPatTernaryWithPolicy<intrinsic, instruction, "VV",
+                                 wti.Vector, vti.Vector, vti.Vector,
+                                 wti.Mask, wti.Log2SEW, vti.LMul,
+                                 wti.RegClass, vti.RegClass, vti.RegClass>;
   }
 }
 
@@ -438,6 +478,18 @@ def NDS_LDGP  : NDSRVInstLDGP<0b011, "nds.ldgp">;
 
 def NDS_SDGP  : NDSRVInstSDGP<0b111, "nds.sdgp">;
 } // Predicates = [HasVendorXAndesPerf, IsRV64]
+
+//===----------------------------------------------------------------------===//
+// XAndesVBFHCvt
+//===----------------------------------------------------------------------===//
+
+let Predicates = [HasVendorXAndesVBFHCvt], Constraints = "@earlyclobber $vd",
+    mayRaiseFPException = true in {
+let RVVConstraint = VS2Constraint, DestEEW = EEWSEWx2 in
+def NDS_VFWCVT_S_BF16 : NDSRVInstVBFHCvt<0b0000000, 0b00000, "nds.vfwcvt.s.bf16">;
+let Uses = [FRM, VL, VTYPE] in
+def NDS_VFNCVT_BF16_S : NDSRVInstVBFHCvt<0b0000000, 0b00001, "nds.vfncvt.bf16.s">;
+}
 
 //===----------------------------------------------------------------------===//
 // XAndesVPackFPH
@@ -503,3 +555,25 @@ defm PseudoNDS_VFPMADB : VPseudoVFPMAD_VF_RM;
 
 defm : VPatVFPMADBinaryV_VX_RM<"int_riscv_nds_vfpmadt", "PseudoNDS_VFPMADT", AllFP16Vectors>;
 defm : VPatVFPMADBinaryV_VX_RM<"int_riscv_nds_vfpmadb", "PseudoNDS_VFPMADB", AllFP16Vectors>;
+
+let Predicates = [HasVendorXAndesVDot] in {
+defm PseudoNDS_VD4DOTS  : VPseudoVD4DOT_VV;
+defm PseudoNDS_VD4DOTU  : VPseudoVD4DOT_VV;
+defm PseudoNDS_VD4DOTSU : VPseudoVD4DOT_VV;
+}
+
+defset list<VTypeInfoToWide> AllQuadWidenableVD4DOTVectors = {
+  def : VTypeInfoToWide<VI8MF2,  VI32MF2>;
+  def : VTypeInfoToWide<VI8M1,   VI32M1>;
+  def : VTypeInfoToWide<VI8M2,   VI32M2>;
+  def : VTypeInfoToWide<VI8M4,   VI32M4>;
+  def : VTypeInfoToWide<VI8M8,   VI32M8>;
+  def : VTypeInfoToWide<VI16M1,  VI64M1>;
+  def : VTypeInfoToWide<VI16M2,  VI64M2>;
+  def : VTypeInfoToWide<VI16M4,  VI64M4>;
+  def : VTypeInfoToWide<VI16M8,  VI64M8>;
+}
+
+defm : VPatTernaryVD4DOT_VV<"int_riscv_nds_vd4dots", "PseudoNDS_VD4DOTS", AllQuadWidenableVD4DOTVectors>;
+defm : VPatTernaryVD4DOT_VV<"int_riscv_nds_vd4dotu", "PseudoNDS_VD4DOTU", AllQuadWidenableVD4DOTVectors>;
+defm : VPatTernaryVD4DOT_VV<"int_riscv_nds_vd4dotsu", "PseudoNDS_VD4DOTSU", AllQuadWidenableVD4DOTVectors>;

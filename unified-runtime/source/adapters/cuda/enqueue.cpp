@@ -1384,7 +1384,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
       BufferImpl.MemAllocMode == BufferMem::AllocMode::AllocHostPtr;
 
   ur_result_t Result = UR_RESULT_SUCCESS;
-  if (!IsPinned && (Map->getMapFlags() & UR_MAP_FLAG_WRITE)) {
+  if (!IsPinned &&
+      (Map->getMapFlags() &
+       (UR_MAP_FLAG_WRITE | UR_MAP_FLAG_WRITE_INVALIDATE_REGION))) {
     // Pinned host memory is only on host so it doesn't need to be written to.
     Result = urEnqueueMemBufferWrite(
         hQueue, hMem, true, Map->getMapOffset(), Map->getMapSize(), pMappedPtr,

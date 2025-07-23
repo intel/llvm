@@ -24,6 +24,7 @@ namespace sycl {
 struct GlobalBinImageProps {
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
+  bool EmitKernelNames;
   bool EmitExportedSymbols;
   bool EmitImportedSymbols;
   bool EmitDeviceGlobalPropSet;

@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "clang/Driver/SanitizerArgs.h"
+#include "clang/Basic/DiagnosticDriver.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/Options.h"
@@ -1296,6 +1297,8 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       CmdArgs.push_back("-asan-stack-dynamic-alloca=0");
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-use-after-return=never");
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-asan-instrument-dynamic-allocas=0");
 
       if (!RecoverableSanitizers.empty())
         CmdArgs.push_back(Args.MakeArgString("-fsanitize-recover=" +
@@ -1317,6 +1320,16 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
 
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-msan-poison-stack-with-call=1");
+
+      if (MsanTrackOrigins) {
+        // FIXME: Support enhanced origins tracking in device offloading.
+        if (MsanTrackOrigins != 1)
+          TC.getDriver().Diag(diag::err_drv_argument_only_allowed_with)
+              << "-fsanitize-memory-track-origins=1";
+        CmdArgs.push_back("-mllvm");
+        CmdArgs.push_back(Args.MakeArgString("-msan-track-origins=" +
+                                             Twine(MsanTrackOrigins)));
+      }
     } else if (Sanitizers.has(SanitizerKind::Thread)) {
       CmdArgs.push_back("-fsanitize=thread");
       // The tsan function entry/exit builtins are used to record stack

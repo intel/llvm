@@ -12,6 +12,7 @@
 
 #include "llvm/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Support/MD5.h"
 
 using namespace llvm;
 
@@ -58,4 +59,26 @@ bool isJointMatrixAccess(Value *V) {
   }
   return false;
 }
+
+void getFunctionsOfUser(User *User, SmallVectorImpl<Function *> &Functions) {
+  if (Instruction *Inst = dyn_cast<Instruction>(User)) {
+    Functions.push_back(Inst->getFunction());
+  } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(User)) {
+    for (auto *U : CE->users())
+      getFunctionsOfUser(U, Functions);
+  }
+}
+
+SmallString<128>
+computeKernelMetadataUniqueId(StringRef Prefix,
+                              SmallVectorImpl<uint8_t> &KernelNamesBytes) {
+  MD5 Hash;
+  SmallString<32> UniqueIdSuffix;
+  SmallString<128> UniqueId(Prefix);
+  auto R = Hash.hash(KernelNamesBytes);
+  Hash.stringifyResult(R, UniqueIdSuffix);
+  UniqueId.append(UniqueIdSuffix);
+  return UniqueId;
+}
+
 } // namespace llvm

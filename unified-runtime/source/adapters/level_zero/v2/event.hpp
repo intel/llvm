@@ -17,6 +17,7 @@
 
 #include "adapters/level_zero/v2/queue_api.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "event_provider.hpp"
 
 namespace v2 {
@@ -66,7 +67,8 @@ public:
                      const ur_event_native_properties_t *pProperties);
 
   // Set the queue and command that this event is associated with
-  void resetQueueAndCommand(ur_queue_t_ *hQueue, ur_command_t commandType);
+  void setQueue(ur_queue_t_ *hQueue);
+  void setCommandType(ur_command_t commandType);
 
   void reset();
   ze_event_handle_t getZeEvent() const;
@@ -100,7 +102,7 @@ public:
   ur_device_handle_t getDevice() const;
 
   // Record the start timestamp of the event, to be obtained by
-  // urEventGetProfilingInfo. resetQueueAndCommand should be
+  // urEventGetProfilingInfo. setQueue should be
   // called before this.
   void recordStartTimestamp();
 
@@ -110,6 +112,8 @@ public:
 
   uint64_t getEventStartTimestmap() const;
   uint64_t getEventEndTimestamp();
+
+  ur::RefCount RefCount;
 
 private:
   ur_event_handle_t_(ur_context_handle_t hContext, event_variant hZeEvent,

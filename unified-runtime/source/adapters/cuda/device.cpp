@@ -593,7 +593,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue("CUDA");
   }
   case UR_DEVICE_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hDevice->getReferenceCount());
+    return ReturnValue(hDevice->RefCount.getCount());
   }
   case UR_DEVICE_INFO_VERSION: {
     std::stringstream SS;
@@ -606,9 +606,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         &Minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, hDevice->get()));
     SS << "." << Minor;
     return ReturnValue(SS.str().c_str());
-  }
-  case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION: {
-    return ReturnValue("");
   }
   case UR_DEVICE_INFO_EXTENSIONS: {
     std::string SupportedExtensions = "cl_khr_fp64 ";
@@ -1166,6 +1163,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
@@ -1318,17 +1317,20 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
     UR_CHECK_ERROR(cuEventCreate(&Event, CU_EVENT_DEFAULT));
     UR_CHECK_ERROR(cuEventRecord(Event, 0));
   }
+
+  if (pDeviceTimestamp) {
+    UR_CHECK_ERROR(cuEventSynchronize(Event));
+    *pDeviceTimestamp = hDevice->getElapsedTime(Event);
+  }
+
+  // Record the host timestamp after the cuEventSynchronize() call for more
+  // precise measurement.
   if (pHostTimestamp) {
 
     using namespace std::chrono;
     *pHostTimestamp =
         duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
             .count();
-  }
-
-  if (pDeviceTimestamp) {
-    UR_CHECK_ERROR(cuEventSynchronize(Event));
-    *pDeviceTimestamp = hDevice->getElapsedTime(Event);
   }
 
   return UR_RESULT_SUCCESS;

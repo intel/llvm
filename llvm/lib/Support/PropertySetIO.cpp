@@ -176,8 +176,8 @@ PropertyValue::PropertyValue(const PropertyValue &P) { *this = P; }
 PropertyValue::PropertyValue(PropertyValue &&P) { *this = std::move(P); }
 
 PropertyValue &PropertyValue::operator=(PropertyValue &&P) {
-  copy(P);
-
+  Ty = P.Ty;
+  Val = P.Val;
   if (P.getType() == BYTE_ARRAY)
     P.Val.ByteArrayVal = nullptr;
   P.Ty = NONE;
@@ -185,16 +185,13 @@ PropertyValue &PropertyValue::operator=(PropertyValue &&P) {
 }
 
 PropertyValue &PropertyValue::operator=(const PropertyValue &P) {
-  if (P.getType() == BYTE_ARRAY)
+  if (P.getType() == BYTE_ARRAY) {
     *this = PropertyValue(P.asByteArray(), P.getByteArraySizeInBits());
-  else
-    copy(P);
+  } else {
+    Ty = P.Ty;
+    Val = P.Val;
+  }
   return *this;
-}
-
-void PropertyValue::copy(const PropertyValue &P) {
-  Ty = P.Ty;
-  Val = P.Val;
 }
 
 constexpr char PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS[];
@@ -204,6 +201,7 @@ constexpr char PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO[];
 constexpr char PropertySetRegistry::SYCL_PROGRAM_METADATA[];
 constexpr char PropertySetRegistry::SYCL_MISC_PROP[];
 constexpr char PropertySetRegistry::SYCL_ASSERT_USED[];
+constexpr char PropertySetRegistry::SYCL_KERNEL_NAMES[];
 constexpr char PropertySetRegistry::SYCL_EXPORTED_SYMBOLS[];
 constexpr char PropertySetRegistry::SYCL_IMPORTED_SYMBOLS[];
 constexpr char PropertySetRegistry::SYCL_DEVICE_GLOBALS[];

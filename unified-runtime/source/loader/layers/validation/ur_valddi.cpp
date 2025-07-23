@@ -569,7 +569,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName)
+    if (UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -2182,6 +2182,9 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     /// device is null then the granularity is suitable for all devices in
     /// context.
     ur_device_handle_t hDevice,
+    /// [in] allocation size in bytes for which the alignment is being
+    /// queried.
+    size_t allocationSize,
     /// [in] type of the info to query.
     ur_virtual_mem_granularity_info_t propName,
     /// [in] size in bytes of the memory pointed to by pPropValue.
@@ -2228,8 +2231,9 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
-  ur_result_t result = pfnGranularityGetInfo(
-      hContext, hDevice, propName, propSize, pPropValue, pPropSizeRet);
+  ur_result_t result =
+      pfnGranularityGetInfo(hContext, hDevice, allocationSize, propName,
+                            propSize, pPropValue, pPropSizeRet);
 
   return result;
 }
@@ -8314,7 +8318,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE < memHandleType)
+    if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE < memHandleType)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
@@ -8528,6 +8532,47 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
   }
 
   ur_result_t result = pfnFreeMappedLinearMemoryExp(hContext, hDevice, pMem);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesSupportsImportingHandleTypeExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesSupportsImportingHandleTypeExp(
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] type of external memory handle
+    ur_exp_external_mem_type_t memHandleType,
+    /// [out] whether the device supports importing the specified external
+    /// memory handle type
+    ur_bool_t *pSupportedRet) {
+  auto pfnSupportsImportingHandleTypeExp =
+      getContext()
+          ->urDdiTable.BindlessImagesExp.pfnSupportsImportingHandleTypeExp;
+
+  if (nullptr == pfnSupportsImportingHandleTypeExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pSupportedRet)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE < memHandleType)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result =
+      pfnSupportsImportingHandleTypeExp(hDevice, memHandleType, pSupportedRet);
 
   return result;
 }
@@ -10417,6 +10462,49 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMContextMemcpyExp
+__urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    /// [in] Context associated with the device(s) that own the allocations
+    /// `pSrc` and `pDst`.
+    ur_context_handle_t hContext,
+    /// [in] Destination pointer to copy to.
+    void *pDst,
+    /// [in] Source pointer to copy from.
+    const void *pSrc,
+    /// [in] Size in bytes to be copied.
+    size_t size) {
+  auto pfnContextMemcpyExp =
+      getContext()->urDdiTable.USMExp.pfnContextMemcpyExp;
+
+  if (nullptr == pfnContextMemcpyExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pDst)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pSrc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (size == 0)
+      return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result = pfnContextMemcpyExp(hContext, pDst, pSrc, size);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     /// [in] handle of the context object
@@ -10916,6 +11004,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
       pDdiTable->pfnFreeMappedLinearMemoryExp;
   pDdiTable->pfnFreeMappedLinearMemoryExp =
       ur_validation_layer::urBindlessImagesFreeMappedLinearMemoryExp;
+
+  dditable.pfnSupportsImportingHandleTypeExp =
+      pDdiTable->pfnSupportsImportingHandleTypeExp;
+  pDdiTable->pfnSupportsImportingHandleTypeExp =
+      ur_validation_layer::urBindlessImagesSupportsImportingHandleTypeExp;
 
   dditable.pfnImportExternalSemaphoreExp =
       pDdiTable->pfnImportExternalSemaphoreExp;
@@ -11901,6 +11994,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   dditable.pfnPitchedAllocExp = pDdiTable->pfnPitchedAllocExp;
   pDdiTable->pfnPitchedAllocExp = ur_validation_layer::urUSMPitchedAllocExp;
+
+  dditable.pfnContextMemcpyExp = pDdiTable->pfnContextMemcpyExp;
+  pDdiTable->pfnContextMemcpyExp = ur_validation_layer::urUSMContextMemcpyExp;
 
   dditable.pfnImportExp = pDdiTable->pfnImportExp;
   pDdiTable->pfnImportExp = ur_validation_layer::urUSMImportExp;

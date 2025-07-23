@@ -465,6 +465,10 @@ typedef enum ur_function_t {
   UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP = 271,
   /// Enumerator for ::urKernelSuggestMaxCooperativeGroupCount
   UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT = 272,
+  /// Enumerator for ::urUSMContextMemcpyExp
+  UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP = 273,
+  /// Enumerator for ::urBindlessImagesSupportsImportingHandleTypeExp
+  UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP = 274,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2419,6 +2423,9 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] Returns true if the device supports the multi device
   /// compile experimental feature.
   UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP = 0x6000,
+  /// [::ur_bool_t] returns true if the device supports
+  /// ::urUSMContextMemcpyExp
+  UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP = 0x7000,
   /// @cond
   UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2444,7 +2451,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -4986,6 +4993,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     /// device is null then the granularity is suitable for all devices in
     /// context.
     ur_device_handle_t hDevice,
+    /// [in] allocation size in bytes for which the alignment is being
+    /// queried.
+    size_t allocationSize,
     /// [in] type of the info to query.
     ur_virtual_mem_granularity_info_t propName,
     /// [in] size in bytes of the memory pointed to by pPropValue.
@@ -5578,11 +5588,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(
 ///       in `phProgram` will contain a binary of the
 ///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
 ///       `hContext`.
-///     - If a non-success code is returned and `phProgram` is not `nullptr`, it
-///       will contain an unspecified program or `nullptr`. Implementations may
-///       use the build log of this program (accessible via
-///       ::urProgramGetBuildInfo) to provide an error log for the linking
-///       failure.
+///     - If a non-success code is returned, adapters may store a program in
+///       `phProgram`. This program should only be used with
+///       `::urProgramGetBuildInfo` to get the build log for the failure.
+///       Adapters which do not do not support producing build logs must set
+///       this value to `nullptr`.
 ///
 /// @remarks
 ///   _Analogues_
@@ -5772,8 +5782,8 @@ typedef enum ur_program_info_t {
   UR_PROGRAM_INFO_IL = 4,
   /// [size_t[]] Return program binary sizes for each device.
   UR_PROGRAM_INFO_BINARY_SIZES = 5,
-  /// [unsigned char[]] Return program binaries for all devices for this
-  /// Program. These are not null-terminated.
+  /// [unsigned char *[]] Write program binaries into caller-provided
+  /// buffers for each device. These are not null-terminated.
   UR_PROGRAM_INFO_BINARIES = 6,
   /// [size_t][optional-query] Number of kernels in Program, return type
   /// size_t.
@@ -9791,6 +9801,10 @@ typedef enum ur_exp_external_mem_type_t {
   UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT = 1,
   /// Win32 NT DirectX 12 resource handle
   UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE = 2,
+  /// dma_buf file descriptor
+  UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF = 3,
+  /// Win32 NT DirectX 11 resource handle
+  UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE = 4,
   /// @cond
   UR_EXP_EXTERNAL_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -10509,7 +10523,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE <
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
 ///         memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalMemDesc`
@@ -10654,6 +10668,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
     ur_device_handle_t hDevice,
     /// [in][release] pointer to mapped linear memory region to be freed
     void *pMem);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Checks whether the device supports importing the specified external
+///        memory handle type
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         memHandleType`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pSupportedRet`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesSupportsImportingHandleTypeExp(
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] type of external memory handle
+    ur_exp_external_mem_type_t memHandleType,
+    /// [out] whether the device supports importing the specified external
+    /// memory handle type
+    ur_bool_t *pSupportedRet);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Import an external semaphore
@@ -11073,7 +11115,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferRetainExp(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Decrement the command-buffer object's reference count and delete the
-///        command-buffer object if the reference count becomes zero.
+///        command-buffer object if the reference count becomes zero. It is
+///        legal to call the entry-point while `hCommandBuffer` is still
+///        executing, which will block on completion if the reference count of
+///        `hCommandBuffer` becomes zero.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -12370,11 +12415,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(
 ///       in `phProgram` will contain a binary of the
 ///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
 ///       `phDevices`.
-///     - If a non-success code is returned and `phProgram` is not `nullptr`, it
-///       will contain an unspecified program or `nullptr`. Implementations may
-///       use the build log of this program (accessible via
-///       ::urProgramGetBuildInfo) to provide an error log for the linking
-///       failure.
+///     - If a non-success code is returned, adapters may store a program in
+///       `phProgram`. This program should only be used with
+///       `::urProgramGetBuildInfo` to get the build log for the failure.
+///       Adapters which do not do not support producing build logs must set
+///       this value to `nullptr`.
 ///
 /// @remarks
 ///   _Analogues_
@@ -12413,6 +12458,43 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
     const char *pOptions,
     /// [out][alloc] pointer to handle of program object created.
     ur_program_handle_t *phProgram);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for USM Context Memcpy
+#if !defined(__GNUC__)
+#pragma region usm_context_memcpy_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Perform a synchronous, blocking memcpy operation between USM
+///        allocations.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pDst`
+///         + `NULL == pSrc`
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `size == 0`
+///         + If `size` is higher than the allocation size of `pSrc` or `pDst`
+UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    /// [in] Context associated with the device(s) that own the allocations
+    /// `pSrc` and `pDst`.
+    ur_context_handle_t hContext,
+    /// [in] Destination pointer to copy to.
+    void *pDst,
+    /// [in] Source pointer to copy from.
+    const void *pSrc,
+    /// [in] Size in bytes to be copied.
+    size_t size);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -14536,6 +14618,17 @@ typedef struct ur_usm_pitched_alloc_exp_params_t {
 } ur_usm_pitched_alloc_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMContextMemcpyExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_context_memcpy_exp_params_t {
+  ur_context_handle_t *phContext;
+  void **ppDst;
+  const void **ppSrc;
+  size_t *psize;
+} ur_usm_context_memcpy_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUSMImportExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -14780,6 +14873,17 @@ typedef struct ur_bindless_images_free_mapped_linear_memory_exp_params_t {
   ur_device_handle_t *phDevice;
   void **ppMem;
 } ur_bindless_images_free_mapped_linear_memory_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for
+/// urBindlessImagesSupportsImportingHandleTypeExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_bindless_images_supports_importing_handle_type_exp_params_t {
+  ur_device_handle_t *phDevice;
+  ur_exp_external_mem_type_t *pmemHandleType;
+  ur_bool_t **ppSupportedRet;
+} ur_bindless_images_supports_importing_handle_type_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urBindlessImagesImportExternalSemaphoreExp
@@ -15223,6 +15327,7 @@ typedef struct ur_loader_init_params_t {
 typedef struct ur_virtual_mem_granularity_get_info_params_t {
   ur_context_handle_t *phContext;
   ur_device_handle_t *phDevice;
+  size_t *pallocationSize;
   ur_virtual_mem_granularity_info_t *ppropName;
   size_t *ppropSize;
   void **ppPropValue;

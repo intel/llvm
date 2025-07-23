@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/ur.hpp>
@@ -633,6 +633,8 @@ private:
       return UR_BACKEND_HIP;
     case sycl::backend::ext_oneapi_native_cpu:
       return UR_BACKEND_NATIVE_CPU;
+    case sycl::backend::ext_oneapi_offload:
+      return UR_BACKEND_OFFLOAD;
     default:
       return UR_BACKEND_UNKNOWN;
     }

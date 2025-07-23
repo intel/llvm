@@ -339,7 +339,7 @@ private:
     auto ArgTys{InputArgTys};
     // Create this with a void ret no args prototype, will be fixed up after
     // we've seen all the params.
-    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+    FunctionProtoType::ExtProtoInfo Info(CC_DeviceKernel);
     Info.Variadic = IsVariadic;
     clang::QualType const VoidFuncType =
         AST->getFunctionType(AST->VoidTy, {}, Info);
@@ -752,6 +752,8 @@ class TargetTypeReplacements {
       else if (CloneTypeReplacements[From] != To)
         RemangledCloneTypeReplacements[From] = To;
     }
+    // Replace char with signed char
+    RemangledCloneTypeReplacements["char"] = "signed char";
   }
 
 public:
