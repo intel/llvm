@@ -431,3 +431,157 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 16: assembler, {15}, object, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 17: clang-linker-wrapper, {16}, image, (host-sycl)
 
+/// ###########################################################################
+
+// Check if valid bound arch behaviour occurs when compiling for spir-v,nvidia-gpu, and amd-gpu
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64,nvptx64-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_75 -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD %s
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 2: compiler, {1}, ir, (host-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 3: input, "[[INPUT]]", c++, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 5: compiler, {4}, ir, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 6: backend, {5}, ir, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 7: offload, "device-sycl (amdgcn-amd-amdhsa:gfx908)" {6}, ir
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 8: input, "[[INPUT]]", c++, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 9: preprocessor, {8}, c++-cpp-output, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 10: compiler, {9}, ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 11: backend, {10}, ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 12: offload, "device-sycl (nvptx64-nvidia-cuda:sm_75)" {11}, ir
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 13: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 14: preprocessor, {13}, c++-cpp-output, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 15: compiler, {14}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 16: backend, {15}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 17: offload, "device-sycl (spir64-unknown-unknown)" {16}, ir
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 18: clang-offload-packager, {7, 12, 17}, image, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 19: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {18}, ir
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 20: backend, {19}, assembler, (host-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 21: assembler, {20}, object, (host-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 22: clang-linker-wrapper, {21}, image, (host-sycl)
+
+/// -fsycl --offload-new-driver with /Fo testing
+// RUN: %clang_cl -fsycl --offload-new-driver /Fosomefile.obj -c %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix=FO-CHECK %s
+// FO-CHECK: clang{{.*}} "-fsycl-int-header=[[HEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
+// FO-CHECK: clang{{.*}} "-include-internal-header" "[[HEADER]]" {{.*}} "-o" "somefile.obj"
+
+/// passing of a library should not trigger the unbundler
+// RUN: touch %t.a
+// RUN: touch %t.lib
+// RUN: %clang -ccc-print-phases -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t.a %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=LIB-UNBUNDLE-CHECK %s
+// RUN: %clang_cl -ccc-print-phases -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t.lib %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=LIB-UNBUNDLE-CHECK %s
+// LIB-UNBUNDLE-CHECK-NOT: clang-offload-unbundler
+
+/// passing of only a library should not create a device link
+// RUN: %clang -ccc-print-phases -fsycl --offload-new-driver -lsomelib 2>&1 \
+// RUN:  | FileCheck -check-prefix=LIB-NODEVICE %s
+// LIB-NODEVICE: 0: input, "somelib", object, (host-sycl)
+// LIB-NODEVICE: 1: clang-linker-wrapper, {0}, image, (host-sycl)
+
+// Checking for an error if c-compilation is forced
+// RUN: not %clangxx -### -c -fsycl --offload-new-driver -xc %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
+// RUN: not %clangxx -### -c -fsycl --offload-new-driver -xc-header %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
+// RUN: not %clangxx -### -c -fsycl --offload-new-driver -xcpp-output %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
+// CHECK_XC_FSYCL: '-x c{{.*}}' must not be used in conjunction with '-fsycl'
+
+// -std=c++17 check (check all 3 compilations)
+// RUN: %clangxx -### -c -fsycl --offload-new-driver -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s
+// RUN: %clang_cl -### -c -fsycl --offload-new-driver -TP %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s
+// CHECK-STD: clang{{.*}} "-emit-llvm-bc" {{.*}} "-std=c++17"
+// CHECK-STD: clang{{.*}} "-emit-obj" {{.*}} "-std=c++17"
+
+// -std=c++17 override check
+// RUN: %clangxx -### -c -fsycl --offload-new-driver -std=c++14 -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
+// RUN: %clang_cl -### -c -fsycl --offload-new-driver /std:c++14 -TP %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
+// CHECK-STD-OVR: clang{{.*}} "-emit-llvm-bc" {{.*}} "-std=c++14"
+// CHECK-STD-OVR: clang{{.*}} "-emit-obj" {{.*}} "-std=c++14"
+// CHECK-STD-OVR-NOT: clang{{.*}} "-std=c++17"
+
+// Check sycl-post-link optimization level.
+// Default is O2
+// RUN:   %clang    -### -fsycl --offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O2
+// RUN:   %clang_cl -### -fsycl --offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O2
+// Common options for %clang and %clang_cl
+// RUN:   %clang    -### -fsycl --offload-new-driver -O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O1
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
+// RUN:   %clang    -### -fsycl --offload-new-driver -O2 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O2
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /O2 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O3
+// RUN:   %clang    -### -fsycl --offload-new-driver -Os %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /Os %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
+// %clang options
+// RUN:   %clang    -### -fsycl --offload-new-driver -O0 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O0
+// RUN:   %clang    -### -fsycl --offload-new-driver -Ofast %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O3
+// RUN:   %clang    -### -fsycl --offload-new-driver -O3 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O3
+// RUN:   %clang    -### -fsycl --offload-new-driver -Oz %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Oz
+// RUN:   %clang    -### -fsycl --offload-new-driver -Og %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O1
+// %clang_cl options
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /Od %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O0
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /Ot %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O3
+// only the last option is considered
+// RUN:   %clang    -### -fsycl --offload-new-driver -O2 -O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O1
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /O2 /O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
+// CHK-POST-LINK-OPT-LEVEL-O0: --sycl-post-link-options=-O2
+// CHK-POST-LINK-OPT-LEVEL-O1: --sycl-post-link-options=-O1
+// CHK-POST-LINK-OPT-LEVEL-O2: --sycl-post-link-options=-O2
+// CHK-POST-LINK-OPT-LEVEL-O3: --sycl-post-link-options=-O3
+// CHK-POST-LINK-OPT-LEVEL-Os: --sycl-post-link-options=-Os
+// CHK-POST-LINK-OPT-LEVEL-Oz: --sycl-post-link-options=-Oz
+
+// Verify header search dirs are added with -fsycl
+// RUN: %clang -### -fsycl --offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
+// RUN: %clang_cl -### -fsycl --offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
+// CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-device"
+// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT:[^"]*]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// CHECK-HEADER-DIR-NOT: -internal-isystem
+// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include"
+// CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-host"
+// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// CHECK-HEADER-DIR-NOT: -internal-isystem
+// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include"
+
+/// Check for option incompatibility with -fsycl
+// RUN:   not %clang -### -fsycl --offload-new-driver -ffreestanding %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-ffreestanding
+// RUN:   not %clang -### -fsycl --offload-new-driver -static-libstdc++ %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-static-libstdc++
+// CHK-INCOMPATIBILITY: error: invalid argument '[[INCOMPATOPT]]' not allowed with '-fsycl'
+
+/// Using -fsyntax-only with -fsycl --offload-new-driver should not emit IR
+// RUN:   %clang -### -fsycl --offload-new-driver -fsyntax-only %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-FSYNTAX-ONLY %s
+// RUN:   %clang -### -fsycl --offload-new-driver -fsycl-device-only -fsyntax-only %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-FSYNTAX-ONLY %s
+// CHK-FSYNTAX-ONLY-NOT: "-emit-llvm-bc"
+// CHK-FSYNTAX-ONLY: "-fsyntax-only"
+
+// Emit warning for treating 'c' input as 'c++' when -fsycl --offload-new-driver is used
+// RUN: %clang -### -fsycl --offload-new-driver  %s 2>&1 | FileCheck -check-prefix FSYCL-CHECK %s
+// RUN: %clang_cl -### -fsycl --offload-new-driver  %s 2>&1 | FileCheck -check-prefix FSYCL-CHECK %s
+// FSYCL-CHECK: warning: treating 'c' input as 'c++' when -fsycl is used [-Wexpected-file-type]
+
+/// Check for linked sycl lib when using -fpreview-breaking-changes with -fsycl
+// RUN: %clang -### -fsycl --offload-new-driver -fpreview-breaking-changes -target x86_64-unknown-windows-msvc %s 2>&1 | FileCheck -check-prefix FSYCL-PREVIEW-BREAKING-CHANGES-CHECK %s
+// RUN: %clang_cl -### -fsycl --offload-new-driver -fpreview-breaking-changes %s 2>&1 | FileCheck -check-prefix FSYCL-PREVIEW-BREAKING-CHANGES-CHECK-CL %s
+// FSYCL-PREVIEW-BREAKING-CHANGES-CHECK: -defaultlib:sycl{{[0-9]*}}-preview.lib
+// FSYCL-PREVIEW-BREAKING-CHANGES-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}.lib
+// FSYCL-PREVIEW-BREAKING-CHANGES-CHECK-CL: "--dependent-lib=sycl{{[0-9]*}}-preview"
+
+/// Check for linked sycl lib when using -fpreview-breaking-changes with -fsycl
+// RUN: %clang -### -fsycl --offload-new-driver -fpreview-breaking-changes -target x86_64-unknown-windows-msvc -Xclang --dependent-lib=msvcrtd %s 2>&1 | FileCheck -check-prefix FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK %s
+// RUN: %clang_cl -### -fsycl --offload-new-driver -fpreview-breaking-changes /MDd %s 2>&1 | FileCheck -check-prefix FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK %s
+// FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK: --dependent-lib=sycl{{[0-9]*}}-previewd
+// FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}.lib
+// FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}-preview.lib
+
+/// ###########################################################################
+
+/// Check -fsycl-decompose-functor behaviors from source
+// RUN:   %clang -### -fsycl-decompose-functor -target x86_64-unknown-linux-gnu -fsycl -o %t.out %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DECOMP %s
+// RUN:   %clang -### -fno-sycl-decompose-functor -target x86_64-unknown-linux-gnu -fsycl -o %t.out %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NODECOMP %s
+// CHK-DECOMP: -fsycl-decompose-functor
+// CHK-NODECOMP: -fno-sycl-decompose-functor
