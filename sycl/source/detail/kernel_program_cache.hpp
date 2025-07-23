@@ -134,7 +134,6 @@ public:
 #pragma warning(pop)
 #endif
   };
-  using ProgramBuildResultPtr = std::shared_ptr<ProgramBuildResult>;
 
   /* Drop LinkOptions and CompileOptions from CacheKey since they are only used
    * when debugging environment variables are set and we can just ignore them
@@ -179,7 +178,8 @@ public:
   };
 
   struct ProgramCache {
-    emhash8::HashMap<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
+    emhash8::HashMap<ProgramCacheKeyT, std::shared_ptr<ProgramBuildResult>>
+        Cache;
     UnorderedMultimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
     // Mapping between a UR program and its size.
     std::unordered_map<ur_program_handle_t, size_t> ProgramSizeMap;
@@ -193,11 +193,9 @@ public:
     size_t size() const noexcept { return Cache.size(); }
   };
 
-  using ContextPtr = context_impl *;
-
-  using KernelArgMaskPairT =
-      std::pair<ur_kernel_handle_t, const KernelArgMask *>;
-  struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
+  struct KernelBuildResult
+      : public BuildResult<
+            std::pair<ur_kernel_handle_t, const KernelArgMask *>> {
     const adapter_impl &MAdapter;
     KernelBuildResult(const adapter_impl &Adapter) : MAdapter(Adapter) {
       Val.first = nullptr;
@@ -214,10 +212,10 @@ public:
       }
     }
   };
-  using KernelBuildResultPtr = std::shared_ptr<KernelBuildResult>;
 
-  using KernelByNameT = emhash8::HashMap<KernelNameStrT, KernelBuildResultPtr>;
-  using KernelCacheT = emhash8::HashMap<ur_program_handle_t, KernelByNameT>;
+  using KernelCacheT = emhash8::HashMap<
+      ur_program_handle_t,
+      emhash8::HashMap<KernelNameStrT, std::shared_ptr<KernelBuildResult>>>;
 
   class FastKernelSubcacheWrapper {
   public:
@@ -339,8 +337,7 @@ public:
   };
 
   ~KernelProgramCache() = default;
-
-  void setContextPtr(const ContextPtr &AContext) { MParentContext = AContext; }
+  KernelProgramCache(context_impl &Ctx) : MParentContext(Ctx) {}
 
   // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
   // set.
@@ -404,10 +401,10 @@ public:
     return {MEvictionList, MProgramEvictionListMutex};
   }
 
-  std::pair<ProgramBuildResultPtr, bool>
+  std::pair<std::shared_ptr<ProgramBuildResult>, bool>
   getOrInsertProgram(const ProgramCacheKeyT &CacheKey) {
     auto LockedCache = acquireCachedPrograms();
-    auto &ProgCache = LockedCache.get();
+    ProgramCache &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
       It->second = std::make_shared<ProgramBuildResult>(getAdapter());
@@ -429,7 +426,7 @@ public:
   bool insertBuiltProgram(const ProgramCacheKeyT &CacheKey,
                           ur_program_handle_t Program) {
     auto LockedCache = acquireCachedPrograms();
-    auto &ProgCache = LockedCache.get();
+    ProgramCache &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
       It->second = std::make_shared<ProgramBuildResult>(getAdapter(),
@@ -444,7 +441,7 @@ public:
     return DidInsert;
   }
 
-  std::pair<KernelBuildResultPtr, bool>
+  std::pair<std::shared_ptr<KernelBuildResult>, bool>
   getOrInsertKernel(ur_program_handle_t Program, KernelNameStrRefT KernelName) {
     auto LockedCache = acquireKernelsPerProgramCache();
     auto &Cache = LockedCache.get()[Program];
@@ -494,7 +491,7 @@ public:
       // Save kernel in fast cache only if the corresponding program is also
       // in the cache.
       auto LockedCache = acquireCachedPrograms();
-      auto &ProgCache = LockedCache.get();
+      ProgramCache &ProgCache = LockedCache.get();
       if (ProgCache.ProgramSizeMap.find(CacheVal->MProgramHandle) ==
           ProgCache.ProgramSizeMap.end())
         return;
@@ -634,7 +631,7 @@ public:
       while (CurrCacheSize > DesiredCacheSize && !MEvictionList.empty()) {
         ProgramCacheKeyT CacheKey = ProgramEvictionList.front();
         auto LockedCache = acquireCachedPrograms();
-        auto &ProgCache = LockedCache.get();
+        ProgramCache &ProgCache = LockedCache.get();
         CurrCacheSize = removeProgramByKey(CacheKey, ProgCache);
         // Remove the program from the eviction list.
         MEvictionList.popFront();
@@ -751,15 +748,23 @@ public:
   ///
   /// \return a pointer to cached build result, return value must not be
   /// nullptr.
+  ///
+  /// Note that build result might be immediately evicted (if it's bigger than
+  /// current threshold), so the caller *must* assume (potentially shared)
+  /// ownership. In other words, `std::shared_ptr` in the return type is
+  /// unavoidable.
   template <errc Errc, typename GetCachedBuildFT, typename BuildFT,
             typename EvictFT = void *>
-  auto getOrBuild(GetCachedBuildFT &&GetCachedBuild, BuildFT &&Build,
-                  EvictFT &&EvictFunc = nullptr) {
+  auto /* std::shared_ptr<BuildResult> */
+  getOrBuild(GetCachedBuildFT &&GetCachedBuild, BuildFT &&Build,
+             EvictFT &&EvictFunc = nullptr) {
     using BuildState = KernelProgramCache::BuildState;
     constexpr size_t MaxAttempts = 2;
     for (size_t AttemptCounter = 0;; ++AttemptCounter) {
-      auto Res = GetCachedBuild();
+      auto /* std::pair<std::shared_ptr<BuildResult>, bool> */ Res =
+          GetCachedBuild();
       auto &BuildResult = Res.first;
+      assert(BuildResult != nullptr);
       BuildState Expected = BuildState::BS_Initial;
       BuildState Desired = BuildState::BS_InProgress;
       if (!BuildResult->State.compare_exchange_strong(Expected, Desired)) {
@@ -828,7 +833,7 @@ public:
 
   void removeAllRelatedEntries(uint32_t ImageId) {
     auto LockedCache = acquireCachedPrograms();
-    auto &ProgCache = LockedCache.get();
+    ProgramCache &ProgCache = LockedCache.get();
 
     auto It = std::find_if(
         ProgCache.KeyMap.begin(), ProgCache.KeyMap.end(),
@@ -850,7 +855,7 @@ private:
 
   ProgramCache MCachedPrograms;
   KernelCacheT MKernelsPerProgramCache;
-  ContextPtr MParentContext;
+  context_impl &MParentContext;
 
   using FastKernelCacheMutexT = SpinLock;
   using FastKernelCacheReadLockT = std::lock_guard<FastKernelCacheMutexT>;

@@ -1194,6 +1194,20 @@ public:
             "The device does not have the ext_intel_power_limits aspect");
       return get_info_impl<UR_DEVICE_INFO_MIN_POWER_LIMIT>();
     }
+    CASE(ext::intel::info::device::luid) {
+      if (!has(aspect::ext_intel_device_info_luid))
+        throw exception(
+            make_error_code(errc::feature_not_supported),
+            "The device does not have the ext_intel_device_info_luid aspect");
+      return get_info_impl<UR_DEVICE_INFO_LUID>();
+    }
+    CASE(ext::intel::info::device::node_mask) {
+      if (!has(aspect::ext_intel_device_info_node_mask))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_device_info_node_mask aspect");
+      return get_info_impl<UR_DEVICE_INFO_NODE_MASK>();
+    }
     else {
       constexpr auto Desc = UrInfoCode<Param>::value;
       return static_cast<typename Param::return_type>(get_info_impl<Desc>());
@@ -1303,6 +1317,12 @@ public:
     }
     CASE(ext_intel_device_info_uuid) {
       return has_info_desc(UR_DEVICE_INFO_UUID);
+    }
+    CASE(ext_intel_device_info_luid) {
+      return has_info_desc(UR_DEVICE_INFO_LUID);
+    }
+    CASE(ext_intel_device_info_node_mask) {
+      return has_info_desc(UR_DEVICE_INFO_NODE_MASK);
     }
     CASE(ext_intel_max_mem_bandwidth) {
       // currently not supported
@@ -1554,6 +1574,11 @@ public:
     CASE(ext_oneapi_async_memory_alloc) {
       return get_info_impl_nocheck<
                  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_exportable_device_mem) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP>()
           .value_or(0);
     }
     else {
