@@ -76,41 +76,41 @@ int main() {
     }
   }
 
-  // {
-  //   // Test host-to-device prefetch via prefetch(queue ...).
-  //   ext::oneapi::experimental::prefetch(
-  //       q, Src, sizeof(float) * Count,
-  //       ext::oneapi::experimental::prefetch_type::device);
-  //   q.wait_and_throw();
-  //   q.submit([&](handler &CGH) {
-  //     CGH.single_task<class triple_dest>([=]() {
-  //       for (int i = 0; i < Count; i++)
-  //         Dest[i] = 3 * Src[i];
-  //     });
-  //   });
-  //   q.wait_and_throw();
+  {
+    // Test host-to-device prefetch via prefetch(queue ...).
+    ext::oneapi::experimental::prefetch(
+        q, Src, sizeof(float) * Count,
+        ext::oneapi::experimental::prefetch_type::device);
+    q.wait_and_throw();
+    q.submit([&](handler &CGH) {
+      CGH.single_task<class triple_dest>([=]() {
+        for (int i = 0; i < Count; i++)
+          Dest[i] = 3 * Src[i];
+      });
+    });
+    q.wait_and_throw();
 
-  //   for (int i = 0; i < Count; i++) {
-  //     assert(Dest[i] == i * 3);
-  //   }
+    for (int i = 0; i < Count; i++) {
+      assert(Dest[i] == i * 3);
+    }
 
-  //   // Test device-to-host prefetch via prefetch(queue ...).
-  //   q.submit([&](handler &CGH) {
-  //     CGH.single_task<class sixtuple_dest>([=]() {
-  //       for (int i = 0; i < Count; i++)
-  //         Dest[i] = 6 * Src[i];
-  //     });
-  //   });
-  //   q.wait_and_throw();
-  //   ext::oneapi::experimental::prefetch(
-  //       q, Src, sizeof(float) * Count,
-  //       ext::oneapi::experimental::prefetch_type::host);
-  //   q.wait_and_throw();
+    // Test device-to-host prefetch via prefetch(queue ...).
+    q.submit([&](handler &CGH) {
+      CGH.single_task<class sixtuple_dest>([=]() {
+        for (int i = 0; i < Count; i++)
+          Dest[i] = 6 * Src[i];
+      });
+    });
+    q.wait_and_throw();
+    ext::oneapi::experimental::prefetch(
+        q, Src, sizeof(float) * Count,
+        ext::oneapi::experimental::prefetch_type::host);
+    q.wait_and_throw();
 
-  //   for (int i = 0; i < Count; i++) {
-  //     assert(Dest[i] == i * 6);
-  //   }
-  // }
+    for (int i = 0; i < Count; i++) {
+      assert(Dest[i] == i * 6);
+    }
+  }
   free(Src, q);
   free(Dest, q);
 }
