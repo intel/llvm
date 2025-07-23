@@ -73,7 +73,19 @@ int main(){
 // CHECK-NORTC:       struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim2(), 2> {
 // CHECK-NORTC-NEXT:  static constexpr bool value = true;
 
-// CHECK-NORTC:       kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim[[#FIRST]]()>() {
-// CHECK-NORTC-NEXT:  return sycl::detail::get_kernel_id_impl(std::string_view{sycl::detail::FreeFunctionInfoData<__sycl_shim1()>::getFunctionName()});
-// CHECK-NORTC:       kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim[[#SECOND]]()>() {
-// CHECK-NORTC-NEXT:  return sycl::detail::get_kernel_id_impl(std::string_view{sycl::detail::FreeFunctionInfoData<__sycl_shim2()>::getFunctionName()});
+
+// CHECK-NORTC: #include <sycl/kernel_bundle.hpp>
+// CHECK-NORTC-NEXT: #include <sycl/detail/kernel_global_info.hpp>
+// CHECK-NORTC-NEXT: namespace sycl {
+// CHECK-NORTC-NEXT: inline namespace _V1 {
+// CHECK-NORTC-NEXT: namespace detail {
+// CHECK-NORTC-NEXT: struct GlobalMapUpdater {
+// CHECK-NORTC-NEXT:   GlobalMapUpdater() {
+// CHECK-NORTC-NEXT:     sycl::detail::free_function_info_map::add(reinterpret_cast<const void*>(sycl::detail::kernel_args_sizes + 0), sycl::detail::kernel_names[0]);
+// CHECK-NORTC-NEXT:     sycl::detail::free_function_info_map::add(reinterpret_cast<const void*>(sycl::detail::kernel_args_sizes + 1), sycl::detail::kernel_names[1]);
+// CHECK-NORTC-NEXT:   }
+// CHECK-NORTC-NEXT: };
+// CHECK-NORTC-NEXT: static GlobalMapUpdater updater;
+// CHECK-NORTC-NEXT: } // namespace detail
+// CHECK-NORTC-NEXT: } // namespace _V1
+// CHECK-NORTC-NEXT: } // namespace sycl

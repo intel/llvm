@@ -2407,13 +2407,14 @@ void ProgramManager::addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
   m_DeviceGlobals.addOrInitialize(DeviceGlobalPtr, UniqueId);
 }
 
-void ProgramManager::addOrInitKernelGlobalInfo(const void *KernelGlobalPtr,
-                                               const char *UniqueId) {
+void ProgramManager::registerKernelGlobalInfo(const void *KernelGlobalPtr,
+                                              const char *UniqueId) {
   std::lock_guard<std::mutex> Guard(MNativeProgramsMutex);
   m_KernelGlobalInfo.emplace(std::string_view(UniqueId), KernelGlobalPtr);
 }
 
-const void *ProgramManager::getKernelGLobalInfoDesc(const char *UniqueId) {
+const void *ProgramManager::getKernelGlobalInfoDesc(const char *UniqueId) {
+  std::lock_guard<std::mutex> Guard(MNativeProgramsMutex);
   const auto It = m_KernelGlobalInfo.find(UniqueId);
   if (It == m_KernelGlobalInfo.end())
     return nullptr;

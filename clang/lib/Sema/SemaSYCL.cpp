@@ -7191,31 +7191,14 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   if (FreeFunctionCount > 0) {
     O << "\n#include <sycl/kernel_bundle.hpp>\n";
   }
-  ShimCounter = 1;
-  for (const KernelDesc &K : KernelDescs) {
-    if (!S.isFreeFunction(K.SyclKernel))
-      continue;
-
-    O << "\n// Definition of kernel_id of " << K.Name << "\n";
-    O << "namespace sycl {\n";
-    O << "template <>\n";
-    O << "inline kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim"
-      << ShimCounter << "()>() {\n";
-    O << "  return sycl::detail::get_kernel_id_impl(std::string_view{"
-      << "sycl::detail::FreeFunctionInfoData<__sycl_shim" << ShimCounter
-      << "()>::getFunctionName()});\n";
-    O << "}\n";
-    O << "}\n";
-    ++ShimCounter;
-  }
   O << "#include <sycl/detail/kernel_global_info.hpp>\n";
 
   ShimCounter = 0;
   O << "namespace sycl {\n";
   O << "inline namespace _V1 {\n";
   O << "namespace detail {\n";
-  O << "namespace free_function_map {\n";
-  O << "inline void update_device_global_map() {\n";
+  O << "struct GlobalMapUpdater {\n";
+  O << "  GlobalMapUpdater() {\n";
   for (const KernelDesc &K : KernelDescs) {
     if (!S.isFreeFunction(K.SyclKernel))
       continue;
@@ -7225,18 +7208,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       << "]);\n";
     ++ShimCounter;
   }
-  O << "}\n";
-  O << "struct GlobalMapUpdater {\n";
-  O << "  GlobalMapUpdater() {\n";
-  O << "    update_device_global_map();\n";
-  O << "    std::cout << \"Device global map updated for free function "
-       "kernels. "
-       "Total: "
-    << ShimCounter << " kernels.\" << std::endl;\n";
   O << "  }\n";
   O << "};\n";
   O << "static GlobalMapUpdater updater;\n";
-  O << "} // namespace free_function_map\n";
   O << "} // namespace detail\n";
   O << "} // namespace _V1\n";
   O << "} // namespace sycl\n";

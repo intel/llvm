@@ -1,4 +1,4 @@
-//==-------------------- kernel_global_info.cpp -----------------------------==//
+//==-------------------- kernel_global_info.cpp ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,7 +13,7 @@ inline namespace _V1 {
 namespace detail::free_function_info_map {
 
 __SYCL_EXPORT void add(const void *KernelGlobalPtr, const char *UniqueId) {
-  detail::ProgramManager::getInstance().addOrInitKernelGlobalInfo(
+  detail::ProgramManager::getInstance().registerKernelGlobalInfo(
       KernelGlobalPtr, UniqueId);
 }
 

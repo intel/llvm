@@ -1084,3 +1084,18 @@ namespace Testing::Tests {
 // CHECK-NEXT:    static constexpr bool value = true;
 // CHECK-NEXT:  };
 // CHECK-NEXT:  }
+
+// CHECK: #include <sycl/kernel_bundle.hpp>
+// CHECK-NEXT: #include <sycl/detail/kernel_global_info.hpp>
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: inline namespace _V1 {
+// CHECK-NEXT: namespace detail {
+// CHECK-NEXT: struct GlobalMapUpdater {
+// CHECK-NEXT:   GlobalMapUpdater() {
+// CHECK-COUNT-28: sycl::detail::free_function_info_map::add(reinterpret_cast<const void*>(sycl::detail::kernel_args_sizes +
+// CHECK-NEXT:   }
+// CHECK-NEXT: };
+// CHECK-NEXT: static GlobalMapUpdater updater;
+// CHECK-NEXT: } // namespace detail
+// CHECK-NEXT: } // namespace _V1
+// CHECK-NEXT: } // namespace sycl

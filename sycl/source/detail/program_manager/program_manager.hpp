@@ -257,11 +257,12 @@ public:
 
   // The function inserts or initializes a kernel global desc into the
   // kernel global map.
-  void addOrInitKernelGlobalInfo(const void *KernelGlobalPtr, const char *UniqueId);
+  void registerKernelGlobalInfo(const void *KernelGlobalPtr,
+                                const char *UniqueId);
 
   // The function returns a pointer to the kernel global desc identified by
   // the unique ID from the kernel global map.
-  const void *getKernelGLobalInfoDesc(const char *UniqueId);
+  const void *getKernelGlobalInfoDesc(const char *UniqueId);
 
   // Returns true if any available image is compatible with the device Dev.
   bool hasCompatibleImage(const device_impl &DeviceImpl);
@@ -427,7 +428,7 @@ private:
   bool isBfloat16DeviceImage(const RTDeviceBinaryImage *BinImage);
   bool shouldBF16DeviceImageBeUsed(const RTDeviceBinaryImage *BinImage,
                                    const device_impl &DeviceImpl);
-  
+
 protected:
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name.

@@ -1,6 +1,5 @@
-// REQUIRES: level_zero, level_zero_dev_kit
-// RUN: %{build} %level_zero_options -o %t.ze.out
-// RUN: %{run} %t.ze.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
