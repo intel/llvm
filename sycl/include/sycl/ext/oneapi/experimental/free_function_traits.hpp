@@ -59,6 +59,10 @@ template <typename T> struct is_struct_with_special_type {
 // part of the struct. So if type Foo contains two accessors and an integer
 // inside and the user calls set_arg(Foo), that call will call this function
 // which will call set_arg for each of those two accessors and not the int.
+// The function stores in NumArgs the number of set_arg calls that it made so
+// that subsequent set_arg calls initiated by the user can have the correct
+// index. If the user provides the index ArgIndex the correct index will be
+// ArgIndex + NumArgs
 template <typename T> struct struct_with_special_type_info {
   template <typename ArgT, typename HandlerT>
   static void set_arg([[maybe_unused]] int ArgIndex, [[maybe_unused]] ArgT &arg,
