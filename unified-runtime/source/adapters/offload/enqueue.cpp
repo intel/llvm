@@ -107,32 +107,24 @@ ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
   (void)phEventWaitList;
   //
 
-  ol_event_handle_t EventOut = nullptr;
-
-  ol_queue_handle_t Queue;
   if (blocking) {
-    // If we are using a blocking operation, create a temporary queue that lives
-    // only for this function
-    OL_RETURN_ON_ERR(olCreateQueue(hQueue->OffloadDevice, &Queue));
-  } else {
-    OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
-  }
-  OL_RETURN_ON_ERR(olMemcpy(Queue, DestPtr, DestDevice, SrcPtr, SrcDevice, size,
-                            (phEvent || blocking) ? &EventOut : nullptr));
-
-  if (blocking) {
-    OL_RETURN_ON_ERR(olSyncQueue(Queue));
-    OL_RETURN_ON_ERR(olDestroyQueue(Queue));
-
+    OL_RETURN_ON_ERR(olMemcpy(nullptr, DestPtr, DestDevice, SrcPtr, SrcDevice,
+                              size, nullptr));
     if (phEvent) {
       *phEvent = ur_event_handle_t_::createEmptyEvent(Command, hQueue);
     }
-  } else {
-    if (phEvent) {
-      auto *Event = new ur_event_handle_t_(Command, hQueue);
-      Event->OffloadEvent = EventOut;
-      *phEvent = Event;
-    }
+    return UR_RESULT_SUCCESS;
+  }
+
+  ol_event_handle_t EventOut = nullptr;
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(olMemcpy(Queue, DestPtr, DestDevice, SrcPtr, SrcDevice, size,
+                            hQueue ? nullptr : &EventOut));
+  if (phEvent) {
+    auto *Event = new ur_event_handle_t_(Command, hQueue);
+    Event->OffloadEvent = EventOut;
+    *phEvent = Event;
   }
 
   return UR_RESULT_SUCCESS;
