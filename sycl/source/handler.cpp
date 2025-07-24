@@ -98,6 +98,33 @@ void *getValueFromDynamicParameter(
 
 // Bindless image helpers
 
+constexpr size_t get_channel_size(
+    const sycl::ext::oneapi::experimental::image_descriptor &Desc) {
+  switch (Desc.channel_type) {
+  case sycl::image_channel_type::fp16:
+    return sizeof(sycl::half);
+  case sycl::image_channel_type::fp32:
+    return sizeof(float);
+  case sycl::image_channel_type::snorm_int8:
+  case sycl::image_channel_type::unorm_int8:
+  case sycl::image_channel_type::signed_int8:
+  case sycl::image_channel_type::unsigned_int8:
+    return sizeof(uint8_t);
+  case sycl::image_channel_type::snorm_int16:
+  case sycl::image_channel_type::unorm_int16:
+  case sycl::image_channel_type::signed_int16:
+  case sycl::image_channel_type::unsigned_int16:
+    return sizeof(uint16_t);
+  case sycl::image_channel_type::signed_int32:
+  case sycl::image_channel_type::unsigned_int32:
+    return sizeof(uint32_t);
+  default:
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Unsupported channel type");
+    return 0;
+  }
+}
+
 // Fill image type and return depth or array_size
 static unsigned int
 fill_image_type(const ext::oneapi::experimental::image_descriptor &Desc,
@@ -257,16 +284,8 @@ fill_copy_args(detail::handler_impl *impl,
     impl->MDstImageDesc.depth = DestExtent[2];
   }
 
-  if (impl->MImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
-    impl->MSrcImageDesc.rowPitch = 0;
-    impl->MDstImageDesc.rowPitch = DestPitch;
-  } else if (impl->MImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
-    impl->MSrcImageDesc.rowPitch = SrcPitch;
-    impl->MDstImageDesc.rowPitch = 0;
-  } else {
-    impl->MSrcImageDesc.rowPitch = SrcPitch;
-    impl->MDstImageDesc.rowPitch = DestPitch;
-  }
+  impl->MSrcImageDesc.rowPitch = SrcPitch;
+  impl->MDstImageDesc.rowPitch = DestPitch;
 }
 
 static void
@@ -279,9 +298,11 @@ fill_copy_args(detail::handler_impl *impl,
                sycl::range<3> DestExtent = {0, 0, 0},
                sycl::range<3> CopyExtent = {0, 0, 0}) {
 
-  fill_copy_args(impl, Desc, Desc, ImageCopyFlags, 0 /*SrcPitch*/,
-                 0 /*DestPitch*/, SrcOffset, SrcExtent, DestOffset, DestExtent,
-                 CopyExtent);
+  size_t SrcPitch = SrcExtent[0] * Desc.num_channels * get_channel_size(Desc);
+  size_t DestPitch = DestExtent[0] * Desc.num_channels * get_channel_size(Desc);
+
+  fill_copy_args(impl, Desc, Desc, ImageCopyFlags, SrcPitch, DestPitch,
+                 SrcOffset, SrcExtent, DestOffset, DestExtent, CopyExtent);
 }
 
 static void
@@ -309,8 +330,13 @@ fill_copy_args(detail::handler_impl *impl,
                sycl::range<3> DestExtent = {0, 0, 0},
                sycl::range<3> CopyExtent = {0, 0, 0}) {
 
-  fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags, 0 /*SrcPitch*/,
-                 0 /*DestPitch*/, SrcOffset, SrcExtent, DestOffset, DestExtent,
+  size_t SrcPitch =
+      SrcExtent[0] * SrcImgDesc.num_channels * get_channel_size(SrcImgDesc);
+  size_t DestPitch =
+      DestExtent[0] * DestImgDesc.num_channels * get_channel_size(DestImgDesc);
+
+  fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags, SrcPitch,
+                 DestPitch, SrcOffset, SrcExtent, DestOffset, DestExtent,
                  CopyExtent);
 }
 
@@ -1618,10 +1644,17 @@ void handler::ext_oneapi_copy(
       get_pointer_type(Dest,
                        createSyclObjFromImpl<context>(impl->get_context())));
 
-  if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE ||
-      ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
-    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags, DeviceRowPitch,
+  // Calculate host pitch, where host memory is always assumed to be tightly
+  // packed.
+  size_t HostRowPitch =
+      Desc.width * Desc.num_channels * detail::get_channel_size(Desc);
+
+  if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
+    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags, HostRowPitch,
                            DeviceRowPitch);
+  } else if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
+    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags, DeviceRowPitch,
+                           HostRowPitch);
   } else {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Copy Error: This copy function only performs host "
@@ -1650,14 +1683,19 @@ void handler::ext_oneapi_copy(
       get_pointer_type(Dest,
                        createSyclObjFromImpl<context>(impl->get_context())));
 
+  // Calculate host pitch, where host memory is always assumed to be tightly
+  // packed.
+  size_t HostRowPitch = HostExtent[0] * DeviceImgDesc.num_channels *
+                        detail::get_channel_size(DeviceImgDesc);
+
   // Fill the host extent based on the type of copy.
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
     detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags,
-                           DeviceRowPitch, DeviceRowPitch, SrcOffset,
-                           HostExtent, DestOffset, {0, 0, 0}, CopyExtent);
+                           HostRowPitch, DeviceRowPitch, SrcOffset, HostExtent,
+                           DestOffset, {0, 0, 0}, CopyExtent);
   } else if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
     detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags,
-                           DeviceRowPitch, DeviceRowPitch, SrcOffset, {0, 0, 0},
+                           DeviceRowPitch, HostRowPitch, SrcOffset, {0, 0, 0},
                            DestOffset, HostExtent, CopyExtent);
   } else {
     throw sycl::exception(make_error_code(errc::invalid),
