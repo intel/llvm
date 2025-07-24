@@ -171,7 +171,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(ur_program_handle_t hProgram) {
-  hProgram->incrementReferenceCount();
+  hProgram->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
@@ -205,7 +205,7 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
 
   switch (propName) {
   case UR_PROGRAM_INFO_REFERENCE_COUNT:
-    return returnValue(hProgram->getReferenceCount());
+    return returnValue(hProgram->RefCount.getCount());
   case UR_PROGRAM_INFO_CONTEXT:
     return returnValue(nullptr);
   case UR_PROGRAM_INFO_NUM_DEVICES:
