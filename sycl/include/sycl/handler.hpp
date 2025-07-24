@@ -861,6 +861,8 @@ private:
       constexpr std::string_view KernelNameStr =
           detail::getKernelName<KernelName>();
       MKernelName = KernelNameStr;
+      setKernelNameBasedCachePtr(
+          detail::getKernelNameBasedCache<KernelName>(KernelNameStr));
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
@@ -868,7 +870,6 @@ private:
       // later during finalize.
       setArgsToAssociatedAccessors();
     }
-    setKernelNameBasedCachePtr(detail::getKernelNameBasedCache<KernelName>());
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.

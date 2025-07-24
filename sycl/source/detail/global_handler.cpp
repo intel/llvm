@@ -257,12 +257,14 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
   return TP;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 KernelNameBasedCacheT *GlobalHandler::createKernelNameBasedCache() {
   static std::deque<KernelNameBasedCacheT> &KernelNameBasedCaches =
       getOrCreate(MKernelNameBasedCaches);
   LockGuard LG{MKernelNameBasedCaches.Lock};
   return &KernelNameBasedCaches.emplace_back();
 }
+#endif
 
 void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
@@ -397,9 +399,11 @@ void shutdown_late() {
   Handler->MScheduler.Inst.reset(nullptr);
   Handler->MProgramManager.Inst.reset(nullptr);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Cache stores handles to the adapter, so clear it before
   // releasing adapters.
   Handler->MKernelNameBasedCaches.Inst.reset(nullptr);
+#endif
 
   // Clear the adapters and reset the instance if it was there.
   Handler->unloadAdapters();

@@ -85,6 +85,6 @@ int main() {
   run();
 #endif
 
-  return 0;
+  return -1;
 }
 #endif
