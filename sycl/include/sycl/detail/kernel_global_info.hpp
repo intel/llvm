@@ -15,7 +15,8 @@ inline namespace _V1 {
 namespace detail {
 namespace free_function_info_map {
 
-__SYCL_EXPORT void add(const char *UniqueId, unsigned DeviceGlobalPtr);
+__SYCL_EXPORT void add(const char *const *UniqueId,
+                       const unsigned *DeviceGlobalPtr, unsigned Size);
 
 } // namespace free_function_info_map
 } // namespace detail

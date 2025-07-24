@@ -1572,7 +1572,7 @@ void ff_24(int arg) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: struct GlobalMapUpdater {
 // CHECK-NEXT:  GlobalMapUpdater() {
-// CHECK-COUNT-33: sycl::detail::free_function_info_map::add(sycl::detail::kernel_names[ 
+// CHECK-NEXT: sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes,
 // CHECK-NEXT:   }
 // CHECK-NEXT: };
 // CHECK-NEXT: static GlobalMapUpdater updater;
