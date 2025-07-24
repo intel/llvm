@@ -6753,8 +6753,8 @@ private:
         continue;
       }
 
-      auto *TST = dyn_cast<TemplateSpecializationType>(
-          ET->getNamedType().getTypePtr());
+      auto *TST =
+          dyn_cast<TemplateSpecializationType>(ET->getNamedType().getTypePtr());
       auto *CTST = dyn_cast<TemplateSpecializationType>(CT.getTypePtr());
       if (!TST || !CTST) {
         ParmListOstream << T.getAsString(Policy);
