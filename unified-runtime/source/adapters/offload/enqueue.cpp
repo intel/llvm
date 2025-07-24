@@ -120,7 +120,7 @@ ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
   ol_queue_handle_t Queue;
   OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
   OL_RETURN_ON_ERR(olMemcpy(Queue, DestPtr, DestDevice, SrcPtr, SrcDevice, size,
-                            hQueue ? nullptr : &EventOut));
+                            phEvent ? nullptr : &EventOut));
   if (phEvent) {
     auto *Event = new ur_event_handle_t_(Command, hQueue);
     Event->OffloadEvent = EventOut;
