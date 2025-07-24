@@ -11,10 +11,10 @@
 
 #include <helpers/UrMock.hpp>
 #include <sycl/detail/core.hpp>
-#include <sycl/queue.hpp>
-#include <sycl/properties/all_properties.hpp>
-#include <sycl/usm.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/queue.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 
@@ -23,7 +23,7 @@ namespace oneapiext = ext::oneapi::experimental;
 namespace {
 
 static ur_usm_migration_flags_t SubmittedPrefetchType =
- UR_USM_MIGRATION_FLAG_FORCE_UINT32;
+    UR_USM_MIGRATION_FLAG_FORCE_UINT32;
 
 inline ur_result_t replace_urUSMEnqueuePrefetch(void *pParams) {
   auto params = *static_cast<ur_enqueue_usm_prefetch_params_t *>(pParams);
@@ -55,7 +55,7 @@ TEST_F(EnqueueFunctionsPrefetchTests, SubmitHostToDevicePrefetch) {
 
   oneapiext::submit(Q, [&](handler &CGH) {
     oneapiext::prefetch(CGH, Dst, sizeof(int) * N,
-      oneapiext::prefetch_type::device); 
+                        oneapiext::prefetch_type::device);
   });
 
   ASSERT_EQ(SubmittedPrefetchType, UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE);
@@ -69,7 +69,7 @@ TEST_F(EnqueueFunctionsPrefetchTests, SubmitDeviceToHostPrefetch) {
 
   oneapiext::submit(Q, [&](handler &CGH) {
     oneapiext::prefetch(CGH, Dst, sizeof(int) * N,
-      oneapiext::prefetch_type::host); 
+                        oneapiext::prefetch_type::host);
   });
 
   ASSERT_EQ(SubmittedPrefetchType, UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST);
