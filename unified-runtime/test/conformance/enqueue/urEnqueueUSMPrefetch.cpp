@@ -31,12 +31,6 @@ TEST_P(urEnqueueUSMPrefetchWithParamTest, Success) {
       // this file.
       uur::NativeCPU{});
 
-  // if (getParam() == UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST) {
-  //   // Intel GPU drivers do not currently support prefetching memory from
-  //   // device back to host.
-  //   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::OpenCL);
-  // }
-
   ur_event_handle_t prefetch_event = nullptr;
   ASSERT_SUCCESS(urEnqueueUSMPrefetch(queue, ptr, allocation_size, getParam(),
                                       0, nullptr, &prefetch_event));
@@ -57,11 +51,6 @@ TEST_P(urEnqueueUSMPrefetchWithParamTest, Success) {
  */
 TEST_P(urEnqueueUSMPrefetchWithParamTest, CheckWaitEvent) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-  // if (getParam() == UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST) {
-  //   // Intel GPU drivers do not currently support prefetching memory from
-  //   // device back to host.
-  //   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::OpenCL);
-  // }
 
   ur_queue_handle_t fill_queue;
   ASSERT_SUCCESS(urQueueCreate(context, device, nullptr, &fill_queue));
