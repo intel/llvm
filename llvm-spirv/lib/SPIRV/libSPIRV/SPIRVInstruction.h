@@ -2504,6 +2504,18 @@ public:
   // Complete constructor
   SPIRVLifetime(SPIRVId TheObject, SPIRVWord TheSize, SPIRVBasicBlock *TheBB)
       : SPIRVInstruction(3, OC, TheBB), Object(TheObject), Size(TheSize) {
+    auto ObjType = getValue(Object)->getType();
+    // Size must be 0 if Pointer is a pointer to a non-void type or the
+    // Addresses capability is not being used. If Size is non-zero, it is the
+    // number of bytes of memory whose lifetime is starting. Its type must be an
+    // integer type scalar. It is treated as unsigned; if its type has
+    // Signedness of 1, its sign bit cannot be set.
+    if (!(ObjType->getPointerElementType()->isTypeVoid() ||
+          // (void *) is i8* in LLVM IR
+          ObjType->getPointerElementType()->isTypeInt(8) ||
+          ObjType->getPointerElementType()->isTypeUntypedPointerKHR()) ||
+        !Module->hasCapability(CapabilityAddresses))
+      Size = 0;
     validate();
     assert(TheBB && "Invalid BB");
   }
@@ -2521,23 +2533,12 @@ public:
 
 protected:
   void validate() const override {
-    auto ObjType = getValue(Object)->getType();
+    [[maybe_unused]] auto ObjType = getValue(Object)->getType();
     // Type must be an OpTypePointer with Storage Class Function.
     assert(ObjType->isTypePointer() && "Objects type must be a pointer");
     assert(static_cast<SPIRVTypePointer *>(ObjType)->getStorageClass() ==
                StorageClassFunction &&
            "Invalid storage class");
-    // Size must be 0 if Pointer is a pointer to a non-void type or the
-    // Addresses capability is not being used. If Size is non-zero, it is the
-    // number of bytes of memory whose lifetime is starting. Its type must be an
-    // integer type scalar. It is treated as unsigned; if its type has
-    // Signedness of 1, its sign bit cannot be set.
-    if (!(ObjType->getPointerElementType()->isTypeVoid() ||
-          // (void *) is i8* in LLVM IR
-          ObjType->getPointerElementType()->isTypeInt(8) ||
-          ObjType->getPointerElementType()->isTypeUntypedPointerKHR()) ||
-        !Module->hasCapability(CapabilityAddresses))
-      assert(Size == 0 && "Size must be 0");
   }
   _SPIRV_DEF_ENCDEC2(Object, Size)
   SPIRVId Object;

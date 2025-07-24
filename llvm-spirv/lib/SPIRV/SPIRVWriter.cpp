@@ -4835,19 +4835,14 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     auto *PtrOp = transValue(LLVMPtrOp, BB);
     if (PtrAS == SPIRAS_Private)
       return BM->addLifetimeInst(OC, PtrOp, Size, BB);
-    // If pointer address space is Generic - cast to private first
+    // If pointer address space is Generic - use original allocation.
     BM->getErrorLog().checkError(
         PtrAS == SPIRAS_Generic, SPIRVEC_InvalidInstruction, II,
         "lifetime intrinsic pointer operand must be in private or generic AS");
-    auto *SrcTy = PtrOp->getType();
-    SPIRVType *DstTy = nullptr;
-    if (SrcTy->isTypeUntypedPointerKHR())
-      DstTy = BM->addPointerType(StorageClassFunction, nullptr);
-    else
-      DstTy = BM->addPointerType(StorageClassFunction,
-                                 SrcTy->getPointerElementType());
-    PtrOp = BM->addUnaryInst(OpGenericCastToPtr, DstTy, PtrOp, BB);
-    ValueMap[LLVMPtrOp] = PtrOp;
+    if (PtrOp->getOpCode() == OpPtrCastToGeneric) {
+      auto *UI = static_cast<SPIRVUnary *>(PtrOp);
+      PtrOp = UI->getOperand(0);
+    }
     return BM->addLifetimeInst(OC, PtrOp, Size, BB);
   }
   // We don't want to mix translation of regular code and debug info, because
