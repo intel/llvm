@@ -185,38 +185,37 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     rangeEnd[1] = (rangeEnd[3] / numWG0) % numWG1;
     rangeEnd[2] = rangeEnd[3] / (numWG0 * numWG1);
     Tasks.schedule([ndr, InEvents, &kernel = *kernel, rangeStart,
-                          rangeEnd = rangeEnd[3], numWG0, numWG1,
-                          numParallelThreads](size_t threadId) {
-          auto state = getState(ndr);
-          InEvents.wait();
-          for (size_t g0 = rangeStart[0], g1 = rangeStart[1],
-                      g2 = rangeStart[2], g3 = rangeStart[3];
-               g3 < rangeEnd; ++g3) {
+                    rangeEnd = rangeEnd[3], numWG0, numWG1,
+                    numParallelThreads](size_t threadId) {
+      auto state = getState(ndr);
+      InEvents.wait();
+      for (size_t g0 = rangeStart[0], g1 = rangeStart[1], g2 = rangeStart[2],
+                  g3 = rangeStart[3];
+           g3 < rangeEnd; ++g3) {
 #ifdef NATIVECPU_USE_OCK
-            state.update(g0, g1, g2);
-            kernel._subhandler(
-                kernel.getArgs(numParallelThreads, threadId).data(), &state);
+        state.update(g0, g1, g2);
+        kernel._subhandler(kernel.getArgs(numParallelThreads, threadId).data(),
+                           &state);
 #else
-            for (size_t local2 = 0; local2 < ndr.LocalSize[2]; ++local2) {
-              for (size_t local1 = 0; local1 < ndr.LocalSize[1]; ++local1) {
-                for (size_t local0 = 0; local0 < ndr.LocalSize[0]; ++local0) {
-                  state.update(g0, g1, g2, local0, local1, local2);
-                  kernel._subhandler(
-                      kernel.getArgs(numParallelThreads, threadId).data(),
-                      &state);
-                }
-              }
-            }
-#endif
-            if (++g0 == numWG0) {
-              g0 = 0;
-              if (++g1 == numWG1) {
-                g1 = 0;
-                ++g2;
-              }
+        for (size_t local2 = 0; local2 < ndr.LocalSize[2]; ++local2) {
+          for (size_t local1 = 0; local1 < ndr.LocalSize[1]; ++local1) {
+            for (size_t local0 = 0; local0 < ndr.LocalSize[0]; ++local0) {
+              state.update(g0, g1, g2, local0, local1, local2);
+              kernel._subhandler(
+                  kernel.getArgs(numParallelThreads, threadId).data(), &state);
             }
           }
-        });
+        }
+#endif
+        if (++g0 == numWG0) {
+          g0 = 0;
+          if (++g1 == numWG1) {
+            g1 = 0;
+            ++g2;
+          }
+        }
+      }
+    });
     rangeStart = rangeEnd;
   }
   event->set_futures(Tasks.getTaskInfo());
