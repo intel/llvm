@@ -85,32 +85,29 @@ inline const char *nodeTypeToString(node_type NodeType) {
 /// @param[in] PartitionBounded If set to true, the topological sort is stopped
 /// at partition borders. Hence, nodes belonging to a partition different from
 /// the NodeImpl partition are not processed.
-void sortTopological(std::set<std::weak_ptr<node_impl>,
-                              std::owner_less<std::weak_ptr<node_impl>>> &Roots,
-                     std::list<std::shared_ptr<node_impl>> &SortedNodes,
+void sortTopological(nodes_range Roots, std::list<node_impl *> &SortedNodes,
                      bool PartitionBounded) {
-  std::stack<std::weak_ptr<node_impl>> Source;
+  std::stack<node_impl *> Source;
 
-  for (auto &Node : Roots) {
-    Source.push(Node);
+  for (node_impl &Node : Roots) {
+    Source.push(&Node);
   }
 
   while (!Source.empty()) {
-    auto Node = Source.top().lock();
+    node_impl &Node = *Source.top();
     Source.pop();
-    SortedNodes.push_back(Node);
+    SortedNodes.push_back(&Node);
 
-    for (auto &SuccWP : Node->MSuccessors) {
-      auto Succ = SuccWP.lock();
+    for (node_impl &Succ : Node.successors()) {
 
-      if (PartitionBounded && (Succ->MPartitionNum != Node->MPartitionNum)) {
+      if (PartitionBounded && (Succ.MPartitionNum != Node.MPartitionNum)) {
         continue;
       }
 
-      auto &TotalVisitedEdges = Succ->MTotalVisitedEdges;
+      auto &TotalVisitedEdges = Succ.MTotalVisitedEdges;
       ++TotalVisitedEdges;
-      if (TotalVisitedEdges == Succ->MPredecessors.size()) {
-        Source.push(Succ);
+      if (TotalVisitedEdges == Succ.MPredecessors.size()) {
+        Source.push(&Succ);
       }
     }
   }
@@ -127,14 +124,14 @@ void sortTopological(std::set<std::weak_ptr<node_impl>,
 /// a node with a smaller partition number.
 /// @param Node Node to assign to the partition.
 /// @param PartitionNum Number to propagate.
-void propagatePartitionUp(std::shared_ptr<node_impl> Node, int PartitionNum) {
-  if (((Node->MPartitionNum != -1) && (Node->MPartitionNum <= PartitionNum)) ||
-      (Node->MCGType == sycl::detail::CGType::CodeplayHostTask)) {
+void propagatePartitionUp(node_impl &Node, int PartitionNum) {
+  if (((Node.MPartitionNum != -1) && (Node.MPartitionNum <= PartitionNum)) ||
+      (Node.MCGType == sycl::detail::CGType::CodeplayHostTask)) {
     return;
   }
-  Node->MPartitionNum = PartitionNum;
-  for (auto &Predecessor : Node->MPredecessors) {
-    propagatePartitionUp(Predecessor.lock(), PartitionNum);
+  Node.MPartitionNum = PartitionNum;
+  for (node_impl &Predecessor : Node.predecessors()) {
+    propagatePartitionUp(Predecessor, PartitionNum);
   }
 }
 
@@ -145,18 +142,17 @@ void propagatePartitionUp(std::shared_ptr<node_impl> Node, int PartitionNum) {
 /// @param PartitionNum Number to propagate.
 /// @param HostTaskList List of host tasks that have already been processed and
 /// are encountered as successors to the node Node.
-void propagatePartitionDown(
-    const std::shared_ptr<node_impl> &Node, int PartitionNum,
-    std::list<std::shared_ptr<node_impl>> &HostTaskList) {
-  if (Node->MCGType == sycl::detail::CGType::CodeplayHostTask) {
-    if (Node->MPartitionNum != -1) {
-      HostTaskList.push_front(Node);
+void propagatePartitionDown(node_impl &Node, int PartitionNum,
+                            std::list<node_impl *> &HostTaskList) {
+  if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask) {
+    if (Node.MPartitionNum != -1) {
+      HostTaskList.push_front(&Node);
     }
     return;
   }
-  Node->MPartitionNum = PartitionNum;
-  for (auto &Successor : Node->MSuccessors) {
-    propagatePartitionDown(Successor.lock(), PartitionNum, HostTaskList);
+  Node.MPartitionNum = PartitionNum;
+  for (node_impl &Successor : Node.successors()) {
+    propagatePartitionDown(Successor, PartitionNum, HostTaskList);
   }
 }
 
@@ -164,9 +160,9 @@ void propagatePartitionDown(
 /// belong to the same partition)
 /// @param Node node to test
 /// @return True is `Node` is a root of its partition
-bool isPartitionRoot(std::shared_ptr<node_impl> Node) {
-  for (auto &Predecessor : Node->MPredecessors) {
-    if (Predecessor.lock()->MPartitionNum == Node->MPartitionNum) {
+bool isPartitionRoot(node_impl &Node) {
+  for (node_impl &Predecessor : Node.predecessors()) {
+    if (Predecessor.MPartitionNum == Node.MPartitionNum) {
       return false;
     }
   }
@@ -174,7 +170,7 @@ bool isPartitionRoot(std::shared_ptr<node_impl> Node) {
 }
 } // anonymous namespace
 
-void partition::schedule() {
+void partition::updateSchedule() {
   if (MSchedule.empty()) {
     // There is no need to reset MTotalVisitedEdges before calling
     // sortTopological because this function is only called once per partition.
@@ -184,11 +180,11 @@ void partition::schedule() {
 
 void exec_graph_impl::makePartitions() {
   int CurrentPartition = -1;
-  std::list<std::shared_ptr<node_impl>> HostTaskList;
+  std::list<node_impl *> HostTaskList;
   // find all the host-tasks in the graph
-  for (auto &Node : MNodeStorage) {
-    if (Node->MCGType == sycl::detail::CGType::CodeplayHostTask) {
-      HostTaskList.push_back(Node);
+  for (node_impl &Node : nodes()) {
+    if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask) {
+      HostTaskList.push_back(&Node);
     }
   }
 
@@ -218,29 +214,29 @@ void exec_graph_impl::makePartitions() {
   // group that includes the predecessor of `B` can be merged with the group of
   // the predecessors of the node `A`.
   while (HostTaskList.size() > 0) {
-    auto Node = HostTaskList.front();
+    node_impl &Node = *HostTaskList.front();
     HostTaskList.pop_front();
     CurrentPartition++;
-    for (auto &Predecessor : Node->MPredecessors) {
-      propagatePartitionUp(Predecessor.lock(), CurrentPartition);
+    for (node_impl &Predecessor : Node.predecessors()) {
+      propagatePartitionUp(Predecessor, CurrentPartition);
     }
     CurrentPartition++;
-    Node->MPartitionNum = CurrentPartition;
+    Node.MPartitionNum = CurrentPartition;
     CurrentPartition++;
     auto TmpSize = HostTaskList.size();
-    for (auto &Successor : Node->MSuccessors) {
-      propagatePartitionDown(Successor.lock(), CurrentPartition, HostTaskList);
+    for (node_impl &Successor : Node.successors()) {
+      propagatePartitionDown(Successor, CurrentPartition, HostTaskList);
     }
     if (HostTaskList.size() > TmpSize) {
       // At least one HostTask has been re-numbered so group merge opportunities
-      for (const auto &HT : HostTaskList) {
+      for (node_impl *HT : HostTaskList) {
         auto HTPartitionNum = HT->MPartitionNum;
         if (HTPartitionNum != -1) {
           // can merge predecessors of node `Node` with predecessors of node
           // `HT` (HTPartitionNum-1) since HT must be reprocessed
-          for (const auto &NodeImpl : MNodeStorage) {
-            if (NodeImpl->MPartitionNum == Node->MPartitionNum - 1) {
-              NodeImpl->MPartitionNum = HTPartitionNum - 1;
+          for (node_impl &NodeImpl : nodes()) {
+            if (NodeImpl.MPartitionNum == Node.MPartitionNum - 1) {
+              NodeImpl.MPartitionNum = HTPartitionNum - 1;
             }
           }
         } else {
@@ -254,19 +250,19 @@ void exec_graph_impl::makePartitions() {
   int PartitionFinalNum = 0;
   for (int i = -1; i <= CurrentPartition; i++) {
     const std::shared_ptr<partition> &Partition = std::make_shared<partition>();
-    for (auto &Node : MNodeStorage) {
-      if (Node->MPartitionNum == i) {
-        MPartitionNodes[Node] = PartitionFinalNum;
+    for (node_impl &Node : nodes()) {
+      if (Node.MPartitionNum == i) {
+        MPartitionNodes[&Node] = PartitionFinalNum;
         if (isPartitionRoot(Node)) {
-          Partition->MRoots.insert(Node);
-          if (Node->MCGType == CGType::CodeplayHostTask) {
+          Partition->MRoots.insert(&Node);
+          if (Node.MCGType == CGType::CodeplayHostTask) {
             Partition->MIsHostTask = true;
           }
         }
       }
     }
     if (Partition->MRoots.size() > 0) {
-      Partition->schedule();
+      Partition->updateSchedule();
       Partition->MIsInOrderGraph = Partition->checkIfGraphIsSinglePath();
       MPartitions.push_back(Partition);
       MRootPartitions.push_back(Partition);
@@ -288,11 +284,9 @@ void exec_graph_impl::makePartitions() {
 
   // Compute partition dependencies
   for (const auto &Partition : MPartitions) {
-    for (auto const &Root : Partition->MRoots) {
-      auto RootNode = Root.lock();
-      for (const auto &Dep : RootNode->MPredecessors) {
-        auto NodeDep = Dep.lock();
-        auto &Predecessor = MPartitions[MPartitionNodes[NodeDep]];
+    for (node_impl &Root : Partition->roots()) {
+      for (node_impl &NodeDep : Root.predecessors()) {
+        auto &Predecessor = MPartitions[MPartitionNodes[&NodeDep]];
         Partition->MPredecessors.push_back(Predecessor.get());
         Predecessor->MSuccessors.push_back(Partition.get());
       }
@@ -300,8 +294,8 @@ void exec_graph_impl::makePartitions() {
   }
 
   // Reset node groups (if node have to be re-processed - e.g. subgraph)
-  for (auto &Node : MNodeStorage) {
-    Node->MPartitionNum = -1;
+  for (node_impl &Node : nodes()) {
+    Node.MPartitionNum = -1;
   }
 }
 
@@ -342,49 +336,11 @@ graph_impl::~graph_impl() {
   }
 }
 
-std::shared_ptr<node_impl> graph_impl::addNodesToExits(
-    const std::list<std::shared_ptr<node_impl>> &NodeList) {
-  // Find all input and output nodes from the node list
-  std::vector<std::shared_ptr<node_impl>> Inputs;
-  std::vector<std::shared_ptr<node_impl>> Outputs;
-  for (auto &NodeImpl : NodeList) {
-    if (NodeImpl->MPredecessors.size() == 0) {
-      Inputs.push_back(NodeImpl);
-    }
-    if (NodeImpl->MSuccessors.size() == 0) {
-      Outputs.push_back(NodeImpl);
-    }
-  }
+void graph_impl::addRoot(node_impl &Root) { MRoots.insert(&Root); }
 
-  // Find all exit nodes in the current graph and register the Inputs as
-  // successors
-  for (auto &NodeImpl : MNodeStorage) {
-    if (NodeImpl->MSuccessors.size() == 0) {
-      for (auto &Input : Inputs) {
-        NodeImpl->registerSuccessor(Input);
-      }
-    }
-  }
+void graph_impl::removeRoot(node_impl &Root) { MRoots.erase(&Root); }
 
-  // Add all the new nodes to the node storage
-  for (auto &Node : NodeList) {
-    MNodeStorage.push_back(Node);
-    addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
-                    Node);
-  }
-
-  return this->add(Outputs);
-}
-
-void graph_impl::addRoot(const std::shared_ptr<node_impl> &Root) {
-  MRoots.insert(Root);
-}
-
-void graph_impl::removeRoot(const std::shared_ptr<node_impl> &Root) {
-  MRoots.erase(Root);
-}
-
-std::set<std::shared_ptr<node_impl>> graph_impl::getCGEdges(
+std::set<node_impl *> graph_impl::getCGEdges(
     const std::shared_ptr<sycl::detail::CG> &CommandGroup) const {
   const auto &Requirements = CommandGroup->getRequirements();
   if (!MAllowBuffers && Requirements.size()) {
@@ -405,7 +361,7 @@ std::set<std::shared_ptr<node_impl>> graph_impl::getCGEdges(
   }
 
   // Add any nodes specified by event dependencies into the dependency list
-  std::set<std::shared_ptr<node_impl>> UniqueDeps;
+  std::set<node_impl *> UniqueDeps;
   for (auto &Dep : CommandGroup->getEvents()) {
     if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl == MEventsMap.end()) {
       throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -419,20 +375,14 @@ std::set<std::shared_ptr<node_impl>> graph_impl::getCGEdges(
   // A unique set of dependencies obtained by checking requirements and events
   for (auto &Req : Requirements) {
     // Look through the graph for nodes which share this requirement
-    for (auto &Node : MNodeStorage) {
-      if (Node->hasRequirementDependency(Req)) {
-        bool ShouldAddDep = true;
-        // If any of this node's successors have this requirement then we skip
-        // adding the current node as a dependency.
-        for (auto &Succ : Node->MSuccessors) {
-          if (Succ.lock()->hasRequirementDependency(Req)) {
-            ShouldAddDep = false;
-            break;
-          }
-        }
-        if (ShouldAddDep) {
-          UniqueDeps.insert(Node);
-        }
+    for (node_impl &Node : nodes()) {
+      if (Node.hasRequirementDependency(Req) &&
+          // If any of this node's successors have this requirement then we skip
+          // adding the current node as a dependency.
+          none_of(Node.successors(), [&](node_impl &Succ) {
+            return Succ.hasRequirementDependency(Req);
+          })) {
+        UniqueDeps.insert(&Node);
       }
     }
   }
@@ -452,11 +402,8 @@ void graph_impl::markCGMemObjs(
   }
 }
 
-std::shared_ptr<node_impl>
-graph_impl::add(std::vector<std::shared_ptr<node_impl>> &Deps) {
-  const std::shared_ptr<node_impl> &NodeImpl = std::make_shared<node_impl>();
-
-  MNodeStorage.push_back(NodeImpl);
+node_impl &graph_impl::add(nodes_range Deps) {
+  node_impl &NodeImpl = createNode();
 
   addDepsToNode(NodeImpl, Deps);
   // Add an event associated with this explicit node for mixed usage
@@ -465,10 +412,9 @@ graph_impl::add(std::vector<std::shared_ptr<node_impl>> &Deps) {
   return NodeImpl;
 }
 
-std::shared_ptr<node_impl>
-graph_impl::add(std::function<void(handler &)> CGF,
-                const std::vector<sycl::detail::ArgDesc> &Args,
-                std::vector<std::shared_ptr<node_impl>> &Deps) {
+node_impl &graph_impl::add(std::function<void(handler &)> CGF,
+                           const std::vector<sycl::detail::ArgDesc> &Args,
+                           nodes_range Deps) {
   (void)Args;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::handler_impl HandlerImpl{*this};
@@ -479,7 +425,8 @@ graph_impl::add(std::function<void(handler &)> CGF,
 
   // Pass the node deps to the handler so they are available when processing the
   // CGF, need for async_malloc nodes.
-  Handler.impl->MNodeDeps = Deps;
+  for (node_impl &N : Deps)
+    Handler.impl->MNodeDeps.push_back(N.shared_from_this());
 
 #if XPTI_ENABLE_INSTRUMENTATION
   // Save code location if one was set in TLS.
@@ -515,7 +462,7 @@ graph_impl::add(std::function<void(handler &)> CGF,
           : ext::oneapi::experimental::detail::getNodeTypeFromCG(
                 Handler.getType());
 
-  auto NodeImpl =
+  node_impl &NodeImpl =
       this->add(NodeType, std::move(Handler.impl->MGraphNodeCG), Deps);
 
   // Add an event associated with this explicit node for mixed usage
@@ -539,49 +486,25 @@ graph_impl::add(std::function<void(handler &)> CGF,
   return NodeImpl;
 }
 
-std::shared_ptr<node_impl>
-graph_impl::add(const std::vector<sycl::detail::EventImplPtr> Events) {
-
-  std::vector<std::shared_ptr<node_impl>> Deps;
-
-  // Add any nodes specified by event dependencies into the dependency list
-  for (const auto &Dep : Events) {
-    if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl != MEventsMap.end()) {
-      Deps.push_back(NodeImpl->second);
-    } else {
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "Event dependency from handler::depends_on does "
-                            "not correspond to a node within the graph");
-    }
-  }
-
-  return this->add(Deps);
-}
-
-std::shared_ptr<node_impl>
-graph_impl::add(node_type NodeType,
-                std::shared_ptr<sycl::detail::CG> CommandGroup,
-                std::vector<std::shared_ptr<node_impl>> &Deps) {
+node_impl &graph_impl::add(node_type NodeType,
+                           std::shared_ptr<sycl::detail::CG> CommandGroup,
+                           nodes_range Deps) {
 
   // A unique set of dependencies obtained by checking requirements and events
-  std::set<std::shared_ptr<node_impl>> UniqueDeps = getCGEdges(CommandGroup);
+  std::set<node_impl *> UniqueDeps = getCGEdges(CommandGroup);
 
   // Track and mark the memory objects being used by the graph.
   markCGMemObjs(CommandGroup);
 
+  node_impl &NodeImpl = createNode(NodeType, std::move(CommandGroup));
+
   // Add any deps determined from requirements and events into the dependency
   // list
-  Deps.insert(Deps.end(), UniqueDeps.begin(), UniqueDeps.end());
-
-  const std::shared_ptr<node_impl> &NodeImpl =
-      std::make_shared<node_impl>(NodeType, std::move(CommandGroup));
-  MNodeStorage.push_back(NodeImpl);
-
   addDepsToNode(NodeImpl, Deps);
+  addDepsToNode(NodeImpl, UniqueDeps);
 
   if (NodeType == node_type::async_free) {
-    auto AsyncFreeCG =
-        static_cast<CGAsyncFree *>(NodeImpl->MCommandGroup.get());
+    auto AsyncFreeCG = static_cast<CGAsyncFree *>(NodeImpl.MCommandGroup.get());
     // If this is an async free node mark that it is now available for reuse,
     // and pass the async free node for tracking.
     MGraphMemPool.markAllocationAsAvailable(AsyncFreeCG->getPtr(), NodeImpl);
@@ -590,12 +513,11 @@ graph_impl::add(node_type NodeType,
   return NodeImpl;
 }
 
-std::shared_ptr<node_impl>
+node_impl &
 graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
-                std::vector<std::shared_ptr<detail::node_impl>> &Deps) {
+                nodes_range Deps) {
   // Set of Dependent nodes based on CG event and accessor dependencies.
-  std::set<std::shared_ptr<node_impl>> DynCGDeps =
-      getCGEdges(DynCGImpl->MCommandGroups[0]);
+  std::set<node_impl *> DynCGDeps = getCGEdges(DynCGImpl->MCommandGroups[0]);
   for (unsigned i = 1; i < DynCGImpl->getNumCGs(); i++) {
     auto &CG = DynCGImpl->MCommandGroups[i];
     auto CGEdges = getCGEdges(CG);
@@ -615,15 +537,14 @@ graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
   const auto &ActiveKernel = DynCGImpl->getActiveCG();
   node_type NodeType =
       ext::oneapi::experimental::detail::getNodeTypeFromCG(DynCGImpl->MCGType);
-  std::shared_ptr<detail::node_impl> NodeImpl =
-      add(NodeType, ActiveKernel, Deps);
+  detail::node_impl &NodeImpl = add(NodeType, ActiveKernel, Deps);
 
   // Add an event associated with this explicit node for mixed usage
   addEventForNode(sycl::detail::event_impl::create_completed_host_event(),
                   NodeImpl);
 
   // Track the dynamic command-group used inside the node object
-  DynCGImpl->MNodes.push_back(NodeImpl);
+  DynCGImpl->MNodes.push_back(NodeImpl.shared_from_this());
 
   return NodeImpl;
 }
@@ -650,7 +571,7 @@ bool graph_impl::clearQueues() {
 }
 
 bool graph_impl::checkForCycles() {
-  std::list<std::shared_ptr<node_impl>> SortedNodes;
+  std::list<node_impl *> SortedNodes;
   sortTopological(MRoots, SortedNodes, false);
 
   // If after a topological sort, not all the nodes in the graph are sorted,
@@ -666,8 +587,7 @@ bool graph_impl::checkForCycles() {
   return CycleFound;
 }
 
-std::shared_ptr<node_impl>
-graph_impl::getLastInorderNode(sycl::detail::queue_impl *Queue) {
+node_impl *graph_impl::getLastInorderNode(sycl::detail::queue_impl *Queue) {
   if (!Queue) {
     assert(0 ==
            MInorderQueueMap.count(std::weak_ptr<sycl::detail::queue_impl>{}));
@@ -680,14 +600,13 @@ graph_impl::getLastInorderNode(sycl::detail::queue_impl *Queue) {
 }
 
 void graph_impl::setLastInorderNode(sycl::detail::queue_impl &Queue,
-                                    std::shared_ptr<node_impl> Node) {
-  MInorderQueueMap[Queue.weak_from_this()] = std::move(Node);
+                                    node_impl &Node) {
+  MInorderQueueMap[Queue.weak_from_this()] = &Node;
 }
 
-void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
-                          std::shared_ptr<node_impl> Dest) {
+void graph_impl::makeEdge(node_impl &Src, node_impl &Dest) {
   throwIfGraphRecordingQueue("make_edge()");
-  if (Src == Dest) {
+  if (&Src == &Dest) {
     throw sycl::exception(
         make_error_code(sycl::errc::invalid),
         "make_edge() cannot be called when Src and Dest are the same.");
@@ -697,8 +616,8 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
   bool DestFound = false;
   for (const auto &Node : MNodeStorage) {
 
-    SrcFound |= Node == Src;
-    DestFound |= Node == Dest;
+    SrcFound |= Node.get() == &Src;
+    DestFound |= Node.get() == &Dest;
 
     if (SrcFound && DestFound) {
       break;
@@ -714,30 +633,30 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
                           "Dest must be a node inside the graph.");
   }
 
-  bool DestWasGraphRoot = Dest->MPredecessors.size() == 0;
+  bool DestWasGraphRoot = Dest.MPredecessors.size() == 0;
 
   // We need to add the edges first before checking for cycles
-  Src->registerSuccessor(Dest);
+  Src.registerSuccessor(Dest);
 
-  bool DestLostRootStatus = DestWasGraphRoot && Dest->MPredecessors.size() == 1;
+  bool DestLostRootStatus = DestWasGraphRoot && Dest.MPredecessors.size() == 1;
   if (DestLostRootStatus) {
     // Dest is no longer a Root node, so we need to remove it from MRoots.
-    MRoots.erase(Dest);
+    MRoots.erase(&Dest);
   }
 
   // We can skip cycle checks if either Dest has no successors (cycle not
   // possible) or cycle checks have been disabled with the no_cycle_check
   // property;
-  if (Dest->MSuccessors.empty() || !MSkipCycleChecks) {
+  if (Dest.MSuccessors.empty() || !MSkipCycleChecks) {
     bool CycleFound = checkForCycles();
 
     if (CycleFound) {
       // Remove the added successor and predecessor.
-      Src->MSuccessors.pop_back();
-      Dest->MPredecessors.pop_back();
+      Src.MSuccessors.pop_back();
+      Dest.MPredecessors.pop_back();
       if (DestLostRootStatus) {
         // Add Dest back into MRoots.
-        MRoots.insert(Dest);
+        MRoots.insert(&Dest);
       }
 
       throw sycl::exception(make_error_code(sycl::errc::invalid),
@@ -752,8 +671,8 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
   std::vector<sycl::detail::EventImplPtr> Events;
 
   auto RecordedQueueSP = RecordedQueue.lock();
-  for (auto &Node : MNodeStorage) {
-    if (Node->MSuccessors.empty()) {
+  for (node_impl &Node : nodes()) {
+    if (Node.MSuccessors.empty()) {
       auto EventForNode = getEventForNode(Node);
       if (EventForNode->getSubmittedQueue() == RecordedQueueSP) {
         Events.push_back(getEventForNode(Node));
@@ -776,17 +695,17 @@ void graph_impl::beginRecording(sycl::detail::queue_impl &Queue) {
 // predecessors until we find the real dependency.
 void exec_graph_impl::findRealDeps(
     std::vector<ur_exp_command_buffer_sync_point_t> &Deps,
-    std::shared_ptr<node_impl> CurrentNode, int ReferencePartitionNum) {
-  if (!CurrentNode->requiresEnqueue()) {
-    for (auto &N : CurrentNode->MPredecessors) {
-      auto NodeImpl = N.lock();
+    node_impl &CurrentNode, int ReferencePartitionNum) {
+  if (!CurrentNode.requiresEnqueue()) {
+    for (node_impl &NodeImpl : CurrentNode.predecessors()) {
       findRealDeps(Deps, NodeImpl, ReferencePartitionNum);
     }
   } else {
+    auto CurrentNodePtr = CurrentNode.shared_from_this();
     // Verify if CurrentNode belong the the same partition
-    if (MPartitionNodes[CurrentNode] == ReferencePartitionNum) {
+    if (MPartitionNodes[&CurrentNode] == ReferencePartitionNum) {
       // Verify that the sync point has actually been set for this node.
-      auto SyncPoint = MSyncPoints.find(CurrentNode);
+      auto SyncPoint = MSyncPoints.find(&CurrentNode);
       assert(SyncPoint != MSyncPoints.end() &&
              "No sync point has been set for node dependency.");
       // Check if the dependency has already been added.
@@ -798,27 +717,25 @@ void exec_graph_impl::findRealDeps(
   }
 }
 
-ur_exp_command_buffer_sync_point_t
-exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
-                                   sycl::detail::device_impl &DeviceImpl,
-                                   ur_exp_command_buffer_handle_t CommandBuffer,
-                                   std::shared_ptr<node_impl> Node) {
+ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
+    const sycl::context &Ctx, sycl::detail::device_impl &DeviceImpl,
+    ur_exp_command_buffer_handle_t CommandBuffer, node_impl &Node) {
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
-  for (auto &N : Node->MPredecessors) {
-    findRealDeps(Deps, N.lock(), MPartitionNodes[Node]);
+  for (node_impl &N : Node.predecessors()) {
+    findRealDeps(Deps, N, MPartitionNodes[&Node]);
   }
   ur_exp_command_buffer_sync_point_t NewSyncPoint;
   ur_exp_command_buffer_command_handle_t NewCommand = 0;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   const bool xptiEnabled = xptiTraceEnabled();
-  int32_t StreamID = xpti::invalid_id<>;
+  auto StreamID = xpti::invalid_id<xpti::stream_id_t>;
   xpti_td *CmdTraceEvent = nullptr;
   uint64_t InstanceID = 0;
   if (xptiEnabled) {
     StreamID = xptiRegisterStream(sycl::detail::SYCL_STREAM_NAME);
     sycl::detail::CGExecKernel *CGExec =
-        static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
+        static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
     sycl::detail::code_location CodeLoc(CGExec->MFileName.c_str(),
                                         CGExec->MFunctionName.c_str(),
                                         CGExec->MLine, CGExec->MColumn);
@@ -834,11 +751,11 @@ exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
 
   ur_result_t Res = sycl::detail::enqueueImpCommandBufferKernel(
       Ctx, DeviceImpl, CommandBuffer,
-      *static_cast<sycl::detail::CGExecKernel *>((Node->MCommandGroup.get())),
+      *static_cast<sycl::detail::CGExecKernel *>((Node.MCommandGroup.get())),
       Deps, &NewSyncPoint, MIsUpdatable ? &NewCommand : nullptr, nullptr);
 
   if (MIsUpdatable) {
-    MCommandMap[Node] = NewCommand;
+    MCommandMap[&Node] = NewCommand;
   }
 
   if (Res != UR_RESULT_SUCCESS) {
@@ -857,20 +774,20 @@ exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
 
 ur_exp_command_buffer_sync_point_t
 exec_graph_impl::enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
-                             std::shared_ptr<node_impl> Node) {
+                             node_impl &Node) {
 
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
-  for (auto &N : Node->MPredecessors) {
-    findRealDeps(Deps, N.lock(), MPartitionNodes[Node]);
+  for (node_impl &N : Node.predecessors()) {
+    findRealDeps(Deps, N, MPartitionNodes[&Node]);
   }
 
   sycl::detail::EventImplPtr Event =
       sycl::detail::Scheduler::getInstance().addCG(
-          Node->getCGCopy(), *MQueueImpl,
+          Node.getCGCopy(), *MQueueImpl,
           /*EventNeeded=*/true, CommandBuffer, Deps);
 
   if (MIsUpdatable) {
-    MCommandMap[Node] = Event->getCommandBufferCommand();
+    MCommandMap[&Node] = Event->getCommandBufferCommand();
   }
 
   return Event->getSyncPoint();
@@ -886,7 +803,8 @@ void exec_graph_impl::buildRequirements() {
                          Node->MCommandGroup->getRequirements().begin(),
                          Node->MCommandGroup->getRequirements().end());
 
-    std::shared_ptr<partition> &Partition = MPartitions[MPartitionNodes[Node]];
+    std::shared_ptr<partition> &Partition =
+        MPartitions[MPartitionNodes[Node.get()]];
 
     Partition->MRequirements.insert(
         Partition->MRequirements.end(),
@@ -906,10 +824,10 @@ void exec_graph_impl::createCommandBuffers(
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, MIsUpdatable,
       Partition->MIsInOrderGraph && !MEnableProfiling, MEnableProfiling};
   context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl.getAdapter();
+  sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
   sycl::detail::device_impl &DeviceImpl = *sycl::detail::getSyclObjImpl(Device);
   ur_result_t Res =
-      Adapter->call_nocheck<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
+      Adapter.call_nocheck<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
           ContextImpl.getHandleRef(), DeviceImpl.getHandleRef(), &Desc,
           &OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
@@ -918,31 +836,31 @@ void exec_graph_impl::createCommandBuffers(
 
   Partition->MCommandBuffers[Device] = OutCommandBuffer;
 
-  for (const auto &Node : Partition->MSchedule) {
+  for (node_impl &Node : Partition->schedule()) {
     // Some nodes are not scheduled like other nodes, and only their
     // dependencies are propagated in findRealDeps
-    if (!Node->requiresEnqueue())
+    if (!Node.requiresEnqueue())
       continue;
 
-    sycl::detail::CGType type = Node->MCGType;
+    sycl::detail::CGType type = Node.MCGType;
     // If the node is a kernel with no special requirements we can enqueue it
     // directly.
     if (type == sycl::detail::CGType::Kernel &&
-        Node->MCommandGroup->getRequirements().size() +
+        Node.MCommandGroup->getRequirements().size() +
                 static_cast<sycl::detail::CGExecKernel *>(
-                    Node->MCommandGroup.get())
+                    Node.MCommandGroup.get())
                     ->MStreams.size() ==
             0) {
-      MSyncPoints[Node] =
+      MSyncPoints[&Node] =
           enqueueNodeDirect(MContext, DeviceImpl, OutCommandBuffer, Node);
     } else {
-      MSyncPoints[Node] = enqueueNode(OutCommandBuffer, Node);
+      MSyncPoints[&Node] = enqueueNode(OutCommandBuffer, Node);
     }
   }
 
-  Res = Adapter
-            ->call_nocheck<sycl::detail::UrApiKind::urCommandBufferFinalizeExp>(
-                OutCommandBuffer);
+  Res =
+      Adapter.call_nocheck<sycl::detail::UrApiKind::urCommandBufferFinalizeExp>(
+          OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid,
                           "Failed to finalize UR command-buffer");
@@ -982,7 +900,7 @@ exec_graph_impl::~exec_graph_impl() {
   try {
     MGraphImpl->markExecGraphDestroyed();
 
-    const sycl::detail::AdapterPtr &Adapter =
+    sycl::detail::adapter_impl &Adapter =
         sycl::detail::getSyclObjImpl(MContext)->getAdapter();
     MSchedule.clear();
 
@@ -993,7 +911,7 @@ exec_graph_impl::~exec_graph_impl() {
       Partition->MSchedule.clear();
       for (const auto &Iter : Partition->MCommandBuffers) {
         if (auto CmdBuf = Iter.second; CmdBuf) {
-          ur_result_t Res = Adapter->call_nocheck<
+          ur_result_t Res = Adapter.call_nocheck<
               sycl::detail::UrApiKind::urCommandBufferReleaseExp>(CmdBuf);
           (void)Res;
           assert(Res == UR_RESULT_SUCCESS);
@@ -1107,10 +1025,9 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
       UrEnqueueWaitListSize == 0 ? nullptr : UrEventHandles.data();
 
   if (!EventNeeded) {
-    Queue.getAdapter()
-        ->call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-            Queue.getHandleRef(), CommandBuffer, UrEnqueueWaitListSize,
-            UrEnqueueWaitList, nullptr);
+    Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
+        Queue.getHandleRef(), CommandBuffer, UrEnqueueWaitListSize,
+        UrEnqueueWaitList, nullptr);
     return nullptr;
   } else {
     auto NewEvent = sycl::detail::event_impl::create_device_event(Queue);
@@ -1118,10 +1035,9 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     NewEvent->setStateIncomplete();
     NewEvent->setSubmissionTime();
     ur_event_handle_t UrEvent = nullptr;
-    Queue.getAdapter()
-        ->call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-            Queue.getHandleRef(), CommandBuffer, UrEventHandles.size(),
-            UrEnqueueWaitList, &UrEvent);
+    Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
+        Queue.getHandleRef(), CommandBuffer, UrEventHandles.size(),
+        UrEnqueueWaitList, &UrEvent);
     NewEvent->setHandle(UrEvent);
     NewEvent->setEventFromSubmittedExecCommandBuffer(true);
     return NewEvent;
@@ -1301,40 +1217,38 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
 
 void exec_graph_impl::duplicateNodes() {
   // Map of original modifiable nodes (keys) to new duplicated nodes (values)
-  std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>> NodesMap;
+  std::map<node_impl *, node_impl *> NodesMap;
 
-  const std::vector<std::shared_ptr<node_impl>> &ModifiableNodes =
-      MGraphImpl->MNodeStorage;
+  nodes_range ModifiableNodes{MGraphImpl->MNodeStorage};
   std::deque<std::shared_ptr<node_impl>> NewNodes;
 
-  for (size_t i = 0; i < ModifiableNodes.size(); i++) {
-    auto OriginalNode = ModifiableNodes[i];
-    std::shared_ptr<node_impl> NodeCopy =
-        std::make_shared<node_impl>(*OriginalNode);
+  for (node_impl &OriginalNode : ModifiableNodes) {
+    NewNodes.push_back(std::make_shared<node_impl>(OriginalNode));
+    node_impl &NodeCopy = *NewNodes.back();
 
     // Associate the ID of the original node with the node copy for later quick
     // access
-    MIDCache.insert(std::make_pair(OriginalNode->MID, NodeCopy));
+    MIDCache.insert(std::make_pair(OriginalNode.MID, &NodeCopy));
 
     // Clear edges between nodes so that we can replace with new ones
-    NodeCopy->MSuccessors.clear();
-    NodeCopy->MPredecessors.clear();
+    NodeCopy.MSuccessors.clear();
+    NodeCopy.MPredecessors.clear();
     // Push the new node to the front of the stack
-    NewNodes.push_back(NodeCopy);
     // Associate the new node with the old one for updating edges
-    NodesMap.insert({OriginalNode, NodeCopy});
+    NodesMap.insert({&OriginalNode, &NodeCopy});
   }
 
   // Now that all nodes have been copied rebuild edges on new nodes. This must
   // be done as a separate step since successors may be out of order.
-  for (size_t i = 0; i < ModifiableNodes.size(); i++) {
-    auto OriginalNode = ModifiableNodes[i];
-    auto NodeCopy = NewNodes[i];
+  auto OrigIt = ModifiableNodes.begin(), OrigEnd = ModifiableNodes.end();
+  for (auto NewIt = NewNodes.begin(); OrigIt != OrigEnd; ++OrigIt, ++NewIt) {
+    node_impl &OriginalNode = *OrigIt;
+    node_impl &NodeCopy = **NewIt;
     // Look through all the original node successors, find their copies and
     // register those as successors with the current copied node
-    for (auto &NextNode : OriginalNode->MSuccessors) {
-      auto Successor = NodesMap.at(NextNode.lock());
-      NodeCopy->registerSuccessor(Successor);
+    for (node_impl &NextNode : OriginalNode.successors()) {
+      node_impl &Successor = *NodesMap.at(&NextNode);
+      NodeCopy.registerSuccessor(Successor);
     }
   }
 
@@ -1347,48 +1261,47 @@ void exec_graph_impl::duplicateNodes() {
     if (NewNode->MNodeType != node_type::subgraph) {
       continue;
     }
-    const std::vector<std::shared_ptr<node_impl>> &SubgraphNodes =
-        NewNode->MSubGraphImpl->MNodeStorage;
+    nodes_range SubgraphNodes{NewNode->MSubGraphImpl->MNodeStorage};
     std::deque<std::shared_ptr<node_impl>> NewSubgraphNodes{};
 
     // Map of original subgraph nodes (keys) to new duplicated nodes (values)
-    std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>>
-        SubgraphNodesMap;
+    std::map<node_impl *, node_impl *> SubgraphNodesMap;
 
     // Copy subgraph nodes
-    for (size_t i = 0; i < SubgraphNodes.size(); i++) {
-      auto SubgraphNode = SubgraphNodes[i];
-      auto NodeCopy = std::make_shared<node_impl>(*SubgraphNode);
+    for (node_impl &SubgraphNode : SubgraphNodes) {
+      NewSubgraphNodes.push_back(std::make_shared<node_impl>(SubgraphNode));
+      node_impl &NodeCopy = *NewSubgraphNodes.back();
       // Associate the ID of the original subgraph node with all extracted node
       // copies for future quick access.
-      MIDCache.insert(std::make_pair(SubgraphNode->MID, NodeCopy));
+      MIDCache.insert(std::make_pair(SubgraphNode.MID, &NodeCopy));
 
-      NewSubgraphNodes.push_back(NodeCopy);
-      SubgraphNodesMap.insert({SubgraphNode, NodeCopy});
-      NodeCopy->MSuccessors.clear();
-      NodeCopy->MPredecessors.clear();
+      SubgraphNodesMap.insert({&SubgraphNode, &NodeCopy});
+      NodeCopy.MSuccessors.clear();
+      NodeCopy.MPredecessors.clear();
     }
 
     // Rebuild edges for new subgraph nodes
-    for (size_t i = 0; i < SubgraphNodes.size(); i++) {
-      auto SubgraphNode = SubgraphNodes[i];
-      auto NodeCopy = NewSubgraphNodes[i];
+    auto OrigIt = SubgraphNodes.begin(), OrigEnd = SubgraphNodes.end();
+    for (auto NewIt = NewSubgraphNodes.begin(); OrigIt != OrigEnd;
+         ++OrigIt, ++NewIt) {
+      node_impl &SubgraphNode = *OrigIt;
+      node_impl &NodeCopy = **NewIt;
 
-      for (auto &NextNode : SubgraphNode->MSuccessors) {
-        auto Successor = SubgraphNodesMap.at(NextNode.lock());
-        NodeCopy->registerSuccessor(Successor);
+      for (node_impl &NextNode : SubgraphNode.successors()) {
+        node_impl &Successor = *SubgraphNodesMap.at(&NextNode);
+        NodeCopy.registerSuccessor(Successor);
       }
     }
 
     // Collect input and output nodes for the subgraph
-    std::vector<std::shared_ptr<node_impl>> Inputs;
-    std::vector<std::shared_ptr<node_impl>> Outputs;
-    for (auto &NodeImpl : NewSubgraphNodes) {
+    std::vector<node_impl *> Inputs;
+    std::vector<node_impl *> Outputs;
+    for (std::shared_ptr<node_impl> &NodeImpl : NewSubgraphNodes) {
       if (NodeImpl->MPredecessors.size() == 0) {
-        Inputs.push_back(NodeImpl);
+        Inputs.push_back(&*NodeImpl);
       }
       if (NodeImpl->MSuccessors.size() == 0) {
-        Outputs.push_back(NodeImpl);
+        Outputs.push_back(&*NodeImpl);
       }
     }
 
@@ -1396,40 +1309,33 @@ void exec_graph_impl::duplicateNodes() {
     // original subgraph node
 
     // Predecessors
-    for (auto &PredNodeWeak : NewNode->MPredecessors) {
-      auto PredNode = PredNodeWeak.lock();
-      auto &Successors = PredNode->MSuccessors;
+    for (node_impl &PredNode : NewNode->predecessors()) {
+      auto &Successors = PredNode.MSuccessors;
 
       // Remove the subgraph node from this nodes successors
-      Successors.erase(std::remove_if(Successors.begin(), Successors.end(),
-                                      [NewNode](auto WeakNode) {
-                                        return WeakNode.lock() == NewNode;
-                                      }),
-                       Successors.end());
+      Successors.erase(
+          std::remove(Successors.begin(), Successors.end(), NewNode.get()),
+          Successors.end());
 
       // Add all input nodes from the subgraph as successors for this node
       // instead
-      for (auto &Input : Inputs) {
-        PredNode->registerSuccessor(Input);
+      for (node_impl *Input : Inputs) {
+        PredNode.registerSuccessor(*Input);
       }
     }
 
     // Successors
-    for (auto &SuccNodeWeak : NewNode->MSuccessors) {
-      auto SuccNode = SuccNodeWeak.lock();
-      auto &Predecessors = SuccNode->MPredecessors;
+    for (node_impl &SuccNode : NewNode->successors()) {
+      auto &Predecessors = SuccNode.MPredecessors;
 
       // Remove the subgraph node from this nodes successors
-      Predecessors.erase(std::remove_if(Predecessors.begin(),
-                                        Predecessors.end(),
-                                        [NewNode](auto WeakNode) {
-                                          return WeakNode.lock() == NewNode;
-                                        }),
-                         Predecessors.end());
+      Predecessors.erase(
+          std::remove(Predecessors.begin(), Predecessors.end(), NewNode.get()),
+          Predecessors.end());
 
       // Add all Output nodes from the subgraph as predecessors for this node
       // instead
-      for (auto &Output : Outputs) {
+      for (node_impl *Output : Outputs) {
         Output->registerSuccessor(SuccNode);
       }
     }
@@ -1440,15 +1346,18 @@ void exec_graph_impl::duplicateNodes() {
         NewNodes.erase(std::find(NewNodes.begin(), NewNodes.end(), NewNode));
     // Also set the iterator to the newly added nodes so we can continue
     // iterating over all remaining nodes
-    auto InsertIt = NewNodes.insert(OldPositionIt, NewSubgraphNodes.begin(),
-                                    NewSubgraphNodes.end());
+    auto InsertIt = NewNodes.insert(
+        OldPositionIt, std::make_move_iterator(NewSubgraphNodes.begin()),
+        std::make_move_iterator(NewSubgraphNodes.end()));
     // Since the new reverse_iterator will be at i - 1 we need to advance it
     // when constructing
     NewNodeIt = std::make_reverse_iterator(std::next(InsertIt));
   }
 
   // Store all the new nodes locally
-  MNodeStorage.insert(MNodeStorage.begin(), NewNodes.begin(), NewNodes.end());
+  MNodeStorage.insert(MNodeStorage.begin(),
+                      std::make_move_iterator(NewNodes.begin()),
+                      std::make_move_iterator(NewNodes.end()));
 }
 
 void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
@@ -1513,18 +1422,17 @@ void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
 
   for (uint32_t i = 0; i < MNodeStorage.size(); ++i) {
     MIDCache.insert(
-        std::make_pair(GraphImpl->MNodeStorage[i]->MID, MNodeStorage[i]));
+        std::make_pair(GraphImpl->MNodeStorage[i]->MID, MNodeStorage[i].get()));
   }
 
-  update(GraphImpl->MNodeStorage);
+  update(GraphImpl->nodes());
 }
 
-void exec_graph_impl::update(std::shared_ptr<node_impl> Node) {
-  this->update(std::vector<std::shared_ptr<node_impl>>{Node});
+void exec_graph_impl::update(node_impl &Node) {
+  this->update(std::vector<node_impl *>{&Node});
 }
 
-void exec_graph_impl::update(
-    const std::vector<std::shared_ptr<node_impl>> &Nodes) {
+void exec_graph_impl::update(nodes_range Nodes) {
   if (!MIsUpdatable) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "update() cannot be called on a executable graph "
@@ -1561,7 +1469,7 @@ void exec_graph_impl::update(
       // needed because HostTask nodes (and all the nodes that depend on
       // HostTasks), are scheduled using a separate thread. This wait call
       // acts as a synchronization point for that thread.
-      UpdateEvent->wait(UpdateEvent);
+      UpdateEvent->wait();
     }
   } else {
     // For each partition in the executable graph, call UR update on the
@@ -1585,7 +1493,7 @@ void exec_graph_impl::update(
 }
 
 bool exec_graph_impl::needsScheduledUpdate(
-    const std::vector<std::shared_ptr<node_impl>> &Nodes,
+    nodes_range Nodes,
     std::vector<sycl::detail::AccessorImplHost *> &UpdateRequirements) {
   // If there are any accessor requirements, we have to update through the
   // scheduler to ensure that any allocations have taken place before trying to
@@ -1594,30 +1502,30 @@ bool exec_graph_impl::needsScheduledUpdate(
   // At worst we may have as many requirements as there are for the entire graph
   // for updating.
   UpdateRequirements.reserve(MRequirements.size());
-  for (auto &Node : Nodes) {
+  for (node_impl &Node : Nodes) {
     // Check if node(s) derived from this modifiable node exists in this graph
-    if (MIDCache.count(Node->getID()) == 0) {
+    if (MIDCache.count(Node.getID()) == 0) {
       throw sycl::exception(
           sycl::make_error_code(errc::invalid),
           "Node passed to update() is not part of the graph.");
     }
 
-    if (!Node->isUpdatable()) {
+    if (!Node.isUpdatable()) {
       std::string ErrorString = "node_type::";
-      ErrorString += nodeTypeToString(Node->MNodeType);
+      ErrorString += nodeTypeToString(Node.MNodeType);
       ErrorString +=
           " nodes are not supported for update. Only kernel, host_task, "
           "barrier and empty nodes are supported.";
       throw sycl::exception(errc::invalid, ErrorString);
     }
 
-    if (const auto &CG = Node->MCommandGroup;
+    if (const auto &CG = Node.MCommandGroup;
         CG && CG->getRequirements().size() != 0) {
       NeedScheduledUpdate = true;
 
       UpdateRequirements.insert(UpdateRequirements.end(),
-                                Node->MCommandGroup->getRequirements().begin(),
-                                Node->MCommandGroup->getRequirements().end());
+                                Node.MCommandGroup->getRequirements().begin(),
+                                Node.MCommandGroup->getRequirements().end());
     }
   }
 
@@ -1629,7 +1537,7 @@ bool exec_graph_impl::needsScheduledUpdate(
 }
 
 void exec_graph_impl::populateURKernelUpdateStructs(
-    const std::shared_ptr<node_impl> &Node, FastKernelCacheValPtr &BundleObjs,
+    node_impl &Node, FastKernelCacheValPtr &BundleObjs,
     std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
     std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
     std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
@@ -1638,13 +1546,13 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const {
   sycl::detail::context_impl &ContextImpl =
       *sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl.getAdapter();
+  sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
   sycl::detail::device_impl &DeviceImpl =
       *sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
 
   // Gather arg information from Node
   auto &ExecCG =
-      *(static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get()));
+      *(static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get()));
   // Copy args because we may modify them
   std::vector<sycl::detail::ArgDesc> NodeArgs = ExecCG.getArguments();
   // Copy NDR desc since we need to modify it
@@ -1691,7 +1599,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   if (NDRDesc.LocalSize[0] != 0)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
-    Adapter->call<sycl::detail::UrApiKind::urKernelGetGroupInfo>(
+    Adapter.call<sycl::detail::UrApiKind::urKernelGetGroupInfo>(
         UrKernel, DeviceImpl.getHandleRef(),
         UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
         RequiredWGSize,
@@ -1783,7 +1691,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   // TODO: Handle subgraphs or any other cases where multiple nodes may be
   // associated with a single key, once those node types are supported for
   // update.
-  auto ExecNode = MIDCache.find(Node->MID);
+  auto ExecNode = MIDCache.find(Node.MID);
   assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
 
   auto Command = MCommandMap.find(ExecNode->second);
@@ -1795,53 +1703,50 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   ExecNode->second->updateFromOtherNode(Node);
 }
 
-std::map<int, std::vector<std::shared_ptr<node_impl>>>
-exec_graph_impl::getURUpdatableNodes(
-    const std::vector<std::shared_ptr<node_impl>> &Nodes) const {
+std::map<int, std::vector<node_impl *>>
+exec_graph_impl::getURUpdatableNodes(nodes_range Nodes) const {
   // Iterate over the list of nodes, and for every node that can
   // be updated through UR, add it to the list of nodes for
   // that can be updated for the UR command-buffer partition.
-  std::map<int, std::vector<std::shared_ptr<node_impl>>> PartitionedNodes;
+  std::map<int, std::vector<node_impl *>> PartitionedNodes;
 
   // Initialize vector for each partition
   for (size_t i = 0; i < MPartitions.size(); i++) {
     PartitionedNodes[i] = {};
   }
 
-  for (auto &Node : Nodes) {
+  for (node_impl &Node : Nodes) {
     // Kernel node update is the only command type supported in UR for update.
-    if (Node->MCGType != sycl::detail::CGType::Kernel) {
+    if (Node.MCGType != sycl::detail::CGType::Kernel) {
       continue;
     }
 
-    auto ExecNode = MIDCache.find(Node->MID);
+    auto ExecNode = MIDCache.find(Node.MID);
     assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
     auto PartitionIndex = MPartitionNodes.find(ExecNode->second);
     assert(PartitionIndex != MPartitionNodes.end());
-    PartitionedNodes[PartitionIndex->second].push_back(Node);
+    PartitionedNodes[PartitionIndex->second].push_back(&Node);
   }
 
   return PartitionedNodes;
 }
 
-void exec_graph_impl::updateHostTasksImpl(
-    const std::vector<std::shared_ptr<node_impl>> &Nodes) const {
-  for (auto &Node : Nodes) {
-    if (Node->MNodeType != node_type::host_task) {
+void exec_graph_impl::updateHostTasksImpl(nodes_range Nodes) const {
+  for (node_impl &Node : Nodes) {
+    if (Node.MNodeType != node_type::host_task) {
       continue;
     }
     // Query the ID cache to find the equivalent exec node for the node passed
     // to this function.
-    auto ExecNode = MIDCache.find(Node->MID);
+    auto ExecNode = MIDCache.find(Node.MID);
     assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
 
     ExecNode->second->updateFromOtherNode(Node);
   }
 }
 
-void exec_graph_impl::updateURImpl(
-    ur_exp_command_buffer_handle_t CommandBuffer,
-    const std::vector<std::shared_ptr<node_impl>> &Nodes) const {
+void exec_graph_impl::updateURImpl(ur_exp_command_buffer_handle_t CommandBuffer,
+                                   nodes_range Nodes) const {
   const size_t NumUpdatableNodes = Nodes.size();
   if (NumUpdatableNodes == 0) {
     return;
@@ -1867,10 +1772,10 @@ void exec_graph_impl::updateURImpl(
   std::vector<FastKernelCacheValPtr> KernelBundleObjList(NumUpdatableNodes);
 
   size_t StructListIndex = 0;
-  for (auto &Node : Nodes) {
+  for (node_impl &Node : Nodes) {
     // This should be the case when getURUpdatableNodes() is used to
     // create the list of nodes.
-    assert(Node->MCGType == sycl::detail::CGType::Kernel);
+    assert(Node.MCGType == sycl::detail::CGType::Kernel);
 
     auto &MemobjDescs = MemobjDescsList[StructListIndex];
     auto &MemobjProps = MemobjPropsList[StructListIndex];
@@ -1886,8 +1791,8 @@ void exec_graph_impl::updateURImpl(
   }
 
   context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::AdapterPtr &Adapter = ContextImpl.getAdapter();
-  Adapter->call<sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
+  sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
+  Adapter.call<sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
       CommandBuffer, UpdateDescList.size(), UpdateDescList.data());
 }
 
@@ -1913,58 +1818,42 @@ node modifiable_command_graph::addImpl(dynamic_command_group &DynCGF,
                           "dynamic command-group.");
   }
 
-  std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
-  for (auto &D : Deps) {
-    DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
-  }
-
   graph_impl::WriteLock Lock(impl->MMutex);
-  std::shared_ptr<detail::node_impl> NodeImpl = impl->add(DynCGFImpl, DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
+  detail::node_impl &NodeImpl = impl->add(DynCGFImpl, Deps);
+  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
 node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
   impl->throwIfGraphRecordingQueue("Explicit API \"Add()\" function");
-  std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
-  for (auto &D : Deps) {
-    DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
-  }
 
   graph_impl::WriteLock Lock(impl->MMutex);
-  std::shared_ptr<detail::node_impl> NodeImpl = impl->add(DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
+  detail::node_impl &NodeImpl = impl->add(Deps);
+  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
 node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
                                        const std::vector<node> &Deps) {
   impl->throwIfGraphRecordingQueue("Explicit API \"Add()\" function");
-  std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
-  for (auto &D : Deps) {
-    DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
-  }
 
-  std::shared_ptr<detail::node_impl> NodeImpl = impl->add(CGF, {}, DepImpls);
-  return sycl::detail::createSyclObjFromImpl<node>(std::move(NodeImpl));
+  detail::node_impl &NodeImpl = impl->add(CGF, {}, Deps);
+  return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
 void modifiable_command_graph::addGraphLeafDependencies(node Node) {
   // Find all exit nodes in the current graph and add them to the dependency
   // vector
-  std::shared_ptr<detail::node_impl> DstImpl =
-      sycl::detail::getSyclObjImpl(Node);
+  detail::node_impl &DstImpl = *sycl::detail::getSyclObjImpl(Node);
   graph_impl::WriteLock Lock(impl->MMutex);
   for (auto &NodeImpl : impl->MNodeStorage) {
-    if ((NodeImpl->MSuccessors.size() == 0) && (NodeImpl != DstImpl)) {
-      impl->makeEdge(NodeImpl, DstImpl);
+    if ((NodeImpl->MSuccessors.size() == 0) && (NodeImpl.get() != &DstImpl)) {
+      impl->makeEdge(*NodeImpl, DstImpl);
     }
   }
 }
 
 void modifiable_command_graph::make_edge(node &Src, node &Dest) {
-  std::shared_ptr<detail::node_impl> SenderImpl =
-      sycl::detail::getSyclObjImpl(Src);
-  std::shared_ptr<detail::node_impl> ReceiverImpl =
-      sycl::detail::getSyclObjImpl(Dest);
+  detail::node_impl &SenderImpl = *sycl::detail::getSyclObjImpl(Src);
+  detail::node_impl &ReceiverImpl = *sycl::detail::getSyclObjImpl(Dest);
 
   graph_impl::WriteLock Lock(impl->MMutex);
   impl->makeEdge(SenderImpl, ReceiverImpl);
@@ -2063,15 +1952,11 @@ void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
 
 std::vector<node> modifiable_command_graph::get_nodes() const {
   graph_impl::ReadLock Lock(impl->MMutex);
-  return createNodesFromImpls(impl->MNodeStorage);
+  return impl->nodes().to<std::vector<node>>();
 }
 std::vector<node> modifiable_command_graph::get_root_nodes() const {
   graph_impl::ReadLock Lock(impl->MMutex);
-  auto &Roots = impl->MRoots;
-  std::vector<std::weak_ptr<node_impl>> Impls{};
-
-  std::copy(Roots.begin(), Roots.end(), std::back_inserter(Impls));
-  return createNodesFromImpls(Impls);
+  return impl->roots().to<std::vector<node>>();
 }
 
 void modifiable_command_graph::checkNodePropertiesAndThrow(
@@ -2132,17 +2017,11 @@ void executable_command_graph::update(
 }
 
 void executable_command_graph::update(const node &Node) {
-  impl->update(sycl::detail::getSyclObjImpl(Node));
+  impl->update(*sycl::detail::getSyclObjImpl(Node));
 }
 
 void executable_command_graph::update(const std::vector<node> &Nodes) {
-  std::vector<std::shared_ptr<node_impl>> NodeImpls{};
-  NodeImpls.reserve(Nodes.size());
-  for (auto &Node : Nodes) {
-    NodeImpls.push_back(sycl::detail::getSyclObjImpl(Node));
-  }
-
-  impl->update(NodeImpls);
+  impl->update(Nodes);
 }
 
 size_t executable_command_graph::get_required_mem_size() const {

@@ -35,6 +35,7 @@ add_llvm_library(sycl-jit
    MC
    SYCLLowerIR
    SYCLPostLink
+   SPIRVLib
    ${LLVM_TARGETS_TO_BUILD}
 
    LINK_LIBS
@@ -60,7 +61,6 @@ target_include_directories(sycl-jit
   ${LLVM_MAIN_INCLUDE_DIR}
   ${LLVM_SPIRV_INCLUDE_DIRS}
   ${LLVM_EXTERNAL_CLANG_SOURCE_DIR}/include
-  ${LLVM_EXTERNAL_CLANG_SOURCE_DIR}/lib
   ${CMAKE_BINARY_DIR}/tools/clang/include
 )
 target_include_directories(sycl-jit
@@ -75,7 +75,6 @@ find_package(Threads REQUIRED)
 
 target_link_libraries(sycl-jit
   PRIVATE
-  LLVMSPIRVLib
   SYCLJITPasses
   ${CMAKE_THREAD_LIBS_INIT}
 )

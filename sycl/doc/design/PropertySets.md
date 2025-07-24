@@ -293,14 +293,15 @@ Set of information about an IR module in a SYCLBIN file.
 | Key      | Value type            | Value |
 | -------- | --------------------- | ----- |
 | "type"   | 32 bit integer. ("1") | Integer representation of one of the pre-defined IR types. It must be one of the following:<ol start="0"><li>SPIR-V</li><li>PTX</li><li>AMDGCN</li></ol> |
-| "target" | Byte array. ("2")     | A string representing the architecture of the binary, corresponding to the value of `-fsycl-targets` option used when compiling this binary. This may be missing if no part of `-fsycl-targets` was used during the compilation of this binary or if `-fsycl-targets` was not used at all. |
+| "target" | Byte array. ("2")     | A string representing the target of the binary, corresponding to the value of `-fsycl-targets` option used when compiling this binary. This may be missing if no part of `-fsycl-targets` was used during the compilation of this binary or if `-fsycl-targets` was not used at all. |
 
 
 ### [SYCLBIN/native device code image metadata]
 
 Set of information about an native device code image in a SYCLBIN file.
 
-| Key    | Value type        | Value |
-| ------ | ----------------- | ----- |
-| "arch" | Byte array. ("2") | A string representing the architecture of the binary, corresponding to the value of `-fsycl-targets` option used when compiling this binary. |
+| Key      | Value type        | Value |
+| -------- | ----------------- | ----- |
+| "arch"   | Byte array. ("2") | A string representing the architecture of the binary, corresponding to the value of `-fsycl-targets` option used when compiling this binary. |
+| "target" | Byte array. ("2") | A string representing the target of the binary, corresponding to the value of `-fsycl-targets` option used when compiling this binary. This may be missing if no part of `-fsycl-targets` was used during the compilation of this binary or if `-fsycl-targets` was not used at all. |
 

@@ -32,10 +32,11 @@ namespace detail {
 context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList, private_tag)
-    : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(Devices),
-      MContext(nullptr),
+    : MOwnedByRuntime(true), MAsyncHandler(std::move(AsyncHandler)),
+      MDevices(std::move(Devices)), MContext(nullptr),
       MPlatform(detail::getSyclObjImpl(MDevices[0].get_platform())),
-      MPropList(PropList), MSupportBufferLocationByDevices(NotChecked) {
+      MPropList(PropList), MKernelProgramCache(*this),
+      MSupportBufferLocationByDevices(NotChecked) {
   verifyProps(PropList);
   std::vector<ur_device_handle_t> DeviceIds;
   for (const auto &D : MDevices) {
@@ -54,20 +55,17 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
-  getAdapter()->call<UrApiKind::urContextCreate>(
+  getAdapter().call<UrApiKind::urContextCreate>(
       DeviceIds.size(), DeviceIds.data(), nullptr, &MContext);
-
-  MKernelProgramCache.setContextPtr(this);
 }
 
 context_impl::context_impl(ur_context_handle_t UrContext,
-                           async_handler AsyncHandler,
-                           const adapter_impl &Adapter,
+                           async_handler AsyncHandler, adapter_impl &Adapter,
                            const std::vector<sycl::device> &DeviceList,
                            bool OwnedByRuntime, private_tag)
-    : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler),
+    : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(std::move(AsyncHandler)),
       MDevices(DeviceList), MContext(UrContext), MPlatform(),
-      MSupportBufferLocationByDevices(NotChecked) {
+      MKernelProgramCache(*this), MSupportBufferLocationByDevices(NotChecked) {
   if (!MDevices.empty()) {
     MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   } else {
@@ -103,17 +101,16 @@ context_impl::context_impl(ur_context_handle_t UrContext,
   // TODO: Move this backend-specific retain of the context to SYCL-2020 style
   //       make_context<backend::opencl> interop, when that is created.
   if (getBackend() == sycl::backend::opencl) {
-    getAdapter()->call<UrApiKind::urContextRetain>(MContext);
+    getAdapter().call<UrApiKind::urContextRetain>(MContext);
   }
-  MKernelProgramCache.setContextPtr(this);
 }
 
 cl_context context_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  getAdapter()->call<UrApiKind::urContextRetain>(MContext);
+  getAdapter().call<UrApiKind::urContextRetain>(MContext);
   ur_native_handle_t nativeHandle = 0;
-  getAdapter()->call<UrApiKind::urContextGetNativeHandle>(MContext,
-                                                          &nativeHandle);
+  getAdapter().call<UrApiKind::urContextGetNativeHandle>(MContext,
+                                                         &nativeHandle);
   return ur::cast<cl_context>(nativeHandle);
 }
 
@@ -129,12 +126,9 @@ context_impl::~context_impl() {
               DeviceGlobal);
       DGEntry->removeAssociatedResources(this);
     }
-    for (auto LibProg : MCachedLibPrograms) {
-      assert(LibProg.second && "Null program must not be kept in the cache");
-      getAdapter()->call<UrApiKind::urProgramRelease>(LibProg.second);
-    }
+    MCachedLibPrograms.clear();
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getAdapter()->call_nocheck<UrApiKind::urContextRelease>(MContext);
+    getAdapter().call_nocheck<UrApiKind::urContextRelease>(MContext);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~context_impl", e);
   }
@@ -293,9 +287,9 @@ context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
 }
 
 ur_native_handle_t context_impl::getNative() const {
-  const auto &Adapter = getAdapter();
+  detail::adapter_impl &Adapter = getAdapter();
   ur_native_handle_t Handle;
-  Adapter->call<UrApiKind::urContextGetNativeHandle>(getHandleRef(), &Handle);
+  Adapter.call<UrApiKind::urContextGetNativeHandle>(getHandleRef(), &Handle);
   if (getBackend() == backend::opencl) {
     __SYCL_OCL_CALL(clRetainContext, ur::cast<cl_context>(Handle));
   }
@@ -327,13 +321,13 @@ void context_impl::removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
 }
 
 void context_impl::addDeviceGlobalInitializer(
-    ur_program_handle_t Program, const std::vector<device> &Devs,
+    ur_program_handle_t Program, devices_range Devs,
     const RTDeviceBinaryImage *BinImage) {
   if (BinImage->getDeviceGlobals().empty())
     return;
   std::lock_guard<std::mutex> Lock(MDeviceGlobalInitializersMutex);
-  for (const device &Dev : Devs) {
-    auto Key = std::make_pair(Program, getSyclObjImpl(Dev)->getHandleRef());
+  for (device_impl &Dev : Devs) {
+    auto Key = std::make_pair(Program, Dev.getHandleRef());
     auto [Iter, Inserted] = MDeviceGlobalInitializers.emplace(Key, BinImage);
     if (Inserted && !Iter->second.MDeviceGlobalsFullyInitialized)
       ++MDeviceGlobalNotInitializedCnt;
@@ -346,7 +340,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
   if (!MDeviceGlobalNotInitializedCnt.load(std::memory_order_acquire))
     return {};
 
-  const AdapterPtr &Adapter = getAdapter();
+  detail::adapter_impl &Adapter = getAdapter();
   device_impl &DeviceImpl = QueueImpl.getDeviceImpl();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
   auto ImgIt = MDeviceGlobalInitializers.find(
@@ -370,7 +364,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
           });
       // Release the removed events.
       for (auto EventIt = NewEnd; EventIt != InitEventsRef.end(); ++EventIt)
-        Adapter->call<UrApiKind::urEventRelease>(*EventIt);
+        Adapter.call<UrApiKind::urEventRelease>(*EventIt);
       // Remove them from the collection.
       InitEventsRef.erase(NewEnd, InitEventsRef.end());
       // If there are no more events, we can mark it as fully initialized.
@@ -439,10 +433,10 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       // initialize events list.
       ur_event_handle_t InitEvent;
       void *const &USMPtr = DeviceGlobalUSM.getPtr();
-      Adapter->call<UrApiKind::urEnqueueDeviceGlobalVariableWrite>(
+      Adapter.call<UrApiKind::urEnqueueDeviceGlobalVariableWrite>(
           QueueImpl.getHandleRef(), NativePrg,
-          DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0,
-          &USMPtr, 0, nullptr, &InitEvent);
+          DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0u,
+          &USMPtr, 0u, nullptr, &InitEvent);
 
       InitEventsRef.push_back(InitEvent);
     }
@@ -450,10 +444,9 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
   }
 }
 
-void context_impl::DeviceGlobalInitializer::ClearEvents(
-    const AdapterPtr &Adapter) {
+void context_impl::DeviceGlobalInitializer::ClearEvents(adapter_impl &Adapter) {
   for (const ur_event_handle_t &Event : MDeviceGlobalInitEvents)
-    Adapter->call<UrApiKind::urEventRelease>(Event);
+    Adapter.call<UrApiKind::urEventRelease>(Event);
   MDeviceGlobalInitEvents.clear();
 }
 
@@ -506,7 +499,7 @@ std::optional<ur_program_handle_t> context_impl::getProgramForDevImgs(
     const device &Device, const std::set<std::uintptr_t> &ImgIdentifiers,
     const std::string &ObjectTypeName) {
 
-  KernelProgramCache::ProgramBuildResultPtr BuildRes = nullptr;
+  std::shared_ptr<KernelProgramCache::ProgramBuildResult> BuildRes = nullptr;
   {
     auto LockedCache = MKernelProgramCache.acquireCachedPrograms();
     auto &KeyMap = LockedCache.get().KeyMap;
@@ -578,7 +571,7 @@ context_impl::get_default_memory_pool(const context &Context,
 
   detail::device_impl &DevImpl = *detail::getSyclObjImpl(Device);
   ur_device_handle_t DeviceHandle = DevImpl.getHandleRef();
-  const sycl::detail::AdapterPtr &Adapter = this->getAdapter();
+  detail::adapter_impl &Adapter = this->getAdapter();
 
   // Check dev is already in our list of device pool pairs.
   if (auto it = std::find_if(MMemPoolImplPtrs.begin(), MMemPoolImplPtrs.end(),
@@ -591,8 +584,8 @@ context_impl::get_default_memory_pool(const context &Context,
 
   // The memory_pool_impl does not exist for this device yet.
   ur_usm_pool_handle_t PoolHandle;
-  Adapter->call<sycl::errc::runtime,
-                sycl::detail::UrApiKind::urUSMPoolGetDefaultDevicePoolExp>(
+  Adapter.call<sycl::errc::runtime,
+               sycl::detail::UrApiKind::urUSMPoolGetDefaultDevicePoolExp>(
       this->getHandleRef(), DeviceHandle, &PoolHandle);
 
   auto MemPoolImplPtr = std::make_shared<

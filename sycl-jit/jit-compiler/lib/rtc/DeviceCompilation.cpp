@@ -11,15 +11,13 @@
 #include "JITBinaryInfo.h"
 #include "translation/Translation.h"
 
-#include <Driver/ToolChains/AMDGPU.h>
-#include <Driver/ToolChains/Cuda.h>
-#include <Driver/ToolChains/LazyDetector.h>
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
 #include <clang/Driver/Compilation.h>
 #include <clang/Driver/Driver.h>
 #include <clang/Driver/Options.h>
+#include <clang/Driver/ToolChain.h>
 #include <clang/Frontend/ChainedDiagnosticConsumer.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendActions.h>
@@ -58,6 +56,7 @@ using namespace llvm::opt;
 using namespace llvm::sycl;
 using namespace llvm::module_split;
 using namespace llvm::util;
+using namespace llvm::vfs;
 using namespace jit_compiler;
 
 #ifdef _GNU_SOURCE
@@ -336,19 +335,13 @@ static void adjustArgs(const InputArgList &UserArgList,
     auto [CPU, Features] =
         Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
     (void)Features;
-    if (Format == BinaryFormat::AMDGCN) {
-      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ),
-                       "amdgcn-amd-amdhsa");
-      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ),
-                       "amdgcn-amd-amdhsa");
-      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
-    } else {
-      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ),
-                       "nvptx64-nvidia-cuda");
-      DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Xsycl_backend));
-      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_cuda_gpu_arch_EQ), CPU);
-    }
+    StringRef OT = Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda"
+                                               : "amdgcn-amd-amdhsa";
+    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ), OT);
+    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ), OT);
+    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
   }
+
   ArgStringList ASL;
   for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
   for_each(UserArgList,
@@ -630,52 +623,66 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
 
   // For GPU targets we need to link against vendor provided libdevice.
   if (IsCudaHIP) {
+    std::string Argv0 = DPCPPRoot + "/bin/clang++";
     Triple T{Module.getTargetTriple()};
-    Driver D{(Twine(DPCPPRoot) + "/bin/clang++").str(), T.getTriple(), Diags};
-    auto [CPU, Features] =
-        Translator::getTargetCPUAndFeatureAttrs(&Module, "", Format);
-    (void)Features;
-    // Helper lambda to link modules.
-    auto LinkInLib = [&](const StringRef LibDevice) -> Error {
-      ModuleUPtr LibDeviceModule;
-      if (auto Error = loadBitcodeLibrary(LibDevice, Context)
-                           .moveInto(LibDeviceModule)) {
-        return Error;
-      }
-      if (Linker::linkModules(Module, std::move(LibDeviceModule),
-                              Linker::LinkOnlyNeeded)) {
-        return createStringError("Unable to link libdevice: %s",
-                                 BuildLog.c_str());
-      }
-      return Error::success();
-    };
-    SmallVector<std::string, 12> LibDeviceFiles;
-    if (Format == BinaryFormat::PTX) {
-      // For NVPTX we can get away with CudaInstallationDetector.
-      LazyDetector<CudaInstallationDetector> CudaInstallation{D, T,
-                                                              UserArgList};
-      auto LibDevice = CudaInstallation->getLibDeviceFile(CPU);
-      if (LibDevice.empty()) {
-        return createStringError("Unable to find Cuda libdevice");
-      }
-      LibDeviceFiles.push_back(LibDevice);
-    } else {
-      // AMDGPU requires entire toolchain in order to provide all common bitcode
-      // libraries.
-      clang::driver::toolchains::ROCMToolChain TC(D, T, UserArgList);
-      auto CommonDeviceLibs = TC.getCommonDeviceLibNames(
-          UserArgList, CPU, Action::OffloadKind::OFK_SYCL, false);
-      if (CommonDeviceLibs.empty()) {
-        return createStringError("Unable to find ROCm common device libraries");
-      }
-      for (auto &Lib : CommonDeviceLibs) {
-        LibDeviceFiles.push_back(Lib.Path);
-      }
+    IntrusiveRefCntPtr<OverlayFileSystem> OFS{
+        new OverlayFileSystem{getRealFileSystem()}};
+    IntrusiveRefCntPtr<InMemoryFileSystem> VFS{new InMemoryFileSystem};
+    std::string CppFileName{"a.cpp"};
+    VFS->addFile(CppFileName, /*ModificationTime=*/0,
+                 MemoryBuffer::getMemBuffer("", ""));
+    OFS->pushOverlay(VFS);
+    Driver D{Argv0, T.getTriple(), Diags, "dpcpp compiler driver", OFS};
+
+    SmallVector<std::string> CommandLine;
+    CommandLine.push_back(Argv0);
+    adjustArgs(UserArgList, DPCPPRoot, Format, CommandLine);
+    CommandLine.push_back(CppFileName);
+    SmallVector<const char *> CommandLineCStr(CommandLine.size());
+    llvm::transform(CommandLine, CommandLineCStr.begin(),
+                    [](const auto &S) { return S.c_str(); });
+
+    Compilation *C = D.BuildCompilation(CommandLineCStr);
+    if (!C) {
+      return createStringError("Unable to construct driver for CUDA/HIP");
     }
-    for (auto &LibDeviceFile : LibDeviceFiles) {
-      // llvm::Error converts to false on success.
-      if (auto Error = LinkInLib(LibDeviceFile)) {
+
+    const ToolChain *OffloadTC =
+        C->getSingleOffloadToolChain<Action::OFK_SYCL>();
+    InputArgList EmptyArgList;
+    auto Archs =
+        D.getOffloadArchs(*C, EmptyArgList, Action::OFK_SYCL, OffloadTC);
+    assert(Archs.size() == 1 &&
+           "Offload toolchain should be configured to single architecture");
+    StringRef CPU = *Archs.begin();
+
+    // Pass only `-march=` or `-mcpu=` with the GPU arch determined by the
+    // driver to `getDeviceLibs`.
+    DerivedArgList CPUArgList{EmptyArgList};
+    if (Format == BinaryFormat::PTX) {
+      CPUArgList.AddJoinedArg(nullptr, D.getOpts().getOption(OPT_march_EQ),
+                              CPU);
+    } else {
+      CPUArgList.AddJoinedArg(nullptr, D.getOpts().getOption(OPT_mcpu_EQ), CPU);
+    }
+
+    SmallVector<ToolChain::BitCodeLibraryInfo, 12> CommonDeviceLibs =
+        OffloadTC->getDeviceLibs(CPUArgList, Action::OffloadKind::OFK_SYCL);
+    if (CommonDeviceLibs.empty()) {
+      return createStringError("Unable to find common device libraries");
+    }
+
+    for (auto &Lib : CommonDeviceLibs) {
+      ModuleUPtr LibModule;
+      if (auto Error =
+              loadBitcodeLibrary(Lib.Path, Context).moveInto(LibModule)) {
         return Error;
+      }
+
+      if (Linker::linkModules(Module, std::move(LibModule),
+                              Linker::LinkOnlyNeeded)) {
+        return createStringError("Unable to link device library %s: %s",
+                                 Lib.Path.c_str(), BuildLog.c_str());
       }
     }
   }

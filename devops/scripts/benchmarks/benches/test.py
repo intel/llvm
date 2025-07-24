@@ -16,7 +16,7 @@ class TestSuite(Suite):
     def __init__(self):
         return
 
-    def setup(self):
+    def setup(self) -> None:
         return
 
     def name(self) -> str:
@@ -96,7 +96,6 @@ class TestBench(Benchmark):
                 value=random_value,
                 command=["test", "--arg1", "foo"],
                 env={"A": "B"},
-                stdout="no output",
                 unit="ms",
             )
         ]

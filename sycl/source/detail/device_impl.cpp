@@ -32,16 +32,15 @@ device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
       MCache{*this} {
   // Interoperability Constructor already calls DeviceRetain in
   // urDeviceCreateWithNativeHandle.
-  getAdapter()->call<UrApiKind::urDeviceRetain>(MDevice);
+  getAdapter().call<UrApiKind::urDeviceRetain>(MDevice);
 }
 
 device_impl::~device_impl() {
   try {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    const AdapterPtr &Adapter = getAdapter();
-    ur_result_t Err =
-        Adapter->call_nocheck<UrApiKind::urDeviceRelease>(MDevice);
-    __SYCL_CHECK_UR_CODE_NO_EXC(Err, Adapter->getBackend());
+    adapter_impl &Adapter = getAdapter();
+    ur_result_t Err = Adapter.call_nocheck<UrApiKind::urDeviceRelease>(MDevice);
+    __SYCL_CHECK_UR_CODE_NO_EXC(Err, Adapter.getBackend());
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_impl", e);
   }
@@ -134,8 +133,8 @@ std::vector<device> device_impl::create_sub_devices(
     size_t SubDevicesCount) const {
   std::vector<ur_device_handle_t> SubDevices(SubDevicesCount);
   uint32_t ReturnedSubDevices = 0;
-  const AdapterPtr &Adapter = getAdapter();
-  Adapter->call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
+  adapter_impl &Adapter = getAdapter();
+  Adapter.call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
       MDevice, Properties, SubDevicesCount, SubDevices.data(),
       &ReturnedSubDevices);
   if (ReturnedSubDevices != SubDevicesCount) {
@@ -281,9 +280,9 @@ std::vector<device> device_impl::create_sub_devices(
   Properties.pProperties = &Prop;
 
   uint32_t SubDevicesCount = 0;
-  const AdapterPtr &Adapter = getAdapter();
-  Adapter->call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
-      MDevice, &Properties, 0, nullptr, &SubDevicesCount);
+  adapter_impl &Adapter = getAdapter();
+  Adapter.call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
+      MDevice, &Properties, 0u, nullptr, &SubDevicesCount);
 
   return create_sub_devices(&Properties, SubDevicesCount);
 }
@@ -306,17 +305,17 @@ std::vector<device> device_impl::create_sub_devices() const {
   Properties.PropCount = 1;
 
   uint32_t SubDevicesCount = 0;
-  const AdapterPtr &Adapter = getAdapter();
-  Adapter->call<UrApiKind::urDevicePartition>(MDevice, &Properties, 0, nullptr,
-                                              &SubDevicesCount);
+  adapter_impl &Adapter = getAdapter();
+  Adapter.call<UrApiKind::urDevicePartition>(MDevice, &Properties, 0u, nullptr,
+                                             &SubDevicesCount);
 
   return create_sub_devices(&Properties, SubDevicesCount);
 }
 
 ur_native_handle_t device_impl::getNative() const {
-  auto Adapter = getAdapter();
+  adapter_impl &Adapter = getAdapter();
   ur_native_handle_t Handle;
-  Adapter->call<UrApiKind::urDeviceGetNativeHandle>(getHandleRef(), &Handle);
+  Adapter.call<UrApiKind::urDeviceGetNativeHandle>(getHandleRef(), &Handle);
   if (getBackend() == backend::opencl) {
     __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(Handle));
   }
@@ -338,7 +337,7 @@ uint64_t device_impl::getCurrentDeviceTime() {
   auto GetGlobalTimestamps = [this](ur_device_handle_t Device,
                                     uint64_t *DeviceTime, uint64_t *HostTime) {
     auto Result =
-        getAdapter()->call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
+        getAdapter().call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
             Device, DeviceTime, HostTime);
     if (Result == UR_RESULT_ERROR_INVALID_OPERATION) {
       // NOTE(UR port): Removed the call to GetLastError because  we shouldn't
@@ -350,7 +349,7 @@ uint64_t device_impl::getCurrentDeviceTime() {
               "Device and/or backend does not support querying timestamp."),
           UR_RESULT_ERROR_INVALID_OPERATION);
     } else {
-      getAdapter()->checkUrResult<errc::feature_not_supported>(Result);
+      getAdapter().checkUrResult<errc::feature_not_supported>(Result);
     }
   };
 

@@ -187,7 +187,7 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
   EXPECT_TRUE(SyclKernelImpl != nullptr);
   std::shared_ptr<sycl::detail::device_image_impl> DeviceImageImpl =
       SyclKernelImpl->getDeviceImage();
-  ur_program_handle_t Program = DeviceImageImpl->get_ur_program_ref();
+  ur_program_handle_t Program = DeviceImageImpl->get_ur_program();
 
   EXPECT_TRUE(nullptr == ExecKernel->MSyclKernel ||
               !ExecKernel->MSyclKernel->isCreatedFromSource());
@@ -304,7 +304,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
     ProgBefore = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
-                                      *sycl::detail::getSyclObjImpl(Dev), Name);
+                                      *sycl::detail::getSyclObjImpl(Dev), Name)
+                     .release();
     auto Mask = PM.getEliminatedKernelArgMask(ProgBefore, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 1);
@@ -329,7 +330,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
     ProgAfter = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
-                                     *sycl::detail::getSyclObjImpl(Dev), Name);
+                                     *sycl::detail::getSyclObjImpl(Dev), Name)
+                    .release();
     auto Mask = PM.getEliminatedKernelArgMask(ProgAfter, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 0);

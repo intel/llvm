@@ -10,37 +10,31 @@
 
 #include <detail/accessor_impl.hpp> // for AccessorImplHost
 #include <detail/cg.hpp>            // for CGExecKernel, CGHostTask, ArgDesc...
-#include <detail/host_task.hpp>     // for HostTask
-#include <sycl/detail/cg_types.hpp> // for CGType
+#include <detail/helpers.hpp>
+#include <detail/host_task.hpp>        // for HostTask
+#include <sycl/detail/cg_types.hpp>    // for CGType
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
 
-#include <cstring> // for memcpy
-#include <fstream> // for fstream, ostream
-#include <iomanip> // for setw, setfill
-#include <vector>  // for vector
+#include <sycl/ext/oneapi/experimental/graph/node.hpp> // for node
+
+#include <cstring>
+#include <fstream>
+#include <iomanip>
+#include <list>
+#include <set>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
-// Forward declarations
-class node;
 
 namespace detail {
 // Forward declarations
 class node_impl;
+class nodes_range;
 class exec_graph_impl;
-
-/// Takes a vector of weak_ptrs to node_impls and returns a vector of node
-/// objects created from those impls, in the same order.
-std::vector<node>
-createNodesFromImpls(const std::vector<std::weak_ptr<node_impl>> &Impls);
-
-/// Takes a vector of shared_ptrs to node_impls and returns a vector of node
-/// objects created from those impls, in the same order.
-std::vector<node>
-createNodesFromImpls(const std::vector<std::shared_ptr<node_impl>> &Impls);
 
 inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
   using sycl::detail::CG;
@@ -92,11 +86,11 @@ public:
   /// Unique identifier for this node.
   id_type MID = getNextNodeID();
   /// List of successors to this node.
-  std::vector<std::weak_ptr<node_impl>> MSuccessors;
+  std::vector<node_impl *> MSuccessors;
   /// List of predecessors to this node.
   ///
   /// Using weak_ptr here to prevent circular references between nodes.
-  std::vector<std::weak_ptr<node_impl>> MPredecessors;
+  std::vector<node_impl *> MPredecessors;
   /// Type of the command-group for the node.
   sycl::detail::CGType MCGType = sycl::detail::CGType::None;
   /// User facing type of the node.
@@ -115,29 +109,29 @@ public:
   /// cannot be used to find out the partion of a node outside of this process.
   int MPartitionNum = -1;
 
+  // Out-of-class as need "complete" `nodes_range`:
+  inline nodes_range successors() const;
+  inline nodes_range predecessors() const;
+
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
-  void registerSuccessor(const std::shared_ptr<node_impl> &Node) {
-    if (std::find_if(MSuccessors.begin(), MSuccessors.end(),
-                     [Node](const std::weak_ptr<node_impl> &Ptr) {
-                       return Ptr.lock() == Node;
-                     }) != MSuccessors.end()) {
+  void registerSuccessor(node_impl &Node) {
+    if (std::find(MSuccessors.begin(), MSuccessors.end(), &Node) !=
+        MSuccessors.end()) {
       return;
     }
-    MSuccessors.push_back(Node);
-    Node->registerPredecessor(shared_from_this());
+    MSuccessors.push_back(&Node);
+    Node.registerPredecessor(*this);
   }
 
   /// Add predecessor to the node.
   /// @param Node Node to add as a predecessor.
-  void registerPredecessor(const std::shared_ptr<node_impl> &Node) {
-    if (std::find_if(MPredecessors.begin(), MPredecessors.end(),
-                     [&Node](const std::weak_ptr<node_impl> &Ptr) {
-                       return Ptr.lock() == Node;
-                     }) != MPredecessors.end()) {
+  void registerPredecessor(node_impl &Node) {
+    if (std::find(MPredecessors.begin(), MPredecessors.end(), &Node) !=
+        MPredecessors.end()) {
       return;
     }
-    MPredecessors.push_back(Node);
+    MPredecessors.push_back(&Node);
   }
 
   /// Construct an empty node.
@@ -179,6 +173,9 @@ public:
     }
     return *this;
   }
+
+  ~node_impl() {}
+
   /// Checks if this node should be a dependency of another node based on
   /// accessor requirements. This is calculated using access modes if a
   /// requirement to the same buffer is found inside this node.
@@ -385,15 +382,13 @@ public:
     Visited.push_back(this);
 
     printDotCG(Stream, Verbose);
-    for (const auto &Dep : MPredecessors) {
-      auto NodeDep = Dep.lock();
-      Stream << "  \"" << NodeDep.get() << "\" -> \"" << this << "\""
-             << std::endl;
+    for (node_impl *Pred : MPredecessors) {
+      Stream << "  \"" << Pred << "\" -> \"" << this << "\"" << std::endl;
     }
 
-    for (std::weak_ptr<node_impl> Succ : MSuccessors) {
-      if (MPartitionNum == Succ.lock()->MPartitionNum)
-        Succ.lock()->printDotRecursive(Stream, Visited, Verbose);
+    for (node_impl *Succ : MSuccessors) {
+      if (MPartitionNum == Succ->MPartitionNum)
+        Succ->printDotRecursive(Stream, Visited, Verbose);
     }
   }
 
@@ -456,9 +451,9 @@ public:
   }
   /// Update this node with the command-group from another node.
   /// @param Other The other node to update, must be of the same node type.
-  void updateFromOtherNode(const std::shared_ptr<node_impl> &Other) {
-    assert(MNodeType == Other->MNodeType);
-    MCommandGroup = Other->getCGCopy();
+  void updateFromOtherNode(node_impl &Other) {
+    assert(MNodeType == Other.MNodeType);
+    MCommandGroup = Other.getCGCopy();
   }
 
   id_type getID() const { return MID; }
@@ -753,6 +748,27 @@ private:
     return std::make_unique<CGT>(*static_cast<CGT *>(MCommandGroup.get()));
   }
 };
+
+template <typename... ContainerTy>
+using nodes_iterator_impl =
+    variadic_iterator<node, typename ContainerTy::const_iterator...>;
+
+using nodes_iterator = nodes_iterator_impl<
+    std::vector<std::shared_ptr<node_impl>>, std::vector<node_impl *>,
+    std::set<std::shared_ptr<node_impl>>, std::set<node_impl *>,
+    std::list<node_impl *>, std::vector<node>>;
+
+class nodes_range : public iterator_range<nodes_iterator> {
+private:
+  using Base = iterator_range<nodes_iterator>;
+
+public:
+  using Base::Base;
+};
+
+inline nodes_range node_impl::successors() const { return MSuccessors; }
+inline nodes_range node_impl::predecessors() const { return MPredecessors; }
+
 } // namespace detail
 } // namespace experimental
 } // namespace oneapi

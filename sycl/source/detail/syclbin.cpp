@@ -9,6 +9,8 @@
 // TODO: Remove once we can consistently link the SYCL runtime library with
 // LLVMObject.
 
+#include <detail/compiler.hpp>
+#include <detail/device_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/syclbin.hpp>
 
@@ -122,6 +124,34 @@ std::pair<const char *, size_t> getImageInOffloadBinary(const char *Data,
                           "Invalid image offset and size.");
 
   return std::make_pair(Data + Entry->ImageOffset, Entry->ImageSize);
+}
+
+const char *getDeviceTargetSpecFromTriple(std::string_view Triple) {
+  size_t TargetSize = Triple.find('-');
+  if (TargetSize == Triple.npos)
+    return __SYCL_DEVICE_BINARY_TARGET_UNKNOWN;
+  std::string_view Target = Triple.substr(0, TargetSize);
+
+  // Return the known targets to ensure null-terminated c-style strings.
+  if (Target == __SYCL_DEVICE_BINARY_TARGET_UNKNOWN)
+    return __SYCL_DEVICE_BINARY_TARGET_UNKNOWN;
+  if (Target == __SYCL_DEVICE_BINARY_TARGET_SPIRV32)
+    return __SYCL_DEVICE_BINARY_TARGET_SPIRV32;
+  if (Target == __SYCL_DEVICE_BINARY_TARGET_SPIRV64)
+    return __SYCL_DEVICE_BINARY_TARGET_SPIRV64;
+  if (Target == __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64)
+    return __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
+  if (Target == __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN)
+    return __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+  if (Target == __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA)
+    return __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
+  if (Target == __SYCL_DEVICE_BINARY_TARGET_NVPTX64)
+    return __SYCL_DEVICE_BINARY_TARGET_NVPTX64;
+  if (Target == __SYCL_DEVICE_BINARY_TARGET_AMDGCN)
+    return __SYCL_DEVICE_BINARY_TARGET_AMDGCN;
+  if (Target == __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU)
+    return __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU;
+  return UR_DEVICE_BINARY_TARGET_UNKNOWN;
 }
 
 } // namespace
@@ -282,12 +312,21 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
 
     for (const SYCLBIN::NativeDeviceCodeImage &NDCI :
          AM.NativeDeviceCodeImages) {
+      assert(NDCI.Metadata != nullptr);
+      PropertySet &NDCIMetadataProps = (*NDCI.Metadata)
+          [PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA];
+
+      auto &TargetTripleProp = NDCIMetadataProps["target"];
+      std::string_view TargetTriple = std::string_view{
+          reinterpret_cast<const char *>(TargetTripleProp.asByteArray()),
+          TargetTripleProp.getByteArraySize()};
+
       sycl_device_binary_struct &DeviceBinary = DeviceBinaries.emplace_back();
       DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
       DeviceBinary.Kind = 4;
       DeviceBinary.Format = SYCL_DEVICE_BINARY_TYPE_NATIVE;
       DeviceBinary.DeviceTargetSpec =
-          __SYCL_DEVICE_BINARY_TARGET_UNKNOWN; // TODO: Determine.
+          getDeviceTargetSpecFromTriple(TargetTriple);
       DeviceBinary.CompileOptions = nullptr;
       DeviceBinary.LinkOptions = nullptr;
       DeviceBinary.ManifestStart = nullptr;
@@ -351,14 +390,13 @@ SYCLBINBinaries::convertAbstractModuleProperties(SYCLBIN::AbstractModule &AM) {
 }
 
 std::vector<const RTDeviceBinaryImage *>
-SYCLBINBinaries::getBestCompatibleImages(const device &Dev) {
-  detail::device_impl &DevImpl = *getSyclObjImpl(Dev);
+SYCLBINBinaries::getBestCompatibleImages(device_impl &Dev) {
   auto SelectCompatibleImages =
       [&](const std::vector<RTDeviceBinaryImage> &Imgs) {
         std::vector<const RTDeviceBinaryImage *> CompatImgs;
         for (const RTDeviceBinaryImage &Img : Imgs)
-          if (doesDevSupportDeviceRequirements(DevImpl, Img) &&
-              doesImageTargetMatchDevice(Img, DevImpl))
+          if (doesDevSupportDeviceRequirements(Dev, Img) &&
+              doesImageTargetMatchDevice(Img, Dev))
             CompatImgs.push_back(&Img);
         return CompatImgs;
       };
@@ -374,9 +412,9 @@ SYCLBINBinaries::getBestCompatibleImages(const device &Dev) {
 }
 
 std::vector<const RTDeviceBinaryImage *>
-SYCLBINBinaries::getBestCompatibleImages(const std::vector<device> &Devs) {
+SYCLBINBinaries::getBestCompatibleImages(devices_range Devs) {
   std::set<const RTDeviceBinaryImage *> Images;
-  for (const device &Dev : Devs) {
+  for (device_impl &Dev : Devs) {
     std::vector<const RTDeviceBinaryImage *> BestImagesForDev =
         getBestCompatibleImages(Dev);
     Images.insert(BestImagesForDev.cbegin(), BestImagesForDev.cend());

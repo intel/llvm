@@ -30,16 +30,16 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-static const adapter_impl &getAdapter(backend Backend) {
+static adapter_impl &getAdapter(backend Backend) {
   switch (Backend) {
   case backend::opencl:
-    return *ur::getAdapter<backend::opencl>();
+    return ur::getAdapter<backend::opencl>();
   case backend::ext_oneapi_level_zero:
-    return *ur::getAdapter<backend::ext_oneapi_level_zero>();
+    return ur::getAdapter<backend::ext_oneapi_level_zero>();
   case backend::ext_oneapi_cuda:
-    return *ur::getAdapter<backend::ext_oneapi_cuda>();
+    return ur::getAdapter<backend::ext_oneapi_cuda>();
   case backend::ext_oneapi_hip:
-    return *ur::getAdapter<backend::ext_oneapi_hip>();
+    return ur::getAdapter<backend::ext_oneapi_hip>();
   default:
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::runtime),
@@ -71,7 +71,7 @@ backend convertUrBackend(ur_backend_t UrBackend) {
 }
 
 platform make_platform(ur_native_handle_t NativeHandle, backend Backend) {
-  const adapter_impl &Adapter = getAdapter(Backend);
+  adapter_impl &Adapter = getAdapter(Backend);
 
   // Create UR platform first.
   ur_platform_handle_t UrPlatform = nullptr;
@@ -84,7 +84,7 @@ platform make_platform(ur_native_handle_t NativeHandle, backend Backend) {
 
 __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
                                  backend Backend) {
-  const adapter_impl &Adapter = getAdapter(Backend);
+  adapter_impl &Adapter = getAdapter(Backend);
 
   ur_device_handle_t UrDevice = nullptr;
   Adapter.call<UrApiKind::urDeviceCreateWithNativeHandle>(
@@ -100,7 +100,7 @@ __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
                                    const async_handler &Handler,
                                    backend Backend, bool KeepOwnership,
                                    const std::vector<device> &DeviceList) {
-  const adapter_impl &Adapter = getAdapter(Backend);
+  adapter_impl &Adapter = getAdapter(Backend);
 
   ur_context_handle_t UrContext = nullptr;
   ur_context_native_properties_t Properties{};
@@ -193,10 +193,10 @@ std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(ur_native_handle_t NativeHandle,
                    const context &TargetContext, bool KeepOwnership,
                    bundle_state State, backend Backend) {
-  const adapter_impl &Adapter = getAdapter(Backend);
+  adapter_impl &Adapter = getAdapter(Backend);
   context_impl &ContextImpl = *getSyclObjImpl(TargetContext);
 
-  ur_program_handle_t UrProgram = nullptr;
+  Managed<ur_program_handle_t> UrProgram{Adapter};
   ur_program_native_properties_t Properties{};
   Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES;
   Properties.isNativeHandleOwned = !KeepOwnership;
@@ -231,7 +231,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
     case (UR_PROGRAM_BINARY_TYPE_NONE):
       if (State == bundle_state::object) {
         auto Res = Adapter.call_nocheck<UrApiKind::urProgramCompileExp>(
-            UrProgram, 1, &Dev, nullptr);
+            UrProgram, 1u, &Dev, nullptr);
         if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
           Res = Adapter.call_nocheck<UrApiKind::urProgramCompile>(
               ContextImpl.getHandleRef(), UrProgram, nullptr);
@@ -241,7 +241,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
 
       else if (State == bundle_state::executable) {
         auto Res = Adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
-            UrProgram, 1, &Dev, nullptr);
+            UrProgram, 1u, &Dev, nullptr);
         if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
           Res = Adapter.call_nocheck<UrApiKind::urProgramBuild>(
               ContextImpl.getHandleRef(), UrProgram, nullptr);
@@ -258,18 +258,19 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
             "Program and kernel_bundle state mismatch " +
                 detail::codeToString(UR_RESULT_ERROR_INVALID_VALUE));
       if (State == bundle_state::executable) {
-        ur_program_handle_t UrLinkedProgram = nullptr;
+        Managed<ur_program_handle_t> UrLinkedProgram{Adapter};
+        ur_program_handle_t ProgramsToLink[] = {UrProgram};
         auto Res = Adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
-            ContextImpl.getHandleRef(), 1, &Dev, 1, &UrProgram, nullptr,
+            ContextImpl.getHandleRef(), 1u, &Dev, 1u, ProgramsToLink, nullptr,
             &UrLinkedProgram);
         if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
           Res = Adapter.call_nocheck<UrApiKind::urProgramLink>(
-              ContextImpl.getHandleRef(), 1, &UrProgram, nullptr,
+              ContextImpl.getHandleRef(), 1u, ProgramsToLink, nullptr,
               &UrLinkedProgram);
         }
         Adapter.checkUrResult<errc::build>(Res);
         if (UrLinkedProgram != nullptr) {
-          UrProgram = UrLinkedProgram;
+          UrProgram = std::move(UrLinkedProgram);
         }
       }
       break;
@@ -301,9 +302,9 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   // do the same to user images, since they may contain references to undefined
   // symbols (e.g. when kernel_bundle is supposed to be joined with another).
   auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
-  auto DevImgImpl =
-      device_image_impl::create(nullptr, TargetContext, Devices, State,
-                                KernelIDs, UrProgram, ImageOriginInterop);
+  auto DevImgImpl = device_image_impl::create(
+      nullptr, TargetContext, Devices, State, KernelIDs, std::move(UrProgram),
+      ImageOriginInterop);
   device_image_plain DevImg{DevImgImpl};
 
   return kernel_bundle_impl::create(TargetContext, Devices, DevImg);
@@ -343,7 +344,7 @@ kernel make_kernel(const context &TargetContext,
     const device_image<bundle_state::executable> &DeviceImage =
         *KernelBundle.begin();
     device_image_impl &DeviceImageImpl = *getSyclObjImpl(DeviceImage);
-    UrProgram = DeviceImageImpl.get_ur_program_ref();
+    UrProgram = DeviceImageImpl.get_ur_program();
   }
 
   // Create UR kernel first.

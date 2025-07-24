@@ -36,21 +36,20 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
       MSharedPtrStorage(nullptr), MHostPtrProvided(true),
       MOwnNativeHandle(OwnNativeHandle) {
   ur_context_handle_t Context = nullptr;
-  const AdapterPtr &Adapter = getAdapter();
+  adapter_impl &Adapter = getAdapter();
 
   ur_mem_native_properties_t MemProperties = {
       UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
-  Adapter->call<UrApiKind::urMemBufferCreateWithNativeHandle>(
+  Adapter.call<UrApiKind::urMemBufferCreateWithNativeHandle>(
       MemObject, MInteropContext->getHandleRef(), &MemProperties,
       &MInteropMemObject);
 
   // Get the size of the buffer in bytes
-  Adapter->call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_SIZE,
-                                         sizeof(size_t), &MSizeInBytes,
-                                         nullptr);
+  Adapter.call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_SIZE,
+                                        sizeof(size_t), &MSizeInBytes, nullptr);
 
-  Adapter->call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_CONTEXT,
-                                         sizeof(Context), &Context, nullptr);
+  Adapter.call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_CONTEXT,
+                                        sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::exception(
@@ -84,7 +83,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
       MSharedPtrStorage(nullptr), MHostPtrProvided(true),
       MOwnNativeHandle(OwnNativeHandle) {
   ur_context_handle_t Context = nullptr;
-  const AdapterPtr &Adapter = getAdapter();
+  adapter_impl &Adapter = getAdapter();
 
   ur_image_desc_t Desc = {};
   Desc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
@@ -101,12 +100,12 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
   ur_mem_native_properties_t NativeProperties = {
       UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
 
-  Adapter->call<UrApiKind::urMemImageCreateWithNativeHandle>(
+  Adapter.call<UrApiKind::urMemImageCreateWithNativeHandle>(
       MemObject, MInteropContext->getHandleRef(), &Format, &Desc,
       &NativeProperties, &MInteropMemObject);
 
-  Adapter->call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_CONTEXT,
-                                         sizeof(Context), &Context, nullptr);
+  Adapter.call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_CONTEXT,
+                                        sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::exception(
@@ -138,7 +137,7 @@ void SYCLMemObjT::updateHostMemory(void *const Ptr) {
 
   EventImplPtr Event = Scheduler::getInstance().addCopyBack(&Req);
   if (Event)
-    Event->wait(Event);
+    Event->wait();
 }
 
 void SYCLMemObjT::updateHostMemory() {
@@ -157,14 +156,13 @@ void SYCLMemObjT::updateHostMemory() {
   releaseHostMem(MShadowCopy);
 
   if (MOpenCLInterop) {
-    const AdapterPtr &Adapter = getAdapter();
-    Adapter->call<UrApiKind::urMemRelease>(MInteropMemObject);
+    getAdapter().call<UrApiKind::urMemRelease>(MInteropMemObject);
   }
 }
-const AdapterPtr &SYCLMemObjT::getAdapter() const {
+adapter_impl &SYCLMemObjT::getAdapter() const {
   assert((MInteropContext != nullptr) &&
          "Trying to get Adapter from SYCLMemObjT with nullptr ContextImpl.");
-  return (MInteropContext->getAdapter());
+  return MInteropContext->getAdapter();
 }
 
 bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
