@@ -17,6 +17,7 @@
 
 #include "common.hpp"
 
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 #include "kernel.hpp"
 #include "queue.hpp"
@@ -149,4 +150,6 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   // Track handle objects to free when command-buffer is destroyed.
   std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
       CommandHandles;
+
+  ur::RefCount RefCount;
 };

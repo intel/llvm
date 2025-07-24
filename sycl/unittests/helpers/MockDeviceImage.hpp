@@ -363,10 +363,15 @@ public:
         nullptr, // not used, put here for compatibility with OpenMP
     };
 
-    __sycl_register_lib(&MAllBinaries);
+    sycl::detail::ProgramManager::getInstance().addImages(&MAllBinaries);
   }
 
-  ~MockDeviceImageArray() { __sycl_unregister_lib(&MAllBinaries); }
+  ~MockDeviceImageArray() {
+    // If there is still a global handler, we are not doing full unloading yet.
+    // As such, we need to clean up the images we registered.
+    if (GlobalHandler::isInstanceAlive())
+      sycl::detail::ProgramManager::getInstance().removeImages(&MAllBinaries);
+  }
 
 private:
   sycl_device_binary_struct MNativeImages[NumberOfImages];

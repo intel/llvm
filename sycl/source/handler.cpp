@@ -432,6 +432,28 @@ detail::EventImplPtr handler::finalize() {
 #else
 event handler::finalize() {
 #endif
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Old reduction implementation, prior to
+  //   https://github.com/intel/llvm/pull/18794
+  //   https://github.com/intel/llvm/pull/18898
+  //   https://github.com/intel/llvm/pull/19203
+  // relied on explicit calls to handler::finalize and those calls were inlined
+  // into the user applications. As such, we have to preserve the following
+  // behavior for ABI-compatibility purposes:
+  if (MIsFinalizedDoNotUse)
+    return MLastEventDoNotUse;
+
+  MIsFinalizedDoNotUse = true;
+  // Use macros to trick clang-format:
+#define WRAP_BODY_BEGIN MLastEventDoNotUse = [this]() {
+#define WRAP_BODY_END                                                          \
+  }                                                                            \
+  ();                                                                          \
+  return MLastEventDoNotUse;
+
+  WRAP_BODY_BEGIN
+#endif
+
   const auto &type = getType();
   detail::queue_impl *Queue = impl->get_queue_or_null();
   ext::oneapi::experimental::detail::graph_impl *Graph =
@@ -580,7 +602,7 @@ event handler::finalize() {
 #endif
       auto EnqueueKernel = [&]() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-        int32_t StreamID = xpti::invalid_id<>;
+        auto StreamID = xpti::invalid_id<xpti::stream_id_t>;
         xpti_td *CmdTraceEvent = nullptr;
         uint64_t InstanceID = 0;
         if (xptiEnabled) {
@@ -597,7 +619,7 @@ event handler::finalize() {
 #endif
         const detail::RTDeviceBinaryImage *BinImage = nullptr;
         if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
-          std::tie(BinImage, std::ignore) = detail::retrieveKernelBinary(
+          BinImage = detail::retrieveKernelBinary(
               impl->get_queue(), toKernelNameStrT(MKernelName));
           assert(BinImage && "Failed to obtain a binary image.");
         }
@@ -628,9 +650,7 @@ event handler::finalize() {
         EnqueueKernel();
       } else {
         detail::queue_impl &Queue = impl->get_queue();
-        ResultEvent->setQueue(Queue);
         ResultEvent->setWorkerQueue(Queue.weak_from_this());
-        ResultEvent->setContextImpl(impl->get_context());
         ResultEvent->setStateIncomplete();
         ResultEvent->setSubmissionTime();
 
@@ -870,8 +890,7 @@ event handler::finalize() {
   if (auto GraphImpl = Queue->getCommandGraph(); GraphImpl) {
     auto EventImpl = detail::event_impl::create_completed_host_event();
     EventImpl->setSubmittedQueue(Queue->weak_from_this());
-    std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
-        nullptr;
+    ext::oneapi::experimental::detail::node_impl *NodeImpl = nullptr;
 
     // GraphImpl is read and written in this scope so we lock this graph
     // with full priviledges.
@@ -888,35 +907,35 @@ event handler::finalize() {
       // In-order queues create implicit linear dependencies between nodes.
       // Find the last node added to the graph from this queue, so our new
       // node can set it as a predecessor.
-      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-          Deps;
-      if (auto DependentNode = GraphImpl->getLastInorderNode(Queue)) {
-        Deps.push_back(std::move(DependentNode));
+      std::vector<ext::oneapi::experimental::detail::node_impl *> Deps;
+      if (ext::oneapi::experimental::detail::node_impl *DependentNode =
+              GraphImpl->getLastInorderNode(Queue)) {
+        Deps.push_back(DependentNode);
       }
-      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
+      NodeImpl = &GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       // If we are recording an in-order queue remember the new node, so it
       // can be used as a dependency for any more nodes recorded from this
       // queue.
-      GraphImpl->setLastInorderNode(*Queue, NodeImpl);
+      GraphImpl->setLastInorderNode(*Queue, *NodeImpl);
     } else {
-      auto LastBarrierRecordedFromQueue =
-          GraphImpl->getBarrierDep(Queue->weak_from_this());
-      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-          Deps;
+      ext::oneapi::experimental::detail::node_impl
+          *LastBarrierRecordedFromQueue =
+              GraphImpl->getBarrierDep(Queue->weak_from_this());
+      std::vector<ext::oneapi::experimental::detail::node_impl *> Deps;
 
       if (LastBarrierRecordedFromQueue) {
         Deps.push_back(LastBarrierRecordedFromQueue);
       }
-      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
+      NodeImpl = &GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       if (NodeImpl->MCGType == sycl::detail::CGType::Barrier) {
-        GraphImpl->setBarrierDep(Queue->weak_from_this(), NodeImpl);
+        GraphImpl->setBarrierDep(Queue->weak_from_this(), *NodeImpl);
       }
     }
 
     // Associate an event with this new node and return the event.
-    GraphImpl->addEventForNode(EventImpl, std::move(NodeImpl));
+    GraphImpl->addEventForNode(EventImpl, *NodeImpl);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     return EventImpl;
@@ -936,6 +955,13 @@ event handler::finalize() {
   return DiscardEvent ? nullptr : Event;
 #else
   return detail::createSyclObjFromImpl<event>(Event);
+#endif
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  WRAP_BODY_END
+
+#undef WRAP_BODY_BEGIN
+#undef WRAP_BODY_END
 #endif
 }
 
@@ -1060,6 +1086,10 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
   using detail::kernel_param_kind_t;
+  size_t GlobalSize = impl->MNDRDesc.GlobalSize[0];
+  for (size_t I = 1; I < impl->MNDRDesc.Dims; ++I) {
+    GlobalSize *= impl->MNDRDesc.GlobalSize[I];
+  }
 
   switch (Kind) {
   case kernel_param_kind_t::kind_std_layout:
@@ -1073,34 +1103,32 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
 
     detail::AccessorBaseHost *GBufBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalBuf);
-    detail::AccessorImplPtr GBufImpl = detail::getSyclObjImpl(*GBufBase);
-    detail::Requirement *GBufReq = GBufImpl.get();
-    addArgsForGlobalAccessor(
-        GBufReq, Index, IndexShift, Size, IsKernelCreatedFromSource,
-        impl->MNDRDesc.GlobalSize.size(), impl->MArgs, IsESIMD);
+    detail::Requirement *GBufReq = &*detail::getSyclObjImpl(*GBufBase);
+    addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
+                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
+                             IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GOffsetBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalOffset);
-    detail::AccessorImplPtr GOfssetImpl = detail::getSyclObjImpl(*GOffsetBase);
-    detail::Requirement *GOffsetReq = GOfssetImpl.get();
-    addArgsForGlobalAccessor(
-        GOffsetReq, Index, IndexShift, Size, IsKernelCreatedFromSource,
-        impl->MNDRDesc.GlobalSize.size(), impl->MArgs, IsESIMD);
+    detail::Requirement *GOffsetReq = &*detail::getSyclObjImpl(*GOffsetBase);
+    addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
+                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
+                             IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GFlushBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
-    detail::AccessorImplPtr GFlushImpl = detail::getSyclObjImpl(*GFlushBase);
-    detail::Requirement *GFlushReq = GFlushImpl.get();
+    detail::Requirement *GFlushReq = &*detail::getSyclObjImpl(*GFlushBase);
 
-    size_t GlobalSize = impl->MNDRDesc.GlobalSize.size();
     // If work group size wasn't set explicitly then it must be recieved
     // from kernel attribute or set to default values.
     // For now we can't get this attribute here.
     // So we just suppose that WG size is always default for stream.
     // TODO adjust MNDRDesc when device image contains kernel's attribute
     if (GlobalSize == 0) {
-      // Suppose that work group size is 1 for every dimension
-      GlobalSize = impl->MNDRDesc.NumWorkGroups.size();
+      GlobalSize = impl->MNDRDesc.NumWorkGroups[0];
+      for (size_t I = 1; I < impl->MNDRDesc.Dims; ++I) {
+        GlobalSize *= impl->MNDRDesc.NumWorkGroups[I];
+      }
     }
     addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
@@ -1120,9 +1148,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::device:
     case access::target::constant_buffer: {
       detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
-      addArgsForGlobalAccessor(
-          AccImpl, Index, IndexShift, Size, IsKernelCreatedFromSource,
-          impl->MNDRDesc.GlobalSize.size(), impl->MArgs, IsESIMD);
+      addArgsForGlobalAccessor(AccImpl, Index, IndexShift, Size,
+                               IsKernelCreatedFromSource, GlobalSize,
+                               impl->MArgs, IsESIMD);
       break;
     }
     case access::target::local: {
@@ -2040,11 +2068,11 @@ void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
 
 static bool checkContextSupports(detail::context_impl &ContextImpl,
                                  ur_context_info_t InfoQuery) {
-  auto &Adapter = ContextImpl.getAdapter();
+  adapter_impl &Adapter = ContextImpl.getAdapter();
   ur_bool_t SupportsOp = false;
-  Adapter->call<UrApiKind::urContextGetInfo>(ContextImpl.getHandleRef(),
-                                             InfoQuery, sizeof(ur_bool_t),
-                                             &SupportsOp, nullptr);
+  Adapter.call<UrApiKind::urContextGetInfo>(ContextImpl.getHandleRef(),
+                                            InfoQuery, sizeof(ur_bool_t),
+                                            &SupportsOp, nullptr);
   return SupportsOp;
 }
 
@@ -2241,12 +2269,47 @@ void handler::setKernelIsCooperative(bool KernelIsCooperative) {
   impl->MKernelIsCooperative = KernelIsCooperative;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_experimental_cuda_cluster_launch>();
   impl->MKernelUsesClusterLaunch = true;
-  impl->MNDRDesc.setClusterDimensions(ClusterSize, Dims);
+
+  if (Dims == 1) {
+    sycl::range<1> ClusterSizeTrimmed = {ClusterSize[0]};
+    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+  } else if (Dims == 2) {
+    sycl::range<2> ClusterSizeTrimmed = {ClusterSize[0], ClusterSize[1]};
+    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+  } else if (Dims == 3) {
+    impl->MNDRDesc.setClusterDimensions(ClusterSize);
+  }
+}
+#endif
+
+void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize) {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
+  impl->MKernelUsesClusterLaunch = true;
+  impl->MNDRDesc.setClusterDimensions(ClusterSize);
+}
+
+void handler::setKernelClusterLaunch(sycl::range<2> ClusterSize) {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
+  impl->MKernelUsesClusterLaunch = true;
+  impl->MNDRDesc.setClusterDimensions(ClusterSize);
+}
+
+void handler::setKernelClusterLaunch(sycl::range<1> ClusterSize) {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
+  impl->MKernelUsesClusterLaunch = true;
+  impl->MNDRDesc.setClusterDimensions(ClusterSize);
 }
 
 void handler::setKernelWorkGroupMem(size_t Size) {
@@ -2287,7 +2350,7 @@ kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   device_impl &DeviceImpl = impl->get_device();
   std::array<size_t, 3> UrResult = {};
-  auto Ret = DeviceImpl.getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+  auto Ret = DeviceImpl.getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
       DeviceImpl.getHandleRef(),
       UrInfoCode<
           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
@@ -2401,18 +2464,93 @@ bool handler::HasAssociatedAccessor(detail::AccessorImplHost *Req,
 void handler::setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 sycl::detail::CGType handler::getType() const { return impl->MCGType; }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setNDRangeDescriptorPadded(sycl::range<3> N,
                                          bool SetNumWorkGroups, int Dims) {
-  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups, Dims};
+  if (Dims == 1) {
+    sycl::range<1> Range = {N[0]};
+    impl->MNDRDesc = NDRDescT{Range, SetNumWorkGroups};
+  } else if (Dims == 2) {
+    sycl::range<2> Range = {N[0], N[1]};
+    impl->MNDRDesc = NDRDescT{Range, SetNumWorkGroups};
+  } else if (Dims == 3) {
+    impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+  }
 }
+
 void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                          sycl::id<3> Offset, int Dims) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset, Dims};
+  if (Dims == 1) {
+    sycl::range<1> NumWorkItemsTrimmed = {NumWorkItems[0]};
+    sycl::id<1> OffsetTrimmed = {Offset[0]};
+    impl->MNDRDesc = NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed};
+  } else if (Dims == 2) {
+    sycl::range<2> NumWorkItemsTrimmed = {NumWorkItems[0], NumWorkItems[1]};
+    sycl::id<2> OffsetTrimmed = {Offset[0], Offset[1]};
+    impl->MNDRDesc = NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed};
+  } else if (Dims == 3) {
+    impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+  }
 }
+
 void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                          sycl::range<3> LocalSize,
                                          sycl::id<3> Offset, int Dims) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset, Dims};
+  if (Dims == 1) {
+    sycl::range<1> NumWorkItemsTrimmed = {NumWorkItems[0]};
+    sycl::range<1> LocalSizeTrimmed = {LocalSize[0]};
+    sycl::id<1> OffsetTrimmed = {Offset[0]};
+    impl->MNDRDesc =
+        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed};
+  } else if (Dims == 2) {
+    sycl::range<2> NumWorkItemsTrimmed = {NumWorkItems[0], NumWorkItems[1]};
+    sycl::range<2> LocalSizeTrimmed = {LocalSize[0], LocalSize[1]};
+    sycl::id<2> OffsetTrimmed = {Offset[0], Offset[1]};
+    impl->MNDRDesc =
+        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed};
+  } else if (Dims == 3) {
+    impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+  }
+}
+#endif
+
+void handler::setNDRangeDescriptor(sycl::range<3> N, bool SetNumWorkGroups) {
+  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+}
+void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
+                                   sycl::id<3> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+}
+void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
+                                   sycl::range<3> LocalSize,
+                                   sycl::id<3> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+}
+
+void handler::setNDRangeDescriptor(sycl::range<2> N, bool SetNumWorkGroups) {
+  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+}
+void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
+                                   sycl::id<2> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+}
+void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
+                                   sycl::range<2> LocalSize,
+                                   sycl::id<2> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+}
+
+void handler::setNDRangeDescriptor(sycl::range<1> N, bool SetNumWorkGroups) {
+  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+}
+void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
+                                   sycl::id<1> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+}
+void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
+                                   sycl::range<1> LocalSize,
+                                   sycl::id<1> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
 }
 
 void handler::setKernelNameBasedCachePtr(
@@ -2441,10 +2579,12 @@ void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {
   MCodeLoc = CodeLoc;
   impl->MIsTopCodeLoc = IsTopCodeLoc;
 }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::saveCodeLoc(detail::code_location CodeLoc) {
   MCodeLoc = CodeLoc;
   impl->MIsTopCodeLoc = true;
 }
+#endif
 void handler::copyCodeLoc(const handler &other) {
   MCodeLoc = other.MCodeLoc;
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;

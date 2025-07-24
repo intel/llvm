@@ -165,13 +165,13 @@ public:
 
 const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
     const sycl::kernel_bundle<sycl::bundle_state::input> &KernelBundle,
-    std::shared_ptr<sycl::detail::queue_impl> QueueImpl) {
+    sycl::detail::queue_impl &QueueImpl) {
 
   auto ExecBundle = sycl::link(sycl::compile(KernelBundle));
   EXPECT_FALSE(ExecBundle.empty()) << "Expect non-empty exec kernel bundle";
 
   // Emulating processing of command group function
-  MockHandler MockCGH(*QueueImpl);
+  MockHandler MockCGH(QueueImpl);
   MockCGH.use_kernel_bundle(ExecBundle);
   MockCGH.single_task<EAMTestKernel>([] {}); // Actual kernel does not matter
 
@@ -187,7 +187,7 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
   EXPECT_TRUE(SyclKernelImpl != nullptr);
   std::shared_ptr<sycl::detail::device_image_impl> DeviceImageImpl =
       SyclKernelImpl->getDeviceImage();
-  ur_program_handle_t Program = DeviceImageImpl->get_ur_program_ref();
+  ur_program_handle_t Program = DeviceImageImpl->get_ur_program();
 
   EXPECT_TRUE(nullptr == ExecKernel->MSyclKernel ||
               !ExecKernel->MSyclKernel->isCreatedFromSource());
@@ -218,7 +218,7 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
 
   const sycl::detail::KernelArgMask *EliminatedArgMask =
       getKernelArgMaskFromBundle(KernelBundle,
-                                 sycl::detail::getSyclObjImpl(Queue));
+                                 *sycl::detail::getSyclObjImpl(Queue));
   assert(EliminatedArgMask && "EliminatedArgMask must be not null");
 
   sycl::detail::KernelArgMask ExpElimArgMask(EAMTestKernelNumArgs);
@@ -304,7 +304,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
     ProgBefore = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
-                                      *sycl::detail::getSyclObjImpl(Dev), Name);
+                                      *sycl::detail::getSyclObjImpl(Dev), Name)
+                     .release();
     auto Mask = PM.getEliminatedKernelArgMask(ProgBefore, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 1);
@@ -329,7 +330,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
     ProgAfter = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
-                                     *sycl::detail::getSyclObjImpl(Dev), Name);
+                                     *sycl::detail::getSyclObjImpl(Dev), Name)
+                    .release();
     auto Mask = PM.getEliminatedKernelArgMask(ProgAfter, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 0);

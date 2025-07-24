@@ -49,6 +49,9 @@ public:
   /// `__attribute__((destructor))` is called).
   static GlobalHandler &instance();
 
+  /// \return true if the instance has not been deallocated yet.
+  static bool isInstanceAlive();
+
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
   GlobalHandler &operator=(const GlobalHandler &) = delete;
@@ -95,7 +98,7 @@ private:
 
   bool OkToDefer = true;
 
-  friend void shutdown_early();
+  friend void shutdown_early(bool);
   friend void shutdown_late();
   friend class ObjectUsageCounter;
   static GlobalHandler *&getInstancePtr();

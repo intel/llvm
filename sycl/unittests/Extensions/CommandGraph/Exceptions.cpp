@@ -281,11 +281,11 @@ TEST_F(CommandGraphTest, ExplicitBarrierDependencyException) {
   Graph2.begin_recording({Queue});
 
   auto Node = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Graph2.end_recording();
 
   auto Event = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   Graph.begin_recording(Queue);
 
@@ -440,9 +440,9 @@ TEST_F(CommandGraphTest, WorkGroupScratchMemoryCheck) {
 TEST_F(CommandGraphTest, MakeEdgeErrors) {
   // Set up some nodes in the graph
   auto NodeA = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto NodeB = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   // Test error on calling make_edge when a queue is recording to the graph
   Graph.begin_recording(Queue);
@@ -475,7 +475,7 @@ TEST_F(CommandGraphTest, MakeEdgeErrors) {
   experimental::command_graph<experimental::graph_state::modifiable> GraphOther{
       Queue.get_context(), Queue.get_device()};
   auto NodeOther = GraphOther.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   ASSERT_THROW(
       {
@@ -502,20 +502,20 @@ TEST_F(CommandGraphTest, MakeEdgeErrors) {
   // state.
 
   auto CheckGraphStructure = [&]() {
-    auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-    auto NodeAImpl = sycl::detail::getSyclObjImpl(NodeA);
-    auto NodeBImpl = sycl::detail::getSyclObjImpl(NodeB);
+    experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+    experimental::detail::node_impl &NodeAImpl = *getSyclObjImpl(NodeA);
+    experimental::detail::node_impl &NodeBImpl = *getSyclObjImpl(NodeB);
 
-    ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
-    ASSERT_EQ((*GraphImpl->MRoots.begin()).lock(), NodeAImpl);
+    ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
+    ASSERT_EQ(*GraphImpl.MRoots.begin(), &NodeAImpl);
 
-    ASSERT_EQ(NodeAImpl->MSuccessors.size(), 1lu);
-    ASSERT_EQ(NodeAImpl->MPredecessors.size(), 0lu);
-    ASSERT_EQ(NodeAImpl->MSuccessors.front().lock(), NodeBImpl);
+    ASSERT_EQ(NodeAImpl.MSuccessors.size(), 1lu);
+    ASSERT_EQ(NodeAImpl.MPredecessors.size(), 0lu);
+    ASSERT_EQ(NodeAImpl.MSuccessors.front(), &NodeBImpl);
 
-    ASSERT_EQ(NodeBImpl->MSuccessors.size(), 0lu);
-    ASSERT_EQ(NodeBImpl->MPredecessors.size(), 1lu);
-    ASSERT_EQ(NodeBImpl->MPredecessors.front().lock(), NodeAImpl);
+    ASSERT_EQ(NodeBImpl.MSuccessors.size(), 0lu);
+    ASSERT_EQ(NodeBImpl.MPredecessors.size(), 1lu);
+    ASSERT_EQ(NodeBImpl.MPredecessors.front(), &NodeAImpl);
   };
   // Make a normal edge
   ASSERT_NO_THROW(Graph.make_edge(NodeA, NodeB));
@@ -598,9 +598,9 @@ TEST_F(CommandGraphTest, InvalidHostAccessor) {
 TEST_F(CommandGraphTest, ProfilingException) {
   Graph.begin_recording(Queue);
   auto Event1 = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Event2 = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Graph.end_recording(Queue);
 
   try {
@@ -617,7 +617,7 @@ TEST_F(CommandGraphTest, ProfilingException) {
 TEST_F(CommandGraphTest, ProfilingExceptionProperty) {
   Graph.begin_recording(Queue);
   auto Event1 = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Graph.end_recording(Queue);
 
   // Checks exception thrown if profiling is requested while profiling has
@@ -652,9 +652,9 @@ TEST_F(CommandGraphTest, ClusterLaunchException) {
   try {
     Graph.begin_recording(Queue);
     auto Event1 = Queue.submit([&](sycl::handler &cgh) {
-      cgh.parallel_for<TestKernel<>>(sycl::nd_range<1>({4096}, {32}),
-                                     cluster_launch_property,
-                                     [&](sycl::nd_item<1> it) {});
+      cgh.parallel_for<TestKernel>(sycl::nd_range<1>({4096}, {32}),
+                                   cluster_launch_property,
+                                   [&](sycl::nd_item<1> it) {});
     });
     Queue.wait();
     Graph.end_recording(Queue);
@@ -750,9 +750,7 @@ TEST_F(CommandGraphTest, RecordingWrongGraphDep) {
 TEST_F(CommandGraphTest, DynamicCommandGroupWrongGraph) {
   experimental::command_graph Graph1{Queue.get_context(), Queue.get_device()};
   experimental::command_graph Graph2{Queue.get_context(), Queue.get_device()};
-  auto CGF = [&](sycl::handler &CGH) {
-    CGH.single_task<TestKernel<>>([]() {});
-  };
+  auto CGF = [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); };
 
   experimental::dynamic_command_group DynCG(Graph2, {CGF});
   ASSERT_THROW(Graph1.add(DynCG), sycl::exception);

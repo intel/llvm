@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
+#include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "llvm/ADT/SmallSet.h"
@@ -147,7 +148,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
     const llvm::opt::ArgList &Args)
-    : D(D) {}
+    : SYCLInstallationDetector(D) {}
 
 static llvm::SmallString<64>
 getLibSpirvBasename(const llvm::Triple &DeviceTriple,
@@ -209,9 +210,18 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 void SYCLInstallationDetector::addLibspirvLinkArgs(
     const llvm::Triple &DeviceTriple, const llvm::opt::ArgList &DriverArgs,
     const llvm::Triple &HostTriple, llvm::opt::ArgStringList &CC1Args) const {
-  if (DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||
-      D.offloadDeviceOnly())
+  DriverArgs.claimAllArgs(options::OPT_fno_sycl_libspirv);
+
+  if (D.offloadDeviceOnly())
     return;
+
+  if (DriverArgs.hasArg(options::OPT_fno_sycl_libspirv)) {
+    // -fno-sycl-libspirv flag is reserved for very unusual cases where the
+    // libspirv library is not linked when required by the device: so output
+    // appropriate warnings.
+    D.Diag(diag::warn_flag_no_sycl_libspirv) << DeviceTriple.str();
+    return;
+  }
 
   if (const char *LibSpirvFile =
           findLibspirvPath(DeviceTriple, DriverArgs, HostTriple)) {
@@ -1598,6 +1608,12 @@ void SYCLToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
     Action::OffloadKind DeviceOffloadingKind) const {
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
+
+  if (DeviceOffloadingKind == Action::OFK_SYCL &&
+      !getTriple().isSPIROrSPIRV()) {
+    SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
+                                         HostTC.getTriple(), CC1Args);
+  }
 }
 
 llvm::opt::DerivedArgList *
