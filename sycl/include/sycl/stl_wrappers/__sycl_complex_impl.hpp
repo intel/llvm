@@ -83,7 +83,7 @@ float __complex__ __mulsc3(float __a, float __b, float __c, float __d) {
     }
     if (__recalc) {
       z = __SYCL_CMPLXF((INFINITY * (__a * __c - __b * __d)),
-                 (INFINITY * (__a * __d + __b * __c)));
+                        (INFINITY * (__a * __d + __b * __c)));
     }
   }
   return z;
@@ -91,16 +91,14 @@ float __complex__ __mulsc3(float __a, float __b, float __c, float __d) {
 // __muldc3
 // Returns: the product of a + ib and c + id
 __SYCL_DEVICE_C
-double __complex__ __muldc3(double __a, double __b, double __c,
-                                        double __d) {
+double __complex__ __muldc3(double __a, double __b, double __c, double __d) {
   double __ac = __a * __c;
   double __bd = __b * __d;
   double __ad = __a * __d;
   double __bc = __b * __c;
   double __complex__ z;
   z = __SYCL_CMPLX((__ac - __bd), (__ad + __bc));
-  if (__spirv_IsNan(creal(z)) &&
-      __spirv_IsNan(cimag(z))) {
+  if (__spirv_IsNan(creal(z)) && __spirv_IsNan(cimag(z))) {
     int __recalc = 0;
     if (__spirv_IsInf(__a) || __spirv_IsInf(__b)) {
       __a = __spirv_ocl_copysign(__spirv_IsInf(__a) ? 1.0 : 0.0, __a);
@@ -134,12 +132,11 @@ double __complex__ __muldc3(double __a, double __b, double __c,
     }
     if (__recalc) {
       z = __SYCL_CMPLX((INFINITY * (__a * __c - __b * __d)),
-                (INFINITY * (__a * __d + __b * __c)));
+                       (INFINITY * (__a * __d + __b * __c)));
     }
   }
   return z;
 }
-
 
 // __divsc3
 // Returns: the quotient of (a + ib) / (c + id)
@@ -188,8 +185,7 @@ float __complex__ __divsc3(float __a, float __b, float __c, float __d) {
 // __divdc3
 // Returns: the quotient of (a + ib) / (c + id)
 __SYCL_DEVICE_C
-double __complex__ __divdc3(double __a, double __b, double __c,
-                                        double __d) {
+double __complex__ __divdc3(double __a, double __b, double __c, double __d) {
   int __ilogbw = 0;
   double __logbw = __spirv_ocl_logb(
       __spirv_ocl_fmax(__spirv_ocl_fabs(__c), __spirv_ocl_fabs(__d)));
@@ -257,8 +253,7 @@ float __complex__ cprojf(float __complex__ z) {
 __SYCL_DEVICE_C
 double __complex__ cproj(double __complex__ z) {
   double __complex__ r = z;
-  if (__spirv_IsInf(creal(z)) ||
-      __spirv_IsInf(cimag(z)))
+  if (__spirv_IsInf(creal(z)) || __spirv_IsInf(cimag(z)))
     r = __SYCL_CMPLX(INFINITY, __spirv_ocl_copysign(0.0, cimag(z)));
   return r;
 }
@@ -268,7 +263,8 @@ float __complex__ cexpf(float __complex__ z) {
   float z_imag = cimagf(z);
   float z_real = crealf(z);
   if (z_imag == 0) {
-    return __SYCL_CMPLXF(__spirv_ocl_exp(z_real), __spirv_ocl_copysign(0.f, z_imag));
+    return __SYCL_CMPLXF(__spirv_ocl_exp(z_real),
+                         __spirv_ocl_copysign(0.f, z_imag));
   }
 
   if (__spirv_IsInf(z_real)) {
@@ -284,7 +280,8 @@ float __complex__ cexpf(float __complex__ z) {
   }
 
   float e = __spirv_ocl_exp(z_real);
-  return __SYCL_CMPLXF(e * __spirv_ocl_cos(z_imag), e * __spirv_ocl_sin(z_imag));
+  return __SYCL_CMPLXF(e * __spirv_ocl_cos(z_imag),
+                       e * __spirv_ocl_sin(z_imag));
 }
 __SYCL_DEVICE_C
 double __complex__ cexp(double __complex__ z) {
@@ -348,12 +345,9 @@ float __complex__ cpowf(float __complex__ x, float __complex__ y) {
   return cexpf(w);
 }
 __SYCL_DEVICE_C
-double __complex__ cpow(double __complex__ x,
-                                    double __complex__ y) {
+double __complex__ cpow(double __complex__ x, double __complex__ y) {
   double __complex__ t = clog(x);
-  double __complex__ w =
-      __muldc3(creal(y), cimag(y),
-                           creal(t), cimag(t));
+  double __complex__ w = __muldc3(creal(y), cimag(y), creal(t), cimag(t));
   return cexp(w);
 }
 
@@ -411,10 +405,10 @@ float __complex__ csqrtf(float __complex__ z) {
   if (__spirv_IsInf(z_real)) {
     if (z_real > 0.0f)
       return __SYCL_CMPLXF(z_real, __spirv_IsNan(z_imag)
-                                ? z_imag
-                                : __spirv_ocl_copysign(0.0f, z_imag));
+                                       ? z_imag
+                                       : __spirv_ocl_copysign(0.0f, z_imag));
     return __SYCL_CMPLXF(__spirv_IsNan(z_imag) ? z_imag : 0.0f,
-                  __spirv_ocl_copysign(z_real, z_imag));
+                         __spirv_ocl_copysign(z_real, z_imag));
   }
   return cpolarf(__spirv_ocl_sqrt(cabsf(z)), cargf(z) / 2.0f);
 }
@@ -427,13 +421,12 @@ double __complex__ csqrt(double __complex__ z) {
   if (__spirv_IsInf(z_real)) {
     if (z_real > 0.0)
       return __SYCL_CMPLX(z_real, __spirv_IsNan(z_imag)
-                               ? z_imag
-                               : __spirv_ocl_copysign(0.0, z_imag));
+                                      ? z_imag
+                                      : __spirv_ocl_copysign(0.0, z_imag));
     return __SYCL_CMPLX(__spirv_IsNan(z_imag) ? z_imag : 0.0,
-                 __spirv_ocl_copysign(z_real, z_imag));
+                        __spirv_ocl_copysign(z_real, z_imag));
   }
-  return cpolar(__spirv_ocl_sqrt(cabs(z)),
-                            carg(z) / 2.0);
+  return cpolar(__spirv_ocl_sqrt(cabs(z)), carg(z) / 2.0);
 }
 
 __SYCL_DEVICE_C
@@ -447,7 +440,7 @@ float __complex__ csinhf(float __complex__ z) {
   if (z_imag == 0 && !__spirv_IsFinite(z_real))
     return z;
   return __SYCL_CMPLXF(__spirv_ocl_sinh(z_real) * __spirv_ocl_cos(z_imag),
-                __spirv_ocl_cosh(z_real) * __spirv_ocl_sin(z_imag));
+                       __spirv_ocl_cosh(z_real) * __spirv_ocl_sin(z_imag));
 }
 __SYCL_DEVICE_C
 double __complex__ csinh(double __complex__ z) {
@@ -460,7 +453,7 @@ double __complex__ csinh(double __complex__ z) {
   if (z_imag == 0 && !__spirv_IsFinite(z_real))
     return z;
   return __SYCL_CMPLX(__spirv_ocl_sinh(z_real) * __spirv_ocl_cos(z_imag),
-               __spirv_ocl_cosh(z_real) * __spirv_ocl_sin(z_imag));
+                      __spirv_ocl_cosh(z_real) * __spirv_ocl_sin(z_imag));
 }
 
 __SYCL_DEVICE_C
@@ -476,7 +469,7 @@ float __complex__ ccoshf(float __complex__ z) {
   if (z_imag == 0 && !__spirv_IsFinite(z_real))
     return __SYCL_CMPLXF(__spirv_ocl_fabs(z_real), z_imag);
   return __SYCL_CMPLXF(__spirv_ocl_cosh(z_real) * __spirv_ocl_cos(z_imag),
-                __spirv_ocl_sinh(z_real) * __spirv_ocl_sin(z_imag));
+                       __spirv_ocl_sinh(z_real) * __spirv_ocl_sin(z_imag));
 }
 __SYCL_DEVICE_C
 double __complex__ ccosh(double __complex__ z) {
@@ -491,7 +484,7 @@ double __complex__ ccosh(double __complex__ z) {
   if (z_imag == 0 && !__spirv_IsFinite(z_real))
     return __SYCL_CMPLX(__spirv_ocl_fabs(z_real), z_imag);
   return __SYCL_CMPLX(__spirv_ocl_cosh(z_real) * __spirv_ocl_cos(z_imag),
-               __spirv_ocl_sinh(z_real) * __spirv_ocl_sin(z_imag));
+                      __spirv_ocl_sinh(z_real) * __spirv_ocl_sin(z_imag));
 }
 
 __SYCL_DEVICE_C
@@ -501,8 +494,9 @@ float __complex__ ctanhf(float __complex__ z) {
   if (__spirv_IsInf(z_real)) {
     if (!__spirv_IsFinite(z_imag))
       return __SYCL_CMPLXF(__spirv_ocl_copysign(1.0f, z_real), 0.0f);
-    return __SYCL_CMPLXF(__spirv_ocl_copysign(1.0f, z_real),
-                  __spirv_ocl_copysign(0.0f, __spirv_ocl_sin(2.0f * z_imag)));
+    return __SYCL_CMPLXF(
+        __spirv_ocl_copysign(1.0f, z_real),
+        __spirv_ocl_copysign(0.0f, __spirv_ocl_sin(2.0f * z_imag)));
   }
   if (__spirv_IsNan(z_real) && z_imag == 0)
     return z;
@@ -512,7 +506,7 @@ float __complex__ ctanhf(float __complex__ z) {
   float __2rsh(__spirv_ocl_sinh(__2r));
   if (__spirv_IsInf(__2rsh) && __spirv_IsInf(__d))
     return __SYCL_CMPLXF(((__2rsh > 0.0f) ? 1.0f : -1.0f),
-                  ((__2i > 0.0f) ? 0.0f : -0.0f));
+                         ((__2i > 0.0f) ? 0.0f : -0.0f));
   return __SYCL_CMPLXF(__2rsh / __d, __spirv_ocl_sin(__2i) / __d);
 }
 __SYCL_DEVICE_C
@@ -522,8 +516,9 @@ double __complex__ ctanh(double __complex__ z) {
   if (__spirv_IsInf(z_real)) {
     if (!__spirv_IsFinite(z_imag))
       return __SYCL_CMPLX(__spirv_ocl_copysign(1.0, z_real), 0.0);
-    return __SYCL_CMPLX(__spirv_ocl_copysign(1.0, z_real),
-                 __spirv_ocl_copysign(0.0, __spirv_ocl_sin(2.0 * z_imag)));
+    return __SYCL_CMPLX(
+        __spirv_ocl_copysign(1.0, z_real),
+        __spirv_ocl_copysign(0.0, __spirv_ocl_sin(2.0 * z_imag)));
   }
   if (__spirv_IsNan(z_real) && z_imag == 0)
     return z;
@@ -532,7 +527,8 @@ double __complex__ ctanh(double __complex__ z) {
   double __d(__spirv_ocl_cosh(__2r) + __spirv_ocl_cos(__2i));
   double __2rsh(__spirv_ocl_sinh(__2r));
   if (__spirv_IsInf(__2rsh) && __spirv_IsInf(__d))
-    return __SYCL_CMPLX(((__2rsh > 0.0) ? 1.0 : -1.0), ((__2i > 0.0) ? 0.0 : -0.0));
+    return __SYCL_CMPLX(((__2rsh > 0.0) ? 1.0 : -1.0),
+                        ((__2i > 0.0) ? 0.0 : -0.0));
   return __SYCL_CMPLX(__2rsh / __d, __spirv_ocl_sin(__2i) / __d);
 }
 
@@ -543,8 +539,7 @@ float __complex__ csinf(float __complex__ z) {
 }
 __SYCL_DEVICE_C
 double __complex__ csin(double __complex__ z) {
-  double __complex__ w =
-      csinh( __SYCL_CMPLX(-cimag(z), creal(z)));
+  double __complex__ w = csinh(__SYCL_CMPLX(-cimag(z), creal(z)));
   return __SYCL_CMPLX(cimag(w), -creal(w));
 }
 
@@ -554,7 +549,7 @@ float __complex__ ccosf(float __complex__ z) {
 }
 __SYCL_DEVICE_C
 double __complex__ ccos(double __complex__ z) {
-  return ccosh( __SYCL_CMPLX(-cimag(z), creal(z)));
+  return ccosh(__SYCL_CMPLX(-cimag(z), creal(z)));
 }
 
 __SYCL_DEVICE_C
@@ -564,8 +559,7 @@ float __complex__ ctanf(float __complex__ z) {
 }
 __SYCL_DEVICE_C
 double __complex__ ctan(double __complex__ z) {
-  double __complex__ w =
-      ctanh( __SYCL_CMPLX(-cimag(z), creal(z)));
+  double __complex__ w = ctanh(__SYCL_CMPLX(-cimag(z), creal(z)));
   return __SYCL_CMPLX(cimag(w), -creal(w));
 }
 
@@ -573,13 +567,15 @@ __SYCL_DEVICE_C
 float __complex__ __sqrf(float __complex__ z) {
   float z_real = crealf(z);
   float z_imag = cimagf(z);
-  return __SYCL_CMPLXF((z_real + z_imag) * (z_real - z_imag), 2.0f * z_real * z_imag);
+  return __SYCL_CMPLXF((z_real + z_imag) * (z_real - z_imag),
+                       2.0f * z_real * z_imag);
 }
 __SYCL_DEVICE_C
 double __complex__ __sqr(double __complex__ z) {
   double z_real = creal(z);
   double z_imag = cimag(z);
-  return __SYCL_CMPLX((z_real + z_imag) * (z_real - z_imag), 2.0 * z_real * z_imag);
+  return __SYCL_CMPLX((z_real + z_imag) * (z_real - z_imag),
+                      2.0 * z_real * z_imag);
 }
 
 __SYCL_DEVICE_C
@@ -610,8 +606,10 @@ float __complex__ cacosf(float __complex__ z) {
     return __SYCL_CMPLXF(__pi / 2.0f, -z_imag);
   float __complex__ w = clogf(z + csqrtf(__sqrf(z) - 1.0f));
   if (__spirv_SignBitSet(z_imag))
-    return __SYCL_CMPLXF(__spirv_ocl_fabs(cimagf(w)), __spirv_ocl_fabs(crealf(w)));
-  return __SYCL_CMPLXF(__spirv_ocl_fabs(cimagf(w)), -__spirv_ocl_fabs(crealf(w)));
+    return __SYCL_CMPLXF(__spirv_ocl_fabs(cimagf(w)),
+                         __spirv_ocl_fabs(crealf(w)));
+  return __SYCL_CMPLXF(__spirv_ocl_fabs(cimagf(w)),
+                       -__spirv_ocl_fabs(crealf(w)));
 }
 __SYCL_DEVICE_C
 double __complex__ cacos(double __complex__ z) {
@@ -639,13 +637,10 @@ double __complex__ cacos(double __complex__ z) {
     return __SYCL_CMPLX(__pi / 2.0, -z_imag);
   if (z_real == 0 && (z_imag == 0 || __spirv_IsNan(z_imag)))
     return __SYCL_CMPLX(__pi / 2.0, -z_imag);
-  double __complex__ w =
-      clog(z + csqrt(__sqr(z) - 1.0));
+  double __complex__ w = clog(z + csqrt(__sqr(z) - 1.0));
   if (__spirv_SignBitSet(z_imag))
-    return __SYCL_CMPLX(__spirv_ocl_fabs(cimag(w)),
-                 __spirv_ocl_fabs(creal(w)));
-  return __SYCL_CMPLX(__spirv_ocl_fabs(cimag(w)),
-               -__spirv_ocl_fabs(creal(w)));
+    return __SYCL_CMPLX(__spirv_ocl_fabs(cimag(w)), __spirv_ocl_fabs(creal(w)));
+  return __SYCL_CMPLX(__spirv_ocl_fabs(cimag(w)), -__spirv_ocl_fabs(creal(w)));
 }
 
 __SYCL_DEVICE_C
@@ -669,10 +664,10 @@ float __complex__ casinhf(float __complex__ z) {
   }
   if (__spirv_IsInf(z_imag))
     return __SYCL_CMPLXF(__spirv_ocl_copysign(z_imag, z_real),
-                  __spirv_ocl_copysign(__pi / 2.0f, z_imag));
+                         __spirv_ocl_copysign(__pi / 2.0f, z_imag));
   float __complex__ w = clogf(z + csqrtf(__sqrf(z) + 1.0f));
   return __SYCL_CMPLXF(__spirv_ocl_copysign(crealf(w), z_real),
-                __spirv_ocl_copysign(cimagf(w), z_imag));
+                       __spirv_ocl_copysign(cimagf(w), z_imag));
 }
 __SYCL_DEVICE_C
 double __complex__ casinh(double __complex__ z) {
@@ -695,11 +690,10 @@ double __complex__ casinh(double __complex__ z) {
   }
   if (__spirv_IsInf(z_imag))
     return __SYCL_CMPLX(__spirv_ocl_copysign(z_imag, z_real),
-                 __spirv_ocl_copysign(__pi / 2.0, z_imag));
-  double __complex__ w =
-      clog(z + csqrt(__sqr(z) + 1.0));
+                        __spirv_ocl_copysign(__pi / 2.0, z_imag));
+  double __complex__ w = clog(z + csqrt(__sqr(z) + 1.0));
   return __SYCL_CMPLX(__spirv_ocl_copysign(creal(w), z_real),
-               __spirv_ocl_copysign(cimag(w), z_imag));
+                      __spirv_ocl_copysign(cimag(w), z_imag));
 }
 
 __SYCL_DEVICE_C
@@ -709,8 +703,7 @@ float __complex__ casinf(float __complex__ z) {
 }
 __SYCL_DEVICE_C
 double __complex__ casin(double __complex__ z) {
-  double __complex__ w =
-      casinh( __SYCL_CMPLX(-cimag(z), creal(z)));
+  double __complex__ w = casinh(__SYCL_CMPLX(-cimag(z), creal(z)));
   return __SYCL_CMPLX(cimag(w), -creal(w));
 }
 
@@ -724,9 +717,11 @@ float __complex__ cacoshf(float __complex__ z) {
       return __SYCL_CMPLXF(__spirv_ocl_fabs(z_real), z_imag);
     if (__spirv_IsInf(z_imag)) {
       if (z_real > 0)
-        return __SYCL_CMPLXF(z_real, __spirv_ocl_copysign(__pi * 0.25f, z_imag));
+        return __SYCL_CMPLXF(z_real,
+                             __spirv_ocl_copysign(__pi * 0.25f, z_imag));
       else
-        return __SYCL_CMPLXF(-z_real, __spirv_ocl_copysign(__pi * 0.75f, z_imag));
+        return __SYCL_CMPLXF(-z_real,
+                             __spirv_ocl_copysign(__pi * 0.75f, z_imag));
     }
     if (z_real < 0)
       return __SYCL_CMPLXF(-z_real, __spirv_ocl_copysign(__pi, z_imag));
@@ -739,10 +734,10 @@ float __complex__ cacoshf(float __complex__ z) {
   }
   if (__spirv_IsInf(z_imag))
     return __SYCL_CMPLXF(__spirv_ocl_fabs(z_imag),
-                  __spirv_ocl_copysign(__pi / 2.0f, z_imag));
+                         __spirv_ocl_copysign(__pi / 2.0f, z_imag));
   float __complex__ w = clogf(z + csqrtf(__sqrf(z) - 1.0f));
   return __SYCL_CMPLXF(__spirv_ocl_copysign(crealf(w), 0.0f),
-                __spirv_ocl_copysign(cimagf(w), z_imag));
+                       __spirv_ocl_copysign(cimagf(w), z_imag));
 }
 __SYCL_DEVICE_C
 double __complex__ cacosh(double __complex__ z) {
@@ -756,7 +751,8 @@ double __complex__ cacosh(double __complex__ z) {
       if (z_real > 0)
         return __SYCL_CMPLX(z_real, __spirv_ocl_copysign(__pi * 0.25f, z_imag));
       else
-        return __SYCL_CMPLX(-z_real, __spirv_ocl_copysign(__pi * 0.75f, z_imag));
+        return __SYCL_CMPLX(-z_real,
+                            __spirv_ocl_copysign(__pi * 0.75f, z_imag));
     }
     if (z_real < 0)
       return __SYCL_CMPLX(-z_real, __spirv_ocl_copysign(__pi, z_imag));
@@ -769,11 +765,10 @@ double __complex__ cacosh(double __complex__ z) {
   }
   if (__spirv_IsInf(z_imag))
     return __SYCL_CMPLX(__spirv_ocl_fabs(z_imag),
-                 __spirv_ocl_copysign(__pi / 2.0, z_imag));
-  double __complex__ w =
-      clog(z + csqrt(__sqr(z) - 1.0));
+                        __spirv_ocl_copysign(__pi / 2.0, z_imag));
+  double __complex__ w = clog(z + csqrt(__sqr(z) - 1.0));
   return __SYCL_CMPLX(__spirv_ocl_copysign(creal(w), 0.0),
-               __spirv_ocl_copysign(cimag(w), z_imag));
+                      __spirv_ocl_copysign(cimag(w), z_imag));
 }
 
 __SYCL_DEVICE_C
@@ -783,7 +778,7 @@ float __complex__ catanhf(float __complex__ z) {
   const float __pi(__spirv_ocl_atan2(+0.0f, -0.0f));
   if (__spirv_IsInf(z_imag))
     return __SYCL_CMPLXF(__spirv_ocl_copysign(0.0f, z_real),
-                  __spirv_ocl_copysign(__pi / 2.0f, z_imag));
+                         __spirv_ocl_copysign(__pi / 2.0f, z_imag));
   if (__spirv_IsNan(z_imag)) {
     if (__spirv_IsInf(z_real) || z_real == 0)
       return __SYCL_CMPLXF(__spirv_ocl_copysign(0.0f, z_real), z_imag);
@@ -793,17 +788,17 @@ float __complex__ catanhf(float __complex__ z) {
     return __SYCL_CMPLXF(z_real, z_real);
   if (__spirv_IsInf(z_real))
     return __SYCL_CMPLXF(__spirv_ocl_copysign(0.0f, z_real),
-                  __spirv_ocl_copysign(__pi / 2.0f, z_imag));
+                         __spirv_ocl_copysign(__pi / 2.0f, z_imag));
   if (__spirv_ocl_fabs(z_real) == 1.0f && z_imag == 0.0f)
     return __SYCL_CMPLXF(__spirv_ocl_copysign(INFINITY, z_real),
-                  __spirv_ocl_copysign(0.0f, z_imag));
+                         __spirv_ocl_copysign(0.0f, z_imag));
   float __complex__ t1 = 1.0f + z;
   float __complex__ t2 = 1.0f - z;
   float __complex__ t3 =
       __divsc3(crealf(t1), cimagf(t1), crealf(t2), cimagf(t2));
   float __complex__ w = clogf(t3) / 2.0f;
   return __SYCL_CMPLXF(__spirv_ocl_copysign(crealf(w), z_real),
-                __spirv_ocl_copysign(cimagf(w), z_imag));
+                       __spirv_ocl_copysign(cimagf(w), z_imag));
 }
 __SYCL_DEVICE_C
 double __complex__ catanh(double __complex__ z) {
@@ -812,7 +807,7 @@ double __complex__ catanh(double __complex__ z) {
   const double __pi(__spirv_ocl_atan2(+0.0, -0.0));
   if (__spirv_IsInf(z_imag))
     return __SYCL_CMPLX(__spirv_ocl_copysign(0.0, z_real),
-                 __spirv_ocl_copysign(__pi / 2.0, z_imag));
+                        __spirv_ocl_copysign(__pi / 2.0, z_imag));
   if (__spirv_IsNan(z_imag)) {
     if (__spirv_IsInf(z_real) || z_real == 0)
       return __SYCL_CMPLX(__spirv_ocl_copysign(0.0, z_real), z_imag);
@@ -822,18 +817,17 @@ double __complex__ catanh(double __complex__ z) {
     return __SYCL_CMPLX(z_real, z_real);
   if (__spirv_IsInf(z_real))
     return __SYCL_CMPLX(__spirv_ocl_copysign(0.0, z_real),
-                 __spirv_ocl_copysign(__pi / 2.0, z_imag));
+                        __spirv_ocl_copysign(__pi / 2.0, z_imag));
   if (__spirv_ocl_fabs(z_real) == 1.0 && z_imag == 0.0)
-    return __SYCL_CMPLX(__spirv_ocl_copysign(static_cast<double>(INFINITY), z_real),
-                 __spirv_ocl_copysign(0.0, z_imag));
+    return __SYCL_CMPLX(
+        __spirv_ocl_copysign(static_cast<double>(INFINITY), z_real),
+        __spirv_ocl_copysign(0.0, z_imag));
   double __complex__ t1 = 1.0 + z;
   double __complex__ t2 = 1.0 - z;
-  double __complex__ t3 =
-      __divdc3(creal(t1), cimag(t1),
-                           creal(t2), cimag(t2));
+  double __complex__ t3 = __divdc3(creal(t1), cimag(t1), creal(t2), cimag(t2));
   double __complex__ w = clog(t3) / 2.0;
   return __SYCL_CMPLX(__spirv_ocl_copysign(creal(w), z_real),
-               __spirv_ocl_copysign(cimag(w), z_imag));
+                      __spirv_ocl_copysign(cimag(w), z_imag));
 }
 
 __SYCL_DEVICE_C
@@ -843,11 +837,9 @@ float __complex__ catanf(float __complex__ z) {
 }
 __SYCL_DEVICE_C
 double __complex__ catan(double __complex__ z) {
-  double __complex__ w =
-      catanh( __SYCL_CMPLX(-cimag(z), creal(z)));
+  double __complex__ w = catanh(__SYCL_CMPLX(-cimag(z), creal(z)));
   return __SYCL_CMPLX(cimag(w), -creal(w));
 }
-
 
 #undef __SYCL_CMPLXF
 #undef __SYCL_DEVICE_C
