@@ -31,6 +31,9 @@ struct ur_queue_handle_t_ : RefCounted {
   // constantly creating new ones in case there is a long-running program that
   // never destroys the ur queue. Out-of-order queues create ol queues when
   // needed; any queues that are not yet created are nullptr.
+  // This is a simpler implementation of the HIP/Cuda queue pooling logic in
+  // `stream_queue_t`. In the future, if we want more performance or it
+  // simplifies the implementation of a feature, we can consider using it.
   std::vector<ol_queue_handle_t> OffloadQueues;
   size_t QueueOffset;
   ol_device_handle_t OffloadDevice;
