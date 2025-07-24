@@ -11305,6 +11305,168 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_memory_export_alloc_exportable_memory_exp_params_t params = {
+      &hContext, &hDevice, &alignment, &size, &handleTypeToExport, &ppMem};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urMemoryExportAllocExportableMemoryExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urMemoryExportAllocExportableMemoryExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urMemoryExportAllocExportableMemoryExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportFreeExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
+    /// [in] Handle to context in which to free memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to free memory.
+    ur_device_handle_t hDevice,
+    /// [in][release] Pointer to exportable memory to be deallocated.
+    void *pMem) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_memory_export_free_exportable_memory_exp_params_t params = {
+      &hContext, &hDevice, &pMem};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urMemoryExportFreeExportableMemoryExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urMemoryExportFreeExportableMemoryExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urMemoryExportFreeExportableMemoryExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportExportMemoryHandleExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
+    /// [in] Handle to context in which the exportable memory was allocated.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which the exportable memory was allocated.
+    ur_device_handle_t hDevice,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [in] Pointer to exportable memory handle.
+    void *pMem,
+    /// [out] Returned exportable handle to memory allocated in `pMem`
+    void *pMemHandleRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_memory_export_export_memory_handle_exp_params_t params = {
+      &hContext, &hDevice, &handleTypeToExport, &pMem, &pMemHandleRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urMemoryExportExportMemoryHandleExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urMemoryExportExportMemoryHandleExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urMemoryExportExportMemoryHandleExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuildExp
 __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     /// [in] Handle of the program to build.
@@ -12424,6 +12586,41 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
   pDdiTable->pfnGetInfo = driver::urMemGetInfo;
 
   pDdiTable->pfnImageGetInfo = driver::urMemImageGetInfo;
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's MemoryExportExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetMemoryExportExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_memory_export_exp_dditable_t *pDdiTable) try {
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (driver::d_context.version < version)
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnAllocExportableMemoryExp =
+      driver::urMemoryExportAllocExportableMemoryExp;
+
+  pDdiTable->pfnFreeExportableMemoryExp =
+      driver::urMemoryExportFreeExportableMemoryExp;
+
+  pDdiTable->pfnExportMemoryHandleExp =
+      driver::urMemoryExportExportMemoryHandleExp;
 
   return result;
 } catch (...) {
