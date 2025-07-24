@@ -81,8 +81,8 @@ int main(){
 // CHECK-NORTC-NEXT: namespace detail {
 // CHECK-NORTC-NEXT: struct GlobalMapUpdater {
 // CHECK-NORTC-NEXT:   GlobalMapUpdater() {
-// CHECK-NORTC-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names[0], reinterpret_cast<const void*>(sycl::detail::kernel_args_sizes + 0));
-// CHECK-NORTC-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names[1], reinterpret_cast<const void*>(sycl::detail::kernel_args_sizes + 1));
+// CHECK-NORTC-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names[0], sycl::detail::kernel_args_sizes[0]);
+// CHECK-NORTC-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names[1], sycl::detail::kernel_args_sizes[1]);
 // CHECK-NORTC-NEXT:   }
 // CHECK-NORTC-NEXT: };
 // CHECK-NORTC-NEXT: static GlobalMapUpdater updater;

@@ -257,12 +257,11 @@ public:
 
   // The function inserts or initializes a kernel global desc into the
   // kernel global map.
-  void registerKernelGlobalInfo(const char *UniqueId,
-                                const void *KernelGlobalPtr);
+  void registerKernelGlobalInfo(const char *UniqueId, unsigned KernelGlobalPtr);
 
   // The function returns a pointer to the kernel global desc identified by
   // the unique ID from the kernel global map.
-  const void *getKernelGlobalInfoDesc(const char *UniqueId);
+  std::optional<unsigned> getKernelGlobalInfoDesc(const char *UniqueId);
 
   // Returns true if any available image is compatible with the device Dev.
   bool hasCompatibleImage(const device_impl &DeviceImpl);
@@ -549,7 +548,7 @@ protected:
 
   // Maps between host_pipe identifiers and associated kernel global
   // information.
-  std::unordered_map<KernelNameStrT, const void *> m_KernelGlobalInfo;
+  std::unordered_map<KernelNameStrT, unsigned> m_KernelGlobalInfo;
 
   // Maps between host_pipe identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>

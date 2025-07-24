@@ -1050,10 +1050,7 @@ public:
   std::optional<unsigned>
   tryGetKernelArgsSize(const std::string_view KernelName) const {
     auto &PM = sycl::detail::ProgramManager::getInstance();
-    const void *GlobalPointer = PM.getKernelGlobalInfoDesc(KernelName.data());
-    if (!GlobalPointer)
-      return std::nullopt;
-    return *reinterpret_cast<const unsigned *>(GlobalPointer);
+    return PM.getKernelGlobalInfoDesc(KernelName.data());
   }
 
 private:

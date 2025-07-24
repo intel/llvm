@@ -12,7 +12,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail::free_function_info_map {
 
-__SYCL_EXPORT void add(const char *UniqueId, const void *KernelGlobalPtr) {
+__SYCL_EXPORT void add(const char *UniqueId, unsigned KernelGlobalPtr) {
   detail::ProgramManager::getInstance().registerKernelGlobalInfo(
       UniqueId, KernelGlobalPtr);
 }

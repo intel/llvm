@@ -2408,14 +2408,15 @@ void ProgramManager::addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
 }
 
 void ProgramManager::registerKernelGlobalInfo(const char *UniqueId,
-                                              const void *KernelGlobalPtr) {
+                                              unsigned KernelGlobalPtr) {
   m_KernelGlobalInfo.emplace(std::string_view(UniqueId), KernelGlobalPtr);
 }
 
-const void *ProgramManager::getKernelGlobalInfoDesc(const char *UniqueId) {
+std::optional<unsigned>
+ProgramManager::getKernelGlobalInfoDesc(const char *UniqueId) {
   const auto It = m_KernelGlobalInfo.find(UniqueId);
   if (It == m_KernelGlobalInfo.end())
-    return nullptr;
+    return std::nullopt;
   return It->second;
 }
 

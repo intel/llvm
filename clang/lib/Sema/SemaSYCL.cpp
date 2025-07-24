@@ -7204,8 +7204,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       continue;
     O << "sycl::detail::free_function_info_map::add("
       << "sycl::detail::kernel_names[" << ShimCounter
-      << "], reinterpret_cast<const void*>(sycl::detail::kernel_args_sizes + "
-      << ShimCounter << "));\n";
+      << "], sycl::detail::kernel_args_sizes[" << ShimCounter << "]);\n";
     ++ShimCounter;
   }
   O << "  }\n";
