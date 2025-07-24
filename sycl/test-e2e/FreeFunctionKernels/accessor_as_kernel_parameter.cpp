@@ -10,23 +10,16 @@
 
 template <int Dims>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
-void globalScopeSingleFreeFunc(
-    sycl::accessor<int, Dims, sycl::access::mode::read_write,
-                   sycl::access::target::device,
-                   sycl::access::placeholder::false_t>
-        Accessor,
-    int Value) {
+void globalScopeSingleFreeFunc(sycl::accessor<int, Dims> Accessor, int Value) {
   for (auto &Elem : Accessor)
     Elem = Value;
 }
 namespace ns {
 template <int Dims>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dims>))
-void nsNdRangeFreeFunc(sycl::accessor<int, Dims, sycl::access::mode::read_write,
-                                      sycl::access::target::device,
-                                      sycl::access::placeholder::false_t>
-                           Accessor,
-                       int Value) {
+void nsNdRangeFreeFunc(
+    sycl::accessor<int, Dims, sycl::access::mode::read_write> Accessor,
+    int Value) {
   auto Item = syclext::this_work_item::get_nd_item<Dims>().get_global_id();
   Accessor[Item] = Value;
 }
@@ -36,17 +29,10 @@ template <int Dims>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dims>))
 void ndRangeFreeFuncMultipleParameters(
     sycl::accessor<int, Dims, sycl::access::mode::read,
-                   sycl::access::target::device,
-                   sycl::access::placeholder::false_t>
+                   sycl::access::target::device>
         InputAAcc,
-    sycl::accessor<int, Dims, sycl::access::mode::read,
-                   sycl::access::target::device,
-                   sycl::access::placeholder::false_t>
-        InputBAcc,
-    sycl::accessor<int, Dims, sycl::access::mode::write,
-                   sycl::access::target::device,
-                   sycl::access::placeholder::false_t>
-        ResultAcc) {
+    sycl::accessor<int, Dims> InputBAcc,
+    sycl::accessor<int, Dims, sycl::access::mode::write> ResultAcc) {
   auto Item = syclext::this_work_item::get_nd_item<Dims>().get_global_id();
   ResultAcc[Item] = InputAAcc[Item] + InputBAcc[Item];
 }
