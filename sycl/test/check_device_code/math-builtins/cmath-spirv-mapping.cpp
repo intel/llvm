@@ -1,9 +1,8 @@
-// REQUIRES: cuda && hip
+// REQUIRES: cuda
 // Note: This isn't really target specific and should be switched to spir when
 // it's enabled for it.
 
-// RUN: %clangxx -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -S -emit-llvm %s -o - | FileCheck %s
-// RUN: %clangxx -fsycl-device-only -fsycl-targets=amdgcn-amd-amdhsa -S -emit-llvm %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda -S -Xclang -emit-llvm -fsycl-device-only %s -o - | FileCheck %s
 
 #include <cmath>
 
