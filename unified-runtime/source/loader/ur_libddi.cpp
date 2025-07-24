@@ -66,6 +66,11 @@ __urdlllocal ur_result_t context_t::ddiInit() {
   }
 
   if (UR_RESULT_SUCCESS == result) {
+    result = urGetMemoryExportExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                               &urDdiTable.MemoryExportExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
     result = urGetPhysicalMemProcAddrTable(UR_API_VERSION_CURRENT,
                                            &urDdiTable.PhysicalMem);
   }

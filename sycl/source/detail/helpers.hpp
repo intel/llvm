@@ -35,8 +35,7 @@ const RTDeviceBinaryImage *
 retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
                      CGExecKernel *CGKernel = nullptr);
 
-template <typename DereferenceImpl, typename SyclTy, typename... Iterators>
-class variadic_iterator {
+template <typename SyclTy, typename... Iterators> class variadic_iterator {
   using storage_iter = std::variant<Iterators...>;
 
   storage_iter It;
@@ -44,12 +43,11 @@ class variadic_iterator {
 public:
   using iterator_category = std::forward_iterator_tag;
   using difference_type = std::ptrdiff_t;
-  using reference = decltype(DereferenceImpl::dereference(
-      *std::declval<nth_type_t<0, Iterators...>>()));
-  using value_type = std::remove_reference_t<reference>;
+  using value_type = std::remove_reference_t<decltype(*getSyclObjImpl(
+      std::declval<SyclTy>()))>;
   using sycl_type = SyclTy;
   using pointer = value_type *;
-  static_assert(std::is_same_v<reference, value_type &>);
+  using reference = value_type &;
 
   variadic_iterator() = default;
   variadic_iterator(const variadic_iterator &) = default;
@@ -80,10 +78,21 @@ public:
   decltype(auto) operator*() {
     return std::visit(
         [](auto &&It) -> decltype(auto) {
-          return DereferenceImpl::dereference(*It);
+          decltype(auto) Elem = *It;
+          using Ty = std::decay_t<decltype(Elem)>;
+          static_assert(!std::is_same_v<Ty, decltype(Elem)>);
+          if constexpr (std::is_same_v<Ty, sycl_type>) {
+            return *getSyclObjImpl(Elem);
+          } else if constexpr (std::is_same_v<Ty, value_type>) {
+            return Elem;
+          } else {
+            return *Elem;
+          }
         },
         It);
   }
+
+  pointer operator->() { return &this->operator*(); }
 };
 
 // Non-owning!
@@ -172,6 +181,18 @@ private:
   iterator Begin;
   iterator End;
   const size_t Size;
+
+  template <class Pred> friend bool all_of(iterator_range R, Pred &&P) {
+    return std::all_of(R.begin(), R.end(), std::forward<Pred>(P));
+  }
+
+  template <class Pred> friend bool any_of(iterator_range R, Pred &&P) {
+    return std::any_of(R.begin(), R.end(), std::forward<Pred>(P));
+  }
+
+  template <class Pred> friend bool none_of(iterator_range R, Pred &&P) {
+    return std::none_of(R.begin(), R.end(), std::forward<Pred>(P));
+  }
 };
 } // namespace detail
 } // namespace _V1

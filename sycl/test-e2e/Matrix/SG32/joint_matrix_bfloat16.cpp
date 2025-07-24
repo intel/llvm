@@ -36,9 +36,13 @@ int main() {
   for (unsigned int i = 0; i < combinations.size(); i++) {
     if (combinations[i].nsize == 0) { // Intel AMX
       test<bfloat16, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16,
-           layout::row_major, 1>();
-      test<bfloat16, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16,
            layout::ext_intel_packed, 2>();
+      test<bfloat16, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 32,
+           layout::ext_intel_packed, 2>();
+      test<bfloat16, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16,
+           layout::row_major, 1>();
+      test<bfloat16, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 32,
+           layout::row_major, 1>();
       break;
     }
 
