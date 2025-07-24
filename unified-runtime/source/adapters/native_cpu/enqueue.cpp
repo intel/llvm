@@ -177,10 +177,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     rangeEnd[0] = rangeEnd[3] % numWG0;
     rangeEnd[1] = (rangeEnd[3] / numWG0) % numWG1;
     rangeEnd[2] = rangeEnd[3] / (numWG0 * numWG1);
-    futures.emplace_back(
-        tp.schedule_task([ndr, InEvents, &kernel = *kernel, rangeStart,
-                          rangeEnd = rangeEnd[3], numWG0, numWG1,
-                          numParallelThreads](size_t threadId) {
+    futures.emplace_back(tp.schedule_task(
+        [ndr, InEvents, &kernel = *kernel, rangeStart, rangeEnd = rangeEnd[3],
+         numWG0, numWG1, numParallelThreads](size_t threadId) {
           auto state = getState(ndr);
           InEvents.wait();
           for (size_t g0 = rangeStart[0], g1 = rangeStart[1],
