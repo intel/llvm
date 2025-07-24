@@ -615,6 +615,25 @@ else:
 if config.vulkan_found == "TRUE":
     config.available_features.add("vulkan")
 
+# Add Vulkan include and library paths to the configuration for substitution.
+link_vulkan = "-I %s " % (config.vulkan_include_dir)
+if platform.system() == "Windows":
+    if cl_options:
+        link_vulkan += "/clang:-l%s" % (config.vulkan_lib)
+    else:
+        link_vulkan += "-l %s" % (config.vulkan_lib)
+else:
+    vulkan_lib_path = os.path.dirname(config.vulkan_lib)
+    link_vulkan += "-L %s -lvulkan" % (vulkan_lib_path)
+config.substitutions.append(("%link-vulkan", link_vulkan))
+
+# Add DirectX 12 libraries to the configuration for substitution.
+if platform.system() == "Windows":
+    directx_libs = ["-ld3d11", "-ld3d12", "-ldxgi", "-ldxguid"]
+    if cl_options:
+        directx_libs = ["/clang:" + l for l in directx_libs]
+    config.substitutions.append(("%link-directx", " ".join(directx_libs)))
+
 if not config.gpu_aot_target_opts:
     config.gpu_aot_target_opts = '"-device *"'
 

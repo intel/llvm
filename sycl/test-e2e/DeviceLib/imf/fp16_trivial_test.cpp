@@ -8,9 +8,6 @@
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} %t1.o %t2.o  -o %t.out
 // RUN: %{run} %t.out
 
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
-
 #include "imf_utils.hpp"
 #include <cmath>
 #include <sycl/ext/intel/math.hpp>
