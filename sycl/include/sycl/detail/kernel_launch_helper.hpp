@@ -254,11 +254,12 @@ struct KernelWrapper<
   }
 }; // KernelWrapper struct
 
+// TODO: Remove this.
 namespace syclex = sycl::ext::oneapi::experimental;
 
-// Class to encapsulate all member functions, data members required
-// to parse and store kernel launch properties.
-class KernelLaunchProperties {
+// This class is inherited by handler_impl and sycl::handler is using the static
+// methods.
+class KernelLaunchPropertyWrapper {
 public:
   // Changing values in this will break ABI/API.
   enum class StableKernelCacheConfig : int32_t {
@@ -274,13 +275,17 @@ public:
   // Kernel Cluster launch
   bool MKernelUsesClusterLaunch = false;
   size_t MKernelClusterDims = 0;
-  std::array<int, 3> MKernelClusterSize = {0, 0, 0};
+  std::array<size_t, 3> MKernelClusterSize = {0, 0, 0};
 
-  void
-  verifyDeviceHasProgressGuarantee(device_impl &dev,
-                                   syclex::forward_progress_guarantee guarantee,
-                                   syclex::execution_scope threadScope,
-                                   syclex::execution_scope coordinationScope);
+  struct KernelLaunchPropertiesT {
+    StableKernelCacheConfig MKernelCacheConfig =
+        StableKernelCacheConfig::Default;
+    bool MKernelIsCooperative = false;
+    uint32_t MKernelWorkGroupMemorySize = 0;
+    bool MKernelUsesClusterLaunch = false;
+    size_t MKernelClusterDims = 0;
+    std::array<size_t, 3> MKernelClusterSize = {0, 0, 0};
+  };
 
   template <
   syclex::detail::UnsupportedGraphFeatures FeatureT>
@@ -297,49 +302,147 @@ public:
                               "for use with the SYCL Graph extension.");
   }
 
-  // Set value of the gpu cache configuration for the kernel.
-  void setKernelCacheConfig(StableKernelCacheConfig Config) {
-    switch (Config) {
-      case StableKernelCacheConfig::Default:
-        MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
-        break;
-      case StableKernelCacheConfig::LargeSLM:
-        MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
-        break;
-      case StableKernelCacheConfig::LargeData:
-        MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
-        break;
+  static void
+  verifyDeviceHasProgressGuarantee(device_impl &dev,
+                                  syclex::forward_progress_guarantee guarantee,
+                                  syclex::execution_scope threadScope,
+                                  syclex::execution_scope coordinationScope,
+                                  KernelLaunchPropertiesT &prop);
+
+  /// Process runtime kernel properties.
+  ///
+  /// Stores information about kernel properties into the handler.
+  template <typename PropertiesT>
+  static KernelLaunchPropertiesT processLaunchProperties(PropertiesT Props,
+  bool HasGraph, device_impl &dev) {
+
+    KernelLaunchPropertiesT retval;
+
+    // Process Kernel cache configuration property.
+    {
+      if constexpr (PropertiesT::template has_property<
+                        sycl::ext::intel::experimental::cache_config_key>()) {
+        auto Config = Props.template get_property<
+            sycl::ext::intel::experimental::cache_config_key>();
+        if (Config == sycl::ext::intel::experimental::large_slm) {
+          retval.MKernelCacheConfig = StableKernelCacheConfig::LargeSLM;
+        } else if (Config == sycl::ext::intel::experimental::large_data) {
+          retval.MKernelCacheConfig = StableKernelCacheConfig::LargeData;
+        }
+      } else {
+        std::ignore = Props;
+      }
     }
-  }
 
-  // This method is overriden by handler_impl.
-  virtual void setKernelClusterSize(int dims, sycl::range<3> ClusterSize) {
-    MKernelUsesClusterLaunch = true;
-    MKernelClusterDims = dims;
-    if (dims == 1) {
-      MKernelClusterSize[0] = ClusterSize[0];
-    } else if (dims == 2) {
-      MKernelClusterSize[0] = ClusterSize[0];
-      MKernelClusterSize[1] = ClusterSize[1];
-    } else if (dims == 3) {
-      MKernelClusterSize[0] = ClusterSize[0];
-      MKernelClusterSize[1] = ClusterSize[1];
-      MKernelClusterSize[2] = ClusterSize[2];
-    } else {
-      assert(dims > 3 && "Only 1D, 2D, and 3D cluster launch is supported.");
+    // Process Kernel cooperative property.
+    {
+      constexpr bool UsesRootSync = PropertiesT::template has_property<
+          sycl::ext::oneapi::experimental::use_root_sync_key>();
+      retval.MKernelIsCooperative = UsesRootSync;
     }
+
+    // Process device progress properties.
+    {
+      if constexpr (PropertiesT::template has_property<
+                        sycl::ext::oneapi::experimental::
+                            work_group_progress_key>()) {
+        auto prop = Props.template get_property<
+            sycl::ext::oneapi::experimental::work_group_progress_key>();
+        verifyDeviceHasProgressGuarantee(
+            dev,
+            prop.guarantee,
+            sycl::ext::oneapi::experimental::execution_scope::work_group,
+            prop.coordinationScope,
+            retval);
+      }
+      if constexpr (PropertiesT::template has_property<
+                        sycl::ext::oneapi::experimental::
+                            sub_group_progress_key>()) {
+        auto prop = Props.template get_property<
+            sycl::ext::oneapi::experimental::sub_group_progress_key>();
+        verifyDeviceHasProgressGuarantee(
+            dev,
+            prop.guarantee,
+            sycl::ext::oneapi::experimental::execution_scope::sub_group,
+            prop.coordinationScope,
+            retval);
+      }
+      if constexpr (PropertiesT::template has_property<
+                        sycl::ext::oneapi::experimental::
+                            work_item_progress_key>()) {
+        auto prop = Props.template get_property<
+            sycl::ext::oneapi::experimental::work_item_progress_key>();
+        verifyDeviceHasProgressGuarantee(
+            dev,
+            prop.guarantee,
+            sycl::ext::oneapi::experimental::execution_scope::work_item,
+            prop.coordinationScope,
+            retval);
+      }
+    }
+
+    // Process work group scratch memory property.
+    {
+      if constexpr (PropertiesT::template has_property<
+                        sycl::ext::oneapi::experimental::
+                            work_group_scratch_size>()) {
+        throwIfGraphAssociated<syclex::detail::UnsupportedGraphFeatures::
+                             sycl_ext_oneapi_work_group_scratch_memory>(HasGraph);
+        auto WorkGroupMemSize = Props.template get_property<
+            sycl::ext::oneapi::experimental::work_group_scratch_size>();
+        retval.MKernelWorkGroupMemorySize = WorkGroupMemSize.size;
+      }
+    }
+
+    // Parse cluster properties.
+    {
+      constexpr std::size_t ClusterDim =
+          syclex::detail::getClusterDim<PropertiesT>();
+      if constexpr (ClusterDim > 0) {
+        throwIfGraphAssociated<
+        syclex::detail::UnsupportedGraphFeatures::
+            sycl_ext_oneapi_experimental_cuda_cluster_launch>(HasGraph);
+        auto ClusterSize = Props
+                              .template get_property<
+                                  syclex::cuda::cluster_size_key<ClusterDim>>()
+                              .get_cluster_size();
+        retval.MKernelUsesClusterLaunch = true;
+        retval.MKernelClusterDims = ClusterDim;
+        if (ClusterDim == 1) {
+          retval.MKernelClusterSize[0] = ClusterSize[0];
+        } else if (ClusterDim == 2) {
+          retval.MKernelClusterSize[0] = ClusterSize[0];
+          retval.MKernelClusterSize[1] = ClusterSize[1];
+        } else if (ClusterDim == 3) {
+          retval.MKernelClusterSize[0] = ClusterSize[0];
+          retval.MKernelClusterSize[1] = ClusterSize[1];
+          retval.MKernelClusterSize[2] = ClusterSize[2];
+        } else {
+          assert(ClusterDim > 3 &&
+                  "Only 1D, 2D, and 3D cluster launch is supported.");
+        }
+      }
+    }
+  
+    return retval;
   }
 
-  void setKernelWorkGroupMemorySize(uint32_t Size) {
-    MKernelWorkGroupMemorySize = Size;
-  }
-
-  template <bool IsESIMDKernel, typename PropertiesT>
-  void processLaunchProperties(device_impl &Dev, bool HasGraph, PropertiesT Props) {
+  /// Process kernel properties.
+  ///
+  /// Stores information about kernel properties into the handler.
+  ///
+  /// Note: it is important that this function *does not* depend on kernel
+  /// name or kernel type, because then it will be instantiated for every
+  /// kernel, even though body of those instantiated functions could be almost
+  /// the same, thus unnecessary increasing compilation time.
+  template <
+      bool IsESIMDKernel,
+      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
+  static KernelLaunchPropertiesT processProperties(PropertiesT Props,
+    bool HasGraph, device_impl &dev) {
     static_assert(
         ext::oneapi::experimental::is_property_list<PropertiesT>::value,
         "Template type is not a property list.");
-
     static_assert(
         !PropertiesT::template has_property<
             sycl::ext::intel::experimental::fp_control_key>() ||
@@ -347,111 +450,52 @@ public:
                  sycl::ext::intel::experimental::fp_control_key>() &&
              IsESIMDKernel),
         "Floating point control property is supported for ESIMD kernels only.");
-
     static_assert(
         !PropertiesT::template has_property<
             sycl::ext::oneapi::experimental::indirectly_callable_key>(),
         "indirectly_callable property cannot be applied to SYCL kernels");
 
-    // Process Kernel cache configuration property.
-    if constexpr (PropertiesT::template has_property<
-                      sycl::ext::intel::experimental::cache_config_key>()) {
-      auto Config = Props.template get_property<
-          sycl::ext::intel::experimental::cache_config_key>();
-      if (Config == sycl::ext::intel::experimental::large_slm) {
-        setKernelCacheConfig(StableKernelCacheConfig::LargeSLM);
-      } else if (Config == sycl::ext::intel::experimental::large_data) {
-        setKernelCacheConfig(StableKernelCacheConfig::LargeData);
-      }
-    } else {
-      std::ignore = Props;
-    }
-
-    // Process Kernel cooperative property.
-    constexpr bool UsesRootSync = PropertiesT::template has_property<
-        sycl::ext::oneapi::experimental::use_root_sync_key>();
-    if constexpr (UsesRootSync) {
-      MKernelIsCooperative = UsesRootSync;
-    }
-
-    // Process device progress properties.
-    if constexpr (PropertiesT::template has_property<
-                      sycl::ext::oneapi::experimental::
-                          work_group_progress_key>()) {
-      auto prop = Props.template get_property<
-          sycl::ext::oneapi::experimental::work_group_progress_key>();
-      verifyDeviceHasProgressGuarantee(
-          Dev,
-          prop.guarantee,
-          sycl::ext::oneapi::experimental::execution_scope::work_group,
-          prop.coordinationScope);
-    }
-    if constexpr (PropertiesT::template has_property<
-                      sycl::ext::oneapi::experimental::
-                          sub_group_progress_key>()) {
-      auto prop = Props.template get_property<
-          sycl::ext::oneapi::experimental::sub_group_progress_key>();
-      verifyDeviceHasProgressGuarantee(
-          Dev,
-          prop.guarantee,
-          sycl::ext::oneapi::experimental::execution_scope::sub_group,
-          prop.coordinationScope);
-    }
-    if constexpr (PropertiesT::template has_property<
-                      sycl::ext::oneapi::experimental::
-                          work_item_progress_key>()) {
-      auto prop = Props.template get_property<
-          sycl::ext::oneapi::experimental::work_item_progress_key>();
-      verifyDeviceHasProgressGuarantee(
-          Dev,
-          prop.guarantee,
-          sycl::ext::oneapi::experimental::execution_scope::work_item,
-          prop.coordinationScope);
-    }
-
-    // Process work group scratch memory property.
-    if constexpr (PropertiesT::template has_property<
-                      sycl::ext::oneapi::experimental::
-                          work_group_scratch_size>()) {
-      throwIfGraphAssociated<syclex::detail::UnsupportedGraphFeatures::
-                             sycl_ext_oneapi_work_group_scratch_memory>(HasGraph);
-      auto WorkGroupMemSize = Props.template get_property<
-          sycl::ext::oneapi::experimental::work_group_scratch_size>();
-      setKernelWorkGroupMemorySize(WorkGroupMemSize.size);
-    }
-
-    // Parse cluster properties.
-    constexpr std::size_t ClusterDim =
-        syclex::detail::getClusterDim<PropertiesT>();
-    if constexpr (ClusterDim > 0) {
-      throwIfGraphAssociated<
-      syclex::detail::UnsupportedGraphFeatures::
-          sycl_ext_oneapi_experimental_cuda_cluster_launch>(HasGraph);
-      auto ClusterSize = Props
-                             .template get_property<
-                                 syclex::cuda::cluster_size_key<ClusterDim>>()
-                             .get_cluster_size();
-      setKernelClusterSize(ClusterDim, ClusterSize);
-    }
+    return processLaunchProperties(Props, HasGraph, dev);
   }
 
-}; // class KernelLaunchProperties
-
-struct KernelLaunchPropertyWrapper {
-  template <typename KernelName, typename PropertyProcessor,
-            typename KernelType>
-  static void parseProperties([[maybe_unused]] PropertyProcessor h,
-                              [[maybe_unused]] const KernelType &KernelFunc) {
+  template <typename KernelName, typename KernelType>
+  static std::optional<KernelLaunchPropertiesT> parseProperties(
+    [[maybe_unused]] const KernelType &KernelFunc,
+    [[maybe_unused]] bool HasGraph,
+    [[maybe_unused]] device_impl &dev) {
 #ifndef __SYCL_DEVICE_ONLY__
     // If there are properties provided by get method then process them.
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<const KernelType &>::value) {
 
-      h->template processProperties<detail::isKernelESIMD<KernelName>()>(
-          KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
+      return processProperties<detail::isKernelESIMD<KernelName>()>(
+          KernelFunc.get(ext::oneapi::experimental::properties_tag{}), HasGraph, dev);
     }
 #endif
+    // If there are no properties provided by get method then return empty
+    // optional.
+    return std::nullopt;
   }
+
+  void parseAndSetKernelLaunchProperties(KernelLaunchPropertiesT &props) {
+      switch (props.MKernelCacheConfig) {
+        case StableKernelCacheConfig::Default:
+          MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
+          break;
+        case StableKernelCacheConfig::LargeSLM:
+          MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
+          break;
+        case StableKernelCacheConfig::LargeData:
+          MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
+          break;
+      }
+
+      MKernelIsCooperative = props.MKernelIsCooperative;
+      MKernelWorkGroupMemorySize = props.MKernelWorkGroupMemorySize;
+      MKernelUsesClusterLaunch = props.MKernelUsesClusterLaunch;
+      MKernelClusterDims = props.MKernelClusterDims;
+      MKernelClusterSize = props.MKernelClusterSize;
+    }
 }; // KernelLaunchPropertyWrapper struct
 
 } // namespace detail

@@ -877,10 +877,12 @@ private:
     }
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void verifyDeviceHasProgressGuarantee(
       sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
       sycl::ext::oneapi::experimental::execution_scope threadScope,
       sycl::ext::oneapi::experimental::execution_scope coordinationScope);
+
 
   template <typename Properties>
   void checkAndSetClusterRange(const Properties &Props) {
@@ -991,6 +993,8 @@ private:
     processLaunchProperties(Props);
   }
 
+ #endif // INTEL_PREVIEW_BREAKING_CHANGES
+ 
   /// Checks whether it is possible to copy the source shape to the destination
   /// shape(the shapes are described by the accessor ranges) by using
   /// copying by regions of memory and not copying element by element
@@ -1097,6 +1101,8 @@ private:
   // We need to use this version to support gcc 7.5.0. Remove when minimal
   // supported gcc version is bumped.
   std::tuple<std::array<size_t, 3>, bool> getMaxWorkGroups_v2();
+
+  detail::device_impl& getDeviceImpl();
 
   template <int Dims>
   std::tuple<range<Dims>, bool> getRoundedRange(range<Dims> UserRange) {
@@ -1296,8 +1302,13 @@ private:
                             decltype(Wrapper), TransformedArgType,
                             PropertiesT>::wrap(Wrapper);
 
-      detail::KernelLaunchPropertyWrapper::parseProperties<KName>(this,
-                                                                  Wrapper);
+      if (auto prop =
+          detail::KernelLaunchPropertyWrapper::parseProperties<KName>(
+            Wrapper, getCommandGraph() != nullptr,
+            getDeviceImpl())) {
+        setKernelLaunchProperties(*prop);
+      }
+      
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr detail::string_view Name{detail::getKernelName<NameT>()};
       verifyUsedKernelBundleInternal(Name);
@@ -1323,13 +1334,21 @@ private:
       // kernel is generated
       detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                             TransformedArgType, PropertiesT>::wrap(KernelFunc);
-      detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
-                                                                  KernelFunc);
+      if (auto prop =
+          detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(
+            KernelFunc, getCommandGraph() != nullptr,
+            getDeviceImpl())) {
+        setKernelLaunchProperties(*prop);
+      }
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr detail::string_view Name{detail::getKernelName<NameT>()};
 
       verifyUsedKernelBundleInternal(Name);
-      processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
+      auto ProcessedProps = detail::KernelLaunchPropertyWrapper::processProperties<
+                    detail::isKernelESIMD<NameT>(), PropertiesT>(
+                      Props, getCommandGraph() != nullptr,
+                      getDeviceImpl());
+      setKernelLaunchProperties(ProcessedProps);
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
@@ -1359,7 +1378,12 @@ private:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
-    processLaunchProperties<PropertiesT>(Props);
+    auto ParsedProp =
+      detail::KernelLaunchPropertyWrapper::processLaunchProperties<
+        PropertiesT>(
+        Props, getCommandGraph() != nullptr,
+        getDeviceImpl());
+    setKernelLaunchProperties(ParsedProp);
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
     MKernelName = getKernelName();
@@ -1384,7 +1408,13 @@ private:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     setNDRangeDescriptor(std::move(NDRange));
-    processLaunchProperties(Props);
+    auto ParsedProp =
+      detail::KernelLaunchPropertyWrapper::processLaunchProperties
+      <PropertiesT>(
+        Props, getCommandGraph() != nullptr,
+        getDeviceImpl()
+      );
+    setKernelLaunchProperties(ParsedProp);
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
     MKernelName = getKernelName();
@@ -1405,8 +1435,12 @@ private:
     (void)Props;
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
                           PropertiesT>::wrap(KernelFunc);
-    detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
-                                                                KernelFunc);
+    if (auto prop =
+          detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(
+            KernelFunc, getCommandGraph() != nullptr,
+            getDeviceImpl())) {
+        setKernelLaunchProperties(*prop);
+    }
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == detail::WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();
@@ -1425,7 +1459,11 @@ private:
     }
 
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
-    processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
+    auto ProcessedProps = detail::KernelLaunchPropertyWrapper::processProperties<
+                    detail::isKernelESIMD<NameT>(), PropertiesT>(
+                      Props, getCommandGraph() != nullptr,
+                      getDeviceImpl());
+    setKernelLaunchProperties(ProcessedProps);
 #endif
   }
 
@@ -1448,8 +1486,12 @@ private:
     (void)Kernel;
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
                           PropertiesT>::wrap(KernelFunc);
-    detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
-                                                                KernelFunc);
+    if (auto prop =
+          detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(
+            KernelFunc, getCommandGraph() != nullptr,
+            getDeviceImpl())) {
+        setKernelLaunchProperties(*prop);
+    }
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == detail::WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();
@@ -1477,7 +1519,10 @@ private:
     } else {
       StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
     }
-    processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
+    auto ProcessedProps = detail::KernelLaunchPropertyWrapper::processProperties<
+                    detail::isKernelESIMD<NameT>(), PropertiesT>(
+                      Props, getCommandGraph() != nullptr, getDeviceImpl());
+    setKernelLaunchProperties(ProcessedProps);
 #endif
   }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
@@ -3483,6 +3528,7 @@ private:
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Changing values in this will break ABI/API.
   enum class StableKernelCacheConfig : int32_t {
     Default = 0,
@@ -3505,6 +3551,11 @@ private:
 
   // Set the request work group memory size (work_group_static ext).
   void setKernelWorkGroupMem(size_t Size);
+#endif
+
+  void setKernelLaunchProperties(
+    detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT
+                                     &KernelLaunchProperties);
 
   // Various checks that are only meaningful for host compilation, because they
   // result in runtime errors (i.e. exceptions being thrown). To save time
@@ -3567,7 +3618,7 @@ private:
   template <
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>
   void throwIfGraphAssociated() const {
-    detail::KernelLaunchProperties::throwIfGraphAssociated<FeatureT>(getCommandGraph() != nullptr);
+    detail::KernelLaunchPropertyWrapper::throwIfGraphAssociated<FeatureT>(getCommandGraph() != nullptr);
   }
 #endif
 
@@ -3642,7 +3693,6 @@ private:
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
   friend class detail::HandlerAccess;
-  friend struct detail::KernelLaunchPropertyWrapper;
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl; }

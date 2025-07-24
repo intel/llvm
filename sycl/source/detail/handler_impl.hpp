@@ -29,7 +29,7 @@ enum class HandlerSubmissionState : std::uint8_t {
   SPEC_CONST_SET_STATE,
 };
 
-class handler_impl : public KernelLaunchProperties {
+class handler_impl : public KernelLaunchPropertyWrapper {
 public:
   handler_impl(queue_impl &Queue, queue_impl *SubmissionSecondaryQueue,
                bool EventNeeded)

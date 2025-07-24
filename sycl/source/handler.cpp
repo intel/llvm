@@ -2076,14 +2076,54 @@ static bool checkContextSupports(detail::context_impl &ContextImpl,
   return SupportsOp;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::verifyDeviceHasProgressGuarantee(
     sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
     sycl::ext::oneapi::experimental::execution_scope threadScope,
     sycl::ext::oneapi::experimental::execution_scope coordinationScope) {
-    impl->verifyDeviceHasProgressGuarantee(
-        impl->get_device(),
-        guarantee, threadScope, coordinationScope);
+  
+  using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
+  using forward_progress =
+      sycl::ext::oneapi::experimental::forward_progress_guarantee;
+  const bool supported = impl->get_device().supportsForwardProgress(
+      guarantee, threadScope, coordinationScope);
+  if (threadScope == execution_scope::work_group) {
+    if (!supported) {
+      throw sycl::exception(
+          sycl::errc::feature_not_supported,
+          "Required progress guarantee for work groups is not "
+          "supported by this device.");
+    }
+    // If we are here, the device supports the guarantee required but there is a
+    // caveat in that if the guarantee required is a concurrent guarantee, then
+    // we most likely also need to enable cooperative launch of the kernel. That
+    // is, although the device supports the required guarantee, some setup work
+    // is needed to truly make the device provide that guarantee at runtime.
+    // Otherwise, we will get the default guarantee which is weaker than
+    // concurrent. Same reasoning applies for sub_group but not for work_item.
+    // TODO: Further design work is probably needed to reflect this behavior in
+    // Unified Runtime.
+    if (guarantee == forward_progress::concurrent)
+      setKernelIsCooperative(true);
+  } else if (threadScope == execution_scope::sub_group) {
+    if (!supported) {
+      throw sycl::exception(sycl::errc::feature_not_supported,
+                            "Required progress guarantee for sub groups is not "
+                            "supported by this device.");
+    }
+    // Same reasoning as above.
+    if (guarantee == forward_progress::concurrent)
+      setKernelIsCooperative(true);
+  } else { // threadScope is execution_scope::work_item otherwise undefined
+           // behavior
+    if (!supported) {
+      throw sycl::exception(sycl::errc::feature_not_supported,
+                            "Required progress guarantee for work items is not "
+                            "supported by this device.");
+    }
+  }
 }
+#endif
 
 bool handler::supportsUSMMemcpy2D() {
   if (impl->get_graph_or_null())
@@ -2214,25 +2254,38 @@ detail::context_impl &handler::getContextImpl() const {
   return impl->get_queue().getContextImpl();
 }
 
-void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
-  switch (Config) {
-  case handler::StableKernelCacheConfig::Default:
-    impl->MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
-    break;
-  case handler::StableKernelCacheConfig::LargeSLM:
-    impl->MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
-    break;
-  case handler::StableKernelCacheConfig::LargeData:
-    impl->MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
-    break;
+void handler::setKernelLaunchProperties(
+    KernelLaunchPropertyWrapper::KernelLaunchPropertiesT
+                                    &KernelLaunchProperties) {
+  impl->parseAndSetKernelLaunchProperties(KernelLaunchProperties);
+
+  if (KernelLaunchProperties.MKernelClusterDims == 1) {
+    sycl::range<1> ClusterSizeTrimmed = {KernelLaunchProperties.MKernelClusterSize[0]};
+    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+  } else if (KernelLaunchProperties.MKernelClusterDims == 2) {
+    sycl::range<2> ClusterSizeTrimmed =
+      {KernelLaunchProperties.MKernelClusterSize[0],
+        KernelLaunchProperties.MKernelClusterSize[1]};
+    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+  } else if (KernelLaunchProperties.MKernelClusterDims == 3) {
+    sycl::range<3> ClusterSizeTrimmed =
+      {KernelLaunchProperties.MKernelClusterSize[0],
+        KernelLaunchProperties.MKernelClusterSize[1],
+        KernelLaunchProperties.MKernelClusterSize[2]};
+    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
   }
 }
 
-void handler::setKernelIsCooperative(bool KernelIsCooperative) {
-  impl->MKernelIsCooperative = KernelIsCooperative;
+device_impl& handler::getDeviceImpl() {
+  return impl->get_device();
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+
+void handler::setKernelIsCooperative(bool IsCooperative) {
+  impl->MKernelIsCooperative = IsCooperative;
+} 
+
 void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
@@ -2249,7 +2302,6 @@ void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
     impl->MNDRDesc.setClusterDimensions(ClusterSize);
   }
 }
-#endif
 
 void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize) {
   throwIfGraphAssociated<
@@ -2280,6 +2332,7 @@ void handler::setKernelWorkGroupMem(size_t Size) {
                              sycl_ext_oneapi_work_group_scratch_memory>();
   impl->MKernelWorkGroupMemorySize = Size;
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 void handler::ext_oneapi_graph(
     ext::oneapi::experimental::command_graph<

@@ -137,6 +137,8 @@
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/work_group_scratch_memory.hpp
 // CHECK-NEXT: detail/sycl_local_mem_builtins.hpp
+// CHECK-NEXT: ext/oneapi/experimental/cluster_group_prop.hpp
+// CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
 // CHECK-NEXT: detail/kernel_name_based_cache.hpp
 // CHECK-NEXT: detail/kernel_name_str_t.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
@@ -145,9 +147,7 @@
 // CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp
 // CHECK-NEXT: ext/oneapi/interop_common.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_mem_handle.hpp
-// CHECK-NEXT: ext/oneapi/experimental/cluster_group_prop.hpp
 // CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp
-// CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: feature_test.hpp

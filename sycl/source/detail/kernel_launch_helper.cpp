@@ -17,11 +17,12 @@ inline namespace _V1 {
 namespace detail {
 
     namespace syclex = sycl::ext::oneapi::experimental;
-    void KernelLaunchProperties::verifyDeviceHasProgressGuarantee(
+    void KernelLaunchPropertyWrapper::verifyDeviceHasProgressGuarantee(
         device_impl &dev,
         syclex::forward_progress_guarantee guarantee,
         syclex::execution_scope threadScope,
-        syclex::execution_scope coordinationScope) {
+        syclex::execution_scope coordinationScope,
+        KernelLaunchPropertiesT &prop) {
       using execution_scope = syclex::execution_scope;
       using forward_progress =
           syclex::forward_progress_guarantee;
@@ -44,7 +45,7 @@ namespace detail {
         // TODO: Further design work is probably needed to reflect this behavior in
         // Unified Runtime.
         if (guarantee == forward_progress::concurrent)
-          MKernelIsCooperative = true;
+          prop.MKernelIsCooperative = true;
       } else if (threadScope == execution_scope::sub_group) {
         if (!supported) {
           throw sycl::exception(sycl::errc::feature_not_supported,
@@ -53,7 +54,7 @@ namespace detail {
         }
         // Same reasoning as above.
         if (guarantee == forward_progress::concurrent)
-          MKernelIsCooperative = true;
+          prop.MKernelIsCooperative = true;
       } else { // threadScope is execution_scope::work_item otherwise undefined
               // behavior
         if (!supported) {
