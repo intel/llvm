@@ -483,8 +483,7 @@ event handler::finalize() {
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
   // to a command without being bound to a command group, an exception should
   // be thrown.
-  if (!IsGraphEnqueue)
-  {
+  if (!IsGraphEnqueue) {
     for (const auto &arg : impl->MArgs) {
       if (arg.MType != detail::kernel_param_kind_t::kind_accessor)
         continue;
@@ -585,8 +584,8 @@ event handler::finalize() {
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
       // creation.
-      std::vector<ur_event_handle_t> RawEvents = detail::Command::getUrEvents(
-          impl->CGData.MEvents, Queue, false);
+      std::vector<ur_event_handle_t> RawEvents =
+          detail::Command::getUrEvents(impl->CGData.MEvents, Queue, false);
 
       bool DiscardEvent =
           !impl->MEventNeeded && impl->get_queue().supportsDiscardingPiEvents();
@@ -616,9 +615,8 @@ event handler::finalize() {
           StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
               StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
-              MKernelName.data(), impl->MKernelNameBasedCachePtr,
-              Queue, impl->MNDRDesc, KernelBundleImpPtr,
-              impl->MArgs);
+              MKernelName.data(), impl->MKernelNameBasedCachePtr, Queue,
+              impl->MNDRDesc, KernelBundleImpPtr, impl->MArgs);
           detail::emitInstrumentationGeneral(StreamID, InstanceID,
                                              CmdTraceEvent,
                                              xpti::trace_task_begin, nullptr);
@@ -816,7 +814,8 @@ event handler::finalize() {
       // pass the exec_graph_impl and event dependencies. Since this subgraph CG
       // will not be executed this is fine.
       CommandGroup.reset(new sycl::detail::CGExecCommandBuffer(
-          nullptr, impl->MExecGraph->shared_from_this(), std::move(impl->CGData)));
+          nullptr, impl->MExecGraph->shared_from_this(),
+          std::move(impl->CGData)));
 
     } else {
       bool DiscardEvent = !impl->MEventNeeded &&

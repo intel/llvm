@@ -204,7 +204,7 @@ public:
 
   /// If we are submitting a graph using ext_oneapi_graph this will be the graph
   /// to be executed.
-  ext::oneapi::experimental::detail::exec_graph_impl* MExecGraph;
+  ext::oneapi::experimental::detail::exec_graph_impl *MExecGraph;
   /// Storage for the CG created when handling graph nodes added explicitly.
   std::unique_ptr<detail::CG> MGraphNodeCG;
   /// Storage for node dependencies passed when adding a graph node explicitly

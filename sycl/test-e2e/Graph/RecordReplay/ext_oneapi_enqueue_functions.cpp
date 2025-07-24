@@ -15,8 +15,6 @@ int main() {
 
   using namespace std::chrono;
 
-
-
   queue InOrderQueue{property::queue::in_order{}};
 
   using T = int;
@@ -64,8 +62,6 @@ int main() {
   free(PtrA, InOrderQueue);
   free(PtrB, InOrderQueue);
   free(PtrC, InOrderQueue);
-
-
 
   for (size_t i = 0; i < Size; i++) {
     T Ref = Pattern * i;

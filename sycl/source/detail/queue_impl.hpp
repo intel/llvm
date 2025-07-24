@@ -276,7 +276,8 @@ public:
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
                                                          &nativeHandle);
-    __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
+    __SYCL_OCL_CALL(clRetainCommandQueue,
+                    ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
   }
 
@@ -1052,9 +1053,7 @@ protected:
     }
 
     // To use when the queue is already acquired a mutex lock.
-    DataType read_unlocked() {
-      return MData;
-    }
+    DataType read_unlocked() { return MData; }
   };
 
   const bool MIsInorder;

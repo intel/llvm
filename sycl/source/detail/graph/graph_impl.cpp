@@ -1026,8 +1026,8 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
 
   if (!EventNeeded) {
     Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-            Queue.getHandleRef(), Partition->MCommandBuffer,
-            UrEnqueueWaitListSize, UrEnqueueWaitList, nullptr);
+        Queue.getHandleRef(), Partition->MCommandBuffer, UrEnqueueWaitListSize,
+        UrEnqueueWaitList, nullptr);
     return nullptr;
   } else {
     auto NewEvent = sycl::detail::event_impl::create_device_event(Queue);
@@ -1036,8 +1036,8 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     NewEvent->setSubmissionTime();
     ur_event_handle_t UrEvent = nullptr;
     Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-            Queue.getHandleRef(), Partition->MCommandBuffer,
-            UrEventHandles.size(), UrEnqueueWaitList, &UrEvent);
+        Queue.getHandleRef(), Partition->MCommandBuffer, UrEventHandles.size(),
+        UrEnqueueWaitList, &UrEvent);
     NewEvent->setHandle(UrEvent);
     NewEvent->setEventFromSubmittedExecCommandBuffer(true);
     return NewEvent;
