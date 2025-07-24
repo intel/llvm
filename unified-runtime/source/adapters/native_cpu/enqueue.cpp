@@ -180,9 +180,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     futures.emplace_back(
         tp.schedule_task([ndr, InEvents, &kernel = *kernel, rangeStart,
                           rangeEnd = rangeEnd[3], numWG0, numWG1,
-#ifndef NATIVECPU_USE_OCK
-                          localSize = ndr.LocalSize,
-#endif
                           numParallelThreads](size_t threadId) mutable {
           auto state = getState(ndr);
           InEvents.wait();
@@ -194,9 +191,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
             kernel._subhandler(
                 kernel.getArgs(numParallelThreads, threadId).data(), &state);
 #else
-            for (size_t local2 = 0; local2 < localSize[2]; ++local2) {
-              for (size_t local1 = 0; local1 < localSize[1]; ++local1) {
-                for (size_t local0 = 0; local0 < localSize[0]; ++local0) {
+            for (size_t local2 = 0; local2 < ndr.LocalSize[2]; ++local2) {
+              for (size_t local1 = 0; local1 < ndr.LocalSize[1]; ++local1) {
+                for (size_t local0 = 0; local0 < ndr.LocalSize[0]; ++local0) {
                   state.update(g0, g1, g2, local0, local1, local2);
                   kernel._subhandler(
                       kernel.getArgs(numParallelThreads, threadId).data(),
