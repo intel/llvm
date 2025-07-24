@@ -17,9 +17,10 @@
 #include "queue.hpp"
 #include "ur2offload.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
-    [[maybe_unused]] ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    const ur_queue_properties_t *, ur_queue_handle_t *phQueue) {
+UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(ur_context_handle_t hContext,
+                                                  ur_device_handle_t hDevice,
+                                                  const ur_queue_properties_t *,
+                                                  ur_queue_handle_t *phQueue) {
 
   assert(hContext->Device == hDevice);
 
@@ -31,6 +32,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   }
 
   Queue->OffloadDevice = hDevice->OffloadDevice;
+  Queue->UrContext = hContext;
 
   *phQueue = Queue;
 
@@ -69,7 +71,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
-  return offloadResultToUR(olWaitQueue(hQueue->OffloadQueue));
+  return offloadResultToUR(olSyncQueue(hQueue->OffloadQueue));
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(

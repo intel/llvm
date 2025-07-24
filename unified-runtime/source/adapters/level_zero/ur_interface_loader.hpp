@@ -768,6 +768,16 @@ urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 ur_result_t urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+ur_result_t urMemoryExportAllocExportableMemoryExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t alignment,
+    size_t size, ur_exp_external_mem_type_t handleTypeToExport, void **ppMem);
+ur_result_t urMemoryExportFreeExportableMemoryExp(ur_context_handle_t hContext,
+                                                  ur_device_handle_t hDevice,
+                                                  void *pMem);
+ur_result_t urMemoryExportExportMemoryHandleExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_external_mem_type_t handleTypeToExport, void *pMem,
+    void *pMemHandleRet);
 ur_result_t urProgramBuildExp(ur_program_handle_t hProgram, uint32_t numDevices,
                               ur_device_handle_t *phDevices,
                               const char *pOptions);

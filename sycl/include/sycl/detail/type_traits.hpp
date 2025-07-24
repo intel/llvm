@@ -110,10 +110,11 @@ inline constexpr bool is_group_helper_v =
 } // namespace ext::oneapi::experimental
 
 namespace detail {
-// Type for Intel device UUID extension.
+// Types for Intel's device UUID and device LUID extension.
 // For details about this extension, see
 // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
 using uuid_type = std::array<unsigned char, 16>;
+using luid_type = std::array<unsigned char, 8>;
 
 template <typename T, typename R> struct copy_cv_qualifiers;
 
