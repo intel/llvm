@@ -588,6 +588,11 @@ add_devicelibs(libsycl-fallback-cassert
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${crt_obj_deps}
   EXTRA_OPTS -fno-sycl-instrument-device-code)
+add_devicelibs(libsycl-fallback-cassert-preview
+  SRC fallback-cassert.cpp
+  DEPENDENCIES ${crt_obj_deps}
+  EXTRA_OPTS -fno-sycl-instrument-device-code
+             -D__FALLBACK_ASSERT_PREVIEW)
 add_devicelibs(libsycl-fallback-cstring
   SRC fallback-cstring.cpp
   BUILD_ARCHS ${full_build_archs}
