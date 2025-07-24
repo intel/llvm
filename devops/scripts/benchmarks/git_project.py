@@ -19,17 +19,20 @@ class GitProject:
         directory: Path,
         name: str,
         force_rebuild: bool = False,
+        no_suffix_src: bool = False,
     ) -> None:
         self._url = url
         self._ref = ref
         self._directory = directory
         self._name = name
         self._force_rebuild = force_rebuild
+        self._no_suffix_src = no_suffix_src
         self._rebuild_needed = self._git_clone()
 
     @property
     def src_dir(self) -> Path:
-        return self._directory / f"{self._name}-src"
+        suffix = "" if self._no_suffix_src else "-src"
+        return self._directory / f"{self._name}{suffix}"
 
     @property
     def build_dir(self) -> Path:

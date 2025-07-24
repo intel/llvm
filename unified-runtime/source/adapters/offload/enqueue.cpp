@@ -68,13 +68,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   LaunchArgs.DynSharedMemory = 0;
 
   ol_event_handle_t EventOut;
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
   OL_RETURN_ON_ERR(
-      olLaunchKernel(hQueue->OffloadQueue, hQueue->OffloadDevice,
-                     hKernel->OffloadKernel, hKernel->Args.getStorage(),
-                     hKernel->Args.getStorageSize(), &LaunchArgs, &EventOut));
+      olLaunchKernel(Queue, hQueue->OffloadDevice, hKernel->OffloadKernel,
+                     hKernel->Args.getStorage(), hKernel->Args.getStorageSize(),
+                     &LaunchArgs, &EventOut));
 
   if (phEvent) {
-    auto *Event = new ur_event_handle_t_();
+    auto *Event = new ur_event_handle_t_(UR_COMMAND_KERNEL_LAUNCH, hQueue);
     Event->OffloadEvent = EventOut;
     *phEvent = Event;
   }
@@ -94,10 +96,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
 }
 
 namespace {
-ur_result_t doMemcpy(ur_queue_handle_t hQueue, void *DestPtr,
-                     ol_device_handle_t DestDevice, const void *SrcPtr,
-                     ol_device_handle_t SrcDevice, size_t size, bool blocking,
-                     uint32_t numEventsInWaitList,
+ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
+                     void *DestPtr, ol_device_handle_t DestDevice,
+                     const void *SrcPtr, ol_device_handle_t SrcDevice,
+                     size_t size, bool blocking, uint32_t numEventsInWaitList,
                      const ur_event_handle_t *phEventWaitList,
                      ur_event_handle_t *phEvent) {
   // Ignore wait list for now
@@ -105,17 +107,22 @@ ur_result_t doMemcpy(ur_queue_handle_t hQueue, void *DestPtr,
   (void)phEventWaitList;
   //
 
-  ol_event_handle_t EventOut = nullptr;
-
-  OL_RETURN_ON_ERR(olMemcpy(hQueue->OffloadQueue, DestPtr, DestDevice, SrcPtr,
-                            SrcDevice, size, phEvent ? &EventOut : nullptr));
-
   if (blocking) {
-    OL_RETURN_ON_ERR(olWaitQueue(hQueue->OffloadQueue));
+    OL_RETURN_ON_ERR(olMemcpy(nullptr, DestPtr, DestDevice, SrcPtr, SrcDevice,
+                              size, nullptr));
+    if (phEvent) {
+      *phEvent = ur_event_handle_t_::createEmptyEvent(Command, hQueue);
+    }
+    return UR_RESULT_SUCCESS;
   }
 
+  ol_event_handle_t EventOut = nullptr;
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(olMemcpy(Queue, DestPtr, DestDevice, SrcPtr, SrcDevice, size,
+                            phEvent ? &EventOut : nullptr));
   if (phEvent) {
-    auto *Event = new ur_event_handle_t_();
+    auto *Event = new ur_event_handle_t_(Command, hQueue);
     Event->OffloadEvent = EventOut;
     *phEvent = Event;
   }
@@ -131,8 +138,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
   char *DevPtr =
       reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
 
-  return doMemcpy(hQueue, pDst, Adapter->HostDevice, DevPtr + offset,
-                  hQueue->OffloadDevice, size, blockingRead,
+  return doMemcpy(UR_COMMAND_MEM_BUFFER_READ, hQueue, pDst, Adapter->HostDevice,
+                  DevPtr + offset, hQueue->OffloadDevice, size, blockingRead,
                   numEventsInWaitList, phEventWaitList, phEvent);
 }
 
@@ -143,9 +150,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   char *DevPtr =
       reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
 
-  return doMemcpy(hQueue, DevPtr + offset, hQueue->OffloadDevice, pSrc,
-                  Adapter->HostDevice, size, blockingWrite, numEventsInWaitList,
-                  phEventWaitList, phEvent);
+  return doMemcpy(UR_COMMAND_MEM_BUFFER_WRITE, hQueue, DevPtr + offset,
+                  hQueue->OffloadDevice, pSrc, Adapter->HostDevice, size,
+                  blockingWrite, numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
@@ -159,10 +166,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     return Err;
   }
 
-  return doMemcpy(hQueue, pDst, Adapter->HostDevice,
-                  reinterpret_cast<const char *>(Ptr) + offset,
-                  hQueue->OffloadDevice, count, blockingRead,
-                  numEventsInWaitList, phEventWaitList, phEvent);
+  return doMemcpy(
+      UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ, hQueue, pDst, Adapter->HostDevice,
+      reinterpret_cast<const char *>(Ptr) + offset, hQueue->OffloadDevice,
+      count, blockingRead, numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
@@ -176,18 +183,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     return Err;
   }
 
-  return doMemcpy(hQueue, reinterpret_cast<char *>(Ptr) + offset,
-                  hQueue->OffloadDevice, pSrc, Adapter->HostDevice, count,
-                  blockingWrite, numEventsInWaitList, phEventWaitList, phEvent);
+  return doMemcpy(UR_COMMAND_DEVICE_GLOBAL_VARIABLE_WRITE, hQueue,
+                  reinterpret_cast<char *>(Ptr) + offset, hQueue->OffloadDevice,
+                  pSrc, Adapter->HostDevice, count, blockingWrite,
+                  numEventsInWaitList, phEventWaitList, phEvent);
 }
 
-ur_result_t enqueueNoOp(ur_queue_handle_t hQueue, ur_event_handle_t *phEvent) {
+ur_result_t enqueueNoOp(ur_command_t Type, ur_queue_handle_t hQueue,
+                        ur_event_handle_t *phEvent) {
   // This path is a no-op, but we can't output a real event because
   // Offload doesn't currently support creating arbitrary events, and we
   // don't know the last real event in the queue. Instead we just have to
   // wait on the whole queue and then return an empty (implicitly
   // finished) event.
-  *phEvent = ur_event_handle_t_::createEmptyEvent();
+  *phEvent = ur_event_handle_t_::createEmptyEvent(Type, hQueue);
   return urQueueFinish(hQueue);
 }
 
@@ -221,7 +230,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     }
 
     if (phEvent) {
-      enqueueNoOp(hQueue, phEvent);
+      enqueueNoOp(UR_COMMAND_MEM_BUFFER_MAP, hQueue, phEvent);
     }
   }
   *ppRetMap = MapPtr;
@@ -255,7 +264,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     }
 
     if (phEvent) {
-      enqueueNoOp(hQueue, phEvent);
+      enqueueNoOp(UR_COMMAND_MEM_UNMAP, hQueue, phEvent);
     }
   }
   BufferImpl.unmap(pMappedPtr);
