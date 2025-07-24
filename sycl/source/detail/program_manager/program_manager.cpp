@@ -2408,13 +2408,13 @@ void ProgramManager::addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
 }
 
 void ProgramManager::registerKernelGlobalInfo(
-    std::unordered_map<std::string_view, unsigned> &GlobalInfoToCopy) {
+    std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy) {
   std::lock_guard<std::mutex> Guard(MNativeProgramsMutex);
-  if (m_KernelGlobalInfo.empty())
-    m_KernelGlobalInfo = std::move(GlobalInfoToCopy);
+  if (m_FreeFunctionKernelGlobalInfo.empty())
+    m_FreeFunctionKernelGlobalInfo = std::move(GlobalInfoToCopy);
   else {
     for (auto &GlobalInfo : GlobalInfoToCopy) {
-      m_KernelGlobalInfo.insert(GlobalInfo);
+      m_FreeFunctionKernelGlobalInfo.insert(GlobalInfo);
     }
   }
 }
@@ -2422,8 +2422,8 @@ void ProgramManager::registerKernelGlobalInfo(
 std::optional<unsigned>
 ProgramManager::getKernelGlobalInfoDesc(const char *UniqueId) {
   std::lock_guard<std::mutex> Guard(MNativeProgramsMutex);
-  const auto It = m_KernelGlobalInfo.find(UniqueId);
-  if (It == m_KernelGlobalInfo.end())
+  const auto It = m_FreeFunctionKernelGlobalInfo.find(UniqueId);
+  if (It == m_FreeFunctionKernelGlobalInfo.end())
     return std::nullopt;
   return It->second;
 }

@@ -311,6 +311,8 @@ inline typename Param::return_type kernel_impl::get_info() const {
   static_assert(is_kernel_info_desc<Param>::value,
                 "Invalid kernel information descriptor");
   if constexpr (std::is_same_v<Param, info::kernel::num_args>) {
+    // if kernel is a free function, we need to get num_args from integration
+    // header, stored in program manager
     if (std::optional<unsigned> FFArgSize = getFreeFuncKernelArgSize())
       return *FFArgSize;
     checkIfValidForNumArgsInfoQuery();

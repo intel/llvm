@@ -12,14 +12,15 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail::free_function_info_map {
 
-__SYCL_EXPORT void add(const char *const *UniqueId,
-                       const unsigned *DeviceGlobalPtr, unsigned Size) {
+__SYCL_EXPORT void add(const char *const *FreeFunctionNames,
+                       const unsigned *FreeFunctionNumArgs, unsigned Size) {
   std::unordered_map<std::string_view, unsigned> GlobalInfoToCopy;
   for (size_t i = 0; i < Size; ++i) {
-    GlobalInfoToCopy[std::string_view{UniqueId[i]}] = DeviceGlobalPtr[i];
+    GlobalInfoToCopy[std::string_view{FreeFunctionNames[i]}] =
+        FreeFunctionNumArgs[i];
   }
   detail::ProgramManager::getInstance().registerKernelGlobalInfo(
-      GlobalInfoToCopy);
+      std::move(GlobalInfoToCopy));
 }
 
 } // namespace detail::free_function_info_map

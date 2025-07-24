@@ -258,7 +258,7 @@ public:
   // The function inserts or initializes a kernel global desc into the
   // kernel global map.
   void registerKernelGlobalInfo(
-      std::unordered_map<std::string_view, unsigned> &GlobalInfoToCopy);
+      std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy);
 
   // The function returns a pointer to the kernel global desc identified by
   // the unique ID from the kernel global map.
@@ -547,9 +547,9 @@ protected:
   // their associated entry resources when they die.
   DeviceGlobalMap m_DeviceGlobals{/*OwnerControlledCleanup=*/true};
 
-  // Maps between host_pipe identifiers and associated kernel global
+  // Maps between free function kernel name and associated kernel global
   // information.
-  std::unordered_map<std::string_view, unsigned> m_KernelGlobalInfo;
+  std::unordered_map<std::string_view, unsigned> m_FreeFunctionKernelGlobalInfo;
 
   // Maps between host_pipe identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>
