@@ -19,7 +19,7 @@
 
 using namespace sycl;
 
-static std::string MockExtensions = "";
+thread_local std::string MockExtensions = "";
 
 static ur_result_t redefinedDeviceGetInfo(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
@@ -51,11 +51,6 @@ protected:
                                               &redefinedDeviceGetInfo);
   }
 
-  void TearDown() override {
-    // get default mock by passing nullptr
-    mock::getCallbacks().set_replace_callback("urDeviceGetInfo", nullptr);
-  }
-
   sycl::unittest::UrMock<> Mock;
 };
 
@@ -64,11 +59,10 @@ TEST_F(HasExtensionWordBoundaryTest, ExactMatchWorks) {
 
   sycl::platform Plt{sycl::platform()};
   sycl::device Dev = Plt.get_devices()[0];
-  auto DevImpl = detail::getSyclObjImpl(Dev);
 
-  EXPECT_TRUE(DevImpl->has_extension("cl_khr_fp64"));
-  EXPECT_TRUE(DevImpl->has_extension("cl_intel_subgroups"));
-  EXPECT_TRUE(DevImpl->has_extension("cl_khr_subgroups"));
+  EXPECT_TRUE(Dev.has_extension("cl_khr_fp64"));
+  EXPECT_TRUE(Dev.has_extension("cl_intel_subgroups"));
+  EXPECT_TRUE(Dev.has_extension("cl_khr_subgroups"));
 }
 
 TEST_F(HasExtensionWordBoundaryTest, SubstringDoesNotMatch) {
@@ -76,15 +70,14 @@ TEST_F(HasExtensionWordBoundaryTest, SubstringDoesNotMatch) {
 
   sycl::platform Plt{sycl::platform()};
   sycl::device Dev = Plt.get_devices()[0];
-  auto DevImpl = detail::getSyclObjImpl(Dev);
 
-  // these should NOT match because they're substrings
-  EXPECT_FALSE(DevImpl->has_extension("cl_intel_subgroup")); // missing 's'
+  // These should NOT match because they're substrings.
+  EXPECT_FALSE(Dev.has_extension("cl_intel_subgroup")); // missing 's'
 
-  // would match in old implementation
-  EXPECT_FALSE(DevImpl->has_extension("cl_khr_fp64"));
-  EXPECT_FALSE(DevImpl->has_extension("subgroups"));       // partial match
-  EXPECT_FALSE(DevImpl->has_extension("intel_subgroups")); // partial match
+  // Would match in old implementation.
+  EXPECT_FALSE(Dev.has_extension("cl_khr_fp64"));
+  EXPECT_FALSE(Dev.has_extension("subgroups"));       // partial match
+  EXPECT_FALSE(Dev.has_extension("intel_subgroups")); // partial match
 }
 
 TEST_F(HasExtensionWordBoundaryTest, EmptyExtensions) {
@@ -92,9 +85,8 @@ TEST_F(HasExtensionWordBoundaryTest, EmptyExtensions) {
 
   sycl::platform Plt{sycl::platform()};
   sycl::device Dev = Plt.get_devices()[0];
-  auto DevImpl = detail::getSyclObjImpl(Dev);
 
-  EXPECT_FALSE(DevImpl->has_extension("cl_khr_fp64"));
+  EXPECT_FALSE(Dev.has_extension("cl_khr_fp64"));
 }
 
 TEST_F(HasExtensionWordBoundaryTest, SingleExtension) {
@@ -104,8 +96,8 @@ TEST_F(HasExtensionWordBoundaryTest, SingleExtension) {
   sycl::device Dev = Plt.get_devices()[0];
   auto DevImpl = detail::getSyclObjImpl(Dev);
 
-  EXPECT_TRUE(DevImpl->has_extension("cl_khr_fp64"));
-  EXPECT_FALSE(DevImpl->has_extension("cl_khr_fp6")); // a substring
+  EXPECT_TRUE(Dev.has_extension("cl_khr_fp64"));
+  EXPECT_FALSE(Dev.has_extension("cl_khr_fp6")); // a substring
 }
 
 TEST_F(HasExtensionWordBoundaryTest, FirstMiddleLastExtensions) {
@@ -115,9 +107,9 @@ TEST_F(HasExtensionWordBoundaryTest, FirstMiddleLastExtensions) {
   sycl::device Dev = Plt.get_devices()[0];
   auto DevImpl = detail::getSyclObjImpl(Dev);
 
-  EXPECT_TRUE(DevImpl->has_extension("cl_first_ext"));
-  EXPECT_TRUE(DevImpl->has_extension("cl_middle_ext"));
-  EXPECT_TRUE(DevImpl->has_extension("cl_last_ext"));
+  EXPECT_TRUE(Dev.has_extension("cl_first_ext"));
+  EXPECT_TRUE(Dev.has_extension("cl_middle_ext"));
+  EXPECT_TRUE(Dev.has_extension("cl_last_ext"));
 }
 
 TEST_F(HasExtensionWordBoundaryTest, NonUniformGroupExtensions) {
@@ -131,17 +123,17 @@ TEST_F(HasExtensionWordBoundaryTest, NonUniformGroupExtensions) {
   sycl::device Dev = Plt.get_devices()[0];
   auto DevImpl = detail::getSyclObjImpl(Dev);
 
-  // should match (real extensions)
-  EXPECT_TRUE(DevImpl->has_extension("cl_khr_subgroup_non_uniform_vote"));
-  EXPECT_TRUE(DevImpl->has_extension("cl_khr_subgroup_ballot"));
-  EXPECT_TRUE(DevImpl->has_extension("cl_intel_subgroups"));
-  EXPECT_TRUE(DevImpl->has_extension("cl_intel_spirv_subgroups"));
+  // Should match (real extensions.)
+  EXPECT_TRUE(Dev.has_extension("cl_khr_subgroup_non_uniform_vote"));
+  EXPECT_TRUE(Dev.has_extension("cl_khr_subgroup_ballot"));
+  EXPECT_TRUE(Dev.has_extension("cl_intel_subgroups"));
+  EXPECT_TRUE(Dev.has_extension("cl_intel_spirv_subgroups"));
   EXPECT_TRUE(
-      DevImpl->has_extension("cl_intel_subgroup_matrix_multiply_accumulate"));
+      Dev.has_extension("cl_intel_subgroup_matrix_multiply_accumulate"));
 
-  // next should NOT match (substrings that would match with old impl.)
-  EXPECT_FALSE(DevImpl->has_extension("cl_khr_subgroup"));
-  EXPECT_FALSE(DevImpl->has_extension("cl_intel_subgroup")); // missing 's'
-  EXPECT_FALSE(DevImpl->has_extension("non_uniform_vote"));  // missing prefix
-  EXPECT_FALSE(DevImpl->has_extension("subgroup_matrix_multiply"));
+  // Next should NOT match (substrings that would match with old impl.)
+  EXPECT_FALSE(Dev.has_extension("cl_khr_subgroup"));
+  EXPECT_FALSE(Dev.has_extension("cl_intel_subgroup")); // missing 's'
+  EXPECT_FALSE(Dev.has_extension("non_uniform_vote"));  // missing prefix
+  EXPECT_FALSE(Dev.has_extension("subgroup_matrix_multiply"));
 }
