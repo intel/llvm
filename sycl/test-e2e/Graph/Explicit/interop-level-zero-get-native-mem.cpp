@@ -4,6 +4,9 @@
 // for native L0 API calls.
 // UNSUPPORTED: linux && gpu-intel-dg2 && run-mode && !igc-dev
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18273
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: v2 adapter might not use host memory for integrated
+// graphics
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
 
