@@ -2463,11 +2463,9 @@ device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
     KernelIDs = m_BinImg2KernelIDs[BinImage];
   }
 
-  DeviceImageImplPtr Impl = device_image_impl::create(
-      BinImage, Ctx, Dev, ImgState, KernelIDs, Managed<ur_program_handle_t>{},
-      ImageOriginSYCLOffline);
-
-  return createSyclObjFromImpl<device_image_plain>(std::move(Impl));
+  return createSyclObjFromImpl<device_image_plain>(device_image_impl::create(
+      BinImage, Ctx, Dev, ImgState, std::move(KernelIDs),
+      Managed<ur_program_handle_t>{}, ImageOriginSYCLOffline));
 }
 
 std::vector<DevImgPlainWithDeps>
@@ -2622,7 +2620,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     if (ImgInfoPair.second.RequirementCounter == 0)
       continue;
 
-    DeviceImageImplPtr MainImpl = device_image_impl::create(
+    std::shared_ptr<device_image_impl> MainImpl = device_image_impl::create(
         ImgInfoPair.first, Ctx, Devs, ImgInfoPair.second.State,
         ImgInfoPair.second.KernelIDs, Managed<ur_program_handle_t>{},
         ImageOriginSYCLOffline);
@@ -2657,11 +2655,10 @@ ProgramManager::createDependencyImage(const context &Ctx, devices_range Devs,
 
   assert(DepState == getBinImageState(DepImage) &&
          "State mismatch between main image and its dependency");
-  DeviceImageImplPtr DepImpl = device_image_impl::create(
-      DepImage, Ctx, Devs, DepState, std::move(DepKernelIDs),
-      Managed<ur_program_handle_t>{}, ImageOriginSYCLOffline);
 
-  return createSyclObjFromImpl<device_image_plain>(std::move(DepImpl));
+  return createSyclObjFromImpl<device_image_plain>(device_image_impl::create(
+      DepImage, Ctx, Devs, DepState, std::move(DepKernelIDs),
+      Managed<ur_program_handle_t>{}, ImageOriginSYCLOffline));
 }
 
 void ProgramManager::bringSYCLDeviceImageToState(
@@ -2830,7 +2827,7 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
 
     std::optional<detail::KernelCompilerBinaryInfo> RTCInfo =
         InputImpl.getRTCInfo();
-    DeviceImageImplPtr ObjectImpl = device_image_impl::create(
+    std::shared_ptr<device_image_impl> ObjectImpl = device_image_impl::create(
         InputImpl.get_bin_image_ref(), InputImpl.get_context(), Devs,
         bundle_state::object, InputImpl.get_kernel_ids_ptr(), std::move(Prog),
         InputImpl.get_spec_const_data_ref(),
@@ -3028,16 +3025,14 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
   }
   auto MergedRTCInfo = detail::KernelCompilerBinaryInfo::Merge(RTCInfoPtrs);
 
-  DeviceImageImplPtr ExecutableImpl = device_image_impl::create(
+  // TODO: Make multiple sets of device images organized by devices they are
+  // compiled for.
+  return {createSyclObjFromImpl<device_image_plain>(device_image_impl::create(
       NewBinImg, Context, Devs, bundle_state::executable, std::move(KernelIDs),
       std::move(LinkedProg), std::move(NewSpecConstMap),
       std::move(NewSpecConstBlob), CombinedOrigins, std::move(MergedRTCInfo),
       std::move(MergedKernelNames), std::move(MergedEliminatedKernelArgMasks),
-      std::move(MergedImageStorage));
-
-  // TODO: Make multiple sets of device images organized by devices they are
-  // compiled for.
-  return {createSyclObjFromImpl<device_image_plain>(std::move(ExecutableImpl))};
+      std::move(MergedImageStorage)))};
 }
 
 // The function duplicates most of the code from existing getBuiltPIProgram.
@@ -3111,13 +3106,12 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
   }
   auto MergedRTCInfo = detail::KernelCompilerBinaryInfo::Merge(RTCInfoPtrs);
 
-  DeviceImageImplPtr ExecImpl = device_image_impl::create(
+  return createSyclObjFromImpl<device_image_plain>(device_image_impl::create(
       ResultBinImg, Context, Devs, bundle_state::executable,
       std::move(KernelIDs), std::move(ResProgram), std::move(SpecConstMap),
       std::move(SpecConstBlob), CombinedOrigins, std::move(MergedRTCInfo),
       std::move(MergedKernelNames), std::move(MergedEliminatedKernelArgMasks),
-      std::move(MergedImageStorage));
-  return createSyclObjFromImpl<device_image_plain>(std::move(ExecImpl));
+      std::move(MergedImageStorage)));
 }
 
 // When caching is enabled, the returned UrKernel will already have

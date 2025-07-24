@@ -100,13 +100,15 @@ private:
 
 namespace detail {
 class device_image_impl;
-using DeviceImageImplPtr = std::shared_ptr<device_image_impl>;
 
 // The class is used as a base for device_image for "untemplating" public
 // methods.
 class __SYCL_EXPORT device_image_plain {
 public:
-  device_image_plain(const detail::DeviceImageImplPtr &Impl)
+  device_image_plain(const std::shared_ptr<device_image_impl> &Impl)
+      : impl(Impl) {}
+
+  device_image_plain(std::shared_ptr<device_image_impl> &&Impl)
       : impl(std::move(Impl)) {}
 
   bool operator==(const device_image_plain &RHS) const {
@@ -124,7 +126,7 @@ public:
   ur_native_handle_t getNative() const;
 
 protected:
-  detail::DeviceImageImplPtr impl;
+  std::shared_ptr<device_image_impl> impl;
 
   template <class Obj>
   friend const decltype(Obj::impl) &
@@ -191,7 +193,7 @@ public:
 #endif // _HAS_STD_BYTE
 
 private:
-  device_image(detail::DeviceImageImplPtr Impl)
+  device_image(std::shared_ptr<detail::device_image_impl> Impl)
       : device_image_plain(std::move(Impl)) {}
 
   template <class Obj>
@@ -736,7 +738,7 @@ namespace detail {
 
 // Stable selector function type for passing thru library boundaries
 using DevImgSelectorImpl =
-    std::function<bool(const detail::DeviceImageImplPtr &DevImgImpl)>;
+    std::function<bool(const std::shared_ptr<device_image_impl> &DevImgImpl)>;
 
 // Internal non-template versions of get_kernel_bundle API which is used by
 // public onces
@@ -769,7 +771,7 @@ kernel_bundle<State> get_kernel_bundle(const context &Ctx,
   std::vector<device> UniqueDevices = detail::removeDuplicateDevices(Devs);
 
   detail::DevImgSelectorImpl SelectorWrapper =
-      [Selector](const detail::DeviceImageImplPtr &DevImg) {
+      [Selector](const std::shared_ptr<detail::device_image_impl> &DevImg) {
         return Selector(
             detail::createSyclObjFromImpl<sycl::device_image<State>>(DevImg));
       };
