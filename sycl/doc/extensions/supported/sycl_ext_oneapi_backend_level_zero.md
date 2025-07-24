@@ -306,7 +306,7 @@ auto get_native(const SyclObjectT &Obj)
 It is currently supported for SYCL ```platform```, ```device```, ```context```, ```queue```, ```event```,
 ```kernel_bundle```, and ```kernel``` classes. 
 
-The ```get_native(queue)``` function returns either ```ze_command_queue_handle_t``` or ```ze_command_list_handle_t``` depending on the manner in which the input argument ```queue``` had been created. Queues created with the SYCL ```queue``` constructors have a default setting for whether they use command queues or command lists. The default and how it may be changed is documented in the description for the environment variable ```SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS```. Queues created using ```make_queue()``` use either a command list or command queue depending on the input argument to ```make_queue``` and are not affected by the default for SYCL queues or the environment variable.
+The ```get_native(queue)``` function returns ```ze_command_list_handle_t``` which represents an immediate command list. This handle can be different than the one passed to ```make_queue()``.
 
 The ```sycl::get_native<backend::ext_oneapi_level_zero>```
 free-function is not supported for SYCL ```buffer``` or ```image``` class. The native backend object associated with the
@@ -382,12 +382,17 @@ queue make_queue(
     const context &Context)
 ```
 </td>
-<td>Constructs a SYCL queue instance from a Level-Zero <code>ze_command_queue_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The <code>Device</code> input structure member specifies the device to create the <code>queue</code> against and must be in <code>Context</code>. The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.
+<td>Constructs a SYCL queue instance from a Level-Zero <code>ze_command_list_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The <code>Device</code> input structure member specifies the device to create the <code>queue</code> against and must be in <code>Context</code>. The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.
 
 If the deprecated variant of <code>backend_input_t<backend::ext_oneapi_level_zero, queue></code> is passed to <code>make_queue</code> the queue is attached to the first device in <code>Context</code>.
 
 Starting in version 4 of this specification, ```make_queue()``` can be called by passing either a Level Zero ```ze_command_queue_handle_t``` or a Level Zero ```ze_command_list_handle_t```. Queues created from a Level Zero immediate command list (```ze_command_list_handle_t```) generally perform better than queues created from a standard Level Zero ```ze_command_queue_handle_t```. See the Level Zero documentation of these native handles for more details. Also starting in version 4 the ```make_queue()``` function accepts a ```Properties``` member variable. This can contain any of the SYCL properties that are accepted by the SYCL queue constructor, except
 the ```compute_index``` property which is built into the command queue or command list.
+
+Calling any Level Zero (L0) APIs on a native handle (```ze_command_list_handle_t``` or ```ze_command_queue_handle_t```) after it has been passed to make_queue is undefined behavior (regardless of whether SYCL took ownership of the handle or not). This restriction applies for the entire lifetime of the resulting SYCL queue object.
+
+To synchronize with the SYCL queue ```make_event()`` can be used. See below for more details.
+
 </td>
 </tr><tr>
 <td>
@@ -612,13 +617,17 @@ The application must not use the Level-Zero handle after the last host copy of t
 as described in the core SYCL specification under "Common reference semantics"), and the application must not
 destroy the Level-Zero handle itself.
 
+Additional restriction applies to the native queue handle: it cannot be used by the application at any point
+after the ownership has been transferred.
+
 #### 4.4.2 Application keeps ownership (explicit)
 
 If SYCL object is created with an interoperability API explicitly asking to keep the native handle ownership in the application with
 ```ownership::keep``` then the SYCL runtime does not take the ownership and will not destroy the Level-Zero handle at the destruction of the SYCL object.
 The application is responsible for destroying the native handle when it no longer needs it, but it must not destroy the
 handle before the last host copy of the SYCL object is destroyed (as described in the core SYCL specification under
-"Common reference semantics").
+"Common reference semantics"). Note: in case of native queue handle the application cannot interact with the handle directly until
+the SYCL object is destroyed.
                                                                 
 #### 4.4.3 Obtaining native handle does not change ownership
 
@@ -665,3 +674,4 @@ The behavior of the SYCL buffer destructor depends on the Ownership flag. As wit
 |11|2023-03-14|Rajiv Deodhar|Added support for Level Zero immediate command lists
 |12|2023-04-06|Chris Perkins|Introduced make_image() API
 |13|2023-04-06|Ewan Crawford|Add backend_return_t for SYCL-Graph
+|14|2025-07-24|Igor Chorazewicz|Restrict queue interop to align with v2 adapter implementation
