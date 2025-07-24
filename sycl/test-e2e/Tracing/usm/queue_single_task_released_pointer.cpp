@@ -1,5 +1,5 @@
 // UNSUPPORTED: windows || hip
-// RUN: %{build} -o %t.out
+// RUN: %{build} -fsycl-decompose-functor -o %t.out
 // RUN: not env SYCL_TRACE_TERMINATE_ON_WARNING=1 %{run} sycl-trace --verify %t.out | FileCheck %s
 
 // Test parameter analysis of USM usage

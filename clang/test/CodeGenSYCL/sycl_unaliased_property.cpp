@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device %s -emit-llvm -triple spir64-unknown-unknown -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-decompose-functor %s -emit-llvm -triple spir64-unknown-unknown -o - | FileCheck %s
 
 struct __attribute__((sycl_special_class))
       [[__sycl_detail__::sycl_type(annotated_arg)]]

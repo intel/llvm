@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device \
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device -fsycl-decompose-functor \
 // RUN: -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml
 // RUN: FileCheck -check-prefix=SPIR --input-file %t-host.yaml %s
 
-// RUN: %clang_cc1 -triple nvptx64-unknown-unknown -fsycl-is-device \
+// RUN: %clang_cc1 -triple nvptx64-unknown-unknown -fsycl-is-device -fsycl-decompose-functor \
 // RUN: -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml
 // RUN: FileCheck -check-prefix=NVPTX --input-file %t-host.yaml %s
 // The test generates remarks about the kernel argument, their location and type

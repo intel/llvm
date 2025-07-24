@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-decompose-functor -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
 
 // This test checks that compiler generates correct kernel arguments for
 // a struct-with-an-array-of-unions and a array-of-struct-with-a-union.

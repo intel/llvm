@@ -5,7 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===------------------------------------------------------------------===//
-// RUN: %{build} -fsycl-device-code-split=per_kernel -D__ESIMD_GATHER_SCATTER_LLVM_IR -o %t.out
+// Shouldn't have to use -fsycl-decompose-functor,
+// See https://github.com/intel/llvm-test-suite/issues/18317
+// RUN: %{build} -fsycl-device-code-split=per_kernel -fsycl-decompose-functor -D__ESIMD_GATHER_SCATTER_LLVM_IR -o %t.out
 // RUN: %{run} %t.out
 
 // The test verifies esimd::scatter() functions accepting USM pointer

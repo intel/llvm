@@ -91,19 +91,19 @@ SYCL_EXTERNAL void annotated_ptr_func_param_test(float *p) {
 // CHECK-IR: ret void
 
 // CHECK-IR: spir_kernel{{.*}}cache_control_read_hint_func
-// CHECK-IR: {{.*}}addrspacecast ptr addrspace(1){{.*}}!spirv.Decorations [[RHINT:.*]]
+// CHECK-IR: {{.*}}load ptr addrspace(4), ptr{{.*}}!spirv.Decorations [[RHINT:.*]]
 // CHECK-IR: ret void
 
 // CHECK-IR: spir_kernel{{.*}}cache_control_read_assertion_func
-// CHECK-IR: {{.*}}addrspacecast ptr addrspace(1){{.*}}!spirv.Decorations [[RASSERT:.*]]
+// CHECK-IR: {{.*}}load ptr addrspace(4), ptr{{.*}}!spirv.Decorations [[RASSERT:.*]]
 // CHECK-IR: ret void
 
 // CHECK-IR: spir_kernel{{.*}}cache_control_write_hint_func
-// CHECK-IR: {{.*}}addrspacecast ptr addrspace(1){{.*}}!spirv.Decorations [[WHINT]]
+// CHECK-IR: {{.*}}load ptr addrspace(4), ptr{{.*}}!spirv.Decorations [[WHINT:.*]]
 // CHECK-IR: ret void
 
 // CHECK-IR: spir_kernel{{.*}}cache_control_read_write_func
-// CHECK-IR: {{.*}}addrspacecast ptr addrspace(1){{.*}}!spirv.Decorations [[RWHINT:.*]]
+// CHECK-IR: {{.*}}load ptr addrspace(4), ptr{{.*}}!spirv.Decorations [[RWHINT:.*]]
 // CHECK-IR: ret void
 
 // CHECK-IR: [[WHINT]] = !{[[WHINT1:.*]], [[WHINT2:.*]], [[WHINT3:.*]], [[WHINT4:.*]]}

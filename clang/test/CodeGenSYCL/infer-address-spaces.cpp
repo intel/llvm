@@ -17,5 +17,5 @@ void foo(const float *usm_in, float* usm_out) {
 
 // No addrspacecast before loading and storing values
 // CHECK-NOT: addrspacecast
-// CHECK:  [[VAL:%.*]] = load float, ptr addrspace(1)
-// CHECK:  store float [[VAL]], ptr addrspace(1)
+// CHECK:  [[VAL:%.*]] = load float, ptr addrspace(4)
+// CHECK:  store float [[VAL]], ptr addrspace(4)
