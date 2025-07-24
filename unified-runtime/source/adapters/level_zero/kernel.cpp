@@ -148,20 +148,26 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     ur_queue_handle_t Queue,
     /// [in] handle of the kernel object
     ur_kernel_handle_t Kernel,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t GlobalWorkOffset[3],
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t *GlobalWorkOffset,
     /// [in] pointer to an array of workDim unsigned values that specify the
     /// number of global work-items in workDim that will execute the kernel
     /// function
-    const size_t GlobalWorkSize[3],
+    const size_t *GlobalWorkSize,
     /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that
-    /// will execute the kernel function. If nullptr, the runtime
-    /// implementation will choose the work-group size.
-    const size_t LocalWorkSize[3],
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t *LocalWorkSize,
     /// [in] size of the event wait list
-    uint32_t NumArgs, const ur_exp_kernel_arg_properties_t *Args,
+    uint32_t NumArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *Args,
     /// [in] size of the launch prop list
     uint32_t NumPropsInLaunchPropList,
     /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
@@ -212,7 +218,7 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
   }
   // Normalize so each dimension has at least one work item
   return level_zero::urEnqueueKernelLaunch(
-      Queue, Kernel, 3, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize,
+      Queue, Kernel, workDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize,
       NumPropsInLaunchPropList, LaunchPropList, NumEventsInWaitList,
       EventWaitList, OutEvent);
 }

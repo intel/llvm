@@ -1344,18 +1344,21 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     ur_queue_handle_t hQueue,
     /// [in] handle of the kernel object
     ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
     /// [in][optional] pointer to an array of workDim unsigned values that
     /// specify the offset used to calculate the global ID of a work-item
-    const size_t pGlobalWorkOffset[3],
+    const size_t *pGlobalWorkOffset,
     /// [in] pointer to an array of workDim unsigned values that specify the
     /// number of global work-items in workDim that will execute the kernel
     /// function
-    const size_t pGlobalWorkSize[3],
+    const size_t *pGlobalWorkSize,
     /// [in][optional] pointer to an array of workDim unsigned values that
     /// specify the number of local work-items forming a work-group that will
     /// execute the kernel function.
     /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t pLocalWorkSize[3],
+    const size_t *pLocalWorkSize,
     /// [in] Number of entries in pArgs
     uint32_t numArgs,
     /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
@@ -1439,9 +1442,9 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
   UR_CALL(getTsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
   UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
-      hQueue, hKernel, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, 0,
-      nullptr, numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
-      phEventWaitList, phEvent));
+      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, 0, nullptr, numPropsInLaunchPropList, launchPropList,
+      numEventsInWaitList, phEventWaitList, phEvent));
 
   UR_CALL(getTsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 

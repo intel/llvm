@@ -106,13 +106,16 @@ params:
     - type: $x_kernel_handle_t
       name: hKernel
       desc: "[in] handle of the kernel object"
-    - type: "const size_t[3]"
+    - type: uint32_t
+      name: workDim
+      desc: "[in] number of dimensions, from 1 to 3, to specify the global and work-group work-items"
+    - type: "const size_t*"
       name: pGlobalWorkOffset
       desc: "[in][optional] pointer to an array of workDim unsigned values that specify the offset used to calculate the global ID of a work-item"
-    - type: "const size_t[3]"
+    - type: "const size_t*"
       name: pGlobalWorkSize
       desc: "[in] pointer to an array of workDim unsigned values that specify the number of global work-items in workDim that will execute the kernel function"
-    - type: "const size_t[3]"
+    - type: "const size_t*"
       name: pLocalWorkSize
       desc: |
             [in][optional] pointer to an array of workDim unsigned values that specify the number of local work-items forming a work-group that will execute the kernel function.

@@ -134,6 +134,7 @@ struct urEnqueueKernelLaunchWithArgsTest : uur::urKernelExecutionTest {
   static constexpr size_t local_mem_b_size = local_mem_a_size * 2;
   static constexpr size_t global_size[3] = {16, 1, 1};
   static constexpr size_t global_offset[3] = {0, 0, 0};
+  static constexpr uint32_t workDim = 3;
   static constexpr uint32_t A = 42;
   std::array<void *, 5> shared_ptrs = {nullptr, nullptr, nullptr, nullptr,
                                        nullptr};
@@ -147,8 +148,8 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchWithArgsTest);
 
 TEST_P(urEnqueueKernelLaunchWithArgsTest, Success) {
   ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-      queue, kernel, global_offset, global_size, local_size, args.size(),
-      args.data(), 0, nullptr, 0, nullptr, nullptr));
+      queue, kernel, workDim, global_offset, global_size, local_size,
+      args.size(), args.data(), 0, nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   uint32_t *output = (uint32_t *)shared_ptrs[0];
@@ -160,54 +161,55 @@ TEST_P(urEnqueueKernelLaunchWithArgsTest, Success) {
 TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullHandleQueue) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urEnqueueKernelLaunchWithArgsExp(
-                       nullptr, kernel, global_offset, global_size, local_size,
-                       args.size(), args.data(), 0, nullptr, 0, nullptr,
-                       nullptr));
+                       nullptr, kernel, workDim, global_offset, global_size,
+                       local_size, args.size(), args.data(), 0, nullptr, 0,
+                       nullptr, nullptr));
 }
 
 TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullHandleKernel) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urEnqueueKernelLaunchWithArgsExp(
-                       queue, nullptr, global_offset, global_size, local_size,
-                       args.size(), args.data(), 0, nullptr, 0, nullptr,
-                       nullptr));
+                       queue, nullptr, workDim, global_offset, global_size,
+                       local_size, args.size(), args.data(), 0, nullptr, 0,
+                       nullptr, nullptr));
 }
 
 TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullPointerGlobalSize) {
-  ASSERT_EQ_RESULT(
-      UR_RESULT_ERROR_INVALID_NULL_POINTER,
-      urEnqueueKernelLaunchWithArgsExp(queue, kernel, global_offset, nullptr,
-                                       local_size, args.size(), args.data(), 0,
-                                       nullptr, 0, nullptr, nullptr));
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                   urEnqueueKernelLaunchWithArgsExp(
+                       queue, kernel, workDim, global_offset, nullptr,
+                       local_size, args.size(), args.data(), 0, nullptr, 0,
+                       nullptr, nullptr));
 }
 
 TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullPointerProperties) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                    urEnqueueKernelLaunchWithArgsExp(
-                       queue, kernel, global_offset, global_size, local_size,
-                       args.size(), args.data(), 1, nullptr, 0, nullptr,
-                       nullptr));
+                       queue, kernel, workDim, global_offset, global_size,
+                       local_size, args.size(), args.data(), 1, nullptr, 0,
+                       nullptr, nullptr));
 }
 
 TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidNullPointerArgs) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                    urEnqueueKernelLaunchWithArgsExp(
-                       queue, kernel, global_offset, global_size, local_size,
-                       args.size(), nullptr, 0, nullptr, 0, nullptr, nullptr));
+                       queue, kernel, workDim, global_offset, global_size,
+                       local_size, args.size(), nullptr, 0, nullptr, 0, nullptr,
+                       nullptr));
 }
 
 TEST_P(urEnqueueKernelLaunchWithArgsTest, InvalidEventWaitList) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
                    urEnqueueKernelLaunchWithArgsExp(
-                       queue, kernel, global_offset, global_size, local_size,
-                       args.size(), args.data(), 0, nullptr, 1, nullptr,
-                       nullptr));
+                       queue, kernel, workDim, global_offset, global_size,
+                       local_size, args.size(), args.data(), 0, nullptr, 1,
+                       nullptr, nullptr));
   ur_event_handle_t event = nullptr;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
                    urEnqueueKernelLaunchWithArgsExp(
-                       queue, kernel, global_offset, global_size, local_size,
-                       args.size(), args.data(), 0, nullptr, 0, &event,
-                       nullptr));
+                       queue, kernel, workDim, global_offset, global_size,
+                       local_size, args.size(), args.data(), 0, nullptr, 0,
+                       &event, nullptr));
 }
 
 // This test runs a kernel with a buffer (MEM_OBJ) arg.
@@ -279,6 +281,7 @@ struct urEnqueueKernelLaunchWithArgsMemObjTest : uur::urKernelExecutionTest {
 
   static constexpr uint32_t val = 42;
   static constexpr size_t global_size[3] = {32, 1, 1};
+  static constexpr uint32_t workDim = 3;
   static constexpr size_t buffer_size = sizeof(val) * global_size[0];
   static constexpr uint64_t hip_local_offset = 0;
   ur_backend_t backend{};
@@ -293,8 +296,8 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchWithArgsMemObjTest);
 
 TEST_P(urEnqueueKernelLaunchWithArgsMemObjTest, Success) {
   ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-      queue, kernel, nullptr, global_size, nullptr, args.size(), args.data(), 0,
-      nullptr, 0, nullptr, nullptr));
+      queue, kernel, workDim, nullptr, global_size, nullptr, args.size(),
+      args.data(), 0, nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   ValidateBuffer(buffer, buffer_size, val);
 }

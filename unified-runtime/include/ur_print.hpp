@@ -17029,19 +17029,24 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
   ur::details::printPtr(os, *(params->phKernel));
 
   os << ", ";
-  os << ".pGlobalWorkOffset = {";
-  ur::details::printArray<3>(os, *params->ppGlobalWorkOffset);
-  os << "}";
+  os << ".workDim = ";
+
+  os << *(params->pworkDim);
 
   os << ", ";
-  os << ".pGlobalWorkSize = {";
-  ur::details::printArray<3>(os, *params->ppGlobalWorkSize);
-  os << "}";
+  os << ".pGlobalWorkOffset = ";
+
+  ur::details::printPtr(os, *(params->ppGlobalWorkOffset));
 
   os << ", ";
-  os << ".pLocalWorkSize = {";
-  ur::details::printArray<3>(os, *params->ppLocalWorkSize);
-  os << "}";
+  os << ".pGlobalWorkSize = ";
+
+  ur::details::printPtr(os, *(params->ppGlobalWorkSize));
+
+  os << ", ";
+  os << ".pLocalWorkSize = ";
+
+  ur::details::printPtr(os, *(params->ppLocalWorkSize));
 
   os << ", ";
   os << ".numArgs = ";

@@ -1100,8 +1100,9 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetEnqueueProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueKernelLaunchWithArgsExp
 typedef ur_result_t(UR_APICALL *ur_pfnEnqueueKernelLaunchWithArgsExp_t)(
-    ur_queue_handle_t, ur_kernel_handle_t, const size_t[3], const size_t[3],
-    const size_t[3], uint32_t, const ur_exp_kernel_arg_properties_t *, uint32_t,
+    ur_queue_handle_t, ur_kernel_handle_t, uint32_t, const size_t *,
+    const size_t *, const size_t *, uint32_t,
+    const ur_exp_kernel_arg_properties_t *, uint32_t,
     const ur_kernel_launch_property_t *, uint32_t, const ur_event_handle_t *,
     ur_event_handle_t *);
 
