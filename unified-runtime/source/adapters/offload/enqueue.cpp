@@ -75,7 +75,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   if (phEvent) {
     auto *Event = new ur_event_handle_t_(UR_COMMAND_KERNEL_LAUNCH, hQueue);
-    OL_RETURN_ON_ERR(olCreateEvent(Queue, &Event->OffloadEvent));
+    if (auto Res = olCreateEvent(Queue, &Event->OffloadEvent)) {
+      delete Event;
+      return offloadResultToUR(Res);
+    };
     *phEvent = Event;
   }
   return UR_RESULT_SUCCESS;
@@ -120,7 +123,10 @@ ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
       olMemcpy(Queue, DestPtr, DestDevice, SrcPtr, SrcDevice, size));
   if (phEvent) {
     auto *Event = new ur_event_handle_t_(Command, hQueue);
-    OL_RETURN_ON_ERR(olCreateEvent(Queue, &Event->OffloadEvent));
+    if (auto Res = olCreateEvent(Queue, &Event->OffloadEvent)) {
+      delete Event;
+      return offloadResultToUR(Res);
+    };
     *phEvent = Event;
   }
 
