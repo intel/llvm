@@ -12,7 +12,7 @@
 // This header defines device-side overloads of <complex> functions.
 
 #ifdef __SYCL_DEVICE_ONLY__
-#include <cmath> // for INFINITY
+#include <cmath> // For INFINITY.
 
 // The 'sycl_device_only' attribute enables device-side overloading.
 #define __SYCL_DEVICE __attribute__((sycl_device_only, always_inline))
@@ -40,7 +40,7 @@ __SYCL_DEVICE_C
 double creal(double __complex__ z) { return __real__(z); }
 
 // __mulsc3
-// Returns: the product of a + ib and c + id
+// Returns: the product of a + ib and c + id.
 __SYCL_DEVICE_C
 float __complex__ __mulsc3(float __a, float __b, float __c, float __d) {
   float __ac = __a * __c;
@@ -139,7 +139,7 @@ double __complex__ __muldc3(double __a, double __b, double __c, double __d) {
 }
 
 // __divsc3
-// Returns: the quotient of (a + ib) / (c + id)
+// Returns: the quotient of (a + ib) / (c + id).
 // FIXME: divsc3/divdc3 have overflow issue when dealing with large number.
 // And this overflow issue is from libc++/compiler-rt's implementation.
 __SYCL_DEVICE_C
@@ -183,7 +183,7 @@ float __complex__ __divsc3(float __a, float __b, float __c, float __d) {
   return z;
 }
 // __divdc3
-// Returns: the quotient of (a + ib) / (c + id)
+// Returns: the quotient of (a + ib) / (c + id).
 __SYCL_DEVICE_C
 double __complex__ __divdc3(double __a, double __b, double __c, double __d) {
   int __ilogbw = 0;
