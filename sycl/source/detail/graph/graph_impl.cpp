@@ -910,7 +910,7 @@ exec_graph_impl::~exec_graph_impl() {
     for (const auto &Partition : MPartitions) {
       Partition->MSchedule.clear();
       if (Partition->MCommandBuffer) {
-        ur_result_t Res = Adapter->call_nocheck<
+        ur_result_t Res = Adapter.call_nocheck<
             sycl::detail::UrApiKind::urCommandBufferReleaseExp>(
             Partition->MCommandBuffer);
         (void)Res;
