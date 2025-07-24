@@ -662,7 +662,7 @@ event handler::finalize() {
         EnqueueKernel();
         ResultEvent->setEnqueued();
         // connect returned event with dependent events
-        if (!Queue->isInOrder()) {
+        if (!Queue.isInOrder()) {
           // MEvents is not used anymore, so can move.
           ResultEvent->getPreparedDepsEvents() =
               std::move(impl->CGData.MEvents);
