@@ -1139,9 +1139,31 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
                        Device->ZeDeviceImageProperties->maxImageDims2D > 0);
   }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP: {
+    ze_device_image_properties_t imageProps = {};
+    imageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
+    ze_device_pitched_alloc_exp_properties_t imageAllocProps = {};
+    imageAllocProps.stype =
+        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
+    imageProps.pNext = (void *)&imageAllocProps;
+
+    ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &imageProps));
+
+    return ReturnValue(imageAllocProps.maxImageLinearWidth);
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP: {
+    ze_device_image_properties_t imageProps = {};
+    imageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
+    ze_device_pitched_alloc_exp_properties_t imageAllocProps = {};
+    imageAllocProps.stype =
+        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
+    imageProps.pNext = (void *)&imageAllocProps;
+
+    ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &imageProps));
+
+    return ReturnValue(imageAllocProps.maxImageLinearHeight);
+  }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
-  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
-  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));

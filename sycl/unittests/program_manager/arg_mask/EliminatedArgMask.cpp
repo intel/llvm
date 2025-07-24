@@ -304,7 +304,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
     ProgBefore = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
-                                      *sycl::detail::getSyclObjImpl(Dev), Name);
+                                      *sycl::detail::getSyclObjImpl(Dev), Name)
+                     .release();
     auto Mask = PM.getEliminatedKernelArgMask(ProgBefore, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 1);
@@ -329,7 +330,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
     ProgAfter = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
-                                     *sycl::detail::getSyclObjImpl(Dev), Name);
+                                     *sycl::detail::getSyclObjImpl(Dev), Name)
+                    .release();
     auto Mask = PM.getEliminatedKernelArgMask(ProgAfter, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 0);

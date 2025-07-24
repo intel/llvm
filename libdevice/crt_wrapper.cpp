@@ -32,7 +32,7 @@ int memcmp(const void *s1, const void *s2, size_t n) {
   return __devicelib_memcmp(s1, s2, n);
 }
 
-// We align with libc strlen, no checking for null ptr.
+// We align with libc string functions, no checking for null ptr.
 DEVICE_EXTERN_C_INLINE
 size_t strlen(const char *s) {
   const char *t;

@@ -143,9 +143,9 @@ public:
       const std::unordered_set<const RTDeviceBinaryImage *> &ImagesToVerify,
       context_impl &ContextImpl, const device_impl &DeviceImpl);
 
-  ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
-                                      context_impl &ContextImpl,
-                                      devices_range Devices);
+  Managed<ur_program_handle_t> createURProgram(const RTDeviceBinaryImage &Img,
+                                               context_impl &ContextImpl,
+                                               devices_range Devices);
   /// Creates a UR program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
   /// \param Img The device image used to create the program.
@@ -165,7 +165,7 @@ public:
   /// \return A pair consisting of the UR program created with the corresponding
   ///         device code binary and a boolean that is true if the device code
   ///         binary was found in the persistent cache and false otherwise.
-  std::pair<ur_program_handle_t, bool> getOrCreateURProgram(
+  std::pair<Managed<ur_program_handle_t>, bool> getOrCreateURProgram(
       const RTDeviceBinaryImage &Img,
       const std::vector<const RTDeviceBinaryImage *> &AllImages,
       context_impl &ContextImpl, devices_range Devices,
@@ -177,10 +177,10 @@ public:
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
-  ur_program_handle_t getBuiltURProgram(context_impl &ContextImpl,
-                                        device_impl &DeviceImpl,
-                                        KernelNameStrRefT KernelName,
-                                        const NDRDescT &NDRDesc = {});
+  Managed<ur_program_handle_t> getBuiltURProgram(context_impl &ContextImpl,
+                                                 device_impl &DeviceImpl,
+                                                 KernelNameStrRefT KernelName,
+                                                 const NDRDescT &NDRDesc = {});
 
   /// Builds a program from a given set of images or retrieves that program from
   /// cache.
@@ -192,7 +192,7 @@ public:
   /// represents the images.
   /// \param SpecConsts is an optional parameter containing spec constant values
   /// the program should be built with.
-  ur_program_handle_t
+  Managed<ur_program_handle_t>
   getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
                     context_impl &ContextImpl, devices_range Devs,
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,

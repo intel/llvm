@@ -36,9 +36,10 @@ struct FastKernelCacheVal {
 
   FastKernelCacheVal(ur_kernel_handle_t KernelHandle, std::mutex *Mutex,
                      const KernelArgMask *KernelArgMask,
-                     ur_program_handle_t ProgramHandle, adapter_impl &Adapter)
+                     Managed<ur_program_handle_t> &&ProgramHandle,
+                     adapter_impl &Adapter)
       : MKernelHandle(KernelHandle), MMutex(Mutex),
-        MKernelArgMask(KernelArgMask), MProgramHandle(ProgramHandle, Adapter),
+        MKernelArgMask(KernelArgMask), MProgramHandle(std::move(ProgramHandle)),
         MAdapter(Adapter) {}
 
   ~FastKernelCacheVal() {

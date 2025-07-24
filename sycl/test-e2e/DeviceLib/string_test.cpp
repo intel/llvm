@@ -57,7 +57,7 @@ bool kernel_test_strcpy(sycl::queue &deviceQueue) {
   bool success = true;
   char src[20] = "abcdefg012345xyzvvv";
   char dst[5][20];
-  typedef char CStr[20];
+  using CStr = char[20];
   {
     sycl::buffer<CStr, 1> dst_buffer(dst, sycl::range<1>(5));
     deviceQueue.submit([&](sycl::handler &cgh) {
@@ -213,9 +213,7 @@ class KernelTestStrlen;
 bool kernel_test_strlen(sycl::queue &deviceQueue) {
   bool success = true;
   char src[20] = "abcdefg012345xyzvvv";
-  size_t len[5] = {
-      0,
-  };
+  size_t len[5] = {0};
   {
     sycl::buffer<char, 1> buffer1(src, sycl::range<1>(20));
     sycl::buffer<size_t, 1> buffer2(len, sycl::range<1>(5));

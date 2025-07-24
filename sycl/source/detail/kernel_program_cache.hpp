@@ -112,12 +112,11 @@ public:
   };
 
   struct ProgramBuildResult : public BuildResult<Managed<ur_program_handle_t>> {
-    ProgramBuildResult(adapter_impl &Adapter) {
-      Val = Managed<ur_program_handle_t>{Adapter};
-    }
-    ProgramBuildResult(adapter_impl &Adapter, BuildState InitialState) {
-      Val = Managed<ur_program_handle_t>{Adapter};
+    ProgramBuildResult() = default;
+    ProgramBuildResult(BuildState InitialState,
+                       Managed<ur_program_handle_t> &&Prog) {
       this->State.store(InitialState);
+      this->Val = std::move(Prog);
     }
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -407,7 +406,7 @@ public:
     ProgramCache &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<ProgramBuildResult>(getAdapter());
+      It->second = std::make_shared<ProgramBuildResult>();
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
@@ -424,14 +423,13 @@ public:
   //
   // Returns whether or not an insertion took place.
   bool insertBuiltProgram(const ProgramCacheKeyT &CacheKey,
-                          ur_program_handle_t Program) {
+                          Managed<ur_program_handle_t> &Program) {
     auto LockedCache = acquireCachedPrograms();
     ProgramCache &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<ProgramBuildResult>(getAdapter(),
-                                                        BuildState::BS_Done);
-      It->second->Val = Managed<ur_program_handle_t>{Program, getAdapter()};
+      It->second = std::make_shared<ProgramBuildResult>(BuildState::BS_Done,
+                                                        Program.retain());
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
@@ -643,8 +641,7 @@ public:
   // If it is the first time the program is fetched, add it to the eviction
   // list.
   void registerProgramFetch(const ProgramCacheKeyT &CacheKey,
-                            const ur_program_handle_t &Program,
-                            const bool IsBuilt) {
+                            ur_program_handle_t Program, const bool IsBuilt) {
 
     size_t ProgramCacheEvictionThreshold =
         SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::getProgramCacheSize();
@@ -799,9 +796,10 @@ public:
 
       // only the building thread will run this
       try {
-        // Remove `adapter_impl` from `ProgramBuildResult`'s ctors once `Build`
-        // returns `Managed<ur_platform_handle_t`:
-        *(&BuildResult->Val) = Build();
+        static_assert(
+            std::is_same_v<decltype(Build()), decltype(BuildResult->Val)>,
+            "Are we casting from Managed<URResource> to plain URResource?");
+        BuildResult->Val = Build();
 
         if constexpr (!std::is_same_v<EvictFT, void *>)
           EvictFunc(BuildResult->Val, /*IsBuilt=*/true);
