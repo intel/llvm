@@ -152,9 +152,12 @@ private:
   sycl_device_binaries MBinaries;
 };
 
+// Using ordered containers for heterogenous lookup.
+// TODO change to unordered containers after switching to C++20.
 using MangledKernelNameMapT = std::map<std::string, std::string, std::less<>>;
 using KernelNameSetT = std::set<std::string, std::less<>>;
-using KernelNameToArgMaskMap = std::unordered_map<std::string, KernelArgMask>;
+using KernelNameToArgMaskMap =
+    std::map<std::string, KernelArgMask, std::less<>>;
 
 // Information unique to images compiled at runtime through the
 // ext_oneapi_kernel_compiler extension.
@@ -619,17 +622,20 @@ public:
 #pragma warning(pop)
 #endif
 
-  std::string adjustKernelName(std::string_view Name) const {
+  std::string_view adjustKernelName(std::string_view Name) const {
     if (MOrigins & ImageOriginSYCLBIN) {
       constexpr std::string_view KernelPrefix = "__sycl_kernel_";
       if (Name.size() > KernelPrefix.size() &&
           Name.substr(0, KernelPrefix.size()) == KernelPrefix)
-        return Name.data();
-      return std::string{KernelPrefix} + Name.data();
+        return Name;
+      auto It =
+          MKernelNames.find(std::string(KernelPrefix) + std::string(Name));
+      assert(It != MKernelNames.end() && "Adjusted name not found");
+      return *It;
     }
 
     if (!MRTCBinInfo.has_value())
-      return Name.data();
+      return Name;
 
     if (MRTCBinInfo->MLanguage == syclex::source_language::sycl) {
       auto It = MRTCBinInfo->MMangledKernelNames.find(Name);
@@ -637,7 +643,7 @@ public:
         return It->second;
     }
 
-    return Name.data();
+    return Name;
   }
 
   bool hasKernelName(std::string_view Name) const {
