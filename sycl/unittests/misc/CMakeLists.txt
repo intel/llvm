@@ -4,5 +4,6 @@ add_sycl_unittest(MiscTests SHARED
   CircularBuffer.cpp
   OsUtils.cpp
   PropertyUtils.cpp
+  SpanTests.cpp
 )
 add_subdirectory(LinkGraph)
