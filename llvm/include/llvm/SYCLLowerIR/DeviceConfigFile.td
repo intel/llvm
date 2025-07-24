@@ -283,7 +283,7 @@ defvar CudaMinAspects = !listconcat(CudaMinUSMAspects, [AspectGpu, AspectFp64, A
     AspectQueue_profiling, AspectExt_intel_pci_address, AspectExt_intel_memory_bus_width,
     AspectExt_intel_device_info_uuid, AspectExt_oneapi_native_assert, AspectExt_intel_free_memory, AspectExt_intel_device_id,
     AspectExt_intel_memory_clock_rate, AspectExt_oneapi_fragment, AspectExt_oneapi_chunk,
-    AspectExt_oneapi_tangle, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]);
+    AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]);
 // Bindless images aspects are partially supported on CUDA and disabled by default at the moment.
 defvar CudaBindlessImagesAspects = [AspectExt_oneapi_bindless_images, AspectExt_oneapi_bindless_images_shared_usm,
     AspectExt_oneapi_bindless_images_1d_usm, AspectExt_oneapi_bindless_images_2d_usm, AspectExt_oneapi_external_memory_import,
