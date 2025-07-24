@@ -1,4 +1,4 @@
-set(imf_fp32_fallback_src_list imf_utils/integer_misc.cpp 
+set(imf_fp32_fallback_src_list imf_utils/integer_misc.cpp
                                imf_utils/half_convert.cpp
                                imf_utils/float_convert.cpp
                                imf_utils/simd_emulate.cpp
