@@ -684,7 +684,7 @@ event handler::finalize() {
     // assert feature to check if kernel uses assertions
 #endif
     CommandGroup.reset(new detail::CGExecKernel(
-        std::move(impl->MNDRDesc), std::move(MHostKernel), std::move(MKernel),
+        std::move(impl->MNDRDesc), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
         std::move(impl->MArgs), toKernelNameStrT(MKernelName),
         impl->MKernelNameBasedCachePtr, std::move(MStreamStorage),
