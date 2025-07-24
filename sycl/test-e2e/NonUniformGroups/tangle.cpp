@@ -8,7 +8,6 @@
 //
 // REQUIRES: cpu || gpu
 // REQUIRES: aspect-ext_oneapi_tangle
-// UNSUPPORTED: target-nvidia || target-amd
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/tangle.hpp>
