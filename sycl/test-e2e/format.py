@@ -244,6 +244,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             )
             sycl_target_opts += hip_arch_opts
             substitutions.append(("%{hip_arch_opts}", hip_arch_opts))
+            substitutions.append(("%{amd_arch}", test.config.amd_arch))
         if (
             "target-spir" in build_targets
             and "spirv-backend" in test.config.available_features
@@ -333,6 +334,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 dev_features = test.config.sycl_dev_features[full_dev_name]
                 if "level_zero_v2_adapter" in dev_features:
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=1"
+                else:
+                    expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=0"
 
                 expanded += " ONEAPI_DEVICE_SELECTOR={} {}".format(
                     parsed_dev_name, test.config.run_launcher

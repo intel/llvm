@@ -8,6 +8,30 @@
 
 #pragma once
 
+// Throw warning when including sycl.hpp without using -fsycl flag.
+// Warning can be disabled by defining SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.
+#define __SYCL_STRINGIFY(x) #x
+#define __SYCL_TOSTRING(x) __SYCL_STRINGIFY(x)
+
+#ifdef _MSC_VER
+#define __SYCL_WARNING(msg)                                                    \
+  __pragma(message(__FILE__ "(" __SYCL_TOSTRING(__LINE__) "): warning: " msg))
+#elif defined(__GNUC__) || defined(__clang__)
+#define __SYCL_WARNING(msg) _Pragma(__SYCL_TOSTRING(GCC warning msg))
+#else
+#define __SYCL_WARNING(msg) // Unsupported compiler
+#endif
+
+#if !defined(SYCL_LANGUAGE_VERSION) &&                                         \
+    !defined(SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
+__SYCL_WARNING("You are including <sycl/sycl.hpp> without -fsycl flag, \
+which is errorenous for device code compilation. This warning \
+can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
+#endif
+#undef __SYCL_WARNING
+#undef __SYCL_TOSTRING
+#undef __SYCL_STRINGIFY
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/accessor_image.hpp>

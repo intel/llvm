@@ -14,7 +14,6 @@
 #include "Arch/RISCV.h"
 #include "Arch/Sparc.h"
 #include "Arch/SystemZ.h"
-#include "CommonArgs.h"
 #include "Hexagon.h"
 #include "PS4CPU.h"
 #include "clang/Basic/CLWarnings.h"
@@ -27,6 +26,7 @@
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/Action.h"
+#include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Distro.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
@@ -131,166 +131,6 @@ forAllAssociatedToolChains(Compilation &C, const JobAction &JA,
   //
   // TODO: Add support for other offloading programming models here.
   //
-}
-
-/// This is a helper function for validating the optional refinement step
-/// parameter in reciprocal argument strings. Return false if there is an error
-/// parsing the refinement step. Otherwise, return true and set the Position
-/// of the refinement step in the input string.
-static bool getRefinementStep(StringRef In, const Driver &D,
-                              const Arg &A, size_t &Position) {
-  const char RefinementStepToken = ':';
-  Position = In.find(RefinementStepToken);
-  if (Position != StringRef::npos) {
-    StringRef Option = A.getOption().getName();
-    StringRef RefStep = In.substr(Position + 1);
-    // Allow exactly one numeric character for the additional refinement
-    // step parameter. This is reasonable for all currently-supported
-    // operations and architectures because we would expect that a larger value
-    // of refinement steps would cause the estimate "optimization" to
-    // under-perform the native operation. Also, if the estimate does not
-    // converge quickly, it probably will not ever converge, so further
-    // refinement steps will not produce a better answer.
-    if (RefStep.size() != 1) {
-      D.Diag(diag::err_drv_invalid_value) << Option << RefStep;
-      return false;
-    }
-    char RefStepChar = RefStep[0];
-    if (RefStepChar < '0' || RefStepChar > '9') {
-      D.Diag(diag::err_drv_invalid_value) << Option << RefStep;
-      return false;
-    }
-  }
-  return true;
-}
-
-/// The -mrecip flag requires processing of many optional parameters.
-static void ParseMRecip(const Driver &D, const ArgList &Args,
-                        ArgStringList &OutStrings) {
-  StringRef DisabledPrefixIn = "!";
-  StringRef DisabledPrefixOut = "!";
-  StringRef EnabledPrefixOut = "";
-  StringRef Out = "-mrecip=";
-
-  Arg *A = Args.getLastArg(options::OPT_mrecip, options::OPT_mrecip_EQ);
-  if (!A)
-    return;
-
-  unsigned NumOptions = A->getNumValues();
-  if (NumOptions == 0) {
-    // No option is the same as "all".
-    OutStrings.push_back(Args.MakeArgString(Out + "all"));
-    return;
-  }
-
-  // Pass through "all", "none", or "default" with an optional refinement step.
-  if (NumOptions == 1) {
-    StringRef Val = A->getValue(0);
-    size_t RefStepLoc;
-    if (!getRefinementStep(Val, D, *A, RefStepLoc))
-      return;
-    StringRef ValBase = Val.slice(0, RefStepLoc);
-    if (ValBase == "all" || ValBase == "none" || ValBase == "default") {
-      OutStrings.push_back(Args.MakeArgString(Out + Val));
-      return;
-    }
-  }
-
-  // Each reciprocal type may be enabled or disabled individually.
-  // Check each input value for validity, concatenate them all back together,
-  // and pass through.
-
-  llvm::StringMap<bool> OptionStrings;
-  OptionStrings.insert(std::make_pair("divd", false));
-  OptionStrings.insert(std::make_pair("divf", false));
-  OptionStrings.insert(std::make_pair("divh", false));
-  OptionStrings.insert(std::make_pair("vec-divd", false));
-  OptionStrings.insert(std::make_pair("vec-divf", false));
-  OptionStrings.insert(std::make_pair("vec-divh", false));
-  OptionStrings.insert(std::make_pair("sqrtd", false));
-  OptionStrings.insert(std::make_pair("sqrtf", false));
-  OptionStrings.insert(std::make_pair("sqrth", false));
-  OptionStrings.insert(std::make_pair("vec-sqrtd", false));
-  OptionStrings.insert(std::make_pair("vec-sqrtf", false));
-  OptionStrings.insert(std::make_pair("vec-sqrth", false));
-
-  for (unsigned i = 0; i != NumOptions; ++i) {
-    StringRef Val = A->getValue(i);
-
-    bool IsDisabled = Val.starts_with(DisabledPrefixIn);
-    // Ignore the disablement token for string matching.
-    if (IsDisabled)
-      Val = Val.substr(1);
-
-    size_t RefStep;
-    if (!getRefinementStep(Val, D, *A, RefStep))
-      return;
-
-    StringRef ValBase = Val.slice(0, RefStep);
-    llvm::StringMap<bool>::iterator OptionIter = OptionStrings.find(ValBase);
-    if (OptionIter == OptionStrings.end()) {
-      // Try again specifying float suffix.
-      OptionIter = OptionStrings.find(ValBase.str() + 'f');
-      if (OptionIter == OptionStrings.end()) {
-        // The input name did not match any known option string.
-        D.Diag(diag::err_drv_unknown_argument) << Val;
-        return;
-      }
-      // The option was specified without a half or float or double suffix.
-      // Make sure that the double or half entry was not already specified.
-      // The float entry will be checked below.
-      if (OptionStrings[ValBase.str() + 'd'] ||
-          OptionStrings[ValBase.str() + 'h']) {
-        D.Diag(diag::err_drv_invalid_value) << A->getOption().getName() << Val;
-        return;
-      }
-    }
-
-    if (OptionIter->second == true) {
-      // Duplicate option specified.
-      D.Diag(diag::err_drv_invalid_value) << A->getOption().getName() << Val;
-      return;
-    }
-
-    // Mark the matched option as found. Do not allow duplicate specifiers.
-    OptionIter->second = true;
-
-    // If the precision was not specified, also mark the double and half entry
-    // as found.
-    if (ValBase.back() != 'f' && ValBase.back() != 'd' && ValBase.back() != 'h') {
-      OptionStrings[ValBase.str() + 'd'] = true;
-      OptionStrings[ValBase.str() + 'h'] = true;
-    }
-
-    // Build the output string.
-    StringRef Prefix = IsDisabled ? DisabledPrefixOut : EnabledPrefixOut;
-    Out = Args.MakeArgString(Out + Prefix + Val);
-    if (i != NumOptions - 1)
-      Out = Args.MakeArgString(Out + ",");
-  }
-
-  OutStrings.push_back(Args.MakeArgString(Out));
-}
-
-/// The -mprefer-vector-width option accepts either a positive integer
-/// or the string "none".
-static void ParseMPreferVectorWidth(const Driver &D, const ArgList &Args,
-                                    ArgStringList &CmdArgs) {
-  Arg *A = Args.getLastArg(options::OPT_mprefer_vector_width_EQ);
-  if (!A)
-    return;
-
-  StringRef Value = A->getValue();
-  if (Value == "none") {
-    CmdArgs.push_back("-mprefer-vector-width=none");
-  } else {
-    unsigned Width;
-    if (Value.getAsInteger(10, Width)) {
-      D.Diag(diag::err_drv_invalid_value) << A->getOption().getName() << Value;
-      return;
-    }
-    CmdArgs.push_back(Args.MakeArgString("-mprefer-vector-width=" + Value));
-  }
 }
 
 static bool
@@ -3092,8 +2932,9 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   StringRef BFloat16ExcessPrecision = "";
   StringRef FPAccuracy = "";
   LangOptions::ComplexRangeKind Range = LangOptions::ComplexRangeKind::CX_None;
-  std::string ComplexRangeStr = "";
-  std::string GccRangeComplexOption = "";
+  std::string ComplexRangeStr;
+  std::string GccRangeComplexOption;
+  std::string LastComplexRangeOption;
   bool IsFp32PrecDivSqrtAllowed = JA.isDeviceOffloading(Action::OFK_SYCL);
 
   auto setComplexRange = [&](LangOptions::ComplexRangeKind NewRange) {
@@ -3220,6 +3061,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
           EmitComplexRangeDiag(D, GccRangeComplexOption, "-fcx-limited-range");
       }
       GccRangeComplexOption = "-fcx-limited-range";
+      LastComplexRangeOption = A->getSpelling();
       Range = LangOptions::ComplexRangeKind::CX_Basic;
       break;
     case options::OPT_fno_cx_limited_range:
@@ -3233,6 +3075,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
                                "-fno-cx-limited-range");
       }
       GccRangeComplexOption = "-fno-cx-limited-range";
+      LastComplexRangeOption = A->getSpelling();
       Range = LangOptions::ComplexRangeKind::CX_Full;
       break;
     case options::OPT_fcx_fortran_rules:
@@ -3242,6 +3085,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       else
         EmitComplexRangeDiag(D, GccRangeComplexOption, "-fcx-fortran-rules");
       GccRangeComplexOption = "-fcx-fortran-rules";
+      LastComplexRangeOption = A->getSpelling();
       Range = LangOptions::ComplexRangeKind::CX_Improved;
       break;
     case options::OPT_fno_cx_fortran_rules:
@@ -3254,6 +3098,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
                                "-fno-cx-fortran-rules");
       }
       GccRangeComplexOption = "-fno-cx-fortran-rules";
+      LastComplexRangeOption = A->getSpelling();
       Range = LangOptions::ComplexRangeKind::CX_Full;
       break;
     case options::OPT_fcomplex_arithmetic_EQ: {
@@ -3288,6 +3133,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
                                  ComplexArithmeticStr(RangeVal));
         }
       }
+      LastComplexRangeOption =
+          Args.MakeArgString(A->getSpelling() + A->getValue());
       Range = RangeVal;
       break;
     }
@@ -3356,6 +3203,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       } else
         D.Diag(diag::err_drv_unsupported_option_argument)
             << A->getSpelling() << Val;
+      LastComplexRangeOption = A->getSpelling();
       break;
     }
 
@@ -3546,6 +3394,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       [[fallthrough]];
     case options::OPT_ffast_math:
       applyFastMath(true);
+      LastComplexRangeOption = A->getSpelling();
       if (A->getOption().getID() == options::OPT_Ofast)
         LastFpContractOverrideOption = "-Ofast";
       else
@@ -3564,6 +3413,15 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       ApproxFunc = false;
       SignedZeros = true;
       restoreFPContractState();
+      // If the last specified option related to complex range is not
+      // -ffast-math or -ffp-model=, emit warning.
+      if (LastComplexRangeOption != "-ffast-math" &&
+          LastComplexRangeOption != "-ffp-model=" &&
+          Range != LangOptions::ComplexRangeKind::CX_Full)
+        EmitComplexRangeDiag(D, LastComplexRangeOption, "-fno-fast-math");
+      Range = LangOptions::ComplexRangeKind::CX_None;
+      LastComplexRangeOption = "";
+      GccRangeComplexOption = "";
       LastFpContractOverrideOption = "";
       break;
     } // End switch (A->getOption().getID())
@@ -3676,7 +3534,9 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     CmdArgs.push_back(Args.MakeArgString("-fbfloat16-excess-precision=" +
                                          BFloat16ExcessPrecision));
 
-  ParseMRecip(D, Args, CmdArgs);
+  StringRef Recip = parseMRecipOption(D.getDiags(), Args);
+  if (!Recip.empty())
+    CmdArgs.push_back(Args.MakeArgString("-mrecip=" + Recip));
 
   // -ffast-math enables the __FAST_MATH__ preprocessor macro, but check for the
   // individual features enabled by -ffast-math instead of the option itself as
@@ -5428,19 +5288,13 @@ static void ProcessVSRuntimeLibrary(const ToolChain &TC, const ArgList &Args,
     // Add SYCL dependent library
     if (Args.hasArg(options::OPT_fsycl) &&
         !Args.hasArg(options::OPT_nolibsycl)) {
-      if (RTOptionID == options::OPT__SLASH_MDd) {
-        if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
-                            "-previewd");
-        else
-          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
-      } else {
-        if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
-                            "-preview");
-        else
-          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION);
-      }
+      SmallString<128> SYCLLibName("sycl" SYCL_MAJOR_VERSION);
+      if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+        SYCLLibName += "-preview";
+      if (RTOptionID == options::OPT__SLASH_MDd)
+        SYCLLibName += "d";
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine("--dependent-lib=") + SYCLLibName));
       CmdArgs.push_back("--dependent-lib=sycl-devicelib-host");
     }
   }
@@ -5696,7 +5550,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-sycl-opt");
       }
       if (RawTriple.isNativeCPU()) {
-        CmdArgs.push_back("-fsycl-is-native-cpu");
         CmdArgs.push_back("-D");
         CmdArgs.push_back("__SYCL_NATIVE_CPU__");
         CmdArgs.push_back("-fno-autolink");
@@ -6099,7 +5952,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-emit-module-interface");
     else if (JA.getType() == types::TY_HeaderUnit)
       CmdArgs.push_back("-emit-header-unit");
-    else
+    else if (!Args.hasArg(options::OPT_ignore_pch))
       CmdArgs.push_back("-emit-pch");
   } else if (isa<VerifyPCHJobAction>(JA)) {
     CmdArgs.push_back("-verify-pch");
@@ -6156,7 +6009,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     } else if (JA.getType() == types::TY_PP_Asm) {
       CmdArgs.push_back("-S");
     } else if (JA.getType() == types::TY_AST) {
-      CmdArgs.push_back("-emit-pch");
+      if (!Args.hasArg(options::OPT_ignore_pch))
+        CmdArgs.push_back("-emit-pch");
     } else if (JA.getType() == types::TY_ModuleFile) {
       CmdArgs.push_back("-module-file-info");
     } else if (JA.getType() == types::TY_RewrittenObjC) {
@@ -6618,9 +6472,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
           Triple.getArch() != llvm::Triple::x86_64)
         D.Diag(diag::err_drv_unsupported_opt_for_target)
             << Name << Triple.getArchName();
-    } else if (Name == "libmvec" || Name == "AMDLIBM") {
+    } else if (Name == "AMDLIBM") {
       if (Triple.getArch() != llvm::Triple::x86 &&
           Triple.getArch() != llvm::Triple::x86_64)
+        D.Diag(diag::err_drv_unsupported_opt_for_target)
+            << Name << Triple.getArchName();
+    } else if (Name == "libmvec") {
+      if (Triple.getArch() != llvm::Triple::x86 &&
+          Triple.getArch() != llvm::Triple::x86_64 &&
+          Triple.getArch() != llvm::Triple::aarch64 &&
+          Triple.getArch() != llvm::Triple::aarch64_be)
         D.Diag(diag::err_drv_unsupported_opt_for_target)
             << Name << Triple.getArchName();
     } else if (Name == "SLEEF" || Name == "ArmPL") {
@@ -7045,11 +6906,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Add the sycld debug library when --dependent-lib=msvcrtd is used from
   // the command line.  This is to allow for CMake based builds using the
   // Linux based driver on Windows to correctly pull in the expected debug
-  // library.
+  // library.  Do not add when -fms-runtime-lib is used, as that pulls in the
+  // libraries separately.
   if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl) &&
       !D.IsCLMode()) {
     if (TC.getTriple().isWindowsMSVCEnvironment()) {
-      if (isDependentLibAdded(Args, "msvcrtd")) {
+      if (isDependentLibAdded(Args, "msvcrtd") &&
+          !Args.hasArg(options::OPT_fms_runtime_lib_EQ)) {
         if (Args.hasArg(options::OPT_fpreview_breaking_changes))
           CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
                             "-previewd");
@@ -7904,9 +7767,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.addOptInFlag(CmdArgs, options::OPT_mstackrealign,
                     options::OPT_mno_stackrealign);
 
-  if (Args.hasArg(options::OPT_mstack_alignment)) {
-    StringRef alignment = Args.getLastArgValue(options::OPT_mstack_alignment);
-    CmdArgs.push_back(Args.MakeArgString("-mstack-alignment=" + alignment));
+  if (const Arg *A = Args.getLastArg(options::OPT_mstack_alignment)) {
+    StringRef Value = A->getValue();
+    int64_t Alignment = 0;
+    if (Value.getAsInteger(10, Alignment) || Alignment < 0)
+      D.Diag(diag::err_drv_invalid_argument_to_option)
+          << Value << A->getOption().getName();
+    else if (Alignment & (Alignment - 1))
+      D.Diag(diag::err_drv_alignment_not_power_of_two)
+          << A->getAsString(Args) << Value;
+    else
+      CmdArgs.push_back(Args.MakeArgString("-mstack-alignment=" + Value));
   }
 
   if (Args.hasArg(options::OPT_mstack_probe_size)) {
@@ -8356,8 +8227,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   // Unwind v2 (epilog) information for x64 Windows.
-  Args.addOptInFlag(CmdArgs, options::OPT_fwinx64_eh_unwindv2,
-                    options::OPT_fno_winx64_eh_unwindv2);
+  Args.AddLastArg(CmdArgs, options::OPT_winx64_eh_unwindv2);
 
   // C++ "sane" operator new.
   Args.addOptOutFlag(CmdArgs, options::OPT_fassume_sane_operator_new,
@@ -8471,7 +8341,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   handleVectorizeLoopsArgs(Args, CmdArgs);
   handleVectorizeSLPArgs(Args, CmdArgs);
-  ParseMPreferVectorWidth(D, Args, CmdArgs);
+
+  StringRef VecWidth = parseMPreferVectorWidthOption(D.getDiags(), Args);
+  if (!VecWidth.empty())
+    CmdArgs.push_back(Args.MakeArgString("-mprefer-vector-width=" + VecWidth));
 
   Args.AddLastArg(CmdArgs, options::OPT_fshow_overloads_EQ);
   Args.AddLastArg(CmdArgs,
@@ -8541,7 +8414,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasArg(options::OPT_fretain_comments_from_system_headers))
     CmdArgs.push_back("-fretain-comments-from-system-headers");
 
-  Args.AddLastArg(CmdArgs, options::OPT_fextend_variable_liveness_EQ);
+  if (Arg *A = Args.getLastArg(options::OPT_fextend_variable_liveness_EQ)) {
+    A->render(Args, CmdArgs);
+  } else if (Arg *A = Args.getLastArg(options::OPT_O_Group);
+             A && A->containsValue("g")) {
+    // Set -fextend-variable-liveness=all by default at -Og.
+    CmdArgs.push_back("-fextend-variable-liveness=all");
+  }
 
   // Forward -fcomment-block-commands to -cc1.
   Args.AddAllArgs(CmdArgs, options::OPT_fcomment_block_commands);
@@ -8604,8 +8483,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.addOptInFlag(CmdArgs, options::OPT_fexperimental_late_parse_attributes,
                     options::OPT_fno_experimental_late_parse_attributes);
 
-  Args.addOptInFlag(CmdArgs, options::OPT_funique_source_file_names,
-                    options::OPT_fno_unique_source_file_names);
+  if (Args.hasFlag(options::OPT_funique_source_file_names,
+                   options::OPT_fno_unique_source_file_names, false)) {
+    if (Arg *A = Args.getLastArg(options::OPT_unique_source_file_identifier_EQ))
+      A->render(Args, CmdArgs);
+    else
+      CmdArgs.push_back(Args.MakeArgString(
+          Twine("-funique-source-file-identifier=") + Input.getBaseInput()));
+  }
 
   // Setup statistics file output.
   SmallString<128> StatsFile = getStatsFileName(Args, Output, Input, D);
@@ -9428,8 +9313,10 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     CmdArgs.push_back("-fms-kernel");
 
   // Unwind v2 (epilog) information for x64 Windows.
-  if (Args.hasArg(options::OPT__SLASH_d2epilogunwind))
-    CmdArgs.push_back("-fwinx64-eh-unwindv2");
+  if (Args.hasArg(options::OPT__SLASH_d2epilogunwindrequirev2))
+    CmdArgs.push_back("-fwinx64-eh-unwindv2=required");
+  else if (Args.hasArg(options::OPT__SLASH_d2epilogunwind))
+    CmdArgs.push_back("-fwinx64-eh-unwindv2=best-effort");
 
   for (const Arg *A : Args.filtered(options::OPT__SLASH_guard)) {
     StringRef GuardArgs = A->getValue();
@@ -9983,7 +9870,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      CmdArgs, std::nullopt, Output));
+      CmdArgs, ArrayRef<InputInfo>(), Output));
 }
 
 void OffloadBundler::ConstructJobMultipleOutputs(
@@ -10127,7 +10014,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      CmdArgs, std::nullopt, Outputs);
+      CmdArgs, ArrayRef<InputInfo>(), Outputs);
   if (!ForeachInputs.empty() && Outputs.size() == 1) {
     StringRef ParallelJobs =
         TCArgs.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
@@ -11312,6 +11199,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           CmdArgs.push_back(
               Args.MakeArgString("--device-linker=" + TC->getTripleString() +
                                  "=-plugin-opt=-avail-extern-to-local"));
+          CmdArgs.push_back(Args.MakeArgString(
+              "--device-linker=" + TC->getTripleString() +
+              "=-plugin-opt=-avail-extern-gv-in-addrspace-to-local=3"));
           if (Kind == Action::OFK_OpenMP) {
             CmdArgs.push_back(
                 Args.MakeArgString("--device-linker=" + TC->getTripleString() +
@@ -11332,6 +11222,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Add any SYCL offloading specific options to the clang-linker-wrapper
   if (C.hasOffloadToolChain<Action::OFK_SYCL>()) {
+
+    if (Args.hasArg(options::OPT_fsycl_link_EQ))
+      CmdArgs.push_back(Args.MakeArgString("--sycl-device-link"));
+
     // -sycl-device-libraries=<comma separated list> contains all of the SYCL
     // device specific libraries that are needed. This generic list will be
     // populated with device binaries for all target triples in the current

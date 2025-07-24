@@ -6,12 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: (opencl || level_zero)
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: SYCL-RTC is not available for accelerator devices
-
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out | FileCheck %s
+// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

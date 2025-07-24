@@ -29,10 +29,10 @@ std::shared_ptr<ShadowMemory> GetShadowMemory(ur_context_handle_t Context,
     return ShadowCPU;
   } else if (Type == DeviceType::GPU_PVC) {
     return std::make_shared<ShadowMemoryPVC>(Context, Device);
-  } else {
-    UR_LOG_L(getContext()->logger, ERR, "Unsupport device type");
-    return nullptr;
   }
+
+  die("GetShadowMemory: Unsupport device type");
+  return nullptr;
 }
 
 ur_result_t ShadowMemoryCPU::Setup() {
@@ -192,7 +192,8 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
                                               uint32_t NumWG, uptr &Begin,
                                               uptr &End) {
   const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
-  const size_t RequiredShadowSize = NumWG * LocalMemorySize;
+  const size_t RequiredShadowSize =
+      std::min(NumWG, (uint32_t)kThreadSlotCount) * LocalMemorySize;
   static size_t LastAllocatedSize = 0;
   if (RequiredShadowSize > LastAllocatedSize) {
     if (LocalShadowOffset) {

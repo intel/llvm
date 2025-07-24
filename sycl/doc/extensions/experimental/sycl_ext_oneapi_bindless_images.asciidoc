@@ -1531,8 +1531,6 @@ construct `ImageHandle` using an `image_descriptor` with member
 `image_type::gather`. Calling `gather_image` on an `ImageHandle` constructed
 with `image_descriptor::num_channels < 4` will result in undefined behavior.
 
-====
-
 === Recognized standard types [[recognized_standard_types]]
 
 For the purposes of this extension, the following are classified as recognized 
@@ -1544,8 +1542,6 @@ standard types.
   `2`, or `3`
 
 Any other types are classified as user-defined types.
-
-===
 
 ==== User-defined types
 
@@ -2074,6 +2070,8 @@ enum class external_mem_handle_type {
   opaque_fd = 0,
   win32_nt_handle = 1,
   win32_nt_dx12_resource = 2,
+  dma_buf = 3,
+  win32_nt_dx11_resource = 4,
 };
 
 // Descriptor templated on specific resource type
@@ -2095,10 +2093,14 @@ for Windows NT resource handles.
 The user must populate the `external_mem_descriptor` with the appropriate 
 `ResourceType` values, a `handle_type`, and the size of the external memory in 
 bytes, before they can then import that memory into SYCL through 
-`import_external_memory`. Note that some handle types can only be used in 
-combination with certain resource types, for example the `opaque_fd` handle type
-is only used on Linux systems and is only compatible with the `resource_fd` 
-resource type.
+`import_external_memory`.
+
+Note that some handle types can only be used in 
+combination with certain resource types, for example the `opaque_fd`
+and `dma_buf` handle types are only used on Linux systems
+and are only compatible with the `resource_fd` resource type.
+The handle types supported by the device can be queried using the
+`supports_importing_handle_type` device query.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
@@ -2139,6 +2141,10 @@ void *map_external_linear_memory(
     uint64_t size, uint64_t offset,
     const sycl::queue &syclQueue);
 }
+
+bool supports_importing_handle_type(
+    external_mem_handle_type externMemHandleType,
+    const sycl::device &syclDevice);
 ```
 
 The resulting `external_mem` can then be mapped, where the resulting type 
@@ -2728,3 +2734,8 @@ This query should be added in a later revision of the proposal.
 |6.10|2025-05-09| - Add `unmap_external_image_memory` and 
                     `unmap_external_linear_memory` APIs.
                   - Clarify how and when external memory should be unmapped.
+|6.11|2025-06-16| - Add `external_mem_handle_type::dma_buf`
+                  - Add `supports_importing_handle_type`
+|6.12|2025-07-03| - Add `win32_nt_dx11_resource` enum entry to
+                    `external_mem_handle_type` for Direct3D 11 memory interop.
+|======================

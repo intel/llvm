@@ -45,4 +45,4 @@
 // LIBDEVICE30-SAME: libdevice.compute_30.10.bc
 // LIBDEVICE35-SAME: libdevice.compute_35.10.bc
 // LIBDEVICE50-SAME: libdevice.compute_50.10.bc
-// NOLIBDEVICE-NOT: libdevice.{{.*}}.10.bc
+// NOLIBDEVICE-NOT: libdevice{{.*}}.10.bc
