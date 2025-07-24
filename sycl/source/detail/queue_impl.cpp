@@ -859,13 +859,6 @@ void queue_impl::verifyProps(const property_list &Props) const {
                                                 CheckPropertiesWithData);
 }
 
-std::vector<ur_exp_kernel_arg_properties_t> &
-queue_impl::getKernelArgStorage(uint32_t size) {
-  MKernelArgStorage.clear();
-  MKernelArgStorage.reserve(size);
-  return MKernelArgStorage;
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -683,11 +683,6 @@ public:
   }
 #endif
 
-  /// Clears MKernelArgsStorage, has it .reserve(size), and returns a reference
-  /// to it. Not inherently thread safe.
-  std::vector<ur_exp_kernel_arg_properties_t> &
-  getKernelArgStorage(uint32_t size);
-
 protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
