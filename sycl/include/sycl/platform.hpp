@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <sycl/khr/includes/version.hpp>
+
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
