@@ -1,10 +1,9 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
-// CPU AOT targets host isa, so we compile on the run system instead.
-// REQUIRES: opencl-aot
+// CPU AOT targets host isa, so we compile on the run system.
 // RUN: %if any-device-is-cpu && opencl-aot %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-device-code-split=per_kernel -o %t.x86.out %s %}
-// RUN: %if cpu %{ %{run} %t.x86.out %}
+// RUN: %if cpu && opencl-aot %{ %{run} %t.x86.out %}
 //
 // REQUIRES: cpu || gpu
 // REQUIRES: sg-32

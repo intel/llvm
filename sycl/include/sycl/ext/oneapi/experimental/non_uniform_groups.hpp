@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
-#include <sycl/marray.hpp>                    // for marray
-#include <sycl/vector.hpp>                    // for vec
+#include <sycl/ext/oneapi/sub_group_mask.hpp>
+#include <sycl/marray.hpp>
+#include <sycl/vector.hpp>
 
-#include <stddef.h>    // for size_t
-#include <stdint.h>    // for uint32_t
-#include <type_traits> // for false_type
+#include <stddef.h>
+#include <stdint.h>
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -40,11 +40,6 @@ inline uint32_t CallerPositionInMask(ext::oneapi::sub_group_mask Mask) {
       sycl::detail::convertToOpenCLType(MemberMask));
 }
 #endif
-
-template <typename NonUniformGroup>
-inline ext::oneapi::sub_group_mask GetMask(NonUniformGroup Group) {
-  return Group.Mask;
-}
 
 template <typename NonUniformGroup>
 inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {

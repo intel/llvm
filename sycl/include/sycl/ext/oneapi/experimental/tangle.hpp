@@ -30,8 +30,7 @@ template <typename ParentGroup>
 #ifdef __SYCL_DEVICE_ONLY__
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_tangle)]]
 #endif
-inline std::enable_if_t<sycl::is_group_v<std::decay_t<ParentGroup>> &&
-                            std::is_same_v<ParentGroup, sycl::sub_group>,
+inline std::enable_if_t<std::is_same_v<ParentGroup, sycl::sub_group>,
                         tangle<ParentGroup>> entangle(ParentGroup parent);
 
 template <typename ParentGroup> class tangle {
@@ -118,10 +117,10 @@ public:
 protected:
 #ifdef __SYCL_DEVICE_ONLY__
   sub_group_mask Mask;
-#endif
 
-#ifdef __SYCL_DEVICE_ONLY__
   tangle(ext::oneapi::sub_group_mask mask) : Mask(mask) {}
+
+  ext::oneapi::sub_group_mask getMask() const { return Mask; }
 #else
   tangle() {}
 #endif
@@ -133,8 +132,7 @@ protected:
 };
 
 template <typename ParentGroup>
-inline std::enable_if_t<sycl::is_group_v<std::decay_t<ParentGroup>> &&
-                            std::is_same_v<ParentGroup, sycl::sub_group>,
+inline std::enable_if_t<std::is_same_v<ParentGroup, sycl::sub_group>,
                         tangle<ParentGroup>>
 entangle(ParentGroup parent) {
   (void)parent;

@@ -38,8 +38,9 @@ template <typename ParentGroup>
 #ifdef __SYCL_DEVICE_ONLY__
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_fragment)]]
 #endif
-inline std::enable_if_t<sycl::is_group_v<std::decay_t<ParentGroup>> &&
-                            std::is_same_v<ParentGroup, sycl::sub_group>,
+inline std::enable_if_t<std::is_same_v<ParentGroup, sycl::sub_group> ||
+                            is_chunk_v<ParentGroup> ||
+                            is_fragment_v<ParentGroup>,
                         fragment<ParentGroup>>
 binary_partition(ParentGroup parent, bool predicate);
 
@@ -139,6 +140,8 @@ protected:
   fragment(sub_group_mask m, id_type group_id, range_type group_range)
       : Mask(m), GroupID(group_id), GroupRange(group_range) {}
 
+  ext::oneapi::sub_group_mask getMask() const { return Mask; }
+
   friend fragment<ParentGroup> binary_partition<ParentGroup>(ParentGroup parent,
                                                              bool predicate);
 
@@ -149,31 +152,28 @@ protected:
 };
 
 template <typename ParentGroup>
-inline std::enable_if_t<sycl::is_group_v<std::decay_t<ParentGroup>> &&
-                            std::is_same_v<ParentGroup, sycl::sub_group>,
+inline std::enable_if_t<std::is_same_v<ParentGroup, sycl::sub_group> ||
+                            is_chunk_v<ParentGroup> ||
+                            is_fragment_v<ParentGroup>,
                         fragment<ParentGroup>>
-binary_partition(ParentGroup parent, bool predicate) {
-  (void)parent;
+binary_partition([[maybe_unused]] ParentGroup parent,
+                 [[maybe_unused]] bool predicate) {
 #ifdef __SYCL_DEVICE_ONLY__
   // sync all work-items in parent group before partitioning
   sycl::group_barrier(parent);
 
 #if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
-  sub_group_mask mask = sycl::ext::oneapi::group_ballot(parent, predicate);
+  // Collect ballot results. If we are in the false predicate group, the result
+  // should be inverted and filtered for the participants of the parent.
+  sub_group_mask mask = sycl::detail::commonGroupBallotImpl(parent, predicate);
+  if (!predicate)
+    mask = (~mask) & sycl::detail::GetMask(parent);
+
   id<1> group_id = predicate ? 1 : 0;
   range<1> group_range = 2; // 2 groups based on predicate by binary_partition
-
-  if (!predicate) {
-    sub_group_mask::BitsType participant_filter =
-        (~sub_group_mask::BitsType{0}) >>
-        (sub_group_mask::max_bits - parent.get_local_linear_range());
-    mask = (~mask) & participant_filter;
-  }
-
   return fragment<ParentGroup>(mask, group_id, group_range);
 #endif
 #else
-  (void)predicate;
   return fragment<ParentGroup>(sub_group_mask(), id<1>(0), range<1>(1));
 #endif
 }
