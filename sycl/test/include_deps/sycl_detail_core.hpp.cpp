@@ -133,12 +133,12 @@
 // CHECK-NEXT: detail/kernel_launch_helper.hpp
 // CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
 // CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
+// CHECK-NEXT: ext/oneapi/experimental/cluster_group_prop.hpp
+// CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
 // CHECK-NEXT: ext/oneapi/experimental/virtual_functions.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/work_group_scratch_memory.hpp
 // CHECK-NEXT: detail/sycl_local_mem_builtins.hpp
-// CHECK-NEXT: ext/oneapi/experimental/cluster_group_prop.hpp
-// CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
 // CHECK-NEXT: detail/kernel_name_based_cache.hpp
 // CHECK-NEXT: detail/kernel_name_str_t.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
