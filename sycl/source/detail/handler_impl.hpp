@@ -149,6 +149,13 @@ public:
   /// The list of arguments for the kernel.
   std::vector<detail::ArgDesc> MArgs;
 
+  // Certain arguments such as structs that contain SYCL special types entail
+  // several hidden set_arg calls for every set_arg called by the user. This
+  // shift is required to make sure the following arguments set by the user have
+  // the correct index. It keeps track of how many of these hidden set_arg calls
+  // have been made so far.
+  int MArgShift = 0;
+
   /// The list of associated accessors with this handler.
   /// These accessors were created with this handler as argument or
   /// have become required for this handler via require method.
