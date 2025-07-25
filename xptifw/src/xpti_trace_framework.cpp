@@ -1519,7 +1519,7 @@ public:
   using stream_flags_t = emhash7::HashMap<xpti::stream_id_t, trace_flags_t>;
 
   Notifications(size_t size = 512)
-      : MStreamFlags(size), MCallbacksByStream(size) {}
+      : MCallbacksByStream(size), MStreamFlags(size) {}
 
   /// @brief Registers a callback function for a specific trace type and stream
   /// ID.
