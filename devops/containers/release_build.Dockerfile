@@ -1,5 +1,7 @@
 FROM docker.io/aswf/ci-base:2025.1
 
+LABEL org.opencontainers.image.source=https://github.com/intel/llvm
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 USER root
