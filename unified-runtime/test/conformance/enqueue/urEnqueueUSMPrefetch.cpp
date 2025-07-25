@@ -20,7 +20,8 @@ struct urEnqueueUSMPrefetchWithParamTest
 
 UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     urEnqueueUSMPrefetchWithParamTest,
-    ::testing::Values(UR_USM_MIGRATION_FLAG_DEFAULT),
+    ::testing::Values(UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE,
+                      UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST),
     uur::deviceTestWithParamPrinter<ur_usm_migration_flag_t>);
 
 TEST_P(urEnqueueUSMPrefetchWithParamTest, Success) {
@@ -102,14 +103,14 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueUSMPrefetchTest);
 TEST_P(urEnqueueUSMPrefetchTest, InvalidNullHandleQueue) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urEnqueueUSMPrefetch(nullptr, ptr, allocation_size,
-                                        UR_USM_MIGRATION_FLAG_DEFAULT, 0,
+                                        UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 0,
                                         nullptr, nullptr));
 }
 
 TEST_P(urEnqueueUSMPrefetchTest, InvalidNullPointerMem) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                    urEnqueueUSMPrefetch(queue, nullptr, allocation_size,
-                                        UR_USM_MIGRATION_FLAG_DEFAULT, 0,
+                                        UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 0,
                                         nullptr, nullptr));
 }
 
@@ -123,7 +124,7 @@ TEST_P(urEnqueueUSMPrefetchTest, InvalidEnumeration) {
 TEST_P(urEnqueueUSMPrefetchTest, InvalidSizeZero) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                    urEnqueueUSMPrefetch(queue, ptr, 0,
-                                        UR_USM_MIGRATION_FLAG_DEFAULT, 0,
+                                        UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 0,
                                         nullptr, nullptr));
 }
 
@@ -132,14 +133,14 @@ TEST_P(urEnqueueUSMPrefetchTest, InvalidSizeTooLarge) {
 
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                    urEnqueueUSMPrefetch(queue, ptr, allocation_size * 2,
-                                        UR_USM_MIGRATION_FLAG_DEFAULT, 0,
+                                        UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 0,
                                         nullptr, nullptr));
 }
 
 TEST_P(urEnqueueUSMPrefetchTest, InvalidEventWaitList) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
                    urEnqueueUSMPrefetch(queue, ptr, allocation_size,
-                                        UR_USM_MIGRATION_FLAG_DEFAULT, 1,
+                                        UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 1,
                                         nullptr, nullptr));
 
   ur_event_handle_t validEvent;
@@ -147,12 +148,12 @@ TEST_P(urEnqueueUSMPrefetchTest, InvalidEventWaitList) {
 
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
                    urEnqueueUSMPrefetch(queue, ptr, allocation_size,
-                                        UR_USM_MIGRATION_FLAG_DEFAULT, 0,
+                                        UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 0,
                                         &validEvent, nullptr));
 
   ur_event_handle_t inv_evt = nullptr;
   ASSERT_EQ_RESULT(urEnqueueUSMPrefetch(queue, ptr, allocation_size,
-                                        UR_USM_MIGRATION_FLAG_DEFAULT, 1,
+                                        UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 1,
                                         &inv_evt, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 

@@ -12,6 +12,7 @@
 
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/handler.hpp>
@@ -369,15 +370,27 @@ void fill(sycl::queue Q, T *Ptr, const T &Pattern, size_t Count,
       CodeLoc);
 }
 
-inline void prefetch(handler &CGH, void *Ptr, size_t NumBytes) {
-  CGH.prefetch(Ptr, NumBytes);
+inline void prefetch(handler &CGH, void *Ptr, size_t NumBytes,
+                     prefetch_type Type = prefetch_type::device) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  CGH.prefetch(Ptr, NumBytes, Type);
+#else
+  if (Type == prefetch_type::device) {
+    // Incase an older libsycl.so is used, don't call prefetch function overload
+    // with new prefetch_type parameter:
+    CGH.prefetch(Ptr, NumBytes);
+  } else {
+    CGH.prefetch(Ptr, NumBytes, Type);
+  }
+#endif
 }
 
 inline void prefetch(queue Q, void *Ptr, size_t NumBytes,
+                     prefetch_type Type = prefetch_type::device,
                      const sycl::detail::code_location &CodeLoc =
                          sycl::detail::code_location::current()) {
   submit(
-      std::move(Q), [&](handler &CGH) { prefetch(CGH, Ptr, NumBytes); },
+      std::move(Q), [&](handler &CGH) { prefetch(CGH, Ptr, NumBytes, Type); },
       CodeLoc);
 }
 

@@ -12,6 +12,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   CompositeDevice.cpp
   OneAPIProd.cpp
   EnqueueFunctionsEvents.cpp
+  EnqueueFunctionsPrefetch.cpp
   ProfilingTag.cpp
   KernelProperties.cpp
   NoDeviceIPVersion.cpp

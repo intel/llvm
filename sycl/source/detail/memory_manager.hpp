@@ -11,6 +11,7 @@
 #include <detail/sycl_mem_obj_i.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp> // for prefetch_type
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
@@ -146,9 +147,12 @@ public:
                        std::vector<ur_event_handle_t> DepEvents,
                        ur_event_handle_t *OutEvent);
 
-  static void prefetch_usm(void *Ptr, queue_impl &Queue, size_t Len,
-                           std::vector<ur_event_handle_t> DepEvents,
-                           ur_event_handle_t *OutEvent);
+  static void
+  prefetch_usm(void *Ptr, queue_impl &Queue, size_t Len,
+               std::vector<ur_event_handle_t> DepEvents,
+               ur_event_handle_t *OutEvent,
+               sycl::ext::oneapi::experimental::prefetch_type Dest =
+                   sycl::ext::oneapi::experimental::prefetch_type::device);
 
   static void advise_usm(const void *Ptr, queue_impl &Queue, size_t Len,
                          ur_usm_advice_flags_t Advice,
@@ -245,7 +249,9 @@ public:
       sycl::detail::context_impl *Context,
       ur_exp_command_buffer_handle_t CommandBuffer, void *Mem, size_t Length,
       std::vector<ur_exp_command_buffer_sync_point_t> Deps,
-      ur_exp_command_buffer_sync_point_t *OutSyncPoint);
+      ur_exp_command_buffer_sync_point_t *OutSyncPoint,
+      sycl::ext::oneapi::experimental::prefetch_type Dest =
+          sycl::ext::oneapi::experimental::prefetch_type::device);
 
   static void ext_oneapi_advise_usm_cmd_buffer(
       sycl::detail::context_impl *Context,

@@ -11031,8 +11031,11 @@ inline ur_result_t printFlag<ur_map_flag_t>(std::ostream &os, uint32_t flag) {
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_migration_flag_t value) {
   switch (value) {
-  case UR_USM_MIGRATION_FLAG_DEFAULT:
-    os << "UR_USM_MIGRATION_FLAG_DEFAULT";
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    os << "UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE";
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    os << "UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST";
     break;
   default:
     os << "unknown enumerator";
@@ -11050,15 +11053,26 @@ inline ur_result_t printFlag<ur_usm_migration_flag_t>(std::ostream &os,
   uint32_t val = flag;
   bool first = true;
 
-  if ((val & UR_USM_MIGRATION_FLAG_DEFAULT) ==
-      (uint32_t)UR_USM_MIGRATION_FLAG_DEFAULT) {
-    val ^= (uint32_t)UR_USM_MIGRATION_FLAG_DEFAULT;
+  if ((val & UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE) ==
+      (uint32_t)UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE) {
+    val ^= (uint32_t)UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE;
     if (!first) {
       os << " | ";
     } else {
       first = false;
     }
-    os << UR_USM_MIGRATION_FLAG_DEFAULT;
+    os << UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE;
+  }
+
+  if ((val & UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST) ==
+      (uint32_t)UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST) {
+    val ^= (uint32_t)UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST;
   }
   if (val != 0) {
     std::bitset<32> bits(val);

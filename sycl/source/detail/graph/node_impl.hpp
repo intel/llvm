@@ -15,7 +15,8 @@
 #include <sycl/detail/cg_types.hpp>    // for CGType
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
 
-#include <sycl/ext/oneapi/experimental/graph/node.hpp> // for node
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp> // for prefetchType
+#include <sycl/ext/oneapi/experimental/graph/node.hpp>    // for node
 
 #include <cstring>
 #include <fstream>
@@ -655,7 +656,10 @@ private:
         sycl::detail::CGPrefetchUSM *Prefetch =
             static_cast<sycl::detail::CGPrefetchUSM *>(MCommandGroup.get());
         Stream << "Dst: " << Prefetch->getDst()
-               << " Length: " << Prefetch->getLength() << "\\n";
+               << " Length: " << Prefetch->getLength() << " PrefetchType: "
+               << sycl::ext::oneapi::experimental::prefetchTypeToString(
+                      Prefetch->getPrefetchType())
+               << "\\n";
       }
       break;
     case sycl::detail::CGType::AdviseUSM:
