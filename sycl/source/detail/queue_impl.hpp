@@ -998,10 +998,6 @@ protected:
 
   ur_queue_handle_t MQueue;
 
-  // To avoid re-allocating this every time a kernel is enqueued we keep this
-  // vector around and .clear()/.reserve() for each kernel instead.
-  std::vector<ur_exp_kernel_arg_properties_t> MKernelArgStorage;
-
   // Access should be guarded with MMutex
   struct DependencyTrackingItems {
     // This event is employed for enhanced dependency tracking with in-order
