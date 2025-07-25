@@ -11,8 +11,8 @@
 #include "sycl/handler.hpp"
 #include <detail/cg.hpp>
 #include <detail/kernel_bundle_impl.hpp>
-#include <sycl/detail/kernel_launch_helper.hpp>
 #include <memory>
+#include <sycl/detail/kernel_launch_helper.hpp>
 
 namespace sycl {
 inline namespace _V1 {

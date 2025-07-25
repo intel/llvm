@@ -287,7 +287,6 @@ set(SYCL_COMMON_SOURCES
     "detail/kernel_compiler/kernel_compiler_opencl.cpp"
     "detail/kernel_compiler/kernel_compiler_sycl.cpp"
     "detail/kernel_impl.cpp"
-    "detail/kernel_launch_helper.cpp"
     "detail/kernel_name_based_cache.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_export.cpp"

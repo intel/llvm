@@ -12,13 +12,13 @@
 #include <sycl/detail/helpers.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
+#include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 #include <sycl/kernel_handler.hpp>
-#include <sycl/ext/oneapi/experimental/graph.hpp>
-#include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
-#include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 
 #include <assert.h>
 #include <type_traits>
@@ -278,56 +278,118 @@ public:
   std::array<size_t, 3> MKernelClusterSize = {0, 0, 0};
 
   struct KernelLaunchPropertiesT {
-    StableKernelCacheConfig MKernelCacheConfig =
-        StableKernelCacheConfig::Default;
-    bool MKernelIsCooperative = false;
-    uint32_t MKernelWorkGroupMemorySize = 0;
-    bool MKernelUsesClusterLaunch = false;
-    size_t MKernelClusterDims = 0;
-    std::array<size_t, 3> MKernelClusterSize = {0, 0, 0};
+    std::optional<ur_kernel_cache_config_t> MKernelCacheConfig;
+    std::optional<bool> MKernelIsCooperative;
+    std::optional<uint32_t> MKernelWorkGroupMemorySize;
+    std::optional<bool> MKernelUsesClusterLaunch;
+    size_t MKernelClusterDims;
+    std::array<size_t, 3> MKernelClusterSize;
+
+    KernelLaunchPropertiesT() {
+      MKernelCacheConfig = std::nullopt;
+      MKernelIsCooperative = std::nullopt;
+      MKernelWorkGroupMemorySize = std::nullopt;
+      MKernelUsesClusterLaunch = std::nullopt;
+      MKernelClusterDims = 0;
+      MKernelClusterSize.fill(0);
+    }
   };
 
-  template <
-  syclex::detail::UnsupportedGraphFeatures FeatureT>
+  template <syclex::detail::UnsupportedGraphFeatures FeatureT>
   static void throwIfGraphAssociated(bool HasGraph) {
     if (!HasGraph)
       return;
 
     std::string FeatureString =
-        syclex::detail::UnsupportedFeatureToString(
-            FeatureT);
+        syclex::detail::UnsupportedFeatureToString(FeatureT);
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "The " + FeatureString +
                               " feature is not yet available "
                               "for use with the SYCL Graph extension.");
   }
 
-  static void
-  verifyDeviceHasProgressGuarantee(device_impl &dev,
-                                  syclex::forward_progress_guarantee guarantee,
-                                  syclex::execution_scope threadScope,
-                                  syclex::execution_scope coordinationScope,
-                                  KernelLaunchPropertiesT &prop);
+private:
+  static void verifyDeviceHasProgressGuarantee(
+      bool supported, syclex::forward_progress_guarantee guarantee,
+      syclex::execution_scope threadScope, KernelLaunchPropertiesT &prop) {
 
+    using execution_scope = syclex::execution_scope;
+    using forward_progress = syclex::forward_progress_guarantee;
+
+    if (threadScope == execution_scope::work_group) {
+      if (!supported) {
+        throw sycl::exception(
+            sycl::errc::feature_not_supported,
+            "Required progress guarantee for work groups is not "
+            "supported by this device.");
+      }
+      // If we are here, the device supports the guarantee required but there is
+      // a caveat in that if the guarantee required is a concurrent guarantee,
+      // then we most likely also need to enable cooperative launch of the
+      // kernel. That is, although the device supports the required guarantee,
+      // some setup work is needed to truly make the device provide that
+      // guarantee at runtime. Otherwise, we will get the default guarantee
+      // which is weaker than concurrent. Same reasoning applies for sub_group
+      // but not for work_item.
+      // TODO: Further design work is probably needed to reflect this behavior
+      // in Unified Runtime.
+      if (guarantee == forward_progress::concurrent)
+        prop.MKernelIsCooperative = true;
+    } else if (threadScope == execution_scope::sub_group) {
+      if (!supported) {
+        throw sycl::exception(
+            sycl::errc::feature_not_supported,
+            "Required progress guarantee for sub groups is not "
+            "supported by this device.");
+      }
+      // Same reasoning as above.
+      if (guarantee == forward_progress::concurrent)
+        prop.MKernelIsCooperative = true;
+    } else { // threadScope is execution_scope::work_item otherwise undefined
+             // behavior
+      if (!supported) {
+        throw sycl::exception(
+            sycl::errc::feature_not_supported,
+            "Required progress guarantee for work items is not "
+            "supported by this device.");
+      }
+    }
+  }
+
+public:
   /// Process runtime kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
-  template <typename PropertiesT>
-  static KernelLaunchPropertiesT processLaunchProperties(PropertiesT Props,
-  bool HasGraph, device_impl &dev) {
+  template <typename PropertiesT, typename PropertyProcessorPtrT>
+  static KernelLaunchPropertiesT
+  processLaunchProperties(PropertiesT Props, PropertyProcessorPtrT p) {
 
     KernelLaunchPropertiesT retval;
+    bool HasGraph = p->isKernelAssociatedWithGraph();
 
     // Process Kernel cache configuration property.
     {
+      auto ConvertToURCacheConfig = [](StableKernelCacheConfig cc) {
+        switch (cc) {
+        case StableKernelCacheConfig::Default:
+          return UR_KERNEL_CACHE_CONFIG_DEFAULT;
+        case StableKernelCacheConfig::LargeSLM:
+          return UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
+        case StableKernelCacheConfig::LargeData:
+          return UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
+        }
+      };
+
       if constexpr (PropertiesT::template has_property<
                         sycl::ext::intel::experimental::cache_config_key>()) {
         auto Config = Props.template get_property<
             sycl::ext::intel::experimental::cache_config_key>();
         if (Config == sycl::ext::intel::experimental::large_slm) {
-          retval.MKernelCacheConfig = StableKernelCacheConfig::LargeSLM;
+          retval.MKernelCacheConfig =
+              ConvertToURCacheConfig(StableKernelCacheConfig::LargeSLM);
         } else if (Config == sycl::ext::intel::experimental::large_data) {
-          retval.MKernelCacheConfig = StableKernelCacheConfig::LargeData;
+          retval.MKernelCacheConfig =
+              ConvertToURCacheConfig(StableKernelCacheConfig::LargeData);
         }
       } else {
         std::ignore = Props;
@@ -348,11 +410,13 @@ public:
                             work_group_progress_key>()) {
         auto prop = Props.template get_property<
             sycl::ext::oneapi::experimental::work_group_progress_key>();
-        verifyDeviceHasProgressGuarantee(
-            dev,
+        bool supported = p->deviceSupportForwardProgress(
             prop.guarantee,
             sycl::ext::oneapi::experimental::execution_scope::work_group,
-            prop.coordinationScope,
+            prop.coordinationScope);
+        verifyDeviceHasProgressGuarantee(
+            supported, prop.guarantee,
+            sycl::ext::oneapi::experimental::execution_scope::work_group,
             retval);
       }
       if constexpr (PropertiesT::template has_property<
@@ -360,11 +424,13 @@ public:
                             sub_group_progress_key>()) {
         auto prop = Props.template get_property<
             sycl::ext::oneapi::experimental::sub_group_progress_key>();
-        verifyDeviceHasProgressGuarantee(
-            dev,
+        bool supported = p->deviceSupportForwardProgress(
             prop.guarantee,
             sycl::ext::oneapi::experimental::execution_scope::sub_group,
-            prop.coordinationScope,
+            prop.coordinationScope);
+        verifyDeviceHasProgressGuarantee(
+            supported, prop.guarantee,
+            sycl::ext::oneapi::experimental::execution_scope::sub_group,
             retval);
       }
       if constexpr (PropertiesT::template has_property<
@@ -372,11 +438,13 @@ public:
                             work_item_progress_key>()) {
         auto prop = Props.template get_property<
             sycl::ext::oneapi::experimental::work_item_progress_key>();
-        verifyDeviceHasProgressGuarantee(
-            dev,
+        bool supported = p->deviceSupportForwardProgress(
             prop.guarantee,
             sycl::ext::oneapi::experimental::execution_scope::work_item,
-            prop.coordinationScope,
+            prop.coordinationScope);
+        verifyDeviceHasProgressGuarantee(
+            supported, prop.guarantee,
+            sycl::ext::oneapi::experimental::execution_scope::work_item,
             retval);
       }
     }
@@ -387,7 +455,8 @@ public:
                         sycl::ext::oneapi::experimental::
                             work_group_scratch_size>()) {
         throwIfGraphAssociated<syclex::detail::UnsupportedGraphFeatures::
-                             sycl_ext_oneapi_work_group_scratch_memory>(HasGraph);
+                                   sycl_ext_oneapi_work_group_scratch_memory>(
+            HasGraph);
         auto WorkGroupMemSize = Props.template get_property<
             sycl::ext::oneapi::experimental::work_group_scratch_size>();
         retval.MKernelWorkGroupMemorySize = WorkGroupMemSize.size;
@@ -400,12 +469,12 @@ public:
           syclex::detail::getClusterDim<PropertiesT>();
       if constexpr (ClusterDim > 0) {
         throwIfGraphAssociated<
-        syclex::detail::UnsupportedGraphFeatures::
-            sycl_ext_oneapi_experimental_cuda_cluster_launch>(HasGraph);
+            syclex::detail::UnsupportedGraphFeatures::
+                sycl_ext_oneapi_experimental_cuda_cluster_launch>(HasGraph);
         auto ClusterSize = Props
-                              .template get_property<
-                                  syclex::cuda::cluster_size_key<ClusterDim>>()
-                              .get_cluster_size();
+                               .template get_property<
+                                   syclex::cuda::cluster_size_key<ClusterDim>>()
+                               .get_cluster_size();
         retval.MKernelUsesClusterLaunch = true;
         retval.MKernelClusterDims = ClusterDim;
         if (ClusterDim == 1) {
@@ -419,11 +488,11 @@ public:
           retval.MKernelClusterSize[2] = ClusterSize[2];
         } else {
           assert(ClusterDim > 3 &&
-                  "Only 1D, 2D, and 3D cluster launch is supported.");
+                 "Only 1D, 2D, and 3D cluster launch is supported.");
         }
       }
     }
-  
+
     return retval;
   }
 
@@ -436,10 +505,10 @@ public:
   /// kernel, even though body of those instantiated functions could be almost
   /// the same, thus unnecessary increasing compilation time.
   template <
-      bool IsESIMDKernel,
+      bool IsESIMDKernel, typename PropertyProcessorPtrT,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   static KernelLaunchPropertiesT processProperties(PropertiesT Props,
-    bool HasGraph, device_impl &dev) {
+                                                   PropertyProcessorPtrT p) {
     static_assert(
         ext::oneapi::experimental::is_property_list<PropertiesT>::value,
         "Template type is not a property list.");
@@ -455,21 +524,21 @@ public:
             sycl::ext::oneapi::experimental::indirectly_callable_key>(),
         "indirectly_callable property cannot be applied to SYCL kernels");
 
-    return processLaunchProperties(Props, HasGraph, dev);
+    return processLaunchProperties(Props, p);
   }
 
-  template <typename KernelName, typename KernelType>
-  static std::optional<KernelLaunchPropertiesT> parseProperties(
-    [[maybe_unused]] const KernelType &KernelFunc,
-    [[maybe_unused]] bool HasGraph,
-    [[maybe_unused]] device_impl &dev) {
+  template <typename KernelName, typename KernelType,
+            typename PropertyProcessorPtrT>
+  static std::optional<KernelLaunchPropertiesT>
+  parseProperties([[maybe_unused]] const KernelType &KernelFunc,
+                  [[maybe_unused]] PropertyProcessorPtrT p) {
 #ifndef __SYCL_DEVICE_ONLY__
     // If there are properties provided by get method then process them.
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<const KernelType &>::value) {
 
       return processProperties<detail::isKernelESIMD<KernelName>()>(
-          KernelFunc.get(ext::oneapi::experimental::properties_tag{}), HasGraph, dev);
+          KernelFunc.get(ext::oneapi::experimental::properties_tag{}), p);
     }
 #endif
     // If there are no properties provided by get method then return empty
@@ -478,24 +547,21 @@ public:
   }
 
   void parseAndSetKernelLaunchProperties(KernelLaunchPropertiesT &props) {
-      switch (props.MKernelCacheConfig) {
-        case StableKernelCacheConfig::Default:
-          MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
-          break;
-        case StableKernelCacheConfig::LargeSLM:
-          MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
-          break;
-        case StableKernelCacheConfig::LargeData:
-          MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
-          break;
-      }
+    if (props.MKernelCacheConfig)
+      MKernelCacheConfig = *props.MKernelCacheConfig;
 
-      MKernelIsCooperative = props.MKernelIsCooperative;
-      MKernelWorkGroupMemorySize = props.MKernelWorkGroupMemorySize;
-      MKernelUsesClusterLaunch = props.MKernelUsesClusterLaunch;
+    if (props.MKernelIsCooperative)
+      MKernelIsCooperative = *props.MKernelIsCooperative;
+
+    if (props.MKernelWorkGroupMemorySize)
+      MKernelWorkGroupMemorySize = *props.MKernelWorkGroupMemorySize;
+
+    if (props.MKernelUsesClusterLaunch) {
+      MKernelUsesClusterLaunch = *props.MKernelUsesClusterLaunch;
       MKernelClusterDims = props.MKernelClusterDims;
       MKernelClusterSize = props.MKernelClusterSize;
     }
+  }
 }; // KernelLaunchPropertyWrapper struct
 
 } // namespace detail

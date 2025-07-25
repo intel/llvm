@@ -313,7 +313,6 @@ fill_copy_args(detail::handler_impl *impl,
                  0 /*DestPitch*/, SrcOffset, SrcExtent, DestOffset, DestExtent,
                  CopyExtent);
 }
-
 } // namespace detail
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -2081,7 +2080,7 @@ void handler::verifyDeviceHasProgressGuarantee(
     sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
     sycl::ext::oneapi::experimental::execution_scope threadScope,
     sycl::ext::oneapi::experimental::execution_scope coordinationScope) {
-  
+
   using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
   using forward_progress =
       sycl::ext::oneapi::experimental::forward_progress_guarantee;
@@ -2256,35 +2255,61 @@ detail::context_impl &handler::getContextImpl() const {
 
 void handler::setKernelLaunchProperties(
     KernelLaunchPropertyWrapper::KernelLaunchPropertiesT
-                                    &KernelLaunchProperties) {
+        &KernelLaunchProperties) {
   impl->parseAndSetKernelLaunchProperties(KernelLaunchProperties);
 
   if (KernelLaunchProperties.MKernelClusterDims == 1) {
-    sycl::range<1> ClusterSizeTrimmed = {KernelLaunchProperties.MKernelClusterSize[0]};
+    sycl::range<1> ClusterSizeTrimmed = {
+        KernelLaunchProperties.MKernelClusterSize[0]};
     impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
   } else if (KernelLaunchProperties.MKernelClusterDims == 2) {
-    sycl::range<2> ClusterSizeTrimmed =
-      {KernelLaunchProperties.MKernelClusterSize[0],
+    sycl::range<2> ClusterSizeTrimmed = {
+        KernelLaunchProperties.MKernelClusterSize[0],
         KernelLaunchProperties.MKernelClusterSize[1]};
     impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
   } else if (KernelLaunchProperties.MKernelClusterDims == 3) {
-    sycl::range<3> ClusterSizeTrimmed =
-      {KernelLaunchProperties.MKernelClusterSize[0],
+    sycl::range<3> ClusterSizeTrimmed = {
+        KernelLaunchProperties.MKernelClusterSize[0],
         KernelLaunchProperties.MKernelClusterSize[1],
         KernelLaunchProperties.MKernelClusterSize[2]};
     impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
   }
 }
 
-device_impl& handler::getDeviceImpl() {
-  return impl->get_device();
+bool handler::isKernelAssociatedWithGraph() const {
+  return getCommandGraph() != nullptr;
 }
+
+bool handler::deviceSupportForwardProgress(
+    sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
+    sycl::ext::oneapi::experimental::execution_scope threadScope,
+    sycl::ext::oneapi::experimental::execution_scope coordinationScope) const {
+
+  return impl->get_device().supportsForwardProgress(guarantee, threadScope,
+                                                    coordinationScope);
+}
+
+device_impl &handler::getDeviceImpl() { return impl->get_device(); }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 
+void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
+  switch (Config) {
+  case handler::StableKernelCacheConfig::Default:
+    impl->MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
+    break;
+  case handler::StableKernelCacheConfig::LargeSLM:
+    impl->MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
+    break;
+  case handler::StableKernelCacheConfig::LargeData:
+    impl->MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
+    break;
+  }
+}
+
 void handler::setKernelIsCooperative(bool IsCooperative) {
   impl->MKernelIsCooperative = IsCooperative;
-} 
+}
 
 void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
   throwIfGraphAssociated<
