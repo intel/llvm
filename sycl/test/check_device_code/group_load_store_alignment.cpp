@@ -30,7 +30,7 @@ using plain_ptr = typename sycl::detail::DecoratedType<
 // CHECK-GLOBAL-NEXT:    br i1 [[CMP1_I_NOT_I_I]], label [[IF_END_I_I:%.*]], label [[IF_THEN_I_I:%.*]]
 // CHECK-GLOBAL:       if.then.i.i:
 // CHECK-GLOBAL-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrieriii(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR3:[0-9]+]]
-// CHECK-GLOBAL-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4
+// CHECK-GLOBAL-NEXT:    [[TMP1:%.*]] = tail call spir_func noundef i32 @_Z40__spirv_BuiltInSubgroupLocalInvocationIdv()
 // CHECK-GLOBAL-NEXT:    [[IDXPROM_I_I_I:%.*]] = sext i32 [[TMP1]] to i64
 // CHECK-GLOBAL-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds i16, ptr addrspace(1) [[P]], i64 [[IDXPROM_I_I_I]]
 // CHECK-GLOBAL-NEXT:    [[TMP2:%.*]] = load i16, ptr addrspace(1) [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA8:![0-9]+]]
@@ -75,7 +75,7 @@ SYCL_EXTERNAL void test_load_with_alignment_hint(sycl::sub_group &sg,
 // CHECK-GLOBAL-NEXT:    br i1 [[CMP1_I_NOT_I_I]], label [[IF_END_I_I:%.*]], label [[IF_THEN_I_I:%.*]]
 // CHECK-GLOBAL:       if.then.i.i:
 // CHECK-GLOBAL-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrieriii(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR3]]
-// CHECK-GLOBAL-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4
+// CHECK-GLOBAL-NEXT:    tail call spir_func noundef i32 @_Z40__spirv_BuiltInSubgroupLocalInvocationIdv()
 // CHECK-GLOBAL-NEXT:    [[IDXPROM_I_I_I:%.*]] = sext i32 [[TMP1]] to i64
 // CHECK-GLOBAL-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[P]], i64 [[IDXPROM_I_I_I]]
 // CHECK-GLOBAL-NEXT:    store i32 [[V:%.*]], ptr addrspace(1) [[ARRAYIDX_I_I_I]], align 4, !tbaa [[TBAA14:![0-9]+]]

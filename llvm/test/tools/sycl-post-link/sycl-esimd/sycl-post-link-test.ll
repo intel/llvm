@@ -7,14 +7,10 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
-@__spirv_BuiltInSubgroupLocalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant i32, align 4
-@__spirv_BuiltInSubgroupSize = external dso_local local_unnamed_addr addrspace(1) constant i32, align 4
-@__spirv_BuiltInSubgroupMaxSize = external dso_local local_unnamed_addr addrspace(1) constant i32, align 4
-
 ; Function Attrs: convergent norecurse
 define dso_local spir_kernel void @kernel_SubgroupLocalInvocationId(ptr addrspace(1) noundef align 8 %_arg_DoNotOptimize, ptr addrspace(1) noundef align 4 %_arg_DoNotOptimize32) #0 !sycl_explicit_simd !3 {
 entry:
-  %0 = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4
+  %0 = call spir_func i32 @_Z40__spirv_BuiltInSubgroupLocalInvocationIdv()
   %conv.i = zext i32 %0 to i64
   store i64 %conv.i, ptr addrspace(1) %_arg_DoNotOptimize, align 8
   %add.i = add i32 %0, 3
@@ -29,7 +25,7 @@ entry:
 ; Function Attrs: convergent norecurse
 define dso_local spir_kernel void @kernel_SubgroupSize(ptr addrspace(1) noundef align 8 %_arg_DoNotOptimize, ptr addrspace(1) noundef align 4 %_arg_DoNotOptimize32)#0 !sycl_explicit_simd !3{
 entry:
-  %0 = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4
+  %0 = call spir_func i32 @_Z27__spirv_BuiltInSubgroupSizev()
   %conv.i = zext i32 %0 to i64
   store i64 %conv.i, ptr addrspace(1) %_arg_DoNotOptimize, align 8
   %add.i = add i32 %0, 7
@@ -44,7 +40,7 @@ entry:
 ; Function Attrs: convergent norecurse
 define dso_local spir_kernel void @kernel_SubgroupMaxSize(ptr addrspace(1) noundef align 8 %_arg_DoNotOptimize, ptr addrspace(1) noundef align 4 %_arg_DoNotOptimize32) #0 !sycl_explicit_simd !3 {
 entry:
-  %0 = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupMaxSize, align 4
+  %0 = call spir_func i32 @_Z30__spirv_BuiltInSubgroupMaxSizev()
   %conv.i = zext i32 %0 to i64
   store i64 %conv.i, ptr addrspace(1) %_arg_DoNotOptimize, align 8
   %add.i = add i32 %0, 9
@@ -55,6 +51,10 @@ entry:
 ; CHECK: store i64 %conv.i, ptr addrspace(1) %_arg_DoNotOptimize, align 8
 ; CHECK: %add.i = add i32 1, 9
 ; CHECK: store i32 %add.i, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
+
+declare spir_func i32 @_Z40__spirv_BuiltInSubgroupLocalInvocationIdv()
+declare spir_func i32 @_Z27__spirv_BuiltInSubgroupSizev()
+declare spir_func i32 @_Z30__spirv_BuiltInSubgroupMaxSizev()
 
 attributes #0 = { "sycl-module-id"="a.cpp" }
 

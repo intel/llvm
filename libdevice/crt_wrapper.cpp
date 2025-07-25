@@ -100,24 +100,13 @@ int strncmp(const char *s1, const char *s2, size_t n) {
 DEVICE_EXTERN_C_INLINE
 int rand() {
   size_t gid =
-#if defined(__NVPTX__) || defined(__AMDGCN__)
-      (__spirv_GlobalInvocationId_x() * __spirv_GlobalSize_y() *
-       __spirv_GlobalSize_z()) +
-      (__spirv_GlobalInvocationId_y() * __spirv_GlobalSize_z()) +
-      __spirv_GlobalInvocationId_z();
-#else
-      (__spirv_BuiltInGlobalInvocationId.x * __spirv_BuiltInGlobalSize.y *
-       __spirv_BuiltInGlobalSize.z) +
-      (__spirv_BuiltInGlobalInvocationId.y * __spirv_BuiltInGlobalSize.z) +
-      __spirv_BuiltInGlobalInvocationId.z;
-#endif
-  size_t global_size =
-#if defined(__NVPTX__) || defined(__AMDGCN__)
-      __spirv_GlobalSize_x() * __spirv_GlobalSize_y() * __spirv_GlobalSize_z();
-#else
-      __spirv_BuiltInGlobalSize.x * __spirv_BuiltInGlobalSize.y *
-      __spirv_BuiltInGlobalSize.z;
-#endif
+      (__spirv_BuiltInGlobalInvocationId(0) * __spirv_BuiltInGlobalSize(1) *
+       __spirv_BuiltInGlobalSize(2)) +
+      (__spirv_BuiltInGlobalInvocationId(1) * __spirv_BuiltInGlobalSize(2)) +
+      __spirv_BuiltInGlobalInvocationId(2);
+  size_t global_size = __spirv_BuiltInGlobalSize(0) *
+                       __spirv_BuiltInGlobalSize(1) *
+                       __spirv_BuiltInGlobalSize(2);
   size_t gid1 =
       (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
   if (RAND_NEXT_ACC[gid1] == 0)
@@ -133,24 +122,13 @@ int rand() {
 DEVICE_EXTERN_C_INLINE
 void srand(unsigned int seed) {
   size_t gid =
-#if defined(__NVPTX__) || defined(__AMDGCN__)
-      (__spirv_GlobalInvocationId_x() * __spirv_GlobalSize_y() *
-       __spirv_GlobalSize_z()) +
-      (__spirv_GlobalInvocationId_y() * __spirv_GlobalSize_z()) +
-      __spirv_GlobalInvocationId_z();
-#else
-      (__spirv_BuiltInGlobalInvocationId.x * __spirv_BuiltInGlobalSize.y *
-       __spirv_BuiltInGlobalSize.z) +
-      (__spirv_BuiltInGlobalInvocationId.y * __spirv_BuiltInGlobalSize.z) +
-      __spirv_BuiltInGlobalInvocationId.z;
-#endif
-  size_t global_size =
-#if defined(__NVPTX__) || defined(__AMDGCN__)
-      __spirv_GlobalSize_x() * __spirv_GlobalSize_y() * __spirv_GlobalSize_z();
-#else
-      __spirv_BuiltInGlobalSize.x * __spirv_BuiltInGlobalSize.y *
-      __spirv_BuiltInGlobalSize.z;
-#endif
+      (__spirv_BuiltInGlobalInvocationId(0) * __spirv_BuiltInGlobalSize(1) *
+       __spirv_BuiltInGlobalSize(2)) +
+      (__spirv_BuiltInGlobalInvocationId(1) * __spirv_BuiltInGlobalSize(2)) +
+      __spirv_BuiltInGlobalInvocationId(2);
+  size_t global_size = __spirv_BuiltInGlobalSize(0) *
+                       __spirv_BuiltInGlobalSize(1) *
+                       __spirv_BuiltInGlobalSize(2);
   size_t gid1 =
       (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
   RAND_NEXT_ACC[gid1] = seed;
@@ -180,20 +158,20 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
   __truncate_wchar_char_str(wexpr, expr, sizeof(expr));
 
   __devicelib_assert_fail(
-      expr, file, line, /*func=*/nullptr, __spirv_GlobalInvocationId_x(),
-      __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),
-      __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
-      __spirv_LocalInvocationId_z());
+      expr, file, line, /*func=*/nullptr, __spirv_BuiltInGlobalInvocationId(0),
+      __spirv_BuiltInGlobalInvocationId(1),
+      __spirv_BuiltInGlobalInvocationId(2), __spirv_BuiltInLocalInvocationId(0),
+      __spirv_BuiltInLocalInvocationId(1), __spirv_BuiltInLocalInvocationId(2));
 }
 #else
 DEVICE_EXTERN_C
 void __assert_fail(const char *expr, const char *file, unsigned int line,
                    const char *func) {
   __devicelib_assert_fail(
-      expr, file, line, func, __spirv_GlobalInvocationId_x(),
-      __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),
-      __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
-      __spirv_LocalInvocationId_z());
+      expr, file, line, func, __spirv_BuiltInGlobalInvocationId(0),
+      __spirv_BuiltInGlobalInvocationId(1),
+      __spirv_BuiltInGlobalInvocationId(2), __spirv_BuiltInLocalInvocationId(0),
+      __spirv_BuiltInLocalInvocationId(1), __spirv_BuiltInLocalInvocationId(2));
 }
 
 // In GCC-15, std::__glibcxx_assert_fail is added to do runtime check for some
@@ -204,10 +182,10 @@ DEVICE_EXTERN_CPP
 void __glibcxx_assert_fail(const char *file, int line, const char *func,
                            const char *cond) noexcept {
   __devicelib_assert_fail(
-      cond, file, line, func, __spirv_GlobalInvocationId_x(),
-      __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),
-      __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),
-      __spirv_LocalInvocationId_z());
+      cond, file, line, func, __spirv_BuiltInGlobalInvocationId(0),
+      __spirv_BuiltInGlobalInvocationId(1),
+      __spirv_BuiltInGlobalInvocationId(2), __spirv_BuiltInLocalInvocationId(0),
+      __spirv_BuiltInLocalInvocationId(1), __spirv_BuiltInLocalInvocationId(2));
 }
 } // namespace std
 
