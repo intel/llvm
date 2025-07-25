@@ -21,7 +21,7 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
       !((getOriginMask() & ImageOriginSYCLBIN) && hasKernelName(Name)))
     return nullptr;
 
-  std::string_view AdjustedName = adjustKernelName(Name);
+  std::string_view AdjustedName = getAdjustedKernelNameStrView(Name);
   if (MRTCBinInfo && MRTCBinInfo->MLanguage == syclex::source_language::sycl) {
     auto &PM = ProgramManager::getInstance();
     for (const std::string &Prefix : MRTCBinInfo->MPrefixes) {
