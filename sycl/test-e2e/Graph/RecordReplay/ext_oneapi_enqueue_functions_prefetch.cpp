@@ -1,8 +1,10 @@
+// REQUIRES: aspect-usm_shared_allocations
+//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// OpenCL currently does not support command buffers:
 // UNSUPPORTED: opencl
+// UNSUPPORTED-INTENDED: OpenCL currently does not support command buffers
 //
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
@@ -19,10 +21,6 @@ static constexpr int Pattern = 42;
 
 int main() {
   queue Q{};
-  if (!Q.get_device().get_info<info::device::usm_shared_allocations>()) {
-    // USM not supported, skipping test and returning early.
-    return 0;
-  }
 
   int *Src =
       (int *)malloc_shared(sizeof(int) * N, Q.get_device(), Q.get_context());
@@ -56,7 +54,7 @@ int main() {
 
   // Check host-to-device prefetch results
   for (int i = 0; i < N; i++)
-    assert(Dst[i] == Pattern * 2);
+    assert(check_value(i, Pattern * 2, Dst[i], "Dst"));
 
   {
     exp_ext::command_graph Graph{Q.get_context(), Q.get_device(), {}};
@@ -85,7 +83,7 @@ int main() {
 
   // Check device-to-host prefetch results
   for (int i = 0; i < N; i++)
-    assert(Dst[i] == Pattern + 1);
+    assert(check_value(i, Pattern + 1, Dst[i], "Dst"));
 
   free(Src, Q);
   free(Dst, Q);

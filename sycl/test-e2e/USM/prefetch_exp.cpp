@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// REQUIRES: aspect-usm_shared_allocations
+//
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 
@@ -22,11 +24,6 @@ int main() {
     for (auto &e : el)
       throw e;
   });
-
-  if (!q.get_device().get_info<info::device::usm_shared_allocations>()) {
-    // USM not supported, skipping test and returning early.
-    return 0;
-  }
 
   float *Src = (float *)malloc_shared(sizeof(float) * Count, q.get_device(),
                                       q.get_context());

@@ -35,6 +35,7 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
@@ -149,7 +150,6 @@ namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
 template <typename, typename> class dynamic_work_group_memory;
 struct image_descriptor;
-enum class prefetch_type;
 
 __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr);
 __SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
@@ -3200,10 +3200,6 @@ private:
   void *MDstPtr = nullptr;
   /// Length to copy or fill (for USM operations).
   size_t MLength = 0;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Prefetch direction for ext_oneapi_prefetch_exp
-  ext::oneapi::experimental::prefetch_type MPrefetchType;
-#endif
   /// Pattern that is used to fill memory object in case command type is fill.
   std::vector<unsigned char> MPattern;
   /// Storage for a lambda or function object.
