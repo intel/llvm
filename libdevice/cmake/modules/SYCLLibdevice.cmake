@@ -410,7 +410,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
     include/sanitizer_utils.hpp
-    sycl-compiler)
+    ${sycl-compiler_deps})
 
   set(tsan_obj_deps
     device.h atomic.hpp spirv_vars.h
@@ -419,7 +419,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
     include/sanitizer_utils.hpp
-    sycl-compiler)
+    ${sycl-compiler_deps})
 endif()
 
 if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -431,11 +431,11 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   add_custom_command(
     OUTPUT ${bc_binary_dir}/nativecpu_utils.bc
     COMMAND ${clang_exe} ${compile_opts} ${bc_device_compile_opts} -fsycl-targets=native_cpu
-      -I ${NATIVE_CPU_DIR}
+      -I ${PROJECT_BINARY_DIR}/include -I ${NATIVE_CPU_DIR}
       ${CMAKE_CURRENT_SOURCE_DIR}/nativecpu_utils.cpp
       -o ${bc_binary_dir}/nativecpu_utils.bc
     MAIN_DEPENDENCY nativecpu_utils.cpp
-    DEPENDS ${sycl-compiler_deps}
+    DEPENDS sycl-headers ${sycl-compiler_deps}
     VERBATIM)
   add_custom_target(nativecpu_utils-bc DEPENDS ${bc_binary_dir}/nativecpu_utils.bc)
   process_bc(libsycl-nativecpu_utils.bc
