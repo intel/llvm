@@ -32,7 +32,6 @@
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
-#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
@@ -150,6 +149,7 @@ namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
 template <typename, typename> class dynamic_work_group_memory;
 struct image_descriptor;
+enum class prefetch_type;
 
 __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr);
 __SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
