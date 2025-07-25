@@ -576,6 +576,61 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
           Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
     return LibraryList;
   }
+
+  using SYCLDeviceLibsList = SmallVector<StringRef, 8>;
+  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
+                                             "libsycl-complex",
+                                             "libsycl-complex-fp64",
+                                             "libsycl-cmath",
+                                             "libsycl-cmath-fp64",
+#if defined(_WIN32)
+                                             "libsycl-msvc-math",
+#endif
+                                             "libsycl-imf",
+                                             "libsycl-imf-fp64",
+                                             "libsycl-imf-bf16",
+                                             "libsycl-fallback-cassert",
+                                             "libsycl-fallback-cstring",
+                                             "libsycl-fallback-complex",
+                                             "libsycl-fallback-complex-fp64",
+                                             "libsycl-fallback-cmath",
+                                             "libsycl-fallback-cmath-fp64",
+                                             "libsycl-fallback-imf",
+                                             "libsycl-fallback-imf-fp64",
+                                             "libsycl-fallback-imf-bf16"};
+  bool IsWindowsMSVCEnv =
+      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+  bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
+  StringRef LibSuffix = ".bc";
+  if (IsNewOffload)
+    // For new offload model, we use packaged .bc files.
+    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
+  auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
+    for (const StringRef &Lib : LibsList) {
+      SmallString<128> LibName(Lib);
+      llvm::sys::path::replace_extension(LibName, LibSuffix);
+      LibraryList.push_back(Args.MakeArgString(LibName));
+    }
+  };
+
+  // nativecpu only needs libsycl-nativecpu_utils.
+  const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
+      "libsycl-nativecpu_utils"};
+  if (TargetTriple.isNativeCPU()) {
+    addLibraries(SYCLNativeCpuDeviceLibs);
+    return LibraryList;
+  }
+
+  if (!NoOffloadLib)
+    addLibraries(SYCLDeviceLibs);
+
+  // ITT annotation libraries are linked in separately whenever the device
+  // code instrumentation is enabled.
+  const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
+      "libsycl-itt-user-wrappers", "libsycl-itt-compiler-wrappers",
+      "libsycl-itt-stubs"};
+  addLibraries(SYCLDeviceAnnotationLibs);
+
   return LibraryList;
 }
 
