@@ -363,15 +363,22 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     /// [out][optional] pointer to the actual size in bytes of the queried
     /// propName.
     size_t *pPropSizeRet) {
+  std::cout << "<< RUNNING DEVICE GET INFO FOR PROP " << propName << "["
+            << propSize << "] in " << hDevice << "\n";
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
 
+  std::cout << ".. Resolved dditable as: " << (uintptr_t)dditable << "\n";
   auto *pfnGetInfo = dditable->Device.pfnGetInfo;
   if (nullptr == pfnGetInfo)
     return UR_RESULT_ERROR_UNINITIALIZED;
+  std::cout << ".. Resolved function as: " << (uintptr_t)pfnGetInfo << "\n";
 
   // forward to device-platform
-  return pfnGetInfo(hDevice, propName, propSize, pPropValue, pPropSizeRet);
+  auto res = pfnGetInfo(hDevice, propName, propSize, pPropValue, pPropSizeRet);
+  std::cout << ">> RUNNING DEVICE GET INFO FOR PROP " << propName << "["
+            << propSize << "] in " << hDevice << "\n";
+  return res;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
