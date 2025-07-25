@@ -25,10 +25,8 @@ int main() {
       throw e;
   });
 
-  float *Src = (float *)malloc_shared(sizeof(float) * Count, q.get_device(),
-                                      q.get_context());
-  float *Dest = (float *)malloc_shared(sizeof(float) * Count, q.get_device(),
-                                       q.get_context());
+  float *Src = malloc_shared<float>(Count, q);
+  float *Dest = malloc_shared<float>(Count, q);
   for (int i = 0; i < Count; i++)
     Src[i] = i;
 
