@@ -6,10 +6,7 @@
 // UNSUPPORTED: opencl
 // UNSUPPORTED-INTENDED: OpenCL currently does not support command buffers
 //
-// Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-// Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Tests prefetch functionality in enqueue functions
 
@@ -22,8 +19,7 @@ static constexpr int Pattern = 42;
 int main() {
   queue Q{};
 
-  int *Src =
-      (int *)malloc_shared(sizeof(int) * N, Q.get_device(), Q.get_context());
+  int *Src = malloc_shared<int>(N, Q);
   int *Dst =
       (int *)malloc_shared(sizeof(int) * N, Q.get_device(), Q.get_context());
   for (int i = 0; i < N; i++)
