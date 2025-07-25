@@ -150,15 +150,14 @@ int main() {
             auto FragmentGroup =
                 syclex::binary_partition(ParentChunkGroup, Predicate);
 
-            // Check function return values match Predicate and ParentPredicate.
+            // Check function return values match Predicate.
             bool Match = true;
             auto GroupID = Predicate ? 1 : 0;
             auto LocalID = ParentChunkGroup.get_local_id() / 2;
             Match &= (FragmentGroup.get_group_id() == GroupID);
             Match &= (FragmentGroup.get_local_id() == LocalID);
             Match &= (FragmentGroup.get_group_range() == 2);
-            Match &= (FragmentGroup.get_local_range() ==
-                      ParentChunkGroup.get_local_linear_range() / 2);
+            Match &= (FragmentGroup.get_local_range() == ChunkSize / 2);
             MatchAcc[WI] = Match;
             LeaderAcc[WI] = FragmentGroup.leader();
           };

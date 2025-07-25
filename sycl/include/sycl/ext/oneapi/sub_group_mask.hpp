@@ -340,7 +340,8 @@ ext::oneapi::sub_group_mask GetMask(NonUniformGroup Group) {
 }
 
 template <>
-ext::oneapi::sub_group_mask GetMask<sycl::sub_group>(sycl::sub_group Group) {
+inline ext::oneapi::sub_group_mask
+GetMask<sycl::sub_group>(sycl::sub_group Group) {
   return (~ext::oneapi::sub_group_mask::BitsType{0}) >>
          (ext::oneapi::sub_group_mask::max_bits -
           Group.get_local_linear_range());

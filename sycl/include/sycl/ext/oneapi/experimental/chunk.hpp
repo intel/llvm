@@ -165,8 +165,8 @@ protected:
   ext::oneapi::sub_group_mask getMask() const {
     ext::oneapi::sub_group_mask::BitsType MaskBits{0};
     MaskBits = ~MaskBits;
-    MaskBits >>= ext::oneapi::sub_group_mask::max_bits - ChunkSize;
-    MaskBits <<=
+    MaskBits <<= ext::oneapi::sub_group_mask::max_bits - ChunkSize;
+    MaskBits >>=
         ext::oneapi::sub_group_mask::max_bits -
         (((__spirv_SubgroupLocalInvocationId() / ChunkSize) + 1) * ChunkSize);
     return sycl::detail::Builder::createSubGroupMask<
