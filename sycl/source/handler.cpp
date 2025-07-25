@@ -2323,8 +2323,15 @@ void handler::setKernelWorkGroupMem(size_t Size) {
 }
 
 void handler::ext_oneapi_graph(
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    ext::oneapi::experimental::command_graph<
+        ext::oneapi::experimental::graph_state::executable>
+        Graph
+#else
     const ext::oneapi::experimental::command_graph<
-        ext::oneapi::experimental::graph_state::executable> &Graph) {
+        ext::oneapi::experimental::graph_state::executable> &Graph
+#endif
+) {
   setType(detail::CGType::ExecCommandBuffer);
   impl->MExecGraph = detail::getSyclObjImpl(Graph).get();
 }
