@@ -94,7 +94,7 @@ public:
 
   /// Direction of USM prefetch / destination device.
   sycl::ext::oneapi::experimental::prefetch_type MPrefetchType =
-    sycl::ext::oneapi::experimental::prefetch_type::device;
+      sycl::ext::oneapi::experimental::prefetch_type::device;
 
   // Program scope pipe information.
 

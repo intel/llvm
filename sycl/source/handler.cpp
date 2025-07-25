@@ -36,9 +36,9 @@
 #include <sycl/stream.hpp>
 
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
-#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 
 namespace sycl {
@@ -720,9 +720,9 @@ event handler::finalize() {
                                              MCodeLoc));
     break;
   case detail::CGType::PrefetchUSM:
-    CommandGroup.reset(new detail::CGPrefetchUSM(
-        MDstPtr, MLength, std::move(impl->CGData), impl->MPrefetchType,
-        MCodeLoc));
+    CommandGroup.reset(
+        new detail::CGPrefetchUSM(MDstPtr, MLength, std::move(impl->CGData),
+                                  impl->MPrefetchType, MCodeLoc));
     break;
   case detail::CGType::AdviseUSM:
     CommandGroup.reset(new detail::CGAdviseUSM(MDstPtr, MLength, impl->MAdvice,
@@ -1479,9 +1479,8 @@ void handler::prefetch(const void *Ptr, size_t Count) {
   setType(detail::CGType::PrefetchUSM);
 }
 
-void handler::prefetch(
-  const void *Ptr, size_t Count,
-  ext::oneapi::experimental::prefetch_type Type) {
+void handler::prefetch(const void *Ptr, size_t Count,
+                       ext::oneapi::experimental::prefetch_type Type) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;

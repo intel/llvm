@@ -20,7 +20,7 @@ int main() {
   queue Q{};
 
   int *Src = malloc_shared<int>(N, Q);
-  int *Dst = malloc_shared<int>(N, Q)
+  int *Dst = malloc_shared<int>(N, Q);
   for (int i = 0; i < N; i++)
     Src[i] = Pattern;
 

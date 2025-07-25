@@ -660,7 +660,6 @@ private:
                << sycl::ext::oneapi::experimental::prefetchTypeToString(
                       Prefetch->getPrefetchType())
                << "\\n";
-
       }
       break;
     case sycl::detail::CGType::AdviseUSM:
