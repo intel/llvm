@@ -130,8 +130,6 @@ def warn_flag_no_sycl_libspirv
       InGroup<UnsafeLibspirvNotLinked>;
 def err_drv_mix_cuda_hip : Error<
   "mixed CUDA and HIP compilation is not supported">;
-def err_drv_mix_offload : Error<
-  "mixed %0 and %1 offloading compilation is not supported">;
 def err_drv_bad_target_id : Error<
   "invalid target ID '%0'; format is a processor name followed by an optional "
   "colon-delimited list of features followed by an enable/disable sign (e.g., "
