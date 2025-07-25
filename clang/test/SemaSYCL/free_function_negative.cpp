@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -verify=expected -fsycl-int-header=%t.h %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -verify=expected %s
 
 #include "sycl.hpp"
 
@@ -118,3 +118,33 @@ static void StaticsingleTaskKernelMethod(int Value) {
 }
 
 };
+
+
+class Base {};
+// expected-error@+1 8 {{argument type 'Derived' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
+class Derived : virtual public Base {};
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg(Derived Value) {
+}
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg1(int a, Derived Value, float b, Derived Value1) {
+}
+
+class Derived1 : public Derived {
+};
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg2(Derived1 Value) {
+}
+
+class Base1 {};
+
+// expected-error@+1 2 {{argument type 'Derived2' virtually inherited from base class `Base` is not supported as a SYCL kernel argumen}}
+class Derived2 : public Base1, public virtual Base {
+};
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg3(Derived2 Value) {
+}
