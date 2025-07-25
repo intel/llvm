@@ -1107,9 +1107,8 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
       getBuiltURProgram(ContextImpl, DeviceImpl, KernelName, NDRDesc);
 
   auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
-    ur_kernel_handle_t Kernel = nullptr;
-
     adapter_impl &Adapter = ContextImpl.getAdapter();
+    Managed<ur_kernel_handle_t> Kernel{Adapter};
     Adapter.call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
         Program, KernelName.data(), &Kernel);
 
@@ -1126,7 +1125,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     const KernelArgMask *ArgMask = nullptr;
     if (!m_UseSpvFile)
       ArgMask = getEliminatedKernelArgMask(Program, KernelName);
-    return std::make_pair(Kernel, ArgMask);
+    return std::make_pair(std::move(Kernel), ArgMask);
   };
 
   auto GetCachedBuildF = [&Cache, &KernelName, &Program]() {
@@ -1138,24 +1137,19 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     // threads when caching is disabled, so we can return
     // nullptr for the mutex.
     auto [Kernel, ArgMask] = BuildF();
-    return std::make_shared<FastKernelCacheVal>(
-        Kernel, nullptr, ArgMask, std::move(Program), ContextImpl.getAdapter());
+    return std::make_shared<FastKernelCacheVal>(std::move(Kernel), nullptr,
+                                                ArgMask, std::move(Program),
+                                                ContextImpl.getAdapter());
   }
 
   std::shared_ptr<KernelProgramCache::KernelBuildResult> BuildResult =
       Cache.getOrBuild<errc::invalid>(GetCachedBuildF, BuildF);
   assert(BuildResult && "getOrBuild isn't supposed to return nullptr!");
-  const std::pair<ur_kernel_handle_t, const KernelArgMask *>
+  std::pair<Managed<ur_kernel_handle_t>, const KernelArgMask *>
       &KernelArgMaskPair = BuildResult->Val;
   auto ret_val = std::make_shared<FastKernelCacheVal>(
-      KernelArgMaskPair.first, &(BuildResult->MBuildResultMutex),
+      KernelArgMaskPair.first.retain(), &(BuildResult->MBuildResultMutex),
       KernelArgMaskPair.second, std::move(Program), ContextImpl.getAdapter());
-  // If caching is enabled, one copy of the kernel handle will be
-  // stored in FastKernelCacheVal, and one is in
-  // KernelProgramCache::MKernelsPerProgramCache. To cover
-  // MKernelsPerProgramCache, we need to increase the ref count of the kernel.
-  ContextImpl.getAdapter().call<UrApiKind::urKernelRetain>(
-      KernelArgMaskPair.first);
   Cache.saveKernel(KernelName, UrDevice, ret_val, CacheHintPtr);
   return ret_val;
 }
@@ -3116,7 +3110,7 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
 
 // When caching is enabled, the returned UrKernel will already have
 // its ref count incremented.
-std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *>
+std::tuple<Managed<ur_kernel_handle_t>, std::mutex *, const KernelArgMask *>
 ProgramManager::getOrCreateKernel(const context &Context,
                                   KernelNameStrRefT KernelName,
                                   const property_list &PropList,
@@ -3133,9 +3127,9 @@ ProgramManager::getOrCreateKernel(const context &Context,
   KernelProgramCache &Cache = Ctx.getKernelProgramCache();
 
   auto BuildF = [this, &Program, &KernelName, &Ctx] {
-    ur_kernel_handle_t Kernel = nullptr;
-
     adapter_impl &Adapter = Ctx.getAdapter();
+    Managed<ur_kernel_handle_t> Kernel{Adapter};
+
     Adapter.call<UrApiKind::urKernelCreate>(Program, KernelName.data(),
                                             &Kernel);
 
@@ -3152,7 +3146,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
     const KernelArgMask *KernelArgMask =
         getEliminatedKernelArgMask(Program, KernelName);
 
-    return std::make_pair(Kernel, KernelArgMask);
+    return std::make_pair(std::move(Kernel), KernelArgMask);
   };
 
   auto GetCachedBuildF = [&Cache, &KernelName, Program]() {
@@ -3164,7 +3158,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
     // threads when caching is disabled, so we can return
     // nullptr for the mutex.
     auto [Kernel, ArgMask] = BuildF();
-    return make_tuple(Kernel, nullptr, ArgMask);
+    return make_tuple(std::move(Kernel), nullptr, ArgMask);
   }
 
   std::shared_ptr<KernelProgramCache::KernelBuildResult> BuildResult =
@@ -3174,8 +3168,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
   // kernel.
-  Ctx.getAdapter().call<UrApiKind::urKernelRetain>(BuildResult->Val.first);
-  return std::make_tuple(BuildResult->Val.first,
+  return std::make_tuple(BuildResult->Val.first.retain(),
                          &(BuildResult->MBuildResultMutex),
                          BuildResult->Val.second);
 }
@@ -3242,15 +3235,17 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
       build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts, Devs,
             /*For non SPIR-V devices DeviceLibReqdMask is always 0*/ 0,
             ExtraProgramsToLink);
-  ur_kernel_handle_t UrKernel{nullptr};
+  Managed<ur_kernel_handle_t> UrKernel{Adapter};
   Adapter.call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
       BuildProgram, KernelName.data(), &UrKernel);
+  ur_kernel_handle_t RawUrKernel = UrKernel;
   {
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-    m_MaterializedKernels[KernelName][SpecializationConsts] = UrKernel;
+    m_MaterializedKernels[KernelName][SpecializationConsts] =
+        std::move(UrKernel);
   }
 
-  return UrKernel;
+  return RawUrKernel;
 }
 
 bool doesDevSupportDeviceRequirements(const device_impl &Dev,
