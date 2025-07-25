@@ -455,12 +455,18 @@ event handler::finalize() {
 #endif
 
   const auto &type = getType();
-  detail::queue_impl *Queue = impl->get_queue_or_null();
-  ext::oneapi::experimental::detail::graph_impl *Graph =
-      impl->get_graph_or_null();
+  detail::queue_impl *const Queue = impl->get_queue_or_null();
+
+  const bool IsQueueBeingRecorded = Queue && Queue->hasCommandGraph();
+  const bool IsExplicitGraphAPI = impl->get_graph_or_null() != nullptr;
+  const bool IsGraphEnqueue =
+      impl->MCGType == detail::CGType::ExecCommandBuffer;
+  const bool IsGraphRelated =
+      IsQueueBeingRecorded || IsExplicitGraphAPI || IsGraphEnqueue;
+
   const bool KernelFastPath =
-      (Queue && !Graph && !impl->MSubgraphNode && !Queue->hasCommandGraph() &&
-       !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
+      (Queue && !IsGraphRelated && !impl->CGData.MRequirements.size() &&
+       !MStreamStorage.size() &&
        detail::Scheduler::areEventsSafeForSchedulerBypass(
            impl->CGData.MEvents, Queue->getContextImpl()));
 
@@ -477,7 +483,7 @@ event handler::finalize() {
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
   // to a command without being bound to a command group, an exception should
   // be thrown.
-  {
+  if (!IsGraphEnqueue) {
     for (const auto &arg : impl->MArgs) {
       if (arg.MType != detail::kernel_param_kind_t::kind_accessor)
         continue;
@@ -578,8 +584,8 @@ event handler::finalize() {
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
       // creation.
-      std::vector<ur_event_handle_t> RawEvents = detail::Command::getUrEvents(
-          impl->CGData.MEvents, impl->get_queue_or_null(), false);
+      std::vector<ur_event_handle_t> RawEvents =
+          detail::Command::getUrEvents(impl->CGData.MEvents, Queue, false);
 
       bool DiscardEvent =
           !impl->MEventNeeded && impl->get_queue().supportsDiscardingPiEvents();
@@ -609,9 +615,8 @@ event handler::finalize() {
           StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
               StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
-              MKernelName.data(), impl->MKernelNameBasedCachePtr,
-              impl->get_queue_or_null(), impl->MNDRDesc, KernelBundleImpPtr,
-              impl->MArgs);
+              MKernelName.data(), impl->MKernelNameBasedCachePtr, Queue,
+              impl->MNDRDesc, KernelBundleImpPtr, impl->MArgs);
           detail::emitInstrumentationGeneral(StreamID, InstanceID,
                                              CmdTraceEvent,
                                              xpti::trace_task_begin, nullptr);
@@ -687,7 +692,7 @@ event handler::finalize() {
         std::move(impl->MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
         std::move(impl->MArgs), toKernelNameStrT(MKernelName),
-        impl->MKernelNameBasedCachePtr, std::move(MStreamStorage),
+        impl->MKernelNameBasedCachePtr, MStreamStorage,
         std::move(impl->MAuxiliaryResources), getType(),
         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
         impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
@@ -745,7 +750,6 @@ event handler::finalize() {
   case detail::CGType::EnqueueNativeCommand:
   case detail::CGType::CodeplayHostTask: {
     detail::context_impl &Context = impl->get_context();
-    detail::queue_impl *Queue = impl->get_queue_or_null();
     CommandGroup.reset(new detail::CGHostTask(
         std::move(impl->MHostTask), Queue, &Context, std::move(impl->MArgs),
         std::move(impl->CGData), getType(), MCodeLoc));
@@ -794,7 +798,6 @@ event handler::finalize() {
     break;
   }
   case detail::CGType::ExecCommandBuffer: {
-    detail::queue_impl *Queue = impl->get_queue_or_null();
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph =
         Queue ? Queue->getCommandGraph() : impl->get_graph().shared_from_this();
 
@@ -811,15 +814,15 @@ event handler::finalize() {
       // pass the exec_graph_impl and event dependencies. Since this subgraph CG
       // will not be executed this is fine.
       CommandGroup.reset(new sycl::detail::CGExecCommandBuffer(
-          nullptr, impl->MExecGraph, std::move(impl->CGData)));
+          nullptr, impl->MExecGraph->shared_from_this(),
+          std::move(impl->CGData)));
 
     } else {
-      detail::queue_impl &Queue = impl->get_queue();
       bool DiscardEvent = !impl->MEventNeeded &&
-                          Queue.supportsDiscardingPiEvents() &&
+                          Queue->supportsDiscardingPiEvents() &&
                           !impl->MExecGraph->containsHostTask();
-      detail::EventImplPtr GraphCompletionEvent = impl->MExecGraph->enqueue(
-          Queue, std::move(impl->CGData), !DiscardEvent);
+      detail::EventImplPtr GraphCompletionEvent =
+          impl->MExecGraph->enqueue(*Queue, impl->CGData, !DiscardEvent);
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       return GraphCompletionEvent;
 #else
@@ -872,7 +875,7 @@ event handler::finalize() {
   // If there is a graph associated with the handler we are in the explicit
   // graph mode, so we store the CG instead of submitting it to the scheduler,
   // so it can be retrieved by the graph later.
-  if (impl->get_graph_or_null()) {
+  if (IsExplicitGraphAPI) {
     impl->MGraphNodeCG = std::move(CommandGroup);
     auto EventImpl = detail::event_impl::create_completed_host_event();
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -887,7 +890,8 @@ event handler::finalize() {
 
   // If the queue has an associated graph then we need to take the CG and pass
   // it to the graph to create a node, rather than submit it to the scheduler.
-  if (auto GraphImpl = Queue->getCommandGraph(); GraphImpl) {
+  if (IsQueueBeingRecorded) {
+    auto GraphImpl = Queue->getCommandGraph();
     auto EventImpl = detail::event_impl::create_completed_host_event();
     EventImpl->setSubmittedQueue(Queue->weak_from_this());
     ext::oneapi::experimental::detail::node_impl *NodeImpl = nullptr;
@@ -2319,11 +2323,17 @@ void handler::setKernelWorkGroupMem(size_t Size) {
 }
 
 void handler::ext_oneapi_graph(
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     ext::oneapi::experimental::command_graph<
         ext::oneapi::experimental::graph_state::executable>
-        Graph) {
+        Graph
+#else
+    const ext::oneapi::experimental::command_graph<
+        ext::oneapi::experimental::graph_state::executable> &Graph
+#endif
+) {
   setType(detail::CGType::ExecCommandBuffer);
-  impl->MExecGraph = detail::getSyclObjImpl(Graph);
+  impl->MExecGraph = detail::getSyclObjImpl(Graph).get();
 }
 
 std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>

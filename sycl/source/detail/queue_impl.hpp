@@ -276,7 +276,8 @@ public:
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
                                                          &nativeHandle);
-    __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
+    __SYCL_OCL_CALL(clRetainCommandQueue,
+                    ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
   }
 
@@ -742,7 +743,9 @@ protected:
 
     MEmpty.store(false, std::memory_order_release);
 
-    synchronizeWithExternalEvent(Handler);
+    if (MInOrderExternalEvent.read_unlocked()) {
+      synchronizeWithExternalEvent(Handler);
+    }
 
     auto Event = parseEvent(Handler.finalize());
 
@@ -782,7 +785,9 @@ protected:
     MEmpty = false;
     MNoLastEventMode = false;
 
-    synchronizeWithExternalEvent(Handler);
+    if (MInOrderExternalEvent.read_unlocked()) {
+      synchronizeWithExternalEvent(Handler);
+    }
 
     EventToBuildDeps = parseEvent(Handler.finalize());
     assert(EventToBuildDeps);
@@ -812,7 +817,9 @@ protected:
 
     MEmpty = false;
 
-    synchronizeWithExternalEvent(Handler);
+    if (MInOrderExternalEvent.read_unlocked()) {
+      synchronizeWithExternalEvent(Handler);
+    }
 
     EventToBuildDeps = parseEvent(Handler.finalize());
     if (EventToBuildDeps)
@@ -1037,12 +1044,16 @@ protected:
         }
       }
     }
+
     DataType read() {
       if (!MIsSet.load(std::memory_order_acquire))
         return DataType{};
       std::lock_guard<std::mutex> Lock(MDataMtx);
       return MData;
     }
+
+    // To use when the queue is already acquired a mutex lock.
+    DataType read_unlocked() { return MData; }
   };
 
   const bool MIsInorder;
