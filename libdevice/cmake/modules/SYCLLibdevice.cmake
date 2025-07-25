@@ -431,7 +431,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   add_custom_command(
     OUTPUT ${bc_binary_dir}/nativecpu_utils.bc
     COMMAND ${clang_exe} ${compile_opts} ${bc_device_compile_opts}
-    -fsycl-targets=native_cpu -fno-sycl-libspirv
+    -fsycl-targets=native_cpu -fno-sycl-libspirv -Wno-unsafe-libspirv-not-linked
       -I ${NATIVE_CPU_DIR}
       ${CMAKE_CURRENT_SOURCE_DIR}/nativecpu_utils.cpp
       -o ${bc_binary_dir}/nativecpu_utils.bc
