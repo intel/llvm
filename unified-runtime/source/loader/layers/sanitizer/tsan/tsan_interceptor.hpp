@@ -15,6 +15,7 @@
 
 #include "sanitizer_common/sanitizer_allocator.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
+#include "sanitizer_common/sanitizer_utils.hpp"
 #include "tsan_buffer.hpp"
 #include "tsan_libdevice.hpp"
 #include "tsan_shadow.hpp"
@@ -58,6 +59,10 @@ struct ContextInfo {
   ur_shared_mutex AllocInfosMutex;
   std::set<TsanAllocInfo> AllocInfos;
 
+  ur_shared_mutex InternalQueueMapMutex;
+  std::unordered_map<ur_device_handle_t, std::optional<ManagedQueue>>
+      InternalQueueMap;
+
   explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Context.pfnRetain(Context);
@@ -65,6 +70,7 @@ struct ContextInfo {
   }
 
   ~ContextInfo() {
+    InternalQueueMap.clear();
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Context.pfnRelease(Handle);
     assert(Result == UR_RESULT_SUCCESS);
@@ -75,6 +81,8 @@ struct ContextInfo {
   ContextInfo &operator=(const ContextInfo &) = delete;
 
   void insertAllocInfo(TsanAllocInfo AI);
+
+  ur_queue_handle_t getInternalQueue(ur_device_handle_t);
 };
 
 struct DeviceGlobalInfo {

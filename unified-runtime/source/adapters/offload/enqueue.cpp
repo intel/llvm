@@ -67,15 +67,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   LaunchArgs.GroupSize.z = GroupSize[2];
   LaunchArgs.DynSharedMemory = 0;
 
-  ol_event_handle_t EventOut;
-  OL_RETURN_ON_ERR(
-      olLaunchKernel(hQueue->OffloadQueue, hQueue->OffloadDevice,
-                     hKernel->OffloadKernel, hKernel->Args.getStorage(),
-                     hKernel->Args.getStorageSize(), &LaunchArgs, &EventOut));
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(olLaunchKernel(
+      Queue, hQueue->OffloadDevice, hKernel->OffloadKernel,
+      hKernel->Args.getStorage(), hKernel->Args.getStorageSize(), &LaunchArgs));
 
   if (phEvent) {
     auto *Event = new ur_event_handle_t_(UR_COMMAND_KERNEL_LAUNCH, hQueue);
-    Event->OffloadEvent = EventOut;
+    if (auto Res = olCreateEvent(Queue, &Event->OffloadEvent)) {
+      delete Event;
+      return offloadResultToUR(Res);
+    };
     *phEvent = Event;
   }
   return UR_RESULT_SUCCESS;
@@ -105,18 +108,25 @@ ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
   (void)phEventWaitList;
   //
 
-  ol_event_handle_t EventOut = nullptr;
-
-  OL_RETURN_ON_ERR(olMemcpy(hQueue->OffloadQueue, DestPtr, DestDevice, SrcPtr,
-                            SrcDevice, size, phEvent ? &EventOut : nullptr));
-
   if (blocking) {
-    OL_RETURN_ON_ERR(olSyncQueue(hQueue->OffloadQueue));
+    OL_RETURN_ON_ERR(
+        olMemcpy(nullptr, DestPtr, DestDevice, SrcPtr, SrcDevice, size));
+    if (phEvent) {
+      *phEvent = ur_event_handle_t_::createEmptyEvent(Command, hQueue);
+    }
+    return UR_RESULT_SUCCESS;
   }
 
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(
+      olMemcpy(Queue, DestPtr, DestDevice, SrcPtr, SrcDevice, size));
   if (phEvent) {
     auto *Event = new ur_event_handle_t_(Command, hQueue);
-    Event->OffloadEvent = EventOut;
+    if (auto Res = olCreateEvent(Queue, &Event->OffloadEvent)) {
+      delete Event;
+      return offloadResultToUR(Res);
+    };
     *phEvent = Event;
   }
 
