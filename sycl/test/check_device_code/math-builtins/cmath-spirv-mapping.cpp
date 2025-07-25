@@ -2,7 +2,8 @@
 // Note: This isn't really target specific and should be switched to spir when
 // it's enabled for it.
 
-// RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda -S -Xclang -emit-llvm -fsycl-device-only %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda -S -Xclang -emit-llvm \
+// RUN:   -fsycl-device-only -fno-sycl-libspirv -Wno-unsafe-libspirv-not-linked %s -o - | FileCheck %s
 
 #include <cmath>
 
