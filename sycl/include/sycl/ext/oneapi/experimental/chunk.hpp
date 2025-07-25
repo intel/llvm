@@ -47,7 +47,28 @@ public:
   static constexpr int dimensions = 1;
   static constexpr sycl::memory_scope fence_scope = ParentGroup::fence_scope;
 
-  inline operator fragment<ParentGroup>() const;
+  inline operator fragment<ParentGroup>() const {
+#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+    // make fragment from chunk's mask and properties
+    return fragment<ParentGroup>(Mask, get_group_id(), get_group_range());
+#else
+    // or mask based on chunk membership for non-NVPTX devices
+    uint32_t loc_id = __spirv_SubgroupLocalInvocationId();
+    uint32_t chunk_start = (loc_id / ChunkSize) * ChunkSize;
+    sub_group_mask::BitsType bits =
+        ChunkSize == 32
+            ? sub_group_mask::BitsType(~0)
+            : ((sub_group_mask::BitsType(1) << ChunkSize) - 1) << chunk_start;
+    sub_group_mask mask =
+        sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
+            bits, __spirv_SubgroupSize());
+    return fragment<ParentGroup>(mask, get_group_id(), get_group_range());
+#endif
+#else
+    return fragment<ParentGroup>();
+#endif
+  }
 
   id_type get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -201,32 +222,6 @@ struct is_user_constructed_group<chunk<ChunkSize, ParentGroup>>
 
 template <size_t ChunkSize, typename ParentGroup>
 struct is_chunk<chunk<ChunkSize, ParentGroup>> : std::true_type {};
-
-// chunk->fragment conversion
-// must be defined after fragment class is available
-template <size_t ChunkSize, typename ParentGroup>
-inline chunk<ChunkSize, ParentGroup>::operator fragment<ParentGroup>() const {
-#ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
-  // make fragment from chunk's mask and properties
-  return fragment<ParentGroup>(Mask, get_group_id(), get_group_range());
-#else
-  // or mask based on chunk membership for non-NVPTX devices
-  uint32_t loc_id = __spirv_SubgroupLocalInvocationId();
-  uint32_t chunk_start = (loc_id / ChunkSize) * ChunkSize;
-  sub_group_mask::BitsType bits =
-      ChunkSize == 32
-          ? sub_group_mask::BitsType(~0)
-          : ((sub_group_mask::BitsType(1) << ChunkSize) - 1) << chunk_start;
-  sub_group_mask mask =
-      sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
-          bits, __spirv_SubgroupSize());
-  return fragment<ParentGroup>(mask, get_group_id(), get_group_range());
-#endif
-#else
-  return fragment<ParentGroup>();
-#endif
-}
 
 } // namespace ext::oneapi::experimental
 
