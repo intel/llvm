@@ -1,0 +1,244 @@
+:extension_name: SPV_INTEL_spec_conditional
+:capability_name: SpecConditionalINTEL
+:capability_token: TBD
+:conditional_token: TBD
+:conditional_capability_token: TBD
+:conditional_name: ConditionalINTEL
+:conditional_capability_name: OpConditionalCapabilityINTEL
+
+{extension_name}
+================
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+== Contributors
+
+// spell-checker: disable
+- Greg Lueck, Intel +
+// spell-checker: enable
+
+== Notice
+
+Copyright (c) 2023 Intel Corporation.  All rights reserved.
+
+== Status
+
+Draft
+
+The Overview section should be expanded and a description of the validation
+rules should be added.
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | {docdate}
+| Revision           | 1
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification, Version 1.6 Revision
+2.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+This extension provides the ability to conditionally exclude (or specialize)
+code from a SPIR-V module based on the value of a specialization constant.  The
+primary motivation for this extension is to allow offload kernels to make use
+of special hardware features that are available on some devices while also
+providing a fallback path when the code runs on a device that does not support
+those features.  However, this extension could be useful in other execution
+environments also.
+
+The granularity of code specialization is primary at the function boundary,
+which is convenient because tools generating SPIR-V may need to outline each
+version of the code into separate functions anyways.
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the appropriate *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== New Capabilities
+
+This extension introduces new capabilities:
+
+[subs="attributes"]
+----
+{capability_name}
+----
+
+== New Decorations
+
+Decorations added under the *{capability_name}* capability:
+
+[subs="attributes"]
+----
+{conditional_name}
+----
+
+== New Instructions
+
+Instructions added under the *{capability_name}* capability:
+
+[subs="attributes"]
+----
+{conditional_capability_name}
+----
+
+== Token Number Assignments
+
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+|*{capability_name}* | {capability_token}
+|*{conditional_name}* | {conditional_token}
+|*{conditional_capability_name}* | {conditional_capability_token}
+|====
+
+== Modifications to the SPIR-V Specification, Version 1.6
+
+=== Logical Layout of a Module
+
+Modify section 2.4, Logical Layout of a Module, changing item 1 in the layout
+list to say:
+
+1. All *OpCapability* and *{conditional_capability_name}* instructions.  If
+   there are any *{conditional_capability_name}* instructions in this section,
+   they must come after the *OpCapability* for *{capability_name}*.
+
+=== Specialization
+
+Modify section 2.12, Specialization, adding the following rules to the
+specialization algorithm:
+
+* If the 'Condition' for an *{conditional_capability_name}* instruction is a
+  non-specialization constant:
+** If the 'Condition' is *false*, the *{conditional_capability_name}*
+   instruction is removed.
+** If the 'Condition' is *true*, the *{conditional_capability_name}*
+   instruction is replaced with *OpCapability* with the same capability.
+   (Note this is not a replace-in-place operation because the instructions have
+   different sizes.)
+
+* If the 'Condition' for an *{conditional_name}* decoration is a
+  non-specialization constant whose value is *true*, the decoration itself is
+  removed.  If the 'Condition' is a non-specialization constant whose value is
+  *false*, the following happens for the decorated instruction:
+** If the decorated instruction is not *OpFunction*, the instruction is
+   removed.  All decorations for the instruction are also removed, and any
+   *OpName* or *OpMemberName* referencing the instruction are removed.
+** If the decorated instruction is *OpFunction*, the function and all of the
+   instructions in its body are removed.  All decorations for the function and
+   the instructions in its body are removed.  If the *OpFunction* has an
+   associated *OpEntryPoint*, that is also removed.  Any *OpName* or
+   *OpMemberName* that references the *OpFunction* or any of the instructions
+   in its body are also removed.
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares
+| {capability_token} | *{capability_name}*
+|
+|====
+--
+
+=== Decorations
+
+Modify Section 3.20, Decoration, adding rows to the Decoration table:
+
+--
+[cols="1,5,2,2",options="header"]
+|====
+2+^| Decoration ^| Extra Operands | Enabling Capabilities
+
+// --- ROW BREAK ---
+| {conditional_token}
+a|
+*{conditional_name}* +
+May be applied only to *OpFunction*, *OpFunctionCall*, global (module scope)
+*OpVariable*, type declarations (*OpTypeXXX*), or constant instructions
+(*OpConstantXXX* or *OpSpecConstantXXX*).  The 'Condition' must be the result
+of a specialization constant of scalar 'Boolean type'.
+
+Indicates that the decorated instruction must be removed during specialization
+if the value of the specialization constant identified by 'Condition' is
+*false*.  The Specialization section describes the rules for removing
+instructions decorated this way.
+
+| '<id>' +
+'Condition'
+| *{capability_name}*
+
+|====
+--
+
+=== Instructions
+
+Add to Section 3.42.5, Mode-Setting Instructions:
+
+[cols="1,1,2*3",width="100%"]
+|=====
+3+|[[OpConditionalCapability]]*{conditional_capability_name}* +
+ +
+Declare a capability that is conditionally used by this module, depending on
+the value of a specialization constant.
+
+The 'Condition' must be the result of a specialization constant of scalar
+'Boolean type'.
+
+The 'Conditional Capability' is used by this module only if the specialization
+constant identified by 'Condition' is *true*.
+
+1+|Capability: +
+*{capability_name}*
+1+| 3 | {conditional_capability_token}
+| '<id>' +
+'Condition'
+| 'Capability' +
+'Conditional Capability'
+|=====
+
+== Issues
+
+1. Does it make sense to place *{conditional_capability_name}* instructions in
+   the same layout section as *OpCapability*?  This means they will come before
+   the *OpExtension* that declares this extension.  The alternative is to place
+   them later in the layout, but this could make specialization harder.  The
+   nice thing about the current position is that the specializer can just
+   replace *{conditional_capability_name}* with *OpCapability* without changing
+   its position.
++
+*UNRESOLVED*
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2023-04-19|Greg Lueck|Initial draft
+|========================================
