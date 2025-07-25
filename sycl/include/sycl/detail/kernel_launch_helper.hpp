@@ -195,33 +195,21 @@ struct KernelWrapperHelperFuncs {
 // embedding them into the kernel's type).
 
 template <WrapAs WrapAsVal, typename KernelName, typename KernelType,
-          typename ElementType, typename PropertyProcessor,
+          typename ElementType,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
           typename MergedPropertiesT = typename detail::
               GetMergedKernelProperties<KernelType, PropertiesT>::type>
 struct KernelWrapper;
 template <WrapAs WrapAsVal, typename KernelName, typename KernelType,
-          typename ElementType, typename PropertyProcessor,
-          typename PropertiesT, typename... MergedProps>
+          typename ElementType, typename PropertiesT, typename... MergedProps>
 struct KernelWrapper<
-    WrapAsVal, KernelName, KernelType, ElementType, PropertyProcessor,
-    PropertiesT,
+    WrapAsVal, KernelName, KernelType, ElementType, PropertiesT,
     ext::oneapi::experimental::detail::properties_t<MergedProps...>>
     : public KernelWrapperHelperFuncs {
 
-  static void wrap([[maybe_unused]] PropertyProcessor h,
-                   [[maybe_unused]] const KernelType &KernelFunc) {
+  static void wrap([[maybe_unused]] const KernelType &KernelFunc) {
 #ifdef __SYCL_DEVICE_ONLY__
     detail::CheckDeviceCopyable<KernelType>();
-#else
-    // If there are properties provided by get method then process them.
-    if constexpr (ext::oneapi::experimental::detail::
-                      HasKernelPropertiesGetMethod<const KernelType &>::value) {
-
-      // TODO: decouple property processing from KernelWrapper.
-      h->template processProperties<detail::isKernelESIMD<KernelName>()>(
-          KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
-    }
 #endif
     // Note: the static_assert below need to be run on both the host and the
     // device ends to avoid test issues, so don't put it into the #ifdef
@@ -262,6 +250,23 @@ struct KernelWrapper<
     }
   }
 }; // KernelWrapper struct
+
+struct KernelLaunchPropertyWrapper {
+  template <typename KernelName, typename PropertyProcessor,
+            typename KernelType>
+  static void parseProperties([[maybe_unused]] PropertyProcessor h,
+                              [[maybe_unused]] const KernelType &KernelFunc) {
+#ifndef __SYCL_DEVICE_ONLY__
+    // If there are properties provided by get method then process them.
+    if constexpr (ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<const KernelType &>::value) {
+
+      h->template processProperties<detail::isKernelESIMD<KernelName>()>(
+          KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
+    }
+#endif
+  }
+}; // KernelLaunchPropertyWrapper struct
 
 } // namespace detail
 } // namespace _V1

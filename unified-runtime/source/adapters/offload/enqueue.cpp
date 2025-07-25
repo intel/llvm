@@ -68,10 +68,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   LaunchArgs.DynSharedMemory = 0;
 
   ol_event_handle_t EventOut;
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
   OL_RETURN_ON_ERR(
-      olLaunchKernel(hQueue->OffloadQueue, hQueue->OffloadDevice,
-                     hKernel->OffloadKernel, hKernel->Args.getStorage(),
-                     hKernel->Args.getStorageSize(), &LaunchArgs, &EventOut));
+      olLaunchKernel(Queue, hQueue->OffloadDevice, hKernel->OffloadKernel,
+                     hKernel->Args.getStorage(), hKernel->Args.getStorageSize(),
+                     &LaunchArgs, &EventOut));
 
   if (phEvent) {
     auto *Event = new ur_event_handle_t_(UR_COMMAND_KERNEL_LAUNCH, hQueue);
@@ -105,15 +107,20 @@ ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
   (void)phEventWaitList;
   //
 
-  ol_event_handle_t EventOut = nullptr;
-
-  OL_RETURN_ON_ERR(olMemcpy(hQueue->OffloadQueue, DestPtr, DestDevice, SrcPtr,
-                            SrcDevice, size, phEvent ? &EventOut : nullptr));
-
   if (blocking) {
-    OL_RETURN_ON_ERR(olSyncQueue(hQueue->OffloadQueue));
+    OL_RETURN_ON_ERR(olMemcpy(nullptr, DestPtr, DestDevice, SrcPtr, SrcDevice,
+                              size, nullptr));
+    if (phEvent) {
+      *phEvent = ur_event_handle_t_::createEmptyEvent(Command, hQueue);
+    }
+    return UR_RESULT_SUCCESS;
   }
 
+  ol_event_handle_t EventOut = nullptr;
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(olMemcpy(Queue, DestPtr, DestDevice, SrcPtr, SrcDevice, size,
+                            phEvent ? &EventOut : nullptr));
   if (phEvent) {
     auto *Event = new ur_event_handle_t_(Command, hQueue);
     Event->OffloadEvent = EventOut;
