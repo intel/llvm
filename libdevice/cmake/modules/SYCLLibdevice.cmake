@@ -430,7 +430,8 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   # libsycl-nativecpu_utils is only needed as BC file by NativeCPU.
   add_custom_command(
     OUTPUT ${bc_binary_dir}/nativecpu_utils.bc
-    COMMAND ${clang_exe} ${compile_opts} ${bc_device_compile_opts} -fsycl-targets=native_cpu
+    COMMAND ${clang_exe} ${compile_opts} ${bc_device_compile_opts}
+    -fsycl-targets=native_cpu -fno-sycl-libspirv
       -I ${NATIVE_CPU_DIR}
       ${CMAKE_CURRENT_SOURCE_DIR}/nativecpu_utils.cpp
       -o ${bc_binary_dir}/nativecpu_utils.bc
