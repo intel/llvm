@@ -1913,15 +1913,6 @@ static std::string_view cgTypeToString(detail::CGType Type) {
   case detail::CGType::PrefetchUSM:
     return "prefetch usm";
     break;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  case detail::CGType::PrefetchUSMExp:
-    return "prefetch usm (experimental)";
-    break;
-#else
-  case detail::CGType::PrefetchUSMExpD2H:
-    return "prefetch usm (experimental, device to host)";
-    break;
-#endif
   case detail::CGType::CodeplayHostTask:
     return "host task";
     break;
@@ -2999,43 +2990,13 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
             MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer,
             &MQueue->getContextImpl(), MCommandBuffer, Prefetch->getDst(),
             Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint,
-            sycl::ext::oneapi::experimental::prefetch_type::device);
+            Prefetch->getPrefetchType());
         Result != UR_RESULT_SUCCESS)
       return Result;
 
     MEvent->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  case CGType::PrefetchUSMExp: {
-    CGPrefetchUSMExp *PrefetchExp = (CGPrefetchUSMExp *)MCommandGroup.get();
-    if (auto Result = callMemOpHelper(
-            MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer,
-            &MQueue->getContextImpl(), MCommandBuffer, PrefetchExp->getDst(),
-            PrefetchExp->getLength(), std::move(MSyncPointDeps), &OutSyncPoint,
-            PrefetchExp->getPrefetchType());
-        Result != UR_RESULT_SUCCESS)
-      return Result;
-
-    MEvent->setSyncPoint(OutSyncPoint);
-    return UR_RESULT_SUCCESS;
-  }
-#else
-  case CGType::PrefetchUSMExpD2H: {
-    CGPrefetchUSMExpD2H *PrefetchD2H =
-        (CGPrefetchUSMExpD2H *)MCommandGroup.get();
-    if (auto Result = callMemOpHelper(
-            MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer,
-            &MQueue->getContextImpl(), MCommandBuffer, PrefetchD2H->getDst(),
-            PrefetchD2H->getLength(), std::move(MSyncPointDeps), &OutSyncPoint,
-            sycl::ext::oneapi::experimental::prefetch_type::host);
-        Result != UR_RESULT_SUCCESS)
-      return Result;
-
-    MEvent->setSyncPoint(OutSyncPoint);
-    return UR_RESULT_SUCCESS;
-  }
-#endif
   case CGType::AdviseUSM: {
     CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
@@ -3341,41 +3302,13 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (auto Result = callMemOpHelper(
             MemoryManager::prefetch_usm, Prefetch->getDst(), *MQueue,
             Prefetch->getLength(), std::move(RawEvents), Event,
-            sycl::ext::oneapi::experimental::prefetch_type::device);
+            Prefetch->getPrefetchType());
         Result != UR_RESULT_SUCCESS)
       return Result;
 
     SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  case CGType::PrefetchUSMExp: {
-    CGPrefetchUSMExp *PrefetchExp = (CGPrefetchUSMExp *)MCommandGroup.get();
-    if (auto Result = callMemOpHelper(
-            MemoryManager::prefetch_usm, PrefetchExp->getDst(), *MQueue,
-            PrefetchExp->getLength(), std::move(RawEvents), Event,
-            PrefetchExp->getPrefetchType());
-        Result != UR_RESULT_SUCCESS)
-      return Result;
-
-    SetEventHandleOrDiscard();
-    return UR_RESULT_SUCCESS;
-  }
-#else
-  case CGType::PrefetchUSMExpD2H: {
-    CGPrefetchUSMExpD2H *PrefetchD2H =
-        (CGPrefetchUSMExpD2H *)MCommandGroup.get();
-    if (auto Result = callMemOpHelper(
-            MemoryManager::prefetch_usm, PrefetchD2H->getDst(), *MQueue,
-            PrefetchD2H->getLength(), std::move(RawEvents), Event,
-            sycl::ext::oneapi::experimental::prefetch_type::host);
-        Result != UR_RESULT_SUCCESS)
-      return Result;
-
-    SetEventHandleOrDiscard();
-    return UR_RESULT_SUCCESS;
-  }
-#endif
   case CGType::AdviseUSM: {
     CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
     if (auto Result =

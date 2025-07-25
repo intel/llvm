@@ -373,12 +373,14 @@ void fill(sycl::queue Q, T *Ptr, const T &Pattern, size_t Count,
 inline void prefetch(handler &CGH, void *Ptr, size_t NumBytes,
                      prefetch_type Type = prefetch_type::device) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  CGH.ext_oneapi_prefetch_exp(Ptr, NumBytes, Type);
+  CGH.prefetch(Ptr, NumBytes, Type);
 #else
   if (Type == prefetch_type::device) {
+    // Incase an older libsycl.so is used, don't call prefetch function overload
+    // with new prefetch_type parameter:
     CGH.prefetch(Ptr, NumBytes);
   } else {
-    CGH.ext_oneapi_prefetch_d2h(Ptr, NumBytes);
+    CGH.prefetch(Ptr, NumBytes, Type);
   }
 #endif
 }

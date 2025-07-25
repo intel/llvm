@@ -38,6 +38,7 @@
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 
 namespace sycl {
@@ -720,19 +721,9 @@ event handler::finalize() {
     break;
   case detail::CGType::PrefetchUSM:
     CommandGroup.reset(new detail::CGPrefetchUSM(
-        MDstPtr, MLength, std::move(impl->CGData), MCodeLoc));
+        MDstPtr, MLength, std::move(impl->CGData), impl->MPrefetchType,
+        MCodeLoc));
     break;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  case detail::CGType::PrefetchUSMExp:
-    CommandGroup.reset(new detail::CGPrefetchUSMExp(
-        MDstPtr, MLength, std::move(impl->CGData), MPrefetchType, MCodeLoc));
-    break;
-#else
-  case detail::CGType::PrefetchUSMExpD2H:
-    CommandGroup.reset(new detail::CGPrefetchUSMExpD2H(
-        MDstPtr, MLength, std::move(impl->CGData), MCodeLoc));
-    break;
-#endif
   case detail::CGType::AdviseUSM:
     CommandGroup.reset(new detail::CGAdviseUSM(MDstPtr, MLength, impl->MAdvice,
                                                std::move(impl->CGData),
@@ -1484,27 +1475,19 @@ void handler::prefetch(const void *Ptr, size_t Count) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
+  impl->MPrefetchType = ext::oneapi::experimental::prefetch_type::device;
   setType(detail::CGType::PrefetchUSM);
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::ext_oneapi_prefetch_exp(
-    const void *Ptr, size_t Count,
-    ext::oneapi::experimental::prefetch_type Type) {
+void handler::prefetch(
+  const void *Ptr, size_t Count,
+  ext::oneapi::experimental::prefetch_type Type) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
-  MPrefetchType = Type;
-  setType(detail::CGType::PrefetchUSMExp);
+  impl->MPrefetchType = Type;
+  setType(detail::CGType::PrefetchUSM);
 }
-#else
-void handler::ext_oneapi_prefetch_d2h(const void *Ptr, size_t Count) {
-  throwIfActionIsCreated();
-  MDstPtr = const_cast<void *>(Ptr);
-  MLength = Count;
-  setType(detail::CGType::PrefetchUSMExpD2H);
-}
-#endif
 
 void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   throwIfActionIsCreated();

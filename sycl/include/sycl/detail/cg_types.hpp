@@ -67,11 +67,6 @@ enum class CGType : unsigned int {
   EnqueueNativeCommand = 27,
   AsyncAlloc = 28,
   AsyncFree = 29,
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  PrefetchUSMExp = 30,
-#else
-  PrefetchUSMExpD2H = 30,
-#endif
 };
 
 template <typename, typename T> struct check_fn_signature {

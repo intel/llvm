@@ -150,7 +150,6 @@ template <typename, typename> class work_group_memory;
 template <typename, typename> class dynamic_work_group_memory;
 struct image_descriptor;
 enum class prefetch_type;
-void prefetch(handler &CGH, void *Ptr, size_t NumBytes, prefetch_type Type);
 
 __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr);
 __SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
@@ -2622,6 +2621,16 @@ public:
   /// \param Count is a number of bytes to be prefetched.
   void prefetch(const void *Ptr, size_t Count);
 
+  /// Provides hints to the runtime library that data should be made available
+  /// on a device earlier than Unified Shared Memory would normally require it
+  /// to be available.
+  ///
+  /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
+  /// \param Count is a number of bytes to be prefetched.
+  /// \param Type is type of prefetch, i.e. fetch to device or fetch to host.
+  void prefetch(const void *Ptr, size_t Count,
+                ext::oneapi::experimental::prefetch_type Type);
+
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
@@ -3460,27 +3469,6 @@ private:
   // Implementation of ext_oneapi_memset2d using command for native 2D memset.
   void ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
                                 size_t Width, size_t Height);
-
-// Implementation of enqueue_functions extension's USM prefetch, allowing for
-// prefetching memory from both host to device and vice versa.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Prefetch implementation that accounts for prefetching both directions, but
-  // introduces a "prefetch type" field to handler/CG nodes: this results in an
-  // ABI break.
-  void ext_oneapi_prefetch_exp(const void *Ptr, size_t Count,
-                               ext::oneapi::experimental::prefetch_type Type);
-#else
-  // Non-ABI breaking implementation that implements prefetching from device to
-  // host as a separate function.
-  void ext_oneapi_prefetch_d2h(const void *Ptr, size_t Count);
-  // TODO upon next ABI-breaking cycle, decide which approach to go with.
-#endif
-
-  // Enqueue_functions extension's prefetch function is friended in order to
-  // call private handler function ext_oneapi_prefetch_d2h.
-  friend void ext::oneapi::experimental::prefetch(
-      handler &CGH, void *Ptr, size_t NumBytes,
-      ext::oneapi::experimental::prefetch_type Type);
 
   // Implementation of memcpy to device_global.
   void memcpyToDeviceGlobal(const void *DeviceGlobalPtr, const void *Src,
