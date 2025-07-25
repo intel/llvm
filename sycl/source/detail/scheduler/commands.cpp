@@ -2397,10 +2397,9 @@ static void SetArgBasedOnType(
 
 static ur_result_t SetKernelParamsAndLaunch(
     queue_impl &Queue, std::vector<ArgDesc> &Args,
-    const std::shared_ptr<device_image_impl> &DeviceImageImpl,
-    ur_kernel_handle_t Kernel, NDRDescT &NDRDesc,
-    std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
-    const KernelArgMask *EliminatedArgMask,
+    device_image_impl *DeviceImageImpl, ur_kernel_handle_t Kernel,
+    NDRDescT &NDRDesc, std::vector<ur_event_handle_t> &RawEvents,
+    detail::event_impl *OutEventImpl, const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
@@ -2415,8 +2414,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     std::vector<unsigned char> Empty;
     Kernel = Scheduler::getInstance().completeSpecConstMaterialization(
         Queue, BinImage, KernelName,
-        DeviceImageImpl.get() ? DeviceImageImpl->get_spec_const_blob_ref()
-                              : Empty);
+        DeviceImageImpl ? DeviceImageImpl->get_spec_const_blob_ref() : Empty);
   }
 
   if (KernelFuncPtr && !KernelHasSpecialCaptures) {
@@ -2446,9 +2444,8 @@ static ur_result_t SetKernelParamsAndLaunch(
   } else {
     auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                     &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
-      SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl.get(),
-                        getMemAllocationFunc, Queue.getContextImpl(), Arg,
-                        NextTrueIndex);
+      SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl, getMemAllocationFunc,
+                        Queue.getContextImpl(), Arg, NextTrueIndex);
     };
     applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
   }
@@ -2534,14 +2531,14 @@ static ur_result_t SetKernelParamsAndLaunch(
   return Error;
 }
 
-static std::tuple<ur_kernel_handle_t, std::shared_ptr<device_image_impl>,
+static std::tuple<ur_kernel_handle_t, device_image_impl *,
                   const KernelArgMask *>
 getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
                 device_impl &DeviceImpl,
                 std::vector<FastKernelCacheValPtr> &KernelCacheValsToRelease) {
 
   ur_kernel_handle_t UrKernel = nullptr;
-  std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
+  device_image_impl *DeviceImageImpl = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
   kernel_bundle_impl *KernelBundleImplPtr = CommandGroup.MKernelBundle.get();
 
@@ -2553,7 +2550,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
                                            CommandGroup.MKernelName)
                                      : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
-    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
+    DeviceImageImpl = &SyclKernelImpl->getDeviceImage();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
     FastKernelCacheValPtr FastKernelCacheVal =
@@ -2565,8 +2562,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
     // To keep UrKernel valid, we return FastKernelCacheValPtr.
     KernelCacheValsToRelease.push_back(std::move(FastKernelCacheVal));
   }
-  return std::make_tuple(UrKernel, std::move(DeviceImageImpl),
-                         EliminatedArgMask);
+  return std::make_tuple(UrKernel, DeviceImageImpl, EliminatedArgMask);
 }
 
 ur_result_t enqueueImpCommandBufferKernel(
@@ -2583,7 +2579,7 @@ ur_result_t enqueueImpCommandBufferKernel(
   std::vector<FastKernelCacheValPtr> FastKernelCacheValsToRelease;
 
   ur_kernel_handle_t UrKernel = nullptr;
-  std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
+  device_image_impl *DeviceImageImpl = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
   context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(Ctx);
@@ -2607,10 +2603,10 @@ ur_result_t enqueueImpCommandBufferKernel(
   }
 
   adapter_impl &Adapter = ContextImpl.getAdapter();
-  auto SetFunc = [&Adapter, &UrKernel, &DeviceImageImpl, &ContextImpl,
-                  &getMemAllocationFunc](sycl::detail::ArgDesc &Arg,
-                                         size_t NextTrueIndex) {
-    sycl::detail::SetArgBasedOnType(Adapter, UrKernel, DeviceImageImpl.get(),
+  auto SetFunc = [&Adapter, &UrKernel, &ContextImpl, &getMemAllocationFunc,
+                  DeviceImageImpl](sycl::detail::ArgDesc &Arg,
+                                   size_t NextTrueIndex) {
+    sycl::detail::SetArgBasedOnType(Adapter, UrKernel, DeviceImageImpl,
                                     getMemAllocationFunc, ContextImpl, Arg,
                                     NextTrueIndex);
   };
@@ -2692,7 +2688,7 @@ void enqueueImpKernel(
   const KernelArgMask *EliminatedArgMask;
 
   std::shared_ptr<kernel_impl> SyclKernelImpl;
-  std::shared_ptr<device_image_impl> DeviceImageImpl;
+  device_image_impl *DeviceImageImpl = nullptr;
   FastKernelCacheValPtr KernelCacheVal;
 
   if (nullptr != MSyclKernel) {
@@ -2714,7 +2710,7 @@ void enqueueImpKernel(
                       ? KernelBundleImplPtr->tryGetKernel(KernelName)
                       : std::shared_ptr<kernel_impl>{nullptr})) {
     Kernel = SyclKernelImpl->getHandleRef();
-    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
+    DeviceImageImpl = &SyclKernelImpl->getDeviceImage();
 
     Program = DeviceImageImpl->get_ur_program();
 
