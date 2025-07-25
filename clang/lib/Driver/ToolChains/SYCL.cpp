@@ -555,6 +555,36 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                          bool IsSpirvAOT) {
   SmallVector<std::string, 8> LibraryList;
   const llvm::opt::ArgList &Args = C.getArgs();
+  if (Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
+                      options::OPT_fno_sycl_device_lib_EQ) ||
+      Args.getLastArg(options::OPT_fsycl_device_lib_jit_link,
+                      options::OPT_fno_sycl_device_lib_jit_link))
+    return getDeviceLibrariesLegacy(C, TargetTriple, IsSpirvAOT);
+
+  bool NoOffloadLib =
+      !Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib, true);
+  if (TargetTriple.isNVPTX()) {
+    if (!NoOffloadLib)
+      LibraryList.push_back(
+          Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
+    return LibraryList;
+  }
+
+  if (TargetTriple.isAMDGCN()) {
+    if (!NoOffloadLib)
+      LibraryList.push_back(
+          Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
+    return LibraryList;
+  }
+  return LibraryList;
+}
+
+// TODO: remove getDeviceLibrariesLegacy when we remove deprecated options
+// related to sycl device library link.
+SmallVector<std::string, 8> SYCL::getDeviceLibrariesLegacy(
+    const Compilation &C, const llvm::Triple &TargetTriple, bool IsSpirvAOT) {
+  SmallVector<std::string, 8> LibraryList;
+  const llvm::opt::ArgList &Args = C.getArgs();
 
   // For NVPTX and AMDGCN we only use one single bitcode library and ignore
   // manually specified SYCL device libraries.
