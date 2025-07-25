@@ -68,9 +68,9 @@ int main() {
   // submission depending on whether spec const value was set or not. a. In the
   // case when we select image where specialization constants are replaced with
   // default value - specialization constant buffer is not created and we set
-  // nullptr in <--- urEnqueueKernelLaunchWithArgsExp. In the case when we
-  // select regular image - specialization constant buffer is created and we set
-  // a real pointer in <--- urEnqueueKernelLaunchWithArgsExp.
+  // nullptr in urEnqueueKernelLaunchWithArgsExp. In the case when we select
+  // regular image - specialization constant buffer is created and we set a
+  // real pointer in urEnqueueKernelLaunchWithArgsExp.
 
   // CHECK-DEFAULT: Submission 0
   // CHECK-DEFAULT: <--- urEnqueueKernelLaunchWithArgsExp{{.*}}KERNEL_ARG_TYPE_MEM_OBJ,{{.*}}.hMem = {{(0x)?[0-9,a-f,A-F]+}}{{.*}} -> UR_RESULT_SUCCESS;
