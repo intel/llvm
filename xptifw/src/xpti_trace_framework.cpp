@@ -1567,7 +1567,8 @@ public:
 #endif
     {
       std::unique_lock<std::shared_mutex> Lock(MFlagsLock);
-      auto &TraceFlags = MStreamFlags[StreamID]; // Get the trace flags for the
+      // Get the flags for the stream
+      auto &TraceFlags = MStreamFlags[StreamID];
       TraceFlags[TraceType] = true; // Set the trace type flag to true
     }
     // If reader-writer locks were emplyed, this is where the writer lock can
