@@ -154,6 +154,11 @@ public:
   std::array<size_t, 3> ClusterDimensions{1, 1, 1};
   size_t Dims = 0;
 };
+struct CustomLaunchArguments {
+  size_t KernelWorkGroupMemorySize = 0;
+  bool KernelIsCooperative = false;
+  bool KernelUsesClusterLaunch = false;
+};
 
 /// Base class for all types of command groups.
 class CG {
@@ -261,9 +266,7 @@ public:
   /// of command-groups that a kernel command can be updated to.
   std::vector<std::weak_ptr<CGExecKernel>> MAlternativeKernels;
   ur_kernel_cache_config_t MKernelCacheConfig;
-  bool MKernelIsCooperative = false;
-  bool MKernelUsesClusterLaunch = false;
-  size_t MKernelWorkGroupMemorySize = 0;
+  CustomLaunchArguments MCustomLaunchArgs;
 
   CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
@@ -274,8 +277,8 @@ public:
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
-               bool KernelIsCooperative, bool MKernelUsesClusterLaunch,
-               size_t KernelWorkGroupMemorySize, detail::code_location loc = {})
+               CustomLaunchArguments CustomLaunchArgs,
+               detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
@@ -285,9 +288,7 @@ public:
         MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MAlternativeKernels{}, MKernelCacheConfig(std::move(KernelCacheConfig)),
-        MKernelIsCooperative(KernelIsCooperative),
-        MKernelUsesClusterLaunch(MKernelUsesClusterLaunch),
-        MKernelWorkGroupMemorySize(KernelWorkGroupMemorySize) {
+        MCustomLaunchArgs(CustomLaunchArgs) {
     assert(getType() == CGType::Kernel && "Wrong type of exec kernel CG.");
   }
 
