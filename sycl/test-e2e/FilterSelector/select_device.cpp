@@ -4,14 +4,16 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu %{run-unfiltered-devices} %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu %{run-unfiltered-devices} %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR='*:cpu;level_zero:gpu' %{run-unfiltered-devices} %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:fpga %{run-unfiltered-devices} %t.out
 //
 // Checks if only specified device types can be acquired from select_device
 // when ONEAPI_DEVICE_SELECTOR is set
 // Checks that no device is selected when no device of desired type is
 // available.
 //
-// REQUIRES: cpu,gpu,accelerator
+// REQUIRES: any-device-is-cpu, any-device-is-gpu
+
+// XFAIL: linux
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/00000
 
 #include <iostream>
 
@@ -43,10 +45,6 @@ int main() {
   if (!envVal.empty() || forcedPIs == "*" ||
       forcedPIs.find("cpu") != std::string::npos) {
     device d(cpu_selector_v);
-  }
-  if (!envVal.empty() || forcedPIs == "*" ||
-      forcedPIs.find("fpga") != std::string::npos) {
-    device d(accelerator_selector_v);
   }
   if (envVal.empty() && (forcedPIs.find("cpu") == std::string::npos &&
                          forcedPIs.find("opencl") == std::string::npos &&

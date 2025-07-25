@@ -13,8 +13,6 @@ using namespace sycl;
 std::string get_type(const device &dev) {
   if (dev.is_gpu()) {
     return "OpenCL.GPU";
-  } else if (dev.is_accelerator()) {
-    return "OpenCL.ACC";
   } else {
     return "OpenCL.CPU";
   }
@@ -45,12 +43,6 @@ int main() {
   i = 1;
   std::cout << "Get OpenCL.GPU devices in the system" << std::endl;
   for (const auto &dev : device::get_devices(info::device_type::gpu)) {
-    std::cout << "Device " << i++ << " is available: " << get_type(dev)
-              << std::endl;
-  }
-  i = 1;
-  std::cout << "Get OpenCL.ACC devices in the system" << std::endl;
-  for (const auto &dev : device::get_devices(info::device_type::accelerator)) {
     std::cout << "Device " << i++ << " is available: " << get_type(dev)
               << std::endl;
   }
