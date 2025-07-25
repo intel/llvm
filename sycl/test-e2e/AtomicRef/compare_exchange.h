@@ -49,7 +49,14 @@ void compare_exchange_local_test(queue q, size_t N) {
                   : order,
               scope, space > (loc[0]);
          T result = T(N); // Avoid copying pointer
-         bool success = atm.compare_exchange_strong(result, (T)gid, order);
+         // From SYCL AtomicRef spec: The failure memory order of this atomic
+         // operation must be relaxed, acquire or seq_cst.
+         auto failure_order =
+             (order == memory_order::acq_rel || order == memory_order::release)
+                 ? memory_order::relaxed
+                 : order;
+         bool success =
+             atm.compare_exchange_strong(result, (T)gid, order, failure_order);
          if (success) {
            out[gid] = result;
          } else {
@@ -99,7 +106,14 @@ void compare_exchange_global_test(queue q, size_t N) {
                   : order,
               scope, space > (exc[0]);
          T result = T(N); // Avoid copying pointer
-         bool success = atm.compare_exchange_strong(result, (T)gid, order);
+         // From SYCL AtomicRef spec: The failure memory order of this atomic
+         // operation must be relaxed, acquire or seq_cst.
+         auto failure_order =
+             (order == memory_order::acq_rel || order == memory_order::release)
+                 ? memory_order::relaxed
+                 : order;
+         bool success =
+             atm.compare_exchange_strong(result, (T)gid, order, failure_order);
          if (success) {
            out[gid] = result;
          } else {
@@ -140,7 +154,14 @@ void compare_exchange_global_test_usm_shared(queue q, size_t N) {
                   : order,
               scope, space > (exc[0]);
          T result = initial; // Avoid copying pointer
-         bool success = atm.compare_exchange_strong(result, (T)gid, order);
+         // From SYCL AtomicRef spec: The failure memory order of this atomic
+         // operation must be relaxed, acquire or seq_cst.
+         auto failure_order =
+             (order == memory_order::acq_rel || order == memory_order::release)
+                 ? memory_order::relaxed
+                 : order;
+         bool success =
+             atm.compare_exchange_strong(result, (T)gid, order, failure_order);
          if (success) {
            output[gid] = result;
          } else {
