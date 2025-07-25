@@ -42,25 +42,17 @@ constexpr const char *GVerStr = SYCL_VERSION_STR;
 inline constexpr const char *SYCL_STREAM_NAME = "sycl";
 inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =
     "sycl.experimental.mem_alloc";
-inline constexpr const char *CUDA_CALL_STREAM_NAME =
-    "sycl.experimental.cuda.call";
-inline constexpr const char *CUDA_DEBUG_STREAM_NAME =
-    "sycl.experimental.cuda.debug";
 // Stream name being used to notify about buffer objects.
 inline constexpr const char *SYCL_BUFFER_STREAM_NAME =
     "sycl.experimental.buffer";
 // Stream name being used to notify about image objects.
 inline constexpr const char *SYCL_IMAGE_STREAM_NAME = "sycl.experimental.image";
-inline constexpr const char *UR_CALL_STREAM_NAME = "ur.call";
 inline constexpr const char *UR_API_STREAM_NAME = "ur.api";
 
 extern uint8_t GBufferStreamID;
 extern uint8_t GImageStreamID;
 extern uint8_t GMemAllocStreamID;
-extern uint8_t GCudaCallStreamID;
-extern uint8_t GCudaDebugStreamID;
 extern uint8_t GSYCLStreamID;
-extern uint8_t GUrCallStreamID;
 extern uint8_t GUrApiStreamID;
 
 extern xpti::trace_event_data_t *GMemAllocEvent;
@@ -96,18 +88,9 @@ public:
       // Memory allocation events
       GMemAllocStreamID = this->initializeStream(SYCL_MEM_ALLOC_STREAM_NAME,
                                                  GMajVer, GMinVer, GVerStr);
-      // UR call events
-      GUrCallStreamID = this->initializeStream(UR_CALL_STREAM_NAME, GMajVer,
-                                               GMinVer, GVerStr);
       // UR API events
       GUrApiStreamID =
           this->initializeStream(UR_API_STREAM_NAME, GMajVer, GMinVer, GVerStr);
-      // CUDA call events
-      GCudaCallStreamID = this->initializeStream(CUDA_CALL_STREAM_NAME, GMajVer,
-                                                 GMinVer, GVerStr);
-      // CUDA debug events
-      GCudaDebugStreamID = this->initializeStream(CUDA_DEBUG_STREAM_NAME,
-                                                  GMajVer, GMinVer, GVerStr);
 
       auto SYCLEventTP = xptiCreateTracepoint("sycl.application.graph", nullptr,
                                               0, 0, nullptr);
@@ -144,7 +127,8 @@ public:
   /// \param VerStr is a string of "MajVer.MinVer" format.
   uint8_t initializeStream(const std::string &StreamName, uint32_t MajVer,
                            uint32_t MinVer, const std::string &VerStr) {
-    uint8_t StreamID = xpti::invalid_id<xpti::stream_id_t>;
+    // We need to return an invalid ID if XPTI is not enabled
+    uint8_t StreamID = std::numeric_limits<uint8_t>::max();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     StreamID = xptiRegisterStream(StreamName.c_str());
     MActiveStreams.insert(StreamName);
