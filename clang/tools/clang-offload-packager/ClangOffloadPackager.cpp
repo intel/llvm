@@ -113,6 +113,8 @@ static Error writeFile(StringRef Filename, StringRef Data) {
   return Error::success();
 }
 
+#include "llvm/Support/FormatVariadic.h"
+
 static Error bundleImages() {
   SmallVector<char, 1024> BinaryData;
   raw_svector_ostream OS(BinaryData);
@@ -147,6 +149,7 @@ static Error bundleImages() {
           ImageBinary.TheOffloadKind = getOffloadKind(Value);
         } else if (Key != "file") {
           ImageBinary.StringData[Key] = Value;
+          errs() << formatv("Key: {0}, Value: {1}\n", Key, Value);
         }
       }
       llvm::SmallString<0> Buffer = OffloadBinary::write(ImageBinary);

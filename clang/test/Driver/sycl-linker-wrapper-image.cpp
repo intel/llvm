@@ -1,16 +1,30 @@
 // REQUIRES: system-linux
-// This test check wrapping of SYCL binaries in clang-linker-wrapper.
+//
+// Generate .o file as SYCL device library file.
+//
+// RUN: touch %t.devicelib.cpp
+// RUN: %clang %t.devicelib.cpp -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t.devicelib.o
+//
+// Check that clang-linker-wrapper recognizes compile/link options
+// encoded in images and passed as input argument and passes them
+// into SYCL Offload Wrapper.
+//
+// RUN: %clang -cc1 -fsycl-is-device -disable-llvm-passes -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.device.bc
+// RUN: clang-offload-packager -o %t.packaged.fat "--image=file=%t.device.bc,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=aaa aaa,link-opts=ccc ccc"
+// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.packaged.o -fembed-offload-object=%t.packaged.fat
+// RUN: clang-linker-wrapper --verbose --dry-run --sycl-backend-compile-options "bbb bbb" --sycl-target-link-options "ddd ddd" --host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      -sycl-device-libraries=%t.devicelib.o \
+// RUN:                      %t.packaged.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-COMPILE-LINK-OPTS
+//
+// CHECK-COMPILE-LINK-OPTS: offload-wrapper: {{.*}} compile-opts: aaa aaa bbb bbb, link-opts: ccc ccc ddd ddd
+//
+// Check wrapping of SYCL binaries in clang-linker-wrapper.
 //
 // Generate .o file as linker wrapper input.
 //
 // RUN: %clang -cc1 -fsycl-is-device -disable-llvm-passes -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.device.bc
 // RUN: clang-offload-packager -o %t.fat --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown
 // RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.fat
-//
-// Generate .o file as SYCL device library file.
-//
-// RUN: touch %t.devicelib.cpp
-// RUN: %clang %t.devicelib.cpp -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t.devicelib.o
 //
 // Run clang-linker-wrapper test
 //

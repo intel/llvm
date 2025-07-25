@@ -158,6 +158,10 @@ static SYCLBIN::BundleState SYCLBINState = SYCLBIN::BundleState::Input;
 
 static SmallString<128> OffloadImageDumpDir;
 
+static std::string SYCLCompileOptionsFromImage;
+
+static std::string SYCLLinkOptionsFromImage;
+
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
 namespace llvm {
@@ -1052,6 +1056,16 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   if (!OutputFileOrErr)
     return OutputFileOrErr.takeError();
 
+  auto CompileOptionsFromSYCLBackendCompileOptions =
+      Args.getLastArgValue(OPT_sycl_backend_compile_options_EQ);
+  auto LinkOptionsFromSYCLTargetLinkOptions =
+      Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
+
+  // TODO: do we need here a separator?
+  StringRef CompileOptions = Args.MakeArgString(SYCLCompileOptionsFromImage +
+      CompileOptionsFromSYCLBackendCompileOptions.str());
+  StringRef LinkOptions = Args.MakeArgString(SYCLLinkOptionsFromImage +
+      LinkOptionsFromSYCLTargetLinkOptions.str());
   StringRef OutputFilePath = *OutputFileOrErr;
   if (Verbose || DryRun) {
     std::string InputFiles;
@@ -1061,8 +1075,8 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
         InputFiles += ',';
     }
 
-    errs() << formatv(" offload-wrapper: input: {0}, output: {1}\n", InputFiles,
-                      OutputFilePath);
+    errs() << formatv(" offload-wrapper: input: {0}, output: {1}, compile-opts: {2}, link-opts: {3}\n", InputFiles,
+                      OutputFilePath, CompileOptions, LinkOptions);
     if (DryRun)
       return OutputFilePath;
   }
@@ -1112,22 +1126,9 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   M.setTargetTriple(Triple(
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple())));
 
-  auto CompileOptionsFromSYCLBackendCompileOptions =
-      Args.getLastArgValue(OPT_sycl_backend_compile_options_EQ);
-  auto LinkOptionsFromSYCLTargetLinkOptions =
-      Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
-
-  StringRef CompileOptions(
-      Args.MakeArgString(CompileOptionsFromSYCLBackendCompileOptions.str()));
-  StringRef LinkOptions(
-      Args.MakeArgString(LinkOptionsFromSYCLTargetLinkOptions.str()));
   offloading::SYCLWrappingOptions WrappingOptions;
   WrappingOptions.CompileOptions = CompileOptions;
   WrappingOptions.LinkOptions = LinkOptions;
-  if (Verbose) {
-    errs() << formatv(" offload-wrapper: compile-opts: {0}, link-opts: {1}\n",
-                      CompileOptions, LinkOptions);
-  }
   if (Error E = offloading::wrapSYCLBinaries(M, Images, WrappingOptions))
     return E;
 
@@ -1764,6 +1765,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
       bool NeedAOTCompile =
           (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
            Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64);
+      errs() << formatv("NeedAOTCompile: {0}, Triple: {1}\n", NeedAOTCompile, Triple.str());
       auto AOTFile =
           (NeedAOTCompile) ? sycl::runAOTCompile(*SPVFile, Args) : *SPVFile;
       if (!AOTFile)
@@ -2104,8 +2106,18 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
     uint16_t ActiveOffloadKindMask = 0u;
     for (const auto &File : Input) {
       ActiveOffloadKindMask |= File.getBinary()->getOffloadKind();
-      if (File.getBinary()->getOffloadKind() == OFK_SYCL)
+      if (File.getBinary()->getOffloadKind() == OFK_SYCL) {
         HasSYCLOffloadKind = true;
+        
+        StringRef CompileOptions = File.getBinary()->getString("compile-opts");
+        if (!CompileOptions.empty())
+          SYCLCompileOptionsFromImage = CompileOptions.str();
+
+        StringRef LinkOptions = File.getBinary()->getString("link-opts");
+        if (!LinkOptions.empty())
+          SYCLLinkOptionsFromImage = LinkOptions.str();
+        errs() << formatv("link_and_wrap: compile_opts: {0}, link_opts: {1}\n", CompileOptions, LinkOptions);
+      }
       else
         HasNonSYCLOffloadKinds = true;
     }
@@ -2225,6 +2237,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       }
     }
     if (HasNonSYCLOffloadKinds) {
+      // TODO: probably, a repetition.
       // Write any remaining device inputs to an output file.
       SmallVector<StringRef> InputFiles;
       for (const OffloadFile &File : Input) {
