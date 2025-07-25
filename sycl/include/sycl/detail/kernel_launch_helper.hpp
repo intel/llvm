@@ -400,7 +400,8 @@ public:
     {
       constexpr bool UsesRootSync = PropertiesT::template has_property<
           sycl::ext::oneapi::experimental::use_root_sync_key>();
-      retval.MKernelIsCooperative = UsesRootSync;
+      if (UsesRootSync)
+        retval.MKernelIsCooperative = UsesRootSync;
     }
 
     // Process device progress properties.
