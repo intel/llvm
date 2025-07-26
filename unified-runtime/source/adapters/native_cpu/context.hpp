@@ -116,7 +116,7 @@ struct ur_context_handle_t_ : RefCounted {
     // We need to ensure that we align to at least alignof(usm_alloc_info),
     // otherwise its start address may be unaligned.
     alignment =
-        std::max<size_t>(alignment, alignof(native_cpu::usm_alloc_info));
+        std::max<uint32_t>(alignment, alignof(native_cpu::usm_alloc_info));
     void *alloc = native_cpu::malloc_impl(alignment, size);
     if (!alloc)
       return nullptr;
