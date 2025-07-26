@@ -313,7 +313,6 @@ fill_copy_args(detail::handler_impl *impl,
                  0 /*DestPitch*/, SrcOffset, SrcExtent, DestOffset, DestExtent,
                  CopyExtent);
 }
-
 } // namespace detail
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -2076,10 +2075,12 @@ static bool checkContextSupports(detail::context_impl &ContextImpl,
   return SupportsOp;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::verifyDeviceHasProgressGuarantee(
     sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
     sycl::ext::oneapi::experimental::execution_scope threadScope,
     sycl::ext::oneapi::experimental::execution_scope coordinationScope) {
+
   using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
   using forward_progress =
       sycl::ext::oneapi::experimental::forward_progress_guarantee;
@@ -2121,6 +2122,7 @@ void handler::verifyDeviceHasProgressGuarantee(
     }
   }
 }
+#endif
 
 bool handler::supportsUSMMemcpy2D() {
   if (impl->get_graph_or_null())
@@ -2251,6 +2253,46 @@ detail::context_impl &handler::getContextImpl() const {
   return impl->get_queue().getContextImpl();
 }
 
+void handler::setKernelLaunchProperties(
+    KernelLaunchPropertyWrapper::KernelLaunchPropertiesT
+        &KernelLaunchProperties) {
+  impl->parseAndSetKernelLaunchProperties(KernelLaunchProperties);
+
+  if (KernelLaunchProperties.MKernelClusterDims == 1) {
+    sycl::range<1> ClusterSizeTrimmed = {
+        KernelLaunchProperties.MKernelClusterSize[0]};
+    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+  } else if (KernelLaunchProperties.MKernelClusterDims == 2) {
+    sycl::range<2> ClusterSizeTrimmed = {
+        KernelLaunchProperties.MKernelClusterSize[0],
+        KernelLaunchProperties.MKernelClusterSize[1]};
+    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+  } else if (KernelLaunchProperties.MKernelClusterDims == 3) {
+    sycl::range<3> ClusterSizeTrimmed = {
+        KernelLaunchProperties.MKernelClusterSize[0],
+        KernelLaunchProperties.MKernelClusterSize[1],
+        KernelLaunchProperties.MKernelClusterSize[2]};
+    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+  }
+}
+
+bool handler::isKernelAssociatedWithGraph() const {
+  return getCommandGraph() != nullptr;
+}
+
+bool handler::deviceSupportForwardProgress(
+    sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
+    sycl::ext::oneapi::experimental::execution_scope threadScope,
+    sycl::ext::oneapi::experimental::execution_scope coordinationScope) const {
+
+  return impl->get_device().supportsForwardProgress(guarantee, threadScope,
+                                                    coordinationScope);
+}
+
+device_impl &handler::getDeviceImpl() { return impl->get_device(); }
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+
 void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
   switch (Config) {
   case handler::StableKernelCacheConfig::Default:
@@ -2265,11 +2307,10 @@ void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
   }
 }
 
-void handler::setKernelIsCooperative(bool KernelIsCooperative) {
-  impl->MKernelIsCooperative = KernelIsCooperative;
+void handler::setKernelIsCooperative(bool IsCooperative) {
+  impl->MKernelIsCooperative = IsCooperative;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
@@ -2286,7 +2327,6 @@ void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
     impl->MNDRDesc.setClusterDimensions(ClusterSize);
   }
 }
-#endif
 
 void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize) {
   throwIfGraphAssociated<
@@ -2317,6 +2357,7 @@ void handler::setKernelWorkGroupMem(size_t Size) {
                              sycl_ext_oneapi_work_group_scratch_memory>();
   impl->MKernelWorkGroupMemorySize = Size;
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 void handler::ext_oneapi_graph(
     ext::oneapi::experimental::command_graph<
@@ -2593,6 +2634,7 @@ void handler::copyCodeLoc(const handler &other) {
 queue handler::getQueue() {
   return createSyclObjFromImpl<queue>(impl->get_queue());
 }
+
 namespace detail {
 __SYCL_EXPORT void HandlerAccess::preProcess(handler &CGH,
                                              type_erased_cgfo_ty F) {

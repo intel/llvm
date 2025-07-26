@@ -12,6 +12,7 @@
 #include <detail/cg.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <memory>
+#include <sycl/detail/kernel_launch_helper.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -28,7 +29,7 @@ enum class HandlerSubmissionState : std::uint8_t {
   SPEC_CONST_SET_STATE,
 };
 
-class handler_impl {
+class handler_impl : public KernelLaunchPropertyWrapper {
 public:
   handler_impl(queue_impl &Queue, queue_impl *SubmissionSecondaryQueue,
                bool EventNeeded)
@@ -103,12 +104,6 @@ public:
   size_t HostPipeTypeSize = 0;
   // If the pipe operation is read or write, 1 for read 0 for write.
   bool HostPipeRead = true;
-
-  ur_kernel_cache_config_t MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
-
-  bool MKernelIsCooperative = false;
-  bool MKernelUsesClusterLaunch = false;
-  uint32_t MKernelWorkGroupMemorySize = 0;
 
   // Extra information for bindless image copy
   ur_image_desc_t MSrcImageDesc = {};

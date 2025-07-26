@@ -877,6 +877,7 @@ private:
     }
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void verifyDeviceHasProgressGuarantee(
       sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
       sycl::ext::oneapi::experimental::execution_scope threadScope,
@@ -990,6 +991,7 @@ private:
 
     processLaunchProperties(Props);
   }
+#endif // INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Checks whether it is possible to copy the source shape to the destination
   /// shape(the shapes are described by the accessor ranges) by using
@@ -1097,6 +1099,8 @@ private:
   // We need to use this version to support gcc 7.5.0. Remove when minimal
   // supported gcc version is bumped.
   std::tuple<std::array<size_t, 3>, bool> getMaxWorkGroups_v2();
+
+  detail::device_impl &getDeviceImpl();
 
   template <int Dims>
   std::tuple<range<Dims>, bool> getRoundedRange(range<Dims> UserRange) {
@@ -1296,8 +1300,12 @@ private:
                             decltype(Wrapper), TransformedArgType,
                             PropertiesT>::wrap(Wrapper);
 
-      detail::KernelLaunchPropertyWrapper::parseProperties<KName>(this,
-                                                                  Wrapper);
+      if (auto prop =
+              detail::KernelLaunchPropertyWrapper::parseProperties<KName>(
+                  Wrapper, this)) {
+        setKernelLaunchProperties(*prop);
+      }
+
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr detail::string_view Name{detail::getKernelName<NameT>()};
       verifyUsedKernelBundleInternal(Name);
@@ -1323,13 +1331,20 @@ private:
       // kernel is generated
       detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                             TransformedArgType, PropertiesT>::wrap(KernelFunc);
-      detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
-                                                                  KernelFunc);
+      if (auto prop =
+              detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(
+                  KernelFunc, this)) {
+        setKernelLaunchProperties(*prop);
+      }
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr detail::string_view Name{detail::getKernelName<NameT>()};
 
       verifyUsedKernelBundleInternal(Name);
-      processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
+      auto ProcessedProps =
+          detail::KernelLaunchPropertyWrapper::processProperties<
+              detail::isKernelESIMD<NameT>(), decltype(this), PropertiesT>(
+              Props, this);
+      setKernelLaunchProperties(ProcessedProps);
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
@@ -1359,7 +1374,10 @@ private:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
-    processLaunchProperties<PropertiesT>(Props);
+    auto ParsedProp =
+        detail::KernelLaunchPropertyWrapper::processLaunchProperties<
+            PropertiesT>(Props, this);
+    setKernelLaunchProperties(ParsedProp);
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
     MKernelName = getKernelName();
@@ -1384,7 +1402,10 @@ private:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     setNDRangeDescriptor(std::move(NDRange));
-    processLaunchProperties(Props);
+    auto ParsedProp =
+        detail::KernelLaunchPropertyWrapper::processLaunchProperties<
+            PropertiesT>(Props, this);
+    setKernelLaunchProperties(ParsedProp);
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
     MKernelName = getKernelName();
@@ -1405,8 +1426,10 @@ private:
     (void)Props;
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
                           PropertiesT>::wrap(KernelFunc);
-    detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
-                                                                KernelFunc);
+    if (auto prop = detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(
+            KernelFunc, this)) {
+      setKernelLaunchProperties(*prop);
+    }
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == detail::WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();
@@ -1425,7 +1448,11 @@ private:
     }
 
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
-    processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
+    auto ProcessedProps =
+        detail::KernelLaunchPropertyWrapper::processProperties<
+            detail::isKernelESIMD<NameT>(), decltype(this), PropertiesT>(Props,
+                                                                         this);
+    setKernelLaunchProperties(ProcessedProps);
 #endif
   }
 
@@ -1448,8 +1475,10 @@ private:
     (void)Kernel;
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
                           PropertiesT>::wrap(KernelFunc);
-    detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
-                                                                KernelFunc);
+    if (auto prop = detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(
+            KernelFunc, this)) {
+      setKernelLaunchProperties(*prop);
+    }
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == detail::WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();
@@ -1477,7 +1506,11 @@ private:
     } else {
       StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
     }
-    processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
+    auto ProcessedProps =
+        detail::KernelLaunchPropertyWrapper::processProperties<
+            detail::isKernelESIMD<NameT>(), decltype(this), PropertiesT>(Props,
+                                                                         this);
+    setKernelLaunchProperties(ProcessedProps);
 #endif
   }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
@@ -3483,6 +3516,7 @@ private:
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Changing values in this will break ABI/API.
   enum class StableKernelCacheConfig : int32_t {
     Default = 0,
@@ -3496,15 +3530,23 @@ private:
   void setKernelIsCooperative(bool);
 
   // Set using cuda thread block cluster launch flag and set the launch bounds.
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims);
-#endif
   void setKernelClusterLaunch(sycl::range<3> ClusterSize);
   void setKernelClusterLaunch(sycl::range<2> ClusterSize);
   void setKernelClusterLaunch(sycl::range<1> ClusterSize);
 
   // Set the request work group memory size (work_group_static ext).
   void setKernelWorkGroupMem(size_t Size);
+#endif
+
+  void setKernelLaunchProperties(
+      detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT
+          &KernelLaunchProperties);
+  bool isKernelAssociatedWithGraph() const;
+  bool deviceSupportForwardProgress(
+      sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
+      sycl::ext::oneapi::experimental::execution_scope threadScope,
+      sycl::ext::oneapi::experimental::execution_scope coordinationScope) const;
 
   // Various checks that are only meaningful for host compilation, because they
   // result in runtime errors (i.e. exceptions being thrown). To save time
@@ -3567,16 +3609,8 @@ private:
   template <
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>
   void throwIfGraphAssociated() const {
-
-    if (getCommandGraph()) {
-      std::string FeatureString =
-          ext::oneapi::experimental::detail::UnsupportedFeatureToString(
-              FeatureT);
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "The " + FeatureString +
-                                " feature is not yet available "
-                                "for use with the SYCL Graph extension.");
-    }
+    detail::KernelLaunchPropertyWrapper::throwIfGraphAssociated<FeatureT>(
+        getCommandGraph() != nullptr);
   }
 #endif
 
@@ -3651,7 +3685,7 @@ private:
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
   friend class detail::HandlerAccess;
-  friend struct detail::KernelLaunchPropertyWrapper;
+  friend class detail::KernelLaunchPropertyWrapper;
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl; }
