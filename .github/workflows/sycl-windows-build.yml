@@ -17,7 +17,7 @@ on:
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
-        default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+        default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
         required: false
       ref:
         type: string
@@ -54,7 +54,7 @@ on:
         options:
           - "[]"
           - '[sycl]'
-          - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+          - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
       build_cache_suffix:
         type: choice
         options:
@@ -180,7 +180,7 @@ jobs:
       run: |
         cmake --build build --target check-xptifw
     - name: check-libdevice
-      if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |
         cmake --build build --target check-libdevice
     - name: Generate/diff new ABI symbols

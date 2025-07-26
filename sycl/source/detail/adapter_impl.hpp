@@ -243,6 +243,14 @@ template <typename URResource> class Managed {
   static constexpr auto Release = []() constexpr {
     if constexpr (std::is_same_v<URResource, ur_program_handle_t>)
       return UrApiKind::urProgramRelease;
+    if constexpr (std::is_same_v<URResource, ur_kernel_handle_t>)
+      return UrApiKind::urKernelRelease;
+  }();
+  static constexpr auto Retain = []() constexpr {
+    if constexpr (std::is_same_v<URResource, ur_program_handle_t>)
+      return UrApiKind::urProgramRetain;
+    if constexpr (std::is_same_v<URResource, ur_kernel_handle_t>)
+      return UrApiKind::urKernelRetain;
   }();
 
 public:
@@ -258,6 +266,7 @@ public:
   Managed &operator=(Managed &&Other) {
     if (R)
       Adapter->call<Release>(R);
+
     R = Other.R;
     Other.R = nullptr;
     Adapter = Other.Adapter;
@@ -283,6 +292,18 @@ public:
       return;
 
     Adapter->call<Release>(R);
+  }
+
+  Managed retain() {
+    assert(R && "Cannot retain unintialized resource!");
+    Adapter->call<Retain>(R);
+    return Managed{R, *Adapter};
+  }
+
+  bool operator==(const Managed &Other) const {
+    assert((!Adapter || !Other.Adapter || Adapter == Other.Adapter) &&
+           "Objects must belong to the same adapter!");
+    return R == Other.R;
   }
 
 private:

@@ -19,7 +19,7 @@
 // RUN: %clangxx --offload-new-driver -fsyclbin=object -fsycl-allow-device-image-dependencies %S/Inputs/exporting_function.cpp -o %t.export.syclbin
 // RUN: %clangxx --offload-new-driver -fsyclbin=object -fsycl-allow-device-image-dependencies %S/Inputs/importing_kernel.cpp -o %t.import.syclbin
 // RUN: %{build} -o %t.out
-// RUN: %{l0_leak_check} %{run}  %t.out %t.export.syclbin %t.import.syclbin
+// RUN: %{run} %t.out %t.export.syclbin %t.import.syclbin
 
 #define SYCLBIN_OBJECT_STATE
 

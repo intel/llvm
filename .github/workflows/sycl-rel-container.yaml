@@ -1,0 +1,36 @@
+name: CI sycl-rel container
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'devops/actions/build_container/**'
+      - 'devops/containers/release_build.DockerFile'
+      - 'devops/scripts/create-sycl-user.sh'
+      - '.github/workflows/sycl-rel-container.yaml'
+
+permissions: read-all
+
+jobs:
+  build_and_push_images:
+    if: github.repository == 'intel/llvm'
+    name: Build and Push Docker Images
+    runs-on: [Linux, build]
+    permissions:
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: devops
+
+      - name: Build and Push Container
+        uses: ./devops/actions/build_container
+        with:
+          push: ${{ github.event_name != 'pull_request' }}
+          file: release_build
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          tags: |
+            ghcr.io/${{ github.repository }}/release_build:latest-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/release_build:latest
