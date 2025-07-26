@@ -53,6 +53,7 @@
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
 #include "llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h"
+#include "llvm/SYCLLowerIR/SYCLOptimizeBarriers.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 #include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
@@ -1084,13 +1085,16 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             MPM.addPass(ESIMDRemoveHostCodePass());
           });
 
-    // Add the InferAddressSpaces pass for all the SPIR[V] targets
+    // Add the InferAddressSpaces and SYCLOptimizeBarriers passes for all
+    // the SPIR[V] targets
     if (TargetTriple.isSPIR() || TargetTriple.isSPIRV()) {
       PB.registerOptimizerLastEPCallback(
           [](ModulePassManager &MPM, OptimizationLevel Level,
              ThinOrFullLTOPhase) {
             MPM.addPass(createModuleToFunctionPassAdaptor(
                 InferAddressSpacesPass(clang::targets::SPIR_GENERIC_AS)));
+            MPM.addPass(
+                createModuleToFunctionPassAdaptor(SYCLOptimizeBarriersPass()));
           });
     }
 
