@@ -23,8 +23,8 @@ struct ur_queue_handle_t_ : RefCounted {
       : OffloadQueues((Flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE)
                           ? 1
                           : OOO_QUEUE_POOL_SIZE),
-        QueueOffset(0), OffloadDevice(Device), UrContext(UrContext),
-        Flags(Flags) {}
+        QueueOffset(0), Barrier(nullptr), OffloadDevice(Device),
+        UrContext(UrContext), Flags(Flags) {}
 
   // In-order queues only have one element here, while out of order queues have
   // a bank of queues to use. We rotate through them round robin instead of
@@ -35,18 +35,26 @@ struct ur_queue_handle_t_ : RefCounted {
   // `stream_queue_t`. In the future, if we want more performance or it
   // simplifies the implementation of a feature, we can consider using it.
   std::vector<ol_queue_handle_t> OffloadQueues;
-  size_t QueueOffset;
+  std::atomic<size_t> QueueOffset;
+  std::atomic<ol_event_handle_t> Barrier;
   ol_device_handle_t OffloadDevice;
   ur_context_handle_t UrContext;
   ur_queue_flags_t Flags;
 
+  bool isInOrder() const { return OffloadQueues.size() == 1; }
+
   ol_result_t nextQueue(ol_queue_handle_t &Handle) {
-    auto &Slot = OffloadQueues[QueueOffset++];
-    QueueOffset %= OffloadQueues.size();
+    auto &Slot = OffloadQueues[(QueueOffset++) % OffloadQueues.size()];
 
     if (!Slot) {
       if (auto Res = olCreateQueue(OffloadDevice, &Slot)) {
         return Res;
+      }
+
+      if (auto Event = Barrier.load()) {
+        if (auto Res = olWaitEvents(Slot, &Event, 1)) {
+          return Res;
+        }
       }
     }
 
