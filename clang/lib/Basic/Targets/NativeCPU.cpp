@@ -48,7 +48,6 @@ NativeCPUTargetInfo::NativeCPUTargetInfo(const llvm::Triple &Triple,
   UseAddrSpaceMapMangling = true;
   HasLegalHalfType = true;
   HasFloat16 = true;
-  resetDataLayout("e");
 
   llvm::Triple HostTriple([&] {
     // Take the default target triple if no other host triple is specified so
@@ -58,9 +57,13 @@ NativeCPUTargetInfo::NativeCPUTargetInfo(const llvm::Triple &Triple,
 
     return llvm::Triple(Opts.HostTriple);
   }());
-  if (!HostTriple.isNativeCPU()) {
+  if (HostTriple.isNativeCPU()) {
+    // This should never happen, just make sure we do not crash.
+    resetDataLayout("e");
+  } else {
     HostTarget = AllocateTarget(HostTriple, Opts);
     copyAuxTarget(&*HostTarget);
+    resetDataLayout(HostTarget->getDataLayoutString());
   }
 }
 
@@ -68,4 +71,5 @@ void NativeCPUTargetInfo::setAuxTarget(const TargetInfo *Aux) {
   assert(Aux && "Cannot invoke setAuxTarget without a valid auxiliary target!");
   copyAuxTarget(Aux);
   getTargetOpts() = Aux->getTargetOpts();
+  resetDataLayout(Aux->getDataLayoutString());
 }
