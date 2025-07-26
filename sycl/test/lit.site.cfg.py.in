@@ -26,7 +26,7 @@ config.test_include_path = "@TEST_INCLUDE_PATH@"
 config.llvm_enable_projects = "@LLVM_ENABLE_PROJECTS@"
 
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
-config.sycl_use_libcxx = '@LLVM_LIBCXX_USED@'
+config.sycl_use_libcxx = 'ON' if bool('@LLVM_LIBCXX_USED@') else 'OFF'
 config.extra_environment = lit_config.params.get("extra_environment", "@LIT_EXTRA_ENVIRONMENT@")
 config.cuda = '@SYCL_BUILD_BACKEND_CUDA@'
 config.hip = '@SYCL_BUILD_BACKEND_HIP@'
