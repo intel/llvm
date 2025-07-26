@@ -1,6 +1,9 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
 // RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fsyntax-only -fpreview-breaking-changes %s %}
 
+#include <sycl/ext/oneapi/experimental/chunk.hpp>
+#include <sycl/ext/oneapi/experimental/fragment.hpp>
+#include <sycl/ext/oneapi/experimental/tangle.hpp>
 #include <sycl/sycl.hpp>
 
 #include <type_traits>
@@ -153,10 +156,11 @@ int main() {
                    sycl::sub_group SG = NDI.get_sub_group();
                    TestForGroup(SG);
                    TestForGroup(NDI.get_group());
-                   TestForGroup(syclex::get_ballot_group(SG, true));
-                   TestForGroup(syclex::get_fixed_size_group<8>(SG));
-                   TestForGroup(syclex::get_tangle_group(SG));
-                   TestForGroup(syclex::this_kernel::get_opportunistic_group());
+                   TestForGroup(syclex::binary_partition(SG, true));
+                   TestForGroup(syclex::chunked_partition<8>(SG));
+                   TestForGroup(syclex::entangle(SG));
+                   TestForGroup(
+                       syclex::this_work_item::get_opportunistic_group());
                  });
   return 0;
 }

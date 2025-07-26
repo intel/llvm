@@ -14,17 +14,10 @@
 
 #include <array>       // for array
 #include <cstddef>     // for size_t
-#include <tuple>       // for tuple
 #include <type_traits> // for true_type, false_type
 
 namespace sycl {
 inline namespace _V1 {
-namespace detail {
-template <class T> struct is_fixed_size_group : std::false_type {};
-
-template <class T>
-inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
-} // namespace detail
 
 template <int Dimensions> class group;
 struct sub_group;
@@ -155,7 +148,7 @@ template <typename T, int N> struct get_elem_type_unqual<vec<T, N>> {
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 struct get_elem_type_unqual<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                               OperationCurrentT, Indexes...>> {
+                                      OperationCurrentT, Indexes...>> {
   using type = typename get_elem_type_unqual<std::remove_cv_t<VecT>>::type;
 };
 #else

@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
-#include <sycl/marray.hpp>                    // for marray
-#include <sycl/vector.hpp>                    // for vec
+#include <sycl/ext/oneapi/sub_group_mask.hpp>
+#include <sycl/marray.hpp>
+#include <sycl/vector.hpp>
 
-#include <stddef.h> // for size_t
-#include <stdint.h> // for uint32_t
+#include <stddef.h>
+#include <stdint.h>
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -39,11 +40,6 @@ inline uint32_t CallerPositionInMask(ext::oneapi::sub_group_mask Mask) {
       sycl::detail::convertToOpenCLType(MemberMask));
 }
 #endif
-
-template <typename NonUniformGroup>
-inline ext::oneapi::sub_group_mask GetMask(NonUniformGroup Group) {
-  return Group.Mask;
-}
 
 template <typename NonUniformGroup>
 inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
@@ -72,10 +68,23 @@ inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
 namespace ext::oneapi::experimental {
 
 // Forward declarations of non-uniform group types for algorithm definitions
-template <typename ParentGroup> class ballot_group;
-template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
-template <typename ParentGroup> class tangle_group;
-class opportunistic_group;
+template <typename ParentGroup> class fragment;
+template <size_t ChunkSize, typename ParentGroup> class chunk;
+template <typename ParentGroup> class tangle;
+
+// Type trait helpers
+template <typename T> struct is_chunk : std::false_type {};
+
+template <typename T> inline constexpr bool is_chunk_v = is_chunk<T>::value;
+
+template <typename T> struct is_fragment : std::false_type {};
+
+template <typename T>
+inline constexpr bool is_fragment_v = is_fragment<T>::value;
+
+template <typename T> struct is_tangle : std::false_type {};
+
+template <typename T> inline constexpr bool is_tangle_v = is_tangle<T>::value;
 
 } // namespace ext::oneapi::experimental
 

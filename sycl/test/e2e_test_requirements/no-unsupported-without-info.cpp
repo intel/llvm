@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 183
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 178
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -193,11 +193,6 @@
 // CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_OOB.cpp
 // CHECK-NEXT: Matrix/joint_matrix_down_convert.cpp
 // CHECK-NEXT: Matrix/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: NonUniformGroups/ballot_group.cpp
-// CHECK-NEXT: NonUniformGroups/fixed_size_group.cpp
-// CHECK-NEXT: NonUniformGroups/opportunistic_group.cpp
-// CHECK-NEXT: NonUniformGroups/tangle_group.cpp
-// CHECK-NEXT: NonUniformGroups/tangle_group_algorithms.cpp
 // CHECK-NEXT: OptionalKernelFeatures/large-reqd-work-group-size.cpp
 // CHECK-NEXT: OptionalKernelFeatures/no-fp64-optimization-declared-aspects.cpp
 // CHECK-NEXT: Printf/char.cpp

@@ -13,7 +13,8 @@
 #include <sycl/feature_test.hpp>   // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 #include <sycl/id.hpp>             // for id
 #include <sycl/marray.hpp>         // for marray
-#include <sycl/vector.hpp>         // for vec
+#include <sycl/sub_group.hpp>
+#include <sycl/vector.hpp> // for vec
 
 #include <assert.h>     // for assert
 #include <climits>      // for CHAR_BIT
@@ -34,9 +35,6 @@ template <typename Group> struct group_scope;
 } // namespace spirv
 
 } // namespace detail
-
-// forward decalre sycl::sub_group
-struct sub_group;
 
 namespace ext::oneapi {
 
@@ -94,7 +92,7 @@ struct sub_group_mask {
   };
 
 #if SYCL_EXT_ONEAPI_SUB_GROUP_MASK >= 2
-  sub_group_mask() : sub_group_mask(0, GetMaxLocalRangeSize()){};
+  sub_group_mask() : sub_group_mask(0, GetMaxLocalRangeSize()) {};
 
   sub_group_mask(unsigned long long val)
       : sub_group_mask(0, GetMaxLocalRangeSize()) {
@@ -111,7 +109,7 @@ struct sub_group_mask {
       size_t BytesToCopy =
           RemainingBytes < sizeof(T) ? RemainingBytes : sizeof(T);
       sycl::detail::memcpy_no_adl(reinterpret_cast<char *>(&Bits) + BytesCopied,
-                           &val[I], BytesToCopy);
+                                  &val[I], BytesToCopy);
       BytesCopied += BytesToCopy;
     }
   }
@@ -283,11 +281,6 @@ struct sub_group_mask {
     return Tmp;
   }
 
-  template <typename Group>
-  friend std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>,
-                          sub_group_mask>
-  group_ballot(Group g, bool predicate);
-
   friend sub_group_mask operator&(const sub_group_mask &lhs,
                                   const sub_group_mask &rhs) {
     auto Res = lhs;
@@ -338,22 +331,53 @@ private:
   size_t bits_num;
 };
 
+} // namespace ext::oneapi
+
+namespace detail {
+template <typename NonUniformGroup>
+ext::oneapi::sub_group_mask GetMask(NonUniformGroup Group) {
+  return Group.getMask();
+}
+
+template <>
+inline ext::oneapi::sub_group_mask
+GetMask<sycl::sub_group>(sycl::sub_group Group) {
+  return (~ext::oneapi::sub_group_mask::BitsType{0}) >>
+         (ext::oneapi::sub_group_mask::max_bits -
+          Group.get_local_linear_range());
+}
+
+#ifdef __SYCL_DEVICE_ONLY__
+template <typename Group>
+ext::oneapi::sub_group_mask commonGroupBallotImpl(Group G, bool Predicate) {
+  auto Res = __spirv_GroupNonUniformBallot(
+      sycl::detail::spirv::group_scope<Group>::value, Predicate);
+  ext::oneapi::sub_group_mask::BitsType Val = Res[0];
+  if constexpr (sizeof(ext::oneapi::sub_group_mask::BitsType) == 8)
+    Val |= ((ext::oneapi::sub_group_mask::BitsType)Res[1]) << 32;
+  auto Mask =
+      sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
+          Val, __spirv_SubgroupMaxSize());
+  // For sub-groups we do not need to apply the mask, but for others it will
+  // split converging groups accordingly.
+  if constexpr (!std::is_same_v<std::decay_t<Group>, ext::oneapi::sub_group> &&
+                !std::is_same_v<std::decay_t<Group>, sycl::sub_group>)
+    Mask &= sycl::detail::GetMask(G);
+  return Mask;
+}
+#endif // __SYCL_DEVICE_ONLY__
+} // namespace detail
+
+namespace ext::oneapi {
+
 template <typename Group>
 std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group> ||
                      std::is_same_v<std::decay_t<Group>, sycl::sub_group>,
                  sub_group_mask>
-group_ballot(Group g, bool predicate) {
-  (void)g;
+group_ballot([[maybe_unused]] Group g, [[maybe_unused]] bool predicate) {
 #ifdef __SYCL_DEVICE_ONLY__
-  auto res = __spirv_GroupNonUniformBallot(
-      sycl::detail::spirv::group_scope<Group>::value, predicate);
-  sub_group_mask::BitsType val = res[0];
-  if constexpr (sizeof(sub_group_mask::BitsType) == 8)
-    val |= ((sub_group_mask::BitsType)res[1]) << 32;
-  return sycl::detail::Builder::createSubGroupMask<sub_group_mask>(
-      val, g.get_max_local_range()[0]);
+  return sycl::detail::commonGroupBallotImpl(g, predicate);
 #else
-  (void)predicate;
   throw exception{errc::feature_not_supported,
                   "Sub-group mask is not supported on host device"};
 #endif
