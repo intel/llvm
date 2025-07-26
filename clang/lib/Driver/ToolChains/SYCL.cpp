@@ -210,11 +210,6 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 void SYCLInstallationDetector::addLibspirvLinkArgs(
     const llvm::Triple &DeviceTriple, const llvm::opt::ArgList &DriverArgs,
     const llvm::Triple &HostTriple, llvm::opt::ArgStringList &CC1Args) const {
-  DriverArgs.claimAllArgs(options::OPT_fno_sycl_libspirv);
-
-  if (D.offloadDeviceOnly())
-    return;
-
   if (DriverArgs.hasArg(options::OPT_fno_sycl_libspirv)) {
     // -fno-sycl-libspirv flag is reserved for very unusual cases where the
     // libspirv library is not linked when required by the device: so output

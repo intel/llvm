@@ -21,8 +21,7 @@
 //
 // RUN: %clang -### -fsycl -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -nocudalib %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-DEVICE-ONLY
-// CHECK-DEVICE-ONLY: "-cc1"{{.*}} "-fsycl-is-device"
-// CHECK-DEVICE-ONLY-NOT: "-mlink-builtin-bitcode" "{{.*}}.libspirv-{{.*}}.bc"
+// CHECK-DEVICE-ONLY: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "{{.*[\\/]}}remangled-{{.*}}.libspirv-nvptx64-nvidia-cuda.bc"
 //
 // Only link libspirv in SYCL language mode, `-fno-sycl-libspirv` should result in a warning
 // RUN: %clang -### -x cu -fno-sycl-libspirv -nocudainc -nocudalib %s 2>&1 | FileCheck %s --check-prefixes=CHECK-CUDA
