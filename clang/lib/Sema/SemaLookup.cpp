@@ -22,6 +22,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/LangOptions.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/ModuleLoader.h"
 #include "clang/Lex/Preprocessor.h"
@@ -788,7 +789,7 @@ static void GetProgModelBuiltinFctOverloads(
     std::vector<QualType> &FunctionList, SmallVector<QualType, 1> &RetTypes,
     SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes, bool IsVariadic) {
   FunctionProtoType::ExtProtoInfo PI(
-      Context.getDefaultCallingConvention(false, false, true));
+      Context.getTargetInfo().getLibclcCallingConv());
   PI.Variadic = IsVariadic;
   PI.ExceptionSpec = FunctionProtoType::ExceptionSpecInfo{EST_BasicNoexcept};
 

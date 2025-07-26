@@ -22,6 +22,10 @@
 #define _CLC_DEF
 #elif defined(CLC_CLSPV)
 #define _CLC_DEF __attribute__((noinline)) __attribute__((clspv_libclc_builtin))
+#elif defined(CLC_NATIVE_CPU)
+#define _CLC_DEF __attribute__((always_inline)) __attribute__((libclc_call))
+#undef _CLC_DECL
+#define _CLC_DECL __attribute__((libclc_call))
 #else
 #define _CLC_DEF __attribute__((always_inline))
 #endif

@@ -68,4 +68,5 @@ void NativeCPUTargetInfo::setAuxTarget(const TargetInfo *Aux) {
   assert(Aux && "Cannot invoke setAuxTarget without a valid auxiliary target!");
   copyAuxTarget(Aux);
   getTargetOpts() = Aux->getTargetOpts();
+  resetDataLayout(Aux->getDataLayoutString());
 }

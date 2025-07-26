@@ -5374,6 +5374,9 @@ static void handleCallConvAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     D->addAttr(::new (S.Context) RISCVVLSCCAttr(S.Context, AL, VectorLength));
     return;
   }
+  case ParsedAttr::AT_NativeCPULibclcCall:
+    D->addAttr(::new (S.Context) NativeCPULibclcCallAttr(S.Context, AL));
+    return;
   default:
     llvm_unreachable("unexpected attribute kind");
   }
@@ -5645,6 +5648,9 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
     CC = CC_DeviceKernel;
     break;
   }
+  case ParsedAttr::AT_NativeCPULibclcCall:
+    CC = CC_SpirFunction;
+    break;
   default: llvm_unreachable("unexpected attribute kind");
   }
 
@@ -7646,6 +7652,7 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_PreserveNone:
   case ParsedAttr::AT_RISCVVectorCC:
   case ParsedAttr::AT_RISCVVLSCC:
+  case ParsedAttr::AT_NativeCPULibclcCall:
     handleCallConvAttr(S, D, AL);
     break;
   case ParsedAttr::AT_DeviceKernel:
