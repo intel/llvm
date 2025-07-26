@@ -44,7 +44,7 @@ struct DeviceGlobalUSMMem {
 private:
   void *MPtr;
   std::mutex MInitEventMutex;
-  std::optional<ur_event_handle_t> MInitEvent;
+  ur_event_handle_t MInitEvent = nullptr;
 
   friend struct DeviceGlobalMapEntry;
 };
