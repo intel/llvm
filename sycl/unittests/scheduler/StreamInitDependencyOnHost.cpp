@@ -35,8 +35,9 @@ public:
                                         getRequirements(), getEvents()),
           getArgs(), getKernelName(), impl->MKernelNameBasedCachePtr,
           getStreamStorage(), std::move(impl->MAuxiliaryResources), getType(),
-          {}, impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
-          impl->MKernelWorkGroupMemorySize, getCodeLoc()));
+          {}, *impl->KLProps.MKernelIsCooperative,
+          *impl->KLProps.MKernelUsesClusterLaunch,
+          *impl->KLProps.MKernelWorkGroupMemorySize, getCodeLoc()));
       break;
     }
     default:

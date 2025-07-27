@@ -268,15 +268,11 @@ public:
     LargeData = 2
   };
 
-  ur_kernel_cache_config_t MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
-  bool MKernelIsCooperative = false;
-  uint32_t MKernelWorkGroupMemorySize = 0;
-
-  // Kernel Cluster launch
-  bool MKernelUsesClusterLaunch = false;
-  size_t MKernelClusterDims = 0;
-  std::array<size_t, 3> MKernelClusterSize = {0, 0, 0};
-
+  // This struct is used to store kernel launch properties.
+  // std::optional is used to indicate that the property is not set.
+  // In some code paths, kernel launch properties are set multiple times
+  // for the same kernel, i.e why using std::optional to avoid overriding
+  // previously set properties.
   struct KernelLaunchPropertiesT {
     std::optional<ur_kernel_cache_config_t> MKernelCacheConfig;
     std::optional<bool> MKernelIsCooperative;
@@ -293,7 +289,42 @@ public:
       MKernelClusterDims = 0;
       MKernelClusterSize.fill(0);
     }
+
+    KernelLaunchPropertiesT &operator=(const KernelLaunchPropertiesT &Other) {
+      if (Other.MKernelCacheConfig)
+        MKernelCacheConfig = Other.MKernelCacheConfig;
+
+      if (Other.MKernelIsCooperative)
+        MKernelIsCooperative = Other.MKernelIsCooperative;
+
+      if (Other.MKernelWorkGroupMemorySize)
+        MKernelWorkGroupMemorySize = Other.MKernelWorkGroupMemorySize;
+
+      if (Other.MKernelUsesClusterLaunch) {
+        MKernelUsesClusterLaunch = Other.MKernelUsesClusterLaunch;
+        MKernelClusterDims = Other.MKernelClusterDims;
+        MKernelClusterSize = Other.MKernelClusterSize;
+      }
+
+      return *this;
+    }
+
+    KernelLaunchPropertiesT(const KernelLaunchPropertiesT &Other) {
+      *this = Other;
+    }
   };
+
+  KernelLaunchPropertiesT KLProps;
+
+  // Set default values for kernel launch properties.
+  KernelLaunchPropertyWrapper() {
+    KLProps.MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
+    KLProps.MKernelIsCooperative = false;
+    KLProps.MKernelWorkGroupMemorySize = 0;
+    KLProps.MKernelUsesClusterLaunch = false;
+    KLProps.MKernelClusterDims = 0;
+    KLProps.MKernelClusterSize.fill(0);
+  }
 
   template <syclex::detail::UnsupportedGraphFeatures FeatureT>
   static void throwIfGraphAssociated(bool HasGraph) {
@@ -545,23 +576,6 @@ public:
     // If there are no properties provided by get method then return empty
     // optional.
     return std::nullopt;
-  }
-
-  void parseAndSetKernelLaunchProperties(KernelLaunchPropertiesT &props) {
-    if (props.MKernelCacheConfig)
-      MKernelCacheConfig = *props.MKernelCacheConfig;
-
-    if (props.MKernelIsCooperative)
-      MKernelIsCooperative = *props.MKernelIsCooperative;
-
-    if (props.MKernelWorkGroupMemorySize)
-      MKernelWorkGroupMemorySize = *props.MKernelWorkGroupMemorySize;
-
-    if (props.MKernelUsesClusterLaunch) {
-      MKernelUsesClusterLaunch = *props.MKernelUsesClusterLaunch;
-      MKernelClusterDims = props.MKernelClusterDims;
-      MKernelClusterSize = props.MKernelClusterSize;
-    }
   }
 }; // KernelLaunchPropertyWrapper struct
 

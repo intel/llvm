@@ -149,9 +149,9 @@ public:
           std::move(impl->CGData), std::move(impl->MArgs),
           CGH->MKernelName.data(), impl->MKernelNameBasedCachePtr,
           std::move(CGH->MStreamStorage), std::move(impl->MAuxiliaryResources),
-          impl->MCGType, {}, impl->MKernelIsCooperative,
-          impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
-          CGH->MCodeLoc));
+          impl->MCGType, {}, *impl->KLProps.MKernelIsCooperative,
+          *impl->KLProps.MKernelUsesClusterLaunch,
+          *impl->KLProps.MKernelWorkGroupMemorySize, CGH->MCodeLoc));
       break;
     }
     default:
