@@ -2260,21 +2260,24 @@ void handler::setKernelLaunchProperties(
         &KernelLaunchProperties) {
 
   impl->KLProps = KernelLaunchProperties;
-  if (KernelLaunchProperties.MKernelClusterDims == 1) {
-    sycl::range<1> ClusterSizeTrimmed = {
-        KernelLaunchProperties.MKernelClusterSize[0]};
-    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
-  } else if (KernelLaunchProperties.MKernelClusterDims == 2) {
-    sycl::range<2> ClusterSizeTrimmed = {
-        KernelLaunchProperties.MKernelClusterSize[0],
-        KernelLaunchProperties.MKernelClusterSize[1]};
-    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
-  } else if (KernelLaunchProperties.MKernelClusterDims == 3) {
-    sycl::range<3> ClusterSizeTrimmed = {
-        KernelLaunchProperties.MKernelClusterSize[0],
-        KernelLaunchProperties.MKernelClusterSize[1],
-        KernelLaunchProperties.MKernelClusterSize[2]};
-    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+
+  if (KernelLaunchProperties.MKernelUsesClusterLaunch) {
+    if (KernelLaunchProperties.MKernelClusterDims == 1) {
+      sycl::range<1> ClusterSizeTrimmed = {
+          KernelLaunchProperties.MKernelClusterSize[0]};
+      impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+    } else if (KernelLaunchProperties.MKernelClusterDims == 2) {
+      sycl::range<2> ClusterSizeTrimmed = {
+          KernelLaunchProperties.MKernelClusterSize[0],
+          KernelLaunchProperties.MKernelClusterSize[1]};
+      impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+    } else if (KernelLaunchProperties.MKernelClusterDims == 3) {
+      sycl::range<3> ClusterSizeTrimmed = {
+          KernelLaunchProperties.MKernelClusterSize[0],
+          KernelLaunchProperties.MKernelClusterSize[1],
+          KernelLaunchProperties.MKernelClusterSize[2]};
+      impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+    }
   }
 }
 

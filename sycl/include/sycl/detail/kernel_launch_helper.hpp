@@ -277,14 +277,11 @@ struct KernelLaunchPropertyWrapper {
     size_t MKernelClusterDims;
     std::array<size_t, 3> MKernelClusterSize;
 
-    KernelLaunchPropertiesT() {
-      MKernelCacheConfig = std::nullopt;
-      MKernelIsCooperative = std::nullopt;
-      MKernelWorkGroupMemorySize = std::nullopt;
-      MKernelUsesClusterLaunch = std::nullopt;
-      MKernelClusterDims = 0;
-      MKernelClusterSize.fill(0);
-    }
+    KernelLaunchPropertiesT()
+        : MKernelCacheConfig(std::nullopt), MKernelIsCooperative(std::nullopt),
+          MKernelWorkGroupMemorySize(std::nullopt),
+          MKernelUsesClusterLaunch(std::nullopt), MKernelClusterDims(0),
+          MKernelClusterSize{0, 0, 0} {}
 
     KernelLaunchPropertiesT &operator=(const KernelLaunchPropertiesT &Other) {
       if (Other.MKernelCacheConfig)
@@ -305,9 +302,9 @@ struct KernelLaunchPropertyWrapper {
       return *this;
     }
 
-    KernelLaunchPropertiesT(const KernelLaunchPropertiesT &Other) {
-      *this = Other;
-    }
+    KernelLaunchPropertiesT(const KernelLaunchPropertiesT &Other) = default;
+    KernelLaunchPropertiesT(KernelLaunchPropertiesT &&Other) = default;
+    ~KernelLaunchPropertiesT() = default;
   };
 
   KernelLaunchPropertiesT KLProps;
@@ -519,7 +516,7 @@ struct KernelLaunchPropertyWrapper {
           retval.MKernelClusterSize[1] = ClusterSize[1];
           retval.MKernelClusterSize[2] = ClusterSize[2];
         } else {
-          assert(ClusterDim > 3 &&
+          assert(ClusterDim <= 3 &&
                  "Only 1D, 2D, and 3D cluster launch is supported.");
         }
       }
