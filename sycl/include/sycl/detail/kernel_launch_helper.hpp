@@ -254,13 +254,9 @@ struct KernelWrapper<
   }
 }; // KernelWrapper struct
 
-// TODO: Remove this.
-namespace syclex = sycl::ext::oneapi::experimental;
-
-// This class is inherited by handler_impl and sycl::handler is using the static
-// methods.
-class KernelLaunchPropertyWrapper {
-public:
+// This struct is inherited by handler_impl and sycl::handler is using the
+// static methods.
+struct KernelLaunchPropertyWrapper {
   // Changing values in this will break ABI/API.
   enum class StableKernelCacheConfig : int32_t {
     Default = 0,
@@ -326,26 +322,30 @@ public:
     KLProps.MKernelClusterSize.fill(0);
   }
 
-  template <syclex::detail::UnsupportedGraphFeatures FeatureT>
+  template <sycl::ext::oneapi::experimental::detail::UnsupportedGraphFeatures
+                FeatureT>
   static void throwIfGraphAssociated(bool HasGraph) {
     if (!HasGraph)
       return;
 
     std::string FeatureString =
-        syclex::detail::UnsupportedFeatureToString(FeatureT);
+        sycl::ext::oneapi::experimental::detail::UnsupportedFeatureToString(
+            FeatureT);
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "The " + FeatureString +
                               " feature is not yet available "
                               "for use with the SYCL Graph extension.");
   }
 
-private:
   static void verifyDeviceHasProgressGuarantee(
-      bool supported, syclex::forward_progress_guarantee guarantee,
-      syclex::execution_scope threadScope, KernelLaunchPropertiesT &prop) {
+      bool supported,
+      sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
+      sycl::ext::oneapi::experimental::execution_scope threadScope,
+      KernelLaunchPropertiesT &prop) {
 
-    using execution_scope = syclex::execution_scope;
-    using forward_progress = syclex::forward_progress_guarantee;
+    using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
+    using forward_progress =
+        sycl::ext::oneapi::experimental::forward_progress_guarantee;
 
     if (threadScope == execution_scope::work_group) {
       if (!supported) {
@@ -387,7 +387,6 @@ private:
     }
   }
 
-public:
   /// Process runtime kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
@@ -395,6 +394,7 @@ public:
   static KernelLaunchPropertiesT
   processLaunchProperties(PropertiesT Props, PropertyProcessorPtrT p) {
 
+    namespace syclex = sycl::ext::oneapi::experimental;
     KernelLaunchPropertiesT retval;
     bool HasGraph = p->isKernelAssociatedWithGraph();
 
