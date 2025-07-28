@@ -214,8 +214,8 @@ class TasksInfo_TP {
   std::vector<FType> futures;
 
 public:
-  inline void schedule(FType &&f) { futures.emplace_back(std::move(f)); }
-  inline void wait_all() {
+  void schedule(FType &&f) { futures.emplace_back(std::move(f)); }
+  void wait_all() {
     for (auto &f : futures)
       f.wait();
   }
@@ -264,7 +264,7 @@ class TBB_TasksInfo {
   TBB_threadpool *tp;
 
 public:
-  inline void wait_all() { tp->wait_all(); }
+  void wait_all() { tp->wait_all(); }
   TBB_TasksInfo(TBB_threadpool &t) : tp(&t) {}
   static constexpr bool CanWaitInThread() { return false; }
 };

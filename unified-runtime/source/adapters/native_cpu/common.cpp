@@ -9,7 +9,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
-#include  <string.h>
 
 // Global variables for UR_RESULT_ADAPTER_SPECIFIC_ERROR
 thread_local int32_t ErrorMessageCode = 0;

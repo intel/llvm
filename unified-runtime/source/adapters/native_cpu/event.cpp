@@ -122,7 +122,7 @@ ur_event_handle_t_::~ur_event_handle_t_() {
   }
 }
 
-void ur_event_handle_t_::wait(bool queue_already_locked) {
+void ur_event_handle_t_::wait() {
   std::unique_lock<std::mutex> lock(mutex);
   if (done) {
     return;

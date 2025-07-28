@@ -20,9 +20,9 @@ struct state {
   size_t MNumGroups[3];
   size_t MGlobalOffset[3];
   uint32_t NumSubGroups, SubGroup_id, SubGroup_local_id, SubGroup_size;
-  inline state(size_t globalR0, size_t globalR1, size_t globalR2,
-               size_t localR0, size_t localR1, size_t localR2, size_t globalO0,
-               size_t globalO1, size_t globalO2)
+  state(size_t globalR0, size_t globalR1, size_t globalR2, size_t localR0,
+        size_t localR1, size_t localR2, size_t globalO0, size_t globalO1,
+        size_t globalO2)
       : MGlobal_range{globalR0, globalR1, globalR2},
         MWorkGroup_size{localR0, localR1, localR2},
         MNumGroups{globalR0 / localR0, globalR1 / localR1, globalR2 / localR2},
@@ -42,8 +42,8 @@ struct state {
     SubGroup_size = 1;
   }
 
-  inline void update(size_t group0, size_t group1, size_t group2, size_t local0,
-                     size_t local1, size_t local2) {
+  void update(size_t group0, size_t group1, size_t group2, size_t local0,
+              size_t local1, size_t local2) {
     MWorkGroup_id[0] = group0;
     MWorkGroup_id[1] = group1;
     MWorkGroup_id[2] = group2;
@@ -58,7 +58,7 @@ struct state {
         MWorkGroup_size[2] * MWorkGroup_id[2] + MLocal_id[2] + MGlobalOffset[2];
   }
 
-  inline void update(size_t group0, size_t group1, size_t group2) {
+  void update(size_t group0, size_t group1, size_t group2) {
     MWorkGroup_id[0] = group0;
     MWorkGroup_id[1] = group1;
     MWorkGroup_id[2] = group2;
