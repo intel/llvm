@@ -14,6 +14,7 @@ void foo() {
 
 // The order of field declarations and their types are important.
 // CHECK:        0 | class sycl::handler
+// CHECK-NEXT:   0 |   class sycl::detail::KernelLaunchPropertyWrapper<class sycl::handler> (base) (empty)
 // CHECK-NEXT:   0 |   class std::shared_ptr<class sycl::detail::handler_impl> impl
 // CHECK-NEXT:   0 |     class std::__shared_ptr<class sycl::detail::handler_impl> (base)
 // CHECK-NEXT:   0 |       class std::__shared_ptr_access<class sycl::detail::handler_impl, __gnu_cxx::_S_atomic> (base) (empty)

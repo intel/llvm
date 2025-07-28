@@ -29,7 +29,7 @@ enum class HandlerSubmissionState : std::uint8_t {
   SPEC_CONST_SET_STATE,
 };
 
-class handler_impl : public KernelLaunchPropertyWrapper {
+class handler_impl {
 public:
   handler_impl(queue_impl &Queue, queue_impl *SubmissionSecondaryQueue,
                bool EventNeeded)
@@ -105,7 +105,7 @@ public:
   // If the pipe operation is read or write, 1 for read 0 for write.
   bool HostPipeRead = true;
 
-  KernelLaunchPropertyWrapper::KernelLaunchPropertiesT KLProps{
+  KernelLaunchPropertyWrapper<sycl::handler>::KernelLaunchPropertiesT KLProps{
       UR_KERNEL_CACHE_CONFIG_DEFAULT, // MCacheConfig
       false,                          // MIsCooperative
       0,                              // MWorkGroupMemorySize

@@ -626,12 +626,11 @@ event handler::finalize() {
             impl->get_queue(), impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
             MKernel.get(), toKernelNameStrT(MKernelName),
             impl->MKernelNameBasedCachePtr, RawEvents, ResultEvent.get(),
-            nullptr, *impl->KLProps.MCacheConfig,
-            *impl->KLProps.MIsCooperative,
+            nullptr, *impl->KLProps.MCacheConfig, *impl->KLProps.MIsCooperative,
             *impl->KLProps.MUsesClusterLaunch,
-            *impl->KLProps.MWorkGroupMemorySize, BinImage,
-            impl->MKernelFuncPtr, impl->MKernelNumArgs,
-            impl->MKernelParamDescGetter, impl->MKernelHasSpecialCaptures);
+            *impl->KLProps.MWorkGroupMemorySize, BinImage, impl->MKernelFuncPtr,
+            impl->MKernelNumArgs, impl->MKernelParamDescGetter,
+            impl->MKernelHasSpecialCaptures);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         if (xptiEnabled) {
           // Emit signal only when event is created
@@ -691,8 +690,8 @@ event handler::finalize() {
         impl->MKernelNameBasedCachePtr, std::move(MStreamStorage),
         std::move(impl->MAuxiliaryResources), getType(),
         *impl->KLProps.MCacheConfig, *impl->KLProps.MIsCooperative,
-        *impl->KLProps.MUsesClusterLaunch,
-        *impl->KLProps.MWorkGroupMemorySize, MCodeLoc));
+        *impl->KLProps.MUsesClusterLaunch, *impl->KLProps.MWorkGroupMemorySize,
+        MCodeLoc));
     break;
   }
   case detail::CGType::CopyAccToPtr:
@@ -2259,7 +2258,7 @@ void handler::setKernelLaunchProperties(
     KernelLaunchPropertyWrapper::KernelLaunchPropertiesT
         &KernelLaunchProperties) {
 
-  impl->KLProps = KernelLaunchProperties;
+  impl->KLProps.takeUnionOfProperties(KernelLaunchProperties);
 
   if (KernelLaunchProperties.MUsesClusterLaunch) {
     if (KernelLaunchProperties.MClusterDims == 1) {

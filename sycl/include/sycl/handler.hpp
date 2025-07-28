@@ -416,7 +416,13 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
 /// \sa kernel
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT handler {
+class __SYCL_EXPORT handler
+    : public detail::KernelLaunchPropertyWrapper<handler> {
+
+  static_assert(sizeof(detail::KernelLaunchPropertyWrapper<handler>) == 1,
+                "KernelLaunchPropertyWrapper should not have any data members "
+                "to avoid increasing the size of handler.");
+
 private:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs SYCL handler from the pre-constructed stack-allocated
@@ -1300,9 +1306,7 @@ private:
                             decltype(Wrapper), TransformedArgType,
                             PropertiesT>::wrap(Wrapper);
 
-      if (auto prop =
-              detail::KernelLaunchPropertyWrapper::parseProperties<KName>(
-                  Wrapper, this)) {
+      if (auto prop = parseProperties<KName>(Wrapper)) {
         setKernelLaunchProperties(*prop);
       }
 
@@ -1331,19 +1335,16 @@ private:
       // kernel is generated
       detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                             TransformedArgType, PropertiesT>::wrap(KernelFunc);
-      if (auto prop =
-              detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(
-                  KernelFunc, this)) {
+      if (auto prop = parseProperties<NameT>(KernelFunc)) {
         setKernelLaunchProperties(*prop);
       }
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr detail::string_view Name{detail::getKernelName<NameT>()};
 
       verifyUsedKernelBundleInternal(Name);
-      auto ProcessedProps =
-          detail::KernelLaunchPropertyWrapper::processProperties<
-              detail::isKernelESIMD<NameT>(), decltype(this), PropertiesT>(
-              Props, this);
+      KernelLaunchPropertiesT ProcessedProps =
+          KernelLaunchPropertyWrapper<sycl::handler>::processProperties<
+              detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
       setKernelLaunchProperties(ProcessedProps);
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
@@ -1374,9 +1375,9 @@ private:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
-    auto ParsedProp =
-        detail::KernelLaunchPropertyWrapper::processLaunchProperties<
-            PropertiesT>(Props, this);
+    KernelLaunchPropertiesT ParsedProp =
+        KernelLaunchPropertyWrapper::processLaunchProperties<PropertiesT>(
+            Props);
     setKernelLaunchProperties(ParsedProp);
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
@@ -1402,9 +1403,9 @@ private:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     setNDRangeDescriptor(std::move(NDRange));
-    auto ParsedProp =
-        detail::KernelLaunchPropertyWrapper::processLaunchProperties<
-            PropertiesT>(Props, this);
+    KernelLaunchPropertiesT ParsedProp =
+        KernelLaunchPropertyWrapper::processLaunchProperties<PropertiesT>(
+            Props);
     setKernelLaunchProperties(ParsedProp);
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
@@ -1426,8 +1427,7 @@ private:
     (void)Props;
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
                           PropertiesT>::wrap(KernelFunc);
-    if (auto prop = detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(
-            KernelFunc, this)) {
+    if (auto prop = parseProperties<NameT>(KernelFunc)) {
       setKernelLaunchProperties(*prop);
     }
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1448,10 +1448,9 @@ private:
     }
 
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
-    auto ProcessedProps =
-        detail::KernelLaunchPropertyWrapper::processProperties<
-            detail::isKernelESIMD<NameT>(), decltype(this), PropertiesT>(Props,
-                                                                         this);
+    KernelLaunchPropertiesT ProcessedProps =
+        KernelLaunchPropertyWrapper<sycl::handler>::processProperties<
+            detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
     setKernelLaunchProperties(ProcessedProps);
 #endif
   }
@@ -1475,8 +1474,7 @@ private:
     (void)Kernel;
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
                           PropertiesT>::wrap(KernelFunc);
-    if (auto prop = detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(
-            KernelFunc, this)) {
+    if (auto prop = parseProperties<NameT>(KernelFunc)) {
       setKernelLaunchProperties(*prop);
     }
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1506,10 +1504,9 @@ private:
     } else {
       StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
     }
-    auto ProcessedProps =
-        detail::KernelLaunchPropertyWrapper::processProperties<
-            detail::isKernelESIMD<NameT>(), decltype(this), PropertiesT>(Props,
-                                                                         this);
+    KernelLaunchPropertiesT ProcessedProps =
+        KernelLaunchPropertyWrapper<sycl::handler>::processProperties<
+            detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
     setKernelLaunchProperties(ProcessedProps);
 #endif
   }
@@ -3539,9 +3536,8 @@ private:
   void setKernelWorkGroupMem(size_t Size);
 #endif
 
-  void setKernelLaunchProperties(
-      detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT
-          &KernelLaunchProperties);
+  void
+  setKernelLaunchProperties(KernelLaunchPropertiesT &KernelLaunchProperties);
   bool isKernelAssociatedWithGraph() const;
   bool deviceSupportForwardProgress(
       sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
@@ -3609,8 +3605,16 @@ private:
   template <
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>
   void throwIfGraphAssociated() const {
-    detail::KernelLaunchPropertyWrapper::throwIfGraphAssociated<FeatureT>(
-        getCommandGraph() != nullptr);
+
+    if (getCommandGraph()) {
+      std::string FeatureString =
+          ext::oneapi::experimental::detail::UnsupportedFeatureToString(
+              FeatureT);
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "The " + FeatureString +
+                                " feature is not yet available "
+                                "for use with the SYCL Graph extension.");
+    }
   }
 #endif
 
@@ -3685,7 +3689,7 @@ private:
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
   friend class detail::HandlerAccess;
-  friend struct detail::KernelLaunchPropertyWrapper;
+  friend class detail::KernelLaunchPropertyWrapper<sycl::handler>;
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl; }
