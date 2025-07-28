@@ -19,6 +19,10 @@ namespace v2 {
 
 using queue_group_type = ur_device_handle_t_::queue_group_info_t::type;
 
+static bool preferIOQ = [] {
+  return !getenv_tobool("SYCL_UR_LEVEL_ZERO_USE_OOO_CMD_LIST");
+}();
+
 static uint32_t getZeOrdinal(ur_device_handle_t hDevice) {
   return hDevice->QueueGroup[queue_group_type::Compute].ZeOrdinal;
 }
@@ -69,7 +73,8 @@ ur_result_t urQueueCreate(ur_context_handle_t hContext,
 
   auto zeIndex = v2::getZeIndex(pProperties);
 
-  if ((flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) != 0) {
+  if ((flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) != 0 &&
+      !v2::preferIOQ) {
     *phQueue =
         ur_queue_handle_t_::create<v2::ur_queue_immediate_out_of_order_t>(
             hContext, hDevice, v2::getZeOrdinal(hDevice),
