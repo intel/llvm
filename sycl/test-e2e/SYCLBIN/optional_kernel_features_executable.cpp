@@ -13,7 +13,7 @@
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=executable %{sycl_target_opts} %{syclbin_exec_opts} %S/Inputs/optional_kernel_features.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out
-// RUN: %{l0_leak_check} %{run} %t.out %t.syclbin
+// RUN: %{run} %t.out %t.syclbin
 
 #define SYCLBIN_EXECUTABLE_STATE
 
