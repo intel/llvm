@@ -129,16 +129,17 @@
 // STATIC_LIB_SRC-CUDA: 12: input, "[[INPUTA]]", archive
 // STATIC_LIB_SRC-CUDA: 13: clang-offload-unbundler, {12}, archive
 // STATIC_LIB_SRC-CUDA: 14: linker, {5, 11, 13}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 15: sycl-post-link, {14}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 16: file-table-tform, {15}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 17: backend, {16}, assembler, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 18: assembler, {17}, object, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 19: linker, {17, 18}, cuda-fatbin, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 20: foreach, {16, 19}, cuda-fatbin, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 21: file-table-tform, {15, 20}, tempfiletable, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 22: clang-offload-wrapper, {21}, object, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 23: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {22}, object
-// STATIC_LIB_SRC-CUDA: 24: linker, {0, 9, 23}, image, (host-sycl)
+// STATIC_LIB_SRC-CUDA: 15: linker, {14}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 16: sycl-post-link, {15}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 17: file-table-tform, {16}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 18: backend, {17}, assembler, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 19: assembler, {18}, object, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 20: linker, {18, 19}, cuda-fatbin, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 21: foreach, {17, 20}, cuda-fatbin, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 22: file-table-tform, {16, 21}, tempfiletable, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 23: clang-offload-wrapper, {22}, object, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 24: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {23}, object
+// STATIC_LIB_SRC-CUDA: 25: linker, {0, 9, 24}, image, (host-sycl)
 
 /// ###########################################################################
 
@@ -230,7 +231,8 @@
 // STATIC_LIB_NOSRC-SPIR: llvm-foreach{{.*}}spirv-to-ir-wrapper{{.*}} "[[DEVICELIB]]" "-o" "[[DEVICELIST:.+\.txt]]"
 // STATIC_LIB_NOSRC-SPIR: llvm-link{{.*}} "@[[DEVICELIST]]" "-o" "[[BCFILE:.+\.bc]]"
 // STATIC_LIB_NOSRC-CUDA: clang-offload-bundler{{.*}} "-type=a" "-targets=[[BUNDLE_TRIPLE]]" "-input={{.*}}_lib.{{(a|lo)}}" "-output=[[DEVICELIB:.+\.a]]" "-unbundle"
-// STATIC_LIB_NOSRC-CUDA: llvm-link{{.*}} "[[DEVICELIB]]" "-o" "[[BCFILE:.+\.bc]]"
+// STATIC_LIB_NOSRC-CUDA: llvm-link{{.*}} "[[DEVICELIB]]" "-o" "[[BCFILE1:.+\.bc]]"
+// STATIC_LIB_NOSRC-CUDA: llvm-link{{.*}} "[[BCFILE1]]" "{{.*}}" "-o" "[[BCFILE:.+\.bc]]"
 // STATIC_LIB_NOSRC: sycl-post-link{{.*}} "-o" "[[TABLE:.+]]" "[[BCFILE]]"
 // STATIC_LIB_NOSRC: file-table-tform{{.*}} "-o" "[[LIST:.+]]" "[[TABLE]]"
 // STATIC_LIB_NOSRC-SPIR: llvm-foreach{{.*}}llvm-spirv{{.*}} "-o" "[[OBJLIST:.+\.txt]]"{{.*}} "[[LIST]]"
