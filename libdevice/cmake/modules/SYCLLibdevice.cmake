@@ -57,7 +57,7 @@ set(SYCL_LIBDEVICE_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
 
 set(SYCL_LIBDEVICE_CXX_FLAGS "" CACHE STRING "C++ compiler flags for SYCL libdevice")
 if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
-  list(APPEND compile_opts "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
+  list(APPEND SYCL_LIBDEVICE_CXX_FLAGS "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
 endif()
 if(NOT SYCL_LIBDEVICE_CXX_FLAGS STREQUAL "")
   separate_arguments(SYCL_LIBDEVICE_CXX_FLAGS NATIVE_COMMAND ${SYCL_LIBDEVICE_CXX_FLAGS})
@@ -648,10 +648,6 @@ set(imf_host_cxx_flags -c
   -D__LIBDEVICE_HOST_IMPL__
   ${SYCL_LIBDEVICE_CXX_FLAGS}
 )
-
-if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
-  list(APPEND imf_host_cxx_flags "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
-endif()
 
 if(LLVM_LIBCXX_USED)
   list(APPEND  imf_host_cxx_flags "-stdlib=libc++")
