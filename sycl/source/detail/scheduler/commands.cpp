@@ -285,7 +285,7 @@ Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
           !EventImpl->getCommand()->producesPiEvent())
         continue;
       std::vector<Command *> AuxCmds;
-      Scheduler::getInstance().enqueueCommandForCG(EventImpl, AuxCmds,
+      Scheduler::getInstance().enqueueCommandForCG(*EventImpl, AuxCmds,
                                                    BLOCKING);
     }
     // Do not add redundant event dependencies for in-order queues.
