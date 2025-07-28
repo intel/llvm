@@ -105,6 +105,15 @@ public:
   // If the pipe operation is read or write, 1 for read 0 for write.
   bool HostPipeRead = true;
 
+  KernelLaunchPropertyWrapper::KernelLaunchPropertiesT KLProps{
+      UR_KERNEL_CACHE_CONFIG_DEFAULT, // MCacheConfig
+      false,                          // MIsCooperative
+      0,                              // MWorkGroupMemorySize
+      false,                          // MUsesClusterLaunch
+      0,                              // MClusterDims
+      {0, 0, 0}                       // MClusterSize
+  };
+
   // Extra information for bindless image copy
   ur_image_desc_t MSrcImageDesc = {};
   ur_image_desc_t MDstImageDesc = {};

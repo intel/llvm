@@ -254,9 +254,9 @@ struct KernelWrapper<
   }
 }; // KernelWrapper struct
 
-// This struct is inherited by handler_impl and sycl::handler is using the
-// static methods.
+// This struct is inherited by sycl::handler.
 struct KernelLaunchPropertyWrapper {
+
   // Changing values in this will break ABI/API.
   enum class StableKernelCacheConfig : int32_t {
     Default = 0,
@@ -282,6 +282,18 @@ struct KernelLaunchPropertyWrapper {
           MWorkGroupMemorySize(std::nullopt), MUsesClusterLaunch(std::nullopt),
           MClusterDims(0), MClusterSize{0, 0, 0} {}
 
+
+    KernelLaunchPropertiesT(ur_kernel_cache_config_t _CacheConfig,
+                            bool _IsCooperative,
+                            uint32_t _WorkGroupMemorySize,
+                            bool _UsesClusterLaunch,
+                            size_t _ClusterDims,
+                            std::array<size_t, 3> _ClusterSize)
+        : MCacheConfig(_CacheConfig), MIsCooperative(_IsCooperative),
+          MWorkGroupMemorySize(_WorkGroupMemorySize),
+          MUsesClusterLaunch(_UsesClusterLaunch), MClusterDims(_ClusterDims),
+          MClusterSize(_ClusterSize) {}
+
     KernelLaunchPropertiesT &operator=(const KernelLaunchPropertiesT &Other) {
       if (Other.MCacheConfig)
         MCacheConfig = Other.MCacheConfig;
@@ -305,18 +317,6 @@ struct KernelLaunchPropertyWrapper {
     KernelLaunchPropertiesT(KernelLaunchPropertiesT &&Other) = default;
     ~KernelLaunchPropertiesT() = default;
   };
-
-  KernelLaunchPropertiesT KLProps;
-
-  // Set default values for kernel launch properties.
-  KernelLaunchPropertyWrapper() {
-    KLProps.MCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
-    KLProps.MIsCooperative = false;
-    KLProps.MWorkGroupMemorySize = 0;
-    KLProps.MUsesClusterLaunch = false;
-    KLProps.MClusterDims = 0;
-    KLProps.MClusterSize.fill(0);
-  }
 
   template <sycl::ext::oneapi::experimental::detail::UnsupportedGraphFeatures
                 FeatureT>
@@ -564,6 +564,10 @@ struct KernelLaunchPropertyWrapper {
     return std::nullopt;
   }
 }; // KernelLaunchPropertyWrapper struct
+
+static_assert(sizeof(KernelLaunchPropertyWrapper) == 1,
+              "KernelLaunchPropertyWrapper should not have any data members "
+              "to avoid increasing the size of handler.");
 
 } // namespace detail
 } // namespace _V1
