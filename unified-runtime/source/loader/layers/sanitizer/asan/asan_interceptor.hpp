@@ -157,7 +157,7 @@ struct ContextInfo {
     assert(Result == UR_RESULT_SUCCESS);
     if (getContext()->Options.MaxQuarantineSizeMB) {
       m_Quarantine.emplace(getContext()->Options.MaxQuarantineSizeMB * 1024 *
-                         1024);
+                           1024);
     }
   }
 
