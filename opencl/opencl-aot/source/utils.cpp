@@ -171,12 +171,13 @@ getOpenCLPlatform(DeviceType Type) {
 
   std::map<DeviceType, std::vector<std::string>>
       DeviceTypesToSupportedPlatformNames{
-          {cpu, {StrIntelPlatformCommon, StrIntelPlatformCpuRt}},
+          {cpu, {StrIntelPlatformCommon, std::move(StrIntelPlatformCpuRt)}},
           {gpu,
-           {StrIntelPlatformCommon, StrIntelPlatformNeoHd,
-            StrIntelPlatformNeoUhd}},
+           {StrIntelPlatformCommon, std::move(StrIntelPlatformNeoHd),
+            std::move(StrIntelPlatformNeoUhd)}},
           {fpga_fast_emu,
-           {StrIntelPlatformFastEmu, StrIntelPlatformFastEmuPreview}}};
+           {std::move(StrIntelPlatformFastEmu),
+            std::move(StrIntelPlatformFastEmuPreview)}}};
 
   cl_platform_id PlatformId(nullptr);
   cl_int CLErr(CL_SUCCESS);
@@ -234,7 +235,7 @@ getOpenCLPlatform(DeviceType Type) {
       tie(std::ignore, ErrorMessage, CLErr) = getOpenCLDevice(Platform, Type);
       if (!clFailed(CLErr)) {
         PlatformId = Platform;
-        PlatformName = PlatformNameOnLoopIteration;
+        PlatformName = std::move(PlatformNameOnLoopIteration);
         break;
       }
     }
