@@ -37,9 +37,6 @@ namespace experimental {
 template <typename ParentGroup> class fragment;
 
 template <int Dimensions> class root_group;
-template <typename ParentGroup> class tangle;
-template <typename ParentGroup> class fragment;
-template <size_t ChunkSize, typename ParentGroup> class chunk;
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
@@ -66,26 +63,6 @@ template <typename NonUniformGroup>
 inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id);
 
 namespace spirv {
-
-template <typename Group> struct is_tangle_group : std::false_type {};
-
-template <typename ParentGroup>
-struct is_tangle_group<sycl::ext::oneapi::experimental::tangle<ParentGroup>>
-    : std::true_type {};
-
-template <typename Group> struct is_ballot_group : std::false_type {};
-
-template <typename Group> struct is_fragment : std::false_type {};
-
-template <typename ParentGroup>
-struct is_fragment<sycl::ext::oneapi::experimental::fragment<ParentGroup>>
-    : std::true_type {};
-
-template <typename Group> struct is_chunk : std::false_type {};
-
-template <size_t ChunkSize, typename ParentGroup>
-struct is_chunk<sycl::ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>>
-    : std::true_type {};
 
 template <typename Group> struct group_scope {};
 
@@ -902,10 +879,10 @@ inline uint32_t membermask() {
 
 template <typename GroupT>
 inline uint32_t MapShuffleID(GroupT g, id<1> local_id) {
-  if constexpr (is_tangle_group<GroupT>::value ||
-                is_ballot_group<GroupT>::value || is_fragment<GroupT>::value)
+  if constexpr (sycl::detail::is_tangle_v<GroupT> ||
+                sycl::detail::is_fragment_v<GroupT>)
     return detail::IdToMaskPosition(g, local_id);
-  else if constexpr (is_chunk<GroupT>::value)
+  else if constexpr (sycl::detail::is_chunk_v<GroupT>)
     return g.get_group_linear_id() * g.get_local_range().size() + local_id;
   else
     return local_id.get(0);
@@ -1001,7 +978,7 @@ EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
     auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
-    if constexpr (is_chunk<GroupT>::value) {
+    if constexpr (sycl::detail::is_chunk_v<GroupT>) {
       return cuda_shfl_sync_bfly_i32(MemberMask, x,
                                      static_cast<uint32_t>(mask.get(0)), 0x1f);
     } else {
@@ -1048,7 +1025,7 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
     auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
-    if constexpr (is_chunk<GroupT>::value) {
+    if constexpr (sycl::detail::is_chunk_v<GroupT>) {
       return cuda_shfl_sync_down_i32(MemberMask, x, delta, 31);
     } else {
       unsigned localSetBit = g.get_local_id()[0] + 1;
@@ -1092,7 +1069,7 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
     auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
-    if constexpr (is_chunk<GroupT>::value) {
+    if constexpr (sycl::detail::is_chunk_v<GroupT>) {
       return cuda_shfl_sync_up_i32(MemberMask, x, delta, 0);
     } else {
       unsigned localSetBit = g.get_local_id()[0] + 1;
@@ -1357,8 +1334,8 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
 
 #define __SYCL_GROUP_COLLECTIVE_TANGLE(Instruction, GroupExt)                  \
   template <__spv::GroupOperation Op, typename Group, typename T>              \
-  inline typename std::enable_if_t<is_tangle_group<Group>::value, T>           \
-  Group##Instruction(Group, T x) {                                             \
+  inline typename std::enable_if_t<sycl::detail::is_tangle_v<Group>, T>        \
+      Group##Instruction(Group, T x) {                                         \
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \

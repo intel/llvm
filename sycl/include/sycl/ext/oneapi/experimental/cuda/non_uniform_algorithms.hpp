@@ -98,10 +98,9 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 
 // chunk group reduction using shfls
 template <typename Group, typename T, class BinaryOperation>
-inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<ext::oneapi::experimental::is_chunk_v<Group>, T>
-    masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
-                                const uint32_t MemberMask) {
+inline __SYCL_ALWAYS_INLINE std::enable_if_t<sycl::detail::is_chunk_v<Group>, T>
+masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
+                            const uint32_t MemberMask) {
   for (int i = g.get_local_range()[0] / 2; i > 0; i /= 2) {
     T tmp = cuda_shfl_sync_bfly_i32(MemberMask, x, i, 0x1f);
     x = binary_op(x, tmp);
@@ -113,7 +112,7 @@ inline __SYCL_ALWAYS_INLINE
 template <typename Group, typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group> &&
-        !ext::oneapi::experimental::is_chunk_v<Group>,
+        !sycl::detail::is_chunk_v<Group>,
     T>
 masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
                             const uint32_t MemberMask) {
@@ -213,10 +212,9 @@ inline __SYCL_ALWAYS_INLINE
 // chunk group scan using shfls
 template <__spv::GroupOperation Op, typename Group, typename T,
           class BinaryOperation>
-inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<ext::oneapi::experimental::is_chunk_v<Group>, T>
-    masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
-                           const uint32_t MemberMask) {
+inline __SYCL_ALWAYS_INLINE std::enable_if_t<sycl::detail::is_chunk_v<Group>, T>
+masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
+                       const uint32_t MemberMask) {
   unsigned localIdVal = g.get_local_id()[0];
   for (int i = 1; i < g.get_local_range()[0]; i *= 2) {
     T tmp = cuda_shfl_sync_up_i32(MemberMask, x, i, 0);
@@ -236,7 +234,7 @@ template <__spv::GroupOperation Op, typename Group, typename T,
           class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group> &&
-        !ext::oneapi::experimental::is_chunk_v<Group>,
+        !sycl::detail::is_chunk_v<Group>,
     T>
 masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
                        const uint32_t MemberMask) {

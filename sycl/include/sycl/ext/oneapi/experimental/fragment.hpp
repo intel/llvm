@@ -39,8 +39,8 @@ template <typename ParentGroup>
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_fragment)]]
 #endif
 inline std::enable_if_t<std::is_same_v<ParentGroup, sycl::sub_group> ||
-                            is_chunk_v<ParentGroup> ||
-                            is_fragment_v<ParentGroup>,
+                            sycl::detail::is_chunk_v<ParentGroup> ||
+                            sycl::detail::is_fragment_v<ParentGroup>,
                         fragment<ParentGroup>>
 binary_partition(ParentGroup parent, bool predicate);
 
@@ -153,8 +153,8 @@ protected:
 
 template <typename ParentGroup>
 inline std::enable_if_t<std::is_same_v<ParentGroup, sycl::sub_group> ||
-                            is_chunk_v<ParentGroup> ||
-                            is_fragment_v<ParentGroup>,
+                            sycl::detail::is_chunk_v<ParentGroup> ||
+                            sycl::detail::is_fragment_v<ParentGroup>,
                         fragment<ParentGroup>>
 binary_partition([[maybe_unused]] ParentGroup parent,
                  [[maybe_unused]] bool predicate) {
@@ -203,9 +203,6 @@ inline fragment<sycl::sub_group> get_opportunistic_group() {
 
 template <typename ParentGroup>
 struct is_user_constructed_group<fragment<ParentGroup>> : std::true_type {};
-
-template <typename ParentGroup>
-struct is_fragment<fragment<ParentGroup>> : std::true_type {};
 
 } // namespace ext::oneapi::experimental
 

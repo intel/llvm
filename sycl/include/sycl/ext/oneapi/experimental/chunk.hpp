@@ -35,7 +35,7 @@ template <size_t ChunkSize, typename ParentGroup>
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_chunk)]]
 #endif
 inline std::enable_if_t<std::is_same_v<ParentGroup, sycl::sub_group> ||
-                            is_chunk_v<ParentGroup>,
+                            sycl::detail::is_chunk_v<ParentGroup>,
                         chunk<ChunkSize, ParentGroup>>
 chunked_partition(ParentGroup parent);
 
@@ -72,7 +72,7 @@ public:
 
   id_type get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (is_chunk_v<ParentGroup>)
+    if constexpr (sycl::detail::is_chunk_v<ParentGroup>)
       return __spirv_SubgroupLocalInvocationId() % ParentGroup::chunk_size /
              ChunkSize;
     else
@@ -92,7 +92,7 @@ public:
 
   range_type get_group_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (is_chunk_v<ParentGroup>)
+    if constexpr (sycl::detail::is_chunk_v<ParentGroup>)
       return ParentGroup::chunk_size / ChunkSize;
     else
       return __spirv_SubgroupSize() / ChunkSize;
@@ -188,7 +188,7 @@ protected:
 // Chunked partition implementation
 template <size_t ChunkSize, typename ParentGroup>
 inline std::enable_if_t<std::is_same_v<ParentGroup, sycl::sub_group> ||
-                            is_chunk_v<ParentGroup>,
+                            sycl::detail::is_chunk_v<ParentGroup>,
                         chunk<ChunkSize, ParentGroup>>
 chunked_partition([[maybe_unused]] ParentGroup parent) {
   static_assert((ChunkSize & (ChunkSize - size_t{1})) == size_t{0},
@@ -219,9 +219,6 @@ chunked_partition([[maybe_unused]] ParentGroup parent) {
 template <size_t ChunkSize, typename ParentGroup>
 struct is_user_constructed_group<chunk<ChunkSize, ParentGroup>>
     : std::true_type {};
-
-template <size_t ChunkSize, typename ParentGroup>
-struct is_chunk<chunk<ChunkSize, ParentGroup>> : std::true_type {};
 
 } // namespace ext::oneapi::experimental
 

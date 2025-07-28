@@ -51,6 +51,10 @@ template <class T>
 inline constexpr bool is_user_constructed_group_v =
     is_user_constructed_group<T>::value;
 
+template <typename ParentGroup> class tangle;
+template <typename ParentGroup> class fragment;
+template <size_t ChunkSize, typename ParentGroup> class chunk;
+
 namespace detail {
 template <typename T> struct is_group_helper : std::false_type {};
 
@@ -78,6 +82,25 @@ struct is_generic_group
     : std::bool_constant<is_group<T>::value || is_sub_group<T>::value> {};
 template <typename T>
 inline constexpr bool is_generic_group_v = is_generic_group<T>::value;
+
+template <typename Group> struct is_tangle : std::false_type {};
+template <typename ParentGroup>
+struct is_tangle<sycl::ext::oneapi::experimental::tangle<ParentGroup>>
+    : std::true_type {};
+template <typename Group> constexpr bool is_tangle_v = is_tangle<Group>::value;
+
+template <typename Group> struct is_fragment : std::false_type {};
+template <typename ParentGroup>
+struct is_fragment<sycl::ext::oneapi::experimental::fragment<ParentGroup>>
+    : std::true_type {};
+template <typename Group>
+constexpr bool is_fragment_v = is_fragment<Group>::value;
+
+template <typename Group> struct is_chunk : std::false_type {};
+template <size_t ChunkSize, typename ParentGroup>
+struct is_chunk<sycl::ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>>
+    : std::true_type {};
+template <typename Group> constexpr bool is_chunk_v = is_chunk<Group>::value;
 
 namespace half_impl {
 class half;

@@ -160,9 +160,6 @@ entangle(ParentGroup parent) {
 template <typename ParentGroup>
 struct is_user_constructed_group<tangle<ParentGroup>> : std::true_type {};
 
-template <typename ParentGroup>
-struct is_tangle<tangle<ParentGroup>> : std::true_type {};
-
 } // namespace ext::oneapi::experimental
 
 template <typename ParentGroup>

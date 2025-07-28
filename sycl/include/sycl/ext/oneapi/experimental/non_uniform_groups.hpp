@@ -64,29 +64,5 @@ inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
 }
 
 } // namespace detail
-
-namespace ext::oneapi::experimental {
-
-// Forward declarations of non-uniform group types for algorithm definitions
-template <typename ParentGroup> class fragment;
-template <size_t ChunkSize, typename ParentGroup> class chunk;
-template <typename ParentGroup> class tangle;
-
-// Type trait helpers
-template <typename T> struct is_chunk : std::false_type {};
-
-template <typename T> inline constexpr bool is_chunk_v = is_chunk<T>::value;
-
-template <typename T> struct is_fragment : std::false_type {};
-
-template <typename T>
-inline constexpr bool is_fragment_v = is_fragment<T>::value;
-
-template <typename T> struct is_tangle : std::false_type {};
-
-template <typename T> inline constexpr bool is_tangle_v = is_tangle<T>::value;
-
-} // namespace ext::oneapi::experimental
-
 } // namespace _V1
 } // namespace sycl
