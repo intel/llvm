@@ -7867,7 +7867,7 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
       if (Kind == Action::OFK_SYCL && Phase == phases::Assemble)
         continue;
 
-      auto TCAndArch = TCAndArchs.begin();
+      auto *TCAndArch = TCAndArchs.begin();
       for (Action *&A : DeviceActions) {
         if (A->getType() == types::TY_Nothing)
           continue;
@@ -7916,7 +7916,7 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
       A = C.MakeAction<LinkJobAction>(LinkerInput, types::TY_Image);
     }
 
-    auto TCAndArch = TCAndArchs.begin();
+    auto *TCAndArch = TCAndArchs.begin();
     for (Action *A : DeviceActions) {
       DDeps.add(*A, *TCAndArch->first, TCAndArch->second.data(), Kind);
       OffloadAction::DeviceDependences DDep;
