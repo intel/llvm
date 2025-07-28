@@ -134,8 +134,7 @@ protected:
 template <typename ParentGroup>
 inline std::enable_if_t<std::is_same_v<ParentGroup, sycl::sub_group>,
                         tangle<ParentGroup>>
-entangle(ParentGroup parent) {
-  (void)parent;
+entangle([[maybe_unused]] ParentGroup parent) {
 #ifdef __SYCL_DEVICE_ONLY__
   // sync all work-items in parent group here
   sycl::group_barrier(parent);
