@@ -255,7 +255,7 @@ class TBB_threadpool {
 public:
   void wait_all() { tasks.wait(); }
   oneapi::tbb::task_group &Tasks() { return tasks; }
-  inline size_t num_threads() const noexcept {
+  size_t num_threads() const noexcept {
     return oneapi::tbb::info::default_concurrency();
   }
 };
@@ -273,7 +273,7 @@ template <>
 struct Scheduler<TBB_threadpool>
     : Scheduler_base<TBB_threadpool, TBB_TasksInfo> {
   using Scheduler_base<TBB_threadpool, TBB_TasksInfo>::Scheduler_base;
-  template <class T> inline void schedule(T &&task_) {
+  template <class T> void schedule(T &&task_) {
     ref.Tasks().run([task = std::move(task_)]() {
       auto thread_id = tbb::this_task_arena::current_thread_index();
       assert(thread_id >= 0 &&
