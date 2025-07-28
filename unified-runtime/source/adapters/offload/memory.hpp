@@ -22,6 +22,23 @@ struct BufferMem {
     AllocHostPtr,
   };
 
+  struct BufferMap {
+    size_t MapSize;
+    size_t MapOffset;
+    ur_map_flags_t MapFlags;
+    // Allocated host memory used exclusively for this map.
+    std::unique_ptr<unsigned char[]> MapMem;
+
+    BufferMap(size_t MapSize, size_t MapOffset, ur_map_flags_t MapFlags)
+        : MapSize(MapSize), MapOffset(MapOffset), MapFlags(MapFlags),
+          MapMem(nullptr) {}
+
+    BufferMap(size_t MapSize, size_t MapOffset, ur_map_flags_t MapFlags,
+              std::unique_ptr<unsigned char[]> &&MapMem)
+        : MapSize(MapSize), MapOffset(MapOffset), MapFlags(MapFlags),
+          MapMem(std::move(MapMem)) {}
+  };
+
   ur_mem_handle_t Parent;
   // Underlying device pointer
   void *Ptr;
@@ -30,6 +47,7 @@ struct BufferMem {
   size_t Size;
 
   AllocMode MemAllocMode;
+  std::unordered_map<void *, BufferMap> PtrToBufferMap;
 
   BufferMem(ur_mem_handle_t Parent, BufferMem::AllocMode Mode, void *Ptr,
             void *HostPtr, size_t Size)
@@ -38,6 +56,37 @@ struct BufferMem {
 
   void *get() const noexcept { return Ptr; }
   size_t getSize() const noexcept { return Size; }
+
+  BufferMap *getMapDetails(void *Map) {
+    auto Details = PtrToBufferMap.find(Map);
+    if (Details != PtrToBufferMap.end()) {
+      return &Details->second;
+    }
+    return nullptr;
+  }
+
+  void *mapToPtr(size_t MapSize, size_t MapOffset,
+                 ur_map_flags_t MapFlags) noexcept {
+
+    void *MapPtr = nullptr;
+    // If the buffer already has a host pointer we can just use it, otherwise
+    // create a new host allocation
+    if (HostPtr == nullptr) {
+      auto MapMem = std::make_unique<unsigned char[]>(MapSize);
+      MapPtr = MapMem.get();
+      PtrToBufferMap.insert(
+          {MapPtr, BufferMap(MapSize, MapOffset, MapFlags, std::move(MapMem))});
+    } else {
+      MapPtr = static_cast<char *>(HostPtr) + MapOffset;
+      PtrToBufferMap.insert({MapPtr, BufferMap(MapSize, MapOffset, MapFlags)});
+    }
+    return MapPtr;
+  }
+
+  void unmap(void *MapPtr) noexcept {
+    assert(MapPtr != nullptr);
+    PtrToBufferMap.erase(MapPtr);
+  }
 };
 
 struct ur_mem_handle_t_ : RefCounted {

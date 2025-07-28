@@ -38,7 +38,7 @@ public:
 // through UR entry points.
 // https://github.com/oneapi-src/unified-runtime/issues/1330
 ur_adapter_handle_t_::ur_adapter_handle_t_()
-    : handle_base(),
+    : handle_base(), RefCount(0),
       logger(logger::get_logger("hip",
                                 /*default_log_level*/ UR_LOGGER_LEVEL_ERROR)) {
   Platform = std::make_unique<ur_platform_handle_t_>();
@@ -58,7 +58,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
     std::call_once(InitFlag,
                    [=]() { ur::hip::adapter = new ur_adapter_handle_t_; });
 
-    ur::hip::adapter->RefCount++;
+    ur::hip::adapter->RefCount.retain();
     *phAdapters = ur::hip::adapter;
   }
   if (pNumAdapters) {
@@ -69,7 +69,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
-  if (--ur::hip::adapter->RefCount == 0) {
+  if (ur::hip::adapter->RefCount.release()) {
     delete ur::hip::adapter;
   }
 
@@ -77,7 +77,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
-  ur::hip::adapter->RefCount++;
+  ur::hip::adapter->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
@@ -99,7 +99,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
   case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_HIP);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
-    return ReturnValue(ur::hip::adapter->RefCount.load());
+    return ReturnValue(ur::hip::adapter->RefCount.getCount());
   case UR_ADAPTER_INFO_VERSION:
     return ReturnValue(uint32_t{1});
   default:

@@ -17,9 +17,10 @@
 #include "device.hpp"
 #include "platform.hpp"
 #include "ur/ur.hpp"
+#include "ur2offload.hpp"
 #include "ur_api.h"
 
-ur_adapter_handle_t_ Adapter{};
+ur_adapter_handle_t Adapter = nullptr;
 
 // Initialize liboffload and perform the initial platform and device discovery
 ur_result_t ur_adapter_handle_t_::init() {
@@ -30,7 +31,7 @@ ur_result_t ur_adapter_handle_t_::init() {
   Res = olIterateDevices(
       [](ol_device_handle_t D, void *UserData) {
         auto *Platforms =
-            reinterpret_cast<decltype(Adapter.Platforms) *>(UserData);
+            reinterpret_cast<decltype(Adapter->Platforms) *>(UserData);
 
         ol_platform_handle_t Platform;
         olGetDeviceInfo(D, OL_DEVICE_INFO_PLATFORM, sizeof(Platform),
@@ -39,7 +40,7 @@ ur_result_t ur_adapter_handle_t_::init() {
         olGetPlatformInfo(Platform, OL_PLATFORM_INFO_BACKEND, sizeof(Backend),
                           &Backend);
         if (Backend == OL_PLATFORM_BACKEND_HOST) {
-          Adapter.HostDevice = D;
+          Adapter->HostDevice = D;
         } else if (Backend != OL_PLATFORM_BACKEND_UNKNOWN) {
           auto URPlatform =
               std::find_if(Platforms->begin(), Platforms->end(), [&](auto &P) {
@@ -57,37 +58,52 @@ ur_result_t ur_adapter_handle_t_::init() {
         }
         return false;
       },
-      &Adapter.Platforms);
+      &Adapter->Platforms);
 
-  (void)Res;
-
-  return UR_RESULT_SUCCESS;
+  return offloadResultToUR(Res);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
     uint32_t, ur_adapter_handle_t *phAdapters, uint32_t *pNumAdapters) {
+  std::mutex InitMutex{};
+
   if (phAdapters) {
-    if (++Adapter.RefCount == 1) {
-      Adapter.init();
+    std::lock_guard Guard{InitMutex};
+
+    // We explicitly only initialize the adapter when outputting it
+    if (!Adapter) {
+      Adapter = new ur_adapter_handle_t_{};
+      auto Res = Adapter->init();
+      if (Res) {
+        delete Adapter;
+        Adapter = nullptr;
+        return Res;
+      }
     }
-    *phAdapters = &Adapter;
+    Adapter->RefCount++;
+    *phAdapters = Adapter;
   }
+
   if (pNumAdapters) {
     *pNumAdapters = 1;
   }
+
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
-  if (--Adapter.RefCount == 0) {
+  // Doesn't need protecting by a lock - There is no way to reinitialize the
+  // adapter after the final reference is released
+  if (--Adapter->RefCount == 0) {
     // This can crash when tracing is enabled.
     // olShutDown();
+    delete Adapter;
   };
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
-  Adapter.RefCount++;
+  Adapter->RefCount++;
   return UR_RESULT_SUCCESS;
 }
 
@@ -102,7 +118,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
   case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_OFFLOAD);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
-    return ReturnValue(Adapter.RefCount.load());
+    return ReturnValue(Adapter->RefCount.load());
   case UR_ADAPTER_INFO_VERSION:
     return ReturnValue(1);
   default:
@@ -124,7 +140,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
     ur_adapter_handle_t, ur_logger_callback_t pfnLoggerCallback,
     void *pUserData, ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET) {
 
-  Adapter.Logger.setCallbackSink(pfnLoggerCallback, pUserData, level);
+  Adapter->Logger.setCallbackSink(pfnLoggerCallback, pUserData, level);
 
   return UR_RESULT_SUCCESS;
 }
@@ -132,7 +148,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterSetLoggerCallbackLevel(ur_adapter_handle_t, ur_logger_level_t level) {
 
-  Adapter.Logger.setCallbackLevel(level);
+  Adapter->Logger.setCallbackLevel(level);
 
   return UR_RESULT_SUCCESS;
 }

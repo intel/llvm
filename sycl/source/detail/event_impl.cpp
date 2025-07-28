@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
 #include <detail/queue_impl.hpp>
@@ -38,15 +38,17 @@ void event_impl::initContextIfNeeded() {
     return;
 
   const device SyclDevice;
-  this->setContextImpl(
-      detail::queue_impl::getDefaultOrNew(*detail::getSyclObjImpl(SyclDevice)));
+  MIsHostEvent = false;
+  MContext =
+      detail::queue_impl::getDefaultOrNew(*detail::getSyclObjImpl(SyclDevice));
+  assert(MContext);
 }
 
 event_impl::~event_impl() {
   try {
     auto Handle = this->getHandle();
     if (Handle)
-      getAdapter()->call<UrApiKind::urEventRelease>(Handle);
+      getAdapter().call<UrApiKind::urEventRelease>(Handle);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~event_impl", e);
   }
@@ -57,7 +59,7 @@ void event_impl::waitInternal(bool *Success) {
   if (!MIsHostEvent && Handle) {
     // Wait for the native event
     ur_result_t Err =
-        getAdapter()->call_nocheck<UrApiKind::urEventWait>(1, &Handle);
+        getAdapter().call_nocheck<UrApiKind::urEventWait>(1, &Handle);
     // TODO drop the UR_RESULT_ERROR_UKNOWN from here (this was waiting for
     // https://github.com/oneapi-src/unified-runtime/issues/1459 which is now
     // closed).
@@ -66,7 +68,7 @@ void event_impl::waitInternal(bool *Success) {
          Err == UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS))
       *Success = false;
     else {
-      getAdapter()->checkUrResult(Err);
+      getAdapter().checkUrResult(Err);
       if (Success != nullptr)
         *Success = true;
     }
@@ -83,11 +85,11 @@ void event_impl::waitInternal(bool *Success) {
 
   // Wait for connected events(e.g. streams prints)
   for (const EventImplPtr &Event : MPostCompleteEvents)
-    Event->wait(Event);
+    Event->wait();
   for (const std::weak_ptr<event_impl> &WeakEventPtr :
        MWeakPostCompleteEvents) {
     if (EventImplPtr Event = WeakEventPtr.lock())
-      Event->wait(Event);
+      Event->wait();
   }
 }
 
@@ -140,21 +142,22 @@ void event_impl::setHandle(const ur_event_handle_t &UREvent) {
   MEvent.store(UREvent);
 }
 
-const ContextImplPtr &event_impl::getContextImpl() {
+context_impl &event_impl::getContextImpl() {
   initContextIfNeeded();
-  return MContext;
+  assert(MContext && "Trying to get context from a host event!");
+  return *MContext;
 }
 
-const AdapterPtr &event_impl::getAdapter() {
+adapter_impl &event_impl::getAdapter() {
   initContextIfNeeded();
   return MContext->getAdapter();
 }
 
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
-void event_impl::setContextImpl(const ContextImplPtr &Context) {
-  MIsHostEvent = Context == nullptr;
-  MContext = Context;
+void event_impl::setContextImpl(context_impl &Context) {
+  MIsHostEvent = false;
+  MContext = Context.shared_from_this();
 }
 
 event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
@@ -163,7 +166,7 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
       MIsFlushed(true), MState(HES_Complete) {
 
   ur_context_handle_t TempContext;
-  getAdapter()->call<UrApiKind::urEventGetInfo>(
+  getAdapter().call<UrApiKind::urEventGetInfo>(
       this->getHandle(), UR_EVENT_INFO_CONTEXT, sizeof(ur_context_handle_t),
       &TempContext, nullptr);
 
@@ -178,28 +181,14 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
 event_impl::event_impl(queue_impl &Queue, private_tag)
     : MQueue{Queue.weak_from_this()},
       MIsProfilingEnabled{Queue.MIsProfilingEnabled} {
-  this->setContextImpl(Queue.getContextImplPtr());
+  this->setContextImpl(Queue.getContextImpl());
   MState.store(HES_Complete);
 }
 
 event_impl::event_impl(HostEventState State, private_tag) : MState(State) {
-  switch (State) {
-  case HES_Discarded:
-  case HES_Complete: {
+  MIsHostEvent = true;
+  if (State == HES_Discarded || State == HES_Complete)
     MIsFlushed = true;
-    MIsHostEvent = true;
-    break;
-  }
-  case HES_NotComplete: {
-    MIsProfilingEnabled = true;
-    MHostProfilingInfo.reset(new HostProfilingInfo());
-    if (!MHostProfilingInfo)
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::runtime),
-          "Out of host memory " +
-              codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
-  }
-  }
 }
 
 void event_impl::setQueue(queue_impl &Queue) {
@@ -212,20 +201,30 @@ void event_impl::setQueue(queue_impl &Queue) {
   MIsDefaultConstructed = false;
 }
 
-void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
-  MSubmittedQueue = std::move(SubmittedQueue);
-  if (MHostProfilingInfo) {
-    if (std::shared_ptr<queue_impl> QueuePtr = MSubmittedQueue.lock()) {
-      device_impl &Device = QueuePtr->getDeviceImpl();
-      MHostProfilingInfo->setDevice(&Device);
-    }
-  }
+void event_impl::initHostProfilingInfo() {
+  assert(isHost() && "This must be a host event");
+  assert(MState == HES_NotComplete &&
+         "Host event must be incomplete to initialize profiling info");
+
+  std::shared_ptr<queue_impl> QueuePtr = MSubmittedQueue.lock();
+  assert(QueuePtr && "Queue must be valid to initialize host profiling info");
+  assert(QueuePtr->MIsProfilingEnabled && "Queue must have profiling enabled");
+
+  MIsProfilingEnabled = true;
+  MHostProfilingInfo = std::make_unique<HostProfilingInfo>();
+  device_impl &Device = QueuePtr->getDeviceImpl();
+  MHostProfilingInfo->setDevice(&Device);
 }
 
-void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
+void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
+  MSubmittedQueue = std::move(SubmittedQueue);
+}
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+void *event_impl::instrumentationProlog(std::string &Name,
+                                        xpti::stream_id_t StreamID,
                                         uint64_t &IId) const {
   void *TraceEvent = nullptr;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_begin;
   if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
     return TraceEvent;
@@ -260,14 +259,13 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
   xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, WaitEvent,
                         IId, static_cast<const void *>(Name.c_str()));
   TraceEvent = (void *)WaitEvent;
-#endif
   return TraceEvent;
 }
 
 void event_impl::instrumentationEpilog(void *TelemetryEvent,
                                        const std::string &Name,
-                                       int32_t StreamID, uint64_t IId) const {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
+                                       xpti::stream_id_t StreamID,
+                                       uint64_t IId) const {
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_end;
   if (!(xptiCheckTraceEnabled(StreamID, NotificationTraceType) &&
         TelemetryEvent))
@@ -277,11 +275,10 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
       (xpti::trace_event_data_t *)TelemetryEvent;
   xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, TraceEvent,
                         IId, static_cast<const void *>(Name.c_str()));
-#endif
 }
+#endif // XPTI_ENABLE_INSTRUMENTATION
 
-void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
-                      bool *Success) {
+void event_impl::wait(bool *Success) {
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
@@ -296,7 +293,7 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
   void *TelemetryEvent = nullptr;
   uint64_t IId = 0;
   std::string Name;
-  int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+  xpti::stream_id_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
   TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
 #endif
 
@@ -306,16 +303,15 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
     // need to go via the slow path event waiting in the scheduler
     waitInternal(Success);
   else if (MCommand)
-    detail::Scheduler::getInstance().waitForEvent(Self, Success);
+    detail::Scheduler::getInstance().waitForEvent(*this, Success);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
 #endif
 }
 
-void event_impl::wait_and_throw(
-    std::shared_ptr<sycl::detail::event_impl> Self) {
-  wait(Self);
+void event_impl::wait_and_throw() {
+  wait();
 
   if (std::shared_ptr<queue_impl> SubmittedQueue = MSubmittedQueue.lock())
     SubmittedQueue->throw_asynchronous();
@@ -521,19 +517,19 @@ ur_native_handle_t event_impl::getNative() {
     return {};
   initContextIfNeeded();
 
-  auto Adapter = getAdapter();
+  adapter_impl &Adapter = getAdapter();
   auto Handle = getHandle();
   if (MIsDefaultConstructed && !Handle) {
     auto TempContext = MContext.get()->getHandleRef();
     ur_event_native_properties_t NativeProperties{};
     ur_event_handle_t UREvent = nullptr;
-    Adapter->call<UrApiKind::urEventCreateWithNativeHandle>(
-        0, TempContext, &NativeProperties, &UREvent);
+    Adapter.call<UrApiKind::urEventCreateWithNativeHandle>(
+        0u, TempContext, &NativeProperties, &UREvent);
     this->setHandle(UREvent);
     Handle = UREvent;
   }
   ur_native_handle_t OutHandle;
-  Adapter->call<UrApiKind::urEventGetNativeHandle>(Handle, &OutHandle);
+  Adapter.call<UrApiKind::urEventGetNativeHandle>(Handle, &OutHandle);
   if (MContext->getBackend() == backend::opencl)
     __SYCL_OCL_CALL(clRetainEvent, ur::cast<cl_event>(OutHandle));
   return OutHandle;
@@ -571,11 +567,11 @@ void event_impl::flushIfNeeded(queue_impl *UserQueue) {
 
   // Check if the task for this event has already been submitted.
   ur_event_status_t Status = UR_EVENT_STATUS_QUEUED;
-  getAdapter()->call<UrApiKind::urEventGetInfo>(
+  getAdapter().call<UrApiKind::urEventGetInfo>(
       Handle, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(ur_event_status_t),
       &Status, nullptr);
   if (Status == UR_EVENT_STATUS_QUEUED) {
-    getAdapter()->call<UrApiKind::urQueueFlush>(Queue->getHandleRef());
+    getAdapter().call<UrApiKind::urQueueFlush>(Queue->getHandleRef());
   }
   MIsFlushed = true;
 }
@@ -618,12 +614,7 @@ bool event_impl::isCompleted() {
          info::event_command_status::complete;
 }
 
-void event_impl::setCommand(void *Cmd) {
-  MCommand = Cmd;
-  auto TypedCommand = static_cast<Command *>(Cmd);
-  if (TypedCommand)
-    MIsHostEvent = TypedCommand->getWorkerContext() == nullptr;
-}
+void event_impl::setCommand(Command *Cmd) { MCommand = Cmd; }
 
 } // namespace detail
 } // namespace _V1

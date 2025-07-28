@@ -129,7 +129,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     return nullptr;
 
   ur_context_handle_t C = CtxImpl->getHandleRef();
-  const AdapterPtr &Adapter = CtxImpl->getAdapter();
+  adapter_impl &Adapter = CtxImpl->getAdapter();
   ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
   ur_device_handle_t Dev;
 
@@ -155,7 +155,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       UsmDesc.pNext = &UsmLocationDesc;
     }
 
-    Error = Adapter->call_nocheck<detail::UrApiKind::urUSMDeviceAlloc>(
+    Error = Adapter.call_nocheck<detail::UrApiKind::urUSMDeviceAlloc>(
         C, Dev, &UsmDesc,
         /*pool=*/nullptr, Size, &RetVal);
 
@@ -192,7 +192,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       UsmDeviceDesc.pNext = &UsmLocationDesc;
     }
 
-    Error = Adapter->call_nocheck<detail::UrApiKind::urUSMSharedAlloc>(
+    Error = Adapter.call_nocheck<detail::UrApiKind::urUSMSharedAlloc>(
         C, Dev, &UsmDesc,
         /*pool=*/nullptr, Size, &RetVal);
 
@@ -249,8 +249,8 @@ void freeInternal(void *Ptr, const context_impl *CtxImpl) {
   if (Ptr == nullptr)
     return;
   ur_context_handle_t C = CtxImpl->getHandleRef();
-  const AdapterPtr &Adapter = CtxImpl->getAdapter();
-  Adapter->call<detail::UrApiKind::urUSMFree>(C, Ptr);
+  adapter_impl &Adapter = CtxImpl->getAdapter();
+  Adapter.call<detail::UrApiKind::urUSMFree>(C, Ptr);
 }
 
 void free(void *Ptr, const context &Ctxt,
@@ -518,7 +518,8 @@ void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind,
 ///
 /// \param Ptr is the USM pointer to query
 /// \param Ctxt is the sycl context the ptr was allocated in
-alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
+namespace detail {
+alloc get_pointer_type(const void *Ptr, context_impl &Ctxt) {
   if (!Ptr)
     return alloc::unknown;
 
@@ -559,6 +560,12 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 
   return ResultAlloc;
 }
+} // namespace detail
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_EXPORT alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
+  return get_pointer_type(Ptr, *getSyclObjImpl(Ctxt));
+}
+#endif
 
 /// Queries the device against which the pointer was allocated
 ///
@@ -574,13 +581,13 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 
   // Check if ptr is a host allocation
   if (get_pointer_type(Ptr, Ctxt) == alloc::host) {
-    auto Devs = detail::getSyclObjImpl(Ctxt)->getDevices();
+    detail::devices_range Devs = detail::getSyclObjImpl(Ctxt)->getDevices();
     if (Devs.size() == 0)
       throw exception(make_error_code(errc::invalid),
                       "No devices in passed context!");
 
     // Just return the first device in the context
-    return Devs[0];
+    return detail::createSyclObjFromImpl<device>(Devs.front());
   }
 
   ur_device_handle_t DeviceId;

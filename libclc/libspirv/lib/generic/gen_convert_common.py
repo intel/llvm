@@ -42,8 +42,8 @@ float_suffix = {"float": "f", "double": ""}
 
 bool_type = {
     "char": "char",
-    "schar": "schar",
-    "uchar": "schar",
+    "schar": "char",
+    "uchar": "char",
     "short": "short",
     "ushort": "short",
     "int": "int",
@@ -84,7 +84,7 @@ sizeof_type = {
 
 limit_max = {
     "char": "CHAR_MAX",
-    "schar": "CHAR_MAX",
+    "schar": "SCHAR_MAX",
     "uchar": "UCHAR_MAX",
     "short": "SHRT_MAX",
     "ushort": "USHRT_MAX",
@@ -97,7 +97,7 @@ limit_max = {
 
 limit_min = {
     "char": "CHAR_MIN",
-    "schar": "CHAR_MIN",
+    "schar": "SCHAR_MIN",
     "uchar": "0",
     "short": "SHRT_MIN",
     "ushort": "0",
@@ -152,5 +152,5 @@ def clc_core_fn_name(dst, size="", mode="", sat=""):
     and saturation arguments.
     """
     return "__clc_convert_{DST}{N}{SAT}{MODE}".format(
-        DST=dst, N=size, SAT=sat, MODE=mode
+        DST="char" if dst == "schar" else dst, N=size, SAT=sat, MODE=mode
     )

@@ -50,9 +50,9 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "ffd199db86a904451f0697cb25a0e7a6b9f2006f"
+        return "83b9ae3ebb3563552409f3a317cdc1cf3d3ca6bd"
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
@@ -94,7 +94,7 @@ class ComputeBench(Suite):
         self.built = True
 
     def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
-        return {
+        metadata = {
             "SubmitKernel": BenchmarkMetadata(
                 type="group",
                 description="Measures CPU time overhead of submitting kernels through different APIs.",
@@ -113,17 +113,60 @@ class ComputeBench(Suite):
             "SubmitGraph": BenchmarkMetadata(
                 type="group", tags=["submit", "micro", "SYCL", "UR", "L0", "graph"]
             ),
+            "FinalizeGraph": BenchmarkMetadata(
+                type="group", tags=["finalize", "micro", "SYCL", "graph"]
+            ),
         }
+
+        # Add metadata for all SubmitKernel group variants
+        base_metadata = metadata["SubmitKernel"]
+
+        for order in ["in order", "out of order"]:
+            for completion in ["", " with completion"]:
+                for events in ["", " using events"]:
+                    group_name = f"SubmitKernel {order}{completion}{events} long kernel"
+                    metadata[group_name] = BenchmarkMetadata(
+                        type="group",
+                        description=f"Measures CPU time overhead of submitting {order} kernels with longer execution times through different APIs.",
+                        notes=base_metadata.notes,
+                        tags=base_metadata.tags,
+                        range_min=base_metadata.range_min,
+                    )
+
+                    # CPU count variants
+                    cpu_count_group = f"{group_name}, CPU count"
+                    metadata[cpu_count_group] = BenchmarkMetadata(
+                        type="group",
+                        description=f"Measures CPU time overhead of submitting {order} kernels with longer execution times through different APIs.",
+                        notes=base_metadata.notes,
+                        tags=base_metadata.tags,
+                        range_min=base_metadata.range_min,
+                    )
+
+        return metadata
 
     def benchmarks(self) -> list[Benchmark]:
         benches = []
+
+        # hand-picked value so that total execution time of the benchmark is
+        # similar on all architectures
+        long_lernel_exec_time_ioq = [20]
+        # For BMG server, a new value 200 is used, but we have to create metadata
+        # for both values to keep the dashboard consistent.
+        # See SubmitKernel.enabled()
+        long_kernel_exec_time_ooo = [20, 200]
 
         for runtime in list(RUNTIMES):
             # Add SubmitKernel benchmarks using loops
             for in_order_queue in [0, 1]:
                 for measure_completion in [0, 1]:
                     for use_events in [0, 1]:
-                        for kernel_exec_time in [1, 20]:
+                        long_kernel_exec_time = (
+                            long_lernel_exec_time_ioq
+                            if in_order_queue
+                            else long_kernel_exec_time_ooo
+                        )
+                        for kernel_exec_time in [1, *long_kernel_exec_time]:
                             benches.append(
                                 SubmitKernel(
                                     self,
@@ -169,6 +212,10 @@ class ComputeBench(Suite):
             ExecImmediateCopyQueue(self, 0, 1, "Device", "Device", 1024),
             ExecImmediateCopyQueue(self, 1, 1, "Device", "Host", 1024),
             VectorSum(self),
+            GraphApiFinalizeGraph(self, RUNTIMES.SYCL, 0, "Gromacs"),
+            GraphApiFinalizeGraph(self, RUNTIMES.SYCL, 1, "Gromacs"),
+            GraphApiFinalizeGraph(self, RUNTIMES.SYCL, 0, "Llama"),
+            GraphApiFinalizeGraph(self, RUNTIMES.SYCL, 1, "Llama"),
         ]
 
         # Add UR-specific benchmarks
@@ -296,7 +343,6 @@ class ComputeBenchmark(Benchmark):
                     stddev=stddev,
                     command=command,
                     env=env_vars,
-                    stdout=result,
                     unit=parse_unit_type(unit),
                     git_url=self.bench.git_url(),
                     git_hash=self.bench.git_hash(),
@@ -353,6 +399,16 @@ class SubmitKernel(ComputeBenchmark):
     def supported_runtimes(self) -> list[RUNTIMES]:
         return super().supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
+    def enabled(self) -> bool:
+        # This is a workaround for the BMG server where we have old results for self.KernelExecTime=20
+        # The benchmark instance gets created just to make metadata for these old results
+        if not super().enabled():
+            return False
+        if "bmg" in options.device_architecture and self.KernelExecTime == 20:
+            # Disable this benchmark for BMG server, just create metadata
+            return False
+        return True
+
     def get_tags(self):
         return ["submit", "latency", runtime_to_tag_name(self.runtime), "micro"]
 
@@ -387,9 +443,7 @@ class SubmitKernel(ComputeBenchmark):
         completion_str = " with completion" if self.MeasureCompletion else ""
         events_str = " using events" if self.UseEvents else ""
 
-        kernel_exec_time_str = (
-            f" KernelExecTime={self.KernelExecTime}" if self.KernelExecTime != 1 else ""
-        )
+        kernel_exec_time_str = f" long kernel" if self.KernelExecTime != 1 else ""
 
         return f"SubmitKernel {order}{completion_str}{events_str}{kernel_exec_time_str}"
 
@@ -1004,4 +1058,72 @@ class UsmBatchMemoryAllocation(ComputeBenchmark):
             f"--size={self.size}",
             f"--measureMode={self.measure_mode}",
             "--iterations=1000",
+        ]
+
+
+class GraphApiFinalizeGraph(ComputeBenchmark):
+    def __init__(
+        self,
+        bench,
+        runtime: RUNTIMES,
+        rebuild_graph_every_iteration,
+        graph_structure,
+    ):
+        self.rebuild_graph_every_iteration = rebuild_graph_every_iteration
+        self.graph_structure = graph_structure
+        self.iterations = 10000
+        # LLama graph is about 10X the size of Gromacs, so reduce the
+        # iterations to avoid excessive benchmark time.
+        if graph_structure == "Llama":
+            self.iterations /= 10
+
+        super().__init__(
+            bench,
+            f"graph_api_benchmark_{runtime.value}",
+            "FinalizeGraph",
+            runtime,
+        )
+
+    def explicit_group(self):
+        return f"FinalizeGraph, GraphStructure: {self.graph_structure}"
+
+    def description(self) -> str:
+        what_is_measured = ""
+
+        if self.rebuild_graph_every_iteration == 0:
+            what_is_measured = (
+                "It measures finalizing the same modifiable graph repeatedly "
+                "over multiple iterations."
+            )
+        else:
+            what_is_measured = (
+                "It measures finalizing a unique modifiable graph per iteration."
+            )
+
+        return (
+            "Measures the time taken to finalize a SYCL graph, using a graph "
+            f"structure based on the usage of graphs in {self.graph_structure}. "
+            f"{what_is_measured}"
+        )
+
+    def name(self):
+        return f"graph_api_benchmark_{self.runtime.value} FinalizeGraph rebuildGraphEveryIter:{self.rebuild_graph_every_iteration} graphStructure:{self.graph_structure}"
+
+    def display_name(self) -> str:
+        return f"{self.runtime.value.upper()} FinalizeGraph, rebuildGraphEveryIter {self.rebuild_graph_every_iteration}, graphStructure {self.graph_structure}"
+
+    def get_tags(self):
+        return [
+            "graph",
+            runtime_to_tag_name(self.runtime),
+            "micro",
+            "finalize",
+            "latency",
+        ]
+
+    def bin_args(self) -> list[str]:
+        return [
+            f"--iterations={self.iterations}",
+            f"--rebuildGraphEveryIter={self.rebuild_graph_every_iteration}",
+            f"--graphStructure={self.graph_structure}",
         ]

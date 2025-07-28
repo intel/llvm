@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -emit-llvm -internal-isystem %S/Inputs -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64 -emit-llvm -internal-isystem %S/Inputs -o - %s | FileCheck %s
 // RUN: %clang_cc1 -fsycl-is-host -emit-llvm -internal-isystem %S/Inputs -o - %s | FileCheck %s --check-prefixes=HOST
 
 // This test checks if the sycl-device module flag is created for device

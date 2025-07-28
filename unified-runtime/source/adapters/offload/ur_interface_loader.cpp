@@ -86,13 +86,13 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
     return result;
   }
   pDdiTable->pfnBuild = urProgramBuild;
-  pDdiTable->pfnCompile = nullptr;
+  pDdiTable->pfnCompile = urProgramCompile;
   pDdiTable->pfnCreateWithBinary = urProgramCreateWithBinary;
-  pDdiTable->pfnCreateWithIL = nullptr;
+  pDdiTable->pfnCreateWithIL = urProgramCreateWithIL;
   pDdiTable->pfnCreateWithNativeHandle = urProgramCreateWithNativeHandle;
   pDdiTable->pfnGetBuildInfo = nullptr;
   pDdiTable->pfnGetFunctionPointer = nullptr;
-  pDdiTable->pfnGetGlobalVariablePointer = nullptr;
+  pDdiTable->pfnGetGlobalVariablePointer = urProgramGetGlobalVariablePointer;
   pDdiTable->pfnGetInfo = urProgramGetInfo;
   pDdiTable->pfnGetNativeHandle = urProgramGetNativeHandle;
   pDdiTable->pfnLink = nullptr;
@@ -168,15 +168,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnDeviceGlobalVariableRead = nullptr;
-  pDdiTable->pfnDeviceGlobalVariableWrite = nullptr;
+  pDdiTable->pfnDeviceGlobalVariableRead = urEnqueueDeviceGlobalVariableRead;
+  pDdiTable->pfnDeviceGlobalVariableWrite = urEnqueueDeviceGlobalVariableWrite;
   pDdiTable->pfnEventsWait = nullptr;
   pDdiTable->pfnEventsWaitWithBarrier = nullptr;
   pDdiTable->pfnKernelLaunch = urEnqueueKernelLaunch;
   pDdiTable->pfnMemBufferCopy = nullptr;
   pDdiTable->pfnMemBufferCopyRect = nullptr;
   pDdiTable->pfnMemBufferFill = nullptr;
-  pDdiTable->pfnMemBufferMap = nullptr;
+  pDdiTable->pfnMemBufferMap = urEnqueueMemBufferMap;
   pDdiTable->pfnMemBufferRead = urEnqueueMemBufferRead;
   pDdiTable->pfnMemBufferReadRect = nullptr;
   pDdiTable->pfnMemBufferWrite = urEnqueueMemBufferWrite;
@@ -184,7 +184,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnMemImageCopy = nullptr;
   pDdiTable->pfnMemImageRead = nullptr;
   pDdiTable->pfnMemImageWrite = nullptr;
-  pDdiTable->pfnMemUnmap = nullptr;
+  pDdiTable->pfnMemUnmap = urEnqueueMemUnmap;
   pDdiTable->pfnUSMFill2D = urEnqueueUSMFill2D;
   pDdiTable->pfnUSMFill = nullptr;
   pDdiTable->pfnUSMAdvise = nullptr;

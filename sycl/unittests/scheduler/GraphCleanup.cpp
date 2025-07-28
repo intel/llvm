@@ -65,23 +65,23 @@ static void verifyCleanup(detail::MemObjRecord *Record,
 // Check that any non-leaf commands enqueued as part of high level scheduler
 // calls are cleaned up.
 static void checkCleanupOnEnqueue(MockScheduler &MS,
-                                  detail::QueueImplPtr &QueueImpl,
+                                  detail::queue_impl &QueueImpl,
                                   buffer<int, 1> &Buf,
                                   detail::Requirement &MockReq) {
   bool CommandDeleted = false;
   std::vector<detail::Command *> ToCleanUp;
   std::vector<detail::Command *> ToEnqueue;
   detail::MemObjRecord *Record =
-      MS.getOrInsertMemObjRecord(QueueImpl, &MockReq);
+      MS.getOrInsertMemObjRecord(&QueueImpl, &MockReq);
   detail::AllocaCommandBase *AllocaCmd =
-      MS.getOrCreateAllocaForReq(Record, &MockReq, QueueImpl, ToEnqueue);
+      MS.getOrCreateAllocaForReq(Record, &MockReq, &QueueImpl, ToEnqueue);
   std::function<void()> Callback = [&CommandDeleted]() {
     CommandDeleted = true;
   };
 
   // Check addCG.
   MockCommand *MockCmd =
-      new MockCommandWithCallback(QueueImpl, MockReq, Callback);
+      new MockCommandWithCallback(&QueueImpl, MockReq, Callback);
   (void)MockCmd->addDep(detail::DepDesc(AllocaCmd, &MockReq, nullptr),
                         ToCleanUp);
   EXPECT_TRUE(ToCleanUp.empty());
@@ -104,7 +104,7 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
 
   // Check add/releaseHostAccessor.
   CommandDeleted = false;
-  MockCmd = new MockCommandWithCallback(QueueImpl, MockReq, Callback);
+  MockCmd = new MockCommandWithCallback(&QueueImpl, MockReq, Callback);
   addEdge(MockCmd, Cmd, AllocaCmd);
   MS.addNodeToLeaves(Record, MockCmd, access::mode::read_write, ToEnqueue);
   MS.updateLeaves({Cmd}, Record, access::mode::read_write, ToCleanUp);
@@ -112,10 +112,10 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
   verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
 
   CommandDeleted = false;
-  MockCmd = new MockCommandWithCallback(QueueImpl, MockReq, Callback);
+  MockCmd = new MockCommandWithCallback(&QueueImpl, MockReq, Callback);
   addEdge(MockCmd, AllocaCmd, AllocaCmd);
   MockCommand *LeafMockCmd =
-      new MockCommandWithCallback(QueueImpl, MockReq, Callback);
+      new MockCommandWithCallback(&QueueImpl, MockReq, Callback);
   addEdge(LeafMockCmd, MockCmd, AllocaCmd);
   MS.addNodeToLeaves(Record, LeafMockCmd, access::mode::read_write, ToEnqueue);
   MS.releaseHostAccessor(&MockReq);
@@ -125,7 +125,7 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
   auto addNewMockCmds = [&]() -> MockCommand * {
     CommandDeleted = false;
     MockCmd = LeafMockCmd;
-    LeafMockCmd = new MockCommandWithCallback(QueueImpl, MockReq, Callback);
+    LeafMockCmd = new MockCommandWithCallback(&QueueImpl, MockReq, Callback);
     addEdge(LeafMockCmd, MockCmd, AllocaCmd);
     MS.addNodeToLeaves(Record, LeafMockCmd, access::mode::read_write,
                        ToEnqueue);
@@ -139,7 +139,7 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
     verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
     CommandDeleted = false;
     MockCmd = LeafMockCmd;
-    LeafMockCmd = new MockCommandWithCallback(QueueImpl, MockReq, Callback);
+    LeafMockCmd = new MockCommandWithCallback(&QueueImpl, MockReq, Callback);
     addEdge(LeafMockCmd, MockCmd, AllocaCmd);
     MS.addNodeToLeaves(Record, LeafMockCmd, access::mode::read_write,
                        ToEnqueue);
@@ -149,7 +149,7 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
 
   // Check waitForEvent
   MockCmd = addNewMockCmds();
-  MS.waitForEvent(LeafMockCmd->getEvent());
+  MS.waitForEvent(*LeafMockCmd->getEvent());
   verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
 
   // Check addCopyBack
@@ -159,11 +159,11 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
   MS.addCopyBack(&MockReq);
   verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
 
-  MS.removeRecordForMemObj(detail::getSyclObjImpl(Buf).get());
+  MS.removeRecordForMemObj(&*detail::getSyclObjImpl(Buf));
 }
 
 static void checkCleanupOnLeafUpdate(
-    MockScheduler &MS, detail::QueueImplPtr QueueImpl, buffer<int, 1> &Buf,
+    MockScheduler &MS, detail::queue_impl *QueueImpl, buffer<int, 1> &Buf,
     detail::Requirement &MockReq,
     std::function<void(detail::MemObjRecord *)> SchedulerCall) {
   bool CommandDeleted = false;
@@ -191,7 +191,7 @@ static void checkCleanupOnLeafUpdate(
   EXPECT_FALSE(CommandDeleted);
   SchedulerCall(Record);
   EXPECT_TRUE(CommandDeleted);
-  MS.removeRecordForMemObj(detail::getSyclObjImpl(Buf).get());
+  MS.removeRecordForMemObj(&*detail::getSyclObjImpl(Buf));
 }
 
 TEST_F(SchedulerTest, PostEnqueueCleanup) {
@@ -210,47 +210,46 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
 
   context Ctx{Plt};
   queue Queue{Ctx, default_selector_v};
-  detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
+  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
   MockScheduler MS;
 
   buffer<int, 1> Buf{range<1>(1)};
-  std::shared_ptr<detail::buffer_impl> BufImpl = detail::getSyclObjImpl(Buf);
   detail::Requirement MockReq = getMockRequirement(Buf);
   MockReq.MDims = 1;
-  MockReq.MSYCLMemObj = BufImpl.get();
+  MockReq.MSYCLMemObj = &*detail::getSyclObjImpl(Buf);
 
   checkCleanupOnEnqueue(MS, QueueImpl, Buf, MockReq);
   std::vector<detail::Command *> ToEnqueue;
-  checkCleanupOnLeafUpdate(MS, QueueImpl, Buf, MockReq,
+  checkCleanupOnLeafUpdate(MS, &QueueImpl, Buf, MockReq,
                            [&](detail::MemObjRecord *Record) {
                              MS.decrementLeafCountersForRecord(Record);
                            });
   checkCleanupOnLeafUpdate(
-      MS, QueueImpl, Buf, MockReq, [&](detail::MemObjRecord *Record) {
-        MS.insertMemoryMove(Record, &MockReq, QueueImpl, ToEnqueue);
+      MS, &QueueImpl, Buf, MockReq, [&](detail::MemObjRecord *Record) {
+        MS.insertMemoryMove(Record, &MockReq, &QueueImpl, ToEnqueue);
       });
-  checkCleanupOnLeafUpdate(MS, QueueImpl, Buf, MockReq,
+  checkCleanupOnLeafUpdate(MS, &QueueImpl, Buf, MockReq,
                            [&](detail::MemObjRecord *Record) {
                              Record->MMemModified = true;
                              MS.addCopyBack(&MockReq, ToEnqueue);
                            });
   checkCleanupOnLeafUpdate(
-      MS, QueueImpl, Buf, MockReq, [&](detail::MemObjRecord *Record) {
+      MS, &QueueImpl, Buf, MockReq, [&](detail::MemObjRecord *Record) {
         detail::Command *Leaf = *Record->MWriteLeaves.begin();
         MS.addEmptyCmd(Leaf, {&MockReq}, detail::Command::BlockReason::HostTask,
                        ToEnqueue);
       });
   checkCleanupOnLeafUpdate(
       MS, nullptr, Buf, MockReq, [&](detail::MemObjRecord *Record) {
-        MS.getOrCreateAllocaForReq(Record, &MockReq, QueueImpl, ToEnqueue);
+        MS.getOrCreateAllocaForReq(Record, &MockReq, &QueueImpl, ToEnqueue);
       });
   // Check cleanup on exceeding leaf limit.
   checkCleanupOnLeafUpdate(
-      MS, QueueImpl, Buf, MockReq, [&](detail::MemObjRecord *Record) {
+      MS, &QueueImpl, Buf, MockReq, [&](detail::MemObjRecord *Record) {
         std::vector<std::unique_ptr<MockCommand>> Leaves;
         for (std::size_t I = 0;
              I < Record->MWriteLeaves.genericCommandsCapacity(); ++I)
-          Leaves.push_back(std::make_unique<MockCommand>(QueueImpl, MockReq));
+          Leaves.push_back(std::make_unique<MockCommand>(&QueueImpl, MockReq));
 
         detail::AllocaCommandBase *AllocaCmd = Record->MAllocaCommands[0];
         std::vector<detail::Command *> ToCleanUp;
@@ -279,11 +278,11 @@ TEST_F(SchedulerTest, HostTaskCleanup) {
   event Event = Queue.submit([&](sycl::handler &cgh) {
     cgh.host_task([&]() { std::unique_lock<std::mutex> Lock{Mutex}; });
   });
-  detail::EventImplPtr EventImpl = detail::getSyclObjImpl(Event);
+  detail::event_impl &EventImpl = *detail::getSyclObjImpl(Event);
 
   // Unlike other commands, host task should be kept alive until its
   // completion.
-  auto *Cmd = static_cast<detail::Command *>(EventImpl->getCommand());
+  auto *Cmd = static_cast<detail::Command *>(EventImpl.getCommand());
   ASSERT_NE(Cmd, nullptr);
   EXPECT_TRUE(Cmd->isSuccessfullyEnqueued());
 
@@ -293,7 +292,7 @@ TEST_F(SchedulerTest, HostTaskCleanup) {
   // submitted to the thread pool, shortly after the event is marked
   // as complete.
   detail::GlobalHandler::instance().drainThreadPool();
-  ASSERT_EQ(EventImpl->getCommand(), nullptr);
+  ASSERT_EQ(EventImpl.getCommand(), nullptr);
 }
 
 struct AttachSchedulerWrapper {
@@ -312,31 +311,30 @@ TEST_F(SchedulerTest, StreamBufferDeallocation) {
   platform Plt = sycl::platform();
   context Ctx{Plt};
   queue Queue{Ctx, default_selector_v};
-  detail::QueueImplPtr QueueImplPtr = detail::getSyclObjImpl(Queue);
+  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
 
   MockScheduler *MSPtr = new MockScheduler();
   AttachSchedulerWrapper AttachScheduler{MSPtr};
   detail::EventImplPtr EventImplPtr;
   {
-    MockHandlerCustomFinalize MockCGH(QueueImplPtr,
+    MockHandlerCustomFinalize MockCGH(QueueImpl,
                                       /*CallerNeedsEvent=*/true);
     kernel_bundle KernelBundle =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(
-            QueueImplPtr->get_context());
+            QueueImpl.get_context());
     auto ExecBundle = sycl::build(KernelBundle);
     MockCGH.use_kernel_bundle(ExecBundle);
     stream Stream{1, 1, MockCGH};
     MockCGH.addStream(detail::getSyclObjImpl(Stream));
-    MockCGH.single_task<TestKernel<>>([] {});
+    MockCGH.single_task<TestKernel>([] {});
     std::unique_ptr<detail::CG> CG = MockCGH.finalize();
 
-    EventImplPtr =
-        MSPtr->addCG(std::move(CG), QueueImplPtr, /*EventNeeded=*/true);
+    EventImplPtr = MSPtr->addCG(std::move(CG), QueueImpl, /*EventNeeded=*/true);
   }
 
   // The buffers should have been released with graph cleanup once the work is
   // finished.
-  EventImplPtr->wait(EventImplPtr);
+  EventImplPtr->wait();
   // Drain the thread pool to ensure that the cleanup is able to acquire
   // the graph lock.
   detail::GlobalHandler::instance().drainThreadPool();
@@ -375,18 +373,18 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
   platform Plt = sycl::platform();
   context Ctx{Plt};
   queue Queue{Ctx, default_selector_v};
-  detail::QueueImplPtr QueueImplPtr = detail::getSyclObjImpl(Queue);
+  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
 
   MockScheduler *MSPtr = new MockScheduler();
   AttachSchedulerWrapper AttachScheduler{MSPtr};
   detail::EventImplPtr EventImplPtr;
   bool MockAuxResourceDeleted = false;
   {
-    MockHandlerCustomFinalize MockCGH(QueueImplPtr,
+    MockHandlerCustomFinalize MockCGH(QueueImpl,
                                       /*CallerNeedsEvent=*/true);
     kernel_bundle KernelBundle =
         sycl::get_kernel_bundle<sycl::bundle_state::input>(
-            QueueImplPtr->get_context());
+            QueueImpl.get_context());
     auto ExecBundle = sycl::build(KernelBundle);
     auto MockAuxResourcePtr =
         std::make_shared<MockAuxResource>(MockAuxResourceDeleted);
@@ -395,15 +393,14 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
     auto BufPtr = std::make_shared<buffer<char, 1>>(
         MockAuxResourcePtr->getDataPtr(), range<1>{1});
     detail::Requirement MockReq = getMockRequirement(*BufPtr);
-    MSPtr->getOrInsertMemObjRecord(QueueImplPtr, &MockReq);
+    MSPtr->getOrInsertMemObjRecord(&QueueImpl, &MockReq);
     MockCGH.use_kernel_bundle(ExecBundle);
     MockCGH.addReduction(std::move(MockAuxResourcePtr));
     MockCGH.addReduction(std::move(BufPtr));
-    MockCGH.single_task<TestKernel<>>([] {});
+    MockCGH.single_task<TestKernel>([] {});
     std::unique_ptr<detail::CG> CG = MockCGH.finalize();
 
-    EventImplPtr =
-        MSPtr->addCG(std::move(CG), QueueImplPtr, /*EventNeeded=*/true);
+    EventImplPtr = MSPtr->addCG(std::move(CG), QueueImpl, /*EventNeeded=*/true);
   }
 
   EventCompleted = false;

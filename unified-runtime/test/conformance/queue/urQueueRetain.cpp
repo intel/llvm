@@ -22,7 +22,7 @@ TEST_P(urQueueRetainTest, Success) {
 
   ASSERT_LT(prevRefCount, refCount);
 
-  EXPECT_SUCCESS(urQueueRelease(queue));
+  ASSERT_SUCCESS(urQueueRelease(queue));
 }
 
 TEST_P(urQueueRetainTest, InvalidNullHandleQueue) {

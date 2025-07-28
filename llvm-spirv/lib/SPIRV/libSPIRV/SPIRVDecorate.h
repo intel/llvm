@@ -183,8 +183,6 @@ public:
       return ExtensionID::SPV_INTEL_fpga_cluster_attributes;
     case DecorationFuseLoopsInFunctionINTEL:
       return ExtensionID::SPV_INTEL_loop_fuse;
-    case internal::DecorationCallableFunctionINTEL:
-      return ExtensionID::SPV_INTEL_fast_composite;
     case DecorationMathOpDSPModeINTEL:
       return ExtensionID::SPV_INTEL_fpga_dsp_control;
     case DecorationInitiationIntervalINTEL:

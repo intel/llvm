@@ -44,12 +44,20 @@ populateP2PDevices(size_t maxDevices,
   return p2pDevices;
 }
 
+static std::vector<ur_device_handle_t>
+uniqueDevices(uint32_t numDevices, const ur_device_handle_t *phDevices) {
+  std::vector<ur_device_handle_t> devices(phDevices, phDevices + numDevices);
+  std::sort(devices.begin(), devices.end());
+  devices.erase(std::unique(devices.begin(), devices.end()), devices.end());
+  return devices;
+}
+
 ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                            uint32_t numDevices,
                                            const ur_device_handle_t *phDevices,
                                            bool ownZeContext)
     : hContext(hContext, ownZeContext),
-      hDevices(phDevices, phDevices + numDevices),
+      hDevices(uniqueDevices(numDevices, phDevices)),
       commandListCache(hContext,
                        {phDevices[0]->Platform->ZeCopyOffloadExtensionSupported,
                         phDevices[0]->Platform->ZeMutableCmdListExt.Supported}),
@@ -80,12 +88,12 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
       defaultUSMPool(this, nullptr), asyncPool(this, nullptr) {}
 
 ur_result_t ur_context_handle_t_::retain() {
-  RefCount.increment();
+  RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_context_handle_t_::release() {
-  if (!RefCount.decrementAndTest())
+  if (!RefCount.release())
     return UR_RESULT_SUCCESS;
 
   delete this;
@@ -201,7 +209,7 @@ ur_result_t urContextGetInfo(ur_context_handle_t hContext,
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(uint32_t(hContext->getDevices().size()));
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{hContext->RefCount.load()});
+    return ReturnValue(uint32_t{hContext->RefCount.getCount()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // TODO: this is currently not implemented
     return ReturnValue(uint8_t{false});

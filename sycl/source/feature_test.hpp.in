@@ -29,7 +29,7 @@ inline namespace _V1 {
 // Feature test macro definitions
 
 // TODO: Move these feature-test macros to compiler driver.
-#define SYCL_EXT_INTEL_DEVICE_INFO 6
+#define SYCL_EXT_INTEL_DEVICE_INFO 7
 #define SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE 1
 #define SYCL_EXT_ONEAPI_SUB_GROUP_MASK 2
 #define SYCL_EXT_ONEAPI_LOCAL_MEMORY 1
@@ -118,6 +118,7 @@ inline namespace _V1 {
 #define SYCL_EXT_ONEAPI_CURRENT_DEVICE 1
 #define SYCL_KHR_FREE_FUNCTION_COMMANDS 1
 #define SYCL_KHR_QUEUE_EMPTY_QUERY 1
+#define SYCL_EXT_ONEAPI_MEMORY_EXPORT 1
 // In progress yet
 #define SYCL_EXT_ONEAPI_ATOMIC16 0
 #define SYCL_KHR_DEFAULT_CONTEXT 1

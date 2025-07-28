@@ -53,17 +53,18 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
 
     void InitializeUtils(detail::Requirement &MockReq, MockScheduler &MS) {
 
-      Rec = MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Queue), &MockReq);
+      Rec =
+          MS.getOrInsertMemObjRecord(&*detail::getSyclObjImpl(Queue), &MockReq);
       // Creating Alloca on both - device and host contexts (will be created in
       // real case in insertMemMove for example) It is done to avoid extra
       // AllocCmd insertion during ConnectCmd insertion
       std::vector<detail::Command *> ToEnqueue;
       AllocaCmd = MS.getOrCreateAllocaForReq(
-          Rec, &MockReq, detail::getSyclObjImpl(Queue), ToEnqueue);
+          Rec, &MockReq, &*detail::getSyclObjImpl(Queue), ToEnqueue);
       std::ignore =
           MS.getOrCreateAllocaForReq(Rec, &MockReq, nullptr, ToEnqueue);
-      DepCmd =
-          std::make_unique<MockCommand>(detail::getSyclObjImpl(Queue), MockReq);
+      DepCmd = std::make_unique<MockCommand>(&*detail::getSyclObjImpl(Queue),
+                                             MockReq);
     }
   };
 
@@ -85,7 +86,7 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
   auto AddLeafWithDeps = [&AddedLeaves, &MockReq,
                           &MS](const QueueRelatedObjects &QueueStuff) {
     auto NewLeaf = std::make_unique<MockCommand>(
-        detail::getSyclObjImpl(QueueStuff.Queue), MockReq);
+        &*detail::getSyclObjImpl(QueueStuff.Queue), MockReq);
     // Create edges: all soon-to-be leaves are direct users of MockDep
     std::vector<detail::Command *> ToCleanUp;
     (void)NewLeaf->addDep(detail::DepDesc{QueueStuff.DepCmd.get(), &MockReq,

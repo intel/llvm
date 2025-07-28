@@ -130,6 +130,19 @@ public:
   SYCLInstallationDetector(const Driver &D);
   SYCLInstallationDetector(const Driver &D, const llvm::Triple &HostTriple,
                            const llvm::opt::ArgList &Args);
+
+  /// \brief Find and return the path to the libspirv library for the target
+  /// \return The path to the libspirv library if found, otherwise nullptr.
+  /// The lifetime of the returned string is managed by \p Args.
+  const char *findLibspirvPath(const llvm::Triple &DeviceTriple,
+                               const llvm::opt::ArgList &Args,
+                               const llvm::Triple &HostTriple) const;
+
+  void addLibspirvLinkArgs(const llvm::Triple &DeviceTriple,
+                           const llvm::opt::ArgList &DriverArgs,
+                           const llvm::Triple &HostTriple,
+                           llvm::opt::ArgStringList &CC1Args) const;
+
   void getSYCLDeviceLibPath(
       llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const;
   void addSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
@@ -209,7 +222,7 @@ StringRef resolveGenDevice(StringRef DeviceName);
 SmallString<64> getGenDeviceMacro(StringRef DeviceName);
 StringRef getGenGRFFlag(StringRef GRFMode);
 
-// // Prefix for GPU specific targets used for -fsycl-targets
+// Prefix for GPU specific targets used for -fsycl-targets
 constexpr char IntelGPU[] = "intel_gpu_";
 constexpr char NvidiaGPU[] = "nvidia_gpu_";
 constexpr char AmdGPU[] = "amd_gpu_";
@@ -244,11 +257,6 @@ public:
 
 } // end namespace SYCL
 } // end namespace tools
-
-inline bool isSYCLNativeCPU(const llvm::Triple &Triple) {
-  return Triple.getArch() == llvm::Triple::UnknownArch &&
-         Triple.str() == "native_cpu";
-}
 
 namespace toolchains {
 
@@ -290,12 +298,12 @@ public:
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override {
-    if (isSYCLNativeCPU(this->getTriple()))
+    if (this->getTriple().isNativeCPU())
       return this->HostTC.isPICDefault();
     return false;
   }
   llvm::codegenoptions::DebugInfoFormat getDefaultDebugFormat() const override {
-    if (isSYCLNativeCPU(this->getTriple()) &&
+    if (this->getTriple().isNativeCPU() &&
         this->HostTC.getTriple().isWindowsMSVCEnvironment())
       return this->HostTC.getDefaultDebugFormat();
     return ToolChain::getDefaultDebugFormat();
