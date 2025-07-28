@@ -16,8 +16,7 @@ _SPIRV_OP(InvalidLlvmModule, "Invalid LLVM module:")
 _SPIRV_OP(UnimplementedOpCode, "Unimplemented opcode")
 _SPIRV_OP(FunctionPointers, "Can't translate function pointer:\n")
 _SPIRV_OP(InvalidInstruction, "Can't translate llvm instruction:\n")
-_SPIRV_OP(InvalidWordCount,
-          "Can't encode instruction with word count greater than 65535:\n")
+_SPIRV_OP(InvalidWordCount, "")
 _SPIRV_OP(Requires1_1, "Feature requires SPIR-V 1.1 or greater:")
 _SPIRV_OP(RequiresVersion, "Cannot fulfill SPIR-V version restriction:\n")
 _SPIRV_OP(RequiresExtension,

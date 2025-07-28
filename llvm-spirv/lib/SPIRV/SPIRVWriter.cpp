@@ -2089,7 +2089,10 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                << "have (" << MaxNumElements << "). Should the array be "
                << "split?\n Original LLVM value:\n"
                << toString(GV);
-            getErrorLog().checkError(false, SPIRVEC_InvalidWordCount, SS.str());
+            getErrorLog().checkError(false, SPIRVEC_InvalidWordCount,
+                                     "Can't encode instruction with word count "
+                                     "greater than 65535:\n" +
+                                         SS.str());
           }
         }
       }

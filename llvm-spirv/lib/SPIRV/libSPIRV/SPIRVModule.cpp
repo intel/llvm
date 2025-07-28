@@ -2374,6 +2374,23 @@ SPIRVEntry *parseAndCreateSPIRVEntry(SPIRVWord &WordCount, Op &OpCode,
   if (WordCount == 0 || OpCode == OpNop) {
     return nullptr;
   }
+  if (!SPIRVUseTextFormat) {
+    std::streampos CurrentPos = IS.tellg();
+    IS.seekg(0, std::ios::end);
+    std::streamoff RemainingBytes = IS.tellg() - CurrentPos;
+    IS.clear();
+    IS.seekg(CurrentPos);
+    std::streamoff ExpectedBytes =
+        static_cast<std::streamoff>((WordCount - 1) * sizeof(SPIRVWord));
+    if (RemainingBytes < ExpectedBytes) {
+      M.getErrorLog().checkError(
+          false, SPIRVEC_InvalidWordCount,
+          "WordCount exceeds remaining input stream size: expected size = " +
+              std::to_string(ExpectedBytes) + " bytes, remaining size = " +
+              std::to_string(RemainingBytes) + " bytes");
+      M.setInvalid();
+    }
+  }
   SPIRVEntry *Entry = SPIRVEntry::create(OpCode);
   assert(Entry);
   Entry->setModule(&M);

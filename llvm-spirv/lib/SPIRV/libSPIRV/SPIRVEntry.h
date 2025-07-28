@@ -412,7 +412,10 @@ public:
       std::stringstream SS;
       SS << "Id: " << Id << ", OpCode: " << OpCodeNameMap::map(OpCode)
          << ", Name: \"" << Name << "\"\n";
-      getErrorLog().checkError(false, SPIRVEC_InvalidWordCount, SS.str());
+      getErrorLog().checkError(
+          false, SPIRVEC_InvalidWordCount,
+          "Can't encode instruction with word count greater than 65535:\n" +
+              SS.str());
     }
   }
   void validateFunctionControlMask(SPIRVWord FCtlMask) const;
