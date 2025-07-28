@@ -2293,8 +2293,6 @@ bool handler::deviceSupportForwardProgress(
                                                     coordinationScope);
 }
 
-device_impl &handler::getDeviceImpl() { return impl->get_device(); }
-
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 
 void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {

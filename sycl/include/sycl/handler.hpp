@@ -1106,8 +1106,6 @@ private:
   // supported gcc version is bumped.
   std::tuple<std::array<size_t, 3>, bool> getMaxWorkGroups_v2();
 
-  detail::device_impl &getDeviceImpl();
-
   template <int Dims>
   std::tuple<range<Dims>, bool> getRoundedRange(range<Dims> UserRange) {
     range<Dims> RoundedRange = UserRange;
