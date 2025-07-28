@@ -270,33 +270,32 @@ struct KernelLaunchPropertyWrapper {
   // for the same kernel, i.e why using std::optional to avoid overriding
   // previously set properties.
   struct KernelLaunchPropertiesT {
-    std::optional<ur_kernel_cache_config_t> MKernelCacheConfig;
-    std::optional<bool> MKernelIsCooperative;
-    std::optional<uint32_t> MKernelWorkGroupMemorySize;
-    std::optional<bool> MKernelUsesClusterLaunch;
-    size_t MKernelClusterDims;
-    std::array<size_t, 3> MKernelClusterSize;
+    std::optional<ur_kernel_cache_config_t> MCacheConfig;
+    std::optional<bool> MIsCooperative;
+    std::optional<uint32_t> MWorkGroupMemorySize;
+    std::optional<bool> MUsesClusterLaunch;
+    size_t MClusterDims;
+    std::array<size_t, 3> MClusterSize;
 
     KernelLaunchPropertiesT()
-        : MKernelCacheConfig(std::nullopt), MKernelIsCooperative(std::nullopt),
-          MKernelWorkGroupMemorySize(std::nullopt),
-          MKernelUsesClusterLaunch(std::nullopt), MKernelClusterDims(0),
-          MKernelClusterSize{0, 0, 0} {}
+        : MCacheConfig(std::nullopt), MIsCooperative(std::nullopt),
+          MWorkGroupMemorySize(std::nullopt), MUsesClusterLaunch(std::nullopt),
+          MClusterDims(0), MClusterSize{0, 0, 0} {}
 
     KernelLaunchPropertiesT &operator=(const KernelLaunchPropertiesT &Other) {
-      if (Other.MKernelCacheConfig)
-        MKernelCacheConfig = Other.MKernelCacheConfig;
+      if (Other.MCacheConfig)
+        MCacheConfig = Other.MCacheConfig;
 
-      if (Other.MKernelIsCooperative)
-        MKernelIsCooperative = Other.MKernelIsCooperative;
+      if (Other.MIsCooperative)
+        MIsCooperative = Other.MIsCooperative;
 
-      if (Other.MKernelWorkGroupMemorySize)
-        MKernelWorkGroupMemorySize = Other.MKernelWorkGroupMemorySize;
+      if (Other.MWorkGroupMemorySize)
+        MWorkGroupMemorySize = Other.MWorkGroupMemorySize;
 
-      if (Other.MKernelUsesClusterLaunch) {
-        MKernelUsesClusterLaunch = Other.MKernelUsesClusterLaunch;
-        MKernelClusterDims = Other.MKernelClusterDims;
-        MKernelClusterSize = Other.MKernelClusterSize;
+      if (Other.MUsesClusterLaunch) {
+        MUsesClusterLaunch = Other.MUsesClusterLaunch;
+        MClusterDims = Other.MClusterDims;
+        MClusterSize = Other.MClusterSize;
       }
 
       return *this;
@@ -311,12 +310,12 @@ struct KernelLaunchPropertyWrapper {
 
   // Set default values for kernel launch properties.
   KernelLaunchPropertyWrapper() {
-    KLProps.MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
-    KLProps.MKernelIsCooperative = false;
-    KLProps.MKernelWorkGroupMemorySize = 0;
-    KLProps.MKernelUsesClusterLaunch = false;
-    KLProps.MKernelClusterDims = 0;
-    KLProps.MKernelClusterSize.fill(0);
+    KLProps.MCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
+    KLProps.MIsCooperative = false;
+    KLProps.MWorkGroupMemorySize = 0;
+    KLProps.MUsesClusterLaunch = false;
+    KLProps.MClusterDims = 0;
+    KLProps.MClusterSize.fill(0);
   }
 
   template <sycl::ext::oneapi::experimental::detail::UnsupportedGraphFeatures
@@ -362,7 +361,7 @@ struct KernelLaunchPropertyWrapper {
       // TODO: Further design work is probably needed to reflect this behavior
       // in Unified Runtime.
       if (guarantee == forward_progress::concurrent)
-        prop.MKernelIsCooperative = true;
+        prop.MIsCooperative = true;
     } else if (threadScope == execution_scope::sub_group) {
       if (!supported) {
         throw sycl::exception(
@@ -372,7 +371,7 @@ struct KernelLaunchPropertyWrapper {
       }
       // Same reasoning as above.
       if (guarantee == forward_progress::concurrent)
-        prop.MKernelIsCooperative = true;
+        prop.MIsCooperative = true;
     } else { // threadScope is execution_scope::work_item otherwise undefined
              // behavior
       if (!supported) {
@@ -413,10 +412,10 @@ struct KernelLaunchPropertyWrapper {
         auto Config = Props.template get_property<
             sycl::ext::intel::experimental::cache_config_key>();
         if (Config == sycl::ext::intel::experimental::large_slm) {
-          retval.MKernelCacheConfig =
+          retval.MCacheConfig =
               ConvertToURCacheConfig(StableKernelCacheConfig::LargeSLM);
         } else if (Config == sycl::ext::intel::experimental::large_data) {
-          retval.MKernelCacheConfig =
+          retval.MCacheConfig =
               ConvertToURCacheConfig(StableKernelCacheConfig::LargeData);
         }
       } else {
@@ -429,7 +428,7 @@ struct KernelLaunchPropertyWrapper {
       constexpr bool UsesRootSync =
           PropertiesT::template has_property<syclex::use_root_sync_key>();
       if (UsesRootSync)
-        retval.MKernelIsCooperative = UsesRootSync;
+        retval.MIsCooperative = UsesRootSync;
     }
 
     // Process device progress properties.
@@ -478,7 +477,7 @@ struct KernelLaunchPropertyWrapper {
             HasGraph);
         auto WorkGroupMemSize =
             Props.template get_property<syclex::work_group_scratch_size>();
-        retval.MKernelWorkGroupMemorySize = WorkGroupMemSize.size;
+        retval.MWorkGroupMemorySize = WorkGroupMemSize.size;
       }
     }
 
@@ -494,17 +493,17 @@ struct KernelLaunchPropertyWrapper {
                                .template get_property<
                                    syclex::cuda::cluster_size_key<ClusterDim>>()
                                .get_cluster_size();
-        retval.MKernelUsesClusterLaunch = true;
-        retval.MKernelClusterDims = ClusterDim;
+        retval.MUsesClusterLaunch = true;
+        retval.MClusterDims = ClusterDim;
         if (ClusterDim == 1) {
-          retval.MKernelClusterSize[0] = ClusterSize[0];
+          retval.MClusterSize[0] = ClusterSize[0];
         } else if (ClusterDim == 2) {
-          retval.MKernelClusterSize[0] = ClusterSize[0];
-          retval.MKernelClusterSize[1] = ClusterSize[1];
+          retval.MClusterSize[0] = ClusterSize[0];
+          retval.MClusterSize[1] = ClusterSize[1];
         } else if (ClusterDim == 3) {
-          retval.MKernelClusterSize[0] = ClusterSize[0];
-          retval.MKernelClusterSize[1] = ClusterSize[1];
-          retval.MKernelClusterSize[2] = ClusterSize[2];
+          retval.MClusterSize[0] = ClusterSize[0];
+          retval.MClusterSize[1] = ClusterSize[1];
+          retval.MClusterSize[2] = ClusterSize[2];
         } else {
           assert(ClusterDim <= 3 &&
                  "Only 1D, 2D, and 3D cluster launch is supported.");

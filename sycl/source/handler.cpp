@@ -626,10 +626,10 @@ event handler::finalize() {
             impl->get_queue(), impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
             MKernel.get(), toKernelNameStrT(MKernelName),
             impl->MKernelNameBasedCachePtr, RawEvents, ResultEvent.get(),
-            nullptr, *impl->KLProps.MKernelCacheConfig,
-            *impl->KLProps.MKernelIsCooperative,
-            *impl->KLProps.MKernelUsesClusterLaunch,
-            *impl->KLProps.MKernelWorkGroupMemorySize, BinImage,
+            nullptr, *impl->KLProps.MCacheConfig,
+            *impl->KLProps.MIsCooperative,
+            *impl->KLProps.MUsesClusterLaunch,
+            *impl->KLProps.MWorkGroupMemorySize, BinImage,
             impl->MKernelFuncPtr, impl->MKernelNumArgs,
             impl->MKernelParamDescGetter, impl->MKernelHasSpecialCaptures);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -690,9 +690,9 @@ event handler::finalize() {
         std::move(impl->MArgs), toKernelNameStrT(MKernelName),
         impl->MKernelNameBasedCachePtr, std::move(MStreamStorage),
         std::move(impl->MAuxiliaryResources), getType(),
-        *impl->KLProps.MKernelCacheConfig, *impl->KLProps.MKernelIsCooperative,
-        *impl->KLProps.MKernelUsesClusterLaunch,
-        *impl->KLProps.MKernelWorkGroupMemorySize, MCodeLoc));
+        *impl->KLProps.MCacheConfig, *impl->KLProps.MIsCooperative,
+        *impl->KLProps.MUsesClusterLaunch,
+        *impl->KLProps.MWorkGroupMemorySize, MCodeLoc));
     break;
   }
   case detail::CGType::CopyAccToPtr:
@@ -2261,21 +2261,21 @@ void handler::setKernelLaunchProperties(
 
   impl->KLProps = KernelLaunchProperties;
 
-  if (KernelLaunchProperties.MKernelUsesClusterLaunch) {
-    if (KernelLaunchProperties.MKernelClusterDims == 1) {
+  if (KernelLaunchProperties.MUsesClusterLaunch) {
+    if (KernelLaunchProperties.MClusterDims == 1) {
       sycl::range<1> ClusterSizeTrimmed = {
-          KernelLaunchProperties.MKernelClusterSize[0]};
+          KernelLaunchProperties.MClusterSize[0]};
       impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
-    } else if (KernelLaunchProperties.MKernelClusterDims == 2) {
+    } else if (KernelLaunchProperties.MClusterDims == 2) {
       sycl::range<2> ClusterSizeTrimmed = {
-          KernelLaunchProperties.MKernelClusterSize[0],
-          KernelLaunchProperties.MKernelClusterSize[1]};
+          KernelLaunchProperties.MClusterSize[0],
+          KernelLaunchProperties.MClusterSize[1]};
       impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
-    } else if (KernelLaunchProperties.MKernelClusterDims == 3) {
+    } else if (KernelLaunchProperties.MClusterDims == 3) {
       sycl::range<3> ClusterSizeTrimmed = {
-          KernelLaunchProperties.MKernelClusterSize[0],
-          KernelLaunchProperties.MKernelClusterSize[1],
-          KernelLaunchProperties.MKernelClusterSize[2]};
+          KernelLaunchProperties.MClusterSize[0],
+          KernelLaunchProperties.MClusterSize[1],
+          KernelLaunchProperties.MClusterSize[2]};
       impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
     }
   }
@@ -2301,26 +2301,26 @@ device_impl &handler::getDeviceImpl() { return impl->get_device(); }
 void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
   switch (Config) {
   case handler::StableKernelCacheConfig::Default:
-    impl->KLProps.MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
+    impl->KLProps.MCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
     break;
   case handler::StableKernelCacheConfig::LargeSLM:
-    impl->KLProps.MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
+    impl->KLProps.MCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
     break;
   case handler::StableKernelCacheConfig::LargeData:
-    impl->KLProps.MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
+    impl->KLProps.MCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
     break;
   }
 }
 
 void handler::setKernelIsCooperative(bool IsCooperative) {
-  impl->KLProps.MKernelIsCooperative = IsCooperative;
+  impl->KLProps.MIsCooperative = IsCooperative;
 }
 
 void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_experimental_cuda_cluster_launch>();
-  impl->KLProps.MKernelUsesClusterLaunch = true;
+  impl->KLProps.MUsesClusterLaunch = true;
 
   if (Dims == 1) {
     sycl::range<1> ClusterSizeTrimmed = {ClusterSize[0]};
@@ -2337,7 +2337,7 @@ void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_experimental_cuda_cluster_launch>();
-  impl->KLProps.MKernelUsesClusterLaunch = true;
+  impl->KLProps.MUsesClusterLaunch = true;
   impl->MNDRDesc.setClusterDimensions(ClusterSize);
 }
 
@@ -2345,7 +2345,7 @@ void handler::setKernelClusterLaunch(sycl::range<2> ClusterSize) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_experimental_cuda_cluster_launch>();
-  impl->KLProps.MKernelUsesClusterLaunch = true;
+  impl->KLProps.MUsesClusterLaunch = true;
   impl->MNDRDesc.setClusterDimensions(ClusterSize);
 }
 
@@ -2353,14 +2353,14 @@ void handler::setKernelClusterLaunch(sycl::range<1> ClusterSize) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_experimental_cuda_cluster_launch>();
-  impl->KLProps.MKernelUsesClusterLaunch = true;
+  impl->KLProps.MUsesClusterLaunch = true;
   impl->MNDRDesc.setClusterDimensions(ClusterSize);
 }
 
 void handler::setKernelWorkGroupMem(size_t Size) {
   throwIfGraphAssociated<syclex::detail::UnsupportedGraphFeatures::
                              sycl_ext_oneapi_work_group_scratch_memory>();
-  impl->KLProps.MKernelWorkGroupMemorySize = Size;
+  impl->KLProps.MWorkGroupMemorySize = Size;
 }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
