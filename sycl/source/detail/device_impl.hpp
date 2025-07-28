@@ -467,7 +467,7 @@ public:
   platform get_platform() const;
 
   /// \return the associated adapter with this device.
-  adapter_impl &getAdapter() const { return MPlatform->getAdapter(); }
+  adapter_impl &getAdapter() const { return MPlatform.getAdapter(); }
 
   /// Check SYCL extension support by device
   ///
@@ -832,7 +832,7 @@ public:
       // We claim, that all Intel FPGA devices support kernel to kernel pipe
       // feature (at least at the scope of SYCL_INTEL_data_flow_pipes
       // extension).
-      std::string platform_name = MPlatform->get_info<info::platform::name>();
+      std::string platform_name = MPlatform.get_info<info::platform::name>();
       if (platform_name == "Intel(R) FPGA Emulation Platform for OpenCL(TM)" ||
           platform_name == "Intel(R) FPGA SDK for OpenCL(TM)")
         return true;
@@ -1017,7 +1017,7 @@ public:
       Result.reserve(Devs.value().size());
       for (const auto &d : Devs.value())
         Result.push_back(
-            createSyclObjFromImpl<device>(MPlatform->getOrMakeDeviceImpl(d)));
+            createSyclObjFromImpl<device>(MPlatform.getOrMakeDeviceImpl(d)));
 
       return Result;
     }
@@ -1031,7 +1031,7 @@ public:
       if (ur_device_handle_t Result =
               get_info_impl<UR_DEVICE_INFO_COMPOSITE_DEVICE>())
         return createSyclObjFromImpl<device>(
-            MPlatform->getOrMakeDeviceImpl(Result));
+            MPlatform.getOrMakeDeviceImpl(Result));
 
       throw sycl::exception(make_error_code(errc::invalid),
                             "A component with aspect::ext_oneapi_is_component "
@@ -1702,10 +1702,10 @@ public:
   uint64_t getCurrentDeviceTime();
 
   /// Get the backend of this device
-  backend getBackend() const { return MPlatform->getBackend(); }
+  backend getBackend() const { return MPlatform.getBackend(); }
 
   /// @brief  Get the platform impl serving this device
-  platform_impl &getPlatformImpl() const { return *MPlatform; }
+  platform_impl &getPlatformImpl() const { return MPlatform; }
 
   template <ur_device_info_t Desc>
   std::vector<info::fp_config> get_fp_config() const {
@@ -2254,7 +2254,7 @@ public:
 private:
   ur_device_handle_t MDevice = 0;
   // This is used for getAdapter so should be above other properties.
-  std::shared_ptr<platform_impl> MPlatform;
+  platform_impl &MPlatform;
 
   std::shared_mutex MDeviceHostBaseTimeMutex;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
