@@ -106,9 +106,13 @@ device_impl::get_backend_info<info::device::backend_version>() const {
 #endif
 
 bool device_impl::has_extension(const std::string &ExtensionName) const {
-  std::string AllExtensionNames = get_info_impl<UR_DEVICE_INFO_EXTENSIONS>();
+  const std::string AllExtensionNames{
+      get_info_impl<UR_DEVICE_INFO_EXTENSIONS>()};
 
-  return (AllExtensionNames.find(ExtensionName) != std::string::npos);
+  // We add a space to both sides of both the extension string and the query
+  // string. This prevents to lookup from finding partial extension matches.
+  return ((" " + AllExtensionNames + " ").find(" " + ExtensionName + " ") !=
+          std::string::npos);
 }
 
 bool device_impl::is_partition_supported(info::partition_property Prop) const {
