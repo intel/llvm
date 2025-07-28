@@ -1335,7 +1335,7 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
 #define __SYCL_GROUP_COLLECTIVE_TANGLE(Instruction, GroupExt)                  \
   template <__spv::GroupOperation Op, typename Group, typename T>              \
   inline typename std::enable_if_t<sycl::detail::is_tangle_v<Group>, T>        \
-      Group##Instruction(Group, T x) {                                         \
+  Group##Instruction(Group, T x) {                                             \
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \
