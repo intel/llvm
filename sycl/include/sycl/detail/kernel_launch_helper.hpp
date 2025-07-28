@@ -426,8 +426,8 @@ struct KernelLaunchPropertyWrapper {
 
     // Process Kernel cooperative property.
     {
-      constexpr bool UsesRootSync = PropertiesT::template has_property<
-          sycl::ext::oneapi::experimental::use_root_sync_key>();
+      constexpr bool UsesRootSync =
+          PropertiesT::template has_property<syclex::use_root_sync_key>();
       if (UsesRootSync)
         retval.MKernelIsCooperative = UsesRootSync;
     }
@@ -435,59 +435,49 @@ struct KernelLaunchPropertyWrapper {
     // Process device progress properties.
     {
       if constexpr (PropertiesT::template has_property<
-                        sycl::ext::oneapi::experimental::
-                            work_group_progress_key>()) {
-        auto prop = Props.template get_property<
-            sycl::ext::oneapi::experimental::work_group_progress_key>();
+                        syclex::work_group_progress_key>()) {
+        auto prop =
+            Props.template get_property<syclex::work_group_progress_key>();
         bool supported = p->deviceSupportForwardProgress(
-            prop.guarantee,
-            sycl::ext::oneapi::experimental::execution_scope::work_group,
+            prop.guarantee, syclex::execution_scope::work_group,
             prop.coordinationScope);
-        verifyDeviceHasProgressGuarantee(
-            supported, prop.guarantee,
-            sycl::ext::oneapi::experimental::execution_scope::work_group,
-            retval);
+        verifyDeviceHasProgressGuarantee(supported, prop.guarantee,
+                                         syclex::execution_scope::work_group,
+                                         retval);
       }
       if constexpr (PropertiesT::template has_property<
-                        sycl::ext::oneapi::experimental::
-                            sub_group_progress_key>()) {
-        auto prop = Props.template get_property<
-            sycl::ext::oneapi::experimental::sub_group_progress_key>();
+                        syclex::sub_group_progress_key>()) {
+        auto prop =
+            Props.template get_property<syclex::sub_group_progress_key>();
         bool supported = p->deviceSupportForwardProgress(
-            prop.guarantee,
-            sycl::ext::oneapi::experimental::execution_scope::sub_group,
+            prop.guarantee, syclex::execution_scope::sub_group,
             prop.coordinationScope);
-        verifyDeviceHasProgressGuarantee(
-            supported, prop.guarantee,
-            sycl::ext::oneapi::experimental::execution_scope::sub_group,
-            retval);
+        verifyDeviceHasProgressGuarantee(supported, prop.guarantee,
+                                         syclex::execution_scope::sub_group,
+                                         retval);
       }
       if constexpr (PropertiesT::template has_property<
-                        sycl::ext::oneapi::experimental::
-                            work_item_progress_key>()) {
-        auto prop = Props.template get_property<
-            sycl::ext::oneapi::experimental::work_item_progress_key>();
+                        syclex::work_item_progress_key>()) {
+        auto prop =
+            Props.template get_property<syclex::work_item_progress_key>();
         bool supported = p->deviceSupportForwardProgress(
-            prop.guarantee,
-            sycl::ext::oneapi::experimental::execution_scope::work_item,
+            prop.guarantee, syclex::execution_scope::work_item,
             prop.coordinationScope);
-        verifyDeviceHasProgressGuarantee(
-            supported, prop.guarantee,
-            sycl::ext::oneapi::experimental::execution_scope::work_item,
-            retval);
+        verifyDeviceHasProgressGuarantee(supported, prop.guarantee,
+                                         syclex::execution_scope::work_item,
+                                         retval);
       }
     }
 
     // Process work group scratch memory property.
     {
       if constexpr (PropertiesT::template has_property<
-                        sycl::ext::oneapi::experimental::
-                            work_group_scratch_size>()) {
+                        syclex::work_group_scratch_size>()) {
         throwIfGraphAssociated<syclex::detail::UnsupportedGraphFeatures::
                                    sycl_ext_oneapi_work_group_scratch_memory>(
             HasGraph);
-        auto WorkGroupMemSize = Props.template get_property<
-            sycl::ext::oneapi::experimental::work_group_scratch_size>();
+        auto WorkGroupMemSize =
+            Props.template get_property<syclex::work_group_scratch_size>();
         retval.MKernelWorkGroupMemorySize = WorkGroupMemSize.size;
       }
     }
