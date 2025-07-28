@@ -109,15 +109,8 @@ bool device_impl::has_extension(const std::string &ExtensionName) const {
   const std::string AllExtensionNames{
       get_info_impl<UR_DEVICE_INFO_EXTENSIONS>()};
 
-  /* correct matching of names and avoiding the false positives
-     with partial substrings require a wrapping by spaces here for the cases
-     where given ExtensionName (as an unchecked user input) is:
-      - a substring of another extension name
-      - missing the leading or trailing symbols by user mistake
-     due to the string-based implementation of the has_extension function
-
-     TODO: replace the string-based implementation with a strong type-based one
-   */
+  // We add a space to both sides of both the extension string and the query
+  // string. This prevents to lookup from finding partial extension matches.
   return ((" " + AllExtensionNames + " ").find(" " + ExtensionName + " ") !=
           std::string::npos);
 }
