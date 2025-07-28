@@ -646,6 +646,7 @@ set(imf_bf16_fallback_src ${imf_fallback_src_dir}/imf_bf16_fallback.cpp)
 set(imf_host_cxx_flags -c
   --target=${LLVM_HOST_TRIPLE}
   -D__LIBDEVICE_HOST_IMPL__
+  ${SYCL_LIBDEVICE_CXX_FLAGS}
 )
 
 if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
