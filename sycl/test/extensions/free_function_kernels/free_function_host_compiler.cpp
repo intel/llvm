@@ -1,9 +1,10 @@
 // RUN: %clangxx -fsycl -fsycl-host-compiler=g++ %s
+// RUN: %clangxx -fsycl -fno-sycl-unnamed-lambda -fsycl-host-compiler=g++ %s
 // REQUIRES: linux
 
 // This test serves as a sanity check that compilation succeeds
 // for a simple free function kernel when using the host compiler
-// flag.
+// flag with unnamed lambda extension enabled and disabled.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
