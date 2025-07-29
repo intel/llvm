@@ -22,10 +22,9 @@ using AccType = sycl::accessor<uint8_t, 1, sycl::access::mode::read_write>;
 using LocalAccType = sycl::local_accessor<double, 1>;
 using LocalAccTypeInt = sycl::local_accessor<int, 1>;
 
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_block_load(const AccType &,
-                                                       const LocalAccType &, float *,
-                                                       int byte_offset32,
-                                                       size_t byte_offset64);
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_block_load(const AccType &, const LocalAccType &, float *,
+                int byte_offset32, size_t byte_offset64);
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
 test_block_store(const AccType &, const LocalAccType &local_acc, float *,
                  int byte_offset32, size_t byte_offset64);
