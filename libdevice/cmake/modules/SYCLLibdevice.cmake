@@ -95,13 +95,13 @@ set(full_build_archs)
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   list(APPEND full_build_archs nvptx64-nvidia-cuda)
   set(compile_opts_nvptx64-nvidia-cuda "-fsycl-targets=nvptx64-nvidia-cuda"
-  "-Xsycl-target-backend" "--cuda-gpu-arch=sm_50" "-nocudalib")
+  "-Xsycl-target-backend" "--cuda-gpu-arch=sm_50" "-nocudalib" "-fno-sycl-libspirv" "-Wno-unsafe-libspirv-not-linked")
   set(opt_flags_nvptx64-nvidia-cuda "-O3" "--nvvm-reflect-enable=false")
 endif()
 if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
   list(APPEND full_build_archs amdgcn-amd-amdhsa)
   set(compile_opts_amdgcn-amd-amdhsa "-nogpulib" "-fsycl-targets=amdgcn-amd-amdhsa"
-  "-Xsycl-target-backend" "--offload-arch=gfx942")
+  "-Xsycl-target-backend" "--offload-arch=gfx942" "-fno-sycl-libspirv" "-Wno-unsafe-libspirv-not-linked")
   set(opt_flags_amdgcn-amd-amdhsa "-O3" "--amdgpu-oclc-reflect-enable=false")
 endif()
 
@@ -435,7 +435,8 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   # libsycl-nativecpu_utils is only needed as BC file by NativeCPU.
   add_custom_command(
     OUTPUT ${bc_binary_dir}/nativecpu_utils.bc
-    COMMAND ${clang_exe} ${compile_opts} ${bc_device_compile_opts} -fsycl-targets=native_cpu
+    COMMAND ${clang_exe} ${compile_opts} ${bc_device_compile_opts}
+      -fsycl-targets=native_cpu -fno-sycl-libspirv -Wno-unsafe-libspirv-not-linked
       -I ${PROJECT_BINARY_DIR}/include -I ${NATIVE_CPU_DIR}
       ${CMAKE_CURRENT_SOURCE_DIR}/nativecpu_utils.cpp
       -o ${bc_binary_dir}/nativecpu_utils.bc
