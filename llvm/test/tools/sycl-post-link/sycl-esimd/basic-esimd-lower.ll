@@ -14,6 +14,10 @@
 ; RUN: sycl-post-link -properties -split-esimd -lower-esimd -O2 -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-O2
 
+; -O0 lowering, requires `-force-disable-esimd-opt` to disable all optimizations.
+; RUN: sycl-post-link -properties -split-esimd -lower-esimd -O0 -force-disable-esimd-opt -S < %s -o %t.table
+; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-O0
+
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
 
@@ -49,6 +53,15 @@ attributes #0 = { "sycl-module-id"="a.cpp" }
 ; CHECK-NO-LOWERING:   call spir_func void @_Z15__esimd_barrierv()
 ; CHECK-NO-LOWERING:   ret void
 ; CHECK-NO-LOWERING: }
+
+; With -O0, we only lower ESIMD code, but no other optimizations
+; CHECK-O0: define dso_local spir_kernel void @ESIMD_kernel() #{{[0-9]}} !sycl_explicit_simd !{{[0-9]}} !intel_reqd_sub_group_size !{{[0-9]}} {
+; CHECK-O0: entry:
+; CHECK-O0:   %0 = load <3 x i64>, {{.*}} addrspacecast {{.*}} @__spirv_BuiltInGlobalInvocationId
+; CHECK-O0:   %1 = extractelement <3 x i64> %0, i64 0
+; CHECK-O0:   call void @llvm.genx.barrier()
+; CHECK-O0:   ret void
+; CHECK-O0: }
 
 ; With -O2, unused call was optimized away
 ; CHECK-O2: define dso_local spir_kernel void @ESIMD_kernel()

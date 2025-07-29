@@ -109,6 +109,19 @@ ur_result_t urQueueCreateWithNativeHandle(
     }
   }
 
+  ze_bool_t isImmediate = false;
+  ZE2UR_CALL(
+      zeCommandListIsImmediate,
+      (reinterpret_cast<ze_command_list_handle_t>(hNativeQueue), &isImmediate));
+
+  if (!isImmediate) {
+    UR_LOG(ERR, "urQueueCreateWithNativeHandle: "
+                "Native handle is not an immediate command "
+                "list; only immediate command lists are "
+                "supported.");
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
   auto commandListHandle = v2::raii::command_list_unique_handle(
       reinterpret_cast<ze_command_list_handle_t>(hNativeQueue),
       [ownNativeHandle](ze_command_list_handle_t hZeCommandList) {
