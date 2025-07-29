@@ -229,9 +229,9 @@
 ??$get_info_impl@Unative_vector_width_int@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unative_vector_width_long@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unative_vector_width_short@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
+??$get_info_impl@Unode_mask@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unum_args@kernel@info@_V1@sycl@@@kernel@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unum_compute_units@device@info@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
-??$get_info_impl@Unode_mask@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uopencl_c_version@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AVstring@detail@12@XZ
 ??$get_info_impl@Uparent_device@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV012@XZ
 ??$get_info_impl@Upartition_affinity_domains@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4partition_affinity_domain@info@_V1@sycl@@V?$allocator@W4partition_affinity_domain@info@_V1@sycl@@@std@@@std@@XZ
@@ -549,6 +549,8 @@
 ??1sampler@_V1@sycl@@QEAA@XZ
 ??1stream@_V1@sycl@@QEAA@XZ
 ??1tls_code_loc_t@detail@_V1@sycl@@QEAA@XZ
+??4?$KernelLaunchPropertyWrapper@Vhandler@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
+??4?$KernelLaunchPropertyWrapper@Vhandler@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4?$OwnerLessBase@Vdevice@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
@@ -3861,6 +3863,7 @@
 ?destroy_image_handle@experimental@oneapi@ext@_V1@sycl@@YAXAEAUsampled_image_handle@12345@AEBVqueue@45@@Z
 ?destroy_image_handle@experimental@oneapi@ext@_V1@sycl@@YAXAEAUunsampled_image_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?destroy_image_handle@experimental@oneapi@ext@_V1@sycl@@YAXAEAUunsampled_image_handle@12345@AEBVqueue@45@@Z
+?deviceSupportForwardProgress@handler@_V1@sycl@@AEBA_NW4forward_progress_guarantee@experimental@oneapi@ext@23@W4execution_scope@56723@1@Z
 ?device_has@queue@_V1@sycl@@AEBA_NW4aspect@23@@Z
 ?empty@kernel_bundle_plain@detail@_V1@sycl@@QEBA_NXZ
 ?enable_ext_oneapi_default_context@detail@_V1@sycl@@YAX_N@Z
@@ -4187,8 +4190,8 @@
 ?get_impl@handler@_V1@sycl@@AEAAPEAVhandler_impl@detail@23@XZ
 ?get_kernel@kernel_bundle_plain@detail@_V1@sycl@@IEBA?AVkernel@34@AEBVkernel_id@34@@Z
 ?get_kernel_bundle@kernel@_V1@sycl@@QEBA?AV?$kernel_bundle@$01@23@XZ
-?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBV?$vector@Vkernel_id@_V1@sycl@@V?$allocator@Vkernel_id@_V1@sycl@@@std@@@5@W4bundle_state@23@@Z
 ?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBV?$span@D$0?0@23@W4bundle_state@23@@Z
+?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBV?$vector@Vkernel_id@_V1@sycl@@V?$allocator@Vkernel_id@_V1@sycl@@@std@@@5@W4bundle_state@23@@Z
 ?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@W4bundle_state@23@@Z
 ?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@W4bundle_state@23@AEBV?$function@$$A6A_NAEBV?$shared_ptr@Vdevice_image_impl@detail@_V1@sycl@@@std@@@Z@5@@Z
 ?get_kernel_id_impl@detail@_V1@sycl@@YA?AVkernel_id@23@Vstring_view@123@@Z
@@ -4260,6 +4263,7 @@
 ?isConstOrGlobal@handler@_V1@sycl@@CA_NW4target@access@23@@Z
 ?isDeviceGlobalUsedInKernel@detail@_V1@sycl@@YA_NPEBX@Z
 ?isImageOrImageArray@handler@_V1@sycl@@CA_NW4target@access@23@@Z
+?isKernelAssociatedWithGraph@handler@_V1@sycl@@AEBA_NXZ
 ?isMemoryObjectUsedByGraph@AccessorBaseHost@detail@_V1@sycl@@QEBA_NXZ
 ?isOutOfRange@detail@_V1@sycl@@YA_NV?$vec@H$03@23@W4addressing_mode@23@V?$range@$02@23@@Z
 ?isPathPresent@OSUtil@detail@_V1@sycl@@SA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
@@ -4415,6 +4419,7 @@
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@H@Z
 ?setKernelInfo@handler@_V1@sycl@@AEAAXPEAXHP6A?AUkernel_param_desc_t@detail@23@H@Z_N2@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
+?setKernelLaunchProperties@handler@_V1@sycl@@AEAAXAEAUKernelLaunchPropertiesT@?$KernelLaunchPropertyWrapper@Vhandler@_V1@sycl@@@detail@23@@Z
 ?setKernelNameBasedCachePtr@handler@_V1@sycl@@AEAAXPEAUKernelNameBasedCacheT@detail@23@@Z
 ?setKernelWorkGroupMem@handler@_V1@sycl@@AEAAX_K@Z
 ?setLocalAccessorArgHelper@handler@_V1@sycl@@AEAAXHAEAVLocalAccessorBaseHost@detail@23@@Z
@@ -4427,8 +4432,8 @@
 ?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$02@23@0V?$id@$02@23@@Z
 ?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$02@23@V?$id@$02@23@@Z
 ?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$02@23@_N@Z
-?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@V?$id@$02@23@H@Z
 ?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@0V?$id@$02@23@H@Z
+?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@V?$id@$02@23@H@Z
 ?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@_NH@Z
 ?setNDRangeUsed@handler@_V1@sycl@@AEAAX_N@Z
 ?setStateExplicitKernelBundle@handler@_V1@sycl@@AEAAXXZ
@@ -4502,6 +4507,7 @@
 ?updateValue@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBX_K@Z
 ?updateWorkGroupMem@dynamic_work_group_memory_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAX_K@Z
 ?use_kernel_bundle@handler@_V1@sycl@@QEAAXAEBV?$kernel_bundle@$01@23@@Z
+?verifyDeviceHasProgressGuarantee@?$KernelLaunchPropertyWrapper@Vhandler@_V1@sycl@@@detail@_V1@sycl@@AEAAXW4forward_progress_guarantee@experimental@oneapi@ext@34@W4execution_scope@67834@1AEAUKernelLaunchPropertiesT@1234@@Z
 ?verifyDeviceHasProgressGuarantee@handler@_V1@sycl@@AEAAXW4forward_progress_guarantee@experimental@oneapi@ext@23@W4execution_scope@56723@1@Z
 ?verifyReductionProps@detail@_V1@sycl@@YAXAEBVproperty_list@23@@Z
 ?verifyUSMAllocatorProperties@_V1@sycl@@YAXAEBVproperty_list@12@@Z
