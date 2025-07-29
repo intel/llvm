@@ -11,7 +11,7 @@
 #include <sycl/usm.hpp>
 
 // Uncomment to print additional test information.
-#define VERBOSE_PRINT
+// #define VERBOSE_PRINT
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
