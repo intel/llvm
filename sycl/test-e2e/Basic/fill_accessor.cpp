@@ -4,7 +4,7 @@
 // UNSUPPORTED: run-mode && arch-intel_gpu_pvc && !igc-dev
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19585
 
-// UNSUPPORTED: run-mode && linux && arch-intel_gpu_bmg_g21 && !spirv-backend
+// UNSUPPORTED: run-mode && linux && arch-intel_gpu_bmg_g21
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19586
 
 #include <sycl/detail/core.hpp>
