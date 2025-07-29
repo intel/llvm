@@ -40,7 +40,7 @@ set(SRC_LIST
   libSPIRV/SPIRVValue.cpp
   libSPIRV/SPIRVError.cpp
   libSPIRV/SPIRVFnVar.cpp
-  )
+)
 
 set(SPIRVLIB_LINK_COMPONENTS
     Analysis
