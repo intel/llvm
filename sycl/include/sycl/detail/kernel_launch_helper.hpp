@@ -255,7 +255,7 @@ struct KernelWrapper<
 }; // KernelWrapper struct
 
 // This struct is inherited by sycl::handler.
-template <typename PropertyProcessorT> class KernelLaunchPropertyWrapper {
+template <typename Self> class KernelLaunchPropertyWrapper {
 public:
   // This struct is used to store kernel launch properties.
   // std::optional is used to indicate that the property is not set.
@@ -263,17 +263,14 @@ public:
   // for the same kernel, that is why using std::optional to avoid overriding
   // previously set properties.
   struct KernelLaunchPropertiesT {
-    std::optional<ur_kernel_cache_config_t> MCacheConfig;
-    std::optional<bool> MIsCooperative;
-    std::optional<uint32_t> MWorkGroupMemorySize;
-    std::optional<bool> MUsesClusterLaunch;
-    size_t MClusterDims;
-    std::array<size_t, 3> MClusterSize;
+    std::optional<ur_kernel_cache_config_t> MCacheConfig = std::nullopt;
+    std::optional<bool> MIsCooperative = std::nullopt;
+    std::optional<uint32_t> MWorkGroupMemorySize = std::nullopt;
+    std::optional<bool> MUsesClusterLaunch = std::nullopt;
+    size_t MClusterDims = 0;
+    std::array<size_t, 3> MClusterSize = {0, 0, 0};
 
-    KernelLaunchPropertiesT()
-        : MCacheConfig(std::nullopt), MIsCooperative(std::nullopt),
-          MWorkGroupMemorySize(std::nullopt), MUsesClusterLaunch(std::nullopt),
-          MClusterDims(0), MClusterSize{0, 0, 0} {}
+    KernelLaunchPropertiesT() = default;
 
     KernelLaunchPropertiesT(ur_kernel_cache_config_t _CacheConfig,
                             bool _IsCooperative, uint32_t _WorkGroupMemorySize,
@@ -284,7 +281,7 @@ public:
           MUsesClusterLaunch(_UsesClusterLaunch), MClusterDims(_ClusterDims),
           MClusterSize(_ClusterSize) {}
 
-    void takeUnionOfProperties(const KernelLaunchPropertiesT &Other) {
+    void copyInitializedFrom(const KernelLaunchPropertiesT &Other) {
       if (Other.MCacheConfig)
         MCacheConfig = Other.MCacheConfig;
 
@@ -322,7 +319,7 @@ private:
     using forward_progress =
         sycl::ext::oneapi::experimental::forward_progress_guarantee;
 
-    PropertyProcessorT *pp = static_cast<PropertyProcessorT *>(this);
+    Self *pp = static_cast<Self *>(this);
     bool supported = pp->deviceSupportForwardProgress(guarantee, threadScope,
                                                       coordinationScope);
 
@@ -372,11 +369,11 @@ public:
   /// Stores information about kernel properties into the handler.
   template <typename PropertiesT>
   KernelLaunchPropertiesT processLaunchProperties(PropertiesT Props) {
+    using namespace sycl::ext::oneapi::experimental;
+    using namespace sycl::ext::oneapi::experimental::detail;
 
-    namespace syclex = sycl::ext::oneapi::experimental;
     KernelLaunchPropertiesT retval;
-
-    PropertyProcessorT *pp = static_cast<PropertyProcessorT *>(this);
+    Self *pp = static_cast<Self *>(this);
     bool HasGraph = pp->isKernelAssociatedWithGraph();
 
     // Process Kernel cache configuration property.
@@ -398,7 +395,7 @@ public:
     // Process Kernel cooperative property.
     {
       constexpr bool UsesRootSync =
-          PropertiesT::template has_property<syclex::use_root_sync_key>();
+          PropertiesT::template has_property<use_root_sync_key>();
       if (UsesRootSync)
         retval.MIsCooperative = UsesRootSync;
     }
@@ -406,27 +403,24 @@ public:
     // Process device progress properties.
     {
       if constexpr (PropertiesT::template has_property<
-                        syclex::work_group_progress_key>()) {
-        auto prop =
-            Props.template get_property<syclex::work_group_progress_key>();
+                        work_group_progress_key>()) {
+        auto prop = Props.template get_property<work_group_progress_key>();
         verifyDeviceHasProgressGuarantee(prop.guarantee,
-                                         syclex::execution_scope::work_group,
+                                         execution_scope::work_group,
                                          prop.coordinationScope, retval);
       }
       if constexpr (PropertiesT::template has_property<
-                        syclex::sub_group_progress_key>()) {
-        auto prop =
-            Props.template get_property<syclex::sub_group_progress_key>();
+                        sub_group_progress_key>()) {
+        auto prop = Props.template get_property<sub_group_progress_key>();
         verifyDeviceHasProgressGuarantee(prop.guarantee,
-                                         syclex::execution_scope::sub_group,
+                                         execution_scope::sub_group,
                                          prop.coordinationScope, retval);
       }
       if constexpr (PropertiesT::template has_property<
-                        syclex::work_item_progress_key>()) {
-        auto prop =
-            Props.template get_property<syclex::work_item_progress_key>();
+                        work_item_progress_key>()) {
+        auto prop = Props.template get_property<work_item_progress_key>();
         verifyDeviceHasProgressGuarantee(prop.guarantee,
-                                         syclex::execution_scope::work_item,
+                                         execution_scope::work_item,
                                          prop.coordinationScope, retval);
       }
     }
@@ -434,12 +428,11 @@ public:
     // Process work group scratch memory property.
     {
       if constexpr (PropertiesT::template has_property<
-                        syclex::work_group_scratch_size>()) {
+                        work_group_scratch_size>()) {
         if (HasGraph) {
-          std::string FeatureString =
-              ext::oneapi::experimental::detail::UnsupportedFeatureToString(
-                  syclex::detail::UnsupportedGraphFeatures::
-                      sycl_ext_oneapi_work_group_scratch_memory);
+          std::string FeatureString = UnsupportedFeatureToString(
+              UnsupportedGraphFeatures::
+                  sycl_ext_oneapi_work_group_scratch_memory);
           throw sycl::exception(sycl::make_error_code(errc::invalid),
                                 "The " + FeatureString +
                                     " feature is not yet available "
@@ -447,31 +440,28 @@ public:
         }
 
         auto WorkGroupMemSize =
-            Props.template get_property<syclex::work_group_scratch_size>();
+            Props.template get_property<work_group_scratch_size>();
         retval.MWorkGroupMemorySize = WorkGroupMemSize.size;
       }
     }
 
     // Parse cluster properties.
     {
-      constexpr std::size_t ClusterDim =
-          syclex::detail::getClusterDim<PropertiesT>();
+      constexpr std::size_t ClusterDim = getClusterDim<PropertiesT>();
       if constexpr (ClusterDim > 0) {
         if (HasGraph) {
-          std::string FeatureString =
-              ext::oneapi::experimental::detail::UnsupportedFeatureToString(
-                  syclex::detail::UnsupportedGraphFeatures::
-                      sycl_ext_oneapi_experimental_cuda_cluster_launch);
+          std::string FeatureString = UnsupportedFeatureToString(
+              UnsupportedGraphFeatures::
+                  sycl_ext_oneapi_experimental_cuda_cluster_launch);
           throw sycl::exception(sycl::make_error_code(errc::invalid),
                                 "The " + FeatureString +
                                     " feature is not yet available "
                                     "for use with the SYCL Graph extension.");
         }
 
-        auto ClusterSize = Props
-                               .template get_property<
-                                   syclex::cuda::cluster_size_key<ClusterDim>>()
-                               .get_cluster_size();
+        auto ClusterSize =
+            Props.template get_property<cuda::cluster_size_key<ClusterDim>>()
+                .get_cluster_size();
         retval.MUsesClusterLaunch = true;
         retval.MClusterDims = ClusterDim;
         if (ClusterDim == 1) {

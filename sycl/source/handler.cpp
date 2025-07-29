@@ -2258,7 +2258,7 @@ void handler::setKernelLaunchProperties(
     KernelLaunchPropertyWrapper::KernelLaunchPropertiesT
         &KernelLaunchProperties) {
 
-  impl->KLProps.takeUnionOfProperties(KernelLaunchProperties);
+  impl->KLProps.copyInitializedFrom(KernelLaunchProperties);
 
   if (KernelLaunchProperties.MUsesClusterLaunch) {
     if (KernelLaunchProperties.MClusterDims == 1) {
@@ -2636,7 +2636,6 @@ void handler::copyCodeLoc(const handler &other) {
 queue handler::getQueue() {
   return createSyclObjFromImpl<queue>(impl->get_queue());
 }
-
 namespace detail {
 __SYCL_EXPORT void HandlerAccess::preProcess(handler &CGH,
                                              type_erased_cgfo_ty F) {
