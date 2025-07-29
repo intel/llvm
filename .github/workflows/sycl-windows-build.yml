@@ -146,8 +146,7 @@ jobs:
           "-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ^
           -DCMAKE_C_COMPILER_LAUNCHER=ccache ^
-          -DLLVM_INSTALL_UTILS=ON ^
-          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV
+          -DLLVM_INSTALL_UTILS=ON
     - name: Build
       id: build
       shell: bash
