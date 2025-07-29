@@ -2,6 +2,8 @@
 // RUN: %t_default.out
 // RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes %s -o %t_vec.out %}
 // RUN: %if preview-breaking-changes-supported %{ %t_vec.out %}
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
 
 //==--------------- vectors.cpp - SYCL vectors test ------------------------==//
 //
