@@ -350,7 +350,7 @@ public:
   device_image_plain build(const DevImgPlainWithDeps &ImgWithDeps,
                            devices_range Devs, const property_list &PropList);
 
-  std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *>
+  std::tuple<Managed<ur_kernel_handle_t>, std::mutex *, const KernelArgMask *>
   getOrCreateKernel(const context &Context, KernelNameStrRefT KernelName,
                     const property_list &PropList, ur_program_handle_t Program);
 
@@ -544,7 +544,7 @@ protected:
   std::mutex m_HostPipesMutex;
 
   using MaterializedEntries =
-      std::map<std::vector<unsigned char>, ur_kernel_handle_t>;
+      std::map<std::vector<unsigned char>, Managed<ur_kernel_handle_t>>;
   std::unordered_map<KernelNameStrT, MaterializedEntries> m_MaterializedKernels;
 
   // Holds bfloat16 device library images, the 1st element is for fallback
