@@ -60,9 +60,7 @@ TEST_F(USMPrefetchTests, HandlerPrefetch) {
   mock::getCallbacks().set_replace_callback("urEnqueueUSMPrefetch",
                                             replace_urUSMEnqueuePrefetch);
 
-  Q.submit([&](handler &CGH) {
-    CGH.prefetch(Dst, sizeof(int) * N);
-  });
+  Q.submit([&](handler &CGH) { CGH.prefetch(Dst, sizeof(int) * N); });
   ASSERT_EQ(SubmittedPrefetchType, UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE);
 
   free(Dst, Q);
