@@ -37,7 +37,7 @@ on:
 
       repo_ref:
         type: string
-        required: True
+        required: False
         description: |
           Commit SHA or branch to checkout the intel/llvm repo.
       tests_ref:
@@ -60,9 +60,10 @@ on:
 
       e2e_binaries_artifact:
         description: |
-          Must be set if `e2e_testing_mode` is equal to `run-only` and the
-          artifact must exist. Can be set in other modes resulting in artifact
-          upload.
+          When set in modes other than `run-only` results in artifact upload.
+          For `run-only` mode, if specified, means downloading pre-built
+          binaries from the artifact, otherwise they are expected to be part of
+          the container.
         type: string
         default: ''
         required: False

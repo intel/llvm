@@ -24,6 +24,7 @@ runs:
   using: "composite"
   steps:
   - name: Checkout E2E tests
+    if: ${{ inputs.testing_mode != 'run-only'  || inputs.binaries_artifact }}
     uses: actions/checkout@v4
     with:
       path: llvm
@@ -31,18 +32,25 @@ runs:
       sparse-checkout: |
         llvm/utils/lit
         sycl/test-e2e
-
   - name: Download E2E Binaries
-    if: inputs.testing_mode == 'run-only'
+    if: ${{ inputs.testing_mode == 'run-only'  && inputs.binaries_artifact != '' }}
     uses: actions/download-artifact@v4
     with:
       name: ${{ inputs.binaries_artifact }}
   - name: Extract E2E Binaries
-    if: inputs.testing_mode == 'run-only'
+    if: ${{ inputs.testing_mode == 'run-only'  && inputs.binaries_artifact != '' }}
     shell: bash
     run: |
       mkdir build-e2e
       tar -I 'zstd' -xf e2e_binaries.tar.zst -C build-e2e
+
+  - name: Extract E2E tests from container image
+    if: ${{ inputs.testing_mode == 'run-only'  && inputs.binaries_artifact == '' }}
+    shell: bash
+    run: |
+      mkdir build-e2e llvm
+      tar -I 'zstd' -xf /sycl-prebuilt/e2e_binaries.tar.zst -C build-e2e
+      tar -I 'zstd' -xf /sycl-prebuilt/e2e_sources.tar.zst -C llvm
 
   - name: Deduce E2E CMake options
     if: inputs.testing_mode != 'run-only'
@@ -60,18 +68,19 @@ runs:
     run: |
       cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which clang++)'}}" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
   - name: SYCL End-to-end tests
-    shell: bash {0}
+    shell: bash
     env:
       LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
     run: |
       ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
-      exit_code=$?
+  - name: Process E2E logs
+    if: ${{ always() }}
+    shell: bash
+    run: |
       cat e2e.log
       if [ $exit_code -ne 0 ]; then
-        # This is duplicated between lin/win, updates must change both.
         awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
       fi
-      exit $exit_code
 
   - name: Pack E2E binaries
     if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}

@@ -231,3 +231,18 @@ jobs:
   #     toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
   #     toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
   #     toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
+
+  compatibility:
+    needs: [build, detect_changes]
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: E2E Backward ABI compatibility
+      runner: '["Linux", "pvc"]'
+      image: ghcr.io/intel/llvm/sycl_prebuilt_tests:nightly-2025-06-20
+      image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+      target_devices: level_zero:gpu
+      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
+      e2e_testing_mode: 'run-only'
