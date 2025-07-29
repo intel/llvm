@@ -1,11 +1,11 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: run-mode && arch-intel_gpu_pvc && !igc-dev
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19585
+// UNSUPPORTED: run-mode && arch-intel_gpu_pvc && !igc-dev
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19585
 
-// XFAIL: run-mode && linux && arch-intel_gpu_bmg_g21 && !spirv-backend
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19586
+// UNSUPPORTED: run-mode && linux && arch-intel_gpu_bmg_g21 && !spirv-backend
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19586
 
 #include <sycl/detail/core.hpp>
 
