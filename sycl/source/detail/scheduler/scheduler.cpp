@@ -411,11 +411,11 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
-void Scheduler::enqueueUnblockedCommands(
-    const std::vector<EventImplPtr> &ToEnqueue, ReadLockT &GraphReadLock,
-    std::vector<Command *> &ToCleanUp) {
-  for (auto &Event : ToEnqueue) {
-    Command *Cmd = Event->getCommand();
+void Scheduler::enqueueUnblockedCommands(events_range ToEnqueue,
+                                         ReadLockT &GraphReadLock,
+                                         std::vector<Command *> &ToCleanUp) {
+  for (event_impl &Event : ToEnqueue) {
+    Command *Cmd = Event.getCommand();
     if (!Cmd)
       continue;
     EnqueueResultT Res;
@@ -684,46 +684,28 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
   return NewCmdEvent;
 }
 
-bool Scheduler::CheckEventReadiness(context_impl &Context,
-                                    const EventImplPtr &SyclEventImplPtr) {
-  // Events that don't have an initialized context are throwaway events that
-  // don't represent actual dependencies. Calling getContextImpl() would set
-  // their context, which we wish to avoid as it is expensive.
-  // NOP events also don't represent actual dependencies.
-  if (SyclEventImplPtr->isDefaultConstructed() || SyclEventImplPtr->isNOP()) {
-    return true;
-  }
-  if (SyclEventImplPtr->isHost()) {
-    return SyclEventImplPtr->isCompleted();
-  }
-  // Cross-context dependencies can't be passed to the backend directly.
-  if (&SyclEventImplPtr->getContextImpl() != &Context)
-    return false;
+bool Scheduler::areEventsSafeForSchedulerBypass(events_range DepEvents,
+                                                context_impl &Context) {
+  return all_of(DepEvents, [&Context](sycl::detail::event_impl &Event) {
+    // Events that don't have an initialized context are throwaway events that
+    // don't represent actual dependencies. Calling getContextImpl() would set
+    // their context, which we wish to avoid as it is expensive.
+    // NOP events also don't represent actual dependencies.
+    if (Event.isDefaultConstructed() || Event.isNOP())
+      return true;
 
-  // A nullptr here means that the commmand does not produce a UR event or it
-  // hasn't been enqueued yet.
-  return SyclEventImplPtr->getHandle() != nullptr;
+    if (Event.isHost())
+      return Event.isCompleted();
+
+    // Cross-context dependencies can't be passed to the backend directly.
+    if (&Event.getContextImpl() != &Context)
+      return false;
+
+    // A nullptr here means that the commmand does not produce a UR event or it
+    // hasn't been enqueued yet.
+    return Event.getHandle() != nullptr;
+  });
 }
-
-bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<sycl::event> &DepEvents, context_impl &Context) {
-
-  return std::all_of(
-      DepEvents.begin(), DepEvents.end(), [&Context](const sycl::event &Event) {
-        const EventImplPtr &SyclEventImplPtr = detail::getSyclObjImpl(Event);
-        return CheckEventReadiness(Context, SyclEventImplPtr);
-      });
-}
-
-bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<EventImplPtr> &DepEvents, context_impl &Context) {
-
-  return std::all_of(DepEvents.begin(), DepEvents.end(),
-                     [&Context](const EventImplPtr &SyclEventImplPtr) {
-                       return CheckEventReadiness(Context, SyclEventImplPtr);
-                     });
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
