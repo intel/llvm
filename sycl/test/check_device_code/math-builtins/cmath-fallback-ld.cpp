@@ -1,6 +1,7 @@
 // Note: This isn't really target specific and should be switched to spir when
 // it's enabled for it.
 
+// REQUIRES: cuda
 // RUN: %clang -fsycl -fsyntax-only -fsycl-targets=nvptx64-nvidia-cuda -nocudalib %s
 
 // Check that mixed calls with long double don't cause compile errors on the
