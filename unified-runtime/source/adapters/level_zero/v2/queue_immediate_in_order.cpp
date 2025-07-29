@@ -101,6 +101,8 @@ ur_result_t ur_queue_immediate_in_order_t::queueGetNativeHandle(
 }
 
 ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
+  return UR_RESULT_ERROR_INVALID_ARGUMENT;
+
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::queueFinish");
 
   auto lockedCommandListManager = commandListManager.lock();
