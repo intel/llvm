@@ -185,9 +185,9 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
   auto SyclKernelImpl =
       KernelBundleImplPtr->tryGetKernel(ExecKernel->MKernelName);
   EXPECT_TRUE(SyclKernelImpl != nullptr);
-  std::shared_ptr<sycl::detail::device_image_impl> DeviceImageImpl =
+  sycl::detail::device_image_impl &DeviceImageImpl =
       SyclKernelImpl->getDeviceImage();
-  ur_program_handle_t Program = DeviceImageImpl->get_ur_program();
+  ur_program_handle_t Program = DeviceImageImpl.get_ur_program();
 
   EXPECT_TRUE(nullptr == ExecKernel->MSyclKernel ||
               !ExecKernel->MSyclKernel->isCreatedFromSource());

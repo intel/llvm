@@ -301,13 +301,12 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   // this by pre-building the device image and extracting kernel info. We can't
   // do the same to user images, since they may contain references to undefined
   // symbols (e.g. when kernel_bundle is supposed to be joined with another).
-  auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
-  auto DevImgImpl = device_image_impl::create(
-      nullptr, TargetContext, Devices, State, KernelIDs, std::move(UrProgram),
-      ImageOriginInterop);
-  device_image_plain DevImg{DevImgImpl};
-
-  return kernel_bundle_impl::create(TargetContext, Devices, DevImg);
+  return kernel_bundle_impl::create(
+      TargetContext, Devices,
+      device_image_plain{
+          device_image_impl::create(nullptr, TargetContext, Devices, State,
+                                    std::make_shared<std::vector<kernel_id>>(),
+                                    std::move(UrProgram), ImageOriginInterop)});
 }
 
 // TODO: Unused. Remove when allowed.
@@ -322,7 +321,7 @@ kernel make_kernel(const context &TargetContext,
                    const kernel_bundle<bundle_state::executable> &KernelBundle,
                    ur_native_handle_t NativeHandle, bool KeepOwnership,
                    backend Backend) {
-  const auto &Adapter = getAdapter(Backend);
+  adapter_impl &Adapter = getAdapter(Backend);
   context_impl &ContextImpl = *getSyclObjImpl(TargetContext);
   kernel_bundle_impl &KernelBundleImpl = *getSyclObjImpl(KernelBundle);
 
@@ -348,7 +347,7 @@ kernel make_kernel(const context &TargetContext,
   }
 
   // Create UR kernel first.
-  ur_kernel_handle_t UrKernel = nullptr;
+  Managed<ur_kernel_handle_t> UrKernel{Adapter};
   ur_kernel_native_properties_t Properties{};
   Properties.stype = UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES;
   Properties.isNativeHandleOwned = !KeepOwnership;
@@ -360,8 +359,8 @@ kernel make_kernel(const context &TargetContext,
     __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeHandle));
 
   // Construct the SYCL queue from UR queue.
-  return detail::createSyclObjFromImpl<kernel>(
-      std::make_shared<kernel_impl>(UrKernel, ContextImpl, &KernelBundleImpl));
+  return detail::createSyclObjFromImpl<kernel>(std::make_shared<kernel_impl>(
+      std::move(UrKernel), ContextImpl, &KernelBundleImpl));
 }
 
 kernel make_kernel(ur_native_handle_t NativeHandle,

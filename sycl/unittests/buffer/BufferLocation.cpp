@@ -63,14 +63,22 @@ static ur_result_t redefinedDeviceGetInfoAfter(void *pParams) {
     const size_t nameSize = name.size() + 1;
 
     if (!*params->ppPropValue) {
+      size_t beforeSize = **params->ppPropSizeRet;
       // Choose bigger size so that both original and redefined function
-      // has enough memory for storing the extension string
-      **params->ppPropSizeRet = nameSize > **params->ppPropSizeRet
-                                    ? nameSize
-                                    : **params->ppPropSizeRet;
+      // has enough memory for storing the extension string. If the original has
+      // reported it has a non-empty string to report, we additionally need room
+      // for a space.
+      **params->ppPropSizeRet = beforeSize + (beforeSize > 0) + nameSize;
     } else {
+      assert(*params->ppropSize >= nameSize);
+      // Insert at the end of the extension string.
+      size_t nameOffset = *params->ppropSize - nameSize;
       char *dst = static_cast<char *>(*params->ppPropValue);
-      strcpy(dst, name.data());
+      // If the offset isn't at the start of the string, we need to insert a
+      // space before it.
+      if (nameOffset > 0)
+        dst[nameOffset - 1] = ' ';
+      strcpy(dst + *params->ppropSize - nameSize, name.data());
     }
     break;
   }
