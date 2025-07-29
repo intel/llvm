@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: cuda || hip
-
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 

@@ -9,7 +9,7 @@ target triple = "nvptx64-nvidia-cuda"
 ; correcly updated (`maxntid`).
 
 
-define void @_ZTS14example_kernel(ptr addrspace(3) %a, ptr addrspace(1) %b, i32 %c) {
+define ptx_kernel void @_ZTS14example_kernel(ptr addrspace(3) %a, ptr addrspace(1) %b, i32 %c) {
 entry:
   %0 = load i32, ptr addrspace(3) %a
   %1 = load i32, ptr addrspace(1) %b
@@ -21,7 +21,7 @@ entry:
 !nvvm.annotations = !{!0, !1, !2, !1, !3, !3, !3, !3, !4, !4, !3, !5}
 !nvvmir.version = !{!6}
 
-!0 = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
+!0 = distinct !{ptr @_ZTS14example_kernel, !"dummy", i32 1}
 !1 = !{null, !"align", i32 8}
 !2 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
 !3 = !{null, !"align", i32 16}
@@ -32,8 +32,8 @@ entry:
 ;.
 ; CHECK: @_ZTS14example_kernel_shared_mem = external addrspace(3) global [0 x i8], align 4
 ;.
-; CHECK-LABEL: define void @_ZTS14example_kernel(
-; CHECK-SAME: i32 [[TMP0:%.*]], ptr addrspace(1) [[B:%.*]], i32 [[C:%.*]]) {
+; CHECK-LABEL: define ptx_kernel void @_ZTS14example_kernel(
+; CHECK-SAME: i32 [[TMP0:%.*]], ptr addrspace(1) [[B:%.*]], i32 [[C:%.*]]) #[[ATTR0:[0-9]+]] {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = getelementptr inbounds [0 x i8], ptr addrspace(3) @_ZTS14example_kernel_shared_mem, i32 0, i32 [[TMP0]]
 ; CHECK-NEXT:    [[A:%.*]] = bitcast ptr addrspace(3) [[TMP1]] to ptr addrspace(3)
@@ -43,12 +43,9 @@ entry:
 ; CHECK-NEXT:    ret void
 ;
 ;.
+; CHECK: attributes #[[ATTR0]] = { "nvvm.maxntid"="256" }
+;.
 ; CHECK: [[META0:![0-9]+]] = !{i32 1, !"sycl-device", i32 1}
-; CHECK: [[META1:![0-9]+]] = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
-; CHECK: [[META2:![0-9]+]] = !{null, !"align", i32 8}
-; CHECK: [[META3:![0-9]+]] = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
-; CHECK: [[META4:![0-9]+]] = !{null, !"align", i32 16}
-; CHECK: [[META5:![0-9]+]] = !{null, !"align", i32 16, !"align", i32 65552, !"align", i32 131088}
-; CHECK: [[META6:![0-9]+]] = distinct !{ptr @_ZTS14example_kernel, !"maxntidx", i32 256}
-; CHECK: [[META7:![0-9]+]] = !{i32 1, i32 4}
+; CHECK: [[META1:![0-9]+]] = distinct !{ptr @_ZTS14example_kernel, !"dummy", i32 1}
+; CHECK: [[META2:![0-9]+]] = !{i32 1, i32 4}
 ;.

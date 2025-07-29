@@ -40,7 +40,6 @@
 #ifndef SPIRV_LIBSPIRV_SPIRVENTRY_H
 #define SPIRV_LIBSPIRV_SPIRVENTRY_H
 
-#include "LLVMSPIRVOpts.h"
 #include "SPIRVEnum.h"
 #include "SPIRVError.h"
 #include "SPIRVIsValidEnum.h"
@@ -342,6 +341,7 @@ public:
   bool isVariable() const {
     return OpCode == OpVariable || OpCode == OpUntypedVariableKHR;
   }
+  bool isUntypedVariable() const { return OpCode == OpUntypedVariableKHR; }
   bool isEndOfBlock() const;
   virtual bool isInst() const { return false; }
   virtual bool isOperandLiteral(unsigned Index) const {
@@ -806,6 +806,12 @@ public:
       return nullptr;
     return Loc->second;
   }
+  SPIRVExecutionModeId *getExecutionModeId(SPIRVExecutionModeKind EMK) const {
+    auto Loc = ExecModes.find(EMK);
+    if (Loc == ExecModes.end())
+      return nullptr;
+    return static_cast<SPIRVExecutionModeId *>(Loc->second);
+  }
   SPIRVExecutionModeRange
   getExecutionModeRange(SPIRVExecutionModeKind EMK) const {
     return ExecModes.equal_range(EMK);
@@ -903,8 +909,6 @@ public:
     case CapabilityVectorComputeINTEL:
     case CapabilityVectorAnyINTEL:
       return ExtensionID::SPV_INTEL_vector_compute;
-    case internal::CapabilityFastCompositeINTEL:
-      return ExtensionID::SPV_INTEL_fast_composite;
     case internal::CapabilitySubgroupRequirementsINTEL:
       return ExtensionID::SPV_INTEL_subgroup_requirements;
     default:
@@ -959,7 +963,7 @@ public:
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
-    return ExtensionID::SPV_INTEL_long_constant_composite;
+    return ExtensionID::SPV_INTEL_long_composites;
   }
 
   SPIRVWord getNumElements() const { return Elements.size(); }
@@ -1088,7 +1092,6 @@ _SPIRV_OP(NamedBarrierInitialize)
 _SPIRV_OP(MemoryNamedBarrier)
 _SPIRV_OP(GetKernelMaxNumSubgroups)
 _SPIRV_OP(GetKernelLocalSizeForSubgroupCount)
-_SPIRV_OP(SizeOf)
 #undef _SPIRV_OP
 
 } // namespace SPIRV

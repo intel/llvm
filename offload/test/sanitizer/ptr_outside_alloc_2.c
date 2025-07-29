@@ -5,8 +5,8 @@
 
 // UNSUPPORTED: aarch64-unknown-linux-gnu
 // UNSUPPORTED: aarch64-unknown-linux-gnu-LTO
-// UNSUPPORTED: x86_64-pc-linux-gnu
-// UNSUPPORTED: x86_64-pc-linux-gnu-LTO
+// UNSUPPORTED: x86_64-unknown-linux-gnu
+// UNSUPPORTED: x86_64-unknown-linux-gnu-LTO
 // UNSUPPORTED: s390x-ibm-linux-gnu
 // UNSUPPORTED: s390x-ibm-linux-gnu-LTO
 
@@ -18,7 +18,7 @@ int main() {
 #pragma omp target map(A[ : N])
   { A[N] = 3; }
   // clang-format off
-// CHECK: OFFLOAD ERROR: Memory access fault by GPU {{.*}} (agent 0x{{.*}}) at virtual address [[PTR:0x[0-9a-z]*]]. Reasons: {{.*}}
+// CHECK: OFFLOAD ERROR: memory access fault by GPU {{.*}} (agent 0x{{.*}}) at virtual address [[PTR:0x[0-9a-z]*]]. Reasons: {{.*}}
 // CHECK: Device pointer [[PTR]] does not point into any (current or prior) host-issued allocation.
 // CHECK: Closest host-issued allocation (distance 1 byte; might be by page):
 // CHECK: Last allocation of size 1073741824

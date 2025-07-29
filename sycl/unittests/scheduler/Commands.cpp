@@ -15,9 +15,9 @@
 
 using namespace sycl;
 
-ur_result_t redefineEnqueueEventsWaitWithBarrier(void *pParams) {
+ur_result_t redefineEnqueueEventsWaitWithBarrierExt(void *pParams) {
   auto params =
-      *static_cast<ur_enqueue_events_wait_with_barrier_params_t *>(pParams);
+      *static_cast<ur_enqueue_events_wait_with_barrier_ext_params_t *>(pParams);
 
   for (uint32_t i = 0; i != *params.pnumEventsInWaitList; ++i)
     EXPECT_NE((*params.pphEventWaitList)[i], nullptr);
@@ -51,10 +51,11 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
   sycl::platform Plt = sycl::platform();
 
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier", &redefineEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefineEnqueueEventsWaitWithBarrierExt);
 
   queue Queue{Plt.get_devices()[0]};
-  sycl::detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
+  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
 
   queue_global_context =
       detail::getSyclObjImpl(Queue.get_context())->getHandleRef();
@@ -62,12 +63,12 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
   mock::getCallbacks().set_before_callback("urEventGetInfo",
                                            &redefineUrEventGetInfo);
 
-  auto EmptyEvent = std::make_shared<detail::event_impl>();
+  auto EmptyEvent = detail::event_impl::create_completed_host_event();
 
   ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
   auto Event =
-      std::make_shared<detail::event_impl>(UREvent, Queue.get_context());
+      detail::event_impl::create_from_handle(UREvent, Queue.get_context());
 
   using EventList = std::vector<detail::EventImplPtr>;
   std::vector<EventList> InputEventWaitLists = {
@@ -77,7 +78,8 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
 
   for (auto &Arg : InputEventWaitLists) {
     std::unique_ptr<detail::CG> CommandGroup(new detail::CGBarrier(
-        std::move(Arg), detail::CG::StorageInitHelper({}, {}, {}, {}, {}),
+        std::move(Arg), ext::oneapi::experimental::event_mode_enum::none,
+        detail::CG::StorageInitHelper({}, {}, {}, {}, {}),
         detail::CGType::BarrierWaitlist, {}));
     MS.Scheduler::addCG(std::move(CommandGroup), QueueImpl,
                         /*EventNeeded=*/true);

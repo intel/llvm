@@ -17,6 +17,7 @@
 
 #include "../esimd_test_utils.hpp"
 
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 #include <vector>
@@ -86,12 +87,11 @@ int main(int argc, char **argv) {
       passed = false;
     }
   }
-  std::cout << (passed ? "passed\n" : "FAILED\n");
+  if (!passed)
+    std::cout << "FAILED\n";
   return passed ? 0 : 1;
 }
 
 // --- Check that only two JIT compilation happened:
 // CHECK-COUNT-2: <--- urProgramBuildExp
 // CHECK-NOT: <--- urProgramBuildExp
-// --- Check that the test completed with expected results:
-// CHECK: passed

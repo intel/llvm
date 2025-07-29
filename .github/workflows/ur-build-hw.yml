@@ -1,0 +1,182 @@
+name: UR - Build adapters, test on HW
+
+on:
+  workflow_call:
+    inputs:
+      adapter_name:
+        required: true
+        type: string
+      other_adapter_name:
+        required: false
+        type: string
+        default: ""
+      runner_name:
+        required: true
+        type: string
+      static_loader:
+        required: false
+        type: string
+        default: OFF
+      static_adapter:
+        required: false
+        type: string
+        default: OFF
+      docker_image:
+        required: true
+        type: string
+        default: ""
+      image_options:
+        required: true
+        type: string
+        default: ""
+  workflow_dispatch:
+    inputs:
+      adapter_name:
+        required: true
+        type: string
+      other_adapter_name:
+        required: false
+        type: string
+        default: ""
+      runner_name:
+        required: true
+        type: string
+      static_loader:
+        required: false
+        type: string
+        default: OFF
+      static_adapter:
+        required: false
+        type: string
+        default: OFF
+      docker_image:
+        required: true
+        type: string
+        default: ""
+      image_options:
+        required: true
+        type: string
+        default: ""
+
+permissions: read-all
+
+env:
+  UR_LOG_CUDA: "level:error;flush:error"
+  UR_LOG_HIP: "level:error;flush:error"
+  UR_LOG_LEVEL_ZERO: "level:error;flush:error"
+  UR_LOG_NATIVE_CPU: "level:error;flush:error"
+  UR_LOG_OPENCL: "level:error;flush:error"
+
+jobs:
+  adapter_build_hw:
+    name: Build & CTS
+    # run only on upstream; forks won't have the HW
+    if: github.repository == 'intel/llvm'
+    strategy:
+      fail-fast: false
+      matrix:
+        adapter: [
+          {
+            name: "${{inputs.adapter_name}}",
+            other_name: "${{inputs.other_adapter_name}}",
+            static_Loader: "${{inputs.static_loader}}",
+            static_adapter: "${{inputs.static_loader}}"
+          }
+        ]
+        build_type: [Release]
+        compiler: [{c: gcc, cxx: g++}]
+
+    runs-on: ${{inputs.runner_name}}
+    container:
+      image: ${{ inputs.docker_image }}
+      options: ${{ inputs.image_options }}
+
+    steps:
+    # TODO:
+    # - investigate if DUR_CONFORMANCE_AMD_ARCH could be removed
+    # - switch to Ninja generator in CMake
+    # - downloading DPC++ should be integrated somehow; most likely use nightly release.
+    #
+    - name: Checkout LLVM
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+    # for some reason it's required to re-configure python for venv to work properly.
+    - name: Set up Python 3.12
+      if: ${{ inputs.docker_image == 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps' }}
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      with:
+        python-version: '3.12'
+
+    - name: Install UR python dependencies in venv
+      working-directory: ./unified-runtime
+      run: |
+        python3 -m venv .venv
+        . .venv/bin/activate
+        echo "$PATH" >> $GITHUB_PATH
+        pip install -r third_party/requirements.txt
+        pip install -r third_party/requirements_testing.txt
+
+    - name: Download DPC++
+      run: |
+        wget -O dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-12-12/sycl_linux.tar.gz
+        mkdir -p dpcpp_compiler
+        tar -xvf dpcpp_compiler.tar.gz -C dpcpp_compiler
+
+    - name: Install OpenCL
+      if: ${{ inputs.adapter_name == 'OPENCL' }}
+      run: |
+        wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+        | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+        echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+        sudo apt-get update
+        sudo apt-get install -y intel-oneapi-runtime-opencl
+
+    - name: Configure Unified Runtime project
+      # ">" is used to avoid adding "\" at the end of each line; this command is quite long
+      run: >
+        cmake
+        -S unified-runtime
+        -B build
+        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
+        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+        -DUR_ENABLE_TRACING=ON
+        -DUR_DEVELOPER_MODE=ON
+        -DUR_BUILD_TESTS=ON
+        -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
+        ${{ matrix.adapter.other_name != '' && format('-DUR_BUILD_ADAPTER_{0}=ON', matrix.adapter.other_name) || '' }}
+        -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
+        -DUR_STATIC_ADAPTER_${{matrix.adapter.name}}=${{matrix.adapter.static_adapter}}
+        -DUR_DPCXX=./dpcpp_compiler/bin/clang++
+        -DUR_SYCL_LIBRARY_DIR=./dpcpp_compiler/lib
+        -DCMAKE_INSTALL_PREFIX=./install
+        ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }}
+        ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
+
+    - name: Build
+      # This is so that device binaries can find the sycl runtime library
+      run: cmake --build build -j $(nproc)
+
+    - name: Install
+      # This is to check that install command does not fail
+      run: cmake --install build
+
+    - name: Test adapter specific
+      env:
+        ZE_ENABLE_LOADER_DEBUG_TRACE: 1
+        LIT_OPTS: "--timeout 120"
+        # These tests cause timeouts on CI
+        LIT_FILTER_OUT: "(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)"
+      run: cmake --build build -j $(nproc) -- check-unified-runtime-adapter
+      # Don't run adapter specific tests when building multiple adapters
+      if: ${{ matrix.adapter.other_name == '' }}
+
+    - name: Test adapters
+      env:
+        ZE_ENABLE_LOADER_DEBUG_TRACE: 1
+        LIT_OPTS: "--timeout 120"
+      run: cmake --build build -j $(nproc) -- check-unified-runtime-conformance
+
+    - name: Get information about platform
+      if: ${{ always() }}
+      run: ./unified-runtime/.github/scripts/get_system_info.sh

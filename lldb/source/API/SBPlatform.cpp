@@ -13,7 +13,6 @@
 #include "lldb/API/SBFileSpec.h"
 #include "lldb/API/SBLaunchInfo.h"
 #include "lldb/API/SBModuleSpec.h"
-#include "lldb/API/SBPlatform.h"
 #include "lldb/API/SBProcessInfoList.h"
 #include "lldb/API/SBTarget.h"
 #include "lldb/API/SBUnixSignals.h"
@@ -586,7 +585,7 @@ SBProcess SBPlatform::Attach(SBAttachInfo &attach_info,
       Status status;
       ProcessSP process_sp = platform_sp->Attach(info, debugger.ref(),
                                                  target.GetSP().get(), status);
-      error.SetError(status);
+      error.SetError(std::move(status));
       return SBProcess(process_sp);
     }
 
@@ -728,7 +727,7 @@ SBError SBPlatform::SetLocateModuleCallback(
           symbol_file_spec = symbol_file_spec_sb.ref();
         }
 
-        return error.ref();
+        return error.ref().Clone();
       });
   return SBError();
 }

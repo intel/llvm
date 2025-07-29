@@ -8,6 +8,7 @@ add_mlir_dialect_library(MLIRMemRefTransforms
   EmulateWideInt.cpp
   EmulateNarrowType.cpp
   ExtractAddressComputations.cpp
+  FlattenMemRefs.cpp
   FoldMemRefAliasOps.cpp
   IndependenceTransforms.cpp
   MultiBuffer.cpp
@@ -22,13 +23,10 @@ add_mlir_dialect_library(MLIRMemRefTransforms
   MLIRMemRefPassIncGen
 
   LINK_LIBS PUBLIC
-  MLIRAffineDialect
   MLIRAffineTransforms
   MLIRAffineUtils
   MLIRArithDialect
   MLIRArithTransforms
-  MLIRBufferizationDialect
-  MLIRBufferizationTransforms
   MLIRDialectUtils
   MLIRFuncDialect
   MLIRGPUDialect

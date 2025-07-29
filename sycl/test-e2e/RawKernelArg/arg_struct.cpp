@@ -7,6 +7,7 @@
 // Tests raw_kernel_arg which is used to pass user-defined data types
 // (structures) as kernel arguments.
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 constexpr size_t NumArgs = 2;

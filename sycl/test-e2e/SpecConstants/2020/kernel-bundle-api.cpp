@@ -10,13 +10,14 @@
 // RUN: %{build} -o %t.out -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: hip
+// UNSUPPORTED: target-amd
 // UNSUPPORTED: native_cpu
 
 #include <cstdlib>
 #include <iostream>
 #include <sycl/detail/core.hpp>
 
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 #include "common.hpp"

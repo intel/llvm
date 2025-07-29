@@ -15,6 +15,7 @@
 #include "lldb/Breakpoint/BreakpointResolver.h"
 #include "lldb/Breakpoint/BreakpointResolverFileLine.h"
 #include "lldb/Core/Address.h"
+#include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleList.h"
 #include "lldb/Core/SearchFilter.h"
@@ -26,6 +27,7 @@
 #include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Target/ThreadSpec.h"
+#include "lldb/Utility/AnsiTerminal.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Stream.h"
@@ -838,6 +840,13 @@ void Breakpoint::GetDescription(Stream *s, lldb::DescriptionLevel level,
                                 bool show_locations) {
   assert(s != nullptr);
 
+  const bool dim_breakpoint_description =
+      !IsEnabled() && s->AsRawOstream().colors_enabled();
+  if (dim_breakpoint_description)
+    s->Printf("%s", ansi::FormatAnsiTerminalCodes(
+                        GetTarget().GetDebugger().GetDisabledAnsiPrefix())
+                        .c_str());
+
   if (!m_kind_description.empty()) {
     if (level == eDescriptionLevelBrief) {
       s->PutCString(GetBreakpointKind());
@@ -934,6 +943,12 @@ void Breakpoint::GetDescription(Stream *s, lldb::DescriptionLevel level,
     }
     s->IndentLess();
   }
+
+  // Reset the colors back to normal if they were previously greyed out.
+  if (dim_breakpoint_description)
+    s->Printf("%s", ansi::FormatAnsiTerminalCodes(
+                        GetTarget().GetDebugger().GetDisabledAnsiSuffix())
+                        .c_str());
 }
 
 void Breakpoint::GetResolverDescription(Stream *s) {
@@ -1127,7 +1142,7 @@ json::Value Breakpoint::GetStatistics() {
     llvm::raw_string_ostream ss(buffer);
     json::OStream json_os(ss);
     bp_data_sp->Serialize(json_os);
-    if (auto expected_value = llvm::json::parse(ss.str())) {
+    if (auto expected_value = llvm::json::parse(buffer)) {
       bp.try_emplace("details", std::move(*expected_value));
     } else {
       std::string details_error = toString(expected_value.takeError());
@@ -1138,3 +1153,5 @@ json::Value Breakpoint::GetStatistics() {
   }
   return json::Value(std::move(bp));
 }
+
+void Breakpoint::ResetStatistics() { m_resolve_time.reset(); }

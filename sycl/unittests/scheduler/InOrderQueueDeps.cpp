@@ -11,6 +11,7 @@
 
 #include <helpers/TestKernel.hpp>
 #include <helpers/UrMock.hpp>
+#include <sycl/usm.hpp>
 
 #include <iostream>
 #include <memory>
@@ -57,8 +58,7 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
 
   context Ctx{Plt.get_devices()[0]};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
-  sycl::detail::QueueImplPtr InOrderQueueImpl =
-      detail::getSyclObjImpl(InOrderQueue);
+  detail::queue_impl &InOrderQueueImpl = *detail::getSyclObjImpl(InOrderQueue);
 
   MockScheduler MS;
 
@@ -67,9 +67,9 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   detail::Requirement Req = getMockRequirement(Buf);
 
   detail::MemObjRecord *Record =
-      MS.getOrInsertMemObjRecord(InOrderQueueImpl, &Req);
+      MS.getOrInsertMemObjRecord(&InOrderQueueImpl, &Req);
   std::vector<detail::Command *> AuxCmds;
-  MS.getOrCreateAllocaForReq(Record, &Req, InOrderQueueImpl, AuxCmds);
+  MS.getOrCreateAllocaForReq(Record, &Req, &InOrderQueueImpl, AuxCmds);
   MS.getOrCreateAllocaForReq(Record, &Req, nullptr, AuxCmds);
 
   // Check that sequential memory movements submitted to the same in-order
@@ -78,7 +78,7 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   detail::EnqueueResultT Res;
   auto ReadLock = MS.acquireGraphReadLock();
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
-  Cmd = MS.insertMemoryMove(Record, &Req, InOrderQueueImpl, AuxCmds);
+  Cmd = MS.insertMemoryMove(Record, &Req, &InOrderQueueImpl, AuxCmds);
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
   Cmd = MS.insertMemoryMove(Record, &Req, nullptr, AuxCmds);
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
@@ -86,9 +86,9 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
 
 bool BarrierCalled = false;
 ur_event_handle_t ExpectedEvent = nullptr;
-ur_result_t redefinedEnqueueEventsWaitWithBarrier(void *pParams) {
+ur_result_t redefinedEnqueueEventsWaitWithBarrierExt(void *pParams) {
   auto params =
-      *static_cast<ur_enqueue_events_wait_with_barrier_params_t *>(pParams);
+      *static_cast<ur_enqueue_events_wait_with_barrier_ext_params_t *>(pParams);
   EXPECT_EQ(*params.pnumEventsInWaitList, 1u);
   EXPECT_EQ(ExpectedEvent, **params.pphEventWaitList);
   BarrierCalled = true;
@@ -96,8 +96,7 @@ ur_result_t redefinedEnqueueEventsWaitWithBarrier(void *pParams) {
 }
 
 sycl::event submitKernel(sycl::queue &Q) {
-  return Q.submit(
-      [&](handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  return Q.submit([&](handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 }
 
 TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
@@ -106,7 +105,8 @@ TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier", &redefinedEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedEnqueueEventsWaitWithBarrierExt);
   BarrierCalled = false;
 
   context Ctx{Plt.get_devices()[0]};
@@ -128,8 +128,9 @@ TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
 
 std::vector<size_t> KernelEventListSize;
 
-inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
-  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+inline ur_result_t customEnqueueKernelLaunchWithArgsExp(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
   KernelEventListSize.push_back(*params.pnumEventsInWaitList);
   return UR_RESULT_SUCCESS;
 }
@@ -137,8 +138,9 @@ inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
 TEST_F(SchedulerTest, TwoInOrderQueuesOnSameContext) {
   KernelEventListSize.clear();
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
-                                           &customEnqueueKernelLaunch);
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &customEnqueueKernelLaunchWithArgsExp);
 
   sycl::platform Plt = sycl::platform();
 
@@ -148,10 +150,10 @@ TEST_F(SchedulerTest, TwoInOrderQueuesOnSameContext) {
                            property::queue::in_order()};
 
   event EvFirst = InOrderQueueFirst.submit(
-      [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([] {}); });
   std::ignore = InOrderQueueSecond.submit([&](sycl::handler &CGH) {
     CGH.depends_on(EvFirst);
-    CGH.single_task<TestKernel<>>([] {});
+    CGH.single_task<TestKernel>([] {});
   });
 
   InOrderQueueFirst.wait();
@@ -165,8 +167,9 @@ TEST_F(SchedulerTest, TwoInOrderQueuesOnSameContext) {
 TEST_F(SchedulerTest, InOrderQueueNoSchedulerPath) {
   KernelEventListSize.clear();
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
-                                           &customEnqueueKernelLaunch);
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &customEnqueueKernelLaunchWithArgsExp);
 
   sycl::platform Plt = sycl::platform();
 
@@ -174,10 +177,10 @@ TEST_F(SchedulerTest, InOrderQueueNoSchedulerPath) {
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
 
   event EvFirst = InOrderQueue.submit(
-      [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([] {}); });
   std::ignore = InOrderQueue.submit([&](sycl::handler &CGH) {
     CGH.depends_on(EvFirst);
-    CGH.single_task<TestKernel<>>([] {});
+    CGH.single_task<TestKernel>([] {});
   });
 
   InOrderQueue.wait();

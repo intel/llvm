@@ -43,12 +43,16 @@ public:
 
   void handleInterruptAttr(Decl *D, const ParsedAttr &AL);
   bool isAliasValid(unsigned BuiltinID, llvm::StringRef AliasName);
+  bool isValidFMVExtension(StringRef Ext);
 
   /// Indicate RISC-V vector builtin functions enabled or not.
   bool DeclareRVVBuiltins = false;
 
   /// Indicate RISC-V SiFive vector builtin functions enabled or not.
   bool DeclareSiFiveVectorBuiltins = false;
+
+  /// Indicate RISC-V Andes vector builtin functions enabled or not.
+  bool DeclareAndesVectorBuiltins = false;
 
   std::unique_ptr<sema::RISCVIntrinsicManager> IntrinsicManager;
 };

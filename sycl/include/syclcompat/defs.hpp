@@ -22,7 +22,7 @@
  **************************************************************************/
 
 // The original source was under the license below:
-//==---- dpct.hpp ---------------------------------*- C++ -*----------------==//
+//==---- defs.hpp ---------------------------------*- C++ -*----------------==//
 //
 // Copyright (C) Intel Corporation
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -68,7 +68,15 @@ template <int Arg> class syclcompat_kernel_scalar;
 
 namespace syclcompat {
 enum error_code { success = 0, backend_error = 1, default_error = 999 };
+/// A dummy function introduced to assist auto migration.
+/// The SYCLomatic user should replace it with a real error-handling function.
+/// SYCL reports errors using exceptions and does not use error codes.
+inline const char *get_error_string_dummy(int ec) {
+  (void)ec;
+  return "<FIXME: Placeholder>"; // Return the error string for the error code
+                                 // ec.
 }
+} // namespace syclcompat
 
 #define SYCLCOMPAT_CHECK_ERROR(expr)                                           \
   [&]() {                                                                      \

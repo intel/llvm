@@ -14,8 +14,8 @@
 ; RUN: sycl-post-link -properties -split-esimd -lower-esimd -O2 -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-O2
 
-; -O0 lowering
-; RUN: sycl-post-link -properties -split-esimd -lower-esimd -O0 -S < %s -o %t.table
+; -O0 lowering, requires `-force-disable-esimd-opt` to disable all optimizations.
+; RUN: sycl-post-link -properties -split-esimd -lower-esimd -O0 -force-disable-esimd-opt -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-O0
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

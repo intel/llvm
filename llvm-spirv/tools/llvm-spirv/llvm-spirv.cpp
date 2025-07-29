@@ -45,6 +45,10 @@
 ///
 //===----------------------------------------------------------------------===//
 
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/APInt.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constants.h"
@@ -55,10 +59,12 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/raw_ostream.h"
 
 #ifdef LLVM_SPIRV_HAVE_SPIRV_TOOLS
 #include "spirv-tools/libspirv.hpp"
@@ -74,7 +80,6 @@
 #include <iostream>
 #include <map>
 #include <memory>
-#include <set>
 #include <sstream>
 #include <string>
 
@@ -160,6 +165,10 @@ static cl::opt<bool>
 static cl::opt<bool>
     SPIRVToolsDis("spirv-tools-dis", cl::init(false),
                   cl::desc("Emit textual assembly using SPIRV-Tools"));
+
+static cl::opt<bool> SPIRVEmitFunctionPtrAddrSpace(
+    "spirv-emit-function-ptr-addr-space", cl::init(false),
+    cl::desc("Emit and consume CodeSectionINTEL for function pointers"));
 
 using SPIRV::ExtensionID;
 
@@ -844,6 +853,9 @@ int main(int Ac, char **Av) {
 
   if (PreserveOCLKernelArgTypeMetadataThroughString.getNumOccurrences() != 0)
     Opts.setPreserveOCLKernelArgTypeMetadataThroughString(true);
+
+  if (SPIRVEmitFunctionPtrAddrSpace.getNumOccurrences() != 0)
+    Opts.setEmitFunctionPtrAddrSpace(true);
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
   if (ToText && (ToBinary || IsReverse || IsRegularization)) {

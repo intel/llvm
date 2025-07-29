@@ -5,9 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
 #include <detail/config.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <helpers/UrMock.hpp>
@@ -40,8 +37,9 @@ static ur_result_t redefinedKernelGetGroupInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t redefinedEnqueueKernelLaunch(void *pParams) {
-  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+static ur_result_t redefinedEnqueueKernelLaunchWithArgsExp(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
   if (*params.ppLocalWorkSize) {
     IncomingLocalSize[0] = (*params.ppLocalWorkSize)[0];
     IncomingLocalSize[1] = (*params.ppLocalWorkSize)[1];
@@ -59,8 +57,9 @@ static void reset() {
 static void performChecks() {
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
-  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
-                                           &redefinedEnqueueKernelLaunch);
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefinedEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_before_callback("urKernelGetGroupInfo",
                                            &redefinedKernelGetGroupInfo);
 
@@ -73,7 +72,7 @@ static void performChecks() {
   auto ExecBundle = sycl::build(KernelBundle);
   Queue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel<>>([] {}); // Actual kernel does not matter
+    CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
   });
 
   EXPECT_EQ(KernelGetGroupInfoCalled, true);

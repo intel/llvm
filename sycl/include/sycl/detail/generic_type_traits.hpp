@@ -10,9 +10,7 @@
 
 #include <sycl/access/access.hpp>             // for decorated, address_space
 #include <sycl/aliases.hpp>                   // for half, cl_char, cl_double
-#include <sycl/detail/generic_type_lists.hpp> // for nonconst_address_space...
 #include <sycl/detail/helpers.hpp>            // for marray
-#include <sycl/detail/type_list.hpp>          // for is_contained, find_sam...
 #include <sycl/detail/type_traits.hpp>        // for is_gen_based_on_type_s...
 #include <sycl/half_type.hpp>                 // for BIsRepresentationT
 #include <sycl/multi_ptr.hpp>                 // for multi_ptr, address_spa...
@@ -28,68 +26,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 template <typename T>
-inline constexpr bool is_svgenfloatf_v =
-    is_contained_v<T, gtl::scalar_vector_float_list>;
-
-template <typename T>
-inline constexpr bool is_svgenfloatd_v =
-    is_contained_v<T, gtl::scalar_vector_double_list>;
-
-template <typename T>
-inline constexpr bool is_half_v = is_contained_v<T, gtl::scalar_half_list>;
-
-template <typename T>
-inline constexpr bool is_bfloat16_v =
-    is_contained_v<T, gtl::scalar_bfloat16_list>;
-
-template <typename T>
-inline constexpr bool is_half_or_bf16_v =
-    is_contained_v<T, gtl::half_bfloat16_list>;
-
-template <typename T>
-inline constexpr bool is_svgenfloath_v =
-    is_contained_v<T, gtl::scalar_vector_half_list>;
-
-template <typename T>
-inline constexpr bool is_genfloat_v = is_contained_v<T, gtl::floating_list>;
-
-template <typename T>
-inline constexpr bool is_sgenfloat_v =
-    is_contained_v<T, gtl::scalar_floating_list>;
-
-template <typename T>
-inline constexpr bool is_vgenfloat_v =
-    is_contained_v<T, gtl::vector_floating_list>;
-
-template <typename T>
-inline constexpr bool is_svgenfloat_v =
-    is_contained_v<T, gtl::scalar_vector_floating_list>;
-
-template <typename T>
-inline constexpr bool is_genint_v = is_contained_v<T, gtl::signed_int_list>;
-
-template <typename T>
-inline constexpr bool is_geninteger_v = is_contained_v<T, gtl::integer_list>;
-
-template <typename T>
-using is_geninteger = std::bool_constant<is_geninteger_v<T>>;
-
-template <typename T>
-inline constexpr bool is_sgeninteger_v =
-    is_contained_v<T, gtl::scalar_integer_list>;
-
-template <typename T>
-inline constexpr bool is_sigeninteger_v =
-    is_contained_v<T, gtl::scalar_signed_integer_list>;
-
-template <typename T>
-inline constexpr bool is_sugeninteger_v =
-    is_contained_v<T, gtl::scalar_unsigned_integer_list>;
-
-template <typename T>
-inline constexpr bool is_genbool_v = is_contained_v<T, gtl::bool_list>;
-
-template <typename T>
 using is_byte = typename
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
     std::is_same<T, std::byte>;
@@ -98,6 +34,58 @@ using is_byte = typename
 #endif
 
 template <typename T> inline constexpr bool is_byte_v = is_byte<T>::value;
+
+template <typename T>
+inline constexpr bool is_svgenfloatf_v =
+    std::is_same_v<T, float> ||
+    (is_vec_v<T> && std::is_same_v<element_type_t<T>, float>);
+
+template <typename T>
+inline constexpr bool is_svgenfloath_v =
+    std::is_same_v<T, half> ||
+    (is_vec_v<T> && std::is_same_v<element_type_t<T>, half>);
+
+template <typename T>
+inline constexpr bool is_sgenfloat_v =
+    check_type_in_v<T, float, double, half, ext::oneapi::bfloat16>;
+
+template <typename T>
+inline constexpr bool is_vgenfloat_v =
+    is_vec_v<T> && is_sgenfloat_v<element_type_t<T>>;
+
+template <typename T>
+inline constexpr bool is_genfloat_v =
+    is_sgenfloat_v<T> || is_vgenfloat_v<T> ||
+    (is_marray_v<T> && is_sgenfloat_v<element_type_t<T>> &&
+     is_allowed_vec_size_v<num_elements_v<T>>);
+
+template <typename T>
+inline constexpr bool is_sigeninteger_v =
+    check_type_in_v<T, signed char, short, int, long, long long> ||
+    (std::is_same_v<T, char> && std::is_signed_v<char>);
+
+template <typename T>
+inline constexpr bool is_sugeninteger_v =
+    check_type_in_v<T, unsigned char, unsigned short, unsigned int,
+                    unsigned long, unsigned long long> ||
+    (std::is_same_v<T, char> && std::is_unsigned_v<char>) || is_byte_v<T>;
+
+template <typename T>
+inline constexpr bool is_sgeninteger_v =
+    is_sigeninteger_v<T> || is_sugeninteger_v<T>;
+
+template <typename T>
+inline constexpr bool is_geninteger_v =
+    is_sgeninteger_v<T> ||
+    (is_vec_v<T> && is_sgeninteger_v<element_type_t<T>>) ||
+    (is_marray_v<T> && is_sgeninteger_v<element_type_t<T>> &&
+     is_allowed_vec_size_v<num_elements_v<T>>);
+
+template <typename T>
+inline constexpr bool is_genbool_v =
+    std::is_same_v<T, bool> ||
+    (is_marray_v<T> && std::is_same_v<element_type_t<T>, bool> &&
+     is_allowed_vec_size_v<num_elements_v<T>>);
 
 template <int Size>
 using fixed_width_unsigned = std::conditional_t<
@@ -149,16 +137,22 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     return reinterpret_cast<result_type>(x);
   } else if constexpr (is_vec_v<no_ref>) {
     using ElemTy = typename no_ref::element_type;
-    // sycl::half may convert to _Float16, and we would try to instantiate
-    // vec class with _Float16 DataType, which is not expected there. As
-    // such, leave vector<half, N> as-is.
-    using MatchingVec = vec<std::conditional_t<is_half_v<ElemTy>, ElemTy,
-                                               decltype(convertToOpenCLType(
-                                                   std::declval<ElemTy>()))>,
-                            no_ref::size()>;
+    using ConvertedElemTy =
+        decltype(convertToOpenCLType(std::declval<ElemTy>()));
+    static constexpr int NumElements = no_ref::size();
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::bit_cast<typename MatchingVec::vector_t>(x);
+    using vector_t =
+        std::conditional_t<NumElements == 1, ConvertedElemTy,
+                           ConvertedElemTy
+                           __attribute__((ext_vector_type(NumElements)))>;
+    return sycl::bit_cast<vector_t>(x);
 #else
+    // sycl::half may convert to _Float16, and we would try to
+    // instantiate vec class with _Float16 DataType, which is not
+    // expected there. As such, leave vector<half, N> as-is.
+    using MatchingVec = vec<std::conditional_t<std::is_same_v<ElemTy, half>,
+                                               ElemTy, ConvertedElemTy>,
+                            NumElements>;
     return x.template as<MatchingVec>();
 #endif
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
@@ -171,14 +165,14 @@ template <typename T> auto convertToOpenCLType(T &&x) {
                                           fixed_width_unsigned<sizeof(no_ref)>>;
     static_assert(sizeof(OpenCLType) == sizeof(T));
     return static_cast<OpenCLType>(x);
-  } else if constexpr (is_half_v<no_ref>) {
+  } else if constexpr (std::is_same_v<no_ref, half>) {
     using OpenCLType = sycl::detail::half_impl::BIsRepresentationT;
     static_assert(sizeof(OpenCLType) == sizeof(T));
     return static_cast<OpenCLType>(x);
-  } else if constexpr (is_bfloat16_v<no_ref>) {
+  } else if constexpr (std::is_same_v<no_ref, ext::oneapi::bfloat16>) {
     // On host, don't interpret BF16 as uint16.
 #ifdef __SYCL_DEVICE_ONLY__
-    using OpenCLType = sycl::ext::oneapi::detail::Bfloat16StorageT;
+    using OpenCLType = sycl::ext::oneapi::bfloat16::Bfloat16StorageT;
     return sycl::bit_cast<OpenCLType>(x);
 #else
     return std::forward<T>(x);
@@ -214,7 +208,7 @@ template <typename To, typename From> auto convertFromOpenCLTypeFor(From &&x) {
     if constexpr (is_vec_v<To_noref> && is_vec_v<From_noref>)
       return x.template as<To_noref>();
     else if constexpr (is_vec_v<To_noref> && is_ext_vector_v<From_noref>)
-      return To_noref{bit_cast<typename To_noref::vector_t>(x)};
+      return bit_cast<To>(x);
     else
       return static_cast<To>(x);
   }

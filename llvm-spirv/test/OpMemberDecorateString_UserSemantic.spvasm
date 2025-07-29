@@ -18,7 +18,7 @@
 ; CHECK: [[STR:@[0-9_.]+]] = {{.*}}foo
 ; Note: this is checking for an annotation on an instantiation of the structure,
 ; which is different than an annotation on the structure type.
-; CHECK: call ptr @llvm.ptr.annotation.p0.p0(ptr %{{.*}}, ptr [[STR]], ptr undef, i32 undef, ptr undef)
+; CHECK: call ptr @llvm.ptr.annotation.p0.p0(ptr %{{.*}}, ptr [[STR]], ptr poison, i32 poison, ptr poison)
        %uint = OpTypeInt 32 0
      %uint_0 = OpConstant %uint 0
        %void = OpTypeVoid

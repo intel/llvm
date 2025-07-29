@@ -1,0 +1,13 @@
+# The actual version of this workflow can be found on the latest sycl-rel-*
+# branch. This file is still needed to launch the workflow on another branches.
+
+name: SYCL Release Branch Nightly
+
+on:
+  workflow_dispatch:
+
+jobs:
+  dummy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Doing nothing"

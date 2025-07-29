@@ -11,13 +11,13 @@
 ; CHECK-SPIRV: Decorate [[#A]] FuncParamAttr 6
 ; CHECK-SPIRV: Decorate [[#B]] FuncParamAttr 7
 
-; CHECK-LLVM: {{.*}}void @test_builtin_readnone(ptr nocapture readonly %{{.*}}, ptr nocapture readnone %{{.*}})
+; CHECK-LLVM: {{.*}}void @test_builtin_readnone(ptr readonly captures(none) %{{.*}}, ptr readnone captures(none) %{{.*}})
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir-unknown-unknown"
 
 ; Function Attrs: convergent nofree norecurse nounwind uwtable
-define dso_local spir_kernel void @test_builtin_readnone(ptr nocapture readonly %a, ptr nocapture readnone %b) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @test_builtin_readnone(ptr captures(none) readonly %a, ptr captures(none) readnone %b) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
 entry:
   %0 = load double, ptr %a, align 8, !tbaa !7
   %call = tail call double @_Z3expd(double %0) #2

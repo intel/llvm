@@ -32,6 +32,30 @@ class ThreadPool {
   bool MStop = false;
   std::atomic_uint MJobsInPool;
 
+#ifdef _WIN32
+  class ThreadExitTracker {
+  public:
+    void wait(size_t ThreadCount) {
+      std::unique_lock<std::mutex> lk(MWorkerExitMutex);
+      MWorkerExitCV.wait(
+          lk, [&ThreadCount, this] { return MWorkerExitCount == ThreadCount; });
+    }
+
+    void signalAboutExit() {
+      {
+        std::lock_guard<std::mutex> lk(MWorkerExitMutex);
+        MWorkerExitCount++;
+      }
+      MWorkerExitCV.notify_one();
+    }
+
+  private:
+    std::mutex MWorkerExitMutex;
+    std::condition_variable MWorkerExitCV;
+    size_t MWorkerExitCount{};
+  } WinThreadExitTracker;
+#endif
+
   void worker() {
     GlobalHandler::instance().registerSchedulerUsage(/*ModifyCounter*/ false);
     std::unique_lock<std::mutex> Lock(MJobQueueMutex);
@@ -39,8 +63,12 @@ class ThreadPool {
       MDoSmthOrStop.wait(Lock,
                          [this]() { return !MJobQueue.empty() || MStop; });
 
-      if (MStop)
-        break;
+      if (MStop) {
+#ifdef _WIN32
+        WinThreadExitTracker.signalAboutExit();
+#endif
+        return;
+      }
 
       std::function<void()> Job = std::move(MJobQueue.front());
       MJobQueue.pop();
@@ -75,19 +103,33 @@ public:
 
   ~ThreadPool() {
     try {
-      finishAndWait();
+#ifndef _WIN32
+      finishAndWait(true);
+#endif
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ThreadPool", e);
     }
   }
 
-  void finishAndWait() {
+  void finishAndWait(bool CanJoinThreads) {
     {
       std::lock_guard<std::mutex> Lock(MJobQueueMutex);
       MStop = true;
     }
 
     MDoSmthOrStop.notify_all();
+
+#ifdef _WIN32
+    if (!CanJoinThreads) {
+      WinThreadExitTracker.wait(MThreadCount);
+      for (std::thread &Thread : MLaunchedThreads)
+        Thread.detach();
+      return;
+    }
+#else
+    // We always can join on Linux.
+    std::ignore = CanJoinThreads;
+#endif
 
     for (std::thread &Thread : MLaunchedThreads)
       if (Thread.joinable())

@@ -136,6 +136,7 @@ __kernel void intel_media_block_test(int2 edgeCoord, __read_only image2d_t src_l
 // CHECK-SPIRV: Capability SubgroupImageMediaBlockIOINTEL
 // CHECK-SPIRV: Extension "SPV_INTEL_media_block_io"
 
+// CHECK-SPIRV: Name [[#TestFunc:]] "__clang_ocl_kern_imp_intel_media_block_test"
 // CHECK-SPIRV: TypeInt [[TypeInt:[0-9]+]] 32
 // CHECK-SPIRV: TypeInt [[TypeChar:[0-9]+]] 8
 // CHECK-SPIRV: TypeInt [[TypeShort:[0-9]+]] 16
@@ -153,6 +154,7 @@ __kernel void intel_media_block_test(int2 edgeCoord, __read_only image2d_t src_l
 // CHECK-SPIRV: TypeVector [[TypeInt4:[0-9]+]] [[TypeInt]] 4
 // CHECK-SPIRV: TypeVector [[TypeInt8:[0-9]+]] [[TypeInt]] 8
 
+// CHECK-SPIRV: Function [[#]] [[#TestFunc]]
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[Coord:[0-9]+]]
 // CHECK-SPIRV-NEXT: FunctionParameter {{[0-9]+}} [[SrcImage:[0-9]+]]
 // CHECK-SPIRV-NEXT: FunctionParameter {{[0-9]+}} [[DstImage:[0-9]+]]

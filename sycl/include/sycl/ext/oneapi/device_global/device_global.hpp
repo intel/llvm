@@ -40,6 +40,8 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
+template <typename T, typename PropertyListT> class device_global;
+
 namespace detail {
 // Type-trait for checking if a type defines `operator->`.
 template <typename T, typename = void>
@@ -47,6 +49,20 @@ struct HasArrowOperator : std::false_type {};
 template <typename T>
 struct HasArrowOperator<T,
                         std::void_t<decltype(std::declval<T>().operator->())>>
+    : std::true_type {};
+
+template <typename T, typename PropertyListT, typename>
+class device_global_base;
+
+// Checks that T is a reference to either device_global or
+// device_global_base. This is used by the variadic ctor to allow copy ctors to
+// take preference.
+template <typename T> struct IsDeviceGlobalOrBaseRef : std::false_type {};
+template <typename T, typename PropertyListT>
+struct IsDeviceGlobalOrBaseRef<device_global_base<T, PropertyListT, void> &>
+    : std::true_type {};
+template <typename T, typename PropertyListT>
+struct IsDeviceGlobalOrBaseRef<device_global<T, PropertyListT> &>
     : std::true_type {};
 
 // Base class for device_global.
@@ -63,13 +79,48 @@ protected:
   pointer_t get_ptr() noexcept { return usmptr; }
   pointer_t get_ptr() const noexcept { return usmptr; }
 
+  template <typename, typename, typename> friend class device_global_base;
+
+#ifndef __SYCL_DEVICE_ONLY__
+  template <typename OtherT, typename OtherProps>
+  static constexpr const OtherT &
+  ExtractInitialVal(const device_global_base<OtherT, OtherProps> &Other) {
+    if constexpr (OtherProps::template has_property<device_image_scope_key>())
+      return Other.val;
+    else
+      return Other.init_val;
+  }
+#endif // __SYCL_DEVICE_ONLY__
+
 public:
 #if __cpp_consteval
-  template <typename... Args>
+  // The SFINAE is to allow the copy constructors to take priority.
+  template <
+      typename... Args,
+      std::enable_if_t<
+          sizeof...(Args) != 1 ||
+              (!IsDeviceGlobalOrBaseRef<std::remove_cv_t<Args>>::value && ...),
+          int> = 0>
   consteval explicit device_global_base(Args &&...args) : init_val{args...} {}
 #else
   device_global_base() = default;
 #endif // __cpp_consteval
+
+#ifndef __SYCL_DEVICE_ONLY__
+  template <typename OtherT, typename OtherProps,
+            typename = std::enable_if_t<std::is_convertible_v<OtherT, T>>>
+  constexpr device_global_base(
+      const device_global_base<OtherT, OtherProps> &DGB)
+      : init_val{ExtractInitialVal(DGB)} {}
+  constexpr device_global_base(const device_global_base &DGB)
+      : init_val{DGB.init_val} {}
+#else
+  template <typename OtherT, typename OtherProps,
+            typename = std::enable_if_t<std::is_convertible_v<OtherT, T>>>
+  constexpr device_global_base(const device_global_base<OtherT, OtherProps> &) {
+  }
+  constexpr device_global_base(const device_global_base &) {}
+#endif // __SYCL_DEVICE_ONLY__
 
   template <access::decorated IsDecorated>
   multi_ptr<T, access::address_space::global_space, IsDecorated>
@@ -100,13 +151,27 @@ protected:
   T *get_ptr() noexcept { return &val; }
   const T *get_ptr() const noexcept { return &val; }
 
+  template <typename, typename, typename> friend class device_global_base;
+
 public:
 #if __cpp_consteval
-  template <typename... Args>
+  // The SFINAE is to allow the copy constructors to take priority.
+  template <
+      typename... Args,
+      std::enable_if_t<
+          sizeof...(Args) != 1 ||
+              (!IsDeviceGlobalOrBaseRef<std::remove_cv_t<Args>>::value && ...),
+          int> = 0>
   consteval explicit device_global_base(Args &&...args) : val{args...} {}
 #else
   device_global_base() = default;
 #endif // __cpp_consteval
+
+  template <typename OtherT, typename OtherProps,
+            typename = std::enable_if_t<std::is_convertible_v<OtherT, T>>>
+  constexpr device_global_base(const device_global_base<OtherT, OtherProps> &) =
+      delete;
+  constexpr device_global_base(const device_global_base &) = delete;
 
   template <access::decorated IsDecorated>
   multi_ptr<T, access::address_space::global_space, IsDecorated>
@@ -124,6 +189,7 @@ public:
                               const T>(this->get_ptr());
   }
 };
+
 } // namespace detail
 
 template <typename T, typename PropertyListT = empty_properties_t>
@@ -151,6 +217,7 @@ class
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
   using property_list_t = detail::properties_t<Props...>;
+  using base_t = detail::device_global_base<T, property_list_t>;
 
 public:
   using element_type = std::remove_extent_t<T>;
@@ -167,10 +234,11 @@ public:
                 "Property list is invalid.");
 
   // Inherit the base class' constructors
-  using detail::device_global_base<
-      T, detail::properties_t<Props...>>::device_global_base;
+  using detail::device_global_base<T, property_list_t>::device_global_base;
 
-  device_global(const device_global &) = delete;
+  constexpr device_global(const device_global &DG)
+      : base_t(static_cast<const base_t &>(DG)) {}
+
   device_global(const device_global &&) = delete;
   device_global &operator=(const device_global &) = delete;
   device_global &operator=(const device_global &&) = delete;

@@ -15,7 +15,7 @@ target triple = "spir64-unknown-unknown"
 %class.test = type { %"class.test_private" }
 %"class.test_private" = type { i16 }
 
-; CHECK: @llvm.global.annotations = appending global [2 x { ptr, ptr, ptr, i32, ptr }] [{ ptr, ptr, ptr, i32, ptr } { ptr addrspacecast (ptr addrspace(1) @samples to ptr), ptr @0, ptr undef, i32 undef, ptr undef }, { ptr, ptr, ptr, i32, ptr } { ptr addrspacecast (ptr addrspace(2) @foo to ptr), ptr @1, ptr undef, i32 undef, ptr undef }]
+; CHECK: @llvm.global.annotations = appending global [2 x { ptr, ptr, ptr, i32, ptr }] [{ ptr, ptr, ptr, i32, ptr } { ptr addrspacecast (ptr addrspace(1) @samples to ptr), ptr @0, ptr poison, i32 poison, ptr poison }, { ptr, ptr, ptr, i32, ptr } { ptr addrspacecast (ptr addrspace(2) @foo to ptr), ptr @1, ptr poison, i32 poison, ptr poison }]
 
 @llvm.global.annotations = addrspace(1) global [2 x { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1) }] [ { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1) } { ptr addrspace(1) @samples, ptr addrspace(1) @.str, ptr addrspace(1) null, i32 92, ptr addrspace(1) null }, { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1) } { ptr addrspace(1) addrspacecast (ptr addrspace(2) @foo to ptr addrspace(1)), ptr addrspace(1) @.str.2, ptr addrspace(1) null, i32 30, ptr addrspace(1) null }]
 @samples = external addrspace(1) global { [64 x %class.test] }

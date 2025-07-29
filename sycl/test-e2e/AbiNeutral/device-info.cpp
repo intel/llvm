@@ -10,6 +10,7 @@
 #include <iostream>
 #include <mutex>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 #include <vector>
 
 template <typename T> using dpcpp_info_t = typename T::return_type;
@@ -67,7 +68,7 @@ static void initGlobalDevicePoolState() {
   }
   gDevPool.contexts.resize(1);
   gDevPool.contexts[0] = std::make_unique<sycl::context>(
-      gDevPool.devices[0]->get_platform().ext_oneapi_get_default_context());
+      gDevPool.devices[0]->get_platform().khr_get_default_context());
 }
 
 static void initDevicePoolCallOnce() {

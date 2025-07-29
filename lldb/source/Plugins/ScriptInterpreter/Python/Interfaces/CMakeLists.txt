@@ -25,9 +25,12 @@ add_lldb_library(lldbPluginScriptInterpreterPythonInterfaces PLUGIN
   ScriptedPlatformPythonInterface.cpp
   ScriptedProcessPythonInterface.cpp
   ScriptedPythonInterface.cpp
+  ScriptedStopHookPythonInterface.cpp
   ScriptedThreadPlanPythonInterface.cpp
   ScriptedThreadPythonInterface.cpp
 
+  LINK_COMPONENTS
+    Support
   LINK_LIBS
     lldbCore
     lldbHost
@@ -35,9 +38,6 @@ add_lldb_library(lldbPluginScriptInterpreterPythonInterfaces PLUGIN
     lldbTarget
     ${Python3_LIBRARIES}
     ${LLDB_LIBEDIT_LIBS}
-
-  LINK_COMPONENTS
-    Support
   )
 
 

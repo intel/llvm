@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// Fails to release USM pointer on HIP for NVIDIA
-// XFAIL: hip_nvidia
 // REQUIRES: aspect-usm_shared_allocations
 #include <numeric>
 

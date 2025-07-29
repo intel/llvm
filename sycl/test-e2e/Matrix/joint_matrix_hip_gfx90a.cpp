@@ -6,10 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %{build} -fsycl -fsycl-targets=amd_gpu_gfx90a %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx90a %s -o %t.out
 // RUN: %{run} %t.out
 
-// REQUIRES: gpu-amd-gfx90a
+// REQUIRES: target-amd
+// REQUIRES: arch-amd_gpu_gfx90a
 
 #include "joint_matrix_hip_apply.hpp"
 #include "joint_matrix_hip_copy.hpp"

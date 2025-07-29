@@ -10,6 +10,13 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
+// Some __spirv_* inrinsics are automatically forward-declared by the compiler,
+// but not all of them. For example:
+//   __spirv_AtomicStore(unsigned long long*, ...)
+// Therefore, we need the following include to get forward-declarations of those
+// versions.
+#include <sycl/__spirv/spirv_ops.hpp>
+
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
 
 #if defined(__NVPTX__)
@@ -796,32 +803,37 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 //   variants for all scalar types
 #ifndef __NVPTX__
 
-using ProhibitedTypesForShuffleEmulation =
-    type_list<double, long, long long, unsigned long, unsigned long long, half>;
-
 template <typename T>
-struct TypeIsProhibitedForShuffleEmulation
-    : std::bool_constant<is_contained<
-          vector_element_t<T>, ProhibitedTypesForShuffleEmulation>::value> {};
-
-template <typename T>
-struct VecTypeIsProhibitedForShuffleEmulation
+struct VecTypeIsProhibitedForNativeShuffle
     : std::bool_constant<
           (detail::get_vec_size<T>::size > 1) &&
-          TypeIsProhibitedForShuffleEmulation<vector_element_t<T>>::value> {};
+          check_type_in_v<vector_element_t<T>, double, long, long long,
+                          unsigned long, unsigned long long, half>> {};
+
+// Native shuffle is supported if T is scalar arithmetic type or vector type
+// with arithmetic element type which is not in prohibited list.
+// detail::is_arithmetic looks through pointer, marray and vec into the element
+// type, so we have to exclude marray and pointer types.
+template <typename T>
+struct NativeShuffle
+    : std::bool_constant<detail::is_arithmetic<T>::value &&
+                         !VecTypeIsProhibitedForNativeShuffle<T>::value &&
+                         !detail::is_marray_v<T> && !detail::is_pointer_v<T>> {
+};
+
+// Non-scalar shuffle (emulation via loop + scalar shuffle) is used if we have a
+// vector type for which native shuffle is not supported or for marray type.
+template <typename T>
+struct NonScalarShuffle
+    : std::bool_constant<!NativeShuffle<T>::value &&
+                         (detail::is_vec_v<T> || detail::is_marray_v<T>)> {};
 
 template <typename T>
-using EnableIfNativeShuffle =
-    std::enable_if_t<detail::is_arithmetic<T>::value &&
-                         !VecTypeIsProhibitedForShuffleEmulation<T>::value &&
-                         !detail::is_marray_v<T>,
-                     T>;
+using EnableIfNativeShuffle = std::enable_if_t<NativeShuffle<T>::value, T>;
 
 template <typename T>
 using EnableIfNonScalarShuffle =
-    std::enable_if_t<VecTypeIsProhibitedForShuffleEmulation<T>::value ||
-                         detail::is_marray_v<T>,
-                     T>;
+    std::enable_if_t<NonScalarShuffle<T>::value, T>;
 
 #else  // ifndef __NVPTX__
 
@@ -837,13 +849,19 @@ using EnableIfNonScalarShuffle =
 // Bitcast shuffles can be implemented using a single SubgroupShuffle
 // intrinsic, but require type-punning via an appropriate integer type
 #ifndef __NVPTX__
+
+// Use bitcast shuffle for trivially copyable types satisfying size requirements
+// that are not handled by native shuffle and non-scalar shuffle.
 template <typename T>
-using EnableIfBitcastShuffle =
-    std::enable_if_t<!detail::is_arithmetic<T>::value &&
-                         (std::is_trivially_copyable_v<T> &&
-                          (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 ||
-                           sizeof(T) == 8)),
-                     T>;
+struct BitcastShuffle : std::bool_constant<!NativeShuffle<T>::value &&
+                                           !NonScalarShuffle<T>::value &&
+                                           std::is_trivially_copyable_v<T> &&
+                                           (sizeof(T) == 1 || sizeof(T) == 2 ||
+                                            sizeof(T) == 4 || sizeof(T) == 8)> {
+};
+
+template <typename T>
+using EnableIfBitcastShuffle = std::enable_if_t<BitcastShuffle<T>::value, T>;
 #else
 template <typename T>
 using EnableIfBitcastShuffle =
@@ -862,10 +880,8 @@ using EnableIfBitcastShuffle =
 #ifndef __NVPTX__
 template <typename T>
 using EnableIfGenericShuffle =
-    std::enable_if_t<!detail::is_arithmetic<T>::value &&
-                         !(std::is_trivially_copyable_v<T> &&
-                           (sizeof(T) == 1 || sizeof(T) == 2 ||
-                            sizeof(T) == 4 || sizeof(T) == 8)),
+    std::enable_if_t<!NativeShuffle<T>::value && !NonScalarShuffle<T>::value &&
+                         !BitcastShuffle<T>::value,
                      T>;
 #else
 template <typename T>
@@ -937,11 +953,12 @@ EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
     return result;
   } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                            GroupT>) {
-    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
-                                          convertToOpenCLType(x), LocalId);
+    return convertFromOpenCLTypeFor<T>(__spirv_GroupNonUniformShuffle(
+        group_scope<GroupT>::value, convertToOpenCLType(x), LocalId));
   } else {
     // Subgroup.
-    return __spirv_SubgroupShuffleINTEL(convertToOpenCLType(x), LocalId);
+    return convertFromOpenCLTypeFor<T>(
+        __spirv_SubgroupShuffleINTEL(convertToOpenCLType(x), LocalId));
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
@@ -978,8 +995,8 @@ EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
                                           convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return __spirv_SubgroupShuffleXorINTEL(convertToOpenCLType(x),
-                                           static_cast<uint32_t>(mask.get(0)));
+    return convertFromOpenCLTypeFor<T>(__spirv_SubgroupShuffleXorINTEL(
+        convertToOpenCLType(x), static_cast<uint32_t>(mask.get(0))));
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
@@ -1026,8 +1043,8 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
                                           convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return __spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x),
-                                            convertToOpenCLType(x), delta);
+    return convertFromOpenCLTypeFor<T>(__spirv_SubgroupShuffleDownINTEL(
+        convertToOpenCLType(x), convertToOpenCLType(x), delta));
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
@@ -1070,8 +1087,8 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
                                           convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return __spirv_SubgroupShuffleUpINTEL(convertToOpenCLType(x),
-                                          convertToOpenCLType(x), delta);
+    return convertFromOpenCLTypeFor<T>(__spirv_SubgroupShuffleUpINTEL(
+        convertToOpenCLType(x), convertToOpenCLType(x), delta));
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<

@@ -130,10 +130,6 @@ enum class lsc_subopcode : uint8_t {
   read_state_info = 0x1e,
   fence = 0x1f,
 };
-// The regexp for ESIMD intrinsics:
-// /^_Z(\d+)__esimd_\w+/
-static constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
-static constexpr char ESIMD_INTRIN_PREF1[] = "__esimd_";
 static constexpr char ESIMD_INSERTED_VSTORE_FUNC_NAME[] = "_Z14__esimd_vstorev";
 static constexpr char SPIRV_INTRIN_PREF[] = "__spirv_BuiltIn";
 struct ESIMDIntrinDesc {
@@ -812,7 +808,7 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
       // Overwrite Ty with IntegerLiteral's size
       Ty = parsePrimitiveTypeString(StringRef(&*TyStr.begin(), TyStr.size()),
                                     Ctx);
-    Val = ValL->getValue();
+    Val = ValL->value();
     break;
   }
   case id::Node::KBoolExpr: {
@@ -1243,10 +1239,25 @@ static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI,
   if (OITy != NITy) {
     auto CastOpcode = CastInst::getCastOpcode(NewI, false, OITy, false);
     NewI = CastInst::Create(CastOpcode, NewI, OITy,
-                            NewI->getName() + ".cast.ty", OldI);
+                            NewI->getName() + ".cast.ty", OldI->getIterator());
     NewI->setDebugLoc(OldI->getDebugLoc());
   }
   return NewI;
+}
+
+// Translates the following intrinsics:
+//   %res = call float @llvm.fmuladd.f32(float %a, float %b, float %c)
+//   %res = call double @llvm.fmuladd.f64(double %a, double %b, double %c)
+// To
+//   %mul = fmul <type> %a, <type> %b
+//   %res = fadd <type> %mul, <type> %c
+// TODO: Remove when newer GPU driver is used in CI.
+void translateFmuladd(CallInst *CI) {
+  assert(CI->getIntrinsicID() == Intrinsic::fmuladd);
+  IRBuilder<> Bld(CI);
+  auto *Mul = Bld.CreateFMul(CI->getOperand(0), CI->getOperand(1));
+  auto *Res = Bld.CreateFAdd(Mul, CI->getOperand(2));
+  CI->replaceAllUsesWith(Res);
 }
 
 // Translates an LLVM intrinsic to a form, digestable by the BE.
@@ -1259,6 +1270,9 @@ bool translateLLVMIntrinsic(CallInst *CI) {
   case Intrinsic::assume:
     // no translation - it will be simply removed.
     // TODO: make use of 'assume' info in the BE
+    break;
+  case Intrinsic::fmuladd:
+    translateFmuladd(CI);
     break;
   default:
     return false; // "intrinsic wasn't translated, keep the original call"
@@ -1569,14 +1583,15 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   CallInst *NewCI = IntrinsicInst::Create(
       NewFDecl, GenXArgs,
       NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
-      &CI);
+      CI.getIterator());
   NewCI->setDebugLoc(CI.getDebugLoc());
   if (DoesFunctionReturnStructure) {
     IRBuilder<> Builder(&CI);
 
     NewInst = Builder.CreateStore(
-        NewCI, Builder.CreateBitCast(CastInstruction->getPointerOperand(),
-                                     NewCI->getType()->getPointerTo()));
+        NewCI, Builder.CreateBitCast(
+                   CastInstruction->getPointerOperand(),
+                   llvm::PointerType::getUnqual(NewCI->getContext())));
   } else {
     NewInst = addCastInstIfNeeded(&CI, NewCI);
   }
@@ -2178,12 +2193,11 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       }
       StringRef Name = Callee->getName();
 
-      // See if the Name represents an ESIMD intrinsic and demangle only if it
-      // does.
-      if (!Name.consume_front(ESIMD_INTRIN_PREF0) && !isDevicelibFunction(Name))
+      if (!isDevicelibFunction(Name))
+        Name = stripMangling(Name);
+
+      if (Name.empty())
         continue;
-      // now skip the digits
-      Name = Name.drop_while([](char C) { return std::isdigit(C); });
 
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure

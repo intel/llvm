@@ -1,0 +1,188 @@
+= sycl_ext_oneapi_work_group_scratch_memory
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+The following extensions are required:
+
+- link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+
+- link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+This extension adds a way to allocate device local memory, without explicitly passing a
+kernel argument: `get_work_group_scratch_memory`. It provides access to a dynamically sized
+buffer without passing it as an argument to the kernel.
+Device local memory is memory that is shared by all work-items in a work-group.
+The behavior is similar to the usage of unbounded array with the CUDA `+__shared__+` keyword.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_WORK_GROUP_SCRATCH_MEMORY` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+
+=== `get_work_group_scratch_memory` function
+
+The `get_work_group_scratch_memory` function provides access
+to a dynamically allocated buffer in the device local memory.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+  void* get_work_group_scratch_memory();
+}
+----
+
+_Returns_: A pointer to a dynamically allocated buffer
+           in the device local memory.
+
+The size of the allocation is unknown at compile-time,
+and must be communicated to the SYCL implementation via the
+`work_group_scratch_size` property. Every call to
+`get_work_group_scratch_memory` returns the same allocation
+in device local memory.
+
+=== Kernel properties
+
+The `work_group_scratch_size` property must be passed to a kernel to determine
+the run-time size of the device local memory allocation associated with
+all `get_work_group_scratch_memory` calls.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct work_group_scratch_size {
+  constexpr work_group_scratch_size(size_t bytes) : value(bytes) {}
+  size_t value;
+}; // work_group_scratch_size
+
+using work_group_scratch_size_key = work_group_scratch_size;
+
+template <> struct is_property_key<work_group_scratch_size_key> : std::true_type {};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+|===
+|Property|Description
+
+|`work_group_scratch_size`
+|The `work_group_scratch_size` property describes the amount of dynamic
+device local memory required by the kernel in bytes.
+
+|===
+
+=== Total allocation check
+
+If the total amount of device local memory requested exceeds a device's
+local memory capacity as reported by `info::device::local_mem_size`
+then the implementation must throw a synchronous exception with the
+`errc::memory_allocation` error code from the kernel invocation command
+(e.g. `parallel_for`). This check must take all APIs that allocation device
+local memory into account, whether via the `work_group_scratch_size` property
+or other APIs such as `local_accessor`.
+
+== Example
+
+[source,c++]
+----
+namespace syclex = sycl::ext::oneapi::experimental;
+
+...
+
+q.parallel_for(sycl::nd_range<1>{N, M},
+  syclex::properties{syclex::work_group_scratch_size(M * sizeof(int))},
+  [=](sycl::nd_item<1> it) {
+ auto ptr = syclex::get_work_group_scratch_memory();
+ auto ptr2 = syclex::get_work_group_scratch_memory();
+});
+----
+
+
+== Implementation notes
+
+This non-normative section provides information about one possible
+implementation of this extension.  It is not part of the specification of the
+extension's API.
+
+For `get_work_group_scratch_memory`,
+the implementation may need to generate some additional code to
+appropriately initialize the pointer(s) returned by the call.
+Alternatively, it may be possible to initialize the pointer to the beginning
+of the device's local memory region (if that value is known). Either way, the
+implementation must account for the existence of one or more `local_accessor`
+objects (which themselves may allocate a dynamic amount of device local
+memory).
+
+
+== Issues
+

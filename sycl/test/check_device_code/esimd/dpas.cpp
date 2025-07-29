@@ -24,7 +24,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func_end();
 
 class EsimdFunctor {
 public:
-  void operator()() __attribute__((sycl_explicit_simd)) { xmx_func(); }
+  void operator()() const __attribute__((sycl_explicit_simd)) { xmx_func(); }
 };
 
 template <typename name, typename Func>

@@ -75,7 +75,7 @@ public:
   std::string getLibDeviceFile(StringRef Gpu) const {
     return LibDeviceMap.lookup(Gpu);
   }
-  void WarnIfUnsupportedVersion();
+  void WarnIfUnsupportedVersion() const;
 };
 
 namespace tools {
@@ -159,8 +159,8 @@ namespace toolchains {
 class LLVM_LIBRARY_VISIBILITY NVPTXToolChain : public ToolChain {
 public:
   NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
-                 const llvm::Triple &HostTriple, const llvm::opt::ArgList &Args,
-                 bool Freestanding);
+                 const llvm::Triple &HostTriple,
+                 const llvm::opt::ArgList &Args);
 
   NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
                  const llvm::opt::ArgList &Args);
@@ -206,9 +206,6 @@ public:
 protected:
   Tool *buildAssembler() const override; // ptxas.
   Tool *buildLinker() const override;    // nvlink.
-
-private:
-  bool Freestanding = false;
 };
 
 class LLVM_LIBRARY_VISIBILITY CudaToolChain : public NVPTXToolChain {
@@ -250,6 +247,10 @@ public:
       llvm::opt::ArgStringList &CC1Args) const override;
   void AddIAMCUIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                            llvm::opt::ArgStringList &CC1Args) const override;
+
+  llvm::SmallVector<BitCodeLibraryInfo, 12>
+  getDeviceLibs(const llvm::opt::ArgList &Args,
+                const Action::OffloadKind DeviceOffloadingKind) const override;
 
   SanitizerMask getSupportedSanitizers() const override;
 

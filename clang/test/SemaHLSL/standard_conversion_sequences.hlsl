@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple dxil-pc-shadermodel6.3-library -Wconversion -Wno-implicit-float-size-conversion -verify -o - %s
-// RUN: %clang_cc1 -triple dxil-pc-shadermodel6.3-library -Wno-conversion -Wno-implicit-float-size-conversion -DNO_ERR -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -triple dxil-pc-shadermodel6.3-library -Wconversion -verify -o - %s
+// RUN: %clang_cc1 -triple dxil-pc-shadermodel6.3-library -Wno-conversion -DNO_ERR -ast-dump %s | FileCheck %s
 
 void test() {
 

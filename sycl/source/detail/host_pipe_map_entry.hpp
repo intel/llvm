@@ -43,7 +43,18 @@ struct HostPipeMapEntry {
   }
 
   void initialize(const void *HostPipePtr) {
-    assert(!MHostPipePtr && "Host pipe pointer has already been initialized.");
+    // If there are multiple translation units using the host pipe then
+    // initialize function will be called multiple times with the same pointer
+    // because special function for pipe registration and initialization has to
+    // be emitted by frontend for each translation unit. Just make sure that
+    // pointer is the same.
+    if (MHostPipePtr) {
+      assert(MHostPipePtr == HostPipePtr &&
+             "Host pipe intializations disagree on address of the host pipe on "
+             "host.");
+      return;
+    }
+
     MHostPipePtr = HostPipePtr;
   }
 

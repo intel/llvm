@@ -1,6 +1,4 @@
 //
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
 // REQUIRES-INTEL-DRIVER: lin: 28454, win: 101.5333
 //
 // RUN: %{build} -o %t.1.out
@@ -59,7 +57,8 @@ __attribute__((noinline))
 int main(void) {
   queue q;
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   std::cout << "force_inline=" << force_inline << "\n";
   auto ctxt = q.get_context();
 

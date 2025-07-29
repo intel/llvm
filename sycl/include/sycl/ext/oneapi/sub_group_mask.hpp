@@ -7,14 +7,13 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <sycl/builtins.hpp>       // for assert
 #include <sycl/detail/helpers.hpp> // for Builder
 #include <sycl/detail/memcpy.hpp>  // detail::memcpy
 #include <sycl/exception.hpp>      // for errc, exception
 #include <sycl/feature_test.hpp>   // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 #include <sycl/id.hpp>             // for id
 #include <sycl/marray.hpp>         // for marray
-#include <sycl/types.hpp>          // for vec
+#include <sycl/vector.hpp>         // for vec
 
 #include <assert.h>     // for assert
 #include <climits>      // for CHAR_BIT
@@ -321,10 +320,14 @@ private:
 
   sub_group_mask(BitsType rhs, size_t bn)
       : Bits(rhs & valuable_bits(bn)), bits_num(bn) {
+#ifndef __SYCL_DEVICE_ONLY__
     assert(bits_num <= max_bits);
+#endif
   }
   inline BitsType valuable_bits(size_t bn) const {
+#ifndef __SYCL_DEVICE_ONLY__
     assert(bn <= max_bits);
+#endif
     BitsType one = 1;
     if (bn == max_bits)
       return -one;

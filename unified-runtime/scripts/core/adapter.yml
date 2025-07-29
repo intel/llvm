@@ -1,0 +1,260 @@
+#
+# Copyright (C) 2022-2023 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime APIs for Adapter"
+ordinal: "1"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieves all available adapters"
+class: $xAdapter
+name: Get
+decl: static
+ordinal: "2"
+details:
+    - "Adapter implementations must return exactly one adapter handle from this entry point."
+    - "The loader may return more than one adapter handle when there are multiple available."
+    - "Each returned adapter has its reference count incremented and should be released with a subsequent call to $xAdapterRelease."
+    - "Adapters may perform adapter-specific state initialization when the first reference to them is taken."
+    - "An application may call this entry point multiple times to acquire multiple references to the adapter handle(s)."
+params:
+    - type: "uint32_t"
+      name: NumEntries
+      desc: |
+            [in] the number of adapters to be added to phAdapters.
+            If phAdapters is not NULL, then NumEntries should be greater than zero, otherwise $X_RESULT_ERROR_INVALID_SIZE,
+            will be returned.
+    - type: "$x_adapter_handle_t*"
+      name: phAdapters
+      desc: |
+            [out][optional][range(0, NumEntries)][alloc] array of handle of adapters.
+            If NumEntries is less than the number of adapters available, then $xAdapterGet shall only retrieve that number of adapters.
+    - type: "uint32_t*"
+      name: "pNumAdapters"
+      desc: |
+            [out][optional] returns the total number of adapters available.
+returns:
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`NumEntries == 0 && phAdapters != NULL`"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Releases the adapter handle reference indicating end of its usage"
+class: $xAdapter
+name: Release
+decl: static
+ordinal: "3"
+details:
+    - "When the reference count of the adapter reaches zero, the adapter may
+       perform adapter-specififc resource teardown. Any objects associated with
+       the adapter should be considered invalid after this point."
+    - "Calling $xAdapterGet after any adapter handle's reference count has
+       reached zero will result in undefined behaviour."
+params:
+  - type: "$x_adapter_handle_t"
+    name: hAdapter
+    desc: |
+          [in][release] Adapter handle to release
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get a reference to the adapter handle."
+class: $xAdapter
+name: Retain
+decl: static
+ordinal: "4"
+details:
+    - "Get a reference to the adapter handle. Increment its reference count"
+params:
+  - type: "$x_adapter_handle_t"
+    name: hAdapter
+    desc: |
+          [in][retain] Adapter handle to retain
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get the last adapter specific error."
+details: |
+    To be used after another entry-point has returned
+    $X_RESULT_ERROR_ADAPTER_SPECIFIC in order to retrieve a message describing
+    the circumstances of the underlying driver error and the error code
+    returned by the failed driver entry-point.
+
+    * Implementations *must* store the message and error code in thread-local
+      storage prior to returning $X_RESULT_ERROR_ADAPTER_SPECIFIC.
+
+    * The message and error code storage is will only be valid if a previously
+      called entry-point returned $X_RESULT_ERROR_ADAPTER_SPECIFIC.
+
+    * The memory pointed to by the C string returned in `ppMessage` is owned by
+      the adapter and *must* be null terminated.
+
+    * The application *may* call this function from simultaneous threads.
+
+    * The implementation of this function *should* be lock-free.
+
+    Example usage:
+
+    ```cpp
+    if ($xQueueCreate(hContext, hDevice, nullptr, &hQueue) ==
+            $X_RESULT_ERROR_ADAPTER_SPECIFIC) {
+        const char* pMessage;
+        int32_t error;
+        $xAdapterGetLastError(hAdapter, &pMessage, &error);
+    }
+    ```
+class: $xAdapter
+name: GetLastError
+decl: static
+ordinal: "5"
+params:
+    - type: $x_adapter_handle_t
+      name: hAdapter
+      desc: "[in] handle of the adapter instance"
+    - type: const char**
+      name: ppMessage
+      desc: >
+          [out] pointer to a C string where the adapter specific error message
+          will be stored.
+    - type: int32_t*
+      name: pError
+      desc: >
+          [out] pointer to an integer where the adapter specific error code
+          will be stored.
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Supported adapter info"
+class: $xAdapter
+name: $x_adapter_info_t
+typed_etors: True
+etors:
+    - name: BACKEND
+      desc: "[$x_backend_t] Identifies the native backend supported by the adapter."
+    - name: REFERENCE_COUNT
+      desc: |
+            [uint32_t] Reference count of the adapter.
+            The reference count returned should be considered immediately stale.
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
+    - name: VERSION
+      desc: >
+          [uint32_t] Specifies the adapter version, initial value of 1 and
+          incremented unpon major changes, e.g. when multiple versions of an
+          adapter may exist in parallel.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieves information about the adapter"
+class: $xAdapter
+name: GetInfo
+decl: static
+ordinal: "6"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_adapter_handle_t
+      name: hAdapter
+      desc: "[in] handle of the adapter"
+    - type: $x_adapter_info_t
+      name: propName
+      desc: "[in] type of the info to retrieve"
+    - type: "size_t"
+      name: propSize
+      desc: |
+            [in] the number of bytes pointed to by pPropValue.
+    - type: "void*"
+      name: pPropValue
+      desc: |
+            [out][optional][typename(propName, propSize)] array of bytes holding the info.
+            If Size is not equal to or greater to the real number of bytes needed to return the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: |
+            [out][optional] pointer to the actual number of bytes being queried by pPropValue.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Minimum level of messages to be processed by the logger."
+class: $xAdapter
+name: $x_logger_level_t
+etors:
+    - name: DEBUG
+      value: "0"
+      desc: "Debugging messages used for development purposes."
+    - name: INFO
+      value: "1"
+      desc: "General messages not related to debugging, warnings or errors."
+    - name: WARN
+      value: "2"
+      desc: "Used to warn users about potential problems."
+    - name: ERROR
+      value: "3"
+      desc: "Used when an error has occurred."
+    - name: QUIET
+      value: "4"
+      desc: "Restrict logger processing any messages."
+--- #--------------------------------------------------------------------------
+type: fptr_typedef
+desc: "Callback function to retrieve output from the logger."
+name: $x_logger_callback_t
+return: "void"
+params:
+    - type: $x_logger_level_t
+      name: level
+      desc: "[out] Minimum level of messages to be processed by the logger."
+      init: DEBUG
+    - type: const char*
+      name: pLoggerMsg
+      desc: "[in][out] pointer to data to be passed to callback"
+    - type: void*
+      name: pUserData
+      desc: "[in][out] pointer to data to be passed to callback"
+--- #--------------------------------------------------------------------------
+type: function
+desc: |
+      Set a callback function for use by the logger to retrieve logging output.
+      It is a requirement that the callback function is thread safe and the
+      creator of the function will be responsible for this.
+class: $xAdapter
+name: SetLoggerCallback
+decl: static
+params:
+    - type: $x_adapter_handle_t
+      name: hAdapter
+      desc: "[in] handle of the adapter"
+    - type: $x_logger_callback_t
+      name: pfnLoggerCallback
+      desc: "[in] Function pointer to callback from the logger."
+    - type: void*
+      name: pUserData
+      desc: "[in][out][optional] pointer to data to be passed to callback"
+    - type: $x_logger_level_t
+      name: level
+      desc: "[in] logging level"
+      init: 0
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set the minimum logging level for the logger Callback function."
+class: $xAdapter
+name: SetLoggerCallbackLevel
+decl: static
+params:
+    - type: $x_adapter_handle_t
+      name: hAdapter
+      desc: "[in] handle of the adapter"
+    - type: $x_logger_level_t
+      name: level
+      desc: "[in] logging level"

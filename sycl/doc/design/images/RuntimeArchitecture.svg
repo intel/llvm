@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    version="1.0"
    width="245.52568mm"
    height="189.5676mm"
    id="svg5073"
-   sodipodi:docname="SYCL_RT_arch.svg"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
+   sodipodi:docname="RuntimeArchitecture.svg"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
    inkscape:export-filename="C:\Users\kbobrovs\ws\otcshare1\sycl\doc\images\SYCL_RT_arch.png"
    inkscape:export-xdpi="96"
-   inkscape:export-ydpi="96">
+   inkscape:export-ydpi="96"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
   <metadata
      id="metadata5077">
     <rdf:RDF>
@@ -24,7 +24,6 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -38,16 +37,18 @@
      inkscape:pageopacity="0"
      inkscape:pageshadow="2"
      inkscape:window-width="1920"
-     inkscape:window-height="1137"
+     inkscape:window-height="1125"
      id="namedview5075"
      showgrid="false"
-     inkscape:zoom="0.97439131"
-     inkscape:cx="349.3594"
-     inkscape:cy="393.64385"
-     inkscape:window-x="1912"
-     inkscape:window-y="-8"
+     inkscape:zoom="1.3779974"
+     inkscape:cx="371.55368"
+     inkscape:cy="435.77731"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
      inkscape:window-maximized="1"
-     inkscape:current-layer="svg5073" />
+     inkscape:current-layer="svg5073"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="mm" />
   <defs
      id="defs4637">
     <pattern
@@ -64,13 +65,18 @@
      id="path4639"
      inkscape:connector-curvature="0" />
   <path
+     style="fill:#e0e3e5;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.41565"
+     d="m 0.99348413,313.84368 v 74.49126 H 928.47033 v -74.49126 z"
+     id="path34550"
+     inkscape:connector-curvature="0" />
+  <path
      style="fill:#e0e3e5;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
      d="M 0,0 V 133.14793 H 927.47685 V 0 Z"
      id="path4643"
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="12.677885"
      y="55.113785"
      id="text4649"
@@ -79,12 +85,12 @@
        x="12.677885"
        y="55.113785"
        id="tspan4647"
-       style="stroke-width:1.31121552"><tspan
-         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31121552"
+       style="stroke-width:1.31122"><tspan
+         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31122"
          id="tspan4645">DPC++</tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="12.677885"
      y="88.655182"
      id="text4655"
@@ -93,45 +99,45 @@
        x="12.677885"
        y="88.655182"
        id="tspan4653"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31121552"
+         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31122"
          id="tspan4651">application</tspan></tspan></text>
   <path
-     style="fill:#e0e3e5;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
-     d="M 0,143.92869 V 387.16264 H 927.47685 V 143.92869 Z"
+     style="fill:#e0e3e5;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.06199"
+     d="m 0,143.92869 v 159.558 h 927.47685 v -159.558 z"
      id="path4657"
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="12.677885"
-     y="242.75819"
+     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
+     x="20.191647"
+     y="201.46074"
      id="text4663"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.94309069,1.0603434)"><tspan
        sodipodi:role="line"
-       x="12.677885"
-       y="242.75819"
+       x="20.191647"
+       y="201.46074"
        id="tspan4661"
-       style="stroke-width:1.31121552"><tspan
-         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31121552"
+       style="stroke-width:1.31122"><tspan
+         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31122"
          id="tspan4659">DPC++</tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="12.677885"
-     y="276.29962"
+     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
+     x="20.191647"
+     y="235.00217"
      id="text4669"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.94309069,1.0603434)"><tspan
        sodipodi:role="line"
-       x="12.677885"
-       y="276.29962"
+       x="20.191647"
+       y="235.00217"
        id="tspan4667"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31121552"
+         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31122"
          id="tspan4665">runtime</tspan></tspan></text>
   <path
      style="fill:#e0e3e5;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
@@ -140,7 +146,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#858585;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="12.677885"
      y="415.15793"
      id="text4677"
@@ -149,9 +155,7 @@
        x="12.677885"
        y="415.15793"
        id="tspan4675"
-       style="stroke-width:1.31121552"><tspan
-         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31121552"
-         id="tspan4673">PI plugin</tspan></tspan></text>
+       style="stroke-width:1.31122;fill:#858585;fill-opacity:1">UR Adapter</tspan></text>
   <path
      style="fill:#e0e3e5;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
      d="M 0,472.853 V 627.39573 H 927.47685 V 472.853 Z"
@@ -159,7 +163,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="12.677885"
      y="511.1409"
      id="text4685"
@@ -168,14 +172,14 @@
        x="12.677885"
        y="511.1409"
        id="tspan4683"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31121552"
+         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31122"
          id="tspan4681">Native runtime</tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="12.677885"
      y="544.68231"
      id="text4691"
@@ -184,10 +188,10 @@
        x="12.677885"
        y="544.68231"
        id="tspan4689"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31121552"
+         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31122"
          id="tspan4687">&amp; driver</tspan></tspan></text>
   <path
      style="fill:#e0e3e5;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
@@ -196,7 +200,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="13.205956"
      y="646.58063"
      id="text4699"
@@ -205,10 +209,10 @@
        x="13.205956"
        y="646.58063"
        id="tspan4697"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.86332893px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31121552"
+         style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;font-family:'Intel Clear';fill:#7f7f7f;stroke-width:1.31122"
          id="tspan4695">Device</tspan></tspan></text>
   <path
      style="fill:#003c71;fill-opacity:1;fill-rule:nonzero;stroke:#003c71;stroke-width:0.02620421px;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
@@ -245,9 +249,14 @@
      d="M 203.83238,156.04316 V 287.91295 H 920.80435 V 156.04316 Z"
      id="path4713"
      inkscape:connector-curvature="0" />
+  <path
+     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.23717"
+     d="m 212.94107,222.1955 v 53.34808 H 320.94845 V 222.1955 Z"
+     id="path4957"
+     inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.5033px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="472.83789"
      y="169.88568"
      id="text4719"
@@ -256,135 +265,135 @@
        x="472.83789"
        y="169.88568"
        id="tspan4717"
-       style="stroke-width:1.31121552"><tspan
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+       style="stroke-width:1.31122"><tspan
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.5033px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan4715">DPC++ runtime library</tspan></tspan></text>
   <path
-     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
-     d="m 342.99098,219.39401 v 53.34808 h 100.28513 v -53.34808 z"
+     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.24542"
+     d="m 328.63486,222.25428 v 53.34808 h 90.47275 v -53.34808 z"
      id="path4721"
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="368.70206"
-     y="239.08733"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:19.0925px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.19328"
+     x="389.29257"
+     y="220.03822"
      id="text4727"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.85826737,1.1651381)"><tspan
        sodipodi:role="line"
-       x="368.70206"
-       y="239.08733"
+       x="389.29257"
+       y="220.03822"
        id="tspan4725"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.19328"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:19.0925px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.19328"
          id="tspan4723">Scheduler</tspan></tspan></text>
   <path
-     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
-     d="m 546.5515,219.50516 v 53.34808 h 93.85977 v -53.34808 z"
+     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.3404"
+     d="m 527.03177,222.36543 v 53.34808 h 98.08471 v -53.34808 z"
      id="path4729"
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="597.73291"
-     y="226.59819"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.3404"
+     x="565.27222"
+     y="234.39957"
      id="text4735"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.96408292,1.0372552)"><tspan
        sodipodi:role="line"
-       x="597.73291"
-       y="226.59819"
+       x="565.27222"
+       y="234.39957"
        id="tspan4733"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.3404"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.3404"
          id="tspan4731">Device </tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="610.52063"
-     y="251.75421"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.3404"
+     x="578.34454"
+     y="260.11554"
      id="text4741"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.96408292,1.0372552)"><tspan
        sodipodi:role="line"
-       x="610.52063"
-       y="251.75421"
+       x="578.34454"
+       y="260.11554"
        id="tspan4739"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.3404"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.3404"
          id="tspan4737">mgr</tspan></tspan></text>
   <path
-     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
-     d="m 645.35386,219.39401 v 53.34808 h 109.33007 v -53.34808 z"
+     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.3404"
+     d="m 630.28155,222.25428 v 53.34808 h 114.25138 v -53.34808 z"
      id="path4743"
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="689.28168"
-     y="226.50932"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.3404"
+     x="658.85876"
+     y="234.30872"
      id="text4749"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.96408292,1.0372552)"><tspan
        sodipodi:role="line"
-       x="689.28168"
-       y="226.50932"
+       x="658.85876"
+       y="234.30872"
        id="tspan4747"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.3404"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.3404"
          id="tspan4745">Program </tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="781.52045"
-     y="226.50932"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.3404"
+     x="753.15057"
+     y="234.30872"
      id="text4755"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.96408292,1.0372552)"><tspan
        sodipodi:role="line"
-       x="781.52045"
-       y="226.50932"
+       x="753.15057"
+       y="234.30872"
        id="tspan4753"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.3404"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.3404"
          id="tspan4751">&amp; </tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="690.95874"
-     y="251.66534"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.3404"
+     x="660.57312"
+     y="260.02466"
      id="text4761"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.96408292,1.0372552)"><tspan
        sodipodi:role="line"
-       x="690.95874"
-       y="251.66534"
+       x="660.57312"
+       y="260.02466"
        id="tspan4759"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.3404"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.3404"
          id="tspan4757">kernel </tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="755.73553"
-     y="251.66534"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.3404"
+     x="726.79175"
+     y="260.02466"
      id="text4767"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.96408292,1.0372552)"><tspan
        sodipodi:role="line"
-       x="755.73553"
-       y="251.66534"
+       x="726.79175"
+       y="260.02466"
        id="tspan4765"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.3404"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.3404"
          id="tspan4763">mgr</tspan></tspan></text>
   <path
      style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
@@ -393,7 +402,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9794px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="548.33624"
      y="196.22406"
      id="text4775"
@@ -402,45 +411,45 @@
        x="548.33624"
        y="196.22406"
        id="tspan4773"
-       style="stroke-width:1.31121552"><tspan
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+       style="stroke-width:1.31122"><tspan
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9794px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan4771">SYCL API</tspan></tspan></text>
   <path
-     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
-     d="m 448.56468,219.39401 v 53.34808 h 93.14309 v -53.34808 z"
+     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.3404"
+     d="m 424.63423,222.25428 v 53.34808 h 97.33578 v -53.34808 z"
      id="path4777"
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="486.04019"
-     y="226.50932"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.3404"
+     x="451.09329"
+     y="234.30872"
      id="text4783"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.96408292,1.0372552)"><tspan
        sodipodi:role="line"
-       x="486.04019"
-       y="226.50932"
+       x="451.09329"
+       y="234.30872"
        id="tspan4781"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.3404"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.3404"
          id="tspan4779">Memory </tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="506.16504"
-     y="251.66534"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.3404"
+     x="471.66611"
+     y="260.02466"
      id="text4789"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.96408292,1.0372552)"><tspan
        sodipodi:role="line"
-       x="506.16504"
-       y="251.66534"
+       x="471.66611"
+       y="260.02466"
        id="tspan4787"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.3404"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.3404"
          id="tspan4785">mgr</tspan></tspan></text>
   <path
      style="fill:#00aeef;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
@@ -454,7 +463,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.86332893px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="873.0304"
      y="649.0639"
      id="text4799"
@@ -463,10 +472,10 @@
        x="873.0304"
        y="649.0639"
        id="tspan4797"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.86332893px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.8633px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan4795">CPU</tspan></tspan></text>
   <path
      style="fill:#0071c5;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
@@ -475,7 +484,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.5033px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="719.83459"
      y="574.43701"
      id="text4807"
@@ -484,10 +493,10 @@
        x="719.83459"
        y="574.43701"
        id="tspan4805"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.5033px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan4803">TBB RT</tspan></tspan></text>
   <path
      style="fill:#0071c5;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
@@ -501,7 +510,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.5033px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="439.98917"
      y="34.872921"
      id="text4817"
@@ -510,8 +519,8 @@
        x="439.98917"
        y="34.872921"
        id="tspan4815"
-       style="stroke-width:1.31121552"><tspan
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+       style="stroke-width:1.31122"><tspan
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.5033px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan4813">SYCL host / host device</tspan></tspan></text>
   <path
      style="fill:#eff1f2;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
@@ -525,7 +534,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9794px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="633.39398"
      y="83.334396"
      id="text4827"
@@ -534,14 +543,14 @@
        x="633.39398"
        y="83.334396"
        id="tspan4825"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#000000;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9794px;font-family:'Intel Clear';fill:#000000;stroke-width:1.31122"
          id="tspan4823">SPIR</tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9794px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="677.41705"
      y="83.334396"
      id="text4833"
@@ -550,14 +559,14 @@
        x="677.41705"
        y="83.334396"
        id="tspan4831"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#000000;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9794px;font-family:'Intel Clear';fill:#000000;stroke-width:1.31122"
          id="tspan4829">-</tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9794px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="685.80237"
      y="83.334396"
      id="text4839"
@@ -566,10 +575,10 @@
        x="685.80237"
        y="83.334396"
        id="tspan4837"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#000000;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9794px;font-family:'Intel Clear';fill:#000000;stroke-width:1.31122"
          id="tspan4835">V</tspan></tspan></text>
   <path
      style="fill:#eff1f2;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
@@ -583,7 +592,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9794px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="441.55698"
      y="83.481865"
      id="text4849"
@@ -592,10 +601,10 @@
        x="441.55698"
        y="83.481865"
        id="tspan4847"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#000000;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9794px;font-family:'Intel Clear';fill:#000000;stroke-width:1.31122"
          id="tspan4845">Device X exe</tspan></tspan></text>
   <path
      style="fill:#005594;fill-opacity:1;fill-rule:nonzero;stroke:#005594;stroke-width:0.02620421px;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
@@ -603,72 +612,54 @@
      id="path4851"
      inkscape:connector-curvature="0" />
   <path
-     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
-     d="m 797.48675,219.56073 v 53.34808 h 121.83482 v -53.34808 z"
+     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.3404"
+     d="m 789.26245,222.421 v 53.34808 H 916.58146 V 222.421 Z"
      id="path4853"
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="854.77344"
-     y="226.66473"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9693px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31058"
+     x="846.96661"
+     y="229.25211"
      id="text4859"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.94263789,1.0608527)"><tspan
        sodipodi:role="line"
-       x="854.77344"
-       y="226.66473"
+       x="846.96661"
+       y="229.25211"
        id="tspan4857"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31058"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9693px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31058"
          id="tspan4855">Host device </tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="856.66016"
-     y="251.82079"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9318px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.30825"
+     x="851.11578"
+     y="253.94162"
      id="text4865"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.9409542,1.062751)"><tspan
        sodipodi:role="line"
-       x="856.66016"
-       y="251.82079"
+       x="851.11578"
+       y="253.94162"
        id="tspan4863"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.30825"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9318px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.30825"
          id="tspan4861">RT </tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:20.97999954px;line-height:125%;font-family:'Intel Clear';-inkscape-font-specification:'Intel Clear, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="887.26666"
-     y="251.82079"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:20.3707px;line-height:125%;font-family:'Intel Clear';-inkscape-font-specification:'Intel Clear, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1.27314"
+     x="906.95837"
+     y="247.12788"
      id="text4871"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.91570652,1.0920529)"><tspan
        sodipodi:role="line"
        id="tspan1015"
-       x="887.26666"
-       y="251.82079">interface</tspan></text>
-  <path
-     style="fill:#005594;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
-     d="m 439.09962,414.67024 v 40.45563 h 331.00519 v -40.45563 z"
-     id="path4873"
-     inkscape:connector-curvature="0" />
-  <text
-     xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="529.43341"
-     y="417.55301"
-     id="text4879"
-     transform="scale(0.94309068,1.0603434)"><tspan
-       sodipodi:role="line"
-       x="529.43341"
-       y="417.55301"
-       id="tspan4877"
-       style="stroke-width:1.31121552"><tspan
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
-         id="tspan4875">PI/OpenCL plugin</tspan></tspan></text>
+       x="906.95837"
+       y="247.12788"
+       style="stroke-width:1.27314">interface</tspan></text>
   <path
      style="fill:#0071c5;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
      d="m 781.71989,581.66087 v 40.01106 h 139.03503 v -40.01106 z"
@@ -676,7 +667,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.5033px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="836.42596"
      y="575.45959"
      id="text4887"
@@ -685,30 +676,30 @@
        x="836.42596"
        y="575.45959"
        id="tspan4885"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.5033px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan4883">OpenMP RT</tspan></tspan></text>
   <path
-     style="fill:#003c71;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
-     d="m 203.83238,309.58562 v 70.74179 h 566.27243 v -70.74179 z"
+     style="fill:#003c71;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.2597"
+     d="m 203.83238,318.03564 v 65.29269 h 566.27243 v -65.29269 z"
      id="path4889"
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="323.98245"
-     y="314.67691"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:22.9933px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1.23042"
+     x="335.16299"
+     y="341.06738"
      id="text4907"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(1.0050234,0.99500172)"><tspan
        sodipodi:role="line"
-       x="323.98245"
-       y="314.67691"
+       x="335.16299"
+       y="341.06738"
        id="tspan4905"
-       style="stroke-width:1.31121552"><tspan
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
-         id="tspan4903">DPC++ Runtime Plugin Interface (PI)</tspan></tspan></text>
+       style="fill:#ffffff;fill-opacity:1;stroke-width:1.23042">Unified Runtime Interface<tspan
+   style="font-style:normal;font-variant:normal;font-weight:400;font-size:22.9933px;font-family:'Intel Clear';fill:#ffffff;fill-opacity:1;stroke-width:1.23042"
+   id="tspan4903" /></tspan></text>
   <path
      style="fill:#00aeef;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
      d="m 550.13488,663.10005 c 0,-4.5846 3.31154,-8.30785 7.38917,-8.30785 h 104.23921 c 4.07763,0 7.38916,3.72325 7.38916,8.30785 v 33.25919 c 0,4.5846 -3.31153,8.30786 -7.38916,8.30786 H 557.52405 c -4.07763,0 -7.38917,-3.72326 -7.38917,-8.30786 z"
@@ -721,7 +712,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.86332893px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="590.85822"
      y="650.1524"
      id="text4917"
@@ -730,14 +721,14 @@
        x="590.85822"
        y="650.1524"
        id="tspan4915"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.86332893px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.8633px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan4913">Device </tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.86332893px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="684.98376"
      y="650.1524"
      id="text4923"
@@ -746,10 +737,10 @@
        x="684.98376"
        y="650.1524"
        id="tspan4921"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.86332893px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.8633px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan4919">Z</tspan></tspan></text>
   <path
      style="fill:#005594;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
@@ -758,7 +749,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.5033px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="546.83289"
      y="479.99124"
      id="text4931"
@@ -767,94 +758,57 @@
        x="546.83289"
        y="479.99124"
        id="tspan4929"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.5033px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan4927">OpenCL Runtime</tspan></tspan></text>
   <path
-     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
-     d="m 759.7748,219.56073 v 53.34808 h 31.28659 v -53.34808 z"
+     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.3404"
+     d="m 749.85295,222.421 v 53.34808 h 32.69491 V 222.421 Z"
      id="path4939"
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="814.83972"
-     y="239.24277"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.3404"
+     x="787.21155"
+     y="247.32556"
      id="text4945"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.96408292,1.0372552)"><tspan
        sodipodi:role="line"
-       x="814.83972"
-       y="239.24277"
+       x="787.21155"
+       y="247.32556"
        id="tspan4943"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.3404"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:21.4463px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.3404"
          id="tspan4941">…</tspan></tspan></text>
   <path
-     style="fill:#005594;fill-opacity:1;fill-rule:nonzero;stroke:#005594;stroke-width:0.02620421px;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="m 510.8413,284.18971 0.17299,18.22726 -3.28682,0.0556 -0.17299,-18.25505 z m 3.45981,16.33784 -4.84374,11.16976 -5.04144,-11.03082 z"
+     style="fill:#005594;fill-opacity:1;fill-rule:nonzero;stroke:#005594;stroke-width:0.0281274px;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     d="m 510.84077,287.97471 0.17292,21.00849 -3.28563,0.0641 -0.17293,-21.04052 z m 3.45856,18.83077 -4.842,12.87411 -5.03962,-12.71397 z"
      id="path4947"
      inkscape:connector-curvature="0" />
   <path
-     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
-     d="m 210.50487,338.01014 v 33.00913 H 556.18956 V 338.01014 H 359.53162 325.43097 Z"
+     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.09488"
+     d="m 210.02988,345.17424 v 29.06623 h 273.7227 v -29.06623 h -155.7192 -27.00183 z"
      id="path4949"
      inkscape:connector-curvature="0"
      sodipodi:nodetypes="ccccccc" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="316.01791"
-     y="341.34464"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:19.3983px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.2124"
+     x="276.92395"
+     y="362.24084"
      id="text4955"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.99030579,1.0097891)"><tspan
        sodipodi:role="line"
-       x="316.01791"
-       y="341.34464"
+       x="276.92395"
+       y="362.24084"
        id="tspan4953"
-       style="stroke-width:1.31121552"><tspan
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
-         id="tspan4951">PI types &amp; services</tspan></tspan></text>
-  <path
-     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
-     d="m 562.91148,338.03793 v 33.00914 h 196.0725 v -33.00914 z"
-     id="path4957"
-     inkscape:connector-curvature="0" />
-  <text
-     xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="606.39087"
-     y="341.34451"
-     id="text4963"
-     transform="scale(0.94309068,1.0603434)"><tspan
-       sodipodi:role="line"
-       x="606.39087"
-       y="341.34451"
-       id="tspan4961"
-       style="stroke-width:1.31121552"><tspan
-         dx="0"
-         dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
-         id="tspan4959">Device binary </tspan></tspan></text>
-  <text
-     xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="739.7179"
-     y="341.34451"
-     id="text4969"
-     transform="scale(0.94309068,1.0603434)"><tspan
-       sodipodi:role="line"
-       x="739.7179"
-       y="341.34451"
-       id="tspan4967"
-       style="stroke-width:1.31121552"><tspan
-         dx="0"
-         dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
-         id="tspan4965">mgmt</tspan></tspan></text>
+       style="stroke-width:1.2124"><tspan
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:19.3983px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.2124"
+         id="tspan4951">UR types &amp; API</tspan></tspan></text>
   <path
      style="fill:#005594;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
      d="m 203.80767,480.8552 v 40.45564 H 417.89591 V 480.8552 Z"
@@ -862,7 +816,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.5033px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="230.72765"
      y="479.99109"
      id="text4977"
@@ -871,14 +825,14 @@
        x="230.72765"
        y="479.99109"
        id="tspan4975"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.5033px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan4973">DeviceX</tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.5033px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="325.48206"
      y="479.99109"
      id="text4983"
@@ -887,32 +841,32 @@
        x="325.48206"
        y="479.99109"
        id="tspan4981"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.5033px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan4979">native RT</tspan></tspan></text>
   <path
-     style="fill:#005594;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
-     d="m 203.80767,414.64245 v 40.45563 h 214.90377 v -40.45563 z"
+     style="fill:#005594;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.30093"
+     d="m 208.23412,414.64245 v 40.45563 h 211.54419 v -40.45563 z"
      id="path4985"
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="257.84552"
-     y="417.55283"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.311px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.30093"
+     x="238.89603"
+     y="413.53403"
      id="text4997"
-     transform="scale(0.94309068,1.0603434)"><tspan
+     transform="scale(0.93569,1.06873)"><tspan
        sodipodi:role="line"
-       x="257.84552"
-       y="417.55283"
+       x="238.89603"
+       y="413.53403"
        id="tspan4995"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.30093"><tspan
          dx="0 0 0"
          dy="0 0 0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.50333977px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
-         id="tspan4993">PI/X RT plugin</tspan></tspan></text>
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.311px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.30093"
+         id="tspan4993">UR/X RT adapter</tspan></tspan></text>
   <path
      style="fill:#00aeef;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
      d="m 421.94883,663.10005 c 0,-4.5846 3.31153,-8.30785 7.38917,-8.30785 h 104.26392 c 4.07764,0 7.38917,3.72325 7.38917,8.30785 v 33.25919 c 0,4.5846 -3.31153,8.30786 -7.38917,8.30786 H 429.338 c -4.07764,0 -7.38917,-3.72326 -7.38917,-8.30786 z"
@@ -925,7 +879,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.86332893px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="454.73209"
      y="650.1524"
      id="text5013"
@@ -934,10 +888,10 @@
        x="454.73209"
        y="650.1524"
        id="tspan5011"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.86332893px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.8633px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan5009">Device Y</tspan></tspan></text>
   <path
      style="fill:#bfbfbf;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
@@ -946,7 +900,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9794px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="535.00537"
      y="541.34497"
      id="text5021"
@@ -955,14 +909,14 @@
        x="535.00537"
        y="541.34497"
        id="tspan5019"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9794px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan5017">Other </tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9794px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="534.16687"
      y="566.50098"
      id="text5027"
@@ -971,10 +925,10 @@
        x="534.16687"
        y="566.50098"
        id="tspan5025"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.9794px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan5023">layers</tspan></tspan></text>
   <path
      style="fill:#00aeef;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
@@ -988,7 +942,7 @@
      inkscape:connector-curvature="0" />
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.86332893px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="277.47195"
      y="648.99683"
      id="text5037"
@@ -997,14 +951,14 @@
        x="277.47195"
        y="648.99683"
        id="tspan5035"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.86332893px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.8633px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan5033">Device </tspan></tspan></text>
   <text
      xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.86332893px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
+     style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31122"
      x="371.59747"
      y="648.99683"
      id="text5043"
@@ -1013,14 +967,14 @@
        x="371.59747"
        y="648.99683"
        id="tspan5041"
-       style="stroke-width:1.31121552"><tspan
+       style="stroke-width:1.31122"><tspan
          dx="0"
          dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.86332893px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
+         style="font-style:normal;font-variant:normal;font-weight:700;font-size:27.8633px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31122"
          id="tspan5039">X</tspan></tspan></text>
   <path
-     style="fill:#005594;fill-opacity:1;fill-rule:nonzero;stroke:#005594;stroke-width:0.02620421px;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="m 553.44642,378.46577 0.29655,28.70239 -3.28682,0.0278 -0.32127,-28.6746 z m 3.58337,26.7852 -4.81903,11.19754 -5.06614,-11.05862 z"
+     style="fill:#005594;fill-opacity:1;fill-rule:nonzero;stroke:#005594;stroke-width:0.0255741px;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     d="m 553.44642,380.27038 0.29655,27.3387 -3.28682,0.0265 -0.32127,-27.31224 z m 3.58337,25.5126 -4.81903,10.66553 -5.06614,-10.53321 z"
      id="path5045"
      inkscape:connector-curvature="0" />
   <path
@@ -1049,53 +1003,87 @@
      id="path5055"
      inkscape:connector-curvature="0" />
   <path
-     style="fill:#005594;fill-opacity:1;fill-rule:nonzero;stroke:#005594;stroke-width:0.05240842px;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-     d="m 714.45125,63.406424 h 9.88518 v 3.723252 h -9.88518 z m 13.14729,0 h 9.88519 v 3.723252 h -9.88519 z m 13.19671,0 h 9.88518 v 3.723252 h -9.88518 z m 13.19671,0 h 9.88518 v 3.723252 h -9.88518 z m 13.14729,0 h 9.88519 v 3.723252 h -9.88519 z m 13.19671,0 h 9.88518 v 3.723252 h -9.88518 z m 13.19672,0 h 9.88518 v 3.723252 h -9.88518 z m 13.14728,0 h 9.88519 v 3.723252 h -9.88519 z m 13.19673,0 h 9.88516 v 3.723252 h -9.88516 z m 13.1967,0 h 9.88518 v 3.723252 h -9.88518 z m 13.14728,0 h 9.88519 v 3.723252 h -9.88519 z m 13.83926,3.00083 v 11.114181 h -3.31154 V 66.407254 Z m 0,14.781867 v 11.114187 h -3.31154 V 81.189121 Z m 0,14.837431 v 11.114188 h -3.31154 V 96.026552 Z m 0,14.837448 v 11.11417 h -3.31154 V 110.864 Z m 0,14.78185 v 11.1142 h -3.31154 v -11.1142 z m 0,14.83744 v 11.11419 h -3.31154 v -11.11419 z m 0,14.83745 v 11.11419 h -3.31154 v -11.11419 z m 0,14.78186 v 11.11419 h -3.31154 V 170.1026 Z m 0,14.83744 v 11.11419 h -3.31154 v -11.11419 z m 0,14.83743 v 10.55849 h -3.31154 v -10.55849 z m 3.31153,8.66907 -4.94259,11.11419 -4.94258,-11.11419 z"
+     style="fill:#005594;fill-opacity:1;fill-rule:nonzero;stroke:#005594;stroke-width:0.0508714px;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+     d="m 714.45048,63.405656 h 9.31377 v 3.723288 h -9.31377 z m 12.38731,0 h 9.31378 v 3.723288 h -9.31378 z m 12.43388,0 h 9.31376 v 3.723288 h -9.31376 z m 12.43387,0 h 9.31377 v 3.723288 h -9.31377 z m 12.38731,0 h 9.31378 v 3.723288 h -9.31378 z m 12.43388,0 h 9.31376 v 3.723288 h -9.31376 z m 12.43388,0 h 9.31377 v 3.723288 h -9.31377 z m 12.3873,0 h 9.31378 v 3.723288 h -9.31378 z m 12.43389,0 h 9.31375 v 3.723288 h -9.31375 z m 12.43387,0 h 9.31376 v 3.723288 h -9.31376 z m 12.3873,0 h 9.31378 v 3.723288 h -9.31378 z m 13.03928,3.000859 v 11.11429 h -3.12012 v -11.11429 z m 0,14.782013 v 11.114296 h -3.12012 V 81.188528 Z m 0,14.837577 V 107.1404 h -3.12012 V 96.026105 Z m 0,14.837595 v 11.11428 h -3.12012 V 110.8637 Z m 0,14.78199 V 136.76 h -3.12012 v -11.11431 z m 0,14.83759 v 11.1143 h -3.12012 v -11.1143 z m 0,14.8376 v 11.1143 h -3.12012 v -11.1143 z m 0,14.782 v 11.1143 h -3.12012 v -11.1143 z m 0,14.83759 v 11.1143 h -3.12012 v -11.1143 z m 0,14.83757 v 10.5586 h -3.12012 v -10.5586 z m 3.12011,8.66916 -4.65689,11.1143 -4.65687,-11.1143 z"
      id="path5057"
      inkscape:connector-curvature="0" />
-  <path
-     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.31121552"
-     d="m 212.50662,219.56073 v 53.34808 H 337.134 v -53.34808 z"
-     id="path5059"
-     inkscape:connector-curvature="0" />
-  <text
-     xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="231.73125"
-     y="226.66473"
-     id="text5065"
-     transform="scale(0.94309068,1.0603434)"><tspan
-       sodipodi:role="line"
-       x="231.73125"
-       y="226.66473"
-       id="tspan5063"
-       style="stroke-width:1.31121552"><tspan
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
-         id="tspan5061">PI discovery </tspan></tspan></text>
-  <text
-     xml:space="preserve"
-     style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.31121552"
-     x="227.95784"
-     y="251.82079"
-     id="text5071"
-     transform="scale(0.94309068,1.0603434)"><tspan
-       sodipodi:role="line"
-       x="227.95784"
-       y="251.82079"
-       id="tspan5069"
-       style="stroke-width:1.31121552"><tspan
-         dx="0"
-         dy="0"
-         style="font-style:normal;font-variant:normal;font-weight:400;font-size:20.97944832px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.31121552"
-         id="tspan5067">&amp; plugin infra</tspan></tspan></text>
   <text
      xml:space="preserve"
      style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none"
      x="240.61531"
      y="604.38959"
-     id="text432"><tspan
+     id="text432" />
+  <text
+     xml:space="preserve"
+     style="font-style:italic;font-variant:normal;font-weight:400;font-size:27.8633px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#8a8b8b;fill-opacity:1;stroke:none;stroke-width:1.31122"
+     x="19.902292"
+     y="325.52847"
+     id="text34556"
+     transform="scale(0.9430907,1.0603434)"><tspan
        sodipodi:role="line"
-       id="tspan430"
-       x="240.61531"
-       y="640.88281" /></text>
+       x="19.902292"
+       y="325.52847"
+       id="tspan34554"
+       style="stroke-width:1.31122;fill:#8a8b8b;fill-opacity:1">UR Loader +</tspan><tspan
+       sodipodi:role="line"
+       x="19.902292"
+       y="360.3576"
+       style="stroke-width:1.31122;fill:#8a8b8b;fill-opacity:1"
+       id="tspan35084">API</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-weight:normal;font-size:16.2436px;line-height:1.25;font-family:sans-serif;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.93713"
+     x="282.74991"
+     y="226.91394"
+     id="text62341"
+     transform="scale(0.93713041,1.0670873)"><tspan
+       sodipodi:role="line"
+       id="tspan62339"
+       x="282.74991"
+       y="226.91394"
+       style="font-size:16.2436px;text-align:center;text-anchor:middle;fill:#ffffff;fill-opacity:1;stroke-width:0.93713">Device Binary</tspan><tspan
+       sodipodi:role="line"
+       x="282.74991"
+       y="247.21844"
+       id="tspan62343"
+       style="font-size:16.2436px;text-align:center;text-anchor:middle;fill:#ffffff;fill-opacity:1;stroke-width:0.93713">mgr</tspan></text>
+  <path
+     style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.09488"
+     d="m 489.41359,344.97148 v 29.06623 h 273.7227 v -29.06623 h -155.7192 -27.00183 z"
+     id="path96761"
+     inkscape:connector-curvature="0"
+     sodipodi:nodetypes="ccccccc" />
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:19.3983px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1.2124"
+     x="536.64258"
+     y="361.60269"
+     id="text96767"
+     transform="scale(0.9903058,1.0097891)"><tspan
+       sodipodi:role="line"
+       x="536.64258"
+       y="361.60269"
+       id="tspan96765"
+       style="fill:#ffffff;fill-opacity:1;stroke-width:1.2124">UR loader + layers<tspan
+   style="font-style:normal;font-variant:normal;font-weight:400;font-size:19.3983px;font-family:'Intel Clear';fill:#ffffff;fill-opacity:1;stroke-width:1.2124"
+   id="tspan96763" /></tspan></text>
+  <path
+     style="fill:#005594;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.30093"
+     d="m 439.84776,414.67024 v 40.45563 h 325.8306 v -40.45563 z"
+     id="path4873"
+     inkscape:connector-curvature="0" />
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.311px;line-height:125%;font-family:'Intel Clear';text-align:start;letter-spacing:0px;word-spacing:0px;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.30093"
+     x="533.41455"
+     y="414.27634"
+     id="text4879"
+     transform="scale(0.93569,1.06873)"><tspan
+       sodipodi:role="line"
+       x="533.41455"
+       y="414.27634"
+       id="tspan4877"
+       style="stroke-width:1.30093"><tspan
+         style="font-style:normal;font-variant:normal;font-weight:400;font-size:24.311px;font-family:'Intel Clear';fill:#ffffff;stroke-width:1.30093"
+         id="tspan4875">UR/OpenCL adapter</tspan></tspan></text>
 </svg>

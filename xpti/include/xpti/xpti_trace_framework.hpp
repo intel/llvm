@@ -55,15 +55,9 @@ typedef void *xpti_plugin_function_t;
 #endif
 #endif
 
-/// Insert something when compiled with msvc
-/// https://docs.microsoft.com/en-us/cpp/preprocessor/predefined-macros
-#ifdef _MSC_VER
-#define __XPTI_INSERT_IF_MSVC(x) x
-#else
-#define __XPTI_INSERT_IF_MSVC(x)
-#endif
-
 namespace xpti {
+constexpr const char *g_unknown_function = "<unknown-function>";
+constexpr const char *g_unknown_file = "<unknown-file>";
 namespace utils {
 /// @class StringHelper
 /// @brief A helper class for string manipulations.
@@ -219,7 +213,9 @@ public:
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
-    __XPTI_INSERT_IF_MSVC(__pragma(warning(suppress : 4996)))
+#ifdef _MSC_VER
+#pragma warning(suppress : 4996)
+#endif
     const char *val = std::getenv(var.c_str());
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
@@ -353,6 +349,8 @@ private:
 struct finally {
   std::function<void()> MFunc;
 
+  finally(const finally &) = delete;
+  finally &operator=(const finally &) = delete;
   ~finally() {
     if (xptiTraceEnabled())
       MFunc();
@@ -579,12 +577,28 @@ inline std::string readMetadata(const metadata_t::value_type &MD) {
 inline bool is_valid_payload(const xpti::payload_t *Payload) {
   if (!Payload)
     return false;
-  else
-    return (Payload->flags != 0) &&
-           ((Payload->flags &
-                 static_cast<uint64_t>(payload_flag_t::SourceFileAvailable) ||
-             (Payload->flags &
-              static_cast<uint64_t>(payload_flag_t::NameAvailable))));
+  else {
+    bool isValid = false;
+    bool hasSourceFile =
+        (Payload->flags &
+         static_cast<uint64_t>(payload_flag_t::SourceFileAvailable)) &&
+        Payload->source_file;
+    bool hasName = (Payload->flags &
+                    static_cast<uint64_t>(payload_flag_t::NameAvailable)) &&
+                   Payload->name;
+    bool hasCodePtrVa =
+        (Payload->flags &
+         static_cast<uint64_t>(payload_flag_t::CodePointerAvailable)) &&
+        Payload->code_ptr_va;
+    bool hasLineInfo =
+        (Payload->flags &
+         static_cast<uint64_t>(payload_flag_t::LineInfoAvailable)) &&
+        Payload->line_no != xpti::invalid_id<uint32_t>;
+    // We ignore checking for column info as it may not always be available
+    isValid = ((hasSourceFile && hasLineInfo) || hasName || hasCodePtrVa);
+
+    return isValid;
+  }
 }
 
 /// @brief Generates a default payload object with unknown details.
@@ -599,11 +613,11 @@ inline bool is_valid_payload(const xpti::payload_t *Payload) {
 ///
 /// @return A `xpti::payload_t` object with its members set to represent an
 /// unknown or unspecified payload. This includes setting the function name and
-/// file name to "unknown", line and column numbers to 0, and the module handle
-/// to nullptr.
+/// file name to "<unknown-function>" and "<unknown-file>" respectively, line
+/// and column numbers to 0, and the module handle to nullptr.
 ///
 inline xpti::payload_t unknown_payload() {
-  xpti::payload_t Payload("unknown", "unknown-file", 0, 0, nullptr);
+  xpti::payload_t Payload(g_unknown_function, g_unknown_file, 0, 0, nullptr);
   return Payload;
 }
 
@@ -662,6 +676,11 @@ public:
     m_stashed =
         (xptiStashTuple(key, value) == xpti::result_t::XPTI_RESULT_SUCCESS);
   }
+
+  // Copy and copy assignment are deleted since we dont want to stash the same
+  // key-value pair multiple times
+  stash_tuple(const stash_tuple &) = delete;
+  stash_tuple &operator=(const stash_tuple &) = delete;
 
   /// @brief Destroys the stash_tuple object and unstashes the key-value pair if
   /// it was stashed successfully earlier.
@@ -733,6 +752,8 @@ public:
     MUId.p2 = 0;
     MUId.instance = 0;
   };
+
+  ~uid_object_t() = default;
 
   /// @brief Copy constructor for creating a uid_object_t object as a copy of
   /// another.
@@ -948,7 +969,8 @@ public:
   /// @note MSFT compiler 2019/2022 support __builtin_FUNCTION() macro
   ///
   tracepoint_scope_t(const char *fileName, const char *funcName, int line,
-                     int column, bool selfNotify = false,
+                     int column, void *codePtrVa = nullptr,
+                     bool selfNotify = false,
                      const char *callerFuncName = __builtin_FUNCTION())
       : MTop(false), MSelfNotify(selfNotify), MCallerFuncName(callerFuncName) {
     if (!xptiTraceEnabled())
@@ -958,9 +980,10 @@ public:
     MData = const_cast<xpti_tracepoint_t *>(xptiGetTracepointScopeData());
     if (!MData) {
       if (funcName && fileName)
-        init(funcName, fileName, line, column);
+        init(funcName, fileName, static_cast<uint32_t>(line),
+             static_cast<uint32_t>(column), codePtrVa);
       else
-        init(callerFuncName, nullptr, 0, 0);
+        init(callerFuncName, nullptr, 0u, 0u, codePtrVa);
     } else {
       MTraceEvent = MData->event_ref();
     }
@@ -1010,11 +1033,11 @@ public:
   /// tracepoint data.
   ///
   void init(const char *FuncName, const char *FileName, uint32_t LineNo,
-            uint32_t ColumnNo) {
+            uint32_t ColumnNo, void *CodePtrVa) {
     // Register the payload and prepare the tracepoint data. The function
     // returns a UID, associated payload and trace event
-    MData = const_cast<xpti_tracepoint_t *>(
-        xptiRegisterTracepointScope(FuncName, FileName, LineNo, ColumnNo));
+    MData = const_cast<xpti_tracepoint_t *>(xptiRegisterTracepointScope(
+        FuncName, FileName, LineNo, ColumnNo, CodePtrVa));
     if (MData) {
       // Set the tracepoint scope with the prepared data so all nested functions
       // will have access to it; this call also sets the Universal ID separately
@@ -1101,7 +1124,7 @@ public:
   ///
   /// @return The stream ID.
   ///
-  uint8_t streamId() { return MStreamId; }
+  stream_id_t streamId() { return MStreamId; }
 
   /// @brief Sets the stream for the tracepoint scoped notification
   ///
@@ -1129,7 +1152,7 @@ public:
   /// with.
   /// @return tracepoint_scope_t& A reference to the tracepoint scope
   ///
-  tracepoint_scope_t &stream(uint8_t streamId) {
+  tracepoint_scope_t &stream(stream_id_t streamId) {
     // If tracing is not enabled, don't do anything
     if (xptiTraceEnabled()) {
       MStreamId = streamId;
@@ -1332,7 +1355,7 @@ private:
   /// from self notification
   uint64_t MScopedCorrelationId = 0;
   /// Stores the ID of the stream
-  uint8_t MStreamId = 0;
+  stream_id_t MStreamId = 0;
   /// Stores the ID of the default stream use for self notification; the
   /// system sets the default stream ID at the start of the program
   uint8_t MDefaultStreamId = 0;
@@ -1374,7 +1397,7 @@ public:
   /// @param UserData The user data.
   /// @param traceType The type of the trace event. Defaults to function_begin.
   ///
-  notify_scope_t(uint8_t streamId, xpti::trace_event_data_t *traceEvent,
+  notify_scope_t(stream_id_t streamId, xpti::trace_event_data_t *traceEvent,
                  const char *UserData,
                  uint16_t traceType = (uint16_t)
                      xpti::trace_point_type_t::function_begin)
@@ -1570,8 +1593,8 @@ public:
   // Constructor that makes calls to xpti API layer to register strings and
   // create the Universal ID that is stored in the TLS entry for lookup; this
   // constructor is needed when only code location information is available
-  tracepoint_t(const char *fileName, const char *funcName, int line, int column,
-               void *codeptr = nullptr)
+  tracepoint_t(const char *fileName, const char *funcName, uint32_t line,
+               uint32_t column, void *codeptr = nullptr)
       : m_payload(nullptr), m_top(false) {
     // If tracing is not enabled, don't do anything
     if (!xptiTraceEnabled())
@@ -1613,6 +1636,10 @@ public:
       }
     }
   }
+
+  tracepoint_t(const tracepoint_t &) = delete;
+  tracepoint_t &operator=(const tracepoint_t &) = delete;
+
   ~tracepoint_t() {
     // If tracing is not enabled, don't do anything
     if (!xptiTraceEnabled())

@@ -2,6 +2,7 @@
 
 set -e
 set -x
+set -o pipefail
 
 if [ -f "$1" ]; then
     # Read data from the dependencies.json passed as the first argument.
@@ -19,14 +20,6 @@ if [ -f "$1" ]; then
        IGC_DEV_VER=$(jq -r '.linux.igc_dev.version' $CONFIG_FILE_IGC_DEV)
        IGC_DEV_URL=$(jq -r '.linux.igc_dev.url' $CONFIG_FILE_IGC_DEV)
     fi
-elif [[ "$*" == *"--use-latest"* ]]; then
-    CR_TAG=latest
-    IGC_TAG=latest
-    CM_TAG=latest
-    L0_TAG=latest
-    TBB_TAG=latest
-    FPGA_TAG=latest
-    CPU_TAG=latest
 else
     CR_TAG=$compute_runtime_tag
     IGC_TAG=$igc_tag
@@ -43,11 +36,7 @@ fi
 function get_release() {
     REPO=$1
     TAG=$2
-    if [ "$TAG" == "latest" ]; then
-        URL="https://api.github.com/repos/${REPO}/releases/latest"
-    else
-        URL="https://api.github.com/repos/${REPO}/releases/tags/${TAG}"
-    fi
+    URL="https://api.github.com/repos/${REPO}/releases/tags/${TAG}"
     HEADER=""
     if [ "$GITHUB_TOKEN" != "" ]; then
         HEADER="Authorization: Bearer $GITHUB_TOKEN"
@@ -81,6 +70,10 @@ InstallTBB () {
   if [ "$TBB_INSTALLED" = false ]; then
     mkdir -p $INSTALL_LOCATION
     cd $INSTALL_LOCATION
+    if [ -d "$INSTALL_LOCATION/oneapi-tbb" ]; then
+      echo "$INSTALL_LOCATION/oneapi-tbb exists and will be removed!"
+      rm -Rf $INSTALL_LOCATION/oneapi-tbb;
+    fi
     echo "Installing TBB..."
     echo "TBB version $TBB_TAG"
     get_release oneapi-src/onetbb $TBB_TAG \
@@ -115,6 +108,8 @@ InstallIGFX () {
   # This can help us avoid using the risky force-depends-version option in dpkg command.
   #
   # Of course, this also installed the libopencl-clang so that we can copy and use later as a temporariy workaround.
+  IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)
+  UBUNTU_VER="u24\.04"
   get_release intel/intel-graphics-compiler $IGC_TAG \
     | grep ".*deb" \
     | wget -qi -
@@ -122,16 +117,20 @@ InstallIGFX () {
     | grep -E ".*((deb)|(sum))" \
     | wget -qi -
   # Perform the checksum conditionally and then get the release
-  sha256sum -c *.sum  && \
+  # Skip the ww45 checksum because the igc_dev driver was manually updated
+  # so the package versions don't exactly match.
+  if [ ! -f "ww45.sum" ]; then
+      sha256sum -c *.sum
+  fi
   get_release intel/cm-compiler $CM_TAG \
     | grep ".*deb" \
     | grep -v "u18" \
     | wget -qi -
   get_release oneapi-src/level-zero $L0_TAG \
-    | grep ".*u22\.04.*deb" \
+    | grep ".*$UBUNTU_VER.*deb" \
     | wget -qi -
-  dpkg -i *.deb && rm *.deb *.sum
-  IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)
+  dpkg -i --force-all *.deb && rm *.deb *.sum
+  mkdir -p /usr/local/lib/igc/
   echo "$IGC_TAG" > /usr/local/lib/igc/IGCTAG.txt
   if [ "$IS_IGC_DEV" == "Yes" ]; then
     # Dev IGC deb package did not include libopencl-clang
@@ -139,16 +138,21 @@ InstallIGFX () {
     # Backup and install it from release igc as a temporarily workaround
     # while we working to resolve the issue.
     echo "Backup libopencl-clang"
-    cp -d /usr/local/lib/libopencl-clang.so.14*  .
+    cp -d /usr/local/lib/libopencl-clang2.so.15*  .
     echo "Download IGC dev git hash $IGC_DEV_VER"
     get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER
     echo "Install IGC dev git hash $IGC_DEV_VER"
-    dpkg -i *.deb
+    # New dev IGC packaged iga64 conflicting with iga64 from intel-igc-media
+    # force overwrite to workaround it first.
+    dpkg -i --force-all *.deb
     echo "Install libopencl-clang"
     # Workaround only, will download deb and install with dpkg once fixed.
-    cp -d libopencl-clang.so.14*  /usr/local/lib/
+    cp -d libopencl-clang2.so.15*  /usr/local/lib/
+    rm /usr/local/lib/libigc.so /usr/local/lib/libigc.so.1* && \
+       ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so && \
+       ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so.1
     echo "Clean up"
-    rm *.deb libopencl-clang.so.14*
+    rm *.deb libopencl-clang2.so.15*
     echo "$IGC_DEV_TAG" > /usr/local/lib/igc/IGCTAG.txt
   fi
 }
@@ -200,7 +204,6 @@ if [[ $# -eq 0 ]] ; then
   echo "--use-dev-igc     - Install development version of Intel Graphics drivers instead"
   echo "--cpu      - Install Intel CPU OpenCL runtime"
   echo "--fpga-emu - Install Intel FPGA Fast emulator"
-  echo "--use-latest      - Use latest for all tags"
   echo "Set INSTALL_LOCATION env variable to specify install location"
   exit 0
 fi

@@ -20,6 +20,7 @@
 #include "llvm/Analysis/ValueLatticeUtils.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/InstVisitor.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -30,6 +31,7 @@
 #include <vector>
 
 using namespace llvm;
+using namespace PatternMatch;
 
 #define DEBUG_TYPE "sccp"
 
@@ -54,18 +56,6 @@ bool SCCPSolver::isOverdefined(const ValueLatticeElement &LV) {
   return !LV.isUnknownOrUndef() && !SCCPSolver::isConstant(LV);
 }
 
-static bool canRemoveInstruction(Instruction *I) {
-  if (wouldInstructionBeTriviallyDead(I))
-    return true;
-
-  // Some instructions can be handled but are rejected above. Catch
-  // those cases by falling through to here.
-  // TODO: Mark globals as being constant earlier, so
-  // TODO: wouldInstructionBeTriviallyDead() knows that atomic loads
-  // TODO: are safe to remove.
-  return isa<LoadInst>(I);
-}
-
 bool SCCPSolver::tryToReplaceWithConstant(Value *V) {
   Constant *Const = getConstantOrNull(V);
   if (!Const)
@@ -75,8 +65,7 @@ bool SCCPSolver::tryToReplaceWithConstant(Value *V) {
   // Calls with "clang.arc.attachedcall" implicitly use the return value and
   // those uses cannot be updated with a constant.
   CallBase *CB = dyn_cast<CallBase>(V);
-  if (CB && ((CB->isMustTailCall() &&
-              !canRemoveInstruction(CB)) ||
+  if (CB && ((CB->isMustTailCall() && !wouldInstructionBeTriviallyDead(CB)) ||
              CB->getOperandBundle(LLVMContext::OB_clang_arc_attachedcall))) {
     Function *F = CB->getCalledFunction();
 
@@ -96,20 +85,28 @@ bool SCCPSolver::tryToReplaceWithConstant(Value *V) {
   return true;
 }
 
+/// Helper for getting ranges from \p Solver. Instructions inserted during
+/// simplification are unavailable in the solver, so we return a full range for
+/// them.
+static ConstantRange getRange(Value *Op, SCCPSolver &Solver,
+                              const SmallPtrSetImpl<Value *> &InsertedValues) {
+  if (auto *Const = dyn_cast<Constant>(Op))
+    return Const->toConstantRange();
+  if (InsertedValues.contains(Op)) {
+    unsigned Bitwidth = Op->getType()->getScalarSizeInBits();
+    return ConstantRange::getFull(Bitwidth);
+  }
+  return Solver.getLatticeValueFor(Op).asConstantRange(Op->getType(),
+                                                       /*UndefAllowed=*/false);
+}
+
 /// Try to use \p Inst's value range from \p Solver to infer the NUW flag.
 static bool refineInstruction(SCCPSolver &Solver,
                               const SmallPtrSetImpl<Value *> &InsertedValues,
                               Instruction &Inst) {
   bool Changed = false;
   auto GetRange = [&Solver, &InsertedValues](Value *Op) {
-    if (auto *Const = dyn_cast<Constant>(Op))
-      return Const->toConstantRange();
-    if (InsertedValues.contains(Op)) {
-      unsigned Bitwidth = Op->getType()->getScalarSizeInBits();
-      return ConstantRange::getFull(Bitwidth);
-    }
-    return Solver.getLatticeValueFor(Op).asConstantRange(
-        Op->getType(), /*UndefAllowed=*/false);
+    return getRange(Op, Solver, InsertedValues);
   };
 
   if (isa<OverflowingBinaryOperator>(Inst)) {
@@ -160,6 +157,16 @@ static bool refineInstruction(SCCPSolver &Solver,
         Changed = true;
       }
     }
+  } else if (auto *GEP = dyn_cast<GetElementPtrInst>(&Inst)) {
+    if (GEP->hasNoUnsignedWrap() || !GEP->hasNoUnsignedSignedWrap())
+      return false;
+
+    if (all_of(GEP->indices(),
+               [&](Value *V) { return GetRange(V).isAllNonNegative(); })) {
+      GEP->setNoWrapFlags(GEP->getNoWrapFlags() |
+                          GEPNoWrapFlags::noUnsignedWrap());
+      Changed = true;
+    }
   }
 
   return Changed;
@@ -170,16 +177,8 @@ static bool replaceSignedInst(SCCPSolver &Solver,
                               SmallPtrSetImpl<Value *> &InsertedValues,
                               Instruction &Inst) {
   // Determine if a signed value is known to be >= 0.
-  auto isNonNegative = [&Solver](Value *V) {
-    // If this value was constant-folded, it may not have a solver entry.
-    // Handle integers. Otherwise, return false.
-    if (auto *C = dyn_cast<Constant>(V)) {
-      auto *CInt = dyn_cast<ConstantInt>(C);
-      return CInt && !CInt->isNegative();
-    }
-    const ValueLatticeElement &IV = Solver.getLatticeValueFor(V);
-    return IV.isConstantRange(/*UndefAllowed=*/false) &&
-           IV.getConstantRange().isAllNonNegative();
+  auto isNonNegative = [&Solver, &InsertedValues](Value *V) {
+    return getRange(V, Solver, InsertedValues).isAllNonNegative();
   };
 
   Instruction *NewInst = nullptr;
@@ -188,7 +187,7 @@ static bool replaceSignedInst(SCCPSolver &Solver,
   case Instruction::SExt: {
     // If the source value is not negative, this is a zext/uitofp.
     Value *Op0 = Inst.getOperand(0);
-    if (InsertedValues.count(Op0) || !isNonNegative(Op0))
+    if (!isNonNegative(Op0))
       return false;
     NewInst = CastInst::Create(Inst.getOpcode() == Instruction::SExt
                                    ? Instruction::ZExt
@@ -200,7 +199,7 @@ static bool replaceSignedInst(SCCPSolver &Solver,
   case Instruction::AShr: {
     // If the shifted value is not negative, this is a logical shift right.
     Value *Op0 = Inst.getOperand(0);
-    if (InsertedValues.count(Op0) || !isNonNegative(Op0))
+    if (!isNonNegative(Op0))
       return false;
     NewInst = BinaryOperator::CreateLShr(Op0, Inst.getOperand(1), "", Inst.getIterator());
     NewInst->setIsExact(Inst.isExact());
@@ -210,8 +209,7 @@ static bool replaceSignedInst(SCCPSolver &Solver,
   case Instruction::SRem: {
     // If both operands are not negative, this is the same as udiv/urem.
     Value *Op0 = Inst.getOperand(0), *Op1 = Inst.getOperand(1);
-    if (InsertedValues.count(Op0) || InsertedValues.count(Op1) ||
-        !isNonNegative(Op0) || !isNonNegative(Op1))
+    if (!isNonNegative(Op0) || !isNonNegative(Op1))
       return false;
     auto NewOpcode = Inst.getOpcode() == Instruction::SDiv ? Instruction::UDiv
                                                            : Instruction::URem;
@@ -235,6 +233,26 @@ static bool replaceSignedInst(SCCPSolver &Solver,
   return true;
 }
 
+/// Try to use \p Inst's value range from \p Solver to simplify it.
+static Value *simplifyInstruction(SCCPSolver &Solver,
+                                  SmallPtrSetImpl<Value *> &InsertedValues,
+                                  Instruction &Inst) {
+  auto GetRange = [&Solver, &InsertedValues](Value *Op) {
+    return getRange(Op, Solver, InsertedValues);
+  };
+
+  Value *X;
+  const APInt *RHSC;
+  // Remove masking operations.
+  if (match(&Inst, m_And(m_Value(X), m_LowBitMask(RHSC)))) {
+    ConstantRange LRange = GetRange(Inst.getOperand(0));
+    if (LRange.getUnsignedMax().ule(*RHSC))
+      return X;
+  }
+
+  return nullptr;
+}
+
 bool SCCPSolver::simplifyInstsInBlock(BasicBlock &BB,
                                       SmallPtrSetImpl<Value *> &InsertedValues,
                                       Statistic &InstRemovedStat,
@@ -244,7 +262,7 @@ bool SCCPSolver::simplifyInstsInBlock(BasicBlock &BB,
     if (Inst.getType()->isVoidTy())
       continue;
     if (tryToReplaceWithConstant(&Inst)) {
-      if (canRemoveInstruction(&Inst))
+      if (wouldInstructionBeTriviallyDead(&Inst))
         Inst.eraseFromParent();
 
       MadeChanges = true;
@@ -253,6 +271,11 @@ bool SCCPSolver::simplifyInstsInBlock(BasicBlock &BB,
       MadeChanges = true;
       ++InstReplacedStat;
     } else if (refineInstruction(*this, InsertedValues, Inst)) {
+      MadeChanges = true;
+    } else if (auto *V = simplifyInstruction(*this, InsertedValues, Inst)) {
+      Inst.replaceAllUsesWith(V);
+      Inst.eraseFromParent();
+      ++InstRemovedStat;
       MadeChanges = true;
     }
   }
@@ -325,7 +348,9 @@ bool SCCPSolver::removeNonFeasibleEdges(BasicBlock *BB, DomTreeUpdater &DTU,
         NewUnreachableBB =
             BasicBlock::Create(DefaultDest->getContext(), "default.unreachable",
                                DefaultDest->getParent(), DefaultDest);
-        new UnreachableInst(DefaultDest->getContext(), NewUnreachableBB);
+        auto *UI =
+            new UnreachableInst(DefaultDest->getContext(), NewUnreachableBB);
+        UI->setDebugLoc(DebugLoc::getTemporary());
       }
 
       DefaultDest->removePredecessor(BB);
@@ -352,6 +377,48 @@ bool SCCPSolver::removeNonFeasibleEdges(BasicBlock *BB, DomTreeUpdater &DTU,
     llvm_unreachable("Must have at least one feasible successor");
   }
   return true;
+}
+
+static void inferAttribute(Function *F, unsigned AttrIndex,
+                           const ValueLatticeElement &Val) {
+  // If there is a known constant range for the value, add range attribute.
+  if (Val.isConstantRange() && !Val.getConstantRange().isSingleElement()) {
+    // Do not add range attribute if the value may include undef.
+    if (Val.isConstantRangeIncludingUndef())
+      return;
+
+    // Take the intersection of the existing attribute and the inferred range.
+    Attribute OldAttr = F->getAttributeAtIndex(AttrIndex, Attribute::Range);
+    ConstantRange CR = Val.getConstantRange();
+    if (OldAttr.isValid())
+      CR = CR.intersectWith(OldAttr.getRange());
+    F->addAttributeAtIndex(
+        AttrIndex, Attribute::get(F->getContext(), Attribute::Range, CR));
+    return;
+  }
+  // Infer nonnull attribute.
+  if (Val.isNotConstant() && Val.getNotConstant()->getType()->isPointerTy() &&
+      Val.getNotConstant()->isNullValue() &&
+      !F->hasAttributeAtIndex(AttrIndex, Attribute::NonNull)) {
+    F->addAttributeAtIndex(AttrIndex,
+                           Attribute::get(F->getContext(), Attribute::NonNull));
+  }
+}
+
+void SCCPSolver::inferReturnAttributes() const {
+  for (const auto &[F, ReturnValue] : getTrackedRetVals())
+    inferAttribute(F, AttributeList::ReturnIndex, ReturnValue);
+}
+
+void SCCPSolver::inferArgAttributes() const {
+  for (Function *F : getArgumentTrackedFunctions()) {
+    if (!isBlockExecutable(&F->front()))
+      continue;
+    for (Argument &A : F->args())
+      if (!A.getType()->isStructTy())
+        inferAttribute(F, AttributeList::FirstArgIndex + A.getArgNo(),
+                       getLatticeValueFor(&A));
+  }
 }
 
 /// Helper class for SCCPSolver. This implements the instruction visitor and
@@ -485,7 +552,7 @@ private:
   ValueLatticeElement &getValueState(Value *V) {
     assert(!V->getType()->isStructTy() && "Should use getStructValueState");
 
-    auto I = ValueState.insert(std::make_pair(V, ValueLatticeElement()));
+    auto I = ValueState.try_emplace(V);
     ValueLatticeElement &LV = I.first->second;
 
     if (!I.second)
@@ -601,10 +668,7 @@ private:
   }
 
   // Add U as additional user of V.
-  void addAdditionalUser(Value *V, User *U) {
-    auto Iter = AdditionalUsers.insert({V, {}});
-    Iter.first->second.insert(U);
-  }
+  void addAdditionalUser(Value *V, User *U) { AdditionalUsers[V].insert(U); }
 
   // Mark I's users as changed, including AdditionalUsers.
   void markUsersAsChanged(Value *I) {
@@ -700,6 +764,26 @@ public:
     FnPredicateInfo.insert({&F, std::make_unique<PredicateInfo>(F, DT, AC)});
   }
 
+  void removeSSACopies(Function &F) {
+    auto It = FnPredicateInfo.find(&F);
+    if (It == FnPredicateInfo.end())
+      return;
+
+    for (BasicBlock &BB : F) {
+      for (Instruction &Inst : llvm::make_early_inc_range(BB)) {
+        if (auto *II = dyn_cast<IntrinsicInst>(&Inst)) {
+          if (II->getIntrinsicID() == Intrinsic::ssa_copy) {
+            if (It->second->getPredicateInfoFor(&Inst)) {
+              Value *Op = II->getOperand(0);
+              Inst.replaceAllUsesWith(Op);
+              Inst.eraseFromParent();
+            }
+          }
+        }
+      }
+    }
+  }
+
   void visitCallInst(CallInst &I) { visitCallBase(I); }
 
   bool markBlockExecutable(BasicBlock *BB);
@@ -729,10 +813,9 @@ public:
     if (auto *STy = dyn_cast<StructType>(F->getReturnType())) {
       MRVFunctionsTracked.insert(F);
       for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i)
-        TrackedMultipleRetVals.insert(
-            std::make_pair(std::make_pair(F, i), ValueLatticeElement()));
+        TrackedMultipleRetVals.try_emplace(std::make_pair(F, i));
     } else if (!F->getReturnType()->isVoidTy())
-      TrackedRetVals.insert(std::make_pair(F, ValueLatticeElement()));
+      TrackedRetVals.try_emplace(F);
   }
 
   void addToMustPreserveReturnsInFunctions(Function *F) {
@@ -749,6 +832,10 @@ public:
 
   bool isArgumentTrackedFunction(Function *F) {
     return TrackingIncomingArguments.count(F);
+  }
+
+  const SmallPtrSetImpl<Function *> &getArgumentTrackedFunctions() const {
+    return TrackingIncomingArguments;
   }
 
   void solve();
@@ -800,15 +887,16 @@ public:
     return I->second;
   }
 
-  const MapVector<Function *, ValueLatticeElement> &getTrackedRetVals() {
+  const MapVector<Function *, ValueLatticeElement> &getTrackedRetVals() const {
     return TrackedRetVals;
   }
 
-  const DenseMap<GlobalVariable *, ValueLatticeElement> &getTrackedGlobals() {
+  const DenseMap<GlobalVariable *, ValueLatticeElement> &
+  getTrackedGlobals() const {
     return TrackedGlobals;
   }
 
-  const SmallPtrSet<Function *, 16> getMRVFunctionsTracked() {
+  const SmallPtrSet<Function *, 16> &getMRVFunctionsTracked() const {
     return MRVFunctionsTracked;
   }
 
@@ -1445,10 +1533,11 @@ void SCCPInstVisitor::visitSelectInst(SelectInst &I) {
   ValueLatticeElement TVal = getValueState(I.getTrueValue());
   ValueLatticeElement FVal = getValueState(I.getFalseValue());
 
-  bool Changed = ValueState[&I].mergeIn(TVal);
-  Changed |= ValueState[&I].mergeIn(FVal);
+  ValueLatticeElement &State = ValueState[&I];
+  bool Changed = State.mergeIn(TVal);
+  Changed |= State.mergeIn(FVal);
   if (Changed)
-    pushToWorkListMsg(ValueState[&I], &I);
+    pushToWorkListMsg(State, &I);
 }
 
 // Handle Unary Operators.
@@ -1627,6 +1716,8 @@ void SCCPInstVisitor::visitGetElementPtrInst(GetElementPtrInst &I) {
 
   if (Constant *C = ConstantFoldInstOperands(&I, Operands, DL))
     markConstant(&I, C);
+  else
+    markOverdefined(&I);
 }
 
 void SCCPInstVisitor::visitAllocaInst(AllocaInst &I) {
@@ -1891,6 +1982,12 @@ void SCCPInstVisitor::handleCallResult(CallBase &CB) {
       return (void)mergeInValue(IV, &CB, CopyOfVal);
     }
 
+    if (II->getIntrinsicID() == Intrinsic::vscale) {
+      unsigned BitWidth = CB.getType()->getScalarSizeInBits();
+      const ConstantRange Result = getVScaleRange(II->getFunction(), BitWidth);
+      return (void)mergeInValue(II, ValueLatticeElement::getRange(Result));
+    }
+
     if (ConstantRange::isIntrinsicSupported(II->getIntrinsicID())) {
       // Compute result range for intrinsics supported by ConstantRange.
       // Do this even if we don't know a range for all operands, as we may
@@ -2091,6 +2188,10 @@ void SCCPSolver::addPredicateInfo(Function &F, DominatorTree &DT,
   Visitor->addPredicateInfo(F, DT, AC);
 }
 
+void SCCPSolver::removeSSACopies(Function &F) {
+  Visitor->removeSSACopies(F);
+}
+
 bool SCCPSolver::markBlockExecutable(BasicBlock *BB) {
   return Visitor->markBlockExecutable(BB);
 }
@@ -2121,6 +2222,11 @@ void SCCPSolver::addArgumentTrackedFunction(Function *F) {
 
 bool SCCPSolver::isArgumentTrackedFunction(Function *F) {
   return Visitor->isArgumentTrackedFunction(F);
+}
+
+const SmallPtrSetImpl<Function *> &
+SCCPSolver::getArgumentTrackedFunctions() const {
+  return Visitor->getArgumentTrackedFunctions();
 }
 
 void SCCPSolver::solve() { Visitor->solve(); }
@@ -2168,16 +2274,16 @@ const ValueLatticeElement &SCCPSolver::getLatticeValueFor(Value *V) const {
 }
 
 const MapVector<Function *, ValueLatticeElement> &
-SCCPSolver::getTrackedRetVals() {
+SCCPSolver::getTrackedRetVals() const {
   return Visitor->getTrackedRetVals();
 }
 
 const DenseMap<GlobalVariable *, ValueLatticeElement> &
-SCCPSolver::getTrackedGlobals() {
+SCCPSolver::getTrackedGlobals() const {
   return Visitor->getTrackedGlobals();
 }
 
-const SmallPtrSet<Function *, 16> SCCPSolver::getMRVFunctionsTracked() {
+const SmallPtrSet<Function *, 16> &SCCPSolver::getMRVFunctionsTracked() const {
   return Visitor->getMRVFunctionsTracked();
 }
 

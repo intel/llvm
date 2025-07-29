@@ -103,7 +103,8 @@ public:
   void transAuxDataInst(SPIRVExtInst *BC);
   std::vector<Value *> transValue(const std::vector<SPIRVValue *> &,
                                   Function *F, BasicBlock *);
-  Function *transFunction(SPIRVFunction *F);
+  Function *transFunction(SPIRVFunction *F, unsigned AS = SPIRAS_Private);
+  void transFunctionAttrs(SPIRVFunction *BF, Function *F);
   Value *transBlockInvoke(SPIRVValue *Invoke, BasicBlock *BB);
   Instruction *transWGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transSGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
@@ -214,6 +215,13 @@ private:
 
   bool isDirectlyTranslatedToOCL(Op OpCode) const;
   MDString *transOCLKernelArgTypeName(SPIRVFunctionParameter *);
+
+  // Attempt to translate Id as a (specialization) constant.
+  std::optional<uint64_t> transIdAsConstant(SPIRVId Id);
+
+  // Return the value of an Alignment or AlignmentId decoration for V.
+  std::optional<uint64_t> getAlignment(SPIRVValue *V);
+
   Value *mapFunction(SPIRVFunction *BF, Function *F);
   Value *getTranslatedValue(SPIRVValue *BV);
   IntrinsicInst *getLifetimeStartIntrinsic(Instruction *I);

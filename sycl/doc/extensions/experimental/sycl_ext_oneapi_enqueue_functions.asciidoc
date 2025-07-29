@@ -233,6 +233,9 @@ namespace sycl::ext::oneapi::experimental {
 template <typename CommandGroupFunc>
 void submit(sycl::queue q, CommandGroupFunc&& cgf);
 
+template <typename CommandGroupFunc, typename Properties>
+void submit(sycl::queue q, Properties properties, CommandGroupFunc&& cgf);
+
 }
 ----
 !====
@@ -249,6 +252,10 @@ namespace sycl::ext::oneapi::experimental {
 
 template <typename CommandGroupFunc>
 sycl::event submit_with_event(sycl::queue q, CommandGroupFunc&& cgf);
+
+template <typename CommandGroupFunc, typename Properties>
+sycl::event submit_with_event(sycl::queue q, Properties properties,
+                              CommandGroupFunc&& cgf);
 
 }
 ----
@@ -278,7 +285,7 @@ template <typename KernelName, typename KernelType>
 void single_task(sycl::queue q, const KernelType& k);
 
 template <typename KernelName, typename KernelType>
-void single_task(sycl::handler h, const KernelType& k);
+void single_task(sycl::handler &h, const KernelType& k);
 
 }
 ----
@@ -298,7 +305,7 @@ template <typename Args...>
 void single_task(sycl::queue q, const sycl::kernel& k, Args&&... args);
 
 template <typename Args...>
-void single_task(sycl::handler h, const sycl::kernel& k, Args&&... args);
+void single_task(sycl::handler &h, const sycl::kernel& k, Args&&... args);
 
 }
 ----
@@ -328,7 +335,7 @@ void parallel_for(sycl::queue q, sycl::range<Dimensions> r,
 
 template <typename KernelName, int Dimensions,
           typename KernelType, typename... Reductions>
-void parallel_for(sycl::handler h, sycl::range<Dimensions> r,
+void parallel_for(sycl::handler &h, sycl::range<Dimensions> r,
                   const KernelType& k, Reductions&&... reductions);
 
 }
@@ -357,7 +364,7 @@ void parallel_for(sycl::queue q,
 
 template <typename KernelName, int Dimensions,
           typename Properties, typename KernelType, typename... Reductions>
-void parallel_for(sycl::handler h,
+void parallel_for(sycl::handler &h,
                   launch_config<sycl::range<Dimensions>, Properties> c,
                   const KernelType& k, Reductions&&... reductions);
 
@@ -384,7 +391,7 @@ void parallel_for(sycl::queue q, sycl::range<Dimensions> r,
                   const sycl::kernel& k, Args&&... args);
 
 template <typename KernelName, int Dimensions, typename... Args>
-void parallel_for(sycl::handler h, sycl::range<Dimensions> r,
+void parallel_for(sycl::handler &h, sycl::range<Dimensions> r,
                   const sycl::kernel& k, Args&&... args);
 
 }
@@ -410,7 +417,7 @@ void parallel_for(sycl::queue q,
 
 template <typename KernelName, int Dimensions,
           typename Properties, typename... Args>
-void parallel_for(sycl::handler h,
+void parallel_for(sycl::handler &h,
                   launch_config<sycl::range<Dimensions>, Properties> c,
                   const sycl::kernel& k, Args&& args...);
 
@@ -443,7 +450,7 @@ void nd_launch(sycl::queue q, sycl::nd_range<Dimensions> r,
 
 template <typename KernelName, int Dimensions,
           typename KernelType, typename... Reductions>
-void nd_launch(sycl::handler h, sycl::nd_range<Dimensions> r,
+void nd_launch(sycl::handler &h, sycl::nd_range<Dimensions> r,
                const KernelType& k, Reductions&&... reductions);
 
 }
@@ -474,7 +481,7 @@ void nd_launch(sycl::queue q,
 template <typename KernelName, int Dimensions,
           typename Properties,
           typename KernelType, typename... Reductions>
-void nd_launch(sycl::handler h,
+void nd_launch(sycl::handler &h,
                launch_config<sycl::nd_range<Dimensions>, Properties> c,
                const KernelType& k, Reductions&&... reductions);
 
@@ -501,7 +508,7 @@ void nd_launch(sycl::queue q, sycl::nd_range<Dimensions> r,
                const sycl::kernel& k, Args&&... args);
 
 template <typename KernelName, int Dimensions, typename... Args>
-void nd_launch(sycl::handler h, sycl::nd_range<Dimensions> r,
+void nd_launch(sycl::handler &h, sycl::nd_range<Dimensions> r,
                const sycl::kernel& k, Args&&... args);
 
 }
@@ -528,7 +535,7 @@ void nd_launch(sycl::queue q,
 
 template <typename KernelName, int Dimensions,
           typename Properties, typename... Args>
-void nd_launch(sycl::handler h,
+void nd_launch(sycl::handler &h,
                launch_config<sycl::nd_range<Dimensions>, Properties> c,
                const sycl::kernel& k, Args&& args...);
 
@@ -556,7 +563,7 @@ namespace sycl::ext::oneapi::experimental {
 
 void memcpy(sycl::queue q, void* dest, const void* src, size_t numBytes);
 
-void memcpy(sycl::handler h, void* dest, const void* src, size_t numBytes);
+void memcpy(sycl::handler &h, void* dest, const void* src, size_t numBytes);
 
 }
 ----
@@ -575,7 +582,7 @@ template <typename T>
 void copy(sycl::queue q, const T* src, T* dest, size_t count);
 
 template <typename T>
-void copy(sycl::handler h, const T* src, T* dest, size_t count);
+void copy(sycl::handler &h, const T* src, T* dest, size_t count);
 
 }
 ----
@@ -592,7 +599,7 @@ namespace sycl::ext::oneapi::experimental {
 
 void memset(sycl::queue q, void* ptr, int value, size_t numBytes);
 
-void memset(sycl::handler h, void* ptr, int value, size_t numBytes);
+void memset(sycl::handler &h, void* ptr, int value, size_t numBytes);
 
 }
 ----
@@ -611,7 +618,7 @@ template <typename T>
 void fill(sycl::queue q, T* ptr, const T& pattern, size_t count);
 
 template <typename T>
-void fill(sycl::handler h, T* ptr, const T& pattern, size_t count);
+void fill(sycl::handler &h, T* ptr, const T& pattern, size_t count);
 
 }
 ----
@@ -628,7 +635,7 @@ namespace sycl::ext::oneapi::experimental {
 
 void prefetch(sycl::queue q, void* ptr, size_t numBytes);
 
-void prefetch(sycl::handler h, void* ptr, size_t numBytes);
+void prefetch(sycl::handler &h, void* ptr, size_t numBytes);
 
 }
 ----
@@ -645,7 +652,7 @@ namespace sycl::ext::oneapi::experimental {
 
 void mem_advise(sycl::queue q, void* ptr, size_t numBytes, int advice);
 
-void mem_advise(sycl::handler h, void* ptr, size_t numBytes, int advice);
+void mem_advise(sycl::handler &h, void* ptr, size_t numBytes, int advice);
 
 }
 ----
@@ -672,7 +679,7 @@ namespace sycl::ext::oneapi::experimental {
 
 void barrier(sycl::queue q);
 
-void barrier(sycl::handler h);
+void barrier(sycl::handler &h);
 
 }
 ----
@@ -692,7 +699,7 @@ namespace sycl::ext::oneapi::experimental {
 
 void partial_barrier(sycl::queue q, const std::vector<sycl::event>& events);
 
-void partial_barrier(sycl::handler h, const std::vector<sycl::event>& events);
+void partial_barrier(sycl::handler &h, const std::vector<sycl::event>& events);
 
 }
 ----
@@ -709,6 +716,34 @@ optimize such partial barriers.
 _{endnote}_]
 |====
 
+==== Command Graph
+
+The functions in this section are only available if the
+link:./sycl_ext_oneapi_graph.asciidoc[
+  sycl_ext_oneapi_graph] extension is supported.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void execute_graph(sycl::queue q, command_graph<graph_state::executable> &g);
+
+void execute_graph(sycl::handler &h, command_graph<graph_state::executable> &g);
+
+}
+----
+!====
+_Constraints_: Device and context associated with queue need to be identical 
+to device and context provided at command graph creation.
+
+_Effects_: Submits an executable command graph to the `sycl::queue` or `sycl::handler`.
+
+|====
 
 == Issues
 

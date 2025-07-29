@@ -1,14 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Group algorithms are not supported on NVidia.
-// XFAIL: hip_nvidia
-
 // This test only checks that the method queue::parallel_for() accepting
 // reduction, can be properly translated into queue::submit + parallel_for().
-
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
 
 #include "reduction_utils.hpp"
 

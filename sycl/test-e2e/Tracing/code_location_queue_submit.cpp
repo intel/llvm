@@ -36,7 +36,7 @@ int main() {
     Q.wait();
     sycl::free(HostAllocSrc, Q);
   }
-  // CHECK-NEXT: [SYCL] Queue destroy:
+  // CHECK: [SYCL] Queue destroy:
   // CHECK-DAG:        queue_id : 1
   return !ExceptionCaught;
 }

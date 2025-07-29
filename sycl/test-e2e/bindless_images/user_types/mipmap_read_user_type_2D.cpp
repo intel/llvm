@@ -1,4 +1,6 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_mipmap
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-INTENDED: mipmap not currently supported on AMD
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -19,7 +21,6 @@ bool run_test() {
 
   sycl::device dev;
   sycl::queue q(dev);
-  auto ctxt = q.get_context();
 
   // skip sycl::half tests if fp16 not supported
   if constexpr (std::is_same_v<typename OutType::element_type, sycl::half>) {

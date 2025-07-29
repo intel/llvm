@@ -66,6 +66,13 @@ struct propagateToPtrAnnotation<property_value<PropKeyT, PropValuesTs...>>
 //===----------------------------------------------------------------------===//
 //        Common properties of annotated_arg/annotated_ptr
 //===----------------------------------------------------------------------===//
+struct unaliased_key
+    : detail::compile_time_property_key<detail::PropKind::Unaliased> {
+  using value_t = property_value<unaliased_key>;
+};
+
+inline constexpr unaliased_key::value_t unaliased;
+
 struct alignment_key
     : detail::compile_time_property_key<detail::PropKind::Alignment> {
   template <int K>
@@ -74,9 +81,17 @@ struct alignment_key
 
 template <int K> inline constexpr alignment_key::value_t<K> alignment;
 
+template <typename T>
+struct is_valid_property<T, unaliased_key::value_t>
+    : std::bool_constant<std::is_pointer<T>::value> {};
+
 template <typename T, int W>
 struct is_valid_property<T, alignment_key::value_t<W>>
     : std::bool_constant<std::is_pointer<T>::value> {};
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<unaliased_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
 
 template <typename T, typename PropertyListT>
 struct is_property_key_of<alignment_key, annotated_ptr<T, PropertyListT>>
@@ -86,12 +101,21 @@ template <typename T, typename PropertyListT>
 struct is_property_key_of<alignment_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 
+template <typename T, typename PropertyListT>
+struct is_property_key_of<unaliased_key, annotated_arg<T, PropertyListT>>
+    : std::true_type {};
+
 template <> struct propagateToPtrAnnotation<alignment_key> : std::true_type {};
 
 namespace detail {
 template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
   static constexpr const char *name = "sycl-alignment";
   static constexpr int value = N;
+};
+
+template <> struct PropertyMetaInfo<unaliased_key::value_t> {
+  static constexpr const char *name = "sycl-unaliased";
+  static constexpr std::nullptr_t value = nullptr;
 };
 
 } // namespace detail

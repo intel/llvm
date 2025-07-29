@@ -8,8 +8,8 @@
 
 #include <sycl/sycl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -47,13 +47,13 @@ struct KernelInfo<ServiceKernel1> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage Imgs[2] = {
+static sycl::unittest::MockDeviceImage Imgs[2] = {
     sycl::unittest::generateDefaultImage(
         {"KernelID_TestKernel1", "KernelID_TestKernel3"}),
     sycl::unittest::generateDefaultImage(
         {"KernelID_TestKernel2",
          "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1"})};
-static sycl::unittest::UrImageArray<2> ImgArray{Imgs};
+static sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
 TEST(KernelID, AllProgramKernelIds) {
   std::vector<sycl::kernel_id> AllKernelIDs = sycl::get_kernel_ids();

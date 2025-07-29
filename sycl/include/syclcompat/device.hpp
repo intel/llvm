@@ -334,6 +334,51 @@ static int get_minor_version(const sycl::device &dev) {
   return minor;
 }
 
+static inline void
+has_capability_or_fail(const sycl::device &dev,
+                       const std::initializer_list<sycl::aspect> &props) {
+  for (const auto &it : props) {
+    if (dev.has(it))
+      continue;
+    switch (it) {
+    case sycl::aspect::fp64:
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "[SYCLcompat] 'double' is not supported in '" +
+                                dev.get_info<sycl::info::device::name>() +
+                                "' device");
+      break;
+    case sycl::aspect::fp16:
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "[SYCLcompat] 'half' is not supported in '" +
+                                dev.get_info<sycl::info::device::name>() +
+                                "' device");
+      break;
+    default:
+#define __SYCL_ASPECT(ASPECT, ID)                                              \
+  case sycl::aspect::ASPECT:                                                   \
+    return #ASPECT;
+#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) __SYCL_ASPECT(ASPECT, ID)
+#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)
+      auto getAspectNameStr = [](sycl::aspect AspectNum) -> std::string {
+        switch (AspectNum) {
+#include <sycl/info/aspects.def>
+#include <sycl/info/aspects_deprecated.def>
+        default:
+          return "unknown aspect";
+        }
+      };
+#undef __SYCL_ASPECT_DEPRECATED_ALIAS
+#undef __SYCL_ASPECT_DEPRECATED
+#undef __SYCL_ASPECT
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::runtime),
+          "[SYCLcompat] '" + getAspectNameStr(it) + "' is not supported in '" +
+              dev.get_info<sycl::info::device::name>() + "' device");
+    }
+    break;
+  }
+}
+
 /// device extension
 class device_ext : public sycl::device {
 public:
@@ -395,13 +440,16 @@ public:
     return get_device_info().get_global_mem_size();
   }
 
+  size_t get_local_mem_size() const {
+    return get_device_info().get_local_mem_size();
+  }
+
   /// Get the number of bytes of free and total memory on the SYCL device.
   /// \param [out] free_memory The number of bytes of free memory on the SYCL
   /// device.
   /// \param [out] total_memory The number of bytes of total memory on the SYCL
   /// device.
   void get_memory_info(size_t &free_memory, size_t &total_memory) const {
-#if (defined(__SYCL_COMPILER_VERSION) && __SYCL_COMPILER_VERSION >= 20221105)
     if (!has(sycl::aspect::ext_intel_free_memory)) {
       std::cerr << "[SYCLCompat] get_memory_info: ext_intel_free_memory is not "
                    "supported."
@@ -410,17 +458,6 @@ public:
     } else {
       free_memory = get_info<sycl::ext::intel::info::device::free_memory>();
     }
-#else
-    std::cerr << "[SYCLCompat] get_memory_info: ext_intel_free_memory is not "
-                 "supported."
-              << std::endl;
-    free_memory = 0;
-#if defined(_MSC_VER) && !defined(__clang__)
-#pragma message("Querying the number of bytes of free memory is not supported")
-#else
-#warning "Querying the number of bytes of free memory is not supported"
-#endif
-#endif
     total_memory = get_device_info().get_global_mem_size();
   }
 
@@ -440,15 +477,10 @@ public:
     prop.set_minor_version(minor);
 
     prop.set_max_work_item_sizes(
-#if (__SYCL_COMPILER_VERSION && __SYCL_COMPILER_VERSION < 20220902)
-        // oneAPI DPC++ compiler older than 2022/09/02, where
-        // max_work_item_sizes is an enum class element
-        get_info<sycl::info::device::max_work_item_sizes>());
-#else
         // SYCL 2020-conformant code, max_work_item_sizes is a struct
         // templated by an int
         get_info<sycl::info::device::max_work_item_sizes<3>>());
-#endif
+
     prop.set_host_unified_memory(has(sycl::aspect::usm_host_allocations));
 
     prop.set_max_clock_frequency(
@@ -613,47 +645,7 @@ Use 64 bits as memory_bus_width default value."
   /// sycl::aspect.
   void has_capability_or_fail(
       const std::initializer_list<sycl::aspect> &props) const {
-    for (const auto &it : props) {
-      if (has(it))
-        continue;
-      switch (it) {
-      case sycl::aspect::fp64:
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "[SYCLcompat] 'double' is not supported in '" +
-                                  get_info<sycl::info::device::name>() +
-                                  "' device");
-        break;
-      case sycl::aspect::fp16:
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "[SYCLcompat] 'half' is not supported in '" +
-                                  get_info<sycl::info::device::name>() +
-                                  "' device");
-        break;
-      default:
-#define __SYCL_ASPECT(ASPECT, ID)                                              \
-  case sycl::aspect::ASPECT:                                                   \
-    return #ASPECT;
-#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) __SYCL_ASPECT(ASPECT, ID)
-#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)
-        auto getAspectNameStr = [](sycl::aspect AspectNum) -> std::string {
-          switch (AspectNum) {
-#include <sycl/info/aspects.def>
-#include <sycl/info/aspects_deprecated.def>
-          default:
-            return "unknown aspect";
-          }
-        };
-#undef __SYCL_ASPECT_DEPRECATED_ALIAS
-#undef __SYCL_ASPECT_DEPRECATED
-#undef __SYCL_ASPECT
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "[SYCLcompat] '" + getAspectNameStr(it) +
-                                  "' is not supported in '" +
-                                  get_info<sycl::info::device::name>() +
-                                  "' device");
-      }
-      break;
-    }
+    ::syclcompat::has_capability_or_fail(*this, props);
   }
 
 private:

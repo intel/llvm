@@ -46,7 +46,8 @@
 template <typename T>
 inline std::enable_if_t<std::is_integral_v<T>, T>
 bfe_slow(const T source, const uint32_t bit_start, const uint32_t num_bits) {
-  const uint32_t msb = CHAR_BIT * sizeof(T) - 1;
+  const uint32_t msb =
+      std::numeric_limits<unsigned char>::digits * sizeof(T) - 1;
   const uint32_t pos = bit_start;
   const uint32_t len = num_bits;
 
@@ -55,7 +56,8 @@ bfe_slow(const T source, const uint32_t bit_start, const uint32_t num_bits) {
     return 0ULL;
 
   T sbit;
-  std::bitset<CHAR_BIT * sizeof(T)> source_bitset(source);
+  std::bitset<std::numeric_limits<unsigned char>::digits * sizeof(T)>
+      source_bitset(source);
   if (std::is_unsigned_v<T> || len == 0)
     sbit = 0;
   else
@@ -67,7 +69,8 @@ bfe_slow(const T source, const uint32_t bit_start, const uint32_t num_bits) {
   if (bit_start > msb)
     return -sbit;
 
-  std::bitset<CHAR_BIT * sizeof(T)> result_bitset;
+  std::bitset<std::numeric_limits<unsigned char>::digits * sizeof(T)>
+      result_bitset;
   for (uint8_t i = 0; i <= msb; ++i)
     result_bitset[i] =
         (i < len && pos + i <= msb) ? source_bitset[pos + i] : sbit;
@@ -75,8 +78,8 @@ bfe_slow(const T source, const uint32_t bit_start, const uint32_t num_bits) {
 }
 
 template <typename T> bool test(const char *Msg, int N) {
-  uint32_t bit_width = CHAR_BIT * sizeof(T);
-  T min_value = std::numeric_limits<T>::min();
+  uint32_t bit_width = std::numeric_limits<unsigned char>::digits * sizeof(T);
+  T min_value = std::numeric_limits<T>::lowest();
   T max_value = std::numeric_limits<T>::max();
   std::random_device rd;
   std::mt19937::result_type seed =
@@ -91,7 +94,9 @@ template <typename T> bool test(const char *Msg, int N) {
                .count());
 
   std::mt19937 gen(seed);
-  std::uniform_int_distribution<T> rd_source(min_value, max_value);
+  // Support for char type with uniform_int_distribution isn't universal
+  using RandomDataT = std::conditional_t<sizeof(T) == 1, int, T>;
+  std::uniform_int_distribution<RandomDataT> rd_source(min_value, max_value);
 
   // Define a small overshoot so that we adequately test out-of-range cases
   // without sacrificing depth of testing of valid start+length combinations
@@ -105,7 +110,7 @@ template <typename T> bool test(const char *Msg, int N) {
   std::vector<uint32_t> starts(N, 0);
   std::vector<uint32_t> lengths(N, 0);
   for (int i = 0; i < N; ++i) {
-    sources[i] = rd_source(gen);
+    sources[i] = static_cast<T>(rd_source(gen));
     starts[i] = rd_start(gen);
     lengths[i] = rd_length(gen);
   }
@@ -172,6 +177,8 @@ template <typename T> bool test(const char *Msg, int N) {
 
 int main() {
   const int N = 1000;
+  assert(test<int8_t>("int8", N));
+  assert(test<uint8_t>("uint8", N));
   assert(test<int16_t>("int16", N));
   assert(test<uint16_t>("uint16", N));
   assert(test<int32_t>("int32", N));

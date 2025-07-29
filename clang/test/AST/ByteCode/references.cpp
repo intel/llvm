@@ -71,20 +71,16 @@ static_assert(testGetValue() == 30, "");
 
 constexpr const int &MCE = 20;
 static_assert(MCE == 20, "");
-static_assert(MCE == 30, ""); // expected-error {{static assertion failed}} \
-                              // expected-note {{evaluates to '20 == 30'}} \
-                              // ref-error {{static assertion failed}} \
-                              // ref-note {{evaluates to '20 == 30'}}
+static_assert(MCE == 30, ""); // both-error {{static assertion failed}} \
+                              // both-note {{evaluates to '20 == 30'}}
 
 constexpr int LocalMCE() {
   const int &m = 100;
   return m;
 }
 static_assert(LocalMCE() == 100, "");
-static_assert(LocalMCE() == 200, ""); // expected-error {{static assertion failed}} \
-                                      // expected-note {{evaluates to '100 == 200'}} \
-                                      // ref-error {{static assertion failed}} \
-                                      // ref-note {{evaluates to '100 == 200'}}
+static_assert(LocalMCE() == 200, ""); // both-error {{static assertion failed}} \
+                                      // both-note {{evaluates to '100 == 200'}}
 
 struct S {
   int i, j;
@@ -143,4 +139,42 @@ namespace Temporaries {
 
   static_assert(j.a.n == 1, "");  // both-error {{not an integral constant expression}} \
                                   // both-note {{read of temporary is not allowed in a constant expression outside the expression that created the temporary}}
+}
+
+namespace Params {
+  typedef __SIZE_TYPE__ size_t;
+
+  template <class _Tp, size_t _Np>
+  constexpr _Tp* end(_Tp (&__array)[_Np]) noexcept {
+    return __array + _Np;
+  }
+
+
+  struct classnames {
+    const char* elem_;
+    int a;
+  };
+
+  constexpr classnames ClassNames[] = {
+    {"a", 0},
+    {"b", 1},
+    {"b", 1},
+    {"b", 1},
+    {"b", 1},
+    {"b", 1},
+    {"b", 1},
+    {"b", 1},
+  };
+
+  constexpr bool foo() {
+    /// This will instantiate end() with ClassNames.
+    /// In Sema, we will constant-evaluate the return statement, which is
+    /// something like __array + 8. The APValue we return for this
+    /// may NOT have a LValuePath set, since it's for a parameter
+    /// of LValueReferenceType.
+    end(ClassNames);
+    return true;
+  }
+
+  static_assert(foo());
 }

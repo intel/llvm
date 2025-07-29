@@ -74,24 +74,6 @@ enum class partition_property : intptr_t {
   ext_intel_partition_by_cslice = UR_DEVICE_PARTITION_BY_CSLICE
 };
 
-// FIXME: maybe this should live elsewhere, maybe it should be implemented
-// differently
-inline partition_property
-ConvertPartitionProperty(const ur_device_partition_t &Partition) {
-  switch (Partition) {
-  case UR_DEVICE_PARTITION_EQUALLY:
-    return partition_property::partition_equally;
-  case UR_DEVICE_PARTITION_BY_COUNTS:
-    return partition_property::partition_by_counts;
-  case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
-    return partition_property::partition_by_affinity_domain;
-  case UR_DEVICE_PARTITION_BY_CSLICE:
-    return partition_property::ext_intel_partition_by_cslice;
-  default:
-    return partition_property::no_partition;
-  }
-}
-
 enum class partition_affinity_domain : intptr_t {
   not_applicable = 0,
   numa = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
@@ -101,24 +83,6 @@ enum class partition_affinity_domain : intptr_t {
   L1_cache = UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE,
   next_partitionable = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE
 };
-
-inline partition_affinity_domain
-ConvertAffinityDomain(const ur_device_affinity_domain_flags_t Domain) {
-  switch (Domain) {
-  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA:
-    return partition_affinity_domain::numa;
-  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE:
-    return partition_affinity_domain::L1_cache;
-  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE:
-    return partition_affinity_domain::L2_cache;
-  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE:
-    return partition_affinity_domain::L3_cache;
-  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE:
-    return partition_affinity_domain::L4_cache;
-  default:
-    return info::partition_affinity_domain::not_applicable;
-  }
-}
 
 enum class local_mem_type : int { none, local, global };
 
@@ -141,15 +105,14 @@ enum class execution_capability : unsigned int {
 };
 
 namespace device {
-// TODO implement the following SYCL 2020 device info descriptors:
-// atomic_fence_order_capabilities, atomic_fence_scope_capabilities, aspects,
-// il_version.
-
-struct atomic_fence_order_capabilities;
-struct atomic_fence_scope_capabilities;
 
 #define __SYCL_PARAM_TRAITS_DEPRECATED(Desc, Message)                          \
   struct __SYCL2020_DEPRECATED(Message) Desc;
+#include <sycl/info/device_traits_2020_deprecated.def>
+#undef __SYCL_PARAM_TRAITS_DEPRECATED
+
+#define __SYCL_PARAM_TRAITS_DEPRECATED(Desc, Message)                          \
+  struct __SYCL_DEPRECATED(Message) Desc;
 #include <sycl/info/device_traits_deprecated.def>
 #undef __SYCL_PARAM_TRAITS_DEPRECATED
 
@@ -198,17 +161,6 @@ namespace event_profiling {
 } // namespace event_profiling
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-// Provide an alias to the return type for each of the info parameters
-template <typename T, T param> class param_traits {};
-
-template <typename T, T param> struct compatibility_param_traits {};
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template <> class param_traits<param_type, param_type::param> {              \
-  public:                                                                      \
-    using return_type = ret_type;                                              \
-  };
-#undef __SYCL_PARAM_TRAITS_SPEC
 } // namespace info
 
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
@@ -234,6 +186,16 @@ template <typename T, T param> struct compatibility_param_traits {};
   } /*namespace info */                                                        \
   } /*namespace Namespace */
 
+#define __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC(Namespace, Desctype, Desc,   \
+                                                  ReturnT, UrCode)             \
+  namespace Namespace::info {                                                  \
+  namespace Desctype {                                                         \
+  template <int Dimensions> struct Desc {                                      \
+    using return_type = ReturnT<Dimensions>;                                   \
+  };                                                                           \
+  }                                                                            \
+  }
+
 namespace ext::oneapi::experimental::info::device {
 template <int Dimensions> struct max_work_groups;
 template <ext::oneapi::experimental::execution_scope CoordinationScope>
@@ -244,12 +206,27 @@ template <ext::oneapi::experimental::execution_scope CoordinationScope>
 struct work_item_progress_capabilities;
 
 } // namespace ext::oneapi::experimental::info::device
+
+namespace ext::intel {
+enum class throttle_reason {
+  power_cap,
+  current_limit,
+  thermal_limit,
+  psu_alert,
+  sw_range,
+  hw_range,
+  other
+};
+} // namespace ext::intel
+
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
+#include <sycl/info/ext_intel_kernel_info_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
+#undef __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC
 } // namespace _V1
 } // namespace sycl

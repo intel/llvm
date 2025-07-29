@@ -54,8 +54,8 @@ void TranslatorOpts::enableAllExtensions() {
 #undef EXT
 }
 
-bool TranslatorOpts::isUnknownIntrinsicAllowed(IntrinsicInst *II) const
-    noexcept {
+bool TranslatorOpts::isUnknownIntrinsicAllowed(
+    IntrinsicInst *II) const noexcept {
   if (!SPIRVAllowUnknownIntrinsics.has_value())
     return false;
   const auto &IntrinsicPrefixList = SPIRVAllowUnknownIntrinsics.value();
@@ -85,7 +85,7 @@ std::vector<std::string> TranslatorOpts::getAllowedSPIRVExtensionNames(
       continue;
     std::string ExtName;
     SPIRVMap<ExtensionID, std::string>::find(It.first, &ExtName);
-    AllowExtNames.push_back(ExtName);
+    AllowExtNames.emplace_back(ExtName);
   }
   return AllowExtNames;
 }

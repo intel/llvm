@@ -319,28 +319,25 @@ struct propagateToPtrAnnotation<buffer_location_key> : std::true_type {};
 //===----------------------------------------------------------------------===//
 //
 namespace detail {
-template <typename... Args> struct checkValidFPGAPropertySet {
-  using list = std::tuple<Args...>;
-  static constexpr bool has_BufferLocation =
-      ContainsProperty<buffer_location_key, list>::value;
+template <typename property_list_t> struct checkValidFPGAPropertySet {
+  template <typename... Keys>
+  static constexpr bool has_one_of =
+      ((property_list_t::template has_property<Keys>() || ...));
+
+  static constexpr bool has_BufferLocation = has_one_of<buffer_location_key>;
 
   static constexpr bool has_InterfaceConfig =
-      ContainsProperty<awidth_key, list>::value ||
-      ContainsProperty<dwidth_key, list>::value ||
-      ContainsProperty<latency_key, list>::value ||
-      ContainsProperty<read_write_mode_key, list>::value ||
-      ContainsProperty<maxburst_key, list>::value ||
-      ContainsProperty<wait_request_key, list>::value;
+      has_one_of<awidth_key, dwidth_key, latency_key, read_write_mode_key,
+                 maxburst_key, wait_request_key>;
 
   static constexpr bool value = !(!has_BufferLocation && has_InterfaceConfig);
 };
 
-template <typename... Args> struct checkHasConduitAndRegisterMap {
-  using list = std::tuple<Args...>;
+template <typename property_list_t> struct checkHasConduitAndRegisterMap {
   static constexpr bool has_Conduit =
-      ContainsProperty<conduit_key, list>::value;
+      property_list_t::template has_property<conduit_key>();
   static constexpr bool has_RegisterMap =
-      ContainsProperty<register_map_key, list>::value;
+      property_list_t::template has_property<register_map_key>();
   static constexpr bool value = !(has_Conduit && has_RegisterMap);
 };
 } // namespace detail

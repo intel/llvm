@@ -3,7 +3,6 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
   ConvertToMuxBuiltinsSYCLNativeCPU.cpp
-  FixABIMuxBuiltinsSYCLNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -33,14 +32,16 @@ endif()
 
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
-    set(OCK_GIT_INTERNAL_REPO "https://github.com/codeplaysoftware/oneapi-construction-kit.git")
-    # commit 0e913951b61b709ce5c5c136f7557dd88d6e200c
-    # Merge: 0cf91055 85624e50
-    # Author: Colin Davidson <colin.davidson@codeplay.com>
-    # Date:   Mon Jul 1 15:39:36 2024 +0100
-    #     Merge pull request #485 from coldav/colin/fix_memmove_bug_finegrained
-    #     Fix risc-v memmove creating memcpy instrinsic
-    set(OCK_GIT_INTERNAL_TAG 0e913951b61b709ce5c5c136f7557dd88d6e200c)
+    set(OCK_GIT_INTERNAL_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
+    # commit d0a32d701e34b3285de7ce776ea36abfec673df7
+    # Merge: a9f848e0e8 56473a8c25
+    # Author: Harald van Dijk <harald.vandijk@codeplay.com>
+    # Date:   Mon Jun 30 12:24:46 2025 +0100
+    # 
+    #     Merge pull request #878 from hvdijk/specify-fuse-ld-lld
+    #     
+    #     [RefSi] Explicitly specify -fuse-ld=lld.
+    set(OCK_GIT_INTERNAL_TAG d0a32d701e34b3285de7ce776ea36abfec673df7)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)

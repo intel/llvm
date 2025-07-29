@@ -39,12 +39,6 @@ __attribute__((sycl_kernel)) void foo(); // expected-warning {{function template
 template <typename T, typename A>
 [[clang::sycl_kernel]] void foo1(const T &t, A a); // no diagnostics
 
-// Kernel function argument must be passed by reference
-template <typename T, typename A>
-__attribute__((sycl_kernel)) void foo(const T &P); // expected-error {{SYCL kernel function must be passed by reference}}
-template <typename T, typename A, int I>
-[[clang::sycl_kernel]] void foo1(const T &P);// expected-error {{SYCL kernel function must be passed by reference}}
-
 // No diagnostics
 template <typename T, typename A>
 __attribute__((sycl_kernel)) void foo(const T &P);

@@ -5,12 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: target-spir
+
 // REQUIRES: aspect-ext_intel_matrix
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// https://github.com/intel/llvm/issues/14826
-// XFAIL: arch-intel_gpu_pvc && !igc-dev
 
 #include "common.hpp"
 

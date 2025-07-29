@@ -121,7 +121,6 @@ strategy could be employed but instead using a pool of graphs to hide the
 potential host-synchronization caused when updating and increase device
 occupancy.
 
-
 ### Recording Library Calls
 
 #### A Note On Library Compatibility
@@ -170,6 +169,142 @@ In this case it may be necessary to first manually trigger the warmup by calling
 `SomeLibrary::Operation()` before starting to record the queue with
 `Graph.begin_recording(Queue)` to prevent the warmup from being captured in a
 graph when recording.
+
+#### ext_codeplay_enqueue_native_command
+
+The SYCL-Graph extension is compatible with the
+[ext_codeplay_enqueue_native_command](../extensions/experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc)
+extension that can be used to capture asynchronous library commands as graph
+nodes. However, existing `ext_codeplay_enqueue_native_command` user code will
+need modifications to work correctly for submission to a sycl queue that can be
+in either the executable or recording state.
+
+Using the CUDA backend as an example, existing code which uses a
+native-command to invoke a library call:
+
+```c++
+q.submit([&](sycl::handler &CGH) {
+    CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
+       auto NativeStream = IH.get_native_queue<cuda>();
+       myNativeLibraryCall(NativeStream);
+    });
+});
+```
+
+Can be ported as below to work with SYCL-Graph, where the queue may be in
+a recording state. If the code is not ported but the queue is in a recording
+state, then asynchronous work in `myNativeLibraryCall` will be scheduled
+immediately as part of graph finalize, rather than being added to the graph as
+a node, which is unlikely to be the desired user behavior.
+
+```c++
+q.submit([&](sycl::handler &CGH) {
+    CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
+        auto NativeStream = h.get_native_queue<cuda>();
+        if (IH.ext_codeplay_has_graph())  {
+            auto NativeGraph =
+              IH.ext_codeplay_get_native_graph<sycl::backend::ext_oneapi_cuda>();
+
+            // Start capture stream calls into graph
+            cuStreamBeginCaptureToGraph(NativeStream, NativeGraph, nullptr,
+                                        nullptr, 0,
+                                        CU_STREAM_CAPTURE_MODE_GLOBAL);
+
+            myNativeLibraryCall(NativeStream);
+
+            // Stop capturing stream calls into graph
+            cuStreamEndCapture(NativeStream, &NativeGraph);
+        } else {
+            myNativeLibraryCall(NativeStream);
+        }
+    });
+});
+```
+
+### Guidance For Library Authors
+
+In addition to the general SYCL-graph compatibility guidelines there are some
+considerations that are more relevant to library authors to be compatible with
+SYCL-Graph and allow seamless capturing of library calls in a graph.
+
+#### Graph-owned Memory Allocations For Temporary Memory
+
+A common pattern in libraries with specialized SYCL kernels can involve the
+allocation and use of temporary memory for those kernels. One approach is custom
+allocators which rely on SYCL events to control the lifetime and re-use of this
+temporary memory, but these are not compatible with events returned from queue
+submissions which are recorded to a graph. Instead the
+[sycl_ext_oneapi_async_memory_alloc](../extensions/proposed/sycl_ext_oneapi_async_memory_alloc.asciidoc)
+extension can be used which provides similar functionality for eager SYCL usage
+as well as compatibility with graphs.
+
+When captured in a graph calls to these extension functions create graph-owned
+memory allocations which are tied to the lifetime of the graph. These
+allocations can be created as needed for library kernels and the SYCL runtime
+may be able to re-use memory where appropriate to minimize the memory footprint
+of the graph. This can avoid the need for a library to manage the lifetime of
+these allocations themselves, or be aware of the library calls being recorded to
+a graph.
+
+It is important to ensure correct dependencies between allocation commands,
+kernels that use those allocations, and the calls to free the memory. This
+allows the graph to determine when allocations are in-use at a given point in
+the graph, and allow for re-using memory for subsequent allocation nodes if
+those nodes are ordered after a free command which is no longer in use.
+
+It is important to note that calling `async_free` will not deallocate memory
+but simply mark it as free for re-use.
+
+The following shows a simple example of how these allocations can be used in a
+library function which is recorded to a graph:
+
+```c++
+using namespace sycl;
+
+// Library code, this example is assuming an out of order SYCL queue
+void launchLibraryKernel(queue& SyclQueue){
+    size_t TempMemSize = 1024;
+    void* Ptr = nullptr;
+
+    // Get a pointer to some temporary memory for use in the kernel
+    // This call creates an allocation node in the graph if this call is being
+    // recorded.
+    event AllocEvent = SyclQueue.submit([&](handler& CGH){
+        Ptr = sycl_ext::async_malloc(CGH, usm::alloc::device, TempMemSize);
+    });
+
+    // Submit the actual library kernel
+    event KernelEvent = SyclQueue.submit([&](handler& CGH){
+        // Mark the allocation as a dependency so that the temporary memory
+        // is available
+        CGH.depends_on(AllocEvent);
+        // Submit a kernel that uses the temp memory in Ptr
+        CGH.parallel_for(...);
+    });
+
+    // Free the memory back to the pool or graph, indicating that it is free to
+    // be re-used. Memory will not actually be released back to the OS.
+    SyclQueue.submit([&](handler& CGH){
+        // Mark the kernel as a dependency before freeing
+        CGH.depends_on(KernelEvent);
+        sycl_ext::async_free(CGH, Ptr);
+    });
+}
+
+// Application code
+void recordLibraryCall(queue& SyclQueue, sycl_ext::command_graph& Graph){
+    Graph.begin_recording(SyclQueue);
+    // Call into library to record queue commands to the graph
+    launchLibraryKernel(SyclQueue);
+
+    Graph.end_recording(SyclQueue);
+}
+```
+
+Please see "graph-owned memory allocations" section of the
+[sycl_ext_oneapi_graph
+specification](../extensions/experimental/sycl_ext_oneapi_graph.asciidoc) for a
+complete description of the feature.
 
 ## Code Examples
 
@@ -394,12 +529,12 @@ sycl_ext::command_graph myGraph(myContext, myDevice);
 
 int myScalar = 42;
 // Create graph dynamic parameters
-dynamic_parameter dynParamInput(myGraph, ptrX);
-dynamic_parameter dynParamScalar(myGraph, myScalar);
+sycl_ext::dynamic_parameter dynParamInput(myGraph, ptrX);
+sycl_ext::dynamic_parameter dynParamScalar(myGraph, myScalar);
 
 // The node uses ptrX as an input & output parameter, with operand
 // mySclar as another argument.
-node kernelNode = myGraph.add([&](handler& cgh) {
+sycl_ext::node kernelNode = myGraph.add([&](handler& cgh) {
     cgh.set_args(dynParamInput, ptrY, dynParamScalar);
     cgh.parallel_for(range {n}, builtinKernel);
 });
@@ -438,9 +573,9 @@ sycl::buffer bufferB{...};
 
 // Create graph dynamic parameter using a placeholder accessor, since the
 // sycl::handler is not available here outside of the command-group scope.
-dynamic_parameter dynParamAccessor(myGraph, bufferA.get_access());
+sycl_ext::dynamic_parameter dynParamAccessor(myGraph, bufferA.get_access());
 
-node kernelNode = myGraph.add([&](handler& cgh) {
+sycl_ext::node kernelNode = myGraph.add([&](handler& cgh) {
     // Require the accessor contained in the dynamic paramter
     cgh.require(dynParamAccessor);
     // Set the arg on the kernel using the dynamic parameter directly
@@ -451,6 +586,121 @@ node kernelNode = myGraph.add([&](handler& cgh) {
 ...
 // Update the dynamic parameter with a placeholder accessor from bufferB instead
 dynParamAccessor.update(bufferB.get_access());
+```
+
+### Dynamic Command Groups
+
+Example showing how a graph with a dynamic command group node can be updated.
+
+```cpp
+...
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+queue Queue{};
+sycl_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+
+int *PtrA = malloc_device<int>(1024, Queue);
+int *PtrB = malloc_device<int>(1024, Queue);
+
+auto CgfA = [&](handler &cgh) {
+  cgh.parallel_for(1024, [=](item<1> Item) {
+    PtrA[Item.get_id()] = 1;
+  });
+};
+
+auto CgfB = [&](handler &cgh) {
+  cgh.parallel_for(512, [=](item<1> Item) {
+    PtrB[Item.get_id()] = 2;
+  });
+};
+
+// Construct a dynamic command-group with CgfA as the active cgf (index 0).
+auto DynamicCG = sycl_ext::dynamic_command_group(Graph, {CgfA, CgfB});
+
+// Create a dynamic command-group graph node.
+auto DynamicCGNode = Graph.add(DynamicCG);
+
+auto ExecGraph = Graph.finalize(sycl_ext::property::graph::updatable{});
+
+// The graph will execute CgfA.
+Queue.ext_oneapi_graph(ExecGraph).wait();
+
+// Sets CgfB as active in the dynamic command-group (index 1).
+DynamicCG.set_active_index(1);
+
+// Calls update to update the executable graph node with the changes to DynamicCG.
+ExecGraph.update(DynamicCGNode);
+
+// The graph will execute CgfB.
+Queue.ext_oneapi_graph(ExecGraph).wait();
+```
+
+### Dynamic Command Groups With Dynamic Parameters
+
+Example showing how a graph with a dynamic command group that uses dynamic
+parameters in a node can be updated.
+
+```cpp
+...
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+size_t N = 1024;
+queue Queue{};
+auto MyContext = Queue.get_context();
+auto MyDevice = Queue.get_device();
+sycl_ext::command_graph Graph{MyContext, MyDevice};
+
+int *PtrA = malloc_device<int>(N, Queue);
+int *PtrB = malloc_device<int>(N, Queue);
+
+// Kernels loaded from kernel bundle
+const std::vector<kernel_id> BuiltinKernelIds =
+      MyDevice.get_info<info::device::built_in_kernel_ids>();
+kernel_bundle<bundle_state::executable> MyBundle =
+      get_kernel_bundle<sycl::bundle_state::executable>(MyContext, { MyDevice }, BuiltinKernelIds);
+
+kernel BuiltinKernelA = MyBundle.get_kernel(BuiltinKernelIds[0]);
+kernel BuiltinKernelB = MyBundle.get_kernel(BuiltinKernelIds[1]);
+
+// Create a dynamic parameter with an initial value of PtrA
+sycl_ext::dynamic_parameter DynamicPointerArg{Graph, PtrA};
+
+// Create command groups for both kernels which use DynamicPointerArg
+auto CgfA = [&](handler &cgh) {
+  cgh.set_arg(0, DynamicPointerArg);
+  cgh.parallel_for(range {N}, BuiltinKernelA);
+};
+
+auto CgfB = [&](handler &cgh) {
+  cgh.set_arg(0, DynamicPointerArg);
+  cgh.parallel_for(range {N / 2}, BuiltinKernelB);
+};
+
+// Construct a dynamic command-group with CgfA as the active cgf (index 0).
+auto DynamicCG = sycl_ext::dynamic_command_group(Graph, {CgfA, CgfB});
+
+// Create a dynamic command-group graph node.
+auto DynamicCGNode = Graph.add(DynamicCG);
+
+auto ExecGraph = Graph.finalize(sycl_ext::property::graph::updatable{});
+
+// The graph will execute CgfA with PtrA.
+Queue.ext_oneapi_graph(ExecGraph).wait();
+
+//Update DynamicPointerArg with a new value
+DynamicPointerArg.update(PtrB);
+
+// Sets CgfB as active in the dynamic command-group (index 1).
+DynamicCG.set_active_index(1);
+
+// Calls update to update the executable graph node with the changes to
+// DynamicCG and DynamicPointerArg.
+ExecGraph.update(DynamicCGNode);
+
+// The graph will execute CgfB with PtrB.
+Queue.ext_oneapi_graph(ExecGraph).wait();
 ```
 
 ### Whole Graph Update
@@ -513,4 +763,115 @@ execMainGraph.update(updateGraph);
 // Execute execMainGraph again, which will now be operating on ptrB instead of
 // ptrA
 myQueue.ext_oneapi_graph(execMainGraph);
+```
+
+### Graph-Owned Memory Allocations
+
+#### Explicit Graph Example
+
+Using default memory pool.
+
+```c++
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+void* Ptr = nullptr;
+size_t AllocSize = 1024;
+// Add an async_malloc node and capturing the returned pointer in Ptr
+auto AllocNode = Graph.add([&](handler& CGH){
+  Ptr = sycl_ext::async_malloc(CGH, usm::alloc::device, AllocSize);
+});
+
+// Use Ptr in another graph node which depends on AllocNode
+auto OtherNodeA = Graph.add(..., {property::graph::depends_on{AllocNode}});
+// Use Ptr in another node which has an indirect dependency on AllocNode
+auto OtherNodeB = Graph.add(..., {property::graph::depends_on{OtherNodeA}});
+
+// Free Ptr, indicating it is no longer in use at this point in the graph,
+// with a dependency on any leaf nodes using Ptr
+Graph.add([&](handler& CGH){
+  sycl_ext::async_free(CGH, Ptr);
+}, {property::graph::depends_on{OtherNodeB}});
+```
+
+#### Queue Recording Example
+
+Using user-provided memory pool.
+
+```c++
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+void* Ptr = nullptr;
+size_t AllocSize = 1024;
+queue Queue {syclContext, syclDevice};
+
+// Device memory pool with zero init property
+sycl_ext::memory_pool MemPool{syclContext, syclDevice, usm::alloc::device,
+                             {sycl_ext::property::memory_pool::zero_init{}}};
+Graph.begin_recording(Queue);
+// Add an async_malloc node and capture the returned pointer in Ptr,
+// zero_init property and usm::alloc kind of pool will be respected but pool
+// is otherwise ignored
+event AllocEvent = Queue.submit([&](handler& CGH){
+  Ptr = sycl_ext::async_malloc_from_pool(CGH, AllocSize, MemPool);
+});
+
+// Use Ptr in another graph node which depends on AllocNode
+event OtherEventA = Queue.submit([&](handler& CGH){
+  CGH.depends_on(AllocEvent);
+  // Do something with Ptr
+  CGH.parallel_for(...);
+});
+// Use Ptr in another node which has an indirect dependency on AllocNode
+event OtherEventB = Queue.submit([&](handler& CGH){
+  CGH.depends_on(OtherEventA);
+  // Do something with Ptr
+  CGH.parallel_for(...);
+});
+
+// Free Ptr, indicating it is no longer in use at this point in the graph,
+// with a dependency on any leaf nodes using Ptr
+Queue.submit([&](handler& CGH){
+  CGH.depends_on(OtherEventB);
+  sycl_ext::async_free(CGH, Ptr);
+});
+
+Graph.end_recording(Queue);
+```
+
+#### In-Order Queue Recording Example
+
+Using an in-order queue and the event-less async alloc functions.
+
+```c++
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+void* Ptr = nullptr;
+size_t AllocSize = 1024;
+queue Queue {syclContext, syclDevice, {property::queue::in_order{}}};
+
+Graph.begin_recording(Queue);
+// Add an async_malloc node and capturing the returned pointer in Ptr
+Ptr = sycl_ext::async_malloc(Queue, usm::alloc::device, AllocSize);
+
+// Use Ptr in another graph node which has an in-order dependency on the
+// allocation node
+Queue.submit([&](handler& CGH){
+  // Do something with Ptr
+  CGH.parallel_for(...);
+});
+// Use Ptr in another node which has an in-order dependency on the
+// previous kernel.
+Queue.submit([&](handler& CGH){
+  // Do something with Ptr
+  CGH.parallel_for(...);
+});
+
+// Free Ptr, indicating it is no longer in use at this point in the graph,
+// with an in-order dependency on the previous kernel.
+sycl_ext::async_free(Queue, Ptr);
+
+Graph.end_recording(Queue);
 ```

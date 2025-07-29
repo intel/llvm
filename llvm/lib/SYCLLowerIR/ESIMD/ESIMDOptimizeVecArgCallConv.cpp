@@ -354,9 +354,8 @@ optimizeFunction(Function *OldF,
       // preserve data flow equality to the original.
       unsigned OldArgNo = PI.getFormalParam().getArgNo();
       unsigned NewArgNo = oldArgNo2NewArgNo(OldArgNo, SretInd);
-      Instruction *At = nullptr;
       Value *Val = NewF->getArg(NewArgNo);
-      StoreInst *St = new StoreInst(Val, Alloca, false, Al, At);
+      StoreInst *St = new StoreInst(Val, Alloca, false, Al);
       NewInsts.push_back(St);
     }
   }

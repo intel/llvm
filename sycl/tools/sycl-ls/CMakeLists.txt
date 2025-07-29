@@ -8,8 +8,8 @@ if (WIN32 AND "${build_type_lower}" MATCHES "debug")
   set(sycl_lib sycld)
 endif()
 
-# Disable aspect::image warning.
-target_compile_definitions(sycl-ls PRIVATE SYCL_DISABLE_IMAGE_ASPECT_WARNING)
+# Disable aspect::image & deprecation warnings.
+target_compile_definitions(sycl-ls PRIVATE SYCL_DISABLE_IMAGE_ASPECT_WARNING SYCL2020_DISABLE_DEPRECATION_WARNINGS SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
 
 target_link_libraries(sycl-ls
   PRIVATE
@@ -19,7 +19,7 @@ target_link_libraries(sycl-ls
 )
 if (WIN32)
   # 0x900: Search for the dependency DLLs only in the System32 directory and in the directory with sycl-ls.exe
-  target_link_options(sycl-ls PRIVATE /DEPENDENTLOADFLAG:0x900)
+  target_link_options(sycl-ls PRIVATE LINKER:/DEPENDENTLOADFLAG:0x900)
 endif()
 install(TARGETS sycl-ls
   RUNTIME DESTINATION "bin" COMPONENT sycl-ls)

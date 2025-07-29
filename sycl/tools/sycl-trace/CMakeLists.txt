@@ -18,6 +18,9 @@ if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
     ze_trace_collector
   )
   add_dependencies(sycl-trace ze_trace_collector)
+  target_include_directories(ze_trace_collector PRIVATE
+    "${sycl_inc_dir}"
+  )
 endif()
 
 if ("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -90,26 +93,48 @@ target_include_directories(sycl_ur_trace_collector PRIVATE
 
 if(SYCL_BUILD_BACKEND_CUDA)
 
-  find_package(CUDA 10.1 REQUIRED)
+  find_package(CUDAToolkit 10.1 REQUIRED)
 
   target_compile_definitions(cuda_trace_collector PRIVATE USE_UR_CUDA)
 
-  # The following two if's can be removed when FindCUDA -> FindCUDAToolkit.
-  # CUDA_CUPTI_INCLUDE_DIR -> CUDAToolkit_CUPTI_INCLUDE_DIR
-  include(FindCUDACupti)
-  if(NOT CUDA_CUPTI_INCLUDE_DIR)
-     find_cuda_cupti_include_dir()
-  endif()
-  # CUDA_cupti_LIBRARY -> CUDAToolkit_cupti_LIBRARY
-  if(NOT CUDA_cupti_LIBRARY)
-     find_cuda_cupti_library()
+  # CUDAToolkit_CUPTI_INCLUDE_DIR is provided by FindCUDAToolkit since CMake
+  # 3.24, but we support versions back to 3.20. Find it if not found already.
+  if (NOT CUDAToolkit_CUPTI_INCLUDE_DIR)
+    find_path(CUDAToolkit_CUPTI_INCLUDE_DIR cupti.h PATHS
+      "${CUDAToolkit_ROOT_DIR}/extras/CUPTI/include"
+      ${CUDAToolkit_INCLUDE_DIRS}
+      PATH_SUFFIXES "../extras/CUPTI/include"
+                    "../../../extras/CUPTI/include"
+      REQUIRED
+      NO_DEFAULT_PATH)
   endif()
 
   target_include_directories(cuda_trace_collector
-    PRIVATE
-    ${CUDA_CUPTI_INCLUDE_DIR}
+    SYSTEM PRIVATE
+    ${CUDAToolkit_CUPTI_INCLUDE_DIR}
   )
 
+  # FindCUDATookit fails to find CUPTI in CUDA installations from runfile.
+  # See https://gitlab.kitware.com/cmake/cmake/-/issues/26770
+  # Retry the search with extra paths if not found already.
+  if (NOT CUDA_cupti_LIBRARY)
+    get_filename_component(CUDAToolkit_LIBRARY_DIR ${CUDA_CUDART} DIRECTORY ABSOLUTE)
+    find_library(CUDA_cupti_LIBRARY
+      NAMES cupti
+      HINTS ${CUDAToolkit_ROOT}
+            ${CUDAToolkit_ROOT}/lib64
+            ${CUDAToolkit_ROOT}/lib
+            ${CUDAToolkit_LIBRARY_DIR}
+            ${CUDAToolkit_LIBRARY_DIR}/..
+            ${CUDAToolkit_LIBRARY_DIR}/../../..
+            ${CUDAToolkit_LIBRARY_DIR}/../../../../..
+            ENV CUDA_PATH
+      PATH_SUFFIXES lib64 lib/x64 lib
+                    extras/CUPTI/lib64/
+                    extras/CUPTI/lib/
+      REQUIRED
+    )
+  endif()
   target_link_libraries(cuda_trace_collector
     PRIVATE
       cudadrv
@@ -117,9 +142,11 @@ if(SYCL_BUILD_BACKEND_CUDA)
   )
 
   find_path(GEN_CUDA_META_H_DIR generated_cuda_meta.h PATHS
-      "${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include"
-      "${CUDA_INCLUDE_DIRS}/../extras/CUPTI/include"
-      "${CUDA_INCLUDE_DIRS}"
+      "${CUDAToolkit_ROOT}/extras/CUPTI/include"
+      "${CUDAToolkit_INCLUDE_DIRS}/../extras/CUPTI/include"
+      "${CUDAToolkit_INCLUDE_DIRS}"
+      "${CUDAToolkit_CUPTI_INCLUDE_DIR}"
+      "${CUDAToolkit_INCLUDE_DIRS}/../../../extras/CUPTI/include"
       NO_DEFAULT_PATH)
 
   if( EXISTS "${GEN_CUDA_META_H_DIR}/generated_cuda_meta.h" )
@@ -154,4 +181,3 @@ install(TARGETS sycl-trace sycl_ur_trace_collector ${EXTRA_TARGETS_TO_INSTALL}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT sycl-trace
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT sycl-trace
 )
-

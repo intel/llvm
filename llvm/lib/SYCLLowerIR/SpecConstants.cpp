@@ -29,6 +29,21 @@
 
 using namespace llvm;
 
+static cl::opt<SpecConstantsPass::HandlingMode> SpecConstantMode(
+    "spec-constant-mode", cl::Optional, cl::Hidden,
+    cl::desc("Specialization constant handling mode"),
+    cl::init(SpecConstantsPass::HandlingMode::emulation),
+    cl::values(
+        clEnumValN(
+            SpecConstantsPass::HandlingMode::default_values, "default_values",
+            "Specialization constant uses are replaced by default values"),
+        clEnumValN(
+            SpecConstantsPass::HandlingMode::emulation, "emulation",
+            "Specialization constant intrinsic is replaced by run-time buffer"),
+        clEnumValN(SpecConstantsPass::HandlingMode::native, "native",
+                   "Specialization constant intrinsic is lowered to SPIR-V "
+                   "intrinsic")));
+
 namespace {
 
 // __sycl* intrinsic names are Itanium ABI-mangled; this is common prefix for
@@ -475,6 +490,7 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
   auto *FT = FunctionType::get(RetTy, ArgTys, false /*isVarArg*/);
   std::string FunctionName = mangleFuncItanium(BaseFunctionName, FT);
   Module *M = InsertBefore->getFunction()->getParent();
+  bool IsSPIROrSPIRV = llvm::Triple(M->getTargetTriple()).isSPIROrSPIRV();
 
   if (RetTy->isIntegerTy(1)) {
     assert(ArgTys.size() == 2 && "Expected a scalar spec constant");
@@ -498,10 +514,15 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
       auto *NewFT = FunctionType::get(NewRetTy, ArgTys, false /*isVarArg*/);
       auto NewFC = M->getOrInsertFunction(FunctionName, NewFT);
 
-      auto *Call =
-          CallInst::Create(NewFT, NewFC.getCallee(), Args, "", InsertBefore);
+      auto *Call = CallInst::Create(NewFT, NewFC.getCallee(), Args, "",
+                                    InsertBefore->getIterator());
+      if (IsSPIROrSPIRV) {
+        cast<Function>(NewFC.getCallee())
+            ->setCallingConv(CallingConv::SPIR_FUNC);
+        Call->setCallingConv(CallingConv::SPIR_FUNC);
+      }
       return CastInst::CreateTruncOrBitCast(Call, RetTy, "tobool",
-                                            InsertBefore);
+                                            InsertBefore->getIterator());
     }
   }
 
@@ -520,7 +541,12 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
   // types? Is it necessary?
 
   FunctionCallee FC = M->getOrInsertFunction(FunctionName, FT);
-  return CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  auto *Call = CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  if (IsSPIROrSPIRV) {
+    cast<Function>(FC.getCallee())->setCallingConv(CallingConv::SPIR_FUNC);
+    Call->setCallingConv(CallingConv::SPIR_FUNC);
+  }
+  return Call;
 }
 
 Instruction *emitSpecConstant(unsigned NumericID, Type *Ty,
@@ -540,51 +566,6 @@ Instruction *emitSpecConstant(unsigned NumericID, Type *Ty,
 Instruction *emitSpecConstantComposite(Type *Ty, ArrayRef<Value *> Elements,
                                        Instruction *InsertBefore) {
   return emitCall(Ty, SPIRV_GET_SPEC_CONST_COMPOSITE, Elements, InsertBefore);
-}
-
-// Select corresponding element of the default value.  For a
-// struct, we getting the corresponding default value is a little
-// tricky.  There are potentially distinct two types: the type of
-// the default value, which comes from the initializer of the
-// global spec constant value, and the return type of the call to
-// getComposite2020SpecConstValue. The return type can be a
-// version of the default value type, with padding fields
-// potentially inserted at the top level and within nested
-// structs.
-
-// Examples: (RT = Return Type, DVT = Default Value Type)
-// RT: { i8, [3 x i8], i32 }, DVT = { i8, i32 }
-// RT: { { i32, i8, [3 x i8] }, i32 } DVT = { { i32, i8 }, i32 }
-
-// For a given element of the default value type we are
-// trying to initialize, we will initialize that element with
-// the element of the default value type that has the same offset
-// as the element we are trying to initialize. If no such element
-// exists, we used undef as the initializer.
-Constant *getElemDefaultValue(Type *Ty, Type *ElTy, Constant *DefaultValue,
-                              size_t ElemIndex, const DataLayout &DL) {
-  if (auto *StructTy = dyn_cast<StructType>(Ty)) {
-    auto *DefaultValueType = cast<StructType>(DefaultValue->getType());
-    const auto &DefaultValueTypeSL = DL.getStructLayout(DefaultValueType);
-    // The struct has padding, so we have to adjust ElemIndex
-    if (DefaultValueTypeSL->hasPadding()) {
-      const auto &ReturnTypeSL = DL.getStructLayout(StructTy);
-      ArrayRef<TypeSize> DefaultValueOffsets =
-          DefaultValueTypeSL->getMemberOffsets();
-      TypeSize CurrentIterationOffset =
-          ReturnTypeSL->getElementOffset(ElemIndex);
-      const auto It =
-          std::find(DefaultValueOffsets.begin(), DefaultValueOffsets.end(),
-                    CurrentIterationOffset);
-
-      // The element we are looking at is a padding field
-      if (It == DefaultValueOffsets.end())
-        return UndefValue::get(ElTy);
-      // Select the index with the same offset
-      ElemIndex = It - DefaultValueOffsets.begin();
-    }
-  }
-  return DefaultValue->getAggregateElement(ElemIndex);
 }
 
 /// For specified specialization constant type emits LLVM IR which is required
@@ -610,12 +591,18 @@ Constant *getElemDefaultValue(Type *Ty, Type *ElTy, Constant *DefaultValue,
 /// __spirvSpecConstantComposite calls for each composite member of the
 /// composite (plus for the top-level composite). Also enumerates all
 /// encountered scalars and assigns them IDs (or re-uses existing ones).
-Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
-                                           SmallVectorImpl<ID> &IDs,
-                                           unsigned &Index,
-                                           Constant *DefaultValue) {
+Instruction *emitSpecConstantRecursiveImpl(
+    Type *Ty, Instruction *InsertBefore, SmallVectorImpl<ID> &IDs,
+    unsigned &Index, unsigned CurrentOffset,
+    const SmallVectorImpl<std::pair<uint64_t, Constant *>> &DefinedElements) {
   const Module &M = *InsertBefore->getModule();
   if (!Ty->isArrayTy() && !Ty->isStructTy() && !Ty->isVectorTy()) { // Scalar
+    auto It = llvm::lower_bound(DefinedElements, CurrentOffset,
+                                [](const std::pair<uint64_t, Constant *> &LHS,
+                                   uint64_t RHS) { return LHS.first < RHS; });
+    assert(It != DefinedElements.end() && It->first == CurrentOffset);
+    Constant *DefaultValue = It->second;
+
     if (Index >= IDs.size()) {
       // If it is a new specialization constant, we need to generate IDs for
       // scalar elements, starting with the second one.
@@ -623,6 +610,7 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
              "All scalar values should be defined");
       IDs.push_back({IDs.back().ID + 1, false});
     }
+
     return emitSpecConstant(IDs[Index++].ID, Ty, InsertBefore, DefaultValue);
   }
 
@@ -636,30 +624,35 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
     Elements.push_back(Def);
     Index++;
   };
-  auto LoopIteration = [&](Type *ElTy, unsigned LocalIndex) {
-    const auto ElemDefaultValue = getElemDefaultValue(
-        Ty, ElTy, DefaultValue, LocalIndex, M.getDataLayout());
-
+  auto LoopIteration = [&](Type *ElTy, unsigned LocalOffset) {
+    auto ElOffset = CurrentOffset + LocalOffset;
+    auto It = llvm::lower_bound(DefinedElements, ElOffset,
+                                [](const std::pair<uint64_t, Constant *> &LHS,
+                                   uint64_t RHS) { return LHS.first < RHS; });
     // If the default value is a composite and has the value 'undef', we should
     // not generate a bunch of __spirv_SpecConstant for its elements but
     // pass it into __spirv_SpecConstantComposite as is.
-    if (isa<UndefValue>(ElemDefaultValue))
-      HandleUndef(ElemDefaultValue);
+    if (It == DefinedElements.end() || It->first != ElOffset)
+      HandleUndef(UndefValue::get(ElTy));
     else
       Elements.push_back(emitSpecConstantRecursiveImpl(
-          ElTy, InsertBefore, IDs, Index, ElemDefaultValue));
+          ElTy, InsertBefore, IDs, Index, ElOffset, DefinedElements));
   };
 
+  const auto &DL = M.getDataLayout();
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
+    uint64_t ElSize = DL.getTypeAllocSize(ArrTy->getElementType());
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I)
-      LoopIteration(ArrTy->getElementType(), I);
+      LoopIteration(ArrTy->getElementType(), I * ElSize);
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
-    size_t I = 0;
-    for (Type *ElTy : StructTy->elements())
-      LoopIteration(ElTy, I++);
+    const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
+    for (auto [ElTy, Offset] :
+         zip_equal(StructTy->elements(), SL->getMemberOffsets()))
+      LoopIteration(ElTy, Offset);
   } else if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
+    uint64_t ElSize = DL.getTypeAllocSize(VecTy->getElementType());
     for (size_t I = 0; I < VecTy->getNumElements(); ++I)
-      LoopIteration(VecTy->getElementType(), I);
+      LoopIteration(VecTy->getElementType(), I * ElSize);
   } else {
     llvm_unreachable("Unexpected spec constant type");
   }
@@ -667,13 +660,53 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
   return emitSpecConstantComposite(Ty, Elements, InsertBefore);
 }
 
+/// Recursively iterates over a composite type in order to collect information
+/// about the offsets of its scalar elements.
+void collectDefinedElements(
+    Constant *C, const DataLayout &DL,
+    SmallVectorImpl<std::pair<uint64_t, Constant *>> &Result,
+    uint64_t CurrentOffset) {
+  if (isa<UndefValue>(C)) {
+    return;
+  }
+
+  if (auto *StructTy = dyn_cast<StructType>(C->getType())) {
+    const StructLayout *SL = DL.getStructLayout(StructTy);
+    for (auto [I, MemberOffset] : enumerate(SL->getMemberOffsets()))
+      collectDefinedElements(C->getAggregateElement(I), DL, Result,
+                             CurrentOffset + MemberOffset);
+  }
+
+  else if (auto *ArrTy = dyn_cast<ArrayType>(C->getType())) {
+    uint64_t ElSize = DL.getTypeAllocSize(ArrTy->getElementType());
+    for (size_t I = 0; I < ArrTy->getNumElements(); ++I)
+      collectDefinedElements(C->getAggregateElement(I), DL, Result,
+                             CurrentOffset + I * ElSize);
+  }
+
+  else if (auto *VecTy = dyn_cast<FixedVectorType>(C->getType())) {
+    uint64_t ElSize = DL.getTypeAllocSize(VecTy->getElementType());
+    for (size_t I = 0; I < VecTy->getNumElements(); ++I)
+      collectDefinedElements(C->getAggregateElement(I), DL, Result,
+                             CurrentOffset + I * ElSize);
+  }
+
+  else {
+    Result.push_back({CurrentOffset, C});
+  }
+}
+
 /// Wrapper intended to hide IsFirstElement argument from the caller
 Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
                                        SmallVectorImpl<ID> &IDs,
                                        Constant *DefaultValue) {
   unsigned Index = 0;
-  return emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index,
-                                       DefaultValue);
+  SmallVector<std::pair<uint64_t, Constant *>, 32> DefinedElements;
+  collectDefinedElements(DefaultValue,
+                         InsertBefore->getModule()->getDataLayout(),
+                         DefinedElements, 0);
+  return emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index, 0,
+                                       DefinedElements);
 }
 
 /// Function creates load instruction from the given Buffer by the given Offset.
@@ -685,7 +718,7 @@ Value *createLoadFromBuffer(CallInst *InsertBefore, Value *Buffer,
   Type *Int32Ty = Type::getInt32Ty(C);
   GetElementPtrInst *GEP = GetElementPtrInst::Create(
       Int8Ty, Buffer, {ConstantInt::get(Int32Ty, Offset, false)}, "gep",
-      InsertBefore);
+      InsertBefore->getIterator());
 
   Instruction *BitCast = nullptr;
   if (SCType->isIntegerTy(1)) // No bitcast to i1 before load
@@ -693,14 +726,14 @@ Value *createLoadFromBuffer(CallInst *InsertBefore, Value *Buffer,
   else
     BitCast =
         new BitCastInst(GEP, PointerType::get(SCType, GEP->getAddressSpace()),
-                        "bc", InsertBefore);
+                        "bc", InsertBefore->getIterator());
 
   // When we encounter i1 spec constant, we still load the whole byte
   Value *Load = new LoadInst(SCType->isIntegerTy(1) ? Int8Ty : SCType, BitCast,
-                             "load", InsertBefore);
+                             "load", InsertBefore->getIterator());
   if (SCType->isIntegerTy(1)) // trunc back to i1 if necessary
     Load = CastInst::CreateIntegerCast(Load, SCType, /* IsSigned */ false,
-                                       "tobool", InsertBefore);
+                                       "tobool", InsertBefore->getIterator());
 
   return Load;
 }
@@ -815,6 +848,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   StringMap<unsigned> OffsetMap;
   MapVector<StringRef, MDNode *> SCMetadata;
   SmallVector<MDNode *, 4> DefaultsMetadata;
+
+  if (SpecConstantMode.getNumOccurrences() > 0)
+    Mode = SpecConstantMode;
 
   // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_get*SpecConstantValue(const char *ID)
@@ -964,8 +1000,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         if (SCTy->isIntegerTy(1)) {
           assert(DefaultValue->getType()->isIntegerTy(8) &&
                  "For bool spec constant default value is expected to be i8");
-          Replacement =
-              new TruncInst(DefaultValue, Type::getInt1Ty(Ctx), "bool", CI);
+          Replacement = new TruncInst(DefaultValue, Type::getInt1Ty(Ctx),
+                                      "bool", CI->getIterator());
         } else
           Replacement = DefaultValue;
       }
@@ -992,9 +1028,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         Value *ArraySize =
             Mode == HandlingMode::emulation ? DefaultValue : Replacement;
         assert(ArraySize->getType()->isIntegerTy() && "Expecting integer type");
-        Replacement =
-            new AllocaInst(Intr->getAllocatedType(), Intr->getAddressSpace(),
-                           ArraySize, Intr->getAlign(), "alloca", CI);
+        Replacement = new AllocaInst(
+            Intr->getAllocatedType(), Intr->getAddressSpace(), ArraySize,
+            Intr->getAlign(), "alloca", CI->getIterator());
       }
 
       if (HasSretParameter)

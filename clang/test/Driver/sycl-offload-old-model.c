@@ -39,7 +39,7 @@
 // RUN:   not %clang_cl -### -fsycl-targets=spir64-unknown-unknown  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
 // CHK-NO-FSYCL: error: '-fsycl-targets' must be used in conjunction with '-fsycl' to enable offloading
-// RUN:   not %clang -### -fsycl-link  %s 2>&1 \
+// RUN: not %clang -### -fsycl-link  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-LINK %s
 // CHK-NO-FSYCL-LINK: error: '-fsycl-link' must be used in conjunction with '-fsycl' to enable offloading
 
@@ -180,7 +180,7 @@
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -c %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CHK-INT-HEADER
 // CHK-INT-HEADER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INPUT1:.+\-header.+\.h]]" "-fsycl-int-footer={{.*}}"{{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
-// CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]" {{.*}} "-o" "[[OUTPUT2:.+\.o]]"
+// CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include-internal-header" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]" {{.*}} "-o" "[[OUTPUT2:.+\.o]]"
 // CHK-INT-HEADER: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown,host-x86_64-unknown-linux-gnu" {{.*}} "-input=[[OUTPUT1]]" "-input=[[OUTPUT2]]"
 
 /// ###########################################################################
@@ -503,6 +503,10 @@
 // RUN: %clangxx -fsycl --no-offload-new-driver -Xclang --dependent-lib=msvcrtd \
 // RUN:   -target x86_64-unknown-windows-msvc -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
+/// Check sycld is pulled in when -fms-runtime-lib=dll_dbg
+// RUN: %clangxx -fsycl --no-offload-new-driver -fms-runtime-lib=dll_dbg \
+// RUN:   -target x86_64-unknown-windows-msvc -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
 // CHECK-LINK-SYCL-DEBUG: "--dependent-lib=sycl{{[0-9]*}}d"
 // CHECK-LINK-SYCL-DEBUG-NOT: "-defaultlib:sycl{{[0-9]*}}.lib"
 
@@ -748,7 +752,7 @@
 // RUN: %clang_cl -fsycl --no-offload-new-driver /Fosomefile.obj -c %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=FO-CHECK %s
 // FO-CHECK: clang{{.*}} "-fsycl-int-header=[[HEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"{{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
-// FO-CHECK: clang{{.*}} "-include" "[[HEADER]]" {{.*}} "-o" "[[OUTPUT2:.+\.obj]]"
+// FO-CHECK: clang{{.*}} "-include-internal-header" "[[HEADER]]" {{.*}} "-o" "[[OUTPUT2:.+\.obj]]"
 // FO-CHECK: clang-offload-bundler{{.*}} "-output=somefile.obj" "-input=[[OUTPUT1]]" "-input=[[OUTPUT2]]"
 
 /// passing of a library should not trigger the unbundler
@@ -861,3 +865,15 @@
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK: --dependent-lib=sycl{{[0-9]*}}-previewd
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}.lib
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}-preview.lib
+
+// Check if fsycl-targets correctly processes multiple NVidia
+// and AMD GPU targets.
+// RUN:   %clang -### -fsycl -fsycl-targets=nvidia_gpu_sm_60,nvidia_gpu_sm_70 -nocudalib --no-offload-new-driver  %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-MACRO-SM-60,CHK-MACRO-SM-70 %s
+// CHK-MACRO-SM-60: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_NVIDIA_GPU_SM_60__"{{.*}}
+// CHK-MACRO-SM-70: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_NVIDIA_GPU_SM_70__"{{.*}}
+// RUN:   %clang -### -fsycl -fsycl-targets=amd_gpu_gfx90a,amd_gpu_gfx90c -fno-sycl-libspirv -nogpulib --no-offload-new-driver  %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-MACRO-GFX90A,CHK-MACRO-GFX90C %s
+// CHK-MACRO-GFX90A: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_AMD_GPU_GFX90A__"{{.*}}
+// CHK-MACRO-GFX90C: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_AMD_GPU_GFX90C__"{{.*}}
+

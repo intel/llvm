@@ -22,7 +22,6 @@
 #include <sycl/ext/intel/experimental/pipes.hpp>
 #include <sycl/ext/intel/fpga_device_selector.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
-#include <sycl/ext/intel/online_compiler.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
 using namespace sycl;

@@ -9,6 +9,8 @@
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/platform.hpp>
 
 #include <algorithm>
 #include <vector>
@@ -225,7 +227,7 @@ int main() {
     // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
     // CHECK-SAME:-> UR_RESULT_SUCCESS;
     //
-    // CHECK:<--- urEnqueueKernelLaunch(
+    // CHECK:<--- urEnqueueKernelLaunchWithArgsExp(
     // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
     //
     // CHECK:<--- urKernelRelease(

@@ -39,7 +39,7 @@
 // RUN:   not %clang_cl -### -fsycl-targets=spir64-unknown-unknown  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
 // CHK-NO-FSYCL: error: '-fsycl-targets' must be used in conjunction with '-fsycl' to enable offloading
-// RUN:   not %clang -### -fsycl-link  %s 2>&1 \
+// RUN: not %clang -### -fsycl-link  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-LINK %s
 // CHK-NO-FSYCL-LINK: error: '-fsycl-link' must be used in conjunction with '-fsycl' to enable offloading
 
@@ -169,7 +169,7 @@
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -c %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CHK-INT-HEADER
 // CHK-INT-HEADER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INPUT1:.+\-header.+\.h]]" "-fsycl-int-footer={{.*}}"
-// CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]"
+// CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include-internal-header" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]"
 
 /// ###########################################################################
 
@@ -292,8 +292,20 @@
 // RUN: %clangxx -fsycl --offload-new-driver -Xclang --dependent-lib=msvcrtd \
 // RUN:   -target x86_64-unknown-windows-msvc -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
+/// Check sycld.lib is pulled in with -fms-runtime-lib=dll_dbg
+// RUN: %clangxx -fsycl --offload-new-driver -fms-runtime-lib=dll_dbg \
+// RUN:   -target x86_64-unknown-windows-msvc -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
 // CHECK-LINK-SYCL-DEBUG: "--dependent-lib=sycl{{[0-9]*}}d"
 // CHECK-LINK-SYCL-DEBUG-NOT: "-defaultlib:sycl{{[0-9]*}}.lib"
+
+/// Only a single instance of sycld should be pulled in when both the
+/// -Xclang --dependent-lib=msvcrtd and -fms-runtime-lib=dll_dbg is used.
+// RUN: %clangxx -fsycl --offload-new-driver -fms-runtime-lib=dll_dbg -Xclang \
+// RUN:  --dependent-lib=msvcrtd --target=x86_64-unknown-windows-msvc -### %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHECK-LINK-SYCLD %s
+// CHECK-LINK-SYCLD: "--dependent-lib=sycl{{[0-9]*}}d"
+// CHECK-LINK-SYCLD-NOT: "--dependent-lib=sycl{{[0-9]*}}d"
 
 /// ###########################################################################
 
@@ -452,7 +464,7 @@
 // RUN: %clang_cl -fsycl --offload-new-driver /Fosomefile.obj -c %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=FO-CHECK %s
 // FO-CHECK: clang{{.*}} "-fsycl-int-header=[[HEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
-// FO-CHECK: clang{{.*}} "-include" "[[HEADER]]" {{.*}} "-o" "somefile.obj"
+// FO-CHECK: clang{{.*}} "-include-internal-header" "[[HEADER]]" {{.*}} "-o" "somefile.obj"
 
 /// passing of a library should not trigger the unbundler
 // RUN: touch %t.a

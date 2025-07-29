@@ -1,9 +1,13 @@
 // RUN: %clangxx -O0 -fsycl -fsycl-device-only -fno-sycl-esimd-force-stateless-mem -D__ESIMD_GATHER_SCATTER_LLVM_IR -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -S %t -o %t.table
+// -O0 lowering, requires `-force-disable-esimd-opt` to disable all
+// optimizations.
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -force-disable-esimd-opt -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATEFUL
 
 // RUN: %clangxx -O0 -fsycl -fsycl-device-only -fsycl-esimd-force-stateless-mem -D__ESIMD_GATHER_SCATTER_LLVM_IR -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem -O0 -S %t -o %t.table
+// -O0 lowering, requires `-force-disable-esimd-opt` to disable all
+// optimizations.
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem -O0 -force-disable-esimd-opt -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATELESS
 
 // Checks ESIMD copy_to and copy_from functions accepting compile time
@@ -18,15 +22,16 @@ using AccType = sycl::accessor<uint8_t, 1, sycl::access::mode::read_write>;
 using LocalAccType = sycl::local_accessor<double, 1>;
 using LocalAccTypeInt = sycl::local_accessor<int, 1>;
 
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_copy_to(AccType &, LocalAccType &,
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_copy_to(const AccType &,
+                                                    const LocalAccType &,
                                                     float *, int byte_offset32,
                                                     size_t byte_offset64);
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_copy_from(AccType &, LocalAccType &,
-                                                      float *,
-                                                      int byte_offset32,
-                                                      size_t byte_offset64);
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_ctor(AccType &, LocalAccType &,
-                                                 float *, int byte_offset32,
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_copy_from(const AccType &, const LocalAccType &, float *,
+               int byte_offset32, size_t byte_offset64);
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_ctor(const AccType &,
+                                                 const LocalAccType &, float *,
+                                                 int byte_offset32,
                                                  size_t byte_offset64);
 class EsimdFunctor {
 public:
@@ -36,7 +41,7 @@ public:
   float *ptr;
   int byte_offset32;
   size_t byte_offset64;
-  void operator()() __attribute__((sycl_explicit_simd)) {
+  void operator()() const __attribute__((sycl_explicit_simd)) {
     test_copy_to(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_copy_from(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_ctor(acc, local_acc, ptr, byte_offset32, byte_offset64);
@@ -57,7 +62,7 @@ void bar(AccType &acc, LocalAccType &local_acc, LocalAccTypeInt &local_acc_int,
 
 // CHECK-LABEL: define {{.*}} @_Z12test_copy_to{{.*}}
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
-test_copy_to(AccType &acc, LocalAccType &local_acc, float *ptrf,
+test_copy_to(const AccType &acc, const LocalAccType &local_acc, float *ptrf,
              int byte_offset32, size_t byte_offset64) {
   properties props_a{cache_hint_L1<cache_hint::write_back>,
                      cache_hint_L2<cache_hint::write_back>, alignment<32>};
@@ -83,7 +88,7 @@ test_copy_to(AccType &acc, LocalAccType &local_acc, float *ptrf,
 
 // CHECK-LABEL: define {{.*}} @_Z14test_copy_from{{.*}}
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
-test_copy_from(AccType &acc, LocalAccType &local_acc, float *ptrf,
+test_copy_from(const AccType &acc, const LocalAccType &local_acc, float *ptrf,
                int byte_offset32, size_t byte_offset64) {
   properties props_a{cache_hint_L1<cache_hint::cached>,
                      cache_hint_L2<cache_hint::cached>, alignment<32>};
@@ -109,8 +114,8 @@ test_copy_from(AccType &acc, LocalAccType &local_acc, float *ptrf,
 }
 
 // CHECK-LABEL: define {{.*}} @_Z9test_ctor{{.*}}
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_ctor(AccType &acc,
-                                                 LocalAccType &local_acc,
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_ctor(const AccType &acc,
+                                                 const LocalAccType &local_acc,
                                                  float *ptrf, int byte_offset32,
                                                  size_t byte_offset64) {
   properties props_a{cache_hint_L1<cache_hint::cached>,

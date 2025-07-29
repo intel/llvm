@@ -11,8 +11,8 @@
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -53,7 +53,7 @@ struct KernelInfo<DeviceGlobalImgScopeTestKernel>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage generateDeviceGlobalImage() {
+static sycl::unittest::MockDeviceImage generateDeviceGlobalImage() {
   using namespace sycl::unittest;
 
   // Call device global map initializer explicitly to mimic the integration
@@ -61,21 +61,21 @@ static sycl::unittest::UrImage generateDeviceGlobalImage() {
   sycl::detail::device_global_map::add(&DeviceGlobal, DeviceGlobalName);
 
   // Insert remaining device global info into the binary.
-  UrPropertySet PropSet;
-  UrProperty DevGlobInfo =
+  MockPropertySet PropSet;
+  MockProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalName, sizeof(int) * 2, 0);
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
-                 std::vector<UrProperty>{std::move(DevGlobInfo)});
+                 std::vector<MockProperty>{std::move(DevGlobInfo)});
 
-  std::vector<UrOffloadEntry> Entries =
+  std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalTestKernelName});
 
-  UrImage Img(std::move(Entries), std::move(PropSet));
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-static sycl::unittest::UrImage generateDeviceGlobalImgScopeImage() {
+static sycl::unittest::MockDeviceImage generateDeviceGlobalImgScopeImage() {
   using namespace sycl::unittest;
 
   // Call device global map initializer explicitly to mimic the integration
@@ -84,24 +84,24 @@ static sycl::unittest::UrImage generateDeviceGlobalImgScopeImage() {
                                        DeviceGlobalImgScopeName);
 
   // Insert remaining device global info into the binary.
-  UrPropertySet PropSet;
-  UrProperty DevGlobInfo =
+  MockPropertySet PropSet;
+  MockProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalImgScopeName, sizeof(int) * 2, 1);
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
-                 std::vector<UrProperty>{std::move(DevGlobInfo)});
+                 std::vector<MockProperty>{std::move(DevGlobInfo)});
 
-  std::vector<UrOffloadEntry> Entries =
+  std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalImgScopeTestKernelName});
 
-  UrImage Img(std::move(Entries), std::move(PropSet));
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
 namespace {
-sycl::unittest::UrImage Imgs[] = {generateDeviceGlobalImage(),
-                                  generateDeviceGlobalImgScopeImage()};
-sycl::unittest::UrImageArray<2> ImgArray{Imgs};
+sycl::unittest::MockDeviceImage Imgs[] = {generateDeviceGlobalImage(),
+                                          generateDeviceGlobalImgScopeImage()};
+sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
 // Trackers.
 thread_local DeviceGlobalElemType MockDeviceGlobalMem;
@@ -191,8 +191,9 @@ ur_result_t after_urEventGetInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t after_urEnqueueKernelLaunch(void *pParams) {
-  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+ur_result_t after_urEnqueueKernelLaunchWithArgsExp(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
   ++KernelCallCounter;
   EXPECT_TRUE(DeviceGlobalInitEvent.has_value())
       << "DeviceGlobalInitEvent has not been set. Kernel call "
@@ -275,7 +276,7 @@ TEST_F(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
   REDEFINE_AFTER(urEnqueueUSMMemcpy);
   REDEFINE_AFTER_TEMPLATED(urEnqueueDeviceGlobalVariableWrite, true);
   REDEFINE_AFTER(urEventGetInfo);
-  REDEFINE_AFTER(urEnqueueKernelLaunch);
+  REDEFINE_AFTER(urEnqueueKernelLaunchWithArgsExp);
 
   // Kernel call 1.
   // First launch should create both init events.
@@ -620,9 +621,10 @@ TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyTo) {
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Q.get_context());
-  sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
-      CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
+  using namespace sycl::detail;
+  context_impl &CtxImpl = *getSyclObjImpl(Q.get_context());
+  KernelProgramCache::KernelCacheT &KernelCache =
+      CtxImpl.getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
       << "Expect 1 program in kernel cache";
   ExpectedReadWriteURProgram = KernelCache.begin()->first;
@@ -649,9 +651,10 @@ TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyTo) {
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Q.get_context());
-  sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
-      CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
+  using namespace sycl::detail;
+  context_impl &CtxImpl = *getSyclObjImpl(Q.get_context());
+  KernelProgramCache::KernelCacheT &KernelCache =
+      CtxImpl.getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
       << "Expect 1 program in kernel cache";
   ExpectedReadWriteURProgram = KernelCache.begin()->first;
@@ -678,9 +681,10 @@ TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyFrom) {
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Q.get_context());
-  sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
-      CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
+  using namespace sycl::detail;
+  context_impl &CtxImpl = *getSyclObjImpl(Q.get_context());
+  KernelProgramCache::KernelCacheT &KernelCache =
+      CtxImpl.getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
       << "Expect 1 program in kernel cache";
   ExpectedReadWriteURProgram = KernelCache.begin()->first;
@@ -707,9 +711,10 @@ TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyFrom) {
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
-  auto CtxImpl = sycl::detail::getSyclObjImpl(Q.get_context());
-  sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
-      CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
+  using namespace sycl::detail;
+  context_impl &CtxImpl = *getSyclObjImpl(Q.get_context());
+  KernelProgramCache::KernelCacheT &KernelCache =
+      CtxImpl.getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
       << "Expect 1 program in kernel cache";
   ExpectedReadWriteURProgram = KernelCache.begin()->first;

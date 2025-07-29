@@ -43,7 +43,7 @@ the SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:../proposed/sycl_ext_oneapi_free_function_queries.asciidoc[
+* link:../supported/sycl_ext_oneapi_free_function_queries.asciidoc[
   sycl_ext_oneapi_free_function_queries]
 * link:../experimental/sycl_ext_oneapi_properties.asciidoc[
   sycl_ext_oneapi_properties]
@@ -177,9 +177,6 @@ struct nd_range_kernel_key {
 template<int Dims>
 inline constexpr nd_range_kernel_key::value_t<Dims> nd_range_kernel;
 
-template<>
-struct is_property_key<nd_range_kernel_key> : std::true_type {};
-
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
@@ -218,9 +215,6 @@ struct single_task_kernel_key {
 };
 
 inline constexpr single_task_kernel_key::value_t single_task_kernel;
-
-template<>
-struct is_property_key<single_task_kernel_key> : std::true_type {};
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -673,7 +667,7 @@ parameters are used to pass the kernel arguments instead.
 Therefore, a free function kernel must obtain the iteration ID in some other
 way.
 Typically, a free function kernel uses the functions specified in
-link:../proposed/sycl_ext_oneapi_free_function_queries.asciidoc[
+link:../supported/sycl_ext_oneapi_free_function_queries.asciidoc[
 sycl_ext_oneapi_free_function_queries] for this purpose.
 
 === Address space of kernel arguments
@@ -883,6 +877,7 @@ int main() {
 ```
 
 
+[[level-zero-and-opencl-compatibility]]
 == {dpcpp} guaranteed compatibility with Level Zero and OpenCL backends
 
 The contents of this section are non-normative and apply only to the {dpcpp}
@@ -890,8 +885,6 @@ implementation.
 Kernels written using the free function kernel syntax can be submitted to a
 device by using the Level Zero or OpenCL backends, without going through the
 SYCL host runtime APIs.
-This works only when the kernel is AOT compiled to native device code using the
-`-fsycl-targets` compiler option.
 
 The interface to the kernel in the native device code module is only guaranteed
 when the kernel adheres to the following restrictions:
@@ -900,10 +893,20 @@ when the kernel adheres to the following restrictions:
 * The kernel function is declared as `extern "C"`;
 * Each formal argument to the kernel is either a {cpp} trivially copyable type
   or the `work_group_memory` type (see
-  link:../proposed/sycl_ext_oneapi_work_group_memory.asciidoc[
+  link:../experimental/sycl_ext_oneapi_work_group_memory.asciidoc[
   sycl_ext_oneapi_work_group_memory]); and
 * The translation unit containing the kernel is compiled with the
   `-fno-sycl-dead-args-optimization` option.
+
+In order to invoke a kernel using Level Zero or OpenCL, the application must
+first obtain the raw backend content of the device image that contains the
+kernel.
+One way to do this is by using
+link:../experimental/sycl_ext_oneapi_device_image_backend_content.asciidoc[
+sycl_ext_oneapi_device_image_backend_content].
+It is also possible to compile the application in AOT mode via the
+`-fsycl-targets` compiler option and then extract the device image's backend
+content from the executable file.
 
 Both Level Zero and OpenCL identify a kernel via a _name_ string.
 (See `zeKernelCreate` and `clCreateKernel` in their respective specifications.)
@@ -1043,7 +1046,7 @@ argument, effectively turning the call into a no-op.
 
 * We're pretty sure that we want to define some syntax that allows a free
   function kernel to be enqueued using the APIs defined in
-  link:../proposed/sycl_ext_oneapi_enqueue_functions.asciidoc[
+  link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
   sycl_ext_oneapi_enqueue_functions], but we haven't settled on the exact API
   yet.
   One option is like this:
@@ -1091,7 +1094,7 @@ void iota(sycl::nd_item<1> nditem, float start, float *ptr) { /*...*/  }
 ```
 
 The advantage is that the user wouldn't need to use the functions in
-link:../proposed/sycl_ext_oneapi_free_function_queries.asciidoc[
+link:../supported/sycl_ext_oneapi_free_function_queries.asciidoc[
 sycl_ext_oneapi_free_function_queries] to get the iteration index.
 Doing this raises some new questions, though:
 

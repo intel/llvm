@@ -8,10 +8,12 @@
 
 #pragma once
 
-#include <sycl/builtins.hpp>            // for ceil, cos, exp, exp10, exp2
-#include <sycl/builtins_utils_vec.hpp>  // For simplify_if_swizzle, is_swizzle
-#include <sycl/detail/memcpy.hpp>       // sycl::detail::memcpy
-#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16, bfloat16ToBits
+#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/bit_cast.hpp>      // for sycl::bit_cast
+#include <sycl/builtins.hpp>      // for ceil, cos, exp, exp10, exp2
+#include <sycl/detail/memcpy.hpp> // sycl::detail::memcpy
+#include <sycl/detail/vector_convert.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16
 #include <sycl/marray.hpp>              // for marray
 
 #include <cstring>     // for size_t
@@ -35,7 +37,7 @@ uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
 template <typename T>
 constexpr bool is_vec_or_swizzle_bf16_v =
     sycl::detail::is_vec_or_swizzle_v<T> &&
-    sycl::detail::is_valid_elem_type_v<T, bfloat16>;
+    std::is_same_v<sycl::detail::get_elem_type_t<T>, bfloat16>;
 
 template <typename T>
 constexpr int num_elements_v = sycl::detail::num_elements<T>::value;
@@ -46,7 +48,7 @@ constexpr int num_elements_v = sycl::detail::num_elements<T>::value;
 // significand has non-zero bits.
 template <typename T>
 std::enable_if_t<std::is_same_v<T, bfloat16>, bool> isnan(T x) {
-  oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
+  uint16_t XBits = bit_cast<uint16_t>(x);
   return (((XBits & 0x7F80) == 0x7F80) && (XBits & 0x7F)) ? true : false;
 }
 
@@ -90,15 +92,15 @@ template <typename T>
 std::enable_if_t<std::is_same_v<T, bfloat16>, T> fabs(T x) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     (__SYCL_CUDA_ARCH__ >= 800)
-  oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
-  return oneapi::detail::bitsToBfloat16(__clc_fabs(XBits));
+  uint16_t XBits = bit_cast<uint16_t>(x);
+  return bit_cast<bfloat16>(__clc_fabs(XBits));
 #else
   if (!isnan(x)) {
-    const static oneapi::detail::Bfloat16StorageT SignMask = 0x8000;
-    oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
+    constexpr uint16_t SignMask = 0x8000;
+    uint16_t XBits = bit_cast<uint16_t>(x);
     x = ((XBits & SignMask) == SignMask)
-            ? oneapi::detail::bitsToBfloat16(XBits & ~SignMask)
-            : x;
+            ? bit_cast<bfloat16, uint16_t>(XBits & ~SignMask)
+            : bit_cast<bfloat16>(x);
   }
   return x;
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&
@@ -116,9 +118,8 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
   }
 
   if (N % 2) {
-    oneapi::detail::Bfloat16StorageT XBits =
-        oneapi::detail::bfloat16ToBits(x[N - 1]);
-    res[N - 1] = oneapi::detail::bitsToBfloat16(__clc_fabs(XBits));
+    uint16_t XBits = bit_cast<uint16_t>(x[N - 1]);
+    res[N - 1] = bit_cast<bfloat16>(__clc_fabs(XBits));
   }
 #else
   for (size_t i = 0; i < N; i++) {
@@ -154,25 +155,22 @@ template <typename T>
 std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmin(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     (__SYCL_CUDA_ARCH__ >= 800)
-  oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
-  oneapi::detail::Bfloat16StorageT YBits = oneapi::detail::bfloat16ToBits(y);
-  return oneapi::detail::bitsToBfloat16(__clc_fmin(XBits, YBits));
+  uint16_t XBits = bit_cast<uint16_t>(x);
+  uint16_t YBits = bit_cast<uint16_t>(y);
+  return bit_cast<bfloat16>(__clc_fmin(XBits, YBits));
 #else
-  static const oneapi::detail::Bfloat16StorageT CanonicalNan = 0x7FC0;
+  constexpr uint16_t CanonicalNan = 0x7FC0;
   if (isnan(x) && isnan(y))
-    return oneapi::detail::bitsToBfloat16(CanonicalNan);
+    return bit_cast<bfloat16>(CanonicalNan);
 
   if (isnan(x))
     return y;
   if (isnan(y))
     return x;
-  oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
-  oneapi::detail::Bfloat16StorageT YBits = oneapi::detail::bfloat16ToBits(y);
-  if (((XBits | YBits) ==
-       static_cast<oneapi::detail::Bfloat16StorageT>(0x8000)) &&
-      !(XBits & YBits))
-    return oneapi::detail::bitsToBfloat16(
-        static_cast<oneapi::detail::Bfloat16StorageT>(0x8000));
+  uint16_t XBits = bit_cast<uint16_t>(x);
+  uint16_t YBits = bit_cast<uint16_t>(y);
+  if (((XBits | YBits) == static_cast<uint16_t>(0x8000)) && !(XBits & YBits))
+    return bit_cast<bfloat16>(static_cast<uint16_t>(0x8000));
 
   return (x < y) ? x : y;
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&
@@ -192,11 +190,9 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
   }
 
   if (N % 2) {
-    oneapi::detail::Bfloat16StorageT XBits =
-        oneapi::detail::bfloat16ToBits(x[N - 1]);
-    oneapi::detail::Bfloat16StorageT YBits =
-        oneapi::detail::bfloat16ToBits(y[N - 1]);
-    res[N - 1] = oneapi::detail::bitsToBfloat16(__clc_fmin(XBits, YBits));
+    uint16_t XBits = bit_cast<uint16_t>(x[N - 1]);
+    uint16_t YBits = bit_cast<uint16_t>(y[N - 1]);
+    res[N - 1] = bit_cast<bfloat16>(__clc_fmin(XBits, YBits));
   }
 #else
   for (size_t i = 0; i < N; i++) {
@@ -237,24 +233,22 @@ template <typename T>
 std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmax(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     (__SYCL_CUDA_ARCH__ >= 800)
-  oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
-  oneapi::detail::Bfloat16StorageT YBits = oneapi::detail::bfloat16ToBits(y);
-  return oneapi::detail::bitsToBfloat16(__clc_fmax(XBits, YBits));
+  uint16_t XBits = bit_cast<uint16_t>(x);
+  uint16_t YBits = bit_cast<uint16_t>(y);
+  return bit_cast<bfloat16>(__clc_fmax(XBits, YBits));
 #else
-  static const oneapi::detail::Bfloat16StorageT CanonicalNan = 0x7FC0;
+  constexpr uint16_t CanonicalNan = 0x7FC0;
   if (isnan(x) && isnan(y))
-    return oneapi::detail::bitsToBfloat16(CanonicalNan);
+    return bit_cast<bfloat16>(CanonicalNan);
 
   if (isnan(x))
     return y;
   if (isnan(y))
     return x;
-  oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
-  oneapi::detail::Bfloat16StorageT YBits = oneapi::detail::bfloat16ToBits(y);
-  if (((XBits | YBits) ==
-       static_cast<oneapi::detail::Bfloat16StorageT>(0x8000)) &&
-      !(XBits & YBits))
-    return oneapi::detail::bitsToBfloat16(0);
+  uint16_t XBits = bit_cast<uint16_t>(x);
+  uint16_t YBits = bit_cast<uint16_t>(y);
+  if (((XBits | YBits) == static_cast<uint16_t>(0x8000)) && !(XBits & YBits))
+    return bit_cast<bfloat16, uint16_t>(0);
 
   return (x > y) ? x : y;
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&
@@ -274,11 +268,9 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
   }
 
   if (N % 2) {
-    oneapi::detail::Bfloat16StorageT XBits =
-        oneapi::detail::bfloat16ToBits(x[N - 1]);
-    oneapi::detail::Bfloat16StorageT YBits =
-        oneapi::detail::bfloat16ToBits(y[N - 1]);
-    res[N - 1] = oneapi::detail::bitsToBfloat16(__clc_fmax(XBits, YBits));
+    uint16_t XBits = bit_cast<uint16_t>(x[N - 1]);
+    uint16_t YBits = bit_cast<uint16_t>(y[N - 1]);
+    res[N - 1] = bit_cast<bfloat16>(__clc_fmax(XBits, YBits));
   }
 #else
   for (size_t i = 0; i < N; i++) {
@@ -319,10 +311,10 @@ template <typename T>
 std::enable_if_t<std::is_same_v<T, bfloat16>, T> fma(T x, T y, T z) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     (__SYCL_CUDA_ARCH__ >= 800)
-  oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
-  oneapi::detail::Bfloat16StorageT YBits = oneapi::detail::bfloat16ToBits(y);
-  oneapi::detail::Bfloat16StorageT ZBits = oneapi::detail::bfloat16ToBits(z);
-  return oneapi::detail::bitsToBfloat16(__clc_fma(XBits, YBits, ZBits));
+  uint16_t XBits = bit_cast<uint16_t>(x);
+  uint16_t YBits = bit_cast<uint16_t>(y);
+  uint16_t ZBits = bit_cast<uint16_t>(z);
+  return bit_cast<bfloat16>(__clc_fma(XBits, YBits, ZBits));
 #else
   return sycl::ext::oneapi::bfloat16{sycl::fma(float{x}, float{y}, float{z})};
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&
@@ -344,13 +336,10 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   }
 
   if (N % 2) {
-    oneapi::detail::Bfloat16StorageT XBits =
-        oneapi::detail::bfloat16ToBits(x[N - 1]);
-    oneapi::detail::Bfloat16StorageT YBits =
-        oneapi::detail::bfloat16ToBits(y[N - 1]);
-    oneapi::detail::Bfloat16StorageT ZBits =
-        oneapi::detail::bfloat16ToBits(z[N - 1]);
-    res[N - 1] = oneapi::detail::bitsToBfloat16(__clc_fma(XBits, YBits, ZBits));
+    uint16_t XBits = bit_cast<uint16_t>(x[N - 1]);
+    uint16_t YBits = bit_cast<uint16_t>(y[N - 1]);
+    uint16_t ZBits = bit_cast<uint16_t>(z[N - 1]);
+    res[N - 1] = bit_cast<bfloat16>(__clc_fma(XBits, YBits, ZBits));
   }
 #else
   for (size_t i = 0; i < N; i++) {

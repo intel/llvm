@@ -1,9 +1,13 @@
 // RUN: %clangxx -O0 -fsycl -fno-sycl-esimd-force-stateless-mem -fsycl-device-only -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -S %t -o %t.table
+// -O0 lowering, requires `-force-disable-esimd-opt` to disable all
+// optimizations.
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -force-disable-esimd-opt -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATEFUL
 
 // RUN: %clangxx -O0 -fsycl -fsycl-esimd-force-stateless-mem -fsycl-device-only -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -properties -split-esimd -lower-esimd -O0 -S %t -o %t.table
+// -O0 lowering, requires `-force-disable-esimd-opt` to disable all
+// optimizations.
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -O0 -force-disable-esimd-opt -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATELESS
 
 // Checks ESIMD intrinsic translation.
@@ -17,12 +21,12 @@ using namespace sycl::ext::intel::experimental::esimd;
 
 using AccType = sycl::accessor<uint8_t, 1, sycl::access::mode::read_write>;
 
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &);
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(const AccType &);
 
 class EsimdFunctor {
 public:
   AccType acc;
-  void operator()() __attribute__((sycl_explicit_simd)) { foo(acc); }
+  void operator()() const __attribute__((sycl_explicit_simd)) { foo(acc); }
 };
 
 template <typename name, typename Func>
@@ -30,12 +34,12 @@ __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
-void bar(AccType &acc) {
+void bar(const AccType &acc) {
   EsimdFunctor esimdf{acc};
   kernel<class kernel_esimd>(esimdf);
 }
 
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &acc) {
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(const AccType &acc) {
   constexpr int VL = 4;
   int *ptr = 0;
   uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);

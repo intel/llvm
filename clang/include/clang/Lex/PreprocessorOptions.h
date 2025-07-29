@@ -68,6 +68,7 @@ public:
   std::vector<std::pair<std::string, bool/*isUndef*/>> Macros;
   std::vector<std::string> Includes;
   std::string IncludeFooter;
+  std::string IncludeHeader;
   std::vector<std::string> MacroIncludes;
 
   /// Perform extra checks when loading PCM files for mutable file systems.
@@ -189,19 +190,6 @@ public:
   /// by providing appropriate definitions to retrofit the standard library
   /// with support for lifetime-qualified pointers.
   ObjCXXARCStandardLibraryKind ObjCXXARCStandardLibrary = ARCXX_nolib;
-
-  /// Function for getting the dependency preprocessor directives of a file.
-  ///
-  /// These are directives derived from a special form of lexing where the
-  /// source input is scanned for the preprocessor directives that might have an
-  /// effect on the dependencies for a compilation unit.
-  ///
-  /// Enables a client to cache the directives for a file and provide them
-  /// across multiple compiler invocations.
-  /// FIXME: Allow returning an error.
-  std::function<std::optional<ArrayRef<dependency_directives_scan::Directive>>(
-      FileEntryRef)>
-      DependencyDirectivesForFile;
 
   /// Set up preprocessor for RunAnalysis action.
   bool SetUpStaticAnalyzer = false;

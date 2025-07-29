@@ -85,9 +85,9 @@ std::vector<Decl::Kind> testWalk(llvm::StringRef TargetCode,
   // For each difference, show the target point in context, like a diagnostic.
   std::string DiagBuf;
   llvm::raw_string_ostream DiagOS(DiagBuf);
-  auto *DiagOpts = new DiagnosticOptions();
-  DiagOpts->ShowLevel = 0;
-  DiagOpts->ShowNoteIncludeStack = 0;
+  DiagnosticOptions DiagOpts;
+  DiagOpts.ShowLevel = 0;
+  DiagOpts.ShowNoteIncludeStack = 0;
   TextDiagnostic Diag(DiagOS, AST.context().getLangOpts(), DiagOpts);
   auto DiagnosePoint = [&](llvm::StringRef Message, unsigned Offset) {
     Diag.emitDiagnostic(
@@ -534,6 +534,9 @@ TEST(WalkAST, Enums) {
   testWalk(R"(namespace ns { enum E { A = 42 }; }
               struct S { using ns::E::A; };)",
            "int e = S::^A;");
+  testWalk(R"(namespace ns { enum E { $explicit^A = 42 }; })",
+           "namespace z = ns; int e = z::^A;");
+  testWalk(R"(enum E { $explicit^A = 42 };)", "int e = ::^A;");
 }
 
 TEST(WalkAST, InitializerList) {
@@ -567,5 +570,11 @@ TEST(WalkAST, OperatorNewDelete) {
   testWalk("struct A { static void $ambiguous^operator delete(void*); };",
            "void foo() { A a; ^delete &a; }");
 }
+
+TEST(WalkAST, CleanupAttr) {
+  testWalk("void* $explicit^freep(void *p);",
+           "void foo() { __attribute__((__cleanup__(^freep))) char* x = 0; }");
+}
+
 } // namespace
 } // namespace clang::include_cleaner

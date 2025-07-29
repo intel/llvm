@@ -8,14 +8,14 @@
 
 #pragma once
 
+#include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/aliases.hpp>                    // for half
 #include <sycl/builtins.hpp>                   // for to_vec2
-#include <sycl/builtins_utils_vec.hpp>         // for to_vec, to_marray...
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloath, is_sv...
 #include <sycl/detail/memcpy.hpp>              // detail::memcpy
 #include <sycl/marray.hpp>                     // for marray
-#include <sycl/types.hpp>                      // for vec
+#include <sycl/vector.hpp>                     // for vec
 
 #include <cstring>     // for size_t
 #include <stdio.h>     // for printf

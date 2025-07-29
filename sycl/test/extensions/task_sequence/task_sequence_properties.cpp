@@ -40,12 +40,6 @@ template <typename T> void checkIsPropertyOf() {
 }
 
 int main() {
-  static_assert(is_property_key<balanced_key>::value);
-  static_assert(is_property_key<response_capacity_key>::value);
-  static_assert(is_property_key<invocation_capacity_key>::value);
-  static_assert(is_property_key<pipelined_key>::value);
-  static_assert(is_property_key<fpga_cluster_key>::value);
-
   static_assert(is_property_value<decltype(balanced)>::value);
   static_assert(is_property_value<decltype(response_capacity<1>)>::value);
   static_assert(is_property_value<decltype(invocation_capacity<1>)>::value);

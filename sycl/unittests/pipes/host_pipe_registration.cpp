@@ -12,8 +12,8 @@
 #include <detail/device_binary_image.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <gtest/gtest.h>
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/detail/host_pipe_map.hpp>
 
@@ -29,21 +29,21 @@ class PipeID;
 using Pipe = sycl::ext::intel::experimental::pipe<PipeID, int, 10,
                                                   default_pipe_properties>;
 
-static sycl::unittest::UrImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   sycl::detail::host_pipe_map::add(Pipe::get_host_ptr(),
                                    "test_host_pipe_unique_id");
 
-  UrPropertySet PropSet;
-  UrProperty HostPipeInfo =
+  MockPropertySet PropSet;
+  MockProperty HostPipeInfo =
       makeHostPipeInfo("test_host_pipe_unique_id", sizeof(int));
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_HOST_PIPES,
-                 std::vector<UrProperty>{std::move(HostPipeInfo)});
+                 std::vector<MockProperty>{std::move(HostPipeInfo)});
 
-  std::vector<UrOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
 
-  UrImage Img(std::move(Entries), std::move(PropSet));
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
@@ -96,7 +96,15 @@ void prepareUrMock(unittest::UrMock<> &Mock) {
 
 class PipeTest : public ::testing::Test {
 public:
-  PipeTest() : Mock{}, Plt{sycl::platform()} {}
+  PipeTest()
+      : Mock{}, Plt{[]() {
+          // Fake extension. Make sure it's redefined before we create device
+          // hierarchy.
+          mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                                  &after_urDeviceGetInfo);
+
+          return sycl::platform{};
+        }()} {}
 
 protected:
   void SetUp() override {
@@ -115,13 +123,10 @@ protected:
   queue q;
 };
 
-static sycl::unittest::UrImage Img = generateDefaultImage();
-static sycl::unittest::UrImageArray<1> ImgArray{&Img};
+static sycl::unittest::MockDeviceImage Img = generateDefaultImage();
+static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 TEST_F(PipeTest, Basic) {
-  // Fake extension
-  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                          &after_urDeviceGetInfo);
 
   // Device registration
 
@@ -154,8 +159,6 @@ ur_result_t after_urEventGetInfo(void *pParams) {
 }
 
 TEST_F(PipeTest, NonBlockingOperationFail) {
-  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                          &after_urDeviceGetInfo);
   mock::getCallbacks().set_replace_callback("urEventWait", &redefinedEventWait);
 
   bool Success = false;

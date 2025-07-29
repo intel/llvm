@@ -1,9 +1,13 @@
 // RUN: %clangxx -O0 -fsycl -fsycl-device-only -fno-sycl-esimd-force-stateless-mem -D__ESIMD_GATHER_SCATTER_LLVM_IR -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -S %t -o %t.table
+// -O0 lowering, requires `-force-disable-esimd-opt` to disable all
+// optimizations.
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -force-disable-esimd-opt -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATEFUL
 
 // RUN: %clangxx -O0 -fsycl -fsycl-device-only -fsycl-esimd-force-stateless-mem -D__ESIMD_GATHER_SCATTER_LLVM_IR -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem -O0 -S %t -o %t.table
+// -O0 lowering, requires `-force-disable-esimd-opt` to disable all
+// optimizations.
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem -O0 -force-disable-esimd-opt -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATELESS
 
 // Checks ESIMD memory functions accepting compile time properties for
@@ -18,13 +22,13 @@ using AccType = sycl::accessor<uint8_t, 1, sycl::access::mode::read_write>;
 using LocalAccType = sycl::local_accessor<double, 1>;
 using LocalAccTypeInt = sycl::local_accessor<int, 1>;
 
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_block_load(AccType &,
-                                                       LocalAccType &, float *,
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_block_load(const AccType &,
+                                                       const LocalAccType &, float *,
                                                        int byte_offset32,
                                                        size_t byte_offset64);
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
-test_block_store(AccType &, LocalAccType &local_acc, float *, int byte_offset32,
-                 size_t byte_offset64);
+test_block_store(const AccType &, const LocalAccType &local_acc, float *,
+                 int byte_offset32, size_t byte_offset64);
 
 class EsimdFunctor {
 public:
@@ -34,7 +38,7 @@ public:
   float *ptr;
   int byte_offset32;
   size_t byte_offset64;
-  void operator()() __attribute__((sycl_explicit_simd)) {
+  void operator()() const __attribute__((sycl_explicit_simd)) {
     test_block_load(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_block_store(acc, local_acc, ptr, byte_offset32, byte_offset64);
   }
@@ -45,8 +49,9 @@ __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
-void bar(AccType &acc, LocalAccType &local_acc, LocalAccTypeInt &local_acc_int,
-         float *ptr, int byte_offset32, size_t byte_offset64) {
+void bar(const AccType &acc, const LocalAccType &local_acc,
+         const LocalAccTypeInt &local_acc_int, float *ptr, int byte_offset32,
+         size_t byte_offset64) {
   EsimdFunctor esimdf{acc, local_acc,     local_acc_int,
                       ptr, byte_offset32, byte_offset64};
   kernel<class kernel_esimd>(esimdf);
@@ -54,7 +59,7 @@ void bar(AccType &acc, LocalAccType &local_acc, LocalAccTypeInt &local_acc_int,
 
 // CHECK-LABEL: define {{.*}} @_Z15test_block_load{{.*}}
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
-test_block_load(AccType &acc, LocalAccType &local_acc, float *ptrf,
+test_block_load(const AccType &acc, const LocalAccType &local_acc, float *ptrf,
                 int byte_offset32, size_t byte_offset64) {
   properties props_a{cache_hint_L1<cache_hint::streaming>,
                      cache_hint_L2<cache_hint::cached>, alignment<16>};
@@ -253,7 +258,7 @@ test_block_load(AccType &acc, LocalAccType &local_acc, float *ptrf,
 
 // CHECK-LABEL: define {{.*}} @_Z16test_block_store{{.*}}
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
-test_block_store(AccType &acc, LocalAccType &local_acc, float *ptrf,
+test_block_store(const AccType &acc, const LocalAccType &local_acc, float *ptrf,
                  int byte_offset32, size_t byte_offset64) {
   // Test USM block store
   constexpr int N = 4;

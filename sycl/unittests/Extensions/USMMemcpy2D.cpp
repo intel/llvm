@@ -10,8 +10,8 @@
 
 #include <detail/queue_impl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -29,22 +29,24 @@ struct KernelInfo<class __usmfill2d<long>>
     : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return USMFillHelperKernelNameLong; }
   static constexpr unsigned getNumParams() { return 7; }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
-    // Actual signature does not matter, but we need entries for each param.
-    static constexpr const kernel_param_desc_t DummySignature[] = {
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-    };
+  static constexpr const kernel_param_desc_t &getParamDesc(int Idx) {
     return DummySignature[Idx];
   }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 3 * sizeof(size_t);
   }
+
+private:
+  // Actual signature does not matter, but we need entries for each param.
+  static constexpr const kernel_param_desc_t DummySignature[] = {
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+  };
 };
 
 template <>
@@ -52,22 +54,24 @@ struct KernelInfo<class __usmfill2d<unsigned char>>
     : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return USMFillHelperKernelNameChar; }
   static constexpr unsigned getNumParams() { return 7; }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
-    // Actual signature does not matter, but we need entries for each param.
-    static constexpr const kernel_param_desc_t DummySignature[] = {
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-    };
+  static constexpr const kernel_param_desc_t &getParamDesc(int Idx) {
     return DummySignature[Idx];
   }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 3 * sizeof(size_t);
   }
+
+private:
+  // Actual signature does not matter, but we need entries for each param.
+  static constexpr const kernel_param_desc_t DummySignature[] = {
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+  };
 };
 
 template <>
@@ -77,23 +81,25 @@ struct KernelInfo<class __usmmemcpy2d<long>>
     return USMMemcpyHelperKernelNameLong;
   }
   static constexpr unsigned getNumParams() { return 8; }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
-    // Actual signature does not matter, but we need entries for each param.
-    static constexpr const kernel_param_desc_t DummySignature[] = {
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-    };
+  static constexpr const kernel_param_desc_t &getParamDesc(int Idx) {
     return DummySignature[Idx];
   }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 4 * sizeof(size_t);
   }
+
+private:
+  // Actual signature does not matter, but we need entries for each param.
+  static constexpr const kernel_param_desc_t DummySignature[] = {
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+  };
 };
 
 template <>
@@ -103,33 +109,35 @@ struct KernelInfo<class __usmmemcpy2d<unsigned char>>
     return USMMemcpyHelperKernelNameChar;
   }
   static constexpr unsigned getNumParams() { return 8; }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
-    // Actual signature does not matter, but we need entries for each param.
-    static constexpr const kernel_param_desc_t DummySignature[] = {
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-        {kernel_param_kind_t::kind_std_layout, 4, 0},
-    };
+  static constexpr const kernel_param_desc_t &getParamDesc(int Idx) {
     return DummySignature[Idx];
   }
   static constexpr int64_t getKernelSize() {
     return 2 * sizeof(void *) + 2 * sizeof(sycl::id<2>) + 4 * sizeof(size_t);
   }
+
+private:
+  // Actual signature does not matter, but we need entries for each param.
+  static constexpr const kernel_param_desc_t DummySignature[] = {
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+      {kernel_param_kind_t::kind_std_layout, 4, 0},
+  };
 };
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
 
 namespace {
-sycl::unittest::UrImage Imgs[] = {sycl::unittest::generateDefaultImage(
+sycl::unittest::MockDeviceImage Imgs[] = {sycl::unittest::generateDefaultImage(
     {USMFillHelperKernelNameLong, USMFillHelperKernelNameChar,
      USMMemcpyHelperKernelNameLong, USMMemcpyHelperKernelNameChar})};
-sycl::unittest::UrImageArray<1> ImgArray{Imgs};
+sycl::unittest::MockDeviceImageArray<1> ImgArray{Imgs};
 
 ur_context_info_t LastMemopsQuery = UR_CONTEXT_INFO_NUM_DEVICES;
 
@@ -256,8 +264,9 @@ ur_result_t after_urKernelCreate(void *pParams) {
 
 std::string LastEnqueuedKernel;
 
-ur_result_t after_urEnqueueKernelLaunch(void *pParams) {
-  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+ur_result_t after_urEnqueueKernelLaunchWithArgsExp(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
   auto KernelIt = KernelToNameMap.find(*params.phKernel);
   EXPECT_TRUE(KernelIt != KernelToNameMap.end());
   LastEnqueuedKernel = KernelIt->second;
@@ -272,8 +281,7 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
   sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
-  std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
-      sycl::detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(Q);
 
   mock::getCallbacks().set_after_callback(
       "urContextGetInfo", &after_urContextGetInfo<true, true, true>);
@@ -289,7 +297,7 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
 
   Q.ext_oneapi_fill2d(Ptr1, 5, 42l, 4, 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  EXPECT_EQ(LastFill2D.hQueue, (ur_queue_handle_t)QueueImpl->getHandleRef());
+  EXPECT_EQ(LastFill2D.hQueue, (ur_queue_handle_t)QueueImpl.getHandleRef());
   EXPECT_EQ(LastFill2D.pMem, (void *)Ptr1);
   EXPECT_EQ(LastFill2D.pitch, (size_t)5);
   EXPECT_EQ(LastFill2D.patternSize, sizeof(long));
@@ -298,7 +306,7 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
 
   Q.ext_oneapi_memset2d(Ptr1, 5 * sizeof(long), 123, 4 * sizeof(long), 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  EXPECT_EQ(LastFill2D.hQueue, (ur_queue_handle_t)QueueImpl->getHandleRef());
+  EXPECT_EQ(LastFill2D.hQueue, (ur_queue_handle_t)QueueImpl.getHandleRef());
   EXPECT_EQ(LastFill2D.pMem, (void *)Ptr1);
   EXPECT_EQ(LastFill2D.pitch, (size_t)5 * sizeof(long));
   EXPECT_EQ(LastFill2D.pattern[0], 123);
@@ -308,7 +316,7 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
   Q.ext_oneapi_memcpy2d(Ptr1, 5 * sizeof(long), Ptr2, 8 * sizeof(long),
                         4 * sizeof(long), 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  EXPECT_EQ(LastMemcpy2D.hQueue, (ur_queue_handle_t)QueueImpl->getHandleRef());
+  EXPECT_EQ(LastMemcpy2D.hQueue, (ur_queue_handle_t)QueueImpl.getHandleRef());
   EXPECT_EQ(LastMemcpy2D.pDst, (void *)Ptr1);
   EXPECT_EQ(LastMemcpy2D.dstPitch, (size_t)5 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.pSrc, (void *)Ptr2);
@@ -318,7 +326,7 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
 
   Q.ext_oneapi_copy2d(Ptr1, 5, Ptr2, 8, 4, 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  EXPECT_EQ(LastMemcpy2D.hQueue, (ur_queue_handle_t)QueueImpl->getHandleRef());
+  EXPECT_EQ(LastMemcpy2D.hQueue, (ur_queue_handle_t)QueueImpl.getHandleRef());
   EXPECT_EQ(LastMemcpy2D.pDst, (void *)Ptr2);
   EXPECT_EQ(LastMemcpy2D.dstPitch, (size_t)8 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.pSrc, (void *)Ptr1);
@@ -340,8 +348,9 @@ TEST(USMMemcpy2DTest, USMMemops2DUnsupported) {
                                           &after_urDeviceGetInfo);
   mock::getCallbacks().set_after_callback("urKernelCreate",
                                           &after_urKernelCreate);
-  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
-                                          &after_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &after_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback(
       "urUSMGetMemAllocInfo", &after_urUSMGetMemAllocInfo<UR_USM_TYPE_DEVICE>);
 
@@ -373,8 +382,7 @@ TEST(USMMemcpy2DTest, USMFillSupportedOnly) {
   sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
-  std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
-      sycl::detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(Q);
 
   mock::getCallbacks().set_after_callback(
       "urContextGetInfo", &after_urContextGetInfo<true, false, false>);
@@ -382,8 +390,9 @@ TEST(USMMemcpy2DTest, USMFillSupportedOnly) {
                                           &after_urDeviceGetInfo);
   mock::getCallbacks().set_after_callback("urKernelCreate",
                                           &after_urKernelCreate);
-  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
-                                          &after_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &after_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_replace_callback("urEnqueueUSMFill2D",
                                             &redefine_urEnqueueUSMFill2D);
   mock::getCallbacks().set_after_callback(
@@ -394,7 +403,7 @@ TEST(USMMemcpy2DTest, USMFillSupportedOnly) {
 
   Q.ext_oneapi_fill2d(Ptr1, 5, 42l, 4, 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  EXPECT_EQ(LastFill2D.hQueue, QueueImpl->getHandleRef());
+  EXPECT_EQ(LastFill2D.hQueue, QueueImpl.getHandleRef());
   EXPECT_EQ(LastFill2D.pMem, (void *)Ptr1);
   EXPECT_EQ(LastFill2D.pitch, (size_t)5);
   EXPECT_EQ(LastFill2D.patternSize, sizeof(long));
@@ -419,8 +428,7 @@ TEST(USMMemcpy2DTest, USMMemsetSupportedOnly) {
   sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
-  std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
-      sycl::detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(Q);
 
   // Enable fill + set, they are implemented with the same entry point in the
   // backend so supporting one means supporting both.
@@ -430,8 +438,9 @@ TEST(USMMemcpy2DTest, USMMemsetSupportedOnly) {
                                           &after_urDeviceGetInfo);
   mock::getCallbacks().set_after_callback("urKernelCreate",
                                           &after_urKernelCreate);
-  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
-                                          &after_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &after_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback(
       "urUSMGetMemAllocInfo", &after_urUSMGetMemAllocInfo<UR_USM_TYPE_DEVICE>);
   mock::getCallbacks().set_replace_callback("urEnqueueUSMFill2D",
@@ -442,7 +451,7 @@ TEST(USMMemcpy2DTest, USMMemsetSupportedOnly) {
 
   Q.ext_oneapi_memset2d(Ptr1, 5 * sizeof(long), 123, 4 * sizeof(long), 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  EXPECT_EQ(LastFill2D.hQueue, QueueImpl->getHandleRef());
+  EXPECT_EQ(LastFill2D.hQueue, QueueImpl.getHandleRef());
   EXPECT_EQ(LastFill2D.pMem, (void *)Ptr1);
   EXPECT_EQ(LastFill2D.pitch, (size_t)5 * sizeof(long));
   EXPECT_EQ(LastFill2D.pattern[0], 123);
@@ -467,8 +476,7 @@ TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
   sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
-  std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
-      sycl::detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(Q);
 
   mock::getCallbacks().set_after_callback(
       "urContextGetInfo", &after_urContextGetInfo<false, false, true>);
@@ -476,8 +484,9 @@ TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
                                           &after_urDeviceGetInfo);
   mock::getCallbacks().set_after_callback("urKernelCreate",
                                           &after_urKernelCreate);
-  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
-                                          &after_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &after_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_replace_callback("urEnqueueUSMMemcpy2D",
                                             &redefine_urEnqueueUSMMemcpy2D);
   mock::getCallbacks().set_after_callback(
@@ -497,7 +506,7 @@ TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
   Q.ext_oneapi_memcpy2d(Ptr1, 5 * sizeof(long), Ptr2, 8 * sizeof(long),
                         4 * sizeof(long), 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  EXPECT_EQ(LastMemcpy2D.hQueue, QueueImpl->getHandleRef());
+  EXPECT_EQ(LastMemcpy2D.hQueue, QueueImpl.getHandleRef());
   EXPECT_EQ(LastMemcpy2D.pDst, (void *)Ptr1);
   EXPECT_EQ(LastMemcpy2D.dstPitch, (size_t)5 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.pSrc, (void *)Ptr2);
@@ -508,7 +517,7 @@ TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
 
   Q.ext_oneapi_copy2d(Ptr1, 5, Ptr2, 8, 4, 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  EXPECT_EQ(LastMemcpy2D.hQueue, QueueImpl->getHandleRef());
+  EXPECT_EQ(LastMemcpy2D.hQueue, QueueImpl.getHandleRef());
   EXPECT_EQ(LastMemcpy2D.pDst, (void *)Ptr2);
   EXPECT_EQ(LastMemcpy2D.dstPitch, (size_t)8 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.pSrc, (void *)Ptr1);

@@ -11,7 +11,7 @@ int main() {
       sycl::ext::oneapi::experimental::max_linear_work_group_size<4>,
   };
 
-  // CHECK-IR: define{{.*}}void @[[LaunchBoundsKernelFn:.*LaunchBoundsKernel0]](){{.*}} #[[LaunchBoundsAttrs:[0-9]+]]
+  // CHECK-IR: define{{.*}}ptx_kernel{{.*}}void @[[LaunchBoundsKernelFn:.*LaunchBoundsKernel0]](){{.*}} #[[LaunchBoundsAttrs:[0-9]+]]
   Q.single_task<class LaunchBoundsKernel0>(Props, []() {});
 
   return 0;
@@ -20,5 +20,4 @@ int main() {
 // CHECK-IR: attributes #[[LaunchBoundsAttrs]] = {
 // CHECK-IR-SAME: "sycl-max-linear-work-group-size"="4"
 
-// CHECK-IR-DAG: !{ptr @[[LaunchBoundsKernelFn]], !"kernel", i32 1}
 // CHECK-IR-DAG: !{ptr @[[LaunchBoundsKernelFn]], !"maxntidx", i32 4}

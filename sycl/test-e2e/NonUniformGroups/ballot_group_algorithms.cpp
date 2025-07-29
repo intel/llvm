@@ -1,7 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// RUN: %if any-device-is-cpu && opencl-aot %{ %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s %}
+// CPU AOT targets host isa, so we compile on the run system instead.
+// REQUIRES: opencl-aot
+// RUN: %if any-device-is-cpu && opencl-aot %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s %}
 // RUN: %if cpu %{ %{run} %t.x86.out %}
 //
 // REQUIRES: cpu || gpu
@@ -9,8 +11,12 @@
 // REQUIRES: aspect-ext_oneapi_ballot_group
 
 // Fails in Nightly testing on the self-hosted CUDA runner:
-// https://github.com/intel/llvm/issues/12995.
 // UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/12995
+
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64702
+// The test is disabled for spirv-backend while we investigate the root cause.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>

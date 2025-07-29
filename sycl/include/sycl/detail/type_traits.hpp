@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>             // for decorated, address_space
-#include <sycl/detail/generic_type_lists.hpp> // for vec, marray, integer_list
-#include <sycl/detail/type_list.hpp>          // for is_contained, find_twi...
+#include <sycl/detail/type_traits/vec_marray_traits.hpp>
+
+#include <sycl/access/access.hpp> // for decorated, address_space
 
 #include <array>       // for array
 #include <cstddef>     // for size_t
@@ -24,10 +24,6 @@ template <class T> struct is_fixed_size_group : std::false_type {};
 
 template <class T>
 inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
-
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-class SwizzleOp;
 } // namespace detail
 
 template <int Dimensions> class group;
@@ -114,10 +110,11 @@ inline constexpr bool is_group_helper_v =
 } // namespace ext::oneapi::experimental
 
 namespace detail {
-// Type for Intel device UUID extension.
+// Types for Intel's device UUID and device LUID extension.
 // For details about this extension, see
 // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
 using uuid_type = std::array<unsigned char, 16>;
+using luid_type = std::array<unsigned char, 8>;
 
 template <typename T, typename R> struct copy_cv_qualifiers;
 
@@ -154,12 +151,20 @@ template <typename T, size_t N> struct get_elem_type_unqual<marray<T, N>> {
 template <typename T, int N> struct get_elem_type_unqual<vec<T, N>> {
   using type = T;
 };
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 struct get_elem_type_unqual<SwizzleOp<VecT, OperationLeftT, OperationRightT,
                                OperationCurrentT, Indexes...>> {
   using type = typename get_elem_type_unqual<std::remove_cv_t<VecT>>::type;
 };
+#else
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct get_elem_type_unqual<detail::hide_swizzle_from_adl::Swizzle<
+    IsConstVec, DataT, VecSize, Indexes...>> {
+  using type = DataT;
+};
+#endif
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
@@ -170,18 +175,6 @@ struct get_elem_type_unqual<multi_ptr<ElementType, Space, DecorateAddress>> {
 template <typename ElementType> struct get_elem_type_unqual<ElementType *> {
   using type = ElementType;
 };
-
-template <typename T, typename = void>
-struct is_ext_vector : std::false_type {};
-
-// FIXME: unguarded use of non-standard built-in
-template <typename T>
-struct is_ext_vector<
-    T, std::void_t<decltype(__builtin_reduce_max(std::declval<T>()))>>
-    : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_ext_vector_v = is_ext_vector<T>::value;
 
 // FIXME: unguarded use of non-standard built-in
 template <typename T>
@@ -230,7 +223,7 @@ template <typename T, typename R> struct copy_cv_qualifiers {
 };
 
 // make_unsigned with support SYCL vec class
-template <typename T> struct make_unsigned {
+template <typename T, typename = void> struct make_unsigned {
   using type = std::make_unsigned_t<T>;
 };
 template <typename T> using make_unsigned_t = typename make_unsigned<T>::type;
@@ -240,11 +233,10 @@ template <class T> struct make_unsigned<const T> {
 template <class T, int N> struct make_unsigned<vec<T, N>> {
   using type = vec<make_unsigned_t<T>, N>;
 };
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct make_unsigned<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                               OperationCurrentT, Indexes...>> {
-  using type = make_unsigned_t<std::remove_cv_t<VecT>>;
+
+template <typename T>
+struct make_unsigned<T, std::enable_if_t<is_swizzle_v<T>>> {
+  using type = make_unsigned_t<vec<typename T::element_type, T::size()>>;
 };
 template <class T, std::size_t N> struct make_unsigned<marray<T, N>> {
   using type = marray<make_unsigned_t<T>, N>;
@@ -255,11 +247,6 @@ template <typename T, int N, template <typename> class S>
 inline constexpr bool is_gen_based_on_type_sizeof_v =
     S<T>::value && (sizeof(vector_element_t<T>) == N);
 
-template <typename> struct is_vec : std::false_type {};
-template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
-
-template <typename T> constexpr bool is_vec_v = is_vec<T>::value;
-
 template <typename> struct get_vec_size {
   static constexpr int size = 1;
 };
@@ -267,27 +254,6 @@ template <typename> struct get_vec_size {
 template <typename T, int N> struct get_vec_size<sycl::vec<T, N>> {
   static constexpr int size = N;
 };
-
-// is_swizzle
-template <typename> struct is_swizzle : std::false_type {};
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct is_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                            OperationCurrentT, Indexes...>> : std::true_type {};
-
-template <typename T> constexpr bool is_swizzle_v = is_swizzle<T>::value;
-
-// is_swizzle_or_vec_v
-
-template <typename T>
-constexpr bool is_vec_or_swizzle_v = is_vec_v<T> || is_swizzle_v<T>;
-
-// is_marray
-template <typename> struct is_marray : std::false_type {};
-template <typename T, size_t N>
-struct is_marray<sycl::marray<T, N>> : std::true_type {};
-
-template <typename T> constexpr bool is_marray_v = is_marray<T>::value;
 
 // is_integral
 template <typename T>
@@ -421,6 +387,25 @@ struct map_type<T, From, To, Rest...> {
 
 template <typename T, typename... Ts>
 constexpr bool check_type_in_v = ((std::is_same_v<T, Ts> || ...));
+
+template <auto V, auto... Vs>
+constexpr bool check_value_in_v = (((V == Vs) || ...));
+
+#if __has_builtin(__type_pack_element)
+template <int N, typename... Ts>
+using nth_type_t = __type_pack_element<N, Ts...>;
+#else
+template <int N, typename T, typename... Ts> struct nth_type {
+  using type = typename nth_type<N - 1, Ts...>::type;
+};
+
+template <typename T, typename... Ts> struct nth_type<0, T, Ts...> {
+  using type = T;
+};
+
+template <int N, typename... Ts>
+using nth_type_t = typename nth_type<N, Ts...>::type;
+#endif
 
 } // namespace detail
 } // namespace _V1

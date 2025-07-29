@@ -9,6 +9,7 @@
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 #include <sycl/usm.hpp>
 
@@ -22,9 +23,9 @@ int main() {
   // CHECK-NOT: <--- urProgramRetain
   // CHECK: <--- urKernelCreate
   // CHECK-NOT: <--- urKernelRetain
-  // CHECK: <--- urEnqueueKernelLaunch
-  // CHECK: <--- urKernelRelease
+  // CHECK: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK: <--- urProgramRelease
+  // CHECK: <--- urKernelRelease
   // CHECK: <--- urEventWait
 
   // CHECK-CACHE: <--- urProgramCreate
@@ -33,9 +34,7 @@ int main() {
   // CHECK-CACHE: <--- urKernelCreate
   // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
-  // CHECK-CACHE: <--- urEnqueueKernelLaunch
-  // CHECK-CACHE: <--- urKernelRelease
-  // CHECK-CACHE: <--- urProgramRelease
+  // CHECK-CACHE: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-CACHE: <--- urEventWait
   q.single_task([] {}).wait();
 
@@ -43,7 +42,7 @@ int main() {
   // CHECK-NOT: <--- urProgramRetain
   // CHECK: <--- urKernelCreate
   // CHECK-NOT: <--- urKernelRetain
-  // CHECK: <--- urEnqueueKernelLaunch
+  // CHECK: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK: <--- urKernelRelease
   // CHECK: <--- urProgramRelease
   // CHECK: <--- urEventWait
@@ -54,7 +53,7 @@ int main() {
   // CHECK-CACHE: <--- urKernelCreate
   // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
-  // CHECK-CACHE: <--- urEnqueueKernelLaunch
+  // CHECK-CACHE: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-CACHE: <--- urKernelRelease
   // CHECK-CACHE: <--- urProgramRelease
   // CHECK-CACHE: <--- urEventWait
@@ -63,7 +62,7 @@ int main() {
   // CHECK-NOT: <--- urProgramRetain
   // CHECK: <--- urKernelCreate
   // CHECK-NOT: <--- urKernelRetain
-  // CHECK: <--- urEnqueueKernelLaunch
+  // CHECK: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK: <--- urKernelRelease
   // CHECK: <--- urProgramRelease
   // CHECK: <--- urEventWait
@@ -74,7 +73,7 @@ int main() {
   // CHECK-CACHE: <--- urKernelCreate
   // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
-  // CHECK-CACHE: <--- urEnqueueKernelLaunch
+  // CHECK-CACHE: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-CACHE: <--- urKernelRelease
   // CHECK-CACHE: <--- urProgramRelease
   // CHECK-CACHE: <--- urEventWait
@@ -97,6 +96,8 @@ int main() {
 // windows should handle the memory cleanup.
 
 // (Program cache releases)
+// CHECK-RELEASE: <--- urProgramRelease
+// CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease

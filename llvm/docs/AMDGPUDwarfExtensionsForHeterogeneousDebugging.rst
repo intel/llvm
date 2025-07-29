@@ -3807,7 +3807,7 @@ A.5.1 Base Type Entries
 2. A ``DW_TAG_base_type`` debugger information entry with the encoding
    ``DW_ATE_address`` may have a ``DW_AT_LLVM_address_space`` attribute whose
    value is an architecture specific address space (see
-   :ref:`amdgpu-dwarf-address-spaces`). If ommitted it defaults to
+   :ref:`amdgpu-dwarf-address-spaces`). If omitted it defaults to
    ``DW_ASPACE_LLVM_none``.
 
 .. _amdgpu-dwarf-type-modifier-entries:
@@ -5323,7 +5323,7 @@ D. References
 
     .. _amdgpu-dwarf-AMD-ROCgdb:
 
-2.  [AMD-ROCgdb] `AMD ROCm Debugger (ROCgdb) <https://github.com/ROCm-Developer-Tools/ROCgdb>`__
+2.  [AMD-ROCgdb] `AMD ROCm Debugger (ROCgdb) <https://github.com/ROCm/ROCgdb>`__
 
     .. _amdgpu-dwarf-AMD-ROCm:
 

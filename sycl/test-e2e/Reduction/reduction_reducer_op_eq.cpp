@@ -1,11 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// On nvidia a reduction appears to be unexpectedly executed via the host.
-// XFAIL: hip_nvidia
-
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
 
 // This test checks that operators ++, +=, *=, |=, &=, ^= are supported
 // whent the corresponding std::plus<>, std::multiplies, etc are defined.

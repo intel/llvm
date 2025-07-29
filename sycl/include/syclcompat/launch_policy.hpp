@@ -192,6 +192,20 @@ launch_policy(dim3, dim3, Ts...) -> launch_policy<
     detail::has_type<local_mem_size, std::tuple<Ts...>>::value>;
 
 namespace detail {
+// Custom std::apply helpers to enable inlining
+template <class F, class Tuple, size_t... Is>
+__syclcompat_inline__ constexpr void apply_expand(F &&f, Tuple &&t,
+                                                  std::index_sequence<Is...>) {
+  [[clang::always_inline]] std::forward<F>(f)(
+      get<Is>(std::forward<Tuple>(t))...);
+}
+
+template <class F, class Tuple>
+__syclcompat_inline__ constexpr void apply_helper(F &&f, Tuple &&t) {
+  apply_expand(
+      std::forward<F>(f), std::forward<Tuple>(t),
+      std::make_index_sequence<std::tuple_size_v<std::decay_t<Tuple>>>{});
+}
 
 template <auto F, typename Range, typename KProps, bool HasLocalMem,
           typename... Args>
@@ -205,18 +219,22 @@ struct KernelFunctor {
       : _kernel_properties{kernel_props}, _local_acc{local_acc},
         _argument_tuple(std::make_tuple(args...)) {}
 
-  auto get(sycl_exp::properties_tag) { return _kernel_properties; }
+  auto get(sycl_exp::properties_tag) const { return _kernel_properties; }
 
   __syclcompat_inline__ void
   operator()(syclcompat::detail::range_to_item_t<Range>) const {
     if constexpr (HasLocalMem) {
       char *local_mem_ptr = static_cast<char *>(
-          _local_acc.template get_multi_ptr<sycl::access::decorated::no>().get());
-      std::apply(
-          [lmem_ptr = local_mem_ptr](auto &&...args) { F(args..., lmem_ptr); },
+          _local_acc.template get_multi_ptr<sycl::access::decorated::no>()
+              .get());
+      apply_helper(
+          [lmem_ptr = local_mem_ptr](auto &&...args) {
+            [[clang::always_inline]] F(args..., lmem_ptr);
+          },
           _argument_tuple);
     } else {
-      std::apply([](auto &&...args) { F(args...); }, _argument_tuple);
+      apply_helper([](auto &&...args) { [[clang::always_inline]] F(args...); },
+                   _argument_tuple);
     }
   }
 

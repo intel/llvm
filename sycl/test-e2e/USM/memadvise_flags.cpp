@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t1.out
-// REQUIRES: cuda || hip_amd
+// REQUIRES: cuda || hip
 // RUN: %{run} %t1.out
 
 //==---------------- memadvise_flags.cpp -----------------------------------==//

@@ -1,0 +1,274 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime APIs for Context"
+ordinal: "3"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Context property type"
+name: $x_context_flags_t
+etors:
+    - name: TBD
+      desc: "reserved for future use"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Context creation properties"
+class: $xProgram
+name: $x_context_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_context_flags_t
+      name: flags
+      desc: "[in] context creation flags."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Creates a context with the given devices."
+class: $xContext
+name: Create
+decl: static
+ordinal: "0"
+analogue:
+    - "**clCreateContext**"
+details:
+    - "All devices should be from the same platform."
+    - "Context is used for resource sharing between all the devices associated with it."
+    - "Context also serves for resource isolation such that resources do not cross context boundaries."
+    - "The returned context is a reference and must be released with a subsequent call to $xContextRelease."
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function must be thread-safe."
+params:
+    - type: "uint32_t"
+      name: DeviceCount
+      desc: |
+            [in] the number of devices given in phDevices
+    - type: "const $x_device_handle_t*"
+      name: phDevices
+      desc: |
+            [in][range(0, DeviceCount)] array of handle of devices.
+    - type: const $x_context_properties_t*
+      name: pProperties
+      desc: |
+            [in][optional] pointer to context creation properties.
+    - type: $x_context_handle_t*
+      name: phContext
+      desc: "[out][alloc] pointer to handle of context object created"
+returns:
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Makes a reference of the context handle indicating it's in use until paired $xContextRelease is called"
+class: $xContext
+name: Retain
+decl: static
+ordinal: "0"
+analogue:
+    - "**clRetainContext**"
+details:
+    - "It is not valid to use a context handle, which has all of its references released."
+    - "The application may call this function from simultaneous threads for the same device."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_context_handle_t"
+      name: hContext
+      desc: |
+            [in][retain] handle of the context to get a reference of.
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Supported context info"
+class: $xContext
+name: $x_context_info_t
+typed_etors: True
+etors:
+    - name: NUM_DEVICES
+      desc: "[uint32_t] The number of the devices in the context"
+    - name: DEVICES
+      desc: "[$x_device_handle_t[]] The array of the device handles in the context"
+    - name: REFERENCE_COUNT
+      desc: |
+            [uint32_t] Reference count of the context object.
+            The reference count returned should be considered immediately stale.
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
+    - name: USM_MEMCPY2D_SUPPORT
+      desc: "[$x_bool_t] to indicate if the $xEnqueueUSMMemcpy2D entrypoint is supported."
+    - name: USM_FILL2D_SUPPORT
+      desc: "[$x_bool_t] to indicate if the $xEnqueueUSMFill2D entrypoint is supported."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Releases the context handle reference indicating end of its usage"
+class: $xContext
+name: Release
+decl: static
+ordinal: "0"
+analogue:
+    - "**clReleaseContext**"
+details:
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_context_handle_t"
+      name: hContext
+      desc: |
+            [in][release] handle of the context to release.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieves various information about context"
+class: $xContext
+name: GetInfo
+decl: static
+ordinal: "0"
+analogue:
+    - "**clGetContextInfo**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "The implementation of this function should be lock-free."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context"
+    - type: $x_context_info_t
+      name: propName
+      desc: "[in] type of the info to retrieve"
+    - type: "size_t"
+      name: propSize
+      desc: |
+            [in] the number of bytes of memory pointed to by pPropValue.
+    - type: "void*"
+      name: pPropValue
+      desc: |
+            [out][optional][typename(propName, propSize)] array of bytes holding the info.
+            if propSize is not equal to or greater than the real number of bytes needed to return
+            the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: |
+            [out][optional] pointer to the actual size in bytes of the queried propName.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native context handle."
+class: $xContext
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability platform extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_context_handle_t"
+      name: hContext
+      desc: |
+            [in] handle of the context.
+    - type: $x_native_handle_t*
+      name: phNativeContext
+      desc: |
+            [out] a pointer to the native handle of the context.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Properties for for $xContextCreateWithNativeHandle."
+class: $xContext
+name: $x_context_native_properties_t
+base: $x_base_properties_t
+members:
+    - type: bool
+      name: isNativeHandleOwned
+      desc: |
+            [in] If true then ownership of the native handle is transferred to
+            the resultant object. This means the object will be responsible for
+            releasing the native resources at the end of its lifetime.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime context object from native context handle."
+class: $xContext
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime context handle from native driver context handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_native_handle_t
+      name: hNativeContext
+      desc: |
+            [in][nocheck] the native handle of the context.
+    - type: $x_adapter_handle_t
+      name: hAdapter
+      desc: "[in] handle of the adapter that owns the native handle"
+    - type: uint32_t
+      name: numDevices
+      desc: "[in] number of devices associated with the context"
+    - type: "const $x_device_handle_t*"
+      name: phDevices
+      desc: "[in][optional][range(0, numDevices)] list of devices associated with the context"
+    - type: "const $x_context_native_properties_t*"
+      name: pProperties
+      desc: "[in][optional] pointer to native context properties struct"
+    - type: "$x_context_handle_t*"
+      name: phContext
+      desc: |
+            [out][alloc] pointer to the handle of the context object created.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: fptr_typedef
+desc: "Context's extended deleter callback function with user data."
+name: $x_context_extended_deleter_t
+return: void
+params:
+    - type: void*
+      name: pUserData
+      desc: "[in][out] pointer to data to be passed to callback"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Call extended deleter function as callback."
+class: $xContext
+name: SetExtendedDeleter
+decl: static
+ordinal: "0"
+details:
+    - "Calls extended deleter, a user-defined callback to delete context on some platforms."
+    - "This is done for performance reasons."
+    - "This API might be called directly by an application instead of a runtime backend."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: |
+            [in] handle of the context.
+    - type: $x_context_extended_deleter_t
+      name: pfnDeleter
+      desc: |
+            [in] Function pointer to extended deleter.
+    - type: void*
+      name: pUserData
+      desc: "[in][out][optional] pointer to data to be passed to callback."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no means to support the operation."

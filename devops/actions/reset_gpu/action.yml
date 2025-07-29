@@ -1,0 +1,32 @@
+name: Reset Intel GPU
+
+runs:
+  using: "composite"
+  steps:
+    - name: Reset Intel GPU
+      shell: bash
+      run: |
+        # First reset all xe devices.
+        driver_path="/sys/bus/pci/drivers/xe"
+
+        if [ -d "$driver_path" ]; then
+            # Extract PCI paths of devices bound to xe
+            for device in $(ls "$driver_path" | grep -E '^[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-9]$'); do
+               sysfs_path="/sys/bus/pci/devices/$device"
+               sudo bash -c 'echo $0 > $1/unbind' $device $driver_path
+               sudo bash -c 'echo 1 > $0/reset' $sysfs_path
+               sudo bash -c 'echo $0 > $1/bind' $device $driver_path
+               echo "Reset $device"  
+            done
+         fi
+
+         # Then reset all i915 devices. We don't do a PCI FLR because
+         # it seems to fail on some older GPUs.
+         sudo mount -t debugfs none /sys/kernel/debug || true
+         dirs=$(sudo bash -c 'ls -d /sys/kernel/debug/dri/*') || true
+         for dir in $dirs; do
+            if sudo test -e "${dir}/i915_wedged"; then
+               sudo bash -c 'echo 1 > ${dir}/i915_wedged' $dir
+               echo "Reset $(basename $dir)"
+            fi
+         done

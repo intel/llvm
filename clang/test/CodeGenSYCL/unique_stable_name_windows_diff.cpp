@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -triple spir64-unknown-unknown -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s '-D$ADDRSPACE=addrspace(1) '
-// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -triple x86_64-pc-windows-msvc -fsycl-is-device -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s '-D$ADDRSPACE='
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -triple x86_64-pc-windows-msvc -fsycl-is-host -disable-llvm-passes -emit-llvm %s -o - | FileCheck -check-prefixes=CHECK,WIN %s '-D$ADDRSPACE='
 
 
 template<typename KN, typename Func>
@@ -53,7 +53,7 @@ int main() {
   });
 
   // Make sure the following 3 are the same between the host and device compile.
-  // Note that these are NOT the same value as eachother, they differ by the
+  // Note that these are NOT the same value as each other, they differ by the
   // signature.
   // CHECK: private unnamed_addr [[$ADDRSPACE]]constant [17 x i8] c"_ZTSZ4mainEUlvE_\00"
   // CHECK: private unnamed_addr [[$ADDRSPACE]]constant [17 x i8] c"_ZTSZ4mainEUliE_\00"

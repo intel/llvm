@@ -1,5 +1,5 @@
-// REQUIRES: xptifw, opencl, (cpu || accelerator)
-// RUN: %clangxx %s -DXPTI_COLLECTOR -DXPTI_CALLBACK_API_EXPORTS %xptifw_lib %shared_lib %fPIC %cxx_std_optionc++17 -o %t_collector.dll
+// REQUIRES: xptifw, opencl, cpu
+// RUN: %build_collector
 // RUN: %{build} -o %t.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.out | FileCheck %s
 
@@ -31,7 +31,7 @@ int main() {
     sycl::buffer<int, 1> Buffer1(Array, NumOfWorkItems);
 
     Queue1.submit([&](sycl::handler &cgh) {
-      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID1:.*]]|2014|1025|{{.*}}multiple_queues.cpp:[[# @LINE + 1]]:24
+      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID1:.*]]|2014|1025|{{.*}}multiple_queues.cpp:[[# @LINE + 1]]:32
       auto Accessor1 = Buffer1.get_access<sycl::access::mode::write>(cgh);
       // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID1:.*]]
       cgh.parallel_for<class FillBuffer>(NumOfWorkItems, [=](sycl::id<1> WIid) {
@@ -41,7 +41,7 @@ int main() {
     Queue1.wait();
 
     Queue2.submit([&](sycl::handler &cgh) {
-      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID2:.*]]|2014|1025|{{.*}}multiple_queues.cpp:[[# @LINE + 1]]:24
+      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID2:.*]]|2014|1025|{{.*}}multiple_queues.cpp:[[# @LINE + 1]]:32
       auto Accessor1 = Buffer1.get_access<sycl::access::mode::write>(cgh);
       // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID2:.*]]
       cgh.parallel_for<class MulBuffer>(NumOfWorkItems, [=](sycl::id<1> WIid) {

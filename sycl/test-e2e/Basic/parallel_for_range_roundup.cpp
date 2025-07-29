@@ -22,9 +22,14 @@
 //    (using BufIndexes). i.e. check that the mapping of effective range to user
 //    range is "one-to-one".
 //
-#include <iostream>
+// UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17077
+//
+#include <sycl/atomic.hpp>
 #include <sycl/detail/core.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
+
+#include <iostream>
 
 using namespace sycl;
 

@@ -7,10 +7,6 @@
 // RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
 // RUN:   %clang_cl -### -fsycl --offload-new-driver -fsycl-device-only %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
-// RUN:   %clang -### -fintelfpga -fsycl-early-optimizations %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
-// RUN:   %clang_cl -### -fintelfpga -fsycl-early-optimizations %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
 // CHECK-DEFAULT-NOT: "-fno-sycl-early-optimizations"
 // CHECK-DEFAULT-NOT: "-disable-llvm-passes"
 // CHECK-DEFAULT: "-fsycl-is-device"
@@ -24,10 +20,6 @@
 // RUN:   %clang -### -fsycl --offload-new-driver -fsycl-device-only -fno-sycl-early-optimizations %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-EARLY-OPTS %s
 // RUN:   %clang_cl -### -fsycl --offload-new-driver -fsycl-device-only -fno-sycl-early-optimizations %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-EARLY-OPTS %s
-// RUN:   %clang -### -fintelfpga %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-EARLY-OPTS %s
-// RUN:   %clang_cl -### -fintelfpga %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-EARLY-OPTS %s
 // CHECK-NO-SYCL-EARLY-OPTS: "-fno-sycl-early-optimizations"
 
@@ -53,3 +45,5 @@
 // RUN:   %clang -### -fsycl --offload-new-driver %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-NO-THRESH %s
 // CHECK-NO-THRESH-NOT: "-mllvm" "-inline-threshold
+
+

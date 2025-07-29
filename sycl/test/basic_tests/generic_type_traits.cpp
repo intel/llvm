@@ -23,12 +23,6 @@ int main() {
   static_assert(d::is_genfloat_v<s::opencl::cl_float> == true);
   static_assert(d::is_genfloat_v<s::vec<s::opencl::cl_float, 4>> == true);
 
-  static_assert(d::is_half_v<s::half>);
-
-  static_assert(d::is_bfloat16_v<sycl::ext::oneapi::bfloat16>);
-  static_assert(d::is_half_or_bf16_v<s::half>);
-  static_assert(d::is_half_or_bf16_v<sycl::ext::oneapi::bfloat16>);
-
   // TODO add checks for the following type traits
   /*
   is_doublen
@@ -142,9 +136,17 @@ int main() {
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(
       std::is_same_v<d::ConvertToOpenCLType_t<s::vec<s::opencl::cl_int, 2>>,
+                     s::opencl::cl_int __attribute__((ext_vector_type(2)))>);
+  static_assert(
+      std::is_same_v<d::ConvertToOpenCLType_t<s::vec<long long, 2>>,
+                     s::opencl::cl_long __attribute__((ext_vector_type(2)))>);
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
+  static_assert(
+      std::is_same_v<d::ConvertToOpenCLType_t<s::vec<s::opencl::cl_int, 2>>,
                      s::vec<s::opencl::cl_int, 2>::vector_t>);
   static_assert(std::is_same_v<d::ConvertToOpenCLType_t<s::vec<long long, 2>>,
                                s::vec<s::opencl::cl_long, 2>::vector_t>);
+#endif
   static_assert(std::is_same_v<
                 d::ConvertToOpenCLType_t<s::multi_ptr<
                     s::opencl::cl_int, s::access::address_space::global_space,
@@ -153,6 +155,16 @@ int main() {
                              s::access::address_space::global_space,
                              s::access::decorated::yes>::pointer>);
   static_assert(
+      std::is_same_v<
+          d::ConvertToOpenCLType_t<
+              s::multi_ptr<s::vec<s::opencl::cl_int, 4>,
+                           s::access::address_space::global_space,
+                           s::access::decorated::yes>>,
+          s::multi_ptr<s::opencl::cl_int __attribute__((ext_vector_type(4))),
+                       s::access::address_space::global_space,
+                       s::access::decorated::yes>::pointer>);
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
+  static_assert(
       std::is_same_v<d::ConvertToOpenCLType_t<
                          s::multi_ptr<s::vec<s::opencl::cl_int, 4>,
                                       s::access::address_space::global_space,
@@ -160,6 +172,7 @@ int main() {
                      s::multi_ptr<s::vec<s::opencl::cl_int, 4>::vector_t,
                                   s::access::address_space::global_space,
                                   s::access::decorated::yes>::pointer>);
+#endif
 #endif
   static_assert(std::is_same_v<d::ConvertToOpenCLType_t<s::half>,
                                d::half_impl::BIsRepresentationT>);

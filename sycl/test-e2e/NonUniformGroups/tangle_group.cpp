@@ -1,11 +1,13 @@
 // RUN: %{build} -fno-sycl-early-optimizations -o %t.out
 // RUN: %{run} %t.out
 //
-// RUN: %if any-device-is-cpu && opencl-aot %{ %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fno-sycl-early-optimizations -o %t.x86.out %s %}
+// CPU AOT targets host isa, so we compile on the run system instead.
+// REQUIRES: opencl-aot
+// RUN: %if any-device-is-cpu && opencl-aot %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fno-sycl-early-optimizations -o %t.x86.out %s %}
 // RUN: %if cpu %{ %{run} %t.x86.out %}
 //
 // REQUIRES: cpu || gpu
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: target-nvidia || target-amd
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>

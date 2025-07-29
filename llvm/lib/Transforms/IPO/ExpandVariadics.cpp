@@ -145,9 +145,10 @@ public:
 // function here in the meantime to decouple from that discussion.
 Function *getPreexistingDeclaration(Module *M, Intrinsic::ID Id,
                                     ArrayRef<Type *> Tys = {}) {
+  if (Tys.empty())
+    return Intrinsic::getDeclarationIfExists(M, Id);
   auto *FT = Intrinsic::getType(M->getContext(), Id, Tys);
-  return M->getFunction(Tys.empty() ? Intrinsic::getName(Id)
-                                    : Intrinsic::getName(Id, Tys, M, FT));
+  return Intrinsic::getDeclarationIfExists(M, Id, Tys, FT);
 }
 
 class ExpandVariadics : public ModulePass {
@@ -507,7 +508,6 @@ ExpandVariadics::replaceAllUsesWithNewDeclaration(Module &M,
   Function *NF = Function::Create(FTy, F.getLinkage(), F.getAddressSpace());
 
   NF->setName(F.getName() + ".varargs");
-  NF->IsNewDbgInfoFormat = F.IsNewDbgInfoFormat;
 
   F.getParent()->getFunctionList().insert(F.getIterator(), NF);
 
@@ -549,7 +549,6 @@ ExpandVariadics::deriveFixedArityReplacement(Module &M, IRBuilder<> &Builder,
   NF->setComdat(F.getComdat());
   F.getParent()->getFunctionList().insert(F.getIterator(), NF);
   NF->setName(F.getName() + ".valist");
-  NF->IsNewDbgInfoFormat = F.IsNewDbgInfoFormat;
 
   AttrBuilder ParamAttrs(Ctx);
 
@@ -603,9 +602,7 @@ ExpandVariadics::defineVariadicWrapper(Module &M, IRBuilder<> &Builder,
   Builder.CreateIntrinsic(Intrinsic::vastart, {DL.getAllocaPtrType(Ctx)},
                           {VaListInstance});
 
-  SmallVector<Value *> Args;
-  for (Argument &A : F.args())
-    Args.push_back(&A);
+  SmallVector<Value *> Args(llvm::make_pointer_range(F.args()));
 
   Type *ParameterType = ABI->vaListParameterType(M);
   if (ABI->vaListPassedInSSARegister())

@@ -123,11 +123,15 @@ As a result, the application must use the overload of
 `create_kernel_bundle_from_source` taking `std::vector<std::byte>` when
 creating a kernel bundle from this language.
 
-=== Build options
+=== Supported properties
+
+The `spirv` language supports only those properties from
+link:../experimental/sycl_ext_oneapi_kernel_compiler.asciidoc[
+sycl_ext_oneapi_kernel_compiler] that are common to all source languages.
 
 This extension does not specify any options that may be passed via the
-`build_options` property, however an implementation may allow
-implementation-defined options to be passed this way.
+`build_options` property to the `build` function, however an implementation may
+allow implementation-defined options to be passed this way.
 
 === SPIR-V execution environment
 

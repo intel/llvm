@@ -5,7 +5,9 @@
 
 // Checks that lowerESIMD pass builds proper vc-intrinsics
 // RUN: %clangxx -O2 -fsycl -c -fsycl-device-only -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -properties -split-esimd -lower-esimd -O0 -S %t -o %t.table
+// -O0 lowering, requires `-force-disable-esimd-opt` to disable all
+// optimizations.
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -O0 -force-disable-esimd-opt -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
 #include <sycl/ext/intel/esimd.hpp>
@@ -20,7 +22,7 @@ using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 class EsimdFunctor {
 public:
-  void operator()() __attribute__((sycl_explicit_simd)) {
+  void operator()() const __attribute__((sycl_explicit_simd)) {
     bf16_vector();
     bf16_scalar();
   }

@@ -15,12 +15,10 @@
 #include "Arch/RISCV.h"
 #include "Arch/Sparc.h"
 #include "Arch/SystemZ.h"
-#include "CommonArgs.h"
-#include "Linux.h"
 #include "clang/Config/config.h" // for GCC_INSTALL_PREFIX
+#include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/MultilibBuilder.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/Tool.h"
@@ -228,6 +226,8 @@ static const char *getLDMOption(const llvm::Triple &T, const ArgList &Args) {
       return "elf_iamcu";
     return "elf_i386";
   case llvm::Triple::aarch64:
+    if (T.isOSManagarm())
+      return "aarch64managarm";
     return "aarch64linux";
   case llvm::Triple::aarch64_be:
     return "aarch64linuxb";
@@ -269,13 +269,11 @@ static const char *getLDMOption(const llvm::Triple &T, const ArgList &Args) {
   case llvm::Triple::mipsel:
     return "elf32ltsmip";
   case llvm::Triple::mips64:
-    if (tools::mips::hasMipsAbiArg(Args, "n32") ||
-        T.getEnvironment() == llvm::Triple::GNUABIN32)
+    if (tools::mips::hasMipsAbiArg(Args, "n32") || T.isABIN32())
       return "elf32btsmipn32";
     return "elf64btsmip";
   case llvm::Triple::mips64el:
-    if (tools::mips::hasMipsAbiArg(Args, "n32") ||
-        T.getEnvironment() == llvm::Triple::GNUABIN32)
+    if (tools::mips::hasMipsAbiArg(Args, "n32") || T.isABIN32())
       return "elf32ltsmipn32";
     return "elf64ltsmip";
   case llvm::Triple::systemz:
@@ -308,42 +306,6 @@ static bool getStaticPIE(const ArgList &Args, const ToolChain &TC) {
 static bool getStatic(const ArgList &Args) {
   return Args.hasArg(options::OPT_static) &&
       !Args.hasArg(options::OPT_static_pie);
-}
-
-// Create an archive with llvm-ar.  This is used to create an archive that
-// contains host objects and the wrapped FPGA device binary
-void tools::gnutools::Linker::constructLLVMARCommand(
-    Compilation &C, const JobAction &JA, const InputInfo &Output,
-    const InputInfoList &Input, const ArgList &Args) const {
-  ArgStringList CmdArgs;
-  // Use 'cqL' to create the archive.  This allows for any fat archives that
-  // are passed on the command line to be added via contents instead of the
-  // full archive.  Any usage of the generated archive will then have full
-  // access to resolve any dependencies.
-  CmdArgs.push_back("cqL");
-  const char *OutputFilename = Output.getFilename();
-  if (llvm::sys::fs::exists(OutputFilename)) {
-    C.getDriver().Diag(clang::diag::warn_drv_existing_archive_append)
-        << OutputFilename;
-  }
-  CmdArgs.push_back(OutputFilename);
-  for (const auto &II : Input) {
-    if (II.getType() == types::TY_Tempfilelist) {
-      // Take the list file and pass it in with '@'.
-      std::string FileName(II.getFilename());
-      const char *ArgFile = Args.MakeArgString("@" + FileName);
-      CmdArgs.push_back(ArgFile);
-      continue;
-    }
-    if (II.isFilename())
-      CmdArgs.push_back(II.getFilename());
-  }
-
-  SmallString<128> LLVMARPath(C.getDriver().Dir);
-  llvm::sys::path::append(LLVMARPath, "llvm-ar");
-  const char *Exec = C.getArgs().MakeArgString(LLVMARPath);
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, std::nullopt));
 }
 
 void tools::gnutools::StaticLibTool::ConstructJob(
@@ -415,12 +377,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       ToolChain.getTriple().hasEnvironment() ||
       (ToolChain.getTriple().getVendor() != llvm::Triple::MipsTechnologies);
 
-  // Use of -fsycl-link creates an archive.
-  if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
-      JA.getType() == types::TY_Archive) {
-    constructLLVMARCommand(C, JA, Output, Inputs, Args);
-    return;
-  }
   ArgStringList CmdArgs;
 
   // Silence warning for "clang -g foo.o -o foo"
@@ -448,7 +404,9 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Most Android ARM64 targets should enable the linker fix for erratum
   // 843419. Only non-Cortex-A53 devices are allowed to skip this flag.
-  if (Arch == llvm::Triple::aarch64 && (isAndroid || isOHOSFamily)) {
+  if (Arch == llvm::Triple::aarch64 && (isAndroid || isOHOSFamily) &&
+      Args.hasFlag(options::OPT_mfix_cortex_a53_843419,
+                   options::OPT_mno_fix_cortex_a53_843419, true)) {
     std::string CPU = getCPUName(D, Args, Triple);
     if (CPU.empty() || CPU == "generic" || CPU == "cortex-a53")
       CmdArgs.push_back("--fix-cortex-a53-843419");
@@ -466,7 +424,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     return;
   }
 
-  if (Triple.isRISCV()) {
+  if (Triple.isLoongArch() || Triple.isRISCV()) {
     CmdArgs.push_back("-X");
     if (Args.hasArg(options::OPT_mno_relax))
       CmdArgs.push_back("--no-relax");
@@ -570,19 +528,9 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
 
-  if (D.isUsingLTO()) {
-    assert(!Inputs.empty() && "Must have at least one input.");
-    // Find the first filename InputInfo object.
-    auto Input = llvm::find_if(
-        Inputs, [](const InputInfo &II) -> bool { return II.isFilename(); });
-    if (Input == Inputs.end())
-      // For a very rare case, all of the inputs to the linker are
-      // InputArg. If that happens, just use the first InputInfo.
-      Input = Inputs.begin();
-
-    addLTOOptions(ToolChain, Args, CmdArgs, Output, *Input,
+  if (D.isUsingLTO())
+    addLTOOptions(ToolChain, Args, CmdArgs, Output, Inputs,
                   D.getLTOMode() == LTOK_Thin);
-  }
 
   if (Args.hasArg(options::OPT_Z_Xlinker__no_demangle))
     CmdArgs.push_back("--no-demangle");
@@ -648,9 +596,10 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // to generate executables. As Fortran runtime depends on the C runtime,
   // these dependencies need to be listed before the C runtime below (i.e.
   // AddRunTimeLibs).
-  if (D.IsFlangMode()) {
-    addFortranRuntimeLibraryPath(ToolChain, Args, CmdArgs);
-    addFortranRuntimeLibs(ToolChain, Args, CmdArgs);
+  if (D.IsFlangMode() &&
+      !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+    ToolChain.addFortranRuntimeLibraryPath(Args, CmdArgs);
+    ToolChain.addFortranRuntimeLibs(Args, CmdArgs);
     CmdArgs.push_back("-lm");
   }
 
@@ -740,10 +689,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         else
           CmdArgs.push_back("-lsycl");
         CmdArgs.push_back("-lsycl-devicelib-host");
-        // Use of -fintelfpga implies -lOpenCL.
-        // FIXME: Adjust to use plugin interface when available.
-        if (Args.hasArg(options::OPT_fintelfpga))
-          CmdArgs.push_back("-lOpenCL");
       }
 
       // LLVM support for atomics on 32-bit SPARC V8+ is incomplete, so
@@ -811,7 +756,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  Args.AddAllArgs(CmdArgs, options::OPT_T);
+  Args.addAllArgs(CmdArgs, {options::OPT_T, options::OPT_t});
 
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
   C.addCommand(std::make_unique<Command>(JA, *this,
@@ -1076,7 +1021,8 @@ void tools::gnutools::Assembler::ConstructJob(Compilation &C,
   case llvm::Triple::systemz: {
     // Always pass an -march option, since our default of z10 is later
     // than the GNU assembler's default.
-    std::string CPUName = systemz::getSystemZTargetCPU(Args);
+    std::string CPUName =
+        systemz::getSystemZTargetCPU(Args, getToolChain().getTriple());
     CmdArgs.push_back(Args.MakeArgString("-march=" + CPUName));
     break;
   }
@@ -1180,7 +1126,8 @@ static bool isMSP430(llvm::Triple::ArchType Arch) {
   return Arch == llvm::Triple::msp430;
 }
 
-static bool findMipsCsMultilibs(const Multilib::flags_list &Flags,
+static bool findMipsCsMultilibs(const Driver &D,
+                                const Multilib::flags_list &Flags,
                                 FilterNonExistent &NonExistent,
                                 DetectedMultilibs &Result) {
   // Check for Code Sourcery toolchain multilibs
@@ -1274,7 +1221,7 @@ static bool findMipsCsMultilibs(const Multilib::flags_list &Flags,
   if (CSMipsMultilibs.size() < DebianMipsMultilibs.size())
     std::iter_swap(Candidates, Candidates + 1);
   for (const MultilibSet *Candidate : Candidates) {
-    if (Candidate->select(Flags, Result.SelectedMultilibs)) {
+    if (Candidate->select(D, Flags, Result.SelectedMultilibs)) {
       if (Candidate == &DebianMipsMultilibs)
         Result.BiarchSibling = Multilib();
       Result.Multilibs = *Candidate;
@@ -1284,53 +1231,8 @@ static bool findMipsCsMultilibs(const Multilib::flags_list &Flags,
   return false;
 }
 
-static bool findMipsAndroidMultilibs(llvm::vfs::FileSystem &VFS, StringRef Path,
-                                     const Multilib::flags_list &Flags,
-                                     FilterNonExistent &NonExistent,
-                                     DetectedMultilibs &Result) {
-
-  MultilibSet AndroidMipsMultilibs =
-      MultilibSetBuilder()
-          .Maybe(MultilibBuilder("/mips-r2", {}, {}).flag("-march=mips32r2"))
-          .Maybe(MultilibBuilder("/mips-r6", {}, {}).flag("-march=mips32r6"))
-          .makeMultilibSet()
-          .FilterOut(NonExistent);
-
-  MultilibSet AndroidMipselMultilibs =
-      MultilibSetBuilder()
-          .Either(MultilibBuilder().flag("-march=mips32"),
-                  MultilibBuilder("/mips-r2", "", "/mips-r2")
-                      .flag("-march=mips32r2"),
-                  MultilibBuilder("/mips-r6", "", "/mips-r6")
-                      .flag("-march=mips32r6"))
-          .makeMultilibSet()
-          .FilterOut(NonExistent);
-
-  MultilibSet AndroidMips64elMultilibs =
-      MultilibSetBuilder()
-          .Either(MultilibBuilder().flag("-march=mips64r6"),
-                  MultilibBuilder("/32/mips-r1", "", "/mips-r1")
-                      .flag("-march=mips32"),
-                  MultilibBuilder("/32/mips-r2", "", "/mips-r2")
-                      .flag("-march=mips32r2"),
-                  MultilibBuilder("/32/mips-r6", "", "/mips-r6")
-                      .flag("-march=mips32r6"))
-          .makeMultilibSet()
-          .FilterOut(NonExistent);
-
-  MultilibSet *MS = &AndroidMipsMultilibs;
-  if (VFS.exists(Path + "/mips-r6"))
-    MS = &AndroidMipselMultilibs;
-  else if (VFS.exists(Path + "/32"))
-    MS = &AndroidMips64elMultilibs;
-  if (MS->select(Flags, Result.SelectedMultilibs)) {
-    Result.Multilibs = *MS;
-    return true;
-  }
-  return false;
-}
-
-static bool findMipsMuslMultilibs(const Multilib::flags_list &Flags,
+static bool findMipsMuslMultilibs(const Driver &D,
+                                  const Multilib::flags_list &Flags,
                                   FilterNonExistent &NonExistent,
                                   DetectedMultilibs &Result) {
   // Musl toolchain multilibs
@@ -1357,14 +1259,15 @@ static bool findMipsMuslMultilibs(const Multilib::flags_list &Flags,
           {"/../sysroot" + M.osSuffix() + "/usr/include"});
     });
   }
-  if (MuslMipsMultilibs.select(Flags, Result.SelectedMultilibs)) {
+  if (MuslMipsMultilibs.select(D, Flags, Result.SelectedMultilibs)) {
     Result.Multilibs = MuslMipsMultilibs;
     return true;
   }
   return false;
 }
 
-static bool findMipsMtiMultilibs(const Multilib::flags_list &Flags,
+static bool findMipsMtiMultilibs(const Driver &D,
+                                 const Multilib::flags_list &Flags,
                                  FilterNonExistent &NonExistent,
                                  DetectedMultilibs &Result) {
   // CodeScape MTI toolchain v1.2 and early.
@@ -1542,7 +1445,7 @@ static bool findMipsMtiMultilibs(const Multilib::flags_list &Flags,
             });
   }
   for (auto *Candidate : {&MtiMipsMultilibsV1, &MtiMipsMultilibsV2}) {
-    if (Candidate->select(Flags, Result.SelectedMultilibs)) {
+    if (Candidate->select(D, Flags, Result.SelectedMultilibs)) {
       Result.Multilibs = *Candidate;
       return true;
     }
@@ -1550,7 +1453,8 @@ static bool findMipsMtiMultilibs(const Multilib::flags_list &Flags,
   return false;
 }
 
-static bool findMipsImgMultilibs(const Multilib::flags_list &Flags,
+static bool findMipsImgMultilibs(const Driver &D,
+                                 const Multilib::flags_list &Flags,
                                  FilterNonExistent &NonExistent,
                                  DetectedMultilibs &Result) {
   // CodeScape IMG toolchain v1.2 and early.
@@ -1648,7 +1552,7 @@ static bool findMipsImgMultilibs(const Multilib::flags_list &Flags,
             });
   }
   for (auto *Candidate : {&ImgMultilibsV1, &ImgMultilibsV2}) {
-    if (Candidate->select(Flags, Result.SelectedMultilibs)) {
+    if (Candidate->select(D, Flags, Result.SelectedMultilibs)) {
       Result.Multilibs = *Candidate;
       return true;
     }
@@ -1682,7 +1586,9 @@ bool clang::driver::findMIPSMultilibs(const Driver &D,
                       CPUName == "mips64r5" || CPUName == "octeon" ||
                       CPUName == "octeon+",
                   "-march=mips64r2", Flags);
-  addMultilibFlag(CPUName == "mips64r6", "-march=mips64r6", Flags);
+  addMultilibFlag(CPUName == "mips64r6" || CPUName == "i6400" ||
+                      CPUName == "i6500",
+                  "-march=mips64r6", Flags);
   addMultilibFlag(isMicroMips(Args), "-mmicromips", Flags);
   addMultilibFlag(tools::mips::isUCLibc(Args), "-muclibc", Flags);
   addMultilibFlag(tools::mips::isNaN2008(D, Args, TargetTriple), "-mnan=2008",
@@ -1694,26 +1600,22 @@ bool clang::driver::findMIPSMultilibs(const Driver &D,
   addMultilibFlag(isMipsEL(TargetArch), "-EL", Flags);
   addMultilibFlag(!isMipsEL(TargetArch), "-EB", Flags);
 
-  if (TargetTriple.isAndroid())
-    return findMipsAndroidMultilibs(D.getVFS(), Path, Flags, NonExistent,
-                                    Result);
-
   if (TargetTriple.getVendor() == llvm::Triple::MipsTechnologies &&
       TargetTriple.getOS() == llvm::Triple::Linux &&
       TargetTriple.getEnvironment() == llvm::Triple::UnknownEnvironment)
-    return findMipsMuslMultilibs(Flags, NonExistent, Result);
+    return findMipsMuslMultilibs(D, Flags, NonExistent, Result);
 
   if (TargetTriple.getVendor() == llvm::Triple::MipsTechnologies &&
       TargetTriple.getOS() == llvm::Triple::Linux &&
       TargetTriple.isGNUEnvironment())
-    return findMipsMtiMultilibs(Flags, NonExistent, Result);
+    return findMipsMtiMultilibs(D, Flags, NonExistent, Result);
 
   if (TargetTriple.getVendor() == llvm::Triple::ImaginationTechnologies &&
       TargetTriple.getOS() == llvm::Triple::Linux &&
       TargetTriple.isGNUEnvironment())
-    return findMipsImgMultilibs(Flags, NonExistent, Result);
+    return findMipsImgMultilibs(D, Flags, NonExistent, Result);
 
-  if (findMipsCsMultilibs(Flags, NonExistent, Result))
+  if (findMipsCsMultilibs(D, Flags, NonExistent, Result))
     return true;
 
   // Fallback to the regular toolchain-tree structure.
@@ -1721,7 +1623,7 @@ bool clang::driver::findMIPSMultilibs(const Driver &D,
   Result.Multilibs.push_back(Default);
   Result.Multilibs.FilterOut(NonExistent);
 
-  if (Result.Multilibs.select(Flags, Result.SelectedMultilibs)) {
+  if (Result.Multilibs.select(D, Flags, Result.SelectedMultilibs)) {
     Result.BiarchSibling = Multilib();
     return true;
   }
@@ -1768,7 +1670,7 @@ static void findAndroidArmMultilibs(const Driver &D,
   addMultilibFlag(IsArmV7Mode, "-march=armv7-a", Flags);
   addMultilibFlag(IsThumbMode, "-mthumb", Flags);
 
-  if (AndroidArmMultilibs.select(Flags, Result.SelectedMultilibs))
+  if (AndroidArmMultilibs.select(D, Flags, Result.SelectedMultilibs))
     Result.Multilibs = AndroidArmMultilibs;
 }
 
@@ -1794,7 +1696,7 @@ static bool findMSP430Multilibs(const Driver &D,
   addMultilibFlag(Args.hasFlag(options::OPT_fexceptions,
                                options::OPT_fno_exceptions, false),
                   "-exceptions", Flags);
-  if (Result.Multilibs.select(Flags, Result.SelectedMultilibs))
+  if (Result.Multilibs.select(D, Flags, Result.SelectedMultilibs))
     return true;
 
   return false;
@@ -1861,7 +1763,7 @@ static void findCSKYMultilibs(const Driver &D, const llvm::Triple &TargetTriple,
           .makeMultilibSet()
           .FilterOut(NonExistent);
 
-  if (CSKYMultilibs.select(Flags, Result.SelectedMultilibs))
+  if (CSKYMultilibs.select(D, Flags, Result.SelectedMultilibs))
     Result.Multilibs = CSKYMultilibs;
 }
 
@@ -1876,11 +1778,11 @@ static void findCSKYMultilibs(const Driver &D, const llvm::Triple &TargetTriple,
 ///     march=rv32ima are not compatible, because software and hardware
 ///     atomic operation can't work together correctly.
 static bool
-selectRISCVMultilib(const MultilibSet &RISCVMultilibSet, StringRef Arch,
-                    const Multilib::flags_list &Flags,
+selectRISCVMultilib(const Driver &D, const MultilibSet &RISCVMultilibSet,
+                    StringRef Arch, const Multilib::flags_list &Flags,
                     llvm::SmallVectorImpl<Multilib> &SelectedMultilibs) {
   // Try to find the perfect matching multi-lib first.
-  if (RISCVMultilibSet.select(Flags, SelectedMultilibs))
+  if (RISCVMultilibSet.select(D, Flags, SelectedMultilibs))
     return true;
 
   Multilib::flags_list NewFlags;
@@ -1972,7 +1874,7 @@ selectRISCVMultilib(const MultilibSet &RISCVMultilibSet, StringRef Arch,
   MultilibSet NewRISCVMultilibs =
       MultilibSetBuilder().Either(NewMultilibs).makeMultilibSet();
 
-  if (NewRISCVMultilibs.select(NewFlags, SelectedMultilibs))
+  if (NewRISCVMultilibs.select(D, NewFlags, SelectedMultilibs))
     for (const Multilib &NewSelectedM : SelectedMultilibs)
       for (const auto &M : RISCVMultilibSet)
         // Look up the corresponding multi-lib entry in original multi-lib set.
@@ -2033,7 +1935,7 @@ static void findRISCVBareMetalMultilibs(const Driver &D,
     }
   }
 
-  if (selectRISCVMultilib(RISCVMultilibs, MArch, Flags,
+  if (selectRISCVMultilib(D, RISCVMultilibs, MArch, Flags,
                           Result.SelectedMultilibs))
     Result.Multilibs = RISCVMultilibs;
 }
@@ -2076,7 +1978,7 @@ static void findRISCVMultilibs(const Driver &D,
   addMultilibFlag(ABIName == "lp64f", "-mabi=lp64f", Flags);
   addMultilibFlag(ABIName == "lp64d", "-mabi=lp64d", Flags);
 
-  if (RISCVMultilibs.select(Flags, Result.SelectedMultilibs))
+  if (RISCVMultilibs.select(D, Flags, Result.SelectedMultilibs))
     Result.Multilibs = RISCVMultilibs;
 }
 
@@ -2196,7 +2098,7 @@ static bool findBiarchMultilibs(const Driver &D,
   addMultilibFlag(TargetTriple.isArch32Bit(), "-m32", Flags);
   addMultilibFlag(TargetTriple.isArch64Bit() && IsX32, "-mx32", Flags);
 
-  if (!Result.Multilibs.select(Flags, Result.SelectedMultilibs))
+  if (!Result.Multilibs.select(D, Flags, Result.SelectedMultilibs))
     return false;
 
   if (Result.SelectedMultilibs.back() == Alt64 ||
@@ -2815,6 +2717,22 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
     return;
   }
 
+  if (TargetTriple.isWindowsCygwinEnvironment()) {
+    LibDirs.push_back("/lib");
+    switch (TargetTriple.getArch()) {
+    case llvm::Triple::x86_64:
+      TripleAliases.append({"x86_64-pc-cygwin", "x86_64-pc-msys"});
+      break;
+    case llvm::Triple::x86:
+      TripleAliases.append({"i686-pc-cygwin", "i686-pc-msys"});
+      break;
+    default:
+      break;
+    }
+
+    return;
+  }
+
   switch (TargetTriple.getArch()) {
   case llvm::Triple::aarch64:
     LibDirs.append(begin(AArch64LibDirs), end(AArch64LibDirs));
@@ -2832,6 +2750,7 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
   case llvm::Triple::thumb:
     LibDirs.append(begin(ARMLibDirs), end(ARMLibDirs));
     if (TargetTriple.getEnvironment() == llvm::Triple::GNUEABIHF ||
+        TargetTriple.getEnvironment() == llvm::Triple::GNUEABIHFT64 ||
         TargetTriple.getEnvironment() == llvm::Triple::MuslEABIHF ||
         TargetTriple.getEnvironment() == llvm::Triple::EABIHF) {
       TripleAliases.append(begin(ARMHFTriples), end(ARMHFTriples));
@@ -2843,6 +2762,7 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
   case llvm::Triple::thumbeb:
     LibDirs.append(begin(ARMebLibDirs), end(ARMebLibDirs));
     if (TargetTriple.getEnvironment() == llvm::Triple::GNUEABIHF ||
+        TargetTriple.getEnvironment() == llvm::Triple::GNUEABIHFT64 ||
         TargetTriple.getEnvironment() == llvm::Triple::MuslEABIHF ||
         TargetTriple.getEnvironment() == llvm::Triple::EABIHF) {
       TripleAliases.append(begin(ARMebHFTriples), end(ARMebHFTriples));
@@ -3191,7 +3111,7 @@ Generic_GCC::Generic_GCC(const Driver &D, const llvm::Triple &Triple,
                          const ArgList &Args)
     : ToolChain(D, Triple, Args), GCCInstallation(D),
       CudaInstallation(D, Triple, Args), RocmInstallation(D, Triple, Args),
-      SYCLInstallation(D) {
+      SYCLInstallation(D, Triple, Args) {
   getProgramPaths().push_back(getDriver().Dir);
 }
 
@@ -3407,6 +3327,11 @@ void Generic_GCC::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
   }
 }
 
+void Generic_GCC::addSYCLIncludeArgs(const ArgList &DriverArgs,
+                                     ArgStringList &CC1Args) const {
+  SYCLInstallation->addSYCLIncludeArgs(DriverArgs, CC1Args);
+}
+
 void
 Generic_GCC::addLibCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
                                    llvm::opt::ArgStringList &CC1Args) const {
@@ -3566,46 +3491,44 @@ Generic_GCC::addLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
 }
 
 llvm::opt::DerivedArgList *
-Generic_GCC::TranslateArgs(const llvm::opt::DerivedArgList &Args, StringRef,
+Generic_GCC::TranslateArgs(const llvm::opt::DerivedArgList &Args,
+                           StringRef BoundArch,
                            Action::OffloadKind DeviceOffloadKind) const {
+  if (DeviceOffloadKind != Action::OFK_SYCL &&
+      DeviceOffloadKind != Action::OFK_OpenMP)
+    return nullptr;
 
-  // If this tool chain is used for an OpenMP offloading device we have to make
-  // sure we always generate a shared library regardless of the commands the
-  // user passed to the host. This is required because the runtime library
-  // is required to load the device image dynamically at run time.
+  DerivedArgList *DAL = new DerivedArgList(Args.getBaseArgs());
+
+  // Filter all the arguments we don't care passing to the offloading
+  // toolchain as they can mess up with the creation of a shared library.
+  const llvm::DenseSet<unsigned> OpenMPFiltered{
+      options::OPT_shared, options::OPT_dynamic, options::OPT_static,
+      options::OPT_fPIE,   options::OPT_fno_PIE, options::OPT_fpie,
+      options::OPT_fno_pie};
+  for (auto *A : Args)
+    if (DeviceOffloadKind != Action::OFK_OpenMP ||
+        !OpenMPFiltered.contains(A->getOption().getID()))
+      DAL->append(A);
+
+  // Request a shared library for CPU offloading. Given that these options
+  // are decided implicitly, they do not refer to any base argument.
+  const OptTable &Opts = getDriver().getOpts();
   if (DeviceOffloadKind == Action::OFK_OpenMP) {
-    DerivedArgList *DAL = new DerivedArgList(Args.getBaseArgs());
-    const OptTable &Opts = getDriver().getOpts();
-
-    // Request the shared library. Given that these options are decided
-    // implicitly, they do not refer to any base argument.
     DAL->AddFlagArg(/*BaseArg=*/nullptr, Opts.getOption(options::OPT_shared));
     DAL->AddFlagArg(/*BaseArg=*/nullptr, Opts.getOption(options::OPT_fPIC));
-
-    // Filter all the arguments we don't care passing to the offloading
-    // toolchain as they can mess up with the creation of a shared library.
-    for (auto *A : Args) {
-      switch ((options::ID)A->getOption().getID()) {
-      default:
-        DAL->append(A);
-        break;
-      case options::OPT_shared:
-      case options::OPT_dynamic:
-      case options::OPT_static:
-      case options::OPT_fPIC:
-      case options::OPT_fno_PIC:
-      case options::OPT_fpic:
-      case options::OPT_fno_pic:
-      case options::OPT_fPIE:
-      case options::OPT_fno_PIE:
-      case options::OPT_fpie:
-      case options::OPT_fno_pie:
-        break;
-      }
-    }
-    return DAL;
   }
-  return nullptr;
+
+  // Add the bound architecture to the arguments list if present.
+  if (!BoundArch.empty()) {
+    options::ID Opt =
+        getTriple().isARM() || getTriple().isPPC() || getTriple().isAArch64()
+            ? options::OPT_mcpu_EQ
+            : options::OPT_march_EQ;
+    DAL->eraseArg(Opt);
+    DAL->AddJoinedArg(nullptr, Opts.getOption(Opt), BoundArch);
+  }
+  return DAL;
 }
 
 void Generic_ELF::anchor() {}

@@ -69,7 +69,7 @@ template <int Size, int VL, class QueueTY> bool test(QueueTY q) {
   try {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<class TestID<Size, VL>>(
-          Range, [=](nd_item<1> ndi) [[intel::reqd_sub_group_size(VL)]] {
+          Range, [=](nd_item<1> ndi) [[sycl::reqd_sub_group_size(VL)]] {
             sub_group sg = ndi.get_sub_group();
             group<1> g = ndi.get_group();
             uint32_t i = sg.get_group_linear_id() * VL +

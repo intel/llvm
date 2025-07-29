@@ -47,6 +47,11 @@ public:
 ModulePass *createSYCLLowerWGLocalMemoryLegacyPass();
 void initializeSYCLLowerWGLocalMemoryLegacyPass(PassRegistry &);
 
+namespace sycl {
+std::vector<std::pair<StringRef, int>>
+getKernelNamesUsingImplicitLocalMem(const Module &M);
+}
+
 } // namespace llvm
 
 #endif // LLVM_SYCLLOWERIR_LOWERWGLOCALMEMORY_H

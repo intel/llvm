@@ -1,8 +1,5 @@
 // RUN: %{build} -o %t.out -DSYCL_DISABLE_IMAGE_ASPECT_WARNING
 // RUN: %{run-unfiltered-devices} %t.out
-//
-// Hip is missing some of the parameters tested here so it fails with NVIDIA
-// XFAIL: hip_nvidia
 
 //==--------------- aspects.cpp - SYCL device test ------------------------==//
 //
@@ -16,6 +13,7 @@
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl;
 
@@ -92,6 +90,9 @@ int main() {
     }
     if (plt.has(aspect::ext_oneapi_virtual_functions)) {
       std::cout << "  ext_oneapi_virtual_functions" << std::endl;
+    }
+    if (plt.has(aspect::ext_intel_spill_memory_size)) {
+      std::cout << "  ext_intel_spill_memory_size" << std::endl;
     }
   }
   std::cout << "Passed." << std::endl;

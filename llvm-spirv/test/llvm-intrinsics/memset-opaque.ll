@@ -1,7 +1,13 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
-; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM-OPAQUE
+
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt --spirv-ext=+SPV_KHR_untyped_pointers
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM-OPAQUE
 
@@ -10,10 +16,12 @@
 ; CHECK-SPIRV: Constant {{[0-9]+}} [[Lenmemset21:[0-9]+]] 4
 ; CHECK-SPIRV: Constant {{[0-9]+}} [[Lenmemset0:[0-9]+]] 12
 ; CHECK-SPIRV: Constant {{[0-9]+}} [[Const21:[0-9]+]] 21
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8Ptr:[0-9]+]] 8
 ; CHECK-SPIRV: TypeArray [[Int8x4:[0-9]+]] [[Int8]] [[Lenmemset21]]
-; CHECK-SPIRV: TypePointer [[Int8Ptr:[0-9]+]] 8 [[Int8]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8Ptr:[0-9]+]] 8 [[Int8]]
 ; CHECK-SPIRV: TypeArray [[Int8x12:[0-9]+]] [[Int8]] [[Lenmemset0]]
-; CHECK-SPIRV: TypePointer [[Int8PtrConst:[0-9]+]] 0 [[Int8]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8PtrConst:[0-9]+]] 0 [[Int8]]
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8PtrConst:[0-9]+]] 0
 
 ; CHECK-SPIRV: ConstantNull [[Int8x12]] [[Init:[0-9]+]]
 ; CHECK-SPIRV: Variable {{[0-9]+}} [[Val:[0-9]+]] 0 [[Init]]
@@ -43,7 +51,8 @@
 ; CHECK-SPIRV: Label [[#WhileBody]]
 ; CHECK-SPIRV: Phi [[#]] [[#Offset:]] [[#Zero]] [[#Entry]] [[#OffsetInc:]] [[#WhileBody]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#DestU8:]] [[#Dest]]
-; CHECK-SPIRV: InBoundsPtrAccessChain [[#]] [[#Ptr:]] [[#DestU8]] [[#Offset]]
+; CHECK-SPIRV-TYPED-PTR: InBoundsPtrAccessChain [[#]] [[#Ptr:]] [[#DestU8]] [[#Offset]]
+; CHECK-SPIRV-UNTYPED-PTR: UntypedInBoundsPtrAccessChainKHR [[#]] [[#Ptr:]] [[Int8]] [[#DestU8]] [[#Offset]]
 ; CHECK-SPIRV: Store [[#Ptr]] [[#Value]] 2 1
 ; CHECK-SPIRV: IAdd [[#]] [[#OffsetInc]] [[#Offset]] [[#One:]]
 ; CHECK-SPIRV: ULessThan [[#]] [[#NotEnd:]] [[#OffsetInc]] [[#Len]]
@@ -63,7 +72,7 @@ target triple = "spir"
 ; CHECK-LLVM-OPAQUE: internal unnamed_addr addrspace(2) constant [4 x i8] c"\15\15\15\15"
 
 ; Function Attrs: nounwind
-define spir_func void @_Z5foo11v(ptr addrspace(4) noalias nocapture sret(%struct.S1) %agg.result, i32 %s1, i64 %s2, i8 %v) #0 {
+define spir_func void @_Z5foo11v(ptr addrspace(4) noalias captures(none) sret(%struct.S1) %agg.result, i32 %s1, i64 %s2, i8 %v) #0 {
   %x = alloca [4 x i8]
   tail call void @llvm.memset.p4.i32(ptr addrspace(4) align 4 %agg.result, i8 0, i32 12, i1 false)
 ; CHECK-LLVM-OPAQUE: call void @llvm.memcpy.p4.p2.i32(ptr addrspace(4) align 4 %1, ptr addrspace(2) align 4 %2, i32 12, i1 false)
@@ -93,10 +102,10 @@ define spir_func void @_Z5foo11v(ptr addrspace(4) noalias nocapture sret(%struct
 }
 
 ; Function Attrs: nounwind
-declare void @llvm.memset.p4.i32(ptr addrspace(4) nocapture, i8, i32, i1) #1
+declare void @llvm.memset.p4.i32(ptr addrspace(4) captures(none), i8, i32, i1) #1
 
 ; Function Attrs: nounwind
-declare void @llvm.memset.p0.i32(ptr nocapture, i8, i32, i1) #1
+declare void @llvm.memset.p0.i32(ptr captures(none), i8, i32, i1) #1
 
 ; Function Attrs: nounwind
 declare void @llvm.memset.p3.i32(ptr addrspace(3), i8, i32, i1) #1

@@ -98,11 +98,19 @@ enum OCLScopeKind {
 // To avoid any inconsistence here, constants are explicitly initialized with
 // the corresponding constants from 'std::memory_order' enum.
 enum OCLMemOrderKind {
+#if __cplusplus >= 202002L
+  OCLMO_relaxed = std::memory_order_relaxed,
+  OCLMO_acquire = std::memory_order_acquire,
+  OCLMO_release = std::memory_order_release,
+  OCLMO_acq_rel = std::memory_order_acq_rel,
+  OCLMO_seq_cst = std::memory_order_seq_cst
+#else
   OCLMO_relaxed = std::memory_order::memory_order_relaxed,
   OCLMO_acquire = std::memory_order::memory_order_acquire,
   OCLMO_release = std::memory_order::memory_order_release,
   OCLMO_acq_rel = std::memory_order::memory_order_acq_rel,
   OCLMO_seq_cst = std::memory_order::memory_order_seq_cst
+#endif
 };
 
 enum IntelFPGAMemoryAccessesVal {
@@ -161,7 +169,7 @@ struct OCLBuiltinTransInfo {
   std::string Postfix; // Postfix to be added
   /// Postprocessor of operands
   std::function<void(BuiltinCallMutator &)> PostProc;
-  Type *RetTy;      // Return type of the translated function
+  Type *RetTy; // Return type of the translated function
   OCLBuiltinTransInfo() : RetTy(nullptr) {
     PostProc = [](BuiltinCallMutator &) {};
   }
@@ -453,11 +461,12 @@ SmallVector<unsigned, 3> decodeMDNode(MDNode *N);
 template <typename T> std::string getFullPath(const T *Scope) {
   if (!Scope)
     return std::string();
-  std::string Filename = Scope->getFilename().str();
-  if (sys::path::is_absolute(Filename))
-    return Filename;
+  StringRef Filename = Scope->getFilename();
+  auto Style = sys::path::Style::native;
+  if (sys::path::is_absolute(Filename, Style))
+    return Filename.str();
   SmallString<16> DirName = Scope->getDirectory();
-  sys::path::append(DirName, sys::path::Style::posix, Filename);
+  sys::path::append(DirName, Style, Filename.str());
   return DirName.str().str();
 }
 
@@ -578,6 +587,30 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
   assert(SI->getDefaultDest() != EntryBB &&
          "Invalid default destination in switch");
   return addCallInst(M, MapName, Ty, V, nullptr, InsertPoint);
+}
+
+/// Maps LLVM SyncScope into SPIR-V Scope.
+///
+/// \param [in] Ctx Context for the LLVM SyncScope
+/// \param [in] Id SyncScope::ID value which needs to be mapped to SPIR-V Scope
+inline spv::Scope toSPIRVScope(const LLVMContext &Ctx, SyncScope::ID Id) {
+  // We follow Clang/LLVM convention by which the default is System scope, which
+  // in SPIR-V maps to CrossDevice scope. This is in order to ensure that the
+  // resulting SPIR-V is conservatively correct (i.e. always works), under the
+  // assumption that it is the responsibility of the higher level language to
+  // choose a narrower scope, if desired.
+  switch (Id) {
+  case SyncScope::SingleThread:
+    return spv::ScopeInvocation;
+  case SyncScope::System:
+    return spv::ScopeCrossDevice;
+  default:
+    SmallVector<StringRef> SSIDs;
+    Ctx.getSyncScopeNames(SSIDs);
+    spv::Scope S = ScopeCrossDevice; // Default to CrossDevice scope.
+    OCLStrMemScopeMap::find(SSIDs[Id].str(), &S);
+    return S;
+  }
 }
 
 /// Performs conversion from OpenCL memory_scope into SPIR-V Scope.

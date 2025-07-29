@@ -31,6 +31,9 @@ if(SPIRV_TOOLS_FOUND AND NOT SPIRV-Tools-tools_FOUND)
   endif()
 
   set(SPIRV_TOOLS_BINDIR "${SPIRV_TOOLS_PREFIX}/bin")
+  if (LLVM_SPIRV_ENABLE_LIBSPIRV_DIS)
+    set(SPIRV_ENABLE_LIBSPIRV_DIS ON)
+  endif()
 elseif(SPIRV-Tools-tools_FOUND)
   # we found SPIRV-Tools via cmake targets
 
@@ -68,7 +71,7 @@ if(NOT SPIRV_TOOLS_SPIRV_AS_FOUND)
 endif()
 
 if(NOT SPIRV_TOOLS_SPIRV_DIS_FOUND)
-  message(WARNING "spirv-as not found! SPIR-V disassembly tests will not be run.")
+  message(WARNING "spirv-dis not found! SPIR-V disassembly tests will not be run.")
   set(SPIRV_TOOLS_SPIRV_DIS_FOUND False)
 endif()
 

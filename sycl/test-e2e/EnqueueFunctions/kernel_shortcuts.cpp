@@ -77,9 +77,8 @@ int main() {
     Failed += Check(Memory, 48, I, "3D nd_launch shortcut");
 
   // 1D parallel_for shortcut with launch config
-  oneapiext::parallel_for(
-      Q, oneapiext::launch_config<sycl::range<1>>{sycl::range<1>{N}},
-      [=](sycl::item<1> Item) { Memory[Item] = 49; });
+  oneapiext::parallel_for(Q, oneapiext::launch_config{sycl::range<1>{N}},
+                          [=](sycl::item<1> Item) { Memory[Item] = 49; });
   Q.wait();
   for (size_t I = 0; I < N; ++I)
     Failed +=
@@ -87,7 +86,7 @@ int main() {
 
   // 2D parallel_for shortcut with launch config
   oneapiext::parallel_for(
-      Q, oneapiext::launch_config<sycl::range<2>>{sycl::range<2>{8, N / 8}},
+      Q, oneapiext::launch_config{sycl::range<2>{8, N / 8}},
       [=](sycl::item<2> Item) { Memory[Item.get_linear_id()] = 50; });
   Q.wait();
   for (size_t I = 0; I < N; ++I)
@@ -96,7 +95,7 @@ int main() {
 
   // 3D parallel_for shortcut with launch config
   oneapiext::parallel_for(
-      Q, oneapiext::launch_config<sycl::range<3>>{sycl::range<3>{8, 8, N / 64}},
+      Q, oneapiext::launch_config{sycl::range<3>{8, 8, N / 64}},
       [=](sycl::item<3> Item) { Memory[Item.get_linear_id()] = 51; });
   Q.wait();
   for (size_t I = 0; I < N; ++I)
@@ -106,7 +105,7 @@ int main() {
   // 1D nd_launch shortcut with launch config
   oneapiext::nd_launch(
       Q,
-      oneapiext::launch_config<sycl::nd_range<1>>{
+      oneapiext::launch_config{
           sycl::nd_range<1>{sycl::range<1>{N}, sycl::range{8}}},
       [=](sycl::nd_item<1> Item) { Memory[Item.get_global_linear_id()] = 52; });
   Q.wait();
@@ -116,7 +115,7 @@ int main() {
   // 2D nd_launch shortcut with launch config
   oneapiext::nd_launch(
       Q,
-      oneapiext::launch_config<sycl::nd_range<2>>{
+      oneapiext::launch_config{
           sycl::nd_range<2>{sycl::range<2>{8, N / 8}, sycl::range{8, 8}}},
       [=](sycl::nd_item<2> Item) { Memory[Item.get_global_linear_id()] = 53; });
   Q.wait();
@@ -126,8 +125,8 @@ int main() {
   // 3D nd_launch shortcut with launch config
   oneapiext::nd_launch(
       Q,
-      oneapiext::launch_config<sycl::nd_range<3>>{sycl::nd_range<3>{
-          sycl::range<3>{8, 8, N / 64}, sycl::range{8, 8, 8}}},
+      oneapiext::launch_config{sycl::nd_range<3>{sycl::range<3>{8, 8, N / 64},
+                                                 sycl::range{8, 8, 8}}},
       [=](sycl::nd_item<3> Item) { Memory[Item.get_global_linear_id()] = 54; });
   Q.wait();
   for (size_t I = 0; I < N; ++I)

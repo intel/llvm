@@ -205,7 +205,6 @@ void test_memcpy3D_async_parameter_offset() {
 
   // alloc memory.
   extent = sycl::range<3>(sizeof(float) * width, height, depth);
-  // test_feature:malloc
   d_data = (syclcompat::pitched_data)syclcompat::malloc(extent);
 
   // copy to Device.

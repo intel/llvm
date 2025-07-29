@@ -1,0 +1,56 @@
+; This test is used to check that we do not break backward translation of `CooperativeMatrixLengthKHR`,
+; even in case when it was generated not specification conformant (as value, not type) in forward translation.
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: FileCheck %s --input-file %t.ll
+
+; CHECK: call spir_func i32 @_Z34__spirv_CooperativeMatrixLengthKHRPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_48_0(target("spirv.CooperativeMatrixKHR", i32, 3, 12, 48, 0)
+
+119734787 65536 393230 21 0 
+2 Capability Addresses 
+2 Capability Linkage 
+2 Capability Kernel 
+2 Capability Int64 
+2 Capability GenericPointer 
+2 Capability Int8 
+2 Capability CooperativeMatrixKHR 
+8 Extension "SPV_KHR_cooperative_matrix" 
+5 ExtInstImport 1 "OpenCL.std" 
+3 MemoryModel 2 2 
+3 Source 0 0 
+5 Name 7 "matr_mult" 
+5 Name 8 "_arg_accA" 
+4 Name 9 "_arg_K" 
+4 Name 10 "entry" 
+4 Name 12 "accA3" 
+3 Name 19 "m2" 
+3 Name 20 "len" 
+
+7 Decorate 7 LinkageAttributes "matr_mult" Export 
+4 Decorate 8 Alignment 1 
+4 TypeInt 3 8 0 
+4 TypeInt 5 64 0 
+4 TypeInt 13 32 0 
+4 Constant 13 14 3 
+4 Constant 13 15 12 
+4 Constant 13 16 48 
+4 Constant 13 17 0 
+2 TypeVoid 2 
+4 TypePointer 4 5 3 
+5 TypeFunction 6 2 4 5 
+4 TypePointer 11 8 3 
+7 TypeCooperativeMatrixKHR 18 13 14 15 16 17 
+
+5 Function 2 7 0 6 
+3 FunctionParameter 4 8 
+3 FunctionParameter 5 9 
+
+2 Label 10 
+4 PtrCastToGeneric 11 12 8 
+7 CooperativeMatrixLoadKHR 18 19 12 17 9 1 
+4 CooperativeMatrixLengthKHR 13 20 19 
+1 Return 
+
+1 FunctionEnd 
+

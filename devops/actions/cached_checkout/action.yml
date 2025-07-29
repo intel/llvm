@@ -10,7 +10,7 @@ inputs:
     description: |
       Commit-ish to merge post-checkout if non-empty. Must be reachable from the
       default_branch input paramter.
-    default: 'FETCH_HEAD'
+    default: ''
   path:
     description: 'Path to checkout repo to'
   fetch-depth:
@@ -31,9 +31,10 @@ runs:
       mkdir -p ${{ inputs.cache_path }}/${{ inputs.repository }}
       cd ${{ inputs.cache_path }}/${{ inputs.repository }}
       if [ -d ./.git ]; then
-        git pull --prune
+        git pull --prune --rebase
       else
         git clone https://github.com/${{ inputs.repository }}.git .
+        git gc
       fi
   - name: Checkout
     env:

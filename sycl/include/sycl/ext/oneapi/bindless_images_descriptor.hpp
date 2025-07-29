@@ -23,13 +23,15 @@ namespace ext::oneapi::experimental {
 
 namespace detail {
 
-inline image_channel_order
+constexpr image_channel_order
 get_image_default_channel_order(unsigned int num_channels) {
   switch (num_channels) {
   case 1:
     return image_channel_order::r;
   case 2:
     return image_channel_order::rg;
+  case 3:
+    return image_channel_order::rgb;
   case 4:
     return image_channel_order::rgba;
   default:
@@ -46,6 +48,7 @@ enum class image_type : unsigned int {
   mipmap = 1,
   array = 2,
   cubemap = 3,
+  gather = 4,
 };
 
 /// A struct to describe the properties of an image.
@@ -120,13 +123,9 @@ struct image_descriptor {
   }
 
   void verify() const {
-
-    if (this->num_channels != 1 && this->num_channels != 2 &&
-        this->num_channels != 4) {
-      // Images can only have 1, 2, or 4 channels.
+    if ((this->num_channels < 1) || (this->num_channels > 4)) {
       throw sycl::exception(sycl::errc::invalid,
-                            "Images must have only 1, 2, or 4 channels! Use a "
-                            "valid number of channels instead.");
+                            "Images must have 1, 2, 3, or 4 channels.");
     }
 
     switch (this->type) {
@@ -204,6 +203,11 @@ struct image_descriptor {
         throw sycl::exception(sycl::errc::invalid,
                               "Cannot have mipmap cubemaps! Either num_levels "
                               "or array_size must be 1.");
+      }
+      return;
+    case image_type::gather:
+      if (this->width == 0 || this->height == 0 || this->depth != 0) {
+        throw sycl::exception(sycl::errc::invalid, "Gather images must be 2D.");
       }
       return;
     }

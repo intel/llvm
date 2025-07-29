@@ -17,7 +17,6 @@
 #include "test/UnitTest/Test.h"
 
 #include "hdr/math_macros.h"
-#include <errno.h>
 
 static constexpr int ROUNDING_MODES[4] = {FE_UPWARD, FE_DOWNWARD, FE_TOWARDZERO,
                                           FE_TONEAREST};
@@ -41,7 +40,7 @@ private:
 
   void test_one_input(RoundToIntegerFunc func, F input, I expected,
                       bool expectError) {
-    LIBC_NAMESPACE::libc_errno = 0;
+    libc_errno = 0;
     LIBC_NAMESPACE::fputil::clear_except(FE_ALL_EXCEPT);
 
     ASSERT_EQ(func(input), expected);

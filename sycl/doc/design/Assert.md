@@ -74,8 +74,8 @@ practical cases.
    and running on the device.
  - Native Device Compiler - compiler which generates device-native binary image
    based on input SPIR-V image.
- - Low-level Runtime - the backend/runtime behind DPCPP Runtime attached via the
-   Plugin Interface.
+ - Low-level Runtime - the backend/runtime behind DPCPP Runtime accessed via
+   Unified Runtime.
 
 
 ## How it works?
@@ -92,8 +92,8 @@ ID and the local ID of the failing work item.
 Implementation of this function is supplied by Native Device Compiler for
 safe approach or by DPCPP Compiler for fallback one.
 
-In order to distinguish which implementation to use, DPCPP Runtime checks for
-`PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT` extension. If the extension isn't
+In order to distinguish which implementation to use, DPCPP Runtime checks the
+backend for the "cl_intel_devicelib_assert" extension. If the extension isn't
 available, then fallback implementation is used.
 
 
@@ -102,8 +102,7 @@ available, then fallback implementation is used.
 This is the preferred approach and implementations should use it when possible.
 It guarantees assertion failure notification delivery to the host regardless of
 kernel behavior which hit the assertion. If backend suports the safe approach,
-it must report this capability to DPCPP Runtime via the
-`PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT` extension query.
+it must report support for the "cl_intel_devicelib_assert" device extension.
 
 The Native Device Compiler is responsible for providing implementation of
 `__devicelib_assert_fail` which completely hides details of communication
@@ -128,10 +127,9 @@ The following sequence of events describes how user code gets notified:
 ## Fallback approach
 
 If Device-side Runtime doesn't support `__devicelib_assert_fail` (as reported
-via `PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT` extension query) then a fallback
-approach comes in place. The approach doesn't require any support from
-Device-side Runtime and Native Device Compiler. Neither it does from Low-level
-Runtime.
+via "cl_intel_devicelib_assert" extension query) then a fallback approach comes
+in place. The approach doesn't require any support from Device-side Runtime and
+Native Device Compiler. Neither it does from Low-level Runtime.
 
 Within this approach, a mutable program scope variable is introduced. This
 variable stores a flag which says if an assert failure was encountered. Fallback
@@ -234,8 +232,8 @@ with `#ifdef`'s. When in DPCPP Runtime Library this knowledge is obtained from
 device binary image descriptor's property sets.
 
 Each device image is supplied with an array of property sets. For description
-of property sets see `struct pi_device_binary_struct` in
-[`pi.h`](https://github.com/intel/llvm/blob/sycl/sycl/include/sycl/detail/pi.h#L692)
+of property sets see `struct sycl_device_binary_struct` in
+[`compiler.hpp`](https://github.com/intel/llvm/blob/7fc17d4b58e1b43882570a330afd84fab219aeba/sycl/source/detail/compiler.hpp#L132)
 
 A distinct property set `SYCL/assert used` is added. In this set a property
 with the name of the kernel is added whenever the kernel uses assert. The use of

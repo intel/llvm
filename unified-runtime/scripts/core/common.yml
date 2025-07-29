@@ -1,0 +1,367 @@
+#
+# Copyright (C) 2022-2024 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime API common types"
+ordinal: "0"
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Generates generic $OneApi API versions"
+name: "$X_MAKE_VERSION( _major, _minor )"
+value: "(( _major << 16 )|( _minor & 0x0000ffff))"
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Extracts $OneApi API major version"
+name: "$X_MAJOR_VERSION( _ver )"
+value: "( _ver >> 16 )"
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Extracts $OneApi API minor version"
+name: "$X_MINOR_VERSION( _ver )"
+value: "( _ver & 0x0000ffff )"
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Calling convention for all API functions"
+condition: "defined(_WIN32)"
+name: $X_APICALL
+value: __cdecl
+altvalue: ""
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Microsoft-specific dllexport storage-class attribute"
+condition: "defined(_WIN32)"
+name: $X_APIEXPORT
+value: __declspec(dllexport)
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "GCC-specific dllexport storage-class attribute"
+condition: "__GNUC__ >= 4"
+name: $X_APIEXPORT
+value: __attribute__ ((visibility ("default")))
+altvalue: ""
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Microsoft-specific dllexport storage-class attribute"
+condition: "defined(_WIN32)"
+name: $X_DLLEXPORT
+value: __declspec(dllexport)
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "GCC-specific dllexport storage-class attribute"
+condition: "__GNUC__ >= 4"
+name: $X_DLLEXPORT
+value: __attribute__ ((visibility ("default")))
+altvalue: ""
+--- #--------------------------------------------------------------------------
+type: typedef
+desc: "compiler-independent type"
+name: $x_bool_t
+value: uint8_t
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of a loader config object"
+class: $xLoaderConfig
+loader_only: True
+name: "$x_loader_config_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of an adapter instance"
+class: $xAdapter
+name: "$x_adapter_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of a platform instance"
+class: $xPlatform
+name: "$x_platform_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of platform's device object"
+class: $xDevice
+name: "$x_device_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of context object"
+class: $xContext
+name: "$x_context_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of event object"
+class: $xEvent
+name: "$x_event_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of Program object"
+class: $xProgram
+name: "$x_program_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of program's Kernel object"
+class: $xKernel
+name: "$x_kernel_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of a queue object"
+class: $xQueue
+name: "$x_queue_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of a native object"
+class: $xPlatform
+name: "$x_native_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of a Sampler object"
+class: $xSampler
+name: "$x_sampler_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of memory object which can either be buffer or image"
+class: $xMem
+name: "$x_mem_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of physical memory object"
+class: $xPhysicalMem
+name: "$x_physical_mem_handle_t"
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "Generic macro for enumerator bit masks"
+name: "$X_BIT( _i )"
+value: "( 1 << _i )"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Defines Return/Error codes"
+name: $x_result_t
+etors:
+    - name: SUCCESS
+      value: "0"
+      desc: "Success"
+    - name: ERROR_INVALID_OPERATION
+      desc: "Invalid operation"
+    - name: ERROR_INVALID_QUEUE_PROPERTIES
+      desc: "Invalid queue properties"
+    - name: ERROR_INVALID_QUEUE
+      desc: "Invalid queue"
+    - name: ERROR_INVALID_VALUE
+      desc: "Invalid Value"
+    - name: ERROR_INVALID_CONTEXT
+      desc: "Invalid context"
+    - name: ERROR_INVALID_PLATFORM
+      desc: "Invalid platform"
+    - name: ERROR_INVALID_BINARY
+      desc: "Invalid binary"
+    - name: ERROR_INVALID_PROGRAM
+      desc: "Invalid program"
+    - name: ERROR_INVALID_SAMPLER
+      desc: "Invalid sampler"
+    - name: ERROR_INVALID_BUFFER_SIZE
+      desc: "Invalid buffer size"
+    - name: ERROR_INVALID_MEM_OBJECT
+      desc: "Invalid memory object"
+    - name: ERROR_INVALID_EVENT
+      desc: "Invalid event"
+    - name: ERROR_INVALID_EVENT_WAIT_LIST
+      desc: "Returned when the event wait list or the events in the wait list are invalid."
+    - name: ERROR_MISALIGNED_SUB_BUFFER_OFFSET
+      desc: "Misaligned sub buffer offset"
+    - name: ERROR_INVALID_WORK_GROUP_SIZE
+      desc: "Invalid work group size"
+    - name: ERROR_COMPILER_NOT_AVAILABLE
+      desc: "Compiler not available"
+    - name: ERROR_PROFILING_INFO_NOT_AVAILABLE
+      desc: "Profiling info not available"
+    - name: ERROR_DEVICE_NOT_FOUND
+      desc: "Device not found"
+    - name: ERROR_INVALID_DEVICE
+      desc: "Invalid device"
+    - name: ERROR_DEVICE_LOST
+      desc: "Device hung, reset, was removed, or adapter update occurred"
+    - name: ERROR_DEVICE_REQUIRES_RESET
+      desc: "Device requires a reset"
+    - name: ERROR_DEVICE_IN_LOW_POWER_STATE
+      desc: "Device currently in low power state"
+    - name: ERROR_DEVICE_PARTITION_FAILED
+      desc: "Device partitioning failed"
+    - name: ERROR_INVALID_DEVICE_PARTITION_COUNT
+      desc: "Invalid counts provided with $X_DEVICE_PARTITION_BY_COUNTS"
+    - name: ERROR_INVALID_WORK_ITEM_SIZE
+      desc: "Invalid work item size"
+    - name: ERROR_INVALID_WORK_DIMENSION
+      desc: "Invalid work dimension"
+    - name: ERROR_INVALID_KERNEL_ARGS
+      desc: "[deprecated-value] No longer used - invalid kernel args are now UB"
+    - name: ERROR_INVALID_KERNEL
+      desc: "Invalid kernel"
+    - name: ERROR_INVALID_KERNEL_NAME
+      desc: "[Validation] kernel name is not found in the program"
+    - name: ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+      desc: "[Validation] kernel argument index is not valid for kernel"
+    - name: ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+      desc: "[Validation] kernel argument size does not match kernel"
+    - name: ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE
+      desc: "[Validation] value of kernel attribute is not valid for the kernel or device"
+    - name: ERROR_INVALID_IMAGE_SIZE
+      desc: "Invalid image size"
+    - name: ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
+      desc: "Invalid image format descriptor"
+    - name: ERROR_MEM_OBJECT_ALLOCATION_FAILURE
+      desc: "Memory object allocation failure"
+    - name: ERROR_INVALID_PROGRAM_EXECUTABLE
+      desc: "Program object parameter is invalid."
+    - name: ERROR_UNINITIALIZED
+      desc: "[Validation] adapter is not initialized or specific entry-point is not implemented"
+    - name: ERROR_OUT_OF_HOST_MEMORY
+      desc: "Insufficient host memory to satisfy call"
+    - name: ERROR_OUT_OF_DEVICE_MEMORY
+      desc: "Insufficient device memory to satisfy call"
+    - name: ERROR_OUT_OF_RESOURCES
+      desc: "Out of resources"
+    - name: ERROR_PROGRAM_BUILD_FAILURE
+      desc: "Error occurred when building program, see build log for details"
+    - name: ERROR_PROGRAM_LINK_FAILURE
+      desc: "Error occurred when linking programs, see build log for details"
+    - name: ERROR_UNSUPPORTED_VERSION
+      desc: "[Validation] generic error code for unsupported versions"
+    - name: ERROR_UNSUPPORTED_FEATURE
+      desc: "[Validation] generic error code for unsupported features"
+    - name: ERROR_INVALID_ARGUMENT
+      desc: "[Validation] generic error code for invalid arguments"
+    - name: ERROR_INVALID_NULL_HANDLE
+      desc: "[Validation] handle argument is not valid"
+    - name: ERROR_HANDLE_OBJECT_IN_USE
+      desc: "[Validation] object pointed to by handle still in-use by device"
+    - name: ERROR_INVALID_NULL_POINTER
+      desc: "[Validation] pointer argument may not be nullptr"
+    - name: ERROR_INVALID_SIZE
+      desc: "[Validation] invalid size or dimensions (e.g., must not be zero, or is out of bounds)"
+    - name: ERROR_UNSUPPORTED_SIZE
+      desc: "[Validation] size argument is not supported by the device (e.g., too large)"
+    - name: ERROR_UNSUPPORTED_ALIGNMENT
+      desc: "[Validation] alignment argument is not supported by the device (e.g., too small)"
+    - name: ERROR_INVALID_SYNCHRONIZATION_OBJECT
+      desc: "[Validation] synchronization object in invalid state"
+    - name: ERROR_INVALID_ENUMERATION
+      desc: "[Validation] enumerator argument is not valid"
+    - name: ERROR_UNSUPPORTED_ENUMERATION
+      desc: "[Validation] enumerator argument is not supported by the device"
+    - name: ERROR_UNSUPPORTED_IMAGE_FORMAT
+      desc: "[Validation] image format is not supported by the device"
+    - name: ERROR_INVALID_NATIVE_BINARY
+      desc: "[Validation] native binary is not supported by the device"
+    - name: ERROR_INVALID_GLOBAL_NAME
+      desc: "[Validation] global variable is not found in the program"
+    - name: ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE
+      desc: "[Validation] function name is in the program but its address could not be determined"
+    - name: ERROR_INVALID_GROUP_SIZE_DIMENSION
+      desc: "[Validation] group size dimension is not valid for the kernel or device"
+    - name: ERROR_INVALID_GLOBAL_WIDTH_DIMENSION
+      desc: "[Validation] global width dimension is not valid for the kernel or device"
+    - name: ERROR_PROGRAM_UNLINKED
+      desc: "[Validation] compiled program or program with imports needs to be linked before kernels can be created from it."
+    - name: ERROR_OVERLAPPING_REGIONS
+      desc: "[Validation] copy operations do not support overlapping regions of memory"
+    - name: ERROR_INVALID_HOST_PTR
+      desc: "Invalid host pointer"
+    - name: ERROR_INVALID_USM_SIZE
+      desc: "Invalid USM size"
+    - name: ERROR_OBJECT_ALLOCATION_FAILURE
+      desc: "Objection allocation failure"
+    - name: ERROR_ADAPTER_SPECIFIC
+      desc: "An adapter specific warning/error has been reported and can be retrieved
+             via the urAdapterGetLastError entry point."
+    - name: ERROR_LAYER_NOT_PRESENT
+      desc: "A requested layer was not found by the loader."
+    - name: ERROR_IN_EVENT_LIST_EXEC_STATUS
+      desc: "An event in the provided wait list has $X_EVENT_STATUS_ERROR."
+    - name: ERROR_DEVICE_NOT_AVAILABLE
+      desc: "Device in question has `$X_DEVICE_INFO_AVAILABLE == false`"
+    - name: ERROR_INVALID_SPEC_ID
+      desc: "A specialization constant identifier is not valid."
+    - name: ERROR_UNKNOWN
+      value: "0x7ffffffe"
+      desc: "Unknown or internal error"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Base for all properties types"
+name: $x_base_properties_t
+members:
+    - type: $x_structure_type_t
+      name: stype
+      desc: "[in] type of this structure"
+    - type: "void*"
+      name: pNext
+      desc: "[in,out][optional] pointer to extension-specific structure"
+      init: nullptr
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Base for all descriptor types"
+name: $x_base_desc_t
+members:
+    - type: $x_structure_type_t
+      name: stype
+      desc: "[in] type of this structure"
+    - type: "const void*"
+      name: pNext
+      desc: "[in][optional] pointer to extension-specific structure"
+      init: nullptr
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "3D offset argument passed to buffer rect operations"
+name: $x_rect_offset_t
+members:
+    - type: uint64_t
+      name: x
+      desc: "[in] x offset (bytes)"
+    - type: uint64_t
+      name: y
+      desc: "[in] y offset (scalar)"
+    - type: uint64_t
+      name: z
+      desc: "[in] z offset (scalar)"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "3D region argument passed to buffer rect operations"
+name: $x_rect_region_t
+members:
+    - type: uint64_t
+      name: width
+      desc: "[in] width (bytes)"
+    - type: uint64_t
+      name: height
+      desc: "[in] height (scalar)"
+    - type: uint64_t
+      name: depth
+      desc: "[in] scalar (scalar)"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Defines known backends."
+name: $x_backend_t
+etors:
+    - name: UNKNOWN
+      value: "0"
+      desc: "The backend is not a recognized one"
+    - name: LEVEL_ZERO
+      value: "1"
+      desc: "The backend is Level Zero"
+    - name: OPENCL
+      value: "2"
+      desc: "The backend is OpenCL"
+    - name: CUDA
+      value: "3"
+      desc: "The backend is CUDA"
+    - name: HIP
+      value: "4"
+      desc: "The backend is HIP"
+    - name: NATIVE_CPU
+      value: "5"
+      desc: "The backend is Native CPU"
+    - name: OFFLOAD
+      value: "0x100"
+      desc: "The backend is liboffload"
