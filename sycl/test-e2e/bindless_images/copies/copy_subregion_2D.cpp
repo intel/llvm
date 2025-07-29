@@ -277,9 +277,6 @@ void copy_usm_to_usm(const syclexp::image_descriptor &desc,
 
   q.wait_and_throw();
 
-  // // Copy device data to host.
-  // q.ext_oneapi_copy(imgMemDst, out.data(), desc, pitchDst);
-
   // Copy device data back to host.
   // Copy four quarters of device imgMemDst data to host out.
   q.ext_oneapi_copy(imgMemDst, {0, 0, 0}, out.data(), {0, 0, 0}, desc, pitchDst,
