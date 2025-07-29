@@ -6,30 +6,30 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/ptx-nvidiacl/libdevice.h>
-#include <clc/clcmacro.h>
 #include <clc/utils.h>
+#include <libspirv/ptx-nvidiacl/libdevice.h>
 #include <libspirv/spirv.h>
 
-#define __SPIRV_FUNCTION __spirv_ocl_nextafter
-#define __CLC_BUILTIN __nv_nextafter
-#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
-#define __CLC_BUILTIN_D __CLC_BUILTIN
-
-_CLC_DEFINE_BINARY_BUILTIN(float, __SPIRV_FUNCTION, __CLC_BUILTIN_F, float,
-                           float)
-
-#ifndef __FLOAT_ONLY
+_CLC_OVERLOAD _CLC_DEF float __spirv_ocl_nextafter(float x, float y) {
+  return __nv_nextafterf(x, y);
+}
 
 #ifdef cl_khr_fp64
-
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-_CLC_DEFINE_BINARY_BUILTIN(double, __SPIRV_FUNCTION, __CLC_BUILTIN_D, double,
-                           double)
-
+_CLC_OVERLOAD _CLC_DEF double __spirv_ocl_nextafter(double x, double y) {
+  return __nv_nextafter(x, y);
+}
 #endif
 
-#include <libspirv/generic/math/half_nextafter.inc>
+#include "half_nextafter.inc"
 
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+_CLC_OVERLOAD _CLC_DEF half __spirv_ocl_nextafter(half x, half y) {
+  return half_nextafter(x, y);
+}
 #endif
+
+#define FUNCTION __spirv_ocl_nextafter
+#define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
+#include <clc/math/gentype.inc>

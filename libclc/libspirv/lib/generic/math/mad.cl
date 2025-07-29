@@ -8,6 +8,7 @@
 
 #include <clc/math/clc_mad.h>
 #include <libspirv/spirv.h>
+#include <clc/math/clc_mad.h>
 
 #define FUNCTION __spirv_ocl_mad
 #define __CLC_FUNCTION(x) __clc_mad

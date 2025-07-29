@@ -1051,10 +1051,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
 ///
 /// This stores the string representation and parses the various pieces into
 /// enum members.
-Triple::Triple(const Twine &Str)
-    : Data(Str.str()), Arch(UnknownArch), SubArch(NoSubArch),
-      Vendor(UnknownVendor), OS(UnknownOS), Environment(UnknownEnvironment),
-      ObjectFormat(UnknownObjectFormat) {
+Triple::Triple(std::string &&Str) : Data(std::move(Str)) {
   // Do minimal parsing by hand here.
   SmallVector<StringRef, 4> Components;
   StringRef(Data).split(Components, '-', /*MaxSplit*/ 3);
@@ -1084,6 +1081,8 @@ Triple::Triple(const Twine &Str)
   if (ObjectFormat == UnknownObjectFormat)
     ObjectFormat = getDefaultFormat(*this);
 }
+
+Triple::Triple(const Twine &Str) : Triple(Str.str()) {}
 
 /// Construct a triple from string representations of the architecture,
 /// vendor, and OS.
@@ -1669,14 +1668,7 @@ void Triple::setObjectFormat(ObjectFormatType Kind) {
 }
 
 void Triple::setArchName(StringRef Str) {
-  // Work around a miscompilation bug for Twines in gcc 4.0.3.
-  SmallString<64> Triple;
-  Triple += Str;
-  Triple += "-";
-  Triple += getVendorName();
-  Triple += "-";
-  Triple += getOSAndEnvironmentName();
-  setTriple(Triple);
+  setTriple(Str + "-" + getVendorName() + "-" + getOSAndEnvironmentName());
 }
 
 void Triple::setVendorName(StringRef Str) {

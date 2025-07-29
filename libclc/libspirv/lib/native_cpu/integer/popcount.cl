@@ -1,6 +1,9 @@
 #include <clc/clcfunc.h>
-#include <clc/clcmacro.h>
 #include <libspirv/spirv.h>
+
+#define FUNCTION __spirv_ocl_popcount
+#define __CLC_SCALAR
+#define __CLC_MIN_VECSIZE 1
 
 // We can't use __builtin_popcountg because it supports only unsigned
 // types, and we can't use __builtin_popcount because the implicit cast
@@ -15,19 +18,59 @@
 DEF_POPCOUNT_HELPER(char, unsigned char)
 DEF_POPCOUNT_HELPER(short, unsigned short)
 
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(int, __spirv_ocl_popcount,
-                                    __builtin_popcount, int)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(uint, __spirv_ocl_popcount,
-                                    __builtin_popcount, uint)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(short, __spirv_ocl_popcount,
-                                    __popcount_helper, short)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(ushort, __spirv_ocl_popcount,
-                                    __builtin_popcountg, ushort)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(long, __spirv_ocl_popcount,
-                                    __builtin_popcountl, long)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(ulong, __spirv_ocl_popcount,
-                                    __builtin_popcountl, ulong)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(char, __spirv_ocl_popcount,
-                                    __popcount_helper, char)
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(uchar, __spirv_ocl_popcount,
-                                    __builtin_popcountg, uchar)
+#define FUNCTION __spirv_ocl_popcount
+#define __IMPL_FUNCTION
+#define __CLC_BODY <clc/shared/ternary_def_scalarize.inc>
+#include <clc/integer/gentype.inc>
+
+#define __CLC_GENTYPE int
+#define __IMPL_FUNCTION __builtin_popcount
+#include <clc/shared/unary_def_scalarize.inc>
+#undef __IMPL_FUNCTION
+#undef __CLC_GENTYPE
+
+#define __CLC_GENTYPE uint
+#define __IMPL_FUNCTION __builtin_popcount
+#include <clc/shared/unary_def_scalarize.inc>
+#undef __IMPL_FUNCTION
+#undef __CLC_GENTYPE
+
+#define __CLC_GENTYPE short
+#define __IMPL_FUNCTION __popcount_helper
+#include <clc/shared/unary_def_scalarize.inc>
+#undef __IMPL_FUNCTION
+#undef __CLC_GENTYPE
+
+#define __CLC_GENTYPE ushort
+#define __IMPL_FUNCTION __builtin_popcountg
+#include <clc/shared/unary_def_scalarize.inc>
+#undef __IMPL_FUNCTION
+#undef __CLC_GENTYPE
+
+#define __CLC_GENTYPE long
+#define __IMPL_FUNCTION __builtin_popcountl
+#include <clc/shared/unary_def_scalarize.inc>
+#undef __IMPL_FUNCTION
+#undef __CLC_GENTYPE
+
+#define __CLC_GENTYPE ulong
+#define __IMPL_FUNCTION __builtin_popcountl
+#include <clc/shared/unary_def_scalarize.inc>
+#undef __IMPL_FUNCTION
+#undef __CLC_GENTYPE
+
+#define __CLC_GENTYPE char
+#define __IMPL_FUNCTION __popcount_helper
+#include <clc/shared/unary_def_scalarize.inc>
+#undef __IMPL_FUNCTION
+#undef __CLC_GENTYPE
+
+#define __CLC_GENTYPE uchar
+#define __IMPL_FUNCTION __builtin_popcountg
+#include <clc/shared/unary_def_scalarize.inc>
+#undef __IMPL_FUNCTION
+#undef __CLC_GENTYPE
+
+#undef __CLC_MIN_VECSIZE
+#undef __CLC_SCALAR
+#undef FUNCTION

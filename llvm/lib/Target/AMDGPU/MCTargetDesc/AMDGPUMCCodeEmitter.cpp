@@ -255,13 +255,9 @@ AMDGPUMCCodeEmitter::getLitEncoding(const MCOperand &MO,
                                     const MCSubtargetInfo &STI) const {
   int64_t Imm;
   if (MO.isExpr()) {
-    const auto *C = dyn_cast<MCConstantExpr>(MO.getExpr());
-    if (!C)
+    if (!MO.getExpr()->evaluateAsAbsolute(Imm))
       return 255;
-
-    Imm = C->getValue();
   } else {
-
     assert(!MO.isDFPImm());
 
     if (!MO.isImm())
@@ -450,7 +446,7 @@ void AMDGPUMCCodeEmitter::getSOPPBrEncoding(const MCInst &MI, unsigned OpNo,
   if (MO.isExpr()) {
     const MCExpr *Expr = MO.getExpr();
     MCFixupKind Kind = (MCFixupKind)AMDGPU::fixup_si_sopp_br;
-    Fixups.push_back(MCFixup::create(0, Expr, Kind, MI.getLoc()));
+    Fixups.push_back(MCFixup::create(0, Expr, Kind));
     Op = APInt::getZero(96);
   } else {
     getMachineOpValue(MI, MO, Op, Fixups, STI);
@@ -666,7 +662,7 @@ void AMDGPUMCCodeEmitter::getMachineOpValueCommon(
     uint32_t Offset = Desc.getSize();
     assert(Offset == 4 || Offset == 8);
 
-    Fixups.push_back(MCFixup::create(Offset, MO.getExpr(), Kind, MI.getLoc()));
+    Fixups.push_back(MCFixup::create(Offset, MO.getExpr(), Kind));
   }
 
   const MCInstrDesc &Desc = MCII.get(MI.getOpcode());
