@@ -332,9 +332,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     expanded += " {}".format(" ".join(extra_env))
 
                 dev_features = test.config.sycl_dev_features[full_dev_name]
-                if "level_zero_v2_adapter" in dev_features:
+                if "forced_level_zero_v2_adapter" in dev_features:
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=1"
-                elif "level_zero_v1_adapter" in dev_features:
+                elif "forced_level_zero_v1_adapter" in dev_features:
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=0"
 
                 expanded += " ONEAPI_DEVICE_SELECTOR={} {}".format(

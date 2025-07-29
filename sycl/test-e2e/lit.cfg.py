@@ -1099,9 +1099,15 @@ for full_name, sycl_device in zip(
     be, dev = sycl_device.split(":")
     features.add(dev.replace("fpga", "accelerator"))
     if "v2" in full_name:
+        features.add("forced_level_zero_v2_adapter")
         features.add("level_zero_v2_adapter")
     elif "v1" in full_name:
-        features.add("level_zero_v1_adapter")
+        features.add("forced_level_zero_v1_adapter")
+        features.discard("level_zero_v2_adapter")
+
+    if "level_zero_v2_adapter" in features:
+        lit_config.note("Using Level Zero V2 adapter for {}".format(sycl_device))
+
     # Use short names for LIT rules.
     features.add(be)
     # Add corresponding target feature
