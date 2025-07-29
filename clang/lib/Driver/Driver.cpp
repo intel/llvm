@@ -270,8 +270,8 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
       CCLogDiagnostics(false), CCGenDiagnostics(false),
       CCPrintProcessStats(false), CCPrintInternalStats(false),
       TargetTriple(TargetTriple), Saver(Alloc), PrependArg(nullptr),
-      CheckInputsExist(true), ProbePrecompiled(true),
-      SuppressMissingInputWarning(false) {
+      PreferredLinker(CLANG_DEFAULT_LINKER), CheckInputsExist(true),
+      ProbePrecompiled(true), SuppressMissingInputWarning(false) {
   // Provide a sane fallback if no VFS is specified.
   if (!this->VFS)
     this->VFS = llvm::vfs::getRealFileSystem();
@@ -8205,8 +8205,7 @@ Action *Driver::ConstructPhaseAction(
         (TargetDeviceOffloadKind == Action::OFK_SYCL &&
          C.getDriver().getUseNewOffloadingDriver()) ||
         (((Input->getOffloadingToolChain() &&
-           (Input->getOffloadingToolChain()->getTriple().isSPIRV() ||
-            Input->getOffloadingToolChain()->getTriple().isAMDGPU())) ||
+           Input->getOffloadingToolChain()->getTriple().isAMDGPU()) ||
           TargetDeviceOffloadKind == Action::OFK_HIP) &&
          ((Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
                         false) ||
@@ -8214,6 +8213,7 @@ Action *Driver::ConstructPhaseAction(
                          options::OPT_no_offload_new_driver, false) &&
             (!offloadDeviceOnly() ||
              (Input->getOffloadingToolChain() &&
+              TargetDeviceOffloadKind == Action::OFK_HIP &&
               Input->getOffloadingToolChain()->getTriple().isSPIRV())))) ||
           TargetDeviceOffloadKind == Action::OFK_OpenMP))) {
       types::ID Output =
