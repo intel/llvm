@@ -35,11 +35,11 @@ void foo() {
 // Test for deprecated spelling of Intel FPGA loop attributes
 void foo_deprecated() {
   int a[10];
-  // expected-warning@+1 {{unknown attribute 'ivdep' ignored}}
+  // expected-warning@+1 {{unknown attribute 'intelfpga::ivdep' ignored}}
   [[intelfpga::ivdep(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-warning@+1 {{unknown attribute 'ii' ignored}}
+  // expected-warning@+1 {{unknown attribute 'intelfpga::ii' ignored}}
   [[intelfpga::ii(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
@@ -48,23 +48,23 @@ void foo_deprecated() {
   [[intel::ii(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-warning@+1 {{unknown attribute 'max_concurrency' ignored}}
+  // expected-warning@+1 {{unknown attribute 'intelfpga::max_concurrency' ignored}}
   [[intelfpga::max_concurrency(4)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-warning@+1 {{unknown attribute 'max_interleaving' ignored}}
+  // expected-warning@+1 {{unknown attribute 'intelfpga::max_interleaving' ignored}}
   [[intelfpga::max_interleaving(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-warning@+1 {{unknown attribute 'disable_loop_pipelining' ignored}}
+  // expected-warning@+1 {{unknown attribute 'intelfpga::disable_loop_pipelining' ignored}}
   [[intelfpga::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-warning@+1 {{unknown attribute 'loop_coalesce' ignored}}
+  // expected-warning@+1 {{unknown attribute 'intelfpga::loop_coalesce' ignored}}
   [[intelfpga::loop_coalesce(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-warning@+1 {{unknown attribute 'speculated_iterations' ignored}}
+  // expected-warning@+1 {{unknown attribute 'intelfpga::speculated_iterations' ignored}}
   [[intelfpga::speculated_iterations(6)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }

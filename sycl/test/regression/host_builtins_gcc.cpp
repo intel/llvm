@@ -3,6 +3,8 @@
 // expected-no-diagnostics
 //
 // REQUIRES: linux
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
 //
 // Tests that using gcc as the host compiler correctly compiles SYCL builtins on
 // host.

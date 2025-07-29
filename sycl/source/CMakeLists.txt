@@ -289,6 +289,7 @@ set(SYCL_COMMON_SOURCES
     "detail/kernel_impl.cpp"
     "detail/kernel_name_based_cache.cpp"
     "detail/kernel_program_cache.cpp"
+    "detail/memory_export.cpp"
     "detail/memory_manager.cpp"
     "detail/pipes.cpp"
     "detail/platform_impl.cpp"

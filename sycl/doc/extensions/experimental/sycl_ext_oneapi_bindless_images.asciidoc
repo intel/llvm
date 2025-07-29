@@ -1531,8 +1531,6 @@ construct `ImageHandle` using an `image_descriptor` with member
 `image_type::gather`. Calling `gather_image` on an `ImageHandle` constructed
 with `image_descriptor::num_channels < 4` will result in undefined behavior.
 
-====
-
 === Recognized standard types [[recognized_standard_types]]
 
 For the purposes of this extension, the following are classified as recognized 
@@ -1544,8 +1542,6 @@ standard types.
   `2`, or `3`
 
 Any other types are classified as user-defined types.
-
-===
 
 ==== User-defined types
 
