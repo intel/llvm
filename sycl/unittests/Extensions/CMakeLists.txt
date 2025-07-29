@@ -23,6 +23,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   EventMode.cpp
   DeviceInfo.cpp
   RootGroup.cpp
+  USMPrefetch.cpp
 )
 
 add_subdirectory(CommandGraph)
