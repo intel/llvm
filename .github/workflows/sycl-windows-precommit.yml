@@ -3,7 +3,7 @@ name: SYCL Pre Commit on Windows
 on:
   pull_request:
     branches:
-    - sycl
+    # - sycl
     - llvmspirv_pulldown
     - sycl-rel-**
     # Do not run builds if changes are only in the following locations
