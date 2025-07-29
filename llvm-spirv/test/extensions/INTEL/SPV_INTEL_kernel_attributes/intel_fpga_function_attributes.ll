@@ -14,7 +14,7 @@
 ;; };
 ;;
 ;; template <typename name, typename Func>
-;; __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+;; __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
 ;;   kernelFunc();
 ;; }
 ;;

@@ -61,17 +61,17 @@ struct Derp {
 };
 
 template <typename KernelName, typename KernelType>
-[[clang::sycl_kernel]] void kernel_single_task(KernelType kernelFunc) {
+[[clang::sycl_kernel]] void kernel_single_task(const KernelType &kernelFunc) {
   kernelFunc();
 }
 
 template<typename KernelType>
-void unnamed_kernel_single_task(KernelType kernelFunc) {
+void unnamed_kernel_single_task(const KernelType &kernelFunc) {
   kernel_single_task<KernelType>(kernelFunc);
 }
 
 template <typename KernelName, typename KernelType>
-void not_kernel_single_task(KernelType kernelFunc) {
+void not_kernel_single_task(const KernelType &kernelFunc) {
   kernelFunc();
 }
 

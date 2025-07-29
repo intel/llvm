@@ -7,7 +7,7 @@ __attribute__((opencl_private)) __attribute__((sycl_explicit_simd)) __attribute_
 // CHECK: @vc = {{.+}} i32 0, align 4 #[[ATTR:[0-9]+]]
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 

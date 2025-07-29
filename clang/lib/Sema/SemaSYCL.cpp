@@ -1127,8 +1127,8 @@ static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
   assert(KernelCaller->getNumParams() > 0 && "Insufficient kernel parameters");
   QualType KernelParamTy = KernelCaller->getParamDecl(0)->getType();
 
-  // SYCL 2020 kernels are passed by reference.
-  assert(KernelParamTy->isReferenceType() && "Since SYCL 2020 kernels must be passed by reference.");
+  assert(KernelParamTy->isReferenceType() &&
+         "Kernel function must be passed by reference.");
   return KernelParamTy = KernelParamTy->getPointeeType();
 }
 
@@ -5032,13 +5032,9 @@ void SemaSYCL::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
       }
   }
 
-  // check that calling kernel conforms to spec
-  QualType KernelParamTy = KernelFunc->getParamDecl(0)->getType();
-  if (! KernelParamTy->isReferenceType()) {
-    // passing by value.  emit warning if using SYCL 2020 or greater
-    if (SemaRef.LangOpts.getSYCLVersion() >= LangOptions::SYCL_2020)
-      Diag(KernelFunc->getLocation(), diag::warn_sycl_pass_by_value_deprecated);
-  }
+  // SYCL only supports passing kernel functions by reference.
+  if (!KernelFunc->getParamDecl(0)->getType()->isReferenceType())
+    Diag(KernelFunc->getLocation(), diag::err_sycl_kernel_pass_by_value);
 
   // Do not visit invalid kernel object.
   if (KernelObj->isInvalidDecl())
@@ -5163,8 +5159,8 @@ void SemaSYCL::SetSYCLKernelNames() {
 //
 // Example of kernel caller function:
 //   template <typename KernelName, typename KernelType/*, ...*/>
-//   __attribute__((sycl_kernel)) void kernel_caller_function(KernelType
-//                                                            KernelFuncObj) {
+//   __attribute__((sycl_kernel))
+//   void kernel_caller_function(const KernelType &KernelFuncObj) {
 //     KernelFuncObj();
 //   }
 //

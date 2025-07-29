@@ -66,20 +66,6 @@
 // 41(!!!) includes of SYCL headers + 10 includes of standard headers.
 // 3300+ lines of code
 
-// SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
-#if !SYCL_LANGUAGE_VERSION || SYCL_LANGUAGE_VERSION < 202001
-#define __SYCL_NONCONST_FUNCTOR__
-#endif
-
-// replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
-//                                     or     const KernelType &KernelFunc
-#ifdef __SYCL_NONCONST_FUNCTOR__
-#define _KERNELFUNCPARAMTYPE KernelType
-#else
-#define _KERNELFUNCPARAMTYPE const KernelType &
-#endif
-#define _KERNELFUNCPARAM(a) _KERNELFUNCPARAMTYPE a
-
 #if defined(__SYCL_UNNAMED_LAMBDA__)
 // We can't use nested types (e.g. struct S defined inside main() routine) to
 // name kernels. At the same time, we have to provide a unique kernel name for
@@ -1313,7 +1299,7 @@ private:
   template <typename KernelName, typename KernelType, int Dims,
             typename PropertiesT>
   void parallel_for_impl(nd_range<Dims> ExecutionRange, PropertiesT Props,
-                         _KERNELFUNCPARAM(KernelFunc)) {
+                         const KernelType &KernelFunc) {
     throwIfActionIsCreated();
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
@@ -1404,7 +1390,7 @@ private:
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void parallel_for_work_group_lambda_impl(range<Dims> NumWorkGroups,
                                            PropertiesT Props,
-                                           _KERNELFUNCPARAM(KernelFunc)) {
+                                           const KernelType &KernelFunc) {
     throwIfActionIsCreated();
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
@@ -1446,7 +1432,7 @@ private:
   void parallel_for_work_group_lambda_impl(range<Dims> NumWorkGroups,
                                            range<Dims> WorkGroupSize,
                                            PropertiesT Props,
-                                           _KERNELFUNCPARAM(KernelFunc)) {
+                                           const KernelType &KernelFunc) {
     throwIfActionIsCreated();
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
@@ -1494,7 +1480,7 @@ private:
 #endif
 
   __SYCL_KERNEL_ATTR__ static void
-  kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
+  kernel_single_task(const KernelType &KernelFunc) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc();
 #else
@@ -1513,7 +1499,7 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
   __SYCL_KERNEL_ATTR__ static void
-  kernel_single_task(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
+  kernel_single_task(const KernelType &KernelFunc, kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(KH);
 #else
@@ -1532,7 +1518,7 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
   __SYCL_KERNEL_ATTR__ static void
-  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc)) {
+  kernel_parallel_for(const KernelType &KernelFunc) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
 #else
@@ -1550,7 +1536,7 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
   __SYCL_KERNEL_ATTR__ static void
-  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
+  kernel_parallel_for(const KernelType &KernelFunc, kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
 #else
@@ -1569,7 +1555,7 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
   __SYCL_KERNEL_ATTR__ static void
-  kernel_parallel_for_work_group(_KERNELFUNCPARAM(KernelFunc)) {
+  kernel_parallel_for_work_group(const KernelType &KernelFunc) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
 #else
@@ -1587,7 +1573,7 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
   __SYCL_KERNEL_ATTR__ static void
-  kernel_parallel_for_work_group(_KERNELFUNCPARAM(KernelFunc),
+  kernel_parallel_for_work_group(const KernelType &KernelFunc,
                                  kernel_handler KH) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
@@ -1649,7 +1635,7 @@ private:
   // Couldn't think of a better way to achieve both.
   template <typename KernelName, typename KernelType, typename PropertiesT,
             bool HasKernelHandlerArg, typename FuncTy>
-  void unpack(_KERNELFUNCPARAM(KernelFunc), FuncTy Lambda) {
+  void unpack(const KernelType &KernelFunc, FuncTy Lambda) {
 #ifdef __SYCL_DEVICE_ONLY__
     detail::CheckDeviceCopyable<KernelType>();
 #endif // __SYCL_DEVICE_ONLY__
@@ -1660,8 +1646,7 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     // If there are properties provided by get method then process them.
     if constexpr (ext::oneapi::experimental::detail::
-                      HasKernelPropertiesGetMethod<
-                          _KERNELFUNCPARAMTYPE>::value) {
+                      HasKernelPropertiesGetMethod<const KernelType &>::value) {
       processProperties<detail::isKernelESIMD<KernelName>()>(
           KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
     }
@@ -1680,7 +1665,7 @@ private:
   template <
       typename KernelName, typename KernelType,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void kernel_single_task_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
+  void kernel_single_task_wrapper(const KernelType &KernelFunc) {
     unpack<KernelName, KernelType, PropertiesT,
            detail::KernelLambdaHasKernelHandlerArgT<KernelType>::value>(
         KernelFunc, [&](auto Unpacker, auto... args) {
@@ -1692,7 +1677,7 @@ private:
   template <
       typename KernelName, typename ElementType, typename KernelType,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void kernel_parallel_for_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
+  void kernel_parallel_for_wrapper(const KernelType &KernelFunc) {
     unpack<KernelName, KernelType, PropertiesT,
            detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                     ElementType>::value>(
@@ -1705,7 +1690,7 @@ private:
   template <
       typename KernelName, typename ElementType, typename KernelType,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void kernel_parallel_for_work_group_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
+  void kernel_parallel_for_work_group_wrapper(const KernelType &KernelFunc) {
     unpack<KernelName, KernelType, PropertiesT,
            detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                     ElementType>::value>(
@@ -1726,7 +1711,7 @@ private:
       typename KernelName, typename KernelType,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void single_task_lambda_impl(PropertiesT Props,
-                               _KERNELFUNCPARAM(KernelFunc)) {
+                               const KernelType &KernelFunc) {
     (void)Props;
     throwIfActionIsCreated();
     throwOnLocalAccessorMisuse<KernelName, KernelType>();
@@ -1964,27 +1949,27 @@ public:
   ///
   /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void single_task(_KERNELFUNCPARAM(KernelFunc)) {
+  void single_task(const KernelType &KernelFunc) {
     single_task_lambda_impl<KernelName>(
         ext::oneapi::experimental::empty_properties_t{}, KernelFunc);
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<1> NumWorkItems, _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(range<1> NumWorkItems, const KernelType &KernelFunc) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::empty_properties_t{},
         std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<2> NumWorkItems, _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(range<2> NumWorkItems, const KernelType &KernelFunc) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::empty_properties_t{},
         std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<3> NumWorkItems, _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(range<3> NumWorkItems, const KernelType &KernelFunc) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::empty_properties_t{},
         std::move(KernelFunc));
@@ -2028,7 +2013,7 @@ public:
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                    _KERNELFUNCPARAM(KernelFunc)) {
+                    const KernelType &KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -2064,7 +2049,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
-                               _KERNELFUNCPARAM(KernelFunc)) {
+                               const KernelType &KernelFunc) {
     parallel_for_work_group_lambda_impl<KernelName>(
         NumWorkGroups, ext::oneapi::experimental::empty_properties_t{},
         KernelFunc);
@@ -2086,7 +2071,7 @@ public:
             int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
-                               _KERNELFUNCPARAM(KernelFunc)) {
+                               const KernelType &KernelFunc) {
     parallel_for_work_group_lambda_impl<KernelName>(
         NumWorkGroups, WorkGroupSize,
         ext::oneapi::experimental::empty_properties_t{}, KernelFunc);
@@ -2168,7 +2153,7 @@ public:
   /// \param KernelFunc is a lambda that is used if device, queue is bound to,
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void single_task(kernel Kernel, _KERNELFUNCPARAM(KernelFunc)) {
+  void single_task(kernel Kernel, const KernelType &KernelFunc) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -2204,7 +2189,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
-                    _KERNELFUNCPARAM(KernelFunc)) {
+                    const KernelType &KernelFunc) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -2244,7 +2229,7 @@ public:
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
-                    id<Dims> WorkItemOffset, _KERNELFUNCPARAM(KernelFunc)) {
+                    id<Dims> WorkItemOffset, const KernelType &KernelFunc) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -2284,7 +2269,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(kernel Kernel, nd_range<Dims> NDRange,
-                    _KERNELFUNCPARAM(KernelFunc)) {
+                    const KernelType &KernelFunc) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -2328,7 +2313,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
-                               _KERNELFUNCPARAM(KernelFunc)) {
+                               const KernelType &KernelFunc) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -2369,7 +2354,7 @@ public:
             int Dims>
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
-                               _KERNELFUNCPARAM(KernelFunc)) {
+                               const KernelType &KernelFunc) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -2398,7 +2383,7 @@ public:
             typename PropertiesT>
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  single_task(PropertiesT Props, _KERNELFUNCPARAM(KernelFunc)) {
+  single_task(PropertiesT Props, const KernelType &KernelFunc) {
     single_task_lambda_impl<KernelName, KernelType, PropertiesT>(Props,
                                                                  KernelFunc);
   }
@@ -2408,7 +2393,7 @@ public:
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<1> NumWorkItems, PropertiesT Props,
-               _KERNELFUNCPARAM(KernelFunc)) {
+               const KernelType &KernelFunc) {
     parallel_for_lambda_impl<KernelName, KernelType, 1, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2418,7 +2403,7 @@ public:
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<2> NumWorkItems, PropertiesT Props,
-               _KERNELFUNCPARAM(KernelFunc)) {
+               const KernelType &KernelFunc) {
     parallel_for_lambda_impl<KernelName, KernelType, 2, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2428,7 +2413,7 @@ public:
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<3> NumWorkItems, PropertiesT Props,
-               _KERNELFUNCPARAM(KernelFunc)) {
+               const KernelType &KernelFunc) {
     parallel_for_lambda_impl<KernelName, KernelType, 3, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2438,7 +2423,7 @@ public:
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(nd_range<Dims> Range, PropertiesT Properties,
-               _KERNELFUNCPARAM(KernelFunc)) {
+               const KernelType &KernelFunc) {
     parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
   }
 
@@ -2534,7 +2519,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename PropertiesT>
   void parallel_for_work_group(range<Dims> NumWorkGroups, PropertiesT Props,
-                               _KERNELFUNCPARAM(KernelFunc)) {
+                               const KernelType &KernelFunc) {
     parallel_for_work_group_lambda_impl<KernelName, KernelType, Dims,
                                         PropertiesT>(NumWorkGroups, Props,
                                                      KernelFunc);
@@ -2544,14 +2529,11 @@ public:
             int Dims, typename PropertiesT>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize, PropertiesT Props,
-                               _KERNELFUNCPARAM(KernelFunc)) {
+                               const KernelType &KernelFunc) {
     parallel_for_work_group_lambda_impl<KernelName, KernelType, Dims,
                                         PropertiesT>(
         NumWorkGroups, WorkGroupSize, Props, KernelFunc);
   }
-
-  // Clean up KERNELFUNC macro.
-#undef _KERNELFUNCPARAM
 
   // Explicit copy operations API
 

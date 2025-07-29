@@ -25,7 +25,7 @@ ESIMD_PRIVATE ESIMD_REGISTER(17 + VL) simd<int, VL> vc1;
 // "VCVolatile"{{.*}} }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 

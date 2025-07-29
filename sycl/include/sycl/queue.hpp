@@ -49,18 +49,6 @@
 #include <variant>     // for hash
 #include <vector>      // for vector
 
-// having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
-// Here we simplify the KernelFunc param is simplified to be
-// _KERNELFUNCPARAM(KernelFunc) Once the queue kernel functions are defined,
-// these macros are #undef immediately.
-// replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
-//                                     or     const KernelType &KernelFunc
-#ifdef __SYCL_NONCONST_FUNCTOR__
-#define _KERNELFUNCPARAM(a) KernelType a
-#else
-#define _KERNELFUNCPARAM(a) const KernelType &a
-#endif
-
 namespace sycl {
 inline namespace _V1 {
 
@@ -2024,7 +2012,7 @@ public:
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
   single_task(
-      PropertiesT Properties, _KERNELFUNCPARAM(KernelFunc),
+      PropertiesT Properties, const KernelType &KernelFunc,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
@@ -2049,7 +2037,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(
-      _KERNELFUNCPARAM(KernelFunc),
+      const KernelType &KernelFunc,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return single_task<KernelName, KernelType>(
         ext::oneapi::experimental::empty_properties_t{}, KernelFunc, CodeLoc);
@@ -2066,7 +2054,7 @@ public:
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
   single_task(
-      event DepEvent, PropertiesT Properties, _KERNELFUNCPARAM(KernelFunc),
+      event DepEvent, PropertiesT Properties, const KernelType &KernelFunc,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
@@ -2093,7 +2081,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(
-      event DepEvent, _KERNELFUNCPARAM(KernelFunc),
+      event DepEvent, const KernelType &KernelFunc,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return single_task<KernelName, KernelType>(
         DepEvent, ext::oneapi::experimental::empty_properties_t{}, KernelFunc,
@@ -2113,7 +2101,7 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
   single_task(
       const std::vector<event> &DepEvents, PropertiesT Properties,
-      _KERNELFUNCPARAM(KernelFunc),
+      const KernelType &KernelFunc,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
@@ -2141,7 +2129,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(
-      const std::vector<event> &DepEvents, _KERNELFUNCPARAM(KernelFunc),
+      const std::vector<event> &DepEvents, const KernelType &KernelFunc,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return single_task<KernelName, KernelType>(
         DepEvents, ext::oneapi::experimental::empty_properties_t{}, KernelFunc,
@@ -2273,7 +2261,7 @@ public:
             int Dim>
   event parallel_for(range<Dim> Range, id<Dim> WorkItemOffset,
                      const std::vector<event> &DepEvents,
-                     _KERNELFUNCPARAM(KernelFunc)) {
+                     const KernelType &KernelFunc) {
     static_assert(1 <= Dim && Dim <= 3, "Invalid number of dimensions");
     return parallel_for_impl<KernelName>(Range, WorkItemOffset, DepEvents,
                                          KernelFunc);
@@ -2290,7 +2278,7 @@ public:
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   event parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset,
-                          _KERNELFUNCPARAM(KernelFunc)) {
+                          const KernelType &KernelFunc) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
@@ -2313,7 +2301,7 @@ public:
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   event parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset,
-                          event DepEvent, _KERNELFUNCPARAM(KernelFunc)) {
+                          event DepEvent, const KernelType &KernelFunc) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
@@ -2339,7 +2327,7 @@ public:
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   event parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset,
                           const std::vector<event> &DepEvents,
-                          _KERNELFUNCPARAM(KernelFunc)) {
+                          const KernelType &KernelFunc) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
@@ -2577,9 +2565,6 @@ public:
   ///
   // TODO(#15184) Remove this function in the next ABI-breaking window.
   bool ext_codeplay_supports_fusion() const;
-
-// Clean KERNELFUNC macros.
-#undef _KERNELFUNCPARAM
 
   /// Shortcut for executing a graph of commands.
   ///

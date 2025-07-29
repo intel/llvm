@@ -4,7 +4,7 @@
 ;
 ; template<typename N, typename Func>
 ; __attribute__((sycl_kernel))
-; void kernel(Func f) {
+; void kernel(const Func &f) {
 ;   f();
 ; }
 ;
