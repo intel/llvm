@@ -1,5 +1,9 @@
 name: Reusable SYCL Linux build workflow
 
+defaults:
+  run:
+    shell: bash
+
 on:
   workflow_call:
     inputs:
@@ -185,12 +189,21 @@ jobs:
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
+        if [[ "${{ inputs.build_configure_extra_args }}" == *"--use-libcxx"* ]]; then
+          # https://github.com/llvm/llvm-project/issues/59429
+          export LIT_FILTER_OUT="ExecutionEngine/MCJIT"
+        fi
+
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
       run: |
         # Can we move this to Dockerfile? Hopefully, noop on Windows.
         export XDG_CACHE_HOME=$GITHUB_WORKSPACE/os_cache
+        if [[ "${{ inputs.build_configure_extra_args }}" == *"--use-libcxx"* ]]; then
+          # https://github.com/llvm/llvm-project/issues/59428
+          export LIT_FILTER_OUT="(E|e)xception"
+        fi
         cmake --build $GITHUB_WORKSPACE/build --target check-clang
     - name: check-sycl
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
@@ -280,7 +293,6 @@ jobs:
 
     - name: Source OneAPI TBB vars.sh
       if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
-      shell: bash
       run: |
         # https://github.com/actions/runner/issues/1964 prevents us from using
         # the ENTRYPOINT in the image.
