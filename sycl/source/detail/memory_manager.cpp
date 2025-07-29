@@ -128,7 +128,7 @@ static void waitForEvents(events_range Events) {
                    [](event_impl &Event) { return Event.getHandle(); });
     // TODO: Why this condition??? Added during PI Removal in
     // https://github.com/intel/llvm/pull/14145 with no explanation.
-    // Should we just filter our all `nullptr`, not only the one in the first
+    // Should we just filter out all `nullptr`, not only the one in the first
     // element?
     assert(!UrEvents.empty() && UrEvents[0]);
     if (!UrEvents.empty() && UrEvents[0]) {

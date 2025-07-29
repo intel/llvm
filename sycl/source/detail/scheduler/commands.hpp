@@ -237,7 +237,7 @@ public:
   virtual bool readyForCleanup() const;
 
   /// Collect UR events from Events and filter out some of them in case of
-  /// in order queue
+  /// in order queue.
   std::vector<ur_event_handle_t> getUrEvents(events_range Events) const;
 
   static std::vector<ur_event_handle_t> getUrEvents(events_range Events,

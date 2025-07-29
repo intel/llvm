@@ -691,12 +691,12 @@ bool Scheduler::areEventsSafeForSchedulerBypass(events_range DepEvents,
     // don't represent actual dependencies. Calling getContextImpl() would set
     // their context, which we wish to avoid as it is expensive.
     // NOP events also don't represent actual dependencies.
-    if (Event.isDefaultConstructed() || Event.isNOP()) {
+    if (Event.isDefaultConstructed() || Event.isNOP())
       return true;
-    }
-    if (Event.isHost()) {
+
+    if (Event.isHost())
       return Event.isCompleted();
-    }
+
     // Cross-context dependencies can't be passed to the backend directly.
     if (&Event.getContextImpl() != &Context)
       return false;
