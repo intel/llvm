@@ -694,7 +694,7 @@ if len(config.sycl_devices) > 1:
 
 
 def remove_level_zero_suffix(devices):
-    return [device.replace("_v2", "") for device in devices]
+    return [device.replace("_v2", "").replace("_v1", "") for device in devices]
 
 
 available_devices = {
@@ -981,15 +981,11 @@ for full_name, sycl_device in zip(
 ):
     env = copy.copy(llvm_config.config.environment)
 
-    if "v2" in full_name:
-        env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "1"
-    else:
-        env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "0"
-
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
         env["SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
 
+    features = set()
     dev_aspects = []
     dev_sg_sizes = []
     architectures = set()
@@ -1030,6 +1026,8 @@ for full_name, sycl_device in zip(
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
             architectures.add(architecture.strip())
+        if re.match(r" *Name *:", line) and "Level-Zero V2" in line:
+            features.add("level_zero_v2_adapter")
 
     if dev_aspects == []:
         lit_config.error(
@@ -1093,7 +1091,6 @@ for full_name, sycl_device in zip(
             )
         )
 
-    features = set()
     features.update(aspect_features)
     features.update(sg_size_features)
     features.update(architecture_feature)
@@ -1103,6 +1100,8 @@ for full_name, sycl_device in zip(
     features.add(dev.replace("fpga", "accelerator"))
     if "v2" in full_name:
         features.add("level_zero_v2_adapter")
+    elif "v1" in full_name:
+        features.add("level_zero_v1_adapter")
     # Use short names for LIT rules.
     features.add(be)
     # Add corresponding target feature
