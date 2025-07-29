@@ -1092,7 +1092,7 @@ namespace Testing::Tests {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: struct GlobalMapUpdater {
 // CHECK-NEXT:   GlobalMapUpdater() {
-// CHECK-NEXT: sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes,
+// CHECK-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 28);
 // CHECK-NEXT:   }
 // CHECK-NEXT: };
 // CHECK-NEXT: static GlobalMapUpdater updater;

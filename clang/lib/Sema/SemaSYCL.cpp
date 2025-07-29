@@ -7196,7 +7196,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "namespace detail {\n";
     O << "struct GlobalMapUpdater {\n";
     O << "  GlobalMapUpdater() {\n";
-    O << "sycl::detail::free_function_info_map::add("
+    O << "    sycl::detail::free_function_info_map::add("
       << "sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, "
       << KernelDescs.size() << ");\n";
     O << "  }\n";
