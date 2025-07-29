@@ -523,6 +523,8 @@ public:
     return processLaunchProperties(Props);
   }
 
+  // Returns KernelLaunchPropertiesT or std::nullopt based on whether the
+  // kernel functor has a get method that returns properties.
   template <typename KernelName, typename KernelType>
   std::optional<KernelLaunchPropertiesT>
   parseProperties([[maybe_unused]] const KernelType &KernelFunc) {
