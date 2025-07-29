@@ -19,17 +19,19 @@ long double f(double f, double d, long double ld, int *pi) {
   return r;
 }
 
-// Check that unqualified calls to C-style math builtin dont't cause compile errors on the device.
-// Unsuffixed calls should resolve to the double overloads, and not cause ambiguity.
-// This is a regression test for a bug, where we used to
-// define multiple overloads in the global namespace making the following code ambiguous.
-// For example since we didn't define `long double fabs(long double)` but defined both 
-// `double fabs(double)` and `float fabs(float)` the call to `fabs(long double)` was ambiguous.
+// Check that unqualified calls to C-style math builtin dont't cause compile
+// errors on the device. Unsuffixed calls should resolve to the double
+// overloads, and not cause ambiguity. This is a regression test for a bug,
+// where we used to define multiple overloads in the global namespace making the
+// following code ambiguous. For example since we didn't define `long double
+// fabs(long double)` but defined both `double fabs(double)` and `float
+// fabs(float)` the call to `fabs(long double)` was ambiguous.
 
-// NOTE: The fact that this compiles at all is already a (conformant) extension by the C++ standard
-//       library implementation, because <cmath> is not required (but allowed?) to put the <math.h>
-//       symbols into the global namespace.
-//       We want to preserve this behavior for SYCL, to not break C++ code that relies on it.
+// NOTE: The fact that this compiles at all is already a (conformant) extension
+//       by the C++ standard library implementation, because <cmath> is not
+//       required (but allowed?) to put the <math.h> symbols into the global
+//       namespace. We want to preserve this behavior for SYCL, to not break C++
+//       code that relies on it.
 
 long double g(long double ld, int i, int *pi, long l) {
   long double r = 0.l;
