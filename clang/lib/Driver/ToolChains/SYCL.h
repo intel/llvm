@@ -21,8 +21,6 @@ namespace driver {
 // AOT compiler).
 StringRef mapIntelGPUArchName(StringRef ArchName);
 
-
-
 class Command;
 
 namespace tools {
