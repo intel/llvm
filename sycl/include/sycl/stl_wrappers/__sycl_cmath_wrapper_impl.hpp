@@ -75,10 +75,11 @@ using __sycl_promote_t =
 // The following 4 macros provide an easy way to define these overloads for
 // basic built-ins with one or two floating-point parameters.
 //
-// The double and the f suffixed versions must be defined in the global namespace,
-// while the other overloads and templates should only be defined in the std namespace.
-// Use __SYCL_SPIRV_MAP_UNARY_C, __SYCL_SPIRV_MAP_BINARY_C in the global namespace
-// and __SYCL_SPIRV_MAP_UNARY_CXX, __SYCL_SPIRV_MAP_BINARY_CXX in the std namespace.
+// The double and the f suffixed versions must be defined in the global
+// namespace, while the other overloads and templates should only be defined in
+// the std namespace. Use __SYCL_SPIRV_MAP_UNARY_C, __SYCL_SPIRV_MAP_BINARY_C in
+// the global namespace and __SYCL_SPIRV_MAP_UNARY_CXX,
+// __SYCL_SPIRV_MAP_BINARY_CXX in the std namespace.
 #define __SYCL_SPIRV_MAP_UNARY_C(NAME)                                         \
   __SYCL_DEVICE_C float NAME##f(float x) { return __spirv_ocl_##NAME(x); }     \
   __SYCL_DEVICE_C double NAME(double x) { return __spirv_ocl_##NAME(x); }
@@ -116,8 +117,9 @@ using __sycl_promote_t =
 
 __SYCL_DEVICE_C div_t div(int x, int y) { return {x / y, x % y}; }
 __SYCL_DEVICE_C ldiv_t ldiv(long x, long y) { return {x / y, x % y}; }
-__SYCL_DEVICE_C lldiv_t lldiv(long long x, long long y) { return {x / y, x % y}; }
-
+__SYCL_DEVICE_C lldiv_t lldiv(long long x, long long y) {
+  return {x / y, x % y};
+}
 
 __SYCL_DEVICE int abs(int n) { return n < 0 ? -n : n; }
 __SYCL_DEVICE_C long labs(long n) { return n < 0 ? -n : n; }
@@ -319,8 +321,7 @@ __SYCL_DEVICE double abs(double x) { return x < 0 ? -x : x; }
 using ::fabs;
 using ::fabsf;
 __SYCL_DEVICE float fabs(float x) { return x < 0 ? -x : x; }
-template <typename T>
-__SYCL_DEVICE __sycl_promote_t<T> fabs(T x) {
+template <typename T> __SYCL_DEVICE __sycl_promote_t<T> fabs(T x) {
   return x < 0 ? -x : x;
 }
 
