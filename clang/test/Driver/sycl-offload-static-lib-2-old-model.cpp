@@ -86,9 +86,15 @@
 
 /// test behaviors of fat static lib from source
 // RUN: touch %t_lib.a
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl --no-offload-new-driver %t_lib.a -ccc-print-phases %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code \
+// RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN: -fno-sycl-device-lib=all -fsycl --no-offload-new-driver %t_lib.a -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=nvptx64-nvidia-cuda -fsycl --no-offload-new-driver %t_lib.a -ccc-print-phases %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code -fno-sycl-device-lib=all \
+// RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN: -fsycl-targets=nvptx64-nvidia-cuda -fsycl --no-offload-new-driver %t_lib.a -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC-CUDA
 // STATIC_LIB_SRC: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.cpp]]", c++, (host-sycl)
@@ -129,17 +135,19 @@
 // STATIC_LIB_SRC-CUDA: 12: input, "[[INPUTA]]", archive
 // STATIC_LIB_SRC-CUDA: 13: clang-offload-unbundler, {12}, archive
 // STATIC_LIB_SRC-CUDA: 14: linker, {5, 11, 13}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 15: linker, {14}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 16: sycl-post-link, {15}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 17: file-table-tform, {16}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 18: backend, {17}, assembler, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 19: assembler, {18}, object, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 20: linker, {18, 19}, cuda-fatbin, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 21: foreach, {17, 20}, cuda-fatbin, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 22: file-table-tform, {16, 21}, tempfiletable, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 23: clang-offload-wrapper, {22}, object, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 24: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {23}, object
-// STATIC_LIB_SRC-CUDA: 25: linker, {0, 9, 24}, image, (host-sycl)
+// STATIC_LIB_SRC-CUDA: 15: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 16: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 17: linker, {14, 15, 16}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 18: sycl-post-link, {17}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 19: file-table-tform, {18}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 20: backend, {19}, assembler, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 21: assembler, {20}, object, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 22: linker, {20, 21}, cuda-fatbin, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 23: foreach, {19, 22}, cuda-fatbin, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 24: file-table-tform, {18, 23}, tempfiletable, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 25: clang-offload-wrapper, {24}, object, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 26: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {25}, object
+// STATIC_LIB_SRC-CUDA: 27: linker, {0, 9, 26}, image, (host-sycl)
 
 /// ###########################################################################
 
