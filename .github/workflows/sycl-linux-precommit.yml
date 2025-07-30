@@ -58,7 +58,9 @@ jobs:
       changes: ${{ needs.detect_changes.outputs.filters }}
 
       toolchain_artifact: sycl_linux_default
-      e2e_binaries_artifact: sycl_e2e_bin_default
+      e2e_binaries_artifact: e2e_bin
+      e2e_binaries_spirv_backend_artifact: e2e_bin_spirv_backend
+      e2e_binaries_preview_artifact: e2e_bin_preview
 
   # If a PR changes CUDA adapter, run the build on Ubuntu 22.04 as well.
   # Ubuntu 22.04 container has CUDA 12.1 installed while Ubuntu 24.0 image
@@ -131,13 +133,13 @@ jobs:
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param spirv-backend=True
-            e2e_binaries_artifact: sycl_e2e_bin_default_spirv_backend
+            e2e_binaries_artifact: e2e_bin_spirv_backend
           - name: Preview Mode
             runner: '["Linux", "gen12"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
-            e2e_binaries_artifact: sycl_e2e_bin_default_preview
+            e2e_binaries_artifact: e2e_bin_preview
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -151,7 +153,7 @@ jobs:
       toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
-      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact || 'sycl_e2e_bin_default' }}
+      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact || 'e2e_bin' }}
       e2e_testing_mode: 'run-only'
 
       # Do not install drivers on AMD and CUDA runners.
