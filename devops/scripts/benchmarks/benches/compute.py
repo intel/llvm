@@ -307,11 +307,6 @@ class ComputeBenchmark(Benchmark):
         """Returns the name of the benchmark, can be overridden."""
         return self.bench_name
 
-    def traceable(self) -> bool:
-        # List of benchmarks that should not be traced by Unitrace
-        not_traceable = []
-        return self.name() not in not_traceable
-
     def bin_args(self) -> list[str]:
         return []
 

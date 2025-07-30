@@ -172,16 +172,7 @@ def main(directory, additional_env_vars, compare_names, filter):
     if options.dry_run:
         log.info("Dry run mode enabled. No benchmarks will be executed.")
 
-    if args.unitrace == "inclusive":
-        options.unitrace = True
-        get_unitrace().inclusive = True
-    elif args.unitrace == "exclusive":
-        options.unitrace = True
-        get_unitrace().inclusive = False
-    elif args.unitrace is not None:
-        parser.error(
-            "Invalid value for --unitrace. Use 'inclusive' for tracing along regular benchmarks or no argument for tracing only."
-        )
+    options.unitrace = args.unitrace is not None
 
     if options.unitrace and options.save_name is None:
         raise ValueError(
@@ -271,7 +262,7 @@ def main(directory, additional_env_vars, compare_names, filter):
             intermediate_results: dict[str, list[Result]] = {}
             processed: list[Result] = []
             # regular run of the benchmark (if no unitrace or unitrace inclusive)
-            if not options.unitrace or get_unitrace().inclusive:
+            if args.unitrace != "exclusive":
                 for _ in range(options.iterations_stddev):
                     run_iterations(
                         benchmark,

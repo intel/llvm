@@ -15,8 +15,6 @@ from datetime import datetime, timezone
 class Unitrace:
     """Unitrace wrapper for managing Unitrace tool execution and results."""
 
-    inclusive: bool = False
-
     def __init__(self):
         self.timestamp = (
             datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -54,7 +52,9 @@ class Unitrace:
                 add_sycl=True,
             )
             run(["cmake", "--build", build_dir, "-j", str(options.build_jobs)])
-        log.info("Unitrace built successfully.")
+            log.info("Unitrace built successfully.")
+        else:
+            log.info("Unitrace build skipped (already built).")
 
         if options.results_directory_override == None:
             self.traces_dir = os.path.join(options.workdir, "results", "traces")
@@ -166,7 +166,7 @@ class Unitrace:
 
         # unitrace_output variable is in the format {name}.out, but unitrace makes
         # the actual file name as {name}.{pid}.out and we want .json file name to follow the same pattern
-        json_name = unitrace_output[:-4] + f".{pid}.json"
+        json_name = unitrace_output[: -len(".out")] + f".{pid}.json"
 
         # even if the pid_json_files contains more entries, only the last one is valid
         shutil.move(os.path.join(options.benchmark_cwd, pid_json_files[-1]), json_name)
