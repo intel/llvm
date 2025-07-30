@@ -10,7 +10,7 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/usm.hpp>
 
-// Uncomment to print additional test information
+// Uncomment to print additional test information.
 // #define VERBOSE_PRINT
 
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -21,15 +21,30 @@ void copy_image_mem_handle_to_image_mem_handle(
   syclexp::image_mem imgMemSrc(desc, dev, q.get_context());
   syclexp::image_mem imgMemDst(desc, dev, q.get_context());
 
-  // Copy input data to device
-  q.ext_oneapi_copy(dataIn.data(), imgMemSrc.get_handle(), desc);
+  // Copy host input data to device.
+  // Extent to copy.
+  sycl::range copyExtent = {desc.width / 2, desc.height / 2, 1};
+  sycl::range hostExtent = {desc.width, desc.height, 0};
+
+  // Copy four quarters of input data into device image memory.
+  q.ext_oneapi_copy(dataIn.data(), {0, 0, 0}, hostExtent,
+                    imgMemSrc.get_handle(), {0, 0, 0}, desc, copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {desc.width / 2, 0, 0}, hostExtent,
+                    imgMemSrc.get_handle(), {desc.width / 2, 0, 0}, desc,
+                    copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {0, desc.height / 2, 0}, hostExtent,
+                    imgMemSrc.get_handle(), {0, desc.height / 2, 0}, desc,
+                    copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {desc.width / 2, desc.height / 2, 0},
+                    hostExtent, imgMemSrc.get_handle(),
+                    {desc.width / 2, desc.height / 2, 0}, desc, copyExtent);
 
   q.wait_and_throw();
 
-  // Extent to copy
-  sycl::range copyExtent = {desc.width / 2, desc.height / 2, 1};
-
-  // Copy four quarters of square into output image
+  // Copy data from device to device, using four sub-region copies.
   q.ext_oneapi_copy(imgMemSrc.get_handle(), {0, 0, 0}, desc,
                     imgMemDst.get_handle(), {0, 0, 0}, desc, copyExtent);
 
@@ -48,8 +63,21 @@ void copy_image_mem_handle_to_image_mem_handle(
 
   q.wait_and_throw();
 
-  // Copy out data to host
-  q.ext_oneapi_copy(imgMemDst.get_handle(), out.data(), desc);
+  // Copy device data back to host.
+  // Copy four quarters of device imgMemDst data to host out.
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {0, 0, 0}, desc, out.data(),
+                    {0, 0, 0}, hostExtent, copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {desc.width / 2, 0, 0}, desc,
+                    out.data(), {desc.width / 2, 0, 0}, hostExtent, copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {0, desc.height / 2, 0}, desc,
+                    out.data(), {0, desc.height / 2, 0}, hostExtent,
+                    copyExtent);
+
+  q.ext_oneapi_copy(
+      imgMemDst.get_handle(), {desc.width / 2, desc.height / 2, 0}, desc,
+      out.data(), {desc.width / 2, desc.height / 2, 0}, hostExtent, copyExtent);
 
   q.wait_and_throw();
 }
@@ -60,19 +88,33 @@ void copy_image_mem_handle_to_usm(const syclexp::image_descriptor &desc,
                                   std::vector<float> &out) {
   syclexp::image_mem imgMemSrc(desc, dev, q.get_context());
 
-  // Allocate 2D device USM memory
+  // Allocate 2D device USM memory.
   size_t pitch = 0;
   void *imgMemDst = syclexp::pitched_alloc_device(&pitch, desc, q);
 
-  // Copy input data to device
-  q.ext_oneapi_copy(dataIn.data(), imgMemSrc.get_handle(), desc);
+  // Copy host input data to device.
+  // Extent to copy.
+  sycl::range copyExtent = {desc.width / 2, desc.height / 2, 1};
+
+  // Copy four quarters of input data into device image memory.
+  q.ext_oneapi_copy(dataIn.data(), {0, 0, 0}, {desc.width, desc.height, 0},
+                    imgMemSrc.get_handle(), {0, 0, 0}, desc, copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {desc.width / 2, 0, 0},
+                    {desc.width, desc.height, 0}, imgMemSrc.get_handle(),
+                    {desc.width / 2, 0, 0}, desc, copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {0, desc.height / 2, 0},
+                    {desc.width, desc.height, 0}, imgMemSrc.get_handle(),
+                    {0, desc.height / 2, 0}, desc, copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {desc.width / 2, desc.height / 2, 0},
+                    {desc.width, desc.height, 0}, imgMemSrc.get_handle(),
+                    {desc.width / 2, desc.height / 2, 0}, desc, copyExtent);
 
   q.wait_and_throw();
 
-  // Extent to copy
-  sycl::range copyExtent = {desc.width / 2, desc.height / 2, 1};
-
-  // Copy four quarters of square into output image
+  // Copy data from device to device, using four sub-region copies.
   q.ext_oneapi_copy(imgMemSrc.get_handle(), {0, 0, 0}, desc, imgMemDst,
                     {0, 0, 0}, desc, pitch, copyExtent);
 
@@ -89,8 +131,22 @@ void copy_image_mem_handle_to_usm(const syclexp::image_descriptor &desc,
 
   q.wait_and_throw();
 
-  // Copy out data to host
-  q.ext_oneapi_copy(imgMemDst, out.data(), desc, pitch);
+  // Copy device data back to host.
+  // Copy four quarters of device imgMemDst data to host out.
+  q.ext_oneapi_copy(imgMemDst, {0, 0, 0}, out.data(), {0, 0, 0}, desc, pitch,
+                    {desc.width, desc.height, 0}, copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst, {desc.width / 2, 0, 0}, out.data(),
+                    {desc.width / 2, 0, 0}, desc, pitch,
+                    {desc.width, desc.height, 0}, copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst, {0, desc.height / 2, 0}, out.data(),
+                    {0, desc.height / 2, 0}, desc, pitch,
+                    {desc.width, desc.height, 0}, copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst, {desc.width / 2, desc.height / 2, 0}, out.data(),
+                    {desc.width / 2, desc.height / 2, 0}, desc, pitch,
+                    {desc.width, desc.height, 0}, copyExtent);
 
   q.wait_and_throw();
 
@@ -101,21 +157,36 @@ void copy_usm_to_image_mem_handle(const syclexp::image_descriptor &desc,
                                   const std::vector<float> &dataIn,
                                   sycl::device dev, sycl::queue q,
                                   std::vector<float> &out) {
-  // Allocate 2D device USM memory
+  // Allocate 2D device USM memory.
   size_t pitch = 0;
   void *imgMemSrc = syclexp::pitched_alloc_device(&pitch, desc, q);
 
   syclexp::image_mem imgMemDst(desc, dev, q.get_context());
 
-  // Copy input data to device
-  q.ext_oneapi_copy(dataIn.data(), imgMemSrc, desc, pitch);
+  // Copy host input data to device.
+  // Extent to copy.
+  sycl::range copyExtent = {desc.width / 2, desc.height / 2, 1};
+  sycl::range hostExtent = {desc.width, desc.height, 0};
+
+  // Copy four quarters of input data into device image memory.
+  q.ext_oneapi_copy(dataIn.data(), {0, 0, 0}, imgMemSrc, {0, 0, 0}, desc, pitch,
+                    hostExtent, copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {desc.width / 2, 0, 0}, imgMemSrc,
+                    {desc.width / 2, 0, 0}, desc, pitch, hostExtent,
+                    copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {0, desc.height / 2, 0}, imgMemSrc,
+                    {0, desc.height / 2, 0}, desc, pitch, hostExtent,
+                    copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {desc.width / 2, desc.height / 2, 0},
+                    imgMemSrc, {desc.width / 2, desc.height / 2, 0}, desc,
+                    pitch, hostExtent, copyExtent);
 
   q.wait_and_throw();
 
-  // Extent to copy
-  sycl::range copyExtent = {desc.width / 2, desc.height / 2, 1};
-
-  // Copy four quarters of square into output image
+  // Copy data from device to device, using four sub-region copies.
   q.ext_oneapi_copy(imgMemSrc, {0, 0, 0}, desc, pitch, imgMemDst.get_handle(),
                     {0, 0, 0}, desc, copyExtent);
 
@@ -133,8 +204,23 @@ void copy_usm_to_image_mem_handle(const syclexp::image_descriptor &desc,
 
   q.wait_and_throw();
 
-  // Copy out data to host
-  q.ext_oneapi_copy(imgMemDst.get_handle(), out.data(), desc);
+  // Copy device data back to host.
+  // Copy four quarters of device imgMemDst data to host out.
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {0, 0, 0}, desc, out.data(),
+                    {0, 0, 0}, {desc.width, desc.height, 0}, copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {desc.width / 2, 0, 0}, desc,
+                    out.data(), {desc.width / 2, 0, 0},
+                    {desc.width, desc.height, 0}, copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {0, desc.height / 2, 0}, desc,
+                    out.data(), {0, desc.height / 2, 0},
+                    {desc.width, desc.height, 0}, copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst.get_handle(),
+                    {desc.width / 2, desc.height / 2, 0}, desc, out.data(),
+                    {desc.width / 2, desc.height / 2, 0},
+                    {desc.width, desc.height, 0}, copyExtent);
 
   q.wait_and_throw();
 
@@ -144,22 +230,36 @@ void copy_usm_to_image_mem_handle(const syclexp::image_descriptor &desc,
 void copy_usm_to_usm(const syclexp::image_descriptor &desc,
                      const std::vector<float> &dataIn, sycl::device dev,
                      sycl::queue q, std::vector<float> &out) {
-  // Allocate 2D device USM memory
+  // Allocate 2D device USM memory.
   size_t pitchSrc = 0;
   void *imgMemSrc = syclexp::pitched_alloc_device(&pitchSrc, desc, q);
 
   size_t pitchDst = 0;
   void *imgMemDst = syclexp::pitched_alloc_device(&pitchDst, desc, q);
 
-  // Copy input data to device
-  q.ext_oneapi_copy(dataIn.data(), imgMemSrc, desc, pitchSrc);
+  // Copy host input data to device.
+  // Extent to copy.
+  sycl::range copyExtent = {desc.width / 2, desc.height / 2, 1};
+  sycl::range hostExtent = {desc.width, desc.height, 0};
+
+  q.ext_oneapi_copy(dataIn.data(), {0, 0, 0}, imgMemSrc, {0, 0, 0}, desc,
+                    pitchSrc, hostExtent, copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {desc.width / 2, 0, 0}, imgMemSrc,
+                    {desc.width / 2, 0, 0}, desc, pitchSrc, hostExtent,
+                    copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {0, desc.height / 2, 0}, imgMemSrc,
+                    {0, desc.height / 2, 0}, desc, pitchSrc, hostExtent,
+                    copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {desc.width / 2, desc.height / 2, 0},
+                    imgMemSrc, {desc.width / 2, desc.height / 2, 0}, desc,
+                    pitchSrc, hostExtent, copyExtent);
 
   q.wait_and_throw();
 
-  // Extent to copy
-  sycl::range copyExtent = {desc.width / 2, desc.height / 2, 1};
-
-  // Copy four quarters of square into output image
+  // Copy four quarters of square into output image.
   q.ext_oneapi_copy(imgMemSrc, {0, 0, 0}, desc, pitchSrc, imgMemDst, {0, 0, 0},
                     desc, pitchDst, copyExtent);
 
@@ -177,8 +277,22 @@ void copy_usm_to_usm(const syclexp::image_descriptor &desc,
 
   q.wait_and_throw();
 
-  // Copy out data to host
-  q.ext_oneapi_copy(imgMemDst, out.data(), desc, pitchDst);
+  // Copy device data back to host.
+  // Copy four quarters of device imgMemDst data to host out.
+  q.ext_oneapi_copy(imgMemDst, {0, 0, 0}, out.data(), {0, 0, 0}, desc, pitchDst,
+                    hostExtent, copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst, {desc.width / 2, 0, 0}, out.data(),
+                    {desc.width / 2, 0, 0}, desc, pitchDst, hostExtent,
+                    copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst, {0, desc.height / 2, 0}, out.data(),
+                    {0, desc.height / 2, 0}, desc, pitchDst, hostExtent,
+                    copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst, {desc.width / 2, desc.height / 2, 0}, out.data(),
+                    {desc.width / 2, desc.height / 2, 0}, desc, pitchDst,
+                    hostExtent, copyExtent);
 
   q.wait_and_throw();
 
@@ -352,7 +466,7 @@ bool run_copy_test(sycl::device &dev, sycl::queue &q, sycl::range<2> dims) {
   std::vector<float> expected(dims.size());
   std::iota(expected.begin(), expected.end(), 0);
 
-  std::vector<float> out(dims.size());
+  std::vector<float> out(dims.size(), 0);
 
   syclexp::image_descriptor desc =
       syclexp::image_descriptor(dims, channelNum, channelType);
@@ -364,13 +478,19 @@ bool run_copy_test(sycl::device &dev, sycl::queue &q, sycl::range<2> dims) {
 
   validated = validated && check_test(out, expected);
 
+  std::fill(out.begin(), out.end(), 0);
+
   copy_image_mem_handle_to_usm(desc, dataIn, dev, q, out);
 
   validated = validated && check_test(out, expected);
 
+  std::fill(out.begin(), out.end(), 0);
+
   copy_usm_to_image_mem_handle(desc, dataIn, dev, q, out);
 
   validated = validated && check_test(out, expected);
+
+  std::fill(out.begin(), out.end(), 0);
 
   copy_usm_to_usm(desc, dataIn, dev, q, out);
 
@@ -404,8 +524,6 @@ int main() {
     std::cout << "Tests failed\n";
     return 1;
   }
-
-  std::cout << "Tests passed\n";
 
   return 0;
 }

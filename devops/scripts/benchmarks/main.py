@@ -293,7 +293,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     # limit how many files we load.
     # should this be configurable?
     log.info(f"Loading benchmark history from {results_dir}...")
-    history.load(1000)
+    history.load()
     log.info(f"Loaded {len(history.runs)} benchmark runs.")
 
     if compare_names:

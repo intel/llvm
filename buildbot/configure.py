@@ -46,7 +46,7 @@ def do_configure(args, passthrough_args):
     xptifw_dir = os.path.join(abs_src_dir, "xptifw")
     libdevice_dir = os.path.join(abs_src_dir, "libdevice")
     jit_dir = os.path.join(abs_src_dir, "sycl-jit")
-    llvm_targets_to_build = args.host_target
+    llvm_targets_to_build = args.host_target + ";SPIRV"
     llvm_enable_projects = "clang;" + llvm_external_projects
     libclc_build_native = "OFF"
     libclc_targets_to_build = ""

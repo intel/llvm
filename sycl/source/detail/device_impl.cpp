@@ -23,7 +23,7 @@ namespace detail {
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
                          device_impl::private_tag)
-    : MDevice(Device), MPlatform(Platform.shared_from_this()),
+    : MDevice(Device), MPlatform(Platform),
       // No need to set MRootDevice when MAlwaysRootDevice is true
       MRootDevice(Platform.MAlwaysRootDevice
                       ? nullptr
@@ -143,7 +143,7 @@ std::vector<device> device_impl::create_sub_devices(
   std::for_each(SubDevices.begin(), SubDevices.end(),
                 [&res, this](const ur_device_handle_t &a_ur_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
-                      MPlatform->getOrMakeDeviceImpl(a_ur_device));
+                      MPlatform.getOrMakeDeviceImpl(a_ur_device));
                   res.push_back(sycl_device);
                 });
   return res;
@@ -375,11 +375,9 @@ uint64_t device_impl::getCurrentDeviceTime() {
 bool device_impl::extOneapiCanBuild(
     ext::oneapi::experimental::source_language Language) {
   try {
-    // Get the shared_ptr to this object from the platform that owns it.
-    device_impl &Self = MPlatform->getOrMakeDeviceImpl(MDevice);
     return sycl::ext::oneapi::experimental::detail::
         is_source_kernel_bundle_supported(Language,
-                                          std::vector<device_impl *>{&Self});
+                                          std::vector<device_impl *>{this});
 
   } catch (sycl::exception &) {
     return false;
@@ -390,11 +388,10 @@ bool device_impl::extOneapiCanCompile(
     ext::oneapi::experimental::source_language Language) {
   try {
     // Currently only SYCL language is supported for compiling.
-    device_impl &Self = MPlatform->getOrMakeDeviceImpl(MDevice);
     return Language == ext::oneapi::experimental::source_language::sycl &&
            sycl::ext::oneapi::experimental::detail::
                is_source_kernel_bundle_supported(
-                   Language, std::vector<device_impl *>{&Self});
+                   Language, std::vector<device_impl *>{this});
   } catch (sycl::exception &) {
     return false;
   }
