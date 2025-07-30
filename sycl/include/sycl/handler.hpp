@@ -3444,8 +3444,8 @@ private:
                                       size_t Offset);
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Used by sycl::handler::setKernelCacheConfig.
   // Modeled after ur_kernel_cache_config_t
+  // Used as an argument to setKernelCacheConfig that's part of the ABI.
   enum class StableKernelCacheConfig : int32_t {
     Default = 0,
     LargeSLM = 1,
