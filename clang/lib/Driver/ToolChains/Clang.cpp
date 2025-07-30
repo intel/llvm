@@ -8662,7 +8662,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (isa<CompileJobAction>(JA) && JA.isHostOffloading(Action::OFK_SYCL)) {
     SmallString<128> TargetInfo("-fsycl-targets=");
 
-    if (Arg *Tgts = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+    if (Arg *Tgts = Args.getLastArg(options::OPT_offload_targets_EQ)) {
       for (unsigned i = 0; i < Tgts->getNumValues(); ++i) {
         if (i)
           TargetInfo += ',';

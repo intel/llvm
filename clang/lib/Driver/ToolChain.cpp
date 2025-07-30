@@ -1865,7 +1865,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         getDriver().Diag(diag::err_drv_Xopenmp_target_missing_triple);
         continue;
       }
-      if (IsSYCL && !SingleTargetTripleCount(options::OPT_fsycl_targets_EQ)) {
+      if (IsSYCL && !SingleTargetTripleCount(options::OPT_offload_targets_EQ)) {
         getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
             << A->getSpelling();
         continue;
