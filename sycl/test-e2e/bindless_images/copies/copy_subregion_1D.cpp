@@ -4,13 +4,14 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <iostream>
-#include <numeric>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/usm.hpp>
 
-// Uncomment to print additional test information
+#include <iostream>
+#include <numeric>
+
+// Uncomment to print additional test information.
 // #define VERBOSE_PRINT
 
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -21,45 +22,71 @@ void copy_image_mem_handle_to_image_mem_handle(
     const std::vector<float> &dataIn2, sycl::device dev, sycl::queue q,
     std::vector<float> &out) {
 
-  // Check that output image is double size of input images
+  // Check that output image is double size of input images.
   assert(outDesc.width == dataInDesc.width * 2);
 
   syclexp::image_mem imgMemSrc1(dataInDesc, dev, q.get_context());
   syclexp::image_mem imgMemSrc2(dataInDesc, dev, q.get_context());
   syclexp::image_mem imgMemDst(outDesc, dev, q.get_context());
 
-  // Copy input data to device
-  q.ext_oneapi_copy(dataIn1.data(), imgMemSrc1.get_handle(), dataInDesc);
-  q.ext_oneapi_copy(dataIn2.data(), imgMemSrc2.get_handle(), dataInDesc);
+  // Copy host input data to device.
+  // Extent to copy.
+  sycl::range copyExtent = {dataInDesc.width / 2, 1, 1};
+
+  // Copy first half of dataIn1 to first quarter of imgMemSrc1.
+  q.ext_oneapi_copy(dataIn1.data(), {0, 0, 0}, {dataInDesc.width, 0, 0},
+                    imgMemSrc1.get_handle(), {0, 0, 0}, dataInDesc, copyExtent);
+
+  // Copy second half of dataIn1 to second quarter of imgMemSrc1.
+  q.ext_oneapi_copy(dataIn1.data(), {dataInDesc.width / 2, 0, 0},
+                    {dataInDesc.width, 0, 0}, imgMemSrc1.get_handle(),
+                    {dataInDesc.width / 2, 0, 0}, dataInDesc, copyExtent);
+
+  // Copy first half of dataIn2 to third quarter of imgMemSrc2.
+  q.ext_oneapi_copy(dataIn2.data(), {0, 0, 0}, {dataInDesc.width, 0, 0},
+                    imgMemSrc2.get_handle(), {0, 0, 0}, dataInDesc, copyExtent);
+
+  // Copy second half of dataIn2 to fourth quarter of imgMemSrc2.
+  q.ext_oneapi_copy(dataIn2.data(), {dataInDesc.width / 2, 0, 0},
+                    {dataInDesc.width, 0, 0}, imgMemSrc2.get_handle(),
+                    {dataInDesc.width / 2, 0, 0}, dataInDesc, copyExtent);
 
   q.wait_and_throw();
 
-  // Extent to copy
-  sycl::range copyExtent = {dataInDesc.width / 2, 1, 1};
-
-  // Copy first half of imgMemSrcOne to first quarter of imgMemDst
+  // Copy data from device to device.
+  // Copy first half of imgMemSrc1 to first quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc1.get_handle(), {0, 0, 0}, dataInDesc,
                     imgMemDst.get_handle(), {0, 0, 0}, outDesc, copyExtent);
 
-  // Copy second half of imgMemSrcOne to second quarter of imgMemDst
+  // Copy second half of imgMemSrc1 to second quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc1.get_handle(), {dataInDesc.width / 2, 0, 0},
                     dataInDesc, imgMemDst.get_handle(),
                     {outDesc.width / 4, 0, 0}, outDesc, copyExtent);
 
-  // Copy first half of imgMemSrcTwo to third quarter of imgMemDst
+  // Copy first half of imgMemSrc2 to third quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc2.get_handle(), {0, 0, 0}, dataInDesc,
                     imgMemDst.get_handle(), {outDesc.width / 2, 0, 0}, outDesc,
                     copyExtent);
 
-  // Copy second half of imgMemSrcTwo to fourth quarter of imgMemDst
+  // Copy second half of imgMemSrc2 to fourth quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc2.get_handle(), {dataInDesc.width / 2, 0, 0},
                     dataInDesc, imgMemDst.get_handle(),
                     {(outDesc.width / 4) * 3, 0, 0}, outDesc, copyExtent);
 
   q.wait_and_throw();
 
-  // Copy out data to host
-  q.ext_oneapi_copy(imgMemDst.get_handle(), out.data(), outDesc);
+  // Copy device data back to host.
+  // Extent to copy.
+  copyExtent = {outDesc.width / 2, 1, 1};
+
+  // Copy first half of imgMemDst to first half of out data.
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {0, 0, 0}, outDesc, out.data(),
+                    {0, 0, 0}, {outDesc.width / 2, 0, 0}, copyExtent);
+
+  // Copy second half of imgMemDst to second half of out data.
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {outDesc.width / 2, 0, 0}, outDesc,
+                    out.data(), {outDesc.width / 2, 0, 0},
+                    {outDesc.width / 2, 0, 0}, copyExtent);
 
   q.wait_and_throw();
 }
@@ -71,48 +98,74 @@ void copy_image_mem_handle_to_usm(const syclexp::image_descriptor &dataInDesc,
                                   sycl::device dev, sycl::queue q,
                                   std::vector<float> &out) {
 
-  // Check that output image is double size of input images
+  // Check that output image is double size of input images.
   assert(outDesc.width == dataInDesc.width * 2);
 
   syclexp::image_mem imgMemSrc1(dataInDesc, dev, q.get_context());
   syclexp::image_mem imgMemSrc2(dataInDesc, dev, q.get_context());
 
-  // Allocate 1D device USM memory. Pitch set to zero as it is a 1D image
+  // Allocate 1D device USM memory. Pitch set to zero as it is a 1D image.
   size_t pitch = 0;
   size_t elements = outDesc.width * outDesc.num_channels;
   void *imgMemDst = sycl::malloc_device<float>(elements, q);
 
-  // Copy input data to device
-  q.ext_oneapi_copy(dataIn1.data(), imgMemSrc1.get_handle(), dataInDesc);
-  q.ext_oneapi_copy(dataIn2.data(), imgMemSrc2.get_handle(), dataInDesc);
+  // Copy host input data to device.
+  // Extent to copy.
+  sycl::range copyExtent = {dataInDesc.width / 2, 1, 1};
+
+  // Copy first half of dataIn1 to first half of imgMemSrc1.
+  q.ext_oneapi_copy(dataIn1.data(), {0, 0, 0}, {dataInDesc.width, 0, 0},
+                    imgMemSrc1.get_handle(), {0, 0, 0}, dataInDesc, copyExtent);
+
+  // Copy second half of dataIn1 to second half of imgMemSrc1.
+  q.ext_oneapi_copy(dataIn1.data(), {dataInDesc.width / 2, 0, 0},
+                    {dataInDesc.width, 0, 0}, imgMemSrc1.get_handle(),
+                    {dataInDesc.width / 2, 0, 0}, dataInDesc, copyExtent);
+
+  // Copy first half of dataIn2 to first half of imgMemSrc2.
+  q.ext_oneapi_copy(dataIn2.data(), {0, 0, 0}, {dataInDesc.width, 0, 0},
+                    imgMemSrc2.get_handle(), {0, 0, 0}, dataInDesc, copyExtent);
+
+  // Copy second half of dataIn2 to second half of imgMemSrc2.
+  q.ext_oneapi_copy(dataIn2.data(), {dataInDesc.width / 2, 0, 0},
+                    {dataInDesc.width, 0, 0}, imgMemSrc2.get_handle(),
+                    {dataInDesc.width / 2, 0, 0}, dataInDesc, copyExtent);
 
   q.wait_and_throw();
 
-  // Extent to copy
-  sycl::range copyExtent = {dataInDesc.width / 2, 1, 1};
-
-  // Copy first half of imgMemSrcOne to first quarter of imgMemDst
+  // Copy data from device to device.
+  // Copy first half of imgMemSrc1 to first quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc1.get_handle(), {0, 0, 0}, dataInDesc, imgMemDst,
                     {0, 0, 0}, outDesc, pitch, copyExtent);
 
-  // Copy second half of imgMemSrcOne to second quarter of imgMemDst
+  // Copy second half of imgMemSrc1 to second quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc1.get_handle(), {dataInDesc.width / 2, 0, 0},
                     dataInDesc, imgMemDst, {outDesc.width / 4, 0, 0}, outDesc,
                     pitch, copyExtent);
 
-  // Copy first half of imgMemSrcTwo to third quarter of imgMemDst
+  // Copy first half of imgMemSrc2 to third quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc2.get_handle(), {0, 0, 0}, dataInDesc, imgMemDst,
                     {outDesc.width / 2, 0, 0}, outDesc, pitch, copyExtent);
 
-  // Copy second half of imgMemSrcTwo to fourth quarter of imgMemDst
+  // Copy second half of imgMemSrc2 to fourth quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc2.get_handle(), {dataInDesc.width / 2, 0, 0},
                     dataInDesc, imgMemDst, {(outDesc.width / 4) * 3, 0, 0},
                     outDesc, pitch, copyExtent);
 
   q.wait_and_throw();
 
-  // Copy out data to host
-  q.ext_oneapi_copy(imgMemDst, out.data(), outDesc, pitch);
+  // Copy device data back to host.
+  // Extent to copy.
+  copyExtent = {outDesc.width / 2, 1, 1};
+
+  // Copy first half of imgMemDst to first half of out data.
+  q.ext_oneapi_copy(imgMemDst, {0, 0, 0}, out.data(), {0, 0, 0}, outDesc, pitch,
+                    {outDesc.width, 0, 0}, copyExtent);
+
+  // Copy second half of imgMemDst to second half of out data.
+  q.ext_oneapi_copy(imgMemDst, {outDesc.width / 2, 0, 0}, out.data(),
+                    {outDesc.width / 2, 0, 0}, outDesc, pitch,
+                    {outDesc.width, 0, 0}, copyExtent);
 
   q.wait_and_throw();
 
@@ -126,7 +179,7 @@ void copy_usm_to_image_mem_handle(const syclexp::image_descriptor &dataInDesc,
                                   sycl::device dev, sycl::queue q,
                                   std::vector<float> &out) {
 
-  // Check that output image is double size of input images
+  // Check that output image is double size of input images.
   assert(outDesc.width == dataInDesc.width * 2);
 
   size_t pitchSrc1 = 0;
@@ -137,38 +190,66 @@ void copy_usm_to_image_mem_handle(const syclexp::image_descriptor &dataInDesc,
 
   syclexp::image_mem imgMemDst(outDesc, dev, q.get_context());
 
-  // Copy input data to device
-  q.ext_oneapi_copy(dataIn1.data(), imgMemSrc1, dataInDesc, pitchSrc1);
-  q.ext_oneapi_copy(dataIn2.data(), imgMemSrc2, dataInDesc, pitchSrc2);
+  // Copy host input data to device.
+  // Extent to copy.
+  sycl::range copyExtent = {dataInDesc.width / 2, 1, 1};
+
+  // Copy first half of dataIn1 to first half of imgMemSrc1.
+  q.ext_oneapi_copy(dataIn1.data(), {0, 0, 0}, imgMemSrc1, {0, 0, 0},
+                    dataInDesc, pitchSrc1, {dataInDesc.width, 0, 0},
+                    copyExtent);
+
+  // Copy second half of dataIn1 to second half of imgMemSrc1.
+  q.ext_oneapi_copy(dataIn1.data(), {dataInDesc.width / 2, 0, 0}, imgMemSrc1,
+                    {dataInDesc.width / 2, 0, 0}, dataInDesc, pitchSrc1,
+                    {dataInDesc.width, 0, 0}, copyExtent);
+
+  // Copy first half of dataIn2 to first half of imgMemSrc2.
+  q.ext_oneapi_copy(dataIn2.data(), {0, 0, 0}, imgMemSrc2, {0, 0, 0},
+                    dataInDesc, pitchSrc2, {dataInDesc.width, 0, 0},
+                    copyExtent);
+
+  // Copy second half of dataIn2 to second half of imgMemSrc2.
+  q.ext_oneapi_copy(dataIn2.data(), {dataInDesc.width / 2, 0, 0}, imgMemSrc2,
+                    {dataInDesc.width / 2, 0, 0}, dataInDesc, pitchSrc2,
+                    {dataInDesc.width, 0, 0}, copyExtent);
 
   q.wait_and_throw();
 
-  // Extent to copy
-  sycl::range copyExtent = {dataInDesc.width / 2, 1, 1};
-
-  // Copy first half of imgMemSrcOne to first quarter of imgMemDst
+  // Copy data from device to device.
+  // Copy first half of imgMemSrcOne to first quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc1, {0, 0, 0}, dataInDesc, pitchSrc1,
                     imgMemDst.get_handle(), {0, 0, 0}, outDesc, copyExtent);
 
-  // Copy second half of imgMemSrcOne to second quarter of imgMemDst
+  // Copy second half of imgMemSrcOne to second quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc1, {dataInDesc.width / 2, 0, 0}, dataInDesc,
                     pitchSrc1, imgMemDst.get_handle(),
                     {outDesc.width / 4, 0, 0}, outDesc, copyExtent);
 
-  // Copy first half of imgMemSrcTwo to third quarter of imgMemDst
+  // Copy first half of imgMemSrcTwo to third quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc2, {0, 0, 0}, dataInDesc, pitchSrc2,
                     imgMemDst.get_handle(), {outDesc.width / 2, 0, 0}, outDesc,
                     copyExtent);
 
-  // Copy second half of imgMemSrcTwo to fourth quarter of imgMemDst
+  // Copy second half of imgMemSrcTwo to fourth quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc2, {dataInDesc.width / 2, 0, 0}, dataInDesc,
                     pitchSrc2, imgMemDst.get_handle(),
                     {(outDesc.width / 4) * 3, 0, 0}, outDesc, copyExtent);
 
   q.wait_and_throw();
 
-  // Copy out data to host
-  q.ext_oneapi_copy(imgMemDst.get_handle(), out.data(), outDesc);
+  // Copy device data back to host.
+  // Extent to copy.
+  copyExtent = {outDesc.width / 2, 1, 1};
+
+  // Copy first half of imgMemDst to first half of out data.
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {0, 0, 0}, outDesc, out.data(),
+                    {0, 0, 0}, {outDesc.width, 0, 0}, copyExtent);
+
+  // Copy second half of imgMemDst to second half of out data.
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {outDesc.width / 2, 0, 0}, outDesc,
+                    out.data(), {outDesc.width / 2, 0, 0},
+                    {outDesc.width, 0, 0}, copyExtent);
 
   q.wait_and_throw();
 
@@ -182,7 +263,7 @@ void copy_usm_to_usm(const syclexp::image_descriptor &dataInDesc,
                      const std::vector<float> &dataIn2, sycl::device dev,
                      sycl::queue q, std::vector<float> &out) {
 
-  // Check that output image is double size of input images
+  // Check that output image is double size of input images.
   assert(outDesc.width == dataInDesc.width * 2);
 
   size_t pitchSrc1 = 0;
@@ -191,43 +272,69 @@ void copy_usm_to_usm(const syclexp::image_descriptor &dataInDesc,
   void *imgMemSrc1 = sycl::malloc_device<float>(elementsSrc, q);
   void *imgMemSrc2 = sycl::malloc_device<float>(elementsSrc, q);
 
-  // syclexp::image_mem imgMemDst(outDesc, dev, q.get_context());
-
   size_t pitchDst = 0;
   size_t elementsDst = outDesc.width * outDesc.num_channels;
   void *imgMemDst = sycl::malloc_device<float>(elementsDst, q);
 
-  // Copy input data to device
-  q.ext_oneapi_copy(dataIn1.data(), imgMemSrc1, dataInDesc, pitchSrc1);
-  q.ext_oneapi_copy(dataIn2.data(), imgMemSrc2, dataInDesc, pitchSrc2);
+  // Copy host input data to device.
+  // Extent to copy.
+  sycl::range copyExtent = {dataInDesc.width / 2, 1, 1};
+
+  // Copy first half of dataIn1 to first half of imgMemSrc1.
+  q.ext_oneapi_copy(dataIn1.data(), {0, 0, 0}, imgMemSrc1, {0, 0, 0},
+                    dataInDesc, pitchSrc1, {dataInDesc.width, 0, 0},
+                    copyExtent);
+
+  // Copy second half of dataIn1 to second half of imgMemSrc1.
+  q.ext_oneapi_copy(dataIn1.data(), {dataInDesc.width / 2, 0, 0}, imgMemSrc1,
+                    {dataInDesc.width / 2, 0, 0}, dataInDesc, pitchSrc1,
+                    {dataInDesc.width, 0, 0}, copyExtent);
+
+  // Copy first half of dataIn2 to first half of imgMemSrc2.
+  q.ext_oneapi_copy(dataIn2.data(), {0, 0, 0}, imgMemSrc2, {0, 0, 0},
+                    dataInDesc, pitchSrc2, {dataInDesc.width, 0, 0},
+                    copyExtent);
+
+  // Copy second half of dataIn2 to second half of imgMemSrc2.
+  q.ext_oneapi_copy(dataIn2.data(), {dataInDesc.width / 2, 0, 0}, imgMemSrc2,
+                    {dataInDesc.width / 2, 0, 0}, dataInDesc, pitchSrc2,
+                    {dataInDesc.width, 0, 0}, copyExtent);
 
   q.wait_and_throw();
 
-  // Extent to copy
-  sycl::range copyExtent = {dataInDesc.width / 2, 1, 1};
-
-  // Copy first half of imgMemSrcOne to first quarter of imgMemDst
+  // Copy data from device to device.
+  // Copy first half of imgMemSrc1 to first quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc1, {0, 0, 0}, dataInDesc, pitchSrc1, imgMemDst,
                     {0, 0, 0}, outDesc, pitchDst, copyExtent);
 
-  // Copy second half of imgMemSrcOne to second quarter of imgMemDst
+  // Copy second half of imgMemSrc1 to second quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc1, {dataInDesc.width / 2, 0, 0}, dataInDesc,
                     pitchSrc1, imgMemDst, {outDesc.width / 4, 0, 0}, outDesc,
                     pitchDst, copyExtent);
 
-  // Copy first half of imgMemSrcTwo to third quarter of imgMemDst
+  // Copy first half of imgMemSrc2 to third quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc2, {0, 0, 0}, dataInDesc, pitchSrc2, imgMemDst,
                     {outDesc.width / 2, 0, 0}, outDesc, pitchDst, copyExtent);
 
-  // Copy second half of imgMemSrcTwo to fourth quarter of imgMemDst
+  // Copy second half of imgMemSrc2 to fourth quarter of imgMemDst.
   q.ext_oneapi_copy(imgMemSrc2, {dataInDesc.width / 2, 0, 0}, dataInDesc,
                     pitchSrc2, imgMemDst, {(outDesc.width / 4) * 3, 0, 0},
                     outDesc, pitchDst, copyExtent);
 
   q.wait_and_throw();
 
-  // Copy out data to host
-  q.ext_oneapi_copy(imgMemDst, out.data(), outDesc, pitchDst);
+  // Copy device data back to host.
+  // Extent to copy.
+  copyExtent = {outDesc.width / 2, 1, 1};
+
+  // Copy first half of imgMemDst to first half of out data.
+  q.ext_oneapi_copy(imgMemDst, {0, 0, 0}, out.data(), {0, 0, 0}, outDesc,
+                    pitchDst, {outDesc.width, 0, 0}, copyExtent);
+
+  // Copy second half of imgMemDst to second half of out data.
+  q.ext_oneapi_copy(imgMemDst, {outDesc.width / 2, 0, 0}, out.data(),
+                    {outDesc.width / 2, 0, 0}, outDesc, pitchDst,
+                    {outDesc.width, 0, 0}, copyExtent);
 
   q.wait_and_throw();
 
@@ -409,12 +516,11 @@ bool check_test(const std::vector<float> &out,
   return validated;
 }
 
-template <int channelNum, sycl::image_channel_type channelType,
-          syclexp::image_type type = syclexp::image_type::standard>
+template <int channelNum, sycl::image_channel_type channelType>
 bool run_copy_test(sycl::device &dev, sycl::queue &q, sycl::range<1> dims) {
   std::vector<float> dataIn1(dims.size() / 2);
   std::vector<float> dataIn2(dims.size() / 2);
-  std::vector<float> out(dims.size());
+  std::vector<float> out(dims.size(), 0);
 
   std::vector<float> expected(dims.size());
 
@@ -439,15 +545,21 @@ bool run_copy_test(sycl::device &dev, sycl::queue &q, sycl::range<1> dims) {
 
   validated = validated && check_test(out, expected);
 
+  std::fill(out.begin(), out.end(), 0);
+
   copy_image_mem_handle_to_usm(dataInDesc, outDesc, dataIn1, dataIn2, dev, q,
                                out);
 
   validated = validated && check_test(out, expected);
 
+  std::fill(out.begin(), out.end(), 0);
+
   copy_usm_to_image_mem_handle(dataInDesc, outDesc, dataIn1, dataIn2, dev, q,
                                out);
 
   validated = validated && check_test(out, expected);
+
+  std::fill(out.begin(), out.end(), 0);
 
   copy_usm_to_usm(dataInDesc, outDesc, dataIn1, dataIn2, dev, q, out);
 
@@ -482,8 +594,6 @@ int main() {
     std::cout << "Tests failed\n";
     return 1;
   }
-
-  std::cout << "Tests passed\n";
 
   return 0;
 }

@@ -1,50 +1,49 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
-// CPU AOT targets host isa, so we compile on the run system instead.
-// REQUIRES: opencl-aot
-// RUN: %if any-device-is-cpu && opencl-aot %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s %}
-// RUN: %if cpu %{ %{run} %t.x86.out %}
+// Test CPU AOT as well when possible.
+// RUN: %if any-device-is-cpu && opencl-aot %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-device-code-split=per_kernel -o %t.x86.out %s %}
+// RUN: %if cpu && opencl-aot %{ %{run} %t.x86.out %}
 //
 // REQUIRES: cpu || gpu
 // REQUIRES: sg-32
-// REQUIRES: aspect-ext_oneapi_ballot_group
-
-// Fails in Nightly testing on the self-hosted CUDA runner:
-// UNSUPPORTED: cuda
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/12995
+// REQUIRES: aspect-ext_oneapi_chunk
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-INTENDED: fixed_size_group aspect not available on amd
 
 // UNSUPPORTED: spirv-backend
 // UNSUPPORTED-TRACKER: CMPLRLLVM-64702
 // The test is disabled for spirv-backend while we investigate the root cause.
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/ballot_group.hpp>
+#include <sycl/ext/oneapi/experimental/chunk.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 
-class TestKernel;
+template <size_t PartitionSize> class TestKernel;
 
-int main() {
+template <size_t PartitionSize> void test() {
   sycl::queue Q;
 
-  sycl::buffer<size_t, 1> TmpBuf{sycl::range{32}};
-  sycl::buffer<bool, 1> BarrierBuf{sycl::range{32}};
-  sycl::buffer<bool, 1> BroadcastBuf{sycl::range{32}};
-  sycl::buffer<bool, 1> AnyBuf{sycl::range{32}};
-  sycl::buffer<bool, 1> AllBuf{sycl::range{32}};
-  sycl::buffer<bool, 1> NoneBuf{sycl::range{32}};
-  sycl::buffer<bool, 1> ReduceBuf{sycl::range{32}};
-  sycl::buffer<bool, 1> ExScanBuf{sycl::range{32}};
-  sycl::buffer<bool, 1> IncScanBuf{sycl::range{32}};
-  sycl::buffer<bool, 1> ShiftLeftBuf{sycl::range{32}};
-  sycl::buffer<bool, 1> ShiftRightBuf{sycl::range{32}};
-  sycl::buffer<bool, 1> SelectBuf{sycl::range{32}};
-  sycl::buffer<bool, 1> PermuteXorBuf{sycl::range{32}};
+  constexpr uint32_t SGSize = 32;
 
-  const auto NDR = sycl::nd_range<1>{32, 32};
+  sycl::buffer<size_t, 1> TmpBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> BarrierBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> BroadcastBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> AnyBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> AllBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> NoneBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> ReduceBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> ExScanBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> IncScanBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> ShiftLeftBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> ShiftRightBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> SelectBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> PermuteXorBuf{sycl::range{SGSize}};
+
+  const auto NDR = sycl::nd_range<1>{SGSize, SGSize};
   Q.submit([&](sycl::handler &CGH) {
     sycl::accessor TmpAcc{TmpBuf, CGH, sycl::write_only};
     sycl::accessor BarrierAcc{BarrierBuf, CGH, sycl::write_only};
@@ -60,49 +59,46 @@ int main() {
     sycl::accessor SelectAcc{SelectBuf, CGH, sycl::write_only};
     sycl::accessor PermuteXorAcc{PermuteXorBuf, CGH, sycl::write_only};
     const auto KernelFunc =
-        [=](sycl::nd_item<1> item) [[sycl::reqd_sub_group_size(32)]] {
+        [=](sycl::nd_item<1> item) [[sycl::reqd_sub_group_size(SGSize)]] {
           auto WI = item.get_global_id();
           auto SG = item.get_sub_group();
 
-          // Split into odd and even work-items.
-          bool Predicate = WI % 2 == 0;
-          auto BallotGroup = syclex::get_ballot_group(SG, Predicate);
-          uint32_t BallotGroupSize = BallotGroup.get_local_linear_range();
+          // Split into partitions of fixed size
+          auto ChunkGroup = syclex::chunked_partition<PartitionSize>(SG);
 
           // Check all other members' writes are visible after a barrier.
           TmpAcc[WI] = 1;
-          sycl::group_barrier(BallotGroup);
+          sycl::group_barrier(ChunkGroup);
           size_t Visible = 0;
-          for (size_t Other = 0; Other < 32; ++Other) {
-            if (WI % 2 == Other % 2) {
+          for (size_t Other = 0; Other < SGSize; ++Other) {
+            if ((WI / PartitionSize) == (Other / PartitionSize)) {
               Visible += TmpAcc[Other];
             }
           }
-          BarrierAcc[WI] = (Visible == BallotGroup.get_local_linear_range());
+          BarrierAcc[WI] = (Visible == PartitionSize);
 
           // Simple check of group algorithms.
           uint32_t OriginalLID = SG.get_local_linear_id();
-          uint32_t LID = BallotGroup.get_local_linear_id();
+          uint32_t LID = ChunkGroup.get_local_linear_id();
 
+          uint32_t PartitionLeader =
+              (OriginalLID / PartitionSize) * PartitionSize;
           uint32_t BroadcastResult =
-              sycl::group_broadcast(BallotGroup, OriginalLID, 0);
-          if (Predicate) {
-            BroadcastAcc[WI] = (BroadcastResult == 0);
-          } else {
-            BroadcastAcc[WI] = (BroadcastResult == 1);
-          }
+              sycl::group_broadcast(ChunkGroup, OriginalLID, 0);
+          BroadcastAcc[WI] = (BroadcastResult == PartitionLeader);
 
-          bool AnyResult = sycl::any_of_group(BallotGroup, (LID == 0));
+          bool AnyResult = sycl::any_of_group(ChunkGroup, (LID == 0));
           AnyAcc[WI] = (AnyResult == true);
 
-          bool AllResult = sycl::all_of_group(BallotGroup, Predicate);
+          bool Predicate = ((OriginalLID / PartitionSize) % 2 == 0);
+          bool AllResult = sycl::all_of_group(ChunkGroup, Predicate);
           if (Predicate) {
             AllAcc[WI] = (AllResult == true);
           } else {
             AllAcc[WI] = (AllResult == false);
           }
 
-          bool NoneResult = sycl::none_of_group(BallotGroup, Predicate);
+          bool NoneResult = sycl::none_of_group(ChunkGroup, Predicate);
           if (Predicate) {
             NoneAcc[WI] = (NoneResult == false);
           } else {
@@ -110,36 +106,37 @@ int main() {
           }
 
           uint32_t ReduceResult =
-              sycl::reduce_over_group(BallotGroup, 1, sycl::plus<>());
-          ReduceAcc[WI] = (ReduceResult == BallotGroupSize);
+              sycl::reduce_over_group(ChunkGroup, 1, sycl::plus<>());
+          ReduceAcc[WI] = (ReduceResult == PartitionSize);
 
           uint32_t ExScanResult =
-              sycl::exclusive_scan_over_group(BallotGroup, 1, sycl::plus<>());
+              sycl::exclusive_scan_over_group(ChunkGroup, 1, sycl::plus<>());
           ExScanAcc[WI] = (ExScanResult == LID);
 
           uint32_t IncScanResult =
-              sycl::inclusive_scan_over_group(BallotGroup, 1, sycl::plus<>());
+              sycl::inclusive_scan_over_group(ChunkGroup, 1, sycl::plus<>());
           IncScanAcc[WI] = (IncScanResult == LID + 1);
 
-          uint32_t ShiftLeftResult =
-              sycl::shift_group_left(BallotGroup, LID, 2);
+          uint32_t ShiftLeftResult = sycl::shift_group_left(ChunkGroup, LID, 2);
           ShiftLeftAcc[WI] =
-              (LID + 2 >= BallotGroupSize || ShiftLeftResult == LID + 2);
+              (LID + 2 >= PartitionSize || ShiftLeftResult == LID + 2);
 
           uint32_t ShiftRightResult =
-              sycl::shift_group_right(BallotGroup, LID, 2);
+              sycl::shift_group_right(ChunkGroup, LID, 2);
           ShiftRightAcc[WI] = (LID < 2 || ShiftRightResult == LID - 2);
 
           uint32_t SelectResult = sycl::select_from_group(
-              BallotGroup, LID,
-              (BallotGroup.get_local_id() + 2) % BallotGroupSize);
-          SelectAcc[WI] = (SelectResult == (LID + 2) % BallotGroupSize);
+              ChunkGroup, OriginalLID,
+              (ChunkGroup.get_local_id() + 2) % PartitionSize);
+          SelectAcc[WI] =
+              SelectResult == OriginalLID - LID + ((LID + 2) % PartitionSize);
 
+          uint32_t Mask = PartitionSize <= 2 ? 0 : 2;
           uint32_t PermuteXorResult =
-              sycl::permute_group_by_xor(BallotGroup, LID, 2);
-          PermuteXorAcc[WI] = (PermuteXorResult == (LID ^ 2));
+              sycl::permute_group_by_xor(ChunkGroup, LID, Mask);
+          PermuteXorAcc[WI] = (PermuteXorResult == (LID ^ Mask));
         };
-    CGH.parallel_for<TestKernel>(NDR, KernelFunc);
+    CGH.parallel_for<TestKernel<PartitionSize>>(NDR, KernelFunc);
   });
 
   sycl::host_accessor BarrierAcc{BarrierBuf, sycl::read_only};
@@ -154,7 +151,7 @@ int main() {
   sycl::host_accessor ShiftRightAcc{ShiftRightBuf, sycl::read_only};
   sycl::host_accessor SelectAcc{SelectBuf, sycl::read_only};
   sycl::host_accessor PermuteXorAcc{PermuteXorBuf, sycl::read_only};
-  for (int WI = 0; WI < 32; ++WI) {
+  for (int WI = 0; WI < SGSize; ++WI) {
     assert(BarrierAcc[WI] == true);
     assert(BroadcastAcc[WI] == true);
     assert(AnyAcc[WI] == true);
@@ -168,5 +165,14 @@ int main() {
     assert(SelectAcc[WI] == true);
     assert(PermuteXorAcc[WI] == true);
   }
+}
+
+int main() {
+  test<1>();
+  test<2>();
+  test<4>();
+  test<8>();
+  test<16>();
+  test<32>();
   return 0;
 }
