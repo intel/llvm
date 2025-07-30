@@ -371,7 +371,6 @@ public:
   KernelLaunchPropertiesT processLaunchProperties(PropertiesT Props) {
     using namespace sycl::ext::oneapi::experimental;
     using namespace sycl::ext::oneapi::experimental::detail;
-
     KernelLaunchPropertiesT retval;
     Self *pp = static_cast<Self *>(this);
     bool HasGraph = pp->isKernelAssociatedWithGraph();
