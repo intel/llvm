@@ -394,10 +394,8 @@ public:
 
     // Process Kernel cooperative property.
     {
-      constexpr bool UsesRootSync =
-          PropertiesT::template has_property<use_root_sync_key>();
-      if (UsesRootSync)
-        retval.MIsCooperative = UsesRootSync;
+      if constexpr (PropertiesT::template has_property<use_root_sync_key>())
+        retval.MIsCooperative = true;
     }
 
     // Process device progress properties.
