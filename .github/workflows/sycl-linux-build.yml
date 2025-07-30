@@ -188,8 +188,11 @@ jobs:
       run: cmake --build $GITHUB_WORKSPACE/build --target ${{ inputs.build_target || 'sycl-toolchain' }}
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
+      env:
+        # Can't inline to support possible quotes inside:
+        BUILD_CONFIGURE_EXTRA_ARGS: ${{ inputs.build_configure_extra_args }}
       run: |
-        if [[ "${{ inputs.build_configure_extra_args }}" == *"--use-libcxx"* ]]; then
+        if [[ "${BUILD_CONFIGURE_EXTRA_ARGS}" == *"--use-libcxx"* ]]; then
           # https://github.com/llvm/llvm-project/issues/59429
           export LIT_FILTER_OUT="ExecutionEngine/MCJIT"
         fi
@@ -197,10 +200,13 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
+      env:
+        # Can't inline to support possible quotes inside:
+        BUILD_CONFIGURE_EXTRA_ARGS: ${{ inputs.build_configure_extra_args }}
       run: |
         # Can we move this to Dockerfile? Hopefully, noop on Windows.
         export XDG_CACHE_HOME=$GITHUB_WORKSPACE/os_cache
-        if [[ "${{ inputs.build_configure_extra_args }}" == *"--use-libcxx"* ]]; then
+        if [[ "${BUILD_CONFIGURE_EXTRA_ARGS}" == *"--use-libcxx"* ]]; then
           # https://github.com/llvm/llvm-project/issues/59428
           export LIT_FILTER_OUT="(E|e)xception"
         fi
