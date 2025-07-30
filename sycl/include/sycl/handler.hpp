@@ -997,7 +997,7 @@ private:
             sycl::ext::oneapi::experimental::indirectly_callable_key>(),
         "indirectly_callable property cannot be applied to SYCL kernels");
 
-    processLaunchProperties(Props);
+    processKernelLaunchProperties(Props);
   }
 #endif // INTEL_PREVIEW_BREAKING_CHANGES
 
@@ -1343,8 +1343,8 @@ private:
 
       verifyUsedKernelBundleInternal(Name);
       KernelLaunchPropertiesT ProcessedProps =
-          KernelLaunchPropertyWrapper<sycl::handler>::processProperties<
-              detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
+          processKernelProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(
+              Props);
       setKernelLaunchProperties(ProcessedProps);
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
@@ -1376,8 +1376,7 @@ private:
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
     KernelLaunchPropertiesT ParsedProp =
-        KernelLaunchPropertyWrapper::processLaunchProperties<PropertiesT>(
-            Props);
+        processKernelLaunchProperties<PropertiesT>(Props);
     setKernelLaunchProperties(ParsedProp);
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
@@ -1404,8 +1403,7 @@ private:
     detail::checkValueRange<Dims>(NDRange);
     setNDRangeDescriptor(std::move(NDRange));
     KernelLaunchPropertiesT ParsedProp =
-        KernelLaunchPropertyWrapper::processLaunchProperties<PropertiesT>(
-            Props);
+        processKernelLaunchProperties<PropertiesT>(Props);
     setKernelLaunchProperties(ParsedProp);
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
@@ -1449,8 +1447,8 @@ private:
 
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
     KernelLaunchPropertiesT ProcessedProps =
-        KernelLaunchPropertyWrapper<sycl::handler>::processProperties<
-            detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
+        processKernelProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(
+            Props);
     setKernelLaunchProperties(ProcessedProps);
 #endif
   }
@@ -1505,8 +1503,8 @@ private:
       StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
     }
     KernelLaunchPropertiesT ProcessedProps =
-        KernelLaunchPropertyWrapper<sycl::handler>::processProperties<
-            detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
+        processKernelProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(
+            Props);
     setKernelLaunchProperties(ProcessedProps);
 #endif
   }

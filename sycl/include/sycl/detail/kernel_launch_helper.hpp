@@ -300,15 +300,6 @@ public:
   }; // struct KernelLaunchPropertiesT
 
 private:
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Modeled after ur_kernel_cache_config_t
-  enum class StableKernelCacheConfig : int32_t {
-    Default = 0,
-    LargeSLM = 1,
-    LargeData = 2
-  };
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
   void verifyDeviceHasProgressGuarantee(
       sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
       sycl::ext::oneapi::experimental::execution_scope threadScope,
@@ -368,7 +359,7 @@ public:
   ///
   /// Stores information about kernel properties into the handler.
   template <typename PropertiesT>
-  KernelLaunchPropertiesT processLaunchProperties(PropertiesT Props) {
+  KernelLaunchPropertiesT processKernelLaunchProperties(PropertiesT Props) {
     using namespace sycl::ext::oneapi::experimental;
     using namespace sycl::ext::oneapi::experimental::detail;
     KernelLaunchPropertiesT retval;
@@ -491,7 +482,7 @@ public:
   template <
       bool IsESIMDKernel,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  KernelLaunchPropertiesT processProperties(PropertiesT Props) {
+  KernelLaunchPropertiesT processKernelProperties(PropertiesT Props) {
     static_assert(
         ext::oneapi::experimental::is_property_list<PropertiesT>::value,
         "Template type is not a property list.");
@@ -507,7 +498,7 @@ public:
             sycl::ext::oneapi::experimental::indirectly_callable_key>(),
         "indirectly_callable property cannot be applied to SYCL kernels");
 
-    return processLaunchProperties(Props);
+    return processKernelLaunchProperties(Props);
   }
 
   // Returns KernelLaunchPropertiesT or std::nullopt based on whether the
@@ -520,7 +511,7 @@ public:
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<const KernelType &>::value) {
 
-      return processProperties<detail::isKernelESIMD<KernelName>()>(
+      return processKernelProperties<detail::isKernelESIMD<KernelName>()>(
           KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
     }
 #endif
