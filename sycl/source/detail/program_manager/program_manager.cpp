@@ -2816,7 +2816,7 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
       setSpecializationConstants(InputImpl, Prog, Adapter);
 
     KernelNameSetT KernelNames = InputImpl.getKernelNames();
-    std::unordered_map<std::string, KernelArgMask> EliminatedKernelArgMasks =
+    std::map<std::string, KernelArgMask, std::less<>> EliminatedKernelArgMasks =
         InputImpl.getEliminatedKernelArgMasks();
 
     std::optional<detail::KernelCompilerBinaryInfo> RTCInfo =
@@ -3006,7 +3006,8 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
       RTCInfoPtrs;
   RTCInfoPtrs.reserve(Imgs.size());
   KernelNameSetT MergedKernelNames;
-  std::unordered_map<std::string, KernelArgMask> MergedEliminatedKernelArgMasks;
+  std::map<std::string, KernelArgMask, std::less<>>
+      MergedEliminatedKernelArgMasks;
   for (const device_image_plain &DevImg : Imgs) {
     device_image_impl &DevImgImpl = *getSyclObjImpl(DevImg);
     CombinedOrigins |= DevImgImpl.getOriginMask();
@@ -3088,7 +3089,8 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
       RTCInfoPtrs;
   RTCInfoPtrs.reserve(DevImgWithDeps.size());
   KernelNameSetT MergedKernelNames;
-  std::unordered_map<std::string, KernelArgMask> MergedEliminatedKernelArgMasks;
+  std::map<std::string, KernelArgMask, std::less<>>
+      MergedEliminatedKernelArgMasks;
   for (const device_image_plain &DevImg : DevImgWithDeps) {
     device_image_impl &DevImgImpl = *getSyclObjImpl(DevImg);
     RTCInfoPtrs.emplace_back(&(DevImgImpl.getRTCInfo()));
