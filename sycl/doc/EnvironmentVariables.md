@@ -261,7 +261,11 @@ The default value is 0 and no tracing is enabled.
 :warning: **Warning:** <span style="color:red">the environment variables
 described below are used for development and debugging of DPC++ compiler
 and runtime. Their semantics are subject to change. Do not rely on these
-variables in production code.</span>
+variables in production code. Most of these variables are only supported
+by the legacy L0 adapter (when running on platforms with GPUs based on
+architectures older than Xe2, such as PVC or DG2 or when
+SYCL_UR_USE_LEVEL_ZERO_V2=0 is set). The only exception is
+SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR which is supported by both adapters.</span>
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
