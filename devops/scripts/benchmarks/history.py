@@ -19,6 +19,7 @@ from utils.detect_versions import DetectVersion
 
 class BenchmarkHistory:
     runs = []
+    TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
 
     def __init__(self, dir):
         self.dir = dir
@@ -31,7 +32,12 @@ class BenchmarkHistory:
         else:
             return None
 
-    def load(self, n: int):
+    def load(self):
+        """
+        Load benchmark runs from the results directory.
+        This method loads files after the specified archiving criteria,
+        sorts them by timestamp, and stores the results in self.runs.
+        """
         results_dir = Path(self.dir) / "results"
         if not results_dir.exists() or not results_dir.is_dir():
             log.warning(
@@ -42,7 +48,7 @@ class BenchmarkHistory:
         # Get all JSON files in the results directory
         benchmark_files = list(results_dir.glob("*.json"))
 
-        # Extract timestamp and sort files by it
+        # Extract timestamp
         def extract_timestamp(file_path: Path) -> str:
             try:
                 # Assumes results are stored as <name>_YYYYMMDD_HHMMSS.json
@@ -51,11 +57,45 @@ class BenchmarkHistory:
             except IndexError:
                 return ""
 
+        baseline_drop_after = options.archive_baseline_days * 3
+        pr_drop_after = options.archive_pr_days * 3
+        baseline_cutoff_date = datetime.now(timezone.utc) - timedelta(
+            days=baseline_drop_after
+        )
+        log.debug(f"Baseline cutoff date: {baseline_cutoff_date}")
+        pr_cutoff_date = datetime.now(timezone.utc) - timedelta(days=pr_drop_after)
+        log.debug(f"PR cutoff date: {pr_cutoff_date}")
+
+        # Filter out files that exceed archiving criteria three times the specified days
+        def is_file_too_old(file_path: Path) -> bool:
+            try:
+                if file_path.stem.startswith("Baseline_"):
+                    cutoff_date = baseline_cutoff_date
+                else:
+                    cutoff_date = pr_cutoff_date
+
+                timestamp_str = extract_timestamp(file_path)
+                if not timestamp_str:
+                    return False
+
+                file_timestamp = datetime.strptime(timestamp_str, self.TIMESTAMP_FORMAT)
+                # Add timezone info for proper comparison
+                file_timestamp = file_timestamp.replace(tzinfo=timezone.utc)
+                return file_timestamp < cutoff_date
+            except Exception as e:
+                log.warning(f"Error processing timestamp for {file_path.name}: {e}")
+                return False
+
+        benchmark_files = [
+            file for file in benchmark_files if not is_file_too_old(file)
+        ]
+
+        # Sort files by timestamp
         benchmark_files.sort(key=extract_timestamp, reverse=True)
 
-        # Load the first n benchmark files
+        # Load benchmark files
         benchmark_runs = []
-        for file_path in benchmark_files[:n]:
+        for file_path in benchmark_files:
             benchmark_run = self.load_result(file_path)
             if benchmark_run:
                 benchmark_runs.append(benchmark_run)
@@ -163,7 +203,7 @@ class BenchmarkHistory:
 
         # Use formatted timestamp for the filename
         timestamp = (
-            datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+            datetime.now(tz=timezone.utc).strftime(self.TIMESTAMP_FORMAT)
             if options.timestamp_override is None
             else options.timestamp_override
         )

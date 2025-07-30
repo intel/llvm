@@ -42,11 +42,9 @@ The suite is structured around three main components: Suites, Benchmarks, and Re
     * **Fields (set by Benchmark):**
         * `label`: Unique identifier for this *specific result type* within the benchmark instance (e.g., "Submit In Order Time"). Ideally contains `benchmark.name()`.
         * `value`: The measured numerical result (float).
-        * `unit`: The unit of the value (string, e.g., "μs", "GB/s", "token/s").
         * `command`: The command list used to run the benchmark (`list[str]`).
         * `env`: Environment variables used (`dict[str, str]`).
-        * `stdout`: Full standard output of the benchmark run (string).
-        * `passed`: Boolean indicating if verification passed (default: `True`).
+        * `unit`: The unit of the value (string, e.g., "μs", "GB/s", "token/s").
         * `stddev`: Standard deviation, if calculated by the benchmark itself (float, default: 0.0).
         * `git_url`, `git_hash`: Git info for the benchmark's source code (string).
     * **Fields (set by Framework):**
