@@ -108,7 +108,7 @@ public:
   bool leader() const {
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t Lowest = static_cast<uint32_t>(Mask.find_low()[0]);
-    return __spirv_SubgroupLocalInvocationId() == Lowest;
+    return __spirv_BuiltInSubgroupLocalInvocationId() == Lowest;
 #else
     return false;
 #endif

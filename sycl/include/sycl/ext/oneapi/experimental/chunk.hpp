@@ -54,7 +54,7 @@ public:
     return fragment<ParentGroup>(Mask, get_group_id(), get_group_range());
 #else
     // or mask based on chunk membership for non-NVPTX devices
-    uint32_t loc_id = __spirv_SubgroupLocalInvocationId();
+    uint32_t loc_id = __spirv_BuiltInSubgroupLocalInvocationId();
     uint32_t chunk_start = (loc_id / ChunkSize) * ChunkSize;
     sub_group_mask::BitsType bits =
         ChunkSize == 32
@@ -62,7 +62,7 @@ public:
             : ((sub_group_mask::BitsType(1) << ChunkSize) - 1) << chunk_start;
     sub_group_mask mask =
         sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
-            bits, __spirv_SubgroupSize());
+            bits, __spirv_BuiltInSubgroupSize());
     return fragment<ParentGroup>(mask, get_group_id(), get_group_range());
 #endif
 #else
@@ -73,10 +73,10 @@ public:
   id_type get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
     if constexpr (sycl::detail::is_chunk_v<ParentGroup>)
-      return __spirv_SubgroupLocalInvocationId() % ParentGroup::chunk_size /
-             ChunkSize;
+      return __spirv_BuiltInSubgroupLocalInvocationId() %
+             ParentGroup::chunk_size / ChunkSize;
     else
-      return __spirv_SubgroupLocalInvocationId() / ChunkSize;
+      return __spirv_BuiltInSubgroupLocalInvocationId() / ChunkSize;
 #else
     return id_type(0);
 #endif
@@ -84,7 +84,7 @@ public:
 
   id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupLocalInvocationId() % ChunkSize;
+    return __spirv_BuiltInSubgroupLocalInvocationId() % ChunkSize;
 #else
     return id_type(0);
 #endif
@@ -95,7 +95,7 @@ public:
     if constexpr (sycl::detail::is_chunk_v<ParentGroup>)
       return ParentGroup::chunk_size / ChunkSize;
     else
-      return __spirv_SubgroupSize() / ChunkSize;
+      return __spirv_BuiltInSubgroupSize() / ChunkSize;
 #else
     return range_type(0);
 #endif
@@ -168,9 +168,11 @@ protected:
     MaskBits <<= ext::oneapi::sub_group_mask::max_bits - ChunkSize;
     MaskBits >>=
         ext::oneapi::sub_group_mask::max_bits -
-        (((__spirv_SubgroupLocalInvocationId() / ChunkSize) + 1) * ChunkSize);
+        (((__spirv_BuiltInSubgroupLocalInvocationId() / ChunkSize) + 1) *
+         ChunkSize);
     return sycl::detail::Builder::createSubGroupMask<
-        ext::oneapi::sub_group_mask>(MaskBits, __spirv_SubgroupMaxSize());
+        ext::oneapi::sub_group_mask>(MaskBits,
+                                     __spirv_BuiltInSubgroupMaxSize());
   }
 #endif
 #endif

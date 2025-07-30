@@ -357,7 +357,7 @@ ext::oneapi::sub_group_mask commonGroupBallotImpl(Group G, bool Predicate) {
     Val |= ((ext::oneapi::sub_group_mask::BitsType)Res[1]) << 32;
   auto Mask =
       sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
-          Val, __spirv_SubgroupMaxSize());
+          Val, __spirv_BuiltInSubgroupMaxSize());
   // For sub-groups we do not need to apply the mask, but for others it will
   // split converging groups accordingly.
   if constexpr (!std::is_same_v<std::decay_t<Group>, ext::oneapi::sub_group> &&
