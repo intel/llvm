@@ -4,6 +4,11 @@
 // RUN: %clang_cc1 -Wno-unused-value -O0 -internal-isystem %S/../../lib/Headers -include __clang_spirv_builtins.h -triple spirv32 -emit-llvm %s -x cl -o - | FileCheck %s -check-prefixes=CHECK32
 // RUN: %clang_cc1 -Wno-unused-value -O0 -internal-isystem %S/../../lib/Headers -include __clang_spirv_builtins.h -triple nvptx64 -emit-llvm %s -fsycl-is-device -o - | FileCheck %s -check-prefixes=NV
 
+#ifdef __SYCL_DEVICE_ONLY__
+#define SYCL_EXTERNAL  __attribute__((sycl_device))
+#else
+#define SYCL_EXTERNAL
+#endif
 
 // CHECK64: call i64 @llvm.spv.num.workgroups.i64(i32 0)
 // CHECK64: call i64 @llvm.spv.num.workgroups.i64(i32 1)
@@ -80,7 +85,7 @@
 // NV: call noundef i32 @_Z18__spirv_SubgroupIdv() #2
 // NV: call noundef i32 @_Z33__spirv_SubgroupLocalInvocationIdv() #2
 
-void test_id_and_range() {
+SYCL_EXTERNAL void test_id_and_range() {
   __spirv_NumWorkgroups(0);
   __spirv_NumWorkgroups(1);
   __spirv_NumWorkgroups(2);
