@@ -145,20 +145,22 @@ set(SYCL_INCLUDE_DIR "include")
 set(SYCL_INCLUDE_BUILD_DIR ${LLVM_BINARY_DIR}/${SYCL_INCLUDE_DIR})
 
 add_llvm_external_project(opencl)
-list(FIND LLVM_ENABLE_PROJECTS opencl OPENCL_FOUND)
-if(OPENCL_FOUND EQUAL -1)
+list(FIND LLVM_ENABLE_PROJECTS opencl OPENCL_PROJ_FOUND)
+if(OPENCL_PROJ_FOUND EQUAL -1)
   message(FATAL_ERROR "opencl external project required but not found.")
 endif()
 
-# Copy OpenCL Headers into sycl headers build directory
-# Compiler does automatic lookup bin/../include based on clang binary location,
-# e.g. when run LIT tests
-file(COPY ${OpenCL_INCLUDE_DIR}/CL DESTINATION ${SYCL_INCLUDE_BUILD_DIR})
+if(NOT OpenCL_FOUND)
+  # Copy OpenCL Headers into sycl headers build directory
+  # Compiler does automatic lookup bin/../include based on clang binary location,
+  # e.g. when run LIT tests
+  file(COPY ${OpenCL_INCLUDE_DIR}/CL DESTINATION ${SYCL_INCLUDE_BUILD_DIR})
 
-# Include OpenCL Headers into final bundle.
-install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
-        DESTINATION ${SYCL_INCLUDE_DIR}
-        COMPONENT OpenCL-Headers)
+  # Include OpenCL Headers into final bundle.
+  install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
+         DESTINATION ${SYCL_INCLUDE_DIR}
+          COMPONENT OpenCL-Headers)
+endif()
 
 # Option for enabling building the SYCL major release preview library.
 option(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB "Enable build of the SYCL major release preview library" ON)
