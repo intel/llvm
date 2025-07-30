@@ -4,7 +4,7 @@
 // RUN: %{run} %t.out
 //
 // UNSUPPORTED: opencl
-// UNSUPPORTED-INTENDED: OpenCL currently does not support command buffers
+// UNSUPPORTED-INTENDED: OpenCL currently has limited support for command buffers
 //
 // RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
