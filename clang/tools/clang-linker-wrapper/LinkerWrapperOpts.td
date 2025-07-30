@@ -232,6 +232,11 @@ Flags<[WrapperOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;
 def sycl_embed_ir : Flag<["--", "-"], "sycl-embed-ir">,
 Flags<[WrapperOnlyOption]>,  HelpText<"Embed LLVM IR for runtime kernel fusion">;
 
+def sycl_device_link
+    : Flag<["--", "-"], "sycl-device-link">,
+      Flags<[WrapperOnlyOption]>,
+      HelpText<"Link SYCL device code only. Discard host code.">;
+
 def sycl_dump_device_code_EQ : Joined<["--", "-"], "sycl-dump-device-code=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Directory to dump offloading images to.">;

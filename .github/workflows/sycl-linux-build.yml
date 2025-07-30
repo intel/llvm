@@ -42,7 +42,7 @@ on:
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
-        default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+        default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
         required: false
       retention-days:
         description: 'Artifacts retention period'
@@ -70,7 +70,7 @@ on:
         type: choice
         options:
           - "[]"
-          - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+          - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
       build_image:
         type: choice
         options:
@@ -218,7 +218,7 @@ jobs:
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libclc
     - name: check-libdevice
-      if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libdevice
     - name: Check E2E test requirements

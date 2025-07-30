@@ -12,6 +12,7 @@
 #include <ur/ur.hpp>
 #include <ur_api.h>
 
+#include "adapters/offload/adapter.hpp"
 #include "device.hpp"
 #include "platform.hpp"
 #include "ur2offload.hpp"
@@ -121,6 +122,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT:
     return ReturnValue(uint32_t{0});
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
+  case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
+  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
+    return ReturnValue(
+        ur_queue_flags_t{UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE});
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(0);
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
@@ -207,14 +212,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   return UR_RESULT_ERROR_INVALID_BINARY;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urDeviceGetNativeHandle(ur_device_handle_t, ur_native_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
+    ur_device_handle_t UrDevice, ur_native_handle_t *Handle) {
+  *Handle = reinterpret_cast<ur_native_handle_t>(UrDevice->OffloadDevice);
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t, ur_adapter_handle_t,
-    const ur_device_native_properties_t *, ur_device_handle_t *) {
+    ur_native_handle_t hNativeDevice, ur_adapter_handle_t hAdapter,
+    const ur_device_native_properties_t *, ur_device_handle_t *phDevice) {
+  ol_device_handle_t OlDevice =
+      reinterpret_cast<ol_device_handle_t>(hNativeDevice);
+
+  // Currently, all devices are found at initialization, there is no way to
+  // create sub devices yet
+  for (auto &P : hAdapter->Platforms) {
+    auto Found =
+        std::find_if(P->Devices.begin(), P->Devices.end(),
+                     [&](std::unique_ptr<ur_device_handle_t_> &PDevice) {
+                       return PDevice->OffloadDevice == OlDevice;
+                     });
+    if (Found != P->Devices.end()) {
+      *phDevice = Found->get();
+      return UR_RESULT_SUCCESS;
+    }
+  }
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

@@ -1227,12 +1227,26 @@ packageSYCLBIN(SYCLBIN::BundleState State,
   return *OutFileOrErr;
 }
 
+Error copyFileToFinalExecutable(StringRef File, const ArgList &Args) {
+  if (Verbose || DryRun) {
+    llvm::Triple Triple(Args.getLastArgValue(OPT_host_triple_EQ,
+                                             sys::getDefaultTargetTriple()));
+    StringRef CopyCommand = Triple.isOSWindows() ? "copy" : "cp";
+    llvm::errs() << "\"" << CopyCommand << "\" " << File << " "
+                 << ExecutableName << "\n";
+  }
+  // TODO: check if copy can be replaced by rename.
+  if (std::error_code EC = sys::fs::copy_file(File, ExecutableName))
+    return createFileError(ExecutableName, EC);
+  return Error::success();
+}
+
 Error mergeSYCLBIN(ArrayRef<StringRef> Files, const ArgList &Args) {
   // Fast path for the general case where there's only one file. In this case we
   // do not need to parse it and can instead simply copy it.
   if (Files.size() == 1) {
-    if (std::error_code EC = sys::fs::copy_file(Files[0], ExecutableName))
-      return createFileError(ExecutableName, EC);
+    if (Error Err = copyFileToFinalExecutable(Files[0], Args))
+      reportError(std::move(Err));
     return Error::success();
   }
   // TODO: Merge SYCLBIN files here and write to ExecutableName output.
@@ -2227,7 +2241,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
 
       // Store the offloading image for each linked output file.
       for (OffloadKind Kind = OFK_OpenMP; Kind != OFK_LAST;
-        Kind = static_cast<OffloadKind>((uint16_t)(Kind) << 1)) {
+           Kind = static_cast<OffloadKind>((uint16_t)(Kind) << 1)) {
         if ((ActiveOffloadKindMask & Kind) == 0)
           continue;
         llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> FileOrErr =
@@ -2792,6 +2806,14 @@ int main(int Argc, char **Argv) {
 
     if (OutputSYCLBIN) {
       if (Error Err = sycl::mergeSYCLBIN(*FilesOrErr, Args))
+        reportError(std::move(Err));
+    } else if (Args.hasArg(OPT_sycl_device_link)) {
+      // Skip host linker if --sycl-device-link option is set.
+      // Just copy the output of device linking and wrapping action.
+      if (FilesOrErr->size() != 1)
+        reportError(
+            createStringError("Expect single output from the device linker."));
+      if (Error Err = sycl::copyFileToFinalExecutable((*FilesOrErr)[0], Args))
         reportError(std::move(Err));
     } else {
       // Run the host linking job with the rendered arguments.

@@ -20,6 +20,7 @@
 #include "asan_statistics.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
 #include "sanitizer_common/sanitizer_options.hpp"
+#include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 #include <memory>
@@ -143,6 +144,10 @@ struct ContextInfo {
   std::vector<ur_device_handle_t> DeviceList;
   std::unordered_map<ur_device_handle_t, AllocInfoList> AllocInfosMap;
 
+  ur_shared_mutex InternalQueueMapMutex;
+  std::unordered_map<ur_device_handle_t, std::optional<ManagedQueue>>
+      InternalQueueMap;
+
   AsanStatsWrapper Stats;
 
   explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
@@ -163,6 +168,8 @@ struct ContextInfo {
   }
 
   ur_usm_pool_handle_t getUSMPool();
+
+  ur_queue_handle_t getInternalQueue(ur_device_handle_t);
 };
 
 struct AsanRuntimeDataWrapper {

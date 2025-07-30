@@ -91,6 +91,8 @@ public:
         },
         It);
   }
+
+  pointer operator->() { return &this->operator*(); }
 };
 
 // Non-owning!

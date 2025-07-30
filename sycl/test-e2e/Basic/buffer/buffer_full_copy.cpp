@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t2.out
 // RUN: %{run} %t2.out
 
+// XFAIL: run-mode && arch-intel_gpu_pvc && !igc-dev
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19585
+
 //==------------- buffer_full_copy.cpp - SYCL buffer basic test ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

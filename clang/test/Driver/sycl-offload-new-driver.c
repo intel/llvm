@@ -223,3 +223,8 @@
 // CHK-MACRO-GFX90A: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_AMD_GPU_GFX90A__"{{.*}}
 // CHK-MACRO-GFX90C: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_AMD_GPU_GFX90C__"{{.*}}
 
+/// Check that -sycl-device-link is passed to clang-linker-wrapper tool
+// RUN: %clangxx -fsycl -### --offload-new-driver \
+// RUN:          -fsycl-link %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHECK_SYCL_DEVICE_LINKING %s
+// CHECK_SYCL_DEVICE_LINKING: clang-linker-wrapper{{.*}} "--sycl-device-link"

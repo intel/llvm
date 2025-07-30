@@ -53,30 +53,30 @@
 
 // Builtin IDs and sizes
 
-extern __SPIRV_BUILTIN_ALIAS(__builtin_spirv_num_workgroups) __size_t
+extern __SPIRV_SYCL_EXTERNAL __SPIRV_BUILTIN_ALIAS(__builtin_spirv_num_workgroups) __size_t
     __spirv_BuiltInNumWorkgroups(int);
-extern __SPIRV_BUILTIN_ALIAS(__builtin_spirv_workgroup_size) __size_t
+extern __SPIRV_SYCL_EXTERNAL __SPIRV_BUILTIN_ALIAS(__builtin_spirv_workgroup_size) __size_t
     __spirv_BuiltInWorkgroupSize(int);
-extern __SPIRV_BUILTIN_ALIAS(__builtin_spirv_workgroup_id) __size_t
+extern __SPIRV_SYCL_EXTERNAL __SPIRV_BUILTIN_ALIAS(__builtin_spirv_workgroup_id) __size_t
     __spirv_BuiltInWorkgroupId(int);
-extern __SPIRV_BUILTIN_ALIAS(__builtin_spirv_local_invocation_id) __size_t
+extern __SPIRV_SYCL_EXTERNAL __SPIRV_BUILTIN_ALIAS(__builtin_spirv_local_invocation_id) __size_t
     __spirv_BuiltInLocalInvocationId(int);
-extern __SPIRV_BUILTIN_ALIAS(__builtin_spirv_global_invocation_id) __size_t
+extern __SPIRV_SYCL_EXTERNAL __SPIRV_BUILTIN_ALIAS(__builtin_spirv_global_invocation_id) __size_t
     __spirv_BuiltInGlobalInvocationId(int);
 
-extern __SPIRV_BUILTIN_ALIAS(__builtin_spirv_global_size) __size_t
+extern __SPIRV_SYCL_EXTERNAL __SPIRV_BUILTIN_ALIAS(__builtin_spirv_global_size) __size_t
     __spirv_BuiltInGlobalSize(int);
-extern __SPIRV_BUILTIN_ALIAS(__builtin_spirv_global_offset) __size_t
+extern __SPIRV_SYCL_EXTERNAL __SPIRV_BUILTIN_ALIAS(__builtin_spirv_global_offset) __size_t
     __spirv_BuiltInGlobalOffset(int);
-extern __SPIRV_BUILTIN_ALIAS(__builtin_spirv_subgroup_size) __uint32_t
+extern __SPIRV_SYCL_EXTERNAL __SPIRV_BUILTIN_ALIAS(__builtin_spirv_subgroup_size) __uint32_t
     __spirv_BuiltInSubgroupSize();
-extern __SPIRV_BUILTIN_ALIAS(__builtin_spirv_subgroup_max_size) __uint32_t
+extern __SPIRV_SYCL_EXTERNAL __SPIRV_BUILTIN_ALIAS(__builtin_spirv_subgroup_max_size) __uint32_t
     __spirv_BuiltInSubgroupMaxSize();
-extern __SPIRV_BUILTIN_ALIAS(__builtin_spirv_num_subgroups) __uint32_t
+extern __SPIRV_SYCL_EXTERNAL __SPIRV_BUILTIN_ALIAS(__builtin_spirv_num_subgroups) __uint32_t
     __spirv_BuiltInNumSubgroups();
-extern __SPIRV_BUILTIN_ALIAS(__builtin_spirv_subgroup_id) __uint32_t
+extern __SPIRV_SYCL_EXTERNAL __SPIRV_BUILTIN_ALIAS(__builtin_spirv_subgroup_id) __uint32_t
     __spirv_BuiltInSubgroupId();
-extern __SPIRV_BUILTIN_ALIAS(__builtin_spirv_subgroup_local_invocation_id)
+extern __SPIRV_SYCL_EXTERNAL __SPIRV_BUILTIN_ALIAS(__builtin_spirv_subgroup_local_invocation_id)
     __uint32_t __spirv_BuiltInSubgroupLocalInvocationId();
 
 // OpGenericCastToPtrExplicit
