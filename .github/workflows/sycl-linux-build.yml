@@ -58,9 +58,13 @@ on:
         type: string
         default: llvm_sycl.tar.zst
 
-      pack_release:
+      release_toolchain_artifact:
         type: string
         required: false
+        description: |
+          If provided, create an addition toolchain artifact with the same name
+          (`inputs.toolchain_artifact_filename`) as `toolchain_artifact` above
+          but without utilities used for testing.
 
       e2e_binaries_artifact:
         type: string
@@ -117,18 +121,15 @@ on:
         options:
           - "default"
 
-      toolchain_artifact:
-        type: choice
-        options:
-          - "sycl_linux_default"
       retention-days:
         type: choice
         options:
           - 3
 
-      pack_release:
-        type: string
-        required: false
+      toolchain_artifact:
+        type: choice
+        options:
+          - "sycl_linux_default"
 
 permissions: read-all
 
@@ -272,13 +273,13 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
 
     - name: Pack toolchain release
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain release
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
       uses: actions/upload-artifact@v4
       with:
-        name: sycl_linux_release
+        name: ${{ inputs.release_toolchain_artifact }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
         retention-days: ${{ inputs.retention-days }}
 
