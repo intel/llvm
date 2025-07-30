@@ -279,7 +279,7 @@ function(configure_linker_file input output)
     configure_file(${input} ${tmp} ${ARGN})
     # Strip guarded lines and capture stripped content from stdout
     execute_process(
-        COMMAND ${PYTHON_EXECUTABLE}
+        COMMAND ${Python3_EXECUTABLE}
             ${PROJECT_SOURCE_DIR}/scripts/strip-guarded-lines.py ${tmp}
             # List names of guarded blocks to include in the output file here
         OUTPUT_VARIABLE stripped
