@@ -50,13 +50,14 @@ jobs:
     with:
       build_ref: ${{ github.sha }}
       build_cache_root: "/__w/"
-      build_artifact_suffix: "default"
       build_cache_suffix: "default"
       # Docker image has last nightly pre-installed and added to the PATH
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
       cc: clang
       cxx: clang++
       changes: ${{ needs.detect_changes.outputs.filters }}
+
+      toolchain_artifact: sycl_linux_default
       e2e_binaries_artifact: sycl_e2e_bin_default
 
   # If a PR changes CUDA adapter, run the build on Ubuntu 22.04 as well.
@@ -70,10 +71,11 @@ jobs:
     with:
       build_ref: ${{ github.sha }}
       build_cache_root: "/__w/"
-      build_artifact_suffix: "ubuntu22"
       build_cache_suffix: "ubuntu22"
       build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
       changes: ${{ needs.detect_changes.outputs.filters }}
+
+      toolchain_artifact: sycl_linux_ubuntu22
 
   run_prebuilt_e2e_tests:
     needs: [build, detect_changes]
@@ -146,9 +148,9 @@ jobs:
       target_devices: ${{ matrix.target_devices }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       repo_ref: ${{ github.sha }}
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
       e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact || 'sycl_e2e_bin_default' }}
       e2e_testing_mode: 'run-only'
 
@@ -185,9 +187,9 @@ jobs:
       benchmark_preset: 'Minimal'
       benchmark_dry_run: true
       repo_ref: ${{ github.sha }}
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
 
   test-perf:
     needs: [build, detect_changes]
@@ -224,6 +226,6 @@ jobs:
 
       repo_ref: ${{ github.sha }}
 
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}

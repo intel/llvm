@@ -33,25 +33,30 @@ on:
         type: string
         required: false
         default: "--hip --cuda --native_cpu"
-      build_artifact_suffix:
-        type: string
-        required: true
       build_target:
         type: string
         required: false
         default: sycl-toolchain
-      artifact_archive_name:
-        type: string
-        default: llvm_sycl.tar.zst
+
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
         required: false
+
+      # Artifacts:
+
       retention-days:
         description: 'Artifacts retention period'
         type: string
         default: 3
+
+      toolchain_artifact:
+        type: string
+        required: true
+      toolchain_artifact_filename:
+        type: string
+        default: llvm_sycl.tar.zst
       e2e_binaries_artifact:
         type: string
         required: false
@@ -62,10 +67,12 @@ on:
     outputs:
       build_conclusion:
         value: ${{ jobs.build.outputs.build_conclusion }}
-      artifact_archive_name:
-        value: ${{ jobs.build.outputs.artifact_archive_name }}
-      artifact_decompress_command:
-        value: ${{ jobs.build.outputs.artifact_decompress_command }}
+      toolchain_artifact:
+        value: ${{ inputs.toolchain_artifact }}
+      toolchain_artifact_filename:
+        value: ${{ jobs.build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command:
+        value: ${{ jobs.build.outputs.toolchain_decompress_command }}
 
   workflow_dispatch:
     inputs:
@@ -102,10 +109,10 @@ on:
         options:
           - "default"
 
-      build_artifact_suffix:
+      toolchain_artifact:
         type: choice
         options:
-          - "default"
+          - "sycl_linux_default"
       retention-days:
         type: choice
         options:
@@ -126,8 +133,8 @@ jobs:
       options: -u 1001:1001
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
-      artifact_archive_name: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
-      artifact_decompress_command: ${{ steps.artifact_info.outputs.DECOMPRESS }}
+      toolchain_artifact_filename: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
+      toolchain_decompress_command: ${{ steps.artifact_info.outputs.DECOMPRESS }}
     env:
       CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
       CCACHE_MAXSIZE: 8G
@@ -136,7 +143,7 @@ jobs:
       # To reduce number of inputs parameters that is limited for manual triggers.
       id: artifact_info
       run: |
-        NAME="${{inputs.artifact_archive_name}}"
+        NAME="${{inputs.toolchain_artifact_filename}}"
         if [ -z "$NAME" ]; then
           NAME=llvm_sycl.tar.zst
         fi
@@ -287,7 +294,7 @@ jobs:
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v4
       with:
-        name: sycl_linux_${{ inputs.build_artifact_suffix }}
+        name: ${{ inputs.toolchain_artifact }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
         retention-days: ${{ inputs.retention-days }}
 
