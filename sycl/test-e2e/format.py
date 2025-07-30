@@ -331,9 +331,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 if extra_env:
                     expanded += " {}".format(" ".join(extra_env))
 
-                if "v2" in full_dev_name:
+                if "level_zero_v2" in full_dev_name:
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=1"
-                elif "v1" in full_dev_name:
+                elif "level_zero_v1" in full_dev_name:
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=0"
 
                 expanded += " ONEAPI_DEVICE_SELECTOR={} {}".format(
