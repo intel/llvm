@@ -167,6 +167,7 @@ ur_result_t TsanInterceptor::releaseMemory(ur_context_handle_t Context,
     std::scoped_lock<ur_shared_mutex> Guard(CI->AllocInfosMutex);
     auto It = std::find_if(CI->AllocInfos.begin(), CI->AllocInfos.end(),
                            [&](auto &P) { return P.AllocBegin == Addr; });
+    assert(It != CI->AllocInfos.end());
     CI->AllocInfos.erase(It);
   }
 
