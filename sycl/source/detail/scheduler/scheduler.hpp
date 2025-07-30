@@ -482,15 +482,8 @@ public:
       std::vector<Requirement *> Requirements,
       std::vector<detail::EventImplPtr> &Events);
 
-  static bool CheckEventReadiness(context_impl &Context,
-                                  const EventImplPtr &SyclEventImplPtr);
-
-  static bool
-  areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
-                                  context_impl &Context);
-  static bool
-  areEventsSafeForSchedulerBypass(const std::vector<EventImplPtr> &DepEvents,
-                                  context_impl &Context);
+  static bool areEventsSafeForSchedulerBypass(events_range DepEvents,
+                                              context_impl &Context);
 
 protected:
   using RWLockT = std::shared_timed_mutex;
@@ -527,10 +520,9 @@ protected:
                                          ReadLockT &GraphReadLock,
                                          std::vector<Command *> &ToCleanUp);
 
-  static void
-  enqueueUnblockedCommands(const std::vector<EventImplPtr> &CmdsToEnqueue,
-                           ReadLockT &GraphReadLock,
-                           std::vector<Command *> &ToCleanUp);
+  static void enqueueUnblockedCommands(events_range ToEnqueue,
+                                       ReadLockT &GraphReadLock,
+                                       std::vector<Command *> &ToCleanUp);
 
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);

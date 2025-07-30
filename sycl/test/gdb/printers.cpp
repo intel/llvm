@@ -63,8 +63,7 @@ sycl::range<1> r(3);
 // CHECK:        32 |   backend MBackend
 
 // CHECK:         0 | class sycl::detail::device_impl
-// CHECK:        24 |   class std::shared_ptr<class sycl::detail::platform_impl> MPlatform
-// CHECK:        24 |       element_type * _M_ptr
+// CHECK:        24 |   platform_impl & MPlatform
 
 // DEVICE:        0 | class sycl::detail::AccessorImplDevice<1>
 // DEVICE:        0 |   class sycl::id<1> Offset
