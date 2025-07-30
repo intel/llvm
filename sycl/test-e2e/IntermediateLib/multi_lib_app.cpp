@@ -14,7 +14,7 @@
 // This test ensures that __sycl_register_lib() and __sycl_unregister_lib()
 // are called correctly, and that the device images are cleaned up properly.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl::ext::oneapi::experimental;
 

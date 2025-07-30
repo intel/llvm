@@ -1,4 +1,4 @@
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #if defined(_WIN32)
 #define API_EXPORT __declspec(dllexport)
