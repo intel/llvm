@@ -910,64 +910,9 @@ private:
   /// Stores information about kernel properties into the handler.
   template <typename PropertiesT>
   void processLaunchProperties(PropertiesT Props) {
-    if constexpr (PropertiesT::template has_property<
-                      sycl::ext::intel::experimental::cache_config_key>()) {
-      auto Config = Props.template get_property<
-          sycl::ext::intel::experimental::cache_config_key>();
-      if (Config == sycl::ext::intel::experimental::large_slm) {
-        setKernelCacheConfig(StableKernelCacheConfig::LargeSLM);
-      } else if (Config == sycl::ext::intel::experimental::large_data) {
-        setKernelCacheConfig(StableKernelCacheConfig::LargeData);
-      }
-    } else {
-      std::ignore = Props;
-    }
-
-    constexpr bool UsesRootSync = PropertiesT::template has_property<
-        sycl::ext::oneapi::experimental::use_root_sync_key>();
-    if (UsesRootSync) {
-      setKernelIsCooperative(UsesRootSync);
-    }
-    if constexpr (PropertiesT::template has_property<
-                      sycl::ext::oneapi::experimental::
-                          work_group_progress_key>()) {
-      auto prop = Props.template get_property<
-          sycl::ext::oneapi::experimental::work_group_progress_key>();
-      verifyDeviceHasProgressGuarantee(
-          prop.guarantee,
-          sycl::ext::oneapi::experimental::execution_scope::work_group,
-          prop.coordinationScope);
-    }
-    if constexpr (PropertiesT::template has_property<
-                      sycl::ext::oneapi::experimental::
-                          sub_group_progress_key>()) {
-      auto prop = Props.template get_property<
-          sycl::ext::oneapi::experimental::sub_group_progress_key>();
-      verifyDeviceHasProgressGuarantee(
-          prop.guarantee,
-          sycl::ext::oneapi::experimental::execution_scope::sub_group,
-          prop.coordinationScope);
-    }
-    if constexpr (PropertiesT::template has_property<
-                      sycl::ext::oneapi::experimental::
-                          work_item_progress_key>()) {
-      auto prop = Props.template get_property<
-          sycl::ext::oneapi::experimental::work_item_progress_key>();
-      verifyDeviceHasProgressGuarantee(
-          prop.guarantee,
-          sycl::ext::oneapi::experimental::execution_scope::work_item,
-          prop.coordinationScope);
-    }
-
-    if constexpr (PropertiesT::template has_property<
-                      sycl::ext::oneapi::experimental::
-                          work_group_scratch_size>()) {
-      auto WorkGroupMemSize = Props.template get_property<
-          sycl::ext::oneapi::experimental::work_group_scratch_size>();
-      setKernelWorkGroupMem(WorkGroupMemSize.size);
-    }
-
-    checkAndSetClusterRange(Props);
+    KernelLaunchPropertiesT ParsedProp =
+        processKernelLaunchProperties<PropertiesT>(Props);
+    setKernelLaunchProperties(ParsedProp);
   }
 
   /// Process kernel properties.
@@ -982,22 +927,9 @@ private:
       bool IsESIMDKernel,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void processProperties(PropertiesT Props) {
-    static_assert(
-        ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-        "Template type is not a property list.");
-    static_assert(
-        !PropertiesT::template has_property<
-            sycl::ext::intel::experimental::fp_control_key>() ||
-            (PropertiesT::template has_property<
-                 sycl::ext::intel::experimental::fp_control_key>() &&
-             IsESIMDKernel),
-        "Floating point control property is supported for ESIMD kernels only.");
-    static_assert(
-        !PropertiesT::template has_property<
-            sycl::ext::oneapi::experimental::indirectly_callable_key>(),
-        "indirectly_callable property cannot be applied to SYCL kernels");
-
-    processKernelLaunchProperties(Props);
+    KernelLaunchPropertiesT ParsedProp =
+        processKernelProperties<IsESIMDKernel>(Props);
+    setKernelLaunchProperties(ParsedProp);
   }
 #endif // INTEL_PREVIEW_BREAKING_CHANGES
 
@@ -3512,7 +3444,8 @@ private:
                                       size_t Offset);
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Changing values in this will break ABI/API.
+  // Used by sycl::handler::setKernelCacheConfig.
+  // Modeled after ur_kernel_cache_config_t
   enum class StableKernelCacheConfig : int32_t {
     Default = 0,
     LargeSLM = 1,
