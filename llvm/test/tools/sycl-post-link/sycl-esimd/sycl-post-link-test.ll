@@ -1,4 +1,5 @@
-; RUN: sycl-post-link -properties -split-esimd -lower-esimd -O0 -S < %s -o %t.table
+; -O0 lowering, requires `-force-disable-esimd-opt` to disable all optimizations.
+; RUN: sycl-post-link -properties -split-esimd -lower-esimd -O0 -force-disable-esimd-opt -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll
 ; This test checks that IR code below can be successfully processed by
 ; sycl-post-link. In this IR no extractelement instruction and no casting are used
@@ -16,8 +17,10 @@ entry:
   store i32 %add.i, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
   ret void
 }
-; CHECK: store i64 0, ptr addrspace(1) %_arg_DoNotOptimize, align 8
-; CHECK: store i32 3, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
+; CHECK: %conv.i = zext i32 0 to i64
+; CHECK: store i64 %conv.i, ptr addrspace(1) %_arg_DoNotOptimize, align 8
+; CHECK: %add.i = add i32 0, 3
+; CHECK: store i32 %add.i, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
 
 ; Function Attrs: convergent norecurse
 define dso_local spir_kernel void @kernel_SubgroupSize(ptr addrspace(1) noundef align 8 %_arg_DoNotOptimize, ptr addrspace(1) noundef align 4 %_arg_DoNotOptimize32)#0 !sycl_explicit_simd !3{
@@ -29,8 +32,10 @@ entry:
   store i32 %add.i, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
   ret void
 }
-; CHECK: store i64 1, ptr addrspace(1) %_arg_DoNotOptimize, align 8
-; CHECK: store i32 8, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
+; CHECK: %conv.i = zext i32 1 to i64
+; CHECK: store i64 %conv.i, ptr addrspace(1) %_arg_DoNotOptimize, align 8
+; CHECK: %add.i = add i32 1, 7
+; CHECK: store i32 %add.i, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
 
 ; Function Attrs: convergent norecurse
 define dso_local spir_kernel void @kernel_SubgroupMaxSize(ptr addrspace(1) noundef align 8 %_arg_DoNotOptimize, ptr addrspace(1) noundef align 4 %_arg_DoNotOptimize32) #0 !sycl_explicit_simd !3 {
@@ -42,8 +47,10 @@ entry:
   store i32 %add.i, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
   ret void
 }
-; CHECK: store i64 1, ptr addrspace(1) %_arg_DoNotOptimize, align 8
-; CHECK: store i32 10, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
+; CHECK: %conv.i = zext i32 1 to i64
+; CHECK: store i64 %conv.i, ptr addrspace(1) %_arg_DoNotOptimize, align 8
+; CHECK: %add.i = add i32 1, 9
+; CHECK: store i32 %add.i, ptr addrspace(1) %_arg_DoNotOptimize32, align 4
 
 declare spir_func i32 @_Z40__spirv_BuiltInSubgroupLocalInvocationIdv()
 declare spir_func i32 @_Z27__spirv_BuiltInSubgroupSizev()

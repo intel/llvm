@@ -26,6 +26,13 @@
 #include <string>
 #include <vector>
 
+#ifdef __linux__
+#include <errno.h>
+#include <fcntl.h>
+#include <glob.h>
+#include <sys/types.h>
+#include <unistd.h>
+#endif
 #ifdef _WIN32
 #include <system_error>
 #include <windows.h>
@@ -344,8 +351,30 @@ static int unsetFilterEnvVarsAndFork() {
 }
 #endif
 
-int main(int argc, char **argv) {
+static void checkRenderGroupPermission() {
+#ifdef __linux__
+  glob_t glob_result;
+  glob("/dev/dri/renderD*", 0, nullptr, &glob_result);
+  for (size_t i = 0; i < glob_result.gl_pathc; ++i) {
+    const char *path = glob_result.gl_pathv[i];
+    int fd = open(path, O_RDWR);
+    if (fd < 0 && errno == EACCES) {
+      std::cerr << "WARNING: Unable to access " << path
+                << " due to permissions (EACCES).\n"
+                << "You might be missing the 'render' group locally.\n"
+                << "Try: sudo usermod -a -G render $USER\n"
+                << "Then log out and log back in.\n";
+      globfree(&glob_result);
+      break;
+    }
+    if (fd >= 0)
+      close(fd);
+  }
+  globfree(&glob_result);
+#endif
+}
 
+int main(int argc, char **argv) {
   if (argc == 1) {
     verbose = false;
     DiscardFilters = false;
@@ -360,6 +389,9 @@ int main(int argc, char **argv) {
         return printUsageAndExit();
     }
   }
+
+  if (verbose)
+    checkRenderGroupPermission();
 
   bool SuppressNumberPrinting = false;
   // Print warning and suppress printing device ids if any of

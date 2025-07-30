@@ -32,6 +32,59 @@ int memcmp(const void *s1, const void *s2, size_t n) {
   return __devicelib_memcmp(s1, s2, n);
 }
 
+// We align with libc string functions, no checking for null ptr.
+DEVICE_EXTERN_C_INLINE
+size_t strlen(const char *s) {
+  const char *t;
+  for (t = s; *t; ++t)
+    ;
+  return t - s;
+}
+
+DEVICE_EXTERN_C_INLINE
+char *strcpy(char *dest, const char *src) {
+  char *t = dest;
+  for (; (*dest = *src) != '\0'; ++dest, ++src)
+    ;
+  return t;
+}
+
+DEVICE_EXTERN_C_INLINE
+char *strncpy(char *dest, const char *src, size_t n) {
+  size_t i;
+  for (i = 0; i < n && (src[i] != '\0'); ++i)
+    dest[i] = src[i];
+  for (; i < n; ++i)
+    dest[i] = '\0';
+  return dest;
+}
+
+DEVICE_EXTERN_C_INLINE
+int strcmp(const char *s1, const char *s2) {
+  while (*s1 == *s2) {
+    if (*s1 == '\0')
+      return 0;
+    ++s1;
+    ++s2;
+  }
+
+  return *reinterpret_cast<const unsigned char *>(s1) -
+         *reinterpret_cast<const unsigned char *>(s2);
+}
+
+DEVICE_EXTERN_C_INLINE
+int strncmp(const char *s1, const char *s2, size_t n) {
+
+  size_t idx = 0;
+  while ((idx < n) && (s1[idx] != '\0') && (s1[idx] == s2[idx]))
+    idx++;
+
+  if (idx == n)
+    return 0;
+
+  return s1[idx] - s2[idx];
+}
+
 // This simple rand is for ease of use only, the implementation aligns with
 // LLVM libc rand which is based on xorshift64star pseudo random number
 // generator. If work item number <= 1024, each work item has its own internal

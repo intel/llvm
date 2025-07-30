@@ -76,6 +76,7 @@ EXPORTS
 	urEnqueueEventsWaitWithBarrier
 	urEnqueueEventsWaitWithBarrierExt
 	urEnqueueKernelLaunch
+	urEnqueueKernelLaunchWithArgsExp
 	urEnqueueMemBufferCopy
 	urEnqueueMemBufferCopyRect
 	urEnqueueMemBufferFill
@@ -120,6 +121,7 @@ EXPORTS
 	urGetEventProcAddrTable
 	urGetKernelProcAddrTable
 	urGetMemProcAddrTable
+	urGetMemoryExportExpProcAddrTable
 	urGetPhysicalMemProcAddrTable
 	urGetPlatformProcAddrTable
 	urGetProgramExpProcAddrTable
@@ -166,6 +168,9 @@ EXPORTS
 	urMemImageGetInfo
 	urMemRelease
 	urMemRetain
+	urMemoryExportAllocExportableMemoryExp
+	urMemoryExportExportMemoryHandleExp
+	urMemoryExportFreeExportableMemoryExp
 	urPhysicalMemCreate
 	urPhysicalMemGetInfo
 	urPhysicalMemRelease
@@ -284,6 +289,7 @@ EXPORTS
 	urPrintEnqueueEventsWaitWithBarrierExtParams
 	urPrintEnqueueEventsWaitWithBarrierParams
 	urPrintEnqueueKernelLaunchParams
+	urPrintEnqueueKernelLaunchWithArgsExpParams
 	urPrintEnqueueMemBufferCopyParams
 	urPrintEnqueueMemBufferCopyRectParams
 	urPrintEnqueueMemBufferFillParams
@@ -344,6 +350,9 @@ EXPORTS
 	urPrintExpImageCopyFlags
 	urPrintExpImageCopyRegion
 	urPrintExpImageMemType
+	urPrintExpKernelArgMemObjTuple
+	urPrintExpKernelArgProperties
+	urPrintExpKernelArgType
 	urPrintExpPeerInfo
 	urPrintExpSamplerAddrModes
 	urPrintExpSamplerCubemapFilterMode
@@ -415,6 +424,9 @@ EXPORTS
 	urPrintMemReleaseParams
 	urPrintMemRetainParams
 	urPrintMemType
+	urPrintMemoryExportAllocExportableMemoryExpParams
+	urPrintMemoryExportExportMemoryHandleExpParams
+	urPrintMemoryExportFreeExportableMemoryExpParams
 	urPrintMemoryOrderCapabilityFlags
 	urPrintMemoryScopeCapabilityFlags
 	urPrintPhysicalMemCreateParams

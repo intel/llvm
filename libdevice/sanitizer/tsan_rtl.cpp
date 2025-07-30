@@ -479,6 +479,9 @@ static __SYCL_CONSTANT__ const char __tsan_print_cleanup_local[] =
 
 DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_static_local(uptr addr,
                                                           size_t size) {
+  if (GetCurrentSid() == -1)
+    return;
+
   // Update shadow memory of local memory only on first work-item
   if (__spirv_BuiltInLocalInvocationId(0) +
           __spirv_BuiltInLocalInvocationId(1) +
@@ -506,7 +509,7 @@ static __SYCL_CONSTANT__ const char __tsan_print_report_arg_count_incorrect[] =
 
 DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_dynamic_local(uptr ptr,
                                                            uint32_t num_args) {
-  if (!TsanLaunchInfo->LocalShadowOffset)
+  if (!TsanLaunchInfo->LocalShadowOffset || GetCurrentSid() == -1)
     return;
 
   if (num_args != TsanLaunchInfo->NumLocalArgs) {
