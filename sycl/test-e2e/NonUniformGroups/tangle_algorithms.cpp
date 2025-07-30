@@ -1,22 +1,15 @@
 // RUN: %{build} -fno-sycl-early-optimizations -o %t.out
 // RUN: %{run} %t.out
 //
-// CPU AOT targets host isa, so we compile on the run system instead.
-// REQUIRES: opencl-aot
+// Test CPU AOT as well when possible.
 // RUN: %if any-device-is-cpu && opencl-aot %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fno-sycl-early-optimizations -o %t.x86.out %s %}
-// RUN: %if cpu %{ %{run} %t.x86.out %}
+// RUN: %if cpu && opencl-aot %{ %{run} %t.x86.out %}
 //
-// REQUIRES: cpu || gpu
 // REQUIRES: sg-32
-// REQUIRES: aspect-ext_oneapi_tangle_group
-// UNSUPPORTED: target-amd
-// UNSUPPORTED-INTENDED: tangle groups not available on amd
-// UNSUPPORTED: target-nvidia || windows
-// Tangle groups exhibit unpredictable behavior on Windows.
-// The test is disabled while we investigate the root cause.
+// REQUIRES: aspect-ext_oneapi_tangle
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/tangle_group.hpp>
+#include <sycl/ext/oneapi/experimental/tangle.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
 #include <vector>
@@ -124,13 +117,13 @@ int main() {
           // Split into three groups of different sizes, using control flow
           // Body of each branch is deliberately duplicated
           if (WI < 4) {
-            auto Tangle = syclex::get_tangle_group(SG);
+            auto Tangle = syclex::entangle(SG);
             size_t TangleLeader = 0;
             size_t TangleSize = 4;
             auto IsMember = [](size_t Other) { return (Other < 4); };
             BranchBody(WI, Tangle, TangleLeader, TangleSize, IsMember);
           } else if (WI < 24) {
-            auto Tangle = syclex::get_tangle_group(SG);
+            auto Tangle = syclex::entangle(SG);
             size_t TangleLeader = 4;
             size_t TangleSize = 20;
             auto IsMember = [](size_t Other) {
@@ -138,7 +131,7 @@ int main() {
             };
             BranchBody(WI, Tangle, TangleLeader, TangleSize, IsMember);
           } else /* if WI < 32) */ {
-            auto Tangle = syclex::get_tangle_group(SG);
+            auto Tangle = syclex::entangle(SG);
             size_t TangleLeader = 24;
             size_t TangleSize = 8;
             auto IsMember = [](size_t Other) {
