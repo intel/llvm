@@ -15,8 +15,9 @@ jobs:
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_artifact_suffix: default
       build_configure_extra_args: ''
+
+      toolchain_artifact: sycl_linux_default
 
   # This job builds SYCL-CTS with -fsycl-use-spirv-backend-for-spirv-gen.
   build-sycl-cts:
@@ -30,9 +31,9 @@ jobs:
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
       tests_selector: cts
       repo_ref: ${{ github.sha }}
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
       extra_cmake_args: -DDPCPP_FLAGS=-fsycl-use-spirv-backend-for-spirv-gen
       sycl_cts_artifact: sycl_cts_bin
 
@@ -61,7 +62,7 @@ jobs:
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
       repo_ref: ${{ github.sha }}
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
       sycl_cts_artifact: sycl_cts_bin

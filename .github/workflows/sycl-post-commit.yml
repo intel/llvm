@@ -40,8 +40,9 @@ jobs:
     with:
       build_cache_root: "/__w/llvm"
       build_cache_suffix: default
-      build_artifact_suffix: default
       build_configure_extra_args: --no-assertions --hip --cuda --native_cpu -DSYCL_ENABLE_STACK_PRINTING=ON -DSYCL_LIB_WITH_DEBUG_SYMBOL=ON
+
+      toolchain_artifact: sycl_linux_default
 
   e2e-lin:
     needs: [detect_changes, build-lin]
@@ -84,9 +85,9 @@ jobs:
 
       repo_ref: ${{ github.sha }}
 
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build-lin.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build-lin.outputs.artifact_decompress_command }}
+      toolchain_artifact: ${{ needs.build-lin.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build-lin.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build-lin.outputs.toolchain_decompress_command }}
 
       # Do not install drivers on AMD and CUDA runners.
       install_igc_driver: >-
@@ -118,7 +119,7 @@ jobs:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'
       target_devices: "level_zero:gpu"
-      sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
+      toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       cxx: icx
       # https://github.com/intel/llvm/issues/18458
       env: "{'LIT_FILTER_OUT':'std_array.cpp|compile_on_win_with_mdd.cpp'}"
