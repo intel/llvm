@@ -189,6 +189,7 @@ jobs:
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       env:
+        # Can't inline to support possible quotes inside:
         BUILD_CONFIGURE_EXTRA_ARGS: ${{ inputs.build_configure_extra_args }}
       run: |
         if [[ "${BUILD_CONFIGURE_EXTRA_ARGS}" == *"--use-libcxx"* ]]; then
@@ -200,6 +201,7 @@ jobs:
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
       env:
+        # Can't inline to support possible quotes inside:
         BUILD_CONFIGURE_EXTRA_ARGS: ${{ inputs.build_configure_extra_args }}
       run: |
         # Can we move this to Dockerfile? Hopefully, noop on Windows.
