@@ -1,5 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-host-compiler=g++ %s
+// RUN: %clangxx -fsycl %s
 // RUN: %clangxx -fsycl -fno-sycl-unnamed-lambda %s
+// RUN: %clangxx -fsycl -fsycl-host-compiler=g++ %s
 // REQUIRES: linux
 
 // This test serves as a sanity check that compilation succeeds
