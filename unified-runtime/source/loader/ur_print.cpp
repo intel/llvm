@@ -1138,6 +1138,30 @@ ur_result_t urPrintExpPeerInfo(enum ur_exp_peer_info_t value, char *buffer,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpKernelArgType(enum ur_exp_kernel_arg_type_t value,
+                                    char *buffer, const size_t buff_size,
+                                    size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpKernelArgMemObjTuple(
+    const struct ur_exp_kernel_arg_mem_obj_tuple_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpKernelArgProperties(
+    const struct ur_exp_kernel_arg_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpEnqueueExtFlags(enum ur_exp_enqueue_ext_flag_t value,
                                       char *buffer, const size_t buff_size,
                                       size_t *out_size) {
@@ -1869,6 +1893,14 @@ ur_result_t urPrintEnqueueWriteHostPipeParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintEnqueueKernelLaunchWithArgsExpParams(
+    const struct ur_enqueue_kernel_launch_with_args_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintEnqueueEventsWaitWithBarrierExtParams(
     const struct ur_enqueue_events_wait_with_barrier_ext_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
@@ -2293,6 +2325,30 @@ urPrintMemGetInfoParams(const struct ur_mem_get_info_params_t *params,
 ur_result_t urPrintMemImageGetInfoParams(
     const struct ur_mem_image_get_info_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintMemoryExportAllocExportableMemoryExpParams(
+    const struct ur_memory_export_alloc_exportable_memory_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintMemoryExportFreeExportableMemoryExpParams(
+    const struct ur_memory_export_free_exportable_memory_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintMemoryExportExportMemoryHandleExpParams(
+    const struct ur_memory_export_export_memory_handle_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);

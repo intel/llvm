@@ -123,8 +123,10 @@ function createChart(data, containerId, type) {
     }
 
     const ctx = document.getElementById(containerId).getContext('2d');
+
     const options = {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: {
             title: {
                 display: true,
@@ -155,6 +157,13 @@ function createChart(data, containerId, type) {
                             ];
                         }
                     }
+                }
+            },
+            legend: {
+                position: 'top',
+                labels: {
+                    boxWidth: 12,
+                    padding: 10,
                 }
             },
             annotation: type === 'time' ? {
@@ -226,6 +235,32 @@ function createChart(data, containerId, type) {
 
     const chart = new Chart(ctx, chartConfig);
     chartInstances.set(containerId, chart);
+
+    // Set explicit canvas size after chart creation to ensure proper sizing
+    const canvas = document.getElementById(containerId);
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+
+    // Calculate dynamic height based on number of legend items
+    const legendItemCount = type === 'time' ?
+        Object.values(data.runs).length :
+        data.datasets.length;
+
+    // Base chart height + legend height (25px per line + padding)
+    const baseChartHeight = 350;
+    const legendHeight = Math.max(legendItemCount * 25, 50); // minimum 50px for legend
+    const totalHeight = baseChartHeight + legendHeight;
+
+    // Set canvas dimensions for crisp rendering
+    canvas.width = rect.width * dpr;
+    canvas.height = totalHeight * dpr;
+
+    // Scale the context to ensure correct drawing operations
+    const context = canvas.getContext('2d');
+    context.scale(dpr, dpr);
+
+    // Force chart to use these exact dimensions
+    chart.resize(rect.width, totalHeight);
 
     // Add annotation interaction handlers for time-series charts
     if (type === 'time') {
@@ -306,6 +341,10 @@ function createChartContainer(data, canvasId, type) {
     container.setAttribute('data-label', data.label);
     container.setAttribute('data-suite', data.suite);
 
+    // Create header section for metadata
+    const headerSection = document.createElement('div');
+    headerSection.className = 'chart-header';
+
     // Check if this benchmark is marked as unstable
     const metadata = metadataForLabel(data.label, type);
     if (metadata && metadata.unstable) {
@@ -316,15 +355,17 @@ function createChartContainer(data, canvasId, type) {
         unstableWarning.className = 'benchmark-unstable';
         unstableWarning.textContent = metadata.unstable;
         unstableWarning.style.display = isUnstableEnabled() ? 'block' : 'none';
-        container.appendChild(unstableWarning);
+        unstableWarning.style.marginBottom = '5px';
+        headerSection.appendChild(unstableWarning);
     }
 
-    // Add description if present in metadata (moved outside of details)
+    // Add description if present in metadata
     if (metadata && metadata.description) {
         const descElement = document.createElement('div');
         descElement.className = 'benchmark-description';
         descElement.textContent = metadata.description;
-        container.appendChild(descElement);
+        descElement.style.marginBottom = '5px';
+        headerSection.appendChild(descElement);
     }
 
     // Add notes if present
@@ -333,7 +374,7 @@ function createChartContainer(data, canvasId, type) {
         noteElement.className = 'benchmark-note';
         noteElement.textContent = metadata.notes;
         noteElement.style.display = isNotesEnabled() ? 'block' : 'none';
-        container.appendChild(noteElement);
+        headerSection.appendChild(noteElement);
     }
 
     // Add tags if present
@@ -358,12 +399,31 @@ function createChartContainer(data, canvasId, type) {
             tagsContainer.appendChild(tagElement);
         });
 
-        container.appendChild(tagsContainer);
+        headerSection.appendChild(tagsContainer);
     }
 
+    // Add header section to container
+    container.appendChild(headerSection);
+
+    // Create main content section (chart + legend area)
+    const contentSection = document.createElement('div');
+    contentSection.className = 'chart-content';
+
+    // Canvas for the chart - fixed position in content flow
     const canvas = document.createElement('canvas');
     canvas.id = canvasId;
-    container.appendChild(canvas);
+    canvas.style.width = '100%';
+
+    // Set a default height - will be properly sized later in createChart
+    canvas.style.height = '400px';
+    canvas.style.marginBottom = '10px';
+    contentSection.appendChild(canvas);
+
+    container.appendChild(contentSection);
+
+    // Create footer section for details
+    const footerSection = document.createElement('div');
+    footerSection.className = 'chart-footer';
 
     // Create details section for extra info
     const details = document.createElement('details');
@@ -387,7 +447,8 @@ function createChartContainer(data, canvasId, type) {
     extraInfo.innerHTML = generateExtraInfo(data, 'benchmark');
     details.appendChild(extraInfo);
 
-    container.appendChild(details);
+    footerSection.appendChild(details);
+    container.appendChild(footerSection);
 
     return container;
 }

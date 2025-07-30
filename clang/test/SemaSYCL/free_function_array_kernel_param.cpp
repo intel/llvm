@@ -26,7 +26,7 @@ void ff_6(KArgWithPtrArray<ArrSize> KArg) {
 
 template void ff_6(KArgWithPtrArray<TestArrSize> KArg);
 
-// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__generated_KArgWithPtrArray)'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__generated_KArgWithPtrArray) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_KArg '__generated_KArgWithPtrArray'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: CallExpr

@@ -236,21 +236,19 @@ public:
   /// Returns true iff this command is ready to be submitted for cleanup.
   virtual bool readyForCleanup() const;
 
-  /// Collect UR events from EventImpls and filter out some of them in case of
-  /// in order queue
-  std::vector<ur_event_handle_t>
-  getUrEvents(const std::vector<EventImplPtr> &EventImpls) const;
+  /// Collect UR events from Events and filter out some of them in case of
+  /// in order queue.
+  std::vector<ur_event_handle_t> getUrEvents(events_range Events) const;
 
-  static std::vector<ur_event_handle_t>
-  getUrEvents(const std::vector<EventImplPtr> &EventImpls,
-              queue_impl *CommandQueue, bool IsHostTaskCommand);
+  static std::vector<ur_event_handle_t> getUrEvents(events_range Events,
+                                                    queue_impl *CommandQueue,
+                                                    bool IsHostTaskCommand);
 
   /// Collect UR events from EventImpls and filter out some of them in case of
   /// in order queue. Does blocking enqueue if event is expected to produce ur
   /// event but has empty native handle.
-  std::vector<ur_event_handle_t>
-  getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
-                      bool HasEventMode) const;
+  std::vector<ur_event_handle_t> getUrEventsBlocking(events_range Events,
+                                                     bool HasEventMode) const;
 
   bool isHostTask() const;
 
@@ -275,9 +273,9 @@ protected:
 
   void waitForPreparedHostEvents() const;
 
-  void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls) {
-    for (auto &EventImpl : EventImpls) {
-      EventImpl->flushIfNeeded(MWorkerQueue.get());
+  void flushCrossQueueDeps(events_range Events) {
+    for (event_impl &Event : Events) {
+      Event.flushIfNeeded(MWorkerQueue.get());
     }
   }
 

@@ -17,7 +17,7 @@ class Unitrace:
 
     def __init__(self):
         self.timestamp = (
-            datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+            datetime.now(tz=timezone.utc).strftime(options.TIMESTAMP_FORMAT)
             if options.timestamp_override is None
             else options.timestamp_override
         )

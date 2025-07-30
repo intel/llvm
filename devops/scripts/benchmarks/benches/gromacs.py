@@ -51,7 +51,7 @@ class GromacsBench(Suite):
             # GromacsBenchmark(self, "0192", "rf", "eager"),
         ]
 
-    def setup(self):
+    def setup(self) -> None:
         self.gromacs_src = git_clone(
             self.directory,
             "gromacs-repo",

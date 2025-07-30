@@ -225,6 +225,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     return result;
   }
 
+  pDdiTable->pfnKernelLaunchWithArgsExp =
+      ur::level_zero::urEnqueueKernelLaunchWithArgsExp;
   pDdiTable->pfnUSMDeviceAllocExp = ur::level_zero::urEnqueueUSMDeviceAllocExp;
   pDdiTable->pfnUSMSharedAllocExp = ur::level_zero::urEnqueueUSMSharedAllocExp;
   pDdiTable->pfnUSMHostAllocExp = ur::level_zero::urEnqueueUSMHostAllocExp;
@@ -308,6 +310,23 @@ urGetMemProcAddrTable(ur_api_version_t version, ur_mem_dditable_t *pDdiTable) {
       ur::level_zero::urMemImageCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = ur::level_zero::urMemGetInfo;
   pDdiTable->pfnImageGetInfo = ur::level_zero::urMemImageGetInfo;
+
+  return result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urGetMemoryExportExpProcAddrTable(
+    ur_api_version_t version, ur_memory_export_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnAllocExportableMemoryExp =
+      ur::level_zero::urMemoryExportAllocExportableMemoryExp;
+  pDdiTable->pfnFreeExportableMemoryExp =
+      ur::level_zero::urMemoryExportFreeExportableMemoryExp;
+  pDdiTable->pfnExportMemoryHandleExp =
+      ur::level_zero::urMemoryExportExportMemoryHandleExp;
 
   return result;
 }
@@ -583,6 +602,10 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
   if (result != UR_RESULT_SUCCESS)
     return result;
   result = NAMESPACE_::urGetMemProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Mem);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetMemoryExportExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                         &ddi->MemoryExportExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result = NAMESPACE_::urGetPhysicalMemProcAddrTable(UR_API_VERSION_CURRENT,

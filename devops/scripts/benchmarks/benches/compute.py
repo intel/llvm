@@ -52,7 +52,7 @@ class ComputeBench(Suite):
     def git_hash(self) -> str:
         return "83b9ae3ebb3563552409f3a317cdc1cf3d3ca6bd"
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
