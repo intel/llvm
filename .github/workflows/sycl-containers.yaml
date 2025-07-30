@@ -1,90 +1,104 @@
-name: CI Containers
+name: Create container with pre-built tests
+
 on:
   workflow_dispatch:
-  schedule:
-    # Every 1st and 15th day of month
-    - cron: '0 0 1,15 * *'
-  push:
-    branches:
-      - sycl
-    paths:
-      - 'devops/actions/build_container/**'
-      - 'devops/containers/**'
-      - 'devops/dependencies.json'
-      - 'devops/scripts/install_drivers.sh'
-      - 'devops/scripts/install_build_tools.sh'
-      - '.github/workflows/sycl-containers.yaml'
-  pull_request:
-    paths:
-      - 'devops/actions/build_container/**'
-      - 'devops/containers/**'
-      - 'devops/dependencies.json'
-      - 'devops/scripts/install_drivers.sh'
-      - 'devops/scripts/install_build_tools.sh'
-      - '.github/workflows/sycl-containers.yaml'
+    inputs:
+      ref:
+        type: string
+        description: tag/sha
+        required: true
+        default: nightly-2025-07-18
 
 permissions: read-all
 
 jobs:
-  build_and_push_images:
-    if: github.repository == 'intel/llvm'
-    name: Build and Push Docker Images
-    runs-on: ubuntu-latest
+  build:
+    uses: ./.github/workflows/sycl-linux-build.yml
+    with:
+      build_ref: ${{ inputs.ref }}
+      build_cache_root: "/__w/"
+
+      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
+      cc: clang
+      cxx: clang++
+
+      changes: '[]'
+
+      toolchain_artifact: toolchain
+      toolchain_artifact_filename: toolchain.tar.zst
+      e2e_binaries_artifact: e2e_bin
+
+  # Couldn't make it work from inside the container, so have to use an extra job
+  # and pass an artifact.
+  docker:
+    runs-on: [Linux, build]
+    needs: build
     permissions:
       packages: write
-    strategy:
-      matrix:
-        include:
-          - name: Base Ubuntu 22.04 Docker image
-            file: ubuntu2204_base
-            tag: latest
-            build_args: ""
-          - name: Base Ubuntu 24.04 Docker image
-            file: ubuntu2404_base
-            tag: latest
-            build_args: ""
-          - name: Build Ubuntu 22.04 Docker image
-            file: ubuntu2204_build
-            tag: latest
-            build_args: ""
-          - name: Build Ubuntu 24.04 Docker image
-            file: ubuntu2404_build
-            tag: latest
-            build_args: ""
-          - name: Intel Drivers Ubuntu 22.04 Docker image
-            file: ubuntu2204_intel_drivers
-            tag: latest
-            build_args: ""
-          - name: Intel Drivers Ubuntu 24.04 Docker image
-            file: ubuntu2404_intel_drivers
-            tag: latest
-            build_args: ""
-          - name: Build + Intel Drivers Ubuntu 22.04 Docker image
-            file: ubuntu2204_intel_drivers
-            tag: alldeps
-            build_args: |
-              base_image=ghcr.io/intel/llvm/ubuntu2204_build
-              base_tag=latest
-          - name: Build + Intel Drivers Ubuntu 24.04 Docker image
-            file: ubuntu2404_intel_drivers
-            tag: alldeps
-            build_args: |
-              base_image=ghcr.io/intel/llvm/ubuntu2404_build
-              base_tag=latest
+    if: always()
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
-      - name: Build and Push Container
+          sparse-checkout: |
+            devops/
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          path: llvm
+          sparse-checkout: |
+              llvm/utils/lit
+              sycl/test-e2e
+      - name: Pack sources
+        run: |
+          tar -I 'zstd -9' -cf devops/e2e_sources.tar.zst -C ./llvm .
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: toolchain
+          path: devops/
+      - uses: actions/download-artifact@v4
+        with:
+          name: e2e_bin
+          path: devops/
+
+
+      - name: Build container
         uses: ./devops/actions/build_container
         with:
-          push: ${{ github.event_name != 'pull_request' }}
-          file: ${{ matrix.file }}
+          push: true
+          file: release_tests_binaries
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: |
-            ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}-${{ github.sha }}
-            ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}
-          build-args: ${{ matrix.build_args }}
+            ghcr.io/${{ github.repository }}/sycl_prebuilt_tests:${{ inputs.ref }}
 
+  run-e2e:
+    runs-on: [Linux, pvc]
+    needs: [docker, build]
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    container:
+      image: ghcr.io/${{ github.repository }}/sycl_prebuilt_tests:${{ inputs.ref }}
+      options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+    steps:
+      - run: |
+          mkdir -p llvm build-e2e toolchain
+          tar -I 'zstd' -xf /sycl-prebuilt/e2e_binaries.tar.zst -C build-e2e
+          tar -I 'zstd' -xf /sycl-prebuilt/e2e_sources.tar.zst -C llvm
+          tar -I 'zstd' -xf /sycl-prebuilt/toolchain.tar.zst -C toolchain
+          echo LD_LIBRARY_PATH=$PWD/toolchain/lib:$LD_LIBRARY_PATH >> $GITHUB_ENV
+          echo PATH=$PWD/toolchain/bin:$PATH >> $GITHUB_ENV
+      - run: |
+          sycl-ls
+      - name: Run E2E tests
+        env:
+          LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True --param test-mode=run-only --param sycl_devices=level_zero:gpu
+        run: |
+          ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
+      - name: Process E2E logs
+        if: ${{ always() }}
+        run: |
+          cat e2e.log
+          if [ $exit_code -ne 0 ]; then
+            awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
+          fi
