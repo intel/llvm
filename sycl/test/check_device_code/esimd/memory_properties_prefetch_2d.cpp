@@ -22,8 +22,9 @@ using AccType = sycl::accessor<uint8_t, 1, sycl::access::mode::read_write>;
 using LocalAccType = sycl::local_accessor<double, 1>;
 using LocalAccTypeInt = sycl::local_accessor<int, 1>;
 
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
-test_prefetch(AccType &, float *, int byte_offset32, size_t byte_offset64);
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_prefetch(const AccType &, float *,
+                                                     int byte_offset32,
+                                                     size_t byte_offset64);
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_2d(float *);
 
 class EsimdFunctor {
@@ -34,26 +35,28 @@ public:
   float *ptr;
   int byte_offset32;
   size_t byte_offset64;
-  void operator()() __attribute__((sycl_explicit_simd)) {
+  void operator()() const __attribute__((sycl_explicit_simd)) {
     test_prefetch(acc, ptr, byte_offset32, byte_offset64);
     test_2d(ptr);
   }
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
-void bar(AccType &acc, LocalAccType &local_acc, LocalAccTypeInt &local_acc_int,
-         float *ptr, int byte_offset32, size_t byte_offset64) {
+void bar(const AccType &acc, const LocalAccType &local_acc,
+         const LocalAccTypeInt &local_acc_int, float *ptr, int byte_offset32,
+         size_t byte_offset64) {
   EsimdFunctor esimdf{acc, local_acc,     local_acc_int,
                       ptr, byte_offset32, byte_offset64};
   kernel<class kernel_esimd>(esimdf);
 }
 
 // CHECK-LABEL: define {{.*}} @_Z13test_prefetch{{.*}}
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_prefetch(AccType &acc, float *ptrf,
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_prefetch(const AccType &acc,
+                                                     float *ptrf,
                                                      int byte_offset32,
                                                      size_t byte_offset64) {
   properties props_cache_load{cache_hint_L1<cache_hint::cached>,

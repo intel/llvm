@@ -13172,9 +13172,8 @@ def err_sycl_num_kernel_wrong_reqd_wg_size : Error<
 def err_sycl_invalid_aspect_argument : Error<
   "%0 attribute argument is invalid; argument must be device aspect of type sycl::aspect">;
 
-def warn_sycl_pass_by_value_deprecated 
-    : Warning<"passing kernel functions by value is deprecated in SYCL 2020">,
-      InGroup<Sycl2020Compat>, ShowInSystemHeader;
+def err_sycl_kernel_pass_by_value
+    : Error<"SYCL kernel function must be passed by reference">;
 def warn_sycl_potentially_invalid_as_cast : Warning<
   "explicit cast from %0 to %1 potentially leads to an invalid address space"
   " cast in the resulting code">, InGroup<SyclStrict>,

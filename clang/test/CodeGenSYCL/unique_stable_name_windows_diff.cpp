@@ -3,32 +3,32 @@
 
 
 template<typename KN, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func F){
+__attribute__((sycl_kernel)) void kernel(const Func &F){
   F();
 }
 
 template<typename Func>
-void kernel_wrapper(Func F) {
+void kernel_wrapper(const Func &F) {
   kernel<Func>(F);
 }
 
 template<typename KN, typename Func>
-__attribute__((sycl_kernel)) void kernel2(Func F){
+__attribute__((sycl_kernel)) void kernel2(const Func &F){
   F(1);
 }
 
 template<typename Func>
-void kernel2_wrapper(Func F) {
+void kernel2_wrapper(const Func &F) {
   kernel2<Func>(F);
 }
 
 template<typename KN, typename Func>
-__attribute__((sycl_kernel)) void kernel3(Func F){
+__attribute__((sycl_kernel)) void kernel3(const Func &F){
   F(1.1);
 }
 
 template<typename Func>
-void kernel3_wrapper(Func F) {
+void kernel3_wrapper(const Func &F) {
   kernel3<Func>(F);
 }
 
