@@ -3780,10 +3780,9 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     InitializedEntity Entity = InitializedEntity::InitializeBase(
         SemaSYCLRef.getASTContext(), &BS, /*IsInheritedVirtualBase*/ false,
         &VarEntity.value());
-    InitializationSequence InitSeq(SemaSYCLRef.SemaRef, Entity, InitKind,
-                                   std::nullopt);
+    InitializationSequence InitSeq(SemaSYCLRef.SemaRef, Entity, InitKind, {});
     ExprResult Init =
-        InitSeq.Perform(SemaSYCLRef.SemaRef, Entity, InitKind, std::nullopt);
+        InitSeq.Perform(SemaSYCLRef.SemaRef, Entity, InitKind, {});
 
     InitListExpr *ParentILE = CollectionInitExprs.back();
     ParentILE->updateInit(SemaSYCLRef.getASTContext(), ParentILE->getNumInits(),
@@ -4005,7 +4004,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     DefaultConstructorAccess = DefaultConstructor->getAccess();
     DefaultConstructor->setAccess(AS_public);
 
-    addFieldInit(FD, Ty, std::nullopt,
+    addFieldInit(FD, Ty, {},
                  InitializationKind::CreateDefault(KernelCallerSrcLoc));
     DefaultConstructor->setAccess(DefaultConstructorAccess);
     addFieldMemberExpr(FD, Ty);
@@ -4064,9 +4063,9 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     InitializationKind InitKind =
         InitializationKind::CreateDefault(KernelCallerSrcLoc);
     InitializationSequence InitSeq(SemaSYCLRef.SemaRef, VarEntity, InitKind,
-                                   std::nullopt);
+                                   {});
     ExprResult Init =
-        InitSeq.Perform(SemaSYCLRef.SemaRef, VarEntity, InitKind, std::nullopt);
+        InitSeq.Perform(SemaSYCLRef.SemaRef, VarEntity, InitKind, {});
     KernelHandlerClone->setInit(
         SemaSYCLRef.SemaRef.MaybeCreateExprWithCleanups(Init.get()));
     KernelHandlerClone->setInitStyle(VarDecl::CallInit);
@@ -4571,9 +4570,9 @@ public:
     InitializationKind InitKind =
         InitializationKind::CreateDefault(FreeFunctionSrcLoc);
     InitializationSequence InitSeq(SemaSYCLRef.SemaRef, VarEntity, InitKind,
-                                   std::nullopt);
+                                   {});
     ExprResult Init =
-        InitSeq.Perform(SemaSYCLRef.SemaRef, VarEntity, InitKind, std::nullopt);
+        InitSeq.Perform(SemaSYCLRef.SemaRef, VarEntity, InitKind, {});
     SpecialObjectClone->setInit(
         SemaSYCLRef.SemaRef.MaybeCreateExprWithCleanups(Init.get()));
     SpecialObjectClone->setInitStyle(VarDecl::CallInit);
