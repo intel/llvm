@@ -2180,8 +2180,6 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
         m_VFSet2BinImage.erase(SetName);
     }
 
-    m_DeviceGlobals.eraseEntries(Img);
-
     {
       std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
       auto HostPipes = Img->getHostPipes();
@@ -3824,10 +3822,5 @@ extern "C" void __sycl_register_lib(sycl_device_binaries desc) {
 
 // Executed as a part of current module's (.exe, .dll) static initialization
 extern "C" void __sycl_unregister_lib(sycl_device_binaries desc) {
-  // Partial cleanup is not necessary at shutdown
-#ifndef _WIN32
-  if (!sycl::detail::GlobalHandler::instance().isOkToDefer())
-    return;
   sycl::detail::ProgramManager::getInstance().removeImages(desc);
-#endif
 }
