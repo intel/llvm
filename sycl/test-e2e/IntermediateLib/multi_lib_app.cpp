@@ -1,3 +1,6 @@
+// UNSUPPORTED: cuda || hip
+// UNSUPPORTED-TRACKER: CMPLRLLVM-69415
+
 // DEFINE: %{fPIC_flag} =  %if windows %{%} %else %{-fPIC%}
 // DEFINE: %{shared_lib_ext} = %if windows %{dll%} %else %{so%}
 

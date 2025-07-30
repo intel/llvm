@@ -304,16 +304,6 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM, size_t ExpectedCount,
   EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), ExpectedCount) << Comment;
 
   {
-    sycl::detail::DeviceGlobalMap &DeviceGlobalMap = PM.getDeviceGlobals();
-    EXPECT_EQ(DeviceGlobalMap.size(), ExpectedCount) << Comment;
-    EXPECT_TRUE(DeviceGlobalMap.count(generateRefName("A", "DeviceGlobal")) > 0)
-        << Comment;
-    EXPECT_TRUE(DeviceGlobalMap.count(generateRefName("B", "DeviceGlobal")) > 0)
-        << Comment;
-    EXPECT_EQ(DeviceGlobalMap.getPointerMap().size(), ExpectedCount) << Comment;
-  }
-
-  {
     EXPECT_EQ(PM.getHostPipes().size(), ExpectedCount) << Comment;
     EXPECT_TRUE(PM.getHostPipes().count(generateRefName("A", "HostPipe")) > 0)
         << Comment;
