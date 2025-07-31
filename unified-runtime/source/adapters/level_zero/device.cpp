@@ -1,6 +1,6 @@
 //===--------- device.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023-2024 Intel Corporation
+// Copyright (C) 2023-2025 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -1986,7 +1986,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
 
           std::vector<ZeStruct<ze_device_vector_width_properties_ext_t>>
               PropertiesVector;
-          PropertiesVector.reserve(Count);
+          PropertiesVector.resize(Count);
 
           ZeStruct<ze_device_vector_width_properties_ext_t>
               MaxVectorWidthProperties;
