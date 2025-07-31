@@ -2277,7 +2277,7 @@ public:
     CollectionStack.back() = true;
     return true;
   }
-  bool handleSyclSpecialType(FieldDecl *FD, QualType) final {
+  bool handleSyclSpecialType(FieldDecl *, QualType) final {
     CollectionStack.back() = true;
     return true;
   }
@@ -3090,12 +3090,7 @@ public:
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
-    // if CurrentStruct is non-null, we are dealing with a
-    // free function kernel.
-    // In this case, do not pass the scalar as a separate argument since it
-    // can be passed directly as part of the struct that contains it.
-    if (!CurrentStruct)
-      addParam(FD, FieldTy);
+    addParam(FD, FieldTy);
     return true;
   }
 
@@ -7051,8 +7046,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   int FreeFunctionCount = 0;
   // Structs with special types inside needs some special code generation in the
   // header and we keep this visited map to not have duplicates in case several
-  // free function kernels
-  // use the same structs as parameters.
+  // free function kernels use the same struct type as parameters.
   llvm::DenseMap<const RecordDecl *, bool> visitedStructWithSpecialType;
   for (const KernelDesc &K : KernelDescs) {
     if (!S.isFreeFunction(K.SyclKernel))
@@ -7169,25 +7163,25 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       O << " inline static constexpr bool value = true;\n};\n\n";
       // Now we define the set_arg function for this struct that contains
       // special types. It takes the handler as an argument so that we can
-      // ultimately call set_arg on the handler for each special type member
+      // ultimately call set_arg on the handler for each member
       // contained in the struct. First, emit needed forward declarations for
-      // all special types contained in the struct by doing a depth first search
-      // exploration of the struct. Also collect the offsets of all special
-      // types inside the struct while we're at it.
+      // all types contained in the struct by doing a depth first search
+      // exploration of the struct. Also collect the offsets of all the
+      // members inside the struct while we're at it so that we can call
+      // set_arg for each one of those.
       llvm::SmallVector<std::pair<const FieldDecl *, uint64_t>, 8> offsets;
       llvm::SmallVector<const RecordDecl *, 8> dfs;
       dfs.emplace_back(Struct);
       while (!dfs.empty()) {
         const auto top = dfs.pop_back_val();
         for (const auto member : top->fields()) {
-          if (isSyclSpecialType(member->getType(), S)) {
+          if (isSyclSpecialType(member->getType(), S) ||
+              !member->getType()->isStructureType()) {
             FwdDeclEmitter.Visit(
                 member->getType().getDesugaredType(S.getASTContext()));
             offsets.emplace_back(std::make_pair(
                 member, S.getASTContext().getFieldOffset(member) / 8));
-          } else if (member->getType()->isStructureType() &&
-                     S.getStructsWithSpecialType().count(
-                         member->getType()->getAsStructureType()->getDecl())) {
+          } else if (member->getType()->isStructureType()) {
             dfs.emplace_back(
                 member->getType()->getAsStructureType()->getDecl());
           }
