@@ -42,9 +42,9 @@ on:
         type: string
         required: false
         description: |
-          If provided, create an addition toolchain artifact with the same name
-          (`inputs.toolchain_artifact_filename`) as `toolchain_artifact` above
-          but without utilities used for testing.
+          If provided, create an additional toolchain artifact without utilities
+          used for testing in it. File name of the archive is the same as in the
+          `toolchain_artifact` above.
 
       e2e_binaries_artifact:
         type: string
