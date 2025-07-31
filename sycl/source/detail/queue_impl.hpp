@@ -193,7 +193,6 @@ public:
              const async_handler &AsyncHandler, const property_list &PropList,
              private_tag)
       : MDevice([&]() -> device_impl & {
-          MKernelArgStorage.reserve(10);
           ur_device_handle_t DeviceUr{};
           adapter_impl &Adapter = Context.getAdapter();
           // TODO catch an exception and put it to list of asynchronous
