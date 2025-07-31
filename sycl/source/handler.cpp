@@ -458,28 +458,6 @@ detail::EventImplPtr handler::finalize() {
 #else
 event handler::finalize() {
 #endif
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Old reduction implementation, prior to
-  //   https://github.com/intel/llvm/pull/18794
-  //   https://github.com/intel/llvm/pull/18898
-  //   https://github.com/intel/llvm/pull/19203
-  // relied on explicit calls to handler::finalize and those calls were inlined
-  // into the user applications. As such, we have to preserve the following
-  // behavior for ABI-compatibility purposes:
-  if (MIsFinalizedDoNotUse)
-    return MLastEventDoNotUse;
-
-  MIsFinalizedDoNotUse = true;
-  // Use macros to trick clang-format:
-#define WRAP_BODY_BEGIN MLastEventDoNotUse = [this]() {
-#define WRAP_BODY_END                                                          \
-  }                                                                            \
-  ();                                                                          \
-  return MLastEventDoNotUse;
-
-  WRAP_BODY_BEGIN
-#endif
-
   const auto &type = getType();
   detail::queue_impl *Queue = impl->get_queue_or_null();
   ext::oneapi::experimental::detail::graph_impl *Graph =
@@ -981,13 +959,6 @@ event handler::finalize() {
   return DiscardEvent ? nullptr : Event;
 #else
   return detail::createSyclObjFromImpl<event>(Event);
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  WRAP_BODY_END
-
-#undef WRAP_BODY_BEGIN
-#undef WRAP_BODY_END
 #endif
 }
 
