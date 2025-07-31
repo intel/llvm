@@ -13,7 +13,12 @@ from options import options
 
 def find_project_binaries():
     """Find the project's built binaries and libraries"""
-    # Start from the script's directory and go up to find the project root
+    # If --sycl path is provided, use it directly
+    if options.sycl:
+        bin_dir = os.path.join(options.sycl, "bin")
+        return bin_dir if os.path.exists(bin_dir) else None
+
+    # Fallback: Start from the script's directory and go up to find the project root
     current_dir = os.path.dirname(os.path.abspath(__file__))
 
     # From utils/platform.py -> utils -> benchmarks -> scripts -> devops -> project_root
@@ -48,39 +53,17 @@ def get_level_zero_version_detailed():
     """Get Level Zero library version information"""
 
     workdir_ze_install = os.path.join(options.workdir, "level-zero-install", "lib")
-    workdir_ze_src = os.path.join(options.workdir, "level-zero-src")
 
-    # Look for built Level Zero libraries first
+    # Look for built Level Zero libraries
     if os.path.exists(workdir_ze_install):
         ze_loader_pattern = os.path.join(workdir_ze_install, "libze_loader.so.*")
         import glob
+        import re
 
         ze_files = glob.glob(ze_loader_pattern)
         if ze_files:
-            # Try to get version from git tag in source directory
-            if os.path.exists(workdir_ze_src):
-                try:
-                    result = subprocess.run(
-                        ["git", "describe", "--tags"],
-                        cwd=workdir_ze_src,
-                        capture_output=True,
-                        text=True,
-                    )
-                    if result.returncode == 0:
-                        tag = result.stdout.strip()
-                        # Extract version from tag like "v1.23.4"
-                        import re
-
-                        version_match = re.search(r"v?(\d+\.\d+\.\d+)", tag)
-                        if version_match:
-                            return version_match.group(1)
-                except (FileNotFoundError, subprocess.CalledProcessError):
-                    pass
-
-            # Fallback: extract version from library filename
+            # Extract version from library filename
             for ze_file in ze_files:
-                import re
-
                 filename_version = re.search(r"\.so\.(\d+\.\d+\.\d+)", ze_file)
                 if filename_version:
                     return filename_version.group(1)
