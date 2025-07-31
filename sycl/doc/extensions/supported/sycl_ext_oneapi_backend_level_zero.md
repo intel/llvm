@@ -389,7 +389,7 @@ If the deprecated variant of <code>backend_input_t<backend::ext_oneapi_level_zer
 Starting in version 4 of this specification, ```make_queue()``` can be called by passing either a Level Zero ```ze_command_queue_handle_t``` or a Level Zero ```ze_command_list_handle_t```. Queues created from a Level Zero immediate command list (```ze_command_list_handle_t```) generally perform better than queues created from a standard Level Zero ```ze_command_queue_handle_t```. See the Level Zero documentation of these native handles for more details. Also starting in version 4 the ```make_queue()``` function accepts a ```Properties``` member variable. This can contain any of the SYCL properties that are accepted by the SYCL queue constructor, except
 the ```compute_index``` property which is built into the command queue or command list.
 
-**Warning:** <span style="color:red"> When L0 v2 adapter is used (when running on platforms with GPUs based on the Xe2 architecture or later, such as Battlemage, Lunar Lake, and Arrow Lake or when SYCL_UR_USE_LEVEL_ZERO_V2=1 is set) ```make_queue()``` accepts only ```ze_command_list_handle_t```: a handle to an **immediate**, **in-order** command list. If non-immediate or out-of-order command list support is needed, the legacy adapter should be used (by setting SYCL_UR_USE_LEVEL_ZERO_V2=0)</span>
+**Warning:** <span style="color:red"> When using the L0 v2 adapter, ```make_queue()``` only accepts ```ze_command_list_handle_t```. The L0 v2 adapter is always used when running on platforms with GPUs based on the Xe2 architecture or later, such as Battlemage, Lunar Lake, and Arrow Lake. Applications may also opt-in to the L0 v2 adapter using the `SYCL_UR_USE_LEVEL_ZERO_V2` environment variable.</span>
 </td>
 </tr><tr>
 <td>
