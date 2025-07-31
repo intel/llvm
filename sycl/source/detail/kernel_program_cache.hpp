@@ -112,12 +112,11 @@ public:
   };
 
   struct ProgramBuildResult : public BuildResult<Managed<ur_program_handle_t>> {
-    ProgramBuildResult(adapter_impl &Adapter) {
-      Val = Managed<ur_program_handle_t>{Adapter};
-    }
-    ProgramBuildResult(adapter_impl &Adapter, BuildState InitialState) {
-      Val = Managed<ur_program_handle_t>{Adapter};
+    ProgramBuildResult() = default;
+    ProgramBuildResult(BuildState InitialState,
+                       Managed<ur_program_handle_t> &&Prog) {
       this->State.store(InitialState);
+      this->Val = std::move(Prog);
     }
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -195,22 +194,23 @@ public:
 
   struct KernelBuildResult
       : public BuildResult<
-            std::pair<ur_kernel_handle_t, const KernelArgMask *>> {
-    const adapter_impl &MAdapter;
-    KernelBuildResult(const adapter_impl &Adapter) : MAdapter(Adapter) {
-      Val.first = nullptr;
+            std::pair<Managed<ur_kernel_handle_t>, const KernelArgMask *>> {
+    KernelBuildResult() = default;
+
+#ifdef _MSC_VER
+#pragma warning(push)
+// https://developercommunity.visualstudio.com/t/False-C4297-warning-while-using-function/1130300
+// https://godbolt.org/z/xsMvKf84f
+#pragma warning(disable : 4297)
+#endif
+    ~KernelBuildResult() try {
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
+      return; // Don't re-throw.
     }
-    ~KernelBuildResult() {
-      try {
-        if (Val.first) {
-          ur_result_t Err =
-              MAdapter.call_nocheck<UrApiKind::urKernelRelease>(Val.first);
-          __SYCL_CHECK_UR_CODE_NO_EXC(Err, MAdapter.getBackend());
-        }
-      } catch (std::exception &e) {
-        __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
-      }
-    }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
   };
 
   using KernelCacheT = emhash8::HashMap<
@@ -407,7 +407,7 @@ public:
     ProgramCache &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<ProgramBuildResult>(getAdapter());
+      It->second = std::make_shared<ProgramBuildResult>();
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
@@ -424,14 +424,13 @@ public:
   //
   // Returns whether or not an insertion took place.
   bool insertBuiltProgram(const ProgramCacheKeyT &CacheKey,
-                          ur_program_handle_t Program) {
+                          Managed<ur_program_handle_t> &Program) {
     auto LockedCache = acquireCachedPrograms();
     ProgramCache &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<ProgramBuildResult>(getAdapter(),
-                                                        BuildState::BS_Done);
-      It->second->Val = Managed<ur_program_handle_t>{Program, getAdapter()};
+      It->second = std::make_shared<ProgramBuildResult>(BuildState::BS_Done,
+                                                        Program.retain());
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
@@ -447,7 +446,7 @@ public:
     auto &Cache = LockedCache.get()[Program];
     auto [It, DidInsert] = Cache.try_emplace(KernelName, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<KernelBuildResult>(getAdapter());
+      It->second = std::make_shared<KernelBuildResult>();
       traceKernel("Kernel inserted.", KernelName);
     } else
       traceKernel("Kernel fetched.", KernelName);
@@ -643,8 +642,7 @@ public:
   // If it is the first time the program is fetched, add it to the eviction
   // list.
   void registerProgramFetch(const ProgramCacheKeyT &CacheKey,
-                            const ur_program_handle_t &Program,
-                            const bool IsBuilt) {
+                            ur_program_handle_t Program, const bool IsBuilt) {
 
     size_t ProgramCacheEvictionThreshold =
         SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::getProgramCacheSize();
@@ -799,9 +797,10 @@ public:
 
       // only the building thread will run this
       try {
-        // Remove `adapter_impl` from `ProgramBuildResult`'s ctors once `Build`
-        // returns `Managed<ur_platform_handle_t`:
-        *(&BuildResult->Val) = Build();
+        static_assert(
+            std::is_same_v<decltype(Build()), decltype(BuildResult->Val)>,
+            "Are we casting from Managed<URResource> to plain URResource?");
+        BuildResult->Val = Build();
 
         if constexpr (!std::is_same_v<EvictFT, void *>)
           EvictFunc(BuildResult->Val, /*IsBuilt=*/true);

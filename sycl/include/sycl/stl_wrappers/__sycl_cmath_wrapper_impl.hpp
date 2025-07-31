@@ -19,8 +19,6 @@
 #define __SYCL_DEVICE_C                                                        \
   extern "C" __attribute__((sycl_device_only, always_inline))
 
-// For std::enable_if, std::is_integral, std::is_floating_point, std::is_same,
-// and std::conjunction
 #include <type_traits>
 
 // Promotion templates: the C++ standard library provides overloads that allow
@@ -29,26 +27,28 @@
 // When multiple floating point arguments are available passing arguments with
 // different precision should promote to the larger type. The template helpers
 // below provide the machinery to define these promoting overloads.
-template <typename T,
-          bool = (std::is_integral_v<T> || std::is_floating_point_v<T>)>
-struct __sycl_promote {
-private:
-  // Integer types are promoted to double.
-  template <typename U>
-  static std::enable_if_t<std::is_integral_v<U>, double> test();
-
-  // Floating point types are used as-is.
-  template <typename U>
-  static std::enable_if_t<std::is_floating_point_v<U>, U> test();
-
-public:
-  // We rely on dummy templated methods and decltype to select the right type
-  // based on the input T.
-  typedef decltype(test<T>()) type;
+template <typename T, bool = std::is_integral_v<T>> struct __sycl_promote {
+  using type = double;
 };
 
 // Variant without ::type to allow SFINAE for non-promotable types.
 template <typename T> struct __sycl_promote<T, false> {};
+
+// float and double are left as is
+template <> struct __sycl_promote<float> {
+  using type = float;
+};
+template <> struct __sycl_promote<double> {
+  using type = double;
+};
+// long double is not supported yet, so we don't define it,
+// letting it SFINAE away too.
+// We don't provide these overloads to makes sure that
+// mixed precision calls that include long double are
+// resolved to the "host" overload (defined by the real <cmath>),
+// matching the behavior without promotion.
+// Our long double overloads would fail to compile because
+// we'd be trying to call SPIR-V built-ins that don't support long double.
 
 // With two or three parameters we need to promote integers and possibly
 // floating point types. We rely on operator+ with decltype to deduce the
@@ -68,6 +68,9 @@ using __sycl_promote_t =
 //
 // TODO: Consider targets that don't have double support.
 // TODO: Enable long double support where possible.
+// TODO: float16_t and bfloat16_t support if the standard library
+//       supports C++23.
+// TODO: constexpr support for these functions (C++23, C++26)
 //
 // The following two macros provide an easy way to define these overloads for
 // basic built-ins with one or two floating-point parameters.

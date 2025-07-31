@@ -175,6 +175,11 @@ template <class KernelNameType> struct KernelInfo {
 };
 #endif //__SYCL_UNNAMED_LAMBDA__
 
+template <auto *Func> struct FreeFunctionInfoData {
+  static constexpr unsigned getNumParams() { return 0; }
+  static constexpr const char *getFunctionName() { return ""; }
+};
+
 // Built-ins accept an object due to lacking infrastructure support for
 // accepting types. The kernel name type itself isn't used because it might be
 // incomplete, cv-qualified, or not default constructible. Passing an object

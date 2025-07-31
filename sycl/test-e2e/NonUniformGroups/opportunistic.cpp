@@ -1,16 +1,15 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// CPU AOT targets host isa, so we compile on the run system instead.
-// REQUIRES: opencl-aot
+// Test CPU AOT as well when possible.
 // RUN: %if any-device-is-cpu && opencl-aot %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s %}
-// RUN: %if cpu %{ %{run} %t.x86.out %}
+// RUN: %if cpu && opencl-aot %{ %{run} %t.x86.out %}
 //
 // REQUIRES: cpu || gpu
-// UNSUPPORTED: hip
+// REQUIRES: aspect-ext_oneapi_fragment
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/ballot_group.hpp>
+#include <sycl/ext/oneapi/experimental/fragment.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 
@@ -43,34 +42,43 @@ int main() {
             auto WI = item.get_global_id();
             auto SG = item.get_sub_group();
 
-            // Split into odd and even work-items.
-            bool Predicate = WI % 2 == 0;
-            auto BallotGroup = syclex::get_ballot_group(SG, Predicate);
+            // opportunistic has unpredictable runtime behavior due to:
+            // - dynamic formation from work-items
+            // - hardware scheduling
+            // - runtime factors that affect grouping:
+            // - platform differences (SPIR-V vs. NVIDIA - group_ballot vs
+            // activemask) groups
+            // so need to check some values may change from run to run
+            // for expected ranges and consistent with other groups.
+            if (item.get_global_id() % 2 == 0) {
+              auto OpportunisticGroup =
+                  syclex::this_work_item::get_opportunistic_group();
 
-            // Check function return values match Predicate.
-            // NB: Test currently uses exactly one sub-group, but we use SG
-            //     below in case this changes in future.
-            bool Match = true;
-            auto GroupID = (Predicate) ? 1 : 0;
-            auto LocalID = SG.get_local_id() / 2;
-            Match &= (BallotGroup.get_group_id() == GroupID);
-            Match &= (BallotGroup.get_local_id() == LocalID);
-            Match &= (BallotGroup.get_group_range() == 2);
-            Match &= (BallotGroup.get_local_range() ==
-                      SG.get_local_linear_range() / 2);
-            MatchAcc[WI] = Match;
-            LeaderAcc[WI] = BallotGroup.leader();
+              bool Match = true;
+              Match &= (OpportunisticGroup.get_group_id() == 0);
+              Match &= (OpportunisticGroup.get_local_id() <
+                        OpportunisticGroup.get_local_range());
+              Match &= (OpportunisticGroup.get_group_range() == 1);
+              Match &= (OpportunisticGroup.get_local_linear_range() <=
+                        SG.get_local_linear_range());
+              MatchAcc[WI] = Match;
+              LeaderAcc[WI] = OpportunisticGroup.leader();
+            }
           };
       CGH.parallel_for<TestKernel>(NDR, KernelFunc);
     });
 
     sycl::host_accessor MatchAcc{MatchBuf, sycl::read_only};
     sycl::host_accessor LeaderAcc{LeaderBuf, sycl::read_only};
-    for (int WI = 0; WI < WGS; ++WI) {
-      assert(MatchAcc[WI] == true);
-      assert(LeaderAcc[WI] == (WI < 2));
+    uint32_t NumLeaders = 0;
+    for (size_t WI{}; WI != WGS; ++WI) {
+      if (WI % 2 == 0) {
+        assert(MatchAcc[WI] == true);
+        if (LeaderAcc[WI])
+          NumLeaders++;
+      }
     }
+    assert(NumLeaders > 0);
   }
-
   return 0;
 }

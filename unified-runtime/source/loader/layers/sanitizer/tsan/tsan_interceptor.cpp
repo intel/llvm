@@ -13,7 +13,6 @@
  */
 
 #include "tsan_interceptor.hpp"
-#include "sanitizer_common/sanitizer_utils.hpp"
 #include "tsan_report.hpp"
 
 namespace ur_sanitizer_layer {
@@ -107,6 +106,13 @@ void ContextInfo::insertAllocInfo(TsanAllocInfo AI) {
   AllocInfos.insert(std::move(AI));
 }
 
+ur_queue_handle_t ContextInfo::getInternalQueue(ur_device_handle_t Device) {
+  std::scoped_lock<ur_shared_mutex> Guard(InternalQueueMapMutex);
+  if (!InternalQueueMap[Device])
+    InternalQueueMap[Device].emplace(Handle, Device, true);
+  return *InternalQueueMap[Device];
+}
+
 TsanInterceptor::~TsanInterceptor() {
   // We must release these objects before releasing adapters, since
   // they may use the adapter in their destructor
@@ -190,7 +196,7 @@ TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
   auto &ProgramInfo = getProgramInfo(Program);
 
   for (auto Device : Devices) {
-    ManagedQueue Queue(Context, Device);
+    ur_queue_handle_t Queue = ContextInfo->getInternalQueue(Device);
 
     size_t MetadataSize;
     void *MetadataPtr;
@@ -333,15 +339,13 @@ ur_result_t TsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
   auto CI = getContextInfo(GetContext(Queue));
   auto DI = getDeviceInfo(GetDevice(Queue));
 
-  ManagedQueue InternalQueue(CI->Handle, DI->Handle);
-  if (!InternalQueue) {
-    UR_LOG_L(getContext()->logger, ERR, "Failed to create internal queue");
-    return UR_RESULT_ERROR_INVALID_QUEUE;
-  }
+  ur_queue_handle_t InternalQueue = CI->getInternalQueue(DI->Handle);
 
   UR_CALL(prepareLaunch(CI, DI, InternalQueue, Kernel, LaunchInfo));
 
   UR_CALL(updateShadowMemory(CI, DI, Kernel, InternalQueue));
+
+  UR_CALL(getContext()->urDdiTable.Queue.pfnFinish(InternalQueue));
 
   return UR_RESULT_SUCCESS;
 }

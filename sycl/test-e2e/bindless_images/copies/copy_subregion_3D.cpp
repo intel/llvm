@@ -19,13 +19,45 @@ void copy_image_mem_handle_to_image_mem_handle(
   syclexp::image_mem imgMemSrc(desc, dev, q.get_context());
   syclexp::image_mem imgMemDst(desc, dev, q.get_context());
 
-  // Copy input data to device
-  q.ext_oneapi_copy(dataIn.data(), imgMemSrc.get_handle(), desc);
+  // Copy host input data to device.
+  // Extent to copy.
+  sycl::range copyExtent = {desc.width / 2, desc.height / 2, desc.depth / 2};
+  sycl::range hostExtent = {desc.width, desc.height, desc.depth};
+
+  // Copy eight quadrants of input data into device image memory.
+  q.ext_oneapi_copy(dataIn.data(), {0, 0, 0}, hostExtent,
+                    imgMemSrc.get_handle(), {0, 0, 0}, desc, copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {desc.width / 2, 0, 0}, hostExtent,
+                    imgMemSrc.get_handle(), {desc.width / 2, 0, 0}, desc,
+                    copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {0, desc.height / 2, 0}, hostExtent,
+                    imgMemSrc.get_handle(), {0, desc.height / 2, 0}, desc,
+                    copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {desc.width / 2, desc.height / 2, 0},
+                    hostExtent, imgMemSrc.get_handle(),
+                    {desc.width / 2, desc.height / 2, 0}, desc, copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {0, 0, desc.depth / 2}, hostExtent,
+                    imgMemSrc.get_handle(), {0, 0, desc.depth / 2}, desc,
+                    copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {desc.width / 2, 0, desc.depth / 2},
+                    hostExtent, imgMemSrc.get_handle(),
+                    {desc.width / 2, 0, desc.depth / 2}, desc, copyExtent);
+
+  q.ext_oneapi_copy(dataIn.data(), {0, desc.height / 2, desc.depth / 2},
+                    hostExtent, imgMemSrc.get_handle(),
+                    {0, desc.height / 2, desc.depth / 2}, desc, copyExtent);
+
+  q.ext_oneapi_copy(
+      dataIn.data(), {desc.width / 2, desc.height / 2, desc.depth / 2},
+      hostExtent, imgMemSrc.get_handle(),
+      {desc.width / 2, desc.height / 2, desc.depth / 2}, desc, copyExtent);
 
   q.wait_and_throw();
-
-  // Extent to copy
-  sycl::range copyExtent = {desc.width / 2, desc.height / 2, desc.depth / 2};
 
   // Copy eight quadrants of square into output image
   q.ext_oneapi_copy(imgMemSrc.get_handle(), {0, 0, 0}, desc,
@@ -64,8 +96,37 @@ void copy_image_mem_handle_to_image_mem_handle(
 
   q.wait_and_throw();
 
-  // Copy out data to host
-  q.ext_oneapi_copy(imgMemDst.get_handle(), out.data(), desc);
+  // Copy device data back to host.
+  // Copy four quarters of device imgMemDst data to host out.
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {0, 0, 0}, desc, out.data(),
+                    {0, 0, 0}, hostExtent, copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {desc.width / 2, 0, 0}, desc,
+                    out.data(), {desc.width / 2, 0, 0}, hostExtent, copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {0, desc.height / 2, 0}, desc,
+                    out.data(), {0, desc.height / 2, 0}, hostExtent,
+                    copyExtent);
+
+  q.ext_oneapi_copy(
+      imgMemDst.get_handle(), {desc.width / 2, desc.height / 2, 0}, desc,
+      out.data(), {desc.width / 2, desc.height / 2, 0}, hostExtent, copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {0, 0, desc.depth / 2}, desc,
+                    out.data(), {0, 0, desc.depth / 2}, hostExtent, copyExtent);
+
+  q.ext_oneapi_copy(imgMemDst.get_handle(), {desc.width / 2, 0, desc.depth / 2},
+                    desc, out.data(), {desc.width / 2, 0, desc.depth / 2},
+                    hostExtent, copyExtent);
+
+  q.ext_oneapi_copy(
+      imgMemDst.get_handle(), {0, desc.height / 2, desc.depth / 2}, desc,
+      out.data(), {0, desc.height / 2, desc.depth / 2}, hostExtent, copyExtent);
+
+  q.ext_oneapi_copy(
+      imgMemDst.get_handle(), {desc.width / 2, desc.height / 2, desc.depth / 2},
+      desc, out.data(), {desc.width / 2, desc.height / 2, desc.depth / 2},
+      hostExtent, copyExtent);
 
   q.wait_and_throw();
 }
@@ -159,8 +220,6 @@ int main() {
     std::cout << "Tests failed\n";
     return 1;
   }
-
-  std::cout << "Tests passed\n";
 
   return 0;
 }

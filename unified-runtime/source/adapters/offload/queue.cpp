@@ -17,22 +17,30 @@
 #include "queue.hpp"
 #include "ur2offload.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(ur_context_handle_t hContext,
-                                                  ur_device_handle_t hDevice,
-                                                  const ur_queue_properties_t *,
-                                                  ur_queue_handle_t *phQueue) {
+UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
+    [[maybe_unused]] ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_queue_properties_t *pProps, ur_queue_handle_t *phQueue) {
 
   assert(hContext->Device == hDevice);
 
-  ur_queue_handle_t Queue = new ur_queue_handle_t_();
-  auto Res = olCreateQueue(hDevice->OffloadDevice, &Queue->OffloadQueue);
-  if (Res != OL_SUCCESS) {
-    delete Queue;
-    return offloadResultToUR(Res);
+  ur_queue_flags_t URFlags = 0;
+  if (pProps && pProps->stype == UR_STRUCTURE_TYPE_QUEUE_PROPERTIES) {
+    URFlags = pProps->flags;
   }
 
-  Queue->OffloadDevice = hDevice->OffloadDevice;
-  Queue->UrContext = hContext;
+  ur_queue_handle_t Queue =
+      new ur_queue_handle_t_(hDevice->OffloadDevice, hContext, URFlags);
+
+  // For in-order queues, create the ol queue on construction so we can report
+  // any errors earlier
+  if (!(URFlags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE)) {
+    [[maybe_unused]] ol_queue_handle_t InitQueue;
+    auto Res = Queue->nextQueue(InitQueue);
+    if (Res != OL_SUCCESS) {
+      delete Queue;
+      return offloadResultToUR(Res);
+    }
+  }
 
   *phQueue = Queue;
 
@@ -47,6 +55,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
+  case UR_QUEUE_INFO_FLAGS:
+    return ReturnValue(hQueue->Flags);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
     return ReturnValue(hQueue->RefCount.load());
   default:
@@ -63,7 +73,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
   if (--hQueue->RefCount == 0) {
-    OL_RETURN_ON_ERR(olDestroyQueue(hQueue->OffloadQueue));
+    for (auto *Q : hQueue->OffloadQueues) {
+      if (!Q) {
+        break;
+      }
+      OL_RETURN_ON_ERR(olDestroyQueue(Q));
+    }
     delete hQueue;
   }
 
@@ -71,7 +86,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
-  return offloadResultToUR(olSyncQueue(hQueue->OffloadQueue));
+  for (auto *Q : hQueue->OffloadQueues) {
+    if (!Q) {
+      break;
+    }
+    OL_RETURN_ON_ERR(olSyncQueue(Q));
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(

@@ -67,15 +67,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   LaunchArgs.GroupSize.z = GroupSize[2];
   LaunchArgs.DynSharedMemory = 0;
 
-  ol_event_handle_t EventOut;
-  OL_RETURN_ON_ERR(
-      olLaunchKernel(hQueue->OffloadQueue, hQueue->OffloadDevice,
-                     hKernel->OffloadKernel, hKernel->Args.getStorage(),
-                     hKernel->Args.getStorageSize(), &LaunchArgs, &EventOut));
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(olLaunchKernel(
+      Queue, hQueue->OffloadDevice, hKernel->OffloadKernel,
+      hKernel->Args.getStorage(), hKernel->Args.getStorageSize(), &LaunchArgs));
 
   if (phEvent) {
     auto *Event = new ur_event_handle_t_(UR_COMMAND_KERNEL_LAUNCH, hQueue);
-    Event->OffloadEvent = EventOut;
+    if (auto Res = olCreateEvent(Queue, &Event->OffloadEvent)) {
+      delete Event;
+      return offloadResultToUR(Res);
+    };
     *phEvent = Event;
   }
   return UR_RESULT_SUCCESS;
@@ -105,18 +108,25 @@ ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
   (void)phEventWaitList;
   //
 
-  ol_event_handle_t EventOut = nullptr;
-
-  OL_RETURN_ON_ERR(olMemcpy(hQueue->OffloadQueue, DestPtr, DestDevice, SrcPtr,
-                            SrcDevice, size, phEvent ? &EventOut : nullptr));
-
   if (blocking) {
-    OL_RETURN_ON_ERR(olSyncQueue(hQueue->OffloadQueue));
+    OL_RETURN_ON_ERR(
+        olMemcpy(nullptr, DestPtr, DestDevice, SrcPtr, SrcDevice, size));
+    if (phEvent) {
+      *phEvent = ur_event_handle_t_::createEmptyEvent(Command, hQueue);
+    }
+    return UR_RESULT_SUCCESS;
   }
 
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(
+      olMemcpy(Queue, DestPtr, DestDevice, SrcPtr, SrcDevice, size));
   if (phEvent) {
     auto *Event = new ur_event_handle_t_(Command, hQueue);
-    Event->OffloadEvent = EventOut;
+    if (auto Res = olCreateEvent(Queue, &Event->OffloadEvent)) {
+      delete Event;
+      return offloadResultToUR(Res);
+    };
     *phEvent = Event;
   }
 
@@ -263,4 +273,41 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
   BufferImpl.unmap(pMappedPtr);
 
   return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  for (uint32_t i = 0; i < numArgs; i++) {
+    switch (pArgs[i].type) {
+    case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+      hKernel->Args.addArg(pArgs[i].index, sizeof(pArgs[i].value.pointer),
+                           &pArgs[i].value.pointer);
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+      hKernel->Args.addArg(pArgs[i].index, pArgs[i].size, pArgs[i].value.value);
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
+      hKernel->Args.addMemObjArg(pArgs[i].index,
+                                 pArgs[i].value.memObjTuple.hMem,
+                                 pArgs[i].value.memObjTuple.flags);
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    default:
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+  }
+
+  return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                               pGlobalWorkSize, pLocalWorkSize,
+                               numPropsInLaunchPropList, launchPropList,
+                               numEventsInWaitList, phEventWaitList, phEvent);
 }
