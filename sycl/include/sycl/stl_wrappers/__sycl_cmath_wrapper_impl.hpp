@@ -335,13 +335,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
 #endif
 
-// <cstdlib>
-using ::div;
-using ::labs;
-using ::ldiv;
-using ::llabs;
-using ::lldiv;
-
 // Basic operations
 using ::abs;
 using ::fabs;
