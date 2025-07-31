@@ -3994,7 +3994,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::fpbuiltin_frem:
   case Intrinsic::fpbuiltin_sqrt:
   case Intrinsic::fpbuiltin_ldexp:
-  // INTEL_CUSTOMIZATION end
+    // INTEL_CUSTOMIZATION end
     return true;
   default:
     // Unknown intrinsics' declarations should always be translated
