@@ -206,6 +206,17 @@ class ComputeBench(Suite):
 
             # Add GraphApiSubmitGraph benchmarks
             for in_order_queue in [0, 1]:
+                benches.append(
+                    GraphApiSubmitGraph(
+                        self,
+                        runtime,
+                        in_order_queue,
+                        self.submit_graph_num_kernels[-1],
+                        0,
+                        useEvents=0,
+                        useHostTasks=1,
+                    )
+                )
                 for num_kernels in self.submit_graph_num_kernels:
                     for measure_completion_time in [0, 1]:
                         for use_events in [0, 1]:
@@ -217,6 +228,7 @@ class ComputeBench(Suite):
                                     num_kernels,
                                     measure_completion_time,
                                     use_events,
+                                    useHostTasks=0,
                                 )
                             )
 
@@ -842,22 +854,25 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         numKernels,
         measureCompletionTime,
         useEvents,
+        useHostTasks,
     ):
         self.inOrderQueue = inOrderQueue
         self.numKernels = numKernels
         self.measureCompletionTime = measureCompletionTime
         self.useEvents = useEvents
+        self.useHostTasks = useHostTasks
         self.ioq_str = "in order" if self.inOrderQueue else "out of order"
         self.measure_str = (
             " with measure completion" if self.measureCompletionTime else ""
         )
         self.use_events_str = f" with events" if self.useEvents else ""
+        self.host_tasks_str = f" use host tasks" if self.useHostTasks else ""
         super().__init__(
             bench, f"graph_api_benchmark_{runtime.value}", "SubmitGraph", runtime
         )
 
     def explicit_group(self):
-        return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}, {self.numKernels} kernels"
+        return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels"
 
     def description(self) -> str:
         return (
@@ -866,10 +881,10 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         )
 
     def name(self):
-        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph{self.use_events_str} numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}"
+        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph{self.use_events_str}{self.host_tasks_str} numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}"
 
     def display_name(self) -> str:
-        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}, {self.numKernels} kernels"
+        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels"
 
     def get_tags(self):
         return [
@@ -890,6 +905,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             "--KernelExecutionTime=1",
             f"--UseEvents={self.useEvents}",
             "--UseExplicit=0",
+            f"--UseHostTasks={self.useHostTasks}",
         ]
 
 
