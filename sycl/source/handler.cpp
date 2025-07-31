@@ -2257,7 +2257,6 @@ detail::context_impl &handler::getContextImpl() const {
 void handler::setKernelLaunchProperties(
     KernelLaunchPropertyWrapper::KernelLaunchPropertiesT
         &KernelLaunchProperties) {
-
   impl->KLProps.copyInitializedFrom(KernelLaunchProperties);
 
   if (KernelLaunchProperties.MUsesClusterLaunch) {

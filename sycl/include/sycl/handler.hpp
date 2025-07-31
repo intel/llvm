@@ -419,11 +419,10 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
 class __SYCL_EXPORT handler
     : public detail::KernelLaunchPropertyWrapper<handler> {
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   static_assert(std::is_empty_v<detail::KernelLaunchPropertyWrapper<handler>>,
                 "KernelLaunchPropertyWrapper should not have any data members "
-                "to avoid ABI break.");
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+                "to avoid ABI effects.");
+
 
 private:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
