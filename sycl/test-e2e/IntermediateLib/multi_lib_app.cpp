@@ -1,10 +1,24 @@
 // UNSUPPORTED: cuda || hip
 // UNSUPPORTED-TRACKER: CMPLRLLVM-69415
 
+// REQUIRES: level_zero
+
 // DEFINE: %{fPIC_flag} =  %if windows %{%} %else %{-fPIC%}
 // DEFINE: %{shared_lib_ext} = %if windows %{dll%} %else %{so%}
 
-// RUN: %{build} %{fPIC_flag} -DSO_PATH="%T/" -o %t.out
+// clang-format off
+// IMPORTANT   -DSO_PATH='R"(%T)"'   WTF ??
+//              We need to capture %T, the build directory, in a string
+//              and the normal STRINGIFY() macros hack won't work.
+//              Because on Windows, the path delimiters are \, 
+//              which C++ preprocessor converts to escape sequences, 
+//              which becomes a nightmare.
+//              SO the hack here is to put heredoc in the definition
+//              and use single quotes, which Python forgivingly accepts.  
+// clang-format on 
+ 
+// RUN: %{build} %{fPIC_flag} -DSO_PATH='R"(%T)"' -o %t.out
+
 // RUN:  %clangxx -fsycl %{fPIC_flag} -shared -DINC=1 -o %T/lib_a.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
 // RUN:  %clangxx -fsycl %{fPIC_flag} -shared -DINC=2 -o %T/lib_b.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
 // RUN:  %clangxx -fsycl %{fPIC_flag} -shared -DINC=4 -o %T/lib_c.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
@@ -21,9 +35,6 @@
 
 using namespace sycl::ext::oneapi::experimental;
 
-#define STRINGIFY_HELPER(A) #A
-#define STRINGIFY(A) STRINGIFY_HELPER(A)
-#define SO_FNAME "" STRINGIFY(SO_PATH) ""
 
 #ifdef _WIN32
 #include <windows.h>
@@ -85,17 +96,20 @@ int main() {
   sycl::buffer<int, 1> buf(r);
   initializeBuffer(buf);
 
-  std::string base_path = SO_FNAME;
+  std::string base_path = SO_PATH;
 
 #ifdef _WIN32
-  std::string path_to_lib_a = base_path + "lib_a.dll";
-  std::string path_to_lib_b = base_path + "lib_b.dll";
-  std::string path_to_lib_c = base_path + "lib_c.dll";
+  std::string path_to_lib_a = base_path + "\\lib_a.dll";
+  std::string path_to_lib_b = base_path + "\\lib_b.dll";
+  std::string path_to_lib_c = base_path + "\\lib_c.dll";
 #else
-  std::string path_to_lib_a = base_path + "lib_a.so";
-  std::string path_to_lib_b = base_path + "lib_b.so";
-  std::string path_to_lib_c = base_path + "lib_c.so";
+  std::string path_to_lib_a = base_path + "/lib_a.so";
+  std::string path_to_lib_b = base_path + "/lib_b.so";
+  std::string path_to_lib_c = base_path + "/lib_c.so";
 #endif
+
+  std::cout << "paths: " << path_to_lib_a << std::endl;
+  std::cout << "SO_PATH: " << SO_PATH << std::endl;
 
   void *lib_a = loadOsLibrary(path_to_lib_a);
   void *f = getOsLibraryFuncAddress(lib_a, "performIncrementation");
