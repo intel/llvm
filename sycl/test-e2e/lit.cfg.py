@@ -650,12 +650,6 @@ sycl_ls = FindTool("sycl-ls").resolve(
 if not sycl_ls:
     lit_config.fatal("can't find `sycl-ls`")
 
-syclbin_dump = FindTool("syclbin-dump").resolve(
-    llvm_config, os.pathsep.join([config.dpcpp_bin_dir, config.llvm_tools_dir])
-)
-if not syclbin_dump:
-    lit_config.fatal("can't find `syclbin-dump`")
-
 if (
     len(config.sycl_build_targets) == 1
     and next(iter(config.sycl_build_targets)) == "target-all"
@@ -824,6 +818,8 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(
 feature_tools = [
     ToolSubst("llvm-spirv", unresolved="ignore"),
     ToolSubst("llvm-link", unresolved="ignore"),
+    ToolSubst("opencl-aot", unresolved="ignore"),
+    ToolSubst("ocloc", unresolved="ignore"),
 ]
 
 tools = [
@@ -833,8 +829,14 @@ tools = [
     ToolSubst(
         r"\| \bnot\b", command=FindTool("not"), verbatim=True, unresolved="ignore"
     ),
-    ToolSubst("sycl-ls", command=sycl_ls, unresolved="ignore"),
-    ToolSubst("syclbin-dump", command=syclbin_dump, unresolved="ignore"),
+    ToolSubst("sycl-ls", command=sycl_ls, unresolved="fatal"),
+    ToolSubst("syclbin-dump", unresolved="fatal"),
+    ToolSubst("llvm-ar", unresolved="fatal"),
+    ToolSubst("clang-offload-bundler", unresolved="fatal"),
+    ToolSubst("clang-offload-wrapper", unresolved="fatal"),
+    ToolSubst("sycl-post-link", unresolved="fatal"),
+    ToolSubst("file-table-tform", unresolved="fatal"),
+    ToolSubst("llvm-foreach", unresolved="fatal"),
 ] + feature_tools
 
 # Try and find each of these tools in the DPC++ bin directory, in the llvm tools directory
@@ -854,19 +856,6 @@ for tool in feature_tools:
 
 if shutil.which("cmc") is not None:
     config.available_features.add("cm-compiler")
-
-# Device AOT compilation tools aren't part of the SYCL project,
-# so they need to be pre-installed on the machine
-aot_tools = ["ocloc", "opencl-aot"]
-
-for aot_tool in aot_tools:
-    if shutil.which(aot_tool) is not None:
-        lit_config.note("Found pre-installed AOT device compiler " + aot_tool)
-        config.available_features.add(aot_tool)
-    else:
-        lit_config.warning(
-            "Couldn't find pre-installed AOT device compiler " + aot_tool
-        )
 
 # Clear build targets when not in build-only, to populate according to devices
 if config.test_mode != "build-only":
