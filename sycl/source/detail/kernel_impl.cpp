@@ -138,6 +138,10 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
       "interoperability function or to query a device built-in kernel");
 }
 
+std::optional<unsigned> kernel_impl ::getFreeFuncKernelArgSize() const {
+  return MKernelBundleImpl->tryGetKernelArgsSize(getName());
+}
+
 void kernel_impl::enableUSMIndirectAccess() const {
   if (!MContext->getPlatformImpl().supports_usm())
     return;
