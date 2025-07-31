@@ -148,14 +148,13 @@ class ComputeBench(Suite):
         base_metadata = metadata["SubmitGraph"]
         for order in ["in order", "out of order"]:
             for completion in ["", " with completion"]:
-                for num_kernels in self.submit_graph_num_kernels:
-                    group_name = (
-                        f"SubmitGraph {order}{completion}, {num_kernels} kernels"
-                    )
-                    metadata[group_name] = BenchmarkMetadata(
-                        type="group",
-                        tags=base_metadata.tags,
-                    )
+                for events in ["", " using events"]:
+                    for num_kernels in self.submit_graph_num_kernels:
+                        group_name = f"SubmitGraph {order}{completion}{events}, {num_kernels} kernels"
+                        metadata[group_name] = BenchmarkMetadata(
+                            type="group",
+                            tags=base_metadata.tags,
+                        )
 
         return metadata
 
@@ -207,15 +206,17 @@ class ComputeBench(Suite):
             for in_order_queue in [0, 1]:
                 for num_kernels in self.submit_graph_num_kernels:
                     for measure_completion_time in [0, 1]:
-                        benches.append(
-                            GraphApiSubmitGraph(
-                                self,
-                                runtime,
-                                in_order_queue,
-                                num_kernels,
-                                measure_completion_time,
+                        for use_events in [0, 1]:
+                            benches.append(
+                                GraphApiSubmitGraph(
+                                    self,
+                                    runtime,
+                                    in_order_queue,
+                                    num_kernels,
+                                    measure_completion_time,
+                                    use_events,
+                                )
                             )
-                        )
 
         # Add other benchmarks
         benches += [
@@ -830,28 +831,31 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
         ]
 
 
-# TODO: once L0 SubmitGraph exists, this needs to be cleaned up split benchmarks into more groups,
-# set all the parameters (UseEvents 0/1) and
-# unify the benchmark naming scheme with SubmitKernel.
 class GraphApiSubmitGraph(ComputeBenchmark):
     def __init__(
-        self, bench, runtime: RUNTIMES, inOrderQueue, numKernels, measureCompletionTime
+        self,
+        bench,
+        runtime: RUNTIMES,
+        inOrderQueue,
+        numKernels,
+        measureCompletionTime,
+        useEvents,
     ):
         self.inOrderQueue = inOrderQueue
         self.numKernels = numKernels
         self.measureCompletionTime = measureCompletionTime
+        self.useEvents = useEvents
         self.ioq_str = "in order" if self.inOrderQueue else "out of order"
         self.measure_str = (
             " with measure completion" if self.measureCompletionTime else ""
         )
+        self.use_events_str = f" with events" if self.useEvents else ""
         super().__init__(
             bench, f"graph_api_benchmark_{runtime.value}", "SubmitGraph", runtime
         )
 
     def explicit_group(self):
-        return (
-            f"SubmitGraph {self.ioq_str}{self.measure_str}, {self.numKernels} kernels"
-        )
+        return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}, {self.numKernels} kernels"
 
     def description(self) -> str:
         return (
@@ -860,10 +864,10 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         )
 
     def name(self):
-        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}"
+        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph{self.use_events_str} numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}"
 
     def display_name(self) -> str:
-        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}, {self.numKernels} kernels"
+        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}, {self.numKernels} kernels"
 
     def get_tags(self):
         return [
@@ -882,7 +886,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             f"--InOrderQueue={self.inOrderQueue}",
             "--Profiling=0",
             "--KernelExecutionTime=1",
-            "--UseEvents=0",  # not all implementations support UseEvents=1
+            f"--UseEvents={self.useEvents}",
             "--UseExplicit=0",
         ]
 
