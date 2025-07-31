@@ -1611,9 +1611,8 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK: static constexpr auto __sycl_shim33() {
 // CHECK-NEXT:  return (void (*)(struct AccessorAndLocalAccessor))ff_25;
 // CHECK-NEXT: }
-// CHECK-NEXT: namespace sycl {
-// CHECK-NEXT: template <>
-// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim33()> {
+
+// CHECK: struct ext::oneapi::experimental::is_kernel<__sycl_shim33()> {
 // CHECK-NEXT:  static constexpr bool value = true;
 // CHECK-NEXT: };
 // CHECK-NEXT: template <>
@@ -1642,10 +1641,9 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 
 // CHECK: static constexpr auto __sycl_shim34() {
 // CHECK-NEXT:  return (void (*)(struct AccessorAndLocalAccessor, struct SecondLevelAccessor))ff_26;
-// CHECK-NEXT:}
-// CHECK-NEXT: namespace sycl {
-// CHECK-NEXT: template <>
-// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim34()> {
+// CHECK-NEXT: }
+
+// CHECK: struct ext::oneapi::experimental::is_kernel<__sycl_shim34()> {
 // CHECK-NEXT:  static constexpr bool value = true;
 // CHECK-NEXT: };
 // CHECK-NEXT: template <>
@@ -1691,9 +1689,8 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK: static constexpr auto __sycl_shim35() {
 // CHECK-NEXT: return (void (*)(struct IntAndAccessor, struct AccessorAndInt))ff_27;
 // CHECK-NEXT: }
-// CHECK-NEXT: namespace sycl {
-// CHECK-NEXT: template <>
-// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim35()> {
+
+// CHECK: struct ext::oneapi::experimental::is_kernel<__sycl_shim35()> {
 // CHECK-NEXT: static constexpr bool value = true;
 // CHECK-NEXT: };
 // CHECK-NEXT: template <>
@@ -1711,8 +1708,8 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK: namespace sycl {
 // CHECK-NEXT: inline namespace _V1 {
 // CHECK-NEXT: namespace detail {
-// CHECK-NEXT: //Free Function Kernel info specialization for shim33
-// CHECK-NEXT: template <> struct FreeFunctionInfoData<__sycl_shim33()> {
+// CHECK-NEXT: //Free Function Kernel info specialization for shim36
+// CHECK-NEXT: template <> struct FreeFunctionInfoData<__sycl_shim36()> {
 // CHECK-NEXT: 	__SYCL_DLL_LOCAL
 // CHECK-NEXT: 	static constexpr unsigned getNumParams() { return 1; }
 // CHECK-NEXT: 	__SYCL_DLL_LOCAL
@@ -1742,7 +1739,7 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: struct GlobalMapUpdater {
 // CHECK-NEXT:  GlobalMapUpdater() {
-// CHECK-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 33);
+// CHECK-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 36);
 // CHECK-NEXT:   }
 // CHECK-NEXT: };
 // CHECK-NEXT: static GlobalMapUpdater updater;
