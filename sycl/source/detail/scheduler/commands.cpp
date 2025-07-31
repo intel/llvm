@@ -2360,6 +2360,16 @@ static void GetUrArgsBasedOnType(
 
     break;
   }
+  case kernel_param_kind_t::kind_struct_with_special_type: {
+    ur_exp_kernel_arg_type_t Type;
+    ur_exp_kernel_arg_value_t Value = {};
+    Value.value = {Arg.MPtr};
+    UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                      Type, static_cast<uint32_t>(NextTrueIndex),
+                      static_cast<size_t>(Arg.MSize), Value});
+
+    break;
+  }
   case kernel_param_kind_t::kind_sampler: {
     sampler *SamplerPtr = (sampler *)Arg.MPtr;
     ur_exp_kernel_arg_value_t Value = {};
