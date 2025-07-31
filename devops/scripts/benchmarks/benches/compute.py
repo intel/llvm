@@ -73,6 +73,8 @@ class ComputeBench(Suite):
             f"-DBUILD_SYCL=ON",
             f"-DSYCL_COMPILER_ROOT={options.sycl}",
             f"-DALLOW_WARNINGS=ON",
+            f"-DCMAKE_CXX_COMPILER=clang++",
+            f"-DCMAKE_C_COMPILER=clang",
         ]
 
         if options.ur_adapter == "cuda":
