@@ -1023,6 +1023,12 @@ public:
 
   DeviceGlobalMap &getDeviceGlobalMap() { return MDeviceGlobals; }
 
+  std::optional<unsigned>
+  tryGetKernelArgsSize(const std::string_view KernelName) const {
+    auto &PM = sycl::detail::ProgramManager::getInstance();
+    return PM.getKernelGlobalInfoDesc(KernelName.data());
+  }
+
 private:
   DeviceGlobalMapEntry *getDeviceGlobalEntry(const std::string &Name) const {
     if (!hasSourceBasedImages() && !hasSYCLBINImages()) {

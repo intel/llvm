@@ -255,6 +255,15 @@ public:
   void addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
                                   const char *UniqueId);
 
+  // The function inserts or initializes a kernel global desc into the
+  // kernel global map.
+  void registerKernelGlobalInfo(
+      std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy);
+
+  // The function returns a pointer to the kernel global desc identified by
+  // the unique ID from the kernel global map.
+  std::optional<unsigned> getKernelGlobalInfoDesc(const char *UniqueId);
+
   // Returns true if any available image is compatible with the device Dev.
   bool hasCompatibleImage(const device_impl &DeviceImpl);
 
@@ -534,6 +543,10 @@ protected:
   // The ownership of entry resources is taken to allow contexts to cleanup
   // their associated entry resources when they die.
   DeviceGlobalMap m_DeviceGlobals{/*OwnerControlledCleanup=*/true};
+
+  // Maps between free function kernel name and associated kernel global
+  // information.
+  std::unordered_map<std::string_view, unsigned> m_FreeFunctionKernelGlobalInfo;
 
   // Maps between host_pipe identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>
