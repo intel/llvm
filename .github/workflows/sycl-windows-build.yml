@@ -3,10 +3,17 @@ name: Reusable SYCL Windows build workflow
 on:
   workflow_call:
     inputs:
+      cxx:
+        type: string
+        required: false
+        default: "cl"
       build_cache_suffix:
         type: string
         required: false
         default: "default"
+      ref:
+        type: string
+        required: False
       build_configure_extra_args:
         type: string
         required: false
@@ -14,28 +21,26 @@ on:
         type: string
         required: false
         default: sycl-toolchain
+
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
         required: false
-      ref:
-        type: string
-        required: False
-      artifact_archive_name:
-        type: string
-        default: llvm_sycl.tar.gz
+
+      # Artifacts:
       retention-days:
         description: 'Artifacts retention period'
         type: string
         default: 3
+
+      toolchain_artifact_filename:
+        type: string
+        default: llvm_sycl.tar.gz
       e2e_binaries_artifact:
         type: string
         required: false
-      cxx:
-        type: string
-        required: false
-        default: "cl"
+
       pack_release:
         type: string
         required: false
@@ -43,8 +48,8 @@ on:
     outputs:
       build_conclusion:
         value: ${{ jobs.build.outputs.build_conclusion }}
-      artifact_archive_name:
-        value: ${{ inputs.artifact_archive_name }}
+      toolchain_artifact_filename:
+        value: ${{ inputs.toolchain_artifact_filename }}
 
   workflow_dispatch:
     inputs:
@@ -67,7 +72,7 @@ on:
         options:
           - "sycl-toolchain"
           - "all"
-      artifact_archive_name:
+      toolchain_artifact_filename:
         type: choice
         options:
           - 'llvm_sycl.tar.gz'
@@ -202,13 +207,13 @@ jobs:
 
     - name: Pack toolchain release
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
-      run: tar -czf ${{ inputs.artifact_archive_name }} -C install .
+      run: tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain release
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
       uses: actions/upload-artifact@v4
       with:
         name: sycl_windows_release
-        path: ${{ inputs.artifact_archive_name }}
+        path: ${{ inputs.toolchain_artifact_filename }}
         retention-days: ${{ inputs.retention-days }}
 
     - name: Install utilities
@@ -229,13 +234,13 @@ jobs:
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
       run: |
-        tar -czf ${{ inputs.artifact_archive_name }} -C install .
+        tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v4
       with:
         name: sycl_windows_default
-        path: ${{ inputs.artifact_archive_name }}
+        path: ${{ inputs.toolchain_artifact_filename }}
         retention-days: ${{ inputs.retention-days }}
 
     - name: Setup SYCL toolchain

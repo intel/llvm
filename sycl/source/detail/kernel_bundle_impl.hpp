@@ -692,7 +692,7 @@ public:
       throw sycl::exception(make_error_code(errc::invalid),
                             "kernel '" + Name + "' not found in kernel_bundle");
 
-    return It->adjustKernelName(Name);
+    return It->getAdjustedKernelNameStr(Name);
   }
 
   bool ext_oneapi_has_device_global(const std::string &Name) const {
