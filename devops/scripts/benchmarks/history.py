@@ -15,11 +15,11 @@ from utils.utils import run
 from utils.validate import Validate
 from utils.logger import log
 from utils.detect_versions import DetectVersion
+from utils.unitrace import get_unitrace
 
 
 class BenchmarkHistory:
     runs = []
-    TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
 
     def __init__(self, dir):
         self.dir = dir
@@ -78,7 +78,9 @@ class BenchmarkHistory:
                 if not timestamp_str:
                     return False
 
-                file_timestamp = datetime.strptime(timestamp_str, self.TIMESTAMP_FORMAT)
+                file_timestamp = datetime.strptime(
+                    timestamp_str, options.TIMESTAMP_FORMAT
+                )
                 # Add timezone info for proper comparison
                 file_timestamp = file_timestamp.replace(tzinfo=timezone.utc)
                 return file_timestamp < cutoff_date
@@ -190,23 +192,28 @@ class BenchmarkHistory:
             compute_runtime=compute_runtime,
         )
 
-    def save(self, save_name, results: list[Result], to_file=True):
+    def save(self, save_name, results: list[Result]):
         benchmark_data = self.create_run(save_name, results)
         self.runs.append(benchmark_data)
 
-        if not to_file:
+        if options.save_name is None:
             return
 
-        serialized = benchmark_data.to_json()
+        serialized = benchmark_data.to_json()  # type: ignore
         results_dir = Path(os.path.join(self.dir, "results"))
         os.makedirs(results_dir, exist_ok=True)
 
-        # Use formatted timestamp for the filename
-        timestamp = (
-            datetime.now(tz=timezone.utc).strftime(self.TIMESTAMP_FORMAT)
-            if options.timestamp_override is None
-            else options.timestamp_override
-        )
+        if options.unitrace:
+            timestamp = get_unitrace().timestamp  # type: ignore
+        elif options.timestamp_override is not None:
+            timestamp = options.timestamp_override
+        else:
+            timestamp = (
+                datetime.now(tz=timezone.utc).strftime(self.TIMESTAMP_FORMAT)
+                if options.timestamp_override is None
+                else options.timestamp_override
+            )
+
         file_path = Path(os.path.join(results_dir, f"{save_name}_{timestamp}.json"))
         with file_path.open("w") as file:
             json.dump(serialized, file, indent=4)

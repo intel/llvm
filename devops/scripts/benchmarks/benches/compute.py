@@ -317,6 +317,10 @@ class ComputeBenchmark(Benchmark):
         # Check if the specific runtime is enabled (or no specific runtime required)
         return self.runtime is None or self.runtime in self.enabled_runtimes()
 
+    def name(self):
+        """Returns the name of the benchmark, can be overridden."""
+        return self.bench_name
+
     def bin_args(self) -> list[str]:
         return []
 
@@ -334,7 +338,7 @@ class ComputeBenchmark(Benchmark):
     def description(self) -> str:
         return ""
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
             f"--test={self.test}",
@@ -345,7 +349,11 @@ class ComputeBenchmark(Benchmark):
         command += self.bin_args()
         env_vars.update(self.extra_env_vars())
 
-        result = self.run_bench(command, env_vars)
+        result = self.run_bench(
+            command,
+            env_vars,
+            run_unitrace=run_unitrace,
+        )
         parsed_results = self.parse_output(result)
         ret = []
         for label, median, stddev, unit in parsed_results:
