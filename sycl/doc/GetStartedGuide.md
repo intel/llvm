@@ -12,6 +12,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
+    * [Build DPC++ toolchain with support for Native CPU](#build-dpc-toolchain-with-support-for-native-cpu)
     * [Build DPC++ toolchain with support for ARM processors](#build-dpc-toolchain-with-support-for-arm-processors)
     * [Build DPC++ toolchain with additional features enabled that require runtime/JIT compilation](#build-dpc-toolchain-with-additional-features-enabled-that-require-runtimejit-compilation)
     * [Build DPC++ toolchain with a custom Unified Runtime](#build-dpc-toolchain-with-a-custom-unified-runtime)
@@ -124,6 +125,7 @@ flags can be found by launching the script with `--help`):
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or
   `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see
   [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
+* `--native_cpu` -> use the Native CPU backend (see [Native CPU](#build-dpc-toolchain-with-support-for-native-cpu))
 * `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
   supported targets
 * `--shared-libs` -> Build shared libraries
@@ -297,6 +299,13 @@ the Nvidia tab on the HIP installation docs
 as well as the CUDA Runtime API to be installed, see [NVIDIA CUDA Installation
 Guide for
 Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
+
+### Build DPC++ toolchain with support for Native CPU
+
+Native CPU is a cpu device which by default has no other dependency than DPC++. This device works with all cpu targets supported by the DPC++ runtime.
+Supported targets include x86, Aarch64 and riscv_64 (See CI results for these targets on the [oneAPI Construction Kit github](https://github.com/uxlfoundation/oneapi-construction-kit/actions)).
+
+To enable Native CPU in a DPC++ build just add `--native_cpu` to the set of flags passed to `configure.py`.
 
 ### Build DPC++ toolchain with support for ARM processors
 
@@ -725,6 +734,12 @@ When building for CUDA or HIP NVIDIA, use the CUDA target triple as follows:
 ```bash
 clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
+```
+
+When building for Native CPU use the SYCL target native_cpu:
+
+```bash
+clang++ -fsycl -fsycl-targets=native_cpu simple-sycl-app.cpp -o simple-sycl-app.exe
 ```
 
 **Linux & Windows (64-bit)**:
