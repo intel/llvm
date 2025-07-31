@@ -42,6 +42,7 @@ def runtime_to_tag_name(runtime: RUNTIMES) -> str:
 class ComputeBench(Suite):
     def __init__(self, directory):
         self.directory = directory
+        self.submit_graph_num_kernels = [4, 10, 32]
 
     def name(self) -> str:
         return "Compute Benchmarks"
@@ -143,6 +144,19 @@ class ComputeBench(Suite):
                         range_min=base_metadata.range_min,
                     )
 
+        # Add metadata for all SubmitGraph group variants
+        base_metadata = metadata["SubmitGraph"]
+        for order in ["in order", "out of order"]:
+            for completion in ["", " with completion"]:
+                for num_kernels in self.submit_graph_num_kernels:
+                    group_name = (
+                        f"SubmitGraph {order}{completion}, {num_kernels} kernels"
+                    )
+                    metadata[group_name] = BenchmarkMetadata(
+                        type="group",
+                        tags=base_metadata.tags,
+                    )
+
         return metadata
 
     def benchmarks(self) -> list[Benchmark]:
@@ -191,7 +205,7 @@ class ComputeBench(Suite):
 
             # Add GraphApiSubmitGraph benchmarks
             for in_order_queue in [0, 1]:
-                for num_kernels in [4, 10, 32]:
+                for num_kernels in self.submit_graph_num_kernels:
                     for measure_completion_time in [0, 1]:
                         benches.append(
                             GraphApiSubmitGraph(
@@ -818,12 +832,18 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         self.inOrderQueue = inOrderQueue
         self.numKernels = numKernels
         self.measureCompletionTime = measureCompletionTime
+        self.ioq_str = "in order" if self.inOrderQueue else "out of order"
+        self.measure_str = (
+            " with measure completion" if self.measureCompletionTime else ""
+        )
         super().__init__(
             bench, f"graph_api_benchmark_{runtime.value}", "SubmitGraph", runtime
         )
 
     def explicit_group(self):
-        return f"SubmitGraph, numKernels: {self.numKernels}"
+        return (
+            f"SubmitGraph {self.ioq_str}{self.measure_str}, {self.numKernels} kernels"
+        )
 
     def description(self) -> str:
         return (
@@ -835,7 +855,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         return f"graph_api_benchmark_{self.runtime.value} SubmitGraph numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}"
 
     def display_name(self) -> str:
-        return f"{self.runtime.value.upper()} SubmitGraph, numKernels {self.numKernels}, ioq {self.inOrderQueue}, measureCompletion {self.measureCompletionTime}"
+        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}, {self.numKernels} kernels"
 
     def get_tags(self):
         return [
