@@ -423,7 +423,6 @@ class __SYCL_EXPORT handler
                 "KernelLaunchPropertyWrapper should not have any data members "
                 "to avoid ABI effects.");
 
-
 private:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs SYCL handler from the pre-constructed stack-allocated

@@ -299,8 +299,7 @@ public:
     }
   }; // struct KernelLaunchPropertiesT
 
-private:
-  void verifyDeviceHasProgressGuarantee(
+  void verifyIfDeviceHasProgressGuarantee(
       sycl::ext::oneapi::experimental::forward_progress_guarantee guarantee,
       sycl::ext::oneapi::experimental::execution_scope threadScope,
       sycl::ext::oneapi::experimental::execution_scope coordinationScope,
@@ -354,7 +353,6 @@ private:
     }
   }
 
-public:
   /// Process runtime kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
@@ -393,23 +391,23 @@ public:
       if constexpr (PropertiesT::template has_property<
                         work_group_progress_key>()) {
         auto prop = Props.template get_property<work_group_progress_key>();
-        verifyDeviceHasProgressGuarantee(prop.guarantee,
-                                         execution_scope::work_group,
-                                         prop.coordinationScope, retval);
+        verifyIfDeviceHasProgressGuarantee(prop.guarantee,
+                                           execution_scope::work_group,
+                                           prop.coordinationScope, retval);
       }
       if constexpr (PropertiesT::template has_property<
                         sub_group_progress_key>()) {
         auto prop = Props.template get_property<sub_group_progress_key>();
-        verifyDeviceHasProgressGuarantee(prop.guarantee,
-                                         execution_scope::sub_group,
-                                         prop.coordinationScope, retval);
+        verifyIfDeviceHasProgressGuarantee(prop.guarantee,
+                                           execution_scope::sub_group,
+                                           prop.coordinationScope, retval);
       }
       if constexpr (PropertiesT::template has_property<
                         work_item_progress_key>()) {
         auto prop = Props.template get_property<work_item_progress_key>();
-        verifyDeviceHasProgressGuarantee(prop.guarantee,
-                                         execution_scope::work_item,
-                                         prop.coordinationScope, retval);
+        verifyIfDeviceHasProgressGuarantee(prop.guarantee,
+                                           execution_scope::work_item,
+                                           prop.coordinationScope, retval);
       }
     }
 
