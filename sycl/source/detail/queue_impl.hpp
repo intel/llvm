@@ -193,6 +193,7 @@ public:
              const async_handler &AsyncHandler, const property_list &PropList,
              private_tag)
       : MDevice([&]() -> device_impl & {
+          MKernelArgStorage.reserve(10);
           ur_device_handle_t DeviceUr{};
           adapter_impl &Adapter = Context.getAdapter();
           // TODO catch an exception and put it to list of asynchronous
@@ -683,6 +684,11 @@ public:
   }
 #endif
 
+  /// Clears MKernelArgsStorage, has it .reserve(size), and returns a reference
+  /// to it. Not inherently thread safe.
+  std::vector<ur_exp_kernel_arg_properties_t> &
+  getKernelArgStorage(uint32_t size);
+
 protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
@@ -998,6 +1004,10 @@ protected:
   const property_list MPropList;
 
   ur_queue_handle_t MQueue;
+
+  // To avoid re-allocating this every time a kernel is enqueued we keep this
+  // vector around and .clear()/.reserve() for each kernel instead.
+  std::vector<ur_exp_kernel_arg_properties_t> MKernelArgStorage;
 
   // Access should be guarded with MMutex
   struct DependencyTrackingItems {
