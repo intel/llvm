@@ -48,9 +48,9 @@ using ::div;
 using ::ldiv;
 using ::lldiv;
 
+using ::abs;
 using ::labs;
 using ::llabs;
-using ::lldiv;
 
 #ifdef _LIBCPP_END_NAMESPACE_STD
 _LIBCPP_END_NAMESPACE_STD
