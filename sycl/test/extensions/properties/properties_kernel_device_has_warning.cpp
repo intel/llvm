@@ -1,7 +1,4 @@
 // RUN: %clangxx -fsycl-device-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
-//
-// XFAIL: *
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19409
 
 // Tests for warnings when propagated aspects do not match the aspects available
 // in a function, as specified through the 'sycl::device_has' property.
@@ -85,6 +82,7 @@ template <typename T> struct K_funcIndirectlyUsingFP16 {
 template <typename T> struct K_funcIndirectlyUsingFP16_Warn16 {
   T *Props;
   K_funcIndirectlyUsingFP16_Warn16(T Props_param) { Props = &Props_param; };
+  // expected-warning-re@+2 {{function '{{.*}}' uses aspect 'fp16' not listed in its 'device_has' property}}
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'fp16' not listed in its 'device_has' property}}
   void operator()() const { int a = funcIndirectlyUsingFP16(1, 2); }
   auto get(properties_tag) const { return *Props; }
@@ -100,6 +98,7 @@ template <typename T> struct K_funcUsingFP16AndFP64 {
 template <typename T> struct K_funcUsingFP16AndFP64_Warn16 {
   T *Props;
   K_funcUsingFP16AndFP64_Warn16(T Props_param) { Props = &Props_param; };
+  // expected-warning-re@+2 {{function '{{.*}}' uses aspect 'fp16' not listed in its 'device_has' property}}
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'fp16' not listed in its 'device_has' property}}
   void operator()() const { int a = funcUsingFP16AndFP64(1, 2); }
   auto get(properties_tag) const { return *Props; }
@@ -108,6 +107,7 @@ template <typename T> struct K_funcUsingFP16AndFP64_Warn16 {
 template <typename T> struct K_funcUsingFP16AndFP64_Warn64 {
   T *Props;
   K_funcUsingFP16AndFP64_Warn64(T Props_param) { Props = &Props_param; };
+  // expected-warning-re@+2 {{function '{{.*}}' uses aspect 'fp64' not listed in its 'device_has' property}}
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'fp64' not listed in its 'device_has' property}}
   void operator()() const { int a = funcUsingFP16AndFP64(1, 2); }
   auto get(properties_tag) const { return *Props; }
@@ -116,6 +116,8 @@ template <typename T> struct K_funcUsingFP16AndFP64_Warn64 {
 template <typename T> struct K_funcUsingFP16AndFP64_Warn1664 {
   T *Props;
   K_funcUsingFP16AndFP64_Warn1664(T Props_param) { Props = &Props_param; };
+  // expected-warning-re@+4 {{function '{{.*}}' uses aspect 'fp16' not listed in its 'device_has' property}}
+  // expected-warning-re@+3 {{function '{{.*}}' uses aspect 'fp64' not listed in its 'device_has' property}}
   // expected-warning-re@+2 {{function '{{.*}}' uses aspect 'fp16' not listed in its 'device_has' property}}
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'fp64' not listed in its 'device_has' property}}
   void operator()() const { int a = funcUsingFP16AndFP64(1, 2); }
@@ -150,6 +152,7 @@ template <typename T> struct K_funcIndirectlyUsingCPU {
 template <typename T> struct K_funcIndirectlyUsingCPU_WarnCPU {
   T *Props;
   K_funcIndirectlyUsingCPU_WarnCPU(T Props_param) { Props = &Props_param; };
+  // expected-warning-re@+2 {{function '{{.*}}' uses aspect 'cpu' not listed in its 'device_has' property}}
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'cpu' not listed in its 'device_has' property}}
   void operator()() const { int a = funcIndirectlyUsingCPU(1, 2); }
   auto get(properties_tag) const { return *Props; }
@@ -165,6 +168,7 @@ template <typename T> struct K_funcUsingCPUAndFP64 {
 template <typename T> struct K_funcUsingCPUAndFP64_WarnCPU {
   T *Props;
   K_funcUsingCPUAndFP64_WarnCPU(T Props_param) { Props = &Props_param; };
+  // expected-warning-re@+2 {{function '{{.*}}' uses aspect 'cpu' not listed in its 'device_has' property}}
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'cpu' not listed in its 'device_has' property}}
   void operator()() const { int a = funcUsingCPUAndFP64(1, 2); }
   auto get(properties_tag) const { return *Props; }
@@ -173,6 +177,7 @@ template <typename T> struct K_funcUsingCPUAndFP64_WarnCPU {
 template <typename T> struct K_funcUsingCPUAndFP64_Warn64 {
   T *Props;
   K_funcUsingCPUAndFP64_Warn64(T Props_param) { Props = &Props_param; };
+  // expected-warning-re@+2 {{function '{{.*}}' uses aspect 'fp64' not listed in its 'device_has' property}}
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'fp64' not listed in its 'device_has' property}}
   void operator()() const { int a = funcUsingCPUAndFP64(1, 2); }
   auto get(properties_tag) const { return *Props; }
@@ -181,6 +186,8 @@ template <typename T> struct K_funcUsingCPUAndFP64_Warn64 {
 template <typename T> struct K_funcUsingCPUAndFP64_Warn64CPU {
   T *Props;
   K_funcUsingCPUAndFP64_Warn64CPU(T Props_param) { Props = &Props_param; };
+  // expected-warning-re@+4 {{function '{{.*}}' uses aspect 'cpu' not listed in its 'device_has' property}}
+  // expected-warning-re@+3 {{function '{{.*}}' uses aspect 'fp64' not listed in its 'device_has' property}}
   // expected-warning-re@+2 {{function '{{.*}}' uses aspect 'cpu' not listed in its 'device_has' property}}
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'fp64' not listed in its 'device_has' property}}
   void operator()() const { int a = funcUsingCPUAndFP64(1, 2); }
