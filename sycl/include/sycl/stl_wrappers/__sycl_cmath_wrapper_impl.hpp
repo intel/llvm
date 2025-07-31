@@ -98,19 +98,6 @@ using __sycl_promote_t =
     return __spirv_ocl_##NAME((type)x, (type)y);                               \
   }
 
-/// <cstdlib>
-// FIXME: Move this to a cstdlib fallback header.
-
-__SYCL_DEVICE div_t div(int x, int y) { return {x / y, x % y}; }
-__SYCL_DEVICE ldiv_t ldiv(long x, long y) { return {x / y, x % y}; }
-__SYCL_DEVICE lldiv_t ldiv(long long x, long long y) { return {x / y, x % y}; }
-
-__SYCL_DEVICE long long abs(long long n) { return n < 0 ? -n : n; }
-__SYCL_DEVICE_C long long llabs(long long n) { return n < 0 ? -n : n; }
-__SYCL_DEVICE long abs(long n) { return n < 0 ? -n : n; }
-__SYCL_DEVICE int abs(int n) { return n < 0 ? -n : n; }
-__SYCL_DEVICE_C long labs(long n) { return n < 0 ? -n : n; }
-
 /// Basic operations
 //
 

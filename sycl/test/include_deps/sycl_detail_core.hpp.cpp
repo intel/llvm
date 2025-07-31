@@ -10,6 +10,7 @@
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: backend_types.hpp
+// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/export.hpp

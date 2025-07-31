@@ -1,0 +1,37 @@
+//==- cstdlib --------------------------------------------------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#pragma once
+
+// Include real STL <cstdlib> header - the next one from the include search
+// directories.
+#if defined(__has_include_next)
+// GCC/clang support go through this path.
+#include_next <cstdlib>
+#else
+// MSVC doesn't support "#include_next", so we have to be creative.
+// Our header is located in "stl_wrappers/cstdlib" so it won't be picked by the
+// following include. MSVC's installation, on the other hand, has the layout
+// where the following would result in the <cstdlib> we want. This is obviously
+// hacky, but the best we can do...
+#include <../include/cstdlib>
+#endif
+
+#ifdef __SYCL_DEVICE_ONLY__
+extern "C" {
+__attribute__((sycl_device_only, always_inline)) div_t div(int x, int y) { return {x / y, x % y}; }
+__attribute__((sycl_device_only, always_inline)) ldiv_t ldiv(long x, long y) { return {x / y, x % y}; }
+__attribute__((sycl_device_only, always_inline)) lldiv_t ldiv(long long x, long long y) { return {x / y, x % y}; }
+
+__attribute__((sycl_device_only, always_inline)) int abs(int n) { return n < 0 ? -n : n; }
+__attribute__((sycl_device_only, always_inline)) long abs(long n) { return n < 0 ? -n : n; }
+__attribute__((sycl_device_only, always_inline)) long long abs(long long n) { return n < 0 ? -n : n; }
+__attribute__((sycl_device_only, always_inline)) long labs(long n) { return n < 0 ? -n : n; }
+__attribute__((sycl_device_only, always_inline)) long long llabs(long long n) { return n < 0 ? -n : n; }
+}
+#endif // __SYCL_DEVICE_ONLY__
