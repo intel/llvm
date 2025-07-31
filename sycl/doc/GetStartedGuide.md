@@ -741,6 +741,7 @@ When building for Native CPU use the SYCL target native_cpu:
 ```bash
 clang++ -fsycl -fsycl-targets=native_cpu simple-sycl-app.cpp -o simple-sycl-app.exe
 ```
+More Native CPU build options can be found in [SYCLNativeCPU.md](design/SYCLNativeCPU.md).
 
 **Linux & Windows (64-bit)**:
 
