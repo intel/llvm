@@ -149,6 +149,66 @@ private:
       ext::oneapi::experimental::event_mode_enum::none;
 };
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+using KernelParamDescGetterFuncPtr = detail::kernel_param_desc_t (*)(int);
+
+// This class is intended to store the kernel runtime information,
+// extracted from the compile time kernel structures.
+class __SYCL_EXPORT KernelRuntimeInfo {
+public:
+  KernelRuntimeInfo() {}
+
+  KernelRuntimeInfo(const KernelRuntimeInfo &rhs) = delete;
+
+  KernelRuntimeInfo(KernelRuntimeInfo &&rhs) = delete;
+
+  KernelRuntimeInfo &operator=(const KernelRuntimeInfo &rhs) = delete;
+
+  KernelRuntimeInfo &operator=(KernelRuntimeInfo &&rhs) = delete;
+
+  detail::ABINeutralKernelNameStrT &KernelName() { return MKernelName; }
+  const detail::ABINeutralKernelNameStrT &KernelName() const { return MKernelName; }
+
+  std::shared_ptr<detail::HostKernelBase> &HostKernel() { return MHostKernel; }
+  const std::shared_ptr<detail::HostKernelBase> &HostKernel() const { return MHostKernel; }
+
+  char *GetKernelFuncPtr() { return (*MHostKernel).getPtr(); }
+  char *GetKernelFuncPtr() const { return (*MHostKernel).getPtr(); }
+
+  int &KernelNumArgs() { return MKernelNumArgs; }
+  const int &KernelNumArgs() const { return MKernelNumArgs; }
+
+  KernelParamDescGetterFuncPtr &KernelParamDescGetter() {
+    return MKernelParamDescGetter;
+  }
+  const KernelParamDescGetterFuncPtr &KernelParamDescGetter() const {
+    return MKernelParamDescGetter;
+  }
+
+  bool &KernelIsESIMD() { return MKernelIsESIMD; }
+  const bool &KernelIsESIMD() const { return MKernelIsESIMD; }
+
+  bool &KernelHasSpecialCaptures() { return MKernelHasSpecialCaptures; }
+  const bool &KernelHasSpecialCaptures() const { return MKernelHasSpecialCaptures; }
+
+  detail::KernelNameBasedCacheT *&KernelNameBasedCachePtr() {
+    return MKernelNameBasedCachePtr;
+  }
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr() const {
+    return MKernelNameBasedCachePtr;
+  }
+
+private:
+  detail::ABINeutralKernelNameStrT MKernelName;
+  std::shared_ptr<detail::HostKernelBase> MHostKernel;
+  int MKernelNumArgs = 0;
+  KernelParamDescGetterFuncPtr MKernelParamDescGetter = nullptr;
+  bool MKernelIsESIMD = false;
+  bool MKernelHasSpecialCaptures = true;
+  detail::KernelNameBasedCacheT *MKernelNameBasedCachePtr = nullptr;
+};
+#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+
 } // namespace v1
 } // namespace detail
 
@@ -167,6 +227,22 @@ template <typename CommandGroupFunc, typename PropertiesT>
 event submit_with_event_impl(const queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc);
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+template <typename KernelName, typename PropertiesT,
+          typename KernelType, int Dims>
+void submit_direct_impl(const queue &Q, PropertiesT Props,
+                        nd_range<Dims> Range,
+                        const KernelType &KernelFunc,
+                        const sycl::detail::code_location &CodeLoc);
+
+template <typename KernelName, typename PropertiesT,
+          typename KernelType, int Dims>
+event submit_direct_with_event_impl(const queue &Q, PropertiesT Props,
+                        nd_range<Dims> Range,
+                        const KernelType &KernelFunc,
+                        const sycl::detail::code_location &CodeLoc);
+#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 } // namespace detail
 } // namespace ext::oneapi::experimental
 
@@ -3203,6 +3279,31 @@ public:
         TlsCodeLocCapture.query());
   }
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// \param Range specifies the global and local work spaces of the kernel
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
+  parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    if constexpr (sizeof...(RestT) == 1) {
+      return submit_direct_with_event<KernelName, false>(ext::oneapi::experimental::empty_properties_t{},
+        Range, Rest...);
+    } else {
+      return submit(
+          [&](handler &CGH) {
+            CGH.template parallel_for<KernelName>(Range, Rest...);
+          },
+          TlsCodeLocCapture.query());
+    }
+  }
+#else
   /// parallel_for version with a kernel represented as a lambda + nd_range that
   /// specifies global, local sizes and offset.
   ///
@@ -3221,7 +3322,7 @@ public:
         },
         TlsCodeLocCapture.query());
   }
-
+#endif
   /// parallel_for version with a kernel represented as a lambda + nd_range that
   /// specifies global, local sizes and offset.
   ///
@@ -3596,6 +3697,23 @@ private:
       const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
       const sycl::detail::code_location &CodeLoc);
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+  template <typename KernelName, typename PropertiesT,
+            typename KernelType, int Dims>
+  friend void ext::oneapi::experimental::detail::submit_direct_impl(
+      const queue &Q, PropertiesT Props, nd_range<Dims> Range,
+      const KernelType &KernelFunc,
+      const sycl::detail::code_location &CodeLoc);
+
+  template <typename KernelName, typename PropertiesT,
+            typename KernelType, int Dims>
+  friend event ext::oneapi::experimental::detail::submit_direct_with_event_impl(
+      const queue &Q, PropertiesT Props, nd_range<Dims> Range,
+      const KernelType &KernelFunc,
+      const sycl::detail::code_location &CodeLoc);
+
+#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+
   template <typename PropertiesT>
   void ProcessSubmitProperties(PropertiesT Props,
                                detail::v1::SubmissionInfo &SI) const {
@@ -3608,6 +3726,37 @@ private:
         SI.EventMode() = EventModeProp.value;
     }
   }
+
+  template <int Dims, typename LambdaArgType> struct TransformUserItemType {
+    using type = std::conditional_t<
+        std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
+        std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
+                           item<Dims>, LambdaArgType>>;
+  };
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+  template <typename KernelName, typename PropertiesT, typename KernelType,
+            int Dims>
+  void ProcessKernelRuntimeInfo(
+      PropertiesT Props, const KernelType &KernelFunc,
+      detail::v1::KernelRuntimeInfo &KRInfo) const {
+
+    using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using TransformedArgType = std::conditional_t<
+        std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
+        typename TransformUserItemType<Dims, LambdaArgType>::type>;
+
+    KRInfo.HostKernel().reset(
+        new detail::HostKernel<KernelType, TransformedArgType, Dims>(
+            KernelFunc));
+    KRInfo.KernelName() = detail::getKernelName<KernelName>();
+    KRInfo.KernelNumArgs() = detail::getKernelNumParams<KernelName>();
+    KRInfo.KernelParamDescGetter() = &(detail::getKernelParamDesc<KernelName>);
+    KRInfo.KernelIsESIMD() = detail::isKernelESIMD<KernelName>();
+    KRInfo.KernelHasSpecialCaptures() = detail::hasSpecialCaptures<KernelName>();
+    KRInfo.KernelNameBasedCachePtr() = detail::getKernelNameBasedCache<KernelName>();
+  }
+#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// TODO: Unused. Remove these when ABI-break window is open.
@@ -3679,6 +3828,44 @@ private:
                                const detail::v1::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc) const;
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+  event submit_direct_with_event_impl(
+      nd_range<1> Range,
+      const detail::v1::SubmissionInfo &SubmitInfo,
+      const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+  event submit_direct_with_event_impl(
+      nd_range<2> Range,
+      const detail::v1::SubmissionInfo &SubmitInfo,
+      const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+  event submit_direct_with_event_impl(
+      nd_range<3> Range,
+      const detail::v1::SubmissionInfo &SubmitInfo,
+      const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+  void submit_direct_without_event_impl(
+      nd_range<1> Range,
+      const detail::v1::SubmissionInfo &SubmitInfo,
+      const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+  void submit_direct_without_event_impl(
+      nd_range<2> Range,
+      const detail::v1::SubmissionInfo &SubmitInfo,
+      const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+  void submit_direct_without_event_impl(
+      nd_range<3> Range,
+      const detail::v1::SubmissionInfo &SubmitInfo,
+      const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 
   /// A template-free version of submit_without_event as const member function.
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
@@ -3762,6 +3949,95 @@ private:
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
   }
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+
+#ifdef SYCL_LANGUAGE_VERSION
+#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
+#define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel_entry_point(KernelName)]]
+#else
+#define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel]]
+#endif // __INTEL_SYCL_USE_INTEGRATION_HEADERS
+#else
+#define __SYCL_KERNEL_ATTR__
+#endif // SYCL_LANGUAGE_VERSION
+
+  // TODO The kernel wrapper functions have to be moved from the handler class
+  // to a place where they are accessible by both the handler and the queue class.
+  // For test purposes, this wrapper is a copy of the handler wrapper,
+  // but an aplication which would use both handler and no-handler APIs,
+  // won't compile.
+  //
+  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
+  // Front End to determine kernel invocation kind.
+  template <typename KernelName, typename ElementType, typename KernelType,
+            typename... Props>
+#ifdef __SYCL_DEVICE_ONLY__
+  [[__sycl_detail__::add_ir_attributes_function(
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+#endif
+  __SYCL_KERNEL_ATTR__ static void
+  kernel_parallel_for(const KernelType &KernelFunc) {
+#ifdef __SYCL_DEVICE_ONLY__
+    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
+#else
+    (void)KernelFunc;
+#endif
+  }
+
+  template <typename KernelName = detail::auto_name, bool UseFallbackAssert,
+            typename PropertiesT, typename KernelType, int Dims>
+  event submit_direct_with_event(PropertiesT Props, nd_range<Dims> Range,
+                          const KernelType &KernelFunc,
+                          const detail::code_location &CodeLoc =
+                              detail::code_location::current()) const {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    detail::v1::SubmissionInfo SI{};
+    detail::v1::KernelRuntimeInfo KRInfo{};
+
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+
+    ProcessSubmitProperties(Props, SI);
+    ProcessKernelRuntimeInfo<NameT, PropertiesT, KernelType, Dims>(Props,
+      KernelFunc, KRInfo);
+
+    kernel_parallel_for<NameT, sycl::nd_item<Dims>, KernelType,
+      PropertiesT>(KernelFunc);
+
+    // TODO UseFallbackAssert
+
+    return submit_direct_with_event_impl(Range, SI, KRInfo,
+      TlsCodeLocCapture.query(), TlsCodeLocCapture.isToplevel());
+  }
+
+  template <typename KernelName = detail::auto_name, bool UseFallbackAssert,
+            typename PropertiesT, typename KernelType, int Dims>
+  void submit_direct_without_event(PropertiesT Props, nd_range<Dims> Range,
+                          const KernelType &KernelFunc,
+                          const detail::code_location &CodeLoc =
+                              detail::code_location::current()) const {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    detail::v1::SubmissionInfo SI{};
+    detail::v1::KernelRuntimeInfo KRInfo{};
+
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+
+    ProcessSubmitProperties(Props, SI);
+    ProcessKernelRuntimeInfo<NameT, PropertiesT, KernelType, Dims>(Props,
+      KernelFunc, KRInfo);
+
+    kernel_parallel_for<NameT, sycl::nd_item<Dims>, KernelType,
+      PropertiesT>(KernelFunc);
+
+    // TODO UseFallbackAssert
+
+    submit_direct_without_event_impl(Range, SI, KRInfo,
+      TlsCodeLocCapture.query(), TlsCodeLocCapture.isToplevel());
+  }
+#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
