@@ -3022,7 +3022,7 @@ bool LoopVectorizationCostModel::isPredicatedInst(Instruction *I) const {
     // is correct.  The easiest form of the later is to require that all values
     // stored are the same.
     return !(Legal->isInvariant(getLoadStorePointerOperand(I)) &&
-             Legal->isInvariant(cast<StoreInst>(I)->getValueOperand()));
+             TheLoop->isLoopInvariant(cast<StoreInst>(I)->getValueOperand()));
   }
   case Instruction::UDiv:
   case Instruction::SDiv:
@@ -7315,6 +7315,8 @@ DenseMap<const SCEV *, Value *> LoopVectorizationPlanner::executePlan(
   // Regions are dissolved after optimizing for VF and UF, which completely
   // removes unneeded loop regions first.
   VPlanTransforms::dissolveLoopRegions(BestVPlan);
+  // Canonicalize EVL loops after regions are dissolved.
+  VPlanTransforms::canonicalizeEVLLoops(BestVPlan);
   // Perform the actual loop transformation.
   VPTransformState State(&TTI, BestVF, LI, DT, ILV.AC, ILV.Builder, &BestVPlan,
                          OrigLoop->getParentLoop(),
