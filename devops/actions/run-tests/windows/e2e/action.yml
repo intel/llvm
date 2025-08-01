@@ -79,18 +79,21 @@ runs:
       LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time ${{ inputs.e2e_testing_mode == 'run-only' && 1200 || 3600 }} --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
     run: |
       cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1
+  # Two steps below are duplicated between Lin/Win actions, updates must change both
   - name: E2E logs
     if: ${{ always() }}
     shell: bash
     run: |
-      echo "::group::E2E full log"
+      echo "::group::Show Full E2E Log"
       cat e2e.log
       echo "::endgroup::"
-  - name: Report E2E failures
+  - name: Report E2E Failures
     if: steps.run_e2e.outcome != 'success'
     shell: bash
+    # For some reason Github uses the first line from the `run: |` section for
+    # the folded entry when displaying instead of this step's name.
     run: |
-        # This is duplicated between lin/win, updates must change both.
+        # Report E2E Failures
         awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
         awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log
         exit 1
