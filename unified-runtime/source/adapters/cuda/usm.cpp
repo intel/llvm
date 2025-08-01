@@ -22,6 +22,16 @@
 
 #include <cuda.h>
 
+//   _______________________________________
+// / I am a dummy change, made to trigger UR \\
+// \\ CUDA precommit testing.                 /
+//   ---------------------------------------
+//          \   ^__^ 
+//           \  (oo)\_______
+//              (__)\       )\/\\
+//                  ||----w |
+//                  ||     ||
+
 /// USM: Implements USM Host allocations using CUDA Pinned Memory
 /// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#page-locked-host-memory
 UR_APIEXPORT ur_result_t UR_APICALL
