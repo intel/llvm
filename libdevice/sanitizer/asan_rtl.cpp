@@ -395,12 +395,12 @@ void SaveReport(ErrorType error_type, MemoryType memory_type, bool is_recover,
     SanitizerReport.Func[MaxFuncIdx] = '\0';
 
     SanitizerReport.Line = line;
-    SanitizerReport.GID0 = __spirv_GlobalInvocationId_x();
-    SanitizerReport.GID1 = __spirv_GlobalInvocationId_y();
-    SanitizerReport.GID2 = __spirv_GlobalInvocationId_z();
-    SanitizerReport.LID0 = __spirv_LocalInvocationId_x();
-    SanitizerReport.LID1 = __spirv_LocalInvocationId_y();
-    SanitizerReport.LID2 = __spirv_LocalInvocationId_z();
+    SanitizerReport.GID0 = __spirv_BuiltInGlobalInvocationId(0);
+    SanitizerReport.GID1 = __spirv_BuiltInGlobalInvocationId(1);
+    SanitizerReport.GID2 = __spirv_BuiltInGlobalInvocationId(2);
+    SanitizerReport.LID0 = __spirv_BuiltInLocalInvocationId(0);
+    SanitizerReport.LID1 = __spirv_BuiltInLocalInvocationId(1);
+    SanitizerReport.LID2 = __spirv_BuiltInLocalInvocationId(2);
 
     SanitizerReport.Address = ptr;
     SanitizerReport.IsWrite = is_write;
@@ -897,7 +897,7 @@ __asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
       launch_info->PrivateShadowOffset == 0 || launch_info->PrivateBase == 0)
     return;
   // Only set on the first sub-group item
-  if (__spirv_BuiltInSubgroupLocalInvocationId == 0) {
+  if (__spirv_BuiltInSubgroupLocalInvocationId() == 0) {
     launch_info->PrivateBase[sid] = (uptr)ptr;
     ASAN_DEBUG(__spirv_ocl_printf(__asan_print_private_base, sid, ptr));
   }

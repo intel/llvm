@@ -25,6 +25,8 @@
 // CHECK-NEXT:   ""
 // CHECK-NEXT: };
 //
+// CHECK: static constexpr unsigned kernel_args_sizes[] = {
+//
 // CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT:   //--- _ZTSZ4mainE12first_kernel
