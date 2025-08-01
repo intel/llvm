@@ -72,20 +72,28 @@ runs:
     run: ls build-e2e > e2econf_files.txt
 
   - name: Run End-to-End tests
-    shell: bash {0}
+    id: run_e2e
+    continue-on-error: true
+    shell: bash
     env:
       LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time ${{ inputs.e2e_testing_mode == 'run-only' && 1200 || 3600 }} --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
     run: |
-      # Run E2E tests.
       cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1
-
-      exit_code=$?
+  - name: E2E logs
+    if: ${{ always() }}
+    shell: bash
+    run: |
+      echo "::group::E2E full log"
       cat e2e.log
-      if [ $exit_code -ne 0 ]; then
+      echo "::endgroup::"
+  - name: Report E2E failures
+    if: steps.run_e2e.outcome != 'success'
+    shell: bash
+    run: |
         # This is duplicated between lin/win, updates must change both.
         awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
-      fi
-      exit $exit_code
+        awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log
+        exit 1
 
   # Github CI doesn't support containers on Windows, so we cannot guarantee
   # that paths are the same between building and running systems. To avoid
