@@ -169,7 +169,7 @@ public:
 
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
 
-  ~HostKernel() override noexcept = default;
+  ~HostKernel() noexcept override = default;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // This function is needed for host-side compilation to keep kernels
