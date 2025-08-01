@@ -14,7 +14,6 @@
 // UNSUPPORTED: linux && run-mode
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19662
 
-
 #define SYCLCOMPAT_USM_LEVEL_NONE
 #include <sycl/detail/core.hpp>
 #include <syclcompat/memory.hpp>
