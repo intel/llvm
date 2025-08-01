@@ -2620,6 +2620,8 @@ public:
     return CreateShuffleVector(V, PoisonValue::get(V->getType()), Mask, Name);
   }
 
+  Value *CreateVectorInterleave(ArrayRef<Value *> Ops, const Twine &Name = "");
+
   Value *CreateExtractValue(Value *Agg, ArrayRef<unsigned> Idxs,
                             const Twine &Name = "") {
     if (auto *V = Folder.FoldExtractValue(Agg, Idxs))
