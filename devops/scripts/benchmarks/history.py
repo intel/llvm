@@ -209,7 +209,7 @@ class BenchmarkHistory:
             timestamp = options.timestamp_override
         else:
             timestamp = (
-                datetime.now(tz=timezone.utc).strftime(self.TIMESTAMP_FORMAT)
+                datetime.now(tz=timezone.utc).strftime(options.TIMESTAMP_FORMAT)
                 if options.timestamp_override is None
                 else options.timestamp_override
             )
