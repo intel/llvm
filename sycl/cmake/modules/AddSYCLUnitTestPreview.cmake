@@ -1,13 +1,8 @@
-include(AddSYCLUnitTestPreview)
-
 # add_sycl_unittest(test_dirname SHARED|OBJECT file1.cpp, file2.cpp ...)
 #
 # Will compile the list of files together and link against SYCL.
 # Produces a binary names `basename(test_dirname)`.
-macro(add_sycl_unittest test_dirname link_variant)
-
-  add_sycl_unittest_preview(${test_dirname}_preview ${link_variant} ${ARGN})
-
+macro(add_sycl_unittest_preview test_dirname link_variant)
   # Enable exception handling for these unit tests
   set(LLVM_REQUIRES_EH ON)
   set(LLVM_REQUIRES_RTTI ON)
@@ -16,18 +11,18 @@ macro(add_sycl_unittest test_dirname link_variant)
 
   string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
   if (MSVC AND build_type_lower MATCHES "debug")
-    set(sycl_obj_target "sycld_object")
-    set(sycl_so_target "sycld")
+    set(sycl_obj_target "sycl-previewd_object")
+    set(sycl_so_target "sycl-previewd")
   else()
-    set(sycl_obj_target "sycl_object")
-    set(sycl_so_target "sycl")
+    set(sycl_obj_target "sycl-preview_object")
+    set(sycl_so_target "sycl-preview")
   endif()
 
   if ("${link_variant}" MATCHES "SHARED")
     set(SYCL_LINK_LIBS ${sycl_so_target})
-    add_unittest(SYCLUnitTests ${test_dirname} ${ARGN})
+    add_unittest(SYCLUnitTestsPreview ${test_dirname} ${ARGN})
   else()
-    add_unittest(SYCLUnitTests ${test_dirname}
+    add_unittest(SYCLUnitTestsPreview ${test_dirname}
                 $<TARGET_OBJECTS:${sycl_obj_target}> ${ARGN})
     target_compile_definitions(${test_dirname}
                                PRIVATE __SYCL_BUILD_SYCL_DLL)
@@ -43,6 +38,9 @@ macro(add_sycl_unittest test_dirname link_variant)
       -fprofile-instr-generate -fcoverage-mapping
     )
   endif()
+
+  target_compile_definitions(${test_dirname}
+      PRIVATE __INTEL_PREVIEW_BREAKING_CHANGES)
 
   if (SYCL_ENABLE_XPTI_TRACING)
     target_compile_definitions(${test_dirname}
@@ -78,7 +76,7 @@ macro(add_sycl_unittest test_dirname link_variant)
     )
   endif()
 
-  add_dependencies(check-sycl-unittests check-sycl-${test_dirname})
+  add_dependencies(check-sycl-unittests-preview check-sycl-${test_dirname})
 
   if(WIN32)
     # Windows doesn't support LD_LIBRARY_PATH, so instead we copy the mock OpenCL binary next to the test and ensure
