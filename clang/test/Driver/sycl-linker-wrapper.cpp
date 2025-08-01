@@ -206,7 +206,7 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang %s -fsycl -fsycl-targets=native_cpu -c --offload-new-driver -o %t6.o
+// RUN: %clang %s -fsycl -fsycl-targets=native_cpu -c --offload-new-driver -fno-sycl-libspirv -o %t6.o
 //
 // RUN: clang-linker-wrapper "--host-triple=x86_64-unknown-linux-gnu" "-sycl-device-library-location=%S/Inputs/native_cpu" "--sycl-post-link-options=SYCL_POST_LINK_OPTIONS" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" %t6.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-NATIVE-CPU %s
 // CHK-CMDS-NATIVE-CPU: "{{.*}}/spirv-to-ir-wrapper" {{.*}} --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global

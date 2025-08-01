@@ -133,7 +133,7 @@ public:
 
   id<Dimensions> get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>();
+    return __spirv::initBuiltInLocalInvocationId<Dimensions, id<Dimensions>>();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "get_local_id() is not implemented on host");
@@ -182,13 +182,13 @@ public:
     detail::workGroupBarrier();
 #ifdef __SYCL_DEVICE_ONLY__
     range<Dimensions> GlobalSize{
-        __spirv::initGlobalSize<Dimensions, range<Dimensions>>()};
+        __spirv::initBuiltInGlobalSize<Dimensions, range<Dimensions>>()};
     range<Dimensions> LocalSize{
-        __spirv::initWorkgroupSize<Dimensions, range<Dimensions>>()};
+        __spirv::initBuiltInWorkgroupSize<Dimensions, range<Dimensions>>()};
     id<Dimensions> GlobalId{
-        __spirv::initGlobalInvocationId<Dimensions, id<Dimensions>>()};
+        __spirv::initBuiltInGlobalInvocationId<Dimensions, id<Dimensions>>()};
     id<Dimensions> LocalId{
-        __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>()};
+        __spirv::initBuiltInLocalInvocationId<Dimensions, id<Dimensions>>()};
 
     // no 'iterate' in the device code variant, because
     // (1) this code is already invoked by each work item as a part of the
@@ -232,13 +232,13 @@ public:
     detail::workGroupBarrier();
 #ifdef __SYCL_DEVICE_ONLY__
     range<Dimensions> GlobalSize{
-        __spirv::initGlobalSize<Dimensions, range<Dimensions>>()};
+        __spirv::initBuiltInGlobalSize<Dimensions, range<Dimensions>>()};
     range<Dimensions> LocalSize{
-        __spirv::initWorkgroupSize<Dimensions, range<Dimensions>>()};
+        __spirv::initBuiltInWorkgroupSize<Dimensions, range<Dimensions>>()};
     id<Dimensions> GlobalId{
-        __spirv::initGlobalInvocationId<Dimensions, id<Dimensions>>()};
+        __spirv::initBuiltInGlobalInvocationId<Dimensions, id<Dimensions>>()};
     id<Dimensions> LocalId{
-        __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>()};
+        __spirv::initBuiltInLocalInvocationId<Dimensions, id<Dimensions>>()};
 
     item<Dimensions, false> GlobalItem =
         detail::Builder::createItem<Dimensions, false>(GlobalSize, GlobalId);
