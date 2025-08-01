@@ -2,7 +2,6 @@
 // RUN: %{run} %t.out
 // RUN: %if windows %{  %{build} -fsycl-host-compiler=cl -fsycl-host-compiler-options='/std:c++17 /Zc:__cplusplus' -o %t2.out %}
 // RUN: %if windows %{  %{run} %t2.out  %}
-// RUN: %{run} false
 
 #include <sycl/detail/core.hpp>
 
