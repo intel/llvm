@@ -467,7 +467,7 @@ function(add_libclc_builtin_set)
           --char-signedness=${signedness}
           --input-ir=${libclc_builtins_lib}
           ${dummy_in}
-          DEPENDS ${libclc_builtins_lib} ${libclc-remangler_target} ${dummy_in})
+          DEPENDS prepare-${obj_suffix} ${libclc_builtins_lib} ${libclc-remangler_target} ${dummy_in})
         add_custom_target( "remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" ALL
           DEPENDS "${builtins_remangle_path}" "${dummy_in}")
         set_target_properties("remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}"

@@ -51,6 +51,20 @@ jobs:
 
       artifact_archive_name: sycl_linux_oneapi.tar.zst
 
+  ubuntu2404_libcxx_build:
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl-linux-build.yml
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/"
+      build_cache_suffix: libcxx
+      build_artifact_suffix: libcxx
+      build_configure_extra_args: --use-libcxx -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=OFF
+      cc: clang-18
+      cxx: clang++-18
+
+      artifact_archive_name: sycl_linux_libcxx.tar.zst
+
   ubuntu2204_test:
     needs: [ubuntu2204_build]
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
