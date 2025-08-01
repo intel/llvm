@@ -1,6 +1,4 @@
 math/clc_exp.cl
-math/clc_fmax.cl
-math/clc_fmin.cl
 math/clc_ldexp_override.cl
 math/clc_lgamma.cl
 math/clc_log.cl
