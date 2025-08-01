@@ -132,7 +132,7 @@ class OneDnnBenchmark(Benchmark):
         if not self.bench_bin.exists():
             raise FileNotFoundError(f"Benchmark binary not found: {self.bench_bin}")
 
-    def run(self, env_vars):
+    def run(self, env_vars, run_flamegraph: bool = False):
         command = [
             str(self.bench_bin),
             *self.bench_args.split(),
@@ -151,6 +151,7 @@ class OneDnnBenchmark(Benchmark):
             add_sycl=True,
             ld_library=ld_library,
             use_stdout=True,
+            run_flamegraph=run_flamegraph,
         )
         result_value = self._extract_time(output)
 

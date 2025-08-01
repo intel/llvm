@@ -12,6 +12,8 @@ from utils.result import BenchmarkMetadata, BenchmarkTag, Result
 from options import options
 from utils.utils import download, run
 from abc import ABC, abstractmethod
+from utils.flamegraph import get_flamegraph
+from utils.logger import log
 
 benchmark_tags = [
     BenchmarkTag("SYCL", "Benchmark uses SYCL runtime"),
@@ -61,6 +63,12 @@ class Benchmark(ABC):
         By default, it returns True, but can be overridden to disable a benchmark."""
         return True
 
+    def traceable(self) -> bool:
+        """Returns whether this benchmark should be traced by FlameGraph.
+        By default, it returns True, but can be overridden to disable tracing for a benchmark.
+        """
+        return True
+
     @abstractmethod
     def setup(self):
         pass
@@ -70,11 +78,12 @@ class Benchmark(ABC):
         pass
 
     @abstractmethod
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_flamegraph: bool = False) -> list[Result]:
         """Execute the benchmark with the given environment variables.
 
         Args:
             env_vars: Environment variables to use when running the benchmark.
+            run_flamegraph: Whether to run benchmark under FlameGraph.
 
         Returns:
             A list of Result objects with the benchmark results.
@@ -97,7 +106,14 @@ class Benchmark(ABC):
         ), f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
     def run_bench(
-        self, command, env_vars, ld_library=[], add_sycl=True, use_stdout=True
+        self,
+        command,
+        env_vars,
+        ld_library=[],
+        add_sycl=True,
+        use_stdout=True,
+        run_flamegraph=False,
+        extra_perf_opt=None,
     ):
         env_vars = env_vars.copy()
         if options.ur is not None:
@@ -110,13 +126,32 @@ class Benchmark(ABC):
         ld_libraries = options.extra_ld_libraries.copy()
         ld_libraries.extend(ld_library)
 
-        result = run(
-            command=command,
-            env_vars=env_vars,
-            add_sycl=add_sycl,
-            cwd=options.benchmark_cwd,
-            ld_library=ld_libraries,
-        )
+        perf_data_file = None
+        if self.traceable() and run_flamegraph:
+            if extra_perf_opt is None:
+                extra_perf_opt = []
+            perf_data_file, command = get_flamegraph().setup(
+                self.name(), command, extra_perf_opt
+            )
+            log.debug(f"FlameGraph perf data: {perf_data_file}")
+            log.debug(f"FlameGraph command: {' '.join(command)}")
+
+        try:
+            result = run(
+                command=command,
+                env_vars=env_vars,
+                add_sycl=add_sycl,
+                cwd=options.benchmark_cwd,
+                ld_library=ld_libraries,
+            )
+        except subprocess.CalledProcessError:
+            if run_flamegraph and perf_data_file:
+                get_flamegraph().cleanup(options.benchmark_cwd, perf_data_file)
+            raise
+
+        if self.traceable() and run_flamegraph and perf_data_file:
+            svg_file = get_flamegraph().handle_output(self.name(), perf_data_file)
+            log.info(f"FlameGraph generated: {svg_file}")
 
         if use_stdout:
             return result.stdout.decode()

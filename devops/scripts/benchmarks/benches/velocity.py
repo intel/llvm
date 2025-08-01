@@ -130,7 +130,7 @@ class VelocityBase(Benchmark):
     def get_tags(self):
         return ["SYCL", "application"]
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_flamegraph: bool = False) -> list[Result]:
         env_vars.update(self.extra_env_vars())
 
         command = [
@@ -138,7 +138,7 @@ class VelocityBase(Benchmark):
         ]
         command += self.bin_args()
 
-        result = self.run_bench(command, env_vars, ld_library=self.ld_libraries())
+        result = self.run_bench(command, env_vars, ld_library=self.ld_libraries(), run_flamegraph=run_flamegraph)
 
         return [
             Result(
@@ -282,7 +282,7 @@ class QuickSilver(VelocityBase):
     def __init__(self, vb: VelocityBench):
         super().__init__("QuickSilver", "qs", vb, "MMS/CTT")
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_flamegraph: bool = False) -> list[Result]:
         # TODO: fix the crash in QuickSilver when UR_L0_USE_IMMEDIATE_COMMANDLISTS=0
         if (
             "UR_L0_USE_IMMEDIATE_COMMANDLISTS" in env_vars

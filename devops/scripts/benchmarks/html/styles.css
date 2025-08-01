@@ -371,3 +371,48 @@ details[open] summary::after {
 .remove-tag:hover {
     color: #f8d7da;
 }
+
+/* FlameGraph specific styles */
+.flamegraph-error,
+.flamegraph-unavailable {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+    margin: 10px 0;
+}
+
+.flamegraph-error {
+    background-color: #fff3cd;
+    border-color: #ffeaa7;
+    color: #856404;
+}
+
+/* Updated selector to match new title format (RunName - BenchmarkName) */
+iframe[src*="flamegraphs"] {
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+    max-width: 100%;
+    width: 100%;
+    border: none;
+    overflow: hidden;
+}
+
+/* Ensure flamegraph containers have proper spacing and fit within container */
+.chart-container iframe {
+    margin-bottom: 10px;
+}
+
+/* Handle multiple flamegraphs displayed vertically */
+.chart-content iframe[src*="flamegraphs"]:not(:last-child) {
+    margin-bottom: 15px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+/* Add subtle visual separation between multiple flamegraphs */
+.chart-content iframe[src*="flamegraphs"]:not(:first-child) {
+    margin-top: 15px;
+}

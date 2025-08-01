@@ -42,6 +42,7 @@ class DetectVersionsOptions:
 
 @dataclass
 class Options:
+    TIMESTAMP_FORMAT: str = "%Y%m%d_%H%M%S"
     workdir: str = None
     sycl: str = None
     ur: str = None
@@ -69,6 +70,8 @@ class Options:
     preset: str = "Full"
     build_jobs: int = multiprocessing.cpu_count()
     exit_on_failure: bool = False
+    flamegraph: bool = False
+    save_name: str = None
 
     # Options intended for CI:
 
