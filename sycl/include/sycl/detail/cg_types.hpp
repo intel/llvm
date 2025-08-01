@@ -151,7 +151,7 @@ public:
   // Return pointer to the lambda object.
   // Used to extract captured variables.
   virtual char *getPtr() = 0;
-  virtual ~HostKernelBase() = default;
+  virtual ~HostKernelBase() noexcept = default;
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // NOTE: InstatiateKernelOnHost() should not be called.
   virtual void InstantiateKernelOnHost() = 0;
@@ -169,7 +169,7 @@ public:
 
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
 
-  ~HostKernel() = default;
+  ~HostKernel() override noexcept = default;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // This function is needed for host-side compilation to keep kernels
