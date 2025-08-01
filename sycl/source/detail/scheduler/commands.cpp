@@ -231,12 +231,12 @@ static std::string commandToName(Command::CommandType Type) {
 }
 #endif
 
-std::vector<ur_event_handle_t>
-Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
-                     queue_impl *CommandQueue, bool IsHostTaskCommand) {
+std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events,
+                                                    queue_impl *CommandQueue,
+                                                    bool IsHostTaskCommand) {
   std::vector<ur_event_handle_t> RetUrEvents;
-  for (auto &EventImpl : EventImpls) {
-    auto Handle = EventImpl->getHandle();
+  for (event_impl &Event : Events) {
+    auto Handle = Event.getHandle();
     if (Handle == nullptr)
       continue;
 
@@ -244,7 +244,7 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
     // At this stage dependency is definitely ur task and need to check if
     // current one is a host task. In this case we should not skip ur event due
     // to different sync mechanisms for different task types on in-order queue.
-    if (CommandQueue && EventImpl->getWorkerQueue().get() == CommandQueue &&
+    if (CommandQueue && Event.getWorkerQueue().get() == CommandQueue &&
         CommandQueue->isInOrder() && !IsHostTaskCommand)
       continue;
 
@@ -254,9 +254,8 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
   return RetUrEvents;
 }
 
-std::vector<ur_event_handle_t>
-Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
-  return getUrEvents(EventImpls, MWorkerQueue.get(), isHostTask());
+std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events) const {
+  return getUrEvents(Events, MWorkerQueue.get(), isHostTask());
 }
 
 // This function is implemented (duplicating getUrEvents a lot) as short term
@@ -264,29 +263,25 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
 // handle empty ur event handles when kernel is enqueued on host task
 // completion.
 std::vector<ur_event_handle_t>
-Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
-                             bool HasEventMode) const {
+Command::getUrEventsBlocking(events_range Events, bool HasEventMode) const {
   std::vector<ur_event_handle_t> RetUrEvents;
-  for (auto &EventImpl : EventImpls) {
+  for (event_impl &Event : Events) {
     // Throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
     // context, which we wish to avoid as it is expensive.
     // Skip host task and NOP events also.
-    if (EventImpl->isDefaultConstructed() || EventImpl->isHost() ||
-        EventImpl->isNOP())
+    if (Event.isDefaultConstructed() || Event.isHost() || Event.isNOP())
       continue;
 
     // If command has not been enqueued then we have to enqueue it.
     // It may happen if async enqueue in a host task is involved.
     // Interoperability events are special cases and they are not enqueued, as
     // they don't have an associated queue and command.
-    if (!EventImpl->isInterop() && !EventImpl->isEnqueued()) {
-      if (!EventImpl->getCommand() ||
-          !EventImpl->getCommand()->producesPiEvent())
+    if (!Event.isInterop() && !Event.isEnqueued()) {
+      if (!Event.getCommand() || !Event.getCommand()->producesPiEvent())
         continue;
       std::vector<Command *> AuxCmds;
-      Scheduler::getInstance().enqueueCommandForCG(EventImpl, AuxCmds,
-                                                   BLOCKING);
+      Scheduler::getInstance().enqueueCommandForCG(Event, AuxCmds, BLOCKING);
     }
     // Do not add redundant event dependencies for in-order queues.
     // At this stage dependency is definitely ur task and need to check if
@@ -296,11 +291,11 @@ Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
     // redundant events may still differ from the resulting event, so they are
     // kept.
     if (!HasEventMode && MWorkerQueue &&
-        EventImpl->getWorkerQueue() == MWorkerQueue &&
-        MWorkerQueue->isInOrder() && !isHostTask())
+        Event.getWorkerQueue() == MWorkerQueue && MWorkerQueue->isInOrder() &&
+        !isHostTask())
       continue;
 
-    RetUrEvents.push_back(EventImpl->getHandle());
+    RetUrEvents.push_back(Event.getHandle());
   }
 
   return RetUrEvents;
@@ -2315,9 +2310,252 @@ ur_mem_flags_t AccessModeToUr(access::mode AccessorMode) {
   }
 }
 
+// Gets UR argument struct for a given kernel and device based on the argument
+// type. Refactored from SetKernelParamsAndLaunch to allow it to be used in
+// the graphs extension (LaunchWithArgs for graphs is planned future work).
+static void GetUrArgsBasedOnType(
+    device_image_impl *DeviceImageImpl,
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    context_impl &ContextImpl, detail::ArgDesc &Arg, size_t NextTrueIndex,
+    std::vector<ur_exp_kernel_arg_properties_t> &UrArgs) {
+  switch (Arg.MType) {
+  case kernel_param_kind_t::kind_dynamic_work_group_memory:
+    break;
+  case kernel_param_kind_t::kind_work_group_memory:
+    break;
+  case kernel_param_kind_t::kind_stream:
+    break;
+  case kernel_param_kind_t::kind_dynamic_accessor:
+  case kernel_param_kind_t::kind_accessor: {
+    Requirement *Req = (Requirement *)(Arg.MPtr);
+
+    // getMemAllocationFunc is nullptr when there are no requirements. However,
+    // we may pass default constructed accessors to a command, which don't add
+    // requirements. In such case, getMemAllocationFunc is nullptr, but it's a
+    // valid case, so we need to properly handle it.
+    ur_mem_handle_t MemArg =
+        getMemAllocationFunc
+            ? reinterpret_cast<ur_mem_handle_t>(getMemAllocationFunc(Req))
+            : nullptr;
+    ur_exp_kernel_arg_value_t Value = {};
+    Value.memObjTuple = {MemArg, AccessModeToUr(Req->MAccessMode)};
+    UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                      UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+                      static_cast<uint32_t>(NextTrueIndex), sizeof(MemArg),
+                      Value});
+    break;
+  }
+  case kernel_param_kind_t::kind_std_layout: {
+    ur_exp_kernel_arg_type_t Type;
+    if (Arg.MPtr) {
+      Type = UR_EXP_KERNEL_ARG_TYPE_VALUE;
+    } else {
+      Type = UR_EXP_KERNEL_ARG_TYPE_LOCAL;
+    }
+    ur_exp_kernel_arg_value_t Value = {};
+    Value.value = {Arg.MPtr};
+    UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                      Type, static_cast<uint32_t>(NextTrueIndex),
+                      static_cast<size_t>(Arg.MSize), Value});
+
+    break;
+  }
+  case kernel_param_kind_t::kind_sampler: {
+    sampler *SamplerPtr = (sampler *)Arg.MPtr;
+    ur_exp_kernel_arg_value_t Value = {};
+    Value.sampler = (ur_sampler_handle_t)detail::getSyclObjImpl(*SamplerPtr)
+                        ->getOrCreateSampler(ContextImpl);
+    UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                      UR_EXP_KERNEL_ARG_TYPE_SAMPLER,
+                      static_cast<uint32_t>(NextTrueIndex),
+                      sizeof(ur_sampler_handle_t), Value});
+    break;
+  }
+  case kernel_param_kind_t::kind_pointer: {
+    ur_exp_kernel_arg_value_t Value = {};
+    // We need to de-rerence to get the actual USM allocation - that's the
+    // pointer UR is expecting.
+    Value.pointer = *static_cast<void *const *>(Arg.MPtr);
+    UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                      UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                      static_cast<uint32_t>(NextTrueIndex), sizeof(Arg.MPtr),
+                      Value});
+    break;
+  }
+  case kernel_param_kind_t::kind_specialization_constants_buffer: {
+    assert(DeviceImageImpl != nullptr);
+    ur_mem_handle_t SpecConstsBuffer =
+        DeviceImageImpl->get_spec_const_buffer_ref();
+    ur_exp_kernel_arg_value_t Value = {};
+    Value.memObjTuple = {SpecConstsBuffer, UR_MEM_FLAG_READ_ONLY};
+    UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                      UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+                      static_cast<uint32_t>(NextTrueIndex),
+                      sizeof(SpecConstsBuffer), Value});
+    break;
+  }
+  case kernel_param_kind_t::kind_invalid:
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "Invalid kernel param kind " +
+                              codeToString(UR_RESULT_ERROR_INVALID_VALUE));
+    break;
+  }
+}
+
+static ur_result_t SetKernelParamsAndLaunch(
+    queue_impl &Queue, std::vector<ArgDesc> &Args,
+    device_image_impl *DeviceImageImpl, ur_kernel_handle_t Kernel,
+    NDRDescT &NDRDesc, std::vector<ur_event_handle_t> &RawEvents,
+    detail::event_impl *OutEventImpl, const KernelArgMask *EliminatedArgMask,
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    bool IsCooperative, bool KernelUsesClusterLaunch,
+    uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
+    KernelNameStrRefT KernelName,
+    KernelNameBasedCacheT *KernelNameBasedCachePtr,
+    void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
+    bool KernelHasSpecialCaptures = true) {
+  adapter_impl &Adapter = Queue.getAdapter();
+
+  if (SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
+    std::vector<unsigned char> Empty;
+    Kernel = Scheduler::getInstance().completeSpecConstMaterialization(
+        Queue, BinImage, KernelName,
+        DeviceImageImpl ? DeviceImageImpl->get_spec_const_blob_ref() : Empty);
+  }
+
+  std::vector<ur_exp_kernel_arg_properties_t> UrArgs;
+  UrArgs.reserve(Args.size());
+
+  if (KernelFuncPtr && !KernelHasSpecialCaptures) {
+    auto setFunc = [&UrArgs,
+                    KernelFuncPtr](const detail::kernel_param_desc_t &ParamDesc,
+                                   size_t NextTrueIndex) {
+      const void *ArgPtr = (const char *)KernelFuncPtr + ParamDesc.offset;
+      switch (ParamDesc.kind) {
+      case kernel_param_kind_t::kind_std_layout: {
+        int Size = ParamDesc.info;
+        ur_exp_kernel_arg_value_t Value = {};
+        Value.value = ArgPtr;
+        UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                          UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                          static_cast<uint32_t>(NextTrueIndex),
+                          static_cast<size_t>(Size), Value});
+        break;
+      }
+      case kernel_param_kind_t::kind_pointer: {
+        ur_exp_kernel_arg_value_t Value = {};
+        Value.pointer = *static_cast<const void *const *>(ArgPtr);
+        UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                          UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                          static_cast<uint32_t>(NextTrueIndex),
+                          sizeof(Value.pointer), Value});
+        break;
+      }
+      default:
+        throw std::runtime_error("Direct kernel argument copy failed.");
+      }
+    };
+    applyFuncOnFilteredArgs(EliminatedArgMask, KernelNumArgs,
+                            KernelParamDescGetter, setFunc);
+  } else {
+    auto setFunc = [&DeviceImageImpl, &getMemAllocationFunc, &Queue,
+                    &UrArgs](detail::ArgDesc &Arg, size_t NextTrueIndex) {
+      GetUrArgsBasedOnType(DeviceImageImpl, getMemAllocationFunc,
+                           Queue.getContextImpl(), Arg, NextTrueIndex, UrArgs);
+    };
+    applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
+  }
+
+  std::optional<int> ImplicitLocalArg =
+      ProgramManager::getInstance().kernelImplicitLocalArgPos(
+          KernelName, KernelNameBasedCachePtr);
+  // Set the implicit local memory buffer to support
+  // get_work_group_scratch_memory. This is for backend not supporting
+  // CUDA-style local memory setting. Note that we may have -1 as a position,
+  // this indicates the buffer is actually unused and was elided.
+  if (ImplicitLocalArg.has_value() && ImplicitLocalArg.value() != -1) {
+    UrArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                      nullptr,
+                      UR_EXP_KERNEL_ARG_TYPE_LOCAL,
+                      static_cast<uint32_t>(ImplicitLocalArg.value()),
+                      WorkGroupMemorySize,
+                      {nullptr}});
+  }
+
+  adjustNDRangePerKernel(NDRDesc, Kernel, Queue.getDeviceImpl());
+
+  // Remember this information before the range dimensions are reversed
+  const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
+
+  ReverseRangeDimensionsForKernel(NDRDesc);
+
+  size_t RequiredWGSize[3] = {0, 0, 0};
+  size_t *LocalSize = nullptr;
+
+  if (HasLocalSize)
+    LocalSize = &NDRDesc.LocalSize[0];
+  else {
+    Adapter.call<UrApiKind::urKernelGetGroupInfo>(
+        Kernel, Queue.getDeviceImpl().getHandleRef(),
+        UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
+        RequiredWGSize,
+        /* pPropSizeRet = */ nullptr);
+
+    const bool EnforcedLocalSize =
+        (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
+         RequiredWGSize[2] != 0);
+    if (EnforcedLocalSize)
+      LocalSize = RequiredWGSize;
+  }
+  const bool HasOffset = NDRDesc.GlobalOffset[0] != 0 ||
+                         NDRDesc.GlobalOffset[1] != 0 ||
+                         NDRDesc.GlobalOffset[2] != 0;
+
+  std::vector<ur_kernel_launch_property_t> property_list;
+
+  if (KernelUsesClusterLaunch) {
+    ur_kernel_launch_property_value_t launch_property_value_cluster_range;
+    launch_property_value_cluster_range.clusterDim[0] =
+        NDRDesc.ClusterDimensions[0];
+    launch_property_value_cluster_range.clusterDim[1] =
+        NDRDesc.ClusterDimensions[1];
+    launch_property_value_cluster_range.clusterDim[2] =
+        NDRDesc.ClusterDimensions[2];
+
+    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION,
+                             launch_property_value_cluster_range});
+  }
+  if (IsCooperative) {
+    ur_kernel_launch_property_value_t launch_property_value_cooperative;
+    launch_property_value_cooperative.cooperative = 1;
+    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE,
+                             launch_property_value_cooperative});
+  }
+  // If there is no implicit arg, let the driver handle it via a property
+  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
+    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY,
+                             {{WorkGroupMemorySize}}});
+  }
+  ur_event_handle_t UREvent = nullptr;
+  ur_result_t Error =
+      Adapter.call_nocheck<UrApiKind::urEnqueueKernelLaunchWithArgsExp>(
+          Queue.getHandleRef(), Kernel, NDRDesc.Dims,
+          HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr,
+          &NDRDesc.GlobalSize[0], LocalSize, UrArgs.size(), UrArgs.data(),
+          property_list.size(),
+          property_list.empty() ? nullptr : property_list.data(),
+          RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+          OutEventImpl ? &UREvent : nullptr);
+  if (Error == UR_RESULT_SUCCESS && OutEventImpl) {
+    OutEventImpl->setHandle(UREvent);
+  }
+
+  return Error;
+}
+
 // Sets arguments for a given kernel and device based on the argument type.
-// Refactored from SetKernelParamsAndLaunch to allow it to be used in the graphs
-// extension.
+// This is a legacy path which the graphs extension still uses.
 static void SetArgBasedOnType(
     adapter_impl &Adapter, ur_kernel_handle_t Kernel,
     device_image_impl *DeviceImageImpl,
@@ -2396,142 +2634,6 @@ static void SetArgBasedOnType(
                               codeToString(UR_RESULT_ERROR_INVALID_VALUE));
     break;
   }
-}
-
-static ur_result_t SetKernelParamsAndLaunch(
-    queue_impl &Queue, std::vector<ArgDesc> &Args,
-    device_image_impl *DeviceImageImpl, ur_kernel_handle_t Kernel,
-    NDRDescT &NDRDesc, std::vector<ur_event_handle_t> &RawEvents,
-    detail::event_impl *OutEventImpl, const KernelArgMask *EliminatedArgMask,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    bool IsCooperative, bool KernelUsesClusterLaunch,
-    uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
-    KernelNameStrRefT KernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr,
-    void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
-    detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
-    bool KernelHasSpecialCaptures = true) {
-  adapter_impl &Adapter = Queue.getAdapter();
-
-  if (SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
-    std::vector<unsigned char> Empty;
-    Kernel = Scheduler::getInstance().completeSpecConstMaterialization(
-        Queue, BinImage, KernelName,
-        DeviceImageImpl ? DeviceImageImpl->get_spec_const_blob_ref() : Empty);
-  }
-
-  if (KernelFuncPtr && !KernelHasSpecialCaptures) {
-    auto setFunc = [&Adapter, Kernel,
-                    KernelFuncPtr](const detail::kernel_param_desc_t &ParamDesc,
-                                   size_t NextTrueIndex) {
-      const void *ArgPtr = (const char *)KernelFuncPtr + ParamDesc.offset;
-      switch (ParamDesc.kind) {
-      case kernel_param_kind_t::kind_std_layout: {
-        int Size = ParamDesc.info;
-        Adapter.call<UrApiKind::urKernelSetArgValue>(Kernel, NextTrueIndex,
-                                                     Size, nullptr, ArgPtr);
-        break;
-      }
-      case kernel_param_kind_t::kind_pointer: {
-        const void *Ptr = *static_cast<const void *const *>(ArgPtr);
-        Adapter.call<UrApiKind::urKernelSetArgPointer>(Kernel, NextTrueIndex,
-                                                       nullptr, Ptr);
-        break;
-      }
-      default:
-        throw std::runtime_error("Direct kernel argument copy failed.");
-      }
-    };
-    applyFuncOnFilteredArgs(EliminatedArgMask, KernelNumArgs,
-                            KernelParamDescGetter, setFunc);
-  } else {
-    auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
-                    &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
-      SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl, getMemAllocationFunc,
-                        Queue.getContextImpl(), Arg, NextTrueIndex);
-    };
-    applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
-  }
-
-  std::optional<int> ImplicitLocalArg =
-      ProgramManager::getInstance().kernelImplicitLocalArgPos(
-          KernelName, KernelNameBasedCachePtr);
-  // Set the implicit local memory buffer to support
-  // get_work_group_scratch_memory. This is for backend not supporting
-  // CUDA-style local memory setting. Note that we may have -1 as a position,
-  // this indicates the buffer is actually unused and was elided.
-  if (ImplicitLocalArg.has_value() && ImplicitLocalArg.value() != -1) {
-    Adapter.call<UrApiKind::urKernelSetArgLocal>(
-        Kernel, ImplicitLocalArg.value(), WorkGroupMemorySize, nullptr);
-  }
-
-  adjustNDRangePerKernel(NDRDesc, Kernel, Queue.getDeviceImpl());
-
-  // Remember this information before the range dimensions are reversed
-  const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
-
-  ReverseRangeDimensionsForKernel(NDRDesc);
-
-  size_t RequiredWGSize[3] = {0, 0, 0};
-  size_t *LocalSize = nullptr;
-
-  if (HasLocalSize)
-    LocalSize = &NDRDesc.LocalSize[0];
-  else {
-    Adapter.call<UrApiKind::urKernelGetGroupInfo>(
-        Kernel, Queue.getDeviceImpl().getHandleRef(),
-        UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
-        RequiredWGSize,
-        /* pPropSizeRet = */ nullptr);
-
-    const bool EnforcedLocalSize =
-        (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
-         RequiredWGSize[2] != 0);
-    if (EnforcedLocalSize)
-      LocalSize = RequiredWGSize;
-  }
-  const bool HasOffset = NDRDesc.GlobalOffset[0] != 0 ||
-                         NDRDesc.GlobalOffset[1] != 0 ||
-                         NDRDesc.GlobalOffset[2] != 0;
-
-  std::vector<ur_kernel_launch_property_t> property_list;
-
-  if (KernelUsesClusterLaunch) {
-    ur_kernel_launch_property_value_t launch_property_value_cluster_range;
-    launch_property_value_cluster_range.clusterDim[0] =
-        NDRDesc.ClusterDimensions[0];
-    launch_property_value_cluster_range.clusterDim[1] =
-        NDRDesc.ClusterDimensions[1];
-    launch_property_value_cluster_range.clusterDim[2] =
-        NDRDesc.ClusterDimensions[2];
-
-    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION,
-                             launch_property_value_cluster_range});
-  }
-  if (IsCooperative) {
-    ur_kernel_launch_property_value_t launch_property_value_cooperative;
-    launch_property_value_cooperative.cooperative = 1;
-    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE,
-                             launch_property_value_cooperative});
-  }
-  // If there is no implicit arg, let the driver handle it via a property
-  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
-    property_list.push_back({UR_KERNEL_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY,
-                             {{WorkGroupMemorySize}}});
-  }
-  ur_event_handle_t UREvent = nullptr;
-  ur_result_t Error = Adapter.call_nocheck<UrApiKind::urEnqueueKernelLaunch>(
-      Queue.getHandleRef(), Kernel, NDRDesc.Dims,
-      HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr, &NDRDesc.GlobalSize[0],
-      LocalSize, property_list.size(),
-      property_list.empty() ? nullptr : property_list.data(), RawEvents.size(),
-      RawEvents.empty() ? nullptr : &RawEvents[0],
-      OutEventImpl ? &UREvent : nullptr);
-  if (Error == UR_RESULT_SUCCESS && OutEventImpl) {
-    OutEventImpl->setHandle(UREvent);
-  }
-
-  return Error;
 }
 
 static std::tuple<ur_kernel_handle_t, device_image_impl *,

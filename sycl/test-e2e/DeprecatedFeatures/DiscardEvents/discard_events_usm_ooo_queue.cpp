@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 //
-// On level_zero Q.fill uses urEnqueueKernelLaunch and not urEnqueueUSMFill
-// due to https://github.com/intel/llvm/issues/13787
+// On level_zero Q.fill uses urEnqueueKernelLaunchWithArgsExp and not
+// urEnqueueUSMFill due to https://github.com/intel/llvm/issues/13787
 //
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt --check-prefixes=CHECK%if level_zero %{,CHECK-L0%} %else %{,CHECK-OTHER%}
 //
@@ -25,7 +25,7 @@
 // CHECK: -> UR_RESULT_SUCCESS
 //
 // Level-zero backend doesn't use urEnqueueUSMFill
-// CHECK-L0: <--- urEnqueueKernelLaunch
+// CHECK-L0: <--- urEnqueueKernelLaunchWithArgsExp
 // CHECK-L0: .phEvent = {{[0-9a-f]+}}
 // CHECK-OTHER: <--- urEnqueueUSMFill({{.*}} .phEvent = {{[0-9a-f]+}}
 // CHECK: -> UR_RESULT_SUCCESS
@@ -47,12 +47,12 @@
 // CHECK: <--- urEnqueueEventsWaitWithBarrier
 // CHECK: -> UR_RESULT_SUCCESS
 //
-// CHECK-NOT: <--- urEnqueueKernelLaunch({{.*}} .phEvent = nullptr
-// CHECK: <--- urEnqueueKernelLaunch
+// CHECK-NOT: <--- urEnqueueKernelLaunchWithArgsExp({{.*}} .phEvent = nullptr
+// CHECK: <--- urEnqueueKernelLaunchWithArgsExp
 // CHECK: -> UR_RESULT_SUCCESS
 //
-// CHECK-NOT: <--- urEnqueueKernelLaunch({{.*}} .phEvent = nullptr
-// CHECK: <--- urEnqueueKernelLaunch
+// CHECK-NOT: <--- urEnqueueKernelLaunchWithArgsExp({{.*}} .phEvent = nullptr
+// CHECK: <--- urEnqueueKernelLaunchWithArgsExp
 // CHECK: -> UR_RESULT_SUCCESS
 //
 // RegularQueue
@@ -74,7 +74,7 @@
 // CHECK: -> UR_RESULT_SUCCESS
 //
 // Level-zero backend doesn't use urEnqueueUSMFill
-// CHECK-L0: <--- urEnqueueKernelLaunch
+// CHECK-L0: <--- urEnqueueKernelLaunchWithArgsExp
 // CHECK-L0: .phEvent = {{[0-9a-f]+}}
 // CHECK-OTHER: <--- urEnqueueUSMFill({{.*}} .phEvent = {{[0-9a-f]+}}
 // CHECK: -> UR_RESULT_SUCCESS
@@ -96,12 +96,12 @@
 // CHECK: <--- urEnqueueEventsWaitWithBarrier
 // CHECK: -> UR_RESULT_SUCCESS
 //
-// CHECK-NOT: <--- urEnqueueKernelLaunch({{.*}} .phEvent = nullptr
-// CHECK: <--- urEnqueueKernelLaunch
+// CHECK-NOT: <--- urEnqueueKernelLaunchWithArgsExp({{.*}} .phEvent = nullptr
+// CHECK: <--- urEnqueueKernelLaunchWithArgsExp
 // CHECK: -> UR_RESULT_SUCCESS
 //
-// CHECK-NOT: <--- urEnqueueKernelLaunch({{.*}} .phEvent = nullptr
-// CHECK: <--- urEnqueueKernelLaunch
+// CHECK-NOT: <--- urEnqueueKernelLaunchWithArgsExp({{.*}} .phEvent = nullptr
+// CHECK: <--- urEnqueueKernelLaunchWithArgsExp
 // CHECK: -> UR_RESULT_SUCCESS
 //
 // RegularQueue

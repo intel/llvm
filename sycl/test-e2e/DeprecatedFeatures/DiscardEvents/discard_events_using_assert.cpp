@@ -6,10 +6,10 @@
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
 //
 // The test checks that the last parameter is not `nullptr` for
-// urEnqueueKernelLaunch.
+// urEnqueueKernelLaunchWithArgsExp.
 //
-// CHECK-NOT: <--- urEnqueueKernelLaunch({{.*}}.phEvent = nullptr
-// CHECK: <--- urEnqueueKernelLaunch
+// CHECK-NOT: <--- urEnqueueKernelLaunchWithArgsExp({{.*}}.phEvent = nullptr
+// CHECK: <--- urEnqueueKernelLaunchWithArgsExp
 // CHECK: -> UR_RESULT_SUCCESS
 //
 // CHECK: The test passed.

@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
   queue q;
 
   submit_kernel(q); // starts a batch
-                    // CHECK: ---> urEnqueueKernelLaunch
+                    // CHECK: ---> urEnqueueKernelLaunchWithArgsExp
                     // CHECK-NOT: zeCommandQueueExecuteCommandLists
 
   // Initialize Level Zero driver is required if this test is linked
@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
   // CHECK-NOT: zeCommandQueueExecuteCommandLists
 
   submit_kernel(q);
-  // CHECK: ---> urEnqueueKernelLaunch
+  // CHECK: ---> urEnqueueKernelLaunchWithArgsExp
   // CHECK-NOT: zeCommandQueueExecuteCommandLists
 
   // interop should close the batch
