@@ -15,9 +15,9 @@
 #include_next <cmath>
 #else
 // MSVC doesn't support "#include_next", so we have to be creative.
-// Our header is located in "stl_wrappers/complex" so it won't be picked by the
+// Our header is located in "stl_wrappers/cmath" so it won't be picked by the
 // following include. MSVC's installation, on the other hand, has the layout
-// where the following would result in the <complex> we want. This is obviously
+// where the following would result in the <cmath> we want. This is obviously
 // hacky, but the best we can do...
 #include <../include/cmath>
 #endif
