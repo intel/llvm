@@ -11,7 +11,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: linux && run-mode
+// UNSUPPORTED: linux && run-mode && level_zero_v2_adapter
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19662
 
 #define SYCLCOMPAT_USM_LEVEL_NONE
