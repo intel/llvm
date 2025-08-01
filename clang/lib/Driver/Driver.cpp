@@ -7583,7 +7583,8 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
       // -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc"
       if (TC->getTriple().isSPIRAOT() &&
           TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-          Arg->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
+          (Arg->getOption().matches(options::OPT_Xsycl_backend_EQ) ||
+           Arg->getOption().matches(options::OPT_Xsycl_backend))) {
         const ToolChain *HostTC =
             C.getSingleOffloadToolChain<Action::OFK_Host>();
         auto DeviceTC = std::make_unique<toolchains::SYCLToolChain>(
