@@ -4342,6 +4342,7 @@ bool AttributedType::isCallingConv() const {
   case attr::PreserveNone:
   case attr::RISCVVectorCC:
   case attr::RISCVVLSCC:
+  case attr::NativeCPULibclcCall:
     return true;
   }
   llvm_unreachable("invalid attr kind");
