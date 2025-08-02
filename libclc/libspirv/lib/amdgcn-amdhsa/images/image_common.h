@@ -2,7 +2,7 @@
 #define CLC_SPIRV_IMAGE_COMMON
 
 #include <clc/clc_as_type.h>
-#include <clc/opencl/clc.h>
+#include <clc/opencl/opencl-base.h>
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable

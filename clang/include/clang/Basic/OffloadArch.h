@@ -11,6 +11,7 @@
 
 namespace llvm {
 class StringRef;
+template <typename T, typename R> class StringSwitch;
 } // namespace llvm
 
 namespace clang {
@@ -103,9 +104,62 @@ enum class OffloadArch {
   Generic, // A processor model named 'generic' if the target backend defines a
            // public one.
   // Intel CPUs
+  SKYLAKEAVX512,
+  COREAVX2,
+  COREI7AVX,
+  COREI7,
+  WESTMERE,
+  SANDYBRIDGE,
+  IVYBRIDGE,
+  BROADWELL,
+  COFFEELAKE,
+  ALDERLAKE,
+  SKYLAKE,
+  SKX,
+  CASCADELAKE,
+  ICELAKECLIENT,
+  ICELAKESERVER,
+  SAPPHIRERAPIDS,
   GRANITERAPIDS,
   // Intel GPUs
+  BDW,
+  SKL,
+  KBL,
+  CFL,
+  APL,
+  BXT,
+  GLK,
+  WHL,
+  AML,
+  CML,
+  ICLLP,
+  ICL,
+  EHL,
+  JSL,
+  TGLLP,
+  TGL,
+  RKL,
+  ADL_S,
+  RPL_S,
+  ADL_P,
+  ADL_N,
+  DG1,
+  ACM_G10,
+  DG2_G10,
+  ACM_G11,
+  DG2_G11,
+  ACM_G12,
+  DG2_G12,
+  PVC,
+  PVC_VG,
+  MTL_U,
+  MTL_S,
+  ARL_U,
+  ARL_S,
+  MTL_H,
+  ARL_H,
   BMG_G21,
+  LNL_M,
   LAST,
 
   CudaDefault = OffloadArch::SM_52,
@@ -122,15 +176,39 @@ static inline bool IsAMDOffloadArch(OffloadArch A) {
 }
 
 static inline bool IsIntelCPUOffloadArch(OffloadArch Arch) {
-  return Arch >= OffloadArch::GRANITERAPIDS && Arch < OffloadArch::BMG_G21;
+  return Arch >= OffloadArch::SKYLAKEAVX512 &&
+         Arch <= OffloadArch::GRANITERAPIDS;
 }
 
 static inline bool IsIntelGPUOffloadArch(OffloadArch Arch) {
-  return Arch >= OffloadArch::BMG_G21 && Arch < OffloadArch::LAST;
+  return Arch >= OffloadArch::BDW && Arch < OffloadArch::LAST;
 }
 
 static inline bool IsIntelOffloadArch(OffloadArch Arch) {
   return IsIntelCPUOffloadArch(Arch) || IsIntelGPUOffloadArch(Arch);
+}
+
+// Check if the given Arch value is a Generic AMD GPU.
+// Currently GFX*_GENERIC AMD GPUs do not support SYCL offloading.
+// This list is used to filter out GFX*_GENERIC AMD GPUs in
+// `IsSYCLSupportedAMDGPUArch`.
+static inline bool IsAMDGenericGPUArch(OffloadArch Arch) {
+  return Arch == OffloadArch::GFX9_GENERIC ||
+         Arch == OffloadArch::GFX10_1_GENERIC ||
+         Arch == OffloadArch::GFX10_3_GENERIC ||
+         Arch == OffloadArch::GFX11_GENERIC ||
+         Arch == OffloadArch::GFX12_GENERIC;
+}
+
+// Check if the given Arch value is a valid SYCL supported AMD GPU.
+static inline bool IsSYCLSupportedAMDGPUArch(OffloadArch Arch) {
+  return Arch >= OffloadArch::GFX700 && Arch < OffloadArch::AMDGCNSPIRV &&
+         !IsAMDGenericGPUArch(Arch);
+}
+
+// Check if the given Arch value is a valid SYCL supported NVidia GPU.
+static inline bool IsSYCLSupportedNVidiaGPUArch(OffloadArch Arch) {
+  return Arch >= OffloadArch::SM_50 && Arch <= OffloadArch::SM_90a;
 }
 
 const char *OffloadArchToString(OffloadArch A);

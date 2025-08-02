@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
+#include <clc/internal/clc.h>
 #include <libspirv/ptx-nvidiacl/intrinsics.h>
 #include <libspirv/spirv.h>
 
@@ -37,19 +37,36 @@ __CLC_MUL_HI_IMPL(ushort, __spirv_ocl_u_mul_hi, uchar, 8)
 __CLC_MUL_HI_IMPL(int, __spirv_ocl_s_mul_hi, short, 16)
 __CLC_MUL_HI_IMPL(uint, __spirv_ocl_u_mul_hi, ushort, 16)
 
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, char, __spirv_ocl_s_mul_hi, char,
-                      char)
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, short, __spirv_ocl_s_mul_hi,
-                      short, short)
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, int, __spirv_ocl_s_mul_hi, int,
-                      int)
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, long, __spirv_ocl_s_mul_hi, long,
-                      long)
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uchar, __spirv_ocl_u_mul_hi,
-                      uchar, uchar)
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __spirv_ocl_u_mul_hi,
-                      ushort, ushort)
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uint, __spirv_ocl_u_mul_hi, uint,
-                      uint)
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ulong, __spirv_ocl_u_mul_hi,
-                      ulong, ulong)
+#define __CLC_SCALAR
+
+#define FUNCTION __spirv_ocl_s_mul_hi
+#define __CLC_GENTYPE char
+#include <clc/shared/binary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+#define __CLC_GENTYPE short
+#include <clc/shared/binary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+#define __CLC_GENTYPE int
+#include <clc/shared/binary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+#define __CLC_GENTYPE long
+#include <clc/shared/binary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+#undef FUNCTION
+
+#define FUNCTION __spirv_ocl_u_mul_hi
+#define __CLC_GENTYPE uchar
+#include <clc/shared/binary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+#define __CLC_GENTYPE ushort
+#include <clc/shared/binary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+#define __CLC_GENTYPE uint
+#include <clc/shared/binary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+#define __CLC_GENTYPE ulong
+#include <clc/shared/binary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+#undef FUNCTION
+
+#undef __CLC_SCALAR

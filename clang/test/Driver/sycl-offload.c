@@ -415,16 +415,16 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 2: compiler, {1}, ir, (host-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 3: input, "[[INPUT]]", c++, (device-sycl, skl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, skl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 5: compiler, {4}, ir, (device-sycl, skl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 6: backend, {5}, ir, (device-sycl, skl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 7: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {6}, ir
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 8: input, "[[INPUT]]", c++, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 9: preprocessor, {8}, c++-cpp-output, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 10: compiler, {9}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 11: backend, {10}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 12: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {11}, ir
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 3: input, "[[INPUT]]", c++, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 5: compiler, {4}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 6: backend, {5}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 7: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {6}, ir
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 8: input, "[[INPUT]]", c++, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 9: preprocessor, {8}, c++-cpp-output, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 10: compiler, {9}, ir, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 11: backend, {10}, ir, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 12: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {11}, ir
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 13: clang-offload-packager, {7, 12}, image, (device-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 14: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {13}, ir
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 15: backend, {14}, assembler, (host-sycl)

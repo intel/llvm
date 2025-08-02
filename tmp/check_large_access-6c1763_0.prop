@@ -1,0 +1,14 @@
+[SYCL/devicelib req mask]
+DeviceLibReqMask=1|0
+[SYCL/device requirements]
+aspects=2|AAAAAAAAAAA
+[SYCL/kernel param opt]
+_ZN12_GLOBAL__N_119__msan_report_errorEjPU3AS2KcjS1_=2|EAAAAAAAAAAA
+_ZN12_GLOBAL__N_121__msan_get_shadow_pvcEmj=2|CAAAAAAAAAAA
+_ZN12_GLOBAL__N_127__msan_internal_report_saveEjPU3AS2KcjS1_=2|EAAAAAAAAAAA
+_ZN12_GLOBAL__N_121__msan_get_shadow_dg2Emj=2|CAAAAAAAAAAA
+[SYCL/misc properties]
+optLevel=1|1
+sanUsed=2|gAAAAAAAAAQbzFmb
+[SYCL/device globals]
+_Z20__MsanKernelMetadata=2|ABAAAAAAAAAIAAAABAAAAA

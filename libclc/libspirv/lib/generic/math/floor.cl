@@ -9,7 +9,7 @@
 #include <clc/math/clc_floor.h>
 
 #define FUNCTION __spirv_ocl_floor
-#define __CLC_FUNCTION(x) __clc_floor
+#define __IMPL_FUNCTION(x) __clc_floor
 #define __CLC_BODY <clc/shared/unary_def.inc>
 
 #include <clc/math/gentype.inc>

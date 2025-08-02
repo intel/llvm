@@ -8,7 +8,8 @@
 #include <libspirv/spirv.h>
 
 #include <libspirv/ptx-nvidiacl/libdevice.h>
-#include <clc/clcmacro.h>
+
+#define FUNCTION __clc_native_tanh
 
 extern int __clc_nvvm_reflect_arch();
 
@@ -18,7 +19,10 @@ _CLC_DEF _CLC_OVERLOAD float __clc_native_tanh(float x) {
   return (__USE_TANH_APPROX) ? __nvvm_tanh_approx_f(x) : __nv_tanhf(x);
 }
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __clc_native_tanh, float)
+#define __FLOAT_ONLY
+#define __CLC_BODY <clc/shared/unary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __FLOAT_ONLY
 
 #ifdef cl_khr_fp16
 
@@ -33,9 +37,16 @@ _CLC_DEF _CLC_OVERLOAD half2 __clc_native_tanh(half2 x) {
                              : (half2)(__nv_tanhf(x.x), __nv_tanhf(x.y));
 }
 
-_CLC_UNARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __clc_native_tanh, half)
+#undef __CLC_MIN_VECSIZE
+#define __CLC_MIN_VECSIZE 3
+#define __HALF_ONLY
+#define __CLC_BODY <clc/shared/unary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __HALF_ONLY
+#undef __CLC_MIN_VECSIZE
 
 #endif
 
 #undef __USE_TANH_APPROX
 
+#undef FUNCTION

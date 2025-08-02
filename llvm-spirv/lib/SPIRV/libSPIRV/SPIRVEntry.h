@@ -412,7 +412,10 @@ public:
       std::stringstream SS;
       SS << "Id: " << Id << ", OpCode: " << OpCodeNameMap::map(OpCode)
          << ", Name: \"" << Name << "\"\n";
-      getErrorLog().checkError(false, SPIRVEC_InvalidWordCount, SS.str());
+      getErrorLog().checkError(
+          false, SPIRVEC_InvalidWordCount,
+          "Can't encode instruction with word count greater than 65535:\n" +
+              SS.str());
     }
   }
   void validateFunctionControlMask(SPIRVWord FCtlMask) const;
@@ -911,6 +914,11 @@ public:
       return ExtensionID::SPV_INTEL_vector_compute;
     case internal::CapabilitySubgroupRequirementsINTEL:
       return ExtensionID::SPV_INTEL_subgroup_requirements;
+    case CapabilityFPFastMathModeINTEL:
+      return ExtensionID::SPV_INTEL_fp_fast_math_mode;
+    case CapabilityFunctionVariantsINTEL:
+    case CapabilitySpecConditionalINTEL:
+      return ExtensionID::SPV_INTEL_function_variants;
     default:
       return {};
     }
