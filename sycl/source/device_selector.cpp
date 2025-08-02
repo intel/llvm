@@ -186,11 +186,8 @@ __SYCL_EXPORT int default_selector_v(const device &dev) {
   if (dev.is_cpu())
     Score += 300;
 
-  // Since we deprecate SYCL_BE and SYCL_DEVICE_TYPE,
-  // we should not disallow accelerator to be chosen.
-  // But this device type gets the lowest heuristic point.
   if (dev.is_accelerator())
-    Score += 75;
+    Score = detail::REJECT_DEVICE_SCORE;
 
   // Add preference score.
   Score += detail::getDevicePreference(dev);
@@ -220,15 +217,8 @@ __SYCL_EXPORT int cpu_selector_v(const device &dev) {
   return Score;
 }
 
-__SYCL_EXPORT int accelerator_selector_v(const device &dev) {
-  int Score = detail::REJECT_DEVICE_SCORE;
-
-  traceDeviceSelector("info::device_type::accelerator");
-  if (dev.is_accelerator()) {
-    Score = 1000;
-    Score += detail::getDevicePreference(dev);
-  }
-  return Score;
+__SYCL_EXPORT int accelerator_selector_v(const device &) {
+  return detail::REJECT_DEVICE_SCORE;
 }
 
 __SYCL_EXPORT detail::DSelectorInvocableType
