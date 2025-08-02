@@ -249,7 +249,6 @@ class CGExecKernel : public CG {
 public:
   /// Stores ND-range description.
   NDRDescT MNDRDesc;
-  std::shared_ptr<HostKernelBase> MHostKernel;
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
@@ -265,7 +264,7 @@ public:
   bool MKernelUsesClusterLaunch = false;
   size_t MKernelWorkGroupMemorySize = 0;
 
-  CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
+  CGExecKernel(NDRDescT NDRDesc,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
@@ -277,8 +276,7 @@ public:
                bool KernelIsCooperative, bool MKernelUsesClusterLaunch,
                size_t KernelWorkGroupMemorySize, detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
-        MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
-        MSyclKernel(std::move(SyclKernel)),
+        MNDRDesc(std::move(NDRDesc)), MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)),
         MKernelNameBasedCachePtr(KernelNameBasedCachePtr),

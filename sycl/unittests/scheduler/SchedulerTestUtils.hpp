@@ -233,9 +233,6 @@ public:
   std::vector<std::shared_ptr<sycl::detail::stream_impl>> &getStreamStorage() {
     return MStreamStorage;
   }
-  std::unique_ptr<sycl::detail::HostKernelBase> &getHostKernel() {
-    return MHostKernel;
-  }
   std::vector<std::vector<char>> &getArgsStorage() {
     return impl->CGData.MArgsStorage;
   }
@@ -300,9 +297,9 @@ public:
     switch (getType()) {
     case sycl::detail::CGType::Kernel: {
       CommandGroup.reset(new sycl::detail::CGExecKernel(
-          getNDRDesc(), std::move(getHostKernel()), getKernel(),
-          std::move(impl->MKernelBundle), std::move(CGData), getArgs(),
-          getKernelName(), impl->MKernelNameBasedCachePtr, getStreamStorage(),
+          getNDRDesc(), getKernel(), std::move(impl->MKernelBundle),
+          std::move(CGData), getArgs(), getKernelName(),
+          impl->MKernelNameBasedCachePtr, getStreamStorage(),
           impl->MAuxiliaryResources, getType(), {}, impl->MKernelIsCooperative,
           impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
           getCodeLoc()));
