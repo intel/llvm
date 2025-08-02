@@ -17,19 +17,31 @@
 
 // SPIR-V built-in variables mapped to function call.
 
-__DPCPP_SYCL_EXTERNAL size_t __spirv_BuiltInGlobalInvocationId(int);
-__DPCPP_SYCL_EXTERNAL size_t __spirv_BuiltInGlobalSize(int);
-__DPCPP_SYCL_EXTERNAL size_t __spirv_BuiltInGlobalOffset(int);
-__DPCPP_SYCL_EXTERNAL size_t __spirv_BuiltInNumWorkgroups(int);
-__DPCPP_SYCL_EXTERNAL size_t __spirv_BuiltInWorkgroupSize(int);
-__DPCPP_SYCL_EXTERNAL size_t __spirv_BuiltInWorkgroupId(int);
-__DPCPP_SYCL_EXTERNAL size_t __spirv_BuiltInLocalInvocationId(int);
+__DPCPP_SYCL_EXTERNAL __attribute__((const)) size_t
+__spirv_BuiltInGlobalInvocationId(int);
+__DPCPP_SYCL_EXTERNAL __attribute__((const)) size_t
+__spirv_BuiltInGlobalSize(int);
+__DPCPP_SYCL_EXTERNAL __attribute__((const)) size_t
+__spirv_BuiltInGlobalOffset(int);
+__DPCPP_SYCL_EXTERNAL __attribute__((const)) size_t
+__spirv_BuiltInNumWorkgroups(int);
+__DPCPP_SYCL_EXTERNAL __attribute__((const)) size_t
+__spirv_BuiltInWorkgroupSize(int);
+__DPCPP_SYCL_EXTERNAL __attribute__((const)) size_t
+__spirv_BuiltInWorkgroupId(int);
+__DPCPP_SYCL_EXTERNAL __attribute__((const)) size_t
+__spirv_BuiltInLocalInvocationId(int);
 
-__DPCPP_SYCL_EXTERNAL uint32_t __spirv_BuiltInSubgroupSize();
-__DPCPP_SYCL_EXTERNAL uint32_t __spirv_BuiltInSubgroupMaxSize();
-__DPCPP_SYCL_EXTERNAL uint32_t __spirv_BuiltInNumSubgroups();
-__DPCPP_SYCL_EXTERNAL uint32_t __spirv_BuiltInSubgroupId();
-__DPCPP_SYCL_EXTERNAL uint32_t __spirv_BuiltInSubgroupLocalInvocationId();
+__DPCPP_SYCL_EXTERNAL __attribute__((const)) uint32_t
+__spirv_BuiltInSubgroupSize();
+__DPCPP_SYCL_EXTERNAL __attribute__((const)) uint32_t
+__spirv_BuiltInSubgroupMaxSize();
+__DPCPP_SYCL_EXTERNAL __attribute__((const)) uint32_t
+__spirv_BuiltInNumSubgroups();
+__DPCPP_SYCL_EXTERNAL __attribute__((const)) uint32_t
+__spirv_BuiltInSubgroupId();
+__DPCPP_SYCL_EXTERNAL __attribute__((const)) uint32_t
+__spirv_BuiltInSubgroupLocalInvocationId();
 
 namespace __spirv {
 
