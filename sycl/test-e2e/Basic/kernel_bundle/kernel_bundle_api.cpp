@@ -227,7 +227,7 @@ int main() {
     // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
     // CHECK-SAME:-> UR_RESULT_SUCCESS;
     //
-    // CHECK:<--- urEnqueueKernelLaunchWithArgsExp(
+    // CHECK:<--- urEnqueueKernelLaunch(
     // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
     //
     // CHECK:<--- urKernelRelease(
