@@ -32,13 +32,6 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" {
-extern __DPCPP_SYCL_EXTERNAL_LIBC int abs(int x);
-extern __DPCPP_SYCL_EXTERNAL_LIBC long int labs(long int x);
-extern __DPCPP_SYCL_EXTERNAL_LIBC long long int llabs(long long int x);
-
-extern __DPCPP_SYCL_EXTERNAL_LIBC div_t div(int x, int y);
-extern __DPCPP_SYCL_EXTERNAL_LIBC ldiv_t ldiv(long int x, long int y);
-extern __DPCPP_SYCL_EXTERNAL_LIBC lldiv_t lldiv(long long int x, long long int y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float scalbnf(float x, int n);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double scalbn(double x, int n);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float logf(float x);

@@ -112,19 +112,6 @@ using __sycl_promote_t =
     return __spirv_ocl_##NAME((type)x, (type)y);                               \
   }
 
-/// <cstdlib>
-// FIXME: Move this to a cstdlib fallback header.
-
-__SYCL_DEVICE_C div_t div(int x, int y) { return {x / y, x % y}; }
-__SYCL_DEVICE_C ldiv_t ldiv(long x, long y) { return {x / y, x % y}; }
-__SYCL_DEVICE_C lldiv_t lldiv(long long x, long long y) {
-  return {x / y, x % y};
-}
-
-__SYCL_DEVICE int abs(int n) { return n < 0 ? -n : n; }
-__SYCL_DEVICE_C long labs(long n) { return n < 0 ? -n : n; }
-__SYCL_DEVICE_C long long llabs(long long n) { return n < 0 ? -n : n; }
-
 /// Basic operations
 //
 
@@ -298,20 +285,6 @@ namespace std {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
 #endif
-
-// <cstdlib>
-using ::abs;
-__SYCL_DEVICE long abs(long n) { return n < 0 ? -n : n; }
-__SYCL_DEVICE long long abs(long long n) { return n < 0 ? -n : n; }
-
-using ::div;
-__SYCL_DEVICE ldiv_t div(long x, long y) { return {x / y, x % y}; }
-__SYCL_DEVICE lldiv_t div(long long x, long long y) { return {x / y, x % y}; }
-
-using ::labs;
-using ::ldiv;
-using ::llabs;
-using ::lldiv;
 
 // Basic operations
 // using ::abs is already pulled in above
