@@ -417,19 +417,17 @@ ur_result_t urKernelSetArgPointer(
   return exceptionToResult(std::current_exception());
 }
 
-static ur_mem_buffer_t::device_access_mode_t memAccessFromKernelProperties(
-    const ur_kernel_arg_mem_obj_properties_t *pProperties) {
-  if (pProperties) {
-    switch (pProperties->memoryAccess) {
-    case UR_MEM_FLAG_READ_WRITE:
-      return ur_mem_buffer_t::device_access_mode_t::read_write;
-    case UR_MEM_FLAG_WRITE_ONLY:
-      return ur_mem_buffer_t::device_access_mode_t::write_only;
-    case UR_MEM_FLAG_READ_ONLY:
-      return ur_mem_buffer_t::device_access_mode_t::read_only;
-    default:
-      return ur_mem_buffer_t::device_access_mode_t::read_write;
-    }
+static ur_mem_buffer_t::device_access_mode_t
+memAccessFromKernelProperties(const ur_mem_flags_t &Flags) {
+  switch (Flags) {
+  case UR_MEM_FLAG_READ_WRITE:
+    return ur_mem_buffer_t::device_access_mode_t::read_write;
+  case UR_MEM_FLAG_WRITE_ONLY:
+    return ur_mem_buffer_t::device_access_mode_t::write_only;
+  case UR_MEM_FLAG_READ_ONLY:
+    return ur_mem_buffer_t::device_access_mode_t::read_only;
+  default:
+    return ur_mem_buffer_t::device_access_mode_t::read_write;
   }
   return ur_mem_buffer_t::device_access_mode_t::read_write;
 }
@@ -443,7 +441,10 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
 
   UR_CALL(hKernel->addPendingMemoryAllocation(
-      {hArgValue, memAccessFromKernelProperties(pProperties), argIndex}));
+      {hArgValue,
+       memAccessFromKernelProperties(pProperties ? pProperties->memoryAccess
+                                                 : 0),
+       argIndex}));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {

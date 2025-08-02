@@ -57,7 +57,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 
   if (PerformInitialCopy) {
     OL_RETURN_ON_ERR(olMemcpy(nullptr, Ptr, OffloadDevice, HostPtr,
-                              Adapter->HostDevice, size, nullptr));
+                              Adapter->HostDevice, size));
   }
 
   *phBuffer = URMemObj.release();

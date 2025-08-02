@@ -11251,6 +11251,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Add any SYCL offloading specific options to the clang-linker-wrapper
   if (C.hasOffloadToolChain<Action::OFK_SYCL>()) {
+
+    if (Args.hasArg(options::OPT_fsycl_link_EQ))
+      CmdArgs.push_back(Args.MakeArgString("--sycl-device-link"));
+
     // -sycl-device-libraries=<comma separated list> contains all of the SYCL
     // device specific libraries that are needed. This generic list will be
     // populated with device binaries for all target triples in the current

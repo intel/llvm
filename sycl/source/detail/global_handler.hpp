@@ -63,8 +63,6 @@ public:
   Sync &getSync();
   std::vector<std::shared_ptr<platform_impl>> &getPlatformCache();
 
-  void clearPlatforms();
-
   std::unordered_map<platform_impl *, std::shared_ptr<context_impl>> &
   getPlatformToDefaultContextCache();
 
@@ -98,7 +96,7 @@ private:
 
   bool OkToDefer = true;
 
-  friend void shutdown_early();
+  friend void shutdown_early(bool);
   friend void shutdown_late();
   friend class ObjectUsageCounter;
   static GlobalHandler *&getInstancePtr();

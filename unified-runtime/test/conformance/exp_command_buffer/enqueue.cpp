@@ -201,6 +201,6 @@ TEST_P(urEnqueueCommandBufferExpTest, EnqueueAndRelease) {
       in_or_out_of_order_queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Release the command buffer without explicitly waiting beforehand
-  EXPECT_SUCCESS(urCommandBufferReleaseExp(cmd_buf_handle));
+  ASSERT_SUCCESS(urCommandBufferReleaseExp(cmd_buf_handle));
   cmd_buf_handle = nullptr;
 }

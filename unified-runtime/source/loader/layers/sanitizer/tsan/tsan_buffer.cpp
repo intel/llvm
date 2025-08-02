@@ -99,6 +99,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
 
   std::scoped_lock<ur_shared_mutex> Guard(Mutex);
   auto &Allocation = Allocations[Device];
+  auto CI = getTsanInterceptor()->getContextInfo(Context);
   ur_result_t URes = UR_RESULT_SUCCESS;
   if (!Allocation) {
     ur_usm_desc_t USMDesc{};
@@ -114,7 +115,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
     }
 
     if (HostPtr) {
-      ManagedQueue Queue(Context, Device);
+      ur_queue_handle_t Queue = CI->getInternalQueue(Device);
       URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
           Queue, true, Allocation, HostPtr, Size, 0, nullptr, nullptr);
       if (URes != UR_RESULT_SUCCESS) {
@@ -155,7 +156,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
 
     // Copy data from last synced device to host
     {
-      ManagedQueue Queue(Context, LastSyncedDevice.hDevice);
+      ur_queue_handle_t Queue = CI->getInternalQueue(Device);
       URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
           Queue, true, HostAllocation, LastSyncedDevice.MemHandle, Size, 0,
           nullptr, nullptr);
@@ -168,7 +169,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
 
     // Sync data back to device
     {
-      ManagedQueue Queue(Context, Device);
+      ur_queue_handle_t Queue = CI->getInternalQueue(Device);
       URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
           Queue, true, Allocation, HostAllocation, Size, 0, nullptr, nullptr);
       if (URes != UR_RESULT_SUCCESS) {
