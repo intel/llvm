@@ -85,7 +85,7 @@ macro(add_sycl_unittest test_dirname link_variant)
     # that the test itself links to OpenCL (rather than through ur_adapter_opencl.dll)
     set(mock_ocl ${CMAKE_CURRENT_BINARY_DIR}/OpenCL.dll)
     add_custom_command(TARGET ${test_dirname} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:mockOpenCL> ${mock_ocl}
+      COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:mockOpenCL> ${mock_ocl}
       DEPENDS mockOpenCL
       BYPRODUCTS ${mock_ocl}
       COMMAND_EXPAND_LISTS
