@@ -177,6 +177,10 @@ jobs:
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |
         cmake --build build --target check-sycl-unittests
+    - name: check-sycl-unittests-preview
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+      run: |
+        cmake --build build --target check-sycl-unittests-preview
     - name: check-llvm-spirv
       if: always() && !cancelled() && contains(inputs.changes, 'llvm_spirv')
       run: |

@@ -136,7 +136,8 @@ public:
   using sycl::handler::impl;
 
   MockHandler(sycl::detail::queue_impl &Queue)
-      : sycl::handler(Queue.shared_from_this(), /*CallerNeedsEvent*/ true) {}
+      : sycl::handler(std::make_unique<sycl::detail::handler_impl>(
+            Queue, nullptr, /*CallerNeedsEvent*/ true)) {}
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     auto CGH = static_cast<sycl::handler *>(this);

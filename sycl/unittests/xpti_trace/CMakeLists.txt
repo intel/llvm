@@ -7,3 +7,4 @@ add_sycl_unittest(XptiTraceTests OBJECT
     QueueIDCheck.cpp
 )
 target_link_libraries(XptiTraceTests PRIVATE xpti xptitest_subscriber)
+target_link_libraries(XptiTraceTests_preview PRIVATE xpti xptitest_subscriber)
