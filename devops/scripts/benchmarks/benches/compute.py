@@ -51,7 +51,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "83b9ae3ebb3563552409f3a317cdc1cf3d3ca6bd"
+        return "c9e135d4f26dd6badd83009f92f25d6285fc1e21"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -73,6 +73,8 @@ class ComputeBench(Suite):
             f"-DBUILD_SYCL=ON",
             f"-DSYCL_COMPILER_ROOT={options.sycl}",
             f"-DALLOW_WARNINGS=ON",
+            f"-DCMAKE_CXX_COMPILER=clang++",
+            f"-DCMAKE_C_COMPILER=clang",
         ]
 
         if options.ur_adapter == "cuda":
