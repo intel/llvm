@@ -51,27 +51,21 @@ endif()
 
 macro(append_common_extra_security_flags)
   # Compiler Warnings and Error Detection
-  # Note: in intel/llvm we build both linux and win with --ci-defaults.
-  # This flag also enables -Werror or /WX.
-  if(is_gcc
-     OR is_clang
-     OR (is_icpx AND MSVC))
-    add_compile_option_ext("-Wall" WALL)
-    add_compile_option_ext("-Wextra" WEXTRA)
-  elseif(is_icpx)
-    add_compile_option_ext("/Wall" WALL)
-  elseif(is_msvc)
-    add_compile_option_ext("/W4" WALL)
-  endif()
-
-  if(CMAKE_BUILD_TYPE MATCHES "Release")
-    if(is_gcc
-       OR is_clang
-       OR (is_icpx AND MSVC))
-      add_compile_option_ext("-Wconversion" WCONVERSION)
-      add_compile_option_ext("-Wimplicit-fallthrough" WIMPLICITFALLTHROUGH)
-    endif()
-  endif()
+  # Any flags applied here will be applied globally to all LLVM sub-projects.
+  # Since LLVM itself is not warning-free, enabling any extra warnings globally
+  # will most likely cause -Werror build to fail. Therefore, any necessary
+  # warnings should be enabled on a per-project basis.
+  # Things that we care about:
+  # - sycl
+  # - sycl-jit
+  # - unified-runtime
+  # - xpti
+  # - xptifw
+  # - SYCL-specific passes in LLVM (SYCLLowerIR, sycl-post-link, etc.)
+  # - SYCL-specific files in clang (SemaSYCL.cpp, etc.)
+  # The list above may not be complete and it is given for reference in case
+  # someone needs to enable more flags. There is also no guarantee that all
+  # sub-projects above already use all necessary flags uniformly.
 
   # Control Flow Integrity
   if(is_gcc

@@ -16,6 +16,26 @@ if (SYCL_ENABLE_XPTI_TRACING)
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
 endif()
 
+if(is_gcc
+   OR is_clang
+   OR (is_icpx AND MSVC))
+  add_compile_option_ext("-Wall" WALL)
+  add_compile_option_ext("-Wextra" WEXTRA)
+elseif(is_icpx)
+  add_compile_option_ext("/Wall" WALL)
+elseif(is_msvc)
+  add_compile_option_ext("/W4" WALL)
+endif()
+
+if(CMAKE_BUILD_TYPE MATCHES "Release")
+  if(is_gcc
+     OR is_clang
+     OR (is_icpx AND MSVC))
+    add_compile_option_ext("-Wconversion" WCONVERSION)
+    add_compile_option_ext("-Wimplicit-fallthrough" WIMPLICITFALLTHROUGH)
+  endif()
+endif()
+
 function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Add an optional argument so we can get the library name to
   # link with for Windows Debug version
