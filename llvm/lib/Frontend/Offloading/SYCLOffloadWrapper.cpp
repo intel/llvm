@@ -34,6 +34,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/PropertySetIO.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <memory>
 #include <string>
@@ -734,6 +735,51 @@ struct Wrapper {
     // Add this function to global destructors.
     appendToGlobalDtors(M, Func, /*Priority*/ 1);
   }
+
+  void createSyclRegisterWithAtexitUnregister(GlobalVariable *FatbinDesc) {
+    auto *UnregFuncTy =
+        FunctionType::get(Type::getVoidTy(C), /*isVarArg*/ false);
+    auto *UnregFunc =
+        Function::Create(UnregFuncTy, GlobalValue::InternalLinkage,
+                         "sycl.descriptor_unreg.atexit", &M);
+    UnregFunc->setSection(".text.startup");
+
+    // Declaration for __sycl_unregister_lib(void*).
+    auto *UnregTargetTy =
+        FunctionType::get(Type::getVoidTy(C), PointerType::getUnqual(C), false);
+    FunctionCallee UnregTargetC =
+        M.getOrInsertFunction("__sycl_unregister_lib", UnregTargetTy);
+
+    // Body of the unregister wrapper.
+    IRBuilder<> UnregBuilder(BasicBlock::Create(C, "entry", UnregFunc));
+    UnregBuilder.CreateCall(UnregTargetC, FatbinDesc);
+    UnregBuilder.CreateRetVoid();
+
+    auto *RegFuncTy = FunctionType::get(Type::getVoidTy(C), /*isVarArg*/ false);
+    auto *RegFunc = Function::Create(RegFuncTy, GlobalValue::InternalLinkage,
+                                     "sycl.descriptor_reg", &M);
+    RegFunc->setSection(".text.startup");
+
+    auto *RegTargetTy =
+        FunctionType::get(Type::getVoidTy(C), PointerType::getUnqual(C), false);
+    FunctionCallee RegTargetC =
+        M.getOrInsertFunction("__sycl_register_lib", RegTargetTy);
+
+    // `atexit` takes a `void(*)()` function pointer. In LLVM IR, this is
+    // typically represented as `i32 (ptr)`.
+    FunctionType *AtExitTy = FunctionType::get(
+        Type::getInt32Ty(C), PointerType::getUnqual(C), false);
+    FunctionCallee AtExitC = M.getOrInsertFunction("atexit", AtExitTy);
+
+    IRBuilder<> RegBuilder(BasicBlock::Create(C, "entry", RegFunc));
+    RegBuilder.CreateCall(RegTargetC, FatbinDesc);
+    RegBuilder.CreateCall(AtExitC, UnregFunc);
+    RegBuilder.CreateRetVoid();
+
+    // Add to global constructors.
+    appendToGlobalCtors(M, RegFunc, /*Priority*/ 1);
+  }
+
 }; // end of Wrapper
 
 } // anonymous namespace
@@ -747,7 +793,11 @@ Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M,
     return createStringError(inconvertibleErrorCode(),
                              "No binary descriptors created.");
 
-  W.createRegisterFatbinFunction(Desc);
-  W.createUnregisterFunction(Desc);
+  if (Triple(M.getTargetTriple()).isOSWindows()) {
+    W.createSyclRegisterWithAtexitUnregister(Desc);
+  } else {
+    W.createRegisterFatbinFunction(Desc);
+    W.createUnregisterFunction(Desc);
+  }
   return Error::success();
 }
