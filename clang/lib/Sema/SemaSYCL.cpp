@@ -1153,17 +1153,15 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
 
 // The SYCL kernel's 'object type' used for diagnostics and naming/mangling is
 // the first parameter to a function template using the sycl_kernel
-// attribute. In SYCL 1.2.1, this was passed by value,
-// and in SYCL 2020, it is passed by reference.
+// attribute.
 static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
   assert(KernelCaller->getNumParams() > 0 && "Insufficient kernel parameters");
   QualType KernelParamTy = KernelCaller->getParamDecl(0)->getType();
 
-  // SYCL 2020 kernels are passed by reference.
+  // The kernel parameter is supposed to be a reference, but diagnostics are
+  // done at a later stage, so we accept a by-value kernel function type here.
   if (KernelParamTy->isReferenceType())
     KernelParamTy = KernelParamTy->getPointeeType();
-
-  // SYCL 1.2.1
   return KernelParamTy.getUnqualifiedType();
 }
 
@@ -5243,13 +5241,9 @@ void SemaSYCL::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
       }
   }
 
-  // check that calling kernel conforms to spec
-  QualType KernelParamTy = KernelFunc->getParamDecl(0)->getType();
-  if (not KernelParamTy->isReferenceType()) {
-    // passing by value.  emit warning if using SYCL 2020 or greater
-    if (SemaRef.LangOpts.getSYCLVersion() >= LangOptions::SYCL_2020)
-      Diag(KernelFunc->getLocation(), diag::warn_sycl_pass_by_value_deprecated);
-  }
+  // SYCL only supports passing kernel functions by reference.
+  if (!KernelFunc->getParamDecl(0)->getType()->isReferenceType())
+    Diag(KernelFunc->getLocation(), diag::err_sycl_kernel_pass_by_value);
 
   // Do not visit invalid kernel object.
   if (KernelObj->isInvalidDecl())
@@ -5396,8 +5390,8 @@ void SemaSYCL::SetSYCLKernelNames() {
 //
 // Example of kernel caller function:
 //   template <typename KernelName, typename KernelType/*, ...*/>
-//   __attribute__((sycl_kernel)) void kernel_caller_function(KernelType
-//                                                            KernelFuncObj) {
+//   __attribute__((sycl_kernel))
+//   void kernel_caller_function(const KernelType &KernelFuncObj) {
 //     KernelFuncObj();
 //   }
 //

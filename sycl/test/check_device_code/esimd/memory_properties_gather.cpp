@@ -21,7 +21,8 @@ using AccType = sycl::accessor<uint8_t, 1, sycl::access::mode::read_write>;
 using LocalAccType = sycl::local_accessor<double, 1>;
 using LocalAccTypeInt = sycl::local_accessor<int, 1>;
 
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_gather(AccType &, LocalAccType &,
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_gather(const AccType &,
+                                                   const LocalAccType &,
                                                    float *, int byte_offset32,
                                                    size_t byte_offset64);
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_slm_gather(int byte_offset32);
@@ -34,14 +35,14 @@ public:
   float *ptr;
   int byte_offset32;
   size_t byte_offset64;
-  void operator()() __attribute__((sycl_explicit_simd)) {
+  void operator()() const __attribute__((sycl_explicit_simd)) {
     test_gather(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_slm_gather(byte_offset32);
   }
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
@@ -54,7 +55,7 @@ void bar(AccType &acc, LocalAccType &local_acc, LocalAccTypeInt &local_acc_int,
 
 // CHECK-LABEL: define {{.*}} @_Z11test_gather{{.*}}
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
-test_gather(AccType &acc, LocalAccType &local_acc, float *ptrf,
+test_gather(const AccType &acc, const LocalAccType &local_acc, float *ptrf,
             int byte_offset32, size_t byte_offset64) {
   properties props_cache_load{cache_hint_L1<cache_hint::uncached>,
                               cache_hint_L2<cache_hint::uncached>,

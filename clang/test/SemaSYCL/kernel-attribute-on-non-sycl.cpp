@@ -9,6 +9,6 @@
 #endif
 
 template <typename T, typename A, int B>
-__attribute__((sycl_kernel)) void foo(T P);
+__attribute__((sycl_kernel)) void foo(const T& P);
 template <typename T, typename A, int B>
-[[clang::sycl_kernel]] void foo1(T P);
+[[clang::sycl_kernel]] void foo1(const T& P);

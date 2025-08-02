@@ -6,7 +6,8 @@
 //
 // expected-no-diagnostics
 class Empty {};
-template <typename, typename F> __attribute__((sycl_kernel)) void kernel(F) {
+template <typename, typename F> __attribute__((sycl_kernel))
+void kernel(const F&) {
     __builtin_sycl_unique_stable_name(F);
 }
 

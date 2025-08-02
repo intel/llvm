@@ -558,11 +558,6 @@ ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc, kernel_ha
   kernelFunc(kh);
 }
 
-template <typename KernelName, typename KernelType>
-ATTR_SYCL_KERNEL void kernel_single_task_2017(KernelType kernelFunc) { // #KernelSingleTask2017
-  kernelFunc();
-}
-
 template <typename KernelName, typename KernelType, int Dims>
 ATTR_SYCL_KERNEL void
 kernel_parallel_for(const KernelType &KernelFunc) {
@@ -624,16 +619,6 @@ public:
     kernel_single_task<NameT>(kernelFunc, kh);
 #else
     kernelFunc(kh);
-#endif
-  }
-
-  template <typename KernelName = auto_name, typename KernelType>
-  void single_task_2017(KernelType kernelFunc) {
-    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
-#ifdef __SYCL_DEVICE_ONLY__
-    kernel_single_task_2017<NameT>(kernelFunc);
-#else
-    kernelFunc();
 #endif
   }
 };

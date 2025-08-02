@@ -3,12 +3,12 @@
 // RUNX: %clang_cc1 -fsycl-is-host -fsyntax-only -verify %s
 
 template <typename Name, typename F>
-__attribute__((sycl_kernel)) void kernel(F kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const F &kernelFunc) {
   kernelFunc();
 }
 
 template <typename Name, typename F>
-void uses_kernel(F kernelFunc) {
+void uses_kernel(const F &kernelFunc) {
   // expected-error@+1{{kernel parameter must be a lambda or function object}}
   kernel<Name>(kernelFunc);
 }

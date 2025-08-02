@@ -146,7 +146,7 @@ previous code snippet above looks like this:
 ```C++
 // SYCL kernel is defined in SYCL headers:
 template <typename KernelName, typename KernelType/*, ...*/>
-__attribute__((sycl_kernel)) void sycl_kernel_function(KernelType KernelFuncObj) {
+__attribute__((sycl_kernel)) void sycl_kernel_function(const KernelType &KernelFuncObj) {
   // ...
   KernelFuncObj();
 }

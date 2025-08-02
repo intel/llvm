@@ -11,43 +11,43 @@ __attribute__((sycl_kernel)) void foo(); // expected-warning {{'sycl_kernel' att
 
 // Attribute takes no arguments
 template <typename T, typename A>
-__attribute__((sycl_kernel(1))) void foo(T P); // expected-error {{'sycl_kernel' attribute takes no arguments}}
+__attribute__((sycl_kernel(1))) void foo(const T &P); // expected-error {{'sycl_kernel' attribute takes no arguments}}
 template <typename T, typename A, int I>
-[[clang::sycl_kernel(1)]] void foo1(T P);// expected-error {{'sycl_kernel' attribute takes no arguments}}
+[[clang::sycl_kernel(1)]] void foo1(const T &P);// expected-error {{'sycl_kernel' attribute takes no arguments}}
 
 // At least two template parameters
 template <typename T>
-__attribute__((sycl_kernel)) void foo(T P); // expected-warning {{'sycl_kernel' attribute only applies to a function template with at least two template parameters}}
+__attribute__((sycl_kernel)) void foo(const T &P); // expected-warning {{'sycl_kernel' attribute only applies to a function template with at least two template parameters}}
 template <typename T>
-[[clang::sycl_kernel]] void foo1(T P); // expected-warning {{'sycl_kernel' attribute only applies to a function template with at least two template parameters}}
+[[clang::sycl_kernel]] void foo1(const T &P); // expected-warning {{'sycl_kernel' attribute only applies to a function template with at least two template parameters}}
 
 // First two template parameters cannot be non-type template parameters
 template <typename T, int A>
-__attribute__((sycl_kernel)) void foo(T P); // expected-warning {{template parameter of a function template with the 'sycl_kernel' attribute cannot be a non-type template parameter}}
+__attribute__((sycl_kernel)) void foo(const T &P); // expected-warning {{template parameter of a function template with the 'sycl_kernel' attribute cannot be a non-type template parameter}}
 template <int A, typename T>
-[[clang::sycl_kernel]] void foo1(T P); // expected-warning {{template parameter of a function template with the 'sycl_kernel' attribute cannot be a non-type template parameter}}
+[[clang::sycl_kernel]] void foo1(const T &P); // expected-warning {{template parameter of a function template with the 'sycl_kernel' attribute cannot be a non-type template parameter}}
 
 // Must return void
 template <typename T, typename A>
-__attribute__((sycl_kernel)) int foo(T P); // expected-warning {{function template with 'sycl_kernel' attribute must have a 'void' return type}}
+__attribute__((sycl_kernel)) int foo(const T &P); // expected-warning {{function template with 'sycl_kernel' attribute must have a 'void' return type}}
 template <typename T, typename A>
-[[clang::sycl_kernel]] int foo1(T P); // expected-warning {{function template with 'sycl_kernel' attribute must have a 'void' return type}}
+[[clang::sycl_kernel]] int foo1(const T &P); // expected-warning {{function template with 'sycl_kernel' attribute must have a 'void' return type}}
 
 // Must take at least one argument
 template <typename T, typename A>
 __attribute__((sycl_kernel)) void foo(); // expected-warning {{function template with 'sycl_kernel' attribute must have at least one parameter}}
 template <typename T, typename A>
-[[clang::sycl_kernel]] void foo1(T t, A a); // no diagnostics
+[[clang::sycl_kernel]] void foo1(const T &t, A a); // no diagnostics
 
 // No diagnostics
 template <typename T, typename A>
-__attribute__((sycl_kernel)) void foo(T P);
+__attribute__((sycl_kernel)) void foo(const T &P);
 template <typename T, typename A, int I>
-[[clang::sycl_kernel]] void foo1(T P);
+[[clang::sycl_kernel]] void foo1(const T &P);
 
 #else
 
 // expected-no-diagnostics
 template <typename T, typename A>
-__attribute__((sycl_kernel)) void foo(T P);
+__attribute__((sycl_kernel)) void foo(const T &P);
 #endif

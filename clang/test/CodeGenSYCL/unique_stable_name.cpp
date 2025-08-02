@@ -61,29 +61,29 @@ struct Derp {
 };
 
 template <typename KernelName, typename KernelType>
-[[clang::sycl_kernel]] void kernel_single_task(KernelType kernelFunc) {
+[[clang::sycl_kernel]] void kernel_single_task(const KernelType &kernelFunc) {
   kernelFunc();
 }
 
 template<typename KernelType>
-void unnamed_kernel_single_task(KernelType kernelFunc) {
+void unnamed_kernel_single_task(const KernelType &kernelFunc) {
   kernel_single_task<KernelType>(kernelFunc);
 }
 
 template <typename KernelName, typename KernelType>
-void not_kernel_single_task(KernelType kernelFunc) {
+void not_kernel_single_task(const KernelType &kernelFunc) {
   kernelFunc();
 }
 
 int main() {
   not_kernel_single_task<class kernel2>(func<Derp>);
-  // CHECK: call void @_Z22not_kernel_single_taskIZ4mainE7kernel2PFPKcvEEvT0_(ptr noundef @_Z4funcI4DerpEDTu33__builtin_sycl_unique_stable_nameDtsrT_3strEEEv)
+  // CHECK: call void @_Z22not_kernel_single_taskIZ4mainE7kernel2FPKcvEEvRKT0_(ptr noundef nonnull @_Z4funcI4DerpEDTu33__builtin_sycl_unique_stable_nameDtsrT_3strEEEv)
 
   auto l1 = []() { return 1; };
   auto l2 = [](decltype(l1) *l = nullptr) { return 2; };
   kernel_single_task<decltype(l2)>(l2);
   puts(__builtin_sycl_unique_stable_name(decltype(l2)));
-  // CHECK: call void @_Z18kernel_single_taskIZ4mainEUlPZ4mainEUlvE_E_S2_EvT0_
+  // CHECK: call void @_Z18kernel_single_taskIZ4mainEUlPZ4mainEUlvE_E_S2_EvRKT0_
   // CHECK: call void @puts(ptr noundef @[[LAMBDA_KERNEL3]])
 
   constexpr const char str[] = "lalala";
@@ -98,10 +98,10 @@ int main() {
   puts(__builtin_sycl_unique_stable_name(int[++j]));
   // CHECK: call void @puts(ptr noundef @[[STRING]])
 
-  // CHECK: define internal void @_Z22not_kernel_single_taskIZ4mainE7kernel2PFPKcvEEvT0_
+  // CHECK: define internal void @_Z22not_kernel_single_taskIZ4mainE7kernel2FPKcvEEvRKT0_
   // CHECK: declare noundef ptr @_Z4funcI4DerpEDTu33__builtin_sycl_unique_stable_nameDtsrT_3strEEEv
-  // CHECK: define internal void @_Z18kernel_single_taskIZ4mainEUlPZ4mainEUlvE_E_S2_EvT0_
-  // CHECK: define internal void @_Z18kernel_single_taskIZ4mainEUlvE0_S0_EvT0_
+  // CHECK: define internal void @_Z18kernel_single_taskIZ4mainEUlPZ4mainEUlvE_E_S2_EvRKT0_
+  // CHECK: define internal void @_Z18kernel_single_taskIZ4mainEUlvE0_S0_EvRKT0_
 
   unnamed_kernel_single_task(
       []() {

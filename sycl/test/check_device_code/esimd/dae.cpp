@@ -9,7 +9,7 @@
 using namespace sycl;
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void my_kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void my_kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 

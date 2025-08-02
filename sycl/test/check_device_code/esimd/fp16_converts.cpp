@@ -22,14 +22,14 @@ using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 class EsimdFunctor {
 public:
-  void operator()() __attribute__((sycl_explicit_simd)) {
+  void operator()() const __attribute__((sycl_explicit_simd)) {
     bf16_vector();
     bf16_scalar();
   }
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
