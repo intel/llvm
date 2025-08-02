@@ -4359,6 +4359,7 @@
 ?postProcess@HandlerAccess@detail@_V1@sycl@@SAXAEAVhandler@34@Vtype_erased_cgfo_ty@234@@Z
 ?preProcess@HandlerAccess@detail@_V1@sycl@@SAXAEAVhandler@34@Vtype_erased_cgfo_ty@234@@Z
 ?prefetch@handler@_V1@sycl@@QEAAXPEBX_K@Z
+?prefetch@handler@_V1@sycl@@QEAAXPEBX_KW4prefetch_type@experimental@oneapi@ext@23@@Z
 ?prefetch@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KAEBUcode_location@detail@23@@Z
 ?prefetch@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?prefetch@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KV423@AEBUcode_location@detail@23@@Z
