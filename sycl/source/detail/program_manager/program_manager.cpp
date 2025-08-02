@@ -2042,6 +2042,9 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     }
     m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
     KernelIDs->push_back(It->second);
+
+    // Keep track of image to kernel name reference count for cleanup.
+    m_BinImage2KernelNameRefCount[name]++;
   }
 
   cacheKernelUsesAssertInfo(*Img);
@@ -2140,27 +2143,42 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // Unmap the unique kernel IDs for the offload entries
     for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
          EntriesIt = EntriesIt->Increment()) {
-
+      const char *Name = EntriesIt->GetName();
       // Drop entry for service kernel
-      if (std::strstr(EntriesIt->GetName(), "__sycl_service_kernel__")) {
-        m_ServiceKernels.erase(EntriesIt->GetName());
+      if (std::strstr(Name, "__sycl_service_kernel__")) {
+        m_ServiceKernels.erase(Name);
         continue;
       }
 
       // Exported device functions won't have a kernel ID
-      if (m_ExportedSymbolImages.find(EntriesIt->GetName()) !=
-          m_ExportedSymbolImages.end()) {
+      if (m_ExportedSymbolImages.find(Name) != m_ExportedSymbolImages.end()) {
         continue;
       }
 
-      // remove everything associated with this KernelName
-      m_KernelUsesAssert.erase(EntriesIt->GetName());
-      m_KernelImplicitLocalArgPos.erase(EntriesIt->GetName());
+      // Remove everything associated with this KernelName if this is the last
+      // image referencing it, otherwise remove just the ID -> Img mapping.
+      int &RefCount = m_BinImage2KernelNameRefCount[Name];
+      assert(RefCount > 0);
 
-      if (auto It = m_KernelName2KernelIDs.find(EntriesIt->GetName());
+      if (--RefCount == 0) {
+        m_KernelUsesAssert.erase(Name);
+        m_KernelImplicitLocalArgPos.erase(Name);
+      }
+
+      if (auto It = m_KernelName2KernelIDs.find(Name);
           It != m_KernelName2KernelIDs.end()) {
-        m_KernelIDs2BinImage.erase(It->second);
-        m_KernelName2KernelIDs.erase(It);
+        if (RefCount == 0) {
+          m_KernelIDs2BinImage.erase(It->second);
+          m_KernelName2KernelIDs.erase(It);
+        } else {
+          auto ID2ImgIt = std::find_if(
+              m_KernelIDs2BinImage.begin(), m_KernelIDs2BinImage.end(),
+              [&](const auto &Pair) {
+                return Pair.first == It->second && Pair.second == Img;
+              });
+          if (ID2ImgIt != m_KernelIDs2BinImage.end())
+            m_KernelIDs2BinImage.erase(ID2ImgIt);
+        }
       }
     }
 
