@@ -180,11 +180,8 @@ ur_kernel_handle_t_::getProperties(ur_device_handle_t hDevice) const {
   return deviceKernel.zeKernelProperties.get();
 }
 
-ur_result_t ur_kernel_handle_t_::setArgValue(
-    uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t * /*pProperties*/,
-    const void *pArgValue) {
-
+namespace {
+inline const void *normalizePointerArg(size_t argSize, const void *pArgValue) {
   // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
   // in which case a NULL value will be used as the value for the argument
   // declared as a pointer to global or constant memory in the kernel"
@@ -194,29 +191,57 @@ ur_result_t ur_kernel_handle_t_::setArgValue(
   // is a NULL pointer. Treat a pointer to NULL in 'arg_value' as a NULL.
   if (argSize == sizeof(void *) && pArgValue &&
       *(void **)(const_cast<void *>(pArgValue)) == nullptr) {
-    pArgValue = nullptr;
+    return nullptr;
   }
-
-  if (argIndex > zeCommonProperties->numKernelArgs - 1) {
-    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+  return pArgValue;
+}
+ur_result_t setArgValueHelper(ze_kernel_handle_t zeKernel, uint32_t argIndex,
+                              size_t argSize, const void *pArgValue) {
+  pArgValue = normalizePointerArg(argSize, pArgValue);
+  auto zeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
+                                  (zeKernel, argIndex, argSize, pArgValue));
+  if (zeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE;
+  } else if (zeResult != ZE_RESULT_SUCCESS) {
+    return ze2urResult(zeResult);
   }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace
 
+ur_result_t ur_single_device_kernel_t::setArgValue(
+    uint32_t argIndex, size_t argSize,
+    const ur_kernel_arg_value_properties_t * /*pProperties*/,
+    const void *pArgValue) {
+  pArgValue = normalizePointerArg(argSize, pArgValue);
+  return setArgValueHelper(hKernel.get(), argIndex, argSize, pArgValue);
+}
+
+ur_result_t ur_kernel_handle_t_::setArgValue(
+    uint32_t argIndex, size_t argSize,
+    const ur_kernel_arg_value_properties_t * /*pProperties*/,
+    const void *pArgValue) {
+
+  pArgValue = normalizePointerArg(argSize, pArgValue);
   for (auto &singleDeviceKernel : deviceKernels) {
     if (!singleDeviceKernel.has_value()) {
       continue;
     }
 
-    auto zeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
-                                    (singleDeviceKernel.value().hKernel.get(),
-                                     argIndex, argSize, pArgValue));
-
-    if (zeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
-      return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE;
-    } else if (zeResult != ZE_RESULT_SUCCESS) {
-      return ze2urResult(zeResult);
-    }
+    auto Result = setArgValueHelper(singleDeviceKernel.value().hKernel.get(),
+                                    argIndex, argSize, pArgValue);
+    if (Result != UR_RESULT_SUCCESS)
+      return Result;
   }
   return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_single_device_kernel_t::setArgPointer(
+    uint32_t argIndex,
+    const ur_kernel_arg_pointer_properties_t * /*pProperties*/,
+    const void *pArgValue) {
+  // KernelSetArgValue is expecting a pointer to the argument
+  return setArgValue(argIndex, sizeof(const void *), nullptr, &pArgValue);
 }
 
 ur_result_t ur_kernel_handle_t_::setArgPointer(
@@ -230,6 +255,15 @@ ur_result_t ur_kernel_handle_t_::setArgPointer(
 
 ur_program_handle_t ur_kernel_handle_t_::getProgramHandle() const {
   return hProgram;
+}
+
+std::optional<std::reference_wrapper<ur_single_device_kernel_t>>
+ur_kernel_handle_t_::getSingleDeviceKernel(ur_device_handle_t hDevice) {
+  size_t index = deviceIndex(hDevice);
+  if (index >= deviceKernels.size() || !deviceKernels[index]) {
+    return std::nullopt;
+  }
+  return std::ref(deviceKernels[index].value());
 }
 
 ur_result_t ur_kernel_handle_t_::setExecInfo(ur_kernel_exec_info_t propName,
