@@ -8,7 +8,7 @@
 // Ensures NativeCPU does not cause a compiler assert when querying the host
 // target's DataLayoutString, which used to happen on ARM which initializes
 // DataLayoutString not in its constructor but afterwards.
-// RUN: %clang_cc1 -cc1 -fsycl-is-device -triple native_cpu -aux-triple aarch64-arm-none-eabi -emit-llvm-bc -o %t %s
+// RUN: %clang_cc1 -fsycl-is-device -triple native_cpu -aux-triple aarch64-arm-none-eabi -emit-llvm-bc -o %t %s
 
 #include "Inputs/sycl.hpp"
 using namespace sycl;
