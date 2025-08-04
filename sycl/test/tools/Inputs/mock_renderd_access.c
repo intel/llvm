@@ -57,7 +57,6 @@ int glob64(const char *pattern, int flags, int (*errfunc)(const char *, int),
   }
   assert(strcmp(mock_mode, "exists") == 0);
   pglob->gl_pathc = 2;
-  pglob->gl_pathv = malloc(2 * sizeof(char *));
   pglob->gl_pathv = mock_render_dirs;
   return 0;
 }
