@@ -266,6 +266,7 @@ private:
                                size_t DynamicLocalMemorySize) const;
 
   void enableUSMIndirectAccess() const;
+  std::optional<unsigned> getFreeFuncKernelArgSize() const;
 };
 
 template <int Dimensions>
@@ -305,9 +306,13 @@ template <typename Param>
 inline typename Param::return_type kernel_impl::get_info() const {
   static_assert(is_kernel_info_desc<Param>::value,
                 "Invalid kernel information descriptor");
-  if constexpr (std::is_same_v<Param, info::kernel::num_args>)
+  if constexpr (std::is_same_v<Param, info::kernel::num_args>) {
+    // if kernel is a free function, we need to get num_args from integration
+    // header, stored in program manager
+    if (std::optional<unsigned> FFArgSize = getFreeFuncKernelArgSize())
+      return *FFArgSize;
     checkIfValidForNumArgsInfoQuery();
-
+  }
   return get_kernel_info<Param>(this->getHandleRef(), getAdapter());
 }
 

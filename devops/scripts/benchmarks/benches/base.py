@@ -3,17 +3,26 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from dataclasses import dataclass
 import os
 import shutil
 import subprocess
 from pathlib import Path
+from enum import Enum
 from utils.result import BenchmarkMetadata, BenchmarkTag, Result
 from options import options
 from utils.utils import download, run
 from abc import ABC, abstractmethod
-from utils.flamegraph import get_flamegraph
+from utils.unitrace import get_unitrace
 from utils.logger import log
+from utils.flamegraph import get_flamegraph
+
+
+class TracingType(Enum):
+    """Enumeration of available tracing types."""
+
+    UNITRACE = "unitrace"
+    FLAMEGRAPH = "flamegraph"
+
 
 benchmark_tags = [
     BenchmarkTag("SYCL", "Benchmark uses SYCL runtime"),
@@ -63,9 +72,10 @@ class Benchmark(ABC):
         By default, it returns True, but can be overridden to disable a benchmark."""
         return True
 
-    def traceable(self) -> bool:
-        """Returns whether this benchmark should be traced by FlameGraph.
-        By default, it returns True, but can be overridden to disable tracing for a benchmark.
+    def traceable(self, tracing_type: TracingType) -> bool:
+        """Returns whether this benchmark should be traced by the specified tracing method.
+        By default, it returns True for all tracing types, but can be overridden
+        to disable specific tracing methods for a benchmark.
         """
         return True
 
@@ -78,11 +88,14 @@ class Benchmark(ABC):
         pass
 
     @abstractmethod
-    def run(self, env_vars, run_flamegraph: bool = False) -> list[Result]:
+    def run(
+        self, env_vars, run_unitrace: bool = False, run_flamegraph: bool = False
+    ) -> list[Result]:
         """Execute the benchmark with the given environment variables.
 
         Args:
             env_vars: Environment variables to use when running the benchmark.
+            run_unitrace: Whether to run benchmark under Unitrace.
             run_flamegraph: Whether to run benchmark under FlameGraph.
 
         Returns:
@@ -112,8 +125,10 @@ class Benchmark(ABC):
         ld_library=[],
         add_sycl=True,
         use_stdout=True,
+        run_unitrace=False,
+        extra_unitrace_opt=None,
         run_flamegraph=False,
-        extra_perf_opt=None,
+        extra_perf_opt=None,  # VERIFY
     ):
         env_vars = env_vars.copy()
         if options.ur is not None:
@@ -126,8 +141,38 @@ class Benchmark(ABC):
         ld_libraries = options.extra_ld_libraries.copy()
         ld_libraries.extend(ld_library)
 
+        if self.traceable(TracingType.UNITRACE) and run_unitrace:
+            if extra_unitrace_opt is None:
+                extra_unitrace_opt = []
+            unitrace_output, command = get_unitrace().setup(
+                self.name(), command, extra_unitrace_opt
+            )
+            log.debug(f"Unitrace output: {unitrace_output}")
+            log.debug(f"Unitrace command: {' '.join(command)}")
+
+        try:
+            result = run(
+                command=command,
+                env_vars=env_vars,
+                add_sycl=add_sycl,
+                cwd=options.benchmark_cwd,
+                ld_library=ld_libraries,
+            )
+        except subprocess.CalledProcessError:
+            if run_unitrace:
+                get_unitrace().cleanup(options.benchmark_cwd, unitrace_output)
+            raise
+
+        if self.traceable(TracingType.UNITRACE) and run_unitrace:
+            get_unitrace().handle_output(unitrace_output)
+
+        # flamegraph run
+
+        ld_libraries = options.extra_ld_libraries.copy()
+        ld_libraries.extend(ld_library)
+
         perf_data_file = None
-        if self.traceable() and run_flamegraph:
+        if self.traceable(TracingType.FLAMEGRAPH) and run_flamegraph:
             if extra_perf_opt is None:
                 extra_perf_opt = []
             perf_data_file, command = get_flamegraph().setup(
@@ -149,7 +194,7 @@ class Benchmark(ABC):
                 get_flamegraph().cleanup(options.benchmark_cwd, perf_data_file)
             raise
 
-        if self.traceable() and run_flamegraph and perf_data_file:
+        if self.traceable(TracingType.FLAMEGRAPH) and run_flamegraph and perf_data_file:
             svg_file = get_flamegraph().handle_output(self.name(), perf_data_file)
             log.info(f"FlameGraph generated: {svg_file}")
 

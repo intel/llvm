@@ -115,7 +115,9 @@ class LlamaBench(Benchmark):
     def lower_is_better(self):
         return False
 
-    def run(self, env_vars, run_flamegraph: bool = False) -> list[Result]:
+    def run(
+        self, env_vars, run_unitrace: bool = False, run_flamegraph: bool = False
+    ) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
             "--output",
@@ -141,7 +143,11 @@ class LlamaBench(Benchmark):
         ]
 
         result = self.run_bench(
-            command, env_vars, ld_library=self.bench.oneapi.ld_libraries(), run_flamegraph=run_flamegraph
+            command,
+            env_vars,
+            ld_library=self.bench.oneapi.ld_libraries(),
+            run_unitrace=run_unitrace,
+            run_flamegraph=run_flamegraph,
         )
         parsed = self.parse_output(result)
         results = []

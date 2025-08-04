@@ -53,21 +53,22 @@ benches_final_set = [
         "padding-1",
         "--ddt=f32 --sdt=f32:f32 --stag=aBcd16b --dtag=aBcd16b 1x8x64x64 1x8x640x1024 1x24x640x1024",
     ],
-    # [
-    #     "sum",
-    #     "padding-2",
-    #     "--sdt=bf16:bf16 --ddt=bf16 --stag=AB48a16b:AB48a16b --dtag=AB48a16b 512x1024",
-    # ],
-    # [
-    #     "graph",
-    #     "sdpa-plain-f16",
-    #     "--reset --dt=f16 --case=complex_fusion/mha/sdpa-plain-implicit-causal-mask-fp32-bs1.json",
-    # ],
-    # [
-    #     "graph",
-    #     "sdpa-plain-f32",
-    #     "--reset --dt=f32 --case=complex_fusion/mha/sdpa-plain-implicit-causal-mask-fp32-bs1.json",
-    # ],
+    [
+        "sum",
+        "padding-2",
+        "--sdt=bf16:bf16 --ddt=bf16 --stag=AB48a16b:AB48a16b --dtag=AB48a16b 512x1024",
+    ],
+    [
+        "graph",
+        "sdpa-plain-f16",
+        "--reset --dt=f16 --case=complex_fusion/mha/sdpa-plain-implicit-causal-mask-fp32-bs1.json",
+        False,  # Do not run SYCL graph for this benchmark
+    ],
+    [
+        "graph",
+        "sdpa-plain-f32",
+        "--reset --dt=f32 --case=complex_fusion/mha/sdpa-plain-implicit-causal-mask-fp32-bs1.json",
+    ],
 ]
 
 # the complete set of benchmarks aimed at gpu operations, normally too long to run in CI

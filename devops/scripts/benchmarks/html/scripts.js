@@ -98,6 +98,10 @@ function updateSelectedRuns(forceUpdate = true) {
     activeRuns.forEach(name => {
         selectedRunsDiv.appendChild(createRunElement(name));
     });
+
+    // Update platform information for selected runs
+    displaySelectedRunsPlatformInfo();
+
     if (forceUpdate)
         updateCharts();
 }
@@ -1411,6 +1415,7 @@ function initializeCharts() {
     setupSuiteFilters();
     setupTagFilters();
     setupToggles();
+    initializePlatformTab();
 
     // Apply URL parameters
     const regexParam = getQueryParam('regex');
@@ -1576,6 +1581,97 @@ function createAnnotationsOptions() {
     });
 
     return repoMap;
+}
+
+function displaySelectedRunsPlatformInfo() {
+    const container = document.querySelector('.platform-info .platform');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    // Get platform info for only the selected runs
+    const selectedRunsWithPlatform = Array.from(activeRuns)
+        .map(runName => {
+            const run = loadedBenchmarkRuns.find(r => r.name === runName);
+            if (run && run.platform) {
+                return { name: runName, platform: run.platform };
+            }
+            return null;
+        })
+        .filter(item => item !== null);
+    if (selectedRunsWithPlatform.length === 0) {
+        container.innerHTML = '<p>No platform information available to display.</p>';
+        return;
+    }
+    selectedRunsWithPlatform.forEach(runData => {
+        const runSection = document.createElement('div');
+        runSection.className = 'platform-run-section';
+            const runTitle = document.createElement('h3');
+        runTitle.textContent = `Run: ${runData.name}`;
+        runTitle.className = 'platform-run-title';
+        runSection.appendChild(runTitle);
+            // Create just the platform details without the grid wrapper
+        const platform = runData.platform;
+        const detailsContainer = document.createElement('div');
+        detailsContainer.className = 'platform-details-compact';
+        detailsContainer.innerHTML = createPlatformDetailsHTML(platform);
+        runSection.appendChild(detailsContainer);
+            container.appendChild(runSection);
+    });
+}
+
+// Platform Information Functions
+
+function createPlatformDetailsHTML(platform) {
+    const formattedTimestamp = platform.timestamp ?
+        new Date(platform.timestamp).toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        }) : 'Unknown';
+
+    return `
+        <div class="platform-section compact">
+            <div class="platform-item">
+                <span class="platform-label">Time:</span>
+                <span class="platform-value">${formattedTimestamp}</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">OS:</span>
+                <span class="platform-value">${platform.os || 'Unknown'}</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">CPU:</span>
+                <span class="platform-value">${platform.cpu_info || 'Unknown'} (${platform.cpu_count || '?'} cores)</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">GPU:</span>
+                <div class="platform-value multiple">
+                    ${platform.gpu_info && platform.gpu_info.length > 0
+                        ? platform.gpu_info.map(gpu => `<div class="platform-gpu-item">    • ${gpu}</div>`).join('')
+                        : '<div class="platform-gpu-item">    • No GPU detected</div>'}
+                </div>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">Driver:</span>
+                <span class="platform-value">${platform.gpu_driver_version || 'Unknown'}</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">Tools:</span>
+                <span class="platform-value">${platform.gcc_version || '?'} • ${platform.clang_version || '?'} • ${platform.python || '?'}</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">Runtime:</span>
+                <span class="platform-value">${platform.level_zero_version || '?'} • compute-runtime ${platform.compute_runtime_version || '?'}</span>
+            </div>
+        </div>
+    `;
+}
+
+function initializePlatformTab() {
+    displaySelectedRunsPlatformInfo();
 }
 
 // Function to create chart data for flamegraph-only mode

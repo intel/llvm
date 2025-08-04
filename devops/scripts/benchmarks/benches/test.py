@@ -88,7 +88,9 @@ class TestBench(Benchmark):
     def unstable(self) -> str:
         return self.unstable_text
 
-    def run(self, env_vars, run_flamegraph: bool = False) -> list[Result]:
+    def run(
+        self, env_vars, run_unitrace: bool = False, run_flamegraph: bool = False
+    ) -> list[Result]:
         random_value = self.value + random.uniform(-1 * (self.diff), self.diff)
         return [
             Result(

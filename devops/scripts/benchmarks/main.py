@@ -18,6 +18,7 @@ from benches.llamacpp import *
 from benches.umf import *
 from benches.test import TestSuite
 from benches.benchdnn import OneDnnBench
+from benches.base import TracingType
 from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
@@ -27,9 +28,9 @@ from utils.compute_runtime import *
 from utils.validate import Validate
 from utils.detect_versions import DetectVersion
 from utils.logger import log
+from utils.unitrace import get_unitrace
 from utils.flamegraph import get_flamegraph
 from presets import enabled_suites, presets
-
 
 # Update this if you are changing the layout of the results files
 INTERNAL_WORKDIR_VERSION = "2.0"
@@ -41,12 +42,15 @@ def run_iterations(
     iters: int,
     results: dict[str, list[Result]],
     failures: dict[str, str],
+    run_unitrace: bool = False,
     run_flamegraph: bool = False,
 ):
     for iter in range(iters):
         log.info(f"running {benchmark.name()}, iteration {iter}... ")
         try:
-            bench_results = benchmark.run(env_vars, run_flamegraph=run_flamegraph)
+            bench_results = benchmark.run(
+                env_vars, run_unitrace=run_unitrace, run_flamegraph=run_flamegraph
+            )
             if bench_results is None:
                 if options.exit_on_failure:
                     raise RuntimeError(f"Benchmark produced no results!")
@@ -167,11 +171,18 @@ def collect_metadata(suites):
     return metadata
 
 
-def main(directory, additional_env_vars, save_name, compare_names, filter):
+def main(directory, additional_env_vars, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
     if options.dry_run:
         log.info("Dry run mode enabled. No benchmarks will be executed.")
+
+    options.unitrace = args.unitrace is not None
+
+    if options.unitrace and options.save_name is None:
+        raise ValueError(
+            "Unitrace requires a save name to be specified via --save option."
+        )
 
     if options.flamegraph and options.save_name is None:
         raise ValueError(
@@ -260,8 +271,19 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             merged_env_vars = {**additional_env_vars}
             intermediate_results: dict[str, list[Result]] = {}
             processed: list[Result] = []
-            # regular run of the benchmark (if no flamegraph or flamegraph inclusive)
-            if args.flamegraph != "exclusive":
+
+            # Determine if we should run regular benchmarks
+            # Run regular benchmarks if:
+            # - No tracing options specified, OR
+            # - Any tracing option is set to "inclusive"
+            should_run_regular = (
+                not options.unitrace
+                and not options.flamegraph  # No tracing options
+                or args.unitrace == "inclusive"  # Unitrace inclusive
+                or args.flamegraph == "inclusive"  # Flamegraph inclusive
+            )
+
+            if should_run_regular:
                 for _ in range(options.iterations_stddev):
                     run_iterations(
                         benchmark,
@@ -269,6 +291,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
                         options.iterations,
                         intermediate_results,
                         failures,
+                        run_unitrace=False,
                         run_flamegraph=False,
                     )
                     valid, processed = process_results(
@@ -276,14 +299,27 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
                     )
                     if valid:
                         break
-            # single flamegraph run independent of benchmark iterations (if flamegraph enabled)
-            if options.flamegraph and benchmark.traceable():
+
+            # single unitrace run independent of benchmark iterations (if unitrace enabled)
+            if options.unitrace and benchmark.traceable(TracingType.UNITRACE):
                 run_iterations(
                     benchmark,
                     merged_env_vars,
                     1,
                     intermediate_results,
                     failures,
+                    run_unitrace=True,
+                    run_flamegraph=False,
+                )
+            # single flamegraph run independent of benchmark iterations (if flamegraph enabled)
+            if options.flamegraph and benchmark.traceable(TracingType.FLAMEGRAPH):
+                run_iterations(
+                    benchmark,
+                    merged_env_vars,
+                    1,
+                    intermediate_results,
+                    failures,
+                    run_unitrace=False,
                     run_flamegraph=True,
                 )
 
@@ -344,14 +380,14 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             f"Markdown with benchmark results has been written to {md_path}/benchmark_results.md"
         )
 
-    saved_name = save_name if save_name is not None else this_name
+    saved_name = options.save_name if options.save_name is not None else this_name
 
     # It's important we don't save the current results into history before
     # we calculate historical averages or get latest results for compare.
     # Otherwise we might be comparing the results to themselves.
     if not options.dry_run:
         log.info(f"Saving benchmark results...")
-        history.save(saved_name, results, save_name is not None)
+        history.save(saved_name, results)
         if saved_name not in compare_names:
             compare_names.append(saved_name)
         log.info(f"Benchmark results saved.")
@@ -563,6 +599,14 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
+        "--unitrace",
+        nargs="?",
+        const="exclusive",
+        default=None,
+        help="Unitrace tracing for single iteration of benchmarks. Inclusive tracing is done along regular benchmarks.",
+        choices=["inclusive", "exclusive"],
+    )
+    parser.add_argument(
         "--flamegraph",
         nargs="?",
         const="exclusive",
@@ -746,7 +790,6 @@ if __name__ == "__main__":
     main(
         args.benchmark_directory,
         additional_env_vars,
-        args.save,
         args.compare,
         benchmark_filter,
     )
