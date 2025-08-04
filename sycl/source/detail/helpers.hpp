@@ -59,23 +59,18 @@ public:
   template <typename IterTy>
   variadic_iterator(IterTy &&It) : It(std::forward<IterTy>(It)) {}
 
-  variadic_iterator &operator++() {
-    It = std::visit(
-        [](auto &&It) {
-          ++It;
-          return storage_iter{It};
-        },
-        It);
+  variadic_iterator &operator++() noexcept {
+    std::visit([](auto &&It) noexcept { ++It; }, It);
     return *this;
   }
-  bool operator!=(const variadic_iterator &Other) const {
+  bool operator!=(const variadic_iterator &Other) const noexcept{
     return It != Other.It;
   }
-  bool operator==(const variadic_iterator &Other) const {
+  bool operator==(const variadic_iterator &Other) const noexcept{
     return It == Other.It;
   }
 
-  decltype(auto) operator*() {
+  decltype(auto) operator*() noexcept {
     return std::visit(
         [](auto &&It) -> decltype(auto) {
           decltype(auto) Elem = *It;
