@@ -29,9 +29,9 @@ ol_result_t waitOnEvents(ol_queue_handle_t Queue,
       OlEvents.push_back(UrEvents[I]->OffloadEvent);
     }
 
-    olWaitEvents(Queue, OlEvents.data(), NumEvents);
+    return olWaitEvents(Queue, OlEvents.data(), NumEvents);
   }
-  return nullptr;
+  return OL_SUCCESS;
 }
 
 ol_result_t makeEvent(ur_command_t Type, ol_queue_handle_t OlQueue,
@@ -44,7 +44,7 @@ ol_result_t makeEvent(ur_command_t Type, ol_queue_handle_t OlQueue,
     };
     *UrEvent = Event;
   }
-  return nullptr;
+  return OL_SUCCESS;
 }
 
 template <bool Barrier>
