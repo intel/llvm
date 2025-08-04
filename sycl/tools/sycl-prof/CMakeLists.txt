@@ -15,7 +15,6 @@ target_compile_options(sycl-prof PRIVATE -fno-exceptions -fno-rtti)
 add_library(sycl_profiler_collector SHARED collector.cpp)
 target_compile_definitions(sycl_profiler_collector PRIVATE XPTI_CALLBACK_API_EXPORTS)
 target_link_libraries(sycl_profiler_collector PRIVATE xptifw)
-target_link_libraries(sycl_profiler_collector PRIVATE OpenCL-Headers)
 target_include_directories(sycl_profiler_collector PRIVATE
     "${sycl_inc_dir}"
     "${sycl_src_dir}"

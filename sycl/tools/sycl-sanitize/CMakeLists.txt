@@ -14,7 +14,6 @@ add_library(sycl_sanitizer_collector SHARED collector.cpp)
 target_compile_definitions(sycl_sanitizer_collector PRIVATE XPTI_CALLBACK_API_EXPORTS)
 target_link_libraries(sycl_sanitizer_collector PRIVATE xptifw)
 target_link_libraries(sycl_sanitizer_collector PRIVATE UnifiedRuntime-Headers)
-target_link_libraries(sycl_sanitizer_collector PRIVATE OpenCL-Headers)
 
 target_include_directories(sycl_sanitizer_collector PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../xpti_helpers/"

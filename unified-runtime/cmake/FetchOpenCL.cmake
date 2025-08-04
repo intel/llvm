@@ -1,5 +1,7 @@
 # Finds or fetches OpenCL Headers and the ICD loader.
 if(TARGET OpenCL-Headers)
+  # If we already ran this module (so the OpenCL-Headers target exists),
+  # everything is already set up, nothing to do.
   return()
 endif()
 
@@ -56,8 +58,7 @@ if(NOT OpenCL_FOUND)
       )
     FetchContent_MakeAvailable(ocl-headers)
   endif()
-set(OpenCL_INCLUDE_DIR ${ocl-headers_SOURCE_DIR} CACHE PATH "" FORCE)
-
+  set(OpenCL_INCLUDE_DIR ${ocl-headers_SOURCE_DIR} CACHE PATH "" FORCE)
 else()
   message(STATUS "Using OpenCL headers at ${OpenCL_INCLUDE_DIR}")
 endif()

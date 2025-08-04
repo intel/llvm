@@ -58,7 +58,6 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND LLVM_ENABLE_PEDANTIC)
 endif()
 
 target_include_directories(${TARGET_NAME} PRIVATE
-    ${OpenCL_INCLUDE_DIRECTORY}
     "${CMAKE_CURRENT_SOURCE_DIR}/../../"
 )
 

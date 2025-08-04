@@ -158,7 +158,7 @@ if(NOT OpenCL_FOUND)
 
   # Include OpenCL Headers into final bundle.
   install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
-         DESTINATION ${SYCL_INCLUDE_DIR}
+          DESTINATION ${SYCL_INCLUDE_DIR}
           COMPONENT OpenCL-Headers)
 endif()
 
