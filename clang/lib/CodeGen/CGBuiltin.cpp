@@ -1026,6 +1026,9 @@ public:
     AddrOfSeen = false;
     return Visit(E->getSubExpr());
   }
+  const Expr *VisitBinaryOperator(const clang::BinaryOperator *Op) {
+    return Op->isCommaOp() ? Visit(Op->getRHS()) : nullptr;
+  }
 };
 
 } // end anonymous namespace
