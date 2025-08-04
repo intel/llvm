@@ -266,21 +266,21 @@ int main() {
         NDR3, Props3, Redu1, Redu2, [](sycl::nd_item<3>, auto &, auto &) {});
   });
 
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel72(){{.*}} #[[WGSizeAttr7]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel72(){{.*}} #[[WGSizeAttr4]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for_work_group<class WGSizeKernel72>(
         R1, Props1, [](sycl::group<1> G) {
           G.parallel_for_work_item([&](sycl::h_item<1>) {});
         });
   });
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel73(){{.*}} #[[WGSizeAttr8]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel73(){{.*}} #[[WGSizeAttr5]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for_work_group<class WGSizeKernel73>(
         R2, Props2, [](sycl::group<2> G) {
           G.parallel_for_work_item([&](sycl::h_item<2>) {});
         });
   });
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel74(){{.*}} #[[WGSizeAttr9]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel74(){{.*}} #[[WGSizeAttr6]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for_work_group<class WGSizeKernel74>(
         R3, Props3, [](sycl::group<3> G) {
@@ -297,6 +297,3 @@ int main() {
 // CHECK-IR: attributes #[[WGSizeAttr4]] = { {{.*}}"sycl-work-group-size"="1"
 // CHECK-IR: attributes #[[WGSizeAttr5]] = { {{.*}}"sycl-work-group-size"="1,2"
 // CHECK-IR: attributes #[[WGSizeAttr6]] = { {{.*}}"sycl-work-group-size"="1,2,3"
-// CHECK-IR: attributes #[[WGSizeAttr7]] = { {{.*}}"sycl-work-group-size"="1"
-// CHECK-IR: attributes #[[WGSizeAttr8]] = { {{.*}}"sycl-work-group-size"="1,2"
-// CHECK-IR: attributes #[[WGSizeAttr9]] = { {{.*}}"sycl-work-group-size"="1,2,3"

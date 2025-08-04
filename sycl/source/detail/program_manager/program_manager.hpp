@@ -440,7 +440,6 @@ protected:
 
   // Maps KernelIDs to device binary images. There can be more than one image
   // in case of SPIRV + AOT.
-  // Using shared_ptr to avoid expensive copy of the vector.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_multimap<kernel_id, const RTDeviceBinaryImage *>
       m_KernelIDs2BinImage;

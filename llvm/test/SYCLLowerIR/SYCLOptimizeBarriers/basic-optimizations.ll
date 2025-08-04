@@ -36,6 +36,24 @@ define spir_kernel void @bb_remove_get_id() {
   ret void
 }
 
+define spir_kernel void @bb_remove_get_id_call() {
+; CHECK-LABEL: define spir_kernel void @bb_remove_get_id_call() {
+; CHECK-NEXT:    [[ID1:%.*]] = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 noundef 0)
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
+; CHECK-NEXT:    [[ID2:%.*]] = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 noundef 1)
+; CHECK-NEXT:    [[ID3:%.*]] = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 noundef 2)
+; CHECK-NEXT:    ret void
+;
+  %id1 = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 noundef 0)
+  call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
+  %id2 = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 noundef 1)
+  call void @_Z22__spirv_ControlBarrieriii(i32 noundef 2, i32 noundef 2, i32 noundef 0)
+  %id3 = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 noundef 2)
+  ret void
+}
+
+declare spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 noundef)
+
 define spir_kernel void @bb_private_access() {
 ; CHECK-LABEL: define spir_kernel void @bb_private_access() {
 ; CHECK-NEXT:    [[TMP:%.*]] = alloca i32, align 4
