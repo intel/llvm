@@ -44,7 +44,7 @@ jobs:
     uses: ./.github/workflows/sycl-detect-changes.yml
 
   build:
-    name: Self-Build
+    name: Self build
     needs: [detect_changes]
     if: always() && success()
     uses: ./.github/workflows/sycl-linux-build.yml
