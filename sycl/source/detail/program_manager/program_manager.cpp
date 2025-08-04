@@ -2178,8 +2178,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
               std::find_if(RangeBegin, RangeEnd, [&](const auto &Pair) {
                 return Pair.second == Img;
               });
-          assert(ID2ImgIt != RangeEnd);
-          m_KernelIDs2BinImage.erase(ID2ImgIt);
+          if (ID2ImgIt != RangeEnd)
+            m_KernelIDs2BinImage.erase(ID2ImgIt);
         }
       }
     }
