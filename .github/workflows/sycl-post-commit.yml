@@ -34,7 +34,7 @@ jobs:
     uses: ./.github/workflows/sycl-detect-changes.yml
 
   build-lin:
-    name: Linux (Self build + no-assertions)
+    name: Linux (GCC + no-assertions)
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
