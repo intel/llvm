@@ -776,7 +776,7 @@ struct Wrapper {
     RegBuilder.CreateCall(AtExitC, UnregFunc);
     RegBuilder.CreateRetVoid();
 
-    // Add to global constructors.
+    // Finally, add to global constructors.
     appendToGlobalCtors(M, RegFunc, /*Priority*/ 1);
   }
 
