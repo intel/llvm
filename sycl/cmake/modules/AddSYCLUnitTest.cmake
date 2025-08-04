@@ -1,8 +1,5 @@
 # Internal function to create SYCL unit tests with code reuse
 # add_sycl_unittest_internal(test_dirname SHARED|OBJECT is_preview file1.cpp, file2.cpp ...)
-#
-# Will compile the list of files together and link against SYCL.
-# Produces a binary names `basename(test_dirname)`.
 function(add_sycl_unittest_internal test_dirname link_variant is_preview)
   # Enable exception handling for these unit tests
   set(LLVM_REQUIRES_EH ON)
