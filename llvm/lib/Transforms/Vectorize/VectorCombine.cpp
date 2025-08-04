@@ -1670,6 +1670,8 @@ static Align computeAlignmentAfterScalarization(Align VectorAlignment,
 //   %1 = getelementptr inbounds i32, i32* %0, i64 0, i64 1
 //   store i32 %b, i32* %1
 bool VectorCombine::foldSingleElementStore(Instruction &I) {
+  if (!TTI.allowVectorElementIndexingUsingGEP())
+    return false;
   auto *SI = cast<StoreInst>(&I);
   if (!SI->isSimple() || !isa<VectorType>(SI->getValueOperand()->getType()))
     return false;
@@ -1725,6 +1727,9 @@ bool VectorCombine::foldSingleElementStore(Instruction &I) {
 
 /// Try to scalarize vector loads feeding extractelement instructions.
 bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
+  if (!TTI.allowVectorElementIndexingUsingGEP())
+    return false;
+
   Value *Ptr;
   if (!match(&I, m_Load(m_Value(Ptr))))
     return false;
@@ -1833,6 +1838,8 @@ bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
 }
 
 bool VectorCombine::scalarizeExtExtract(Instruction &I) {
+  if (!TTI.allowVectorElementIndexingUsingGEP())
+    return false;
   auto *Ext = dyn_cast<ZExtInst>(&I);
   if (!Ext)
     return false;

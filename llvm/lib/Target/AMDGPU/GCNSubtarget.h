@@ -1041,6 +1041,9 @@ public:
   void overrideSchedPolicy(MachineSchedPolicy &Policy,
                            const SchedRegion &Region) const override;
 
+  void overridePostRASchedPolicy(MachineSchedPolicy &Policy,
+                                 const SchedRegion &Region) const override;
+
   void mirFileLoaded(MachineFunction &MF) const override;
 
   unsigned getMaxNumUserSGPRs() const {
@@ -1534,6 +1537,9 @@ public:
 
   // \returns true if the target has V_{MIN|MAX}_{I|U}64 instructions.
   bool hasIntMinMax64() const { return GFX1250Insts; }
+
+  // \returns true if the target has V_ADD_{MIN|MAX}_{I|U}32 instructions.
+  bool hasAddMinMaxInsts() const { return GFX1250Insts; }
 
   // \returns true if the target has V_PK_ADD_{MIN|MAX}_{I|U}16 instructions.
   bool hasPkAddMinMaxInsts() const { return GFX1250Insts; }
