@@ -8,9 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-const char *renderd128 = "/dev/dri/renderD128";
-const char *renderd129 = "/dev/dri/renderD129";
 const char *renderd = "/dev/dri/renderD*";
+const char *mock_render_dirs[2] = {"/dev/dri/renderD128",
+                                   "/dev/dri/renderD129"};
 
 int glob(const char *pattern, int flags, int (*errfunc)(const char *, int),
          glob_t *pglob) {
@@ -32,9 +32,7 @@ int glob(const char *pattern, int flags, int (*errfunc)(const char *, int),
   }
   assert(strcmp(mock_mode, "exists") == 0);
   pglob->gl_pathc = 2;
-  pglob->gl_pathv = malloc(2 * sizeof(char *));
-  pglob->gl_pathv[0] = strdup(renderd128);
-  pglob->gl_pathv[1] = strdup(renderd129);
+  pglob->gl_pathv = mock_render_dirs;
   return 0;
 }
 
@@ -60,19 +58,12 @@ int glob64(const char *pattern, int flags, int (*errfunc)(const char *, int),
   assert(strcmp(mock_mode, "exists") == 0);
   pglob->gl_pathc = 2;
   pglob->gl_pathv = malloc(2 * sizeof(char *));
-  pglob->gl_pathv[0] = strdup(renderd128);
-  pglob->gl_pathv[1] = strdup(renderd129);
+  pglob->gl_pathv = mock_render_dirs;
   return 0;
 }
 
 void globfree(glob_t *pglob) {
-  if (pglob->gl_pathc == 2 && pglob->gl_pathv &&
-      strcmp(pglob->gl_pathv[0], renderd128) == 0 &&
-      strcmp(pglob->gl_pathv[1], renderd129) == 0) {
-    for (size_t i = 0; i < pglob->gl_pathc; ++i) {
-      free(pglob->gl_pathv[i]);
-    }
-    free(pglob->gl_pathv);
+  if (pglob->gl_pathv == mock_render_dirs) {
     pglob->gl_pathv = NULL;
     pglob->gl_pathc = 0;
     return;
@@ -88,15 +79,10 @@ void globfree(glob_t *pglob) {
 }
 
 void globfree64(glob64_t *pglob) {
-  if (pglob->gl_pathc == 2 && pglob->gl_pathv &&
-      strcmp(pglob->gl_pathv[0], renderd128) == 0 &&
-      strcmp(pglob->gl_pathv[1], renderd129) == 0) {
-    for (size_t i = 0; i < pglob->gl_pathc; ++i) {
-      free(pglob->gl_pathv[i]);
-    }
-    free(pglob->gl_pathv);
+  if (pglob->gl_pathv == mock_render_dirs) {
     pglob->gl_pathv = NULL;
     pglob->gl_pathc = 0;
+    return;
   }
   void (*real_globfree64)(glob64_t *);
   real_globfree64 = dlsym(RTLD_NEXT, "globfree64");
@@ -118,10 +104,10 @@ int mock_open_helper(const char *pathname) {
     return -1;
   }
 
-  if (strstr(pathname, "renderD128"))
+  if (pathname == mock_render_dirs[0])
     return DUMMY_FD_128;
 
-  if (strstr(pathname, "renderD129")) {
+  if (pathname == mock_render_dirs[1]) {
     if (mock_mode && strcmp(mock_mode, "deny_second") == 0) {
       errno = EACCES;
       return -1;
@@ -132,7 +118,7 @@ int mock_open_helper(const char *pathname) {
 }
 
 int open(const char *pathname, int flags, ...) {
-  if (strstr(pathname, "renderD12"))
+  if (pathname == mock_render_dirs[0] || pathname == mock_render_dirs[1])
     return mock_open_helper(pathname);
 
   // Call the real open function if not renderD12*.
@@ -150,7 +136,7 @@ int open(const char *pathname, int flags, ...) {
 }
 
 int open64(const char *pathname, int flags, ...) {
-  if (strstr(pathname, "renderD12"))
+  if (pathname == mock_render_dirs[0] || pathname == mock_render_dirs[1])
     return mock_open_helper(pathname);
 
   // Call the real open function if not renderD12*.
