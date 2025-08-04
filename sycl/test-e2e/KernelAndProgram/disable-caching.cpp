@@ -23,7 +23,7 @@ int main() {
   // CHECK-NOT: <--- urProgramRetain
   // CHECK: <--- urKernelCreate
   // CHECK-NOT: <--- urKernelRetain
-  // CHECK: <--- urEnqueueKernelLaunchWithArgsExp
+  // CHECK: <--- urEnqueueKernelLaunch
   // CHECK: <--- urProgramRelease
   // CHECK: <--- urKernelRelease
   // CHECK: <--- urEventWait
@@ -34,7 +34,7 @@ int main() {
   // CHECK-CACHE: <--- urKernelCreate
   // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
-  // CHECK-CACHE: <--- urEnqueueKernelLaunchWithArgsExp
+  // CHECK-CACHE: <--- urEnqueueKernelLaunch
   // CHECK-CACHE: <--- urEventWait
   q.single_task([] {}).wait();
 
@@ -42,7 +42,7 @@ int main() {
   // CHECK-NOT: <--- urProgramRetain
   // CHECK: <--- urKernelCreate
   // CHECK-NOT: <--- urKernelRetain
-  // CHECK: <--- urEnqueueKernelLaunchWithArgsExp
+  // CHECK: <--- urEnqueueKernelLaunch
   // CHECK: <--- urKernelRelease
   // CHECK: <--- urProgramRelease
   // CHECK: <--- urEventWait
@@ -53,7 +53,7 @@ int main() {
   // CHECK-CACHE: <--- urKernelCreate
   // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
-  // CHECK-CACHE: <--- urEnqueueKernelLaunchWithArgsExp
+  // CHECK-CACHE: <--- urEnqueueKernelLaunch
   // CHECK-CACHE: <--- urKernelRelease
   // CHECK-CACHE: <--- urProgramRelease
   // CHECK-CACHE: <--- urEventWait
@@ -62,7 +62,7 @@ int main() {
   // CHECK-NOT: <--- urProgramRetain
   // CHECK: <--- urKernelCreate
   // CHECK-NOT: <--- urKernelRetain
-  // CHECK: <--- urEnqueueKernelLaunchWithArgsExp
+  // CHECK: <--- urEnqueueKernelLaunch
   // CHECK: <--- urKernelRelease
   // CHECK: <--- urProgramRelease
   // CHECK: <--- urEventWait
@@ -73,7 +73,7 @@ int main() {
   // CHECK-CACHE: <--- urKernelCreate
   // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
-  // CHECK-CACHE: <--- urEnqueueKernelLaunchWithArgsExp
+  // CHECK-CACHE: <--- urEnqueueKernelLaunch
   // CHECK-CACHE: <--- urKernelRelease
   // CHECK-CACHE: <--- urProgramRelease
   // CHECK-CACHE: <--- urEventWait
