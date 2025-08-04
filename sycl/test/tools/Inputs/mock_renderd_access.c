@@ -15,6 +15,11 @@ const char *renderd = "/dev/dri/renderD*";
 int glob(const char *pattern, int flags, int (*errfunc)(const char *, int),
          glob_t *pglob) {
   const char *mock_mode = getenv("MOCK_GLOB_MODE");
+  if (mock_mode && strcmp(mock_mode, "notfound") == 0) {
+    pglob->gl_pathc = 0;
+    pglob->gl_pathv = NULL;
+    return 0;
+  }
   if (mock_mode && strcmp(mock_mode, "exists") == 0 &&
       strstr(pattern, renderd)) {
     pglob->gl_pathc = 2;
@@ -36,6 +41,11 @@ int glob(const char *pattern, int flags, int (*errfunc)(const char *, int),
 int glob64(const char *pattern, int flags, int (*errfunc)(const char *, int),
            glob64_t *pglob) {
   const char *mock_mode = getenv("MOCK_GLOB_MODE");
+  if (mock_mode && strcmp(mock_mode, "notfound") == 0) {
+    pglob->gl_pathc = 0;
+    pglob->gl_pathv = NULL;
+    return 0;
+  }
   if (mock_mode && strcmp(mock_mode, "exists") == 0 &&
       strstr(pattern, renderd)) {
     pglob->gl_pathc = 2;
