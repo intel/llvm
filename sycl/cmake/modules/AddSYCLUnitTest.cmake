@@ -106,7 +106,7 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
     # that the test itself links to OpenCL (rather than through ur_adapter_opencl.dll)
     set(mock_ocl ${CMAKE_CURRENT_BINARY_DIR}/OpenCL.dll)
 
-    # An error is thrown if both the preview and non-preview version tries to
+    # An error is thrown if both the preview and non-preview versions try to
     # copy OpenCL.dll to the test binary directory. Ninja complains that there
     # are multiple rules for building the same file (listed in the "BYPRODUCTS" field).
     # To fix this error, we use a different "BYPRODUCTS" name for
