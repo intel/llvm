@@ -137,7 +137,7 @@ void SYCLMemObjT::updateHostMemory(void *const Ptr) {
 
   EventImplPtr Event = Scheduler::getInstance().addCopyBack(&Req);
   if (Event)
-    Event->wait(Event);
+    Event->wait();
 }
 
 void SYCLMemObjT::updateHostMemory() {

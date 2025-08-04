@@ -12,7 +12,7 @@
 #include <detail/physical_mem_impl.hpp>                // For physical_mem_impl
 #include <sycl/context.hpp>                            // For context
 #include <sycl/device.hpp>                             // For device
-#include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp> // For get_mem_granularity
+#include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp> // For unmap
 
 namespace sycl {
 inline namespace _V1 {
@@ -72,6 +72,9 @@ public:
 
   /// Memory pool cannot be copied
   graph_mem_pool(graph_mem_pool &) = delete;
+
+  /// Memory pool cannot be assigned
+  graph_mem_pool &operator=(const graph_mem_pool &) = delete;
 
   /// Get a pointer to a new allocation. For device allocations these are
   /// virtual reservations which must be later mapped to allocated physical

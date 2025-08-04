@@ -71,7 +71,7 @@ TEST_F(CommandGraphTest, AddNode) {
   ASSERT_TRUE(getSyclObjImpl(Node2)->isEmpty());
   ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
   ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.size(), 1lu);
-  ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.front().lock().get(),
+  ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.front(),
             &*getSyclObjImpl(Node2));
   ASSERT_TRUE(getSyclObjImpl(Node1)->MPredecessors.empty());
   ASSERT_EQ(getSyclObjImpl(Node2)->MPredecessors.size(), 1lu);
@@ -154,7 +154,7 @@ TEST_F(CommandGraphTest, MakeEdge) {
   Graph.make_edge(Node1, Node2);
   ASSERT_EQ(GraphImpl.MRoots.size(), 1ul);
   ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.size(), 1lu);
-  ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.front().lock().get(),
+  ASSERT_EQ(getSyclObjImpl(Node1)->MSuccessors.front(),
             &*getSyclObjImpl(Node2));
   ASSERT_TRUE(getSyclObjImpl(Node1)->MPredecessors.empty());
   ASSERT_TRUE(getSyclObjImpl(Node2)->MSuccessors.empty());
@@ -241,13 +241,13 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword1) {
 
   experimental::detail::node_impl &Node1Impl = *getSyclObjImpl(Node1Graph);
   ASSERT_EQ(Node1Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node1Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node1Impl.MSuccessors[0], &EmptyImpl);
   experimental::detail::node_impl &Node2Impl = *getSyclObjImpl(Node2Graph);
   ASSERT_EQ(Node2Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node2Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node2Impl.MSuccessors[0], &EmptyImpl);
   experimental::detail::node_impl &Node3Impl = *getSyclObjImpl(Node3Graph);
   ASSERT_EQ(Node3Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node3Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node3Impl.MSuccessors[0], &EmptyImpl);
 }
 
 TEST_F(CommandGraphTest, DependencyLeavesKeyword2) {
@@ -280,17 +280,17 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword2) {
 
   experimental::detail::node_impl &Node1Impl = *getSyclObjImpl(Node1Graph);
   ASSERT_EQ(Node1Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node1Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node1Impl.MSuccessors[0], &EmptyImpl);
   experimental::detail::node_impl &Node2Impl = *getSyclObjImpl(Node2Graph);
   ASSERT_EQ(Node2Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node2Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node2Impl.MSuccessors[0], &EmptyImpl);
   experimental::detail::node_impl &Node3Impl = *getSyclObjImpl(Node3Graph);
   ASSERT_EQ(Node3Impl.MSuccessors.size(), 1lu);
 
   experimental::detail::node_impl &Node4Impl = *getSyclObjImpl(Node4Graph);
   ASSERT_EQ(Node4Impl.MPredecessors.size(), 1lu);
   ASSERT_EQ(Node4Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node4Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node4Impl.MSuccessors[0], &EmptyImpl);
 }
 
 TEST_F(CommandGraphTest, DependencyLeavesKeyword3) {
@@ -325,15 +325,15 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword3) {
   experimental::detail::node_impl &Node2Impl = *getSyclObjImpl(Node2Graph);
   ASSERT_EQ(Node1Impl.MSuccessors.size(), 2lu);
   ASSERT_EQ(Node2Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node2Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node2Impl.MSuccessors[0], &EmptyImpl);
 
   experimental::detail::node_impl &Node3Impl = *getSyclObjImpl(Node3Graph);
   ASSERT_EQ(Node3Impl.MPredecessors.size(), 1lu);
-  ASSERT_EQ(Node3Impl.MPredecessors[0].lock().get(), &Node1Impl);
+  ASSERT_EQ(Node3Impl.MPredecessors[0], &Node1Impl);
 
   experimental::detail::node_impl &Node4Impl = *getSyclObjImpl(Node4Graph);
   ASSERT_EQ(Node4Impl.MPredecessors.size(), 1lu);
-  ASSERT_EQ(Node4Impl.MPredecessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node4Impl.MPredecessors[0], &EmptyImpl);
 }
 
 TEST_F(CommandGraphTest, DependencyLeavesKeyword4) {
@@ -365,16 +365,16 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword4) {
 
   experimental::detail::node_impl &Node1Impl = *getSyclObjImpl(Node1Graph);
   ASSERT_EQ(Node1Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node1Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node1Impl.MSuccessors[0], &EmptyImpl);
   experimental::detail::node_impl &Node2Impl = *getSyclObjImpl(Node2Graph);
   ASSERT_EQ(Node2Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node2Impl.MSuccessors[0].lock().get(), &EmptyImpl);
+  ASSERT_EQ(Node2Impl.MSuccessors[0], &EmptyImpl);
 
   experimental::detail::node_impl &EmptyImpl2 = *getSyclObjImpl(EmptyNode2);
   experimental::detail::node_impl &Node3Impl = *getSyclObjImpl(Node3Graph);
   ASSERT_EQ(Node3Impl.MPredecessors.size(), 0lu);
   ASSERT_EQ(Node3Impl.MSuccessors.size(), 1lu);
-  ASSERT_EQ(Node3Impl.MSuccessors[0].lock().get(), &EmptyImpl2);
+  ASSERT_EQ(Node3Impl.MSuccessors[0], &EmptyImpl2);
 
   ASSERT_EQ(EmptyImpl2.MPredecessors.size(), 2lu);
 }

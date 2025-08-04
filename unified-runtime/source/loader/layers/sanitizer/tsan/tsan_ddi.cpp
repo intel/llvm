@@ -201,7 +201,114 @@ ur_result_t urProgramLink(
     PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
     return UrRes;
   }
+  UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
   UR_CALL(getTsanInterceptor()->registerProgram(*phProgram));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCreateWithIL
+__urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
+    /// [in] handle of the context instance
+    ur_context_handle_t hContext,
+    /// [in] pointer to IL binary.
+    const void *pIL,
+    /// [in] length of `pIL` in bytes.
+    size_t length,
+    /// [in][optional] pointer to program creation properties.
+    const ur_program_properties_t *pProperties,
+    /// [out] pointer to handle of program object created.
+    ur_program_handle_t *phProgram) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramCreateWithIL");
+
+  UR_CALL(getContext()->urDdiTable.Program.pfnCreateWithIL(
+      hContext, pIL, length, pProperties, phProgram));
+  UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCreateWithBinary
+__urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
+    /// [in] handle of the context instance
+    ur_context_handle_t hContext,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] a pointer to a list of device handles.
+    /// The binaries are loaded for devices specified in this list.
+    ur_device_handle_t *phDevices,
+    /// [in][range(0, numDevices)] array of sizes of program binaries specified
+    /// by `pBinaries` (in bytes).
+    size_t *pLengths,
+    /// [in][range(0, numDevices)] pointer to program binaries to be loaded
+    /// for devices specified by `phDevices`.
+    const uint8_t **ppBinaries,
+    /// [in][optional] pointer to program creation properties.
+    const ur_program_properties_t *pProperties,
+    /// [out] pointer to handle of Program object created.
+    ur_program_handle_t *phProgram) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramCreateWithBinary");
+
+  UR_CALL(getContext()->urDdiTable.Program.pfnCreateWithBinary(
+      hContext, numDevices, phDevices, pLengths, ppBinaries, pProperties,
+      phProgram));
+  UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCreateWithNativeHandle
+__urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
+    /// [in][nocheck] the native handle of the program.
+    ur_native_handle_t hNativeProgram,
+    /// [in] handle of the context instance
+    ur_context_handle_t hContext,
+    /// [in][optional] pointer to native program properties struct.
+    const ur_program_native_properties_t *pProperties,
+    /// [out] pointer to the handle of the program object created.
+    ur_program_handle_t *phProgram) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramCreateWithNativeHandle");
+
+  UR_CALL(getContext()->urDdiTable.Program.pfnCreateWithNativeHandle(
+      hNativeProgram, hContext, pProperties, phProgram));
+  UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramRetain
+__urdlllocal ur_result_t UR_APICALL urProgramRetain(
+    ur_program_handle_t
+        /// [in][retain] handle for the Program to retain
+        hProgram) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramRetain");
+
+  UR_CALL(getContext()->urDdiTable.Program.pfnRetain(hProgram));
+
+  auto &ProgramInfo = getTsanInterceptor()->getProgramInfo(hProgram);
+  ProgramInfo.RefCount++;
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramRelease
+ur_result_t UR_APICALL urProgramRelease(
+    /// [in][release] handle for the Program to release
+    ur_program_handle_t hProgram) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramRelease");
+
+  UR_CALL(getContext()->urDdiTable.Program.pfnRelease(hProgram));
+
+  auto &ProgramInfo = getTsanInterceptor()->getProgramInfo(hProgram);
+  if (--ProgramInfo.RefCount == 0) {
+    UR_CALL(getTsanInterceptor()->unregisterProgram(hProgram));
+    UR_CALL(getTsanInterceptor()->eraseProgram(hProgram));
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -255,6 +362,7 @@ ur_result_t urProgramLinkExp(
     return UrRes;
   }
 
+  UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
   UR_CALL(getTsanInterceptor()->registerProgram(*phProgram));
 
   return UR_RESULT_SUCCESS;
@@ -294,7 +402,7 @@ ur_result_t urMemBufferCreate(
     std::shared_ptr<ContextInfo> CtxInfo =
         getTsanInterceptor()->getContextInfo(hContext);
     for (const auto &hDevice : CtxInfo->DeviceList) {
-      ManagedQueue InternalQueue(hContext, hDevice);
+      ur_queue_handle_t InternalQueue = CtxInfo->getInternalQueue(hDevice);
       char *Handle = nullptr;
       UR_CALL(pMemBuffer->getHandle(hDevice, Handle));
       UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
@@ -1158,6 +1266,18 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMFree
+__urdlllocal ur_result_t UR_APICALL urUSMFree(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to USM memory object
+    void *pMem) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMFree");
+
+  return getTsanInterceptor()->releaseMemory(hContext, pMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueKernelLaunch
 ur_result_t urEnqueueKernelLaunch(
     /// [in] handle of the queue object
@@ -1210,6 +1330,120 @@ ur_result_t urEnqueueKernelLaunch(
   UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
       pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
+      numEventsInWaitList, phEventWaitList, phEvent));
+
+  UR_CALL(getTsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunch
+ur_result_t urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t *pLocalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+    /// properties
+    const ur_kernel_launch_property_t *launchPropList,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution. If
+    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies this
+    /// particular kernel execution instance.
+    ur_event_handle_t *phEvent) {
+  // This mutex is to prevent concurrent kernel launches across different queues
+  // as the DeviceTSAN local shadow memory does not support concurrent
+  // kernel launches now.
+  std::scoped_lock<ur_shared_mutex> Guard(
+      getTsanInterceptor()->KernelLaunchMutex);
+
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "==== urEnqueueKernelLaunchWithArgsExp");
+
+  // We need to set all the args now rather than letting LaunchWithArgs handle
+  // them. This is because some implementations of
+  // urKernelGetSuggestedLocalWorkSize, which is used in preLaunchKernel, rely
+  // on all the args being set.
+  for (uint32_t ArgPropIndex = 0; ArgPropIndex < numArgs; ArgPropIndex++) {
+    switch (pArgs[ArgPropIndex].type) {
+    case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
+      UR_CALL(ur_sanitizer_layer::tsan::urKernelSetArgLocal(
+          hKernel, pArgs[ArgPropIndex].index, pArgs[ArgPropIndex].size,
+          nullptr));
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
+      auto pfnKernelSetArgPointer =
+          getContext()->urDdiTable.Kernel.pfnSetArgPointer;
+      UR_CALL(pfnKernelSetArgPointer(hKernel, pArgs[ArgPropIndex].index,
+                                     nullptr,
+                                     pArgs[ArgPropIndex].value.pointer));
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
+      UR_CALL(ur_sanitizer_layer::tsan::urKernelSetArgValue(
+          hKernel, pArgs[ArgPropIndex].index, pArgs[ArgPropIndex].size, nullptr,
+          pArgs[ArgPropIndex].value.value));
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
+      ur_kernel_arg_mem_obj_properties_t Properties = {
+          UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
+          pArgs[ArgPropIndex].value.memObjTuple.flags};
+      UR_CALL(ur_sanitizer_layer::tsan::urKernelSetArgMemObj(
+          hKernel, pArgs[ArgPropIndex].index, &Properties,
+          pArgs[ArgPropIndex].value.memObjTuple.hMem));
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+      auto pfnKernelSetArgSampler =
+          getContext()->urDdiTable.Kernel.pfnSetArgSampler;
+      UR_CALL(pfnKernelSetArgSampler(hKernel, pArgs[ArgPropIndex].index,
+                                     nullptr,
+                                     pArgs[ArgPropIndex].value.sampler));
+      break;
+    }
+    default:
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+  }
+
+  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
+                        pLocalWorkSize, pGlobalWorkOffset, 3);
+
+  UR_CALL(getTsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
+
+  UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
+      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, 0, nullptr, numPropsInLaunchPropList, launchPropList,
       numEventsInWaitList, phEventWaitList, phEvent));
 
   UR_CALL(getTsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
@@ -1285,6 +1519,13 @@ ur_result_t urGetProgramProcAddrTable(
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
+  pDdiTable->pfnCreateWithIL = ur_sanitizer_layer::tsan::urProgramCreateWithIL;
+  pDdiTable->pfnCreateWithBinary =
+      ur_sanitizer_layer::tsan::urProgramCreateWithBinary;
+  pDdiTable->pfnCreateWithNativeHandle =
+      ur_sanitizer_layer::tsan::urProgramCreateWithNativeHandle;
+  pDdiTable->pfnRetain = ur_sanitizer_layer::tsan::urProgramRetain;
+  pDdiTable->pfnRelease = ur_sanitizer_layer::tsan::urProgramRelease;
   pDdiTable->pfnBuild = ur_sanitizer_layer::tsan::urProgramBuild;
   pDdiTable->pfnLink = ur_sanitizer_layer::tsan::urProgramLink;
 
@@ -1380,6 +1621,7 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
   pDdiTable->pfnDeviceAlloc = ur_sanitizer_layer::tsan::urUSMDeviceAlloc;
   pDdiTable->pfnHostAlloc = ur_sanitizer_layer::tsan::urUSMHostAlloc;
   pDdiTable->pfnSharedAlloc = ur_sanitizer_layer::tsan::urUSMSharedAlloc;
+  pDdiTable->pfnFree = ur_sanitizer_layer::tsan::urUSMFree;
 
   return UR_RESULT_SUCCESS;
 }
@@ -1419,6 +1661,22 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
+/// @brief Exported function for filling application's ProgramExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+ur_result_t urGetEnqueueExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_enqueue_exp_dditable_t *pDdiTable) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnKernelLaunchWithArgsExp =
+      ur_sanitizer_layer::tsan::urEnqueueKernelLaunchWithArgsExp;
+
+  return result;
+}
 } // namespace tsan
 
 ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
@@ -1466,6 +1724,11 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result =
         ur_sanitizer_layer::tsan::urGetEnqueueProcAddrTable(&dditable->Enqueue);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_sanitizer_layer::tsan::urGetEnqueueExpProcAddrTable(
+        &dditable->EnqueueExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {

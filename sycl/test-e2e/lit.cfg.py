@@ -22,6 +22,7 @@ config.backend_to_target = {
     "cuda": "target-nvidia",
     "hip": "target-amd",
     "native_cpu": "target-native_cpu",
+    "offload": config.offload_build_target,
 }
 config.target_to_triple = {
     "target-spir": "spir64",
@@ -614,6 +615,25 @@ else:
 if config.vulkan_found == "TRUE":
     config.available_features.add("vulkan")
 
+# Add Vulkan include and library paths to the configuration for substitution.
+link_vulkan = "-I %s " % (config.vulkan_include_dir)
+if platform.system() == "Windows":
+    if cl_options:
+        link_vulkan += "/clang:-l%s" % (config.vulkan_lib)
+    else:
+        link_vulkan += "-l %s" % (config.vulkan_lib)
+else:
+    vulkan_lib_path = os.path.dirname(config.vulkan_lib)
+    link_vulkan += "-L %s -lvulkan" % (vulkan_lib_path)
+config.substitutions.append(("%link-vulkan", link_vulkan))
+
+# Add DirectX 12 libraries to the configuration for substitution.
+if platform.system() == "Windows":
+    directx_libs = ["-ld3d11", "-ld3d12", "-ldxgi", "-ldxguid"]
+    if cl_options:
+        directx_libs = ["/clang:" + l for l in directx_libs]
+    config.substitutions.append(("%link-directx", " ".join(directx_libs)))
+
 if not config.gpu_aot_target_opts:
     config.gpu_aot_target_opts = '"-device *"'
 
@@ -674,7 +694,7 @@ if len(config.sycl_devices) > 1:
 
 
 def remove_level_zero_suffix(devices):
-    return [device.replace("_v2", "") for device in devices]
+    return [device.replace("_v2", "").replace("_v1", "") for device in devices]
 
 
 available_devices = {
@@ -683,6 +703,7 @@ available_devices = {
     "level_zero": "gpu",
     "hip": "gpu",
     "native_cpu": "cpu",
+    "offload": "gpu",
 }
 for d in remove_level_zero_suffix(config.sycl_devices):
     be, dev = d.split(":")
@@ -960,13 +981,11 @@ for full_name, sycl_device in zip(
 ):
     env = copy.copy(llvm_config.config.environment)
 
-    if "v2" in full_name:
-        env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "1"
-
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
         env["SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
 
+    features = set()
     dev_aspects = []
     dev_sg_sizes = []
     architectures = set()
@@ -1007,6 +1026,8 @@ for full_name, sycl_device in zip(
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
             architectures.add(architecture.strip())
+        if re.match(r" *Name *:", line) and "Level-Zero V2" in line:
+            features.add("level_zero_v2_adapter")
 
     if dev_aspects == []:
         lit_config.error(
@@ -1070,7 +1091,6 @@ for full_name, sycl_device in zip(
             )
         )
 
-    features = set()
     features.update(aspect_features)
     features.update(sg_size_features)
     features.update(architecture_feature)
@@ -1078,8 +1098,14 @@ for full_name, sycl_device in zip(
 
     be, dev = sycl_device.split(":")
     features.add(dev.replace("fpga", "accelerator"))
-    if "v2" in full_name:
+    if "level_zero_v2" in full_name:
         features.add("level_zero_v2_adapter")
+    elif "level_zero_v1" in full_name:
+        features.discard("level_zero_v2_adapter")
+
+    if "level_zero_v2_adapter" in features:
+        lit_config.note("Using Level Zero V2 adapter for {}".format(sycl_device))
+
     # Use short names for LIT rules.
     features.add(be)
     # Add corresponding target feature

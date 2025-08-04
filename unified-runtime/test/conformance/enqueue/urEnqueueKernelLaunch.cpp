@@ -491,11 +491,11 @@ struct urEnqueueKernelLaunchWithVirtualMemory : uur::urKernelExecutionTest {
       GTEST_SKIP() << "Virtual memory is not supported.";
     }
 
+    alloc_size = 1024;
     ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
-        context, device, UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
+        context, device, alloc_size, UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
         sizeof(granularity), &granularity, nullptr));
 
-    alloc_size = 1024;
     virtual_page_size = uur::RoundUpToNearestFactor(alloc_size, granularity);
 
     ASSERT_SUCCESS(urPhysicalMemCreate(context, device, virtual_page_size,
@@ -631,7 +631,7 @@ TEST_P(urEnqueueKernelLaunchMultiDeviceTest, KernelLaunchReadDifferentQueues) {
                                        nullptr, 0, nullptr, nullptr));
 
   // Wait for the queue to finish executing.
-  EXPECT_SUCCESS(urEnqueueEventsWait(queues[0], 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueEventsWait(queues[0], 0, nullptr, nullptr));
 
   // Then the remaining queues do blocking reads from the buffer. Since the
   // queues target different devices this checks that any devices memory has

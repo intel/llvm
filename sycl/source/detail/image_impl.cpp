@@ -23,12 +23,11 @@ uint8_t GImageStreamID;
 #endif
 
 template <typename Param>
-static bool checkImageValueRange(const std::vector<device> &Devices,
-                                 const size_t Value) {
-  return Value >= 1 && std::all_of(Devices.cbegin(), Devices.cend(),
-                                   [Value](const device &Dev) {
-                                     return Value <= Dev.get_info<Param>();
-                                   });
+static bool checkImageValueRange(devices_range Devices, const size_t Value) {
+  return Value >= 1 &&
+         std::all_of(Devices.begin(), Devices.end(), [Value](device_impl &Dev) {
+           return Value <= Dev.get_info<Param>();
+         });
 }
 
 template <typename T, typename... Args> static bool checkAnyImpl(T) {
@@ -345,46 +344,47 @@ void *image_impl::allocateMem(context_impl *Context, bool InitFromUserData,
 
 bool image_impl::checkImageDesc(const ur_image_desc_t &Desc,
                                 context_impl *Context, void *UserPtr) {
+  devices_range Devices = Context ? Context->getDevices() : devices_range{};
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE1D, UR_MEM_TYPE_IMAGE1D_ARRAY,
                UR_MEM_TYPE_IMAGE2D_ARRAY, UR_MEM_TYPE_IMAGE2D) &&
-      !checkImageValueRange<info::device::image2d_max_width>(
-          getDevices(Context), Desc.width))
+      !checkImageValueRange<info::device::image2d_max_width>(Devices,
+                                                             Desc.width))
     throw exception(make_error_code(errc::invalid),
                     "For a 1D/2D image/image array, the width must be a Value "
                     ">= 1 and <= info::device::image2d_max_width");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE3D) &&
-      !checkImageValueRange<info::device::image3d_max_width>(
-          getDevices(Context), Desc.width))
+      !checkImageValueRange<info::device::image3d_max_width>(Devices,
+                                                             Desc.width))
     throw exception(make_error_code(errc::invalid),
                     "For a 3D image, the width must be a Value >= 1 and <= "
                     "info::device::image3d_max_width");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE2D, UR_MEM_TYPE_IMAGE2D_ARRAY) &&
-      !checkImageValueRange<info::device::image2d_max_height>(
-          getDevices(Context), Desc.height))
+      !checkImageValueRange<info::device::image2d_max_height>(Devices,
+                                                              Desc.height))
     throw exception(make_error_code(errc::invalid),
                     "For a 2D image or image array, the height must be a Value "
                     ">= 1 and <= info::device::image2d_max_height");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE3D) &&
-      !checkImageValueRange<info::device::image3d_max_height>(
-          getDevices(Context), Desc.height))
+      !checkImageValueRange<info::device::image3d_max_height>(Devices,
+                                                              Desc.height))
     throw exception(make_error_code(errc::invalid),
                     "For a 3D image, the heightmust be a Value >= 1 and <= "
                     "info::device::image3d_max_height");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE3D) &&
-      !checkImageValueRange<info::device::image3d_max_depth>(
-          getDevices(Context), Desc.depth))
+      !checkImageValueRange<info::device::image3d_max_depth>(Devices,
+                                                             Desc.depth))
     throw exception(make_error_code(errc::invalid),
                     "For a 3D image, the depth must be a Value >= 1 and <= "
                     "info::device::image2d_max_depth");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE1D_ARRAY,
                UR_MEM_TYPE_IMAGE2D_ARRAY) &&
-      !checkImageValueRange<info::device::image_max_array_size>(
-          getDevices(Context), Desc.arraySize))
+      !checkImageValueRange<info::device::image_max_array_size>(Devices,
+                                                                Desc.arraySize))
     throw exception(make_error_code(errc::invalid),
                     "For a 1D and 2D image array, the array_size must be a "
                     "Value >= 1 and <= info::device::image_max_array_size.");
@@ -449,12 +449,6 @@ bool image_impl::checkImageFormat(const ur_image_format_t &Format,
         "or CL_UNSIGNED_INT8.");
 
   return true;
-}
-
-std::vector<device> image_impl::getDevices(context_impl *Context) {
-  if (!Context)
-    return {};
-  return Context->get_info<info::context::devices>();
 }
 
 void image_impl::sampledImageConstructorNotification(

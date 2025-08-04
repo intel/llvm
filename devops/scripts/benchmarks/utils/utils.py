@@ -65,17 +65,20 @@ def run(
             cwd=cwd,
             check=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.PIPE,
             env=env,
             timeout=timeout,
         )  # nosec B603
 
         if result.stdout:
             log.debug(result.stdout.decode())
+        if result.stderr:
+            log.debug(result.stderr.decode())
 
         return result
     except subprocess.CalledProcessError as e:
         log.error(e.stdout.decode())
+        log.error(e.stderr.decode())
         raise
 
 

@@ -385,7 +385,7 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
 
   switch (propName) {
   case UR_PROGRAM_INFO_REFERENCE_COUNT:
-    return ReturnValue(hProgram->getReferenceCount());
+    return ReturnValue(hProgram->RefCount.getCount());
   case UR_PROGRAM_INFO_CONTEXT:
     return ReturnValue(hProgram->Context);
   case UR_PROGRAM_INFO_NUM_DEVICES:
@@ -418,8 +418,8 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(ur_program_handle_t hProgram) {
-  UR_ASSERT(hProgram->getReferenceCount() > 0, UR_RESULT_ERROR_INVALID_PROGRAM);
-  hProgram->incrementReferenceCount();
+  UR_ASSERT(hProgram->RefCount.getCount() > 0, UR_RESULT_ERROR_INVALID_PROGRAM);
+  hProgram->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
@@ -430,11 +430,11 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(ur_program_handle_t hProgram) {
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  UR_ASSERT(hProgram->getReferenceCount() != 0,
+  UR_ASSERT(hProgram->RefCount.getCount() != 0,
             UR_RESULT_ERROR_INVALID_PROGRAM);
 
   // decrement ref count. If it is 0, delete the program.
-  if (hProgram->decrementReferenceCount() == 0) {
+  if (hProgram->RefCount.release()) {
     std::unique_ptr<ur_program_handle_t_> ProgramPtr{hProgram};
     try {
       ScopedDevice Active(hProgram->getDevice());

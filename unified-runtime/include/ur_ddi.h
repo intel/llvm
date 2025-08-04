@@ -1098,6 +1098,15 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetEnqueueProcAddrTable_t)(
     ur_api_version_t, ur_enqueue_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueKernelLaunchWithArgsExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueKernelLaunchWithArgsExp_t)(
+    ur_queue_handle_t, ur_kernel_handle_t, uint32_t, const size_t *,
+    const size_t *, const size_t *, uint32_t,
+    const ur_exp_kernel_arg_properties_t *, uint32_t,
+    const ur_kernel_launch_property_t *, uint32_t, const ur_event_handle_t *,
+    ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueUSMDeviceAllocExp
 typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMDeviceAllocExp_t)(
     ur_queue_handle_t, ur_usm_pool_handle_t, const size_t,
@@ -1147,6 +1156,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueNativeCommandExp_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of EnqueueExp functions pointers
 typedef struct ur_enqueue_exp_dditable_t {
+  ur_pfnEnqueueKernelLaunchWithArgsExp_t pfnKernelLaunchWithArgsExp;
   ur_pfnEnqueueUSMDeviceAllocExp_t pfnUSMDeviceAllocExp;
   ur_pfnEnqueueUSMSharedAllocExp_t pfnUSMSharedAllocExp;
   ur_pfnEnqueueUSMHostAllocExp_t pfnUSMHostAllocExp;
@@ -1788,6 +1798,51 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetCommandBufferExpProcAddrTable_t)(
     ur_api_version_t, ur_command_buffer_exp_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urMemoryExportAllocExportableMemoryExp
+typedef ur_result_t(UR_APICALL *ur_pfnMemoryExportAllocExportableMemoryExp_t)(
+    ur_context_handle_t, ur_device_handle_t, size_t, size_t,
+    ur_exp_external_mem_type_t, void **);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urMemoryExportFreeExportableMemoryExp
+typedef ur_result_t(UR_APICALL *ur_pfnMemoryExportFreeExportableMemoryExp_t)(
+    ur_context_handle_t, ur_device_handle_t, void *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urMemoryExportExportMemoryHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnMemoryExportExportMemoryHandleExp_t)(
+    ur_context_handle_t, ur_device_handle_t, ur_exp_external_mem_type_t, void *,
+    void *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of MemoryExportExp functions pointers
+typedef struct ur_memory_export_exp_dditable_t {
+  ur_pfnMemoryExportAllocExportableMemoryExp_t pfnAllocExportableMemoryExp;
+  ur_pfnMemoryExportFreeExportableMemoryExp_t pfnFreeExportableMemoryExp;
+  ur_pfnMemoryExportExportMemoryHandleExp_t pfnExportMemoryHandleExp;
+} ur_memory_export_exp_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's MemoryExportExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetMemoryExportExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_memory_export_exp_dditable_t *pDdiTable);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetMemoryExportExpProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetMemoryExportExpProcAddrTable_t)(
+    ur_api_version_t, ur_memory_export_exp_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUsmP2PEnablePeerAccessExp
 typedef ur_result_t(UR_APICALL *ur_pfnUsmP2PEnablePeerAccessExp_t)(
     ur_device_handle_t, ur_device_handle_t);
@@ -1834,8 +1889,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetUsmP2PExpProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urVirtualMemGranularityGetInfo
 typedef ur_result_t(UR_APICALL *ur_pfnVirtualMemGranularityGetInfo_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_virtual_mem_granularity_info_t,
-    size_t, void *, size_t *);
+    ur_context_handle_t, ur_device_handle_t, size_t,
+    ur_virtual_mem_granularity_info_t, size_t, void *, size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urVirtualMemReserve
@@ -2004,6 +2059,7 @@ typedef struct ur_dditable_t {
   ur_usm_exp_dditable_t USMExp;
   ur_bindless_images_exp_dditable_t BindlessImagesExp;
   ur_command_buffer_exp_dditable_t CommandBufferExp;
+  ur_memory_export_exp_dditable_t MemoryExportExp;
   ur_usm_p2p_exp_dditable_t UsmP2PExp;
   ur_virtual_mem_dditable_t VirtualMem;
   ur_device_dditable_t Device;

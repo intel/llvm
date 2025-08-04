@@ -135,7 +135,7 @@ protected:
     TestLock.unlock();
 
     auto BlockingEvent = BlockingCommand->getEvent();
-    BlockingEvent->wait(BlockingEvent);
+    BlockingEvent->wait();
     {
       auto Lock = MS.acquireOriginSchedGraphWriteLock();
       Lock.lock();
@@ -145,7 +145,7 @@ protected:
     }
     for (detail::Command *BlockedCmd : BlockedCommands) {
       auto BlockedEvent = BlockedCmd->getEvent();
-      BlockedEvent->wait(BlockedEvent);
+      BlockedEvent->wait();
     }
   }
 
@@ -224,7 +224,7 @@ TEST_F(DependsOnTests, EnqueueNoMemObjHostDepKernel) {
 
   EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
   EXPECT_TRUE(Cmd2->isSuccessfullyEnqueued());
-  Cmd2Event->wait(Cmd2Event);
+  Cmd2Event->wait();
 }
 
 TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHostBlocked) {

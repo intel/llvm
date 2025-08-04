@@ -26,7 +26,7 @@ class SyclBench(Suite):
     def git_hash(self) -> str:
         return "31fc70be6266193c4ba60eb1fe3ce26edee4ca5b"
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
@@ -137,7 +137,7 @@ class SyclBenchmark(Benchmark):
             self.directory, "sycl-bench-build", self.bench_name
         )
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         self.outputfile = os.path.join(self.bench.directory, self.test + ".csv")
 
         command = [
@@ -151,18 +151,24 @@ class SyclBenchmark(Benchmark):
         env_vars.update(self.extra_env_vars())
 
         # no output to stdout, all in outputfile
-        self.run_bench(command, env_vars)
+        self.run_bench(
+            command,
+            env_vars,
+            run_unitrace=run_unitrace,
+        )
 
         with open(self.outputfile, "r") as f:
             reader = csv.reader(f)
             res_list = []
             for row in reader:
                 if not row[0].startswith("#"):
+                    # Check if the test passed
+                    if row[1] != "PASS":
+                        raise Exception(f"{row[0]} failed")
                     res_list.append(
                         Result(
                             label=f"{self.name()} {row[0]}",
                             value=float(row[12]) * 1000,  # convert to ms
-                            passed=(row[1] == "PASS"),
                             command=command,
                             env=env_vars,
                             unit="ms",

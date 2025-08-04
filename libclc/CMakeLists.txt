@@ -79,7 +79,7 @@ else()
   # Note that we check this later (for both build types) but we can provide a
   # more useful error message when built in-tree. We assume that LLVM tools are
   # always available so don't warn here.
-  if( NOT clang IN_LIST LLVM_ENABLE_PROJECTS )
+  if( NOT LLVM_RUNTIMES_BUILD AND NOT clang IN_LIST LLVM_ENABLE_PROJECTS )
     message(FATAL_ERROR "Clang is not enabled, but is required to build libclc in-tree")
   endif()
 
@@ -464,9 +464,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     elseif( ARCH STREQUAL amdgcn )
       set( build_flags )
       set( opt_flags -O3 --amdgpu-oclc-reflect-enable=false )
-    elseif( ARCH STREQUAL native_cpu )
-      set( build_flags -Xclang -fsycl-is-native-cpu )
-      set( opt_flags -O3 )
     else()
       set( build_flags )
       set( opt_flags -O3 )

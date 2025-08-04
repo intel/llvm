@@ -10,27 +10,27 @@
 
 // Throw warning when including sycl.hpp without using -fsycl flag.
 // Warning can be disabled by defining SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
+#define __SYCL_STRINGIFY(x) #x
+#define __SYCL_TOSTRING(x) __SYCL_STRINGIFY(x)
 
 #ifdef _MSC_VER
-#define WARNING(msg)                                                           \
-  __pragma(message(__FILE__ "(" TOSTRING(__LINE__) "): warning: " msg))
+#define __SYCL_WARNING(msg)                                                    \
+  __pragma(message(__FILE__ "(" __SYCL_TOSTRING(__LINE__) "): warning: " msg))
 #elif defined(__GNUC__) || defined(__clang__)
-#define WARNING(msg) _Pragma(TOSTRING(GCC warning msg))
+#define __SYCL_WARNING(msg) _Pragma(__SYCL_TOSTRING(GCC warning msg))
 #else
-#define WARNING(msg) // Unsupported compiler
+#define __SYCL_WARNING(msg) // Unsupported compiler
 #endif
 
 #if !defined(SYCL_LANGUAGE_VERSION) &&                                         \
     !defined(SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
-WARNING("You are including <sycl/sycl.hpp> without -fsycl flag, \
+__SYCL_WARNING("You are including <sycl/sycl.hpp> without -fsycl flag, \
 which is errorenous for device code compilation. This warning \
 can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #endif
-#undef WARNING
-#undef TOSTRING
-#undef STRINGIFY
+#undef __SYCL_WARNING
+#undef __SYCL_TOSTRING
+#undef __SYCL_STRINGIFY
 
 #include <sycl/detail/core.hpp>
 
@@ -110,27 +110,30 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/experimental/annotated_usm/alloc_shared.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_usm/dealloc.hpp>
 #include <sycl/ext/oneapi/experimental/auto_local_range.hpp>
-#include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
+#include <sycl/ext/oneapi/experimental/chunk.hpp>
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
+#include <sycl/ext/oneapi/experimental/cuda/non_uniform_algorithms.hpp>
 #include <sycl/ext/oneapi/experimental/current_device.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
-#include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
+#include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
+#include <sycl/ext/oneapi/experimental/fragment.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/group_helpers_sorters.hpp>
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
-#include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/prefetch.hpp>
 #include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/reduction_properties.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/experimental/syclbin_kernel_bundle.hpp>
-#include <sycl/ext/oneapi/experimental/tangle_group.hpp>
+#include <sycl/ext/oneapi/experimental/tangle.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>

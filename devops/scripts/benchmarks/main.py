@@ -27,8 +27,8 @@ from utils.compute_runtime import *
 from utils.validate import Validate
 from utils.detect_versions import DetectVersion
 from utils.logger import log
+from utils.unitrace import get_unitrace
 from presets import enabled_suites, presets
-
 
 # Update this if you are changing the layout of the results files
 INTERNAL_WORKDIR_VERSION = "2.0"
@@ -40,42 +40,41 @@ def run_iterations(
     iters: int,
     results: dict[str, list[Result]],
     failures: dict[str, str],
+    run_unitrace: bool = False,
 ):
     for iter in range(iters):
         log.info(f"running {benchmark.name()}, iteration {iter}... ")
-        bench_results = benchmark.run(env_vars)
-        if bench_results is None:
-            if options.exit_on_failure:
-                raise RuntimeError(f"Benchmark {benchmark.name()} produced no results!")
-            else:
-                failures[benchmark.name()] = "benchmark produced no results!"
-                break
-
-        for bench_result in bench_results:
-            if not bench_result.passed:
+        try:
+            bench_results = benchmark.run(env_vars, run_unitrace=run_unitrace)
+            if bench_results is None:
                 if options.exit_on_failure:
-                    raise RuntimeError(
-                        f"Benchmark {benchmark.name()} failed: {bench_result.label} verification failed."
-                    )
+                    raise RuntimeError(f"Benchmark produced no results!")
                 else:
-                    failures[bench_result.label] = "verification failed"
-                    log.warning(
-                        f"complete ({bench_result.label}: verification failed)."
-                    )
-                    continue
+                    failures[benchmark.name()] = "benchmark produced no results!"
+                    break
 
-            log.info(
-                f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
-            )
+            for bench_result in bench_results:
+                log.info(
+                    f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
+                )
+                bench_result.name = bench_result.label
+                bench_result.lower_is_better = benchmark.lower_is_better()
+                bench_result.suite = benchmark.get_suite_name()
 
-            bench_result.name = bench_result.label
-            bench_result.lower_is_better = benchmark.lower_is_better()
-            bench_result.suite = benchmark.get_suite_name()
+                if bench_result.label not in results:
+                    results[bench_result.label] = []
 
-            if bench_result.label not in results:
-                results[bench_result.label] = []
-
-            results[bench_result.label].append(bench_result)
+                results[bench_result.label].append(bench_result)
+        except Exception as e:
+            failure_label = f"{benchmark.name()} iteration {iter}"
+            if options.exit_on_failure:
+                raise RuntimeError(
+                    f"Benchmark failed: {failure_label} verification failed: {str(e)}"
+                )
+            else:
+                failures[failure_label] = f"verification failed: {str(e)}"
+                log.error(f"complete ({failure_label}: verification failed: {str(e)}).")
+                continue
 
 
 # https://www.statology.org/modified-z-score/
@@ -167,11 +166,18 @@ def collect_metadata(suites):
     return metadata
 
 
-def main(directory, additional_env_vars, save_name, compare_names, filter):
+def main(directory, additional_env_vars, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
     if options.dry_run:
         log.info("Dry run mode enabled. No benchmarks will be executed.")
+
+    options.unitrace = args.unitrace is not None
+
+    if options.unitrace and options.save_name is None:
+        raise ValueError(
+            "Unitrace requires a save name to be specified via --save option."
+        )
 
     if options.build_compute_runtime:
         log.info(f"Setting up Compute Runtime {options.compute_runtime_tag}")
@@ -221,6 +227,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             try:
                 s.setup()
             except Exception as e:
+                if options.exit_on_failure:
+                    raise e
                 failures[s.name()] = f"Suite setup failure: {e}"
                 log.error(
                     f"{type(s).__name__} setup failed. Benchmarks won't be added."
@@ -247,25 +255,38 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     if benchmarks:
         log.info(f"Running {len(benchmarks)} benchmarks...")
     elif not options.dry_run:
-        log.warning("No benchmarks to run.")
+        raise RuntimeError("No benchmarks to run.")
     for benchmark in benchmarks:
         try:
             merged_env_vars = {**additional_env_vars}
             intermediate_results: dict[str, list[Result]] = {}
             processed: list[Result] = []
-            for _ in range(options.iterations_stddev):
+            # regular run of the benchmark (if no unitrace or unitrace inclusive)
+            if args.unitrace != "exclusive":
+                for _ in range(options.iterations_stddev):
+                    run_iterations(
+                        benchmark,
+                        merged_env_vars,
+                        options.iterations,
+                        intermediate_results,
+                        failures,
+                        run_unitrace=False,
+                    )
+                    valid, processed = process_results(
+                        intermediate_results, benchmark.stddev_threshold()
+                    )
+                    if valid:
+                        break
+            # single unitrace run independent of benchmark iterations (if unitrace enabled)
+            if options.unitrace and benchmark.traceable():
                 run_iterations(
                     benchmark,
                     merged_env_vars,
-                    options.iterations,
+                    1,
                     intermediate_results,
                     failures,
+                    run_unitrace=True,
                 )
-                valid, processed = process_results(
-                    intermediate_results, benchmark.stddev_threshold()
-                )
-                if valid:
-                    break
             results += processed
         except Exception as e:
             if options.exit_on_failure:
@@ -293,7 +314,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     # limit how many files we load.
     # should this be configurable?
     log.info(f"Loading benchmark history from {results_dir}...")
-    history.load(1000)
+    history.load()
     log.info(f"Loaded {len(history.runs)} benchmark runs.")
 
     if compare_names:
@@ -323,14 +344,14 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             f"Markdown with benchmark results has been written to {md_path}/benchmark_results.md"
         )
 
-    saved_name = save_name if save_name is not None else this_name
+    saved_name = options.save_name if options.save_name is not None else this_name
 
     # It's important we don't save the current results into history before
     # we calculate historical averages or get latest results for compare.
     # Otherwise we might be comparing the results to themselves.
     if not options.dry_run:
         log.info(f"Saving benchmark results...")
-        history.save(saved_name, results, save_name is not None)
+        history.save(saved_name, results)
         if saved_name not in compare_names:
             compare_names.append(saved_name)
         log.info(f"Benchmark results saved.")
@@ -530,6 +551,14 @@ if __name__ == "__main__":
         help="HIP device architecture",
         default=None,
     )
+    parser.add_argument(
+        "--unitrace",
+        nargs="?",
+        const="exclusive",
+        default=None,
+        help="Unitrace tracing for single iteration of benchmarks. Inclusive tracing is done along regular benchmarks.",
+        choices=["inclusive", "exclusive"],
+    )
 
     # Options intended for CI:
     parser.add_argument(
@@ -626,6 +655,7 @@ if __name__ == "__main__":
     options.ur = args.ur
     options.ur_adapter = args.adapter
     options.exit_on_failure = args.exit_on_failure
+    options.save_name = args.save
     options.compare = Compare(args.compare_type)
     options.compare_max = args.compare_max
     options.output_markdown = args.output_markdown
@@ -703,7 +733,6 @@ if __name__ == "__main__":
     main(
         args.benchmark_directory,
         additional_env_vars,
-        args.save,
         args.compare,
         benchmark_filter,
     )

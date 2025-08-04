@@ -26,7 +26,7 @@ jobs:
         # older >24h. That means the previous run already tested this commit.
         run: |
           if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
-            latest_commit_time=$(curl -s https://api.github.com/repos/intel/llvm/commits/sycl-rel-6_2 | jq -r '.commit.committer.date')
+            latest_commit_time=$(curl -s -H "Authorization: token $GH_TOKEN" https://api.github.com/repos/intel/llvm/commits/sycl-rel-6_2 | jq -r '.commit.committer.date')
             echo $latest_commit_time
             latest_commit_epoch=$(date -d "$latest_commit_time" +%s)
             now_epoch=$(date +%s)

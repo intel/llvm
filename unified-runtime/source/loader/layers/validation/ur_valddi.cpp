@@ -569,7 +569,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP < propName)
+    if (UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -2182,6 +2182,9 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     /// device is null then the granularity is suitable for all devices in
     /// context.
     ur_device_handle_t hDevice,
+    /// [in] allocation size in bytes for which the alignment is being
+    /// queried.
+    size_t allocationSize,
     /// [in] type of the info to query.
     ur_virtual_mem_granularity_info_t propName,
     /// [in] size in bytes of the memory pointed to by pPropValue.
@@ -2228,8 +2231,9 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
-  ur_result_t result = pfnGranularityGetInfo(
-      hContext, hDevice, propName, propSize, pPropValue, pPropSizeRet);
+  ur_result_t result =
+      pfnGranularityGetInfo(hContext, hDevice, allocationSize, propName,
+                            propSize, pPropValue, pPropSizeRet);
 
   return result;
 }
@@ -10334,6 +10338,167 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem) {
+  auto pfnAllocExportableMemoryExp =
+      getContext()->urDdiTable.MemoryExportExp.pfnAllocExportableMemoryExp;
+
+  if (nullptr == pfnAllocExportableMemoryExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (ppMem == nullptr)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if ((hDevice == nullptr) || (hContext == nullptr))
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE < handleTypeToExport)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (alignment != 0 && ((alignment & (alignment - 1)) != 0))
+      return UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT;
+
+    if (size == 0)
+      return UR_RESULT_ERROR_INVALID_USM_SIZE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnAllocExportableMemoryExp(
+      hContext, hDevice, alignment, size, handleTypeToExport, ppMem);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportFreeExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
+    /// [in] Handle to context in which to free memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to free memory.
+    ur_device_handle_t hDevice,
+    /// [in][release] Pointer to exportable memory to be deallocated.
+    void *pMem) {
+  auto pfnFreeExportableMemoryExp =
+      getContext()->urDdiTable.MemoryExportExp.pfnFreeExportableMemoryExp;
+
+  if (nullptr == pfnFreeExportableMemoryExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (pMem == nullptr)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if ((hDevice == nullptr) || (hContext == nullptr))
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnFreeExportableMemoryExp(hContext, hDevice, pMem);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportExportMemoryHandleExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
+    /// [in] Handle to context in which the exportable memory was allocated.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which the exportable memory was allocated.
+    ur_device_handle_t hDevice,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [in] Pointer to exportable memory handle.
+    void *pMem,
+    /// [out] Returned exportable handle to memory allocated in `pMem`
+    void *pMemHandleRet) {
+  auto pfnExportMemoryHandleExp =
+      getContext()->urDdiTable.MemoryExportExp.pfnExportMemoryHandleExp;
+
+  if (nullptr == pfnExportMemoryHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (pMemHandleRet == nullptr || pMem == nullptr)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if ((hDevice == nullptr) || (hContext == nullptr))
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE < handleTypeToExport)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnExportMemoryHandleExp(
+      hContext, hDevice, handleTypeToExport, pMem, pMemHandleRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuildExp
 __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     /// [in] Handle of the program to build.
@@ -10698,6 +10863,122 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 
   ur_result_t result = pfnPeerAccessGetInfoExp(
       commandDevice, peerDevice, propName, propSize, pPropValue, pPropSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunchWithArgsExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t *pLocalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
+    /// of launch properties
+    const ur_kernel_launch_property_t *launchPropList,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+  auto pfnKernelLaunchWithArgsExp =
+      getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp;
+
+  if (nullptr == pfnKernelLaunchWithArgsExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pGlobalWorkSize)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (launchPropList == NULL && numPropsInLaunchPropList > 0)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (pArgs == NULL && numArgs > 0)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL != pArgs && UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 ||
+        pGlobalWorkSize[2] == 0)
+      return UR_RESULT_ERROR_INVALID_WORK_DIMENSION;
+
+    if (pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] == 0 ||
+                           pLocalWorkSize[2] == 0))
+      return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hKernel)) {
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
+  }
+
+  ur_result_t result = pfnKernelLaunchWithArgsExp(
+      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, numArgs, pArgs, numPropsInLaunchPropList, launchPropList,
+      numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -11337,6 +11618,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   ur_result_t result = UR_RESULT_SUCCESS;
 
+  dditable.pfnKernelLaunchWithArgsExp = pDdiTable->pfnKernelLaunchWithArgsExp;
+  pDdiTable->pfnKernelLaunchWithArgsExp =
+      ur_validation_layer::urEnqueueKernelLaunchWithArgsExp;
+
   dditable.pfnUSMDeviceAllocExp = pDdiTable->pfnUSMDeviceAllocExp;
   pDdiTable->pfnUSMDeviceAllocExp =
       ur_validation_layer::urEnqueueUSMDeviceAllocExp;
@@ -11566,6 +11851,48 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
 
   dditable.pfnImageGetInfo = pDdiTable->pfnImageGetInfo;
   pDdiTable->pfnImageGetInfo = ur_validation_layer::urMemImageGetInfo;
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's MemoryExportExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetMemoryExportExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_memory_export_exp_dditable_t *pDdiTable) {
+  auto &dditable =
+      ur_validation_layer::getContext()->urDdiTable.MemoryExportExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_validation_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_validation_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnAllocExportableMemoryExp = pDdiTable->pfnAllocExportableMemoryExp;
+  pDdiTable->pfnAllocExportableMemoryExp =
+      ur_validation_layer::urMemoryExportAllocExportableMemoryExp;
+
+  dditable.pfnFreeExportableMemoryExp = pDdiTable->pfnFreeExportableMemoryExp;
+  pDdiTable->pfnFreeExportableMemoryExp =
+      ur_validation_layer::urMemoryExportFreeExportableMemoryExp;
+
+  dditable.pfnExportMemoryHandleExp = pDdiTable->pfnExportMemoryHandleExp;
+  pDdiTable->pfnExportMemoryHandleExp =
+      ur_validation_layer::urMemoryExportExportMemoryHandleExp;
 
   return result;
 }
@@ -12228,6 +12555,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_validation_layer::urGetMemProcAddrTable(UR_API_VERSION_CURRENT,
                                                         &dditable->Mem);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_validation_layer::urGetMemoryExportExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->MemoryExportExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {

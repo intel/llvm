@@ -1416,6 +1416,36 @@ urPrintExpPeerInfo(enum ur_exp_peer_info_t value, char *buffer,
                    const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_kernel_arg_type_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintExpKernelArgType(enum ur_exp_kernel_arg_type_t value, char *buffer,
+                        const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_kernel_arg_mem_obj_tuple_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpKernelArgMemObjTuple(
+    const struct ur_exp_kernel_arg_mem_obj_tuple_t params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_kernel_arg_properties_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpKernelArgProperties(
+    const struct ur_exp_kernel_arg_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_enqueue_ext_flag_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2685,6 +2715,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueWriteHostPipeParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_enqueue_kernel_launch_with_args_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueKernelLaunchWithArgsExpParams(
+    const struct ur_enqueue_kernel_launch_with_args_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_enqueue_events_wait_with_barrier_ext_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -3488,6 +3528,39 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintCommandBufferGetInfoExpParams(
 UR_APIEXPORT ur_result_t UR_APICALL
 urPrintCommandBufferGetNativeHandleExpParams(
     const struct ur_command_buffer_get_native_handle_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_memory_export_alloc_exportable_memory_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintMemoryExportAllocExportableMemoryExpParams(
+    const struct ur_memory_export_alloc_exportable_memory_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_memory_export_free_exportable_memory_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintMemoryExportFreeExportableMemoryExpParams(
+    const struct ur_memory_export_free_exportable_memory_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_memory_export_export_memory_handle_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintMemoryExportExportMemoryHandleExpParams(
+    const struct ur_memory_export_export_memory_handle_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////

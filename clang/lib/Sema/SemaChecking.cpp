@@ -2652,8 +2652,6 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     bool IsDelete = BuiltinID == Builtin::BI__builtin_operator_delete;
     ExprResult Res =
         BuiltinOperatorNewDeleteOverloaded(TheCallResult, IsDelete);
-    if (Res.isInvalid())
-      CorrectDelayedTyposInExpr(TheCallResult.get());
     return Res;
   }
   case Builtin::BI__builtin_dump_struct:
@@ -4014,7 +4012,7 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
   if (FD)
     diagnoseArgDependentDiagnoseIfAttrs(FD, ThisArg, Args, Loc);
 
-  if (FD && FD->hasAttr<SYCLKernelAttr>())
+  if (FD && FD->hasAttr<DeviceKernelAttr>() && getLangOpts().isSYCL())
     SYCL().CheckSYCLKernelCall(FD, Args);
 
   // Diagnose variadic calls in SYCL.
@@ -12358,6 +12356,46 @@ static void DiagnoseMixedUnicodeImplicitConversion(Sema &S, const Type *Source,
   }
 }
 
+enum CFIUncheckedCalleeChange {
+  None,
+  Adding,
+  Discarding,
+};
+
+static CFIUncheckedCalleeChange AdjustingCFIUncheckedCallee(QualType From,
+                                                            QualType To) {
+  QualType MaybePointee = From->getPointeeType();
+  if (!MaybePointee.isNull() && MaybePointee->getAs<FunctionType>())
+    From = MaybePointee;
+  MaybePointee = To->getPointeeType();
+  if (!MaybePointee.isNull() && MaybePointee->getAs<FunctionType>())
+    To = MaybePointee;
+
+  if (const auto *FromFn = From->getAs<FunctionType>()) {
+    if (const auto *ToFn = To->getAs<FunctionType>()) {
+      if (FromFn->getCFIUncheckedCalleeAttr() &&
+          !ToFn->getCFIUncheckedCalleeAttr())
+        return Discarding;
+      if (!FromFn->getCFIUncheckedCalleeAttr() &&
+          ToFn->getCFIUncheckedCalleeAttr())
+        return Adding;
+    }
+  }
+  return None;
+}
+
+bool Sema::DiscardingCFIUncheckedCallee(QualType From, QualType To) const {
+  From = Context.getCanonicalType(From);
+  To = Context.getCanonicalType(To);
+  return ::AdjustingCFIUncheckedCallee(From, To) == Discarding;
+}
+
+bool Sema::AddingCFIUncheckedCallee(QualType From, QualType To) const {
+  From = Context.getCanonicalType(From);
+  To = Context.getCanonicalType(To);
+  return ::AdjustingCFIUncheckedCallee(From, To) == Adding;
+}
+
 void Sema::CheckImplicitConversion(Expr *E, QualType T, SourceLocation CC,
                                    bool *ICContext, bool IsListInit) {
   if (E->isTypeDependent() || E->isValueDependent()) return;
@@ -12724,6 +12762,11 @@ void Sema::CheckImplicitConversion(Expr *E, QualType T, SourceLocation CC,
 
   if (Target->isBooleanType())
     DiagnoseIntInBoolContext(*this, E);
+
+  if (DiscardingCFIUncheckedCallee(QualType(Source, 0), QualType(Target, 0))) {
+    Diag(CC, diag::warn_cast_discards_cfi_unchecked_callee)
+        << QualType(Source, 0) << QualType(Target, 0);
+  }
 
   if (!Source->isIntegerType() || !Target->isIntegerType())
     return;

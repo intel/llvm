@@ -308,7 +308,7 @@ TEST_F(BarrierHandlingWithHostTask, HostTaskUnblockedWaitListBarrierKernel) {
   EXPECT_EQ(BlockedHostTaskWaitList.size(), 0u);
   EXPECT_EQ(BlockedHostTaskImpl.isEnqueued(), true);
 
-  HostTaskEventImpl.wait(getSyclObjImpl(HTEvent));
+  HostTaskEventImpl.wait();
 
   std::vector<sycl::event> WaitList{HTEvent};
   sycl::event BarrierEvent = InsertBarrierWithWaitList(WaitList);

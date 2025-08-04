@@ -165,8 +165,8 @@ ur_result_t urUSMPoolGetInfo(ur_usm_pool_handle_t hPool,
                              void *pPropValue, size_t *pPropSizeRet);
 ur_result_t urVirtualMemGranularityGetInfo(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_virtual_mem_granularity_info_t propName, size_t propSize,
-    void *pPropValue, size_t *pPropSizeRet);
+    size_t allocationSize, ur_virtual_mem_granularity_info_t propName,
+    size_t propSize, void *pPropValue, size_t *pPropSizeRet);
 ur_result_t urVirtualMemReserve(ur_context_handle_t hContext,
                                 const void *pStart, size_t size,
                                 void **ppStart);
@@ -768,6 +768,16 @@ urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 ur_result_t urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+ur_result_t urMemoryExportAllocExportableMemoryExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t alignment,
+    size_t size, ur_exp_external_mem_type_t handleTypeToExport, void **ppMem);
+ur_result_t urMemoryExportFreeExportableMemoryExp(ur_context_handle_t hContext,
+                                                  ur_device_handle_t hDevice,
+                                                  void *pMem);
+ur_result_t urMemoryExportExportMemoryHandleExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_external_mem_type_t handleTypeToExport, void *pMem,
+    void *pMemHandleRet);
 ur_result_t urProgramBuildExp(ur_program_handle_t hProgram, uint32_t numDevices,
                               ur_device_handle_t *phDevices,
                               const char *pOptions);
@@ -794,6 +804,15 @@ ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
                                          ur_exp_peer_info_t propName,
                                          size_t propSize, void *pPropValue,
                                          size_t *pPropSizeRet);
+ur_result_t urEnqueueKernelLaunchWithArgsExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t numPropsInLaunchPropList,
+    const ur_kernel_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent);
 ur_result_t urEnqueueEventsWaitWithBarrierExt(
     ur_queue_handle_t hQueue,
     const ur_exp_enqueue_ext_properties_t *pProperties,

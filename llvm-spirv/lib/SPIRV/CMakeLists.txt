@@ -40,9 +40,8 @@ set(SRC_LIST
   libSPIRV/SPIRVValue.cpp
   libSPIRV/SPIRVError.cpp
 )
-add_llvm_library(LLVMSPIRVLib
-  ${SRC_LIST}
-  LINK_COMPONENTS
+
+set(SPIRVLIB_LINK_COMPONENTS
     Analysis
     BitWriter
     CodeGen
@@ -54,6 +53,16 @@ add_llvm_library(LLVMSPIRVLib
     Support
     TargetParser
     TransformUtils
+    )
+
+if(SPIRV_BACKEND_FOUND)
+  list(APPEND SPIRVLIB_LINK_COMPONENTS "SPIRVCodeGen")
+endif()
+
+  add_llvm_library(LLVMSPIRVLib
+  ${SRC_LIST}
+  LINK_COMPONENTS
+    ${SPIRVLIB_LINK_COMPONENTS}
   DEPENDS
     intrinsics_gen
   )

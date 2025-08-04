@@ -13,6 +13,7 @@
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 
 using namespace sycl;
+using namespace FreeFunctionEventsHelpers;
 
 namespace oneapiext = ext::oneapi::experimental;
 
@@ -26,7 +27,7 @@ public:
 
 protected:
   void SetUp() override {
-    counter_urEnqueueKernelLaunch = 0;
+    counter_urEnqueueKernelLaunchWithArgsExp = 0;
     counter_urUSMEnqueueMemcpy = 0;
     counter_urUSMEnqueueFill = 0;
     counter_urUSMEnqueuePrefetch = 0;
@@ -39,28 +40,31 @@ protected:
 };
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitSingleTaskNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
 
   oneapiext::submit(Q, [&](handler &CGH) {
     oneapiext::single_task<TestKernel>(CGH, []() {});
   });
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SingleTaskShortcutNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
 
   oneapiext::single_task<TestKernel>(Q, []() {});
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitSingleTaskKernelNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
@@ -74,12 +78,13 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitSingleTaskKernelNoEvent) {
   oneapiext::submit(Q,
                     [&](handler &CGH) { oneapiext::single_task(CGH, Kernel); });
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SingleTaskShortcutKernelNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
@@ -93,32 +98,35 @@ TEST_F(EnqueueFunctionsEventsTests, SingleTaskShortcutKernelNoEvent) {
 
   oneapiext::single_task(Q, Kernel);
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitRangeParallelForNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
 
   oneapiext::submit(Q, [&](handler &CGH) {
     oneapiext::parallel_for<TestKernel>(CGH, range<1>{32}, [](item<1>) {});
   });
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, RangeParallelForShortcutNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
 
   oneapiext::parallel_for<TestKernel>(Q, range<1>{32}, [](item<1>) {});
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitRangeParallelForKernelNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
@@ -133,12 +141,13 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitRangeParallelForKernelNoEvent) {
     oneapiext::parallel_for(CGH, range<1>{32}, Kernel);
   });
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, RangeParallelForShortcutKernelNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
@@ -152,34 +161,37 @@ TEST_F(EnqueueFunctionsEventsTests, RangeParallelForShortcutKernelNoEvent) {
 
   oneapiext::parallel_for(Q, range<1>{32}, Kernel);
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitNDLaunchNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
 
   oneapiext::submit(Q, [&](handler &CGH) {
     oneapiext::nd_launch<TestKernel>(
         CGH, nd_range<1>{range<1>{32}, range<1>{32}}, [](nd_item<1>) {});
   });
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, NDLaunchShortcutNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
 
   oneapiext::nd_launch<TestKernel>(Q, nd_range<1>{range<1>{32}, range<1>{32}},
                                    [](nd_item<1>) {});
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitNDLaunchKernelNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
@@ -194,12 +206,13 @@ TEST_F(EnqueueFunctionsEventsTests, SubmitNDLaunchKernelNoEvent) {
     oneapiext::nd_launch(CGH, nd_range<1>{range<1>{32}, range<1>{32}}, Kernel);
   });
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, NDLaunchShortcutKernelNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
@@ -213,7 +226,7 @@ TEST_F(EnqueueFunctionsEventsTests, NDLaunchShortcutKernelNoEvent) {
 
   oneapiext::nd_launch(Q, nd_range<1>{range<1>{32}, range<1>{32}}, Kernel);
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, SubmitMemcpyNoEvent) {
@@ -375,8 +388,9 @@ TEST_F(EnqueueFunctionsEventsTests, MemAdviseShortcutNoEvent) {
 TEST_F(EnqueueFunctionsEventsTests, BarrierBeforeHostTask) {
   // Special test for case where host_task need an event after, so a barrier is
   // enqueued to create a usable event.
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback(
       "urEnqueueEventsWaitWithBarrier", &after_urEnqueueEventsWaitWithBarrier);
 
@@ -388,7 +402,7 @@ TEST_F(EnqueueFunctionsEventsTests, BarrierBeforeHostTask) {
          [&]() { HostTaskTimestamp = std::chrono::steady_clock::now(); });
    }).wait();
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
   ASSERT_EQ(counter_urEnqueueEventsWaitWithBarrier, size_t{1});
   ASSERT_TRUE(HostTaskTimestamp > timestamp_urEnqueueEventsWaitWithBarrier);
 }

@@ -581,13 +581,13 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 
   // Check if ptr is a host allocation
   if (get_pointer_type(Ptr, Ctxt) == alloc::host) {
-    auto Devs = detail::getSyclObjImpl(Ctxt)->getDevices();
+    detail::devices_range Devs = detail::getSyclObjImpl(Ctxt)->getDevices();
     if (Devs.size() == 0)
       throw exception(make_error_code(errc::invalid),
                       "No devices in passed context!");
 
     // Just return the first device in the context
-    return Devs[0];
+    return detail::createSyclObjFromImpl<device>(Devs.front());
   }
 
   ur_device_handle_t DeviceId;

@@ -25,6 +25,9 @@ inputs:
   preset:
     type: string
     required: True
+  dry_run:
+    type: string
+    required: False
 
 runs:
   using: "composite"
@@ -166,7 +169,9 @@ runs:
         --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
         --results-dir "./llvm-ci-perf-results/results/" \
         --regression-filter '^[a-z_]+_sycl ' \
-        --verbose
+        --verbose \
+        ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \
+
       echo "-----"
 
   - name: Cache changes to benchmark folder for archival purposes

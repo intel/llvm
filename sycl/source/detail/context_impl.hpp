@@ -47,9 +47,8 @@ public:
   /// \param DeviceList is a list of SYCL device instances.
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
-  context_impl(const std::vector<sycl::device> DeviceList,
-               async_handler AsyncHandler, const property_list &PropList,
-               private_tag);
+  context_impl(devices_range DeviceList, async_handler AsyncHandler,
+               const property_list &PropList, private_tag);
 
   /// Construct a context_impl using plug-in interoperability handle.
   ///
@@ -62,13 +61,12 @@ public:
   /// \param OwnedByRuntime is the flag if ownership is kept by user or
   /// transferred to runtime
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               adapter_impl &Adapter,
-               const std::vector<sycl::device> &DeviceList, bool OwnedByRuntime,
-               private_tag);
+               adapter_impl &Adapter, devices_range DeviceList,
+               bool OwnedByRuntime, private_tag);
 
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
                adapter_impl &Adapter, private_tag tag)
-      : context_impl(UrContext, AsyncHandler, Adapter,
+      : context_impl(UrContext, std::move(AsyncHandler), Adapter,
                      std::vector<sycl::device>{},
                      /*OwnedByRuntime*/ true, tag) {}
 
@@ -94,10 +92,10 @@ public:
   const async_handler &get_async_handler() const;
 
   /// \return the Adapter associated with the platform of this context.
-  adapter_impl &getAdapter() const { return MPlatform->getAdapter(); }
+  adapter_impl &getAdapter() const { return MPlatform.getAdapter(); }
 
   /// \return the PlatformImpl associated with this context.
-  platform_impl &getPlatformImpl() const { return *MPlatform; }
+  platform_impl &getPlatformImpl() const { return MPlatform; }
 
   /// Queries this context for information.
   ///
@@ -130,13 +128,11 @@ public:
   /// \return an instance of raw UR context handle.
   const ur_context_handle_t &getHandleRef() const;
 
-  /// Unlike `get_info<info::context::devices>', this function returns a
-  /// reference.
-  const std::vector<device> &getDevices() const { return MDevices; }
+  devices_range getDevices() const { return MDevices; }
 
   using CachedLibProgramsT =
       std::map<std::pair<DeviceLibExt, ur_device_handle_t>,
-               ur_program_handle_t>;
+               Managed<ur_program_handle_t>>;
 
   /// In contrast to user programs, which are compiled from user code, library
   /// programs come from the SYCL runtime. They are identified by the
@@ -193,10 +189,7 @@ public:
   }
 
   // Returns the backend of this context
-  backend getBackend() const {
-    assert(MPlatform && "MPlatform must be not null");
-    return MPlatform->getBackend();
-  }
+  backend getBackend() const { return MPlatform.getBackend(); }
 
   /// Given a UR device, returns the matching shared_ptr<device_impl>
   /// within this context. May return nullptr if no match discovered.
@@ -218,7 +211,7 @@ public:
 
   /// Adds a device global initializer.
   void addDeviceGlobalInitializer(ur_program_handle_t Program,
-                                  const std::vector<device> &Devs,
+                                  devices_range Devs,
                                   const RTDeviceBinaryImage *BinImage);
 
   /// Initializes device globals for a program on the associated queue.
@@ -264,10 +257,9 @@ public:
 private:
   bool MOwnedByRuntime;
   async_handler MAsyncHandler;
-  std::vector<device> MDevices;
+  std::vector<device_impl *> MDevices;
   ur_context_handle_t MContext;
-  // TODO: Make it a reference instead, but that needs a bit more refactoring:
-  std::shared_ptr<platform_impl> MPlatform;
+  platform_impl &MPlatform;
   property_list MPropList;
   CachedLibProgramsT MCachedLibPrograms;
   std::mutex MCachedLibProgramsMutex;
@@ -295,7 +287,7 @@ private:
     }
 
     /// Clears all events of the initializer. This will not acquire the lock.
-    void ClearEvents(const AdapterPtr &Adapter);
+    void ClearEvents(adapter_impl &Adapter);
 
     /// The binary image of the program.
     const RTDeviceBinaryImage *MBinImage = nullptr;
@@ -347,9 +339,9 @@ private:
 };
 
 template <typename T, typename Capabilities>
-void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
+void GetCapabilitiesIntersectionSet(devices_range Devices,
                                     std::vector<T> &CapabilityList) {
-  for (const sycl::device &Device : Devices) {
+  for (device_impl &Device : Devices) {
     std::vector<T> NewCapabilityList;
     std::vector<T> DeviceCapabilities = Device.get_info<Capabilities>();
     std::set_intersection(
@@ -365,22 +357,26 @@ void GetCapabilitiesIntersectionSet(const std::vector<sycl::device> &Devices,
 
 // We're under sycl/source and these won't be exported but it's way more
 // convenient to be able to reference them without extra `detail::`.
-inline auto get_ur_handles(sycl::detail::context_impl &Ctx) {
+inline auto get_ur_handles(const detail::context_impl &Ctx) {
   ur_context_handle_t urCtx = Ctx.getHandleRef();
   return std::tuple{urCtx, &Ctx.getAdapter()};
 }
-inline auto get_ur_handles(const sycl::context &syclContext) {
-  return get_ur_handles(*sycl::detail::getSyclObjImpl(syclContext));
+inline auto get_ur_handles(const context &syclContext) {
+  return get_ur_handles(*detail::getSyclObjImpl(syclContext));
 }
-inline auto get_ur_handles(const sycl::device &syclDevice,
-                           const sycl::context &syclContext) {
+inline auto get_ur_handles(const detail::device_impl &syclDevice,
+                           const detail::context_impl &syclContext) {
   auto [urCtx, Adapter] = get_ur_handles(syclContext);
-  ur_device_handle_t urDevice =
-      sycl::detail::getSyclObjImpl(syclDevice)->getHandleRef();
+  ur_device_handle_t urDevice = syclDevice.getHandleRef();
   return std::tuple{urDevice, urCtx, Adapter};
 }
-inline auto get_ur_handles(const sycl::device &syclDevice) {
-  auto &implDevice = *sycl::detail::getSyclObjImpl(syclDevice);
+inline auto get_ur_handles(const device &syclDevice,
+                           const context &syclContext) {
+  return get_ur_handles(*detail::getSyclObjImpl(syclDevice),
+                        *detail::getSyclObjImpl(syclContext));
+}
+inline auto get_ur_handles(const device &syclDevice) {
+  auto &implDevice = *detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t urDevice = implDevice.getHandleRef();
   return std::tuple{urDevice, &implDevice.getAdapter()};
 }

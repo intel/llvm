@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "Cuda.h"
-#include "CommonArgs.h"
 #include "clang/Basic/Cuda.h"
 #include "clang/Config/config.h"
+#include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Distro.h"
 #include "clang/Driver/Driver.h"
@@ -1160,6 +1160,20 @@ void CudaToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &Args,
 void CudaToolChain::AddIAMCUIncludeArgs(const ArgList &Args,
                                         ArgStringList &CC1Args) const {
   HostTC.AddIAMCUIncludeArgs(Args, CC1Args);
+}
+
+llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
+CudaToolChain::getDeviceLibs(
+    const llvm::opt::ArgList &DriverArgs,
+    const Action::OffloadKind DeviceOffloadingKind) const {
+  StringRef GpuArch = DriverArgs.getLastArgValue(options::OPT_march_EQ);
+  std::string LibDeviceFile = CudaInstallation.getLibDeviceFile(GpuArch);
+  if (LibDeviceFile.empty()) {
+    getDriver().Diag(diag::err_drv_no_cuda_libdevice) << GpuArch;
+    return {};
+  }
+
+  return {BitCodeLibraryInfo{LibDeviceFile}};
 }
 
 SanitizerMask CudaToolChain::getSupportedSanitizers() const {

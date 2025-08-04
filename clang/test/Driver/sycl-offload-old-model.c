@@ -503,6 +503,10 @@
 // RUN: %clangxx -fsycl --no-offload-new-driver -Xclang --dependent-lib=msvcrtd \
 // RUN:   -target x86_64-unknown-windows-msvc -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
+/// Check sycld is pulled in when -fms-runtime-lib=dll_dbg
+// RUN: %clangxx -fsycl --no-offload-new-driver -fms-runtime-lib=dll_dbg \
+// RUN:   -target x86_64-unknown-windows-msvc -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
 // CHECK-LINK-SYCL-DEBUG: "--dependent-lib=sycl{{[0-9]*}}d"
 // CHECK-LINK-SYCL-DEBUG-NOT: "-defaultlib:sycl{{[0-9]*}}.lib"
 

@@ -24,7 +24,6 @@
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
-#include "llvm/CodeGen/GlobalMergeFunctions.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Passes/OptimizationLevel.h"
@@ -77,7 +76,8 @@
 #include "llvm/Transforms/Instrumentation/CGProfile.h"
 #include "llvm/Transforms/Instrumentation/ControlHeightReduction.h"
 #include "llvm/Transforms/Instrumentation/InstrProfiling.h"
-#include "llvm/Transforms/Instrumentation/MemProfiler.h"
+#include "llvm/Transforms/Instrumentation/MemProfInstrumentation.h"
+#include "llvm/Transforms/Instrumentation/MemProfUse.h"
 #include "llvm/Transforms/Instrumentation/PGOCtxProfFlattening.h"
 #include "llvm/Transforms/Instrumentation/PGOCtxProfLowering.h"
 #include "llvm/Transforms/Instrumentation/PGOForceFunctionAttrs.h"
@@ -142,7 +142,6 @@
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
 #include "llvm/Transforms/Utils/RelLookupTableConverter.h"
 #include "llvm/Transforms/Utils/SimplifyCFGOptions.h"
-#include "llvm/Transforms/Vectorize/EVLIndVarSimplify.h"
 #include "llvm/Transforms/Vectorize/LoopVectorize.h"
 #include "llvm/Transforms/Vectorize/SLPVectorizer.h"
 #include "llvm/Transforms/Vectorize/VectorCombine.h"
@@ -512,20 +511,16 @@ PassBuilder::buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
 
     LPM2.addPass(LoopDeletionPass());
 
-    if (PTO.LoopInterchange)
-      LPM2.addPass(LoopInterchangePass());
-
-    // Do not enable unrolling in PreLinkThinLTO phase during sample PGO
-    // because it changes IR to makes profile annotation in back compile
-    // inaccurate. The normal unroller doesn't pay attention to forced full
-    // unroll attributes so we need to make sure and allow the full unroll pass
-    // to pay attention to it.
-    if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink || !PGOOpt ||
-        PGOOpt->Action != PGOOptions::SampleUse)
-      LPM2.addPass(LoopFullUnrollPass(Level.getSpeedupLevel(),
-                                      /* OnlyWhenForced= */ !PTO.LoopUnrolling,
-                                      PTO.ForgetAllSCEVInLoopUnroll));
-
+  // Do not enable unrolling in PreLinkThinLTO phase during sample PGO
+  // because it changes IR to makes profile annotation in back compile
+  // inaccurate. The normal unroller doesn't pay attention to forced full unroll
+  // attributes so we need to make sure and allow the full unroll pass to pay
+  // attention to it.
+  if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink || !PGOOpt ||
+      PGOOpt->Action != PGOOptions::SampleUse)
+    LPM2.addPass(LoopFullUnrollPass(Level.getSpeedupLevel(),
+                                    /* OnlyWhenForced= */ !PTO.LoopUnrolling,
+                                    PTO.ForgetAllSCEVInLoopUnroll));
     invokeLoopOptimizerEndEPCallbacks(LPM2, Level);
 
     FPM.addPass(
@@ -1310,6 +1305,9 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   // Remove any dead arguments exposed by cleanups, constant folding globals,
   // and argument promotion.
   MPM.addPass(DeadArgumentEliminationPass());
+
+  if (Phase == ThinOrFullLTOPhase::ThinLTOPostLink)
+    MPM.addPass(SimplifyTypeTestsPass());
 
   if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink)
     MPM.addPass(CoroCleanupPass());

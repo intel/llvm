@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "MSVC.h"
-#include "CommonArgs.h"
 #include "Darwin.h"
 #include "clang/Config/config.h"
+#include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/Options.h"
@@ -99,9 +99,12 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       Args.hasArg(options::OPT_fsycl_host_compiler_EQ)) {
     CmdArgs.push_back(Args.MakeArgString(std::string("-libpath:") +
                                          TC.getDriver().Dir + "/../lib"));
-    // When msvcrtd is added via --dependent-lib, we add the sycld
-    // equivalent.  Do not add the -defaultlib as it conflicts.
-    if (!isDependentLibAdded(Args, "msvcrtd")) {
+    // When msvcrtd is added via --dependent-lib or -fms-runtime-lib=dll_dbg we
+    // add the sycld equivalent.  Do not add the -defaultlib as it conflicts.
+    StringRef RuntimeVal;
+    if (const Arg *A = Args.getLastArg(options::OPT_fms_runtime_lib_EQ))
+      RuntimeVal = A->getValue();
+    if (!isDependentLibAdded(Args, "msvcrtd") && RuntimeVal != "dll_dbg") {
       if (Args.hasArg(options::OPT_fpreview_breaking_changes))
         CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION "-preview.lib");
       else

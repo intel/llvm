@@ -23,8 +23,8 @@ namespace ur::level_zero {
 
 ur_result_t urVirtualMemGranularityGetInfo(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_virtual_mem_granularity_info_t propName, size_t propSize,
-    void *pPropValue, size_t *pPropSizeRet) {
+    size_t allocationSize, ur_virtual_mem_granularity_info_t propName,
+    size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   switch (propName) {
   case UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM:
@@ -34,7 +34,8 @@ ur_result_t urVirtualMemGranularityGetInfo(
     // aligned size.
     size_t PageSize;
     ZE2UR_CALL(zeVirtualMemQueryPageSize,
-               (hContext->getZeHandle(), hDevice->ZeDevice, 1, &PageSize));
+               (hContext->getZeHandle(), hDevice->ZeDevice, allocationSize,
+                &PageSize));
     return ReturnValue(PageSize);
   }
   default:

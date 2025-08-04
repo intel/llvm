@@ -25,26 +25,29 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-void waitEvents(std::vector<sycl::event> DepEvents) {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// Unused, only keeping for ABI compatibility reasons.
+__SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents) {
   for (auto SyclEvent : DepEvents) {
     detail::getSyclObjImpl(SyclEvent)->waitInternal();
   }
 }
+#endif
 
 __SYCL_EXPORT void
 markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
   BufImpl->markAsInternal();
 }
 
-std::tuple<const RTDeviceBinaryImage *, ur_program_handle_t>
-retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
-                     CGExecKernel *KernelCG) {
+const RTDeviceBinaryImage *retrieveKernelBinary(queue_impl &Queue,
+                                                KernelNameStrRefT KernelName,
+                                                CGExecKernel *KernelCG) {
   device_impl &Dev = Queue.getDeviceImpl();
   bool isNvidia = Dev.getBackend() == backend::ext_oneapi_cuda;
   bool isHIP = Dev.getBackend() == backend::ext_oneapi_hip;
   if (isNvidia || isHIP) {
     auto KernelID = ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    std::vector<kernel_id> KernelIds{KernelID};
+    std::vector<kernel_id> KernelIds{std::move(KernelID)};
     auto DeviceImages =
         ProgramManager::getInstance().getRawDeviceImages(KernelIds);
     auto DeviceImage = std::find_if(
@@ -55,36 +58,22 @@ retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
           return DI->getFormat() == SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
                  DI->getRawData().DeviceTargetSpec == TargetSpec;
         });
-    if (DeviceImage == DeviceImages.end()) {
-      return {nullptr, nullptr};
-    }
-    context_impl &ContextImpl = Queue.getContextImpl();
-    ur_program_handle_t Program =
-        detail::ProgramManager::getInstance().createURProgram(
-            **DeviceImage, ContextImpl, {createSyclObjFromImpl<device>(Dev)});
-    return {*DeviceImage, Program};
+    assert(DeviceImage != DeviceImages.end() &&
+           "Failed to obtain a binary image.");
+    return *DeviceImage;
   }
 
-  const RTDeviceBinaryImage *DeviceImage = nullptr;
-  ur_program_handle_t Program = nullptr;
-  auto KernelBundleImpl = KernelCG->getKernelBundle();
-  if (KernelCG->MSyclKernel != nullptr) {
-    DeviceImage = KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
-    Program = KernelCG->MSyclKernel->getDeviceImage()->get_ur_program_ref();
-  } else if (auto SyclKernelImpl =
-                 KernelBundleImpl ? KernelBundleImpl->tryGetKernel(KernelName)
-                                  : std::shared_ptr<kernel_impl>{nullptr}) {
-    // Retrieve the device image from the kernel bundle.
-    DeviceImage = SyclKernelImpl->getDeviceImage()->get_bin_image_ref();
-    Program = SyclKernelImpl->getDeviceImage()->get_ur_program_ref();
-  } else {
-    context_impl &ContextImpl = Queue.getContextImpl();
-    DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
-        KernelName, ContextImpl, Dev);
-    Program = detail::ProgramManager::getInstance().createURProgram(
-        *DeviceImage, ContextImpl, {createSyclObjFromImpl<device>(Dev)});
-  }
-  return {DeviceImage, Program};
+  if (KernelCG->MSyclKernel != nullptr)
+    return KernelCG->MSyclKernel->getDeviceImage().get_bin_image_ref();
+
+  if (auto KernelBundleImpl = KernelCG->getKernelBundle())
+    if (auto SyclKernelImpl = KernelBundleImpl->tryGetKernel(KernelName))
+      // Retrieve the device image from the kernel bundle.
+      return SyclKernelImpl->getDeviceImage().get_bin_image_ref();
+
+  context_impl &ContextImpl = Queue.getContextImpl();
+  return &detail::ProgramManager::getInstance().getDeviceImage(
+      KernelName, ContextImpl, Dev);
 }
 
 } // namespace detail

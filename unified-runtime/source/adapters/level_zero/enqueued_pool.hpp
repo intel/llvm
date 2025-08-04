@@ -30,9 +30,11 @@ public:
   };
 
   using event_release_callback_t = ur_result_t (*)(ur_event_handle_t);
+  using memory_free_callback_t = std::function<ur_result_t(void *)>;
 
-  EnqueuedPool(event_release_callback_t eventRelease)
-      : eventRelease(eventRelease) {}
+  EnqueuedPool(event_release_callback_t EventReleaseFn,
+               memory_free_callback_t MemFreeFn)
+      : EventReleaseFn(EventReleaseFn), MemFreeFn(MemFreeFn) {}
 
   ~EnqueuedPool();
   std::optional<Allocation> getBestFit(size_t Size, size_t Alignment,
@@ -60,5 +62,6 @@ private:
   using AllocationSet = std::set<Allocation, Comparator>;
   ur_mutex Mutex;
   AllocationSet Freelist;
-  event_release_callback_t eventRelease;
+  event_release_callback_t EventReleaseFn;
+  memory_free_callback_t MemFreeFn;
 };

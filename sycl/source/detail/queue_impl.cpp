@@ -503,15 +503,12 @@ event queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
   return submitWithHandler(DepEvents, CallerNeedsEvent, HandlerFunc);
 }
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
-                                        std::string &Name, int32_t StreamID,
+                                        std::string &Name,
+                                        xpti::stream_id_t StreamID,
                                         uint64_t &IId) {
   void *TraceEvent = nullptr;
-  (void)CodeLoc;
-  (void)Name;
-  (void)StreamID;
-  (void)IId;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_begin;
   if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
     return TraceEvent;
@@ -547,26 +544,22 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
       xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
       xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
       xpti::addMetadata(WaitEvent, "sym_line_no",
-                        static_cast<int32_t>((CodeLoc.lineNumber())));
-      xpti::addMetadata(WaitEvent, "sym_column_no",
-                        static_cast<int32_t>((CodeLoc.columnNumber())));
+                        static_cast<xpti::object_id_t>((CodeLoc.lineNumber())));
+      xpti::addMetadata(
+          WaitEvent, "sym_column_no",
+          static_cast<xpti::object_id_t>((CodeLoc.columnNumber())));
     }
     xptiNotifySubscribers(StreamID, xpti::trace_wait_begin, nullptr, WaitEvent,
                           QWaitInstanceNo,
                           static_cast<const void *>(Name.c_str()));
     TraceEvent = (void *)WaitEvent;
   }
-#endif
   return TraceEvent;
 }
 
 void queue_impl::instrumentationEpilog(void *TelemetryEvent, std::string &Name,
-                                       int32_t StreamID, uint64_t IId) {
-  (void)TelemetryEvent;
-  (void)Name;
-  (void)StreamID;
-  (void)IId;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
+                                       xpti::stream_id_t StreamID,
+                                       uint64_t IId) {
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_end;
   if (!(xptiCheckTraceEnabled(StreamID, NotificationTraceType) &&
         TelemetryEvent))
@@ -576,8 +569,9 @@ void queue_impl::instrumentationEpilog(void *TelemetryEvent, std::string &Name,
       (xpti::trace_event_data_t *)TelemetryEvent;
   xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, TraceEvent,
                         IId, static_cast<const void *>(Name.c_str()));
-#endif
 }
+
+#endif // XPTI_ENABLE_INSTRUMENTATION
 
 void queue_impl::wait(const detail::code_location &CodeLoc) {
   (void)CodeLoc;
@@ -586,7 +580,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   void *TelemetryEvent = nullptr;
   uint64_t IId;
   std::string Name;
-  int32_t StreamID = xpti::invalid_id<>;
+  auto StreamID = xpti::invalid_id<xpti::stream_id_t>;
   if (xptiEnabled) {
     StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
     TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
@@ -626,7 +620,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
       LastEvent = MDefaultGraphDeps.LastEventPtr;
     }
     if (LastEvent) {
-      LastEvent->wait(LastEvent);
+      LastEvent->wait();
     }
   } else if (!isInOrder()) {
     std::vector<std::weak_ptr<event_impl>> WeakEvents;
@@ -651,7 +645,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
         // A nullptr UR event indicates that urQueueFinish will not cover it,
         // either because it's a host task event or an unenqueued one.
         if (nullptr == EventImplSharedPtr->getHandle()) {
-          EventImplSharedPtr->wait(EventImplSharedPtr);
+          EventImplSharedPtr->wait();
         }
       }
     }
@@ -666,7 +660,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
       StreamsServiceEvents.swap(MStreamsServiceEvents);
     }
     for (const EventImplPtr &Event : StreamsServiceEvents)
-      Event->wait(Event);
+      Event->wait();
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION

@@ -90,6 +90,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
   assert((void *)Device != nullptr && "Device cannot be nullptr");
 
   std::scoped_lock<ur_shared_mutex> Guard(Mutex);
+  auto CI = getAsanInterceptor()->getContextInfo(Context);
   auto &Allocation = Allocations[Device];
   ur_result_t URes = UR_RESULT_SUCCESS;
   if (!Allocation) {
@@ -106,9 +107,9 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
     }
 
     if (HostPtr) {
-      ManagedQueue Queue(Context, Device);
+      ur_queue_handle_t InternalQueue = CI->getInternalQueue(Device);
       URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-          Queue, true, Allocation, HostPtr, Size, 0, nullptr, nullptr);
+          InternalQueue, true, Allocation, HostPtr, Size, 0, nullptr, nullptr);
       if (URes != UR_RESULT_SUCCESS) {
         UR_LOG_L(
             getContext()->logger, ERR,
@@ -147,10 +148,10 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
 
     // Copy data from last synced device to host
     {
-      ManagedQueue Queue(Context, LastSyncedDevice.hDevice);
+      ur_queue_handle_t InternalQueue = CI->getInternalQueue(Device);
       URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-          Queue, true, HostAllocation, LastSyncedDevice.MemHandle, Size, 0,
-          nullptr, nullptr);
+          InternalQueue, true, HostAllocation, LastSyncedDevice.MemHandle, Size,
+          0, nullptr, nullptr);
       if (URes != UR_RESULT_SUCCESS) {
         UR_LOG_L(getContext()->logger, ERR,
                  "Failed to migrate memory buffer data");
@@ -160,9 +161,10 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
 
     // Sync data back to device
     {
-      ManagedQueue Queue(Context, Device);
+      ur_queue_handle_t InternalQueue = CI->getInternalQueue(Device);
       URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-          Queue, true, Allocation, HostAllocation, Size, 0, nullptr, nullptr);
+          InternalQueue, true, Allocation, HostAllocation, Size, 0, nullptr,
+          nullptr);
       if (URes != UR_RESULT_SUCCESS) {
         UR_LOG_L(getContext()->logger, ERR,
                  "Failed to migrate memory buffer data");

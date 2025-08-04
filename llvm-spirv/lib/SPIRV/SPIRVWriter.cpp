@@ -6851,7 +6851,10 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
                                       transValue(CI->getArgOperand(2), BB), BB);
     return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), V, {}, BB);
   }
-  case OpGroupNonUniformShuffleDown: {
+  case OpGroupNonUniformShuffle:
+  case OpGroupNonUniformShuffleDown:
+  case OpGroupNonUniformShuffleUp:
+  case OpGroupNonUniformShuffleXor: {
     Function *F = CI->getCalledFunction();
     if (F->arg_size() && F->getArg(0)->hasStructRetAttr()) {
       StructType *St = cast<StructType>(F->getParamStructRetType(0));
@@ -6868,9 +6871,8 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       SPIRVType *ElementTy = transType(MemberTy);
       SPIRVValue *Element0 =
           BM->addCompositeExtractInst(ElementTy, Composite0, {0}, BB);
-      SPIRVValue *Src =
-          BM->addGroupInst(OpGroupNonUniformShuffleDown, ElementTy,
-                           static_cast<Scope>(ScopeId), {Element0, Delta}, BB);
+      SPIRVValue *Src = BM->addGroupInst(
+          OC, ElementTy, static_cast<Scope>(ScopeId), {Element0, Delta}, BB);
       SPIRVValue *Composite1 =
           BM->addCompositeInsertInst(Src, Composite0, {0}, BB);
       return BM->addStoreInst(InValue, Composite1, {}, BB);

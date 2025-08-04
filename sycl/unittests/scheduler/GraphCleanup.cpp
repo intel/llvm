@@ -149,7 +149,7 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
 
   // Check waitForEvent
   MockCmd = addNewMockCmds();
-  MS.waitForEvent(LeafMockCmd->getEvent());
+  MS.waitForEvent(*LeafMockCmd->getEvent());
   verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
 
   // Check addCopyBack
@@ -334,7 +334,7 @@ TEST_F(SchedulerTest, StreamBufferDeallocation) {
 
   // The buffers should have been released with graph cleanup once the work is
   // finished.
-  EventImplPtr->wait(EventImplPtr);
+  EventImplPtr->wait();
   // Drain the thread pool to ensure that the cleanup is able to acquire
   // the graph lock.
   detail::GlobalHandler::instance().drainThreadPool();

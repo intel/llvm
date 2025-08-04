@@ -23,7 +23,7 @@ namespace detail {
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
                          device_impl::private_tag)
-    : MDevice(Device), MPlatform(Platform.shared_from_this()),
+    : MDevice(Device), MPlatform(Platform),
       // No need to set MRootDevice when MAlwaysRootDevice is true
       MRootDevice(Platform.MAlwaysRootDevice
                       ? nullptr
@@ -106,9 +106,13 @@ device_impl::get_backend_info<info::device::backend_version>() const {
 #endif
 
 bool device_impl::has_extension(const std::string &ExtensionName) const {
-  std::string AllExtensionNames = get_info_impl<UR_DEVICE_INFO_EXTENSIONS>();
+  const std::string AllExtensionNames{
+      get_info_impl<UR_DEVICE_INFO_EXTENSIONS>()};
 
-  return (AllExtensionNames.find(ExtensionName) != std::string::npos);
+  // We add a space to both sides of both the extension string and the query
+  // string. This prevents to lookup from finding partial extension matches.
+  return ((" " + AllExtensionNames + " ").find(" " + ExtensionName + " ") !=
+          std::string::npos);
 }
 
 bool device_impl::is_partition_supported(info::partition_property Prop) const {
@@ -139,7 +143,7 @@ std::vector<device> device_impl::create_sub_devices(
   std::for_each(SubDevices.begin(), SubDevices.end(),
                 [&res, this](const ur_device_handle_t &a_ur_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
-                      MPlatform->getOrMakeDeviceImpl(a_ur_device));
+                      MPlatform.getOrMakeDeviceImpl(a_ur_device));
                   res.push_back(sycl_device);
                 });
   return res;
@@ -271,7 +275,7 @@ std::vector<device> device_impl::create_sub_devices(
   uint32_t SubDevicesCount = 0;
   adapter_impl &Adapter = getAdapter();
   Adapter.call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
-      MDevice, &Properties, 0, nullptr, &SubDevicesCount);
+      MDevice, &Properties, 0u, nullptr, &SubDevicesCount);
 
   return create_sub_devices(&Properties, SubDevicesCount);
 }
@@ -295,7 +299,7 @@ std::vector<device> device_impl::create_sub_devices() const {
 
   uint32_t SubDevicesCount = 0;
   adapter_impl &Adapter = getAdapter();
-  Adapter.call<UrApiKind::urDevicePartition>(MDevice, &Properties, 0, nullptr,
+  Adapter.call<UrApiKind::urDevicePartition>(MDevice, &Properties, 0u, nullptr,
                                              &SubDevicesCount);
 
   return create_sub_devices(&Properties, SubDevicesCount);
@@ -371,11 +375,9 @@ uint64_t device_impl::getCurrentDeviceTime() {
 bool device_impl::extOneapiCanBuild(
     ext::oneapi::experimental::source_language Language) {
   try {
-    // Get the shared_ptr to this object from the platform that owns it.
-    device_impl &Self = MPlatform->getOrMakeDeviceImpl(MDevice);
     return sycl::ext::oneapi::experimental::detail::
         is_source_kernel_bundle_supported(Language,
-                                          std::vector<device_impl *>{&Self});
+                                          std::vector<device_impl *>{this});
 
   } catch (sycl::exception &) {
     return false;
@@ -386,11 +388,10 @@ bool device_impl::extOneapiCanCompile(
     ext::oneapi::experimental::source_language Language) {
   try {
     // Currently only SYCL language is supported for compiling.
-    device_impl &Self = MPlatform->getOrMakeDeviceImpl(MDevice);
     return Language == ext::oneapi::experimental::source_language::sycl &&
            sycl::ext::oneapi::experimental::detail::
                is_source_kernel_bundle_supported(
-                   Language, std::vector<device_impl *>{&Self});
+                   Language, std::vector<device_impl *>{this});
   } catch (sycl::exception &) {
     return false;
   }
