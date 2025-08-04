@@ -726,8 +726,8 @@ protected:
       return false;
 
     if (MDefaultGraphDeps.LastEventPtr != nullptr &&
-        !Scheduler::CheckEventReadiness(*MContext,
-                                        MDefaultGraphDeps.LastEventPtr))
+        !Scheduler::areEventsSafeForSchedulerBypass(
+            {*MDefaultGraphDeps.LastEventPtr}, *MContext))
       return false;
 
     MNoLastEventMode.store(true, std::memory_order_relaxed);
@@ -746,7 +746,8 @@ protected:
 
     auto Event = parseEvent(Handler.finalize());
 
-    if (Event && !Scheduler::CheckEventReadiness(*MContext, Event)) {
+    if (Event &&
+        !Scheduler::areEventsSafeForSchedulerBypass({*Event}, *MContext)) {
       MDefaultGraphDeps.LastEventPtr = Event;
       MNoLastEventMode.store(false, std::memory_order_relaxed);
     }

@@ -26,6 +26,7 @@ namespace detail {
 
 class queue_impl;
 class event_impl;
+class events_range;
 class context_impl;
 
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
@@ -38,22 +39,21 @@ public:
   // The following method releases memory allocation of memory object.
   // Depending on the context it releases memory on host or on device.
   static void release(context_impl *TargetContext, SYCLMemObjI *MemObj,
-                      void *MemAllocation, std::vector<EventImplPtr> DepEvents,
+                      void *MemAllocation, events_range DepEvents,
                       ur_event_handle_t &OutEvent);
 
   // The following method allocates memory allocation of memory object.
   // Depending on the context it allocates memory on host or on device.
   static void *allocate(context_impl *TargetContext, SYCLMemObjI *MemObj,
                         bool InitFromUserData, void *HostPtr,
-                        std::vector<EventImplPtr> DepEvents,
-                        ur_event_handle_t &OutEvent);
+                        events_range DepEvents, ur_event_handle_t &OutEvent);
 
   // The following method creates OpenCL sub buffer for specified
   // offset, range, and memory object.
   static void *allocateMemSubBuffer(context_impl *TargetContext,
                                     void *ParentMemObj, size_t ElemSize,
                                     size_t Offset, range<3> Range,
-                                    std::vector<EventImplPtr> DepEvents,
+                                    events_range DepEvents,
                                     ur_event_handle_t &OutEvent);
 
   // Allocates buffer in specified context taking into account situations such
