@@ -10,7 +10,8 @@ if (NOT TARGET LLVMGenXIntrinsics)
     # Use OneNthEltsVecArgument instead of HalfVecArguments to fix build failure.
     set(LLVMGenXIntrinsics_GIT_TAG 60cea7590bd022d95f5cf336ee765033bd114d69)
     if(NOT FETCHCONTENT_SOURCE_DIR_VC-INTRINSICS)
-      message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
+      message(STATUS "vc-intrinsics repo is missing. Will try to download "
+        "${LLVMGenXIntrinsics_GIT_TAG} from ${LLVMGenXIntrinsics_GIT_REPO}")
     endif()
     include(FetchContent)
     FetchContent_Declare(vc-intrinsics
