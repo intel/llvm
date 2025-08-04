@@ -176,6 +176,5 @@ endmacro()
 # Will compile the list of files together and link against SYCL.
 # Produces a binary names `basename(test_dirname)`.
 macro(add_sycl_unittest test_dirname link_variant)
-  add_sycl_unittest_preview(${test_dirname}_preview ${link_variant} ${ARGN})
   add_sycl_unittest_internal(${test_dirname} ${link_variant} FALSE ${ARGN})
 endmacro()
