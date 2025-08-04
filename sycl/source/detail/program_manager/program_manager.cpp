@@ -2178,8 +2178,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
               std::find_if(RangeBegin, RangeEnd, [&](const auto &Pair) {
                 return Pair.second == Img;
               });
-          if (ID2ImgIt != RangeEnd)
-            m_KernelIDs2BinImage.erase(ID2ImgIt);
+          assert(ID2ImgIt != RangeEnd);
+          m_KernelIDs2BinImage.erase(ID2ImgIt);
         }
       }
     }
@@ -2187,10 +2187,17 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // Drop reverse mapping
     m_BinImg2KernelIDs.erase(Img);
 
-    // Unregister exported symbols (needs to happen after the ID unmap loop)
+    // Unregister exported symbol -> Img pair (needs to happen after the ID
+    // unmap loop)
     for (const sycl_device_binary_property &ESProp :
          Img->getExportedSymbols()) {
-      m_ExportedSymbolImages.erase(ESProp->Name);
+      auto [RangeBegin, RangeEnd] =
+          m_ExportedSymbolImages.equal_range(ESProp->Name);
+      auto It = std::find_if(RangeBegin, RangeEnd, [&](const auto &Pair) {
+        return Pair.second == Img;
+      });
+      assert(It != RangeEnd);
+      m_ExportedSymbolImages.erase(It);
     }
 
     for (const sycl_device_binary_property &VFProp :
