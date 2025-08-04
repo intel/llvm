@@ -63,10 +63,10 @@ public:
     std::visit([](auto &&It) noexcept { ++It; }, It);
     return *this;
   }
-  bool operator!=(const variadic_iterator &Other) const noexcept{
+  bool operator!=(const variadic_iterator &Other) const noexcept {
     return It != Other.It;
   }
-  bool operator==(const variadic_iterator &Other) const noexcept{
+  bool operator==(const variadic_iterator &Other) const noexcept {
     return It == Other.It;
   }
 
