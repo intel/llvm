@@ -2171,12 +2171,14 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
           m_KernelIDs2BinImage.erase(It->second);
           m_KernelName2KernelIDs.erase(It);
         } else {
-          auto ID2ImgIt = std::find_if(
-              m_KernelIDs2BinImage.begin(), m_KernelIDs2BinImage.end(),
-              [&](const auto &Pair) {
-                return Pair.first == It->second && Pair.second == Img;
+          auto [RangeBegin, RangeEnd] =
+              m_KernelIDs2BinImage.equal_range(It->second);
+
+          auto ID2ImgIt =
+              std::find_if(RangeBegin, RangeEnd, [&](const auto &Pair) {
+                return Pair.second == Img;
               });
-          if (ID2ImgIt != m_KernelIDs2BinImage.end())
+          if (ID2ImgIt != RangeEnd)
             m_KernelIDs2BinImage.erase(ID2ImgIt);
         }
       }
