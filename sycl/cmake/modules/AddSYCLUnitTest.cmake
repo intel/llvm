@@ -1,13 +1,9 @@
-include(AddSYCLUnitTestPreview)
-
-# add_sycl_unittest(test_dirname SHARED|OBJECT file1.cpp, file2.cpp ...)
+# Internal function to create SYCL unit tests with code reuse
+# add_sycl_unittest_internal(test_dirname SHARED|OBJECT is_preview file1.cpp, file2.cpp ...)
 #
 # Will compile the list of files together and link against SYCL.
 # Produces a binary names `basename(test_dirname)`.
-macro(add_sycl_unittest test_dirname link_variant)
-
-  add_sycl_unittest_preview(${test_dirname}_preview ${link_variant} ${ARGN})
-
+function(add_sycl_unittest_internal test_dirname link_variant is_preview)
   # Enable exception handling for these unit tests
   set(LLVM_REQUIRES_EH ON)
   set(LLVM_REQUIRES_RTTI ON)
@@ -15,19 +11,41 @@ macro(add_sycl_unittest test_dirname link_variant)
   get_target_property(SYCL_BINARY_DIR sycl-toolchain BINARY_DIR)
 
   string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
+
+  # Select which sycl libraries and object to link based
+  # on whether this is a preview build.
   if (MSVC AND build_type_lower MATCHES "debug")
-    set(sycl_obj_target "sycld_object")
-    set(sycl_so_target "sycld")
+    if (${is_preview})
+      set(sycl_obj_target "sycl-previewd_object")
+      set(sycl_so_target "sycl-previewd")
+    else()
+      set(sycl_obj_target "sycld_object")
+      set(sycl_so_target "sycld")
+    endif()
   else()
-    set(sycl_obj_target "sycl_object")
-    set(sycl_so_target "sycl")
+    if (${is_preview})
+      set(sycl_obj_target "sycl-preview_object")
+      set(sycl_so_target "sycl-preview")
+    else()
+      set(sycl_obj_target "sycl_object")
+      set(sycl_so_target "sycl")
+    endif()
+  endif()
+
+  # Set unittest_target based on whether this is a preview build
+  if (${is_preview})
+    set(unittest_target "SYCLUnitTestsPreview")
+    set(check_target_dep "check-sycl-unittests-preview")
+  else()
+    set(unittest_target "SYCLUnitTests")
+    set(check_target_dep "check-sycl-unittests")
   endif()
 
   if ("${link_variant}" MATCHES "SHARED")
     set(SYCL_LINK_LIBS ${sycl_so_target})
-    add_unittest(SYCLUnitTests ${test_dirname} ${ARGN})
+    add_unittest(${unittest_target} ${test_dirname} ${ARGN})
   else()
-    add_unittest(SYCLUnitTests ${test_dirname}
+    add_unittest(${unittest_target} ${test_dirname}
                 $<TARGET_OBJECTS:${sycl_obj_target}> ${ARGN})
     target_compile_definitions(${test_dirname}
                                PRIVATE __SYCL_BUILD_SYCL_DLL)
@@ -42,6 +60,12 @@ macro(add_sycl_unittest test_dirname link_variant)
     target_link_options(${test_dirname} PUBLIC
       -fprofile-instr-generate -fcoverage-mapping
     )
+  endif()
+
+  # Add preview-specific compile definition
+  if (${is_preview})
+    target_compile_definitions(${test_dirname}
+        PRIVATE __INTEL_PREVIEW_BREAKING_CHANGES)
   endif()
 
   if (SYCL_ENABLE_XPTI_TRACING)
@@ -78,16 +102,29 @@ macro(add_sycl_unittest test_dirname link_variant)
     )
   endif()
 
-  add_dependencies(check-sycl-unittests check-sycl-${test_dirname})
+  add_dependencies(${check_target_dep} check-sycl-${test_dirname})
 
   if(WIN32)
     # Windows doesn't support LD_LIBRARY_PATH, so instead we copy the mock OpenCL binary next to the test and ensure
     # that the test itself links to OpenCL (rather than through ur_adapter_opencl.dll)
     set(mock_ocl ${CMAKE_CURRENT_BINARY_DIR}/OpenCL.dll)
+
+    # An error is thrown if both the preview and non-preview version tries to
+    # copy OpenCL.dll to the test binary directory. Ninja complains that there
+    # are multiple rules for building the same file (listed in the "BYPRODUCTS" field).
+    # To fix this error, we use a different "BYPRODUCTS" name for
+    # preview and non-preview version. We don't use the "BYPRODUCTS" field
+    # in any following commands, so the name doesn't really matter.
+    if (${is_preview})
+      set(byproducts_suffix "_preview")
+    else()
+      set(byproducts_suffix "")
+    endif()
+
     add_custom_command(TARGET ${test_dirname} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:mockOpenCL> ${mock_ocl}
       DEPENDS mockOpenCL
-      BYPRODUCTS ${mock_ocl}
+      BYPRODUCTS ${mock_ocl}${byproducts_suffix}
       COMMAND_EXPAND_LISTS
       )
   endif()
@@ -127,4 +164,21 @@ macro(add_sycl_unittest test_dirname link_variant)
   endif()
   
   target_compile_definitions(${test_dirname} PRIVATE SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
+endfunction()
+
+# add_sycl_unittest_preview(test_dirname SHARED|OBJECT file1.cpp, file2.cpp ...)
+#
+# Will compile the list of files together and link against the SYCL preview build.
+# Produces a binary names `basename(test_dirname)`.
+macro(add_sycl_unittest_preview test_dirname link_variant)
+  add_sycl_unittest_internal(${test_dirname} ${link_variant} TRUE ${ARGN})
+endmacro()
+
+# add_sycl_unittest(test_dirname SHARED|OBJECT file1.cpp, file2.cpp ...)
+#
+# Will compile the list of files together and link against SYCL.
+# Produces a binary names `basename(test_dirname)`.
+macro(add_sycl_unittest test_dirname link_variant)
+  add_sycl_unittest_preview(${test_dirname}_preview ${link_variant} ${ARGN})
+  add_sycl_unittest_internal(${test_dirname} ${link_variant} FALSE ${ARGN})
 endmacro()
