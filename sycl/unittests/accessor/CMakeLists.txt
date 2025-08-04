@@ -1,4 +1,4 @@
-add_sycl_unittest(AccessorTests OBJECT
+add_sycl_unittest_both(AccessorTests AccessorTestsPreview OBJECT
   AccessorHostTask.cpp
   AccessorImplicitConversion.cpp
   AccessorIterator.cpp

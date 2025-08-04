@@ -1,3 +1,3 @@
-add_sycl_unittest(KernelQueriesTests OBJECT
+add_sycl_unittest_both(KernelQueriesTests KernelQueriesTestsPreview OBJECT
   SpillMemorySize.cpp
 )

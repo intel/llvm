@@ -1,3 +1,3 @@
-add_sycl_unittest(ReductionTests OBJECT
+add_sycl_unittest_both(ReductionTests ReductionTestsPreview OBJECT
   Properties.cpp
 )

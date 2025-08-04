@@ -1,4 +1,4 @@
-add_sycl_unittest(NumComputeUnitsTests OBJECT
+add_sycl_unittest_both(NumComputeUnitsTests NumComputeUnitsTestsPreview OBJECT
   ReturnedQueryValue.cpp
 )
 

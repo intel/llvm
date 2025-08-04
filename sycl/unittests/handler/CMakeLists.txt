@@ -1,4 +1,4 @@
-add_sycl_unittest(HandlerTests OBJECT
+add_sycl_unittest_both(HandlerTests HandlerTestsPreview OBJECT
   SetArgForLocalAccessor.cpp
   require.cpp
 )

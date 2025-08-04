@@ -1,5 +1,4 @@
-add_sycl_unittest(AssertTests OBJECT
+add_sycl_unittest_both(AssertTests AssertTestsPreview OBJECT
   assert.cpp
   support_native.cpp
 )
-

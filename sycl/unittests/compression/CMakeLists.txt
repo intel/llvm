@@ -1,4 +1,5 @@
-add_sycl_unittest(CompressionTests OBJECT
+add_sycl_unittest_both(CompressionTests CompressionTestsPreview OBJECT
   CompressionTests.cpp
 )
 target_compile_definitions(CompressionTests PRIVATE SYCL_RT_ZSTD_AVAILABLE)
+target_compile_definitions(CompressionTestsPreview PRIVATE SYCL_RT_ZSTD_AVAILABLE)
