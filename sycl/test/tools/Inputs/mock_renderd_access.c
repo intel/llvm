@@ -15,53 +15,54 @@ const char *renderd = "/dev/dri/renderD*";
 int glob(const char *pattern, int flags, int (*errfunc)(const char *, int),
          glob_t *pglob) {
   const char *mock_mode = getenv("MOCK_GLOB_MODE");
-  if (mock_mode && strcmp(mock_mode, "notfound") == 0) {
+  if (!mock_mode || (strcmp(pattern, renderd) != 0)) {
+    // Delegate to real glob
+    int (*real_glob)(const char *, int, int (*)(const char *, int), glob_t *);
+    real_glob = dlsym(RTLD_NEXT, "glob");
+    if (!real_glob) {
+      errno = ENOSYS;
+      return -1;
+    }
+    return real_glob(pattern, flags, errfunc, pglob);
+  }
+  if (strcmp(mock_mode, "notfound") == 0) {
     pglob->gl_pathc = 0;
     pglob->gl_pathv = NULL;
     return 0;
   }
-  if (mock_mode && strcmp(mock_mode, "exists") == 0 &&
-      strstr(pattern, renderd)) {
-    pglob->gl_pathc = 2;
-    pglob->gl_pathv = malloc(2 * sizeof(char *));
-    pglob->gl_pathv[0] = strdup(renderd128);
-    pglob->gl_pathv[1] = strdup(renderd129);
-    return 0;
-  }
-  // Default behavior: call real glob64
-  int (*real_glob)(const char *, int, int (*)(const char *, int), glob_t *);
-  real_glob = dlsym(RTLD_NEXT, "glob");
-  if (!real_glob) {
-    errno = ENOSYS;
-    return -1;
-  }
-  return real_glob(pattern, flags, errfunc, pglob);
+  assert(strcmp(mock_mode, "exists") == 0);
+  pglob->gl_pathc = 2;
+  pglob->gl_pathv = malloc(2 * sizeof(char *));
+  pglob->gl_pathv[0] = strdup(renderd128);
+  pglob->gl_pathv[1] = strdup(renderd129);
+  return 0;
 }
 
 int glob64(const char *pattern, int flags, int (*errfunc)(const char *, int),
            glob64_t *pglob) {
   const char *mock_mode = getenv("MOCK_GLOB_MODE");
-  if (mock_mode && strcmp(mock_mode, "notfound") == 0) {
+  if (!mock_mode || (strcmp(pattern, renderd) != 0)) {
+    // Delegate to real glob64
+    int (*real_glob64)(const char *, int, int (*)(const char *, int),
+                       glob64_t *);
+    real_glob64 = dlsym(RTLD_NEXT, "glob64");
+    if (!real_glob64) {
+      errno = ENOSYS;
+      return -1;
+    }
+    return real_glob64(pattern, flags, errfunc, pglob);
+  }
+  if (strcmp(mock_mode, "notfound") == 0) {
     pglob->gl_pathc = 0;
     pglob->gl_pathv = NULL;
     return 0;
   }
-  if (mock_mode && strcmp(mock_mode, "exists") == 0 &&
-      strstr(pattern, renderd)) {
-    pglob->gl_pathc = 2;
-    pglob->gl_pathv = malloc(2 * sizeof(char *));
-    pglob->gl_pathv[0] = strdup("/dev/dri/renderD128");
-    pglob->gl_pathv[1] = strdup("/dev/dri/renderD129");
-    return 0;
-  }
-  // Default behavior: call real glob64
-  int (*real_glob64)(const char *, int, int (*)(const char *, int), glob64_t *);
-  real_glob64 = dlsym(RTLD_NEXT, "glob64");
-  if (!real_glob64) {
-    errno = ENOSYS;
-    return -1;
-  }
-  return real_glob64(pattern, flags, errfunc, pglob);
+  assert(strcmp(mock_mode, "exists") == 0);
+  pglob->gl_pathc = 2;
+  pglob->gl_pathv = malloc(2 * sizeof(char *));
+  pglob->gl_pathv[0] = strdup(renderd128);
+  pglob->gl_pathv[1] = strdup(renderd129);
+  return 0;
 }
 
 void globfree(glob_t *pglob) {
