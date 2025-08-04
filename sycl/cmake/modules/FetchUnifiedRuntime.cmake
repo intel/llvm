@@ -428,7 +428,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   endif()
 endif()
 
-if(NOT UR_USE_EXTERNAL_UMF)
+if(TARGET umf)
   install(TARGETS umf
     LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
     ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
