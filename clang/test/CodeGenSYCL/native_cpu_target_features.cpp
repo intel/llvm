@@ -5,6 +5,11 @@
 // This is not sensible but check that we do not crash.
 // RUN: %clang_cc1 -triple native_cpu -aux-triple native_cpu -fsycl-is-device -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,NOX86,NOAVX
 
+// Ensures NativeCPU does not cause a compiler assert when querying the host
+// target's DataLayoutString, which used to happen on ARM which initializes
+// DataLayoutString not in its constructor but afterwards.
+// RUN: %clang_cc1 -cc1 -fsycl-is-device -triple native_cpu -aux-triple aarch64-arm-none-eabi -emit-llvm-bc -o %t %s
+
 #include "Inputs/sycl.hpp"
 using namespace sycl;
 
