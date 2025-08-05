@@ -142,8 +142,8 @@ jobs:
           fi
           [ -z "$BENCHMARK_SAVE_NAME" ] && BENCHMARK_SAVE_NAME="Baseline"
 
-          echo "::set-output name=benchmark_save_name::$BENCHMARK_SAVE_NAME"
-          echo "::set-output name=build_ref::$BUILD_REF"
+          echo "benchmark_save_name=$BENCHMARK_SAVE_NAME" >> $GITHUB_OUTPUT
+          echo "build_ref=$BUILD_REF" >> $GITHUB_OUTPUT
 
   build_sycl:
     name: Build SYCL
