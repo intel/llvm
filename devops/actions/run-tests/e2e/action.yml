@@ -24,7 +24,7 @@ runs:
   using: "composite"
   steps:
   - name: Checkout E2E tests
-    if: ${{ inputs.testing_mode != 'run-only'  || inputs.binaries_artifact }}
+    if: ${{ !(inputs.testing_mode == 'run-only'  && inputs.binaries_artifact == '') }}
     uses: actions/checkout@v4
     with:
       path: llvm
