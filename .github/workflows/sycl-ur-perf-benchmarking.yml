@@ -145,7 +145,6 @@ jobs:
           echo "::set-output name=benchmark_save_name::$BENCHMARK_SAVE_NAME"
           echo "::set-output name=build_ref::$BUILD_REF"
 
-      toolchain_artifact: sycl_linux_prod_noassert
   build_sycl:
     name: Build SYCL
     needs: [ sanitize_inputs ]
