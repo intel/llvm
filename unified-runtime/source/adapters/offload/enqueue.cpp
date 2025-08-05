@@ -100,7 +100,10 @@ ur_result_t doWait(ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     }
 
     // Ensure any newly created work waits on this barrier
-    hQueue->Barrier.store(BarrierEvent);
+    auto OldEvent = hQueue->Barrier.exchange(BarrierEvent);
+    if (OldEvent) {
+      OL_RETURN_ON_ERR(olDestroyEvent(OldEvent));
+    }
 
     // Block all existing threads on the barrier
     for (auto *Q : hQueue->OffloadQueues) {
