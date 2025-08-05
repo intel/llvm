@@ -16,11 +16,12 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
+kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
+                         context_impl &Context,
                          kernel_bundle_impl *KernelBundleImpl,
                          const KernelArgMask *ArgMask)
-    : MKernel(Kernel), MContext(Context.shared_from_this()),
-      MProgram(ProgramManager::getInstance().getUrProgramFromUrKernel(Kernel,
+    : MKernel(std::move(Kernel)), MContext(Context.shared_from_this()),
+      MProgram(ProgramManager::getInstance().getUrProgramFromUrKernel(MKernel,
                                                                       Context)),
       MCreatedFromSource(true),
       MKernelBundleImpl(KernelBundleImpl ? KernelBundleImpl->shared_from_this()
@@ -39,12 +40,13 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
   enableUSMIndirectAccess();
 }
 
-kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
-                         DeviceImageImplPtr DeviceImageImpl,
+kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
+                         context_impl &ContextImpl,
+                         std::shared_ptr<device_image_impl> &&DeviceImageImpl,
                          const kernel_bundle_impl &KernelBundleImpl,
                          const KernelArgMask *ArgMask,
                          ur_program_handle_t Program, std::mutex *CacheMutex)
-    : MKernel(Kernel), MContext(ContextImpl.shared_from_this()),
+    : MKernel(std::move(Kernel)), MContext(ContextImpl.shared_from_this()),
       MProgram(Program),
       MCreatedFromSource(DeviceImageImpl->isNonSYCLSourceBased()),
       MDeviceImageImpl(std::move(DeviceImageImpl)),
@@ -58,14 +60,21 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
     enableUSMIndirectAccess();
 }
 
-kernel_impl::~kernel_impl() {
-  try {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getAdapter().call<UrApiKind::urKernelRelease>(MKernel);
-  } catch (std::exception &e) {
-    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
-  }
+#ifdef _MSC_VER
+#pragma warning(push)
+// https://developercommunity.visualstudio.com/t/False-C4297-warning-while-using-function/1130300
+// https://godbolt.org/z/xsMvKf84f
+#pragma warning(disable : 4297)
+#endif
+kernel_impl::~kernel_impl() try {
+} catch (std::exception &e) {
+  // TODO put it to list of asynchronous exceptions
+  __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
+  return; // Don't re-throw.
 }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 bool kernel_impl::isCreatedFromSource() const {
   // TODO it is not clear how to understand whether the SYCL kernel is created
@@ -127,6 +136,10 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
       "info::kernel::num_args descriptor may only be used to query a kernel "
       "that resides in a kernel bundle constructed using a backend specific"
       "interoperability function or to query a device built-in kernel");
+}
+
+std::optional<unsigned> kernel_impl ::getFreeFuncKernelArgSize() const {
+  return MKernelBundleImpl->tryGetKernelArgsSize(getName());
 }
 
 void kernel_impl::enableUSMIndirectAccess() const {

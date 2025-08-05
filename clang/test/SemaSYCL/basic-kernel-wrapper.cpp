@@ -20,7 +20,7 @@ int main() {
 
 // Check declaration of the kernel
 
-// CHECK: FunctionDecl {{.*}}kernel_wrapper{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
+// CHECK: FunctionDecl {{.*}}kernel_wrapper{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>) __attribute__((device_kernel))'
 
 // Check parameters of the kernel
 
@@ -69,6 +69,6 @@ int main() {
 
 // Check kernel wrapper attributes
 
-// CHECK: OpenCLKernelAttr {{.*}} Implicit
+// CHECK: DeviceKernelAttr {{.*}} Implicit
 // CHECK: ArtificialAttr {{.*}} Implicit
 // CHECK: AsmLabelAttr {{.*}} Implicit "{{.*}}kernel_wrapper{{.*}}"

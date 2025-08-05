@@ -15,8 +15,8 @@
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
+#include "../../CommonUtils/vulkan_common.hpp"
 #include "../helpers/common.hpp"
-#include "vulkan_common.hpp"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/usm.hpp>

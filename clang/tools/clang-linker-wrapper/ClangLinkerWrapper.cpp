@@ -351,7 +351,8 @@ Expected<std::string> findProgram(StringRef Name, ArrayRef<StringRef> Paths) {
 bool linkerSupportsLTO(const ArgList &Args) {
   llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   return Triple.isNVPTX() || Triple.isAMDGPU() ||
-         Args.getLastArgValue(OPT_linker_path_EQ).ends_with("lld");
+         (!Triple.isGPU() &&
+          Args.getLastArgValue(OPT_linker_path_EQ).ends_with("lld"));
 }
 
 /// Returns the hashed value for a constant string.
@@ -393,22 +394,21 @@ Error relocateOffloadSection(const ArgList &Args, StringRef Output) {
   // Remove the old .llvm.offloading section to prevent further linking.
   ObjcopyArgs.emplace_back("--remove-section");
   ObjcopyArgs.emplace_back(".llvm.offloading");
-  for (StringRef Prefix : {"omp", "cuda", "hip"}) {
-    auto Section = (Prefix + "_offloading_entries").str();
-    // Rename the offloading entires to make them private to this link unit.
-    ObjcopyArgs.emplace_back("--rename-section");
-    ObjcopyArgs.emplace_back(
-        Args.MakeArgString(Section + "=" + Section + Suffix));
+  StringRef Prefix = "llvm";
+  auto Section = (Prefix + "_offload_entries").str();
+  // Rename the offloading entires to make them private to this link unit.
+  ObjcopyArgs.emplace_back("--rename-section");
+  ObjcopyArgs.emplace_back(
+      Args.MakeArgString(Section + "=" + Section + Suffix));
 
-    // Rename the __start_ / __stop_ symbols appropriately to iterate over the
-    // newly renamed section containing the offloading entries.
-    ObjcopyArgs.emplace_back("--redefine-sym");
-    ObjcopyArgs.emplace_back(Args.MakeArgString("__start_" + Section + "=" +
-                                                "__start_" + Section + Suffix));
-    ObjcopyArgs.emplace_back("--redefine-sym");
-    ObjcopyArgs.emplace_back(Args.MakeArgString("__stop_" + Section + "=" +
-                                                "__stop_" + Section + Suffix));
-  }
+  // Rename the __start_ / __stop_ symbols appropriately to iterate over the
+  // newly renamed section containing the offloading entries.
+  ObjcopyArgs.emplace_back("--redefine-sym");
+  ObjcopyArgs.emplace_back(Args.MakeArgString("__start_" + Section + "=" +
+                                              "__start_" + Section + Suffix));
+  ObjcopyArgs.emplace_back("--redefine-sym");
+  ObjcopyArgs.emplace_back(Args.MakeArgString("__stop_" + Section + "=" +
+                                              "__stop_" + Section + Suffix));
 
   if (Error Err = executeCommands(*ObjcopyPath, ObjcopyArgs))
     return Err;
@@ -1227,12 +1227,26 @@ packageSYCLBIN(SYCLBIN::BundleState State,
   return *OutFileOrErr;
 }
 
+Error copyFileToFinalExecutable(StringRef File, const ArgList &Args) {
+  if (Verbose || DryRun) {
+    llvm::Triple Triple(Args.getLastArgValue(OPT_host_triple_EQ,
+                                             sys::getDefaultTargetTriple()));
+    StringRef CopyCommand = Triple.isOSWindows() ? "copy" : "cp";
+    llvm::errs() << "\"" << CopyCommand << "\" " << File << " "
+                 << ExecutableName << "\n";
+  }
+  // TODO: check if copy can be replaced by rename.
+  if (std::error_code EC = sys::fs::copy_file(File, ExecutableName))
+    return createFileError(ExecutableName, EC);
+  return Error::success();
+}
+
 Error mergeSYCLBIN(ArrayRef<StringRef> Files, const ArgList &Args) {
   // Fast path for the general case where there's only one file. In this case we
   // do not need to parse it and can instead simply copy it.
   if (Files.size() == 1) {
-    if (std::error_code EC = sys::fs::copy_file(Files[0], ExecutableName))
-      return createFileError(ExecutableName, EC);
+    if (Error Err = copyFileToFinalExecutable(Files[0], Args))
+      reportError(std::move(Err));
     return Error::success();
   }
   // TODO: Merge SYCLBIN files here and write to ExecutableName output.
@@ -2227,7 +2241,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
 
       // Store the offloading image for each linked output file.
       for (OffloadKind Kind = OFK_OpenMP; Kind != OFK_LAST;
-        Kind = static_cast<OffloadKind>((uint16_t)(Kind) << 1)) {
+           Kind = static_cast<OffloadKind>((uint16_t)(Kind) << 1)) {
         if ((ActiveOffloadKindMask & Kind) == 0)
           continue;
         llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> FileOrErr =
@@ -2788,6 +2802,14 @@ int main(int Argc, char **Argv) {
 
     if (OutputSYCLBIN) {
       if (Error Err = sycl::mergeSYCLBIN(*FilesOrErr, Args))
+        reportError(std::move(Err));
+    } else if (Args.hasArg(OPT_sycl_device_link)) {
+      // Skip host linker if --sycl-device-link option is set.
+      // Just copy the output of device linking and wrapping action.
+      if (FilesOrErr->size() != 1)
+        reportError(
+            createStringError("Expect single output from the device linker."));
+      if (Error Err = sycl::copyFileToFinalExecutable((*FilesOrErr)[0], Args))
         reportError(std::move(Err));
     } else {
       // Run the host linking job with the rendered arguments.

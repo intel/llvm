@@ -26,7 +26,7 @@ apt update && apt install -yqq \
       curl \
       libhwloc-dev \
       libzstd-dev \
-      time
+      time 
 
 # To obtain latest release of spriv-tool.
 # Same as what's done in SPRIV-LLVM-TRANSLATOR:
@@ -36,3 +36,9 @@ apt update && apt install -yqq \
 curl -L "https://packages.lunarg.com/lunarg-signing-key-pub.asc" | apt-key add -
 echo "deb https://packages.lunarg.com/vulkan $VERSION_CODENAME main" | tee -a /etc/apt/sources.list
 apt update && apt install -yqq spirv-tools pkg-config
+
+if [[ "$VERSION_CODENAME" == "jammy" ]]; then
+    apt-get install -yqq clang-14 libc++-14-dev
+else
+    apt-get install -yqq clang-18 libc++-18-dev
+fi

@@ -285,11 +285,10 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
   std::set<kernel_id, LessByNameComp> CombinedKernelIDs;
   for (const DevImgPlainWithDeps &DeviceImageWithDeps : DeviceImagesWithDeps) {
     for (const device_image_plain &DeviceImage : DeviceImageWithDeps) {
-      const std::shared_ptr<device_image_impl> &DeviceImageImpl =
-          getSyclObjImpl(DeviceImage);
+      device_image_impl &DeviceImageImpl = *getSyclObjImpl(DeviceImage);
 
-      CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids().begin(),
-                               DeviceImageImpl->get_kernel_ids().end());
+      CombinedKernelIDs.insert(DeviceImageImpl.get_kernel_ids().begin(),
+                               DeviceImageImpl.get_kernel_ids().end());
     }
   }
 
