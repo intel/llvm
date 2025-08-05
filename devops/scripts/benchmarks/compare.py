@@ -112,13 +112,9 @@ class Compare:
         def validate_benchmark_result(result: BenchmarkRun) -> bool:
             """
             Returns True if result file:
-            - Was ran on the target machine/hostname specified
-            - Sanity check: ensure metadata are all expected values:
               - Date is truly before cutoff timestamp
               - Name truly matches up with specified result_name
             """
-            if result.hostname != hostname:
-                return False
             if result.name != result_name:
                 log.warning(
                     f"Result file {result_path} does not match specified result name {result.name}."
