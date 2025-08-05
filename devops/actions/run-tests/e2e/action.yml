@@ -24,7 +24,7 @@ runs:
   using: "composite"
   steps:
   - name: Checkout E2E tests
-    if: ${{ !(inputs.testing_mode == 'run-only'  && inputs.binaries_artifact == '') }}
+    if: ${{ !(inputs.testing_mode == 'run-only' && inputs.binaries_artifact == '') }}
     uses: actions/checkout@v4
     with:
       path: llvm
@@ -33,19 +33,19 @@ runs:
         llvm/utils/lit
         sycl/test-e2e
   - name: Download E2E Binaries
-    if: ${{ inputs.testing_mode == 'run-only'  && inputs.binaries_artifact != '' }}
+    if: ${{ inputs.testing_mode == 'run-only' && inputs.binaries_artifact != '' }}
     uses: actions/download-artifact@v4
     with:
       name: ${{ inputs.binaries_artifact }}
   - name: Extract E2E Binaries
-    if: ${{ inputs.testing_mode == 'run-only'  && inputs.binaries_artifact != '' }}
+    if: ${{ inputs.testing_mode == 'run-only' && inputs.binaries_artifact != '' }}
     shell: bash
     run: |
       mkdir build-e2e
       tar -I 'zstd' -xf e2e_binaries.tar.zst -C build-e2e
 
   - name: Extract E2E tests from container image
-    if: ${{ inputs.testing_mode == 'run-only'  && inputs.binaries_artifact == '' }}
+    if: ${{ inputs.testing_mode == 'run-only' && inputs.binaries_artifact == '' }}
     shell: bash
     run: |
       mkdir build-e2e llvm
