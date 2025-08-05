@@ -24,4 +24,5 @@ COPY e2e_sources.tar.zst /sycl-prebuilt/
 COPY toolchain.tar.zst /sycl-prebuilt/
 
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
+COPY scripts/create-sycl-user.sh /user-setup.sh
 RUN /user-setup.sh
