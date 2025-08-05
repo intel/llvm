@@ -56,13 +56,18 @@ set(compile_opts
 set(SYCL_LIBDEVICE_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
 
 set(SYCL_LIBDEVICE_CXX_FLAGS "" CACHE STRING "C++ compiler flags for SYCL libdevice")
-if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
-  list(APPEND compile_opts "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
-endif()
 if(NOT SYCL_LIBDEVICE_CXX_FLAGS STREQUAL "")
   separate_arguments(SYCL_LIBDEVICE_CXX_FLAGS NATIVE_COMMAND ${SYCL_LIBDEVICE_CXX_FLAGS})
+endif()
+
+if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
+  list(APPEND SYCL_LIBDEVICE_CXX_FLAGS "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
+endif()
+
+if(NOT SYCL_LIBDEVICE_CXX_FLAGS STREQUAL "")
   list(APPEND compile_opts ${SYCL_LIBDEVICE_CXX_FLAGS})
 endif()
+
 if(LLVM_LIBCXX_USED)
   list(APPEND compile_opts "-stdlib=libc++")
 endif()
@@ -410,7 +415,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
     include/sanitizer_utils.hpp
-    sycl-compiler)
+    ${sycl-compiler_deps})
 
   set(tsan_obj_deps
     device.h atomic.hpp spirv_vars.h
@@ -419,7 +424,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
     include/sanitizer_utils.hpp
-    sycl-compiler)
+    ${sycl-compiler_deps})
 endif()
 
 if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -431,11 +436,11 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   add_custom_command(
     OUTPUT ${bc_binary_dir}/nativecpu_utils.bc
     COMMAND ${clang_exe} ${compile_opts} ${bc_device_compile_opts} -fsycl-targets=native_cpu
-      -I ${NATIVE_CPU_DIR}
+      -I ${PROJECT_BINARY_DIR}/include -I ${NATIVE_CPU_DIR}
       ${CMAKE_CURRENT_SOURCE_DIR}/nativecpu_utils.cpp
       -o ${bc_binary_dir}/nativecpu_utils.bc
     MAIN_DEPENDENCY nativecpu_utils.cpp
-    DEPENDS ${sycl-compiler_deps}
+    DEPENDS sycl-headers ${sycl-compiler_deps}
     VERBATIM)
   add_custom_target(nativecpu_utils-bc DEPENDS ${bc_binary_dir}/nativecpu_utils.bc)
   process_bc(libsycl-nativecpu_utils.bc
@@ -646,11 +651,8 @@ set(imf_bf16_fallback_src ${imf_fallback_src_dir}/imf_bf16_fallback.cpp)
 set(imf_host_cxx_flags -c
   --target=${LLVM_HOST_TRIPLE}
   -D__LIBDEVICE_HOST_IMPL__
+  ${SYCL_LIBDEVICE_CXX_FLAGS}
 )
-
-if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
-  list(APPEND imf_host_cxx_flags "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
-endif()
 
 if(LLVM_LIBCXX_USED)
   list(APPEND  imf_host_cxx_flags "-stdlib=libc++")
