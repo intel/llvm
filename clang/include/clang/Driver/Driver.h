@@ -543,8 +543,7 @@ public:
   /// empty string.
   llvm::SmallVector<StringRef>
   getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
-                  Action::OffloadKind Kind, const ToolChain *TC,
-                  bool SpecificToolchain = true) const;
+                  Action::OffloadKind Kind, const ToolChain &TC) const;
 
   /// Check that the file referenced by Value exists. If it doesn't,
   /// issue a diagnostic and return false.

@@ -317,7 +317,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       // add -fsycl-targets=intel_gpu_pvc..., native bfloat16 devicelib can
       // only be linked when all GPU types specified support.
       // We need to filter CPU target here and only focus on GPU device.
-      if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+      if (Arg *SYCLTarget = Args.getLastArg(options::OPT_offload_targets_EQ)) {
         for (auto TargetsV : SYCLTarget->getValues()) {
           if (!checkSpirvJIT(StringRef(TargetsV)) &&
               !StringRef(TargetsV).starts_with("spir64_gen") &&
@@ -338,7 +338,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       // bfloat16 native conversion.
       UseNative = true;
 
-      if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+      if (Arg *SYCLTarget = Args.getLastArg(options::OPT_offload_targets_EQ)) {
         for (auto TargetsV : SYCLTarget->getValues()) {
           if (!checkSpirvJIT(StringRef(TargetsV)) &&
               !GPUArchsWithNBF16.contains(StringRef(TargetsV))) {
@@ -646,7 +646,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     if (!IsSpirvAOT)
       return JIT;
 
-    llvm::opt::Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ);
+    llvm::opt::Arg *SYCLTarget =
+        Args.getLastArg(options::OPT_offload_targets_EQ);
     if (!SYCLTarget || (SYCLTarget->getValues().size() != 1))
       return JIT;
 
@@ -1672,7 +1673,7 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
     if (OptNoTriple) {
       // With multiple -fsycl-targets, a triple is required so we know where
       // the options should go.
-      const Arg *TargetArg = Args.getLastArg(options::OPT_fsycl_targets_EQ);
+      const Arg *TargetArg = Args.getLastArg(options::OPT_offload_targets_EQ);
       if (TargetArg && TargetArg->getValues().size() != 1) {
         getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
             << A->getSpelling();
@@ -1911,7 +1912,7 @@ void SYCLToolChain::TranslateBackendTargetArgs(
   // Handle -Xsycl-target-backend.
   TranslateTargetOpt(Triple, Args, CmdArgs, options::OPT_Xsycl_backend,
                      options::OPT_Xsycl_backend_EQ, Device);
-  TranslateGPUTargetOpt(Args, CmdArgs, options::OPT_fsycl_targets_EQ);
+  TranslateGPUTargetOpt(Args, CmdArgs, options::OPT_offload_targets_EQ);
 }
 
 void SYCLToolChain::TranslateLinkerTargetArgs(const llvm::Triple &Triple,

@@ -650,7 +650,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
         C->getSingleOffloadToolChain<Action::OFK_SYCL>();
     InputArgList EmptyArgList;
     auto Archs =
-        D.getOffloadArchs(*C, EmptyArgList, Action::OFK_SYCL, OffloadTC);
+        D.getOffloadArchs(*C, EmptyArgList, Action::OFK_SYCL, *OffloadTC);
     assert(Archs.size() == 1 &&
            "Offload toolchain should be configured to single architecture");
     StringRef CPU = *Archs.begin();

@@ -105,32 +105,15 @@ forAllAssociatedToolChains(Compilation &C, const JobAction &JA,
 
   // Apply Work on all the offloading tool chains associated with the current
   // action.
-  if (JA.isHostOffloading(Action::OFK_Cuda))
-    Work(*C.getSingleOffloadToolChain<Action::OFK_Cuda>());
-  else if (JA.isDeviceOffloading(Action::OFK_Cuda))
-    Work(*C.getSingleOffloadToolChain<Action::OFK_Host>());
-  else if (JA.isHostOffloading(Action::OFK_HIP))
-    Work(*C.getSingleOffloadToolChain<Action::OFK_HIP>());
-  else if (JA.isDeviceOffloading(Action::OFK_HIP))
-    Work(*C.getSingleOffloadToolChain<Action::OFK_Host>());
-
-  if (JA.isHostOffloading(Action::OFK_OpenMP)) {
-    auto TCs = C.getOffloadToolChains<Action::OFK_OpenMP>();
-    for (auto II = TCs.first, IE = TCs.second; II != IE; ++II)
-      Work(*II->second);
-  } else if (JA.isDeviceOffloading(Action::OFK_OpenMP))
-    Work(*C.getSingleOffloadToolChain<Action::OFK_Host>());
-
-  if (JA.isHostOffloading(Action::OFK_SYCL)) {
-    auto TCs = C.getOffloadToolChains<Action::OFK_SYCL>();
-    for (auto II = TCs.first, IE = TCs.second; II != IE; ++II)
-      Work(*II->second);
-  } else if (JA.isDeviceOffloading(Action::OFK_SYCL))
-    Work(*C.getSingleOffloadToolChain<Action::OFK_Host>());
-
-  //
-  // TODO: Add support for other offloading programming models here.
-  //
+  for (Action::OffloadKind Kind : {Action::OFK_Cuda, Action::OFK_OpenMP,
+                                   Action::OFK_HIP, Action::OFK_SYCL}) {
+    if (JA.isHostOffloading(Kind)) {
+      auto TCs = C.getOffloadToolChains(Kind);
+      for (auto II = TCs.first, IE = TCs.second; II != IE; ++II)
+        Work(*II->second);
+    } else if (JA.isDeviceOffloading(Kind))
+      Work(*C.getSingleOffloadToolChain<Action::OFK_Host>());
+  }
 }
 
 static bool
@@ -5430,8 +5413,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     else {
       // Host-side compilation.
       NormalizedTriple =
-          (IsCuda ? C.getSingleOffloadToolChain<Action::OFK_Cuda>()
-                  : C.getSingleOffloadToolChain<Action::OFK_HIP>())
+          (IsCuda ? C.getOffloadToolChains(Action::OFK_Cuda).first->second
+                  : C.getOffloadToolChains(Action::OFK_HIP).first->second)
               ->getTriple()
               .normalize();
       if (IsCuda) {
@@ -8679,7 +8662,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (isa<CompileJobAction>(JA) && JA.isHostOffloading(Action::OFK_SYCL)) {
     SmallString<128> TargetInfo("-fsycl-targets=");
 
-    if (Arg *Tgts = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+    if (Arg *Tgts = Args.getLastArg(options::OPT_offload_targets_EQ)) {
       for (unsigned i = 0; i < Tgts->getNumValues(); ++i) {
         if (i)
           TargetInfo += ',';
