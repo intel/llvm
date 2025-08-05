@@ -1,0 +1,104 @@
+name: Create container with pre-built tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        type: string
+        description: tag/sha
+        required: true
+        default:
+
+  push:
+    branches:
+    - sycl-rel-**
+
+permissions: read-all
+
+jobs:
+  build:
+    uses: ./.github/workflows/sycl-linux-build.yml
+    with:
+      build_ref: ${{ inputs.ref || github.sha }}
+      build_cache_root: "/__w/"
+
+      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
+      cc: clang
+      cxx: clang++
+
+      changes: '[]'
+
+      toolchain_artifact: toolchain
+      toolchain_artifact_filename: toolchain.tar.zst
+      e2e_binaries_artifact: e2e_bin
+
+  # Couldn't make it work from inside the container, so have to use an extra job
+  # and pass an artifact.
+  docker:
+    runs-on: [Linux, build]
+    needs: build
+    permissions:
+      packages: write
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            devops/
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          path: llvm
+          sparse-checkout: |
+              llvm/utils/lit
+              sycl/test-e2e
+      - name: Pack sources
+        run: |
+          tar -I 'zstd -9' -cf devops/e2e_sources.tar.zst -C ./llvm .
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: toolchain
+          path: devops/
+      - uses: actions/download-artifact@v4
+        with:
+          name: e2e_bin
+          path: devops/
+
+
+      - name: Build container
+        uses: ./devops/actions/build_container
+        with:
+          push: true
+          file: release_tests_binaries
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          tags: |
+            ghcr.io/${{ github.repository }}/sycl_prebuilt_tests:${{ inputs.ref || github.ref }}
+
+  run-e2e:
+    runs-on: [Linux, pvc]
+    needs: [docker, build]
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    container:
+      image: ghcr.io/${{ github.repository }}/sycl_prebuilt_tests:${{ inputs.ref }}
+      options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            devops
+      - run: |
+          mkdir toolchain
+          tar -I 'zstd' -xf /sycl-prebuilt/toolchain.tar.zst -C toolchain
+          echo LD_LIBRARY_PATH=$PWD/toolchain/lib:$LD_LIBRARY_PATH >> $GITHUB_ENV
+          echo PATH=$PWD/toolchain/bin:$PATH >> $GITHUB_ENV
+      - run: |
+          sycl-ls
+      - name: Run E2E tests
+        uses: ./devops/actions/run-tests/e2e
+        timeout-minutes: 60
+        with:
+          testing_mode: run-only
+          target_devices: level_zero:gpu
