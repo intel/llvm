@@ -635,8 +635,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
 
   const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
       {"libsycl-crt", "libc"},
-      {"libsycl-complex", "libm-fp32"},
-      {"libsycl-complex-fp64", "libm-fp64"},
+      {"libsycl-complex-msan", "libm-fp32"},
+      {"libsycl-complex-fp64-msan", "libm-fp64"},
       {"libsycl-cmath", "libm-fp32"},
       {"libsycl-cmath-fp64", "libm-fp64"},
 #if defined(_WIN32)
@@ -650,15 +650,15 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   const SYCLDeviceLibsList SYCLDeviceFallbackLibs = {
       {"libsycl-fallback-cassert", "libc"},
       {"libsycl-fallback-cstring", "libc"},
-      {"libsycl-fallback-complex", "libm-fp32"},
-      {"libsycl-fallback-complex-fp64", "libm-fp64"},
+      {"libsycl-fallback-complex-msan", "libm-fp32"},
+      {"libsycl-fallback-complex-fp64-msan", "libm-fp64"},
       {"libsycl-fallback-cmath", "libm-fp32"},
       {"libsycl-fallback-cmath-fp64", "libm-fp64"},
       {"libsycl-fallback-imf", "libimf-fp32"},
       {"libsycl-fallback-imf-fp64", "libimf-fp64"},
       {"libsycl-fallback-imf-bf16", "libimf-bf16"}};
   const SYCLDeviceLibsList SYCLDeviceBfloat16FallbackLib = {
-      {"libsycl-fallback-bfloat16", "libm-bfloat16"}};
+      {"libsycl-fallback-bfloat16-msan", "libm-bfloat16"}};
   const SYCLDeviceLibsList SYCLDeviceBfloat16NativeLib = {
       {"libsycl-native-bfloat16", "libm-bfloat16"}};
   // ITT annotation libraries are linked in separately whenever the device

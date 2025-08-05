@@ -475,10 +475,22 @@ add_devicelibs(libsycl-complex
   SRC complex_wrapper.cpp
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${complex_obj_deps})
+
+add_devicelibs(libsycl-complex-msan
+  SRC complex_wrapper.cpp
+  DEPENDENCIES ${complex_obj_deps}
+  EXTRA_OPTS -Xarch_device -fsanitize=memory)
+
 add_devicelibs(libsycl-complex-fp64
   SRC complex_wrapper_fp64.cpp
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${complex_obj_deps} )
+
+add_devicelibs(libsycl-complex-fp64-msan
+  SRC complex_wrapper_fp64.cpp
+  DEPENDENCIES ${complex_obj_deps}
+  EXTRA_OPTS -Xarch_device -fsanitize=memory)
+
 add_devicelibs(libsycl-cmath
   SRC cmath_wrapper.cpp
   BUILD_ARCHS ${full_build_archs}
@@ -504,6 +516,12 @@ add_devicelibs(libsycl-bfloat16
   SRC bfloat16_wrapper.cpp
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps})
+
+add_devicelibs(libsycl-bfloat16-msan
+  SRC bfloat16_wrapper.cpp
+  DEPENDENCIES ${cmath_obj_deps}
+  EXTRA_OPTS -Xarch_device -fsanitize=memory)
+
 if(MSVC)
   add_devicelibs(libsycl-msvc-math
     SRC msvc_math.cpp
@@ -596,10 +614,22 @@ add_devicelibs(libsycl-fallback-complex
   SRC fallback-complex.cpp
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${complex_obj_deps})
+
+add_devicelibs(libsycl-fallback-complex-msan
+  SRC fallback-complex.cpp
+  DEPENDENCIES ${complex_obj_deps}
+  EXTRA_OPTS -Xarch_device -fsanitize=memory)
+
 add_devicelibs(libsycl-fallback-complex-fp64
   SRC fallback-complex-fp64.cpp
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${complex_obj_deps})
+
+add_devicelibs(libsycl-fallback-complex-fp64-msan
+  SRC fallback-complex-fp64.cpp
+  DEPENDENCIES ${complex_obj_deps}
+  EXTRA_OPTS -Xarch_device -fsanitize=memory)
+
 add_devicelibs(libsycl-fallback-cmath
   SRC fallback-cmath.cpp
   BUILD_ARCHS ${full_build_archs}
@@ -613,6 +643,13 @@ add_devicelibs(libsycl-fallback-bfloat16
   FILETYPES "${filetypes_no_spv}"
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${bfloat16_obj_deps})
+
+add_devicelibs(libsycl-fallback-bfloat16-msan
+  SRC fallback-bfloat16.cpp
+  FILETYPES "${filetypes_no_spv}"
+  DEPENDENCIES ${bfloat16_obj_deps}
+  EXTRA_OPTS -Xarch_device -fsanitize=memory)
+
 add_devicelibs(libsycl-native-bfloat16
   SRC bfloat16_wrapper.cpp
   FILETYPES "${filetypes_no_spv}"
