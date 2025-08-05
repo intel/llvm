@@ -1046,6 +1046,17 @@ getSystemOffloadArchs(Compilation &C, Action::OffloadKind Kind) {
 // requested offloading kind and architectures.
 static llvm::DenseSet<llvm::StringRef>
 inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
+  // SYCL offloading to AOT Targets with '--offload-arch'
+  // is currently enabled only with '--offload-new-driver' option.
+  // Emit a diagnostic if '--offload-arch' is invoked without
+  // '--offload-new driver' option.
+  if (Kind == Action::OFK_SYCL &&
+      !C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
+                                options::OPT_no_offload_new_driver, false)) {
+    C.getDriver().Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
+    return llvm::DenseSet<llvm::StringRef>();
+    ;
+  }
   std::set<std::string> Archs;
   for (Arg *A : C.getInputArgs()) {
     for (StringRef Arch : A->getValues()) {
@@ -1103,6 +1114,10 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
                    : "nvptx-nvidia-cuda";
     else if (IsAMDOffloadArch(ID))
       Triple = "amdgcn-amd-amdhsa";
+    else if (IsIntelCPUOffloadArch(ID))
+      Triple = "spir64_x86_64-unknown-unknown";
+    else if (IsIntelGPUOffloadArch(ID))
+      Triple = "spir64_gen-unknown-unknown";
     else
       continue;
 
@@ -1232,6 +1247,120 @@ static bool addSYCLDefaultTriple(Compilation &C,
   return true;
 }
 
+static void diagnoseSYCLOptions(Compilation &C, bool IsSYCL) {
+  auto getArgRequiringSYCLRuntime = [&](OptSpecifier OptId) -> Arg * {
+    Arg *SYCLArg = C.getInputArgs().getLastArg(OptId);
+    if (SYCLArg && !IsSYCL) {
+      C.getDriver().Diag(clang::diag::err_drv_expecting_fsycl_with_sycl_opt)
+          // Dropping the '=' symbol, which would otherwise pollute
+          // the diagnostics for the most of options
+          << SYCLArg->getSpelling().split('=').first;
+      return nullptr;
+    }
+    return SYCLArg;
+  };
+
+  // Special check for -fsycl-targets.  -fsycl-targets is an alias for
+  // --offload-targets.
+  const Arg *SYCLOffloadTargetsArg =
+      C.getInputArgs().getLastArg(options::OPT_offload_targets_EQ);
+  // const Arg *Alias = SYCLOffloadTargetsArg->getAlias();
+  Arg *SYCLForceTarget =
+      getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
+
+  /*  if (!IsSYCL && SYCLOffloadTargetsArg &&
+          Alias->getSpelling() == "-fsycl-targets=")
+          C.getDriver().Diag(clang::diag::err_drv_expecting_fsycl_with_sycl_opt)
+              // Dropping the '=' symbol, which would otherwise pollute
+              // the diagnostics for the most of options
+              <<
+     StringRef(SYCLOffloadTargetsArg->getAsString(C.getArgs())).split('=').first;
+  */
+  /*  if(SYCLOffloadTargetsArg && (Alias->getSpelling() == "-fsycl-targets=")
+      && SYCLOffloadTargetsArg->getNumValues() > 1 && SYCLForceTarget)
+          C.getDriver().Diag(clang::diag::err_drv_multiple_target_with_forced_target)
+                << SYCLOffloadTargetsArg->getAsString(C.getInputArgs())
+                << SYCLForceTarget->getAsString(C.getInputArgs());
+  */
+
+  // Check if -fsycl-host-compiler is used in conjunction with -fsycl.
+  Arg *SYCLHostCompiler =
+      getArgRequiringSYCLRuntime(options::OPT_fsycl_host_compiler_EQ);
+  Arg *SYCLHostCompilerOptions =
+      getArgRequiringSYCLRuntime(options::OPT_fsycl_host_compiler_options_EQ);
+
+  // -fsycl-host-compiler-options cannot be used without -fsycl-host-compiler
+  if (SYCLHostCompilerOptions && !SYCLHostCompiler)
+    C.getDriver().Diag(clang::diag::warn_drv_opt_requires_opt)
+        << SYCLHostCompilerOptions->getSpelling().split('=').first
+        << "-fsycl-host-compiler";
+
+  // Diagnose incorrect inputs to SYCL options.
+  // FIXME: Since the option definition includes the list of possible values,
+  // the validation must be automatic, not requiring separate disjointed code
+  // blocks accross the driver code. Long-term, the detection of incorrect
+  // values must happen at the level of TableGen and Arg class design, with
+  // Compilation/Driver class constructors handling the driver-specific
+  // diagnostic output.
+  auto checkSingleArgValidity = [&](Arg *A,
+                                    SmallVector<StringRef, 4> AllowedValues) {
+    if (!A)
+      return;
+    const char *ArgValue = A->getValue();
+    for (const StringRef AllowedValue : AllowedValues)
+      if (AllowedValue == ArgValue)
+        return;
+    C.getDriver().Diag(clang::diag::err_drv_invalid_argument_to_option)
+        << ArgValue << A->getOption().getName();
+  };
+
+  // TODO: Transition to using -fsycl-link as a flag as opposed to an option
+  // that takes an argument.  The use of 'default' is a temporary solution as we
+  // remove FPGA support.
+  Arg *SYCLLink = getArgRequiringSYCLRuntime(options::OPT_fsycl_link_EQ);
+  checkSingleArgValidity(SYCLLink, {"early", "image", "default"});
+
+  // Use of -fsycl-link=early and -fsycl-link=image are not supported.
+  if (SYCLLink && (SYCLLink->getValue() == StringRef("early") ||
+                   SYCLLink->getValue() == StringRef("image")))
+    C.getDriver().Diag(diag::err_drv_unsupported_opt_removed)
+        << SYCLLink->getAsString(C.getInputArgs());
+
+  Arg *DeviceCodeSplit =
+      C.getInputArgs().getLastArg(options::OPT_fsycl_device_code_split_EQ);
+  checkSingleArgValidity(DeviceCodeSplit,
+                         {"per_kernel", "per_source", "auto", "off"});
+
+  Arg *RangeRoundingPreference =
+      C.getInputArgs().getLastArg(options::OPT_fsycl_range_rounding_EQ);
+  checkSingleArgValidity(RangeRoundingPreference, {"disable", "force", "on"});
+
+  // Evaluation of -fsycl-device-obj is slightly different, we will emit a
+  // warning and inform the user of the default behavior used.
+  // TODO: General usage of this option is to check for 'spirv' and fallthrough
+  // to using llvmir.  This can be improved to be more obvious in usage.
+  if (Arg *DeviceObj = C.getInputArgs().getLastArgNoClaim(
+          options::OPT_fsycl_device_obj_EQ)) {
+    const bool SYCLDeviceOnly = C.getDriver().offloadDeviceOnly();
+    const bool EmitAsm = C.getInputArgs().getLastArgNoClaim(options::OPT_S);
+    StringRef ArgValue(DeviceObj->getValue());
+    SmallVector<StringRef, 3> DeviceObjValues = {"spirv", "llvmir", "asm"};
+    if (llvm::find(DeviceObjValues, ArgValue) == DeviceObjValues.end())
+      C.getDriver().Diag(clang::diag::warn_ignoring_value_using_default)
+          << DeviceObj->getSpelling().split('=').first << ArgValue << "llvmir";
+    else if (ArgValue == "asm" && (!SYCLDeviceOnly || !EmitAsm))
+      C.getDriver().Diag(
+          clang::diag::warn_drv_fsycl_device_obj_asm_device_only);
+  }
+
+  if (SYCLForceTarget) {
+    StringRef Val(SYCLForceTarget->getValue());
+    llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val, SYCLForceTarget));
+    if (!isValidSYCLTriple(TT))
+      C.getDriver().Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
+  }
+}
+
 void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                               InputList &Inputs) {
   bool UseLLVMOffload = C.getInputArgs().hasArg(
@@ -1250,8 +1379,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
        C.getInputArgs().hasArg(options::OPT_hip_link) ||
        C.getInputArgs().hasArg(options::OPT_hipstdpar)) &&
       !UseLLVMOffload;
+
   bool IsSYCL = C.getInputArgs().hasFlag(options::OPT_fsycl,
-                                         options::OPT_fno_sycl, false);
+                                         options::OPT_fno_sycl, false) ||
+                C.getInputArgs().hasArgNoClaim(options::OPT_fsycl_device_only,
+                                               options::OPT_fsyclbin_EQ);
   bool IsOpenMPOffloading =
       UseLLVMOffload ||
       (C.getInputArgs().hasFlag(options::OPT_fopenmp, options::OPT_fopenmp_EQ,
@@ -1271,13 +1403,14 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       Kinds.insert(Kind);
 
   // We currently don't support any kind of mixed offloading.
-  if (Kinds.size() > 1) {
+  if (Kinds.size() > 1 && !IsSYCL) {
     Diag(clang::diag::err_drv_mix_offload)
         << Action::GetOffloadKindName(*Kinds.begin()).upper()
         << Action::GetOffloadKindName(*(++Kinds.begin())).upper();
     return;
   }
 
+  diagnoseSYCLOptions(C, IsSYCL);
   // Initialize the compilation identifier used for unique CUDA / HIP names.
   if (IsCuda || IsHIP)
     CUIDOpts = CUIDOptions(C.getArgs(), *this);
@@ -1289,8 +1422,18 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   if (C.getInputArgs().hasArg(options::OPT_offload_targets_EQ)) {
     std::vector<std::string> ArgValues =
         C.getInputArgs().getAllArgValues(options::OPT_offload_targets_EQ);
-    for (llvm::StringRef Target : ArgValues)
-      Triples.insert(C.getInputArgs().MakeArgString(Target));
+    llvm::Triple TT;
+    for (llvm::StringRef Target : ArgValues) {
+      if (Target.starts_with("intel_gpu_"))
+        Triples.insert(
+            C.getInputArgs().MakeArgString("spir64_gen-unknown-unknown"));
+      else if (Target.starts_with("nvidia_gpu_"))
+        Triples.insert(C.getInputArgs().MakeArgString("nvptx64-nvidia-cuda"));
+      else if (Target.starts_with("amd_gpu_"))
+        Triples.insert(C.getInputArgs().MakeArgString("amdgcn-amd-amdhsa"));
+      else
+        Triples.insert(C.getInputArgs().MakeArgString(Target));
+    }
 
     if (ArgValues.empty())
       Diag(clang::diag::warn_drv_empty_joined_argument)
@@ -1327,9 +1470,14 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
     // Create a device toolchain for every specified kind and triple.
     for (Action::OffloadKind Kind : Kinds) {
-      llvm::Triple TT = Kind == Action::OFK_OpenMP
-                            ? ToolChain::getOpenMPTriple(Target)
-                            : llvm::Triple(Target);
+      llvm::Triple TT;
+      if (Kind == Action::OFK_OpenMP)
+        TT = ToolChain::getOpenMPTriple(Target);
+      else if (Kind == Action::OFK_SYCL)
+        TT = getSYCLDeviceTriple(Target);
+      else
+        TT = llvm::Triple(Target);
+
       if (TT.getArch() == llvm::Triple::ArchType::UnknownArch) {
         Diag(diag::err_drv_invalid_or_unsupported_offload_target) << TT.str();
         continue;
@@ -3773,7 +3921,7 @@ bool Driver::checkForSYCLDefaultDevice(Compilation &C,
 
   // Do not do the check if the default device is passed in -fsycl-targets
   // or if -fsycl-targets isn't passed (that implies default device)
-  if (const Arg *A = Args.getLastArgNoClaim(options::OPT_fsycl_targets_EQ)) {
+  if (const Arg *A = Args.getLastArgNoClaim(options::OPT_offload_targets_EQ)) {
     for (const char *Val : A->getValues()) {
       llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val, A));
       if ((TT.isSPIROrSPIRV()) && TT.getSubArch() == llvm::Triple::NoSubArch)
@@ -6070,7 +6218,7 @@ class OffloadingActionBuilder final {
       // Gather information about the SYCL Ahead of Time targets.  The targets
       // are determined on the SubArch values passed along in the triple.
       Arg *SYCLTargets =
-          C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
+          C.getInputArgs().getLastArg(options::OPT_offload_targets_EQ);
       bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(
           options::OPT_fsycl, options::OPT_fno_sycl, false);
 
