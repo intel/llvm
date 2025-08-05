@@ -1,5 +1,9 @@
 name: Create container with pre-built tests
 
+# The purpose of this is to build E2E tests with the latest release toolchain
+# and then run them with the trunk SYCL RT (libsycl.so and friends) to verify
+# that ABI compatibility hasn't been broken.
+
 on:
   workflow_dispatch:
     inputs:
@@ -46,7 +50,8 @@ jobs:
           sparse-checkout: |
             devops/
 
-      - uses: actions/checkout@v4
+      - name: Checkout E2E tests
+        uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.sha }}
           path: llvm
@@ -57,11 +62,13 @@ jobs:
         run: |
           tar -I 'zstd -9' -cf devops/e2e_sources.tar.zst -C ./llvm .
 
-      - uses: actions/download-artifact@v4
+      - name: Download toolchain
+        uses: actions/download-artifact@v4
         with:
           name: toolchain
           path: devops/
-      - uses: actions/download-artifact@v4
+      - name: Download E2E binaries
+        uses: actions/download-artifact@v4
         with:
           name: e2e_bin
           path: devops/
@@ -78,6 +85,13 @@ jobs:
             ghcr.io/${{ github.repository }}/sycl_prebuilt_tests:${{ inputs.ref || github.ref_name }}
 
   run-e2e:
+    # Ensure those test can actually pass with the toolchain they were built
+    # with, otherwise testing compatibility with those binaries is pointless.
+    # This job should be aligned with how the image will be used in trunk CI.
+    #
+    # I'll start with just a single configuration, but this might be extended
+    # with a matrix in future (e.g., to run on cpu/CUDA/AMDGPU).
+    name: Run E2E tests with SYCL RT they were built with
     runs-on: [Linux, pvc]
     needs: [docker, build]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
