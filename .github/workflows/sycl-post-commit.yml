@@ -34,7 +34,7 @@ jobs:
     uses: ./.github/workflows/sycl-detect-changes.yml
 
   build-lin:
-    name: Linux (Self build + no-assertions)
+    name: Linux (GCC + no-assertions)
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
@@ -43,6 +43,7 @@ jobs:
       build_configure_extra_args: --no-assertions --hip --cuda --native_cpu -DSYCL_ENABLE_STACK_PRINTING=ON -DSYCL_LIB_WITH_DEBUG_SYMBOL=ON
 
       toolchain_artifact: sycl_linux_default
+      e2e_binaries_spirv_backend_artifact: e2e_bin_spirv_backend
 
   e2e-lin:
     needs: [detect_changes, build-lin]
@@ -73,6 +74,13 @@ jobs:
             env: '{"LIT_FILTER":"PerformanceTests/"}'
             extra_lit_opts: -a -j 1 --param enable-perf-tests=True
             target_devices: all
+          - name: SPIR-V Backend / Intel Battlemage Graphics
+            runner: '["Linux", "bmg"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+            extra_lit_opts: --param spirv-backend=True
+            e2e_binaries_artifact: e2e_bin_spirv_backend
+            e2e_testing_mode: 'run-only'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
@@ -88,6 +96,9 @@ jobs:
       toolchain_artifact: ${{ needs.build-lin.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build-lin.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build-lin.outputs.toolchain_decompress_command }}
+
+      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact }}
+      e2e_testing_mode: ${{ matrix.e2e_testing_mode || 'full' }}
 
       # Do not install drivers on AMD and CUDA runners.
       install_igc_driver: >-

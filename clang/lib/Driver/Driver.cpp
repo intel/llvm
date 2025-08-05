@@ -1396,14 +1396,28 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           } else
             TT = getSYCLDeviceTriple(Triple);
 
-          std::string NormalizedName = TT.normalize();
+          // For the new offloading model, we only want a single triple entry
+          // for each target, even if we have multiple intel_gpu* entries.  We
+          // will track triples for new model and unique strings for the old
+          // model.
+          std::string NormalizedName;
+          bool UseNewOffload =
+              (C.getArgs().hasFlag(options::OPT_offload_new_driver,
+                                   options::OPT_no_offload_new_driver, false));
+          NormalizedName = UseNewOffload
+                               ? TT.normalize()
+                               : getSYCLDeviceTriple(Triple).normalize();
 
           auto [TripleIt, Inserted] =
               FoundNormalizedTriples.try_emplace(NormalizedName, Triple);
 
           if (!Inserted) {
-            Diag(clang::diag::warn_drv_sycl_offload_target_duplicate)
-                << Triple << TripleIt->second;
+            // Only emit the diagnostic of duplicate targets with the new
+            // offloading model only when the found triple matches.  For the
+            // old model, we always emit the diagnostic.
+            if (!UseNewOffload || (UseNewOffload && Triple == TripleIt->second))
+              Diag(clang::diag::warn_drv_sycl_offload_target_duplicate)
+                  << Triple << TripleIt->second;
             continue;
           }
 
@@ -7569,7 +7583,8 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
       // -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc"
       if (TC->getTriple().isSPIRAOT() &&
           TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-          Arg->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
+          (Arg->getOption().matches(options::OPT_Xsycl_backend_EQ) ||
+           Arg->getOption().matches(options::OPT_Xsycl_backend))) {
         const ToolChain *HostTC =
             C.getSingleOffloadToolChain<Action::OFK_Host>();
         auto DeviceTC = std::make_unique<toolchains::SYCLToolChain>(
