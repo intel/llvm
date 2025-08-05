@@ -6985,6 +6985,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();
+    if (S.isFreeFunction(K.SyclKernel)) {
+      CurStart += N;
+      continue;
+    }
     PresumedLoc PLoc = S.getASTContext().getSourceManager().getPresumedLoc(
         S.getASTContext()
             .getSourceManager()
