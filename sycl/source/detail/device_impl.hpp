@@ -2233,6 +2233,10 @@ public:
           {0, 0, 0, 8, 8, 4, matrix_type::fp64, matrix_type::fp64,
            matrix_type::fp64, matrix_type::fp64}};
       if (ComputeCapability >= 8.0) {
+        // GCC fails without reserve()
+        sm_80_combinations.reserve(sm_80_combinations.size() +
+                                   sm_72_combinations.size() +
+                                   sm_70_combinations.size());
         sm_80_combinations.insert(sm_80_combinations.end(),
                                   sm_72_combinations.begin(),
                                   sm_72_combinations.end());
