@@ -132,11 +132,13 @@ jobs:
           fi;
           if [ -n "$COMMIT_HASH" ]; then
             commit_cleaned="$(echo "$COMMIT_HASH" | tr -cd 'a-z0-9')"
+            echo "Using commit hash $commit_cleaned for build..."
             BUILD_REF="$commit_cleaned"
             shortened_commit="$(echo "$commit_cleaned" | cut -c 1-7)"
             [ -z "$BENCHMARK_SAVE_NAME" ] && BENCHMARK_SAVE_NAME="Commit_$shortened_commit"
           elif [ -n "$PR_NO" ]; then
             pr_no_cleaned="$(echo "$PR_NO" | tr -cd '0-9')"
+            echo "Using PR no. $pr_no_cleaned for build..."
             BUILD_REF="refs/pull/$pr_no_cleaned/head"
             [ -z "$BENCHMARK_SAVE_NAME" ] && BENCHMARK_SAVE_NAME="PR_$pr_no_cleaned"
           fi
@@ -144,6 +146,7 @@ jobs:
 
           echo "benchmark_save_name=$BENCHMARK_SAVE_NAME" >> $GITHUB_OUTPUT
           echo "build_ref=$BUILD_REF" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
 
   build_sycl:
     name: Build SYCL
