@@ -1072,7 +1072,6 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
                      C.getArgs().MakeArgString(Triple.split("-").first),
                      C.getArgs().MakeArgString("--offload-arch=" + Arch));
     C.getArgs().append(A);
-    C.getArgs().AddSynthesizedArg(A);
     Triples.insert(Triple);
   }
 
@@ -1423,18 +1422,39 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       else
         TT = llvm::Triple(Target);
 
+      // Common diagnostic for both OpenMP and SYCL.
       if (TT.getArch() == llvm::Triple::ArchType::UnknownArch) {
         Diag(diag::err_drv_invalid_or_unsupported_offload_target) << TT.str();
         continue;
       }
+      // TODO try to combine common code for OpenMP and SYCL.
+      if (Kind == Action::OFK_OpenMP) {
+        std::string NormalizedName = TT.normalize();
+        auto [TripleIt, Inserted] =
+            FoundNormalizedTriples.try_emplace(NormalizedName, Target);
+        if (!Inserted) {
+          Diag(clang::diag::warn_drv_omp_offload_target_duplicate)
+              << Target << TripleIt->second;
+          continue;
+        }
+      } else if (Kind == Action::OFK_SYCL) {
+        std::string NormalizedName;
+        bool UseNewOffload =
+            (C.getArgs().hasFlag(options::OPT_offload_new_driver,
+                                 options::OPT_no_offload_new_driver, false));
+        NormalizedName = UseNewOffload
+                             ? TT.normalize()
+                             : getSYCLDeviceTriple(Target).normalize();
 
-      std::string NormalizedName = TT.normalize();
-      auto [TripleIt, Inserted] =
-          FoundNormalizedTriples.try_emplace(NormalizedName, Target);
-      if (!Inserted) {
-        Diag(clang::diag::warn_drv_omp_offload_target_duplicate)
-            << Target << TripleIt->second;
-        continue;
+        auto [TripleIt, Inserted] =
+            FoundNormalizedTriples.try_emplace(NormalizedName, Target);
+
+        if (!Inserted) {
+          if (!UseNewOffload || (UseNewOffload && Target == TripleIt->second))
+            Diag(clang::diag::warn_drv_sycl_offload_target_duplicate)
+                << Target << TripleIt->second;
+          continue;
+        }
       }
 
       auto &TC = getOffloadToolChain(C.getInputArgs(), Kind, TT,
