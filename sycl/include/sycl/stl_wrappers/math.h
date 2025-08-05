@@ -9,14 +9,14 @@
 #pragma once
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(_WIN32)
-// Define _*dsign before including math.h because _*dsign is used by signbit defined
-// in UCRT headers.
-extern "C" __attribute__((sycl_device_only, always_inline))
-int _fdsign(float x) {
+// Define _*dsign before including math.h because _*dsign is used by signbit
+// defined in UCRT headers.
+extern "C" __attribute__((sycl_device_only, always_inline)) int
+_fdsign(float x) {
   return __builtin_signbit(x);
 }
-extern "C" __attribute__((sycl_device_only, always_inline))
-int _dsign(double x) {
+extern "C" __attribute__((sycl_device_only, always_inline)) int
+_dsign(double x) {
   return __builtin_signbit(x);
 }
 #endif // __SYCL_DEVICE_ONLY__ && _WIN32
@@ -32,4 +32,3 @@ int _dsign(double x) {
 // hacky, but the best we can do...
 #include <../include/math.h>
 #endif
-
