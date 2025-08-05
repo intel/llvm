@@ -11,6 +11,6 @@
 
 #define __FLOAT_ONLY
 #define FUNCTION __spirv_ocl_native_divide
-#define __CLC_FUNCTION(x) __clc_native_divide
+#define __IMPL_FUNCTION(x) __clc_native_divide
 #define __CLC_BODY <clc/shared/binary_def.inc>
 #include <clc/math/gentype.inc>

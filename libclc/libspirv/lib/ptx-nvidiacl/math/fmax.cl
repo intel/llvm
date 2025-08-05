@@ -6,17 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
 #include <libspirv/spirv.h>
 #include <libspirv/ptx-nvidiacl/libdevice.h>
+
+#define FUNCTION __spirv_ocl_fmax
 
 extern int __clc_nvvm_reflect_arch();
 
 _CLC_DEF _CLC_OVERLOAD float __spirv_ocl_fmax(float x, float y) {
   return __nvvm_fmax_f(x, y);
 }
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_fmax, float,
-                      float)
+
+#define __FLOAT_ONLY
+#define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __FLOAT_ONLY
 
 #ifdef cl_khr_fp64
 
@@ -25,8 +29,11 @@ _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_fmax, float,
 _CLC_DEF _CLC_OVERLOAD double __spirv_ocl_fmax(double x, double y) {
   return __nvvm_fmax_d(x, y);
 }
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_fmax, double,
-                      double)
+
+#define __DOUBLE_ONLY
+#define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __DOUBLE_ONLY
 
 #endif
 
@@ -46,10 +53,20 @@ _CLC_DEF _CLC_OVERLOAD half2 __spirv_ocl_fmax(half2 x, half2 y) {
   }
   return (half2)(__spirv_ocl_fmax(x.x, y.x), __spirv_ocl_fmax(x.y, y.y));
 }
-_CLC_BINARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_fmax,
-                            half, half)
+
+#undef __CLC_MIN_VECSIZE
+#define __CLC_MIN_VECSIZE 3
+#define __HALF_ONLY
+#define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __HALF_ONLY
+#undef __CLC_MIN_VECSIZE
 
 #endif
+
+#undef FUNCTION
+#define FUNCTION __clc_fmax
+#define __CLC_SCALAR
 
 // Requires at least sm_80
 _CLC_DEF _CLC_OVERLOAD ushort __clc_fmax(ushort x, ushort y) {
@@ -57,8 +74,10 @@ _CLC_DEF _CLC_OVERLOAD ushort __clc_fmax(ushort x, ushort y) {
     __asm__("max.bf16 %0, %1, %2;" : "=h"(res) : "h"(x), "h"(y));
     return res;
 }
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_fmax, ushort,
-                      ushort)
+
+#define __CLC_GENTYPE ushort
+#include <clc/shared/binary_def_scalarize.inc>
+#undef __CLC_GENTYPE
 
 // Requires at least sm_80
 _CLC_DEF _CLC_OVERLOAD uint __clc_fmax(uint x, uint y) {
@@ -66,5 +85,10 @@ _CLC_DEF _CLC_OVERLOAD uint __clc_fmax(uint x, uint y) {
     __asm__("max.bf16x2 %0, %1, %2;" : "=r"(res) : "r"(x), "r"(y));
     return res;
 }
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uint, __clc_fmax, uint,
-                      uint)
+
+#define __CLC_GENTYPE uint
+#include <clc/shared/binary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+
+#undef __CLC_SCALAR
+#undef FUNCTION

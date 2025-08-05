@@ -8,26 +8,19 @@
 
 #include <libspirv/spirv.h>
 
-#include <clc/clcmacro.h>
 #include <clc/math/clc_subnormal_config.h>
 #include <clc/math/math.h>
 #include <clc/math/clc_ldexp.h>
 
-_CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __clc_ldexp, float, int)
-_CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __clc_ldexp, float, uint)
+#define FUNCTION __spirv_ocl_ldexp
+#define __IMPL_FUNCTION __clc_ldexp
 
-#ifdef cl_khr_fp64
+#define __CLC_ARG2_TYPE int
+#define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __CLC_ARG2_TYPE
 
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-_CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_ldexp, __clc_ldexp, double, int)
-_CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_ldexp, __clc_ldexp, double, uint)
-#endif
-
-#ifdef cl_khr_fp16
-
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-
-_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_ldexp, __clc_ldexp, half, int)
-_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_ldexp, __clc_ldexp, half, uint)
-#endif
+#define __CLC_ARG2_TYPE uint
+#define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __CLC_ARG2_TYPE
