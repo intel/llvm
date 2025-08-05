@@ -295,7 +295,7 @@ namespace Testing::Tests {
 // CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 
-// CHECK: template <typename T> void templated(ns::Arg<T, float, 3, ns::notatuple>, T);
+// CHECK: template <typename T> void templated(ns::Arg<T, float, 3, ns::notatuple, <>>, T);
 // CHECK-NEXT: static constexpr auto __sycl_shim3() {
 // CHECK-NEXT:   return (void (*)(struct ns::Arg<int, float, 3, struct ns::notatuple>, int))templated<int>;
 // CHECK-NEXT: }
@@ -352,7 +352,7 @@ namespace Testing::Tests {
 // CHECK-NEXT: } // namespace _V1
 // CHECK-NEXT: } // namespace sycl
 
-// CHECK: template <typename T, int a> void templated3(ns::Arg<T, ns::notatuple, a, ns::ns1::hasDefaultArg<ns::notatuple>, int, int> , T end);
+// CHECK: template <typename T, int a> void templated3(ns::Arg<T, ns::notatuple, a, ns::ns1::hasDefaultArg<ns::notatuple>, int, int>, T);
 // CHECK-NEXT: static constexpr auto __sycl_shim6() {
 // CHECK-NEXT:   return (void (*)(struct ns::Arg<float, struct ns::notatuple, 3, class ns::ns1::hasDefaultArg<struct ns::notatuple>, int, int>, float))templated3<float, 3>;
 // CHECK-NEXT: }
