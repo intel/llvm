@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: target-spir
-// XFAIL: (arch-intel_gpu_acm_g10 || arch-intel_gpu_bmg_g21)
+// XFAIL: (arch-intel_gpu_acm_g10 || arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21)
 // XFAIL-TRACKER: CMPLRLLVM-66371
 // REQUIRES: aspect-ext_intel_matrix
 
