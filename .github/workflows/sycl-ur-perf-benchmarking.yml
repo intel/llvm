@@ -110,7 +110,7 @@ jobs:
     name: Sanitize inputs
     runs_on: ubuntu-latest
     env:
-	  COMMIT_HASH: ${{ inputs.commit_hash }}
+      COMMIT_HASH: ${{ inputs.commit_hash }}
       PR_NO: ${{ inputs.pr_no }}
       SAVE_NAME: ${{ inputs.save_name }}
     steps:
