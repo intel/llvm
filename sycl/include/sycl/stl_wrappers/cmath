@@ -8,6 +8,20 @@
 
 #pragma once
 
+#if defined(__SYCL_DEVICE_ONLY__) && defined(_WIN32)
+// Define _*dsign before including cmath because _*dsign is used by signbit
+// defined in UCRT headers. Using before adding device side declarations is
+// illegal.
+extern "C" __attribute__((sycl_device_only, always_inline)) int
+_fdsign(float x) {
+  return __builtin_signbit(x);
+}
+extern "C" __attribute__((sycl_device_only, always_inline)) int
+_dsign(double x) {
+  return __builtin_signbit(x);
+}
+#endif // __SYCL_DEVICE_ONLY__ && _WIN32
+
 // Include real STL <cmath> header - the next one from the include search
 // directories.
 #if defined(__has_include_next)
