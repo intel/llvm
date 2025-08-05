@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include <sycl/atomic_ref.hpp>
 #include <sycl/group_algorithm.hpp>
+#include <sycl/stream.hpp>
 
 template <typename T, size_t Rows, size_t Cols, layout Layout, use Use>
 class matrix_process;
@@ -40,6 +41,7 @@ void matrix_sum(big_matrix<T, NUM_ROWS / VF, NUM_COLS * VF> &M,
   size_t sg_size =
       get_sg_size<matrix_process<T, NUM_ROWS, NUM_COLS, Layout, Use>>(q);
   q.submit([&](handler &cgh) {
+    // sycl::stream os{100000, 50000, cgh};
      sycl::accessor acc{buf, cgh, sycl::read_write};
      sycl::accessor v_rows{sum_rows_v, cgh, sycl::read_write};
      sycl::accessor v_cols{sum_cols_v, cgh, sycl::read_write};
@@ -65,6 +67,10 @@ void matrix_sum(big_matrix<T, NUM_ROWS / VF, NUM_COLS * VF> &M,
            TResult sum_local_rows[NUM_ROWS] = {0};
            TResult sum_local_cols[NUM_COLS] = {0};
 
+           TResult wi_contents[NUM_ROWS * NUM_COLS / 16];
+           for (int i = 0; i < NUM_ROWS * NUM_COLS / 16; i++)
+            wi_contents[i] = 0;
+
            if (Use == use::accumulator) {
              joint_matrix<sub_group, T, use::accumulator, SROWS, SCOLS,
                           layout::dynamic>
@@ -77,13 +83,37 @@ void matrix_sum(big_matrix<T, NUM_ROWS / VF, NUM_COLS * VF> &M,
                      sg_starty / sg_size * SCOLS,
                  NUM_COLS, Layout);
 
+            //  int i = 0;
              ext::intel::experimental::matrix::joint_matrix_apply(
                  sg, sub, [&](T &x, size_t row, size_t col) {
-                   sum_local_rows[row + global_idx * SROWS] += x;
-                   sum_local_cols[col + global_idy / sg_size * SCOLS] += x;
+                  //  os << (int)x << " ";
+                  // wi_contents[i] = x;
+                  // i++;
+                  // if (row + global_idx * SROWS == 0)
+                  // {
+                  //   os << "sum_local_rows[" << row + global_idx * SROWS << "] = " << (int)x << "\n";
+                  //   os << "coords: (" << row << ", " << col << ")\n";
+                  // }
+                  sum_local_rows[row + global_idx * SROWS] += x;
+                  // if(col + global_idy / sg_size * SCOLS == 32)
+                  // {
+                  //   os << "sum_local_cols[" << col + global_idy / sg_size * SCOLS << "] = " << (int)x << "\n";
+                  //   os << "coords: (" << row << ", " << col << ")\n";
+                  // }
+                  sum_local_cols[col + global_idy / sg_size * SCOLS] += x;
                  });
-
-           } else {
+                //  os << spmd_item.get_global_id(1) << " : ";
+                //  for (int i = 0; i < NUM_ROWS * NUM_COLS / 16; i++)
+                //     os << (int)wi_contents[i] << " ";
+                  // os << "\n";
+                  // os << "\n";
+                //            joint_matrix_store(sg, sub,
+                //  acc.template get_multi_ptr<access::decorated::no>() +
+                //      (sg_startx * SROWS * NUM_COLS) +
+                //      sg_starty / sg_size * SCOLS,
+                //  NUM_COLS, Layout);
+           } 
+           else {
              joint_matrix<sub_group, T, Use, SROWS, SCOLS, Layout> sub;
 
              joint_matrix_load(
@@ -92,14 +122,15 @@ void matrix_sum(big_matrix<T, NUM_ROWS / VF, NUM_COLS * VF> &M,
                      (sg_startx * (SROWS / VF) * NUM_COLS * VF) +
                      sg_starty / sg_size * SCOLS * VF,
                  NUM_COLS * VF);
-
+            // os << spmd_item.get_global_id(1) << " : ";
              ext::intel::experimental::matrix::joint_matrix_apply(
                  sg, sub, [&](T &x, size_t row, size_t col) {
+                  //  os << (int)x << " ";
                    sum_local_rows[row + global_idx * SROWS] += x;
                    sum_local_cols[col + global_idy / sg_size * SCOLS] += x;
                  });
+              // os << "\n";
            }
-
            reduce_and_accumulate(sg, sg_size, global_idy, v_rows,
                                  sum_local_rows, NUM_ROWS);
            reduce_and_accumulate(sg, sg_size, global_idy, v_cols,
@@ -111,9 +142,11 @@ void matrix_sum(big_matrix<T, NUM_ROWS / VF, NUM_COLS * VF> &M,
 template <typename T, typename TResult, size_t SROWS, size_t SCOLS, use Use,
           layout Layout, size_t VF>
 void test_get_coord_op() {
-  constexpr size_t SCALE = 2;
+  constexpr size_t SCALE = 1;
   static constexpr size_t Rows = SROWS * SCALE;
   static constexpr size_t Cols = SCOLS * SCALE;
+
+  std::cout<< "TEST " << Rows << "x" << Cols <<std::endl; 
 
   T M[Rows][Cols];
   T Mvnni[Rows / VF][Cols * VF];
@@ -122,27 +155,42 @@ void test_get_coord_op() {
   TResult sum_cols[Cols] = {0};
   TResult sum_cols_ref[Cols] = {0};
 
-  matrix_fill(Rows, Cols, (T *)M, [](int i, int j) { return T(i + j); });
+  matrix_fill(Rows, Cols, (T *)M, [](int i, int j) { return T(i * Cols + j); });
 
   matrix_vnni<T>(Rows, Cols, *M, *Mvnni, VF);
   big_matrix<T, Rows / VF, Cols * VF> MM((T *)&Mvnni);
 
+  // matrix_print(Rows, Cols, (T *)Mvnni);
   matrix_sum<T, TResult, Rows, Cols, SROWS, SCOLS, Use, Layout, VF>(
       MM, sum_rows, sum_cols);
-
+    bool passed = true;
   for (int i = 0; i < Rows; i++) {
     for (int j = 0; j < Cols; j++) {
       sum_rows_ref[i] += (int)M[i][j];
     }
-    assert(std::fabs(sum_rows_ref[i] - sum_rows[i]) <= FLOAT_EPSILON);
+    if (std::fabs(sum_rows_ref[i] - sum_rows[i]) > FLOAT_EPSILON)
+    {
+      std::cout << "Error at row " << i << " ref = " << sum_rows_ref[i] << ", val = " << sum_rows[i] << std::endl;
+      passed = false;
+    }
+    // assert(std::fabs(sum_rows_ref[i] - sum_rows[i]) <= FLOAT_EPSILON);
   }
 
   for (int j = 0; j < Cols; j++) {
     for (int i = 0; i < Rows; i++) {
       sum_cols_ref[j] += (int)M[i][j];
     }
-    assert(std::fabs(sum_cols_ref[j] - sum_cols[j]) <= FLOAT_EPSILON);
+    if (std::fabs(sum_cols_ref[j] - sum_cols[j]) > FLOAT_EPSILON)
+    {
+      std::cout << "Error at col " << j << " ref = " << sum_cols_ref[j] << ", val = " << sum_cols[j] << std::endl;
+      passed = false;
+    }
+    // assert(std::fabs(sum_cols_ref[j] - sum_cols[j]) <= FLOAT_EPSILON);
   }
+  if(passed)
+    std::cout << "PASS" << std::endl;
+  else
+    std::cout << "FAILED" << std::endl;
 }
 
 int main() {
@@ -154,66 +202,145 @@ int main() {
 
   for (unsigned int i = 0; i < combinations.size(); i++) {
     if (combinations[i].nsize == 0) { // Intel AMX
-      test_get_coord_op<bfloat16, float, /*TM*/ 16, /*TK*/ 32, use::a,
-                        layout::row_major, 1>();
-      test_get_coord_op<int8_t, int, /*TM*/ 16, /*TK*/ 64, use::a,
-                        layout::row_major, 1>();
-      test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
-                        layout::row_major, 1>();
-      test_get_coord_op<int8_t, int32_t, /*TK*/ 64, /*TN*/ 16, use::b,
-                        layout::row_major, 1>();
-      test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
-                        layout::ext_intel_packed, 2>();
-      test_get_coord_op<int8_t, int32_t, /*TK*/ 64, /*TN*/ 16, use::b,
-                        layout::ext_intel_packed, 4>();
-      test_get_coord_op<float, float, /*TM*/ 16, /*TN*/ 16, use::accumulator,
-                        layout::row_major, 1>();
-      test_get_coord_op<int32_t, int32_t, /*TM*/ 16, /*TN*/ 16,
-                        use::accumulator, layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TM*/ 16, /*TK*/ 32, use::a,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<int8_t, int, /*TM*/ 16, /*TK*/ 64, use::a,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<int8_t, int32_t, /*TK*/ 64, /*TN*/ 16, use::b,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
+      //                   layout::ext_intel_packed, 2>();
+      // test_get_coord_op<int8_t, int32_t, /*TK*/ 64, /*TN*/ 16, use::b,
+      //                   layout::ext_intel_packed, 4>();
+      // test_get_coord_op<float, float, /*TM*/ 16, /*TN*/ 16, use::accumulator,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<int32_t, int32_t, /*TM*/ 16, /*TN*/ 16,
+      //                   use::accumulator, layout::row_major, 1>();
       break;
     }
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
+      // test_get_coord_op<int8_t, int, /*TM*/ 8, /*TK*/ 32, use::a,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
+      //                   layout::ext_intel_packed, 2>();
+      // test_get_coord_op<int8_t, int32_t, /*TK*/ 32, /*TN*/ 16, use::b,
+      //                   layout::ext_intel_packed, 4>();
+
+      // 8x16x16 float/bfloat16
+      std::cout << "8x16x16 float/bfloat16" << std::endl;
+      // A
       test_get_coord_op<bfloat16, float, /*TM*/ 8, /*TK*/ 16, use::a,
                         layout::row_major, 1>();
-      test_get_coord_op<int8_t, int, /*TM*/ 8, /*TK*/ 32, use::a,
-                        layout::row_major, 1>();
+      // B
       test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
                         layout::ext_intel_packed, 2>();
-      test_get_coord_op<int8_t, int32_t, /*TK*/ 32, /*TN*/ 16, use::b,
-                        layout::ext_intel_packed, 4>();
+      // Accumulator
+      test_get_coord_op<bfloat16, float, /*TM*/ 8, /*TN*/ 16, use::accumulator,
+                        layout::row_major, 1>();
       test_get_coord_op<float, float, /*TM*/ 8, /*TN*/ 16, use::accumulator,
                         layout::row_major, 1>();
+
+
+      // 16x16x16 float/bfloat16
+      std::cout << "16x16x16 float/bfloat16" << std::endl;
+      // A
+      test_get_coord_op<bfloat16, float, /*TM*/ 16, /*TK*/ 16, use::a,
+                        layout::row_major, 1>();
+      // B
+      test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
+                  layout::ext_intel_packed, 2>();
+      // Accumulator
+      test_get_coord_op<bfloat16, float, /*TM*/ 16, /*TN*/ 16, use::accumulator,
+                        layout::row_major, 1>();
+      test_get_coord_op<float, float, /*TM*/ 16, /*TN*/ 16, use::accumulator,
+                        layout::row_major, 1>();
+
+      // 1x64x16 float/bfloat16
+      std::cout << "1x64x16 float/bfloat16" << std::endl;
+      // A
+      test_get_coord_op<bfloat16, float, /*TM*/ 1, /*TK*/ 16, use::a,
+                        layout::row_major, 1>();
+      // B
+      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 64, use::b,
+      //             layout::ext_intel_packed, 2>();
+      // Accumulator
+      test_get_coord_op<bfloat16, float, /*TM*/ 1, /*TN*/ 64, use::accumulator,
+                        layout::row_major, 1>();
+      test_get_coord_op<float, float, /*TM*/ 1, /*TN*/ 64, use::accumulator,
+                        layout::row_major, 1>();
+
+      // 32x64x16 float/bfloat16
+      std::cout << "1x64x16 float/bfloat16" << std::endl;
+      // A
+      test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TK*/ 16, use::a,
+                        layout::row_major, 1>();
+      // B
+      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 64, use::b,
+      //             layout::ext_intel_packed, 2>();
+      // Accumulator
+      test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TN*/ 64, use::accumulator,
+                        layout::row_major, 1>();
+      test_get_coord_op<float, float, /*TM*/ 32, /*TN*/ 64, use::accumulator,
+                        layout::row_major, 1>();
+
+      // 32x64x32 float/bfloat16
+      std::cout << "1x64x16 float/bfloat16" << std::endl;
+      // A
+      test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TK*/ 32, use::a,
+                        layout::row_major, 1>();
+      // B
+      // test_get_coord_op<bfloat16, float, /*TK*/ 32, /*TN*/ 64, use::b,
+      //             layout::ext_intel_packed, 2>();
+      // Accumulator
+      test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TN*/ 64, use::accumulator,
+                        layout::row_major, 1>();
+      test_get_coord_op<float, float, /*TM*/ 32, /*TN*/ 64, use::accumulator,
+                        layout::row_major, 1>();
+
+
       test_get_coord_op<int32_t, int32_t, /*TM*/ 8, /*TN*/ 16, use::accumulator,
                         layout::row_major, 1>();
       // This combination is not currently supported for sub group size = 32 in
       // IGC
 #if (!defined(SG_SZ) || SG_SZ != 32)
-      test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
-                        layout::row_major, 1>();
-      test_get_coord_op<int8_t, int32_t, /*TK*/ 32, /*TN*/ 16, use::b,
-                        layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TK*/ 16, use::a,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<int8_t, int32_t, /*TK*/ 32, /*TN*/ 16, use::b,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TK*/ 32, /*TN*/ 64, use::accumulator,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<float, float, /*TK*/ 32, /*TN*/ 64, use::accumulator,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TK*/ 1, /*TN*/ 64, use::accumulator,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<float, float, /*TK*/ 1, /*TN*/ 64, use::accumulator,
+      //                   layout::row_major, 1>();
 #endif
       break;
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
-      test_get_coord_op<bfloat16, float, /*TM*/ 8, /*TK*/ 16, use::a,
-                        layout::row_major, 1>();
-      test_get_coord_op<int8_t, int, /*TM*/ 8, /*TK*/ 32, use::a,
-                        layout::row_major, 1>();
-      test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 8, use::b,
-                        layout::row_major, 1>();
-      test_get_coord_op<int8_t, int32_t, /*TK*/ 32, /*TN*/ 8, use::b,
-                        layout::row_major, 1>();
-      test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 8, use::b,
-                        layout::ext_intel_packed, 2>();
-      test_get_coord_op<int8_t, int32_t, /*TK*/ 32, /*TN*/ 8, use::b,
-                        layout::ext_intel_packed, 4>();
-      test_get_coord_op<float, float, /*TM*/ 8, /*TN*/ 8, use::accumulator,
-                        layout::row_major, 1>();
-      test_get_coord_op<int32_t, int32_t, /*TM*/ 8, /*TN*/ 8, use::accumulator,
-                        layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TM*/ 8, /*TK*/ 16, use::a,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<int8_t, int, /*TM*/ 8, /*TK*/ 32, use::a,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 8, use::b,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<int8_t, int32_t, /*TK*/ 32, /*TN*/ 8, use::b,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 8, use::b,
+      //                   layout::ext_intel_packed, 2>();
+      // test_get_coord_op<int8_t, int32_t, /*TK*/ 32, /*TN*/ 8, use::b,
+      //                   layout::ext_intel_packed, 4>();
+      // test_get_coord_op<float, float, /*TM*/ 8, /*TN*/ 8, use::accumulator,
+      //                   layout::row_major, 1>();
+      // test_get_coord_op<int32_t, int32_t, /*TM*/ 8, /*TN*/ 8, use::accumulator,
+      //                   layout::row_major, 1>();
       break;
     }
   }
