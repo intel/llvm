@@ -60,7 +60,6 @@ jobs:
 
       toolchain_artifact: sycl_linux_default
       e2e_binaries_artifact: e2e_bin
-      e2e_binaries_spirv_backend_artifact: e2e_bin_spirv_backend
       e2e_binaries_preview_artifact: e2e_bin_preview
 
   # If a PR changes CUDA adapter, run the build on Ubuntu 22.04 as well.
@@ -129,12 +128,6 @@ jobs:
             runner: '["Linux", "bmg"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero_v1:gpu;level_zero_v2:gpu
-          - name: SPIR-V Backend / Intel Battlemage Graphics
-            runner: '["Linux", "bmg"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            extra_lit_opts: --param spirv-backend=True
-            e2e_binaries_artifact: e2e_bin_spirv_backend
           - name: Preview Mode
             runner: '["Linux", "gen12"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
