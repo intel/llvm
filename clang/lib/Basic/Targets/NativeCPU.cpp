@@ -72,7 +72,7 @@ void NativeCPUTargetInfo::setAuxTarget(const TargetInfo *Aux) {
   resetDataLayout(Aux->getDataLayoutString());
 }
 
-// A target may initialise its DataLayoutString and potentially other features in
+// A target may initialise its DataLayoutString and potentially other features
 // in `handleTargetFeatures` (as opposed to its constructor), so we can only
 // copy the features and query DataLayoutString after that function was called.
 bool NativeCPUTargetInfo::handleTargetFeatures(
