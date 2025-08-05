@@ -113,8 +113,12 @@ jobs:
       COMMIT_HASH: ${{ inputs.commit_hash }}
       PR_NO: ${{ inputs.pr_no }}
       SAVE_NAME: ${{ inputs.save_name }}
+    outputs:
+      benchmark_save_name: ${{ steps.sanitize.outputs.benchmark_save_name }}
+      build_ref: ${{ steps.sanitize.outputs.build_ref }}
     steps:
-      - run: |
+      - id: sanitize
+        run: |
           # Validate user inputs:
           check_nonempty() {
             # usage: check_if_nonempty <var> <regex to check var against> <err message>
@@ -146,6 +150,8 @@ jobs:
 
           echo "benchmark_save_name=$BENCHMARK_SAVE_NAME" >> $GITHUB_OUTPUT
           echo "build_ref=$BUILD_REF" >> $GITHUB_OUTPUT
+
+          echo "Final sanitized values:"
           cat $GITHUB_OUTPUT
 
   build_sycl:
