@@ -123,7 +123,10 @@ jobs:
           check_nonempty() {
             # usage: check_if_nonempty <var> <regex to check var against> <err message>
             [ -z "$1" ] && return
-            [ -z "$(echo "$1" | grep -P "$2")" ] && echo "$3" && exit 1
+            if [ -z "$(echo "$1" | grep -P "$2")" ]; then
+              echo "$3"
+              exit 1
+            fi
           }
           check_nonempty "$COMMIT_HASH" '^[0-9a-f]{7,}$' "Bad commit hash (or hash short)."
           check_nonempty "$PR_NO" '^[0-9]+$' "Bad PR number."
