@@ -12,7 +12,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '-DCMAKE_INSTALL_LIBDIR=lib --disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda'
+      build_configure_extra_args: '-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_LIBDIR=lib --disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda'
       build_image: ghcr.io/intel/llvm/release_build:latest
       pack_release: 'true'
 
@@ -80,7 +80,7 @@ jobs:
   build-win:
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
-      build_configure_extra_args: '--disable-jit --no-assertions --add_security_flags=sanitize'
+      build_configure_extra_args: '-DCMAKE_POSITION_INDEPENDENT_CODE=ON --disable-jit --no-assertions --add_security_flags=sanitize'
       pack_release: 'true'
 
       # We upload both Linux/Windows build via Github's "Releases"
