@@ -108,7 +108,7 @@ permissions: read-all
 jobs:
   sanitize_inputs:
     name: Sanitize inputs
-    runs_on: ubuntu-latest
+    runs-on: ubuntu-latest
     env:
       COMMIT_HASH: ${{ inputs.commit_hash }}
       PR_NO: ${{ inputs.pr_no }}
