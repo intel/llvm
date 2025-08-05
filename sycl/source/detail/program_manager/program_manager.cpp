@@ -2178,8 +2178,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
               std::find_if(RangeBegin, RangeEnd, [&](const auto &Pair) {
                 return Pair.second == Img;
               });
-          if (ID2ImgIt != RangeEnd)
-            m_KernelIDs2BinImage.erase(ID2ImgIt);
+          assert(ID2ImgIt != RangeEnd);
+          m_KernelIDs2BinImage.erase(ID2ImgIt);
         }
       }
     }
@@ -2196,8 +2196,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       auto It = std::find_if(RangeBegin, RangeEnd, [&](const auto &Pair) {
         return Pair.second == Img;
       });
-      assert(It != RangeEnd);
-      m_ExportedSymbolImages.erase(It);
+      if (It != RangeEnd)
+        m_ExportedSymbolImages.erase(It);
     }
 
     for (const sycl_device_binary_property &VFProp :
