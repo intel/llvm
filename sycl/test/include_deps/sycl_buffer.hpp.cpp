@@ -8,6 +8,7 @@
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: backend_types.hpp
+// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/export.hpp

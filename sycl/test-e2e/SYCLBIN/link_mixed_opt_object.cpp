@@ -17,7 +17,7 @@
 // once fixed.
 // REQUIRES: target-spir
 
-// RUN: %clangxx --offload-new-driver -fsyclbin=object -fsycl-allow-device-image-dependencies -O0 %S/Inputs/exporting_function.cpp -o %t.export.syclbin
+// RUN: %clangxx --offload-new-driver -fsyclbin=object -fsycl-allow-device-image-dependencies %if cl_options %{/Od%} %else %{-O0%} %S/Inputs/exporting_function.cpp -o %t.export.syclbin
 // RUN: %clangxx --offload-new-driver -fsyclbin=object -fsycl-allow-device-image-dependencies -O1 %S/Inputs/importing_kernel.cpp -o %t.import.syclbin
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %t.export.syclbin %t.import.syclbin

@@ -60,18 +60,31 @@ runs:
     run: |
       cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which clang++)'}}" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
   - name: SYCL End-to-end tests
-    shell: bash {0}
+    id: run_e2e
+    continue-on-error: true
+    shell: bash
     env:
       LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
     run: |
       ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
-      exit_code=$?
+  # Two steps below are duplicated between Lin/Win actions, updates must change both
+  - name: E2E logs
+    if: ${{ always() }}
+    shell: bash
+    run: |
+      echo "::group::Show Full E2E Log"
       cat e2e.log
-      if [ $exit_code -ne 0 ]; then
-        # This is duplicated between lin/win, updates must change both.
+      echo "::endgroup::"
+  - name: Report E2E Failures
+    if: steps.run_e2e.outcome != 'success'
+    shell: bash
+    # For some reason Github uses the first line from the `run: |` section for
+    # the folded entry when displaying instead of this step's name.
+    run: |
+        # Report E2E Failures
         awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
-      fi
-      exit $exit_code
+        awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log
+        exit 1
 
   - name: Pack E2E binaries
     if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
