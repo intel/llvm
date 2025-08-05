@@ -130,12 +130,12 @@ jobs:
           if [ -z "$SAVE_NAME" ]; then
             BENCHMARK_SAVE_NAME="$(echo "$SAVE_NAME" | tr -cd 'a-z0-9_-')"
           fi;
-          if [ -z "$COMMIT_HASH" ]; then
+          if [ -n "$COMMIT_HASH" ]; then
             commit_cleaned="$(echo "$COMMIT_HASH" | tr -cd 'a-z0-9')"
             BUILD_REF="$commit_cleaned"
             shortened_commit="$(echo "$commit_cleaned" | cut -c 1-7)"
             [ -z "$BENCHMARK_SAVE_NAME" ] && BENCHMARK_SAVE_NAME="Commit_$shortened_commit"
-          elif [ -z "$PR_NO" ]; then
+          elif [ -n "$PR_NO" ]; then
             pr_no_cleaned="$(echo "$PR_NO" | tr -cd '0-9')"
             BUILD_REF="refs/pull/$pr_no_cleaned/head"
             [ -z "$BENCHMARK_SAVE_NAME" ] && BENCHMARK_SAVE_NAME="PR_$pr_no_cleaned"
