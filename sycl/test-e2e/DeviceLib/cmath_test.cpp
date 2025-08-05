@@ -15,6 +15,7 @@
 #include "math_utils.hpp"
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <std/experimental/simd.hpp>
 #include <sycl/detail/core.hpp>

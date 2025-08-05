@@ -3,7 +3,8 @@ name: SYCL Nightly Benchmarking
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 2 * * *'
+    - cron: '0 0 * * *'
+    # 3 hours ahead of SYCL nightly
 
 permissions: read-all
 
@@ -31,7 +32,7 @@ jobs:
         include:
           - ref: ${{ github.sha }}
             save_name: 'Baseline'
-            preset: 'Minimal'
+            preset: 'Full'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
