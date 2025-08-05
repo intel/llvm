@@ -75,7 +75,7 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: |
-            ghcr.io/${{ github.repository }}/sycl_prebuilt_tests:${{ inputs.ref || github.ref }}
+            ghcr.io/${{ github.repository }}/sycl_prebuilt_tests:${{ inputs.ref || github.ref_name }}
 
   run-e2e:
     runs-on: [Linux, pvc]
