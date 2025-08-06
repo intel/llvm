@@ -1598,7 +1598,7 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK-NEXT: };
 
 // CHECK: template <> struct struct_with_special_type_info<AccessorAndLocalAccessor> {
-// CHECK-NEXT: template< typename ArgT, typename HandlerT, typename = std::enable_if_t<std::is_same_v<std::remove_cv_t<ArgT>, AccessorAndLocalAccessor>>>
+// CHECK-NEXT: template< typename ArgT, typename HandlerT>
 // CHECK-NEXT: static void set_arg(int ArgIndex, ArgT& arg, HandlerT& cgh, int &NumArgs) {
 // CHECK-NEXT: cgh.set_arg(ArgIndex, *(sycl::accessor<int, 1, sycl::access::mode::read_write, access::target::global_buffer, access::placeholder::false_t, sycl::ext::oneapi::accessor_property_list<> > *)((char *)(&arg) + 0));
 // CHECK-NEXT: ++ArgIndex;
@@ -1629,7 +1629,7 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK-NEXT: };
 
 // CHECK: template <> struct struct_with_special_type_info<SecondLevelAccessor> {
-// CHECK-NEXT: template< typename ArgT, typename HandlerT, typename = std::enable_if_t<std::is_same_v<std::remove_cv_t<ArgT>, SecondLevelAccessor>>>
+// CHECK-NEXT: template< typename ArgT, typename HandlerT>
 // CHECK-NEXT: static void set_arg(int ArgIndex, ArgT& arg, HandlerT& cgh, int &NumArgs) {
 // CHECK-NEXT: cgh.set_arg(ArgIndex, *(sycl::accessor<int, 1, sycl::access::mode::read_write, access::target::global_buffer, access::placeholder::false_t, sycl::ext::oneapi::accessor_property_list<> > *)((char *)(&arg) + 0));
 // CHECK-NEXT: ++ArgIndex;
@@ -1660,7 +1660,7 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK-NEXT: };
 
 // CHECK: template <> struct struct_with_special_type_info<IntAndAccessor> {
-// CHECK-NEXT: template< typename ArgT, typename HandlerT, typename = std::enable_if_t<std::is_same_v<std::remove_cv_t<ArgT>, IntAndAccessor>>>
+// CHECK-NEXT: template< typename ArgT, typename HandlerT>
 // CHECK-NEXT:  static void set_arg(int ArgIndex, ArgT& arg, HandlerT& cgh, int &NumArgs) {
 // CHECK-NEXT:    cgh.set_arg(ArgIndex, *(int *)((char *)(&arg) + 0));
 // CHECK-NEXT:    ++ArgIndex;
@@ -1676,7 +1676,7 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK-NEXT: };
 
 // CHECK: template <> struct struct_with_special_type_info<AccessorAndInt> {
-// CHECK-NEXT: template< typename ArgT, typename HandlerT, typename = std::enable_if_t<std::is_same_v<std::remove_cv_t<ArgT>, AccessorAndInt>>>
+// CHECK-NEXT: template< typename ArgT, typename HandlerT>
 // CHECK-NEXT: static void set_arg(int ArgIndex, ArgT& arg, HandlerT& cgh, int &NumArgs) {
 // CHECK-NEXT: cgh.set_arg(ArgIndex, *(sycl::accessor<int, 1, sycl::access::mode::read_write, access::target::global_buffer, access::placeholder::false_t, sycl::ext::oneapi::accessor_property_list<> > *)((char *)(&arg) + 0));
 // CHECK-NEXT: ++ArgIndex;
