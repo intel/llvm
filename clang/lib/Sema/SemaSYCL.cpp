@@ -6665,6 +6665,34 @@ public:
           FD->getTemplateSpecializationArgs());
   }
 
+  /// Emits free function kernel info specialization for shimN.
+  /// \param ShimCounter The counter for the shim function.
+  /// \param KParamsSize The number of kernel free function arguments.
+  /// \param KName The name of the kernel free function.
+  void printFreeFunctionKernelInfo(const unsigned ShimCounter,
+                                   const size_t KParamsSize,
+                                   std::string_view KName) {
+    O << "\n";
+    O << "namespace sycl {\n";
+    O << "inline namespace _V1 {\n";
+    O << "namespace detail {\n";
+    O << "//Free Function Kernel info specialization for shim" << ShimCounter
+      << "\n";
+    O << "template <> struct FreeFunctionInfoData<__sycl_shim" << ShimCounter
+      << "()> {\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getNumParams() { return " << KParamsSize
+      << "; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char *getFunctionName() { return ";
+    O << "\"" << KName << "\"; }\n";
+    O << "};\n";
+    O << "} // namespace detail\n"
+      << "} // namespace _V1\n"
+      << "} // namespace sycl\n";
+    O << "\n";
+  }
+
 private:
   /// Helper method to get string with template types
   /// \param TAL The template argument list.
@@ -6914,6 +6942,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "  \"\",\n";
   O << "};\n\n";
 
+  O << "static constexpr unsigned kernel_args_sizes[] = {";
+  for (unsigned I = 0; I < KernelDescs.size(); I++) {
+    O << KernelDescs[I].Params.size() << ", ";
+  }
+  O << "};\n\n";
   O << "// array representing signatures of all kernels defined in the\n";
   O << "// corresponding source\n";
   O << "static constexpr\n";
@@ -6946,6 +6979,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();
+    if (S.isFreeFunction(K.SyclKernel)) {
+      CurStart += N;
+      continue;
+    }
     PresumedLoc PLoc = S.getASTContext().getSourceManager().getPresumedLoc(
         S.getASTContext()
             .getSourceManager()
@@ -7126,6 +7163,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     FFPrinter.printFreeFunctionShim(K.SyclKernel, ShimCounter, ParmList);
     O << ";\n";
     O << "}\n";
+    FFPrinter.printFreeFunctionKernelInfo(ShimCounter, K.Params.size(), K.Name);
     Policy.SuppressDefaultTemplateArgs = true;
     Policy.EnforceDefaultTemplateArgs = false;
 
@@ -7155,22 +7193,21 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   if (FreeFunctionCount > 0) {
     O << "\n#include <sycl/kernel_bundle.hpp>\n";
-  }
-  ShimCounter = 1;
-  for (const KernelDesc &K : KernelDescs) {
-    if (!S.isFreeFunction(K.SyclKernel))
-      continue;
-
-    O << "\n// Definition of kernel_id of " << K.Name << "\n";
+    O << "#include <sycl/detail/kernel_global_info.hpp>\n";
     O << "namespace sycl {\n";
-    O << "template <>\n";
-    O << "inline kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim"
-      << ShimCounter << "()>() {\n";
-    O << "  return sycl::detail::get_kernel_id_impl(std::string_view{\""
-      << K.Name << "\"});\n";
-    O << "}\n";
-    O << "}\n";
-    ++ShimCounter;
+    O << "inline namespace _V1 {\n";
+    O << "namespace detail {\n";
+    O << "struct GlobalMapUpdater {\n";
+    O << "  GlobalMapUpdater() {\n";
+    O << "    sycl::detail::free_function_info_map::add("
+      << "sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, "
+      << KernelDescs.size() << ");\n";
+    O << "  }\n";
+    O << "};\n";
+    O << "static GlobalMapUpdater updater;\n";
+    O << "} // namespace detail\n";
+    O << "} // namespace _V1\n";
+    O << "} // namespace sycl\n";
   }
 }
 
@@ -7631,12 +7668,13 @@ void SemaSYCL::CheckSYCLEntryPointFunctionDecl(FunctionDecl *FD) {
     if (!getASTContext().hasSameType(SAI->getKernelName(),
                                      SKEPAttr->getKernelName())) {
       Diag(SAI->getLocation(), diag::err_sycl_entry_point_invalid_redeclaration)
-          << SAI->getKernelName() << SKEPAttr->getKernelName();
+          << SKEPAttr << SAI->getKernelName() << SKEPAttr->getKernelName();
       Diag(SKEPAttr->getLocation(), diag::note_previous_attribute);
       SAI->setInvalidAttr();
     } else {
       Diag(SAI->getLocation(),
-           diag::warn_sycl_entry_point_redundant_declaration);
+           diag::warn_sycl_entry_point_redundant_declaration)
+          << SAI;
       Diag(SKEPAttr->getLocation(), diag::note_previous_attribute);
     }
   }
@@ -7658,7 +7696,8 @@ void SemaSYCL::CheckSYCLEntryPointFunctionDecl(FunctionDecl *FD) {
                                        PrevSKEPAttr->getKernelName())) {
         Diag(SKEPAttr->getLocation(),
              diag::err_sycl_entry_point_invalid_redeclaration)
-            << SKEPAttr->getKernelName() << PrevSKEPAttr->getKernelName();
+            << SKEPAttr << SKEPAttr->getKernelName()
+            << PrevSKEPAttr->getKernelName();
         Diag(PrevSKEPAttr->getLocation(), diag::note_previous_decl) << PrevFD;
         SKEPAttr->setInvalidAttr();
       }
@@ -7668,50 +7707,52 @@ void SemaSYCL::CheckSYCLEntryPointFunctionDecl(FunctionDecl *FD) {
   if (const auto *MD = dyn_cast<CXXMethodDecl>(FD)) {
     if (!MD->isStatic()) {
       Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-          << /*non-static member function*/ 0;
+          << SKEPAttr << /*non-static member function*/ 0;
       SKEPAttr->setInvalidAttr();
     }
   }
 
   if (FD->isVariadic()) {
     Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-        << /*variadic function*/ 1;
+        << SKEPAttr << /*variadic function*/ 1;
     SKEPAttr->setInvalidAttr();
   }
 
   if (FD->isDefaulted()) {
     Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-        << /*defaulted function*/ 3;
+        << SKEPAttr << /*defaulted function*/ 3;
     SKEPAttr->setInvalidAttr();
   } else if (FD->isDeleted()) {
     Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-        << /*deleted function*/ 2;
+        << SKEPAttr << /*deleted function*/ 2;
     SKEPAttr->setInvalidAttr();
   }
 
   if (FD->isConsteval()) {
     Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-        << /*consteval function*/ 5;
+        << SKEPAttr << /*consteval function*/ 5;
     SKEPAttr->setInvalidAttr();
   } else if (FD->isConstexpr()) {
     Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-        << /*constexpr function*/ 4;
+        << SKEPAttr << /*constexpr function*/ 4;
     SKEPAttr->setInvalidAttr();
   }
 
   if (FD->isNoReturn()) {
     Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-        << /*function declared with the 'noreturn' attribute*/ 6;
+        << SKEPAttr << /*function declared with the 'noreturn' attribute*/ 6;
     SKEPAttr->setInvalidAttr();
   }
 
   if (FD->getReturnType()->isUndeducedType()) {
     Diag(SKEPAttr->getLocation(),
-         diag::err_sycl_entry_point_deduced_return_type);
+         diag::err_sycl_entry_point_deduced_return_type)
+        << SKEPAttr;
     SKEPAttr->setInvalidAttr();
   } else if (!FD->getReturnType()->isDependentType() &&
              !FD->getReturnType()->isVoidType()) {
-    Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_return_type);
+    Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_return_type)
+        << SKEPAttr;
     SKEPAttr->setInvalidAttr();
   }
 
@@ -7723,7 +7764,8 @@ void SemaSYCL::CheckSYCLEntryPointFunctionDecl(FunctionDecl *FD) {
       if (!declaresSameEntity(FD, SKI->getKernelEntryPointDecl())) {
         // FIXME: This diagnostic should include the origin of the kernel
         // FIXME: names; not just the locations of the conflicting declarations.
-        Diag(FD->getLocation(), diag::err_sycl_kernel_name_conflict);
+        Diag(FD->getLocation(), diag::err_sycl_kernel_name_conflict)
+            << SKEPAttr;
         Diag(SKI->getKernelEntryPointDecl()->getLocation(),
              diag::note_previous_declaration);
         SKEPAttr->setInvalidAttr();

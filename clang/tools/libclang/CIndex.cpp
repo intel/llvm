@@ -2885,6 +2885,8 @@ void OpenACCClauseEnqueue::VisitTileClause(const OpenACCTileClause &C) {
 
 void OpenACCClauseEnqueue::VisitPrivateClause(const OpenACCPrivateClause &C) {
   VisitVarList(C);
+  for (VarDecl *V : C.getInitRecipes())
+    Visitor.AddDecl(V);
 }
 
 void OpenACCClauseEnqueue::VisitHostClause(const OpenACCHostClause &C) {
@@ -2898,6 +2900,8 @@ void OpenACCClauseEnqueue::VisitDeviceClause(const OpenACCDeviceClause &C) {
 void OpenACCClauseEnqueue::VisitFirstPrivateClause(
     const OpenACCFirstPrivateClause &C) {
   VisitVarList(C);
+  for (VarDecl *V : C.getInitRecipes())
+    Visitor.AddDecl(V);
 }
 
 void OpenACCClauseEnqueue::VisitPresentClause(const OpenACCPresentClause &C) {

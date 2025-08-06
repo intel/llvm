@@ -1026,6 +1026,9 @@ public:
     AddrOfSeen = false;
     return Visit(E->getSubExpr());
   }
+  const Expr *VisitBinaryOperator(const clang::BinaryOperator *Op) {
+    return Op->isCommaOp() ? Visit(Op->getRHS()) : nullptr;
+  }
 };
 
 } // end anonymous namespace
@@ -1201,7 +1204,8 @@ llvm::Value *CodeGenFunction::emitCountedByPointerSize(
   assert(E->getCastKind() == CK_LValueToRValue &&
          "must be an LValue to RValue cast");
 
-  const MemberExpr *ME = dyn_cast<MemberExpr>(E->getSubExpr());
+  const MemberExpr *ME =
+      dyn_cast<MemberExpr>(E->getSubExpr()->IgnoreParenNoopCasts(getContext()));
   if (!ME)
     return nullptr;
 

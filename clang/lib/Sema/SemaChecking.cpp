@@ -35,6 +35,7 @@
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
+#include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/AST/UnresolvedSet.h"
@@ -4134,7 +4135,7 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
 }
 
 void Sema::CheckConstrainedAuto(const AutoType *AutoT, SourceLocation Loc) {
-  if (ConceptDecl *Decl = AutoT->getTypeConstraintConcept()) {
+  if (TemplateDecl *Decl = AutoT->getTypeConstraintConcept()) {
     DiagnoseUseOfDecl(Decl, Loc);
   }
 }
@@ -16323,9 +16324,7 @@ ExprResult Sema::BuiltinMatrixTranspose(CallExpr *TheCall,
 // Get and verify the matrix dimensions.
 static std::optional<unsigned>
 getAndVerifyMatrixDimension(Expr *Expr, StringRef Name, Sema &S) {
-  SourceLocation ErrorPos;
-  std::optional<llvm::APSInt> Value =
-      Expr->getIntegerConstantExpr(S.Context, &ErrorPos);
+  std::optional<llvm::APSInt> Value = Expr->getIntegerConstantExpr(S.Context);
   if (!Value) {
     S.Diag(Expr->getBeginLoc(), diag::err_builtin_matrix_scalar_unsigned_arg)
         << Name;

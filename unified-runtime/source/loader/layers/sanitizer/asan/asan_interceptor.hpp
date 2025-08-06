@@ -16,6 +16,7 @@
 #include "asan_allocator.hpp"
 #include "asan_buffer.hpp"
 #include "asan_libdevice.hpp"
+#include "asan_quarantine.hpp"
 #include "asan_shadow.hpp"
 #include "asan_statistics.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
@@ -32,8 +33,6 @@
 
 namespace ur_sanitizer_layer {
 namespace asan {
-
-class Quarantine;
 
 struct AllocInfoList {
   std::vector<std::shared_ptr<AllocInfo>> List;
@@ -148,12 +147,18 @@ struct ContextInfo {
   std::unordered_map<ur_device_handle_t, std::optional<ManagedQueue>>
       InternalQueueMap;
 
+  std::optional<Quarantine> m_Quarantine;
+
   AsanStatsWrapper Stats;
 
   explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Context.pfnRetain(Context);
     assert(Result == UR_RESULT_SUCCESS);
+    if (getContext()->Options.MaxQuarantineSizeMB) {
+      m_Quarantine.emplace(getContext()->Options.MaxQuarantineSizeMB * 1024 *
+                           1024);
+    }
   }
 
   ~ContextInfo();
@@ -403,8 +408,6 @@ private:
   /// Assumption: all USM chunks are allocated in one VA
   AllocationMap m_AllocationMap;
   ur_shared_mutex m_AllocationMapMutex;
-
-  std::unique_ptr<Quarantine> m_Quarantine;
 
   std::unordered_set<ur_adapter_handle_t> m_Adapters;
   ur_shared_mutex m_AdaptersMutex;

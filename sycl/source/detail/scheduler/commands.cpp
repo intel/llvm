@@ -231,12 +231,12 @@ static std::string commandToName(Command::CommandType Type) {
 }
 #endif
 
-std::vector<ur_event_handle_t>
-Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
-                     queue_impl *CommandQueue, bool IsHostTaskCommand) {
+std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events,
+                                                    queue_impl *CommandQueue,
+                                                    bool IsHostTaskCommand) {
   std::vector<ur_event_handle_t> RetUrEvents;
-  for (auto &EventImpl : EventImpls) {
-    auto Handle = EventImpl->getHandle();
+  for (event_impl &Event : Events) {
+    auto Handle = Event.getHandle();
     if (Handle == nullptr)
       continue;
 
@@ -244,7 +244,7 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
     // At this stage dependency is definitely ur task and need to check if
     // current one is a host task. In this case we should not skip ur event due
     // to different sync mechanisms for different task types on in-order queue.
-    if (CommandQueue && EventImpl->getWorkerQueue().get() == CommandQueue &&
+    if (CommandQueue && Event.getWorkerQueue().get() == CommandQueue &&
         CommandQueue->isInOrder() && !IsHostTaskCommand)
       continue;
 
@@ -254,9 +254,8 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
   return RetUrEvents;
 }
 
-std::vector<ur_event_handle_t>
-Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
-  return getUrEvents(EventImpls, MWorkerQueue.get(), isHostTask());
+std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events) const {
+  return getUrEvents(Events, MWorkerQueue.get(), isHostTask());
 }
 
 // This function is implemented (duplicating getUrEvents a lot) as short term
@@ -264,29 +263,25 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
 // handle empty ur event handles when kernel is enqueued on host task
 // completion.
 std::vector<ur_event_handle_t>
-Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
-                             bool HasEventMode) const {
+Command::getUrEventsBlocking(events_range Events, bool HasEventMode) const {
   std::vector<ur_event_handle_t> RetUrEvents;
-  for (auto &EventImpl : EventImpls) {
+  for (event_impl &Event : Events) {
     // Throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
     // context, which we wish to avoid as it is expensive.
     // Skip host task and NOP events also.
-    if (EventImpl->isDefaultConstructed() || EventImpl->isHost() ||
-        EventImpl->isNOP())
+    if (Event.isDefaultConstructed() || Event.isHost() || Event.isNOP())
       continue;
 
     // If command has not been enqueued then we have to enqueue it.
     // It may happen if async enqueue in a host task is involved.
     // Interoperability events are special cases and they are not enqueued, as
     // they don't have an associated queue and command.
-    if (!EventImpl->isInterop() && !EventImpl->isEnqueued()) {
-      if (!EventImpl->getCommand() ||
-          !EventImpl->getCommand()->producesPiEvent())
+    if (!Event.isInterop() && !Event.isEnqueued()) {
+      if (!Event.getCommand() || !Event.getCommand()->producesPiEvent())
         continue;
       std::vector<Command *> AuxCmds;
-      Scheduler::getInstance().enqueueCommandForCG(EventImpl, AuxCmds,
-                                                   BLOCKING);
+      Scheduler::getInstance().enqueueCommandForCG(Event, AuxCmds, BLOCKING);
     }
     // Do not add redundant event dependencies for in-order queues.
     // At this stage dependency is definitely ur task and need to check if
@@ -296,11 +291,11 @@ Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
     // redundant events may still differ from the resulting event, so they are
     // kept.
     if (!HasEventMode && MWorkerQueue &&
-        EventImpl->getWorkerQueue() == MWorkerQueue &&
-        MWorkerQueue->isInOrder() && !isHostTask())
+        Event.getWorkerQueue() == MWorkerQueue && MWorkerQueue->isInOrder() &&
+        !isHostTask())
       continue;
 
-    RetUrEvents.push_back(EventImpl->getHandle());
+    RetUrEvents.push_back(Event.getHandle());
   }
 
   return RetUrEvents;

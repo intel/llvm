@@ -1021,14 +1021,6 @@ public:
     return cast<PointerType>(getRawDest()->getType())->getAddressSpace();
   }
 
-  /// FIXME: Remove this function once transition to Align is over.
-  /// Use getDestAlign() instead.
-  LLVM_DEPRECATED("Use getDestAlign() instead", "getDestAlign")
-  unsigned getDestAlignment() const {
-    if (auto MA = getParamAlign(ARG_DEST))
-      return MA->value();
-    return 0;
-  }
   MaybeAlign getDestAlign() const { return getParamAlign(ARG_DEST); }
 
   /// Set the specified arguments of the instruction.
@@ -1080,15 +1072,6 @@ public:
 
   unsigned getSourceAddressSpace() const {
     return cast<PointerType>(getRawSource()->getType())->getAddressSpace();
-  }
-
-  /// FIXME: Remove this function once transition to Align is over.
-  /// Use getSourceAlign() instead.
-  LLVM_DEPRECATED("Use getSourceAlign() instead", "getSourceAlign")
-  unsigned getSourceAlignment() const {
-    if (auto MA = BaseCL::getParamAlign(ARG_SOURCE))
-      return MA->value();
-    return 0;
   }
 
   MaybeAlign getSourceAlign() const {

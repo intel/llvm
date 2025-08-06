@@ -1449,7 +1449,7 @@ void DeclPrinter::VisitObjCMethodDecl(ObjCMethodDecl *OMD) {
     lastPos = pos + 1;
   }
 
-  if (OMD->param_begin() == OMD->param_end())
+  if (OMD->parameters().empty())
     Out << name;
 
   if (OMD->isVariadic())
@@ -1486,8 +1486,7 @@ void DeclPrinter::VisitObjCImplementationDecl(ObjCImplementationDecl *OID) {
     }
     Indentation -= Policy.Indentation;
     Out << "}\n";
-  }
-  else if (SID || (OID->decls_begin() != OID->decls_end())) {
+  } else if (SID || !OID->decls().empty()) {
     Out << "\n";
     eolnOut = true;
   }
@@ -1546,8 +1545,7 @@ void DeclPrinter::VisitObjCInterfaceDecl(ObjCInterfaceDecl *OID) {
     }
     Indentation -= Policy.Indentation;
     Out << "}\n";
-  }
-  else if (SID || (OID->decls_begin() != OID->decls_end())) {
+  } else if (SID || !OID->decls().empty()) {
     Out << "\n";
     eolnOut = true;
   }
