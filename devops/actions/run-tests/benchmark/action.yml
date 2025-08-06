@@ -170,8 +170,10 @@ runs:
         --results-dir "./llvm-ci-perf-results/results/" \
         --regression-filter '^[a-z_]+_sycl ' \
         --verbose \
+        --produce-github-summary \
         ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \
 
+      cat github_summary.md >> $GITHUB_STEP_SUMMARY
       echo "-----"
 
   - name: Cache changes to benchmark folder for archival purposes
