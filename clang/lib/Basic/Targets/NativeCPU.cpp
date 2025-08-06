@@ -62,8 +62,6 @@ NativeCPUTargetInfo::NativeCPUTargetInfo(const llvm::Triple &Triple,
     resetDataLayout("e");
   } else {
     HostTarget = AllocateTarget(HostTriple, Opts);
-    copyAuxTarget(&*HostTarget);
-    resetDataLayout(HostTarget->getDataLayoutString());
   }
 }
 
@@ -72,4 +70,18 @@ void NativeCPUTargetInfo::setAuxTarget(const TargetInfo *Aux) {
   copyAuxTarget(Aux);
   getTargetOpts() = Aux->getTargetOpts();
   resetDataLayout(Aux->getDataLayoutString());
+}
+
+// A target may initialise its DataLayoutString and potentially other features
+// in `handleTargetFeatures` (as opposed to its constructor), so we can only
+// copy the features and query DataLayoutString after that function was called.
+bool NativeCPUTargetInfo::handleTargetFeatures(
+    std::vector<std::string> &Features, DiagnosticsEngine &Diags) {
+  if (HostTarget) {
+    if (!HostTarget->handleTargetFeatures(Features, Diags))
+      return false;
+    copyAuxTarget(&*HostTarget);
+    resetDataLayout(HostTarget->getDataLayoutString());
+  }
+  return true;
 }

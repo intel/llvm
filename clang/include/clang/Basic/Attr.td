@@ -1005,6 +1005,13 @@ def AnalyzerNoReturn : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def InferredNoReturn : InheritableAttr {
+  let Spellings = []; 
+  let SemaHandler = 0;
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [InternalOnly];
+}
+
 def Annotate : InheritableParamOrStmtAttr {
   let Spellings = [Clang<"annotate">];
   let Args = [StringArgument<"Annotation">, VariadicExprArgument<"Args">];
@@ -4785,6 +4792,7 @@ def Visibility : InheritableAttr {
                            ["default", "hidden", "internal", "protected"],
                            ["Default", "Hidden", "Hidden", "Protected"]>];
   let MeaningfulToClassTemplateDefinition = 1;
+  let PragmaAttributeSupport = 1;
   let Documentation = [Undocumented];
 }
 
