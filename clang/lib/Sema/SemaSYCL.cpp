@@ -6806,7 +6806,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
   O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
   O << "#include <sycl/access/access.hpp>\n";
-  O << "#include <type_traits>\n";
   O << "\n";
 
   LangOptions LO;
@@ -7231,10 +7230,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       O << "template <> struct struct_with_special_type_info<";
       type.print(O, Policy);
       O << "> {\n";
-      O << "template< typename ArgT, typename HandlerT, typename = "
-           "std::enable_if_t<std::is_same_v<std::remove_cv_t<ArgT>, ";
-      type.print(O, Policy);
-      O << ">>>\n";
+      O << "template<typename ArgT, typename HandlerT>\n";
       O << "  static void set_arg(int ArgIndex, ArgT& ";
       O << "arg";
       O << ", HandlerT& cgh, int &NumArgs) {\n";
