@@ -30,7 +30,6 @@ include(AddSYCLUnitTest)
 add_subdirectory(mock_opencl)
 
 add_custom_target(check-sycl-unittests)
-add_custom_target(check-sycl-unittests-preview)
 
 add_subdirectory(ur)
 add_subdirectory(allowlist)
