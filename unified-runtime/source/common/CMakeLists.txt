@@ -47,7 +47,7 @@ endif()
 set(UR_USE_EXTERNAL_UMF ON CACHE BOOL "Use a pre-built UMF if available")
 
 if(UR_USE_EXTERNAL_UMF)
-  find_package(umf QUIET)
+  find_package(umf 1.0.0 QUIET)
 endif()
 if(umf_FOUND)
   message(STATUS "Using preinstalled UMF at ${umf_DIR}, ignoring UMF build related options")
