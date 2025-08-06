@@ -1348,7 +1348,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // Get the list of requested offloading toolchains. If they were not
   // explicitly specified we will infer them based on the offloading language
   // and requested architectures.
-  std::multiset<llvm::StringRef> Triples;
+  llvm::SmallSet<llvm::StringRef, 4> Triples;
   if (C.getInputArgs().hasArg(options::OPT_offload_targets_EQ)) {
     std::vector<std::string> ArgValues =
         C.getInputArgs().getAllArgValues(options::OPT_offload_targets_EQ);
@@ -1393,26 +1393,18 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
         // For the new offloading model, we only want a single triple entry
         // for each target, even if we have multiple intel_gpu* entries.  We
-        // will track triples for new model and unique strings for the old
-        // model.
-        std::string NormalizedName;
-        bool UseNewOffload =
-            (C.getArgs().hasFlag(options::OPT_offload_new_driver,
-                                 options::OPT_no_offload_new_driver, false));
-        NormalizedName = UseNewOffload
-                             ? TT.normalize()
-                             : getSYCLDeviceTriple(Triple).normalize();
+        // will track triples using the target values instead of the Triples
+        // themselves.
+        std::string NormalizedName = getSYCLDeviceTriple(Triple).normalize();
 
         auto [TripleIt, Inserted] =
             FoundNormalizedTriples.try_emplace(NormalizedName, Triple);
 
         if (IsSYCL && !Inserted) {
-          if (!UseNewOffload || (UseNewOffload && Triple == TripleIt->second))
-            Diag(clang::diag::warn_drv_sycl_offload_target_duplicate)
+          Diag(clang::diag::warn_drv_sycl_offload_target_duplicate)
                 << Triple << TripleIt->second;
           continue;
         }
-
         // If the specified target is invalid, emit a diagnostic.
         if (IsSYCL && !isValidSYCLTriple(TT)) {
           Diag(clang::diag::err_drv_invalid_sycl_target) << Triple;
