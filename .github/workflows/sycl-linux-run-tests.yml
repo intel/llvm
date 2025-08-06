@@ -179,6 +179,10 @@ on:
           - e2e
           - cts
           - benchmarks
+      toolchain_release_tag:
+        description: |
+          Tag of a "Nightly" release at https://github.com/intel/llvm/releases.
+        default: ''
 
       env:
         description: |
@@ -256,11 +260,6 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: ${{ inputs.toolchain_artifact }}
-    - name: Debug prints [workflow_run]
-      if: inputs.toolchain_artifact != '' && github.event_name == 'workflow_run'
-      run: |
-        pwd
-        ls
     - name: Download SYCL toolchain [workflow_run]
       # NOTE: This is for `sycl-linux-precommit-aws.yml`.
       if: inputs.toolchain_artifact != '' && github.event_name == 'workflow_run'
@@ -297,6 +296,17 @@ jobs:
         mkdir toolchain
         tar -I '${{ inputs.toolchain_decompress_command }}' -xf ${{ inputs.toolchain_artifact_filename }} -C toolchain
         rm -f ${{ inputs.toolchain_artifact_filename }}
+        echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
+        echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
+    - name: Download SYCL toolchain using release tag
+      if: inputs.toolchain_release_tag != ''
+      env:
+        TAG: ${{ inputs.toolchain_release_tag }}
+      shell: bash
+      run: |
+        mkdir toolchain
+        wget "https://github.com/intel/llvm/releases/download/$TAG/sycl_linux.tar.gz"
+        tar xf sycl_linux.tar.gz -C toolchain
         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
     - run: which clang++ sycl-ls

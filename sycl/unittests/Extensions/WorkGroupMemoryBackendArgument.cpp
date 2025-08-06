@@ -44,24 +44,16 @@ static sycl::unittest::MockDeviceImage Img =
     sycl::unittest::generateDefaultImage({"WorkGroupMemoryKernel"});
 static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
-static int LocalMemArgs = 0;
-inline ur_result_t redefined_urEnqueueKernelLaunchWithArgsExp(void *pParams) {
-  auto params =
-      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
-  auto Args = *params.ppArgs;
-  for (uint32_t i = 0; i < *params.pnumArgs; i++) {
-    if (Args[i].type == UR_EXP_KERNEL_ARG_TYPE_LOCAL) {
-      ++LocalMemArgs;
-    }
-  }
+static int urKernelSetArgLocalCalls = 0;
+inline ur_result_t redefined_urKernelSetArgLocal(void *) {
+  ++urKernelSetArgLocalCalls;
   return UR_RESULT_SUCCESS;
 }
 
 TEST(URArgumentTest, URArgumentTest) {
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_replace_callback(
-      "urEnqueueKernelLaunchWithArgsExp",
-      &redefined_urEnqueueKernelLaunchWithArgsExp);
+  mock::getCallbacks().set_replace_callback("urKernelSetArgLocal",
+                                            &redefined_urKernelSetArgLocal);
   sycl::platform Platform = sycl::platform();
   const sycl::device dev = Platform.get_devices()[0];
   sycl::queue q{dev};
@@ -72,5 +64,5 @@ TEST(URArgumentTest, URArgumentTest) {
                                               kernel);
   });
   q.wait();
-  ASSERT_EQ(LocalMemArgs, 1);
+  ASSERT_EQ(urKernelSetArgLocalCalls, 1);
 }

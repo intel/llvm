@@ -37,11 +37,16 @@ on:
       toolchain_artifact_filename:
         type: string
         default: llvm_sycl.tar.gz
-      e2e_binaries_artifact:
+
+      release_toolchain_artifact:
         type: string
         required: false
+        description: |
+          If provided, create an additional toolchain artifact without utilities
+          used for testing in it. File name of the archive is the same as in the
+          `toolchain_artifact` above.
 
-      pack_release:
+      e2e_binaries_artifact:
         type: string
         required: false
 
@@ -86,10 +91,7 @@ on:
         options:
           - cl
           - icx
-      pack_release:
-        type: string
-        required: false
-          
+
 permissions: read-all
 
 jobs:
@@ -206,13 +208,13 @@ jobs:
         cmake --build build --target deploy-sycl-toolchain
 
     - name: Pack toolchain release
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
       run: tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain release
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
       uses: actions/upload-artifact@v4
       with:
-        name: sycl_windows_release
+        name: ${{ inputs.release_toolchain_artifact }}
         path: ${{ inputs.toolchain_artifact_filename }}
         retention-days: ${{ inputs.retention-days }}
 
