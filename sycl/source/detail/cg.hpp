@@ -276,9 +276,8 @@ public:
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
                bool KernelIsCooperative, bool MKernelUsesClusterLaunch,
                size_t KernelWorkGroupMemorySize, detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MNDRDesc(NDRDesc), MHostKernel(std::move(HKernel)),
-        MSyclKernel(std::move(SyclKernel)),
+      : CG(Type, std::move(CGData), std::move(loc)), MNDRDesc(NDRDesc),
+        MHostKernel(std::move(HKernel)), MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)),
         MKernelNameBasedCachePtr(KernelNameBasedCachePtr),
