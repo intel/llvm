@@ -1,0 +1,22 @@
+; Note: these checks are intrinsically linked to input.ll
+
+; CHECK: CHECK: x0x
+; CHECK: CHECK-LABEL: x1x
+; CHECK: CHECK: x2x
+; CHECK: CHECK-LABEL: x3x
+; CHECK: FOO: x4x
+; CHECK: FOO-LABEL: x5x
+
+; CHECK: CHECK-LABEL: x6x
+; CHECK: CHECK-LABEL: x7x
+; CHECK: CHECK-LABEL: x8x
+
+; CHECK:     CHECK-DAG: x9x
+; CHECK-NOT: x10x
+
+; CHECK-NOT: x11x
+; CHECK-NOT: x12x
+
+; CHECK: FOO: x13x
+
+; CHECK-NOT: x14x
