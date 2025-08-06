@@ -1,6 +1,6 @@
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_sycl_unittests(UrTests OBJECT
+add_sycl_unittest(UrTests OBJECT
   UrUtility.cpp
 )
 

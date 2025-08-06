@@ -1,4 +1,4 @@
-add_sycl_unittests(QueueTests OBJECT
+add_sycl_unittest(QueueTests OBJECT
   DeviceCheck.cpp
   Hash.cpp
   USM.cpp

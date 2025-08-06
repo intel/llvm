@@ -1,3 +1,3 @@
-add_sycl_unittests(BufferTestsL0Specific OBJECT
+add_sycl_unittest(BufferTestsL0Specific OBJECT
   BufferReleaseL0.cpp
 )

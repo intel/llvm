@@ -1,4 +1,4 @@
-add_sycl_unittests(KernelAndProgramTests OBJECT
+add_sycl_unittest(KernelAndProgramTests OBJECT
   Cache.cpp
   MultipleDevsCache.cpp
   KernelRelease.cpp

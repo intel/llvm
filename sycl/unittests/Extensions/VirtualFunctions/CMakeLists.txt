@@ -1,3 +1,3 @@
-add_sycl_unittests(VirtualFunctionExtensionTests OBJECT
+add_sycl_unittest(VirtualFunctionExtensionTests OBJECT
   RuntimeLinking.cpp
 )

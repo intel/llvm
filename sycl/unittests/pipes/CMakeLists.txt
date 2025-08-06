@@ -1,6 +1,6 @@
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_sycl_unittests(PipeTests OBJECT
+add_sycl_unittest(PipeTests OBJECT
   host_pipe_registration.cpp
 )
 

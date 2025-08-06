@@ -1,3 +1,3 @@
-add_sycl_unittests(NumComputeUnitsTests OBJECT
+add_sycl_unittest(NumComputeUnitsTests OBJECT
   ReturnedQueryValue.cpp
 )

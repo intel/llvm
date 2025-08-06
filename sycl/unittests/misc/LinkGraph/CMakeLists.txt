@@ -1,4 +1,4 @@
-add_sycl_unittests(LinkGraphTests SHARED
+add_sycl_unittest(LinkGraphTests SHARED
   LinkGraphConstruction.cpp
   LinkGraphPoisoning.cpp
   LinkGraphUnify.cpp

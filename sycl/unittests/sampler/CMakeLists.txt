@@ -1,3 +1,3 @@
-add_sycl_unittests(SamplerTests OBJECT
+add_sycl_unittest(SamplerTests OBJECT
   Properties.cpp
 )

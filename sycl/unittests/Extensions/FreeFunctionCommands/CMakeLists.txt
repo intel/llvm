@@ -1,4 +1,4 @@
-add_sycl_unittests(FreeFunctionCommandsTests OBJECT
+add_sycl_unittest(FreeFunctionCommandsTests OBJECT
   Barrier.cpp
   FreeFunctionCommandsEvents.cpp
 )

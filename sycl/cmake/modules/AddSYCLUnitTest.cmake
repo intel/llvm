@@ -153,12 +153,12 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
   target_compile_definitions(${test_dirname} PRIVATE SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
 endfunction()
 
-# add_sycl_unittests(test_name_prefix SHARED|OBJECT file1.cpp, file2.cpp ...)
+# add_sycl_unittest(test_name_prefix SHARED|OBJECT file1.cpp, file2.cpp ...)
 #
 # Will compile the list of files together to create two builds, with and without
 # the SYCL preview features enabled.
 # Produces two binaries, named `basename(test_name_prefix_non_preview)` and `basename(test_name_prefix_preview)`
-macro(add_sycl_unittests test_name_prefix link_variant)
+macro(add_sycl_unittest test_name_prefix link_variant)
   add_sycl_unittest_internal(${test_name_prefix}_non_preview ${link_variant} FALSE ${ARGN})
   add_sycl_unittest_internal(${test_name_prefix}_preview ${link_variant} TRUE ${ARGN})
 endmacro()

@@ -1,3 +1,3 @@
-add_sycl_unittests(StreamTests OBJECT
+add_sycl_unittest(StreamTests OBJECT
   stream.cpp
 )
