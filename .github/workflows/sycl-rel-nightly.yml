@@ -125,10 +125,10 @@ jobs:
       tests_selector: cts
       repo_ref: ${{ github.sha  }}
       # Author: Tom Deakin <thomasdeakin@gmail.com>
-      # Date:   Thu Mar 20 15:31:29 2025 +0000
-      # Merge pull request #1052 from dyniols/cts_test_for_shorthand_aliases_address_spaces
-      # Add tests for the new shorthand aliases of address spaces
-      tests_ref: 87f8677c4b67cfe56ad6f09246036f10c306c977
+      # Date:   Thu Jul 10 16:45:48 2025 +0100
+      # Merge pull request #1102 from steffenlarsen/steffen/remove_secondary_queue_exceptions
+      # Remove expected exceptions for secondary queue
+      tests_ref: 19e4ed34377c8a8a354d701772427be8c5430b0d
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
