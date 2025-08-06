@@ -462,6 +462,7 @@ if __name__ == "__main__":
 
         log.info("No unexpected regressions found!")
         if args.produce_github_summary:
+            gh_summary.println("No unexpected regressions found!")
             gh_summary.write_file()
 
     else:
