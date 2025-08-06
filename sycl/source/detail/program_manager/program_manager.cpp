@@ -2044,7 +2044,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     KernelIDs->push_back(It->second);
 
     // Keep track of image to kernel name reference count for cleanup.
-    m_BinImage2KernelNameRefCount[name]++;
+    m_KernelNameRefCount[name]++;
   }
 
   cacheKernelUsesAssertInfo(*Img);
@@ -2157,13 +2157,11 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
 
       // Remove everything associated with this KernelName if this is the last
       // image referencing it, otherwise remove just the ID -> Img mapping.
-      int &RefCount = m_BinImage2KernelNameRefCount[Name];
+      auto RefCountIt = m_KernelNameRefCount.find(Name);
+      assert(RefCountIt != m_KernelNameRefCount.end());
+      int &RefCount = RefCountIt->second;
       assert(RefCount > 0);
-
-      if (--RefCount == 0) {
-        m_KernelUsesAssert.erase(Name);
-        m_KernelImplicitLocalArgPos.erase(Name);
-      }
+      --RefCount;
 
       if (auto It = m_KernelName2KernelIDs.find(Name);
           It != m_KernelName2KernelIDs.end()) {
@@ -2181,6 +2179,12 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
           assert(ID2ImgIt != RangeEnd);
           m_KernelIDs2BinImage.erase(ID2ImgIt);
         }
+      }
+
+      if (RefCount == 0) {
+        m_KernelUsesAssert.erase(Name);
+        m_KernelImplicitLocalArgPos.erase(Name);
+        m_KernelNameRefCount.erase(RefCountIt);
       }
     }
 

@@ -463,7 +463,7 @@ protected:
   /// Used for checking if the last image referencing the kernel name
   /// is removed in order to trigger cleanup of kernel name based information.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_map<KernelNameStrT, int> m_BinImage2KernelNameRefCount;
+  std::unordered_map<KernelNameStrT, int> m_KernelNameRefCount;
 
   /// Caches all found service kernels to expedite future checks. A SYCL service
   /// kernel is a kernel that has not been defined by the user but is instead
