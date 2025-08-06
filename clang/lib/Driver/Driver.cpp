@@ -1035,12 +1035,7 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
           << "CUDA" << Arch;
       return llvm::DenseSet<llvm::StringRef>();
     }
-    if (Kind == Action::OFK_OpenMP &&
-        (ID == OffloadArch::UNKNOWN || ID == OffloadArch::UNUSED)) {
-      C.getDriver().Diag(clang::diag::err_drv_failed_to_deduce_target_from_arch)
-          << Arch;
-      return llvm::DenseSet<llvm::StringRef>();
-    }
+
     if (ID == OffloadArch::UNKNOWN || ID == OffloadArch::UNUSED) {
       C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
           << "offload" << Arch;
@@ -1084,8 +1079,8 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
                        : "nvptx-nvidia-cuda");
   else if (Archs.empty() && Kind == Action::OFK_SYCL)
     Triples.insert(C.getDefaultToolChain().getTriple().isArch64Bit()
-                       ? "spirv64-unknown-unknown"
-                       : "spirv32-unknown-unknown");
+                       ? "spir64-unknown-unknown"
+                       : "spir-unknown-unknown");
 
   // We need to dispatch these to the appropriate toolchain now.
   C.getArgs().eraseArg(options::OPT_offload_arch_EQ);
@@ -1368,13 +1363,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         C.getInputArgs().getAllArgValues(options::OPT_offload_targets_EQ);
     llvm::Triple TT;
     for (llvm::StringRef Target : ArgValues) {
-      if (Target.starts_with("intel_gpu_"))
+      if(IsSYCL) {
+        if (Target.starts_with("intel_gpu_"))
         Triples.insert(
             C.getInputArgs().MakeArgString("spir64_gen-unknown-unknown"));
-      else if (Target.starts_with("nvidia_gpu_"))
-        Triples.insert(C.getInputArgs().MakeArgString("nvptx64-nvidia-cuda"));
-      else if (Target.starts_with("amd_gpu_"))
-        Triples.insert(C.getInputArgs().MakeArgString("amdgcn-amd-amdhsa"));
+        else if (Target.starts_with("nvidia_gpu_"))
+          Triples.insert(C.getInputArgs().MakeArgString("nvptx64-nvidia-cuda"));
+        else if (Target.starts_with("amd_gpu_"))
+          Triples.insert(C.getInputArgs().MakeArgString("amdgcn-amd-amdhsa"));
+      }
       else
         Triples.insert(C.getInputArgs().MakeArgString(Target));
     }
@@ -7639,7 +7636,7 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
     // Get the product of all bound architectures and toolchains.
     SmallVector<std::pair<const ToolChain *, StringRef>> TCAndArchs;
     for (const ToolChain *TC : ToolChains) {
-      for (StringRef Arch : OffloadArchs.lookup(TC)) {
+      for (StringRef Arch : getOffloadArchs(C, C.getArgs(), Kind, *TC)) {
         TCAndArchs.push_back(std::make_pair(TC, Arch));
         DeviceActions.push_back(
             C.MakeAction<InputAction>(*InputArg, InputType, CUID));
