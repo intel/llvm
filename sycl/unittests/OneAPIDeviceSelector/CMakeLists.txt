@@ -1,3 +1,3 @@
-add_sycl_unittest_both(OneAPIDeviceSelectorTests OneAPIDeviceSelectorTestsPreview OBJECT
+add_sycl_unittests(OneAPIDeviceSelectorTests OBJECT
   Tests.cpp
 )

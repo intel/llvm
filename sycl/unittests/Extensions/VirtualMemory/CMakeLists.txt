@@ -1,4 +1,3 @@
-add_sycl_unittest_both(VirtualMemoryExtensionTests VirtualMemoryExtensionTestsPreview OBJECT
+add_sycl_unittests(VirtualMemoryExtensionTests OBJECT
   Exceptions.cpp
 )
-

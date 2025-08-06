@@ -1,4 +1,4 @@
-add_sycl_unittest_both(KernelAndProgramTests KernelAndProgramTestsPreview OBJECT
+add_sycl_unittests(KernelAndProgramTests OBJECT
   Cache.cpp
   MultipleDevsCache.cpp
   KernelRelease.cpp
@@ -9,5 +9,5 @@ add_sycl_unittest_both(KernelAndProgramTests KernelAndProgramTestsPreview OBJECT
   OutOfResources.cpp
   InMemCacheEviction.cpp
 )
-target_compile_definitions(KernelAndProgramTests PRIVATE -D__SYCL_INTERNAL_API)
-target_compile_definitions(KernelAndProgramTestsPreview PRIVATE -D__SYCL_INTERNAL_API)
+target_compile_definitions(KernelAndProgramTests_non_preview PRIVATE -D__SYCL_INTERNAL_API)
+target_compile_definitions(KernelAndProgramTests_preview PRIVATE -D__SYCL_INTERNAL_API)

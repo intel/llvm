@@ -1,4 +1,4 @@
-add_sycl_unittest_both(ContextDeviceTests ContextDeviceTestsPreview OBJECT
+add_sycl_unittests(ContextDeviceTests OBJECT
   Context.cpp
   DeviceRefCounter.cpp
   HasExtensionWordBoundary.cpp

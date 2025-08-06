@@ -1,6 +1,6 @@
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_sycl_unittest_both(SYCL2020Tests SYCL2020TestsPreview OBJECT
+add_sycl_unittests(SYCL2020Tests OBJECT
   GetNativeOpenCL.cpp
   SpecializationConstant.cpp
   KernelBundle.cpp
@@ -14,4 +14,3 @@ add_sycl_unittest_both(SYCL2020Tests SYCL2020TestsPreview OBJECT
   AtomicMemoryScopeCapabilities.cpp
   AtomicFenceCapabilities.cpp
 )
-

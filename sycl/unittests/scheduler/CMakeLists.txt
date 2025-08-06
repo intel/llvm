@@ -1,4 +1,4 @@
-add_sycl_unittest_both(SchedulerTests SchedulerTestsPreview OBJECT
+add_sycl_unittests(SchedulerTests OBJECT
     BlockedCommands.cpp
     Commands.cpp
     FailedCommands.cpp

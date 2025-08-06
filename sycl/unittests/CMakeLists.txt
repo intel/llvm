@@ -1,9 +1,6 @@
 add_custom_target(SYCLUnitTests)
 set_target_properties(SYCLUnitTests PROPERTIES FOLDER "SYCL tests")
 
-add_custom_target(SYCLUnitTestsPreview)
-set_target_properties(SYCLUnitTestsPreview PROPERTIES FOLDER "SYCL tests")
-
 foreach(flag_var
     CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
     CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)

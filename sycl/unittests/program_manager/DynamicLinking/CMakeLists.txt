@@ -2,7 +2,7 @@
 # TODO this can be merged back into program manager tests once __sycl_unregister_lib is implemented.
 # https://github.com/intel/llvm/issues/19597
 if (NOT LLVM_LIBCXX_USED)
-add_sycl_unittest_both(DynamicLinkingTests DynamicLinkingTestsPreview OBJECT
+add_sycl_unittests(DynamicLinkingTests OBJECT
   DynamicLinking.cpp
 )
 endif()

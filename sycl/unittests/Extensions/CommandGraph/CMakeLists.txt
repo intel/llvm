@@ -1,6 +1,6 @@
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_sycl_unittest_both(CommandGraphExtensionTests CommandGraphExtensionTestsPreview OBJECT
+add_sycl_unittests(CommandGraphExtensionTests OBJECT
   Barrier.cpp
   CommandGraph.cpp
   CommonReferenceSemantics.cpp

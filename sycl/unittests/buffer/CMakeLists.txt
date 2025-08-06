@@ -1,4 +1,4 @@
-add_sycl_unittest_both(BufferTests BufferTestsPreview OBJECT
+add_sycl_unittests(BufferTests OBJECT
   PARTIAL_SOURCES_INTENDED
   BufferLocation.cpp
   Image.cpp

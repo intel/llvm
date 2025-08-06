@@ -1,3 +1,3 @@
-add_sycl_unittest_both(BuiltinsTests BuiltinsTestsPreview OBJECT
+add_sycl_unittests(BuiltinsTests OBJECT
   Builtins.cpp
 )

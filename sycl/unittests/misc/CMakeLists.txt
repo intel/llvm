@@ -2,7 +2,7 @@ set(sycl_lib_dir $<TARGET_FILE_DIR:sycl>)
 add_definitions(-DSYCL_LIB_DIR="${sycl_lib_dir}")
 # https://github.com/intel/llvm/issues/19626
 if(NOT LLVM_LIBCXX_USED)
-add_sycl_unittest_both(MiscTests MiscTestsPreview SHARED
+add_sycl_unittests(MiscTests SHARED
   CircularBuffer.cpp
   OsUtils.cpp
   PropertyUtils.cpp
