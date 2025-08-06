@@ -11,6 +11,15 @@
 using namespace sycl;
 
 int main() {
+  // Initializing Level Zero driver is required if this test is linked
+  // statically with Level Zero loader, otherwise the driver will not be
+  // initialized.
+  ze_result_t result = zeInit(0);
+  if (result != ZE_RESULT_SUCCESS) {
+    std::cout << "zeInit failed" << std::endl;
+    return 1;
+  }
+
   constexpr int Size = 100;
   queue Queue;
   auto D = Queue.get_device();
