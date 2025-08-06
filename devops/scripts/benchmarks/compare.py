@@ -430,10 +430,12 @@ if __name__ == "__main__":
             if args.produce_github_summary:
                 gh_summary.println("### Improvements")
                 gh_summary.println(f"<details><summary>{len(improvements)} improved tests:</summary>")
+                gh_summary.println("")
             for test in improvements:
                 print_regression(test)
             if args.produce_github_summary:
                 gh_summary.println("</details>")
+                gh_summary.println("")
         if regressions_ignored:
             log.info("#")
             log.info("# Regressions (filtered out by regression-filter):")
@@ -441,10 +443,12 @@ if __name__ == "__main__":
             if args.produce_github_summary:
                 gh_summary.println("### Regressions")
                 gh_summary.println(f"<details><summary>{len(regressions_ignored)} non CI-failing regressions:</summary>")
+                gh_summary.println("")
             for test in regressions_ignored:
                 print_regression(test)
             if args.produce_github_summary:
                 gh_summary.println("</details>")
+                gh_summary.println("")
         if regressions_of_concern:
             log.warning("#")
             log.warning("# Regressions:")
@@ -460,10 +464,12 @@ if __name__ == "__main__":
                 print_regression(test, is_warning=True)
             if args.produce_github_summary:
                 gh_summary.println("</details>")
+                gh_summary.println("")
 
             if not args.dry_run:
                 if args.produce_github_summary:
                     gh_summary.println("### Failed benchmarks:")
+                    gh_summary.println("")
                     for test in regressions_of_concern:
                         gh_summary.println(f"- {test['name']}: Delta {round(test['delta']*100, 2)}%")
                     gh_summary.write_file()
