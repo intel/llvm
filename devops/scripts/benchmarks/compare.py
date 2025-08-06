@@ -463,7 +463,7 @@ if __name__ == "__main__":
 
             if not args.dry_run:
                 if args.produce_github_summary:
-                    gh_summary.println("## Failed benchmarks:")
+                    gh_summary.println("### Failed benchmarks:")
                     for test in regressions_of_concern:
                         gh_summary.println(f"- {test['name']}: Delta {round(test['delta']*100, 2)}%")
                     gh_summary.write_file()
