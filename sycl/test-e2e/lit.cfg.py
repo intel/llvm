@@ -970,6 +970,9 @@ elif os.path.exists(f"{config.sycl_include}/llvm/SYCLLowerIR/DeviceConfigFile.hp
     config.available_features.add("device-config-file")
     config.substitutions.append(("%device_config_file_include_flag", ""))
 
+if config.enable_sycl_jit == "ON":
+    config.available_features.add("sycl-jit")
+
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}

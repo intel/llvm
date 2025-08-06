@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: aspect-usm_device_allocations
+// REQUIRES: sycl-jit, aspect-usm_device_allocations
 // REQUIRES: (opencl || level_zero)
 
 // UNSUPPORTED: accelerator
