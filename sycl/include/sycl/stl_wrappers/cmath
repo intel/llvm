@@ -9,18 +9,15 @@
 #pragma once
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(_WIN32)
-// Define _*dsign before including cmath because _*dsign is used by signbit
-// defined in UCRT headers. Using before adding device side declarations is
-// illegal.
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+// Forward declare device _*dsign functions before including cmath to enable
+// compilation of math functions defined in UCRT headers.
 extern "C" __attribute__((sycl_device_only, always_inline)) int
-_fdsign(float x) {
-  return __builtin_signbit(x);
-}
+_fdsign(float x);
 extern "C" __attribute__((sycl_device_only, always_inline)) int
-_dsign(double x) {
-  return __builtin_signbit(x);
-}
-#endif // __SYCL_DEVICE_ONLY__ && _WIN32
+_dsign(double x);
+#endif // defined(__NVPTX__) || defined(__AMDGCN__)
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(_WIN32)
 
 // Include real STL <cmath> header - the next one from the include search
 // directories.
