@@ -51,6 +51,7 @@ template <bool Barrier>
 ur_result_t doWait(ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
                    const ur_event_handle_t *phEventWaitList,
                    ur_event_handle_t *phEvent) {
+  std::lock_guard<std::mutex> Lock(hQueue->OooMutex);
   constexpr ur_command_t TYPE =
       Barrier ? UR_COMMAND_EVENTS_WAIT_WITH_BARRIER : UR_COMMAND_EVENTS_WAIT;
   ol_queue_handle_t TargetQueue;
@@ -58,12 +59,12 @@ ur_result_t doWait(ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     // In order queue so all work is done in submission order, so it's a
     // no-op
     if (phEvent) {
-      OL_RETURN_ON_ERR(hQueue->nextQueue(TargetQueue));
+      OL_RETURN_ON_ERR(hQueue->nextQueueNoLock(TargetQueue));
       OL_RETURN_ON_ERR(makeEvent(TYPE, TargetQueue, hQueue, phEvent));
     }
     return UR_RESULT_SUCCESS;
   }
-  OL_RETURN_ON_ERR(hQueue->nextQueue(TargetQueue));
+  OL_RETURN_ON_ERR(hQueue->nextQueueNoLock(TargetQueue));
 
   if (!numEventsInWaitList) {
     // "If the event list is empty, it waits for all previously enqueued
@@ -100,10 +101,10 @@ ur_result_t doWait(ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     }
 
     // Ensure any newly created work waits on this barrier
-    auto OldEvent = hQueue->Barrier.exchange(BarrierEvent);
-    if (OldEvent) {
-      OL_RETURN_ON_ERR(olDestroyEvent(OldEvent));
+    if (hQueue->Barrier) {
+      OL_RETURN_ON_ERR(olDestroyEvent(hQueue->Barrier));
     }
+    hQueue->Barrier = BarrierEvent;
 
     // Block all existing threads on the barrier
     for (auto *Q : hQueue->OffloadQueues) {
