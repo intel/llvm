@@ -5937,6 +5937,14 @@ def HLSLSV_GroupIndex: HLSLAnnotationAttr {
   let Documentation = [HLSLSV_GroupIndexDocs];
 }
 
+def HLSLVkBinding : InheritableAttr {
+  let Spellings = [CXX11<"vk", "binding">];
+  let Subjects = SubjectList<[HLSLBufferObj, ExternalGlobalVar], ErrorDiag>;
+  let Args = [IntArgument<"Binding">, IntArgument<"Set", 1>];
+  let LangOpts = [HLSL];
+  let Documentation = [HLSLVkBindingDocs];
+}
+
 def HLSLResourceBinding: InheritableAttr {
   let Spellings = [HLSLAnnotation<"register">];
   let Subjects = SubjectList<[HLSLBufferObj, ExternalGlobalVar], ErrorDiag>;
