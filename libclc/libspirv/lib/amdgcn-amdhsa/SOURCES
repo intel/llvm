@@ -1,5 +1,7 @@
 
 workitem/get_global_offset.ll
+geometric/normalize.cl
+geometric/fast_normalize.cl
 group/group_ballot.cl
 group/collectives.cl
 group/collectives_helpers.ll
