@@ -125,6 +125,17 @@ sycl/test-e2e/InvokeSimd/ @intel/dpcpp-esimd-reviewers
 buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
 sycl/cts_exclude_filter/ @intel/dpcpp-devops-reviewers
+.ci/ @intel/dpcpp-devops-reviewers
+
+# Third-party dependencies updated by dependabot
+llvm/docs/requirements-hashed.txt @intel/dpcpp-devops-reviewers
+llvm/docs/requirements.txt @intel/dpcpp-devops-reviewers
+llvm/utils/git/requirements.txt @intel/dpcpp-devops-reviewers
+llvm/utils/git/requirements_formatting.txt @intel/dpcpp-devops-reviewers
+llvm/utils/vscode/llvm/package-lock.json @intel/dpcpp-devops-reviewers
+lldb/tools/lldb-dap/package-lock.json @intel/dpcpp-devops-reviewers
+mlir/utils/vscode/package-lock.json @intel/dpcpp-devops-reviewers
+mlir/utils/tree-sitter-mlir/package-lock.json @intel/dpcpp-devops-reviewers
 
 # dev-igc driver update
 devops/dependencies-igc-dev.json @intel/sycl-matrix-reviewers @intel/dpcpp-esimd-reviewers @intel/dpcpp-devops-reviewers
