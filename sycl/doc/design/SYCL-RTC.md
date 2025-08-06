@@ -254,7 +254,11 @@ functionality, such as an extended set of math functions and support for
 `bfloat16` arithmetic, and are available as Bitcode files inside the DPC++
 installation or the vendor toolchain, so we just use LLVM utilities to load them
 into memory and link them to the module representing the runtime-compiled
-kernels.
+kernels. The main challenge here is that the logic to select the device
+libraries is currently not reusable from its implementation in the driver, so
+our implementation is a simplified copy of the
+[`SYCL::getDeviceLibraries(...)`](https://github.com/intel/llvm/blob/cc966df07d29db75d07f969f044c0491819bd930/clang/lib/Driver/ToolChains/SYCL.cpp#L553)
+method, which needs to be kept in sync with the driver code.
 
 For the SYCL-specific post-processing, implemented in
 [`jit_compiler::performPostLink(...)`](https://github.com/intel/llvm/blob/cc966df07d29db75d07f969f044c0491819bd930/sycl-jit/jit-compiler/lib/rtc/DeviceCompilation.cpp#L750),
@@ -263,7 +267,12 @@ we can reuse modular analysis and transformation passes in the
 component. The main tasks for the post-processing passes is to split the device
 code module into smaller units (either as requested by the user, or required by
 the ESIMD mode), and to compute the properties that need to be passed to the
-SYCL runtime when the device images are loaded.
+SYCL runtime when the device images are loaded. The logic to orchestrate the
+`SYCLLowerIR` passes is adapted from the `sycl-post-link` tool's
+[`processInputModule(...)`](https://github.com/intel/llvm/blob/cc966df07d29db75d07f969f044c0491819bd930/llvm/tools/sycl-post-link/sycl-post-link.cpp#L606)
+function. This duplicated code should be removed as well once a suitable
+reusable implementation becomes available.
+
 
 ## Translation to the target format
 
@@ -297,10 +306,6 @@ A list of values that can be set as the target CPU can be found in the
 [documentation of the `-fsycl-targets=`
 option](https://intel.github.io/llvm/UsersManual.html#generic-options) (leave
 out the `amd_gpu_` and `nvidia_gpu_` prefixes).
-
-At the moment, the support is available in [daily
-builds](https://github.com/intel/llvm/releases) of the open-source version of
-DPC++.
 
 ## Further reading
 
