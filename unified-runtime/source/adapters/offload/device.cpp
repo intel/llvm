@@ -85,6 +85,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
     // TODO: Implement subgroups in Offload
     return ReturnValue(1);
+  case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
+    if (pPropSizeRet) {
+      *pPropSizeRet = sizeof(size_t);
+    }
+
+    if (pPropValue) {
+      uint32_t as32;
+      OL_RETURN_ON_ERR(olGetDeviceInfo(hDevice->OffloadDevice,
+                                       OL_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                                       sizeof(as32), &as32));
+
+      *reinterpret_cast<size_t *>(pPropValue) = as32;
+    }
+
+    return UR_RESULT_SUCCESS;
   case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
     // OL dimensions are uint32_t while UR is size_t, so they need to be mapped
     if (pPropSizeRet) {
@@ -94,9 +109,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     if (pPropValue) {
       ol_dimensions_t olVec;
       size_t *urVec = reinterpret_cast<size_t *>(pPropValue);
-      OL_RETURN_ON_ERR(olGetDeviceInfo(hDevice->OffloadDevice,
-                                       OL_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-                                       sizeof(olVec), &olVec));
+      OL_RETURN_ON_ERR(
+          olGetDeviceInfo(hDevice->OffloadDevice,
+                          OL_DEVICE_INFO_MAX_WORK_GROUP_SIZE_PER_DIMENSION,
+                          sizeof(olVec), &olVec));
 
       urVec[0] = olVec.x;
       urVec[1] = olVec.y;
