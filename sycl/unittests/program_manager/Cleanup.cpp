@@ -61,6 +61,11 @@ public:
     return NativePrograms;
   }
 
+  std::unordered_map<sycl::detail::KernelNameStrT, int> &
+  getKernelNameRefCount() {
+    return m_KernelNameRefCount;
+  }
+
   std::unordered_map<const sycl::detail::RTDeviceBinaryImage *,
                      std::unordered_map<sycl::detail::KernelNameStrT,
                                         sycl::detail::KernelArgMask>> &
@@ -288,6 +293,16 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM, size_t ExpectedCount,
     EXPECT_TRUE(PM.getVFSet2BinImage().count(generateRefName("A", "VF")) > 0)
         << Comment;
     EXPECT_TRUE(PM.getVFSet2BinImage().count(generateRefName("B", "VF")) > 0)
+        << Comment;
+  }
+
+  {
+    EXPECT_EQ(PM.getKernelNameRefCount().size(), ExpectedCount) << Comment;
+    EXPECT_TRUE(
+        PM.getKernelNameRefCount().count(generateRefName("A", "Kernel")) > 0)
+        << Comment;
+    EXPECT_TRUE(
+        PM.getKernelNameRefCount().count(generateRefName("B", "Kernel")) > 0)
         << Comment;
   }
 
