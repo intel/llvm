@@ -29,7 +29,7 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
     endif()
   endif()
 
-  # This is done to ensure that preview tests are kept in a seperate
+  # This is done to ensure that preview tests are kept in a separate
   # directory, so that they do not interfere with the non-preview tests.
   # Chaning CMAKE_CURRENT_BINARY_DIR should not affect this variable in its
   # parent scope.
