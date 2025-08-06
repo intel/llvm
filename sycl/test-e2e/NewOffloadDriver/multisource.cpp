@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: cuda
+// UNSUPPORTED: target-nvidia
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18432
 // Separate kernel sources and host code sources
 // Test with `--offload-new-driver`
