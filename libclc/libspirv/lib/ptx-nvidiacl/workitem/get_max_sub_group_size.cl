@@ -8,7 +8,7 @@
 
 #include <libspirv/spirv.h>
 
-_CLC_DEF _CLC_OVERLOAD uint __spirv_SubgroupMaxSize() {
+_CLC_DEF _CLC_OVERLOAD uint __spirv_BuiltInSubgroupMaxSize() {
   return 32;
   // FIXME: warpsize is defined by NVVM IR but doesn't compile if used here
   // return __nvvm_read_ptx_sreg_warpsize();
