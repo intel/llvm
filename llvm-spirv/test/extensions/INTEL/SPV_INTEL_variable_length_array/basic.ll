@@ -36,6 +36,9 @@
 ; CHECK-SPIRV: VariableLengthArrayINTEL [[#IntPtr]] [[#]] [[#A]]
 ; CHECK-SPIRV: RestoreMemoryINTEL [[#SavedMem]]
 
+; CHECK-SPIRV-NOT: Name [[#]] "llvm.stacksave."
+; CHECK-SPIRV-NOT: Name [[#]] "llvm.stackrestore."
+
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
 
