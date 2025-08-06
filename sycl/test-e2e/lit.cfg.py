@@ -382,9 +382,13 @@ with test_env():
     else:
         config.substitutions.append(("%level_zero_options", ""))
 
-if lit_config.params.get("test-preview-mode", "False") != "False":
+test_preview = lit_config.params.get("test-preview-mode")
+if test_preview is not None and test_preview not in ["True", "False"]:
+    lit_config.fatal("test-preview-mode must be unset or set to True/False")
+
+if test_preview == "True":
     config.available_features.add("preview-mode")
-else:
+elif test_preview is None:
     # Check for sycl-preview library
     check_preview_breaking_changes_file = "preview_breaking_changes_link.cpp"
     with open_check_file(check_preview_breaking_changes_file) as fp:
