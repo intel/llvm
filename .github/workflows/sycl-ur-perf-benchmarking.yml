@@ -130,7 +130,7 @@ jobs:
           }
           check_nonempty "$COMMIT_HASH" '^[0-9a-f]{7,}$' "Bad commit hash (or hash short)."
           check_nonempty "$PR_NO" '^[0-9]+$' "Bad PR number."
-          check_nonempty "$SAVE_NAME" '^[A-Za-z][A-Za-z0-9_-]*$' "Bad save name."
+          check_nonempty "$SAVE_NAME" '^[A-Za-z][A-Za-z0-9_-]+$' "Bad save name."
 
           BENCHMARK_SAVE_NAME=""
           BUILD_REF="${{ github.ref }}"
