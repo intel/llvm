@@ -153,7 +153,8 @@ public:
   // several hidden set_arg calls for every set_arg called by the user. This
   // shift is required to make sure the following arguments set by the user have
   // the correct index. It keeps track of how many of these hidden set_arg calls
-  // have been made so far.
+  // have been made so far. The user cannot possibly know this, hence we need to
+  // keep track of this information.
   int MArgShift = 0;
 
   /// The list of associated accessors with this handler.
