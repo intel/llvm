@@ -1375,6 +1375,11 @@ void StmtProfiler::VisitSYCLUniqueStableNameExpr(
   VisitType(S->getTypeSourceInfo()->getType());
 }
 
+void StmtProfiler::VisitUnresolvedSYCLKernelCallStmt(
+    const UnresolvedSYCLKernelCallStmt *S) {
+  VisitStmt(S);
+}
+
 void StmtProfiler::VisitSYCLUniqueStableIdExpr(
     const SYCLUniqueStableIdExpr *S) {
   VisitExpr(S);

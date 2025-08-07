@@ -25,6 +25,7 @@ def CaseStmt : StmtNode<SwitchCase>;
 def DefaultStmt : StmtNode<SwitchCase>;
 def CapturedStmt : StmtNode<Stmt>;
 def SYCLKernelCallStmt : StmtNode<Stmt>;
+def UnresolvedSYCLKernelCallStmt : StmtNode<Stmt>;
 
 // Statements that might produce a value (for example, as the last non-null
 // statement in a GNU statement-expression).

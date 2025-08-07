@@ -611,6 +611,7 @@ void ASTStmtWriter::VisitCapturedStmt(CapturedStmt *S) {
 void ASTStmtWriter::VisitSYCLKernelCallStmt(SYCLKernelCallStmt *S) {
   VisitStmt(S);
   Record.AddStmt(S->getOriginalStmt());
+  Record.AddStmt(S->getKernelLaunchStmt());
   Record.AddDeclRef(S->getOutlinedFunctionDecl());
 
   Code = serialization::STMT_SYCLKERNELCALL;
@@ -678,6 +679,16 @@ void ASTStmtWriter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
   Record.AddStmt(E->getExpr());
 
   Code = serialization::EXPR_SYCL_UNIQUE_STABLE_ID;
+}
+
+void ASTStmtWriter::VisitUnresolvedSYCLKernelCallStmt(
+    UnresolvedSYCLKernelCallStmt *S) {
+  VisitStmt(S);
+
+  Record.AddStmt(S->getOriginalStmt());
+  Record.AddStmt(S->getKernelLaunchIdExpr());
+
+  Code = serialization::STMT_UNRESOLVED_SYCL_KERNEL_CALL;
 }
 
 void ASTStmtWriter::VisitPredefinedExpr(PredefinedExpr *E) {
