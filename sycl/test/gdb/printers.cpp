@@ -24,9 +24,9 @@
 #include "detail/accessor_impl.hpp"
 #include "detail/buffer_impl.hpp"
 #include "detail/device_impl.hpp"
+#include "detail/helpers.hpp"
 #include "detail/queue_impl.hpp"
 #include "detail/sycl_mem_obj_t.hpp"
-#include "detail/helpers.hpp"
 
 sycl::accessor<int> a;
 sycl::buffer<int> b(1);
@@ -123,4 +123,3 @@ sycl::item<2, false> item_wo_offset =
 // CHECK-NOT:    32 |     class sycl::id<2> MOffset
 // CHECK-NOT:    32 |       class sycl::detail::array<2> (base)
 // CHECK-NOT:    32 |         size_t[2] common_array
-
