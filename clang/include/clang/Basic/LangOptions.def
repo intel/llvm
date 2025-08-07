@@ -327,7 +327,6 @@ ENUM_LANGOPT(SYCLRangeRounding, SYCLRangeRoundingPreference, 2,
 LANGOPT(SYCLExperimentalRangeRounding, 1, 0, "Use experimental parallel for range rounding")
 LANGOPT(SYCLEnableIntHeaderDiags, 1, 0, "Enable diagnostics that require the "
         "SYCL integration header")
-LANGOPT(SYCLIsNativeCPU      , 1, 0, "Generate code for SYCL Native CPU")
 LANGOPT(SYCLRTCMode, 1, 0, "Compile in RTC mode")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
@@ -542,6 +541,9 @@ ENUM_LANGOPT(DefaultSubGroupSizeType, SubGroupSizeType, 2,
 
 VALUE_LANGOPT(DefaultSubGroupSize, 32, 0,
               "If DefaultSubGroupSizeType is Integer contains the value")
+
+LANGOPT(VScaleStreamingMin, 32, 0, "Minimum streaming vscale value")
+LANGOPT(VScaleStreamingMax, 32, 0, "Maximum streaming vscale value")
 
 ENUM_LANGOPT(ExtendIntArgs, ExtendArgsKind, 1, ExtendArgsKind::ExtendTo32,
              "Controls how scalar integer arguments are extended in calls "

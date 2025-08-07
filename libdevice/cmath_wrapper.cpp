@@ -11,15 +11,6 @@
 #if defined(__SPIR__) || defined(__SPIRV__)
 
 DEVICE_EXTERN_C_INLINE
-int abs(int x) { return __devicelib_abs(x); }
-
-DEVICE_EXTERN_C_INLINE
-long int labs(long int x) { return __devicelib_labs(x); }
-
-DEVICE_EXTERN_C_INLINE
-long long int llabs(long long int x) { return __devicelib_llabs(x); }
-
-DEVICE_EXTERN_C_INLINE
 float fabsf(float x) { return __devicelib_fabsf(x); }
 
 DEVICE_EXTERN_C_INLINE
@@ -50,15 +41,6 @@ float rsqrtf(float x) { return __devicelib_rsqrtf(x); }
 
 DEVICE_EXTERN_C_INLINE
 float exp10f(float x) { return __devicelib_exp10f(x); }
-
-DEVICE_EXTERN_C_INLINE
-div_t div(int x, int y) { return __devicelib_div(x, y); }
-
-DEVICE_EXTERN_C_INLINE
-ldiv_t ldiv(long x, long y) { return __devicelib_ldiv(x, y); }
-
-DEVICE_EXTERN_C_INLINE
-lldiv_t lldiv(long long x, long long y) { return __devicelib_lldiv(x, y); }
 
 DEVICE_EXTERN_C_INLINE
 float roundf(float x) { return __devicelib_roundf(x); }

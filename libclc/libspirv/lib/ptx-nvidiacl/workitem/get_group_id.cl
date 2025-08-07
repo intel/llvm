@@ -8,14 +8,15 @@
 
 #include <libspirv/spirv.h>
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_WorkgroupId_x() {
-  return __nvvm_read_ptx_sreg_ctaid_x();
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_WorkgroupId_y() {
-  return __nvvm_read_ptx_sreg_ctaid_y();
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_WorkgroupId_z() {
-  return __nvvm_read_ptx_sreg_ctaid_z();
+_CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInWorkgroupId(int dim) {
+  switch (dim) {
+  case 0:
+    return __nvvm_read_ptx_sreg_ctaid_x();
+  case 1:
+    return __nvvm_read_ptx_sreg_ctaid_y();
+  case 2:
+    return __nvvm_read_ptx_sreg_ctaid_z();
+  default:
+    return 0;
+  }
 }

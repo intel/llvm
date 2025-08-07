@@ -42,6 +42,7 @@
 #include "SPIRVBasicBlock.h"
 #include "SPIRVDebug.h"
 #include "SPIRVDecorate.h"
+#include "SPIRVFnVar.h"
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
 #include "SPIRVMemAliasingINTEL.h"
