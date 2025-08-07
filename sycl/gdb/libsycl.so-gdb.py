@@ -1079,7 +1079,7 @@ class SYCLItemPrinter(SYCLPrinter):
             offset = SYCLIdPrinter(offset_id).value_as_string()
             if offset not in ["0", "{0, 0}", "{0, 0, 0}"]:
                 string += ", offset " + offset
-        except:
+        except Exception:
             pass  # device offset disabled
         string += " = " + self.value_as_string()
         return string
