@@ -417,9 +417,11 @@ def err_drv_sycl_offload_arch_new_driver: Error<
   "'--offload-arch' is supported when '-fsycl' is set with '--offload-new-driver'">;
 def err_drv_sycl_offload_arch_missing_value : Error<
   "must pass in an explicit cpu or gpu architecture to '--offload-arch'">;
-def warn_drv_sycl_offload_target_duplicate : Warning<
-  "SYCL offloading target '%0' is similar to target '%1' already specified; "
-  "will be ignored">, InGroup<SyclTarget>;
+def warn_drv_offload_target_duplicate
+    : Warning<
+          "offloading target '%0' is similar to target '%1' already specified; "
+          "will be ignored">,
+      InGroup<OffloadTarget>;
 def warn_drv_sycl_target_missing : Warning<
   "linked binaries do not contain expected '%0' target; found targets: '%1'">,
   InGroup<SyclTarget>;
@@ -447,11 +449,8 @@ def err_drv_omp_offload_target_missingbcruntime : Error<
   "; use '--libomptarget-%1-bc-path' to specify %1 bitcode library">;
 def err_drv_omp_offload_target_bcruntime_not_found : Error<
   "bitcode library '%0' does not exist">;
-def err_drv_omp_offload_target_cuda_version_not_support : Error<
-  "NVPTX target requires CUDA 9.2 or above; CUDA %0 detected">;
-def warn_drv_omp_offload_target_duplicate : Warning<
-  "OpenMP offloading target '%0' is similar to target '%1' already specified; "
-  "will be ignored">, InGroup<OpenMPTarget>;
+def err_drv_omp_offload_target_cuda_version_not_support
+    : Error<"NVPTX target requires CUDA 9.2 or above; CUDA %0 detected">;
 def err_drv_unsupported_embed_bitcode
     : Error<"%0 is not supported with -fembed-bitcode">;
 def err_drv_bitcode_unsupported_on_toolchain : Error<

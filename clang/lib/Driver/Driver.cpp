@@ -1203,24 +1203,25 @@ static void diagnoseSYCLOptions(Compilation &C, bool IsSYCL) {
   // --offload-targets.
   const Arg *SYCLOffloadTargetsArg =
       C.getInputArgs().getLastArg(options::OPT_offload_targets_EQ);
-  // const Arg *Alias = SYCLOffloadTargetsArg->getAlias();
   Arg *SYCLForceTarget =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
-
-  /*  if (!IsSYCL && SYCLOffloadTargetsArg &&
-          Alias->getSpelling() == "-fsycl-targets=")
-          C.getDriver().Diag(clang::diag::err_drv_expecting_fsycl_with_sycl_opt)
-              // Dropping the '=' symbol, which would otherwise pollute
-              // the diagnostics for the most of options
-              <<
-     StringRef(SYCLOffloadTargetsArg->getAsString(C.getArgs())).split('=').first;
-  */
-  /*  if(SYCLOffloadTargetsArg && (Alias->getSpelling() == "-fsycl-targets=")
-      && SYCLOffloadTargetsArg->getNumValues() > 1 && SYCLForceTarget)
-          C.getDriver().Diag(clang::diag::err_drv_multiple_target_with_forced_target)
-                << SYCLOffloadTargetsArg->getAsString(C.getInputArgs())
-                << SYCLForceTarget->getAsString(C.getInputArgs());
-  */
+  if (SYCLOffloadTargetsArg && SYCLOffloadTargetsArg->getAlias()) {
+    const Arg *Alias = SYCLOffloadTargetsArg->getAlias();
+    bool IsFsyclTargetsOption = Alias->getSpelling() == "-fsycl-targets=";
+    if (!IsSYCL && IsFsyclTargetsOption)
+      C.getDriver().Diag(clang::diag::err_drv_expecting_fsycl_with_sycl_opt)
+          // Dropping the '=' symbol, which would otherwise pollute
+          // the diagnostics for the most of options
+          << StringRef(SYCLOffloadTargetsArg->getAsString(C.getArgs()))
+                 .split('=')
+                 .first;
+    else if (IsFsyclTargetsOption &&
+             SYCLOffloadTargetsArg->getNumValues() > 1 && SYCLForceTarget)
+      C.getDriver().Diag(
+          clang::diag::err_drv_multiple_target_with_forced_target)
+          << SYCLOffloadTargetsArg->getAsString(C.getInputArgs())
+          << SYCLForceTarget->getAsString(C.getInputArgs());
+  }
 
   // Check if -fsycl-host-compiler is used in conjunction with -fsycl.
   Arg *SYCLHostCompiler =
@@ -1371,6 +1372,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           Triples.insert(C.getInputArgs().MakeArgString("nvptx64-nvidia-cuda"));
         else if (Target.starts_with("amd_gpu_"))
           Triples.insert(C.getInputArgs().MakeArgString("amdgcn-amd-amdhsa"));
+        else
+          Triples.insert(C.getInputArgs().MakeArgString(Target));
       }
       else
         Triples.insert(C.getInputArgs().MakeArgString(Target));
@@ -1425,33 +1428,13 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         continue;
       }
       // TODO try to combine common code for OpenMP and SYCL.
-      if (Kind == Action::OFK_OpenMP) {
-        std::string NormalizedName = TT.normalize();
-        auto [TripleIt, Inserted] =
-            FoundNormalizedTriples.try_emplace(NormalizedName, Target);
-        if (!Inserted) {
-          Diag(clang::diag::warn_drv_omp_offload_target_duplicate)
-              << Target << TripleIt->second;
-          continue;
-        }
-      } else if (Kind == Action::OFK_SYCL) {
-        std::string NormalizedName;
-        bool UseNewOffload =
-            (C.getArgs().hasFlag(options::OPT_offload_new_driver,
-                                 options::OPT_no_offload_new_driver, false));
-        NormalizedName = UseNewOffload
-                             ? TT.normalize()
-                             : getSYCLDeviceTriple(Target).normalize();
-
-        auto [TripleIt, Inserted] =
-            FoundNormalizedTriples.try_emplace(NormalizedName, Target);
-
-        if (!Inserted) {
-          if (!UseNewOffload || (UseNewOffload && Target == TripleIt->second))
-            Diag(clang::diag::warn_drv_sycl_offload_target_duplicate)
-                << Target << TripleIt->second;
-          continue;
-        }
+      std::string NormalizedName = TT.normalize();
+      auto [TripleIt, Inserted] =
+          FoundNormalizedTriples.try_emplace(NormalizedName, Target);
+      if (!Inserted) {
+        Diag(clang::diag::warn_drv_offload_target_duplicate)
+            << Target << TripleIt->second;
+        continue;
       }
 
       auto &TC = getOffloadToolChain(C.getInputArgs(), Kind, TT,
