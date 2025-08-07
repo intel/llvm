@@ -523,6 +523,7 @@ class OCLBuiltinFuncMangleInfo : public SPIRV::BuiltinFuncMangleInfo {
 public:
   OCLBuiltinFuncMangleInfo(Function *F) : F(F) {}
   OCLBuiltinFuncMangleInfo() = default;
+  bool isOpenCL() const override { return true; }
   void init(StringRef UniqName) override;
   // Auxiliary information, it is expected that it is relevant at the moment
   // the init method is called.
