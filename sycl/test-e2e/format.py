@@ -389,6 +389,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 elif code is lit.Test.FAIL:
                     code = lit.Test.XFAIL
             return code
+
         def check_leak(output):
             keyword_found = False
             for line in output.splitlines():
@@ -403,7 +404,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         if len(devices_for_test) == 1:
             device = devices_for_test[0]
             result.code = map_result(test.config.sycl_dev_features[device], result.code)
-        if test.config.ur_l0_leaks_debug and result.code is lit.Test.PASS:
+        if litConfig.params.get("ur_l0_leaks_debug") and result.code is lit.Test.PASS:
             result.code = check_leak(result.output)
 
         # Set this to empty so internal lit code won't change our result if it incorrectly
