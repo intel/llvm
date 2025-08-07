@@ -17,7 +17,10 @@ set(OCL_LOADER_REPO
 set(OCL_HEADERS_TAG 6eabe90aa7b6cff9c67800a2fe25a0cd88d8b749)
 set(OCL_LOADER_TAG ddf6c70230a79cdb8fcccfd3c775b09e6820f42e)
 
-find_package(OpenCL 3.0 QUIET)
+# Set NO_CMAKE_PACKAGE_REGISTRY so only system-wide installs are
+# detected.
+find_package(OpenCL 3.0 QUIET NO_CMAKE_PACKAGE_REGISTRY)
+
 if(OpenCL_FOUND)
   # The OpenCL-Headers CMake files don't provide granular info
   # on what is and isn't supposed, just the overall OpenCL version.
@@ -48,16 +51,16 @@ endif()
 
 # OpenCL Headers
 if(NOT OpenCL_FOUND)
+  FetchContent_Declare(ocl-headers
+      GIT_REPOSITORY    ${OCL_HEADERS_REPO}
+      GIT_TAG           ${OCL_HEADERS_TAG}
+  )
   FetchContent_GetProperties(ocl-headers)
 
   if(NOT ocl-headers_POPULATED)
     message(STATUS "Will fetch OpenCL headers from ${OCL_HEADERS_REPO}")
-    FetchContent_Declare(ocl-headers
-      GIT_REPOSITORY    ${OCL_HEADERS_REPO}
-      GIT_TAG           ${OCL_HEADERS_TAG}
-      )
-    FetchContent_MakeAvailable(ocl-headers)
   endif()
+  FetchContent_MakeAvailable(ocl-headers)
   set(OpenCL_INCLUDE_DIR ${ocl-headers_SOURCE_DIR} CACHE PATH "" FORCE)
 else()
   message(STATUS "Using OpenCL headers at ${OpenCL_INCLUDE_DIR}")
@@ -68,17 +71,15 @@ endif()
 set(BUILD_SHARED_LIBS ON)
 
 if(NOT OpenCL_FOUND)
-
+  FetchContent_Declare(ocl-icd
+      GIT_REPOSITORY    ${OCL_LOADER_REPO}
+      GIT_TAG           ${OCL_LOADER_TAG}
+  )
   FetchContent_GetProperties(ocl-icd)
   if(NOT ocl-icd_POPULATED)
     message(STATUS "Will fetch OpenCL ICD Loader from ${OCL_LOADER_REPO}")
-    FetchContent_Declare(ocl-icd
-      GIT_REPOSITORY    ${OCL_LOADER_REPO}
-      GIT_TAG           ${OCL_LOADER_TAG}
-      )
-
-    FetchContent_MakeAvailable(ocl-icd)
   endif()
+  FetchContent_MakeAvailable(ocl-icd)
   set(OpenCL_LIBRARY OpenCL::OpenCL CACHE PATH "" FORCE)
 else()
   message(STATUS
