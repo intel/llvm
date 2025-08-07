@@ -26,6 +26,7 @@
 #include "detail/device_impl.hpp"
 #include "detail/queue_impl.hpp"
 #include "detail/sycl_mem_obj_t.hpp"
+#include "detail/helpers.hpp"
 
 sycl::accessor<int> a;
 sycl::buffer<int> b(1);
@@ -33,6 +34,11 @@ sycl::device d;
 sycl::local_accessor<int> l;
 sycl::queue q;
 sycl::range<1> r(3);
+
+sycl::item<1, true> item_w_offset =
+    sycl::detail::Builder::createItem<1, true>({4}, {2}, {1});
+sycl::item<2, false> item_wo_offset =
+    sycl::detail::Builder::createItem<2, false>({4, 4}, {2, 2});
 
 // CHECK:         0 | class sycl::range<>
 // CHECK:         0 |     size_t[1] common_array
@@ -93,3 +99,28 @@ sycl::range<1> r(3);
 // DEVICE:        8 |       class sycl::range<> MemRange
 // DEVICE:        8 |           size_t[1] common_array
 // DEVICE:       24 |     ConcreteASPtrType MData
+
+// CHECK:         0 | class sycl::item<1, true>
+// CHECK:         0 |   struct sycl::detail::ItemBase<1, true> MImpl
+// CHECK:         0 |     class sycl::range<> MExtent
+// CHECK:         0 |       class sycl::detail::array<> (base)
+// CHECK:         0 |         size_t[1] common_array
+// CHECK:         8 |     class sycl::id<1> MIndex
+// CHECK:         8 |       class sycl::detail::array<> (base)
+// CHECK:         8 |         size_t[1] common_array
+// CHECK:        16 |     class sycl::id<1> MOffset
+// CHECK:        16 |       class sycl::detail::array<> (base)
+// CHECK:        16 |         size_t[1] common_array
+
+// CHECK:         0 | class sycl::item<2, false>
+// CHECK:         0 |   struct sycl::detail::ItemBase<2, false> MImpl
+// CHECK:         0 |     class sycl::range<2> MExtent
+// CHECK:         0 |       class sycl::detail::array<2> (base)
+// CHECK:         0 |         size_t[2] common_array
+// CHECK:        16 |     class sycl::id<2> MIndex
+// CHECK:        16 |       class sycl::detail::array<2> (base)
+// CHECK:        16 |         size_t[2] common_array
+// CHECK-NOT:    32 |     class sycl::id<2> MOffset
+// CHECK-NOT:    32 |       class sycl::detail::array<2> (base)
+// CHECK-NOT:    32 |         size_t[2] common_array
+
