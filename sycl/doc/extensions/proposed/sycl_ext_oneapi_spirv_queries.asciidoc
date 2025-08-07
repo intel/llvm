@@ -185,8 +185,10 @@ struct spirv_versions {
 _Remarks:_ Template parameter to `device::get_info`.
 
 _Returns:_ The SPIR-V versions that are supported by the device.
-When the device does not support `aspect::ext_oneapi_spirv`, this query returns
-an empty vector.
+If the device supports `aspect::ext_oneapi_spirv`, this query must return a
+non-empty vector.
+Otherwise, when the device does not support `aspect::ext_oneapi_spirv`, this
+query must return an empty vector.
 
 a|
 [frame=all,grid=none]
@@ -206,8 +208,8 @@ _Remarks:_ Template parameter to `device::get_info`.
 
 _Returns:_ The SPIR-V extended instruction sets that are supported by the device.
 SPIR-V extended instruction sets may be described on the SPIR-V registry.
-When the device does not support `aspect::ext_oneapi_spirv`, this query returns
-an empty vector.
+When the device does not support `aspect::ext_oneapi_spirv`, this query must
+return an empty vector.
 
 _Throws_: A synchronous `exception` with the `errc::feature_not_supported` error
 code if the device does not support `aspect::ext_oneapi_spirv_queries`.
@@ -230,8 +232,8 @@ _Remarks:_ Template parameter to `device::get_info`.
 
 _Returns:_ The SPIR-V extensions that are supported by the device.
 SPIR-V extensions may be described on the SPIR-V registry.
-When the device does not support `aspect::ext_oneapi_spirv`, this query returns
-an empty vector.
+When the device does not support `aspect::ext_oneapi_spirv`, this query must
+return an empty vector.
 
 _Throws_: A synchronous `exception` with the `errc::feature_not_supported` error
 code if the device does not support `aspect::ext_oneapi_spirv_queries`.
@@ -256,8 +258,8 @@ _Returns:_ The SPIR-V capabilities that are supported by the device.
 SPIR-V capabilities are described in the SPIR-V specification.
 Some capabilities may additionally require a specific SPIR-V version or SPIR-V
 extension.
-When the device does not support `aspect::ext_oneapi_spirv`, this query returns
-an empty vector.
+When the device does not support `aspect::ext_oneapi_spirv`, this query must
+return an empty vector.
 
 _Throws_: A synchronous `exception` with the `errc::feature_not_supported` error
 code if the device does not support `aspect::ext_oneapi_spirv_queries`.
