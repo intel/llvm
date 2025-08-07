@@ -94,6 +94,8 @@ jobs:
     - id: result
       shell: bash
       run: |
+        # Transform to format expected by `llvm-lit --filter-out "pattern1|pattern2|..."`.
+        # First, remove comments/empty lines, then join lines with "|" as separator.
         echo FILTER="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_2 | paste -sd '|')" >> $GITHUB_OUTPUT
 
   run_prebuilt_e2e_tests:
