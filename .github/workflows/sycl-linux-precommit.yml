@@ -158,8 +158,7 @@ jobs:
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
             extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER }}"'
-            # Use pre-built E2E from the container:
-            e2e_binaries_artifact: ''
+            e2e_binaries_artifact: 'in-container'
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:

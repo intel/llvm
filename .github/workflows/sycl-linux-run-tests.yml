@@ -62,8 +62,9 @@ on:
         description: |
           When set in modes other than `run-only` results in artifact upload.
           For `run-only` mode, if specified, means downloading pre-built
-          binaries from the artifact, otherwise they are expected to be part of
-          the container.
+          binaries from the artifact. If set to special value `in-container`
+          then the binaries are expected to be stored in the container image
+          instead of coming from an artifact.
         type: string
         default: ''
         required: False
