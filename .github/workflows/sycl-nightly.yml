@@ -77,10 +77,22 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
 
+          - name: Preview mode on AMD/HIP
+            runner: '["Linux", "amdgpu"]'
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: hip:gpu
+            extra_lit_opts: --param test-preview-mode=True
+
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: cuda:gpu
+
+          - name: Preview mode on NVIDIA/CUDA
+            runner: '["Linux", "cuda"]'
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
+            extra_lit_opts: --param test-preview-mode=True
 
           - name: Intel L0 Gen12 GPU
             runner: '["Linux", "gen12"]'
@@ -93,6 +105,11 @@ jobs:
           - name: Intel L0 Battlemage GPU
             runner: '["Linux", "bmg"]'
             target_devices: level_zero:gpu
+
+          - name: Preview mode on Intel L0 Battlemage GPU
+            runner: '["Linux", "bmg"]'
+            target_devices: level_zero:gpu
+            extra_lit_opts: --param test-preview-mode=True
 
           - name: Intel L0 Arc A-Series GPU
             runner: '["Linux", "arc"]'
