@@ -303,7 +303,7 @@ Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
 ### Build DPC++ toolchain with support for Native CPU
 
 Native CPU is a cpu device which by default has no other dependency than DPC++. This device works with all cpu targets supported by the DPC++ runtime.
-Supported targets include x86, Aarch64 and riscv_64 (See CI results for these targets on the [oneAPI Construction Kit github](https://github.com/uxlfoundation/oneapi-construction-kit/actions)).
+Supported targets include x86, Aarch64 and riscv_64.
 
 To enable Native CPU in a DPC++ build just add `--native_cpu` to the set of flags passed to `configure.py`.
 
