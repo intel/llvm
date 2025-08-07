@@ -40,6 +40,7 @@
 #include <memory>      // for shared_ptr
 #include <type_traits> // for enable_if_t
 
+
 /// \file accessor.hpp
 /// The file contains implementations of accessor class.
 ///
