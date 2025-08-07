@@ -1729,6 +1729,140 @@ static void invoke_kernel_function(kernel_function &function,
 
 } // namespace syclcompat
 ```
+The kernel_launcher class provides a utility for launching SYCL kernels
+through function wrappers, managing execution configurations such as SYCL
+queues, nd_range, and local memory size as thread-local variables. It allows
+kernel invocation through multiple overloads of launch, either by directly
+calling a function pointer with arguments, invoking a registered function
+wrapper, or using packed argument arrays for flexible invocation. The class
+also maintains a mapping of raw function pointers to launchable functors,
+enabling dynamic function registration.
+
+The wrapper_register class serves as a helper for registering kernel functions
+and invoking them through a wrapper. It supports constructing from a kernel
+function pointer,overloading operator() for kernel execution, and retrieving
+the original function pointer via get(), providing a mechanism for managing
+and invoking SYCL kernels dynamically.
+
+``` c++
+namespace syclcompat {
+/// Utility class for launching SYCL kernels through kernel
+/// function wrapper.
+/// For example:
+/// A SYCL kernel function:
+///   void kernel_func(int *ptr, sycl::nd_item<3> item);
+/// Kernel function wrapper:
+///   void kernel_func_wrapper(int *ptr) {
+///     sycl::queue queue = *syclcompat::kernel_launcher::_que;
+///     unsigned int localMemSize =
+///     syclcompat::kernel_launcher::_local_mem_size;
+///     sycl::nd_range<3> nr =
+///     syclcompat::kernel_launcher::_nr;
+///
+///     queue.parallel_for(
+///       nr,
+///       [=](sycl::nd_item<3> item_ct1) {
+///         kernel_func(ptr, item_ct1);
+///       });
+///   }
+/// Then launch the kernel through wrapper like:
+///   typedef void(*fpt)(int *);
+///   fpt fp = kernel_func_wrapper;
+///   syclcompat::kernel_launcher::launch(fp, syclcompat::dim3(1),
+///     syclcompat::dim3(1), 0, 0, device_ptr);
+/// If the origin function type is erased, then need to register it first:
+///   void *fp = (void *)wrapper_register(&kernel_func_wrapper).get();
+///   syclcompat::kernel_launcher::launch(fp, syclcompat::dim3(1),
+///     syclcompat::dim3(1), args, 0, 0);
+class kernel_launcher {
+public:
+  /// Variables for storing execution configuration.
+  static inline thread_local sycl::queue *_que = nullptr;
+  static inline thread_local sycl::nd_range<3> _nr = sycl::nd_range<3>();
+  static inline thread_local unsigned int _local_mem_size = 0;
+  /// Map for retrieving launchable functor from a raw pointer.
+  static inline std::map<
+      const void *,
+      std::function<void(dim3, dim3, void **, unsigned int, queue_ptr)>>
+      kernel_function_ptr_map;
+
+  /// Registers a kernel function pointer with a corresponding launchable
+  /// functor.
+  /// \param [in] func Pointer to the kernel function.
+  /// \param [in] launcher Functor to handle kernel invocation.
+  static void register_kernel_ptr(
+      const void *func,
+      std::function<void(dim3, dim3, void **, unsigned int, queue_ptr)>
+          launcher);
+  /// Launches a kernel function with arguments provided directly through
+  /// kernel function wrapper.
+  /// \tparam FuncT Type of the kernel function wrapper.
+  /// \tparam ArgsT Types of kernel arguments.
+  /// \param [in] func Pointer to the kernel function wrapper.
+  /// \param [in] group_range SYCL group range.
+  /// \param [in] local_range SYCL local range.
+  /// \param [in] local_mem_size The size of local memory required by the kernel
+  /// function.
+  /// \param [in] que SYCL queue used to execute kernel.
+  /// \param [in] args Kernel arguments.
+  template <typename FuncT, typename... ArgsT>
+  static std::enable_if_t<std::is_invocable_v<FuncT *, ArgsT...>, void>
+  launch(FuncT *func, dim3 group_range, dim3 local_range,
+         unsigned int local_mem_size, queue_ptr que, ArgsT... args);
+  /// Launches a kernel function through registered kernel function wrapper.
+  /// \param [in] func Pointer to the registered kernel function wrapper.
+  /// \param [in] group_range SYCL group range.
+  /// \param [in] local_range SYCL local range.
+  /// \param [in] args Array of pointers to kernel arguments.
+  /// \param [in] local_mem_size The size of local memory required by the kernel
+  /// function.
+  /// \param [in] que SYCL queue used to execute kernel.
+  static void launch(const void *func, dim3 group_range, dim3 local_range,
+                     void **args, unsigned int local_mem_size, queue_ptr que);
+  /// Launches a kernel function with packed arguments through kernel
+  /// function wrapper.
+  /// \tparam FuncT Type of the kernel function wrapper.
+  /// \param [in] func Pointer to the kernel function wrapper.
+  /// \param [in] group_range SYCL group range.
+  /// \param [in] local_range SYCL local range.
+  /// \param [in] args Array of pointers to kernel arguments.
+  /// \param [in] local_mem_size The size of local memory required by the kernel
+  /// function.
+  /// \param [in] que SYCL queue used to execute kernel.
+  template <typename FuncT>
+  static std::enable_if_t<std::is_function_v<FuncT>, void>
+  launch(FuncT *func, dim3 group_range, dim3 local_range, void **args,
+         unsigned int local_mem_size, queue_ptr que);
+};
+
+/// Helper class to register and invoke kernel functions through a wrapper.
+template <typename F> class wrapper_register;
+template <typename Ret, typename... Args>
+class wrapper_register<Ret (*)(Args...)> {
+public:
+  typedef Ret (*FT)(Args...);
+  FT func;
+  /// Constructor to register a kernel function pointer.
+  /// \param [in] fp Pointer to the kernel function.
+  wrapper_register(FT fp);
+  /// Invokes the kernel function through the stored kernel function wrapper.
+  /// \param [in] group_range SYCL group range.
+  /// \param [in] local_range SYCL local range.
+  /// \param [in] args Array of pointers to kernel arguments.
+  /// \param [in] local_mem_size The size of local memory required by the kernel
+  /// function.
+  /// \param [in] que SYCL queue used to execute kernel.
+  void operator()(dim3 group_range, dim3 local_range, void **args,
+                  unsigned int local_mem_size, queue_ptr que);
+  /// Retrieves the original kernel function pointer.
+  /// \return The original kernel function pointer.
+  const FT &get();
+  /// Implicit conversion to the original kernel function pointer.
+  /// \return The original kernel function pointer.
+  operator FT();
+};
+} // namespace syclcompat
+```
 
 ### Math Functions
 
