@@ -5,7 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -o %t.out
+// Shouldn't have to use -fsycl-decompose-functor,
+// See https://github.com/intel/llvm-test-suite/issues/18317
+// RUN: %{build} -fsycl-decompose-functor -o %t.out
 // RUN: %{run} %t.out
 //
 // The test checks functionality of the gather_rgba/scatter_rgba USM-based ESIMD

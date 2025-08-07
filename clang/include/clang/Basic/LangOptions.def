@@ -311,7 +311,7 @@ ENUM_LANGOPT(SYCLVersion  , SYCLMajorVersion, 2, SYCL_None, "Version of the SYCL
 LANGOPT(DeclareSPIRVBuiltins, 1, 0, "Declare SPIR-V builtin functions")
 LANGOPT(SYCLExplicitSIMD  , 1, 0, "SYCL compilation with explicit SIMD extension")
 LANGOPT(EnableDAEInSpirKernels , 1, 0, "Enable Dead Argument Elimination in SPIR kernels")
-LANGOPT(SYCLDecomposeStruct, 1, 1, "Force top level decomposition of SYCL functor")
+LANGOPT(SYCLDecomposeStruct, 1, 0, "Force top level decomposition of SYCL functor")
 LANGOPT(
     SYCLValueFitInMaxInt, 1, 1,
     "SYCL compiler assumes value fits within MAX_INT for member function of "

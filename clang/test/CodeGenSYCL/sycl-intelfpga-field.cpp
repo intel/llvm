@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-is-device -fsycl-decompose-functor -emit-llvm %s -o - | FileCheck %s
 
 // This test checks that proper IR is generated for kernel field initialization, including
 // 4 cases:

@@ -7270,11 +7270,11 @@ defm sycl_instrument_device_code
                     "(experimental)">>;
 defm sycl_decompose_functor
     : BoolFOption<"sycl-decompose-functor",
-          LangOpts<"SYCLDecomposeStruct">, DefaultTrue,
+          LangOpts<"SYCLDecomposeStruct">, DefaultFalse,
           PosFlag<SetTrue, [], [ClangOption, CLOption], "Do">,
           NegFlag<SetFalse, [], [ClangOption, CLOption], "Do not">,
           BothFlags<[], [ClangOption, CLOption, CC1Option],
-           " decompose SYCL functor if possible (experimental, CUDA only)">>;
+           " decompose SYCL functor if possible (default is false)">>;
 defm sycl_cuda_compat
     : BoolFOption<"sycl-cuda-compatibility", LangOpts<"SYCLCUDACompat">, DefaultFalse,
           PosFlag<SetTrue, [], [ClangOption, CLOption, CC1Option], "Enable CUDA compatibility mode (experimental). "

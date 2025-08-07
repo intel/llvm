@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -triple spir64 \
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-decompose-functor -triple spir64 \
 // RUN: -emit-llvm %s -o - | FileCheck %s
 // This test checks parameter IR generation for free functions with parameters
 // of non-decomposed struct type, work group memory type, dynamic work group memory type 
@@ -50,13 +50,9 @@ template void ff_6(KArgWithPtrArray<TestArrSize> KArg);
 // CHECK: %struct.NoPointers = type { i32 }
 // CHECK: %struct.Pointers = type { ptr addrspace(4), ptr addrspace(4) }
 // CHECK: %struct.Agg = type { %struct.NoPointers, i32, ptr addrspace(4), %struct.Pointers }
-// CHECK: %struct.__generated_Pointers = type { ptr addrspace(1), ptr addrspace(1) }
-// CHECK: %struct.__generated_Agg = type { %struct.NoPointers, i32, ptr addrspace(1), %struct.__generated_Pointers.4 }
-// CHECK: %struct.__generated_Pointers.4 = type { ptr addrspace(1), ptr addrspace(1) }
-// CHECK: %struct.__generated_KArgWithPtrArray = type { [3 x ptr addrspace(1)], [3 x i32], [3 x i32] }
 // CHECK: %struct.KArgWithPtrArray = type { [3 x ptr addrspace(4)], [3 x i32], [3 x i32] }
-// CHECK: define dso_local spir_kernel void @{{.*}}__sycl_kernel{{.*}}(ptr noundef byval(%struct.NoPointers) align 4 %__arg_S1, ptr noundef byval(%struct.__generated_Pointers) align 8 %__arg_S2, ptr noundef byval(%struct.__generated_Agg) align 8 %__arg_S3)
-// CHECK: define dso_local spir_kernel void @{{.*}}__sycl_kernel_ff_6{{.*}}(ptr noundef byval(%struct.__generated_KArgWithPtrArray) align 8 %__arg_KArg)
+// CHECK: define dso_local spir_kernel void @{{.*}}__sycl_kernel{{.*}}(ptr noundef byval(%struct.NoPointers) align 4 %__arg_S1, ptr noundef byval(%struct.Pointers) align 8 %__arg_S2, ptr noundef byval(%struct.Agg) align 8 %__arg_S3)
+// CHECK: define dso_local spir_kernel void @{{.*}}__sycl_kernel_ff_6{{.*}}(ptr noundef byval(%struct.KArgWithPtrArray) align 8 %__arg_KArg)
 
 __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]

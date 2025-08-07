@@ -320,13 +320,6 @@ ExprResult SemaSYCL::BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc,
       SYCLBuiltinBaseTypeExpr(Loc, SourceTy, Idx, BaseTy);
 }
 
-/// Returns true if the target requires a new type.
-/// This happens if a pointer to generic cannot be passed
-static bool targetRequiresNewType(ASTContext &Context) {
-  llvm::Triple T = Context.getTargetInfo().getTriple();
-  return !T.isNVPTX();
-}
-
 // This information is from Section 4.13 of the SYCL spec
 // https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf
 // This function returns false if the math lib function
@@ -1588,13 +1581,14 @@ class KernelObjVisitor {
 public:
   KernelObjVisitor(SemaSYCL &S) : SemaSYCLRef(S) {}
 
-  static bool useTopLevelKernelObj(const CXXRecordDecl *KernelObj) {
+  static bool useTopLevelKernelObj(SemaSYCL &SemaSYCLRef,
+                                   const CXXRecordDecl *KernelObj) {
     // If the kernel is empty, "decompose" it so we don't generate arguments.
     if (KernelObj->isEmpty())
       return false;
     // FIXME: Workaround to not change large number of tests
     // this is covered by the test below.
-    if (targetRequiresNewType(KernelObj->getASTContext()))
+    if (SemaSYCLRef.getLangOpts().SYCLDecomposeStruct)
       return false;
     if (KernelObj->hasAttr<SYCLRequiresDecompositionAttr>() ||
         KernelObj->hasAttr<SYCLGenerateNewTypeAttr>())
@@ -1633,7 +1627,7 @@ public:
   template <typename... HandlerTys>
   void VisitKernelRecord(const CXXRecordDecl *KernelObj,
                          QualType KernelFunctorTy, HandlerTys &...Handlers) {
-    if (!useTopLevelKernelObj(KernelObj)) {
+    if (!useTopLevelKernelObj(SemaSYCLRef, KernelObj)) {
       VisitRecordBases(KernelObj, Handlers...);
       VisitRecordFields(KernelObj, Handlers...);
     } else {
@@ -2307,12 +2301,12 @@ public:
   }
 
   bool handlePointerType(FieldDecl *, QualType) final {
-    PointerStack.back() = targetRequiresNewType(SemaSYCLRef.getASTContext());
+    PointerStack.back() = SemaSYCLRef.getLangOpts().SYCLDecomposeStruct;
     return true;
   }
 
   bool handlePointerType(ParmVarDecl *, QualType) final {
-    PointerStack.back() = targetRequiresNewType(SemaSYCLRef.getASTContext());
+    PointerStack.back() = SemaSYCLRef.getLangOpts().SYCLDecomposeStruct;
     return true;
   }
 
@@ -4156,7 +4150,7 @@ public:
                         FunctionDecl *KernelCallerFunc, bool IsSIMDKernel,
                         CXXMethodDecl *CallOperator)
       : SyclKernelFieldHandler(S),
-        UseTopLevelKernelObj(KernelObjVisitor::useTopLevelKernelObj(KernelObj)),
+        UseTopLevelKernelObj(KernelObjVisitor::useTopLevelKernelObj(S, KernelObj)),
         DeclCreator(DC),
         KernelObjClone(UseTopLevelKernelObj
                            ? nullptr
