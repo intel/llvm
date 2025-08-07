@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -39,7 +39,7 @@ if(NOT UR_FOUND_DPCXX)
     # Tests that require kernels can't be used if we aren't generating
     # device binaries
     message(WARNING
-        "UR_DPCXX is not defined, skipping some adapter tests for ${adapter}")
+        "UR_DPCXX is not defined, skipping kernels' tests for L0")
 else()
     add_conformance_kernels_test(link urProgramLink.cpp)
     add_l0_loader_kernels_test(kernel_create urKernelCreateWithNativeHandle.cpp)
