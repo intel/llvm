@@ -101,16 +101,16 @@ jobs:
           - name: Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: E2E tests with dev igc on Intel Arc A-Series Graphics
+          - name: Dev IGC / Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
             target_devices: level_zero:gpu
             use_igc_dev: true
             env: '{"LIT_FILTER":"Matrix/"}'
-          - name: E2E tests on Intel Ponte Vecchio GPU
+          - name: Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Dev IGC on Intel Ponte Vecchio GPU
+          - name: Dev IGC / Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
             target_devices: level_zero:gpu
