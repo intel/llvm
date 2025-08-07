@@ -1324,11 +1324,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
-    ur_usm_migration_flags_t /*flags*/, uint32_t numEventsInWaitList,
+    ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
-  void *HIPDevicePtr = const_cast<void *>(pMem);
   ur_device_handle_t Device = hQueue->getDevice();
+  hipDevice_t TargetDevice;
+  switch (flags) {
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    TargetDevice = Device->get();
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    TargetDevice = hipCpuDeviceId;
+    break;
+  default:
+    setErrorMessage("Invalid USM migration flag",
+                    UR_RESULT_ERROR_INVALID_ENUMERATION);
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+  void *HIPDevicePtr = const_cast<void *>(pMem);
 
 // HIP_POINTER_ATTRIBUTE_RANGE_SIZE is not an attribute in ROCM < 5,
 // so we can't perform this check for such cases.
@@ -1385,8 +1398,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
       return UR_RESULT_SUCCESS;
     }
 
-    UR_CHECK_ERROR(
-        hipMemPrefetchAsync(pMem, size, hQueue->getDevice()->get(), HIPStream));
+    UR_CHECK_ERROR(hipMemPrefetchAsync(pMem, size, TargetDevice, HIPStream));
     releaseEvent();
   } catch (ur_result_t Err) {
     return Err;

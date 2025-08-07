@@ -12,6 +12,7 @@
 #include <detail/cg.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <memory>
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -90,6 +91,10 @@ public:
   /// Boolean flag for whether the device_global had the device_image_scope
   /// property.
   bool MIsDeviceImageScoped = false;
+
+  /// Direction of USM prefetch / destination device.
+  sycl::ext::oneapi::experimental::prefetch_type MPrefetchType =
+      sycl::ext::oneapi::experimental::prefetch_type::device;
 
   // Program scope pipe information.
 
