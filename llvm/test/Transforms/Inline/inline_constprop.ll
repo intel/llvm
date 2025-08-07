@@ -374,3 +374,18 @@ bb.true:
 bb.false:
   ret float %x
 }
+
+define float @caller9() {
+; Check that we can constant-prop through fp intrinsics
+;
+; CHECK-LABEL: @caller9(
+; CHECK-NEXT: ret float 2.000000e+00
+  %x = call float @callee9(float 16.0)
+  ret float %x
+}
+
+define float @callee9(float %x) {
+  %s = call fast float @llvm.sqrt.f32(float %x)
+  %fs = call fast float @llvm.fpbuiltin.sqrt.f32(float %s)
+  ret float %fs
+}
