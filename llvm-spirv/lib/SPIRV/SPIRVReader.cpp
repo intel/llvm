@@ -1876,43 +1876,19 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpLifetimeStart: {
     SPIRVLifetimeStart *LTStart = static_cast<SPIRVLifetimeStart *>(BV);
     IRBuilder<> Builder(BB);
-    SPIRVWord Size = LTStart->getSize();
-    ConstantInt *S = nullptr;
     auto *Var = transValue(LTStart->getObject(), F, BB);
-    Var = Var->stripPointerCasts();
-    if (Size)
-      S = Builder.getInt64(Size);
-    if (Size == 0) {
-      auto *Alloca = cast<AllocaInst>(Var);
-      if (Alloca->getAllocatedType()->isSized())
-        Size = M->getDataLayout().getTypeAllocSize(Alloca->getAllocatedType());
-      else
-        Size = static_cast<SPIRVWord>(-1);
-    }
-    CallInst *Start = Builder.CreateLifetimeStart(Var, S);
+    CallInst *Start = Builder.CreateLifetimeStart(Var);
     return mapValue(BV, Start);
   }
 
   case OpLifetimeStop: {
     SPIRVLifetimeStop *LTStop = static_cast<SPIRVLifetimeStop *>(BV);
     IRBuilder<> Builder(BB);
-    SPIRVWord Size = LTStop->getSize();
-    ConstantInt *S = nullptr;
     auto *Var = transValue(LTStop->getObject(), F, BB);
-    Var = Var->stripPointerCasts();
-    if (Size)
-      S = Builder.getInt64(Size);
-    if (Size == 0) {
-      auto *Alloca = cast<AllocaInst>(Var);
-      if (Alloca->getAllocatedType()->isSized())
-        Size = M->getDataLayout().getTypeAllocSize(Alloca->getAllocatedType());
-      else
-        Size = static_cast<SPIRVWord>(-1);
-    }
     for (const auto &I : Var->users())
       if (auto *II = getLifetimeStartIntrinsic(dyn_cast<Instruction>(I)))
-        return mapValue(BV, Builder.CreateLifetimeEnd(II->getOperand(1), S));
-    return mapValue(BV, Builder.CreateLifetimeEnd(Var, S));
+        return mapValue(BV, Builder.CreateLifetimeEnd(II->getOperand(1)));
+    return mapValue(BV, Builder.CreateLifetimeEnd(Var));
   }
 
   case OpStore: {
