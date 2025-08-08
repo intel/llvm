@@ -1422,6 +1422,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       else
         TT = llvm::Triple(Target);
 
+      if (C.getInputArgs().hasArg(options::OPT_fsycl_fp64_conv_emu) &&
+          !(TT.isSPIRAOT() &&
+            TT.getSubArch() == llvm::Triple::SPIRSubArch_gen)) {
+        Diag(diag::warn_unsupported_fsycl_fp64_conv_emu_use);
+      }
+
       // Common diagnostic for both OpenMP and SYCL.
       if (TT.getArch() == llvm::Triple::ArchType::UnknownArch ||
           (Kind == Action::OFK_SYCL && !isValidSYCLTriple(TT))) {
