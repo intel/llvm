@@ -2118,6 +2118,18 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     addImage(&(DeviceBinary->DeviceBinaries[I]));
 }
 
+template <typename MultimapT, typename KeyT, typename ValT>
+void removeFromMultimap(MultimapT &Map, const KeyT &Key, const ValT &Val,
+                        bool AssertContains = true) {
+  auto [RangeBegin, RangeEnd] = Map.equal_range(Key);
+  auto It = std::find_if(RangeBegin, RangeEnd,
+                         [&](const auto &Pair) { return Pair.second == Val; });
+  if (!AssertContains && It == RangeEnd)
+    return;
+  assert(It != RangeEnd);
+  Map.erase(It);
+}
+
 void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
   if (DeviceBinary->NumDeviceBinaries == 0)
     return;
@@ -2146,7 +2158,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       const char *Name = EntriesIt->GetName();
       // Drop entry for service kernel
       if (std::strstr(Name, "__sycl_service_kernel__")) {
-        m_ServiceKernels.erase(Name);
+        removeFromMultimap(m_ServiceKernels, Name, Img);
         continue;
       }
 
@@ -2169,15 +2181,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
           m_KernelIDs2BinImage.erase(It->second);
           m_KernelName2KernelIDs.erase(It);
         } else {
-          auto [RangeBegin, RangeEnd] =
-              m_KernelIDs2BinImage.equal_range(It->second);
-
-          auto ID2ImgIt =
-              std::find_if(RangeBegin, RangeEnd, [&](const auto &Pair) {
-                return Pair.second == Img;
-              });
-          assert(ID2ImgIt != RangeEnd);
-          m_KernelIDs2BinImage.erase(ID2ImgIt);
+          removeFromMultimap(m_KernelIDs2BinImage, It->second, Img);
         }
       }
 
@@ -2195,20 +2199,23 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // unmap loop)
     for (const sycl_device_binary_property &ESProp :
          Img->getExportedSymbols()) {
-      auto [RangeBegin, RangeEnd] =
-          m_ExportedSymbolImages.equal_range(ESProp->Name);
-      auto It = std::find_if(RangeBegin, RangeEnd, [&](const auto &Pair) {
-        return Pair.second == Img;
-      });
-      if (It != RangeEnd)
-        m_ExportedSymbolImages.erase(It);
+      removeFromMultimap(m_ExportedSymbolImages, ESProp->Name, Img,
+                         /*AssertContains*/ false);
     }
 
     for (const sycl_device_binary_property &VFProp :
          Img->getVirtualFunctions()) {
       std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
-      for (const auto &SetName : detail::split_string(StrValue, ','))
-        m_VFSet2BinImage.erase(SetName);
+      for (const auto &SetName : detail::split_string(StrValue, ',')) {
+        auto It = m_VFSet2BinImage.find(SetName);
+        assert(It != m_VFSet2BinImage.end());
+        auto &ImgSet = It->second;
+        auto ImgIt = ImgSet.find(Img);
+        assert(ImgIt != ImgSet.end());
+        ImgSet.erase(ImgIt);
+        if (ImgSet.empty())
+          m_VFSet2BinImage.erase(It);
+      }
     }
 
     m_DeviceGlobals.eraseEntries(Img);

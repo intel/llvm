@@ -137,6 +137,16 @@ std::string generateRefName(const std::string &ImageId,
   return FeatureName + "_" + ImageId;
 }
 
+std::vector<std::string>
+generateRefNames(const std::vector<std::string> &ImageIds,
+                 const std::string &FeatureName) {
+  std::vector<std::string> RefNames;
+  RefNames.reserve(ImageIds.size());
+  for (const std::string &ImageId : ImageIds)
+    RefNames.push_back(generateRefName(ImageId, FeatureName));
+  return RefNames;
+}
+
 sycl::ext::oneapi::experimental::device_global<int> DeviceGlobalA;
 sycl::ext::oneapi::experimental::device_global<int> DeviceGlobalB;
 sycl::ext::oneapi::experimental::device_global<int> DeviceGlobalC;
@@ -148,7 +158,8 @@ using PipeA = sycl::ext::intel::experimental::pipe<PipeIDA, int, 10>;
 using PipeB = sycl::ext::intel::experimental::pipe<PipeIDB, int, 10>;
 using PipeC = sycl::ext::intel::experimental::pipe<PipeIDC, int, 10>;
 
-sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId) {
+sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId,
+                                              bool AddHostPipes = true) {
   sycl::unittest::MockPropertySet PropSet;
 
   std::initializer_list<std::string> KernelNames{
@@ -186,11 +197,11 @@ sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId) {
       std::vector<sycl::unittest::MockProperty>{
           sycl::unittest::makeDeviceGlobalInfo(
               generateRefName(ImageId, "DeviceGlobal"), sizeof(int), 0)});
-
-  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_HOST_PIPES,
-                 std::vector<sycl::unittest::MockProperty>{
-                     sycl::unittest::makeHostPipeInfo(
-                         generateRefName(ImageId, "HostPipe"), sizeof(int))});
+  if (AddHostPipes)
+    PropSet.insert(__SYCL_PROPERTY_SET_SYCL_HOST_PIPES,
+                   std::vector<sycl::unittest::MockProperty>{
+                       sycl::unittest::makeHostPipeInfo(
+                           generateRefName(ImageId, "HostPipe"), sizeof(int))});
   std::vector<unsigned char> Bin{0};
 
   std::vector<sycl::unittest::MockOffloadEntry> Entries =
@@ -234,6 +245,11 @@ static std::array<sycl::unittest::MockDeviceImage, 2> ImagesToKeep = {
 static std::array<sycl::unittest::MockDeviceImage, 1> ImagesToRemove = {
     generateImage("C")};
 
+static std::array<sycl::unittest::MockDeviceImage, 1> ImagesToKeepSameEntries =
+    {generateImage("A", /*AddHostPipe*/ false)};
+static std::array<sycl::unittest::MockDeviceImage, 1>
+    ImagesToRemoveSameEntries = {generateImage("A", /*AddHostPipe*/ false)};
+
 static std::array<sycl::unittest::MockDeviceImage, 2> ImagesToKeepKernelOnly = {
     generateImageKernelOnly("A"), generateImageKernelOnly("B")};
 static std::array<sycl::unittest::MockDeviceImage, 1> ImagesToRemoveKernelOnly =
@@ -256,86 +272,75 @@ void convertAndAddImages(
   PM.addImages(&AllBinaries);
 }
 
+template <typename T>
+void checkContainer(const T &Container, size_t ExpectedCount,
+                    const std::vector<std::string> &ExpectedEntries,
+                    const std::string &Comment) {
+  EXPECT_EQ(Container.size(), ExpectedCount) << Comment;
+  for (const std::string &Entry : ExpectedEntries) {
+    EXPECT_TRUE(Container.count(Entry) > 0) << Comment;
+  }
+}
+
+void checkAllInvolvedContainers(ProgramManagerExposed &PM,
+                                size_t ExpectedImgCount,
+                                size_t ExpectedEntryCount,
+                                const std::vector<std::string> &ImgIds,
+                                const std::string &CommentPostfix,
+                                bool MultipleImgsPerEntryTestCase = false) {
+  EXPECT_EQ(PM.getKernelID2BinImage().size(), ExpectedImgCount)
+      << "KernelID2BinImg " + CommentPostfix;
+  checkContainer(PM.getKernelName2KernelID(), ExpectedEntryCount,
+                 generateRefNames(ImgIds, "Kernel"),
+                 "KernelName2KernelID " + CommentPostfix);
+  EXPECT_EQ(PM.getBinImage2KernelId().size(), ExpectedImgCount)
+      << CommentPostfix;
+  checkContainer(PM.getServiceKernels(), ExpectedImgCount,
+                 generateRefNames(ImgIds, "__sycl_service_kernel__"),
+                 "Service kernels " + CommentPostfix);
+  checkContainer(PM.getExportedSymbolImages(), ExpectedImgCount,
+                 generateRefNames(ImgIds, "Exported"),
+                 "Exported symbol images " + CommentPostfix);
+  EXPECT_EQ(PM.getDeviceImages().size(), ExpectedImgCount)
+      << "Device images " + CommentPostfix;
+
+  checkContainer(PM.getVFSet2BinImage(), ExpectedEntryCount,
+                 generateRefNames(ImgIds, "VF"),
+                 "VFSet2BinImage " + CommentPostfix);
+  checkContainer(PM.getKernelNameRefCount(), ExpectedEntryCount,
+                 generateRefNames(ImgIds, "Kernel"),
+                 "Kernel name reference count " + CommentPostfix);
+  EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), ExpectedImgCount)
+      << "Eliminated kernel arg mask " + CommentPostfix;
+  checkContainer(PM.getKernelUsesAssert(), ExpectedEntryCount,
+                 generateRefNames(ImgIds, "Kernel"),
+                 "KernelUsesAssert " + CommentPostfix);
+  EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), ExpectedEntryCount)
+      << "Kernel implicit local arg pos " + CommentPostfix;
+
+  if (!MultipleImgsPerEntryTestCase) {
+    // FIXME expected to fail for now, device globals cleanup seems to be
+    // purging all info for symbols associated with the removed image.
+    checkContainer(PM.getDeviceGlobals(), ExpectedEntryCount,
+                   generateRefNames(ImgIds, "DeviceGlobal"),
+                   "Device globals " + CommentPostfix);
+
+    // The test case with the same entries in multiple images doesn't support
+    // host pipes since those are assumed to be unique.
+    checkContainer(PM.getHostPipes(), ExpectedEntryCount,
+                   generateRefNames(ImgIds, "HostPipe"),
+                   "Host pipes " + CommentPostfix);
+    EXPECT_EQ(PM.getPtrToHostPipe().size(), ExpectedEntryCount)
+        << "Pointer to host pipe " + CommentPostfix;
+  }
+}
+
 void checkAllInvolvedContainers(ProgramManagerExposed &PM, size_t ExpectedCount,
-                                const std::string &Comment) {
-  EXPECT_EQ(PM.getKernelID2BinImage().size(), ExpectedCount) << Comment;
-  {
-    EXPECT_EQ(PM.getKernelName2KernelID().size(), ExpectedCount) << Comment;
-    EXPECT_TRUE(
-        PM.getKernelName2KernelID().count(generateRefName("A", "Kernel")) > 0)
-        << Comment;
-    EXPECT_TRUE(
-        PM.getKernelName2KernelID().count(generateRefName("B", "Kernel")) > 0)
-        << Comment;
-  }
-  EXPECT_EQ(PM.getBinImage2KernelId().size(), ExpectedCount) << Comment;
-  {
-    EXPECT_EQ(PM.getServiceKernels().size(), ExpectedCount) << Comment;
-    EXPECT_TRUE(PM.getServiceKernels().count(
-                    generateRefName("A", "__sycl_service_kernel__")) > 0)
-        << Comment;
-    EXPECT_TRUE(PM.getServiceKernels().count(
-                    generateRefName("B", "__sycl_service_kernel__")) > 0)
-        << Comment;
-  }
-  {
-    EXPECT_EQ(PM.getExportedSymbolImages().size(), ExpectedCount) << Comment;
-    EXPECT_TRUE(PM.getExportedSymbolImages().count(
-                    generateRefName("A", "Exported")) > 0)
-        << Comment;
-    EXPECT_TRUE(PM.getExportedSymbolImages().count(
-                    generateRefName("B", "Exported")) > 0)
-        << Comment;
-  }
-  EXPECT_EQ(PM.getDeviceImages().size(), ExpectedCount) << Comment;
-  {
-    EXPECT_EQ(PM.getVFSet2BinImage().size(), ExpectedCount) << Comment;
-    EXPECT_TRUE(PM.getVFSet2BinImage().count(generateRefName("A", "VF")) > 0)
-        << Comment;
-    EXPECT_TRUE(PM.getVFSet2BinImage().count(generateRefName("B", "VF")) > 0)
-        << Comment;
-  }
-
-  {
-    EXPECT_EQ(PM.getKernelNameRefCount().size(), ExpectedCount) << Comment;
-    EXPECT_TRUE(
-        PM.getKernelNameRefCount().count(generateRefName("A", "Kernel")) > 0)
-        << Comment;
-    EXPECT_TRUE(
-        PM.getKernelNameRefCount().count(generateRefName("B", "Kernel")) > 0)
-        << Comment;
-  }
-
-  EXPECT_EQ(PM.getEliminatedKernelArgMask().size(), ExpectedCount) << Comment;
-  {
-    EXPECT_EQ(PM.getKernelUsesAssert().size(), ExpectedCount) << Comment;
-    EXPECT_TRUE(PM.getKernelUsesAssert().count(generateRefName("A", "Kernel")) >
-                0)
-        << Comment;
-    EXPECT_TRUE(PM.getKernelUsesAssert().count(generateRefName("B", "Kernel")) >
-                0)
-        << Comment;
-  }
-  EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), ExpectedCount) << Comment;
-
-  {
-    sycl::detail::DeviceGlobalMap &DeviceGlobalMap = PM.getDeviceGlobals();
-    EXPECT_EQ(DeviceGlobalMap.size(), ExpectedCount) << Comment;
-    EXPECT_TRUE(DeviceGlobalMap.count(generateRefName("A", "DeviceGlobal")) > 0)
-        << Comment;
-    EXPECT_TRUE(DeviceGlobalMap.count(generateRefName("B", "DeviceGlobal")) > 0)
-        << Comment;
-    EXPECT_EQ(DeviceGlobalMap.getPointerMap().size(), ExpectedCount) << Comment;
-  }
-
-  {
-    EXPECT_EQ(PM.getHostPipes().size(), ExpectedCount) << Comment;
-    EXPECT_TRUE(PM.getHostPipes().count(generateRefName("A", "HostPipe")) > 0)
-        << Comment;
-    EXPECT_TRUE(PM.getHostPipes().count(generateRefName("B", "HostPipe")) > 0)
-        << Comment;
-  }
-  EXPECT_EQ(PM.getPtrToHostPipe().size(), ExpectedCount) << Comment;
+                                const std::vector<std::string> &ImgIds,
+                                const std::string &CommentPostfix,
+                                bool CheckHostPipes = false) {
+  checkAllInvolvedContainers(PM, ExpectedCount, ExpectedCount, ImgIds,
+                             CommentPostfix, CheckHostPipes);
 }
 
 TEST(ImageRemoval, BaseContainers) {
@@ -363,12 +368,37 @@ TEST(ImageRemoval, BaseContainers) {
                             generateRefName("C", "HostPipe").c_str());
 
   checkAllInvolvedContainers(PM, ImagesToRemove.size() + ImagesToKeep.size(),
-                             "Check failed before removal");
+                             {"A", "B", "C"}, "check failed before removal");
 
   PM.removeImages(&TestBinaries);
 
-  checkAllInvolvedContainers(PM, ImagesToKeep.size(),
-                             "Check failed after removal");
+  checkAllInvolvedContainers(PM, ImagesToKeep.size(), {"A", "B"},
+                             "check failed after removal");
+}
+
+TEST(ImageRemoval, MultipleImagesPerEntry) {
+  ProgramManagerExposed PM;
+
+  sycl_device_binary_struct NativeImages[ImagesToKeepSameEntries.size()];
+  sycl_device_binaries_struct AllBinaries;
+  convertAndAddImages(PM, ImagesToKeepSameEntries, NativeImages, AllBinaries);
+
+  sycl_device_binary_struct
+      NativeImagesForRemoval[ImagesToRemoveSameEntries.size()];
+  sycl_device_binaries_struct TestBinaries;
+  convertAndAddImages(PM, ImagesToRemoveSameEntries, NativeImagesForRemoval,
+                      TestBinaries);
+
+  checkAllInvolvedContainers(
+      PM, ImagesToRemoveSameEntries.size() + ImagesToKeepSameEntries.size(),
+      /*ExpectedEntryCount*/ 1, {"A"}, "check failed before removal",
+      /*MultipleImgsPerEntryTestCase*/ true);
+
+  PM.removeImages(&TestBinaries);
+
+  checkAllInvolvedContainers(PM, ImagesToKeepSameEntries.size(), {"A"},
+                             "check failed after removal",
+                             /*MultipleImgsPerEntryTestCase*/ true);
 }
 
 TEST(ImageRemoval, NativePrograms) {
