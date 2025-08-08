@@ -376,7 +376,7 @@ bb.false:
 }
 
 define float @caller9() {
-; Check that we can constant-prop through fp intrinsics
+; Check that we can constant-prop through fp intrinsics.
 ;
 ; CHECK-LABEL: @caller9(
 ; CHECK-NEXT: ret float 2.000000e+00
