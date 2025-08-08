@@ -1423,11 +1423,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         TT = llvm::Triple(Target);
 
       // Common diagnostic for both OpenMP and SYCL.
-      if (TT.getArch() == llvm::Triple::ArchType::UnknownArch) {
+      if (TT.getArch() == llvm::Triple::ArchType::UnknownArch ||
+          (Kind == Action::OFK_SYCL && !isValidSYCLTriple(TT))) {
         Diag(diag::err_drv_invalid_or_unsupported_offload_target) << TT.str();
         continue;
       }
-      // TODO try to combine common code for OpenMP and SYCL.
+      // Check for duplicate target triple strings.
       std::string NormalizedName = TT.normalize();
       auto [TripleIt, Inserted] =
           FoundNormalizedTriples.try_emplace(NormalizedName, Target);
