@@ -158,8 +158,6 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
 } // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
-template <typename> struct is_struct_with_special_type;
-template <typename> struct struct_with_special_type_info;
 class dynamic_parameter_base;
 class dynamic_work_group_memory_base;
 class dynamic_local_accessor_base;
