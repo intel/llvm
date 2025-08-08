@@ -2172,13 +2172,11 @@ public:
   }
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    ++StructFieldDepth;
     return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *PD,
                    QualType ParamTy) final {
-    --StructFieldDepth;
     return true;
   }
 
@@ -4531,17 +4529,11 @@ public:
       Base = buildMemberExpr(Base, child);
     }
     for (auto it = CurrentStructs.rbegin(); it != CurrentStructs.rend(); ++it)
-      SemaSYCLRef.addStructWithSpecialType((*it)->getParent(),
-                                           (it + 1) == CurrentStructs.rend()
-                                               ? ParentStruct->getType()
-                                               : (*(it + 1))->getType());
+      SemaSYCLRef.addStructWithSpecialType((*it)->getParent());
     MemberExpr *MemberAccess = buildMemberExpr(Base, FD);
     createSpecialMethodCall(FieldTy->getAsCXXRecordDecl(), InitMethodName,
                             MemberAccess, BodyStmts);
-    SemaSYCLRef.addStructWithSpecialType(FD->getParent(),
-                                         CurrentStructs.size()
-                                             ? CurrentStructs.back()->getType()
-                                             : ParentStruct->getType());
+    SemaSYCLRef.addStructWithSpecialType(FD->getParent());
     return true;
   }
 

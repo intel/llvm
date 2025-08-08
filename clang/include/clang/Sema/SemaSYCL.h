@@ -270,9 +270,7 @@ private:
 
   // A map that keeps track of all structs encountered with
   // special types inside. Relevant for free function kernels only.
-  // The key stores the struct as a declaration and the value stores the struct
-  // as a QualType just to make it easier to use it.
-  llvm::DenseMap<const RecordDecl *, QualType> StructsWithSpecialTypes;
+  llvm::DenseSet<const RecordDecl *> StructsWithSpecialTypes;
 
 public:
   SemaSYCL(Sema &S);
@@ -325,8 +323,8 @@ public:
   }
 
   /// Add ParentStruct to StructsWithSpecialTypes.
-  void addStructWithSpecialType(const RecordDecl *ParentStruct, QualType Ty) {
-    StructsWithSpecialTypes[ParentStruct] = Ty;
+  void addStructWithSpecialType(const RecordDecl *ParentStruct) {
+    StructsWithSpecialTypes.insert(ParentStruct);
   }
 
   auto &getStructsWithSpecialType() const { return StructsWithSpecialTypes; }
