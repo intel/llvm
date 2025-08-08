@@ -57,8 +57,8 @@ class OutputFile:
         self.output_content = []
 
     def write_file(self):
-        with open(self.output_path, 'w') as f:
-            f.write('\n'.join(self.output_content))
+        with open(self.output_path, "w") as f:
+            f.write("\n".join(self.output_content))
 
     def println(self, text: str):
         self.output_content.append(text)
@@ -418,7 +418,9 @@ if __name__ == "__main__":
             log_func("")
             if args.produce_github_summary:
                 gh_summary.println(f"#### {entry['name']}:")
-                gh_summary.println(f"- Historic {entry['avg_type']}: {entry['hist_avg']}")
+                gh_summary.println(
+                    f"- Historic {entry['avg_type']}: {entry['hist_avg']}"
+                )
                 gh_summary.println(f"- Run result: {entry['value']}")
                 gh_summary.println(f"- Delta: {entry['delta']}")
                 gh_summary.println("")
@@ -429,7 +431,9 @@ if __name__ == "__main__":
             log.info("#")
             if args.produce_github_summary:
                 gh_summary.println("### Improvements")
-                gh_summary.println(f"<details><summary>{len(improvements)} improved tests:</summary>")
+                gh_summary.println(
+                    f"<details><summary>{len(improvements)} improved tests:</summary>"
+                )
                 gh_summary.println("")
             for test in improvements:
                 print_regression(test)
@@ -442,7 +446,9 @@ if __name__ == "__main__":
             log.info("#")
             if args.produce_github_summary:
                 gh_summary.println("### Regressions")
-                gh_summary.println(f"<details><summary>{len(regressions_ignored)} non CI-failing regressions:</summary>")
+                gh_summary.println(
+                    f"<details><summary>{len(regressions_ignored)} non CI-failing regressions:</summary>"
+                )
                 gh_summary.println("")
             for test in regressions_ignored:
                 print_regression(test)
@@ -455,10 +461,14 @@ if __name__ == "__main__":
             log.warning("#")
             if args.produce_github_summary:
                 gh_summary.println("### SYCL-Specific Regressions")
-                gh_summary.println("Regressions pertaining to non-experimental "
-                                   "SYCL benchmarks. These regressions warrant "
-                                   "a CI failure: ")
-                gh_summary.println(f"<details><summary>{len(regressions_of_concern)} CI-failing regressions:</summary>")
+                gh_summary.println(
+                    "Regressions pertaining to non-experimental "
+                    "SYCL benchmarks. These regressions warrant "
+                    "a CI failure: "
+                )
+                gh_summary.println(
+                    f"<details><summary>{len(regressions_of_concern)} CI-failing regressions:</summary>"
+                )
                 gh_summary.println("")
             for test in regressions_of_concern:
                 print_regression(test, is_warning=True)
@@ -471,7 +481,9 @@ if __name__ == "__main__":
                     gh_summary.println("### Failed benchmarks:")
                     gh_summary.println("")
                     for test in regressions_of_concern:
-                        gh_summary.println(f"- {test['name']}: Delta {round(test['delta']*100, 2)}%")
+                        gh_summary.println(
+                            f"- {test['name']}: Delta {round(test['delta']*100, 2)}%"
+                        )
                     gh_summary.write_file()
                 exit(1)  # Exit 1 to trigger github test failure
 
