@@ -729,23 +729,23 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   const bool xptiEnabled = xptiTraceEnabled();
-  auto StreamID = xpti::invalid_id<xpti::stream_id_t>;
   xpti_td *CmdTraceEvent = nullptr;
   uint64_t InstanceID = 0;
   if (xptiEnabled) {
-    StreamID = xptiRegisterStream(sycl::detail::SYCL_STREAM_NAME);
     sycl::detail::CGExecKernel *CGExec =
         static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
     sycl::detail::code_location CodeLoc(CGExec->MFileName.c_str(),
                                         CGExec->MFunctionName.c_str(),
                                         CGExec->MLine, CGExec->MColumn);
     std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
-        StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
-        CGExec->MKernelName.data(), CGExec->MKernelNameBasedCachePtr, nullptr,
-        CGExec->MNDRDesc, CGExec->MKernelBundle.get(), CGExec->MArgs);
+        sycl::detail::GSYCLStreamID, CGExec->MSyclKernel, CodeLoc,
+        CGExec->MIsTopCodeLoc, CGExec->MKernelName.data(),
+        CGExec->MKernelNameBasedCachePtr, nullptr, CGExec->MNDRDesc,
+        CGExec->MKernelBundle.get(), CGExec->MArgs);
     if (CmdTraceEvent)
-      sycl::detail::emitInstrumentationGeneral(
-          StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
+      sycl::detail::emitInstrumentationGeneral(sycl::detail::GSYCLStreamID,
+                                               InstanceID, CmdTraceEvent,
+                                               xpti::trace_task_begin, nullptr);
   }
 #endif
 
@@ -765,8 +765,9 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiEnabled && CmdTraceEvent)
-    sycl::detail::emitInstrumentationGeneral(
-        StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_end, nullptr);
+    sycl::detail::emitInstrumentationGeneral(sycl::detail::GSYCLStreamID,
+                                             InstanceID, CmdTraceEvent,
+                                             xpti::trace_task_end, nullptr);
 #endif
 
   return NewSyncPoint;

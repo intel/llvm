@@ -65,32 +65,31 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
   auto [urCtx, Adapter] = get_ur_handles(Ctxt);
   ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
 
-    ur_usm_desc_t UsmDesc{};
-    UsmDesc.align = Alignment;
+  ur_usm_desc_t UsmDesc{};
+  UsmDesc.align = Alignment;
 
-    ur_usm_alloc_location_desc_t UsmLocationDesc{};
-    UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
+  ur_usm_alloc_location_desc_t UsmLocationDesc{};
+  UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
 
-    if (PropList.has_property<
-            sycl::ext::intel::experimental::property::usm::buffer_location>() &&
-        Ctxt.get_platform().has_extension(
-            "cl_intel_mem_alloc_buffer_location")) {
-      UsmLocationDesc.location = static_cast<uint32_t>(
-          PropList
-              .get_property<sycl::ext::intel::experimental::property::usm::
-                                buffer_location>()
-              .get_buffer_location());
-      UsmDesc.pNext = &UsmLocationDesc;
-    }
+  if (PropList.has_property<
+          sycl::ext::intel::experimental::property::usm::buffer_location>() &&
+      Ctxt.get_platform().has_extension("cl_intel_mem_alloc_buffer_location")) {
+    UsmLocationDesc.location = static_cast<uint32_t>(
+        PropList
+            .get_property<sycl::ext::intel::experimental::property::usm::
+                              buffer_location>()
+            .get_buffer_location());
+    UsmDesc.pNext = &UsmLocationDesc;
+  }
 
-    Error = Adapter->call_nocheck<sycl::detail::UrApiKind::urUSMHostAlloc>(
-        urCtx, &UsmDesc,
-        /* pool= */ nullptr, Size, &RetVal);
+  Error = Adapter->call_nocheck<sycl::detail::UrApiKind::urUSMHostAlloc>(
+      urCtx, &UsmDesc,
+      /* pool= */ nullptr, Size, &RetVal);
 
-    // Error is for debugging purposes.
-    // The spec wants a nullptr returned, not an exception.
-    if (Error != UR_RESULT_SUCCESS)
-      return nullptr;
+  // Error is for debugging purposes.
+  // The spec wants a nullptr returned, not an exception.
+  if (Error != UR_RESULT_SUCCESS)
+    return nullptr;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   xpti::addMetadata(PrepareNotify.traceEvent(), "memory_ptr",
                     reinterpret_cast<size_t>(RetVal));
@@ -105,9 +104,6 @@ inline namespace _V1 {
 using alloc = sycl::usm::alloc;
 
 namespace detail {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-extern xpti::trace_event_data_t *GSYCLGraphEvent;
-#endif
 namespace usm {
 
 void *alignedAllocInternal(size_t Alignment, size_t Size,
