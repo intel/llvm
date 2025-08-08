@@ -281,6 +281,7 @@ LANGOPT(SYCLCUDACompat, 1, 0,
 ENUM_LANGOPT(SYCLRangeRounding, SYCLRangeRoundingPreference, 2,
     SYCLRangeRoundingPreference::On, NotCompatible,
     "Preference for SYCL parallel_for range rounding")
+
 LANGOPT(SYCLExperimentalRangeRounding, 1, 0, NotCompatible, "Use experimental parallel for range rounding")
 LANGOPT(SYCLEnableIntHeaderDiags, 1, 0, NotCompatible, "Enable diagnostics that require the SYCL integration header")
 LANGOPT(SYCLRTCMode, 1, 0, NotCompatible, "Compile in RTC mode")
