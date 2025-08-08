@@ -25,6 +25,10 @@ inputs:
   preset:
     type: string
     required: True
+  build_ref:
+    type: string
+    required: False
+    default: ""
   dry_run:
     type: string
     required: False
@@ -90,6 +94,41 @@ runs:
 
       ZE_AFFINITY_MASK=0
       echo "ZE_AFFINITY_MASK=$ZE_AFFINITY_MASK" >> $GITHUB_ENV
+
+  # Compute-benchmarks relies on UR static libraries, cmake config files, etc.
+  # DPC++ doesn't ship with these files. The easiest way of obtaining these
+  # files is to build from scratch.
+  #
+  # TODO This is not the best place for this. We should come up with
+  # alternatives. A suggestion: Output UR builds as artifacts in ur_build_hw.yml
+  # and unpack it here instead.
+  #
+  # If we insist on not building the UR again, sycl_linux_build.yml can be
+  # modified output the entire sycl build dir as an artifact, in which the
+  # intermediate files required can be stitched together from the build files.
+  # However, this is not exactly "clean" or "fun to maintain"...
+  - name: Build Unified Runtime
+    shell: bash
+    run: |
+      # Sparse-checkout UR at build ref:
+      mkdir ur; cd ur
+      git clone --depth 1 --no-checkout https://github.com/intel/llvm
+      git sparse-checkout init
+      git sparse-checkout set unified-runtime
+      git checkout ${{ inputs.build_ref }}
+      
+      # Configure UR
+      mkdir build install
+      cmake -DCMAKE_BUILD_TYPE=Release \
+        -Sunified-runtime \
+        -Bbuild \
+        -DUR_BUILD_TESTS=OFF \
+        -DUR_BUILD_ADAPTER_L0=ON \
+        -DUR_BUILD_ADAPTER_L0_V2=ON
+
+      # Build UR
+      cmake --build build -j "$(nproc)" 
+      cmake --install install
   - name: Checkout results repo
     shell: bash
     run: |
@@ -152,6 +191,7 @@ runs:
       taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
         "$(realpath ./llvm_test_workdir)" \
         --sycl "$(realpath ./toolchain)" \
+        --ur "$(realpath ./ur/install)" \
         --adapter "$FORCELOAD_ADAPTER" \
         --save "$SAVE_NAME" \
         --output-html remote \
