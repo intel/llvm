@@ -12,7 +12,9 @@
 
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
-#include <detail/graph_impl.hpp>
+#include <detail/graph/dynamic_impl.hpp>
+#include <detail/graph/graph_impl.hpp>
+#include <detail/graph/node_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/helpers.hpp>
 #include <detail/host_task.hpp>
@@ -34,6 +36,7 @@
 #include <sycl/stream.hpp>
 
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 
@@ -42,6 +45,17 @@ inline namespace _V1 {
 
 namespace detail {
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: Check if two ABI exports below are still necessary.
+#endif
+device_impl &getDeviceImplFromHandler(handler &CGH) {
+  return getSyclObjImpl(CGH)->get_device();
+}
+
+device getDeviceFromHandler(handler &CGH) {
+  return createSyclObjFromImpl<device>(getSyclObjImpl(CGH)->get_device());
+}
+
 bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
@@ -49,8 +63,8 @@ bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
   return DGEntry && !DGEntry->MImageIdentifiers.empty();
 }
 
-ur_exp_image_copy_flags_t getUrImageCopyFlags(sycl::usm::alloc SrcPtrType,
-                                              sycl::usm::alloc DstPtrType) {
+static ur_exp_image_copy_flags_t
+getUrImageCopyFlags(sycl::usm::alloc SrcPtrType, sycl::usm::alloc DstPtrType) {
   if (DstPtrType == sycl::usm::alloc::device) {
     // Dest is on device
     if (SrcPtrType == sycl::usm::alloc::device)
@@ -68,8 +82,7 @@ ur_exp_image_copy_flags_t getUrImageCopyFlags(sycl::usm::alloc SrcPtrType,
       return UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST;
     if (SrcPtrType == sycl::usm::alloc::host ||
         SrcPtrType == sycl::usm::alloc::unknown)
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Cannot copy image from host to host");
+      return UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST;
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unknown copy source location");
   }
@@ -83,24 +96,286 @@ void *getValueFromDynamicParameter(
   return sycl::detail::getSyclObjImpl(DynamicParamBase)->getValue();
 }
 
+// Bindless image helpers
+
+constexpr size_t get_channel_size(
+    const sycl::ext::oneapi::experimental::image_descriptor &Desc) {
+  switch (Desc.channel_type) {
+  case sycl::image_channel_type::fp16:
+    return sizeof(sycl::half);
+  case sycl::image_channel_type::fp32:
+    return sizeof(float);
+  case sycl::image_channel_type::snorm_int8:
+  case sycl::image_channel_type::unorm_int8:
+  case sycl::image_channel_type::signed_int8:
+  case sycl::image_channel_type::unsigned_int8:
+    return sizeof(uint8_t);
+  case sycl::image_channel_type::snorm_int16:
+  case sycl::image_channel_type::unorm_int16:
+  case sycl::image_channel_type::signed_int16:
+  case sycl::image_channel_type::unsigned_int16:
+    return sizeof(uint16_t);
+  case sycl::image_channel_type::signed_int32:
+  case sycl::image_channel_type::unsigned_int32:
+    return sizeof(uint32_t);
+  default:
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Unsupported channel type");
+    return 0;
+  }
+}
+
+// Fill image type and return depth or array_size
+static unsigned int
+fill_image_type(const ext::oneapi::experimental::image_descriptor &Desc,
+                ur_image_desc_t &UrDesc) {
+  if (Desc.array_size > 1) {
+    // Image Array.
+    UrDesc.type =
+        Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY : UR_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    UrDesc.type =
+        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+        : Desc.type == sycl::ext::oneapi::experimental::image_type::gather
+            ? UR_MEM_TYPE_IMAGE_GATHER_EXP
+            : UrDesc.type;
+
+    return Desc.array_size;
+  }
+
+  UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
+                               : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
+                                                  : UR_MEM_TYPE_IMAGE1D);
+  return Desc.depth;
+}
+
+// Fill image format
+static ur_image_format_t
+fill_format(const ext::oneapi::experimental::image_descriptor &Desc) {
+  ur_image_format_t PiFormat;
+
+  PiFormat.channelType =
+      sycl::_V1::detail::convertChannelType(Desc.channel_type);
+  PiFormat.channelOrder = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(Desc.num_channels));
+
+  return PiFormat;
+}
+
+static void
+verify_copy(const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+            const ext::oneapi::experimental::image_descriptor &DestImgDesc) {
+
+  if (SrcImgDesc.width != DestImgDesc.width ||
+      SrcImgDesc.height != DestImgDesc.height ||
+      SrcImgDesc.depth != DestImgDesc.depth) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: The source image and the destination "
+                          "image must have equal dimensions!");
+  }
+
+  if (SrcImgDesc.num_channels != DestImgDesc.num_channels) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: The source image and the destination "
+                          "image must have the same number of channels!");
+  }
+}
+
+static void
+verify_sub_copy(const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+                sycl::range<3> SrcOffset,
+                const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+                sycl::range<3> DestOffset, sycl::range<3> CopyExtent) {
+
+  auto isOutOfRange = [](const sycl::range<3> &range,
+                         const sycl::range<3> &offset,
+                         const sycl::range<3> &copyExtent) {
+    sycl::range<3> result = (range > 0UL && ((offset + copyExtent) > range));
+
+    return (static_cast<bool>(result[0]) || static_cast<bool>(result[1]) ||
+            static_cast<bool>(result[2]));
+  };
+
+  sycl::range<3> SrcImageSize = {SrcImgDesc.width, SrcImgDesc.height,
+                                 SrcImgDesc.depth};
+  sycl::range<3> DestImageSize = {DestImgDesc.width, DestImgDesc.height,
+                                  DestImgDesc.depth};
+
+  if (isOutOfRange(SrcImageSize, SrcOffset, CopyExtent) ||
+      isOutOfRange(DestImageSize, DestOffset, CopyExtent)) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Copy Error: Image copy attempted to access out of bounds memory!");
+  }
+
+  if (SrcImgDesc.num_channels != DestImgDesc.num_channels) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: The source image and the destination "
+                          "image must have the same number of channels!");
+  }
+}
+
+static ur_image_desc_t
+fill_image_desc(const ext::oneapi::experimental::image_descriptor &ImgDesc) {
+  ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
+  UrDesc.width = ImgDesc.width;
+  UrDesc.height = ImgDesc.height;
+  UrDesc.depth = ImgDesc.depth;
+  UrDesc.arraySize = ImgDesc.array_size;
+  return UrDesc;
+}
+
+static void
+fill_copy_args(detail::handler_impl *impl,
+               const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+               const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+               ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch,
+               size_t DestPitch, sycl::range<3> SrcOffset = {0, 0, 0},
+               sycl::range<3> SrcExtent = {0, 0, 0},
+               sycl::range<3> DestOffset = {0, 0, 0},
+               sycl::range<3> DestExtent = {0, 0, 0},
+               sycl::range<3> CopyExtent = {0, 0, 0}) {
+  SrcImgDesc.verify();
+  DestImgDesc.verify();
+
+  // CopyExtent.size() should only be greater than 0 when sub-copy is occurring.
+  if (CopyExtent.size() == 0) {
+    detail::verify_copy(SrcImgDesc, DestImgDesc);
+  } else {
+    detail::verify_sub_copy(SrcImgDesc, SrcOffset, DestImgDesc, DestOffset,
+                            CopyExtent);
+  }
+
+  ur_image_desc_t UrSrcDesc = detail::fill_image_desc(SrcImgDesc);
+  ur_image_desc_t UrDestDesc = detail::fill_image_desc(DestImgDesc);
+  ur_image_format_t UrSrcFormat = detail::fill_format(SrcImgDesc);
+  ur_image_format_t UrDestFormat = detail::fill_format(DestImgDesc);
+  auto ZCopyExtentComponent = detail::fill_image_type(SrcImgDesc, UrSrcDesc);
+  detail::fill_image_type(DestImgDesc, UrDestDesc);
+
+  impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
+  impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
+  impl->MSrcImageDesc = UrSrcDesc;
+  impl->MDstImageDesc = UrDestDesc;
+  impl->MSrcImageFormat = UrSrcFormat;
+  impl->MDstImageFormat = UrDestFormat;
+  impl->MImageCopyFlags = ImageCopyFlags;
+
+  if (CopyExtent.size() != 0) {
+    impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
+  } else {
+    impl->MCopyExtent = {SrcImgDesc.width, SrcImgDesc.height,
+                         ZCopyExtentComponent};
+  }
+
+  if (SrcExtent.size() != 0) {
+    impl->MSrcImageDesc.width = SrcExtent[0];
+    impl->MSrcImageDesc.height = SrcExtent[1];
+    impl->MSrcImageDesc.depth = SrcExtent[2];
+  }
+
+  if (DestExtent.size() != 0) {
+    impl->MDstImageDesc.width = DestExtent[0];
+    impl->MDstImageDesc.height = DestExtent[1];
+    impl->MDstImageDesc.depth = DestExtent[2];
+  }
+
+  impl->MSrcImageDesc.rowPitch = SrcPitch;
+  impl->MDstImageDesc.rowPitch = DestPitch;
+}
+
+static void
+fill_copy_args(detail::handler_impl *impl,
+               const ext::oneapi::experimental::image_descriptor &Desc,
+               ur_exp_image_copy_flags_t ImageCopyFlags,
+               sycl::range<3> SrcOffset = {0, 0, 0},
+               sycl::range<3> SrcExtent = {0, 0, 0},
+               sycl::range<3> DestOffset = {0, 0, 0},
+               sycl::range<3> DestExtent = {0, 0, 0},
+               sycl::range<3> CopyExtent = {0, 0, 0}) {
+
+  size_t SrcPitch = SrcExtent[0] * Desc.num_channels * get_channel_size(Desc);
+  size_t DestPitch = DestExtent[0] * Desc.num_channels * get_channel_size(Desc);
+
+  fill_copy_args(impl, Desc, Desc, ImageCopyFlags, SrcPitch, DestPitch,
+                 SrcOffset, SrcExtent, DestOffset, DestExtent, CopyExtent);
+}
+
+static void
+fill_copy_args(detail::handler_impl *impl,
+               const ext::oneapi::experimental::image_descriptor &Desc,
+               ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch,
+               size_t DestPitch, sycl::range<3> SrcOffset = {0, 0, 0},
+               sycl::range<3> SrcExtent = {0, 0, 0},
+               sycl::range<3> DestOffset = {0, 0, 0},
+               sycl::range<3> DestExtent = {0, 0, 0},
+               sycl::range<3> CopyExtent = {0, 0, 0}) {
+
+  fill_copy_args(impl, Desc, Desc, ImageCopyFlags, SrcPitch, DestPitch,
+                 SrcOffset, SrcExtent, DestOffset, DestExtent, CopyExtent);
+}
+
+static void
+fill_copy_args(detail::handler_impl *impl,
+               const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+               const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+               ur_exp_image_copy_flags_t ImageCopyFlags,
+               sycl::range<3> SrcOffset = {0, 0, 0},
+               sycl::range<3> SrcExtent = {0, 0, 0},
+               sycl::range<3> DestOffset = {0, 0, 0},
+               sycl::range<3> DestExtent = {0, 0, 0},
+               sycl::range<3> CopyExtent = {0, 0, 0}) {
+
+  size_t SrcPitch =
+      SrcExtent[0] * SrcImgDesc.num_channels * get_channel_size(SrcImgDesc);
+  size_t DestPitch =
+      DestExtent[0] * DestImgDesc.num_channels * get_channel_size(DestImgDesc);
+
+  fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags, SrcPitch,
+                 DestPitch, SrcOffset, SrcExtent, DestOffset, DestExtent,
+                 CopyExtent);
+}
+
 } // namespace detail
 
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 bool CallerNeedsEvent)
-    : handler(Queue, Queue, nullptr, CallerNeedsEvent) {}
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+handler::handler(detail::handler_impl &HandlerImpl) : impl(&HandlerImpl) {}
+handler::handler(std::unique_ptr<detail::handler_impl> &&HandlerImpl)
+    : implOwner(std::move(HandlerImpl)), impl(implOwner.get()) {}
+#else
+handler::handler(std::unique_ptr<detail::handler_impl> &&HandlerImpl)
+    : impl(std::move(HandlerImpl)) {}
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
                  bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
-                                                  std::move(SecondaryQueue),
+    : impl(std::make_shared<detail::handler_impl>(*Queue, nullptr,
                                                   CallerNeedsEvent)),
-      MQueue(std::move(Queue)) {}
+      MQueueDoNotUse(std::move(Queue)) {}
+
+handler::handler(
+    std::shared_ptr<detail::queue_impl> Queue,
+    [[maybe_unused]] std::shared_ptr<detail::queue_impl> PrimaryQueue,
+    std::shared_ptr<detail::queue_impl> SecondaryQueue, bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(*Queue, SecondaryQueue.get(),
+                                                  CallerNeedsEvent)),
+      MQueueDoNotUse(Queue) {}
+
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+                 detail::queue_impl *SecondaryQueue, bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(*Queue, SecondaryQueue,
+                                                  CallerNeedsEvent)),
+      MQueueDoNotUse(std::move(Queue)) {}
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
-    : impl(std::make_shared<detail::handler_impl>(Graph)) {}
+    : impl(std::make_shared<detail::handler_impl>(*Graph)) {}
+
+#endif
+handler::~handler() = default;
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
@@ -120,27 +395,54 @@ bool handler::isStateExplicitKernelBundle() const {
   return impl->isStateExplicitKernelBundle();
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // Returns a shared_ptr to the kernel_bundle.
 // If there is no kernel_bundle created:
 // returns newly created kernel_bundle if Insert is true
 // returns shared_ptr(nullptr) if Insert is false
 std::shared_ptr<detail::kernel_bundle_impl>
 handler::getOrInsertHandlerKernelBundle(bool Insert) const {
-  if (!impl->MKernelBundle && Insert) {
-    auto Ctx =
-        impl->MGraph ? impl->MGraph->getContext() : MQueue->get_context();
-    auto Dev = impl->MGraph ? impl->MGraph->getDevice() : MQueue->get_device();
-    impl->MKernelBundle = detail::getSyclObjImpl(
-        get_kernel_bundle<bundle_state::input>(Ctx, {Dev}, {}));
-  }
+  if (impl->MKernelBundle || !Insert)
+    return impl->MKernelBundle;
+
+  context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
+  impl->MKernelBundle =
+      detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
+          Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
+          {}));
   return impl->MKernelBundle;
+}
+#endif
+
+// Returns a ptr to the kernel_bundle.
+// If there is no kernel_bundle created:
+// returns newly created kernel_bundle if Insert is true
+// returns nullptr if Insert is false
+detail::kernel_bundle_impl *
+handler::getOrInsertHandlerKernelBundlePtr(bool Insert) const {
+  if (impl->MKernelBundle || !Insert)
+    return impl->MKernelBundle.get();
+
+  context Ctx = detail::createSyclObjFromImpl<context>(impl->get_context());
+  impl->MKernelBundle =
+      detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
+          Ctx, {detail::createSyclObjFromImpl<device>(impl->get_device())},
+          {}));
+  return impl->MKernelBundle.get();
 }
 
 // Sets kernel bundle to the provided one.
+template <typename SharedPtrT>
+void handler::setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr) {
+  impl->MKernelBundle = std::forward<SharedPtrT>(NewKernelBundleImpPtr);
+}
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setHandlerKernelBundle(
     const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr) {
   impl->MKernelBundle = NewKernelBundleImpPtr;
 }
+#endif
 
 void handler::setHandlerKernelBundle(kernel Kernel) {
   // Kernel may not have an associated kernel bundle if it is created from a
@@ -148,15 +450,55 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
   //  the other way around: getSyclObjImp(Kernel->get_kernel_bundle()).
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpl =
       detail::getSyclObjImpl(Kernel)->get_kernel_bundle();
-  setHandlerKernelBundle(KernelBundleImpl);
+  setHandlerKernelBundle(std::move(KernelBundleImpl));
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+detail::EventImplPtr handler::finalize() {
+#else
 event handler::finalize() {
-  // This block of code is needed only for reduction implementation.
-  // It is harmless (does nothing) for everything else.
-  if (MIsFinalized)
-    return MLastEvent;
-  MIsFinalized = true;
+#endif
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Old reduction implementation, prior to
+  //   https://github.com/intel/llvm/pull/18794
+  //   https://github.com/intel/llvm/pull/18898
+  //   https://github.com/intel/llvm/pull/19203
+  // relied on explicit calls to handler::finalize and those calls were inlined
+  // into the user applications. As such, we have to preserve the following
+  // behavior for ABI-compatibility purposes:
+  if (MIsFinalizedDoNotUse)
+    return MLastEventDoNotUse;
+
+  MIsFinalizedDoNotUse = true;
+  // Use macros to trick clang-format:
+#define WRAP_BODY_BEGIN MLastEventDoNotUse = [this]() {
+#define WRAP_BODY_END                                                          \
+  }                                                                            \
+  ();                                                                          \
+  return MLastEventDoNotUse;
+
+  WRAP_BODY_BEGIN
+#endif
+
+  const auto &type = getType();
+  detail::queue_impl *Queue = impl->get_queue_or_null();
+  ext::oneapi::experimental::detail::graph_impl *Graph =
+      impl->get_graph_or_null();
+  const bool KernelFastPath =
+      (Queue && !Graph && !impl->MSubgraphNode && !Queue->hasCommandGraph() &&
+       !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
+       detail::Scheduler::areEventsSafeForSchedulerBypass(
+           impl->CGData.MEvents, Queue->getContextImpl()));
+
+  // Extract arguments from the kernel lambda, if required.
+  // Skipping this is currently limited to simple kernels on the fast path.
+  if (type == detail::CGType::Kernel && impl->MKernelFuncPtr &&
+      (!KernelFastPath || impl->MKernelHasSpecialCaptures)) {
+    clearArgs();
+    extractArgsAndReqsFromLambda((char *)impl->MKernelFuncPtr,
+                                 impl->MKernelParamDescGetter,
+                                 impl->MKernelNumArgs, impl->MKernelIsESIMD);
+  }
 
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
   // to a command without being bound to a command group, an exception should
@@ -179,7 +521,7 @@ event handler::finalize() {
         // Check associated accessors
         bool AccFound = false;
         for (detail::ArgDesc &Acc : impl->MAssociatedAccesors) {
-          if (Acc.MType == detail::kernel_param_kind_t::kind_accessor &&
+          if ((Acc.MType == detail::kernel_param_kind_t::kind_accessor) &&
               static_cast<detail::Requirement *>(Acc.MPtr) == AccImpl) {
             AccFound = true;
             break;
@@ -195,33 +537,38 @@ event handler::finalize() {
     }
   }
 
-  const auto &type = getType();
   if (type == detail::CGType::Kernel) {
     // If there were uses of set_specialization_constant build the kernel_bundle
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/false);
+    detail::kernel_bundle_impl *KernelBundleImpPtr =
+        getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
-      if (!KernelBundleImpPtr->isInterop() &&
-          !impl->isStateExplicitKernelBundle()) {
-        auto Dev =
-            impl->MGraph ? impl->MGraph->getDevice() : MQueue->get_device();
+      if (!impl->isStateExplicitKernelBundle() &&
+          !(MKernel && MKernel->isInterop()) &&
+          (KernelBundleImpPtr->empty() ||
+           KernelBundleImpPtr->hasSYCLOfflineImages()) &&
+          !KernelBundleImpPtr->tryGetKernel(toKernelNameStrT(MKernelName))) {
+        detail::device_impl &Dev = impl->get_device();
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(
-                MKernelName.c_str());
-        bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
+                toKernelNameStrT(MKernelName));
+        bool KernelInserted = KernelBundleImpPtr->add_kernel(
+            KernelID, detail::createSyclObjFromImpl<device>(Dev));
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
         if (!KernelInserted &&
             KernelBundleImpPtr->get_bundle_state() == bundle_state::input) {
           auto KernelBundle =
               detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-                  KernelBundleImpPtr);
+                  *KernelBundleImpPtr);
           kernel_bundle<bundle_state::executable> ExecKernelBundle =
               build(KernelBundle);
-          KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle);
-          setHandlerKernelBundle(KernelBundleImpPtr);
-          KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
+          KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle).get();
+          // Raw ptr KernelBundleImpPtr is valid, because we saved the
+          // shared_ptr to the handler
+          setHandlerKernelBundle(KernelBundleImpPtr->shared_from_this());
+          KernelInserted = KernelBundleImpPtr->add_kernel(
+              KernelID, detail::createSyclObjFromImpl<device>(Dev));
         }
         // If the kernel was not found in executable mode we throw an exception
         if (!KernelInserted)
@@ -234,9 +581,11 @@ event handler::finalize() {
         // Underlying level expects kernel_bundle to be in executable state
         kernel_bundle<bundle_state::executable> ExecBundle = build(
             detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-                KernelBundleImpPtr));
-        KernelBundleImpPtr = detail::getSyclObjImpl(ExecBundle);
-        setHandlerKernelBundle(KernelBundleImpPtr);
+                *KernelBundleImpPtr));
+        KernelBundleImpPtr = detail::getSyclObjImpl(ExecBundle).get();
+        // Raw ptr KernelBundleImpPtr is valid, because we saved the shared_ptr
+        // to the handler
+        setHandlerKernelBundle(KernelBundleImpPtr->shared_from_this());
         break;
       }
       case bundle_state::executable:
@@ -250,106 +599,125 @@ event handler::finalize() {
       }
     }
 
-    if (MQueue && !impl->MGraph && !impl->MSubgraphNode &&
-        !MQueue->getCommandGraph() && !impl->CGData.MRequirements.size() &&
-        !MStreamStorage.size() &&
-        (!impl->CGData.MEvents.size() ||
-         (MQueue->isInOrder() &&
-          detail::Scheduler::areEventsSafeForSchedulerBypass(
-              impl->CGData.MEvents, MQueue->getContextImplPtr())))) {
+    if (KernelFastPath) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
       // creation.
-      std::vector<ur_event_handle_t> RawEvents =
-          detail::Command::getUrEvents(impl->CGData.MEvents, MQueue, false);
-      detail::EventImplPtr NewEvent;
+      std::vector<ur_event_handle_t> RawEvents = detail::Command::getUrEvents(
+          impl->CGData.MEvents, impl->get_queue_or_null(), false);
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-      // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
-      int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
-      auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
-          StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc, MKernelName.c_str(),
-          MQueue, impl->MNDRDesc, KernelBundleImpPtr, impl->MArgs);
-      auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
-                            InstanceID = InstanceID]() {
-#else
-      auto EnqueueKernel = [&]() {
-#endif
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-        detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
-                                           xpti::trace_task_begin, nullptr);
-#endif
-        const detail::RTDeviceBinaryImage *BinImage = nullptr;
-        if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
-          std::tie(BinImage, std::ignore) =
-              detail::retrieveKernelBinary(MQueue, MKernelName.c_str());
-          assert(BinImage && "Failed to obtain a binary image.");
-        }
-        enqueueImpKernel(MQueue, impl->MNDRDesc, impl->MArgs,
-                         KernelBundleImpPtr, MKernel, MKernelName.c_str(),
-                         RawEvents, NewEvent, nullptr, impl->MKernelCacheConfig,
-                         impl->MKernelIsCooperative,
-                         impl->MKernelUsesClusterLaunch, BinImage);
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-        // Emit signal only when event is created
-        if (NewEvent != nullptr) {
-          detail::emitInstrumentationGeneral(
-              StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
-              static_cast<const void *>(NewEvent->getHandle()));
-        }
-        detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
-                                           xpti::trace_task_end, nullptr);
-#endif
-      };
-
-      bool DiscardEvent = (MQueue->MDiscardEvents || !impl->MEventNeeded) &&
-                          MQueue->supportsDiscardingPiEvents();
+      bool DiscardEvent =
+          !impl->MEventNeeded && impl->get_queue().supportsDiscardingPiEvents();
       if (DiscardEvent) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
             detail::ProgramManager::getInstance().kernelUsesAssert(
-                MKernelName.c_str());
+                toKernelNameStrT(MKernelName), impl->MKernelNameBasedCachePtr);
         DiscardEvent = !KernelUsesAssert;
       }
 
+      std::shared_ptr<detail::event_impl> ResultEvent =
+          DiscardEvent
+              ? nullptr
+              : detail::event_impl::create_device_event(impl->get_queue());
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+      const bool xptiEnabled = xptiTraceEnabled();
+#endif
+      auto EnqueueKernel = [&]() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+        auto StreamID = xpti::invalid_id<xpti::stream_id_t>;
+        xpti_td *CmdTraceEvent = nullptr;
+        uint64_t InstanceID = 0;
+        if (xptiEnabled) {
+          StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
+          std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
+              StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
+              MKernelName.data(), impl->MKernelNameBasedCachePtr,
+              impl->get_queue_or_null(), impl->MNDRDesc, KernelBundleImpPtr,
+              impl->MArgs);
+          detail::emitInstrumentationGeneral(StreamID, InstanceID,
+                                             CmdTraceEvent,
+                                             xpti::trace_task_begin, nullptr);
+        }
+#endif
+        const detail::RTDeviceBinaryImage *BinImage = nullptr;
+        if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
+          BinImage = detail::retrieveKernelBinary(
+              impl->get_queue(), toKernelNameStrT(MKernelName));
+          assert(BinImage && "Failed to obtain a binary image.");
+        }
+        enqueueImpKernel(
+            impl->get_queue(), impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
+            MKernel.get(), toKernelNameStrT(MKernelName),
+            impl->MKernelNameBasedCachePtr, RawEvents, ResultEvent.get(),
+            nullptr, impl->MKernelCacheConfig, impl->MKernelIsCooperative,
+            impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
+            BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
+            impl->MKernelParamDescGetter, impl->MKernelHasSpecialCaptures);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+        if (xptiEnabled) {
+          // Emit signal only when event is created
+          if (!DiscardEvent) {
+            detail::emitInstrumentationGeneral(
+                StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
+                static_cast<const void *>(ResultEvent->getHandle()));
+          }
+          detail::emitInstrumentationGeneral(StreamID, InstanceID,
+                                             CmdTraceEvent,
+                                             xpti::trace_task_end, nullptr);
+        }
+#endif
+      };
+
       if (DiscardEvent) {
         EnqueueKernel();
-        auto EventImpl = std::make_shared<detail::event_impl>(
-            detail::event_impl::HES_Discarded);
-        MLastEvent = detail::createSyclObjFromImpl<event>(EventImpl);
       } else {
-        NewEvent = std::make_shared<detail::event_impl>(MQueue);
-        NewEvent->setWorkerQueue(MQueue);
-        NewEvent->setContextImpl(MQueue->getContextImplPtr());
-        NewEvent->setStateIncomplete();
-        NewEvent->setSubmissionTime();
+        detail::queue_impl &Queue = impl->get_queue();
+        ResultEvent->setWorkerQueue(Queue.weak_from_this());
+        ResultEvent->setStateIncomplete();
+        ResultEvent->setSubmissionTime();
 
         EnqueueKernel();
-        if (NewEvent->isHost() || NewEvent->getHandle() == nullptr)
-          NewEvent->setComplete();
-        NewEvent->setEnqueued();
-
-        MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
+        ResultEvent->setEnqueued();
+        // connect returned event with dependent events
+        if (!Queue.isInOrder()) {
+          // MEvents is not used anymore, so can move.
+          ResultEvent->getPreparedDepsEvents() =
+              std::move(impl->CGData.MEvents);
+          // ResultEvent is local for current thread, no need to lock.
+          ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
+        }
       }
-      return MLastEvent;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      return ResultEvent;
+#else
+      return detail::createSyclObjFromImpl<event>(
+          ResultEvent ? ResultEvent
+                      : detail::event_impl::create_discarded_event());
+#endif
     }
   }
 
   std::unique_ptr<detail::CG> CommandGroup;
   switch (type) {
   case detail::CGType::Kernel: {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     // Copy kernel name here instead of move so that it's available after
     // running of this method by reductions implementation. This allows for
     // assert feature to check if kernel uses assertions
+#endif
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(impl->MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
-        std::move(impl->MArgs), MKernelName.c_str(), std::move(MStreamStorage),
+        std::move(impl->MArgs), toKernelNameStrT(MKernelName),
+        impl->MKernelNameBasedCachePtr, std::move(MStreamStorage),
         std::move(impl->MAuxiliaryResources), getType(),
         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
-        impl->MKernelUsesClusterLaunch, MCodeLoc));
+        impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
+        MCodeLoc));
     break;
   }
   case detail::CGType::CopyAccToPtr:
@@ -402,11 +770,10 @@ event handler::finalize() {
     break;
   case detail::CGType::EnqueueNativeCommand:
   case detail::CGType::CodeplayHostTask: {
-    auto context = impl->MGraph
-                       ? detail::getSyclObjImpl(impl->MGraph->getContext())
-                       : MQueue->getContextImplPtr();
+    detail::context_impl &Context = impl->get_context();
+    detail::queue_impl *Queue = impl->get_queue_or_null();
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(impl->MHostTask), MQueue, context, std::move(impl->MArgs),
+        std::move(impl->MHostTask), Queue, &Context, std::move(impl->MArgs),
         std::move(impl->CGData), getType(), MCodeLoc));
     break;
   }
@@ -422,9 +789,9 @@ event handler::finalize() {
       CommandGroup.reset(new detail::CG(detail::CGType::Barrier,
                                         std::move(impl->CGData), MCodeLoc));
     } else {
-      CommandGroup.reset(
-          new detail::CGBarrier(std::move(impl->MEventsWaitWithBarrier),
-                                std::move(impl->CGData), getType(), MCodeLoc));
+      CommandGroup.reset(new detail::CGBarrier(
+          std::move(impl->MEventsWaitWithBarrier), impl->MEventMode,
+          std::move(impl->CGData), getType(), MCodeLoc));
     }
     break;
   }
@@ -453,14 +820,15 @@ event handler::finalize() {
     break;
   }
   case detail::CGType::ExecCommandBuffer: {
+    detail::queue_impl *Queue = impl->get_queue_or_null();
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph =
-        MQueue ? MQueue->getCommandGraph() : impl->MGraph;
+        Queue ? Queue->getCommandGraph() : impl->get_graph().shared_from_this();
 
     // If a parent graph is set that means we are adding or recording a subgraph
     // and we don't want to actually execute this command graph submission.
     if (ParentGraph) {
       ext::oneapi::experimental::detail::graph_impl::WriteLock ParentLock;
-      if (MQueue) {
+      if (Queue) {
         ParentLock = ext::oneapi::experimental::detail::graph_impl::WriteLock(
             ParentGraph->MMutex);
       }
@@ -472,10 +840,20 @@ event handler::finalize() {
           nullptr, impl->MExecGraph, std::move(impl->CGData)));
 
     } else {
-      event GraphCompletionEvent =
-          impl->MExecGraph->enqueue(MQueue, std::move(impl->CGData));
-      MLastEvent = GraphCompletionEvent;
-      return MLastEvent;
+      detail::queue_impl &Queue = impl->get_queue();
+      bool DiscardEvent = !impl->MEventNeeded &&
+                          Queue.supportsDiscardingPiEvents() &&
+                          !impl->MExecGraph->containsHostTask();
+      detail::EventImplPtr GraphCompletionEvent = impl->MExecGraph->enqueue(
+          Queue, std::move(impl->CGData), !DiscardEvent);
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      return GraphCompletionEvent;
+#else
+      return sycl::detail::createSyclObjFromImpl<sycl::event>(
+          GraphCompletionEvent
+              ? GraphCompletionEvent
+              : sycl::detail::event_impl::create_discarded_event());
+#endif
     }
   } break;
   case detail::CGType::CopyImage:
@@ -495,22 +873,17 @@ event handler::finalize() {
         impl->MExternalSemaphore, impl->MSignalValue, std::move(impl->CGData),
         MCodeLoc));
     break;
+  case detail::CGType::AsyncAlloc:
+    CommandGroup.reset(new detail::CGAsyncAlloc(
+        impl->MAsyncAllocEvent, std::move(impl->CGData), MCodeLoc));
+    break;
+  case detail::CGType::AsyncFree:
+    CommandGroup.reset(new detail::CGAsyncFree(
+        impl->MFreePtr, std::move(impl->CGData), MCodeLoc));
+    break;
   case detail::CGType::None:
-    if (detail::ur::trace(detail::ur::TraceLevel::TRACE_ALL)) {
-      std::cout << "WARNING: An empty command group is submitted." << std::endl;
-    }
-
-    // Empty nodes are handled by Graph like standard nodes
-    // For Standard mode (non-graph),
-    // empty nodes are not sent to the scheduler to save time
-    if (impl->MGraph || (MQueue && MQueue->getCommandGraph())) {
-      CommandGroup.reset(new detail::CG(detail::CGType::None,
-                                        std::move(impl->CGData), MCodeLoc));
-    } else {
-      detail::EventImplPtr Event = std::make_shared<sycl::detail::event_impl>();
-      MLastEvent = detail::createSyclObjFromImpl<event>(Event);
-      return MLastEvent;
-    }
+    CommandGroup.reset(new detail::CG(detail::CGType::None,
+                                      std::move(impl->CGData), MCodeLoc));
     break;
   }
 
@@ -525,19 +898,25 @@ event handler::finalize() {
   // If there is a graph associated with the handler we are in the explicit
   // graph mode, so we store the CG instead of submitting it to the scheduler,
   // so it can be retrieved by the graph later.
-  if (impl->MGraph) {
+  if (impl->get_graph_or_null()) {
     impl->MGraphNodeCG = std::move(CommandGroup);
-    return detail::createSyclObjFromImpl<event>(
-        std::make_shared<detail::event_impl>());
+    auto EventImpl = detail::event_impl::create_completed_host_event();
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    return EventImpl;
+#else
+    return detail::createSyclObjFromImpl<event>(EventImpl);
+#endif
   }
+
+  // Because graph case is handled right above.
+  assert(Queue);
 
   // If the queue has an associated graph then we need to take the CG and pass
   // it to the graph to create a node, rather than submit it to the scheduler.
-  if (auto GraphImpl = MQueue->getCommandGraph(); GraphImpl) {
-    auto EventImpl = std::make_shared<detail::event_impl>();
-    EventImpl->setSubmittedQueue(MQueue);
-    std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
-        nullptr;
+  if (auto GraphImpl = Queue->getCommandGraph(); GraphImpl) {
+    auto EventImpl = detail::event_impl::create_completed_host_event();
+    EventImpl->setSubmittedQueue(Queue->weak_from_this());
+    ext::oneapi::experimental::detail::node_impl *NodeImpl = nullptr;
 
     // GraphImpl is read and written in this scope so we lock this graph
     // with full priviledges.
@@ -550,48 +929,66 @@ event handler::finalize() {
             : ext::oneapi::experimental::detail::getNodeTypeFromCG(getType());
 
     // Create a new node in the graph representing this command-group
-    if (MQueue->isInOrder()) {
+    if (Queue->isInOrder()) {
       // In-order queues create implicit linear dependencies between nodes.
       // Find the last node added to the graph from this queue, so our new
       // node can set it as a predecessor.
-      auto DependentNode = GraphImpl->getLastInorderNode(MQueue);
-
-      NodeImpl = DependentNode
-                     ? GraphImpl->add(NodeType, std::move(CommandGroup),
-                                      {DependentNode})
-                     : GraphImpl->add(NodeType, std::move(CommandGroup));
+      std::vector<ext::oneapi::experimental::detail::node_impl *> Deps;
+      if (ext::oneapi::experimental::detail::node_impl *DependentNode =
+              GraphImpl->getLastInorderNode(Queue)) {
+        Deps.push_back(DependentNode);
+      }
+      NodeImpl = &GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       // If we are recording an in-order queue remember the new node, so it
       // can be used as a dependency for any more nodes recorded from this
       // queue.
-      GraphImpl->setLastInorderNode(MQueue, NodeImpl);
+      GraphImpl->setLastInorderNode(*Queue, *NodeImpl);
     } else {
-      auto LastBarrierRecordedFromQueue = GraphImpl->getBarrierDep(MQueue);
+      ext::oneapi::experimental::detail::node_impl
+          *LastBarrierRecordedFromQueue =
+              GraphImpl->getBarrierDep(Queue->weak_from_this());
+      std::vector<ext::oneapi::experimental::detail::node_impl *> Deps;
+
       if (LastBarrierRecordedFromQueue) {
-        NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup),
-                                  {LastBarrierRecordedFromQueue});
-      } else {
-        NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup));
+        Deps.push_back(LastBarrierRecordedFromQueue);
       }
+      NodeImpl = &GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       if (NodeImpl->MCGType == sycl::detail::CGType::Barrier) {
-        GraphImpl->setBarrierDep(MQueue, NodeImpl);
+        GraphImpl->setBarrierDep(Queue->weak_from_this(), *NodeImpl);
       }
     }
 
     // Associate an event with this new node and return the event.
-    GraphImpl->addEventForNode(EventImpl, NodeImpl);
+    GraphImpl->addEventForNode(EventImpl, *NodeImpl);
 
-    NodeImpl->MNDRangeUsed = impl->MNDRangeUsed;
-
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    return EventImpl;
+#else
     return detail::createSyclObjFromImpl<event>(EventImpl);
+#endif
   }
 
-  detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), std::move(MQueue), impl->MEventNeeded);
+  bool DiscardEvent = !impl->MEventNeeded && Queue &&
+                      Queue->supportsDiscardingPiEvents() &&
+                      CommandGroup->getRequirements().size() == 0;
 
-  MLastEvent = detail::createSyclObjFromImpl<event>(Event);
-  return MLastEvent;
+  detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
+      std::move(CommandGroup), *Queue, !DiscardEvent);
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  return DiscardEvent ? nullptr : Event;
+#else
+  return detail::createSyclObjFromImpl<event>(Event);
+#endif
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  WRAP_BODY_END
+
+#undef WRAP_BODY_BEGIN
+#undef WRAP_BODY_END
+#endif
 }
 
 void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
@@ -676,10 +1073,49 @@ static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
   }
 }
 
+static void addArgsForLocalAccessor(detail::LocalAccessorImplHost *LAcc,
+                                    size_t Index, size_t &IndexShift,
+                                    bool IsKernelCreatedFromSource,
+                                    std::vector<detail::ArgDesc> &Args,
+                                    bool IsESIMD) {
+  using detail::kernel_param_kind_t;
+
+  range<3> &LAccSize = LAcc->MSize;
+  const int Dims = LAcc->MDims;
+  int SizeInBytes = LAcc->MElemSize;
+  for (int I = 0; I < Dims; ++I)
+    SizeInBytes *= LAccSize[I];
+
+  // Some backends do not accept zero-sized local memory arguments, so we
+  // make it a minimum allocation of 1 byte.
+  SizeInBytes = std::max(SizeInBytes, 1);
+  Args.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr, SizeInBytes,
+                    Index + IndexShift);
+  // TODO ESIMD currently does not suport MSize field passing yet
+  // accessor::init for ESIMD-mode accessor has a single field, translated
+  // to a single kernel argument set above.
+  if (!IsESIMD && !IsKernelCreatedFromSource) {
+    ++IndexShift;
+    const size_t SizeAccField = (Dims == 0 ? 1 : Dims) * sizeof(LAccSize[0]);
+    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
+                      SizeAccField, Index + IndexShift);
+    ++IndexShift;
+    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
+                      SizeAccField, Index + IndexShift);
+    ++IndexShift;
+    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
+                      SizeAccField, Index + IndexShift);
+  }
+}
+
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
   using detail::kernel_param_kind_t;
+  size_t GlobalSize = impl->MNDRDesc.GlobalSize[0];
+  for (size_t I = 1; I < impl->MNDRDesc.Dims; ++I) {
+    GlobalSize *= impl->MNDRDesc.GlobalSize[I];
+  }
 
   switch (Kind) {
   case kernel_param_kind_t::kind_std_layout:
@@ -693,34 +1129,32 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
 
     detail::AccessorBaseHost *GBufBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalBuf);
-    detail::AccessorImplPtr GBufImpl = detail::getSyclObjImpl(*GBufBase);
-    detail::Requirement *GBufReq = GBufImpl.get();
-    addArgsForGlobalAccessor(
-        GBufReq, Index, IndexShift, Size, IsKernelCreatedFromSource,
-        impl->MNDRDesc.GlobalSize.size(), impl->MArgs, IsESIMD);
+    detail::Requirement *GBufReq = &*detail::getSyclObjImpl(*GBufBase);
+    addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
+                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
+                             IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GOffsetBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalOffset);
-    detail::AccessorImplPtr GOfssetImpl = detail::getSyclObjImpl(*GOffsetBase);
-    detail::Requirement *GOffsetReq = GOfssetImpl.get();
-    addArgsForGlobalAccessor(
-        GOffsetReq, Index, IndexShift, Size, IsKernelCreatedFromSource,
-        impl->MNDRDesc.GlobalSize.size(), impl->MArgs, IsESIMD);
+    detail::Requirement *GOffsetReq = &*detail::getSyclObjImpl(*GOffsetBase);
+    addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
+                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
+                             IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GFlushBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
-    detail::AccessorImplPtr GFlushImpl = detail::getSyclObjImpl(*GFlushBase);
-    detail::Requirement *GFlushReq = GFlushImpl.get();
+    detail::Requirement *GFlushReq = &*detail::getSyclObjImpl(*GFlushBase);
 
-    size_t GlobalSize = impl->MNDRDesc.GlobalSize.size();
     // If work group size wasn't set explicitly then it must be recieved
     // from kernel attribute or set to default values.
     // For now we can't get this attribute here.
     // So we just suppose that WG size is always default for stream.
     // TODO adjust MNDRDesc when device image contains kernel's attribute
     if (GlobalSize == 0) {
-      // Suppose that work group size is 1 for every dimension
-      GlobalSize = impl->MNDRDesc.NumWorkGroups.size();
+      GlobalSize = impl->MNDRDesc.NumWorkGroups[0];
+      for (size_t I = 1; I < impl->MNDRDesc.Dims; ++I) {
+        GlobalSize *= impl->MNDRDesc.NumWorkGroups[I];
+      }
     }
     addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
@@ -740,40 +1174,17 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::device:
     case access::target::constant_buffer: {
       detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
-      addArgsForGlobalAccessor(
-          AccImpl, Index, IndexShift, Size, IsKernelCreatedFromSource,
-          impl->MNDRDesc.GlobalSize.size(), impl->MArgs, IsESIMD);
+      addArgsForGlobalAccessor(AccImpl, Index, IndexShift, Size,
+                               IsKernelCreatedFromSource, GlobalSize,
+                               impl->MArgs, IsESIMD);
       break;
     }
     case access::target::local: {
-      detail::LocalAccessorImplHost *LAcc =
+      detail::LocalAccessorImplHost *LAccImpl =
           static_cast<detail::LocalAccessorImplHost *>(Ptr);
 
-      range<3> &Size = LAcc->MSize;
-      const int Dims = LAcc->MDims;
-      int SizeInBytes = LAcc->MElemSize;
-      for (int I = 0; I < Dims; ++I)
-        SizeInBytes *= Size[I];
-      // Some backends do not accept zero-sized local memory arguments, so we
-      // make it a minimum allocation of 1 byte.
-      SizeInBytes = std::max(SizeInBytes, 1);
-      impl->MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr,
-                               SizeInBytes, Index + IndexShift);
-      // TODO ESIMD currently does not suport MSize field passing yet
-      // accessor::init for ESIMD-mode accessor has a single field, translated
-      // to a single kernel argument set above.
-      if (!IsESIMD && !IsKernelCreatedFromSource) {
-        ++IndexShift;
-        const size_t SizeAccField = (Dims == 0 ? 1 : Dims) * sizeof(Size[0]);
-        addArg(kernel_param_kind_t::kind_std_layout, &Size, SizeAccField,
-               Index + IndexShift);
-        ++IndexShift;
-        addArg(kernel_param_kind_t::kind_std_layout, &Size, SizeAccField,
-               Index + IndexShift);
-        ++IndexShift;
-        addArg(kernel_param_kind_t::kind_std_layout, &Size, SizeAccField,
-               Index + IndexShift);
-      }
+      addArgsForLocalAccessor(LAccImpl, Index, IndexShift,
+                              IsKernelCreatedFromSource, impl->MArgs, IsESIMD);
       break;
     }
     case access::target::image:
@@ -794,6 +1205,53 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       break;
     }
     }
+    break;
+  }
+  case kernel_param_kind_t::kind_dynamic_accessor: {
+    const access::target AccTarget =
+        static_cast<access::target>(Size & AccessTargetMask);
+    switch (AccTarget) {
+    case access::target::local: {
+
+      // We need to recover the inheritance layout by casting to
+      // dynamic_parameter_impl first. Casting directly to
+      // dynamic_local_accessor_impl would result in an incorrect pointer.
+      auto *DynParamImpl = static_cast<
+          ext::oneapi::experimental::detail::dynamic_parameter_impl *>(Ptr);
+
+      registerDynamicParameter(DynParamImpl, Index + IndexShift);
+
+      auto *DynLocalAccessorImpl = static_cast<
+          ext::oneapi::experimental::detail::dynamic_local_accessor_impl *>(
+          DynParamImpl);
+
+      addArgsForLocalAccessor(&DynLocalAccessorImpl->LAccImplHost, Index,
+                              IndexShift, IsKernelCreatedFromSource,
+                              impl->MArgs, IsESIMD);
+      break;
+    }
+    default: {
+      assert(false && "Unsupported dynamic accessor target");
+    }
+    }
+    break;
+  }
+  case kernel_param_kind_t::kind_dynamic_work_group_memory: {
+
+    // We need to recover the inheritance layout by casting to
+    // dynamic_parameter_impl first. Casting directly to
+    // dynamic_work_group_memory_impl would result in an incorrect pointer.
+    auto *DynParamImpl = static_cast<
+        ext::oneapi::experimental::detail::dynamic_parameter_impl *>(Ptr);
+
+    registerDynamicParameter(DynParamImpl, Index + IndexShift);
+
+    auto *DynWorkGroupImpl = static_cast<
+        ext::oneapi::experimental::detail::dynamic_work_group_memory_impl *>(
+        DynParamImpl);
+
+    addArg(kernel_param_kind_t::kind_std_layout, nullptr,
+           DynWorkGroupImpl->BufferSizeInBytes, Index + IndexShift);
     break;
   }
   case kernel_param_kind_t::kind_work_group_memory: {
@@ -824,6 +1282,12 @@ void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
       std::make_shared<detail::work_group_memory_impl>(Arg));
   addArg(detail::kernel_param_kind_t::kind_work_group_memory,
          impl->MWorkGroupMemoryObjects.back().get(), 0, ArgIndex);
+}
+
+void handler::setArgHelper(int ArgIndex, stream &&Str) {
+  void *StoredArg = storePlainArg(Str);
+  addArg(detail::kernel_param_kind_t::kind_stream, StoredArg, sizeof(stream),
+         ArgIndex);
 }
 
 // The argument can take up more space to store additional information about
@@ -862,6 +1326,61 @@ void handler::extractArgsAndReqs() {
 }
 
 void handler::extractArgsAndReqsFromLambda(
+    char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
+    size_t NumKernelParams, bool IsESIMD) {
+  size_t IndexShift = 0;
+  impl->MArgs.reserve(MaxNumAdditionalArgs * NumKernelParams);
+
+  for (size_t I = 0; I < NumKernelParams; ++I) {
+    detail::kernel_param_desc_t ParamDesc = ParamDescGetter(I);
+    void *Ptr = LambdaPtr + ParamDesc.offset;
+    const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
+    const int &Size = ParamDesc.info;
+    if (Kind == detail::kernel_param_kind_t::kind_accessor) {
+      // For args kind of accessor Size is information about accessor.
+      // The first 11 bits of Size encodes the accessor target.
+      const access::target AccTarget =
+          static_cast<access::target>(Size & AccessTargetMask);
+      if ((AccTarget == access::target::device ||
+           AccTarget == access::target::constant_buffer) ||
+          (AccTarget == access::target::image ||
+           AccTarget == access::target::image_array)) {
+        detail::AccessorBaseHost *AccBase =
+            static_cast<detail::AccessorBaseHost *>(Ptr);
+        Ptr = detail::getSyclObjImpl(*AccBase).get();
+      } else if (AccTarget == access::target::local) {
+        detail::LocalAccessorBaseHost *LocalAccBase =
+            static_cast<detail::LocalAccessorBaseHost *>(Ptr);
+        Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
+      }
+    } else if (Kind == detail::kernel_param_kind_t::kind_dynamic_accessor) {
+      // For args kind of accessor Size is information about accessor.
+      // The first 11 bits of Size encodes the accessor target.
+      // Only local targets are supported for dynamic accessors.
+      assert(static_cast<access::target>(Size & AccessTargetMask) ==
+             access::target::local);
+
+      ext::oneapi::experimental::detail::dynamic_parameter_base
+          *DynamicParamBase = static_cast<
+              ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
+      Ptr = detail::getSyclObjImpl(*DynamicParamBase).get();
+    } else if (Kind ==
+               detail::kernel_param_kind_t::kind_dynamic_work_group_memory) {
+      ext::oneapi::experimental::detail::dynamic_parameter_base
+          *DynamicParamBase = static_cast<
+              ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
+      Ptr = detail::getSyclObjImpl(*DynamicParamBase).get();
+    }
+
+    processArg(Ptr, Kind, Size, I, IndexShift,
+               /*IsKernelCreatedFromSource=*/false, IsESIMD);
+  }
+}
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: Those functions are not used anymore, remove it in the next
+// ABI-breaking window.
+void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, const std::vector<detail::kernel_param_desc_t> &ParamDescs,
     bool IsESIMD) {
   const bool IsKernelCreatedFromSource = false;
@@ -895,7 +1414,6 @@ void handler::extractArgsAndReqsFromLambda(
   }
 }
 
-// TODO Unused, remove during ABI breaking window
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, size_t KernelArgsNum,
     const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
@@ -903,17 +1421,18 @@ void handler::extractArgsAndReqsFromLambda(
       KernelArgs, KernelArgs + KernelArgsNum);
   extractArgsAndReqsFromLambda(LambdaPtr, ParamDescs, IsESIMD);
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 // Calling methods of kernel_impl requires knowledge of class layout.
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
-detail::string handler::getKernelName() {
-  return detail::string{MKernel->get_info<info::kernel::function_name>()};
+detail::ABINeutralKernelNameStrT handler::getKernelName() {
+  return MKernel->getName();
 }
 
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
-  auto UsedKernelBundleImplPtr =
-      getOrInsertHandlerKernelBundle(/*Insert=*/false);
+  detail::kernel_bundle_impl *UsedKernelBundleImplPtr =
+      getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
     return;
 
@@ -922,9 +1441,8 @@ void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
     return;
 
   kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
-  device Dev = impl->MGraph ? impl->MGraph->getDevice()
-                            : detail::getDeviceFromHandler(*this);
-  if (!UsedKernelBundleImplPtr->has_kernel(KernelID, Dev))
+  if (!UsedKernelBundleImplPtr->has_kernel(
+          KernelID, detail::createSyclObjFromImpl<device>(impl->get_device())))
     throw sycl::exception(
         make_error_code(errc::kernel_not_supported),
         "The kernel bundle in use does not contain the kernel");
@@ -1038,62 +1556,23 @@ void handler::ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
   setType(detail::CGType::Memset2DUSM);
 }
 
+// Simple host to device copy
 void handler::ext_oneapi_copy(
     const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
-    const ext::oneapi::experimental::image_descriptor &Desc) {
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  Desc.verify();
-
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  ur_image_desc_t UrDesc = {};
-  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
-  UrDesc.width = Desc.width;
-  UrDesc.height = Desc.height;
-  UrDesc.depth = Desc.depth;
-  UrDesc.arraySize = Desc.array_size;
+  detail::fill_copy_args(get_impl(), DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE);
 
-  if (Desc.array_size > 1) {
-    // Image Array.
-    UrDesc.type =
-        Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY : UR_MEM_TYPE_IMAGE1D_ARRAY;
-
-    // Cubemap.
-    UrDesc.type =
-        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-            : UrDesc.type;
-
-    // Array size is depth extent.
-    impl->MCopyExtent = {Desc.width, Desc.height, Desc.array_size};
-  } else {
-    UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
-                                 : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                                    : UR_MEM_TYPE_IMAGE1D);
-
-    impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
-  }
-
-  ur_image_format_t UrFormat;
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(Desc.num_channels));
-
-  impl->MSrcOffset = {0, 0, 0};
-  impl->MDestOffset = {0, 0, 0};
-  impl->MSrcImageDesc = UrDesc;
-  impl->MDstImageDesc = UrDesc;
-  impl->MSrcImageFormat = UrFormat;
-  impl->MDstImageFormat = UrFormat;
-  impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE;
   setType(detail::CGType::CopyImage);
 }
 
+// Host to device copy with offsets and extent
 void handler::ext_oneapi_copy(
     const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
@@ -1102,170 +1581,150 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  DestImgDesc.verify();
-
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  ur_image_desc_t UrDesc = {};
-  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
-  UrDesc.width = DestImgDesc.width;
-  UrDesc.height = DestImgDesc.height;
-  UrDesc.depth = DestImgDesc.depth;
-  UrDesc.arraySize = DestImgDesc.array_size;
+  detail::fill_copy_args(get_impl(), DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE, SrcOffset,
+                         SrcExtent, DestOffset, {0, 0, 0}, CopyExtent);
 
-  if (DestImgDesc.array_size > 1) {
-    // Image Array.
-    UrDesc.type = DestImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
-                                         : UR_MEM_TYPE_IMAGE1D_ARRAY;
-
-    // Cubemap.
-    UrDesc.type =
-        DestImgDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-            : UrDesc.type;
-  } else {
-    UrDesc.type = DestImgDesc.depth > 0
-                      ? UR_MEM_TYPE_IMAGE3D
-                      : (DestImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                                : UR_MEM_TYPE_IMAGE1D);
-  }
-
-  ur_image_format_t UrFormat;
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(DestImgDesc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(DestImgDesc.num_channels));
-
-  impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-  impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
-  impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  impl->MSrcImageDesc = UrDesc;
-  impl->MSrcImageDesc.width = SrcExtent[0];
-  impl->MSrcImageDesc.height = SrcExtent[1];
-  impl->MSrcImageDesc.depth = SrcExtent[2];
-  impl->MDstImageDesc = UrDesc;
-  impl->MSrcImageFormat = UrFormat;
-  impl->MDstImageFormat = UrFormat;
-  impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE;
   setType(detail::CGType::CopyImage);
 }
 
+// Simple device to host copy
 void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
-    const ext::oneapi::experimental::image_descriptor &Desc) {
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  Desc.verify();
-
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
-  ur_image_desc_t UrDesc = {};
-  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
-  UrDesc.width = Desc.width;
-  UrDesc.height = Desc.height;
-  UrDesc.depth = Desc.depth;
-  UrDesc.arraySize = Desc.array_size;
+  detail::fill_copy_args(get_impl(), SrcImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST);
 
-  if (Desc.array_size > 1) {
-    // Image Array.
-    UrDesc.type =
-        Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY : UR_MEM_TYPE_IMAGE1D_ARRAY;
-
-    // Cubemap.
-    UrDesc.type =
-        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-            : UrDesc.type;
-
-    // Array size is depth extent.
-    impl->MCopyExtent = {Desc.width, Desc.height, Desc.array_size};
-  } else {
-    UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
-                                 : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                                    : UR_MEM_TYPE_IMAGE1D);
-
-    impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
-  }
-
-  ur_image_format_t UrFormat;
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(Desc.num_channels));
-
-  impl->MSrcOffset = {0, 0, 0};
-  impl->MDestOffset = {0, 0, 0};
-  impl->MSrcImageDesc = UrDesc;
-  impl->MDstImageDesc = UrDesc;
-  impl->MSrcImageFormat = UrFormat;
-  impl->MDstImageFormat = UrFormat;
-  impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST;
   setType(detail::CGType::CopyImage);
 }
 
+// Device to host copy with offsets and extent
 void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_mem_handle Src,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    const ext::oneapi::experimental::image_descriptor &ImageDesc) {
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    sycl::range<3> DestOffset, sycl::range<3> DestExtent,
+    sycl::range<3> CopyExtent) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  ImageDesc.verify();
-
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
-  MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
+  MDstPtr = Dest;
 
-  ur_image_desc_t UrDesc = {};
-  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
-  UrDesc.width = ImageDesc.width;
-  UrDesc.height = ImageDesc.height;
-  UrDesc.depth = ImageDesc.depth;
-  UrDesc.arraySize = ImageDesc.array_size;
-  if (ImageDesc.array_size > 1) {
-    // Image Array.
-    UrDesc.type = ImageDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
-                                       : UR_MEM_TYPE_IMAGE1D_ARRAY;
+  detail::fill_copy_args(get_impl(), SrcImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST, SrcOffset,
+                         {0, 0, 0}, DestOffset, DestExtent, CopyExtent);
 
-    // Cubemap.
-    UrDesc.type =
-        ImageDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-            : UrDesc.type;
-
-    // Array size is depth extent.
-    impl->MCopyExtent = {ImageDesc.width, ImageDesc.height,
-                         ImageDesc.array_size};
-  } else {
-    UrDesc.type = ImageDesc.depth > 0
-                      ? UR_MEM_TYPE_IMAGE3D
-                      : (ImageDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                              : UR_MEM_TYPE_IMAGE1D);
-
-    impl->MCopyExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
-  }
-
-  ur_image_format_t UrFormat;
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(ImageDesc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(ImageDesc.num_channels));
-
-  impl->MSrcOffset = {0, 0, 0};
-  impl->MDestOffset = {0, 0, 0};
-  impl->MSrcImageDesc = UrDesc;
-  impl->MDstImageDesc = UrDesc;
-  impl->MSrcImageFormat = UrFormat;
-  impl->MDstImageFormat = UrFormat;
-  impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE;
   setType(detail::CGType::CopyImage);
 }
 
+// Simple HtoD or DtoH copy with USM device memory
+void handler::ext_oneapi_copy(
+    const void *Src, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc,
+    size_t DeviceRowPitch) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = const_cast<void *>(Src);
+  MDstPtr = Dest;
+
+  ur_exp_image_copy_flags_t ImageCopyFlags = detail::getUrImageCopyFlags(
+      get_pointer_type(Src,
+                       createSyclObjFromImpl<context>(impl->get_context())),
+      get_pointer_type(Dest,
+                       createSyclObjFromImpl<context>(impl->get_context())));
+
+  // Calculate host pitch, where host memory is always assumed to be tightly
+  // packed.
+  size_t HostRowPitch =
+      Desc.width * Desc.num_channels * detail::get_channel_size(Desc);
+
+  if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
+    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags, HostRowPitch,
+                           DeviceRowPitch);
+  } else if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
+    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags, DeviceRowPitch,
+                           HostRowPitch);
+  } else {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: This copy function only performs host "
+                          "to device or device to host copies!");
+  }
+
+  setType(detail::CGType::CopyImage);
+}
+
+// HtoD or DtoH copy with USM device memory, using offsets, extent
+void handler::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset, void *Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+    size_t DeviceRowPitch, sycl::range<3> HostExtent,
+    sycl::range<3> CopyExtent) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = const_cast<void *>(Src);
+  MDstPtr = Dest;
+
+  ur_exp_image_copy_flags_t ImageCopyFlags = detail::getUrImageCopyFlags(
+      get_pointer_type(Src,
+                       createSyclObjFromImpl<context>(impl->get_context())),
+      get_pointer_type(Dest,
+                       createSyclObjFromImpl<context>(impl->get_context())));
+
+  // Calculate host pitch, where host memory is always assumed to be tightly
+  // packed.
+  size_t HostRowPitch = HostExtent[0] * DeviceImgDesc.num_channels *
+                        detail::get_channel_size(DeviceImgDesc);
+
+  // Fill the host extent based on the type of copy.
+  if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
+    detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags,
+                           HostRowPitch, DeviceRowPitch, SrcOffset, HostExtent,
+                           DestOffset, {0, 0, 0}, CopyExtent);
+  } else if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
+    detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags,
+                           DeviceRowPitch, HostRowPitch, SrcOffset, {0, 0, 0},
+                           DestOffset, HostExtent, CopyExtent);
+  } else {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: This copy function only performs host "
+                          "to device or device to host copies!");
+  }
+
+  setType(detail::CGType::CopyImage);
+}
+
+// Simple device to device copy
+void handler::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
+  MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
+
+  detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE);
+
+  setType(detail::CGType::CopyImage);
+}
+
+// Device to device copy with offsets and extent
 void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_mem_handle Src,
     sycl::range<3> SrcOffset,
@@ -1276,286 +1735,155 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  SrcImgDesc.verify();
-  DestImgDesc.verify();
-
-  auto isOutOfRange = [](const sycl::range<3> &range,
-                         const sycl::range<3> &offset,
-                         const sycl::range<3> &copyExtent) {
-    sycl::range<3> result = (range > 0UL && ((offset + copyExtent) > range));
-
-    return (static_cast<bool>(result[0]) || static_cast<bool>(result[1]) ||
-            static_cast<bool>(result[2]));
-  };
-
-  sycl::range<3> SrcImageSize = {SrcImgDesc.width, SrcImgDesc.height,
-                                 SrcImgDesc.depth};
-  sycl::range<3> DestImageSize = {DestImgDesc.width, DestImgDesc.height,
-                                  DestImgDesc.depth};
-
-  if (isOutOfRange(SrcImageSize, SrcOffset, CopyExtent) ||
-      isOutOfRange(DestImageSize, DestOffset, CopyExtent)) {
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "Image copy attempted to access out of bounds memory!");
-  }
-
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  ur_image_desc_t UrSrcDesc = {};
-  UrSrcDesc.width = SrcImgDesc.width;
-  UrSrcDesc.height = SrcImgDesc.height;
-  UrSrcDesc.depth = SrcImgDesc.depth;
-  UrSrcDesc.arraySize = SrcImgDesc.array_size;
+  detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, SrcOffset,
+                         {0, 0, 0}, DestOffset, {0, 0, 0}, CopyExtent);
 
-  ur_image_desc_t UrDestDesc = {};
-  UrDestDesc.width = DestImgDesc.width;
-  UrDestDesc.height = DestImgDesc.height;
-  UrDestDesc.depth = DestImgDesc.depth;
-  UrDestDesc.arraySize = DestImgDesc.array_size;
-
-  auto fill_image_type =
-      [](const ext::oneapi::experimental::image_descriptor &Desc,
-         ur_image_desc_t &UrDesc) {
-        if (Desc.array_size > 1) {
-          // Image Array.
-          UrDesc.type = Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
-                                        : UR_MEM_TYPE_IMAGE1D_ARRAY;
-
-          // Cubemap.
-          UrDesc.type =
-              Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-                  ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-                  : UrDesc.type;
-        } else {
-          UrDesc.type = Desc.depth > 0
-                            ? UR_MEM_TYPE_IMAGE3D
-                            : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                               : UR_MEM_TYPE_IMAGE1D);
-        }
-      };
-
-  fill_image_type(SrcImgDesc, UrSrcDesc);
-  fill_image_type(DestImgDesc, UrDestDesc);
-
-  auto fill_format = [](const ext::oneapi::experimental::image_descriptor &Desc,
-                        ur_image_format_t &UrFormat) {
-    UrFormat.channelType =
-        sycl::_V1::detail::convertChannelType(Desc.channel_type);
-    UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-        sycl::_V1::ext::oneapi::experimental::detail::
-            get_image_default_channel_order(Desc.num_channels));
-  };
-
-  ur_image_format_t UrSrcFormat;
-  ur_image_format_t UrDestFormat;
-
-  fill_format(SrcImgDesc, UrSrcFormat);
-  fill_format(DestImgDesc, UrDestFormat);
-
-  impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-  impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
-  impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  impl->MSrcImageDesc = UrSrcDesc;
-  impl->MDstImageDesc = UrDestDesc;
-  impl->MSrcImageFormat = UrSrcFormat;
-  impl->MDstImageFormat = UrDestFormat;
-  impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE;
   setType(detail::CGType::CopyImage);
 }
 
+// device to device image_mem_handle to usm
+void handler::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
+  MDstPtr = Dest;
+
+  detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, 0,
+                         DestRowPitch);
+
+  setType(detail::CGType::CopyImage);
+}
+
+// device to device image_mem_handle to usm sub copy
 void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_mem_handle Src,
     sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
-    sycl::range<3> DestOffset, sycl::range<3> DestExtent,
-    sycl::range<3> CopyExtent) {
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  SrcImgDesc.verify();
-
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
-  ur_image_desc_t UrDesc = {};
-  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
-  UrDesc.width = SrcImgDesc.width;
-  UrDesc.height = SrcImgDesc.height;
-  UrDesc.depth = SrcImgDesc.depth;
-  UrDesc.arraySize = SrcImgDesc.array_size;
+  detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, 0,
+                         DestRowPitch, SrcOffset, {0, 0, 0}, DestOffset,
+                         {0, 0, 0}, CopyExtent);
 
-  if (SrcImgDesc.array_size > 1) {
-    // Image Array.
-    UrDesc.type = SrcImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
-                                        : UR_MEM_TYPE_IMAGE1D_ARRAY;
-
-    // Cubemap.
-    UrDesc.type =
-        SrcImgDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-            : UrDesc.type;
-  } else {
-    UrDesc.type = SrcImgDesc.depth > 0
-                      ? UR_MEM_TYPE_IMAGE3D
-                      : (SrcImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                               : UR_MEM_TYPE_IMAGE1D);
-  }
-
-  ur_image_format_t UrFormat;
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(SrcImgDesc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(SrcImgDesc.num_channels));
-
-  impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-  impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
-  impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  impl->MSrcImageDesc = UrDesc;
-  impl->MDstImageDesc = UrDesc;
-  impl->MDstImageDesc.width = DestExtent[0];
-  impl->MDstImageDesc.height = DestExtent[1];
-  impl->MDstImageDesc.depth = DestExtent[2];
-  impl->MSrcImageFormat = UrFormat;
-  impl->MDstImageFormat = UrFormat;
-  impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST;
   setType(detail::CGType::CopyImage);
 }
 
+// device to device usm to image_mem_handle
 void handler::ext_oneapi_copy(
-    const void *Src, void *Dest,
-    const ext::oneapi::experimental::image_descriptor &Desc, size_t Pitch) {
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  Desc.verify();
-
   MSrcPtr = const_cast<void *>(Src);
-  MDstPtr = Dest;
+  MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  ur_image_desc_t UrDesc = {};
-  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
-  UrDesc.width = Desc.width;
-  UrDesc.height = Desc.height;
-  UrDesc.depth = Desc.depth;
-  UrDesc.arraySize = Desc.array_size;
+  detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, SrcRowPitch,
+                         0);
 
-  if (Desc.array_size > 1) {
-    // Image Array.
-    UrDesc.type =
-        Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY : UR_MEM_TYPE_IMAGE1D_ARRAY;
-
-    // Cubemap.
-    UrDesc.type =
-        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-            : UrDesc.type;
-
-    // Array size is depth extent.
-    impl->MCopyExtent = {Desc.width, Desc.height, Desc.array_size};
-  } else {
-    UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
-                                 : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                                    : UR_MEM_TYPE_IMAGE1D);
-
-    impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
-  }
-
-  ur_image_format_t UrFormat;
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(Desc.num_channels));
-
-  impl->MSrcOffset = {0, 0, 0};
-  impl->MDestOffset = {0, 0, 0};
-  impl->MSrcImageDesc = UrDesc;
-  impl->MDstImageDesc = UrDesc;
-  impl->MSrcImageFormat = UrFormat;
-  impl->MDstImageFormat = UrFormat;
-  impl->MSrcImageDesc.rowPitch = Pitch;
-  impl->MDstImageDesc.rowPitch = Pitch;
-  impl->MImageCopyFlags = detail::getUrImageCopyFlags(
-      get_pointer_type(Src, MQueue->get_context()),
-      get_pointer_type(Dest, MQueue->get_context()));
   setType(detail::CGType::CopyImage);
 }
 
+// device to device usm to image_mem_handle sub copy
 void handler::ext_oneapi_copy(
-    const void *Src, sycl::range<3> SrcOffset, void *Dest,
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
     sycl::range<3> DestOffset,
-    const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
-    size_t DeviceRowPitch, sycl::range<3> HostExtent,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  DeviceImgDesc.verify();
+  MSrcPtr = const_cast<void *>(Src);
+  MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
+  detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, SrcRowPitch,
+                         0, SrcOffset, {0, 0, 0}, DestOffset, {0, 0, 0},
+                         CopyExtent);
+
+  setType(detail::CGType::CopyImage);
+}
+
+// Simple DtoD or HtoH USM to USM copy
+void handler::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = Dest;
 
-  ur_image_desc_t UrDesc = {};
-  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
-  UrDesc.width = DeviceImgDesc.width;
-  UrDesc.height = DeviceImgDesc.height;
-  UrDesc.depth = DeviceImgDesc.depth;
-  UrDesc.arraySize = DeviceImgDesc.array_size;
+  ur_exp_image_copy_flags_t ImageCopyFlags = detail::getUrImageCopyFlags(
+      get_pointer_type(Src,
+                       createSyclObjFromImpl<context>(impl->get_context())),
+      get_pointer_type(Dest,
+                       createSyclObjFromImpl<context>(impl->get_context())));
 
-  if (DeviceImgDesc.array_size > 1) {
-    // Image Array.
-    UrDesc.type = DeviceImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
-                                           : UR_MEM_TYPE_IMAGE1D_ARRAY;
-
-    // Cubemap.
-    UrDesc.type = DeviceImgDesc.type ==
-                          sycl::ext::oneapi::experimental::image_type::cubemap
-                      ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-                      : UrDesc.type;
+  if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
+      ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) {
+    detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc, ImageCopyFlags,
+                           SrcRowPitch, DestRowPitch);
   } else {
-    UrDesc.type = DeviceImgDesc.depth > 0
-                      ? UR_MEM_TYPE_IMAGE3D
-                      : (DeviceImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                                  : UR_MEM_TYPE_IMAGE1D);
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: This copy function only performs device "
+                          "to device or host to host copies!");
   }
 
-  ur_image_format_t UrFormat;
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(DeviceImgDesc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(DeviceImgDesc.num_channels));
+  setType(detail::CGType::CopyImage);
+}
 
-  impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-  impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
-  impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  impl->MSrcImageFormat = UrFormat;
-  impl->MDstImageFormat = UrFormat;
-  impl->MImageCopyFlags = detail::getUrImageCopyFlags(
-      get_pointer_type(Src, MQueue->get_context()),
-      get_pointer_type(Dest, MQueue->get_context()));
-  impl->MSrcImageDesc = UrDesc;
-  impl->MDstImageDesc = UrDesc;
+// DtoD or HtoH USM to USM copy with offsets and extent
+void handler::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent) {
+  MSrcPtr = const_cast<void *>(Src);
+  MDstPtr = Dest;
 
-  // Fill the descriptor row pitch and host extent based on the type of copy.
-  if (impl->MImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
-    impl->MDstImageDesc.rowPitch = DeviceRowPitch;
-    impl->MSrcImageDesc.rowPitch = 0;
-    impl->MSrcImageDesc.width = HostExtent[0];
-    impl->MSrcImageDesc.height = HostExtent[1];
-    impl->MSrcImageDesc.depth = HostExtent[2];
-  } else if (impl->MImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
-    impl->MSrcImageDesc.rowPitch = DeviceRowPitch;
-    impl->MDstImageDesc.rowPitch = 0;
-    impl->MDstImageDesc.width = HostExtent[0];
-    impl->MDstImageDesc.height = HostExtent[1];
-    impl->MDstImageDesc.depth = HostExtent[2];
+  ur_exp_image_copy_flags_t ImageCopyFlags = detail::getUrImageCopyFlags(
+      get_pointer_type(Src,
+                       createSyclObjFromImpl<context>(impl->get_context())),
+      get_pointer_type(Dest,
+                       createSyclObjFromImpl<context>(impl->get_context())));
+
+  if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
+      ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) {
+    detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc, ImageCopyFlags,
+                           SrcRowPitch, DestRowPitch, SrcOffset, {0, 0, 0},
+                           DestOffset, {0, 0, 0}, CopyExtent);
   } else {
-    impl->MDstImageDesc.rowPitch = DeviceRowPitch;
-    impl->MSrcImageDesc.rowPitch = DeviceRowPitch;
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: This copy function only performs device "
+                          "to device or host to host copies!");
   }
 
   setType(detail::CGType::CopyImage);
@@ -1566,17 +1894,21 @@ void handler::ext_oneapi_wait_external_semaphore(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  if (ExtSemaphore.handle_type !=
-          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
-              opaque_fd &&
-      ExtSemaphore.handle_type !=
-          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
-              win32_nt_handle) {
+
+  switch (ExtSemaphore.handle_type) {
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      opaque_fd:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      win32_nt_handle:
+    break;
+  default:
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Invalid type of semaphore for this operation. The "
         "type of semaphore used needs a user passed wait value.");
+    break;
   }
+
   impl->MExternalSemaphore =
       (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MWaitValue = {};
@@ -1589,14 +1921,23 @@ void handler::ext_oneapi_wait_external_semaphore(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  if (ExtSemaphore.handle_type !=
-      sycl::ext::oneapi::experimental::external_semaphore_handle_type::
-          win32_nt_dx12_fence) {
+
+  switch (ExtSemaphore.handle_type) {
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      win32_nt_dx12_fence:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      timeline_fd:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      timeline_win32_nt_handle:
+    break;
+  default:
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Invalid type of semaphore for this operation. The "
         "type of semaphore does not support user passed wait values.");
+    break;
   }
+
   impl->MExternalSemaphore =
       (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MWaitValue = WaitValue;
@@ -1608,17 +1949,21 @@ void handler::ext_oneapi_signal_external_semaphore(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  if (ExtSemaphore.handle_type !=
-          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
-              opaque_fd &&
-      ExtSemaphore.handle_type !=
-          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
-              win32_nt_handle) {
+
+  switch (ExtSemaphore.handle_type) {
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      opaque_fd:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      win32_nt_handle:
+    break;
+  default:
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Invalid type of semaphore for this operation. The "
         "type of semaphore used needs a user passed signal value.");
+    break;
   }
+
   impl->MExternalSemaphore =
       (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MSignalValue = {};
@@ -1631,14 +1976,23 @@ void handler::ext_oneapi_signal_external_semaphore(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  if (ExtSemaphore.handle_type !=
-      sycl::ext::oneapi::experimental::external_semaphore_handle_type::
-          win32_nt_dx12_fence) {
+
+  switch (ExtSemaphore.handle_type) {
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      win32_nt_dx12_fence:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      timeline_fd:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      timeline_win32_nt_handle:
+    break;
+  default:
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Invalid type of semaphore for this operation. The "
         "type of semaphore does not support user passed signal values.");
+    break;
   }
+
   impl->MExternalSemaphore =
       (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MSignalValue = SignalValue;
@@ -1647,21 +2001,17 @@ void handler::ext_oneapi_signal_external_semaphore(
 
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
-  std::shared_ptr<detail::queue_impl> PrimaryQueue =
-      impl->MSubmissionPrimaryQueue;
-  if ((!impl->MGraph &&
-       (PrimaryQueue->get_context() != ExecBundle.get_context())) ||
-      (impl->MGraph &&
-       (impl->MGraph->getContext() != ExecBundle.get_context())))
+
+  if (&impl->get_context() !=
+      detail::getSyclObjImpl(ExecBundle.get_context()).get())
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Context associated with the primary queue is different from the "
         "context associated with the kernel bundle");
 
-  std::shared_ptr<detail::queue_impl> SecondaryQueue =
-      impl->MSubmissionSecondaryQueue;
-  if (SecondaryQueue &&
-      SecondaryQueue->get_context() != ExecBundle.get_context())
+  if (impl->MSubmissionSecondaryQueue &&
+      impl->MSubmissionSecondaryQueue->get_context() !=
+          ExecBundle.get_context())
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Context associated with the secondary queue is different from the "
@@ -1690,18 +2040,28 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
                           "Queue operation cannot depend on discarded event.");
   }
 
-  auto EventGraph = EventImpl->getCommandGraph();
-  if (MQueue && EventGraph) {
-    auto QueueGraph = MQueue->getCommandGraph();
+  // Async alloc calls adapter immediately. Any explicit/implicit dependencies
+  // are handled at that point, including in order queue deps. Further calls to
+  // depends_on after an async alloc are explicitly disallowed.
+  if (getType() == CGType::AsyncAlloc) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Cannot submit a dependency after an asynchronous "
+                          "allocation has already been executed!");
+  }
 
-    if (EventGraph->getContext() != MQueue->get_context()) {
+  auto EventGraph = EventImpl->getCommandGraph();
+  queue_impl *Queue = impl->get_queue_or_null();
+  if (Queue && EventGraph) {
+    auto QueueGraph = Queue->getCommandGraph();
+
+    if (&EventGraph->getContextImpl() != &impl->get_context()) {
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Cannot submit to a queue with a dependency from a graph that is "
           "associated with a different context.");
     }
 
-    if (EventGraph->getDevice() != MQueue->get_device()) {
+    if (&EventGraph->getDeviceImpl() != &impl->get_device()) {
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Cannot submit to a queue with a dependency from a graph that is "
@@ -1719,7 +2079,7 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
     // we need to set it to recording (implements the transitive queue recording
     // feature).
     if (!QueueGraph) {
-      EventGraph->beginRecording(MQueue);
+      EventGraph->beginRecording(*Queue);
     }
   }
 
@@ -1744,14 +2104,13 @@ void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
   }
 }
 
-static bool
-checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
-                     ur_context_info_t InfoQuery) {
-  auto &Adapter = ContextImpl->getAdapter();
+static bool checkContextSupports(detail::context_impl &ContextImpl,
+                                 ur_context_info_t InfoQuery) {
+  adapter_impl &Adapter = ContextImpl.getAdapter();
   ur_bool_t SupportsOp = false;
-  Adapter->call<UrApiKind::urContextGetInfo>(ContextImpl->getHandleRef(),
-                                             InfoQuery, sizeof(ur_bool_t),
-                                             &SupportsOp, nullptr);
+  Adapter.call<UrApiKind::urContextGetInfo>(ContextImpl.getHandleRef(),
+                                            InfoQuery, sizeof(ur_bool_t),
+                                            &SupportsOp, nullptr);
   return SupportsOp;
 }
 
@@ -1762,8 +2121,7 @@ void handler::verifyDeviceHasProgressGuarantee(
   using execution_scope = sycl::ext::oneapi::experimental::execution_scope;
   using forward_progress =
       sycl::ext::oneapi::experimental::forward_progress_guarantee;
-  auto deviceImplPtr = MQueue->getDeviceImplPtr();
-  const bool supported = deviceImplPtr->supportsForwardProgress(
+  const bool supported = impl->get_device().supportsForwardProgress(
       guarantee, threadScope, coordinationScope);
   if (threadScope == execution_scope::work_group) {
     if (!supported) {
@@ -1803,53 +2161,41 @@ void handler::verifyDeviceHasProgressGuarantee(
 }
 
 bool handler::supportsUSMMemcpy2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
-       {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
-    if (QueueImpl &&
-        !checkContextSupports(QueueImpl->getContextImplPtr(),
-                              UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT))
-      return false;
-  }
-  return true;
+  if (impl->get_graph_or_null())
+    return true;
+
+  return checkContextSupports(impl->get_context(),
+                              UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
 }
 
 bool handler::supportsUSMFill2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
-       {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
-    if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
-                                           UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
-      return false;
-  }
-  return true;
+  if (impl->get_graph_or_null())
+    return true;
+
+  return checkContextSupports(impl->get_context(),
+                              UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
 }
 
 bool handler::supportsUSMMemset2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
-       {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
-    if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
-                                           UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
-      return false;
-  }
-  return true;
+  // memset use the same UR check as fill2D.
+  return supportsUSMFill2D();
 }
 
 id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
-  device Dev = MQueue->get_device();
+  device_impl &Dev = impl->get_device();
   range<2> ItemLimit = Dev.get_info<info::device::max_work_item_sizes<2>>() *
                        Dev.get_info<info::device::max_compute_units>();
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
+// TODO: do we need this still?
 backend handler::getDeviceBackend() const {
-  if (impl->MGraph)
-    return impl->MGraph->getDevice().get_backend();
-  else
-    return MQueue->getDeviceImplPtr()->getBackend();
+  return impl->get_device().getBackend();
 }
 
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                        size_t Size, bool Block) {
-  impl->HostPipeName = Name.data();
+  impl->HostPipeName = std::string_view(Name);
   impl->HostPipePtr = Ptr;
   impl->HostPipeTypeSize = Size;
   impl->HostPipeBlocking = Block;
@@ -1859,7 +2205,7 @@ void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
 
 void handler::ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                         size_t Size, bool Block) {
-  impl->HostPipeName = Name.data();
+  impl->HostPipeName = std::string_view(Name);
   impl->HostPipePtr = Ptr;
   impl->HostPipeTypeSize = Size;
   impl->HostPipeBlocking = Block;
@@ -1896,20 +2242,17 @@ void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
                                            size_t DeviceGlobalTSize,
                                            bool IsDeviceImageScoped,
                                            size_t NumBytes, size_t Offset) {
-  std::weak_ptr<detail::context_impl> WeakContextImpl =
-      MQueue->getContextImplPtr();
-  std::weak_ptr<detail::device_impl> WeakDeviceImpl =
-      MQueue->getDeviceImplPtr();
-  host_task([=] {
-    // Capture context and device as weak to avoid keeping them alive for too
-    // long. If they are dead by the time this executes, the operation would not
-    // have been visible anyway.
-    std::shared_ptr<detail::context_impl> ContextImpl = WeakContextImpl.lock();
-    std::shared_ptr<detail::device_impl> DeviceImpl = WeakDeviceImpl.lock();
-    if (ContextImpl && DeviceImpl)
+  host_task([=, &Dev = impl->get_device(),
+             WeakContextImpl = impl->get_context().weak_from_this()] {
+    // Capture context as weak to avoid keeping it alive for too long. If it is
+    // dead by the time this executes, the operation would not have been visible
+    // anyway. Devices are alive till library shutdown so capturing a reference
+    // to one is fine.
+    if (std::shared_ptr<detail::context_impl> ContextImpl =
+            WeakContextImpl.lock())
       ContextImpl->memcpyToHostOnlyDeviceGlobal(
-          DeviceImpl, DeviceGlobalPtr, Src, DeviceGlobalTSize,
-          IsDeviceImageScoped, NumBytes, Offset);
+          Dev, DeviceGlobalPtr, Src, DeviceGlobalTSize, IsDeviceImageScoped,
+          NumBytes, Offset);
   });
 }
 
@@ -1917,23 +2260,33 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
                                              const void *DeviceGlobalPtr,
                                              bool IsDeviceImageScoped,
                                              size_t NumBytes, size_t Offset) {
-  const std::shared_ptr<detail::context_impl> &ContextImpl =
-      MQueue->getContextImplPtr();
-  const std::shared_ptr<detail::device_impl> &DeviceImpl =
-      MQueue->getDeviceImplPtr();
-  host_task([=] {
-    // Unlike memcpy to device_global, we need to keep the context and device
-    // alive in the capture of this operation as we must be able to correctly
-    // copy the value to the user-specified pointer.
-    ContextImpl->memcpyFromHostOnlyDeviceGlobal(
-        DeviceImpl, Dest, DeviceGlobalPtr, IsDeviceImageScoped, NumBytes,
-        Offset);
+  host_task([=, Context = impl->get_context().shared_from_this(),
+             &Dev = impl->get_device()] {
+    // Unlike memcpy to device_global, we need to keep the context alive in the
+    // capture of this operation as we must be able to correctly copy the value
+    // to the user-specified pointer. Device is guaranteed to live until SYCL RT
+    // library shutdown (but even if it wasn't, alive conext has to guarantee
+    // alive device).
+    Context->memcpyFromHostOnlyDeviceGlobal(
+        Dev, Dest, DeviceGlobalPtr, IsDeviceImageScoped, NumBytes, Offset);
   });
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 const std::shared_ptr<detail::context_impl> &
 handler::getContextImplPtr() const {
-  return MQueue->getContextImplPtr();
+  if (auto *Graph = impl->get_graph_or_null()) {
+    return Graph->getContextImplPtr();
+  }
+  return impl->get_queue().getContextImplPtr();
+}
+#endif
+
+detail::context_impl &handler::getContextImpl() const {
+  if (auto *Graph = impl->get_graph_or_null()) {
+    return Graph->getContextImpl();
+  }
+  return impl->get_queue().getContextImpl();
 }
 
 void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
@@ -1954,12 +2307,53 @@ void handler::setKernelIsCooperative(bool KernelIsCooperative) {
   impl->MKernelIsCooperative = KernelIsCooperative;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_experimental_cuda_cluster_launch>();
   impl->MKernelUsesClusterLaunch = true;
-  impl->MNDRDesc.setClusterDimensions(ClusterSize, Dims);
+
+  if (Dims == 1) {
+    sycl::range<1> ClusterSizeTrimmed = {ClusterSize[0]};
+    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+  } else if (Dims == 2) {
+    sycl::range<2> ClusterSizeTrimmed = {ClusterSize[0], ClusterSize[1]};
+    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+  } else if (Dims == 3) {
+    impl->MNDRDesc.setClusterDimensions(ClusterSize);
+  }
+}
+#endif
+
+void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize) {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
+  impl->MKernelUsesClusterLaunch = true;
+  impl->MNDRDesc.setClusterDimensions(ClusterSize);
+}
+
+void handler::setKernelClusterLaunch(sycl::range<2> ClusterSize) {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
+  impl->MKernelUsesClusterLaunch = true;
+  impl->MNDRDesc.setClusterDimensions(ClusterSize);
+}
+
+void handler::setKernelClusterLaunch(sycl::range<1> ClusterSize) {
+  throwIfGraphAssociated<
+      syclex::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_experimental_cuda_cluster_launch>();
+  impl->MKernelUsesClusterLaunch = true;
+  impl->MNDRDesc.setClusterDimensions(ClusterSize);
+}
+
+void handler::setKernelWorkGroupMem(size_t Size) {
+  throwIfGraphAssociated<syclex::detail::UnsupportedGraphFeatures::
+                             sycl_ext_oneapi_work_group_scratch_memory>();
+  impl->MKernelWorkGroupMemorySize = Size;
 }
 
 void handler::ext_oneapi_graph(
@@ -1972,26 +2366,30 @@ void handler::ext_oneapi_graph(
 
 std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
 handler::getCommandGraph() const {
-  if (impl->MGraph) {
-    return impl->MGraph;
+  if (auto *Graph = impl->get_graph_or_null()) {
+    return Graph->shared_from_this();
   }
 
-  if (this->MQueue)
-    return MQueue->getCommandGraph();
-  // We should never reach here. MGraph and MQueue can not be null
-  // simultaneously.
-  return nullptr;
+  return impl->get_queue().getCommandGraph();
 }
 
 void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
   impl->MUserFacingNodeType = Type;
 }
 
+kernel_bundle<bundle_state::input> handler::getKernelBundle() const {
+  detail::kernel_bundle_impl *KernelBundleImplPtr =
+      getOrInsertHandlerKernelBundlePtr(/*Insert=*/true);
+
+  return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+      *KernelBundleImplPtr);
+}
+
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
-  auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
+  device_impl &DeviceImpl = impl->get_device();
   std::array<size_t, 3> UrResult = {};
-  auto Ret = Dev->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-      Dev->getHandleRef(),
+  auto Ret = DeviceImpl.getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+      DeviceImpl.getHandleRef(),
       UrInfoCode<
           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
       sizeof(UrResult), &UrResult, nullptr);
@@ -2008,31 +2406,40 @@ std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
   return {std::array<size_t, 3>{0, 0, 0}, false};
 }
 
-void handler::setNDRangeUsed(bool Value) { impl->MNDRangeUsed = Value; }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::setNDRangeUsed(bool Value) { (void)Value; }
+#endif
 
 void handler::registerDynamicParameter(
-    ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParamBase,
+    ext::oneapi::experimental::detail::dynamic_parameter_impl *DynamicParamImpl,
     int ArgIndex) {
-  if (MQueue && MQueue->getCommandGraph()) {
+
+  if (queue_impl *Queue = impl->get_queue_or_null();
+      Queue && Queue->hasCommandGraph()) {
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Dynamic Parameters cannot be used with Graph Queue recording.");
   }
-  if (!impl->MGraph) {
+  if (!impl->get_graph_or_null()) {
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Dynamic Parameters cannot be used with normal SYCL submissions");
   }
 
-  auto Paraimpl = detail::getSyclObjImpl(DynamicParamBase);
-  if (Paraimpl->MGraph != this->impl->MGraph) {
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "Cannot use a Dynamic Parameter with a node associated with a graph "
-        "other than the one it was created with.");
-  }
-  impl->MDynamicParameters.emplace_back(Paraimpl.get(), ArgIndex);
+  impl->MDynamicParameters.emplace_back(DynamicParamImpl, ArgIndex);
 }
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: Remove in the next ABI-breaking window.
+void handler::registerDynamicParameter(
+    ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParamBase,
+    int ArgIndex) {
+  ext::oneapi::experimental::detail::dynamic_parameter_impl *DynParamImpl =
+      detail::getSyclObjImpl(DynamicParamBase).get();
+
+  registerDynamicParameter(DynParamImpl, ArgIndex);
+}
+#endif
 
 bool handler::eventNeeded() const { return impl->MEventNeeded; }
 
@@ -2055,12 +2462,16 @@ void handler::SetHostTask(std::function<void(interop_handle)> &&Func) {
   setType(detail::CGType::CodeplayHostTask);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: This function is not used anymore, remove it in the next
+// ABI-breaking window.
 void handler::addAccessorReq(detail::AccessorImplPtr Accessor) {
   // Add accessor to the list of requirements.
   impl->CGData.MRequirements.push_back(Accessor.get());
   // Store copy of the accessor.
   impl->CGData.MAccStorage.push_back(std::move(Accessor));
 }
+#endif
 
 void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
   impl->CGData.MSharedPtrStorage.push_back(std::move(SPtr));
@@ -2091,32 +2502,172 @@ bool handler::HasAssociatedAccessor(detail::AccessorImplHost *Req,
 void handler::setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 sycl::detail::CGType handler::getType() const { return impl->MCGType; }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setNDRangeDescriptorPadded(sycl::range<3> N,
                                          bool SetNumWorkGroups, int Dims) {
-  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups, Dims};
+  if (Dims == 1) {
+    sycl::range<1> Range = {N[0]};
+    impl->MNDRDesc = NDRDescT{Range, SetNumWorkGroups};
+  } else if (Dims == 2) {
+    sycl::range<2> Range = {N[0], N[1]};
+    impl->MNDRDesc = NDRDescT{Range, SetNumWorkGroups};
+  } else if (Dims == 3) {
+    impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+  }
 }
+
 void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                          sycl::id<3> Offset, int Dims) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset, Dims};
+  if (Dims == 1) {
+    sycl::range<1> NumWorkItemsTrimmed = {NumWorkItems[0]};
+    sycl::id<1> OffsetTrimmed = {Offset[0]};
+    impl->MNDRDesc = NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed};
+  } else if (Dims == 2) {
+    sycl::range<2> NumWorkItemsTrimmed = {NumWorkItems[0], NumWorkItems[1]};
+    sycl::id<2> OffsetTrimmed = {Offset[0], Offset[1]};
+    impl->MNDRDesc = NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed};
+  } else if (Dims == 3) {
+    impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+  }
 }
+
 void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                          sycl::range<3> LocalSize,
                                          sycl::id<3> Offset, int Dims) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset, Dims};
+  if (Dims == 1) {
+    sycl::range<1> NumWorkItemsTrimmed = {NumWorkItems[0]};
+    sycl::range<1> LocalSizeTrimmed = {LocalSize[0]};
+    sycl::id<1> OffsetTrimmed = {Offset[0]};
+    impl->MNDRDesc =
+        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed};
+  } else if (Dims == 2) {
+    sycl::range<2> NumWorkItemsTrimmed = {NumWorkItems[0], NumWorkItems[1]};
+    sycl::range<2> LocalSizeTrimmed = {LocalSize[0], LocalSize[1]};
+    sycl::id<2> OffsetTrimmed = {Offset[0], Offset[1]};
+    impl->MNDRDesc =
+        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed};
+  } else if (Dims == 3) {
+    impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+  }
+}
+#endif
+
+void handler::setNDRangeDescriptor(sycl::range<3> N, bool SetNumWorkGroups) {
+  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+}
+void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
+                                   sycl::id<3> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+}
+void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
+                                   sycl::range<3> LocalSize,
+                                   sycl::id<3> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+}
+
+void handler::setNDRangeDescriptor(sycl::range<2> N, bool SetNumWorkGroups) {
+  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+}
+void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
+                                   sycl::id<2> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+}
+void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
+                                   sycl::range<2> LocalSize,
+                                   sycl::id<2> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+}
+
+void handler::setNDRangeDescriptor(sycl::range<1> N, bool SetNumWorkGroups) {
+  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+}
+void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
+                                   sycl::id<1> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+}
+void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
+                                   sycl::range<1> LocalSize,
+                                   sycl::id<1> Offset) {
+  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+}
+
+void handler::setKernelNameBasedCachePtr(
+    sycl::detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
+  impl->MKernelNameBasedCachePtr = KernelNameBasedCachePtr;
+}
+
+void handler::setKernelInfo(
+    void *KernelFuncPtr, int KernelNumArgs,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+    bool KernelIsESIMD, bool KernelHasSpecialCaptures) {
+  impl->MKernelFuncPtr = KernelFuncPtr;
+  impl->MKernelNumArgs = KernelNumArgs;
+  impl->MKernelParamDescGetter = KernelParamDescGetter;
+  impl->MKernelIsESIMD = KernelIsESIMD;
+  impl->MKernelHasSpecialCaptures = KernelHasSpecialCaptures;
+}
+
+void handler::instantiateKernelOnHost(void *InstantiateKernelOnHostPtr) {
+  // Passing the pointer to the runtime is enough to prevent optimization.
+  // We don't need to use the pointer for anything.
+  (void)InstantiateKernelOnHostPtr;
 }
 
 void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {
   MCodeLoc = CodeLoc;
   impl->MIsTopCodeLoc = IsTopCodeLoc;
 }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::saveCodeLoc(detail::code_location CodeLoc) {
   MCodeLoc = CodeLoc;
   impl->MIsTopCodeLoc = true;
 }
+#endif
 void handler::copyCodeLoc(const handler &other) {
   MCodeLoc = other.MCodeLoc;
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
 }
 
+queue handler::getQueue() {
+  return createSyclObjFromImpl<queue>(impl->get_queue());
+}
+namespace detail {
+__SYCL_EXPORT void HandlerAccess::preProcess(handler &CGH,
+                                             type_erased_cgfo_ty F) {
+  queue_impl &Q = CGH.impl->get_queue();
+  bool EventNeeded = !Q.isInOrder();
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  handler_impl HandlerImpl{Q, nullptr, EventNeeded};
+  handler AuxHandler{HandlerImpl};
+#else
+  handler AuxHandler{Q.shared_from_this(), EventNeeded};
+#endif
+  AuxHandler.copyCodeLoc(CGH);
+  F(AuxHandler);
+  auto E = AuxHandler.finalize();
+  if (EventNeeded)
+    CGH.depends_on(E);
+}
+__SYCL_EXPORT void HandlerAccess::postProcess(handler &CGH,
+                                              type_erased_cgfo_ty F) {
+  bool EventNeeded = CGH.impl->MEventNeeded;
+  queue_impl &Q = CGH.impl->get_queue();
+  bool InOrder = Q.isInOrder();
+  if (!InOrder)
+    CGH.impl->MEventNeeded = true;
+
+  handler PostProcessHandler{
+      std::make_unique<handler_impl>(Q, nullptr, EventNeeded)};
+  PostProcessHandler.copyCodeLoc(CGH);
+  // Extend lifetimes of auxiliary resources till the last kernel in the chain
+  // finishes:
+  PostProcessHandler.impl->MAuxiliaryResources = CGH.impl->MAuxiliaryResources;
+  auto E = CGH.finalize();
+  if (!InOrder)
+    PostProcessHandler.depends_on(E);
+  F(PostProcessHandler);
+  swap(CGH, PostProcessHandler);
+}
+} // namespace detail
 } // namespace _V1
 } // namespace sycl

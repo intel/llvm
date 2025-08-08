@@ -30,9 +30,9 @@ bool CodeGenInstAlias::tryAliasOpMatch(const DagInit *Result,
                                        ArrayRef<SMLoc> Loc,
                                        const CodeGenTarget &T,
                                        ResultOperand &ResOp) {
-  Init *Arg = Result->getArg(AliasOpNo);
-  DefInit *ADI = dyn_cast<DefInit>(Arg);
-  Record *ResultRecord = ADI ? ADI->getDef() : nullptr;
+  const Init *Arg = Result->getArg(AliasOpNo);
+  const DefInit *ADI = dyn_cast<DefInit>(Arg);
+  const Record *ResultRecord = ADI ? ADI->getDef() : nullptr;
 
   if (ADI && ADI->getDef() == InstOpRec) {
     // If the operand is a record, it must have a name, and the record type
@@ -40,8 +40,7 @@ bool CodeGenInstAlias::tryAliasOpMatch(const DagInit *Result,
     if (!Result->getArgName(AliasOpNo))
       PrintFatalError(Loc, "result argument #" + Twine(AliasOpNo) +
                                " must have a name!");
-    ResOp = ResultOperand(std::string(Result->getArgNameStr(AliasOpNo)),
-                          ResultRecord);
+    ResOp = ResultOperand(Result->getArgNameStr(AliasOpNo).str(), ResultRecord);
     return true;
   }
 
@@ -59,15 +58,14 @@ bool CodeGenInstAlias::tryAliasOpMatch(const DagInit *Result,
     if (!T.getRegisterClass(InstOpRec).hasSubClass(
             &T.getRegisterClass(ADI->getDef())))
       return false;
-    ResOp = ResultOperand(std::string(Result->getArgNameStr(AliasOpNo)),
-                          ResultRecord);
+    ResOp = ResultOperand(Result->getArgNameStr(AliasOpNo).str(), ResultRecord);
     return true;
   }
 
   // Handle explicit registers.
   if (ADI && ADI->getDef()->isSubClassOf("Register")) {
     if (InstOpRec->isSubClassOf("OptionalDefOperand")) {
-      DagInit *DI = InstOpRec->getValueAsDag("MIOperandInfo");
+      const DagInit *DI = InstOpRec->getValueAsDag("MIOperandInfo");
       // The operand info should only have a single (register) entry. We
       // want the register class of it.
       InstOpRec = cast<DefInit>(DI->getArg(0))->getDef();
@@ -102,12 +100,12 @@ bool CodeGenInstAlias::tryAliasOpMatch(const DagInit *Result,
     //  throw TGError(Loc, "reg0 used for result that is not an "
     //                "OptionalDefOperand!");
 
-    ResOp = ResultOperand(static_cast<Record *>(nullptr));
+    ResOp = ResultOperand(nullptr);
     return true;
   }
 
   // Literal integers.
-  if (IntInit *II = dyn_cast<IntInit>(Arg)) {
+  if (const IntInit *II = dyn_cast<IntInit>(Arg)) {
     if (hasSubOps || !InstOpRec->isSubClassOf("Operand"))
       return false;
     // Integer arguments can't have names.
@@ -119,17 +117,16 @@ bool CodeGenInstAlias::tryAliasOpMatch(const DagInit *Result,
   }
 
   // Bits<n> (also used for 0bxx literals)
-  if (BitsInit *BI = dyn_cast<BitsInit>(Arg)) {
+  if (const BitsInit *BI = dyn_cast<BitsInit>(Arg)) {
     if (hasSubOps || !InstOpRec->isSubClassOf("Operand"))
       return false;
     if (!BI->isComplete())
       return false;
     // Convert the bits init to an integer and use that for the result.
-    IntInit *II = dyn_cast_or_null<IntInit>(
-        BI->convertInitializerTo(IntRecTy::get(BI->getRecordKeeper())));
-    if (!II)
+    std::optional<int64_t> Value = BI->convertInitializerToInt();
+    if (!Value)
       return false;
-    ResOp = ResultOperand(II->getValue());
+    ResOp = ResultOperand(*Value);
     return true;
   }
 
@@ -142,8 +139,8 @@ bool CodeGenInstAlias::tryAliasOpMatch(const DagInit *Result,
     // MIOperandInfo perhaps?
     if (InstOpRec->getValueInit("Type") != ADI->getDef()->getValueInit("Type"))
       return false;
-    ResOp = ResultOperand(std::string(Result->getArgNameStr(AliasOpNo)),
-                          ADI->getDef());
+    ResOp =
+        ResultOperand(Result->getArgNameStr(AliasOpNo).str(), ADI->getDef());
     return true;
   }
 
@@ -170,10 +167,10 @@ unsigned CodeGenInstAlias::ResultOperand::getMINumOperands() const {
 CodeGenInstAlias::CodeGenInstAlias(const Record *R, const CodeGenTarget &T)
     : TheDef(R) {
   Result = R->getValueAsDag("ResultInst");
-  AsmString = std::string(R->getValueAsString("AsmString"));
+  AsmString = R->getValueAsString("AsmString");
 
   // Verify that the root of the result is an instruction.
-  DefInit *DI = dyn_cast<DefInit>(Result->getOperator());
+  const DefInit *DI = dyn_cast<DefInit>(Result->getOperator());
   if (!DI || !DI->getDef()->isSubClassOf("Instruction"))
     PrintFatalError(R->getLoc(),
                     "result of inst alias should be an instruction");
@@ -182,15 +179,15 @@ CodeGenInstAlias::CodeGenInstAlias(const Record *R, const CodeGenTarget &T)
 
   // NameClass - If argument names are repeated, we need to verify they have
   // the same class.
-  StringMap<Record *> NameClass;
+  StringMap<const Record *> NameClass;
   for (unsigned i = 0, e = Result->getNumArgs(); i != e; ++i) {
-    DefInit *ADI = dyn_cast<DefInit>(Result->getArg(i));
+    const DefInit *ADI = dyn_cast<DefInit>(Result->getArg(i));
     if (!ADI || !Result->getArgName(i))
       continue;
     // Verify we don't have something like: (someinst GR16:$foo, GR32:$foo)
     // $foo can exist multiple times in the result list, but it must have the
     // same type.
-    Record *&Entry = NameClass[Result->getArgNameStr(i)];
+    const Record *&Entry = NameClass[Result->getArgNameStr(i)];
     if (Entry && Entry != ADI->getDef())
       PrintFatalError(R->getLoc(), "result value $" + Result->getArgNameStr(i) +
                                        " is both " + Entry->getName() +
@@ -201,17 +198,15 @@ CodeGenInstAlias::CodeGenInstAlias(const Record *R, const CodeGenTarget &T)
 
   // Decode and validate the arguments of the result.
   unsigned AliasOpNo = 0;
-  for (unsigned i = 0, e = ResultInst->Operands.size(); i != e; ++i) {
-
+  for (auto [OpIdx, OpInfo] : enumerate(ResultInst->Operands)) {
     // Tied registers don't have an entry in the result dag unless they're part
     // of a complex operand, in which case we include them anyways, as we
     // don't have any other way to specify the whole operand.
-    if (ResultInst->Operands[i].MINumOperands == 1 &&
-        ResultInst->Operands[i].getTiedRegister() != -1) {
+    if (OpInfo.MINumOperands == 1 && OpInfo.getTiedRegister() != -1) {
       // Tied operands of different RegisterClass should be explicit within an
       // instruction's syntax and so cannot be skipped.
-      int TiedOpNum = ResultInst->Operands[i].getTiedRegister();
-      if (ResultInst->Operands[i].Rec->getName() ==
+      int TiedOpNum = OpInfo.getTiedRegister();
+      if (OpInfo.Rec->getName() ==
           ResultInst->Operands[TiedOpNum].Rec->getName())
         continue;
     }
@@ -219,8 +214,8 @@ CodeGenInstAlias::CodeGenInstAlias(const Record *R, const CodeGenTarget &T)
     if (AliasOpNo >= Result->getNumArgs())
       PrintFatalError(R->getLoc(), "not enough arguments for instruction!");
 
-    const Record *InstOpRec = ResultInst->Operands[i].Rec;
-    unsigned NumSubOps = ResultInst->Operands[i].MINumOperands;
+    const Record *InstOpRec = OpInfo.Rec;
+    unsigned NumSubOps = OpInfo.MINumOperands;
     ResultOperand ResOp(static_cast<int64_t>(0));
     if (tryAliasOpMatch(Result, AliasOpNo, InstOpRec, (NumSubOps > 1),
                         R->getLoc(), T, ResOp)) {
@@ -229,15 +224,15 @@ CodeGenInstAlias::CodeGenInstAlias(const Record *R, const CodeGenTarget &T)
       if (NumSubOps == 1 || (InstOpRec->getValue("ParserMatchClass") &&
                              InstOpRec->getValueAsDef("ParserMatchClass")
                                      ->getValueAsString("Name") != "Imm")) {
-        ResultOperands.push_back(ResOp);
-        ResultInstOperandIndex.push_back(std::pair(i, -1));
+        ResultOperands.push_back(std::move(ResOp));
+        ResultInstOperandIndex.emplace_back(OpIdx, -1);
         ++AliasOpNo;
 
         // Otherwise, we need to match each of the suboperands individually.
       } else {
-        DagInit *MIOI = ResultInst->Operands[i].MIOperandInfo;
+        const DagInit *MIOI = OpInfo.MIOperandInfo;
         for (unsigned SubOp = 0; SubOp != NumSubOps; ++SubOp) {
-          Record *SubRec = cast<DefInit>(MIOI->getArg(SubOp))->getDef();
+          const Record *SubRec = cast<DefInit>(MIOI->getArg(SubOp))->getDef();
 
           // Take care to instantiate each of the suboperands with the correct
           // nomenclature: $foo.bar
@@ -245,7 +240,7 @@ CodeGenInstAlias::CodeGenInstAlias(const Record *R, const CodeGenTarget &T)
               Result->getArgName(AliasOpNo)->getAsUnquotedString() + "." +
                   MIOI->getArgName(SubOp)->getAsUnquotedString(),
               SubRec);
-          ResultInstOperandIndex.push_back(std::pair(i, SubOp));
+          ResultInstOperandIndex.emplace_back(OpIdx, SubOp);
         }
         ++AliasOpNo;
       }
@@ -255,15 +250,15 @@ CodeGenInstAlias::CodeGenInstAlias(const Record *R, const CodeGenTarget &T)
     // If the argument did not match the instruction operand, and the operand
     // is composed of multiple suboperands, try matching the suboperands.
     if (NumSubOps > 1) {
-      DagInit *MIOI = ResultInst->Operands[i].MIOperandInfo;
+      const DagInit *MIOI = OpInfo.MIOperandInfo;
       for (unsigned SubOp = 0; SubOp != NumSubOps; ++SubOp) {
         if (AliasOpNo >= Result->getNumArgs())
           PrintFatalError(R->getLoc(), "not enough arguments for instruction!");
-        Record *SubRec = cast<DefInit>(MIOI->getArg(SubOp))->getDef();
+        const Record *SubRec = cast<DefInit>(MIOI->getArg(SubOp))->getDef();
         if (tryAliasOpMatch(Result, AliasOpNo, SubRec, false, R->getLoc(), T,
                             ResOp)) {
           ResultOperands.push_back(ResOp);
-          ResultInstOperandIndex.push_back(std::pair(i, SubOp));
+          ResultInstOperandIndex.emplace_back(OpIdx, SubOp);
           ++AliasOpNo;
         } else {
           PrintFatalError(

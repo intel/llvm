@@ -145,14 +145,6 @@ public:
   /// load/store type are the same.
   llvm::Type *convertTypeForLoadStore(QualType T, llvm::Type *LLVMTy = nullptr);
 
-  /// ConvertSYCLJointMatrixINTELType - Convert SYCL joint_matrix type
-  /// which is represented as a pointer to a structure to LLVM extension type
-  /// with the parameters that follow SPIR-V JointMatrixINTEL type.
-  /// The expected representation is:
-  /// target("spirv.JointMatrixINTEL", %element_type, %rows%, %cols%, %scope%,
-  ///        %use%, (optional) %element_type_interpretation%)
-  llvm::Type *ConvertSYCLJointMatrixINTELType(RecordDecl *RD);
-
   /// ConvertSPVCooperativeMatrixType - Convert SYCL joint_matrix type
   /// which is represented as a pointer to a structure to LLVM extension type
   /// with the parameters that follow SPIR-V CooperativeMatrixKHR type.
@@ -224,7 +216,7 @@ public:
 
   /// Free functions are functions that are compatible with an ordinary
   /// C function pointer type.
-  const CGFunctionInfo &arrangeFunctionDeclaration(const FunctionDecl *FD);
+  const CGFunctionInfo &arrangeFunctionDeclaration(const GlobalDecl GD);
   const CGFunctionInfo &arrangeFreeFunctionCall(const CallArgList &Args,
                                                 const FunctionType *Ty,
                                                 bool ChainCall);
@@ -245,6 +237,13 @@ public:
                                     ArrayRef<CanQualType> argTypes);
   const CGFunctionInfo &arrangeBuiltinFunctionCall(QualType resultType,
                                                    const CallArgList &args);
+
+  /// A SYCL kernel caller function is an offload device entry point function
+  /// with a target device dependent calling convention such as amdgpu_kernel,
+  /// ptx_kernel, or spir_kernel.
+  const CGFunctionInfo &
+  arrangeSYCLKernelCallerDeclaration(QualType resultType,
+                                     const FunctionArgList &args);
 
   /// Objective-C methods are C functions with some implicit parameters.
   const CGFunctionInfo &arrangeObjCMethodDeclaration(const ObjCMethodDecl *MD);

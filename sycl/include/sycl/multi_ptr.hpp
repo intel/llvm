@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <sycl/__spirv/spirv_ops.hpp>         // for __spirv_ocl_prefetch
-#include <sycl/access/access.hpp>             // for address_space, decorated
-#include <sycl/aliases.hpp>                   // for half
+#include <sycl/access/access.hpp> // for address_space, decorated
+#include <sycl/aliases.hpp>       // for half
+#include <sycl/detail/address_space_cast.hpp>
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/type_traits.hpp>        // for const_if_const_AS
 #include <sycl/half_type.hpp>                 // for BIsRepresentationT
@@ -391,10 +391,13 @@ public:
       access::address_space _Space = Space,
       typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::global_space>>
-  void prefetch(size_t NumElements) const {
+  void prefetch([[maybe_unused]] size_t NumElements) const {
+#ifdef __SYCL_DEVICE_ONLY__
     size_t NumBytes = NumElements * sizeof(ElementType);
-    using ptr_t = typename detail::DecoratedType<char, Space>::type const *;
+    using ptr_t =
+        typename detail::DecoratedType<unsigned char, Space>::type const *;
     __spirv_ocl_prefetch(reinterpret_cast<ptr_t>(get_decorated()), NumBytes);
+#endif
   }
 
   // Arithmetic operators
@@ -747,11 +750,8 @@ inline constexpr auto decoration_space = Space;
 } // namespace detail
 
 // Legacy specialization of multi_ptr.
-// TODO: Add deprecation warning here when possible.
 template <typename ElementType, access::address_space Space>
-class __SYCL2020_DEPRECATED(
-    "decorated::legacy multi_ptr specialization is deprecated since SYCL 2020.")
-    multi_ptr<ElementType, Space, access::decorated::legacy> {
+class multi_ptr<ElementType, Space, access::decorated::legacy> {
   static constexpr auto DecorationSpace = detail::decoration_space<Space>;
 
 public:
@@ -1090,10 +1090,13 @@ public:
       access::address_space _Space = Space,
       typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::global_space>>
-  void prefetch(size_t NumElements) const {
+  void prefetch([[maybe_unused]] size_t NumElements) const {
+#ifdef __SYCL_DEVICE_ONLY__
     size_t NumBytes = NumElements * sizeof(ElementType);
-    using ptr_t = typename detail::DecoratedType<char, Space>::type const *;
+    using ptr_t =
+        typename detail::DecoratedType<unsigned char, Space>::type const *;
     __spirv_ocl_prefetch(reinterpret_cast<ptr_t>(m_Pointer), NumBytes);
+#endif
   }
 
 private:
@@ -1101,11 +1104,8 @@ private:
 };
 
 // Legacy specialization of multi_ptr for void.
-// TODO: Add deprecation warning here when possible.
 template <access::address_space Space>
-class __SYCL2020_DEPRECATED(
-    "decorated::legacy multi_ptr specialization is deprecated since SYCL 2020.")
-    multi_ptr<void, Space, access::decorated::legacy> {
+class multi_ptr<void, Space, access::decorated::legacy> {
   static constexpr auto DecorationSpace = detail::decoration_space<Space>;
 
 public:
@@ -1264,11 +1264,8 @@ private:
 };
 
 // Legacy specialization of multi_ptr for const void.
-// TODO: Add deprecation warning here when possible.
 template <access::address_space Space>
-class __SYCL2020_DEPRECATED(
-    "decorated::legacy multi_ptr specialization is deprecated since SYCL 2020.")
-    multi_ptr<const void, Space, access::decorated::legacy> {
+class multi_ptr<const void, Space, access::decorated::legacy> {
   static constexpr auto DecorationSpace = detail::decoration_space<Space>;
 
 public:

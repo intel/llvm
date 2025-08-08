@@ -9,9 +9,10 @@ set_property(SOURCE ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc
                "RC_INTERNAL_NAME=\"ur_win_proxy_loader\""
                "RC_PRODUCT_NAME=\"ur_win_proxy_loader\""
                "RC_PRODUCT_VERSION=\"${SYCL_VERSION_STRING}\""
-               "RC_COPYRIGHT=\"Copyright (C) 2023 Intel Inc. All Rights Reserved\"")
+               "RC_COPYRIGHT=\"Copyright (C) 2023 Intel Corporation\"")
 configure_file(../../llvm/resources/windows_version_resource.rc ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc @ONLY)
 add_library(ur_win_proxy_loader SHARED  ur_win_proxy_loader.cpp  ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc)
+add_dependencies(ur_win_proxy_loader UnifiedRuntimeLoader)
 install(TARGETS ur_win_proxy_loader
   RUNTIME DESTINATION "bin" COMPONENT ur_win_proxy_loader
 )
@@ -56,6 +57,7 @@ if (MSVC)
   add_library(ur_win_proxy_loaderd SHARED ur_win_proxy_loader.cpp ${CMAKE_CURRENT_BINARY_DIR}/versioninfo.rc)
   target_compile_options(ur_win_proxy_loaderd PRIVATE ${WINUNLOAD_CXX_FLAGS_DEBUG})
   target_compile_options(ur_win_proxy_loader PRIVATE ${WINUNLOAD_CXX_FLAGS_RELEASE})
+  target_compile_definitions(ur_win_proxy_loaderd PRIVATE UR_WIN_PROXY_LOADER_DEBUG)
   target_link_libraries(ur_win_proxy_loaderd PRIVATE shlwapi)
   target_link_libraries(ur_win_proxy_loader PRIVATE shlwapi)
   # 0x2000: LOAD_LIBRARY_SAFE_CURRENT_DIRS flag. Using this flag means that loading dependency DLLs

@@ -1,7 +1,9 @@
 // REQUIRES: level_zero, level_zero_dev_kit
-// L0 plugin incorrectly reports memory leaks because it doesn't take into
-// account direct calls to L0 API.
 // UNSUPPORTED: ze_debug
+// UNSUPPORTED-INTENDED: Leaks detection is done at UR level and doesn't account
+// for native L0 API calls.
+// UNSUPPORTED: linux && (gpu-intel-dg2 || arch-intel_gpu_bmg_g21) && run-mode && !igc-dev
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18273
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
 

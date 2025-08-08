@@ -1,0 +1,186 @@
+name: Backport on Comment
+
+# Example use: /backport llvm_release_190
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+
+jobs:
+  backport:
+    if: >
+      github.event.issue.pull_request != null &&
+      startsWith(github.event.comment.body, '/backport ')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+      - name: Ensure PR is merged
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            if (!pr.data.merged) {
+              core.setFailed('PR #' + context.issue.number + ' is not merged.');
+            }
+
+      - name: Parse backport command
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          result-encoding: string
+          script: |
+            const body = context.payload.comment.body.trim();
+            const msg = body.match(/^\/backport\s+(llvm_release_[0-9]+)$/);
+            if (!msg) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                issue_number: context.issue.number,
+                body: 'Invalid backport command. Expected `/backport llvm_release_<digits>`'
+              });
+              throw new Error('Invalid backport command.');
+            }
+            core.exportVariable('TARGET', msg[1]);
+
+      - name: Notify attempt
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const target = process.env.TARGET;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `Attempting to create backport to \`${target}\`...`
+            });
+
+      - name: Create backport branch
+        run: |
+          git fetch origin ${{ env.TARGET }}:${{ env.TARGET }}
+          git checkout -b backport/pr-${{ github.event.issue.number }}-to-${{ env.TARGET }} origin/${{ env.TARGET }}
+
+      - name: Get commit sha
+        id: merge_sha
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          result-encoding: string
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            // FIXME: handle PRs that are merged with "Rebase and Merge" strategy
+            const sha = pr.data.merge_commit_sha;
+            if (!sha) {
+              throw new Error(`No merge_commit_sha found.`);
+            }
+            return sha;
+
+      - name: Cherry-pick commit
+        id: cherry
+        run: |
+          conflict=false
+          SHA="${{ steps.merge_sha.outputs.result }}"
+          echo "Cherry-picking squash-merge commit $SHA"
+          if git cherry-pick "$SHA"; then
+            echo "Cherry-picked $SHA"
+          else
+            echo "Conflict on $SHA"
+            conflict=true
+            echo "CONFLICT_SHA=$SHA" >> $GITHUB_ENV
+          fi
+          echo "CONFLICT=$conflict" >> $GITHUB_ENV
+
+      - name: Notify conflict
+        if: env.CONFLICT == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const sha = process.env.CONFLICT_SHA;
+            const target = process.env.TARGET;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `Backport to \`${target}\` failed due to conflicts on commit \`${sha}\`. Please backport manually.`
+            });
+
+      - name: Stop on conflict
+        if: env.CONFLICT == 'true'
+        run: exit 0
+
+      - name: Push backport branch
+        if: env.CONFLICT == 'false'
+        run: git push --set-upstream origin HEAD
+
+      - name: Prepare PR
+        if: env.CONFLICT == 'false'
+        id: prinfo
+        run: |
+          echo "BODY<<EOF" >> $GITHUB_ENV
+          echo "Backport of PR #${{ github.event.issue.number }} into \`${{ env.TARGET }}\`." >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+          echo "All commits applied cleanly." >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          echo "LABELS=backport" >> $GITHUB_ENV
+
+      - name: Create Pull Request
+        if: env.CONFLICT == 'false'
+        id: create_pr
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          result-encoding: string
+          script: |
+            const {data: pr} = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `backport/pr-${context.issue.number}-to-${process.env.TARGET}`,
+              base: process.env.TARGET,
+              title: `[Backport to ${process.env.TARGET}] ${context.payload.issue.title}`,
+              body: process.env.BODY
+            });
+            return pr.html_url;
+
+      - name: Notify success
+        if: env.CONFLICT == 'false'
+        uses: actions/github-script@v7
+        env:
+          PR_URL: ${{ steps.create_pr.outputs.result }}
+        with:
+          script: |
+            const target = process.env.TARGET;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `Success. Backport PR created: ${process.env.PR_URL}`
+            });
+
+      - name: Notify workflows
+        if: env.CONFLICT == 'false'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: backport-complete

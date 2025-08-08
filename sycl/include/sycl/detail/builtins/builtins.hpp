@@ -63,11 +63,73 @@
 
 #pragma once
 
-#include <sycl/builtins_utils_vec.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/type_traits/vec_marray_traits.hpp>
+#include <sycl/detail/vector_convert.hpp>
+#include <sycl/marray.hpp> // for marray
+#include <sycl/vector.hpp> // for vec
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+#ifdef __FAST_MATH__
+template <typename T>
+struct use_fast_math
+    : std::is_same<std::remove_cv_t<get_elem_type_t<T>>, float> {};
+#else
+template <typename> struct use_fast_math : std::false_type {};
+#endif
+template <typename T> constexpr bool use_fast_math_v = use_fast_math<T>::value;
+
+// Utility trait for getting the decoration of a multi_ptr.
+template <typename T> struct get_multi_ptr_decoration;
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress>
+struct get_multi_ptr_decoration<
+    multi_ptr<ElementType, Space, DecorateAddress>> {
+  static constexpr access::decorated value = DecorateAddress;
+};
+
+template <typename T>
+constexpr access::decorated get_multi_ptr_decoration_v =
+    get_multi_ptr_decoration<T>::value;
+
+// Utility trait for checking if a multi_ptr has a "writable" address space,
+// i.e. global, local, private or generic.
+template <typename T> struct has_writeable_addr_space : std::false_type {};
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress>
+struct has_writeable_addr_space<multi_ptr<ElementType, Space, DecorateAddress>>
+    : std::bool_constant<Space == access::address_space::global_space ||
+                         Space == access::address_space::local_space ||
+                         Space == access::address_space::private_space ||
+                         Space == access::address_space::generic_space> {};
+
+template <typename T>
+constexpr bool has_writeable_addr_space_v = has_writeable_addr_space<T>::value;
+
+// Utility trait for changing the element type of a type T. If T is a scalar,
+// the new type replaces T completely.
+template <typename NewElemT, typename T, typename = void>
+struct change_elements {
+  using type = NewElemT;
+};
+template <typename NewElemT, typename T>
+struct change_elements<NewElemT, T, std::enable_if_t<is_marray_v<T>>> {
+  using type =
+      marray<typename change_elements<NewElemT, typename T::value_type>::type,
+             T::size()>;
+};
+template <typename NewElemT, typename T>
+struct change_elements<NewElemT, T, std::enable_if_t<is_vec_or_swizzle_v<T>>> {
+  using type =
+      vec<typename change_elements<NewElemT, typename T::element_type>::type,
+          T::size()>;
+};
+
+template <typename NewElemT, typename T>
+using change_elements_t = typename change_elements<NewElemT, T>::type;
+
 template <typename... Ts>
 inline constexpr bool builtin_same_shape_v =
     ((... && is_scalar_arithmetic_v<Ts>) || (... && is_marray_v<Ts>) ||
@@ -79,6 +141,23 @@ template <typename... Ts>
 inline constexpr bool builtin_same_or_swizzle_v =
     // Use builtin_same_shape_v to filter out types unrelated to builtins.
     builtin_same_shape_v<Ts...> && all_same_v<simplify_if_swizzle_t<Ts>...>;
+
+// Utility functions for converting to/from vec/marray.
+template <class T, size_t N> vec<T, 2> to_vec2(marray<T, N> X, size_t Start) {
+  return {X[Start], X[Start + 1]};
+}
+template <class T, size_t N> vec<T, N> to_vec(marray<T, N> X) {
+  vec<T, N> Vec;
+  for (size_t I = 0; I < N; I++)
+    Vec[I] = X[I];
+  return Vec;
+}
+template <class T, int N> marray<T, N> to_marray(vec<T, N> X) {
+  marray<T, N> Marray;
+  for (size_t I = 0; I < N; I++)
+    Marray[I] = X[I];
+  return Marray;
+}
 
 namespace builtins {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -93,8 +172,7 @@ template <typename T> auto convert_arg(T &&x) {
     using result_type = std::conditional_t<N == 1, converted_elem_type,
                                            converted_elem_type
                                            __attribute__((ext_vector_type(N)))>;
-    // TODO: We should have this bit_cast impl inside vec::convert.
-    return bit_cast<result_type>(static_cast<typename no_cv_ref::vector_t>(x));
+    return bit_cast<result_type>(x);
   } else if constexpr (is_swizzle_v<no_cv_ref>) {
     return convert_arg(simplify_if_swizzle_t<no_cv_ref>{x});
   } else {
@@ -102,14 +180,6 @@ template <typename T> auto convert_arg(T &&x) {
                   is_multi_ptr_v<no_cv_ref> || std::is_pointer_v<no_cv_ref> ||
                   std::is_same_v<no_cv_ref, half>);
     return convertToOpenCLType(std::forward<T>(x));
-  }
-}
-
-template <typename RetTy, typename T> auto convert_result(T &&x) {
-  if constexpr (is_vec_v<RetTy>) {
-    return bit_cast<typename RetTy::vector_t>(x);
-  } else {
-    return std::forward<T>(x);
   }
 }
 #endif
@@ -125,12 +195,18 @@ auto builtin_marray_impl(FuncTy F, const Ts &...x) {
     auto PartialRes = [&]() {
       using elem_ty = get_elem_type_t<T>;
       if constexpr (std::is_integral_v<elem_ty>)
-        return F(to_vec2(x, I * 2)
-                     .template as<vec<get_fixed_sized_int_t<elem_ty>, 2>>()...);
+        return F(
+            to_vec2(x, I * 2)
+                .template as<vec<
+                    std::conditional_t<std::is_signed_v<elem_ty>,
+                                       fixed_width_signed<sizeof(elem_ty)>,
+                                       fixed_width_unsigned<sizeof(elem_ty)>>,
+                    2>>()...);
       else
         return F(to_vec2(x, I * 2)...);
     }();
-    std::memcpy(&Res[I * 2], &PartialRes, sizeof(decltype(PartialRes)));
+    sycl::detail::memcpy_no_adl(&Res[I * 2], &PartialRes,
+                                sizeof(decltype(PartialRes)));
   }
   if (N % 2)
     Res[N - 1] = F(x[N - 1]...);
@@ -229,12 +305,14 @@ struct builtin_enable
 } // namespace _V1
 } // namespace sycl
 
-// The headers below are specifically implemented without including all the
-// necessary headers to allow preprocessing them on their own and providing
-// human-friendly result. One can use a command like this to achieve that:
-// clang++ -[DU]__SYCL_DEVICE_ONLY__ -x c++ math_functions.inc
-//         -I <..>/llvm/sycl/include -E -o -
-//     | grep -v '^#' | clang-format > math_functions.{host|device}.ii
+/*
+The headers below are specifically implemented without including all the
+necessary headers to allow preprocessing them on their own and providing
+human-friendly result. One can use a command like this to achieve that:
+clang++ -[DU]__SYCL_DEVICE_ONLY__ -x c++ math_functions.inc  \
+        -I <..>/llvm/sycl/include -E -o - \
+    | grep -v '^#' | clang-format > math_functions.{host|device}.ii
+*/
 
 #include <sycl/detail/builtins/common_functions.inc>
 #include <sycl/detail/builtins/geometric_functions.inc>

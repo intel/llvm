@@ -1,5 +1,8 @@
-// RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-IR
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
+// TODO: Currently using the -Wno-deprecated-declarations flag due to issue
+// https://github.com/intel/llvm/issues/16320. Remove the flag once the issue is
+// resolved.
+// RUN: %clangxx -fsycl-device-only -S -Wno-deprecated-declarations -Xclang -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-IR
+// RUN: %clangxx -fsycl -fsyntax-only -Wno-deprecated-declarations -Xclang -verify %s
 // expected-no-diagnostics
 
 #include <sycl/sycl.hpp>
@@ -272,21 +275,21 @@ int main() {
         NDR3, Props3, Redu1, Redu2, [](sycl::nd_item<3>, auto &, auto &) {});
   });
 
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel72(){{.*}} #[[WGSizeHintAttr7]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel72(){{.*}} #[[WGSizeHintAttr4]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for_work_group<class WGSizeHintKernel72>(
         R1, Props1, [](sycl::group<1> G) {
           G.parallel_for_work_item([&](sycl::h_item<1>) {});
         });
   });
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel73(){{.*}} #[[WGSizeHintAttr8]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel73(){{.*}} #[[WGSizeHintAttr5]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for_work_group<class WGSizeHintKernel73>(
         R2, Props2, [](sycl::group<2> G) {
           G.parallel_for_work_item([&](sycl::h_item<2>) {});
         });
   });
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel74(){{.*}} #[[WGSizeHintAttr9]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeHintKernel74(){{.*}} #[[WGSizeHintAttr6]]
   Q.submit([&](sycl::handler &CGH) {
     CGH.parallel_for_work_group<class WGSizeHintKernel74>(
         R3, Props3, [](sycl::group<3> G) {
@@ -303,6 +306,3 @@ int main() {
 // CHECK-IR: attributes #[[WGSizeHintAttr4]] = { {{.*}}"sycl-work-group-size-hint"="1"
 // CHECK-IR: attributes #[[WGSizeHintAttr5]] = { {{.*}}"sycl-work-group-size-hint"="1,2"
 // CHECK-IR: attributes #[[WGSizeHintAttr6]] = { {{.*}}"sycl-work-group-size-hint"="1,2,3"
-// CHECK-IR: attributes #[[WGSizeHintAttr7]] = { {{.*}}"sycl-work-group-size-hint"="1"
-// CHECK-IR: attributes #[[WGSizeHintAttr8]] = { {{.*}}"sycl-work-group-size-hint"="1,2"
-// CHECK-IR: attributes #[[WGSizeHintAttr9]] = { {{.*}}"sycl-work-group-size-hint"="1,2,3"

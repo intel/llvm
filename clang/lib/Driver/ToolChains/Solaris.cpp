@@ -7,13 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "Solaris.h"
-#include "CommonArgs.h"
 #include "Gnu.h"
 #include "clang/Basic/LangStandard.h"
 #include "clang/Config/config.h"
+#include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
 #include "clang/Driver/ToolChain.h"
@@ -225,8 +224,8 @@ void solaris::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // these dependencies need to be listed before the C runtime below.
     if (D.IsFlangMode() &&
         !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
-      addFortranRuntimeLibraryPath(getToolChain(), Args, CmdArgs);
-      addFortranRuntimeLibs(getToolChain(), Args, CmdArgs);
+      ToolChain.addFortranRuntimeLibraryPath(Args, CmdArgs);
+      ToolChain.addFortranRuntimeLibs(Args, CmdArgs);
       CmdArgs.push_back("-lm");
     }
     if (Args.hasArg(options::OPT_fstack_protector) ||
@@ -243,13 +242,10 @@ void solaris::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-latomic");
       addAsNeededOption(ToolChain, Args, CmdArgs, false);
     }
-    addAsNeededOption(ToolChain, Args, CmdArgs, true);
-    CmdArgs.push_back("-lgcc_s");
-    addAsNeededOption(ToolChain, Args, CmdArgs, false);
+
+    AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
     CmdArgs.push_back("-lc");
-    if (!Args.hasArg(options::OPT_shared)) {
-      CmdArgs.push_back("-lgcc");
-    }
+
     const SanitizerArgs &SA = ToolChain.getSanitizerArgs(Args);
     if (NeedsSanitizerDeps) {
       linkSanitizerRuntimeDeps(ToolChain, Args, CmdArgs);
@@ -266,8 +262,7 @@ void solaris::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       }
     }
     // Avoid AsanInitInternal cycle, Issue #64126.
-    if (ToolChain.getTriple().isX86() && SA.needsSharedRt() &&
-        SA.needsAsanRt()) {
+    if (SA.needsSharedRt() && SA.needsAsanRt()) {
       CmdArgs.push_back("-z");
       CmdArgs.push_back("now");
     }
@@ -334,10 +329,11 @@ Solaris::Solaris(const Driver &D, const llvm::Triple &Triple,
 }
 
 SanitizerMask Solaris::getSupportedSanitizers() const {
+  const bool IsSparc = getTriple().getArch() == llvm::Triple::sparc;
   const bool IsX86 = getTriple().getArch() == llvm::Triple::x86;
   SanitizerMask Res = ToolChain::getSupportedSanitizers();
-  // FIXME: Omit X86_64 until 64-bit support is figured out.
-  if (IsX86) {
+  // FIXME: Omit SparcV9 and X86_64 until 64-bit support is figured out.
+  if (IsSparc || IsX86) {
     Res |= SanitizerKind::Address;
     Res |= SanitizerKind::PointerCompare;
     Res |= SanitizerKind::PointerSubtract;

@@ -6,15 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO enable opaque pointers support on CPU.
-// UNSUPPORTED: cpu
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %if preview-breaking-changes-supported %{  %{build} -fpreview-breaking-changes -o %t2.out   %}
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out  %}
 
 #include <sycl/detail/core.hpp>
+#include <sycl/detail/vector_convert.hpp>
 #include <sycl/stream.hpp>
 
 #include <sycl/ext/oneapi/bfloat16.hpp>

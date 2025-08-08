@@ -1,10 +1,11 @@
 // RUN: %{build} -o %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR=":" %{run-unfiltered-devices} %t.out
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 #include <vector>
 
 // Check that the application does not hang when we attempt
-// to initialize plugins multiple times with invalid values
+// to initialize adapters multiple times with invalid values
 // of ONEAPI_DEVICE_SELECTOR.
 int main() {
   for (int I = 0; I < 3; ++I) {

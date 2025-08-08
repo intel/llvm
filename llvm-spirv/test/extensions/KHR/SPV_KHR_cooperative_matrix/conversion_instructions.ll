@@ -8,6 +8,15 @@
 ; RUN: llvm-dis %t.rev.bc 
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_cooperative_matrix,+SPV_KHR_untyped_pointers -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv %t.spv -to-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+
+; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+
 ; CHECK-SPIRV: TypeInt [[#TypeInt32:]] 32 0
 ; CHECK-SPIRV: TypeInt [[#TypeInt16:]] 16 0
 ; CHECK-SPIRV: TypeInt [[#TypeInt8:]] 8 0
@@ -32,6 +41,19 @@ define void @convert_f_to_u() {
 entry:
   %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructFloat(float 0.000000e+00)
   %call = call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z77__spirv_ConvertFToU_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2_rtpPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) %0)
+  ret void
+}
+
+; CHECK-SPIRV: CompositeConstruct [[#MatrixTypeFloat]] [[#MatrixIn:]] [[#]] {{$}}
+; CHECK-SPIRV: ConvertFToU [[#MatrixTypeInt32]] [[#]] [[#MatrixIn]]
+
+; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructf(float 0.000000e+00)
+; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z73__spirv_ConvertFToU_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2PU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) %[[#Matrix]])
+
+define void @convert_f_to_u_no_fproundingmode() {
+entry:
+  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructFloat(float 0.000000e+00)
+  %call = call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z73__spirv_ConvertFToU_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2PU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) %0)
   ret void
 }
 
@@ -122,6 +144,8 @@ declare spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2
 declare spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructInt16(i16 noundef)
 
 declare spir_func noundef target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructInt8(i8 noundef)
+
+declare spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z73__spirv_ConvertFToU_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2PU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) noundef)
 
 declare spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z77__spirv_ConvertFToU_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2_rtpPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) noundef)
 

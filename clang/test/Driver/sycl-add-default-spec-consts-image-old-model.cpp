@@ -11,7 +11,6 @@
 
 // Check that no warnings are issued in correct cases and "-generate-device-image-default-spec-consts" is passed to sycl-post-link
 // RUN: %clang -### -fsycl --no-offload-new-driver -fsycl-add-default-spec-consts-image -fsycl-targets=spir64_gen 2>&1  %s | FileCheck %s -check-prefix=CHECK-AOT
-// RUN: %clang -### -fsycl --no-offload-new-driver -fsycl-add-default-spec-consts-image -fsycl-targets=spir64_fpga 2>&1 %s | FileCheck %s -check-prefix=CHECK-AOT
 // RUN: %clang -### -fsycl --no-offload-new-driver -fsycl-add-default-spec-consts-image -fsycl-targets=spir64_x86_64 2>&1 %s | FileCheck %s -check-prefix=CHECK-AOT
 // RUN: %clang -### -fsycl --no-offload-new-driver -fsycl-add-default-spec-consts-image -fsycl-targets=intel_gpu_pvc 2>&1 %s | FileCheck %s -check-prefix=CHECK-AOT
 // RUN: %clang -### -fsycl --no-offload-new-driver -fsycl-add-default-spec-consts-image -fsycl-targets=nvidia_gpu_sm_90 -nocudalib 2>&1 %s | FileCheck %s -check-prefix=CHECK-AOT

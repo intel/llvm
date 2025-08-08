@@ -15,7 +15,7 @@
 
 #include "clang/AST/DependenceFlags.h"
 #include "clang/Basic/ExceptionSpecificationType.h"
-#include "llvm/ADT/ArrayRef.h"
+#include "clang/Basic/LLVM.h"
 
 namespace clang {
 
@@ -112,6 +112,7 @@ class SYCLBuiltinNumFieldsExpr;
 class SYCLBuiltinNumBasesExpr;
 class SYCLBuiltinFieldTypeExpr;
 class SYCLBuiltinBaseTypeExpr;
+class OpenACCAsteriskSizeExpr;
 
 // The following functions are called from constructors of `Expr`, so they
 // should not access anything beyond basic
@@ -137,7 +138,8 @@ ExprDependence computeDependence(ArrayInitLoopExpr *E);
 ExprDependence computeDependence(ImplicitValueInitExpr *E);
 ExprDependence computeDependence(InitListExpr *E);
 ExprDependence computeDependence(ExtVectorElementExpr *E);
-ExprDependence computeDependence(BlockExpr *E);
+ExprDependence computeDependence(BlockExpr *E,
+                                 bool ContainsUnexpandedParameterPack);
 ExprDependence computeDependence(AsTypeExpr *E);
 ExprDependence computeDependence(DeclRefExpr *E, const ASTContext &Ctx);
 ExprDependence computeDependence(RecoveryExpr *E);
@@ -184,7 +186,7 @@ ExprDependence computeDependence(ConceptSpecializationExpr *E,
 ExprDependence computeDependence(SYCLUniqueStableNameExpr *E);
 ExprDependence computeDependence(SYCLUniqueStableIdExpr *E);
 ExprDependence computeDependence(PredefinedExpr *E);
-ExprDependence computeDependence(CallExpr *E, llvm::ArrayRef<Expr *> PreArgs);
+ExprDependence computeDependence(CallExpr *E, ArrayRef<Expr *> PreArgs);
 ExprDependence computeDependence(OffsetOfExpr *E);
 ExprDependence computeDependence(MemberExpr *E);
 ExprDependence computeDependence(ShuffleVectorExpr *E);
@@ -209,6 +211,7 @@ ExprDependence computeDependence(ObjCSubscriptRefExpr *E);
 ExprDependence computeDependence(ObjCIsaExpr *E);
 ExprDependence computeDependence(ObjCIndirectCopyRestoreExpr *E);
 ExprDependence computeDependence(ObjCMessageExpr *E);
+ExprDependence computeDependence(OpenACCAsteriskSizeExpr *E);
 
 ExprDependence computeDependence(SYCLBuiltinNumFieldsExpr *E);
 ExprDependence computeDependence(SYCLBuiltinNumBasesExpr *E);

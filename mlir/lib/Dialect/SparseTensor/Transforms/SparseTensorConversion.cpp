@@ -729,9 +729,9 @@ public:
     createFuncCall(rewriter, loc, name, {},
                    {tensor, lvlCoords, values, filled, added, count},
                    EmitCInterface::On);
+    Operation *parent = getTop(op);
     rewriter.replaceOp(op, adaptor.getTensor());
     // Deallocate the buffers on exit of the loop nest.
-    Operation *parent = getTop(op);
     rewriter.setInsertionPointAfter(parent);
     rewriter.create<memref::DeallocOp>(loc, values);
     rewriter.create<memref::DeallocOp>(loc, filled);
@@ -867,7 +867,9 @@ public:
     // Converts MemRefs back to Tensors.
     assert(retVal.size() + retLen.size() == op.getNumResults());
     for (unsigned i = 0, sz = retVal.size(); i < sz; i++) {
-      auto tensor = rewriter.create<bufferization::ToTensorOp>(loc, retVal[i]);
+      auto tensor = rewriter.create<bufferization::ToTensorOp>(
+          loc, memref::getTensorTypeFromMemRefType(retVal[i].getType()),
+          retVal[i]);
       retVal[i] =
           rewriter.create<tensor::CastOp>(loc, op.getResultTypes()[i], tensor);
     }
@@ -909,8 +911,8 @@ mlir::SparseTensorTypeToPtrConverter::SparseTensorTypeToPtrConverter() {
 
 /// Populates the given patterns list with conversion rules required for
 /// the sparsification of linear algebra operations.
-void mlir::populateSparseTensorConversionPatterns(TypeConverter &typeConverter,
-                                                  RewritePatternSet &patterns) {
+void mlir::populateSparseTensorConversionPatterns(
+    const TypeConverter &typeConverter, RewritePatternSet &patterns) {
   patterns
       .add<SparseReturnConverter, SparseTensorLvlOpConverter,
            SparseCastConverter, SparseReMapConverter, SparseTensorNewConverter,

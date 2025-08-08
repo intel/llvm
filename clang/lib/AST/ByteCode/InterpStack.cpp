@@ -8,6 +8,7 @@
 
 #include "InterpStack.h"
 #include "Boolean.h"
+#include "FixedPoint.h"
 #include "Floating.h"
 #include "Integral.h"
 #include "MemberPointer.h"
@@ -18,14 +19,27 @@
 using namespace clang;
 using namespace clang::interp;
 
-InterpStack::~InterpStack() { clear(); }
-
-void InterpStack::clear() {
+InterpStack::~InterpStack() {
   if (Chunk && Chunk->Next)
     std::free(Chunk->Next);
   if (Chunk)
     std::free(Chunk);
   Chunk = nullptr;
+  StackSize = 0;
+#ifndef NDEBUG
+  ItemTypes.clear();
+#endif
+}
+
+// We keep the last chunk around to reuse.
+void InterpStack::clear() {
+  if (!Chunk)
+    return;
+
+  if (Chunk->Next)
+    std::free(Chunk->Next);
+
+  assert(Chunk);
   StackSize = 0;
 #ifndef NDEBUG
   ItemTypes.clear();

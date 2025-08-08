@@ -7,9 +7,10 @@
 // Tests raw_kernel_arg which is used to pass OpenCL vector types as a special
 // case of struct data types.
 
-#include <sycl/detail/core.hpp>
-#include <sycl/usm.hpp>
 #include <CL/cl.h>
+#include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/usm.hpp>
 
 constexpr size_t NumArgs = 4;
 

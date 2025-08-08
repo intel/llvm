@@ -14,9 +14,11 @@
 ; CHECK-SPIRV: Name [[#Func1:]] "_Z20convert_uint_satfunc"
 ; CHECK-SPIRV: Name [[#Func2:]] "_Z21convert_float_rtzfunc"
 ; CHECK-SPIRV-DAG: TypeVoid [[#VoidTy:]]
+; CHECK-SPIRV-DAG: TypeInt [[#CharTy:]] 8
 ; CHECK-SPIRV-DAG: TypeFloat [[#FloatTy:]] 32
 
 ; CHECK-SPIRV: Function [[#VoidTy]] [[#Func]]
+; CHECK-SPIRV: SConvert [[#CharTy]] [[#ConvertId:]] [[#]]
 ; CHECK-SPIRV: ConvertSToF [[#FloatTy]] [[#ConvertId:]] [[#]]
 ; CHECK-SPIRV: FunctionCall [[#VoidTy]] [[#]] [[#Func]] [[#ConvertId]]
 ; CHECK-SPIRV: FunctionCall [[#VoidTy]] [[#]] [[#Func1]] [[#]]
@@ -51,6 +53,11 @@ entry:
   %x.addr = alloca i32, align 4
   store i32 %x, ptr %x.addr, align 4
   %0 = load i32, ptr %x.addr, align 4
+; We don't get the convert_char_rtei back, but that's fine because they are
+; functionally equivalent anyway. The rounding information is lost when
+; translating to SPIR-V.
+; CHECK-LLVM: call spir_func i8 @_Z12convert_chari(i32 %[[#]])
+  call spir_func signext i8 @_Z16convert_char_rtei(i32 noundef %0) #1
 ; CHECK-LLVM: %[[Call:[a-z]+]] = sitofp i32 %[[#]] to float
 ; CHECK-LLVM: call spir_func void @_Z18convert_float_func(float %[[Call]])
 ; CHECK-LLVM: call spir_func void @_Z20convert_uint_satfunc(i32 %[[#]])
@@ -61,6 +68,9 @@ entry:
   call spir_func void @_Z21convert_float_rtzfunc(float noundef %call) #0
   ret void
 }
+
+; Function Attrs: convergent nounwind willreturn memory(none)
+declare spir_func signext i8 @_Z16convert_char_rtei(i32 noundef) #1
 
 ; Function Attrs: convergent nounwind willreturn memory(none)
 declare spir_func float @_Z13convert_floati(i32 noundef) #1

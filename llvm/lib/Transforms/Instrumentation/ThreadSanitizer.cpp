@@ -27,6 +27,7 @@
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -36,12 +37,14 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/ModuleSummaryIndex.h"
 #include "llvm/IR/Type.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/MathExtras.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.h"
 #include "llvm/Transforms/Utils/EscapeEnumerator.h"
 #include "llvm/Transforms/Utils/Instrumentation.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -82,6 +85,10 @@ static cl::opt<bool> ClCompoundReadBeforeWrite(
     cl::desc("Emit special compound instrumentation for reads-before-writes"),
     cl::Hidden);
 
+static cl::opt<bool> ClSpirOffloadLocals("tsan-spir-locals",
+                                         cl::desc("instrument local pointer"),
+                                         cl::Hidden, cl::init(true));
+
 STATISTIC(NumInstrumentedReads, "Number of instrumented reads");
 STATISTIC(NumInstrumentedWrites, "Number of instrumented writes");
 STATISTIC(NumOmittedReadsBeforeWrite,
@@ -98,6 +105,73 @@ const char kTsanModuleCtorName[] = "tsan.module_ctor";
 const char kTsanInitName[] = "__tsan_init";
 
 namespace {
+
+struct ThreadSanitizer;
+
+// SPIR-V specific instrumentation
+struct ThreadSanitizerOnSpirv {
+  ThreadSanitizerOnSpirv(Module &M)
+      : M(M), C(M.getContext()), DL(M.getDataLayout()) {
+    IntptrTy = DL.getIntPtrType(C);
+  }
+
+  void initialize();
+
+  void instrumentModule();
+
+  bool instrumentAllocInst(Function *F,
+                           SmallVectorImpl<Instruction *> &AllocaInsts);
+
+  void instrumentDynamicLocalMemory(Function &F);
+
+  bool instrumentControlBarrier(CallInst *CI);
+
+  void appendDebugInfoToArgs(Instruction *I, SmallVectorImpl<Value *> &Args);
+
+  bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst);
+
+private:
+  void instrumentGlobalVariables();
+
+  void instrumentStaticLocalMemory();
+
+  void instrumentKernelsMetadata();
+
+  void initializeKernelCallerMap(Function *F);
+
+  bool isSupportedSPIRKernel(Function &F);
+
+  bool isUnsupportedDeviceGlobal(const GlobalVariable &G);
+
+  GlobalVariable *GetOrCreateGlobalString(StringRef Name, StringRef Value,
+                                          unsigned AddressSpace);
+
+private:
+  Module &M;
+  LLVMContext &C;
+  const DataLayout &DL;
+  Type *IntptrTy;
+
+  StringMap<GlobalVariable *> GlobalStringMap;
+
+  DenseMap<Function *, DenseSet<Function *>> FuncToKernelCallerMap;
+
+  // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
+  static const size_t kNumberOfAccessSizes = 5;
+  static const size_t kNumberOfAddressSpace = 5;
+  FunctionCallee TsanCleanupPrivate;
+  FunctionCallee TsanCleanupStaticLocal;
+  FunctionCallee TsanCleanupDynamicLocal;
+  FunctionCallee TsanDeviceBarrier;
+  FunctionCallee TsanGroupBarrier;
+  FunctionCallee TsanRead[kNumberOfAccessSizes][kNumberOfAddressSpace];
+  FunctionCallee TsanWrite[kNumberOfAccessSizes][kNumberOfAddressSpace];
+  FunctionCallee TsanUnalignedRead[kNumberOfAccessSizes][kNumberOfAddressSpace];
+  FunctionCallee TsanUnalignedWrite[kNumberOfAccessSizes]
+                                   [kNumberOfAddressSpace];
+
+  friend struct ThreadSanitizer;
+};
 
 /// ThreadSanitizer: instrument the code in module to find races.
 ///
@@ -142,6 +216,8 @@ private:
   int getMemoryAccessFuncIndex(Type *OrigTy, Value *Addr, const DataLayout &DL);
   void InsertRuntimeIgnores(Function &F);
 
+  std::optional<ThreadSanitizerOnSpirv> Spirv;
+
   Type *IntptrTy;
   FunctionCallee TsanFuncEntry;
   FunctionCallee TsanFuncExit;
@@ -179,7 +255,7 @@ void insertModuleCtor(Module &M) {
       // time. Hook them into the global ctors list in that case:
       [&](Function *Ctor, FunctionCallee) { appendToGlobalCtors(M, Ctor, 0); });
 }
-}  // namespace
+} // namespace
 
 PreservedAnalyses ThreadSanitizerPass::run(Function &F,
                                            FunctionAnalysisManager &FAM) {
@@ -194,13 +270,487 @@ PreservedAnalyses ModuleThreadSanitizerPass::run(Module &M,
   // Return early if nosanitize_thread module flag is present for the module.
   if (checkIfAlreadyInstrumented(M, "nosanitize_thread"))
     return PreservedAnalyses::all();
-  insertModuleCtor(M);
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
+    ThreadSanitizerOnSpirv Spirv(M);
+    Spirv.initialize();
+    Spirv.instrumentModule();
+  } else
+    insertModuleCtor(M);
   return PreservedAnalyses::none();
 }
+
+void ThreadSanitizerOnSpirv::initialize() {
+  IRBuilder<> IRB(C);
+  AttributeList Attr;
+  Attr = Attr.addFnAttribute(C, Attribute::NoUnwind);
+  Type *Int8PtrTy = IRB.getInt8PtrTy(kSpirOffloadConstantAS);
+
+  // __tsan_cleanup_private(
+  //   uptr ptr,
+  //   size_t size
+  // )
+  TsanCleanupPrivate = M.getOrInsertFunction(
+      "__tsan_cleanup_private", Attr, IRB.getVoidTy(), IntptrTy, IntptrTy);
+
+  // __tsan_cleanup_static_local(
+  //   uptr ptr,
+  //   size_t size
+  // )
+  TsanCleanupStaticLocal = M.getOrInsertFunction(
+      "__tsan_cleanup_static_local", Attr, IRB.getVoidTy(), IntptrTy, IntptrTy);
+
+  // __tsan_cleanup_dynamic_local(
+  //   uptr ptr,
+  //   size_t size
+  // )
+  TsanCleanupDynamicLocal =
+      M.getOrInsertFunction("__tsan_cleanup_dynamic_local", Attr,
+                            IRB.getVoidTy(), IntptrTy, IRB.getInt32Ty());
+
+  TsanDeviceBarrier = M.getOrInsertFunction(
+      "__tsan_device_barrier", Attr.addFnAttribute(C, Attribute::Convergent),
+      IRB.getVoidTy());
+
+  TsanGroupBarrier = M.getOrInsertFunction(
+      "__tsan_group_barrier", Attr.addFnAttribute(C, Attribute::Convergent),
+      IRB.getVoidTy());
+
+  for (size_t AddressSpaceIndex = 0; AddressSpaceIndex < kNumberOfAddressSpace;
+       AddressSpaceIndex++) {
+    for (size_t i = 0; i < kNumberOfAccessSizes; ++i) {
+      const unsigned ByteSize = 1U << i;
+      std::string ByteSizeStr = utostr(ByteSize);
+      std::string Suffix = "_p" + itostr(AddressSpaceIndex);
+      // __tsan_readX/__tsan_writeX(
+      //   ...
+      //   char* file,
+      //   unsigned int line,
+      //   char* func
+      // )
+      SmallString<32> ReadName("__tsan_read" + ByteSizeStr + Suffix);
+      TsanRead[i][AddressSpaceIndex] =
+          M.getOrInsertFunction(ReadName, Attr, IRB.getVoidTy(), IntptrTy,
+                                Int8PtrTy, IRB.getInt32Ty(), Int8PtrTy);
+
+      SmallString<32> WriteName("__tsan_write" + ByteSizeStr + Suffix);
+      TsanWrite[i][AddressSpaceIndex] =
+          M.getOrInsertFunction(WriteName, Attr, IRB.getVoidTy(), IntptrTy,
+                                Int8PtrTy, IRB.getInt32Ty(), Int8PtrTy);
+
+      SmallString<32> UnalignedReadName("__tsan_unaligned_read" + ByteSizeStr +
+                                        Suffix);
+      TsanUnalignedRead[i][AddressSpaceIndex] = M.getOrInsertFunction(
+          UnalignedReadName, Attr, IRB.getVoidTy(), IntptrTy, Int8PtrTy,
+          IRB.getInt32Ty(), Int8PtrTy);
+
+      SmallString<32> UnalignedWriteName("__tsan_unaligned_write" +
+                                         ByteSizeStr + Suffix);
+      TsanUnalignedWrite[i][AddressSpaceIndex] = M.getOrInsertFunction(
+          UnalignedWriteName, Attr, IRB.getVoidTy(), IntptrTy, Int8PtrTy,
+          IRB.getInt32Ty(), Int8PtrTy);
+    }
+  }
+}
+
+bool ThreadSanitizerOnSpirv::instrumentAllocInst(
+    Function *F, SmallVectorImpl<Instruction *> &AllocaInsts) {
+  bool Changed = false;
+
+  EscapeEnumerator EE(*F, "tsan_cleanup", false);
+  while (IRBuilder<> *AtExit = EE.Next()) {
+    InstrumentationIRBuilder::ensureDebugInfo(*AtExit, *F);
+    for (auto *Inst : AllocaInsts) {
+      AllocaInst *AI = cast<AllocaInst>(Inst);
+      // For dynamic allocas, sometime it will not dominate exit BB, we need to
+      // skip them.
+      if (!AI->isStaticAlloca())
+        continue;
+
+      if (auto AllocSize = AI->getAllocationSize(DL)) {
+        AtExit->CreateCall(TsanCleanupPrivate,
+                           {AtExit->CreatePtrToInt(AI, IntptrTy),
+                            ConstantInt::get(IntptrTy, *AllocSize)});
+        Changed |= true;
+      }
+    }
+  }
+
+  return Changed;
+}
+
+bool ThreadSanitizerOnSpirv::instrumentControlBarrier(CallInst *CI) {
+  assert(isa<ConstantInt>(CI->getArgOperand(0)));
+  uint64_t Scope = cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue();
+  // is not device scope or work group scope
+  if (Scope != 1 && Scope != 2)
+    return false;
+
+  InstrumentationIRBuilder IRB(CI);
+  CallInst *NewCI =
+      IRB.CreateCall(Scope == 1 ? TsanDeviceBarrier : TsanGroupBarrier, {});
+  NewCI->setAttributes(NewCI->getCalledFunction()->getAttributes());
+  CI->eraseFromParent();
+  return true;
+}
+
+void ThreadSanitizerOnSpirv::appendDebugInfoToArgs(
+    Instruction *I, SmallVectorImpl<Value *> &Args) {
+  auto &Loc = I->getDebugLoc();
+
+  // SPIR constant address space
+  PointerType *ConstASPtrTy = PointerType::get(C, kSpirOffloadConstantAS);
+
+  // File & Line
+  if (Loc) {
+    llvm::SmallString<128> Source = Loc->getDirectory();
+    sys::path::append(Source, Loc->getFilename());
+    auto *FileNameGV =
+        GetOrCreateGlobalString("__tsan_file", Source, kSpirOffloadConstantAS);
+    Args.push_back(ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
+    Args.push_back(ConstantInt::get(Type::getInt32Ty(C), Loc.getLine()));
+  } else {
+    Args.push_back(ConstantPointerNull::get(ConstASPtrTy));
+    Args.push_back(ConstantInt::get(Type::getInt32Ty(C), 0));
+  }
+
+  // Function
+  auto FuncName = I->getFunction()->getName();
+  auto *FuncNameGV = GetOrCreateGlobalString("__tsan_func", demangle(FuncName),
+                                             kSpirOffloadConstantAS);
+  Args.push_back(ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
+}
+
+bool ThreadSanitizerOnSpirv::isUnsupportedSPIRAccess(Value *Addr,
+                                                     Instruction *Inst) {
+  auto *OrigValue = getUnderlyingObject(Addr);
+  if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
+    return true;
+
+  // Ignore load/store for target ext type since we can't know exactly what size
+  // it is.
+  if (auto *SI = dyn_cast<StoreInst>(Inst))
+    if (getTargetExtType(SI->getValueOperand()->getType()) ||
+        isJointMatrixAccess(SI->getPointerOperand()))
+      return true;
+
+  if (auto *LI = dyn_cast<LoadInst>(Inst))
+    if (getTargetExtType(Inst->getType()) ||
+        isJointMatrixAccess(LI->getPointerOperand()))
+      return true;
+
+  auto AddrAS = cast<PointerType>(Addr->getType()->getScalarType())
+                    ->getPointerAddressSpace();
+  switch (AddrAS) {
+  case kSpirOffloadPrivateAS:
+  case kSpirOffloadConstantAS:
+    return true;
+  case kSpirOffloadLocalAS:
+    return !ClSpirOffloadLocals;
+  case kSpirOffloadGlobalAS:
+  case kSpirOffloadGenericAS:
+    return false;
+  }
+  return false;
+}
+
+bool ThreadSanitizerOnSpirv::isSupportedSPIRKernel(Function &F) {
+
+  if (!F.hasFnAttribute(Attribute::SanitizeThread) ||
+      F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+    return false;
+
+  if (F.getName().contains("__sycl_service_kernel__")) {
+    F.addFnAttr(Attribute::DisableSanitizerInstrumentation);
+    return false;
+  }
+
+  // Skip referenced-indirectly function as we insert access to shared
+  // local memory (SLM) __TsanLaunchInfo and access to SLM in
+  // referenced-indirectly function isn't supported yet in
+  // intel-graphics-compiler.
+  if (F.hasFnAttribute("referenced-indirectly")) {
+    F.addFnAttr(Attribute::DisableSanitizerInstrumentation);
+    return false;
+  }
+
+  return true;
+}
+
+bool ThreadSanitizerOnSpirv::isUnsupportedDeviceGlobal(
+    const GlobalVariable &G) {
+  if (G.user_empty())
+    return true;
+  // Skip instrumenting on "__TsanKernelMetadata" etc.
+  if (G.getName().starts_with("__Tsan"))
+    return true;
+  if (G.getName().starts_with("__tsan_"))
+    return true;
+  if (G.getName().starts_with("__spirv_BuiltIn"))
+    return true;
+  if (G.getName().starts_with("__usid_str"))
+    return true;
+  // Global variables have constant address space will not trigger race
+  // condition.
+  if (G.getAddressSpace() == kSpirOffloadConstantAS)
+    return true;
+  return false;
+}
+
+void ThreadSanitizerOnSpirv::instrumentModule() {
+  instrumentGlobalVariables();
+  instrumentStaticLocalMemory();
+  instrumentKernelsMetadata();
+}
+
+void ThreadSanitizerOnSpirv::instrumentGlobalVariables() {
+  SmallVector<Constant *, 8> DeviceGlobalMetadata;
+
+  // Device global metadata is described by a structure
+  //  size_t device_global_size
+  //  size_t beginning address of the device global
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+
+  for (auto &G : M.globals()) {
+    // DeviceSanitizers cannot handle nameless globals, therefore we set a name
+    // for them so that we can handle them like regular globals.
+    if (G.getName().empty() && G.hasInternalLinkage())
+      G.setName("nameless_global");
+
+    if (isUnsupportedDeviceGlobal(G)) {
+      for (auto *User : G.users())
+        if (auto *Inst = dyn_cast<Instruction>(User))
+          Inst->setNoSanitizeMetadata();
+      continue;
+    }
+
+    // This case is handled by instrumentStaticLocalMemory
+    if (G.getAddressSpace() == kSpirOffloadLocalAS)
+      continue;
+
+    DeviceGlobalMetadata.push_back(ConstantStruct::get(
+        StructTy,
+        ConstantInt::get(IntptrTy, DL.getTypeAllocSize(G.getValueType())),
+        ConstantExpr::getPointerCast(&G, IntptrTy)));
+  }
+
+  if (DeviceGlobalMetadata.empty())
+    return;
+
+  // Create meta data global to record device globals' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+  GlobalVariable *MsanDeviceGlobalMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__TsanDeviceGlobalMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  MsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+}
+
+void ThreadSanitizerOnSpirv::instrumentStaticLocalMemory() {
+  if (!ClSpirOffloadLocals)
+    return;
+
+  auto Instrument = [this](GlobalVariable *G, Function *F) {
+    const uint64_t SizeInBytes = DL.getTypeAllocSize(G->getValueType());
+
+    if (!F->hasMetadata("tsan_instrumented_local")) {
+      IRBuilder<> Builder(&F->getEntryBlock().front());
+      Builder.CreateCall(TsanGroupBarrier);
+    }
+
+    // Poison shadow of static local memory
+    {
+      IRBuilder<> Builder(&F->getEntryBlock().front());
+      Builder.CreateCall(TsanCleanupStaticLocal,
+                         {Builder.CreatePointerCast(G, IntptrTy),
+                          ConstantInt::get(IntptrTy, SizeInBytes)});
+    }
+
+    // Unpoison shadow of static local memory, required by CPU device
+    EscapeEnumerator EE(*F, "tsan_cleanup_static_local", false);
+    while (IRBuilder<> *AtExit = EE.Next()) {
+      if (!F->hasMetadata("tsan_instrumented_local"))
+        AtExit->CreateCall(TsanGroupBarrier);
+      AtExit->CreateCall(TsanCleanupStaticLocal,
+                         {AtExit->CreatePointerCast(G, IntptrTy),
+                          ConstantInt::get(IntptrTy, SizeInBytes)});
+    }
+
+    if (!F->hasMetadata("tsan_instrumented_local")) {
+      Constant *One = ConstantInt::get(Type::getInt32Ty(C), 1);
+      MDNode *NewNode = MDNode::get(C, ConstantAsMetadata::get(One));
+      F->addMetadata("tsan_instrumented_local", *NewNode);
+    }
+  };
+
+  // We only instrument on spir_kernel, because local variables are
+  // kind of global variable, which must be initialized only once.
+  for (auto &G : M.globals()) {
+    if (G.getAddressSpace() == kSpirOffloadLocalAS) {
+      SmallVector<Function *> WorkList;
+      DenseSet<Function *> InstrumentedKernel;
+      for (auto *User : G.users())
+        getFunctionsOfUser(User, WorkList);
+      while (!WorkList.empty()) {
+        Function *F = WorkList.pop_back_val();
+        if (F->getCallingConv() == CallingConv::SPIR_KERNEL) {
+          if (!InstrumentedKernel.contains(F)) {
+            Instrument(&G, F);
+            InstrumentedKernel.insert(F);
+          }
+          continue;
+        }
+        // Get root spir_kernel of spir_func
+        initializeKernelCallerMap(F);
+        for (auto *F : FuncToKernelCallerMap[F])
+          WorkList.push_back(F);
+      }
+    }
+  }
+}
+
+void ThreadSanitizerOnSpirv::instrumentDynamicLocalMemory(Function &F) {
+  if (!ClSpirOffloadLocals)
+    return;
+
+  // Poison shadow of local memory in kernel argument, required by CPU device
+  SmallVector<Argument *> LocalArgs;
+  for (auto &Arg : F.args()) {
+    Type *PtrTy = dyn_cast<PointerType>(Arg.getType()->getScalarType());
+    if (PtrTy && PtrTy->getPointerAddressSpace() == kSpirOffloadLocalAS)
+      LocalArgs.push_back(&Arg);
+  }
+
+  if (LocalArgs.empty())
+    return;
+
+  if (!F.hasMetadata("tsan_instrumented_local")) {
+    IRBuilder<> Builder(&F.getEntryBlock().front());
+    Builder.CreateCall(TsanGroupBarrier);
+  }
+
+  IRBuilder<> IRB(&F.getEntryBlock().front());
+
+  AllocaInst *ArgsArray = IRB.CreateAlloca(
+      IntptrTy, ConstantInt::get(IRB.getInt32Ty(), LocalArgs.size()),
+      "local_args");
+  for (size_t i = 0; i < LocalArgs.size(); i++) {
+    auto *StoreDest = IRB.CreateGEP(IntptrTy, ArgsArray,
+                                    ConstantInt::get(IRB.getInt32Ty(), i));
+    IRB.CreateStore(IRB.CreatePointerCast(LocalArgs[i], IntptrTy), StoreDest);
+  }
+
+  auto *ArgsArrayAddr = IRB.CreatePointerCast(ArgsArray, IntptrTy);
+  IRB.CreateCall(
+      TsanCleanupDynamicLocal,
+      {ArgsArrayAddr, ConstantInt::get(IRB.getInt32Ty(), LocalArgs.size())});
+
+  // Unpoison shadow of dynamic local memory, required by CPU device
+  EscapeEnumerator EE(F, "tsan_cleanup_dynamic_local", false);
+  while (IRBuilder<> *AtExit = EE.Next()) {
+    if (!F.hasMetadata("tsan_instrumented_local"))
+      AtExit->CreateCall(TsanGroupBarrier);
+    AtExit->CreateCall(TsanCleanupDynamicLocal,
+                       {ArgsArrayAddr, ConstantInt::get(AtExit->getInt32Ty(),
+                                                        LocalArgs.size())});
+  }
+
+  if (!F.hasMetadata("tsan_instrumented_local")) {
+    Constant *One = ConstantInt::get(Type::getInt32Ty(C), 1);
+    MDNode *NewNode = MDNode::get(C, ConstantAsMetadata::get(One));
+    F.addMetadata("tsan_instrumented_local", *NewNode);
+  }
+}
+
+void ThreadSanitizerOnSpirv::initializeKernelCallerMap(Function *F) {
+  if (FuncToKernelCallerMap.find(F) != FuncToKernelCallerMap.end())
+    return;
+
+  for (auto *U : F->users()) {
+    if (Instruction *Inst = dyn_cast<Instruction>(U)) {
+      Function *Caller = Inst->getFunction();
+      if (Caller->getCallingConv() == CallingConv::SPIR_KERNEL) {
+        FuncToKernelCallerMap[F].insert(Caller);
+        continue;
+      }
+      initializeKernelCallerMap(Caller);
+      FuncToKernelCallerMap[F].insert(FuncToKernelCallerMap[Caller].begin(),
+                                      FuncToKernelCallerMap[Caller].end());
+    }
+  }
+}
+
+void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
+  SmallVector<Constant *, 8> SpirKernelsMetadata;
+  SmallVector<uint8_t, 256> KernelNamesBytes;
+
+  // SpirKernelsMetadata only saves fixed kernels, and is described by
+  // following structure:
+  //  uptr unmangled_kernel_name
+  //  uptr unmangled_kernel_name_size
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+
+  for (Function &F : M) {
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+
+    if (isSupportedSPIRKernel(F)) {
+      auto KernelName = F.getName();
+      KernelNamesBytes.append(KernelName.begin(), KernelName.end());
+      auto *KernelNameGV = GetOrCreateGlobalString("__tsan_kernel", KernelName,
+                                                   kSpirOffloadConstantAS);
+      SpirKernelsMetadata.emplace_back(ConstantStruct::get(
+          StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+          ConstantInt::get(IntptrTy, KernelName.size())));
+    }
+  }
+
+  // Create global variable to record spirv kernels' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, SpirKernelsMetadata);
+  GlobalVariable *TsanSpirKernelMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__TsanKernelMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  TsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+  // Add device global attributes
+  TsanSpirKernelMetadata->addAttribute(
+      "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
+  TsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
+  TsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
+  TsanSpirKernelMetadata->addAttribute(
+      "sycl-unique-id",
+      computeKernelMetadataUniqueId("__TsanKernelMetadata", KernelNamesBytes));
+  TsanSpirKernelMetadata->setDSOLocal(true);
+}
+
+GlobalVariable *
+ThreadSanitizerOnSpirv::GetOrCreateGlobalString(StringRef Name, StringRef Value,
+                                                unsigned AddressSpace) {
+  GlobalVariable *StringGV = nullptr;
+  if (GlobalStringMap.find(Value.str()) != GlobalStringMap.end())
+    return GlobalStringMap.at(Value.str());
+
+  auto *Ty = ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
+  StringGV = new GlobalVariable(
+      M, Ty, true, GlobalValue::InternalLinkage,
+      ConstantDataArray::getString(M.getContext(), Value), Name, nullptr,
+      GlobalValue::NotThreadLocal, AddressSpace);
+  GlobalStringMap[Value.str()] = StringGV;
+
+  return StringGV;
+}
+
 void ThreadSanitizer::initialize(Module &M, const TargetLibraryInfo &TLI) {
   const DataLayout &DL = M.getDataLayout();
   LLVMContext &Ctx = M.getContext();
   IntptrTy = DL.getIntPtrType(Ctx);
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
+    Spirv.emplace(M);
+    Spirv->initialize();
+  }
 
   IRBuilder<> IRB(Ctx);
   AttributeList Attr;
@@ -221,12 +771,12 @@ void ThreadSanitizer::initialize(Module &M, const TargetLibraryInfo &TLI) {
     std::string ByteSizeStr = utostr(ByteSize);
     std::string BitSizeStr = utostr(BitSize);
     SmallString<32> ReadName("__tsan_read" + ByteSizeStr);
-    TsanRead[i] = M.getOrInsertFunction(ReadName, Attr, IRB.getVoidTy(),
-                                        IRB.getPtrTy());
+    TsanRead[i] =
+        M.getOrInsertFunction(ReadName, Attr, IRB.getVoidTy(), IRB.getPtrTy());
 
     SmallString<32> WriteName("__tsan_write" + ByteSizeStr);
-    TsanWrite[i] = M.getOrInsertFunction(WriteName, Attr, IRB.getVoidTy(),
-                                         IRB.getPtrTy());
+    TsanWrite[i] =
+        M.getOrInsertFunction(WriteName, Attr, IRB.getVoidTy(), IRB.getPtrTy());
 
     SmallString<64> UnalignedReadName("__tsan_unaligned_read" + ByteSizeStr);
     TsanUnalignedRead[i] = M.getOrInsertFunction(
@@ -255,8 +805,8 @@ void ThreadSanitizer::initialize(Module &M, const TargetLibraryInfo &TLI) {
         UnalignedVolatileWriteName, Attr, IRB.getVoidTy(), IRB.getPtrTy());
 
     SmallString<64> CompoundRWName("__tsan_read_write" + ByteSizeStr);
-    TsanCompoundRW[i] = M.getOrInsertFunction(
-        CompoundRWName, Attr, IRB.getVoidTy(), IRB.getPtrTy());
+    TsanCompoundRW[i] = M.getOrInsertFunction(CompoundRWName, Attr,
+                                              IRB.getVoidTy(), IRB.getPtrTy());
 
     SmallString<64> UnalignedCompoundRWName("__tsan_unaligned_read_write" +
                                             ByteSizeStr);
@@ -274,7 +824,7 @@ void ThreadSanitizer::initialize(Module &M, const TargetLibraryInfo &TLI) {
 
     // Args of type Ty need extension only when BitSize is 32 or less.
     using Idxs = std::vector<unsigned>;
-    Idxs Idxs2Or12   ((BitSize <= 32) ? Idxs({1, 2})       : Idxs({2}));
+    Idxs Idxs2Or12((BitSize <= 32) ? Idxs({1, 2}) : Idxs({2}));
     Idxs Idxs34Or1234((BitSize <= 32) ? Idxs({1, 2, 3, 4}) : Idxs({3, 4}));
     SmallString<32> AtomicStoreName("__tsan_atomic" + BitSizeStr + "_store");
     TsanAtomicStore[i] = M.getOrInsertFunction(
@@ -333,12 +883,10 @@ void ThreadSanitizer::initialize(Module &M, const TargetLibraryInfo &TLI) {
       TLI.getAttrList(&Ctx, {0}, /*Signed=*/true, /*Ret=*/false, Attr),
       IRB.getVoidTy(), OrdTy);
 
-  MemmoveFn =
-      M.getOrInsertFunction("__tsan_memmove", Attr, IRB.getPtrTy(),
-                            IRB.getPtrTy(), IRB.getPtrTy(), IntptrTy);
-  MemcpyFn =
-      M.getOrInsertFunction("__tsan_memcpy", Attr, IRB.getPtrTy(),
-                            IRB.getPtrTy(), IRB.getPtrTy(), IntptrTy);
+  MemmoveFn = M.getOrInsertFunction("__tsan_memmove", Attr, IRB.getPtrTy(),
+                                    IRB.getPtrTy(), IRB.getPtrTy(), IntptrTy);
+  MemcpyFn = M.getOrInsertFunction("__tsan_memcpy", Attr, IRB.getPtrTy(),
+                                   IRB.getPtrTy(), IRB.getPtrTy(), IntptrTy);
   MemsetFn = M.getOrInsertFunction(
       "__tsan_memset",
       TLI.getAttrList(&Ctx, {1}, /*Signed=*/true, /*Ret=*/false, Attr),
@@ -361,7 +909,7 @@ static bool shouldInstrumentReadWriteFromAddress(const Module *M, Value *Addr) {
     if (GV->hasSection()) {
       StringRef SectionName = GV->getSection();
       // Check if the global is in the PGO counters section.
-      auto OF = Triple(M->getTargetTriple()).getObjectFormat();
+      auto OF = M->getTargetTriple().getObjectFormat();
       if (SectionName.ends_with(
               getInstrProfSectionName(IPSK_cnts, OF, /*AddSegmentInfo=*/false)))
         return false;
@@ -422,7 +970,10 @@ void ThreadSanitizer::chooseInstructionsToInstrument(
     Value *Addr = IsWrite ? cast<StoreInst>(I)->getPointerOperand()
                           : cast<LoadInst>(I)->getPointerOperand();
 
-    if (!shouldInstrumentReadWriteFromAddress(I->getModule(), Addr))
+    if (Spirv) {
+      if (Spirv->isUnsupportedSPIRAccess(Addr, I))
+        continue;
+    } else if (!shouldInstrumentReadWriteFromAddress(I->getModule(), Addr))
       continue;
 
     if (!IsWrite) {
@@ -449,8 +1000,9 @@ void ThreadSanitizer::chooseInstructionsToInstrument(
       }
     }
 
-    if (isa<AllocaInst>(getUnderlyingObject(Addr)) &&
-        !PointerMayBeCaptured(Addr, true, true)) {
+    const AllocaInst *AI = findAllocaForValue(Addr);
+    // Instead of Addr, we should check whether its base pointer is captured.
+    if (AI && !PointerMayBeCaptured(AI, /*ReturnCaptures=*/true)) {
       // The variable is addressable but not captured, so it cannot be
       // referenced from a different thread and participate in a data race
       // (see llvm/Analysis/CaptureTracking.h for details).
@@ -480,7 +1032,8 @@ static bool isTsanAtomic(const Instruction *I) {
 }
 
 void ThreadSanitizer::InsertRuntimeIgnores(Function &F) {
-  InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
+  InstrumentationIRBuilder IRB(&F.getEntryBlock(),
+                               F.getEntryBlock().getFirstNonPHIIt());
   IRB.CreateCall(TsanIgnoreBegin);
   EscapeEnumerator EE(F, "tsan_ignore_cleanup", ClHandleCxxExceptions);
   while (IRBuilder<> *AtExit = EE.Next()) {
@@ -508,9 +1061,11 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
 
   initialize(*F.getParent(), TLI);
   SmallVector<InstructionInfo, 8> AllLoadsAndStores;
-  SmallVector<Instruction*, 8> LocalLoadsAndStores;
-  SmallVector<Instruction*, 8> AtomicAccesses;
-  SmallVector<Instruction*, 8> MemIntrinCalls;
+  SmallVector<Instruction *, 8> LocalLoadsAndStores;
+  SmallVector<Instruction *, 8> AtomicAccesses;
+  SmallVector<Instruction *, 8> MemIntrinCalls;
+  SmallVector<Instruction *, 8> Allocas;
+  SmallVector<CallInst *, 8> SpirControlBarrierCalls;
   bool Res = false;
   bool HasCalls = false;
   bool SanitizeFunction = F.hasFnAttribute(Attribute::SanitizeThread);
@@ -526,10 +1081,21 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
         AtomicAccesses.push_back(&Inst);
       else if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
         LocalLoadsAndStores.push_back(&Inst);
-      else if ((isa<CallInst>(Inst) && !isa<DbgInfoIntrinsic>(Inst)) ||
-               isa<InvokeInst>(Inst)) {
-        if (CallInst *CI = dyn_cast<CallInst>(&Inst))
+      else if (Spirv && isa<AllocaInst>(Inst) &&
+               cast<AllocaInst>(Inst).getAllocatedType()->isSized() &&
+               !getTargetExtType(cast<AllocaInst>(Inst).getAllocatedType()))
+        Allocas.push_back(&Inst);
+      else if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst)) {
+        if (CallInst *CI = dyn_cast<CallInst>(&Inst)) {
           maybeMarkSanitizerLibraryCallNoBuiltin(CI, &TLI);
+          if (Spirv) {
+            Function *CalledFn = CI->getCalledFunction();
+            if (CalledFn &&
+                CalledFn->getName() == "_Z22__spirv_ControlBarrieriii") {
+              SpirControlBarrierCalls.push_back(CI);
+            }
+          }
+        }
         if (isa<MemIntrinsic>(Inst))
           MemIntrinCalls.push_back(&Inst);
         HasCalls = true;
@@ -552,7 +1118,9 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
 
   // Instrument atomic memory accesses in any case (they can be used to
   // implement synchronization).
-  if (ClInstrumentAtomics)
+  // TODO: Disable atomics check for spirv target temporarily, will support it
+  // later.
+  if (!Spirv && ClInstrumentAtomics)
     for (auto *Inst : AtomicAccesses) {
       Res |= instrumentAtomic(Inst, DL);
     }
@@ -568,12 +1136,25 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
       InsertRuntimeIgnores(F);
   }
 
+  if (Spirv)
+    for (auto *CI : SpirControlBarrierCalls) {
+      Res |= Spirv->instrumentControlBarrier(CI);
+    }
+
+  // FIXME: We need to skip the check for private memory, otherwise OpenCL CPU
+  // device may generate false positive reports due to stack re-use in different
+  // threads. However, SPIR-V builts 'ToPrivate' doesn't work as expected on
+  // OpenCL CPU device. So we need to manually cleanup private shadow before
+  // each function exit point.
+  if (Spirv && !Allocas.empty())
+    Res |= Spirv->instrumentAllocInst(&F, Allocas);
+
   // Instrument function entry/exit points if there were instrumented accesses.
   if ((Res || HasCalls) && ClInstrumentFuncEntryExit) {
-    InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
-    Value *ReturnAddress = IRB.CreateCall(
-        Intrinsic::getDeclaration(F.getParent(), Intrinsic::returnaddress),
-        IRB.getInt32(0));
+    InstrumentationIRBuilder IRB(&F.getEntryBlock(),
+                                 F.getEntryBlock().getFirstNonPHIIt());
+    Value *ReturnAddress =
+        IRB.CreateIntrinsic(Intrinsic::returnaddress, IRB.getInt32(0));
     IRB.CreateCall(TsanFuncEntry, ReturnAddress);
 
     EscapeEnumerator EE(F, "tsan_cleanup", ClHandleCxxExceptions);
@@ -583,6 +1164,9 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
     }
     Res = true;
   }
+
+  if (Spirv && F.getCallingConv() == CallingConv::SPIR_KERNEL)
+    Spirv->instrumentDynamicLocalMemory(F);
   return Res;
 }
 
@@ -603,7 +1187,8 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
   int Idx = getMemoryAccessFuncIndex(OrigTy, Addr, DL);
   if (Idx < 0)
     return false;
-  if (IsWrite && isVtableAccess(II.Inst)) {
+  // There is no race-free access scenario to vtable for spirv target.
+  if (!Spirv && IsWrite && isVtableAccess(II.Inst)) {
     LLVM_DEBUG(dbgs() << "  VPTR : " << *II.Inst << "\n");
     Value *StoredValue = cast<StoreInst>(II.Inst)->getValueOperand();
     // StoredValue may be a vector type if we are storing several vptrs at once.
@@ -619,7 +1204,7 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
     NumInstrumentedVtableWrites++;
     return true;
   }
-  if (!IsWrite && isVtableAccess(II.Inst)) {
+  if (!Spirv && !IsWrite && isVtableAccess(II.Inst)) {
     IRB.CreateCall(TsanVptrLoad, Addr);
     NumInstrumentedVtableReads++;
     return true;
@@ -635,12 +1220,17 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
   assert((!IsVolatile || !IsCompoundRW) && "Compound volatile invalid!");
 
   const uint32_t TypeSize = DL.getTypeStoreSizeInBits(OrigTy);
+  const unsigned int AS = cast<PointerType>(Addr->getType()->getScalarType())
+                              ->getPointerAddressSpace();
   FunctionCallee OnAccessFunc = nullptr;
   if (Alignment >= Align(8) || (Alignment.value() % (TypeSize / 8)) == 0) {
     if (IsCompoundRW)
       OnAccessFunc = TsanCompoundRW[Idx];
     else if (IsVolatile)
       OnAccessFunc = IsWrite ? TsanVolatileWrite[Idx] : TsanVolatileRead[Idx];
+    else if (Spirv)
+      OnAccessFunc =
+          IsWrite ? Spirv->TsanWrite[Idx][AS] : Spirv->TsanRead[Idx][AS];
     else
       OnAccessFunc = IsWrite ? TsanWrite[Idx] : TsanRead[Idx];
   } else {
@@ -649,10 +1239,19 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
     else if (IsVolatile)
       OnAccessFunc = IsWrite ? TsanUnalignedVolatileWrite[Idx]
                              : TsanUnalignedVolatileRead[Idx];
+    else if (Spirv)
+      OnAccessFunc = IsWrite ? Spirv->TsanUnalignedWrite[Idx][AS]
+                             : Spirv->TsanUnalignedRead[Idx][AS];
     else
       OnAccessFunc = IsWrite ? TsanUnalignedWrite[Idx] : TsanUnalignedRead[Idx];
   }
-  IRB.CreateCall(OnAccessFunc, Addr);
+  if (Spirv) {
+    SmallVector<Value *, 5> Args;
+    Args.push_back(IRB.CreatePointerCast(Addr, IntptrTy));
+    Spirv->appendDebugInfoToArgs(II.Inst, Args);
+    IRB.CreateCall(OnAccessFunc, Args);
+  } else
+    IRB.CreateCall(OnAccessFunc, Addr);
   if (IsCompoundRW || IsWrite)
     NumInstrumentedWrites++;
   if (IsCompoundRW || !IsWrite)
@@ -663,16 +1262,27 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
 static ConstantInt *createOrdering(IRBuilder<> *IRB, AtomicOrdering ord) {
   uint32_t v = 0;
   switch (ord) {
-    case AtomicOrdering::NotAtomic:
-      llvm_unreachable("unexpected atomic ordering!");
-    case AtomicOrdering::Unordered:              [[fallthrough]];
-    case AtomicOrdering::Monotonic:              v = 0; break;
-    // Not specified yet:
-    // case AtomicOrdering::Consume:                v = 1; break;
-    case AtomicOrdering::Acquire:                v = 2; break;
-    case AtomicOrdering::Release:                v = 3; break;
-    case AtomicOrdering::AcquireRelease:         v = 4; break;
-    case AtomicOrdering::SequentiallyConsistent: v = 5; break;
+  case AtomicOrdering::NotAtomic:
+    llvm_unreachable("unexpected atomic ordering!");
+  case AtomicOrdering::Unordered:
+    [[fallthrough]];
+  case AtomicOrdering::Monotonic:
+    v = 0;
+    break;
+  // Not specified yet:
+  // case AtomicOrdering::Consume:                v = 1; break;
+  case AtomicOrdering::Acquire:
+    v = 2;
+    break;
+  case AtomicOrdering::Release:
+    v = 3;
+    break;
+  case AtomicOrdering::AcquireRelease:
+    v = 4;
+    break;
+  case AtomicOrdering::SequentiallyConsistent:
+    v = 5;
+    break;
   }
   return IRB->getInt32(v);
 }
@@ -688,20 +1298,15 @@ static ConstantInt *createOrdering(IRBuilder<> *IRB, AtomicOrdering ord) {
 bool ThreadSanitizer::instrumentMemIntrinsic(Instruction *I) {
   InstrumentationIRBuilder IRB(I);
   if (MemSetInst *M = dyn_cast<MemSetInst>(I)) {
-    Value *Cast1 = IRB.CreateIntCast(M->getArgOperand(1), IRB.getInt32Ty(), false);
+    Value *Cast1 =
+        IRB.CreateIntCast(M->getArgOperand(1), IRB.getInt32Ty(), false);
     Value *Cast2 = IRB.CreateIntCast(M->getArgOperand(2), IntptrTy, false);
-    IRB.CreateCall(
-        MemsetFn,
-        {M->getArgOperand(0),
-         Cast1,
-         Cast2});
+    IRB.CreateCall(MemsetFn, {M->getArgOperand(0), Cast1, Cast2});
     I->eraseFromParent();
   } else if (MemTransferInst *M = dyn_cast<MemTransferInst>(I)) {
-    IRB.CreateCall(
-        isa<MemCpyInst>(M) ? MemcpyFn : MemmoveFn,
-        {M->getArgOperand(0),
-         M->getArgOperand(1),
-         IRB.CreateIntCast(M->getArgOperand(2), IntptrTy, false)});
+    IRB.CreateCall(isa<MemCpyInst>(M) ? MemcpyFn : MemmoveFn,
+                   {M->getArgOperand(0), M->getArgOperand(1),
+                    IRB.CreateIntCast(M->getArgOperand(2), IntptrTy, false)});
     I->eraseFromParent();
   }
   return false;
@@ -723,11 +1328,11 @@ bool ThreadSanitizer::instrumentAtomic(Instruction *I, const DataLayout &DL) {
     int Idx = getMemoryAccessFuncIndex(OrigTy, Addr, DL);
     if (Idx < 0)
       return false;
-    Value *Args[] = {Addr,
-                     createOrdering(&IRB, LI->getOrdering())};
+    Value *Args[] = {Addr, createOrdering(&IRB, LI->getOrdering())};
     Value *C = IRB.CreateCall(TsanAtomicLoad[Idx], Args);
     Value *Cast = IRB.CreateBitOrPointerCast(C, OrigTy);
     I->replaceAllUsesWith(Cast);
+    I->eraseFromParent();
   } else if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
     Value *Addr = SI->getPointerOperand();
     int Idx =
@@ -770,12 +1375,10 @@ bool ThreadSanitizer::instrumentAtomic(Instruction *I, const DataLayout &DL) {
     const unsigned BitSize = ByteSize * 8;
     Type *Ty = Type::getIntNTy(IRB.getContext(), BitSize);
     Value *CmpOperand =
-      IRB.CreateBitOrPointerCast(CASI->getCompareOperand(), Ty);
+        IRB.CreateBitOrPointerCast(CASI->getCompareOperand(), Ty);
     Value *NewOperand =
-      IRB.CreateBitOrPointerCast(CASI->getNewValOperand(), Ty);
-    Value *Args[] = {Addr,
-                     CmpOperand,
-                     NewOperand,
+        IRB.CreateBitOrPointerCast(CASI->getNewValOperand(), Ty);
+    Value *Args[] = {Addr, CmpOperand, NewOperand,
                      createOrdering(&IRB, CASI->getSuccessOrdering()),
                      createOrdering(&IRB, CASI->getFailureOrdering())};
     CallInst *C = IRB.CreateCall(TsanAtomicCAS[Idx], Args);
@@ -787,7 +1390,7 @@ bool ThreadSanitizer::instrumentAtomic(Instruction *I, const DataLayout &DL) {
     }
 
     Value *Res =
-      IRB.CreateInsertValue(PoisonValue::get(CASI->getType()), OldVal, 0);
+        IRB.CreateInsertValue(PoisonValue::get(CASI->getType()), OldVal, 0);
     Res = IRB.CreateInsertValue(Res, Success, 1);
 
     I->replaceAllUsesWith(Res);
@@ -811,8 +1414,8 @@ int ThreadSanitizer::getMemoryAccessFuncIndex(Type *OrigTy, Value *Addr,
     return -1;
   }
   uint32_t TypeSize = DL.getTypeStoreSizeInBits(OrigTy);
-  if (TypeSize != 8  && TypeSize != 16 &&
-      TypeSize != 32 && TypeSize != 64 && TypeSize != 128) {
+  if (TypeSize != 8 && TypeSize != 16 && TypeSize != 32 && TypeSize != 64 &&
+      TypeSize != 128) {
     NumAccessesWithBadSize++;
     // Ignore all unusual sizes.
     return -1;

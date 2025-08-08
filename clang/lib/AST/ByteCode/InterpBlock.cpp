@@ -69,20 +69,26 @@ void Block::cleanup() {
 void Block::replacePointer(Pointer *Old, Pointer *New) {
   assert(Old);
   assert(New);
+  assert(Old != New);
   if (IsStatic) {
     assert(!Pointers);
     return;
   }
-
 #ifndef NDEBUG
   assert(hasPointer(Old));
 #endif
 
-  removePointer(Old);
-  addPointer(New);
+  if (Old->Prev)
+    Old->Prev->Next = New;
+  if (Old->Next)
+    Old->Next->Prev = New;
+  New->Prev = Old->Prev;
+  New->Next = Old->Next;
+  if (Pointers == Old)
+    Pointers = New;
 
   Old->PointeeStorage.BS.Pointee = nullptr;
-
+  New->PointeeStorage.BS.Pointee = this;
 #ifndef NDEBUG
   assert(!hasPointer(Old));
   assert(hasPointer(New));
@@ -100,8 +106,8 @@ bool Block::hasPointer(const Pointer *P) const {
 #endif
 
 DeadBlock::DeadBlock(DeadBlock *&Root, Block *Blk)
-    : Root(Root),
-      B(~0u, Blk->Desc, Blk->IsStatic, Blk->IsExtern, /*isDead=*/true) {
+    : Root(Root), B(~0u, Blk->Desc, Blk->IsStatic, Blk->IsExtern, Blk->IsWeak,
+                    /*isDead=*/true) {
   // Add the block to the chain of dead blocks.
   if (Root)
     Root->Prev = this;

@@ -44,6 +44,7 @@
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
 #include <llvm/IR/IntrinsicInst.h>
+#include <optional>
 
 using namespace llvm;
 using namespace SPIRV;
@@ -85,7 +86,29 @@ std::vector<std::string> TranslatorOpts::getAllowedSPIRVExtensionNames(
       continue;
     std::string ExtName;
     SPIRVMap<ExtensionID, std::string>::find(It.first, &ExtName);
-    AllowExtNames.push_back(ExtName);
+    AllowExtNames.emplace_back(ExtName);
   }
   return AllowExtNames;
+}
+
+bool TranslatorOpts::validateFnVarOpts() const {
+  if (getFnVarCategory() == std::nullopt &&
+      (getFnVarFamily() != std::nullopt || getFnVarArch() != std::nullopt)) {
+    errs() << "FnVar: Device category must be specified if the family or "
+              "architecture are specified.";
+    return false;
+  }
+
+  if (getFnVarFamily() == std::nullopt && getFnVarArch() != std::nullopt) {
+    errs() << "FnVar: Device family must be specified if the architecture is "
+              "specified.";
+    return false;
+  }
+
+  if (getFnVarTarget() == std::nullopt && !getFnVarFeatures().empty()) {
+    errs() << "Device target must be specified if the features are specified.";
+    return false;
+  }
+
+  return true;
 }

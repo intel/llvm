@@ -3,8 +3,6 @@
 ; RUN: llc -mtriple=arm64-linux-gnu -verify-machineinstrs -global-isel -global-isel-abort=2 < %s 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-GI
 
 ; CHECK-GI:       warning: Instruction selection used fallback path for test_neg_sub
-; CHECK-GI-NEXT:  warning: Instruction selection used fallback path for test_neg
-; CHECK-GI-NEXT:  warning: Instruction selection used fallback path for vec_neg
 
 define fp128 @test_add(fp128 %lhs, fp128 %rhs) {
 ; CHECK-LABEL: test_add:
@@ -405,15 +403,23 @@ define fp128 @test_neg_sub(fp128 %in) {
 }
 
 define fp128 @test_neg(fp128 %in) {
-; CHECK-LABEL: test_neg:
-; CHECK:       // %bb.0:
-; CHECK-NEXT:    str q0, [sp, #-16]!
-; CHECK-NEXT:    .cfi_def_cfa_offset 16
-; CHECK-NEXT:    ldrb w8, [sp, #15]
-; CHECK-NEXT:    eor w8, w8, #0x80
-; CHECK-NEXT:    strb w8, [sp, #15]
-; CHECK-NEXT:    ldr q0, [sp], #16
-; CHECK-NEXT:    ret
+; CHECK-SD-LABEL: test_neg:
+; CHECK-SD:       // %bb.0:
+; CHECK-SD-NEXT:    str q0, [sp, #-16]!
+; CHECK-SD-NEXT:    .cfi_def_cfa_offset 16
+; CHECK-SD-NEXT:    ldrb w8, [sp, #15]
+; CHECK-SD-NEXT:    eor w8, w8, #0x80
+; CHECK-SD-NEXT:    strb w8, [sp, #15]
+; CHECK-SD-NEXT:    ldr q0, [sp], #16
+; CHECK-SD-NEXT:    ret
+;
+; CHECK-GI-LABEL: test_neg:
+; CHECK-GI:       // %bb.0:
+; CHECK-GI-NEXT:    mov x8, v0.d[1]
+; CHECK-GI-NEXT:    mov v0.d[0], v0.d[0]
+; CHECK-GI-NEXT:    eor x8, x8, #0x8000000000000000
+; CHECK-GI-NEXT:    mov v0.d[1], x8
+; CHECK-GI-NEXT:    ret
   %ret = fneg fp128 %in
   ret fp128 %ret
 }
@@ -612,7 +618,7 @@ define <2 x i32> @vec_fptosi_32(<2 x fp128> %val) {
 ; CHECK-GI-NEXT:    ldr q0, [sp] // 16-byte Folded Reload
 ; CHECK-GI-NEXT:    mov w19, w0
 ; CHECK-GI-NEXT:    bl __fixtfsi
-; CHECK-GI-NEXT:    mov v0.s[0], w19
+; CHECK-GI-NEXT:    fmov s0, w19
 ; CHECK-GI-NEXT:    ldp x30, x19, [sp, #16] // 16-byte Folded Reload
 ; CHECK-GI-NEXT:    mov v0.s[1], w0
 ; CHECK-GI-NEXT:    // kill: def $d0 killed $d0 killed $q0
@@ -655,7 +661,7 @@ define <2 x i64> @vec_fptosi_64(<2 x fp128> %val) {
 ; CHECK-GI-NEXT:    ldr q0, [sp] // 16-byte Folded Reload
 ; CHECK-GI-NEXT:    mov x19, x0
 ; CHECK-GI-NEXT:    bl __fixtfdi
-; CHECK-GI-NEXT:    mov v0.d[0], x19
+; CHECK-GI-NEXT:    fmov d0, x19
 ; CHECK-GI-NEXT:    ldp x30, x19, [sp, #16] // 16-byte Folded Reload
 ; CHECK-GI-NEXT:    mov v0.d[1], x0
 ; CHECK-GI-NEXT:    add sp, sp, #32
@@ -696,7 +702,7 @@ define <2 x i32> @vec_fptoui_32(<2 x fp128> %val) {
 ; CHECK-GI-NEXT:    ldr q0, [sp] // 16-byte Folded Reload
 ; CHECK-GI-NEXT:    mov w19, w0
 ; CHECK-GI-NEXT:    bl __fixunstfsi
-; CHECK-GI-NEXT:    mov v0.s[0], w19
+; CHECK-GI-NEXT:    fmov s0, w19
 ; CHECK-GI-NEXT:    ldp x30, x19, [sp, #16] // 16-byte Folded Reload
 ; CHECK-GI-NEXT:    mov v0.s[1], w0
 ; CHECK-GI-NEXT:    // kill: def $d0 killed $d0 killed $q0
@@ -739,7 +745,7 @@ define <2 x i64> @vec_fptoui_64(<2 x fp128> %val) {
 ; CHECK-GI-NEXT:    ldr q0, [sp] // 16-byte Folded Reload
 ; CHECK-GI-NEXT:    mov x19, x0
 ; CHECK-GI-NEXT:    bl __fixunstfdi
-; CHECK-GI-NEXT:    mov v0.d[0], x19
+; CHECK-GI-NEXT:    fmov d0, x19
 ; CHECK-GI-NEXT:    ldp x30, x19, [sp, #16] // 16-byte Folded Reload
 ; CHECK-GI-NEXT:    mov v0.d[1], x0
 ; CHECK-GI-NEXT:    add sp, sp, #32
@@ -971,7 +977,7 @@ define <2 x i1> @vec_setcc1(<2 x fp128> %lhs, <2 x fp128> %rhs) {
 ; CHECK-GI-NEXT:    cmp w0, #0
 ; CHECK-GI-NEXT:    cset w19, le
 ; CHECK-GI-NEXT:    bl __letf2
-; CHECK-GI-NEXT:    mov v0.s[0], w19
+; CHECK-GI-NEXT:    fmov s0, w19
 ; CHECK-GI-NEXT:    cmp w0, #0
 ; CHECK-GI-NEXT:    cset w8, le
 ; CHECK-GI-NEXT:    ldp x30, x19, [sp, #32] // 16-byte Folded Reload
@@ -1026,7 +1032,7 @@ define <2 x i1> @vec_setcc2(<2 x fp128> %lhs, <2 x fp128> %rhs) {
 ; CHECK-GI-NEXT:    cmp w0, #0
 ; CHECK-GI-NEXT:    cset w19, gt
 ; CHECK-GI-NEXT:    bl __letf2
-; CHECK-GI-NEXT:    mov v0.s[0], w19
+; CHECK-GI-NEXT:    fmov s0, w19
 ; CHECK-GI-NEXT:    cmp w0, #0
 ; CHECK-GI-NEXT:    cset w8, gt
 ; CHECK-GI-NEXT:    ldp x30, x19, [sp, #32] // 16-byte Folded Reload
@@ -1103,7 +1109,7 @@ define <2 x i1> @vec_setcc3(<2 x fp128> %lhs, <2 x fp128> %rhs) {
 ; CHECK-GI-NEXT:    cmp w0, #0
 ; CHECK-GI-NEXT:    cset w20, eq
 ; CHECK-GI-NEXT:    bl __unordtf2
-; CHECK-GI-NEXT:    mov v0.s[0], w19
+; CHECK-GI-NEXT:    fmov s0, w19
 ; CHECK-GI-NEXT:    cmp w0, #0
 ; CHECK-GI-NEXT:    ldr x30, [sp, #64] // 8-byte Folded Reload
 ; CHECK-GI-NEXT:    cset w8, ne
@@ -1497,18 +1503,30 @@ define <2 x fp128> @vec_neg_sub(<2 x fp128> %in) {
 }
 
 define <2 x fp128> @vec_neg(<2 x fp128> %in) {
-; CHECK-LABEL: vec_neg:
-; CHECK:       // %bb.0:
-; CHECK-NEXT:    stp q0, q1, [sp, #-32]!
-; CHECK-NEXT:    .cfi_def_cfa_offset 32
-; CHECK-NEXT:    ldrb w8, [sp, #15]
-; CHECK-NEXT:    eor w8, w8, #0x80
-; CHECK-NEXT:    strb w8, [sp, #15]
-; CHECK-NEXT:    ldrb w8, [sp, #31]
-; CHECK-NEXT:    eor w8, w8, #0x80
-; CHECK-NEXT:    strb w8, [sp, #31]
-; CHECK-NEXT:    ldp q0, q1, [sp], #32
-; CHECK-NEXT:    ret
+; CHECK-SD-LABEL: vec_neg:
+; CHECK-SD:       // %bb.0:
+; CHECK-SD-NEXT:    stp q0, q1, [sp, #-32]!
+; CHECK-SD-NEXT:    .cfi_def_cfa_offset 32
+; CHECK-SD-NEXT:    ldrb w8, [sp, #15]
+; CHECK-SD-NEXT:    eor w8, w8, #0x80
+; CHECK-SD-NEXT:    strb w8, [sp, #15]
+; CHECK-SD-NEXT:    ldrb w8, [sp, #31]
+; CHECK-SD-NEXT:    eor w8, w8, #0x80
+; CHECK-SD-NEXT:    strb w8, [sp, #31]
+; CHECK-SD-NEXT:    ldp q0, q1, [sp], #32
+; CHECK-SD-NEXT:    ret
+;
+; CHECK-GI-LABEL: vec_neg:
+; CHECK-GI:       // %bb.0:
+; CHECK-GI-NEXT:    mov x8, v0.d[1]
+; CHECK-GI-NEXT:    mov x9, v1.d[1]
+; CHECK-GI-NEXT:    mov v0.d[0], v0.d[0]
+; CHECK-GI-NEXT:    mov v1.d[0], v1.d[0]
+; CHECK-GI-NEXT:    eor x8, x8, #0x8000000000000000
+; CHECK-GI-NEXT:    eor x9, x9, #0x8000000000000000
+; CHECK-GI-NEXT:    mov v0.d[1], x8
+; CHECK-GI-NEXT:    mov v1.d[1], x9
+; CHECK-GI-NEXT:    ret
   %ret = fneg <2 x fp128> %in
   ret <2 x fp128> %ret
 }

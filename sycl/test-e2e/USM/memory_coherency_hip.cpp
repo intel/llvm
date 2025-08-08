@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t1.out
-// REQUIRES: hip_amd
+// REQUIRES: hip
 // RUN: %{run} %t1.out
 
 //==---- memory_coherency_hip.cpp  -----------------------------------------==//

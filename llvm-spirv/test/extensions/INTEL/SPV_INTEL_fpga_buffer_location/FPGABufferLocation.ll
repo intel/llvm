@@ -76,7 +76,7 @@ entry:
   %b = load ptr addrspace(1), ptr addrspace(4) %arg_a.addr.ascast, align 8
   %1 = addrspacecast ptr addrspace(1) %b to ptr addrspace(4)
   store ptr addrspace(4) %1, ptr addrspace(4) %0, align 8
-; CHECK-LLVM: %[[INTRINSIC_CALL:[[:alnum:].]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %a, ptr @[[ANN_STR]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: %[[INTRINSIC_CALL:[[:alnum:].]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %a, ptr @[[ANN_STR]], ptr poison, i32 poison, ptr poison)
 ; CHECK-LLVM: %[[BITCAST_CALL1:[[:alnum:].]+]] = bitcast ptr addrspace(4) %[[INTRINSIC_CALL]] to ptr addrspace(4)
 ; CHECK-LLVM: %[[BITCAST_CALL2:[[:alnum:].]+]] = bitcast ptr addrspace(4) %[[BITCAST_CALL1]] to ptr addrspace(4)
 ; CHECK-LLVM: store ptr addrspace(4) %[[#]], ptr addrspace(4) %[[BITCAST_CALL2]], align 8
@@ -86,7 +86,7 @@ entry:
   %a.i = getelementptr inbounds %struct.MyIP, ptr addrspace(4) %this1.i, i32 0, i32 0
   %2 = call ptr addrspace(4) @llvm.ptr.annotation.p4.p1(ptr addrspace(4) %a.i, ptr addrspace(1) getelementptr inbounds ([19 x i8], ptr addrspace(1) @.str.4, i32 0, i32 0), ptr addrspace(1) getelementptr inbounds ([9 x i8], ptr addrspace(1) @.str.1, i32 0, i32 0), i32 7, ptr addrspace(1) null)
   %3 = load ptr addrspace(4), ptr addrspace(4) %2, align 8
-; CHECK-LLVM: %[[INTRINSIC_CALL:[[:alnum:].]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %a.i, ptr @[[ANN_STR]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: %[[INTRINSIC_CALL:[[:alnum:].]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %a.i, ptr @[[ANN_STR]], ptr poison, i32 poison, ptr poison)
 ; CHECK-LLVM: %[[BITCAST_CALL1:[[:alnum:].]+]] = bitcast ptr addrspace(4) %[[INTRINSIC_CALL]] to ptr addrspace(4)
 ; CHECK-LLVM: %[[BITCAST_CALL2:[[:alnum:].]+]] = bitcast ptr addrspace(4) %[[BITCAST_CALL1]] to ptr addrspace(4)
 ; CHECK-LLVM: load ptr addrspace(4), ptr addrspace(4) %[[BITCAST_CALL2]], align 8
@@ -109,7 +109,7 @@ entry:
   %a = getelementptr inbounds %struct.MyIP, ptr addrspace(4) %MyIP.ascast, i32 0, i32 0
   %0 = call ptr addrspace(4) @llvm.ptr.annotation.p4.p1(ptr addrspace(4) %a, ptr addrspace(1) getelementptr inbounds ([19 x i8], ptr addrspace(1) @.str.4, i32 0, i32 0), ptr addrspace(1) getelementptr inbounds ([9 x i8], ptr addrspace(1) @.str.1, i32 0, i32 0), i32 7, ptr addrspace(1) null)
   call void @llvm.memcpy.p4.p0(ptr addrspace(4) %0, ptr %arg_b, i64 4, i1 false)
-; CHECK-LLVM: %[[INTRINSIC_CALL:[[:alnum:].]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %a, ptr @[[ANN_STR]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: %[[INTRINSIC_CALL:[[:alnum:].]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %a, ptr @[[ANN_STR]], ptr poison, i32 poison, ptr poison)
 ; CHECK-LLVM: %[[BITCAST:[[:alnum:].]+]] = bitcast ptr addrspace(4) %[[INTRINSIC_CALL]] to ptr addrspace(4)
 ; CHECK-LLVM: llvm.memcpy.p4.p0.i64(ptr addrspace(4) %[[BITCAST]], ptr %arg_b, i64 4, i1 false)
   ret void
@@ -119,7 +119,7 @@ entry:
 declare ptr addrspace(4) @llvm.ptr.annotation.p4.p1(ptr addrspace(4), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1)) #1
 
 ; Function Attrs: argmemonly nofree nounwind willreturn
-declare void @llvm.memcpy.p4.p0(ptr addrspace(4) noalias nocapture writeonly, ptr noalias nocapture readonly, i64, i1 immarg) #2
+declare void @llvm.memcpy.p4.p0(ptr addrspace(4) noalias captures(none) writeonly, ptr noalias captures(none) readonly, i64, i1 immarg) #2
 
 !opencl.enable.FP_CONTRACT = !{}
 !opencl.ocl.version = !{!0}

@@ -39,6 +39,9 @@ public:
                                const context &syclContext);
   __SYCL_EXPORT ~image_mem_impl();
 
+  image_mem_impl(const image_mem_impl &) = delete;
+  image_mem_impl &operator=(const image_mem_impl &) = delete;
+
   raw_handle_type get_handle() const { return handle; }
   const image_descriptor &get_descriptor() const { return descriptor; }
   sycl::device get_device() const { return syclDevice; }
@@ -102,6 +105,12 @@ enum image_copy_flags : unsigned int {
   HtoD = 0,
   DtoH = 1,
   DtoD = 2,
+};
+
+// The types of handles to image-backing memory
+enum class image_memory_handle_type : unsigned int {
+  usm_pointer = 0,
+  opaque_handle = 1,
 };
 
 } // namespace ext::oneapi::experimental

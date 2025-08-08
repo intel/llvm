@@ -6,11 +6,15 @@ on:
       - sycl
     paths:
       - 'devops/actions/build_container/**'
+      - 'devops/scripts/**'
+      - '!devops/scripts/benchmarks/**'
       - 'devops/dependencies-igc-dev.json'
       - '.github/workflows/sycl-containers-igc-dev.yaml'
   pull_request:
     paths:
       - 'devops/actions/build_container/**'
+      - 'devops/scripts/**'
+      - '!devops/scripts/benchmarks/**'
       - 'devops/dependencies-igc-dev.json'
       - '.github/workflows/sycl-containers-igc-dev.yaml'
 
@@ -20,18 +24,17 @@ jobs:
   build_and_push_images:
     if: github.repository == 'intel/llvm'
     name: Build and Push IGC Dev Docker Images
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     permissions:
       packages: write
     strategy:
       matrix:
         include:
-          - name: Intel Drivers Ubuntu 22.04 Docker image with dev IGC
-            dockerfile: ubuntu2204_intel_drivers_igc_dev
-            imagefile: ubuntu2204_intel_drivers
+          - name: Intel Drivers Ubuntu 24.04 Docker image with dev IGC
+            dockerfile: ubuntu2404_intel_drivers_igc_dev
+            imagefile: ubuntu2404_intel_drivers
             tag: devigc
             build_args: |
-                  "use_latest=false"
                   "use_igc_dev=true"
     steps:
       - name: Checkout

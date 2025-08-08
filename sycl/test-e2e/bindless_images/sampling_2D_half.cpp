@@ -1,6 +1,13 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-fp16
 
+// This test is unstable (sometimes passes) on HIP-AMD platforms.
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: While rarely, urBindlessImagesSampledImageCreateExp for
+// USM image memory type (with linear sampler) sometimes returns an unsupported
+// feature result code (1:1 mapping from the native errc from the HIP runtime).
+// We think this is likely an issue in the ROCm drivers(could be arch-specific).
+
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 

@@ -6,24 +6,44 @@ on:
       name:
         type: string
         required: True
+
       runner:
         type: string
         required: True
+
+      target_devices:
+        type: string
+        required: False
+      extra_cmake_args:
+        type: string
+        required: False
+      tests_selector:
+        description: |
+          Two possible options: "e2e" and "cts".
+        type: string
+        default: "e2e"
 
       extra_lit_opts:
         description: |
           Extra options to be added to LIT_OPTS.
         type: string
         default: ''
-      ref:
+
+      repo_ref:
         type: string
         required: False
+        description: |
+          Commit SHA or branch to checkout the intel/llvm repo.
+      tests_ref:
+        type: string
+        required: False
+        description: Commit SHA or branch to checkout e2e/cts tests.
 
-      sycl_toolchain_artifact:
+      toolchain_artifact:
         type: string
         default: 'sycl_windows_default'
         required: False
-      sycl_toolchain_archive:
+      toolchain_artifact_filename:
         type: string
         default: ''
         required: False
@@ -32,6 +52,37 @@ on:
         type: string
         default: '{}'
         required: False
+
+      cxx:
+        type: string
+        required: false
+        default: "cl"
+
+      e2e_testing_mode:
+        type: string
+        default: "full"
+
+      e2e_binaries_artifact:
+        type: string
+        default: ''
+        required: False
+
+      cts_testing_mode:
+        description: |
+          Testing mode to run SYCL-CTS in, can be either `full`, `build-only`
+          or `run-only`. In `build-only` mode an artifact of the CTS binaries
+          will be uploaded.
+        type: string
+        default: 'full'
+
+      sycl_cts_artifact:
+        type: string
+        default: ''
+        required: False
+      artifact_retention_days:
+        description: 'E2E/SYCL-CTS binaries artifact retention period.'
+        type: string
+        default: 1
 
 permissions: read-all
 
@@ -42,64 +93,97 @@ jobs:
     environment: WindowsCILock
     env: ${{ fromJSON(inputs.env) }}
     steps:
+    - name:  Detect hung tests
+      if: always()
+      shell: powershell
+      run: |
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
+        powershell.exe -File windows_detect_hung_tests.ps1
+        $exitCode = $LASTEXITCODE
+        Remove-Item -Path "windows_detect_hung_tests.ps1"
+        exit $exitCode
+    - uses: actions/checkout@v4
+      with:
+        sparse-checkout: |
+          devops/actions
+          sycl/cts_exclude_filter
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
+    - name: Setup oneAPI env
+      uses: ./devops/actions/setup_windows_oneapi_env
+      if: ${{ always() && !cancelled() && inputs.cxx == 'icx' }}
     - name: Set env
       run: |
         git config --system core.longpaths true
         git config --global core.autocrlf false
         echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-    # TODO: use cached_checkout
-    - uses: actions/checkout@v4
-      with:
-        persist-credentials: false
-        ref: ${{ inputs.ref || github.sha }}
-        path: llvm
     - name: Register cleanup after job is finished
-      uses: ./llvm/devops/actions/cleanup
+      uses: ./devops/actions/cleanup
+    - uses: actions/checkout@v4
+      if: inputs.tests_selector == 'e2e'
+      with:
+        path: llvm
+        ref: ${{ inputs.repo_ref || github.sha }}
+        sparse-checkout: |
+          llvm/utils/lit
+          sycl/test-e2e          
     - name: Download compiler toolchain
       uses: actions/download-artifact@v4
       with:
-        name: ${{ inputs.sycl_toolchain_artifact }}
+        name: ${{ inputs.toolchain_artifact }}
     - name: Extract SYCL toolchain
       shell: bash
       run: |
         mkdir install
-        tar -xf ${{ inputs.sycl_toolchain_archive }} -C install
-        rm ${{ inputs.sycl_toolchain_archive }}
+        tar -xf ${{ inputs.toolchain_artifact_filename }} -C install
+        rm ${{ inputs.toolchain_artifact_filename }}
     - name: Setup SYCL toolchain
       run: |
         echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "LIB=$env:GITHUB_WORKSPACE\\install\\lib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - run: |
         sycl-ls
     - run: |
         sycl-ls --verbose
-    - name: Configure E2E with Level Zero target
-      shell: cmd
-      run: |
-        mkdir build-e2e
-        cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\github\level-zero_win-sdk\lib" -DLEVEL_ZERO_INCLUDE="D:\github\level-zero_win-sdk\include" -DLLVM_LIT="..\llvm\llvm\utils\lit\lit.py"
-    - name: Run End-to-End tests
-      shell: bash
-      run: |
-        # Run E2E tests.
-        export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}"
-        cmake --build build-e2e --target check-sycl-e2e
-    - name: Detect hung tests
+
+    - name: Run E2E Tests
+      if: inputs.tests_selector == 'e2e'
+      uses: ./devops/actions/run-tests/windows/e2e
+      timeout-minutes: 60
+      with:
+        ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
+        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        testing_mode: ${{ inputs.e2e_testing_mode }}
+        extra_cmake_args: ${{ inputs.extra_cmake_args }}
+        target_devices: ${{ inputs.target_devices }}
+        extra_lit_opts: ${{ inputs.extra_lit_opts }}
+        retention-days: ${{ inputs.artifact_retention_days }}
+        cxx: ${{ inputs.cxx }}
+
+    - name: Run SYCL CTS Tests
+      if: inputs.tests_selector == 'cts'
+      uses: ./devops/actions/run-tests/windows/cts
+      with:
+        ref: ${{ inputs.tests_ref || 'main' }}
+        extra_cmake_args: ${{ inputs.extra_cmake_args }}
+        cts_testing_mode: ${{ inputs.cts_testing_mode }}
+        sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
+        target_devices: ${{ inputs.target_devices }}
+        retention-days: ${{ inputs.artifact_retention_days }}
+
+    - name:  Detect hung tests
+      if: always()
       shell: powershell
       run: |
-        $exitCode = 0
-        $hungTests = Get-Process | Where-Object { ($_.Path -match "llvm\\install") -or ($_.Path -match "llvm\\build-e2e") }
-        $hungTests | Foreach-Object {
-         $exitCode = 1
-         echo "Test $($_.Path) hung!"
-         Stop-Process -Force $_
-        }
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
+        powershell.exe -File windows_detect_hung_tests.ps1
+        $exitCode = $LASTEXITCODE
+        Remove-Item -Path "windows_detect_hung_tests.ps1"
         exit $exitCode
     - name: Cleanup
       shell: cmd
       if: always()
       run: |
         rmdir /q /s install
-        rmdir /q /s build-e2e
+        if exist build-e2e rmdir /q /s build-e2e

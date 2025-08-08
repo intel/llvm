@@ -5,15 +5,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: target-spir
+
 // REQUIRES: aspect-ext_intel_matrix
+
+// XFAIL: run-mode && gpu-intel-dg2
+// XFAIL-TRACKER: GSD-5768
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL:*
-
 #include "common.hpp"
-
-constexpr size_t TN = 16;
-
 #include "joint_matrix_colA_rowB_colC_impl.hpp"

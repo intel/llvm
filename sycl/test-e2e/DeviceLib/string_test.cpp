@@ -1,8 +1,8 @@
 // RUN: %{build} -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -o %t1.out
 // RUN: %{run} %t1.out
 //
-// RUN: %{build} -Wno-error=unused-command-line-argument -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -fsycl-device-lib-jit-link -o %t2.out
-// RUN: %if !gpu %{ %{run} %t2.out %}
+// RUN: %if target-spir %{ %{build} -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -fsycl-device-lib-jit-link -Wno-deprecated -o %t2.out %}
+// RUN: %if target-spir && !gpu %{ %{run} %t2.out %}
 
 #include <cassert>
 #include <cstdint>
@@ -48,6 +48,200 @@ bool kernel_test_memcpy(sycl::queue &deviceQueue) {
       break;
     }
   }
+
+  return success;
+}
+
+class KernelTestStrcpy;
+bool kernel_test_strcpy(sycl::queue &deviceQueue) {
+  bool success = true;
+  char src[20] = "abcdefg012345xyzvvv";
+  char dst[5][20];
+  using CStr = char[20];
+  {
+    sycl::buffer<CStr, 1> dst_buffer(dst, sycl::range<1>(5));
+    deviceQueue.submit([&](sycl::handler &cgh) {
+      auto dst_acc = dst_buffer.get_access<sycl::access::mode::write>(cgh);
+      cgh.single_task<class KernelTestStrcpy>([=]() {
+        char str[20] = "abcdefg012345xyzvvv";
+        strcpy(dst_acc[0], str);
+        str[17] = '\0';
+        strcpy(dst_acc[1], str);
+        str[12] = '\0';
+        strcpy(dst_acc[2], str);
+        str[8] = '\0';
+        strcpy(dst_acc[3], str);
+        str[0] = '\0';
+        strcpy(dst_acc[4], str);
+      });
+    });
+  }
+
+  if (strcmp(src, dst[0]) != 0)
+    success = false;
+  src[17] = '\0';
+  if (strcmp(src, dst[1]) != 0)
+    success = false;
+  src[12] = '\0';
+  if (strcmp(src, dst[2]) != 0)
+    success = false;
+  src[8] = '\0';
+  if (strcmp(src, dst[3]) != 0)
+    success = false;
+  src[0] = '\0';
+  if (strcmp(src, dst[4]) != 0)
+    success = false;
+  return success;
+}
+
+class KernelTestStrncpy;
+bool kernel_test_strncpy(sycl::queue &deviceQueue) {
+  char src[20] = "abcdefg012345xyzvvv";
+  char dst[3][20];
+  memset(reinterpret_cast<char *>(dst), 'A', 60);
+  typedef char CStr[20];
+  {
+    sycl::buffer<CStr, 1> dst_buffer(dst, sycl::range<1>(3));
+    deviceQueue.submit([&](sycl::handler &cgh) {
+      auto dst_acc = dst_buffer.get_access<sycl::access::mode::write>(cgh);
+      cgh.single_task<class KernelTestStrncpy>([=]() {
+        char str[20] = "abcdefg012345xyzvvv";
+        strncpy(dst_acc[0], str, 19);
+        strncpy(dst_acc[1], str, 20);
+        str[7] = '\0';
+        strncpy(dst_acc[2], str, 11);
+      });
+    });
+  }
+
+  size_t idx;
+  for (idx = 0; idx < 19; ++idx) {
+    if (dst[0][idx] != src[idx])
+      return false;
+  }
+
+  if (dst[0][19] != 'A')
+    return false;
+
+  for (idx = 0; idx < 20; ++idx) {
+    if (dst[1][idx] != src[idx])
+      return false;
+  }
+
+  for (idx = 0; idx < 7; ++idx) {
+    if (dst[2][idx] != src[idx])
+      return false;
+  }
+  for (idx = 7; idx < 11; ++idx) {
+    if (dst[2][idx] != '\0') {
+      return false;
+    }
+  }
+
+  if (dst[2][11] != 'A')
+    return false;
+
+  return true;
+}
+
+class KernelTestStrcmp;
+bool kernel_test_strcmp(sycl::queue &deviceQueue) {
+  int res[5];
+  {
+    sycl::buffer<int, 1> res_buffer(res, sycl::range<1>(5));
+    deviceQueue.submit([&](sycl::handler &cgh) {
+      auto res_acc = res_buffer.get_access<sycl::access::mode::write>(cgh);
+      cgh.single_task<class KernelTestStrcmp>([=]() {
+        char str1[20] = "abcdefg012";
+        char str2[20] = "abcd";
+        char str3[20] = "124ddf";
+        char str4[20] = "abcdefg015";
+        res_acc[0] = strcmp(str1, str1);
+        res_acc[1] = strcmp(str1, str2);
+        res_acc[2] = strcmp(str3, str1);
+        res_acc[3] = strcmp(str4, str1);
+        res_acc[4] = strcmp(str1, str4);
+      });
+    });
+  }
+
+  if ((res[0] != 0) || (res[1] <= 0) || (res[2] >= 0) || (res[3] <= 0) ||
+      (res[4] >= 0))
+    return false;
+  return true;
+}
+
+class KernelTestStrncmp;
+bool kernel_test_strncmp(sycl::queue &deviceQueue) {
+  int res[10];
+  {
+    sycl::buffer<int, 1> res_buffer(res, sycl::range<1>(10));
+    deviceQueue.submit([&](sycl::handler &cgh) {
+      auto res_acc = res_buffer.get_access<sycl::access::mode::write>(cgh);
+      cgh.single_task<class KernelTestStrncmp>([=]() {
+        char str1[20] = "abcdefg012";
+        char str2[20] = "abcd";
+        char str3[20] = "124ddf";
+        char str4[20] = "abcdefg015";
+        char str5[20] = "";
+        char str6[20] = "abcdEFG";
+        char str7[20] = "abcdefg";
+        str6[3] = str7[3] = '\0';
+        res_acc[0] = strncmp(str1, str1, 12);
+        res_acc[1] = strncmp(str1, str2, 4);
+        res_acc[2] = strncmp(str3, str1, 0);
+        res_acc[3] = strncmp(str4, str1, 9);
+        res_acc[4] = strncmp(str1, str4, 10);
+        res_acc[5] = strncmp(str3, str3, 20);
+        res_acc[6] = strncmp(str2, str3, 6);
+        res_acc[7] = strncmp(str5, str5, 12);
+        res_acc[8] = strncmp(str6, str7, 7);
+        str2[0] = str3[0] = '\0';
+        res_acc[9] = strncmp(str2, str3, 4);
+      });
+    });
+  }
+
+  if ((res[0] != 0) || (res[1] != 0) || (res[2] != 0) || (res[3] != 0) ||
+      (res[4] >= 0) || (res[5] != 0) || (res[6] <= 0) || (res[7] != 0) ||
+      (res[8] != 0) || (res[9] != 0))
+    return false;
+  return true;
+}
+
+class KernelTestStrlen;
+bool kernel_test_strlen(sycl::queue &deviceQueue) {
+  bool success = true;
+  char src[20] = "abcdefg012345xyzvvv";
+  size_t len[5] = {0};
+  {
+    sycl::buffer<char, 1> buffer1(src, sycl::range<1>(20));
+    sycl::buffer<size_t, 1> buffer2(len, sycl::range<1>(5));
+    deviceQueue.submit([&](sycl::handler &cgh) {
+      auto len_acc = buffer2.get_access<sycl::access::mode::write>(cgh);
+      auto src_acc = buffer1.get_access<sycl::access::mode::read_write>(cgh);
+      cgh.single_task<class KernelTestStrlen>([=]() {
+        len_acc[0] =
+            strlen(src_acc.get_multi_ptr<sycl::access::decorated::no>().get());
+        src_acc[17] = '\0';
+        len_acc[1] =
+            strlen(src_acc.get_multi_ptr<sycl::access::decorated::no>().get());
+        src_acc[12] = '\0';
+        len_acc[2] =
+            strlen(src_acc.get_multi_ptr<sycl::access::decorated::no>().get());
+        src_acc[7] = '\0';
+        len_acc[3] =
+            strlen(src_acc.get_multi_ptr<sycl::access::decorated::no>().get());
+        src_acc[0] = '\0';
+        len_acc[4] =
+            strlen(src_acc.get_multi_ptr<sycl::access::decorated::no>().get());
+      });
+    });
+  }
+
+  if ((len[0] != 19) || (len[1] != 17) || (len[2] != 12) || (len[3] != 7) ||
+      (len[4] != 0))
+    success = false;
 
   return success;
 }
@@ -401,7 +595,7 @@ bool kernel_test_memcpy_addr_space(sycl::queue &deviceQueue) {
     sycl::buffer<char, 1> buffer3(dst1, sycl::range<1>(16));
     deviceQueue.submit([&](sycl::handler &cgh) {
       sycl::accessor<char, 1, sycl::access::mode::read,
-                     sycl::access::target::constant_buffer,
+                     sycl::access::target::device,
                      sycl::access::placeholder::false_t>
           src_acc(buffer1, cgh);
 
@@ -420,7 +614,8 @@ bool kernel_test_memcpy_addr_space(sycl::queue &deviceQueue) {
           sycl::nd_range<1>{16, 16}, [=](sycl::nd_item<1>) {
             // memcpy from constant buffer to local buffer
             memcpy(local_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
-                   src_acc.get_pointer(), 8);
+                   src_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+                   8);
             for (size_t idx = 0; idx < 7; ++idx)
               local_acc[idx] += 1;
             // memcpy from local buffer to global buffer
@@ -429,7 +624,9 @@ bool kernel_test_memcpy_addr_space(sycl::queue &deviceQueue) {
                    8);
             char device_buf[16];
             // memcpy from constant buffer to private memory
-            memcpy(device_buf, src_acc.get_pointer(), 8);
+            memcpy(device_buf,
+                   src_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+                   8);
             for (size_t idx = 0; idx < 7; ++idx) {
               device_buf[idx] += 2;
               // memcpy from private to global buffer
@@ -486,6 +683,21 @@ int main() {
 
   success = kernel_test_memcpy_addr_space(deviceQueue);
   assert(((void)"memcpy test with address space failed!", success));
+
+  success = kernel_test_strlen(deviceQueue);
+  assert(((void)"strlen test failed!", success));
+
+  success = kernel_test_strcpy(deviceQueue);
+  assert(((void)"strcpy test failed!", success));
+
+  success = kernel_test_strncpy(deviceQueue);
+  assert(((void)"strncpy test failed!", success));
+
+  success = kernel_test_strcmp(deviceQueue);
+  assert(((void)"strcmp test failed!", success));
+
+  success = kernel_test_strncmp(deviceQueue);
+  assert(((void)"strncmp test failed!", success));
   std::cout << "passed!" << std::endl;
   return 0;
 }

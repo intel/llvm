@@ -401,7 +401,7 @@ the symbol that belongs to the partition. It may be constructed as follows:
 This section stores the binary address of basic blocks along with other related
 metadata. This information can be used to map binary profiles (like perf
 profiles) directly to machine basic blocks.
-This section is emitted with ``-basic-block-sections=labels`` and will contain
+This section is emitted with ``-basic-block-address-map`` and will contain
 a BB address map table for every function.
 
 The ``SHT_LLVM_BB_ADDR_MAP`` type provides backward compatibility to allow
@@ -427,27 +427,6 @@ Example:
    .byte     x                            # BB_0 metadata
   # BB record for BB_1
    .uleb128  .LBB0_1-.LBB_END0_0          # BB_1 offset relative to the end of last block (BB_0).
-   .uleb128  .LBB_END0_1-.LBB0_1          # BB_1 size
-   .byte     y                            # BB_1 metadata
-
-Version 0: basic block address offsets are computed relative to the function
-address. This uses the unversioned ``SHT_LLVM_BB_ADDR_MAP_V0`` section type and
-is semantically equivalent to using ``SHT_LLVM_BB_ADDR_MAP`` with a zero
-version field.
-
-Example:
-
-.. code-block:: gas
-
-  .section  ".llvm_bb_addr_map","",@llvm_bb_addr_map_v0
-  .quad     .Lfunc_begin0                 # address of the function
-  .byte     2                             # number of basic blocks
-  # BB record for BB_0
-   .uleb128  .Lfunc_beign0-.Lfunc_begin0  # BB_0 offset relative to the function entry (always zero)
-   .uleb128  .LBB_END0_0-.Lfunc_begin0    # BB_0 size
-   .byte     x                            # BB_0 metadata
-  # BB record for BB_1
-   .uleb128  .LBB0_1-.Lfunc_begin0        # BB_1 offset relative to the function entry
    .uleb128  .LBB_END0_1-.LBB0_1          # BB_1 size
    .byte     y                            # BB_1 metadata
 

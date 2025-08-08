@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
@@ -21,8 +20,11 @@
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
-#include <sycl/platform.hpp>
 #include <ur_api.h>
+
+#ifdef __SYCL_INTERNAL_API
+#include <sycl/detail/cl.h>
+#endif
 
 #include <cstddef>
 #include <memory>
@@ -35,7 +37,7 @@
 namespace sycl {
 inline namespace _V1 {
 // Forward declarations
-class device_selector;
+class platform;
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
@@ -61,7 +63,8 @@ enum class peer_access {
 /// may be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT device : public detail::OwnerLessBase<device> {
+class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT device
+    : public detail::OwnerLessBase<device> {
 public:
   /// Constructs a SYCL device instance using the default device.
   device();
@@ -206,10 +209,6 @@ public:
   /// Queries this SYCL device for information requested by the template
   /// parameter param
   ///
-  /// Specializations of info::param_traits must be defined in accordance with
-  /// the info parameters in Table 4.20 of SYCL Spec to facilitate returning the
-  /// type associated with the param parameter.
-  ///
   /// \return device info of type described in Table 4.20.
   template <typename Param>
   typename detail::is_device_info_desc<Param>::return_type get_info() const {
@@ -219,9 +218,21 @@ public:
   /// Queries this SYCL device for SYCL backend-specific information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param>
+  template <typename Param
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
+            ,
+            int = detail::emit_get_backend_info_error<device, Param>()
+#endif
+#endif
+            >
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED(
+      "All current implementations of get_backend_info() are to be removed. "
+      "Use respective variants of get_info() instead.")
+#endif
   typename detail::is_backend_info_desc<Param>::return_type
-  get_backend_info() const;
+      get_backend_info() const;
 
   /// Check SYCL extension support by device
   ///
@@ -285,14 +296,27 @@ public:
 
   /// kernel_compiler extension
 
+  /// Indicates if the device can build a kernel for the given language.
+  ///
+  /// \param Language is one of the values from the
+  /// kernel_bundle::source_language enumeration described in the
+  /// sycl_ext_oneapi_kernel_compiler specification
+  ///
+  /// \return The value true only if the device supports the
+  /// ext::oneapi::experimental::build function on kernel bundles written in
+  /// the source language \p Language.
+  bool
+  ext_oneapi_can_build(ext::oneapi::experimental::source_language Language);
+
   /// Indicates if the device can compile a kernel for the given language.
   ///
   /// \param Language is one of the values from the
   /// kernel_bundle::source_language enumeration described in the
   /// sycl_ext_oneapi_kernel_compiler specification
   ///
-  /// \return true only if the device supports kernel bundles written in the
-  /// source language `lang`.
+  /// \return The value true only if the device supports the
+  /// ext::oneapi::experimental::compile function on kernel bundles written in
+  /// the source language \p Language.
   bool
   ext_oneapi_can_compile(ext::oneapi::experimental::source_language Language);
 
@@ -348,7 +372,7 @@ public:
 
 private:
   std::shared_ptr<detail::device_impl> impl;
-  device(std::shared_ptr<detail::device_impl> impl) : impl(impl) {}
+  device(std::shared_ptr<detail::device_impl> Impl) : impl(std::move(Impl)) {}
 
   ur_native_handle_t getNative() const;
 
@@ -357,7 +381,11 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)

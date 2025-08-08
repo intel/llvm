@@ -1,6 +1,5 @@
 add_sycl_unittest(QueueTests OBJECT
   DeviceCheck.cpp
-  EventClear.cpp
   Hash.cpp
   USM.cpp
   Wait.cpp

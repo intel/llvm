@@ -4,7 +4,7 @@
 
 template <size_t... Is> struct KernelFunctorWithWGSize {
   void operator()() const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::work_group_size<Is...>};
   }
@@ -12,7 +12,7 @@ template <size_t... Is> struct KernelFunctorWithWGSize {
 
 template <size_t... Is> struct KernelFunctorWithWGSizeHint {
   void operator()() const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::work_group_size_hint<Is...>};
   }
@@ -20,7 +20,7 @@ template <size_t... Is> struct KernelFunctorWithWGSizeHint {
 
 template <uint32_t I> struct KernelFunctorWithSGSize {
   void operator()() const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::sub_group_size<I>};
   }
@@ -82,79 +82,78 @@ void check_work_group_size() {
 
   sycl::queue Q;
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-error-re@sycl/handler.hpp:* {{static assertion failed due to requirement {{.+}}: Template type is not a property list.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSize<2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_key, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size<1>},
       KernelFunctorWithWGSize<2>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSize<1, 2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size<1, 1>},
       KernelFunctorWithWGSize<1, 2>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSize<2, 1>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size<1, 1>},
       KernelFunctorWithWGSize<2, 1>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSize<2, 2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size<1, 1>},
       KernelFunctorWithWGSize<2, 2>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSize<1, 1, 2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size<1, 1, 1>},
       KernelFunctorWithWGSize<1, 1, 2>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSize<1, 2, 1>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size<1, 1, 1>},
       KernelFunctorWithWGSize<1, 2, 1>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSize<2, 1, 1>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size<1, 1, 1>},
       KernelFunctorWithWGSize<2, 1, 1>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSize<1, 2, 2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size<1, 1, 1>},
       KernelFunctorWithWGSize<1, 2, 2>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSize<2, 2, 1>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size<1, 1, 1>},
       KernelFunctorWithWGSize<2, 2, 1>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSize<2, 1, 2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size<1, 1, 1>},
       KernelFunctorWithWGSize<2, 1, 2>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSize<2, 2, 2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size<1, 1, 1>},
@@ -220,78 +219,78 @@ void check_work_group_size_hint() {
 
   sycl::queue Q;
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSizeHint<2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_hint_key, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size_hint<1>},
       KernelFunctorWithWGSizeHint<2>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSizeHint<1, 2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_hint_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size_hint<1, 1>},
       KernelFunctorWithWGSizeHint<1, 2>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSizeHint<2, 1>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_hint_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size_hint<1, 1>},
       KernelFunctorWithWGSizeHint<2, 1>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSizeHint<2, 2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_hint_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size_hint<1, 1>},
       KernelFunctorWithWGSizeHint<2, 2>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSizeHint<1, 1, 2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_hint_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size_hint<1, 1, 1>},
       KernelFunctorWithWGSizeHint<1, 1, 2>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSizeHint<1, 2, 1>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_hint_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size_hint<1, 1, 1>},
       KernelFunctorWithWGSizeHint<1, 2, 1>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSizeHint<2, 1, 1>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_hint_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size_hint<1, 1, 1>},
       KernelFunctorWithWGSizeHint<2, 1, 1>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSizeHint<1, 2, 2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_hint_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size_hint<1, 1, 1>},
       KernelFunctorWithWGSizeHint<1, 2, 2>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSizeHint<2, 2, 1>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_hint_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size_hint<1, 1, 1>},
       KernelFunctorWithWGSizeHint<2, 2, 1>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSizeHint<2, 1, 2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_hint_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size_hint<1, 1, 1>},
       KernelFunctorWithWGSizeHint<2, 1, 2>{});
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note-re@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithWGSizeHint<2, 2, 2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::work_group_size_hint_key, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>, std::integral_constant<unsigned long{{( long)?}}, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size_hint<1, 1, 1>},
@@ -309,8 +308,8 @@ void check_sub_group_size() {
 
   sycl::queue Q;
 
-  // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-note@+1 {{in instantiation of function template specialization 'sycl::queue::single_task<sycl::detail::auto_name, KernelFunctorWithSGSize<2>, sycl::ext::oneapi::experimental::properties<std::tuple<sycl::ext::oneapi::experimental::property_value<sycl::ext::oneapi::experimental::sub_group_size_key, std::integral_constant<unsigned int, 1>>>>>' requested here}}
+  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
+  // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::sub_group_size<1>},
@@ -374,11 +373,49 @@ void check_max_linear_work_group_size() {
       []() {});
 }
 
+struct TestKernelNonConstGetter {
+  TestKernelNonConstGetter() {}
+  void operator()() const { return; }
+  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+    return sycl::ext::oneapi::experimental::properties{
+        sycl::ext::oneapi::experimental::use_root_sync};
+  }
+};
+
+struct TestKernelConstGetter {
+  TestKernelConstGetter() {}
+  void operator()() const { return; }
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+    return sycl::ext::oneapi::experimental::properties{
+        sycl::ext::oneapi::experimental::use_root_sync};
+  }
+};
+
+struct TestKernelNoGetter {
+  TestKernelNoGetter() {}
+  void operator()() const { return; }
+};
+
+void check_non_const_getter_warning() {
+  sycl::queue Q;
+
+  // expected-error-re@sycl/detail/kernel_launch_helper.hpp:* {{static assertion failed due to requirement {{.+}}: get(sycl::ext::oneapi::experimental::properties_tag) member in kernel functor class must be declared as a const member function}}
+  Q.single_task(TestKernelNonConstGetter());
+
+  // No error expected for kernel functor with a const get(properties_tag)
+  // method
+  Q.single_task(TestKernelConstGetter());
+
+  // No error expected for kernel functor with no get(properties_tag) method
+  Q.single_task(TestKernelNoGetter());
+}
+
 int main() {
   check_work_group_size();
   check_work_group_size_hint();
   check_sub_group_size();
   check_max_work_group_size();
   check_max_linear_work_group_size();
+  check_non_const_getter_warning();
   return 0;
 }

@@ -13,14 +13,12 @@
 
 #include "MCTargetDesc/WebAssemblyFixupKinds.h"
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
-#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/Debug.h"
@@ -185,8 +183,8 @@ void WebAssemblyMCCodeEmitter::encodeInstruction(
         assert(Opcode == WebAssembly::TRY_TABLE_S);
         FixupKind = MCFixupKind(WebAssembly::fixup_uleb128_i32);
       }
-      Fixups.push_back(MCFixup::create(OS.tell() - Start, MO.getExpr(),
-                                       FixupKind, MI.getLoc()));
+      Fixups.push_back(
+          MCFixup::create(OS.tell() - Start, MO.getExpr(), FixupKind));
       ++MCNumFixups;
       encodeULEB128(0, OS, PaddedSize);
     } else {

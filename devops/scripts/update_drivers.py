@@ -6,10 +6,18 @@ import re
 import argparse
 
 
-def get_latest_release(repo):
-    releases = urlopen("https://api.github.com/repos/" + repo + "/releases").read()
-    return json.loads(releases)[0]
-
+def get_latest_release(repo, allow_prerelease=True):
+    url = "https://api.github.com/repos/" + repo + "/releases"
+    releases_raw = urlopen(url).read()
+    releases = json.loads(releases_raw)
+    if allow_prerelease:
+        return releases[0]
+    # The GitHub API doesn't allow us to filter prereleases
+    # in the query so do it manually.
+    for release in releases:
+        if release["prerelease"] == False:
+            return release
+    raise ValueError("No prereleases required but no releases found")
 
 def get_latest_workflow_runs(repo, workflow_name):
     action_runs = urlopen(
@@ -17,7 +25,7 @@ def get_latest_workflow_runs(repo, workflow_name):
         + repo
         + "/actions/workflows/"
         + workflow_name
-        + ".yml/runs?status=success"
+        + ".yml/runs"
     ).read()
     return json.loads(action_runs)["workflow_runs"][0]
 
@@ -38,7 +46,7 @@ def uplift_linux_igfx_driver(config, platform_tag, igc_dev_only):
         config[platform_tag]["igc_dev"]["version"] = igcdevver
         config[platform_tag]["igc_dev"]["updated_at"] = igc_dev["updated_at"]
         config[platform_tag]["igc_dev"]["url"] = get_artifacts_download_url(
-            "intel/intel-graphics-compiler", "IGC_Ubuntu22.04_llvm14_clang-" + igcdevver
+            "intel/intel-graphics-compiler", "IGC_Ubuntu24.04_llvm15_clang-" + igcdevver
         )
         return config
 
@@ -48,26 +56,33 @@ def uplift_linux_igfx_driver(config, platform_tag, igc_dev_only):
     config[platform_tag]['compute_runtime']['version'] = compute_runtime['tag_name']
     config[platform_tag]['compute_runtime']['url'] = 'https://github.com/intel/compute-runtime/releases/tag/' + compute_runtime['tag_name']
 
-    for a in compute_runtime['assets']:
-        if a['name'].endswith('.sum'):
-            deps = str(urlopen(a['browser_download_url']).read())
-            m = re.search(r"intel-igc-core_([0-9\.]*)_amd64", deps)
-            if m is not None:
-                ver = m.group(1)
-                config[platform_tag]['igc']['github_tag'] = 'igc-' + ver
-                config[platform_tag]['igc']['version'] = ver
-                config[platform_tag]['igc']['url'] = 'https://github.com/intel/intel-graphics-compiler/releases/tag/igc-' + ver
-                break
+    m = re.search(
+        re.escape("https://github.com/intel/intel-graphics-compiler/releases/tag/")
+        + r"(v[\.0-9]+)",
+        compute_runtime["body"],
+    )
+    if m is not None:
+        ver = m.group(1)
+        config[platform_tag]["igc"]["github_tag"] = ver
+        config[platform_tag]["igc"]["version"] = ver
+        config[platform_tag]["igc"]["url"] = (
+            "https://github.com/intel/intel-graphics-compiler/releases/tag/" + ver
+        )
 
-    cm = get_latest_release('intel/cm-compiler')
-    config[platform_tag]['cm']['github_tag'] = cm['tag_name']
-    config[platform_tag]['cm']['version'] = cm['tag_name'].replace('cmclang-', '')
-    config[platform_tag]['cm']['url'] = 'https://github.com/intel/cm-compiler/releases/tag/' + cm['tag_name']
+    cm = get_latest_release("intel/cm-compiler", allow_prerelease=False)
+    config[platform_tag]["cm"]["github_tag"] = cm["tag_name"]
+    config[platform_tag]["cm"]["version"] = cm["tag_name"].replace("cmclang-", "")
+    config[platform_tag]["cm"]["url"] = (
+        "https://github.com/intel/cm-compiler/releases/tag/" + cm["tag_name"]
+    )
 
-    level_zero = get_latest_release('oneapi-src/level-zero')
-    config[platform_tag]['level_zero']['github_tag'] = level_zero['tag_name']
-    config[platform_tag]['level_zero']['version'] = level_zero['tag_name']
-    config[platform_tag]['level_zero']['url'] = 'https://github.com/oneapi-src/level-zero/releases/tag/' + level_zero['tag_name']
+    level_zero = get_latest_release("oneapi-src/level-zero", allow_prerelease=False)
+    config[platform_tag]["level_zero"]["github_tag"] = level_zero["tag_name"]
+    config[platform_tag]["level_zero"]["version"] = level_zero["tag_name"]
+    config[platform_tag]["level_zero"]["url"] = (
+        "https://github.com/oneapi-src/level-zero/releases/tag/"
+        + level_zero["tag_name"]
+    )
 
     return config
 

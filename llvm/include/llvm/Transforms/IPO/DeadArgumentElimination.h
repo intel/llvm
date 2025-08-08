@@ -110,13 +110,16 @@ public:
   UseMap Uses;
 
   using LiveSet = std::set<RetOrArg>;
-  using LiveFuncSet = std::set<const Function *>;
+  using FuncSet = std::set<const Function *>;
 
   /// This set contains all values that have been determined to be live.
   LiveSet LiveValues;
 
-  /// This set contains all values that are cannot be changed in any way.
-  LiveFuncSet LiveFunctions;
+  /// This set contains all functions that cannot be changed in any way.
+  FuncSet FrozenFunctions;
+
+  /// This set contains all functions that cannot change return type;
+  FuncSet FrozenRetTyFunctions;
 
   using UseVector = SmallVector<RetOrArg, 5>;
 
@@ -139,52 +142,19 @@ private:
   void markValue(const RetOrArg &RA, Liveness L,
                  const UseVector &MaybeLiveUses);
   void markLive(const RetOrArg &RA);
-  void markLive(const Function &F);
+  void markFrozen(const Function &F);
+  void markRetTyFrozen(const Function &F);
+  bool markFnOrRetTyFrozenOnMusttail(const Function &F);
   void propagateLiveness(const RetOrArg &RA);
   bool removeDeadStuffFromFunction(Function *F);
   bool deleteDeadVarargs(Function &F);
   bool removeDeadArgumentsFromCallers(Function &F);
-  void propagateVirtMustcallLiveness(const Module &M);
 
   void UpdateNVPTXMetadata(Module &M, Function *F, Function *NF,
                            const SmallVectorImpl<bool> &ArgAlive);
-  llvm::DenseSet<Function *> NVPTXKernelSet;
 
-  bool IsNVPTXKernel(const Function *F) { return NVPTXKernelSet.contains(F); };
+  bool IsNVPTXKernel(const Function *F) { return F->getCallingConv() == CallingConv::PTX_Kernel; };
 
-  void BuildNVPTXKernelSet(const Module &M) {
-
-    auto *NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
-    if (!NvvmMetadata)
-      return;
-
-    for (auto *MetadataNode : NvvmMetadata->operands()) {
-      if (MetadataNode->getNumOperands() != 3)
-        continue;
-
-      // NVPTX identifies kernel entry points using metadata nodes of the form:
-      //   !X = !{<function>, !"kernel", i32 1}
-      auto *Type = dyn_cast<MDString>(MetadataNode->getOperand(1));
-      // Only process kernel entry points.
-      if (!Type || Type->getString() != "kernel")
-        continue;
-
-      // Get a pointer to the entry point function from the metadata.
-      if (const auto &FuncOperand = MetadataNode->getOperand(0)) {
-        if (auto *FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand)) {
-          if (auto *Func = dyn_cast<Function>(FuncConstant->getValue())) {
-            if (auto *Val = mdconst::dyn_extract<ConstantInt>(
-                    MetadataNode->getOperand(2))) {
-              if (Val->getValue() == 1) {
-                NVPTXKernelSet.insert(Func);
-              }
-            }
-          }
-        }
-      }
-    }
-    return;
-  }
 };
 
 class DeadArgumentEliminationSYCLPass

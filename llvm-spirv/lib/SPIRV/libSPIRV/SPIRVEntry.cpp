@@ -42,6 +42,7 @@
 #include "SPIRVBasicBlock.h"
 #include "SPIRVDebug.h"
 #include "SPIRVDecorate.h"
+#include "SPIRVFnVar.h"
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
 #include "SPIRVMemAliasingINTEL.h"
@@ -88,6 +89,10 @@ SPIRVEntry *SPIRVEntry::create(Op OpCode) {
   // TODO: To remove this when we make a switch to new version
   if (OpCode == internal::OpTypeJointMatrixINTELv2)
     OpCode = internal::OpTypeJointMatrixINTEL;
+
+  // OpAtomicCompareExchangeWeak is removed starting from SPIR-V 1.4
+  if (OpCode == OpAtomicCompareExchangeWeak)
+    OpCode = OpAtomicCompareExchange;
 
   OpToFactoryMapTy::const_iterator Loc = OpToFactoryMap.find(OpCode);
   if (Loc != OpToFactoryMap.end())
@@ -652,7 +657,9 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   getDecoder(I) >> Target >> ExecMode;
   switch (static_cast<uint32_t>(ExecMode)) {
   case ExecutionModeLocalSize:
+  case ExecutionModeLocalSizeId:
   case ExecutionModeLocalSizeHint:
+  case ExecutionModeLocalSizeHintId:
   case ExecutionModeMaxWorkgroupSizeINTEL:
     WordLiterals.resize(3);
     break;
@@ -671,6 +678,8 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeSharedLocalMemorySizeINTEL:
   case ExecutionModeNamedBarrierCountINTEL:
   case ExecutionModeSubgroupSize:
+  case ExecutionModeSubgroupsPerWorkgroup:
+  case ExecutionModeSubgroupsPerWorkgroupId:
   case ExecutionModeMaxWorkDimINTEL:
   case ExecutionModeNumSIMDWorkitemsINTEL:
   case ExecutionModeSchedulerTargetFmaxMhzINTEL:

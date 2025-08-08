@@ -178,8 +178,6 @@ struct MoveInitOperandsToInput : public OpRewritePattern<GenericOp> {
 /// ]
 ///
 /// #trait = {
-///   args_in = 2,
-///   args_out = 1,
 ///   indexing_maps = #accesses,
 ///   iterator_types = ["parallel", "parallel"],
 ///   library_call = "some_external_fn"
@@ -210,8 +208,6 @@ struct MoveInitOperandsToInput : public OpRewritePattern<GenericOp> {
 /// ]
 ///
 /// #trait = {
-///   args_in = 2,
-///   args_out = 1,
 ///   indexing_maps = #accesses,
 ///   iterator_types = ["parallel", "parallel"],
 ///   library_call = "some_external_fn"
@@ -396,12 +392,16 @@ linalg::dropUnitDims(RewriterBase &rewriter, GenericOp genericOp,
   // 1. Check if any of the iteration dimensions are unit-trip count. They will
   //    end up being unit-trip count if they are used to index into a unit-dim
   //    tensor/memref.
-  AffineMap invertedMap = inversePermutation(concatAffineMaps(indexingMaps));
+  AffineMap invertedMap =
+      inversePermutation(concatAffineMaps(indexingMaps, rewriter.getContext()));
   if (!invertedMap) {
     return rewriter.notifyMatchFailure(genericOp,
                                        "invalid indexing maps for operation");
   }
-  SmallVector<int64_t> dims = genericOp.getStaticShape();
+
+  SmallVector<int64_t> allShapesSizes;
+  for (OpOperand &opOperand : genericOp->getOpOperands())
+    llvm::append_range(allShapesSizes, genericOp.getShape(&opOperand));
 
   // 1a. Get the allowed list of dimensions to drop from the `options`.
   SmallVector<unsigned> allowedUnitDims = options.controlFn(genericOp);
@@ -414,7 +414,7 @@ linalg::dropUnitDims(RewriterBase &rewriter, GenericOp genericOp,
   llvm::SmallDenseSet<unsigned> unitDims;
   for (const auto &expr : enumerate(invertedMap.getResults())) {
     if (AffineDimExpr dimExpr = dyn_cast<AffineDimExpr>(expr.value())) {
-      if (dims[dimExpr.getPosition()] == 1 &&
+      if (allShapesSizes[dimExpr.getPosition()] == 1 &&
           unitDimsFilter.count(expr.index()))
         unitDims.insert(expr.index());
     }
@@ -490,7 +490,8 @@ linalg::dropUnitDims(RewriterBase &rewriter, GenericOp genericOp,
   // Abort if the indexing maps of the result operation are not invertible
   // (i.e. not legal) or if no dimension was reduced.
   if (newIndexingMaps == indexingMaps ||
-      !inversePermutation(concatAffineMaps(newIndexingMaps)))
+      !inversePermutation(
+          concatAffineMaps(newIndexingMaps, rewriter.getContext())))
     return failure();
 
   Location loc = genericOp.getLoc();
@@ -608,8 +609,7 @@ struct DropPadUnitDims : public OpRewritePattern<tensor::PadOp> {
     int64_t padRank = sourceShape.size();
 
     auto isStaticZero = [](OpFoldResult f) {
-      std::optional<int64_t> maybeInt = getConstantIntValue(f);
-      return maybeInt && *maybeInt == 0;
+      return getConstantIntValue(f) == 0;
     };
 
     llvm::SmallDenseSet<unsigned> unitDimsFilter(allowedUnitDims.begin(),
@@ -833,7 +833,7 @@ struct LinalgFoldUnitExtentDimsPass
     }
     linalg::populateFoldUnitExtentDimsPatterns(patterns, options);
     populateMoveInitOperandsToInputPattern(patterns);
-    (void)applyPatternsAndFoldGreedily(op, std::move(patterns));
+    (void)applyPatternsGreedily(op, std::move(patterns));
   }
 };
 
@@ -908,6 +908,10 @@ struct RankReduceContractionOps : OpRewritePattern<FromOpTy> {
 
   LogicalResult matchAndRewrite(FromOpTy contractionOp,
                                 PatternRewriter &rewriter) const override {
+    if (contractionOp.hasUserDefinedMaps()) {
+      return rewriter.notifyMatchFailure(
+          contractionOp, "ops with user-defined maps are not supported");
+    }
 
     auto loc = contractionOp.getLoc();
     auto inputs = contractionOp.getDpsInputs();
@@ -937,7 +941,8 @@ struct RankReduceContractionOps : OpRewritePattern<FromOpTy> {
         loc, collapsedResultTy, ValueRange{collapsedLhs, collapsedRhs},
         ValueRange{collapsedInit});
     for (auto attr : contractionOp->getAttrs()) {
-      if (attr.getName() == LinalgDialect::kMemoizedIndexingMapsAttrName)
+      if (attr.getName() == LinalgDialect::kMemoizedIndexingMapsAttrName ||
+          attr.getName() == "indexing_maps")
         continue;
       collapsedOp->setAttr(attr.getName(), attr.getValue());
     }

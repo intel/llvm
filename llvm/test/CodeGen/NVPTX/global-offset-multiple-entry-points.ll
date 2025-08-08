@@ -11,7 +11,7 @@ declare ptr @llvm.nvvm.implicit.offset()
 
 ; This function is a kernel entry point that does not use global offset. It will
 ; not get a clone with a global offset parameter.
-define dso_local void @_ZTS12third_kernel() {
+define dso_local ptx_kernel void @_ZTS12third_kernel() {
 entry:
   ret void
 }
@@ -45,14 +45,14 @@ define i64 @_ZTS14first_function() {
 ; CHECK: %2 = call i64 @_ZTS15common_function_with_offset(ptr %0)
 ; CHECK: ret i64 %2
 
-define void @_ZTS12first_kernel() {
+define ptx_kernel void @_ZTS12first_kernel() {
 entry:
   %0 = call i64 @_ZTS14first_function()
 ; CHECK: %0 = call i64 @_ZTS14first_function()
   ret void
 }
 
-; CHECK: define void @_ZTS12first_kernel_with_offset(ptr byval([3 x i32]) %0) {
+; CHECK: define ptx_kernel void @_ZTS12first_kernel_with_offset(ptr byval([3 x i32]) %0) {
 ; CHECK: entry:
 ; CHECK:   %1 = call i64 @_ZTS14first_function_with_offset(ptr %0)
 ; CHECK:   ret void
@@ -69,14 +69,14 @@ define i64 @_ZTS15second_function() {
 ; CHECK: %2 = call i64 @_ZTS15common_function_with_offset(ptr %0)
 ; CHECK: ret i64 %2
 
-define void @_ZTS13second_kernel() {
+define ptx_kernel void @_ZTS13second_kernel() {
 entry:
   %0 = call i64 @_ZTS15second_function()
 ; CHECK: %0 = call i64 @_ZTS15second_function()
   ret void
 }
 
-; CHECK: define void @_ZTS13second_kernel_with_offset(ptr byval([3 x i32]) %0) {
+; CHECK: define ptx_kernel void @_ZTS13second_kernel_with_offset(ptr byval([3 x i32]) %0) {
 ; CHECK: entry:
 ; CHECK:   %1 = call i64 @_ZTS15second_function_with_offset(ptr %0)
 ; CHECK:   ret void
@@ -102,21 +102,18 @@ define i64 @_ZTS15no_entry_point() {
 ; CHECK: }
 
 ; Check the last two annotations are our new kernels
-; CHECK: !nvvm.annotations = {{.*}}, ![[NEWKERNEL0MD:[0-9]+]], ![[NEWKERNEL1MD:[0-9]+]]}
+; CHECK: !nvvm.annotations = {{.*}}
 
 !llvm.module.flags = !{!10}
 !nvvm.annotations = !{!0, !1, !2, !1, !3, !3, !3, !3, !4, !4, !3, !5, !6}
 !nvvmir.version = !{!9}
 
-; CHECK: ![[NEWKERNEL0MD]] = !{ptr @_ZTS13second_kernel_with_offset, !"kernel", i32 1}
-; CHECK: ![[NEWKERNEL1MD]] = !{ptr @_ZTS12first_kernel_with_offset, !"kernel", i32 1}
-
-!0 = distinct !{ptr @_ZTS12first_kernel, !"kernel", i32 1}
+!0 = distinct !{ptr @_ZTS12first_kernel, !"dummy", i32 1}
 !1 = !{null, !"align", i32 8}
 !2 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
 !3 = !{null, !"align", i32 16}
 !4 = !{null, !"align", i32 16, !"align", i32 65552, !"align", i32 131088}
-!5 = distinct !{ptr @_ZTS13second_kernel, !"kernel", i32 1}
-!6 = distinct !{ptr @_ZTS12third_kernel, !"kernel", i32 1}
+!5 = distinct !{ptr @_ZTS13second_kernel, !"dummy", i32 1}
+!6 = distinct !{ptr @_ZTS12third_kernel, !"dummy", i32 1}
 !9 = !{i32 1, i32 4}
 !10 = !{i32 1, !"sycl-device", i32 1}

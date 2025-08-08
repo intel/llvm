@@ -14,13 +14,13 @@ int main() {
   constexpr auto Props3 = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::max_work_group_size<8, 4, 2>};
 
-  // CHECK-IR: define{{.*}}void @[[MaxWGSizeKernelFn0:.*MaxWGSizeKernel0]](){{.*}} #[[MaxWGSizeAttr0:[0-9]+]]
+  // CHECK-IR: define{{.*}}ptx_kernel{{.*}}void @[[MaxWGSizeKernelFn0:.*MaxWGSizeKernel0]](){{.*}} #[[MaxWGSizeAttr0:[0-9]+]]
   Q.single_task<class MaxWGSizeKernel0>(Props1, []() {});
 
-  // CHECK-IR: define{{.*}}void @[[MaxWGSizeKernelFn1:.*MaxWGSizeKernel1]](){{.*}} #[[MaxWGSizeAttr1:[0-9]+]]
+  // CHECK-IR: define{{.*}}ptx_kernel{{.*}}void @[[MaxWGSizeKernelFn1:.*MaxWGSizeKernel1]](){{.*}} #[[MaxWGSizeAttr1:[0-9]+]]
   Q.single_task<class MaxWGSizeKernel1>(Props2, []() {});
 
-  // CHECK-IR: define{{.*}}void @[[MaxWGSizeKernelFn2:.*MaxWGSizeKernel2]](){{.*}} #[[MaxWGSizeAttr2:[0-9]+]]
+  // CHECK-IR: define{{.*}}ptx_kernel{{.*}}void @[[MaxWGSizeKernelFn2:.*MaxWGSizeKernel2]](){{.*}} #[[MaxWGSizeAttr2:[0-9]+]]
   Q.single_task<class MaxWGSizeKernel2>(Props3, []() {});
 
   return 0;
@@ -34,10 +34,6 @@ int main() {
 
 // CHECK-IR: attributes #[[MaxWGSizeAttr2]] = {
 // CHECK-IR-SAME: "sycl-max-work-group-size"="8,4,2"
-
-// CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn0]], !"kernel", i32 1}
-// CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn1]], !"kernel", i32 1}
-// CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn2]], !"kernel", i32 1}
 
 // CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn0]], !"maxntidx", i32 8}
 // CHECK-IR-NOT: !{ptr @[[MaxWGSizeKernelFn0]], !"maxntidy",

@@ -16,7 +16,7 @@
 ; CHECK-SPIRV-DAG: EntryPoint [[#]] [[#SizedF:]] "lifetime_sized"
 ; CHECK-SPIRV-DAG: EntryPoint [[#]] [[#GenericF:]] "lifetime_generic"
 ; CHECK-SPIRV-DAG: TypeStruct [[#StructTy:]] [[#]]
-; CHECK-SPIRV-COUNT-1: TypePointer [[#PrivatePtrTy:]] [[#StructTy]]
+; CHECK-SPIRV-DAG: TypePointer [[#PrivatePtrTy:]] 7 [[#StructTy]]
 
 ; CHECK-SPIRV: Function [[#]] [[#SimpleF:]]
 ; CHECK-SPIRV: LifetimeStart [[#Tmp:]] 0
@@ -24,35 +24,31 @@
 
 ; CHECK-SPIRV: Function [[#]] [[#SizedF:]]
 ; CHECK-SPIRV: LifetimeStart [[#Tmp:]] 1
-; CHECK-SPIRV: Bitcast [[#]] [[#Cast:]]
-; CHECK-SPIRV: LifetimeStop [[#Cast]] 1
+; CHECK-SPIRV: LifetimeStop [[#Tmp]] 1
 
 ; CHECK-SPIRV: Function [[#]] [[#GenericF:]]
 ; CHECK-SPIRV: Variable [[#PrivatePtrTy]] [[#Var:]] 7
 ; CHECK-SPIRV: PtrCastToGeneric [[#]] [[#Cast1:]] [[#Var]]
-; CHECK-SPIRV: Bitcast [[#]] [[#Cast2:]] [[#Cast1]]
-; CHECK-SPIRV: GenericCastToPtr [[#]] [[#Cast3:]] [[#Cast2]]
-; CHECK-SPIRV: LifetimeStart [[#Cast3]] 1
-; CHECK-SPIRV: GenericCastToPtr [[#]] [[#Cast4:]]
-; CHECK-SPIRV: LifetimeStop [[#Cast4]] 1
+; CHECK-SPIRV: LifetimeStart [[#Var]] 0
+; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[#]] [[#Cast1]]
+; CHECK-SPIRV: LifetimeStop [[#Var]] 0
 
 ; CHECK-LLVM-LABEL: lifetime_simple
-; CHECK-LLVM: %[[tmp1:[0-9]+]] = bitcast ptr %{{[0-9]+}} to ptr
-; CHECK-LLVM: call void @llvm.lifetime.start.p0(i64 -1, ptr %[[tmp1]])
-; CHECK-LLVM: call void @llvm.lifetime.end.p0(i64 -1, ptr %[[tmp1]])
+; CHECK-LLVM: %[[#Alloca:]] = alloca i32
+; CHECK-LLVM: call void @llvm.lifetime.start.p0(i64 -1, ptr %[[#Alloca]])
+; CHECK-LLVM: call void @llvm.lifetime.end.p0(i64 -1, ptr %[[#Alloca]])
 
 ; CHECK-LLVM-LABEL: lifetime_sized
-; CHECK-LLVM: call void @llvm.lifetime.start.p0(i64 1, ptr %[[#]])
-; CHECK-LLVM: call void @llvm.lifetime.end.p0(i64 1, ptr %[[#]])
+; CHECK-LLVM: %[[#Alloca:]] = alloca i8
+; CHECK-LLVM: call void @llvm.lifetime.start.p0(i64 1, ptr %[[#Alloca]])
+; CHECK-LLVM: call void @llvm.lifetime.end.p0(i64 1, ptr %[[#Alloca]])
 
 ; CHECK-LLVM-LABEL: lifetime_generic
 ; CHECK-LLVM: %[[#Alloca:]] = alloca %class.anon
 ; CHECK-LLVM: %[[#Cast1:]] = addrspacecast ptr %[[#Alloca]] to ptr addrspace(4)
-; CHECK-LLVM: %[[#Cast2:]] = bitcast ptr addrspace(4) %[[#Cast1]] to ptr addrspace(4)
-; CHECK-LLVM: %[[#Cast3:]] = addrspacecast ptr addrspace(4) %[[#Cast2:]] to ptr
-; CHECK-LLVM: call void @llvm.lifetime.start.p0(i64 1, ptr %[[#Cast3]])
-; CHECK-LLVM: %[[#Cast4:]] = addrspacecast ptr addrspace(4) %[[#]] to ptr
-; CHECK-LLVM: call void @llvm.lifetime.end.p0(i64 1, ptr %[[#Cast4]])
+; CHECK-LLVM: call void @llvm.lifetime.start.p0(i64 -1, ptr %[[#Alloca]])
+; CHECK-LLVM: call spir_func void @boo(ptr addrspace(4) %[[#Cast1]])
+; CHECK-LLVM: call void @llvm.lifetime.end.p0(i64 -1, ptr %[[#Alloca]])
 
 ; ModuleID = 'main'
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
@@ -61,7 +57,7 @@ target triple = "spir64-unknown-unknown"
 %class.anon = type { i8 }
 
 ; Function Attrs: nounwind
-define spir_kernel void @lifetime_simple(i32 addrspace(1)* nocapture %res, i32 addrspace(1)* nocapture %lhs, i32 addrspace(1)* nocapture %rhs) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
+define spir_kernel void @lifetime_simple(i32 addrspace(1)* captures(none) %res, i32 addrspace(1)* captures(none) %lhs, i32 addrspace(1)* captures(none) %rhs) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
   %1 = alloca i32
   %2 = call spir_func i64 @_Z13get_global_idj(i32 0) #1
   %3 = shl i64 %2, 32
@@ -83,22 +79,22 @@ define spir_kernel void @lifetime_simple(i32 addrspace(1)* nocapture %res, i32 a
 
 define spir_kernel void @lifetime_sized() #0 !kernel_arg_addr_space !8 !kernel_arg_access_qual !8 !kernel_arg_type !8 !kernel_arg_base_type !8 !kernel_arg_type_qual !8 {
 entry:
-  %0 = alloca %class.anon, align 1
-  %1 = bitcast %class.anon* %0 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %1) #0
-  call spir_func void @foo(%class.anon* %0)
-  %2 = bitcast %class.anon* %0 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %2) #0
+  %0 = alloca i8, align 1
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %0) #0
+  call spir_func void @goo(i8* %0)
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %0) #0
   ret void
 }
 
 declare spir_func void @foo(%class.anon* %this) #0
 
-; Function Attrs: nounwind
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #0
+declare spir_func void @goo(i8* %this) #0
 
 ; Function Attrs: nounwind
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #0
+declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* captures(none)) #0
+
+; Function Attrs: nounwind
+declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* captures(none)) #0
 
 ; Function Attrs: nounwind readnone
 declare spir_func i64 @_Z13get_global_idj(i32) #1
@@ -106,21 +102,19 @@ declare spir_func i64 @_Z13get_global_idj(i32) #1
 define spir_kernel void @lifetime_generic() #0 !kernel_arg_addr_space !8 !kernel_arg_access_qual !8 !kernel_arg_type !8 !kernel_arg_base_type !8 !kernel_arg_type_qual !8 {
 entry:
   %0 = alloca %class.anon, align 1, addrspace(4)
-  %1 = bitcast %class.anon addrspace(4)* %0 to i8 addrspace(4)*
-  call void @llvm.lifetime.start.p4i8(i64 1, i8 addrspace(4)* %1) #0
+  call void @llvm.lifetime.start.p4i8(i64 -1, i8 addrspace(4)* %0) #0
   call spir_func void @boo(%class.anon addrspace(4)* %0)
-  %2 = bitcast %class.anon addrspace(4)* %0 to i8 addrspace(4)*
-  call void @llvm.lifetime.end.p4i8(i64 1, i8 addrspace(4)* %2) #0
+  call void @llvm.lifetime.end.p4i8(i64 -1, i8 addrspace(4)* %0) #0
   ret void
 }
 
 declare spir_func void @boo(%class.anon addrspace(4)* %this) #0
 
 ; Function Attrs: nounwind
-declare void @llvm.lifetime.start.p4i8(i64 immarg, i8 addrspace(4)* nocapture) #0
+declare void @llvm.lifetime.start.p4i8(i64 immarg, i8 addrspace(4)* captures(none)) #0
 
 ; Function Attrs: nounwind
-declare void @llvm.lifetime.end.p4i8(i64 immarg, i8 addrspace(4)* nocapture) #0
+declare void @llvm.lifetime.end.p4i8(i64 immarg, i8 addrspace(4)* captures(none)) #0
 
 
 attributes #0 = { nounwind }

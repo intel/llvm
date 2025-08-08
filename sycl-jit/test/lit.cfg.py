@@ -6,7 +6,7 @@ import lit.formats
 from lit.llvm import llvm_config
 from lit.llvm.subst import ToolSubst
 
-config.name = "SYCL-FUSION"
+config.name = "SYCL-JIT"
 
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
@@ -27,4 +27,4 @@ config.substitutions.append(("%shlibdir", config.llvm_shlib_dir))
 if "NVPTX" in config.llvm_targets_to_build:
     config.available_features.add("cuda")
 if "AMDGPU" in config.llvm_targets_to_build:
-    config.available_features.add("hip_amd")
+    config.available_features.add("hip")

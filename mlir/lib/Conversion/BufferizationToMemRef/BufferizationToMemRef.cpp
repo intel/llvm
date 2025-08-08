@@ -20,11 +20,10 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 
 namespace mlir {
-#define GEN_PASS_DEF_CONVERTBUFFERIZATIONTOMEMREF
+#define GEN_PASS_DEF_CONVERTBUFFERIZATIONTOMEMREFPASS
 #include "mlir/Conversion/Passes.h.inc"
 } // namespace mlir
 
@@ -111,8 +110,8 @@ struct CloneOpConversion : public OpConversionPattern<bufferization::CloneOp> {
             rewriter.create<memref::CastOp>(op->getLoc(), memrefType, alloc);
     }
 
-    rewriter.replaceOp(op, alloc);
     rewriter.create<memref::CopyOp>(loc, op.getInput(), alloc);
+    rewriter.replaceOp(op, alloc);
     return success();
   }
 };
@@ -121,7 +120,8 @@ struct CloneOpConversion : public OpConversionPattern<bufferization::CloneOp> {
 
 namespace {
 struct BufferizationToMemRefPass
-    : public impl::ConvertBufferizationToMemRefBase<BufferizationToMemRefPass> {
+    : public impl::ConvertBufferizationToMemRefPassBase<
+          BufferizationToMemRefPass> {
   BufferizationToMemRefPass() = default;
 
   void runOnOperation() override {
@@ -134,8 +134,7 @@ struct BufferizationToMemRefPass
 
     bufferization::DeallocHelperMap deallocHelperFuncMap;
     if (auto module = dyn_cast<ModuleOp>(getOperation())) {
-      OpBuilder builder =
-          OpBuilder::atBlockBegin(&module.getBodyRegion().front());
+      OpBuilder builder = OpBuilder::atBlockBegin(module.getBody());
 
       // Build dealloc helper function if there are deallocs.
       getOperation()->walk([&](bufferization::DeallocOp deallocOp) {
@@ -168,7 +167,3 @@ struct BufferizationToMemRefPass
   }
 };
 } // namespace
-
-std::unique_ptr<Pass> mlir::createBufferizationToMemRefPass() {
-  return std::make_unique<BufferizationToMemRefPass>();
-}

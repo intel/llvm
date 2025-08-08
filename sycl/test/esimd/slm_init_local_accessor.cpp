@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl  %s
+// RUN: %clangxx -fsycl  %s -fsyntax-only
 
 // This test verifies usage of slm_init and local_accessor in different kernels
 // passes.

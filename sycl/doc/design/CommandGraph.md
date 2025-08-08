@@ -28,30 +28,26 @@ document for details of support of different SYCL backends.
 ### UR Command-Buffer Experimental Feature
 
 The command-buffer concept has been introduced to UR as an
-[experimental feature](https://oneapi-src.github.io/unified-runtime/core/api.html#command-buffer-experimental)
-with the following entry-points:
-
-| Function                                     | Description |
-| -------------------------------------------- | ----------- |
-| `urCommandBufferCreateExp`                   | Create a command-buffer. |
-| `urCommandBufferRetainExp`                   | Incrementing reference count of command-buffer. |
-| `urCommandBufferReleaseExp`                  | Decrementing reference count of command-buffer. |
-| `urCommandBufferFinalizeExp`                 | No more commands can be appended, makes command-buffer ready to enqueue on a command-queue. |
-| `urCommandBufferAppendKernelLaunchExp`       | Append a kernel execution command to command-buffer. |
-| `urCommandBufferAppendUSMMemcpyExp`          | Append a USM memcpy command to the command-buffer. |
-| `urCommandBufferAppendUSMFillExp`            | Append a USM fill command to the command-buffer. |
-| `urCommandBufferAppendMemBufferCopyExp`      | Append a mem buffer copy command to the command-buffer. |
-| `urCommandBufferAppendMemBufferWriteExp`     | Append a memory write command to a command-buffer object. |
-| `urCommandBufferAppendMemBufferReadExp`      | Append a memory read command to a command-buffer object. |
-| `urCommandBufferAppendMemBufferCopyRectExp`  | Append a rectangular memory copy command to a command-buffer object. |
-| `urCommandBufferAppendMemBufferWriteRectExp` | Append a rectangular memory write command to a command-buffer object. |
-| `urCommandBufferAppendMemBufferReadRectExp`  | Append a rectangular memory read command to a command-buffer object. |
-| `urCommandBufferAppendMemBufferFillExp`      | Append a memory fill command to a command-buffer object. |
-| `urCommandBufferEnqueueExp`                  | Submit command-buffer to a command-queue for execution. |
-| `urCommandBufferUpdateKernelLaunchExp`       | Updates the parameters of a previous kernel launch command. |
-
+[experimental feature](https://oneapi-src.github.io/unified-runtime/core/api.html#command-buffer-experimental).
 See the [UR EXP-COMMAND-BUFFER](https://oneapi-src.github.io/unified-runtime/core/EXP-COMMAND-BUFFER.html)
-specification for more details.
+specification for details.
+
+Device support for SYCL-Graph is communicated to the user via two aspects.
+The `aspect::ext_oneapi_limited_graph` aspect for basic graph support and
+the `aspect::ext_oneapi_graph` aspect for full graph support.
+
+The `UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP` query result is used by the
+SYCL-RT to inform whether to report `aspect::ext_oneapi_limited_graph`.
+
+Reporting of the `aspect::ext_oneapi_graph` aspect is based on the
+`UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP` query result. For
+a device to report this aspect, the UR query must report support for all of:
+
+* `UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS`
+* `UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE`
+* `UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE`
+* `UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET`
+* `UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE`
 
 ## Design
 
@@ -100,11 +96,15 @@ Edges are stored in each node as lists of predecessor and successor nodes.
 
 ## Execution Order
 
-The current way graph nodes are linearized into execution order is using a
-reversed depth-first sorting algorithm. Alternative algorithms, such as
-breadth-first, are possible and may give better performance on certain
-workloads/hardware. In the future there might be options for allowing the
-user to control this implementation detail.
+Graph nodes are currently linearized into execution order using a topological
+sort algorithm. This algorithm uses a breadth-first search approach
+and is an implementation of Kahn's algorithm. Alternative algorithms, such as
+depth-first search, are possible and may give better performance on certain
+workloads/hardware. However, depth first searches are usually implemented 
+using recursion, which can lead to stack overflow issues on large graphs.
+In the future, there might be options for allowing the user to control this
+implementation detail. It might also be possible to automatically change
+which algorithm is used based on characteristics such as the graph's size.
 
 ## Scheduler Integration
 
@@ -282,6 +282,51 @@ requirements for these new accessors to correctly trigger allocations before
 updating. This is similar to how individual graph commands are enqueued when
 accessors are used in a graph node.
 
+### Dynamic Command-Group
+
+To implement the `dynamic_command_group` class for updating the command-groups (CG)
+associated with nodes, the CG member of the node implementation class changes
+from a `std::unique_ptr` to a `std::shared_ptr` so that multiple nodes and the
+`dynamic_command_group_impl` object can share the same CG object. This avoids
+the overhead of having to allocate and free copies of the CG when a new active
+CG is selected.
+
+The `dynamic_command_group_impl` class contains a list of weak pointers to the
+nodes which have been created with it, so that when a new active CG is selected
+it can propagate the change to those nodes. The `dynamic_parameter_impl` class
+also contains a list of weak pointers, but to the `dynamic_command_group_impl`
+instances of any dynamic command-groups where they are used. This allows
+updating the dynamic parameter to propagate to dynamic command-group nodes.
+
+The `sycl::detail::CGExecKernel` class has been added to, so that if the
+object was created from an element in the dynamic command-group list, the class
+stores a vector of weak pointers to the other alternative command-groups created
+from the same dynamic command-group object. This allows the SYCL runtime to
+access the list of alternative kernels when calling the UR API to append a
+kernel command to a command-buffer.
+
+## Graph-Owned Memory Allocations
+### Device Allocations
+
+Device allocations for graphs are implemented using virtual memory. Allocation
+commands performing a virtual reservation for the provided size, and physical
+memory is created and mapped only during graph finalization. This allows valid
+device addresses to be returned immediately when building the graph without the
+penalty of doing any memory allocations during graph building, which could have
+a negative impact on features such as whole-graph update through increased
+overhead.
+
+### Behaviour of async_free
+
+`async_free` nodes are treated as hints rather than an actual memory free
+operation. This is because deallocating during graph execution is both
+undesirable for performance and not feasible with the current
+implementation/backends. Instead a free node represents a promise from the user
+that the memory is no longer in use. This enables optimizations such as
+potentially reusing that memory for subsequent allocation nodes in the graph.
+This allows us to reduce the total amount of concurrent memory required by a
+single graph.
+
 ## Optimizations
 ### Interactions with Profiling
 
@@ -304,6 +349,26 @@ safely assumed to be more performant. It is not likely we'll try to allow
 in-order execution in more scenarios through a complicated (and imperfect)
 heuristic but rather expose this as a hint the user can provide.
 
+### Graph Allocation Memory Reuse
+
+When adding a new allocation node to a graph, memory allocations which have
+previously been freed are checked to see if they can be reused. Because we have
+to return a pointer to the user immediately when the CGF for a node is
+processed, we have to do this eagerly anytime `async_malloc()` is called.
+Allocations track the last free node associated with them to represent the most
+recent use of that allocation.
+
+ To be reused, the two allocations must meet these criteria:
+
+- They must be of the same allocation type (device/host/shared).
+- They must have a matching size.
+- They must have the same properties (currently only read-only matters).
+- There must be a path from the last free node associated with a given
+  allocation to the new allocation node being added.
+
+If these criteria are met we update the last free node for the allocation and
+return the existing pointer to the user.
+
 ## Backend Implementation
 
 Implementation of UR command-buffers for each of the supported SYCL 2020
@@ -314,7 +379,63 @@ Backends which are implemented currently are: [Level Zero](#level-zero),
 
 ### Level Zero
 
-The UR `urCommandBufferEnqueueExp` interface for submitting a command-buffer
+The command-buffer implementation for the level-zero adapter has 2 different
+implementation paths which are chosen depending on the device and level-zero
+version:
+
+- Immediate Append path - Relies on
+  [zeCommandListImmediateAppendCommandListsExp](https://oneapi-src.github.io/level-zero-spec/level-zero/latest/core/api.html#zecommandlistimmediateappendcommandlistsexp)
+  to submit the command-buffer. This function is an experimental extension to the level-zero API.
+- Wait event path - Relies on
+  [zeCommandQueueExecuteCommandLists](https://oneapi-src.github.io/level-zero-spec/level-zero/latest/core/api.html#zecommandqueueexecutecommandlists)
+  to submit the command-buffer work. However, this level-zero function has
+  limitations and, as such, this path is used only when the immediate append
+  path is unavailable.
+
+#### Immediate Append Path Implementation Details
+
+This path is only available when the device supports immediate command-lists
+and the [zeCommandListImmediateAppendCommandListsExp](https://oneapi-src.github.io/level-zero-spec/level-zero/latest/core/api.html#zecommandlistimmediateappendcommandlistsexp) 
+API. This API can wait on a list of event dependencies using the `phWaitEvents`
+parameter and can signal a return event when finished using the `hSignalEvent`
+parameter. This allows for a cleaner and more efficient implementation than
+what can be achieved when using the wait-event path
+(see [this section](#wait-event-path-implementation-details) for
+more details about the wait-event path).
+
+This path relies on 3 different command-lists in order to execute the
+command-buffer:
+
+- `ComputeCommandList` - Used to submit command-buffer work that requires
+the compute engine.
+- `CopyCommandList` - Used to submit command-buffer work that requires the
+[copy engine](#copy-engine). This command-list is not created when none of the 
+nodes require the copy engine.
+- `EventResetCommandList` - Used to reset the level-zero events that are
+needed for every submission of the command-buffer. This is executed after
+the compute and copy command-lists have finished executing. For the first
+execution, this command-list is skipped since there is no need to reset events
+at this point. When counter-based events are enabled (i.e. the command-buffer
+is in-order), this command-list is not created since counter-based events do
+not need to be reset.
+
+The following diagram illustrates which commands are executed on
+each command-list when the command-buffer is enqueued:
+![L0 command-buffer diagram](images/diagram_immediate_append.png)
+
+Additionally,
+[zeCommandListImmediateAppendCommandListsExp](https://oneapi-src.github.io/level-zero-spec/level-zero/latest/core/api.html#zecommandlistimmediateappendcommandlistsexp)
+requires an extra command-list which is used to submit the other
+command-lists. This command-list has a specific engine type
+associated to it (i.e. compute or copy engine). Hence, for our implementation,
+we need 2 of these helper command-lists:
+  - The `CommandListHelper` command-list is used to submit the
+`ComputeCommandList`, `CommandListResetEvents` and profiling queries.
+  - The `ZeCopyEngineImmediateListHelper`  command-list is used to submit the
+`CopyCommandList`
+
+#### Wait event Path Implementation Details
+The UR `urEnqueueCommandBufferExp` interface for submitting a command-buffer
 takes a list of events to wait on, and returns an event representing the
 completion of that specific submission of the command-buffer.
 
@@ -341,7 +462,7 @@ is made only once (during the command-buffer finalization stage). This allows
 the adapter to save time when submitting the command-buffer, by executing only
 this command-list (i.e. without enqueuing any commands of the graph workload).
 
-#### Prefix
+##### Prefix
 
 The prefix's commands aim to:
 1. Handle the list of events to wait on, which is passed by the runtime
@@ -386,7 +507,7 @@ and another reset command for resetting the signal we use to signal the
 completion of the graph workload. This signal is called *SignalEvent* and is
 defined in the `ur_exp_command_buffer_handle_t` class.
 
-#### Suffix
+##### Suffix
 
 The suffix's commands aim to:
 1) Handle the completion of the graph workload and signal a UR return event.
@@ -395,7 +516,7 @@ the *SignalEvent*, is added (when the command-buffer is finalized). In an
 additional command-list (*signal command-list*), a barrier waiting for this
 event is also added. This barrier signals, in turn, the UR return event that
 has be defined by the runtime layer when calling the
-`urCommandBufferEnqueueExp` function.
+`urEnqueueCommandBufferExp` function.
 
 2) Manage the profiling. If a command-buffer is about to be submitted to a
 queue with the profiling property enabled, an extra command that copies
@@ -405,14 +526,14 @@ information that corresponds to the current submission of the command-buffer.
 
 ![L0 command-buffer diagram](images/L0_UR_command-buffer-v5.jpg)
 
-For a call to `urCommandBufferEnqueueExp` with an `event_list` *EL*,
+For a call to `urEnqueueCommandBufferExp` with an `event_list` *EL*,
 command-buffer *CB*, and return event *RE* our implementation has to submit three
 new command-lists for the above approach to work. Two before the command-list
 with extra commands associated with *CB*, and the other after *CB*. These new
 command-lists are retrieved from the UR queue, which will likely reuse existing
 command-lists and only create a new one in the worst case.
 
-#### Drawbacks
+##### Drawbacks
 
 There are three drawbacks of this approach to implementing UR command-buffers for
 Level Zero:
@@ -488,6 +609,22 @@ The `urCommandBufferAppendUSMPrefetchExp` and
 adapter as empty nodes enforcing the node dependencies. As such the
 optimization hints are a no-op.
 
+#### Native Command
+
+CUDA child graphs are used to implement the `urCommandBufferAppendNativeCommandExp`
+entry-point for `sycl_ext_codeplay_enqueue_native_command` SYCL-Graph support.
+The SYCL native-command node exposes a CUDA-Graph object to the user, which is
+then added as a child graph of the parent graph from the SYCL-graph. Therefore
+any CUDA limitations that apply to the usage of child nodes in a graph, apply
+to native-command nodes.
+
+Using CUDA asynchronous allocation/free nodes in child graphs is only supported
+[from CUDA 12.9](https://docs.nvidia.com/cuda/cuda-c-programming-guide/#memory-nodes-in-child-graphs).
+As a result adding these async alloc & free nodes to the CUDA-Graph handle
+given to a user inside a native-command is only supported in DPC++ builds
+against CUDA 12.9 and later when the SYCL-RT can take advantage of this CUDA
+functionality in the backend.
+
 ### HIP
 
 The HIP backend offers a graph management API very similar to CUDA Graph
@@ -518,6 +655,20 @@ The `urCommandBufferAppendUSMPrefetchExp` and
 adapter as empty nodes enforcing the node dependencies. As such the
 optimization hints are a no-op.
 
+#### Native Command
+
+HIP child graphs are used to implement the `urCommandBufferAppendNativeCommandExp`
+entry-point for `sycl_ext_codeplay_enqueue_native_command` SYCL-Graph support.
+The SYCL native-command node exposes a HIP-Graph object to the user, which is
+then added as a child graph of the parent graph from the SYCL-graph. Therefore
+any CUDA limitations that apply to the usage of child nodes in a graph, apply
+to native-command nodes.
+
+Using HIP-Graph asynchronous allocation/free nodes in child graphs is not
+supported, and as a result adding async alloc & free nodes to the native
+HIP-Graph handle exposed to the user in a native-command will result in an
+exception when the graph is finalized.
+
 ### OpenCL
 
 SYCL-Graph is only enabled for an OpenCL backend when the
@@ -525,43 +676,14 @@ SYCL-Graph is only enabled for an OpenCL backend when the
 extension is available, however this information isn't available until runtime
 due to OpenCL implementations being loaded through an ICD.
 
-The `ur_exp_command_buffer` string is conditionally returned from the OpenCL
-command-buffer UR backend at runtime based on `cl_khr_command_buffer` support
-to indicate that the graph extension should be enabled. This is information
-is propagated to the SYCL user via the
-`device.get_info<info::device::graph_support>()` query for graph extension
-support.
-
-#### Limitations
-
-Due to the API mapping gaps documented in the following section, OpenCL as a
-SYCL backend cannot fully support the graph API. Instead, there are
-limitations in the types of nodes which a user can add to a graph, using
-an unsupported node type will cause a SYCL exception to be thrown in graph
-finalization with error code `sycl::errc::feature_not_supported` and a message
-mentioning the unsupported command. For example,
-
-```
-terminate called after throwing an instance of 'sycl::_V1::exception'
-what():  USM copy command not supported by graph backend
-```
-
-The types of commands which are unsupported, and lead to this exception are:
-* `handler::copy(src, dest)` - Where `src` is an accessor and `dest` is a pointer.
-   This corresponds to a memory buffer read command.
-* `handler::copy(src, dest)` - Where `src` is an pointer and `dest` is an accessor.
-  This corresponds to a memory buffer write command.
-* `handler::copy(src, dest)` or `handler::memcpy(dest, src)` - Where both `src` and
-   `dest` are USM pointers. This corresponds to a USM copy command.
-* `handler::fill(ptr, pattern, count)` - This corresponds to a USM memory
-  fill command.
-* `handler::memset(ptr, value, numBytes)` - This corresponds to a USM memory
-  fill command.
-* `handler::prefetch()`.
-* `handler::mem_advise()`.
-
-Note that `handler::copy(src, dest)` where both `src` and `dest` are an accessor
-is supported, as a memory buffer copy command exists in the OpenCL extension.
+The `UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP` UR query returns true in the
+OpenCL UR adapter based on
+the presence of `cl_khr_command_buffer`, and the OpenCL device reporting
+support for
+[CL_COMMAND_BUFFER_CAPABILITY_SIMULTANEOUS_USE_KHR](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#CL_COMMAND_BUFFER_CAPABILITY_SIMULTANEOUS_USE_KHR).
+The latter is required to enable multiple submissions of the same executable
+`command_graph` object without having to do a blocking wait on prior submissions
+in-between.
 
 #### UR API Mapping
 
@@ -576,8 +698,8 @@ adapter where there is matching support for each function in the list.
 | urCommandBufferReleaseExp | clReleaseCommandBufferKHR | Yes |
 | urCommandBufferFinalizeExp | clFinalizeCommandBufferKHR | Yes |
 | urCommandBufferAppendKernelLaunchExp | clCommandNDRangeKernelKHR | Yes |
-| urCommandBufferAppendUSMMemcpyExp |  | No |
-| urCommandBufferAppendUSMFillExp |  | No |
+| urCommandBufferAppendUSMMemcpyExp | clCommandSVMMemcpyKHR | Partial, [see below](#unsupported-command-types) |
+| urCommandBufferAppendUSMFillExp | clCommandSVMMemFillKHR | Partial, [see below](#unsupported-command-types) |
 | urCommandBufferAppendMembufferCopyExp | clCommandCopyBufferKHR | Yes |
 | urCommandBufferAppendMemBufferWriteExp |  | No |
 | urCommandBufferAppendMemBufferReadExp |  | No |
@@ -587,26 +709,67 @@ adapter where there is matching support for each function in the list.
 | urCommandBufferAppendMemBufferFillExp | clCommandFillBufferKHR | Yes |
 | urCommandBufferAppendUSMPrefetchExp |  | No |
 | urCommandBufferAppendUSMAdviseExp |  | No |
-| urCommandBufferEnqueueExp | clEnqueueCommandBufferKHR | Yes |
+| urCommandBufferAppendNativeCommandExp| | Yes |
+| urEnqueueCommandBufferExp | clEnqueueCommandBufferKHR | Yes |
 |  | clCommandBarrierWithWaitListKHR | No |
 |  | clCommandCopyImageKHR | No |
 |  | clCommandCopyImageToBufferKHR | No |
 |  | clCommandFillImageKHR | No |
 |  | clGetCommandBufferInfoKHR | No |
-|  | clCommandSVMMemcpyKHR | No |
-|  | clCommandSVMMemFillKHR | No |
-| urCommandBufferUpdateKernelLaunchExp | clUpdateMutableCommandsKHR | Yes[1] |
+| urCommandBufferUpdateKernelLaunchExp | clUpdateMutableCommandsKHR | Partial [See Update Section](#update-support) |
 
 We are looking to address these gaps in the future so that SYCL-Graph can be
 fully supported on a `cl_khr_command_buffer` backend.
 
-[1] Support for `urCommandBufferUpdateKernelLaunchExp` used to update the
+#### Unsupported Command Types
+
+Due to the API mapping gaps documented in the previous section, OpenCL as a
+SYCL backend cannot fully support the graph API. Instead, there are
+limitations in the types of nodes which a user can add to a graph, using
+an unsupported node type will cause a SYCL exception to be thrown in graph
+finalization with error code `sycl::errc::feature_not_supported` and a message
+mentioning the unsupported command. For example,
+
+```
+terminate called after throwing an instance of 'sycl::_V1::exception'
+what():  USM copy command not supported by graph backend
+```
+
+The types of commands which are unsupported, and may lead to this exception are:
+* `handler::copy(src, dest)` - Where `src` is an accessor and `dest` is a pointer.
+   This corresponds to a memory buffer read command.
+* `handler::copy(src, dest)` - Where `src` is an pointer and `dest` is an accessor.
+  This corresponds to a memory buffer write command.
+* `handler::copy(src, dest)` or `handler::memcpy(dest, src)` - Where both `src` and
+   `dest` are USM pointers. This corresponds to a USM copy command that is
+   mapped to `clCommandSVMMemcpyKHR`, which will only work on OpenCL devices
+   which don't differentiate between USM and SVM.
+* `handler::fill(ptr, pattern, count)` - This corresponds to a USM memory
+  fill command that is mapped to `clCommandSVMMemFillKHR`, which will only work
+  on OpenCL devices which don't differentiate between USM and SVM.
+* `handler::memset(ptr, value, numBytes)` - This corresponds to a USM memory
+  fill command that is mapped to `clCommandSVMMemFillKHR`, which will only work
+  on OpenCL devices which don't differentiate between USM and SVM.
+* `handler::prefetch()`.
+* `handler::mem_advise()`.
+
+Note that `handler::copy(src, dest)` where both `src` and `dest` are an accessor
+is supported, as a memory buffer copy command exists in the OpenCL extension.
+
+#### Update Support
+
+Support for `urCommandBufferUpdateKernelLaunchExp` used to update the
 configuration of kernel commands requires an OpenCL implementation with the
 [cl_khr_command_buffer_mutable_dispatch](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Ext.html#cl_khr_command_buffer_mutable_dispatch)
-extension. The optional capabilities that are reported by this extension must
-include all of of `CL_MUTABLE_DISPATCH_GLOBAL_OFFSET_KHR`,
-`CL_MUTABLE_DISPATCH_GLOBAL_SIZE_KHR`, `CL_MUTABLE_DISPATCH_LOCAL_SIZE_KHR`,
-`CL_MUTABLE_DISPATCH_ARGUMENTS_KHR`, and `CL_MUTABLE_DISPATCH_EXEC_INFO_KHR`.
+extension.
+
+However, the OpenCL adapter can not report `aspect::ext_oneapi_graph` for full
+SYCL-Graph support. As the `cl_khr_command_buffer_mutable_dispatch` extension
+has no concept of updating the `cl_kernel` objects in kernel commands, and so
+can't report the
+`UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE` capability.
+This extension limitation is tracked in by the OpenCL Working Group in an
+[OpenCL-Docs Issue](https://github.com/KhronosGroup/OpenCL-Docs/issues/1279).
 
 #### UR Command-Buffer Implementation
 

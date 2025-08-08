@@ -1,0 +1,14 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+includedir=${prefix}/include
+libdir=${prefix}/lib
+
+
+Name: Unified Runtime Loader
+Description: Unified Runtime Library Loader for Unified Runtime
+URL: TBD
+Version: @PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@
+Requires: 
+Libs: -L${libdir} -lur_loader
+CFlags: -I${includedir}
+
+

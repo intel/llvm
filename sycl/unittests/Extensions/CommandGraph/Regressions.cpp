@@ -25,38 +25,47 @@ TEST_F(CommandGraphTest, AccessorModeRegression) {
   buffer<int> BufferC{range<1>{16}};
   buffer<int> BufferD{range<1>{16}};
   buffer<int> BufferE{range<1>{16}};
-  Graph.begin_recording(Queue);
 
-  auto EventA = Queue.submit([&](handler &CGH) {
-    auto AccA = BufferA.get_access<access_mode::read>(CGH);
-    auto AccB = BufferB.get_access<access_mode::read>(CGH);
-    auto AccC = BufferC.get_access<access_mode::write>(CGH);
-    CGH.single_task<TestKernel<>>([]() {});
-  });
-  auto EventB = Queue.submit([&](handler &CGH) {
-    auto AccA = BufferA.get_access<access_mode::read>(CGH);
-    auto AccB = BufferB.get_access<access_mode::read>(CGH);
-    auto AccD = BufferD.get_access<access_mode::write>(CGH);
-    CGH.single_task<TestKernel<>>([]() {});
-  });
-  auto EventC = Queue.submit([&](handler &CGH) {
-    auto AccA = BufferA.get_access<access_mode::read>(CGH);
-    auto AccB = BufferB.get_access<access_mode::read>(CGH);
-    auto AccE = BufferE.get_access<access_mode::write>(CGH);
-    CGH.single_task<TestKernel<>>([]() {});
-  });
+  {
+    // Buffers must outlive graph
+    experimental::command_graph ScopedGraph{
+        Queue.get_context(),
+        Dev,
+        {experimental::property::graph::assume_buffer_outlives_graph{}}};
 
-  Graph.end_recording(Queue);
+    ScopedGraph.begin_recording(Queue);
 
-  experimental::node NodeA = experimental::node::get_node_from_event(EventA);
-  EXPECT_EQ(NodeA.get_predecessors().size(), 0ul);
-  EXPECT_EQ(NodeA.get_successors().size(), 0ul);
-  experimental::node NodeB = experimental::node::get_node_from_event(EventB);
-  EXPECT_EQ(NodeB.get_predecessors().size(), 0ul);
-  EXPECT_EQ(NodeB.get_successors().size(), 0ul);
-  experimental::node NodeC = experimental::node::get_node_from_event(EventC);
-  EXPECT_EQ(NodeC.get_predecessors().size(), 0ul);
-  EXPECT_EQ(NodeC.get_successors().size(), 0ul);
+    auto EventA = Queue.submit([&](handler &CGH) {
+      auto AccA = BufferA.get_access<access_mode::read>(CGH);
+      auto AccB = BufferB.get_access<access_mode::read>(CGH);
+      auto AccC = BufferC.get_access<access_mode::write>(CGH);
+      CGH.single_task<TestKernel>([]() {});
+    });
+    auto EventB = Queue.submit([&](handler &CGH) {
+      auto AccA = BufferA.get_access<access_mode::read>(CGH);
+      auto AccB = BufferB.get_access<access_mode::read>(CGH);
+      auto AccD = BufferD.get_access<access_mode::write>(CGH);
+      CGH.single_task<TestKernel>([]() {});
+    });
+    auto EventC = Queue.submit([&](handler &CGH) {
+      auto AccA = BufferA.get_access<access_mode::read>(CGH);
+      auto AccB = BufferB.get_access<access_mode::read>(CGH);
+      auto AccE = BufferE.get_access<access_mode::write>(CGH);
+      CGH.single_task<TestKernel>([]() {});
+    });
+
+    ScopedGraph.end_recording(Queue);
+
+    experimental::node NodeA = experimental::node::get_node_from_event(EventA);
+    EXPECT_EQ(NodeA.get_predecessors().size(), 0ul);
+    EXPECT_EQ(NodeA.get_successors().size(), 0ul);
+    experimental::node NodeB = experimental::node::get_node_from_event(EventB);
+    EXPECT_EQ(NodeB.get_predecessors().size(), 0ul);
+    EXPECT_EQ(NodeB.get_successors().size(), 0ul);
+    experimental::node NodeC = experimental::node::get_node_from_event(EventC);
+    EXPECT_EQ(NodeC.get_predecessors().size(), 0ul);
+    EXPECT_EQ(NodeC.get_successors().size(), 0ul);
+  }
 }
 
 TEST_F(CommandGraphTest, QueueRecordBarrierMultipleGraph) {
@@ -65,7 +74,7 @@ TEST_F(CommandGraphTest, QueueRecordBarrierMultipleGraph) {
 
   Graph.begin_recording(Queue);
   auto NodeKernel = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Queue.ext_oneapi_submit_barrier({NodeKernel});
   Graph.end_recording(Queue);
 
@@ -73,7 +82,7 @@ TEST_F(CommandGraphTest, QueueRecordBarrierMultipleGraph) {
       Queue};
   GraphB.begin_recording(Queue);
   auto NodeKernelB = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Queue.ext_oneapi_submit_barrier({NodeKernelB});
   GraphB.end_recording(Queue);
 
@@ -81,7 +90,7 @@ TEST_F(CommandGraphTest, QueueRecordBarrierMultipleGraph) {
       Queue};
   GraphC.begin_recording(Queue);
   auto NodeKernelC = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Queue.ext_oneapi_submit_barrier();
   GraphC.end_recording(Queue);
 }

@@ -141,6 +141,6 @@ struct DAFuncObj {
 };
 
 struct Func {
-  // expected-warning@+1 {{unknown attribute 'max_work_group_size' ignored}}
+  // expected-warning@+1 {{unknown attribute 'intelfpga::max_work_group_size' ignored}}
   [[intelfpga::max_work_group_size(1, 1, 1)]] void operator()() const {}
 };

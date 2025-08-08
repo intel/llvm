@@ -1,6 +1,9 @@
 // Test that llvm.bitreverse is lowered correctly by llvm-spirv.
 
-// UNSUPPORTED: hip || cuda
+// REQUIRES: target-spir
+
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16318, CMPLRLLVM-62187
 
 // Make dump directory.
 // RUN: rm -rf %t.spvdir && mkdir %t.spvdir
@@ -10,7 +13,7 @@
 // BitReverse instruction.
 // Also build executable with SPV dump.  Use -fno-sycl-allow-device-image-dependencies to
 // ensure that only one SPV file is generated.
-// RUN: %{build} -Wno-error=psabi -Wno-error=constant-conversion -o %t.out -O2 -Xspirv-translator --spirv-ext=-SPV_KHR_bit_instructions -fsycl-dump-device-code=%t.spvdir -fno-sycl-allow-device-image-dependencies
+// RUN: %{build} -Wno-error=psabi -Wno-error=constant-conversion -o %t.out -O2 -Xspirv-translator --spirv-ext=-SPV_KHR_bit_instructions -save-offload-code=%t.spvdir -fno-sycl-allow-device-image-dependencies
 
 // Rename SPV file to explictly known filename.
 // RUN: mv %t.spvdir/*.spv %t.spvdir/dump.spv

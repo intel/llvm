@@ -1,4 +1,4 @@
-// REQUIRES: accelerator
+// REQUIRES: target-spir, accelerator
 // RUN: %{build} -D__ENABLE_USM_ADDR_SPACE__ -fsycl-dead-args-optimization -o %t.out
 // RUN: %{run} %t.out
 

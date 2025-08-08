@@ -138,8 +138,9 @@ OpenCL 2.1, so any device, capable of OpenCL 2.1, should be supported.
 Otherwise, your OpenCL device must support `cl_khr_il_program` extension.
 
 Furthermore, developers can extend capabilities of the DPC++ Runtime to
-non-OpenCL devices by writing correspondent plugins. To learn more, please
-check out our [Plugin Interface Guide](design/PluginInterface.md).
+non-OpenCL devices by writing correspondent adapters. To learn more, please
+check out the
+[Unified Runtime project](https://github.com/oneapi-src/unified-runtime).
 
 ### Q: DPC++ applications hang on Intel GPUs while working well on other devices
 **A:** One of the common reasons is Intel GPUs feature called "hang check".

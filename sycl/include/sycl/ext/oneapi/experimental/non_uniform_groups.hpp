@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
-#include <sycl/marray.hpp>                    // for marray
-#include <sycl/types.hpp>                     // for vec
+#include <sycl/ext/oneapi/sub_group_mask.hpp>
+#include <sycl/marray.hpp>
+#include <sycl/vector.hpp>
 
-#include <stddef.h> // for size_t
-#include <stdint.h> // for uint32_t
+#include <stddef.h>
+#include <stdint.h>
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -41,11 +42,6 @@ inline uint32_t CallerPositionInMask(ext::oneapi::sub_group_mask Mask) {
 #endif
 
 template <typename NonUniformGroup>
-inline ext::oneapi::sub_group_mask GetMask(NonUniformGroup Group) {
-  return Group.Mask;
-}
-
-template <typename NonUniformGroup>
 inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
   sycl::vec<unsigned, 4> MemberMask = ExtractMask(GetMask(Group));
 #if defined(__NVPTX__)
@@ -68,16 +64,5 @@ inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
 }
 
 } // namespace detail
-
-namespace ext::oneapi::experimental {
-
-// Forward declarations of non-uniform group types for algorithm definitions
-template <typename ParentGroup> class ballot_group;
-template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
-template <typename ParentGroup> class tangle_group;
-class opportunistic_group;
-
-} // namespace ext::oneapi::experimental
-
 } // namespace _V1
 } // namespace sycl

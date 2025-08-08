@@ -36,7 +36,8 @@ template <typename T> bool test() {
 
   queue q;
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   auto *A = malloc_shared<T>(Size, q);
   auto *B = malloc_shared<T>(Size, q);
   auto *C = malloc_shared<T>(Size, q);

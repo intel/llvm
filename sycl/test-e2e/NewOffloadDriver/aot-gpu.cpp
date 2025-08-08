@@ -1,6 +1,4 @@
-// REQUIRES: ocloc, gpu
-// UNSUPPORTED: cuda || hip
-// CUDA does neither support device code splitting nor SPIR.
+// REQUIRES: ocloc, gpu, target-spir
 // Test with `--offload-new-driver`
 //
 // RUN: %clangxx -fsycl -fsycl-device-code-split=per_source \

@@ -10,7 +10,7 @@
 
 #include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -73,10 +73,10 @@ template <typename T, typename Properties>
 void prefetch_impl(T *ptr, size_t bytes, Properties properties) {
 #ifdef __SYCL_DEVICE_ONLY__
   auto *ptrGlobalAS =
-      reinterpret_cast<__attribute__((opencl_global)) const char *>(
+      reinterpret_cast<__attribute__((opencl_global)) const unsigned char *>(
           detail::static_address_cast<access::address_space::global_space>(
               const_cast<const T *>(ptr)));
-  const __attribute__((opencl_global)) char *ptrAnnotated = nullptr;
+  const __attribute__((opencl_global)) unsigned char *ptrAnnotated = nullptr;
   if constexpr (!properties.template has_property<prefetch_hint_key>()) {
     ptrAnnotated = __builtin_intel_sycl_ptr_annotation(
         ptrGlobalAS, "sycl-prefetch-hint", static_cast<int>(cache_level::L1));

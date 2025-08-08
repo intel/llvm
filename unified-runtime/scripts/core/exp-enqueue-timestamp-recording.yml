@@ -1,0 +1,68 @@
+#
+# Copyright (C) 2024 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental APIs for enqueuing timestamp recordings"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support timestamp recordings."
+name: $x_device_info_t
+etors:
+    - name: TIMESTAMP_RECORDING_SUPPORT_EXP
+      value: "0x2018"
+      desc: "[$x_bool_t] returns true if the device supports timestamp recording"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Command Type experimental enumerations."
+name: $x_command_t
+etors:
+    - name: TIMESTAMP_RECORDING_EXP
+      value: "0x2002"
+      desc: Event created by $xEnqueueTimestampRecordingExp
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command for recording the device timestamp"
+class: $xEnqueue
+name: TimestampRecordingExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: bool
+      name: blocking
+      desc: |
+            [in] indicates whether the call to this function should block until
+            until the device timestamp recording command has executed on the
+            device.
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [in,out] return an event object that identifies this particular kernel execution instance. Profiling information can be queried
+            from this event as if `hQueue` had profiling enabled. Querying `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
+            reports the timestamp at the time of the call to this function. Querying `UR_PROFILING_INFO_COMMAND_START` or `UR_PROFILING_INFO_COMMAND_END`
+            reports the timestamp recorded when the command is executed on the device. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"

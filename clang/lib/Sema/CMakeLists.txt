@@ -12,6 +12,40 @@ if (MSVC)
   set_source_files_properties(SemaSYCL.cpp PROPERTIES COMPILE_FLAGS /bigobj)
 endif()
 
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set(is_clang TRUE)
+endif()
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+  set(is_gcc TRUE)
+endif()
+if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM")
+  set(is_icpx TRUE)
+endif()
+if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+  set(is_msvc TRUE)
+endif()
+
+set(linux_opts "-Wall;-Wextra")
+if (CMAKE_BUILD_TYPE MATCHES "Release")
+  list(APPEND linux_opts "-Wconversion;-Wimplicit-fallthrough")
+endif()
+
+if (is_gcc OR is_clang OR (is_icpx AND NOT WIN32))
+  set(opts_to_apply ${linux_opts})
+elseif (is_msvc)
+  set(opts_to_apply "/W4")
+elseif (is_icpx AND WIN32)
+  set(opts_to_apply "/Wall")
+endif()
+
+if (opts_to_apply)
+  set_source_files_properties(
+    SemaSYCL.cpp SemaSYCLDeclAttr.cpp
+    PROPERTIES
+      COMPILE_OPTIONS "${opts_to_apply}"
+  )
+endif()
+
 clang_tablegen(OpenCLBuiltins.inc -gen-clang-opencl-builtins
   SOURCE OpenCLBuiltins.td
   TARGET ClangOpenCLBuiltinsImpl
@@ -28,6 +62,8 @@ add_clang_library(clangSema
   CodeCompleteConsumer.cpp
   DeclSpec.cpp
   DelayedDiagnostic.cpp
+  HeuristicResolver.cpp
+  HLSLBuiltinTypeDeclBuilder.cpp
   HLSLExternalSemaSource.cpp
   IdentifierResolver.cpp
   JumpDiagnostics.cpp
@@ -54,6 +90,7 @@ add_clang_library(clangSema
   SemaConsumer.cpp
   SemaCoroutine.cpp
   SemaCUDA.cpp
+  SemaDirectX.cpp
   SemaDecl.cpp
   SemaDeclAttr.cpp
   SemaDeclCXX.cpp
@@ -64,6 +101,7 @@ add_clang_library(clangSema
   SemaExprMember.cpp
   SemaExprObjC.cpp
   SemaFixItUtils.cpp
+  SemaFunctionEffects.cpp
   SemaHLSL.cpp
   SemaHexagon.cpp
   SemaInit.cpp
@@ -78,6 +116,9 @@ add_clang_library(clangSema
   SemaObjC.cpp
   SemaObjCProperty.cpp
   SemaOpenACC.cpp
+  SemaOpenACCAtomic.cpp
+  SemaOpenACCClause.cpp
+  SemaOpenACCClauseAppertainment.cpp
   SemaOpenCL.cpp
   SemaOpenMP.cpp
   SemaOverload.cpp
@@ -87,6 +128,7 @@ add_clang_library(clangSema
   SemaStmt.cpp
   SemaStmtAsm.cpp
   SemaStmtAttr.cpp
+  SemaSPIRV.cpp
   SemaSYCL.cpp
   SemaSYCLDeclAttr.cpp
   SemaSwift.cpp
@@ -98,6 +140,7 @@ add_clang_library(clangSema
   SemaTemplateInstantiateDecl.cpp
   SemaTemplateVariadic.cpp
   SemaType.cpp
+  SemaTypeTraits.cpp
   SemaWasm.cpp
   SemaX86.cpp
   TypeLocBuilder.cpp
@@ -107,6 +150,7 @@ add_clang_library(clangSema
   ClangSPIRVBuiltinsImpl
   omp_gen
   ClangDriverOptions
+  acc_gen
 
   LINK_LIBS
   clangAPINotes

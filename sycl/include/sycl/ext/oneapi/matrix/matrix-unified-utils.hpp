@@ -11,6 +11,7 @@
 #include <optional>                     // std::optional
 #include <string_view>                  // std::string_view
 #include <sycl/__spirv/spirv_types.hpp> // __spv namespace
+#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 #include <utility>                      // std::pair
 
 namespace sycl {
@@ -68,7 +69,9 @@ convertMatrixUseStringToEnum(const char *UseString) {
   return std::nullopt;
 }
 
-inline __SYCL_ALWAYS_INLINE __spv::MatrixLayout joint_matrix_layout_to_spv(
+// propagateConstexprLayout uses the exact name of the function, so we use
+// extern "C" here.
+extern "C" constexpr __spv::MatrixLayout joint_matrix_layout_to_spv(
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
   switch (Layout) {
   case sycl::ext::oneapi::experimental::matrix::layout::row_major:
@@ -82,29 +85,27 @@ inline __SYCL_ALWAYS_INLINE __spv::MatrixLayout joint_matrix_layout_to_spv(
   }
 }
 
-#ifdef __SPIRV_USE_COOPERATIVE_MATRIX
-template<typename Ta, typename Tb, typename Tc>
+template <typename Ta, typename Tb, typename Tc, typename Td>
 constexpr uint32_t CalculateMatrixOperand() {
+  uint32_t returnValue = 0x00;
   if constexpr (std::is_same<Ta, sycl::ext::oneapi::bfloat16>::value &&
-                std::is_same<Tb, sycl::ext::oneapi::bfloat16>::value &&
-                std::is_same<Tc, float>::value)
-    return static_cast<uint32_t>(
+                std::is_same<Tb, sycl::ext::oneapi::bfloat16>::value)
+    returnValue += static_cast<uint32_t>(
         __spv::MatrixOperands::MatrixAAndBBFloat16ComponentsINTEL);
-  if constexpr (std::is_signed<Ta>::value && std::is_unsigned<Tb>::value)
-    return static_cast<uint32_t>(
+  if constexpr (std::is_same<Tc, sycl::ext::oneapi::bfloat16>::value)
+    returnValue += static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixCBFloat16ComponentsINTEL);
+  if constexpr (std::is_same<Td, sycl::ext::oneapi::bfloat16>::value)
+    returnValue += static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixResultBFloat16ComponentsINTEL);
+  if constexpr (std::is_signed<Ta>::value)
+    returnValue += static_cast<uint32_t>(
         __spv::MatrixOperands::MatrixASignedComponentsKHR);
-  if constexpr (std::is_unsigned<Ta>::value && std::is_signed<Tb>::value)
-    return static_cast<uint32_t>(
+  if constexpr (std::is_signed<Tb>::value)
+    returnValue += static_cast<uint32_t>(
         __spv::MatrixOperands::MatrixBSignedComponentsKHR);
-  if constexpr (std::is_signed<Ta>::value && std::is_signed<Tb>::value) {
-    return static_cast<uint32_t>(
-        __spv::MatrixOperands::MatrixASignedComponentsKHR) +
-           static_cast<uint32_t>(
-        __spv::MatrixOperands::MatrixBSignedComponentsKHR);
-  }
-  return 0;
+  return returnValue;
 }
-#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 
 } // namespace detail
 } // namespace _V1

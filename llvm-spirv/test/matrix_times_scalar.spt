@@ -9,7 +9,7 @@
 ; CHECK-LLVM: %3 = shufflevector <4 x float> %.splatinsert, <4 x float> poison, <4 x i32> zeroinitializer
 ; CHECK-LLVM: %4 = extractvalue [4 x <4 x float>] %1, 0
 ; CHECK-LLVM: %5 = fmul <4 x float> %4, %3
-; CHECK-LLVM: %6 = insertvalue [4 x <4 x float>] undef, <4 x float> %5, 0
+; CHECK-LLVM: %6 = insertvalue [4 x <4 x float>] poison, <4 x float> %5, 0
 ; CHECK-LLVM: %7 = extractvalue [4 x <4 x float>] %1, 1
 ; CHECK-LLVM: %8 = fmul <4 x float> %7, %3
 ; CHECK-LLVM: %9 = insertvalue [4 x <4 x float>] %6, <4 x float> %8, 1

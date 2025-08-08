@@ -57,6 +57,8 @@
 ;   sub_group_non_uniform_scan_exclusive_logical_xor(x);
 ;   sub_group_rotate(c, x);
 ; }
+
+; REQUIRES: spirv-dis
 ; clang -cc1 -O2 -triple spir -cl-std=cl2.0 -finclude-default-header -cl-ext=+all source.cl -emit-llvm-bc -o tmp.bc
 ; llvm-spirv tmp.bc --spirv-ext=+all,-SPV_KHR_untyped_pointers -o tmp.spv
 ; spirv-dis tmp.spv -o llvm-spirv/test/GroupAndSubgroupInstructions.spvasm
@@ -135,7 +137,7 @@
 
 ; CHECK-SPV-IR: declare spir_func i1 @_Z16__spirv_GroupAllib(i32, i1) #[[#Attrs:]]
 ; CHECK-SPV-IR: declare spir_func i1 @_Z16__spirv_GroupAnyib(i32, i1) #[[#Attrs]]
-; CHECK-SPV-IR: declare spir_func i32 @_Z22__spirv_GroupBroadcastiii(i32, i32, i32) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z22__spirv_GroupBroadcastiij(i32, i32, i32) #[[#Attrs]]
 ; CHECK-SPV-IR: declare spir_func void @_Z22__spirv_ControlBarrieriii(i32, i32, i32) #[[#Attrs]]
 ; CHECK-SPV-IR: declare spir_func i32 @_Z17__spirv_GroupIAddiii(i32, i32, i32) #[[#Attrs]]
 ; CHECK-SPV-IR: declare spir_func float @_Z17__spirv_GroupFAddiif(i32, i32, float) #[[#Attrs]]

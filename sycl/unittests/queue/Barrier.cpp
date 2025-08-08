@@ -13,7 +13,7 @@
 
 static unsigned NumOfEventsWaitWithBarrierCalls = 0;
 
-static ur_result_t redefined_urEnqueueEventsWaitWithBarrier(void *) {
+static ur_result_t redefined_urEnqueueEventsWaitWithBarrierExt(void *) {
   NumOfEventsWaitWithBarrierCalls++;
 
   return UR_RESULT_SUCCESS;
@@ -22,16 +22,14 @@ static ur_result_t redefined_urEnqueueEventsWaitWithBarrier(void *) {
 TEST(Queue, HandlerBarrier) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier",
-      &redefined_urEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefined_urEnqueueEventsWaitWithBarrierExt);
   NumOfEventsWaitWithBarrierCalls = 0;
 
   sycl::queue Q;
 
-  Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<1>>([=]() {}); });
-  Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<1>>([=]() {}); });
+  Q.submit([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
+  Q.submit([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
 
   Q.submit([&](sycl::handler &cgh) { cgh.ext_oneapi_barrier(); });
 
@@ -41,16 +39,14 @@ TEST(Queue, HandlerBarrier) {
 TEST(Queue, ExtOneAPISubmitBarrier) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier",
-      &redefined_urEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefined_urEnqueueEventsWaitWithBarrierExt);
   NumOfEventsWaitWithBarrierCalls = 0;
 
   sycl::queue Q;
 
-  Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<1>>([=]() {}); });
-  Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<1>>([=]() {}); });
+  Q.submit([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
+  Q.submit([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
 
   Q.ext_oneapi_submit_barrier();
 
@@ -60,8 +56,8 @@ TEST(Queue, ExtOneAPISubmitBarrier) {
 TEST(Queue, HandlerBarrierWithWaitList) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier",
-      &redefined_urEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefined_urEnqueueEventsWaitWithBarrierExt);
   NumOfEventsWaitWithBarrierCalls = 0;
 
   sycl::queue Q1;
@@ -69,9 +65,9 @@ TEST(Queue, HandlerBarrierWithWaitList) {
   sycl::queue Q3;
 
   auto E1 = Q1.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<1>>([=]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
   auto E2 = Q2.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<1>>([=]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
 
   Q3.submit([&](sycl::handler &cgh) { cgh.ext_oneapi_barrier({E1, E2}); });
 
@@ -81,8 +77,8 @@ TEST(Queue, HandlerBarrierWithWaitList) {
 TEST(Queue, ExtOneAPISubmitBarrierWithWaitList) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier",
-      &redefined_urEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefined_urEnqueueEventsWaitWithBarrierExt);
   NumOfEventsWaitWithBarrierCalls = 0;
 
   sycl::queue Q1;
@@ -90,9 +86,9 @@ TEST(Queue, ExtOneAPISubmitBarrierWithWaitList) {
   sycl::queue Q3;
 
   auto E1 = Q1.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<1>>([=]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
   auto E2 = Q2.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<1>>([=]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
 
   Q3.ext_oneapi_submit_barrier({E1, E2});
 

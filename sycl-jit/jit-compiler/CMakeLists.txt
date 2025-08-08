@@ -1,14 +1,15 @@
 
 add_llvm_library(sycl-jit
-   lib/KernelFusion.cpp
-   lib/translation/KernelTranslation.cpp
+   lib/translation/JITContext.cpp
    lib/translation/SPIRVLLVMTranslation.cpp
-   lib/fusion/FusionPipeline.cpp
-   lib/fusion/FusionHelper.cpp
-   lib/fusion/JITContext.cpp
-   lib/fusion/ModuleHelper.cpp
+   lib/translation/Translation.cpp
+   lib/materializer/MaterializerPipeline.cpp
+   lib/materializer/Materializer.cpp
    lib/rtc/DeviceCompilation.cpp
+   lib/rtc/ESIMD.cpp
+   lib/rtc/RTC.cpp
    lib/helper/ConfigHelper.cpp
+   lib/helper/ErrorHelper.cpp
 
    SHARED
 
@@ -17,18 +18,24 @@ add_llvm_library(sycl-jit
 
    LINK_COMPONENTS
    BitReader
+   BitWriter
    Core
    Support
+   Option
    Analysis
    IPO
    TransformUtils
    Passes
+   IRReader
    Linker
    ScalarOpts
    InstCombine
    Target
    TargetParser
    MC
+   SYCLLowerIR
+   SYCLPostLink
+   SPIRVLib
    ${LLVM_TARGETS_TO_BUILD}
 
    LINK_LIBS
@@ -39,6 +46,10 @@ add_llvm_library(sycl-jit
    clangTooling
    clangSerialization
 )
+
+if(WIN32)
+  target_link_libraries(sycl-jit PRIVATE Shlwapi)
+endif()
 
 target_compile_options(sycl-jit PRIVATE ${SYCL_JIT_WARNING_FLAGS})
 
@@ -56,7 +67,6 @@ target_include_directories(sycl-jit
   PUBLIC
   $<INSTALL_INTERFACE:include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<BUILD_INTERFACE:${SYCL_JIT_BASE_DIR}/common/include>
   PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
@@ -65,9 +75,7 @@ find_package(Threads REQUIRED)
 
 target_link_libraries(sycl-jit
   PRIVATE
-  sycl-jit-common
-  LLVMSPIRVLib
-  SYCLKernelJITPasses
+  SYCLJITPasses
   ${CMAKE_THREAD_LIBS_INIT}
 )
 

@@ -270,6 +270,28 @@ struct {
 ```
 </td>
 </tr>
+
+<tr>
+<td>
+
+``` C++
+ext::oneapi::experimental::command_graph<
+    ext::oneapi::experimental::graph_state::executable>
+```
+
+See [sycl_ext_oneapi_graph](../experimental/sycl_ext_oneapi_graph.asciidoc)
+
+</td>
+
+<td>
+
+``` C++
+ze_command_list_handle_t
+```
+</td>
+<td></td>
+</tr>
+
 </table>
 
 ### 4.2 Obtaining of native Level-Zero handles from SYCL objects
@@ -300,6 +322,8 @@ data to the host to access the data. Users can get type of the allocation using 
     Queue.submit([&](handler &CGH) {
         auto BufferAcc = Buffer.get_access<access::mode::write>(CGH);
         CGH.host_task([=](const interop_handle &IH) {
+            ze_context_handle_t ZeContext =
+                IH.get_native_context<backend::ext_oneapi_level_zero>();
             void *DevicePtr =
                 IH.get_native_mem<backend::ext_oneapi_level_zero>(BufferAcc);
             ze_memory_allocation_properties_t MemAllocProperties{};
@@ -364,6 +388,8 @@ If the deprecated variant of <code>backend_input_t<backend::ext_oneapi_level_zer
 
 Starting in version 4 of this specification, ```make_queue()``` can be called by passing either a Level Zero ```ze_command_queue_handle_t``` or a Level Zero ```ze_command_list_handle_t```. Queues created from a Level Zero immediate command list (```ze_command_list_handle_t```) generally perform better than queues created from a standard Level Zero ```ze_command_queue_handle_t```. See the Level Zero documentation of these native handles for more details. Also starting in version 4 the ```make_queue()``` function accepts a ```Properties``` member variable. This can contain any of the SYCL properties that are accepted by the SYCL queue constructor, except
 the ```compute_index``` property which is built into the command queue or command list.
+
+**Warning:** <span style="color:red"> When using the L0 v2 adapter, ```make_queue()``` only accepts ```ze_command_list_handle_t```. The command list has to be in-order. Passing an out-of-order command list is undefined behavior. The L0 v2 adapter is always used when running on platforms with GPUs based on the Xe2 architecture or later, such as Battlemage, Lunar Lake, and Arrow Lake. Applications may also opt-in to the L0 v2 adapter using the `SYCL_UR_USE_LEVEL_ZERO_V2` environment variable. </span>
 </td>
 </tr><tr>
 <td>
@@ -640,3 +666,4 @@ The behavior of the SYCL buffer destructor depends on the Ownership flag. As wit
 |10|2022-08-18|Sergey Maslov|Moved free_memory device info query to be sycl_ext_intel_device_info extension
 |11|2023-03-14|Rajiv Deodhar|Added support for Level Zero immediate command lists
 |12|2023-04-06|Chris Perkins|Introduced make_image() API
+|13|2023-04-06|Ewan Crawford|Add backend_return_t for SYCL-Graph

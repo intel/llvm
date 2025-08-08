@@ -8,7 +8,9 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>              // for address_space, decorated
+#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/access/access.hpp> // for address_space, decorated
+#include <sycl/detail/address_space_cast.hpp>
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_DEPRECATED
 #include <sycl/detail/generic_type_traits.hpp> // for select_cl_scalar_inte...
 #include <sycl/detail/type_traits.hpp>         // for is_scalar_arithmetic
@@ -16,7 +18,8 @@
 #include <sycl/id.hpp>                         // for id
 #include <sycl/memory_enums.hpp>               // for memory_scope
 #include <sycl/multi_ptr.hpp>                  // for multi_ptr
-#include <sycl/range.hpp>                      // for range
+#include <sycl/nd_item.hpp>
+#include <sycl/range.hpp> // for range
 
 #include <stdint.h>    // for uint32_t
 #include <tuple>       // for _Swallow_assign, ignore
@@ -81,7 +84,7 @@ vec<T, N> load(const multi_ptr<T, Space, DecorateAddress> src) {
   using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
   VecT Ret = __spirv_SubgroupBlockReadINTEL<VecT>(convertToBlockPtr(src));
 
-  return sycl::bit_cast<typename vec<T, N>::vector_t>(Ret);
+  return sycl::bit_cast<vec<T, N>>(Ret);
 }
 
 template <typename T, access::address_space Space,
@@ -143,7 +146,7 @@ struct sub_group {
 
   id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupLocalInvocationId();
+    return __spirv_BuiltInSubgroupLocalInvocationId();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");
@@ -161,7 +164,7 @@ struct sub_group {
 
   range_type get_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupSize();
+    return __spirv_BuiltInSubgroupSize();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");
@@ -170,7 +173,7 @@ struct sub_group {
 
   range_type get_max_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupMaxSize();
+    return __spirv_BuiltInSubgroupMaxSize();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");
@@ -179,7 +182,7 @@ struct sub_group {
 
   id_type get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupId();
+    return __spirv_BuiltInSubgroupId();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");
@@ -197,7 +200,7 @@ struct sub_group {
 
   range_type get_group_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_NumSubgroups();
+    return __spirv_BuiltInNumSubgroups();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");
@@ -663,5 +666,10 @@ protected:
   friend sub_group ext::oneapi::this_work_item::get_sub_group();
   sub_group() = default;
 };
+
+template <int Dimensions> sub_group nd_item<Dimensions>::get_sub_group() const {
+  return sub_group();
+}
+
 } // namespace _V1
 } // namespace sycl

@@ -1,0 +1,34 @@
+; REQUIRES: spirv-as
+
+; RUN: spirv-as %s --target-env spv1.2 -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o %t.rev.bc %t.spv
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
+
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %fn "testAlignmentId"
+               OpName %p "p"
+               OpDecorate %x LinkageAttributes "x" Export
+               OpDecorateId %x AlignmentId %al
+               OpDecorateId %p AlignmentId %al_spec
+       %void = OpTypeVoid
+       %uint = OpTypeInt 32 0
+        %ptr = OpTypePointer CrossWorkgroup %uint
+       %fnTy = OpTypeFunction %void %ptr
+         %al = OpConstant %uint 16
+    %al_spec = OpSpecConstantOp %uint IAdd %al %al
+    %uint_42 = OpConstant %uint 42
+; Verify alignment of variable.
+; CHECK: @x = addrspace(1) global i32 42, align 16
+          %x = OpVariable %ptr CrossWorkgroup %uint_42
+
+         %fn = OpFunction %void None %fnTy
+; Verify alignment of function parameter.
+; CHECK: define spir_kernel void @testAlignmentId(ptr addrspace(1) align 32 %p)
+          %p = OpFunctionParameter %ptr
+      %entry = OpLabel
+               OpReturn
+               OpFunctionEnd

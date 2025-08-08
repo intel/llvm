@@ -1,9 +1,7 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-// Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
 
 // Tests that updating a graph is ordered with respect to previous executions of
@@ -18,7 +16,7 @@ int main() {
   const size_t N = 1 << 16;
   // Loop inside kernel to make even slower (too large N runs out of memory)
   const size_t NumKernelLoops = 4;
-  const size_t NumSubmitLoops = 8;
+  const size_t NumSubmitLoops = 2;
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 

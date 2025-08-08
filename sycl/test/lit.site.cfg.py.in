@@ -9,6 +9,7 @@ config.sycl_tools_dir = lit_config.params.get('SYCL_TOOLS_DIR', "@LLVM_TOOLS_DIR
 config.sycl_include = lit_config.params.get('SYCL_INCLUDE', "@SYCL_INCLUDE@")
 config.sycl_obj_root = "@SYCL_BINARY_DIR@"
 config.sycl_source_dir = "@SYCL_SOURCE_DIR@/source"
+config.sycl_include_source_dir = "@SYCL_SOURCE_DIR@/include"
 config.sycl_libs_dir = lit_config.params.get('SYCL_LIBS_DIR', "@LLVM_LIBS_DIR@")
 config.target_triple = "@LLVM_TARGET_TRIPLE@"
 config.host_triple = "@LLVM_HOST_TRIPLE@"
@@ -25,7 +26,7 @@ config.test_include_path = "@TEST_INCLUDE_PATH@"
 config.llvm_enable_projects = "@LLVM_ENABLE_PROJECTS@"
 
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
-config.sycl_use_libcxx = '@SYCL_USE_LIBCXX@'
+config.sycl_use_libcxx = 'ON' if @LLVM_LIBCXX_USED@ else 'OFF'
 config.extra_environment = lit_config.params.get("extra_environment", "@LIT_EXTRA_ENVIRONMENT@")
 config.cuda = '@SYCL_BUILD_BACKEND_CUDA@'
 config.hip = '@SYCL_BUILD_BACKEND_HIP@'

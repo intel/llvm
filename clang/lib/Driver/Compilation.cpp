@@ -10,13 +10,10 @@
 #include "clang/Basic/LLVM.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Job.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/ToolChain.h"
 #include "clang/Driver/Util.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptSpecifier.h"
 #include "llvm/Option/Option.h"
@@ -185,12 +182,12 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
   // able to remove), or non-regular files. Underlying tools may have
   // intentionally not overwritten them.
 
-  // Save the device code files if -fsycl-dump-device-code option is enabled.
-  if (TheDriver.isDumpDeviceCodeEnabled()) {
-    Arg *DumpDeviceCodeArg =
-        getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+  // Save the device code files if -save-offload-code option is enabled.
+  if (TheDriver.isSaveOffloadCodeEnabled()) {
+    Arg *SaveOffloadCodeArg =
+        getArgs().getLastArg(options::OPT_save_offload_code_EQ);
     std::string ExpectedDir =
-        DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "";
+        SaveOffloadCodeArg ? SaveOffloadCodeArg->getValue() : "";
     std::string ActualFile(File);
 
     if (ActualFile.find(ExpectedDir) != std::string::npos) {
@@ -226,8 +223,7 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
     // Temporary file lists contain files that need to be cleaned. The
     // file containing the information is also removed
     if (File.second == types::TY_Tempfilelist ||
-        File.second == types::TY_Tempfiletable ||
-        File.second == types::TY_FPGA_Dependencies_List) {
+        File.second == types::TY_Tempfiletable) {
       // These are temporary files and need to be removed.
       bool IsTable = File.second == types::TY_Tempfiletable;
 

@@ -12,7 +12,7 @@
 
 ; CHECK-LLVM: [[#GV:]] = private unnamed_addr constant [11 x i8] c"{params:1}\00"
 ; CHECK-LLVM: %[[Call:[a-z0-9_.]+]] = call spir_func ptr addrspace(4) @accessor
-; CHECK-LLVM: %[[#Ann:]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %call, ptr @[[#GV]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: %[[#Ann:]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %call, ptr @[[#GV]], ptr poison, i32 poison, ptr poison)
 ; CHECK-LLVM: call spir_func ptr addrspace(4) @_ZN8MyStructaSERKS_(ptr addrspace(4) %[[#Ann]]
 
 ; ModuleID = 'test.bc'

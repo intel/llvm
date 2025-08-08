@@ -1046,7 +1046,7 @@ public:
   /// transfer function for this block, as part of the dataflow analysis. The
   /// movement of values between locations inside of a block is handled at a
   /// much later stage, in the TransferTracker class.
-  MapVector<DebugVariableID, DbgValue> Vars;
+  SmallMapVector<DebugVariableID, DbgValue, 8> Vars;
   SmallDenseMap<DebugVariableID, const DILocation *, 8> Scopes;
   MachineBasicBlock *MBB = nullptr;
   const OverlapMap &OverlappingFragments;
@@ -1070,9 +1070,7 @@ public:
                        : DbgValue(Properties, DbgValue::Undef);
 
     // Attempt insertion; overwrite if it's already mapped.
-    auto Result = Vars.insert(std::make_pair(VarID, Rec));
-    if (!Result.second)
-      Result.first->second = Rec;
+    Vars.insert_or_assign(VarID, Rec);
     Scopes[VarID] = MI.getDebugLoc().get();
 
     considerOverlaps(Var, MI.getDebugLoc().get());
@@ -1100,9 +1098,7 @@ public:
       DbgValue Rec = DbgValue(EmptyProperties, DbgValue::Undef);
 
       // Attempt insertion; overwrite if it's already mapped.
-      auto Result = Vars.insert(std::make_pair(OverlappedID, Rec));
-      if (!Result.second)
-        Result.first->second = Rec;
+      Vars.insert_or_assign(OverlappedID, Rec);
       Scopes[OverlappedID] = Loc;
     }
   }
@@ -1132,7 +1128,7 @@ public:
 
   /// Live in/out structure for the variable values: a per-block map of
   /// variables to their values.
-  using LiveIdxT = DenseMap<const MachineBasicBlock *, DbgValue *>;
+  using LiveIdxT = SmallDenseMap<const MachineBasicBlock *, DbgValue *, 16>;
 
   using VarAndLoc = std::pair<DebugVariableID, DbgValue>;
 
@@ -1164,7 +1160,6 @@ private:
   const MachineFrameInfo *MFI;
   BitVector CalleeSavedRegs;
   LexicalScopes LS;
-  TargetPassConfig *TPC;
 
   // An empty DIExpression. Used default / placeholder DbgValueProperties
   // objects, as we can't have null expressions.
@@ -1482,17 +1477,15 @@ private:
   /// block information can be fully computed before exploration finishes,
   /// allowing us to emit it and free data structures earlier than otherwise.
   /// It's also good for locality.
-  bool depthFirstVLocAndEmit(unsigned MaxNumBlocks,
-                             const ScopeToDILocT &ScopeToDILocation,
-                             const ScopeToVarsT &ScopeToVars,
-                             ScopeToAssignBlocksT &ScopeToBlocks,
-                             LiveInsT &Output, FuncValueTable &MOutLocs,
-                             FuncValueTable &MInLocs,
-                             SmallVectorImpl<VLocTracker> &AllTheVLocs,
-                             MachineFunction &MF, const TargetPassConfig &TPC);
+  bool depthFirstVLocAndEmit(
+      unsigned MaxNumBlocks, const ScopeToDILocT &ScopeToDILocation,
+      const ScopeToVarsT &ScopeToVars, ScopeToAssignBlocksT &ScopeToBlocks,
+      LiveInsT &Output, FuncValueTable &MOutLocs, FuncValueTable &MInLocs,
+      SmallVectorImpl<VLocTracker> &AllTheVLocs, MachineFunction &MF,
+      bool ShouldEmitDebugEntryValues);
 
   bool ExtendRanges(MachineFunction &MF, MachineDominatorTree *DomTree,
-                    TargetPassConfig *TPC, unsigned InputBBLimit,
+                    bool ShouldEmitDebugEntryValues, unsigned InputBBLimit,
                     unsigned InputDbgValLimit) override;
 
 public:

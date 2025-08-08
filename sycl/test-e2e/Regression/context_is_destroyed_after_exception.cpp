@@ -2,8 +2,6 @@
 
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out %if !windows %{2>&1 | FileCheck %s %}
-//
-// XFAIL: hip_nvidia
 
 #include <sycl/detail/core.hpp>
 

@@ -1,8 +1,10 @@
 // RUN: %{build} -DSYCL2020_DISABLE_DEPRECATION_WARNINGS -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: arch-intel_gpu_pvc
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14826
+// Test flakily fails on PVC and BMG.
+// UNSUPPORTED: arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16401
+// BMG ticket: https://github.com/intel/llvm/issues/17251
 
 //==----------------accessor.cpp - SYCL accessor basic test ----------------==//
 //
@@ -13,6 +15,8 @@
 //===----------------------------------------------------------------------===//
 #include <cassert>
 #include <iostream>
+
+#include <sycl/atomic.hpp>
 #include <sycl/detail/core.hpp>
 
 struct IdxID1 {

@@ -100,6 +100,13 @@ instead of replacing existing APIs. Also, please, avoid any changes, mentioned i
 between breaking and non-breaking changes. If unsure, do not hesitate to ask code
 owners for help.
 
+If ABI-breaking changes are being planned prior to the ABI-breaking window
+opening, the corresponding ABI-breaking changes (including removal of unused
+symbols) can be done under the `__INTEL_PREVIEW_BREAKING_CHANGES` macro. This
+helps maintainers make sure that the ABI-breaking changes makes it in during the
+ABI-breaking window, as they will be considered for promotion out of the
+`__INTEL_PREVIEW_BREAKING_CHANGES` guards during that time.
+
 **Note**: Features clearly marked as experimental are considered as an exception
 to this guideline.
 

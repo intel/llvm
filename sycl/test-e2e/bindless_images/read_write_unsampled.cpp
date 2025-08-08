@@ -1,5 +1,8 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: Returning non fp[32/16] values from sampling fails.
+
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
@@ -178,7 +181,6 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   using VecType = sycl::vec<DType, NChannels>;
 
   sycl::queue q(dev);
-  auto ctxt = q.get_context();
 
   // skip half tests if not supported
   if constexpr (std::is_same_v<DType, sycl::half>) {

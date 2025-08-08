@@ -13,6 +13,7 @@
 #ifndef LLVM_SUPPORT_BASE64_H
 #define LLVM_SUPPORT_BASE64_H
 
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -57,7 +58,8 @@ template <class InputBytes> std::string encodeBase64(InputBytes const &Bytes) {
   return Buffer;
 }
 
-llvm::Error decodeBase64(llvm::StringRef Input, std::vector<char> &Output);
+LLVM_ABI llvm::Error decodeBase64(llvm::StringRef Input,
+                                  std::vector<char> &Output);
 
 // General-purpose Base64 encoder/decoder.
 // TODO update WinCOFFObjectWriter.cpp to use this library.

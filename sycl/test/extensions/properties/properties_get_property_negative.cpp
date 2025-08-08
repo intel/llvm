@@ -6,12 +6,10 @@
 
 int main() {
   auto EmptyPropertyList = sycl::ext::oneapi::experimental::properties();
-  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Property list does not contain the requested property.}}
-  // expected-error-re@+1 {{variable has incomplete type {{.+}}}}
+  // expected-error@+1 {{no matching function for call to 'get_property'}}
   constexpr auto boo_val1 = decltype(EmptyPropertyList)::get_property<
       sycl::ext::oneapi::experimental::boo_key>();
-  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Property list does not contain the requested property.}}
-  // expected-error-re@+1 {{no viable conversion from {{.+}} to 'sycl::ext::oneapi::experimental::foo'}}
+  // expected-error@+3 {{no matching member function for call to 'get_property'}}
   sycl::ext::oneapi::experimental::foo foo_val1 =
       EmptyPropertyList
           .get_property<sycl::ext::oneapi::experimental::foo_key>();
@@ -20,12 +18,10 @@ int main() {
   auto PopulatedPropertyList = sycl::ext::oneapi::experimental::properties(
       sycl::ext::oneapi::experimental::foz{.0f, true},
       sycl::ext::oneapi::experimental::bar);
-  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Property list does not contain the requested property.}}
-  // expected-error-re@+1 {{variable has incomplete type {{.+}}}}
+  // expected-error@+1 {{no matching function for call to 'get_property'}}
   constexpr auto boo_val2 = decltype(PopulatedPropertyList)::get_property<
       sycl::ext::oneapi::experimental::boo_key>();
-  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Property list does not contain the requested property.}}
-  // expected-error-re@+1 {{no viable conversion from {{.+}} to 'sycl::ext::oneapi::experimental::foo'}}
+  // expected-error@+3 {{no matching member function for call to 'get_property'}}
   sycl::ext::oneapi::experimental::foo foo_val2 =
       PopulatedPropertyList
           .get_property<sycl::ext::oneapi::experimental::foo_key>();

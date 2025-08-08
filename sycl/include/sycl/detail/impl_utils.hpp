@@ -10,6 +10,7 @@
 
 #include <cassert>     // for assert
 #include <type_traits> // for add_pointer_t
+#include <utility>     // for forward
 
 namespace sycl {
 inline namespace _V1 {
@@ -34,11 +35,27 @@ const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject) {
 }
 
 // Helper function for creation SYCL interface objects from implementations.
-// Note! This function relies on the fact that all SYCL interface classes
+// Note! These functions rely on the fact that all SYCL interface classes
 // contain "impl" field that points to implementation object. "impl" field
-// should be accessible from this function.
-template <class T> T createSyclObjFromImpl(decltype(T::impl) ImplObj) {
+// should be accessible from these functions.
+template <class T>
+T createSyclObjFromImpl(
+    std::add_rvalue_reference_t<decltype(T::impl)> ImplObj) {
+  return T(std::forward<decltype(ImplObj)>(ImplObj));
+}
+
+template <class T>
+T createSyclObjFromImpl(
+    std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj) {
   return T(ImplObj);
+}
+
+template <class T>
+T createSyclObjFromImpl(
+    std::add_lvalue_reference_t<typename std::remove_reference_t<
+        decltype(getSyclObjImpl(std::declval<T>()))>::element_type>
+        ImplRef) {
+  return createSyclObjFromImpl<T>(ImplRef.shared_from_this());
 }
 
 } // namespace detail

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13.4)
 
 if(NOT DEFINED BASE_LLVM_VERSION)
-  set (BASE_LLVM_VERSION 20.0.0)
+  set (BASE_LLVM_VERSION 22.0.0)
 endif(NOT DEFINED BASE_LLVM_VERSION)
 set(LLVM_SPIRV_VERSION ${BASE_LLVM_VERSION}.0)
 
@@ -102,13 +102,6 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
 
   message(STATUS "Found LLVM: ${LLVM_VERSION}")
 
-  is_llvm_target_library("SPIRV" spirv_present_result INCLUDED_TARGETS)
-  if(spirv_present_result)
-    message(STATUS "Found SPIR-V Backend")
-    set(SPIRV_BACKEND_FOUND TRUE)
-    add_compile_definitions(LLVM_SPIRV_BACKEND_TARGET_PRESENT)
-  endif()
-
   option(CCACHE_ALLOWED "allow use of ccache" TRUE)
   find_program(CCACHE_EXE_FOUND ccache)
   if(CCACHE_EXE_FOUND AND CCACHE_ALLOWED)
@@ -116,6 +109,13 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
   endif()
+endif()
+
+is_llvm_target_library("SPIRV" spirv_present_result INCLUDED_TARGETS)
+if(spirv_present_result)
+  message(STATUS "Found SPIR-V Backend")
+  set(SPIRV_BACKEND_FOUND TRUE)
+  add_compile_definitions(LLVM_SPIRV_BACKEND_TARGET_PRESENT)
 endif()
 
 set(LLVM_SPIRV_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -144,7 +144,9 @@ if (NOT SPIRV_TOOLS_FOUND)
   endif()
 endif()
 
-if (NOT SPIRV_TOOLS_FOUND)
+option(LLVM_SPIRV_ENABLE_LIBSPIRV_DIS "Enable --spirv-tools-dis support.")
+
+if (NOT SPIRV_TOOLS_FOUND AND LLVM_SPIRV_ENABLE_LIBSPIRV_DIS)
   message(STATUS "SPIRV-Tools not found; project will be built without "
           "--spirv-tools-dis support.")
 endif()

@@ -24,17 +24,12 @@ endif()
 # If SYCL_ENABLE_BACKENDS is undefined, we default to enabling OpenCL and Level
 # Zero backends.
 if (NOT DEFINED SYCL_ENABLE_BACKENDS)
-  set(SYCL_ENABLE_BACKENDS "opencl;level_zero")
+  set(SYCL_ENABLE_BACKENDS "opencl;level_zero;level_zero_v2")
 endif()
 
 # Option to enable JIT, this in turn makes kernel fusion and spec constant
 # materialization possible.
 option(SYCL_ENABLE_EXTENSION_JIT "Enable extension to JIT kernels" ON)
-if(SYCL_ENABLE_EXTENSION_JIT AND WIN32)
-  message(WARNING "Extension to JIT kernels not yet supported on Windows")
-  set(SYCL_ENABLE_EXTENSION_JIT OFF CACHE
-      BOOL "Extension to JIT kernels not yet supported on Windows" FORCE)
-endif()
 
 if (NOT XPTI_INCLUDES)
   set(XPTI_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../xpti/include)
@@ -58,7 +53,7 @@ if(MSVC)
   # Add PDB debug information
   list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
   include(CheckLinkerFlag)
-  check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
+  check_linker_flag(CXX "LINKER:/DEBUG" LINKER_SUPPORTS_DEBUG)
   if(LINKER_SUPPORTS_DEBUG)
     # sccache is not compatible with /Zi flag
     if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
@@ -77,16 +72,17 @@ if(MSVC)
     else()
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
     endif()
-    add_link_options("/DEBUG")
+    add_link_options("LINKER:/DEBUG")
 
     # Enable unreferenced removal and ICF in Release mode.
-    check_linker_flag(CXX "/OPT:REF /OPT:ICF" LINKER_SUPPORTS_OPTS)
+    check_linker_flag(CXX "LINKER:/OPT:REF,/OPT:ICF" LINKER_SUPPORTS_OPTS)
     if (LINKER_SUPPORTS_OPTS AND uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
-      add_link_options("/OPT:REF" "/OPT:ICF")
+      add_link_options("LINKER:/OPT:REF" "LINKER:/OPT:ICF")
     endif()
   endif()
 endif()
 
+include(FetchEmhash)
 include(FetchUnifiedRuntime)
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
@@ -113,15 +109,12 @@ define_property(GLOBAL PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
 if (MSVC)
   set(CMAKE_CXX_FLAGS "/W4 ${CMAKE_CXX_FLAGS}")
 else ()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-deprecated-declarations")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 endif()
 
 if(SYCL_ENABLE_WERROR)
   if(MSVC)
     set(CMAKE_CXX_FLAGS "/WX ${CMAKE_CXX_FLAGS}")
-    add_definitions(
-      -wd4996 # Suppress 'function': was declared deprecated'
-    )
   else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
   endif()
@@ -152,20 +145,22 @@ set(SYCL_INCLUDE_DIR "include")
 set(SYCL_INCLUDE_BUILD_DIR ${LLVM_BINARY_DIR}/${SYCL_INCLUDE_DIR})
 
 add_llvm_external_project(opencl)
-list(FIND LLVM_ENABLE_PROJECTS opencl OPENCL_FOUND)
-if(OPENCL_FOUND EQUAL -1)
+list(FIND LLVM_ENABLE_PROJECTS opencl OPENCL_PROJ_FOUND)
+if(OPENCL_PROJ_FOUND EQUAL -1)
   message(FATAL_ERROR "opencl external project required but not found.")
 endif()
 
-# Copy OpenCL Headers into sycl headers build directory
-# Compiler does automatic lookup bin/../include based on clang binary location,
-# e.g. when run LIT tests
-file(COPY ${OpenCL_INCLUDE_DIR}/CL DESTINATION ${SYCL_INCLUDE_BUILD_DIR})
+if(NOT OpenCL_FOUND)
+  # Copy OpenCL Headers into sycl headers build directory
+  # Compiler does automatic lookup bin/../include based on clang binary location,
+  # e.g. when run LIT tests
+  file(COPY ${OpenCL_INCLUDE_DIR}/CL DESTINATION ${SYCL_INCLUDE_BUILD_DIR})
 
-# Include OpenCL Headers into final bundle.
-install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
-        DESTINATION ${SYCL_INCLUDE_DIR}
-        COMPONENT OpenCL-Headers)
+  # Include OpenCL Headers into final bundle.
+  install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
+          DESTINATION ${SYCL_INCLUDE_DIR}
+          COMPONENT OpenCL-Headers)
+endif()
 
 # Option for enabling building the SYCL major release preview library.
 option(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB "Enable build of the SYCL major release preview library" ON)
@@ -181,7 +176,7 @@ if ("opencl" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_OPENCL ON)
 endif()
 if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
-  set(SYCL_BUILD_BACKENDLEVEL_ZERO ON)
+  set(SYCL_BUILD_BACKEND_LEVEL_ZERO ON)
 endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_NATIVE_CPU ON)
@@ -205,6 +200,8 @@ add_custom_command(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/source/device_aspect_macros_generator.py ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
   OUTPUT  ${SYCL_INCLUDE_BUILD_DIR}/sycl/device_aspect_macros.hpp
   COMMENT "Generating device_aspect_macros.hpp"
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl/info/aspects.def
+          ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl/info/aspects_deprecated.def
 )
 
 add_custom_target(sycl-device-aspect-macros-header
@@ -218,9 +215,6 @@ install(FILES
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/device_aspect_macros.hpp"
   DESTINATION "${SYCL_INCLUDE_DIR}/sycl"
   COMPONENT sycl-headers)
-
-include(AddBoostMp11Headers)
-include(FetchBoostUnorderedHeaders)
 
 # This is workaround to detect changes (add or modify) in subtree which
 # are not detected by copy_directory command.
@@ -239,39 +233,48 @@ string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
 string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_SYCLCOMPAT_DIR "${HEADERS_IN_SYCLCOMPAT_DIR}")
 
+set(OUT_UR_HEADERS
+  ${SYCL_INCLUDE_BUILD_DIR}/ur_api.h
+  ${SYCL_INCLUDE_BUILD_DIR}/ur_api_funcs.def
+  ${SYCL_INCLUDE_BUILD_DIR}/ur_print.hpp)
+set(UR_HEADERS_TO_COPY
+  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h
+  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def
+  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp)
+
 # Copy SYCL headers from sources to build directory
 add_custom_target(sycl-headers
   DEPENDS ${OUT_HEADERS_IN_SYCL_DIR}
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
+          ${OUT_UR_HEADERS}
           sycl-device-aspect-macros-header
-          boost_mp11-headers)
+          )
 
 add_custom_command(
   OUTPUT  ${OUT_HEADERS_IN_SYCL_DIR}
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
+          ${OUT_UR_HEADERS}
   DEPENDS ${HEADERS_IN_SYCL_DIR}
           ${HEADERS_IN_CL_DIR}
           ${HEADERS_IN_STD_DIR}
           ${HEADERS_IN_SYCLCOMPAT_DIR}
+          ${UR_HEADERS_TO_COPY}
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/std ${SYCL_INCLUDE_BUILD_DIR}/std
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/syclcompat ${SYCL_INCLUDE_BUILD_DIR}/syclcompat
   COMMAND ${CMAKE_COMMAND} -E copy ${sycl_inc_dir}/syclcompat.hpp ${SYCL_INCLUDE_BUILD_DIR}/syclcompat.hpp
-  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h ${SYCL_INCLUDE_BUILD_DIR}
-  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def ${SYCL_INCLUDE_BUILD_DIR}
-  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp ${SYCL_INCLUDE_BUILD_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy ${UR_HEADERS_TO_COPY} ${SYCL_INCLUDE_BUILD_DIR}
   COMMENT "Copying SYCL headers ...")
 
 # Copy SYCL headers from source to install directory
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/ COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(DIRECTORY ${BOOST_MP11_DESTINATION_DIR} DESTINATION ${SYCL_INCLUDE_DIR}/sycl/detail COMPONENT boost_mp11-headers)
 install(DIRECTORY "${sycl_inc_dir}/syclcompat" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${sycl_inc_dir}/syclcompat.hpp" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}
@@ -302,37 +305,18 @@ endif()
 
 # This function allows building multiple libraries with the same options.
 # Currently used by add_sycl_library and add_sycl_rt_library.
-# Currently handles linking with libcxx support and gcc workaround
+# Currently handles a gcc workaround
 function( add_common_options LIB_NAME)
-  if (SYCL_USE_LIBCXX)
-    if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
-      (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
-      if ((NOT (DEFINED SYCL_LIBCXX_INCLUDE_PATH)) OR (NOT (DEFINED SYCL_LIBCXX_LIBRARY_PATH)))
-        message(FATAL_ERROR "When building with libc++ SYCL_LIBCXX_INCLUDE_PATHS and"
-                            "SYCL_LIBCXX_LIBRARY_PATH should be set")
-      endif()
-      target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
-      target_compile_options(${LIB_NAME} PRIVATE -nostdinc++)
-      target_include_directories(${LIB_NAME} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-      if (ARGC EQUAL 2)
-        target_compile_options(${ARGV1} PRIVATE -nostdinc++)
-        target_include_directories(${ARGV1} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-      endif()
-    else()
-      message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
-    endif()
-  else()
     # Workaround for bug in GCC version 5 and higher.
     # More information https://bugs.launchpad.net/ubuntu/+source/gcc-5/+bug/1568899
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
         CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 5.0)
       target_link_libraries(${ARGV0} PRIVATE gcc_s gcc)
     endif()
-  endif()
 endfunction(add_common_options)
 
 if (LLVM_ENABLE_ASSERTIONS AND NOT SYCL_DISABLE_STL_ASSERTIONS AND NOT WIN32)
-  if(SYCL_USE_LIBCXX)
+  if(LLVM_LIBCXX_USED)
     add_definitions(-D_LIBCPP_DEBUG=1)
     set(SYCL_CLANG_EXTRA_FLAGS "${SYCL_CLANG_EXTRA_FLAGS} -D_LIBCPP_DEBUG=1")
   else()
@@ -353,6 +337,12 @@ if (NOT WIN32)
     RENAME "libsycl.so.${SYCL_VERSION_STRING}-gdb.py"
     DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
     COMPONENT sycl-headers-extras)
+endif()
+
+if(SYCL_ENABLE_XPTI_TRACING AND
+    DEFINED LLVM_EXTERNAL_PROJECTS AND
+    (NOT "xpti" IN_LIST LLVM_EXTERNAL_PROJECTS OR NOT "xptifw" IN_LIST LLVM_EXTERNAL_PROJECTS))
+  message(FATAL_ERROR "SYCL_ENABLE_XPTI_TRACING=ON but XPTI is not going to be built")
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
@@ -393,12 +383,17 @@ add_custom_target( sycl-toolchain ALL
   DEPENDS sycl-runtime-libraries
           sycl-compiler
           sycl-ls
+          syclbin-dump
           ${XPTIFW_LIBS}
   COMMENT "Building SYCL compiler toolchain..."
 )
 
 if (WIN32)
-  add_dependencies(sycl-toolchain ur_win_proxy_loader)
+  add_dependencies(sycl-toolchain ur_win_proxy_loader unified-runtimed-build)
+endif()
+
+if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
+  add_dependencies(sycl-toolchain clang-nvlink-wrapper)
 endif()
 
 # Enable new IN_LIST operator.
@@ -444,7 +439,6 @@ get_property(SYCL_TOOLCHAIN_DEPS GLOBAL PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONEN
 # Listed here are component names contributing the package
 set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      append-file
-     boost_mp11-headers
      clang
      clang-offload-wrapper
      clang-offload-bundler
@@ -462,6 +456,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      spirv-to-ir-wrapper
      sycl-post-link
      sycl-ls
+     syclbin-dump
      clang-resource-headers
      OpenCL-Headers
      opencl-aot
@@ -474,6 +469,10 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )
+
+if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS clang-nvlink-wrapper)
+endif()
 
 if (WIN32)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_win_proxy_loader)
@@ -531,6 +530,11 @@ if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
 
   add_dependencies(sycl-toolchain ur_adapter_hip)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_hip)
+endif()
+
+if(SYCL_INSTALL_DEVICE_CONFIG_FILE)
+  add_dependencies(sycl-toolchain DeviceConfigFile)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS DeviceConfigFile)
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.

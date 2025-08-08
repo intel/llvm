@@ -45,6 +45,25 @@ class IncrementBy8 : public IncrementOp {
 
 void applyOp(int *Data, AbstractOp *Obj) { Obj->applyOp(Data); }
 
+template <typename T1, typename T2> struct KernelFunctor {
+  T1 mStorageAcc;
+  T2 mDataAcc;
+  unsigned mTestCase;
+  KernelFunctor(T1 &StorageAcc, T2 &DataAcc, unsigned TestCase)
+      : mStorageAcc(StorageAcc), mDataAcc(DataAcc), mTestCase(TestCase) {}
+
+  void operator()() const {
+    auto *Ptr = mStorageAcc[0].template construct</* ret type = */ AbstractOp>(
+        mTestCase);
+    applyOp(
+        mDataAcc.template get_multi_ptr<sycl::access::decorated::no>().get(),
+        Ptr);
+  }
+  auto get(oneapi::properties_tag) const {
+    return oneapi::properties{oneapi::assume_indirect_calls};
+  }
+};
+
 int main() try {
   using storage_t =
       obj_storage_t<IncrementBy1, IncrementBy2, IncrementBy4, IncrementBy8>;
@@ -59,7 +78,6 @@ int main() try {
 
   sycl::queue q(asyncHandler);
 
-  constexpr oneapi::properties props{oneapi::assume_indirect_calls};
   for (unsigned TestCase = 0; TestCase < 4; ++TestCase) {
     int HostData = 42;
     int Data = HostData;
@@ -68,12 +86,7 @@ int main() try {
     q.submit([&](sycl::handler &CGH) {
       sycl::accessor StorageAcc(DeviceStorage, CGH, sycl::write_only);
       sycl::accessor DataAcc(DataStorage, CGH, sycl::write_only);
-      CGH.single_task(props, [=]() {
-        auto *Ptr =
-            StorageAcc[0].construct</* ret type = */ AbstractOp>(TestCase);
-        applyOp(DataAcc.get_multi_ptr<sycl::access::decorated::no>().get(),
-                Ptr);
-      });
+      CGH.single_task(KernelFunctor(StorageAcc, DataAcc, TestCase));
     });
 
     auto *Ptr = HostStorage.construct</* ret type = */ AbstractOp>(TestCase);

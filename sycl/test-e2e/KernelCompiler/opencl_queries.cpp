@@ -1,4 +1,4 @@
-//==------- ocloc_queries.cpp ----------------------------------------------==//
+//==--- opencl_queries.cpp --- kernel_compiler extension tests -------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,7 +21,7 @@ int main() {
   sycl::queue q;
   sycl::device d = q.get_device();
 
-  assert(d.ext_oneapi_can_compile(syclex::source_language::opencl) &&
+  assert(d.ext_oneapi_can_build(syclex::source_language::opencl) &&
          "can_compile(opencl) unexpectedly false");
 
   assert(d.ext_oneapi_supports_cl_c_version(syclex::opencl_c_1_0) &&

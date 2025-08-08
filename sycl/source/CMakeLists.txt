@@ -3,6 +3,7 @@
 #2. Use AddLLVM to modify the build and access config options
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
+include(CheckLinkerFlag)
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
@@ -21,9 +22,73 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   cmake_parse_arguments(ARG "" "XPTI_LIB;IMPLIB_NAME" "COMPILE_OPTIONS;SOURCES" ${ARGN})
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
+
+  # Common compilation step setup
+
+  check_cxx_compiler_flag(-Winstantiation-after-specialization
+    HAS_INST_AFTER_SPEC)
+  check_cxx_compiler_flag(-ffunction-sections HAS_FUNCTION_SECTIONS_FLAG)
+  check_cxx_compiler_flag(-fdata-sections HAS_DATA_SECTIONS_FLAG)
+
+  target_compile_options(
+    ${LIB_OBJ_NAME}
+    PRIVATE
+      ${ARG_COMPILE_OPTIONS}
+      $<$<BOOL:${HAS_INST_AFTER_SPEC}>:-Winstantiation-after-specialization>
+      $<$<BOOL:${HAS_FUNCTION_SECTIONS_FLAG}>:-ffunction-sections>
+      $<$<BOOL:${HAS_DATA_SECTIONS_FLAG}>:-fdata-sections>
+    PUBLIC
+      $<$<NOT:$<BOOL:${MSVC}>>:-fvisibility=hidden -fvisibility-inlines-hidden>
+      # Sycl math built-in macros cause a GCC 4.6 'note' to be output
+      # repeatedly.
+      # => note: the ABI for passing parameters with 32-byte alignment has
+      #          changed in GCC 4.6
+      # Seems to be no way to suppress it except use -Wno-psabi
+      $<$<NOT:$<BOOL:${MSVC}>>:-Wno-psabi>
+  )
+
+  target_compile_definitions(
+    ${LIB_OBJ_NAME}
+    PRIVATE
+      __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+      __SYCL_INTERNAL_API
+      SYCL2020_DISABLE_DEPRECATION_WARNINGS
+      $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
+  )
+
+  target_include_directories(
+    ${LIB_OBJ_NAME}
+    PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}
+      ${sycl_inc_dir}
+  )
+
+  # Object libraries are not linked, so these "libraries" are in fact include
+  # directories
+  target_link_libraries(${LIB_OBJ_NAME}
+    PRIVATE
+      UnifiedRuntime-Headers
+      # TODO: Remove dependency on opencl headers.
+      OpenCL-Headers
+  )
+
+  # Common link step setup
+
   add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+
+  find_package(Threads REQUIRED)
+
+  target_link_libraries(${LIB_NAME}
+    PRIVATE
+      ${CMAKE_DL_LIBS}
+      ${CMAKE_THREAD_LIBS_INIT}
+      $<$<NOT:$<BOOL:${WIN32}>>:UnifiedRuntimeLoader>
+      $<$<BOOL:${WIN32}>:shlwapi>
+  )
+
+  # Feature-specific compilation and link step setup
 
   # Unlike for sycl library, for LLVMSupport we have only one version for a given build,
   # so, we link LLVMSupport lib to matching sycl version only.
@@ -42,6 +107,17 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_compile_options(${LIB_NAME} PRIVATE ${CMAKE_CXX_FLAGS_DEBUG_SEPARATED})
   endif()
 
+  # To facilitate better tracing and profiling except on release builds.
+  check_cxx_compiler_flag("-fno-omit-frame-pointer" CXX_HAS_NO_OMIT_FRAME_POINTER)
+  if (CXX_HAS_NO_OMIT_FRAME_POINTER)
+    target_compile_options(${LIB_NAME} PUBLIC
+      $<$<CONFIG:Debug,RelWithDebInfo>:-fno-omit-frame-pointer>
+      )
+    target_compile_options(${LIB_OBJ_NAME} PUBLIC
+      $<$<CONFIG:Debug,RelWithDebInfo>:-fno-omit-frame-pointer>
+      )
+  endif()
+
   if (SYCL_ENABLE_COVERAGE)
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
       -fprofile-instr-generate -fcoverage-mapping
@@ -52,10 +128,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_options(${LIB_NAME} PUBLIC
       -fprofile-instr-generate -fcoverage-mapping
     )
-  endif()
-
-  if (ARG_COMPILE_OPTIONS)
-    target_compile_options(${LIB_OBJ_NAME} PRIVATE ${ARG_COMPILE_OPTIONS})
   endif()
 
   add_dependencies(${LIB_OBJ_NAME}
@@ -69,14 +141,20 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
-  if (NOT LLVM_ENABLE_ZSTD)
-    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_NOT_AVAIABLE)
-  else()
+  if (LLVM_ENABLE_ZSTD)
+    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_AVAILABLE)
     target_link_libraries(${LIB_NAME} PRIVATE ${zstd_STATIC_LIBRARY})
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${zstd_INCLUDE_DIR})
   endif()
 
-  target_include_directories(${LIB_OBJ_NAME} PRIVATE ${BOOST_UNORDERED_INCLUDE_DIRS})
+  if (EMHASH_SYS_LOC)
+    # If we are using system emhash, include the system directory
+    # containing the emhash folder and note this location so
+    # other modules using emhash can find it.
+    cmake_path(GET EMHASH_SYS_LOC PARENT_PATH EMHASH_SYS_LOC)
+    set(SYCL_EMHASH_DIR ${EMHASH_SYS_LOC} CACHE INTERNAL "")
+    target_include_directories(${LIB_OBJ_NAME} PRIVATE ${EMHASH_SYS_LOC})
+  endif()
 
   # ur_win_proxy_loader
   if (WIN32)
@@ -94,11 +172,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_options(${LIB_NAME} PRIVATE "LINKER:/DEPENDENTLOADFLAG:0x2000" "LINKER:/MANIFEST:NO" "LINKER:/MANIFEST:EMBED" "LINKER:/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/${MANIFEST_FILE_NAME}")
   endif()
 
-  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
-
   if (WIN32)
-    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
-    target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
     if (ARG_IMPLIB_NAME)
       add_custom_command(
         TARGET ${LIB_NAME} POST_BUILD
@@ -115,14 +189,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     # Install stripped PDB
     add_stripped_pdb(${LIB_NAME})
   else()
-    target_compile_options(${LIB_OBJ_NAME} PUBLIC
-                           -fvisibility=hidden -fvisibility-inlines-hidden)
-
-    # Sycl math built-in macros cause a GCC 4.6 'note' to be output repeatedly.
-    # => note: the ABI for passing parameters with 32-byte alignment has changed in GCC 4.6
-    # Seems to be no way to suppress it except use -Wno-psabi
-    target_compile_options(${LIB_OBJ_NAME} PUBLIC -Wno-psabi)
-
     if (UNIX AND NOT APPLE)
       set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
       target_link_libraries(
@@ -134,18 +200,12 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     endif()
   endif()
 
-  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL2020_DISABLE_DEPRECATION_WARNINGS)
-
-  target_include_directories(
-    ${LIB_OBJ_NAME}
-    PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}
-      "${sycl_inc_dir}"
-  )
-  #TODO: Remove dependency on opencl headers.
-  target_link_libraries(${LIB_OBJ_NAME}
-    PRIVATE OpenCL-Headers
-  )
+  check_linker_flag(CXX "-Wl,--gc-sections" LINKER_SUPPORTS_WL_GC_SECTIONS)
+  if(LINKER_SUPPORTS_WL_GC_SECTIONS)
+    # Reduces the size of the resulting library by having the linker perform
+    # garbage collection.
+    target_link_options(${LIB_NAME} PRIVATE -Wl,--gc-sections)
+  endif()
 
   if(SYCL_ENABLE_EXTENSION_JIT)
     if(NOT DEFINED LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR)
@@ -156,7 +216,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
         ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/jit-compiler/include)
     add_dependencies(${LIB_NAME} sycl-jit)
     add_dependencies(${LIB_OBJ_NAME} sycl-jit)
-    target_include_directories(${LIB_NAME} PRIVATE ${SYCL_JIT_INCLUDE_DIRS})
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${SYCL_JIT_INCLUDE_DIRS})
     set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
        sycl-jit)
@@ -164,63 +223,24 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_EXT_JIT_ENABLE)
   endif(SYCL_ENABLE_EXTENSION_JIT)
 
-  find_package(Threads REQUIRED)
-
-  target_link_libraries(${LIB_NAME}
-    PRIVATE
-      ${CMAKE_DL_LIBS}
-      ${CMAKE_THREAD_LIBS_INIT}
-  )
-
-  # Link and include UR
-  target_link_libraries(${LIB_OBJ_NAME}
-    PRIVATE
-      UnifiedRuntime-Headers
-      UnifiedRuntimeCommon
-  )
-
-  target_include_directories(${LIB_OBJ_NAME}
-    PRIVATE
-      "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
-      "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
-  )
-
-  add_dependencies(${LIB_OBJ_NAME} UnifiedRuntimeAdapters ur_umf)
-
-  target_link_libraries(${LIB_NAME}
-    PRIVATE
-      UnifiedRuntime-Headers
-      UnifiedRuntimeCommon
-  )
-
-  if (NOT WIN32)
-    target_link_libraries(${LIB_NAME}
-      PRIVATE
-      UnifiedRuntimeLoader
-    )
-  else()
-    add_dependencies(${LIB_NAME} UnifiedRuntimeLoader)
-  endif()
-
-  target_include_directories(${LIB_NAME}
-    PRIVATE
-      "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
-      "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
-  )
-
-  add_dependencies(${LIB_NAME} UnifiedRuntimeAdapters ur_umf)
-
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
 
   set_target_properties(${LIB_NAME} PROPERTIES
                         VERSION ${SYCL_VERSION_STRING}
-                        SOVERSION ${SYCL_MAJOR_VERSION})
+                        SOVERSION ${SYCL_MAJOR_VERSION}
+                        # Set the runpath to the lib directory so libsycl can find libur_loader
+                        INSTALL_RPATH "\$ORIGIN")
 
-  check_cxx_compiler_flag(-Winstantiation-after-specialization
-    HAS_INST_AFTER_SPEC)
-  if (HAS_INST_AFTER_SPEC)
-    target_compile_options(${LIB_OBJ_NAME} PRIVATE
-      -Winstantiation-after-specialization)
+  # When building using icx on Windows, the VERSION file
+  # produced by cmake is used in source code
+  # when including '<version>' because Windows is
+  # case-insensitive and icx adds the build directory
+  # to the system header search path.
+  if (WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM")
+    set(VERSION_FILE "${CMAKE_BINARY_DIR}/VERSION")
+    if(EXISTS ${VERSION_FILE})
+      file(REMOVE ${VERSION_FILE})
+    endif()
   endif()
 endfunction(add_sycl_rt_library)
 
@@ -247,14 +267,18 @@ set(SYCL_COMMON_SOURCES
     "detail/device_filter.cpp"
     "detail/host_pipe_map.cpp"
     "detail/device_global_map.cpp"
+    "detail/kernel_global_info.cpp"
     "detail/device_global_map_entry.cpp"
+    "detail/device_image_impl.cpp"
     "detail/device_impl.cpp"
     "detail/error_handling/error_handling.cpp"
     "detail/event_impl.cpp"
     "detail/filter_selector_impl.cpp"
     "detail/fusion/fusion_wrapper.cpp"
     "detail/global_handler.cpp"
-    "detail/graph_impl.cpp"
+    "detail/graph/graph_impl.cpp"
+    "detail/graph/dynamic_impl.cpp"
+    "detail/graph/node_impl.cpp"
     "detail/helpers.cpp"
     "detail/handler_proxy.cpp"
     "detail/image_accessor_util.cpp"
@@ -264,13 +288,14 @@ set(SYCL_COMMON_SOURCES
     "detail/kernel_compiler/kernel_compiler_opencl.cpp"
     "detail/kernel_compiler/kernel_compiler_sycl.cpp"
     "detail/kernel_impl.cpp"
+    "detail/kernel_name_based_cache.cpp"
     "detail/kernel_program_cache.cpp"
+    "detail/memory_export.cpp"
     "detail/memory_manager.cpp"
     "detail/pipes.cpp"
     "detail/platform_impl.cpp"
     "detail/program_manager/program_manager.cpp"
     "detail/queue_impl.cpp"
-    "detail/online_compiler/online_compiler.cpp"
     "detail/os_util.cpp"
     "detail/persistent_device_code_cache.cpp"
     "detail/platform_util.cpp"
@@ -278,6 +303,7 @@ set(SYCL_COMMON_SOURCES
     "detail/reduction.cpp"
     "detail/sampler_impl.cpp"
     "detail/stream_impl.cpp"
+    "detail/syclbin.cpp"
     "detail/scheduler/commands.cpp"
     "detail/scheduler/leaves_collection.cpp"
     "detail/scheduler/scheduler.cpp"
@@ -310,6 +336,10 @@ set(SYCL_COMMON_SOURCES
     "stream.cpp"
     "spirv_ops.cpp"
     "virtual_mem.cpp"
+    "detail/memory_pool_impl.cpp"
+    "detail/async_alloc.cpp"
+    "detail/memory_pool.cpp"
+    "detail/graph/memory_pool.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_ur.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_ur.cpp>"
 )

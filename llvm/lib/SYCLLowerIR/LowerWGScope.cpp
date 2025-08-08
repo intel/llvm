@@ -144,7 +144,9 @@ template <typename T> static unsigned asUInt(T val) {
 
 static IntegerType *getSizeTTy(Module &M) {
   LLVMContext &Ctx = M.getContext();
-  auto PtrSize = M.getDataLayout().getPointerTypeSize(PointerType::getUnqual(Ctx));
+  const DataLayout &DL = M.getDataLayout();
+  auto PtrSize = DL.getPointerTypeSize(
+      PointerType::get(Ctx, DL.getDefaultGlobalsAddressSpace()));
   return PtrSize == 8 ? Type::getInt64Ty(Ctx) : Type::getInt32Ty(Ctx);
 }
 
@@ -162,7 +164,7 @@ enum class AddrSpace : unsigned {
   Output = 6
 };
 
-enum class Scope : unsigned {
+enum class Scope : int {
   CrossDevice = 0,
   Device = 1,
   Workgroup = 2,
@@ -170,7 +172,7 @@ enum class Scope : unsigned {
   Invocation = 4,
 };
 
-enum class MemorySemantics : unsigned {
+enum class MemorySemantics : int {
   None = 0x0,
   Acquire = 0x2,
   Release = 0x4,
@@ -931,31 +933,32 @@ GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
 // Return a value equals to 0 if and only if the local linear id is 0.
 Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
-  if (TT.isNVPTX() || TT.isAMDGCN() || sycl::utils::isSYCLNativeCPU(M)) {
+  if (TT.isNVPTX() || TT.isAMDGCN() || TT.isNativeCPU()) {
     LLVMContext &Ctx = Before.getContext();
     Type *RetTy = getSizeTTy(M);
 
     IRBuilder<> Bld(Ctx);
     Bld.SetInsertPoint(&Before);
 
-#define CREATE_CALLEE(NAME, FN_NAME)                                           \
-  FunctionCallee FnCallee##NAME = M.getOrInsertFunction(FN_NAME, RetTy);       \
-  assert(FnCallee##NAME && "spirv intrinsic creation failed");                 \
-  auto NAME = Bld.CreateCall(FnCallee##NAME, {});
+    auto CreateCallee = [&](StringRef Name, int Dim) {
+      auto *ArgTy = Type::getInt32Ty(Ctx);
+      FunctionCallee Callee = M.getOrInsertFunction(Name, RetTy, ArgTy);
+      assert(Callee.getCallee() && "spirv intrinsic creation failed");
+      return Bld.CreateCall(Callee, {ConstantInt::get(ArgTy, Dim)});
+    };
 
-    CREATE_CALLEE(LocalInvocationId_X, "_Z27__spirv_LocalInvocationId_xv");
-    CREATE_CALLEE(LocalInvocationId_Y, "_Z27__spirv_LocalInvocationId_yv");
-    CREATE_CALLEE(LocalInvocationId_Z, "_Z27__spirv_LocalInvocationId_zv");
-
-#undef CREATE_CALLEE
+    StringRef LocalInvocationIdName = "_Z32__spirv_BuiltInLocalInvocationIdi";
+    Value *LocalInvocationIdX = CreateCallee(LocalInvocationIdName, 0);
+    Value *LocalInvocationIdY = CreateCallee(LocalInvocationIdName, 1);
+    Value *LocalInvocationIdZ = CreateCallee(LocalInvocationIdName, 2);
 
     // 1: returns
-    //   __spirv_LocalInvocationId_x() |
-    //   __spirv_LocalInvocationId_y() |
-    //   __spirv_LocalInvocationId_z()
+    //   __spirv_BuiltInLocalInvocationId() |
+    //   __spirv_BuiltInLocalInvocationId() |
+    //   __spirv_BuiltInLocalInvocationId()
     //
-    return Bld.CreateOr(LocalInvocationId_X,
-                        Bld.CreateOr(LocalInvocationId_Y, LocalInvocationId_Z));
+    return Bld.CreateOr(LocalInvocationIdX,
+                        Bld.CreateOr(LocalInvocationIdY, LocalInvocationIdZ));
   } else {
     // extern "C" const __constant size_t __spirv_BuiltInLocalInvocationIndex;
     // Must correspond to the code in
@@ -981,7 +984,7 @@ Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
       Align Alignment = M.getDataLayout().getPreferredAlign(G);
       G->setAlignment(MaybeAlign(Alignment));
     }
-    Value *Res = new LoadInst(G->getValueType(), G, "", &Before);
+    Value *Res = new LoadInst(G->getValueType(), G, "", Before.getIterator());
     return Res;
   }
 }
@@ -990,7 +993,7 @@ Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
 //  uint32_t Semantics) noexcept;
 Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
-  StringRef Name = "_Z22__spirv_ControlBarrierjjj";
+  StringRef Name = "_Z22__spirv_ControlBarrieriii";
   LLVMContext &Ctx = Before.getContext();
   Type *ScopeTy = Type::getInt32Ty(Ctx);
   Type *SemanticsTy = Type::getInt32Ty(Ctx);
@@ -1006,11 +1009,14 @@ Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
 
   IRBuilder<> Bld(Ctx);
   Bld.SetInsertPoint(&Before);
-  auto ArgExec = ConstantInt::get(ScopeTy, asUInt(spirv::Scope::Workgroup));
-  auto ArgMem = ConstantInt::get(ScopeTy, asUInt(spirv::Scope::Workgroup));
-  auto ArgSema = ConstantInt::get(
-      ScopeTy, asUInt(spirv::MemorySemantics::SequentiallyConsistent) |
-                   asUInt(spirv::MemorySemantics::WorkgroupMemory));
+  auto ArgExec = ConstantInt::getSigned(
+      ScopeTy, static_cast<int>(spirv::Scope::Workgroup));
+  auto ArgMem = ConstantInt::getSigned(
+      ScopeTy, static_cast<int>(spirv::Scope::Workgroup));
+  auto ArgSema = ConstantInt::getSigned(
+      ScopeTy,
+      static_cast<int>(spirv::MemorySemantics::SequentiallyConsistent) |
+          static_cast<int>(spirv::MemorySemantics::WorkgroupMemory));
   auto BarrierCall = Bld.CreateCall(FC, {ArgExec, ArgMem, ArgSema});
   BarrierCall->addFnAttr(llvm::Attribute::Convergent);
   if (TT.isSPIROrSPIRV())

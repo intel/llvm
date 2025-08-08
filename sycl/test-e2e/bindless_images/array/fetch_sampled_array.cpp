@@ -1,7 +1,10 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
+// REQUIRES: aspect-ext_oneapi_image_array
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-INTENDED: image array not currently supported on AMD
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include "../helpers/common.hpp"
 #include <iostream>
@@ -96,7 +99,6 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   using VecType = sycl::vec<DType, NChannels>;
 
   sycl::queue q(dev);
-  auto ctxt = q.get_context();
 
   // skip half tests if not supported.
   if constexpr (std::is_same_v<DType, sycl::half>) {

@@ -10,6 +10,7 @@ Using oneAPI DPC++ for Application Development
    GetStartedGuide
    Getting Started (Japanese) <https://www.isus.jp/others/get-started-with-oneapi-dpc/>
    UsersManual
+   Releases
    PreprocessorMacros
    cuda/contents
    Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions>
@@ -28,7 +29,7 @@ Design Documents for the oneAPI DPC++ Compiler
    Clang Documentation <https://intel.github.io/llvm-docs/clang>
    design/CompilerAndRuntimeDesign
    design/KernelParameterPassing
-   design/PluginInterface
+   design/UnifiedRuntime
    design/SYCL2020-SpecializationConstants
    design/KernelProgramCache
    design/GlobalObjectsInRuntime
@@ -45,7 +46,6 @@ Design Documents for the oneAPI DPC++ Compiler
    design/ESIMDStatelesAccessors
    design/ESIMDDesignNotes
    design/DeviceIf
-   design/KernelFusionJIT
    design/NonRelocatableDeviceCode
    design/DeviceAspectTraitDesign
    design/DeviceConfigFile
@@ -54,8 +54,12 @@ Design Documents for the oneAPI DPC++ Compiler
    design/CommandGraph
    design/OffloadDesign
    design/PrivateAlloca
+   design/SYCLBINDesign
+   design/PropertySets
+   design/SYCL-RTC
    New OpenCL Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/opencl-extensions>
    New SPIR-V Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions>
+   design/Fuzzing
 
 Developer Documentation
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -66,3 +70,5 @@ Developer Documentation
    developer/DockerBKMs
    developer/ABIPolicyGuide
    developer/ContributeToDPCPP
+   developer/KHRExtensions
+   developer/WorkingOnAReleaseBranch

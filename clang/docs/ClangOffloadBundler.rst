@@ -263,7 +263,19 @@ in current implementations, facilitating interchangeable handling of code object
 without differentiation based on offload kind.
 
 **target-triple**
-    The target triple of the code object.
+    The target triple of the code object. See `Target Triple
+    <https://clang.llvm.org/docs/CrossCompilation.html#target-triple>`_.
+
+    LLVM target triples can be with or without the optional environment field:
+
+    ``<arch><sub>-<vendor>-<sys>``, or
+    ``<arch><sub>-<vendor>-<sys>-<env>``
+
+    However, in order to standardize outputs for tools that consume bitcode bundles
+    and to parse target ID containing dashes, the bundler only accepts target
+    triples in the 4-field format:
+
+    ``<arch><sub>-<vendor>-<sys>-<env>``
 
 **target-id**
   The canonical target ID of the code object. Present only if the target
@@ -529,3 +541,5 @@ The compressed offload bundle begins with a header followed by the compressed bi
 
 - **Compressed Data**:
     The actual compressed binary data follows the header. Its size can be inferred from the total size of the file minus the header size.
+
+    > **Note**: Version 3 of the format is under development. It uses 64-bit fields for Total File Size and Uncompressed Binary Size to support files larger than 4GB. To experiment with version 3, set the environment variable `COMPRESSED_BUNDLE_FORMAT_VERSION=3`. This support is experimental and not recommended for production use.

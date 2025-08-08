@@ -17,7 +17,7 @@
 ; CHECK-SPIRV: ReturnValue [[#Bitcast]]
 
 ; CHECK-LLVM: %[[#Load:]] = load ptr addrspace(4)
-; CHECK-LLVM: %[[#Anno1:]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %[[#Load]], ptr @0, ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: %[[#Anno1:]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) %[[#Load]], ptr @0, ptr poison, i32 poison, ptr poison)
 ; CHECK-LLVM: ret ptr addrspace(4) %[[#Anno1]]
 
 ; CHECK-LLVM: %[[#GEP:]] = getelementptr inbounds %struct.MyIP

@@ -1,4 +1,6 @@
 // REQUIRES: aspect-queue_profiling
+// UNSUPPORTED: linux
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/13591
 // RUN: %{build} -o %t.out
 //
 // RUN: %{run} %t.out

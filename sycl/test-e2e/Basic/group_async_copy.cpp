@@ -1,12 +1,9 @@
 // RUN: %{build} %cxx_std_optionc++17 -o %t.run
 // RUN: %{run} %t.run
 
-// Windows doesn't yet have full shutdown(). Skipping TC MemLeak tests.
-// UNSUPPORTED: ze_debug && windows
-
 #include <iostream>
 #include <sycl/detail/core.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 #include <typeinfo>
 
 using namespace sycl;

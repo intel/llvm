@@ -74,7 +74,7 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr captures(none)) #1
 
 ; Function Attrs: nounwind readnone speculatable willreturn
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #2
@@ -99,7 +99,7 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr captures(none)) #1
 
 ; Function Attrs: nounwind
 define linkonce_odr dso_local spir_func void @_ZN8iteratorI6vectorEC2Ev(ptr addrspace(4) %this) unnamed_addr #4 comdat align 2 !dbg !62 {
@@ -141,7 +141,7 @@ attributes #5 = { nounwind }
 !10 = !{}
 !11 = !{!"clang version 10.0.0"}
 !12 = distinct !DISubprogram(name: "_ZTS3foo", scope: !1, file: !1, line: 28, type: !13, flags: DIFlagArtificial | DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !14)
-!13 = !DISubroutineType(cc: DW_CC_LLVM_OpenCLKernel, types: !3)
+!13 = !DISubroutineType(cc: DW_CC_LLVM_DeviceKernel, types: !3)
 !14 = !{!15}
 !15 = !DILocalVariable(scope: !12, file: !1, type: !16)
 !16 = distinct !DICompositeType(tag: DW_TAG_class_type, file: !1, line: 28, size: 8, flags: DIFlagTypePassByValue | DIFlagNonTrivial, elements: !17)

@@ -53,12 +53,16 @@ specification.*
 
 == Backend support status
 
-This extension is currently implemented in {dpcpp} only for GPU devices and
+The base extension is currently implemented in {dpcpp} only for GPU devices and
 only when using the CUDA or HIP backends.  Attempting to use this extension in
 kernels that run on other devices or backends may result in undefined
 behavior.  Be aware that the compiler is not able to issue a diagnostic to
 warn you if this happens.
 
+The semantics in the <<sycl-graph-interaction, SYCL-Graph Interaction>> section
+however are implemented for all of Level-Zero, OpenCL, CUDA and HIP devices.
+Where support is conditional on the device reporting the
+`aspect::ext_oneapi_limited_graph` aspect.
 
 == Overview
 
@@ -135,8 +139,10 @@ implementation supports.
 |Description
 
 |1
-|The APIs of this experimental extension are not versioned, so the
- feature-test macro always has this value.
+|Initial version defining `handler::ext_codeplay_enqueue_native_command()`.
+
+|2
+|Addition of `interop_handler` methods for `sycl_ext_oneapi_graph` integration.
 |===
 
 === Additions to handler class
@@ -173,13 +179,123 @@ dependencies are satisfied.
 The SYCL command described above completes once all of the native asynchronous
 tasks it contains have completed.
 
-The call to `interopCallable` must not submit any synchronous tasks to the
-native backend object, and it must not block waiting for any tasks to complete.
-The call also must not add tasks to backend objects that underly any other
-queue, aside from the queue that is associated with this handler. If it does
-any of these things, the behavior is undefined.
+The call to `interopCallable` must not add tasks to backend objects that underly
+any other queue, aside from the queue that is associated with this handler,
+otherwise, the behavior is undefined.
 
-== Example
+[_Note:_ The function object `interopCallable` is invoked to enqueue commands to a
+native queue or graph and therefore, APIs which block or synchronize could
+prolong or interfere with other commands being enqueued to the backend.
+_{endnote}_]
+
+=== SYCL-Graph Interaction
+
+This section defines the interaction with the
+link:../experimental/sycl_ext_oneapi_graph.asciidoc[sycl_ext_oneapi_graph]
+extension.
+
+The APIs defined in this section of the extension specification are only
+available from version 2 of the extension. Usage of the APIs can be guarded in
+user code by checking the value of the <<feature-test-macro,
+feature test macro>>.
+
+The `interopCallable` object will be invoked during `command_graph::finalize()`
+when the backend object for the graph is available to give to the user as a
+handle. The user may then add nodes using native APIs to the backend graph
+object queried with `interop_handle::ext_codeplay_get_native_graph()`. The
+runtime will schedule the dependencies of the user added nodes such
+that they respect the graph node edges.
+
+==== Interop Handle Class Modifications
+
+```c++
+// Alias is for editorial brevity in the ext_codeplay_get_native_graph
+// definition, and is non-normative.
+using graph = ext::oneapi::experimental::command_graph<
+      ext::oneapi::experimental::graph_state::executable>;
+
+class interop_handle {
+  bool ext_codeplay_has_graph() const;
+
+  template <backend Backend>
+  backend_return_t<Backend, graph> ext_codeplay_get_native_graph() const;
+};
+```
+
+==== New Interop Handle Member Functions
+
+Table {counter: tableNumber}. Additional member functions of the `sycl::interop_handle` class.
+[cols="2a,a"]
+|===
+|Member function|Description
+
+|
+[source,c++]
+----
+bool interop_handle::ext_codeplay_has_graph() const;
+----
+
+|
+_Returns_: True if the `interop_handle object` was constructed and passed to
+an enqueue native command function object by `ext_codeplay_enqueue_native_command`,
+that was invoked when adding a graph node, either explicitly or implicitly
+via graph record.
+
+[_Note:_ that host-task nodes in a `command_graph` will return `false` from this
+query, as the host-task callable is invoked during graph execution rather than
+graph finalization.
+_{endnote}_]
+
+|
+[source,c++]
+----
+template <backend Backend>
+backend_return_t<Backend, graph>
+interop_handle::ext_codeplay_get_native_graph() const;
+----
+
+|
+_Returns_: The native graph object associated with the `interop_handle`.
+
+_Throws_: An exception with the `errc::invalid` error code if
+`ext_codeplay_has_graph()` returns `false`.
+
+|===
+
+== Implementation Notes
+
+When `interop_handle::get_native_queue()` is invoked in a native command
+function object on graph finalize, the queue that is returned to the user is an
+internal queue created by the SYCL runtime, as there is no user provided queue
+at the point of graph finalization. This queue has the same device and context
+as the graph was created with. The only valid usage of this queue is to perform
+stream capture to a graph for backend APIs that provide this functionality.
+
+Table {counter: tableNumber}. Native types for
+`template <backend Backend, class T> backend_return_t<Backend, T>` where `T` is
+instantiated as `command_graph<graph_state::executable>`.
+
+[cols="2a,a"]
+|===
+|Backend|Native Graph Type
+
+| `backend::opencl`
+| `cl_command_buffer_khr`
+
+| `backend::ext_oneapi_level_zero`
+| `ze_command_list_handle_t`
+
+| `backend::ext_oneapi_cuda`
+| `CUGraph`
+
+| `backend::ext_oneapi_hip`
+| `hipGraph_t`
+
+|===
+
+== Examples
+
+=== HIP Native Task
 
 This example demonstrates how to use this extension to enqueue asynchronous
 native tasks on the HIP backend.
@@ -197,9 +313,6 @@ q.submit([&](sycl::handler &cgh) {
 
       // Can enqueue arbitrary backend operations. This could also be a kernel
       // launch or call to a library that enqueues operations on the stream etc
-      //
-      // Important: Enqueuing a *synchronous* backend operation results in
-      // undefined behavior.
       hipMemcpyAsync(target_ptr, native_mem, test_size * sizeof(int),
                       hipMemcpyDeviceToHost, stream);
     });
@@ -207,11 +320,128 @@ q.submit([&](sycl::handler &cgh) {
 q.wait();
 ```
 
-== Issues
+=== Level-Zero Add Native Graph Node
 
-=== sycl_ext_oneapi_graph
+This example demonstrates how to use this extension to add a native command
+to a SYCL-Graph object on the Level-Zero backend. The command is doing a memory
+copy between two USM pointers.
 
-`ext_codeplay_enqueue_native_command`
-cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph.
+```c++
+Graph.add([&](sycl::handler &CGH) {
+    CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
+      ze_command_list_handle_t NativeGraph =
+          IH.ext_codeplay_get_native_graph<sycl::backend::ext_oneapi_level_zero>();
 
+      zeCommandListAppendMemoryCopy(
+          NativeGraph, PtrY, PtrX, Size * sizeof(int), nullptr, 0, nullptr);
+    });
+  });
+```
+
+=== OpenCL Add Native Graph Node
+
+This example demonstrates how to use this extension to add a native command to
+a SYCL-Graph object on the OpenCL backend. The command is doing a copy between
+two buffer objects.
+
+```c++
+sycl::queue Queue;
+auto Platform = get_native<sycl::backend::opencl>(Queue.get_context().get_platform());
+clCommandCopyBufferKHR_fn clCommandCopyBufferKHR =
+    reinterpret_cast<clCommandCopyBufferKHR_fn>(
+        clGetExtensionFunctionAddressForPlatform(Platform, "clCommandCopyBufferKHR"));
+
+Graph.add([&](sycl::handler &CGH) {
+    auto AccX = BufX.get_access(CGH);
+    auto AccY = BufY.get_access(CGH);
+    CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
+        cl_command_buffer_khr NativeGraph =
+            IH.ext_codeplay_get_native_graph<sycl::backend::opencl>();
+        auto SrcBuffer = IH.get_native_mem<sycl::backend::opencl>(AccX);
+        auto DstBuffer = IH.get_native_mem<sycl::backend::opencl>(AccY);
+
+        clCommandCopyBufferKHR(
+            NativeGraph, nullptr, nullptr, SrcBuffer[0], DstBuffer[0], 0, 0,
+            Size * sizeof(int), 0, nullptr, nullptr, nullptr);
+    });
+  });
+```
+
+=== CUDA Add Native Graph Node
+
+This example demonstrates how to use this extension to add a native command to
+a SYCL-Graph object on the CUDA backend. The command is doing a memory copy
+between two device USM pointers.
+
+```c++
+Graph.add([&](sycl::handler &CGH) {
+    CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
+      CUgraph NativeGraph =
+          IH.ext_codeplay_get_native_graph<sycl::backend::ext_oneapi_cuda>();
+
+      CUDA_MEMCPY3D Params;
+      std::memset(&Params, 0, sizeof(CUDA_MEMCPY3D));
+      Params.srcMemoryType = CU_MEMORYTYPE_DEVICE;
+      Params.srcDevice = (CUdeviceptr)PtrX;
+      Params.srcHost = nullptr;
+      Params.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+      Params.dstDevice = (CUdeviceptr)PtrY;
+      Params.dstHost = nullptr;
+      Params.WidthInBytes = Size * sizeof(int);
+      Params.Height = 1;
+      Params.Depth = 1;
+
+      CUgraphNode Node;
+      CUcontext Context = IH.get_native_context<sycl::backend::ext_oneapi_cuda>();
+       cuGraphAddMemcpyNode(&Node, NativeGraph, nullptr, 0, &Params, Context);
+    });
+  });
+```
+
+=== HIP Add Native Graph Node
+
+This example demonstrates how to use this extension to add a native command to
+a SYCL-Graph object on the HIP backend. The command is doing a memory copy
+between two device USM pointers.
+
+```c++
+Graph.add([&](sycl::handler &CGH) {
+    CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
+      HIPGraph NativeGraph =
+          IH.ext_codeplay_get_native_graph<sycl::backend::ext_oneapi_hip>();
+
+      HIPGraphNode Node;
+      hipGraphAddMemcpyNode1D(&Node, NativeGraph, nullptr, 0, PtrY, PtrX,
+                              Size * sizeof(int), hipMemcpyDefault);
+    });
+  });
+```
+
+=== CUDA Stream Record Native Graph Nodes
+
+This example demonstrates how to use this extension to add stream recorded
+native nodes to a SYCL-Graph object on the CUDA backend.
+
+```c++
+q.submit([&](sycl::handler &CGH) {
+    CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
+        auto NativeStream = h.get_native_queue<cuda>();
+        if (IH.ext_codeplay_has_graph())  {
+            auto NativeGraph =
+              IH.ext_codeplay_get_native_graph<sycl::backend::ext_oneapi_cuda>();
+
+            // Start capture stream calls into graph
+            cuStreamBeginCaptureToGraph(NativeStream, NativeGraph, nullptr,
+                                        nullptr, 0,
+                                        CU_STREAM_CAPTURE_MODE_GLOBAL);
+
+            myNativeLibraryCall(NativeStream);
+
+            // Stop capturing stream calls into graph
+            cuStreamEndCapture(NativeStream, &NativeGraph);
+        } else {
+            myNativeLibraryCall(NativeStream);
+        }
+    });
+});
+```

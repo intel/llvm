@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 
-def do_configure(args):
+def do_configure(args, passthrough_args):
     # Get absolute path to source directory
     abs_src_dir = os.path.abspath(
         args.src_dir if args.src_dir else os.path.join(__file__, "../..")
@@ -46,7 +46,7 @@ def do_configure(args):
     xptifw_dir = os.path.join(abs_src_dir, "xptifw")
     libdevice_dir = os.path.join(abs_src_dir, "libdevice")
     jit_dir = os.path.join(abs_src_dir, "sycl-jit")
-    llvm_targets_to_build = args.host_target
+    llvm_targets_to_build = args.host_target + ";SPIRV"
     llvm_enable_projects = "clang;" + llvm_external_projects
     libclc_build_native = "OFF"
     libclc_targets_to_build = ""
@@ -64,14 +64,20 @@ def do_configure(args):
 
     sycl_enable_xpti_tracing = "ON"
     xpti_enable_werror = "OFF"
-    llvm_enable_zstd = "ON"
+    llvm_enable_zstd = "OFF"
+    spirv_enable_dis = "OFF"
+    sycl_install_device_config_file = "OFF"
 
     if sys.platform != "darwin":
-        sycl_enabled_backends.append("level_zero")
-
-    # lld is needed on Windows or for the HIP plugin on AMD
-    if platform.system() == "Windows" or (args.hip and args.hip_platform == "AMD"):
-        llvm_enable_projects += ";lld"
+        # For more info on the enablement of level_zero_v2 refer to this document:
+        # https://github.com/intel/llvm/blob/sycl/unified-runtime/source/adapters/level_zero/v2/README.md
+        if args.level_zero_adapter_version == "V1":
+            sycl_enabled_backends.append("level_zero")
+        if args.level_zero_adapter_version == "V2":
+            sycl_enabled_backends.append("level_zero_v2")
+        if args.level_zero_adapter_version == "ALL":
+            sycl_enabled_backends.append("level_zero")
+            sycl_enabled_backends.append("level_zero_v2")
 
     libclc_enabled = args.cuda or args.hip or args.native_cpu
     if libclc_enabled:
@@ -125,12 +131,16 @@ def do_configure(args):
     if args.use_lld:
         llvm_enable_lld = "ON"
 
+    if args.use_zstd:
+        llvm_enable_zstd = "FORCE_ON"
+
     # CI Default conditionally appends to options, keep it at the bottom of
     # args handling
     if args.ci_defaults:
-        print("#############################################")
-        print("# Default CI configuration will be applied. #")
-        print("#############################################")
+        if not args.print_cmake_flags:
+            print("#############################################")
+            print("# Default CI configuration will be applied. #")
+            print("#############################################")
 
         # For clang-format, clang-tidy and code coverage
         llvm_enable_projects += ";clang-tools-extra;compiler-rt"
@@ -151,12 +161,18 @@ def do_configure(args):
             if libclc_nvidia_target_names not in libclc_targets_to_build:
                 libclc_targets_to_build += libclc_nvidia_target_names
             libclc_gen_remangled_variants = "ON"
+            spirv_enable_dis = "ON"
+            sycl_install_device_config_file = "ON"
 
-    if args.enable_plugin:
-        sycl_enabled_backends += args.enable_plugin
+    if args.enable_backends:
+        sycl_enabled_backends += args.enable_backends
 
     if args.disable_preview_lib:
         sycl_preview_lib = "OFF"
+
+    # lld is needed on Windows or when building AMDGPU
+    if platform.system() == "Windows" or "AMDGPU" in llvm_targets_to_build:
+        llvm_enable_projects += ";lld"
 
     install_dir = os.path.join(abs_obj_dir, "install")
 
@@ -188,12 +204,14 @@ def do_configure(args):
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
         "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
         "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
+        "-DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS={}".format(spirv_enable_dis),
         "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
         "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags),
         "-DSYCL_ENABLE_BACKENDS={}".format(";".join(set(sycl_enabled_backends))),
         "-DSYCL_ENABLE_EXTENSION_JIT={}".format(sycl_enable_jit),
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
+        "-DSYCL_INSTALL_DEVICE_CONFIG_FILE={}".format(sycl_install_device_config_file),
     ]
 
     if libclc_enabled:
@@ -231,33 +249,31 @@ def do_configure(args):
     cmake_cmd.append(llvm_dir)
 
     if args.use_libcxx:
-        if not (args.libcxx_include and args.libcxx_library):
-            sys.exit(
-                "Please specify include and library path of libc++ when building sycl "
-                "runtime with it"
-            )
         cmake_cmd.extend(
             [
-                "-DSYCL_USE_LIBCXX=ON",
-                "-DSYCL_LIBCXX_INCLUDE_PATH={}".format(args.libcxx_include),
-                "-DSYCL_LIBCXX_LIBRARY_PATH={}".format(args.libcxx_library),
+                "-DLLVM_ENABLE_LIBCXX=ON",
             ]
         )
 
-    print("[Cmake Command]: {}".format(" ".join(map(shlex.quote, cmake_cmd))))
+    cmake_cmd += passthrough_args
 
-    try:
-        subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
-    except subprocess.CalledProcessError:
-        cmake_cache = os.path.join(abs_obj_dir, "CMakeCache.txt")
-        if os.path.isfile(cmake_cache):
-            print(
-                "There is CMakeCache.txt at "
-                + cmake_cache
-                + " ... you can try to remove it and rerun."
-            )
-            print("Configure failed!")
-        return False
+    if args.print_cmake_flags:
+        print(" ".join(map(shlex.quote, cmake_cmd[1:])))
+    else:
+        print("[Cmake Command]: {}".format(" ".join(map(shlex.quote, cmake_cmd))))
+
+        try:
+            subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
+        except subprocess.CalledProcessError:
+            cmake_cache = os.path.join(abs_obj_dir, "CMakeCache.txt")
+            if os.path.isfile(cmake_cache):
+                print(
+                    "There is CMakeCache.txt at "
+                    + cmake_cache
+                    + " ... you can try to remove it and rerun."
+                )
+                print("Configure failed!")
+            return False
 
     return True
 
@@ -328,6 +344,13 @@ def main():
         help="choose hardware platform for HIP backend",
     )
     parser.add_argument(
+        "--level_zero_adapter_version",
+        type=str,
+        choices=["V1", "V2", "ALL"],
+        default="ALL",
+        help="Choose version of Level Zero adapter to build",
+    )
+    parser.add_argument(
         "--host-target",
         default="host",
         help="host LLVM target architecture, defaults to 'host', multiple targets may be provided as a semi-colon separated string",
@@ -355,15 +378,7 @@ def main():
         help="Additional CMake option not configured via script parameters",
     )
     parser.add_argument("--cmake-gen", default="Ninja", help="CMake generator")
-    parser.add_argument(
-        "--use-libcxx", action="store_true", help="build sycl runtime with libcxx"
-    )
-    parser.add_argument(
-        "--libcxx-include", metavar="LIBCXX_INCLUDE_PATH", help="libcxx include path"
-    )
-    parser.add_argument(
-        "--libcxx-library", metavar="LIBCXX_LIBRARY_PATH", help="libcxx library path"
-    )
+    parser.add_argument("--use-libcxx", action="store_true", help="build with libcxx")
     parser.add_argument(
         "--use-lld", action="store_true", help="Use LLD linker for build"
     )
@@ -374,7 +389,9 @@ def main():
     parser.add_argument(
         "--ci-defaults", action="store_true", help="Enable default CI parameters"
     )
-    parser.add_argument("--enable-plugin", action="append", help="Enable SYCL plugin")
+    parser.add_argument(
+        "--enable-backends", action="append", help="Enable SYCL backend"
+    )
     parser.add_argument(
         "--disable-preview-lib",
         action="store_true",
@@ -396,11 +413,20 @@ def main():
         "--native-cpu-libclc-targets",
         help="Target triples for libclc, used by the Native CPU backend",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--use-zstd", action="store_true", help="Force zstd linkage while building."
+    )
+    parser.add_argument(
+        "--print-cmake-flags",
+        action="store_true",
+        help="Print the generated CMake flags to a single line on standard output and exit. Suppresses all other output and does not run the cmake command.",
+    )
+    args, passthrough_args = parser.parse_known_intermixed_args()
 
-    print("args:{}".format(args))
+    if not args.print_cmake_flags:
+        print("args:{}".format(args))
 
-    return do_configure(args)
+    return do_configure(args, passthrough_args)
 
 
 if __name__ == "__main__":

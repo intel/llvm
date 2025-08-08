@@ -124,7 +124,9 @@ bool SPIRVLowerConstExprBase::visit(Module *M) {
         auto *CE = cast<ConstantExpr>(V);
         SPIRVDBG(dbgs() << "[lowerConstantExpressions] " << *CE;)
         auto *ReplInst = CE->getAsInstruction();
-        auto *InsPoint = II->getParent() == &*FBegin ? II : &FBegin->back();
+        auto InsPoint = II->getParent() == &*FBegin
+                            ? II->getIterator()
+                            : FBegin->back().getIterator();
         ReplInst->insertBefore(InsPoint);
         SPIRVDBG(dbgs() << " -> " << *ReplInst << '\n';)
         std::vector<Instruction *> Users;
@@ -140,7 +142,7 @@ bool SPIRVLowerConstExprBase::visit(Module *M) {
         for (auto &User : Users) {
           if (ReplInst->getParent() == User->getParent())
             if (User->comesBefore(ReplInst))
-              ReplInst->moveBefore(User);
+              ReplInst->moveBefore(User->getIterator());
           User->replaceUsesOfWith(CE, ReplInst);
         }
         Changed = true;

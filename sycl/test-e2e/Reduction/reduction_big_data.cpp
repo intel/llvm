@@ -1,13 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// Group algorithms are not supported on Nvidia.
-// XFAIL: hip_nvidia
+// UNSUPPORTED: windows && run-mode
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19680
 //
-
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
-
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // where the bigger data size and/or non-uniform work-group sizes may cause
 // errors.

@@ -5,9 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #include "gtest/internal/gtest-internal.h"
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
@@ -65,9 +63,9 @@ TEST(BuildLog, OutputNothingOnLevel1) {
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 
-  auto ContextImpl = getSyclObjImpl(Ctx);
+  context_impl &ContextImpl = *getSyclObjImpl(Ctx);
   // Make sure no kernels are cached
-  ContextImpl->getKernelProgramCache().reset();
+  ContextImpl.getKernelProgramCache().reset();
 
   LogRequested = false;
   sycl::kernel_bundle KernelBundle =
@@ -92,9 +90,9 @@ TEST(BuildLog, OutputLogOnLevel2) {
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 
-  auto ContextImpl = getSyclObjImpl(Ctx);
+  context_impl &ContextImpl = *getSyclObjImpl(Ctx);
   // Make sure no kernels are cached
-  ContextImpl->getKernelProgramCache().reset();
+  ContextImpl.getKernelProgramCache().reset();
 
   LogRequested = false;
   sycl::kernel_bundle KernelBundle =

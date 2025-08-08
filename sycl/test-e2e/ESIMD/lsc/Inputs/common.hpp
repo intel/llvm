@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <limits>
 #include <stdlib.h>
 #include <sycl/bit_cast.hpp>
 
@@ -23,5 +24,7 @@ template <typename T> T get_rand() {
   Tuint v = rand();
   if constexpr (sizeof(Tuint) > 4)
     v = (v << 32) | rand();
-  return sycl::bit_cast<T>(v);
+  T bitcast_v = sycl::bit_cast<T>(v);
+  return bitcast_v <= std::numeric_limits<T>::epsilon() ? static_cast<T>(0)
+                                                        : bitcast_v;
 }

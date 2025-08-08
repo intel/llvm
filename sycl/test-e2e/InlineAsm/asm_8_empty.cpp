@@ -1,5 +1,4 @@
-// UNSUPPORTED: cuda || hip_nvidia
-// REQUIRES: gpu,linux,sg-8
+// REQUIRES: sg-8
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

@@ -30,13 +30,10 @@ struct __attribute__((packed)) S {
 static_assert(sizeof(S) == 7);
 static_assert(std::is_trivially_copyable_v<S>);
 
-int main() {
-
+template <access::address_space addr_space> int test(queue &q) {
   constexpr std::size_t wg_size = 32;
   constexpr std::size_t elems_per_wi = 2;
   constexpr std::size_t n = wg_size * elems_per_wi;
-
-  queue q;
 
   buffer<S, 1> input_buf{n};
 
@@ -58,8 +55,11 @@ int main() {
     accessor store_blocked{store_blocked_buf, cgh};
     accessor store_striped{store_striped_buf, cgh};
 
+    local_accessor<S, 1> local_acc{wg_size * elems_per_wi, cgh};
+
     cgh.parallel_for(nd_range<1>{wg_size, wg_size}, [=](nd_item<1> ndi) {
       auto gid = ndi.get_global_id(0);
+      auto lid = ndi.get_local_id(0);
       auto g = ndi.get_group();
 
       S data[elems_per_wi];
@@ -67,22 +67,55 @@ int main() {
       auto blocked = sycl_exp::properties{sycl_exp::data_placement_blocked};
       auto striped = sycl_exp::properties{sycl_exp::data_placement_striped};
 
+      if constexpr (addr_space == access::address_space::local_space) {
+        // Copy input to local memory.
+        for (int i = lid * elems_per_wi; i < lid * elems_per_wi + elems_per_wi;
+             i++) {
+          local_acc[i] = input[i];
+        }
+        ndi.barrier(access::fence_space::local_space);
+      }
+
       // blocked
-      sycl_exp::group_load(g, input.begin(), span{data}, blocked);
+      if constexpr (addr_space == access::address_space::local_space) {
+        sycl_exp::group_load(g, local_acc.begin(), span{data}, blocked);
+      } else {
+        sycl_exp::group_load(g, input.begin(), span{data}, blocked);
+      }
       for (int i = 0; i < elems_per_wi; ++i)
         load_blocked[gid * elems_per_wi + i] = data[i];
 
       // striped
-      sycl_exp::group_load(g, input.begin(), span{data}, striped);
+      if constexpr (addr_space == access::address_space::local_space) {
+        sycl_exp::group_load(g, local_acc.begin(), span{data}, striped);
+      } else {
+        sycl_exp::group_load(g, input.begin(), span{data}, striped);
+      }
       for (int i = 0; i < elems_per_wi; ++i)
         load_striped[gid * elems_per_wi + i] = data[i];
 
       // Stores:
-
       std::iota(std::begin(data), std::end(data), gid * elems_per_wi);
+      auto copy_local_acc_to_global_output = [&](accessor<S, 1> output) {
+        for (int i = lid * elems_per_wi; i < lid * elems_per_wi + elems_per_wi;
+             i++) {
+          output[i] = local_acc[i];
+        }
+      };
 
-      sycl_exp::group_store(g, span{data}, store_blocked.begin(), blocked);
-      sycl_exp::group_store(g, span{data}, store_striped.begin(), striped);
+      if constexpr (addr_space == access::address_space::local_space) {
+        sycl_exp::group_store(g, span{data}, local_acc.begin(), blocked);
+        copy_local_acc_to_global_output(store_blocked);
+      } else {
+        sycl_exp::group_store(g, span{data}, store_blocked.begin(), blocked);
+      }
+
+      if constexpr (addr_space == access::address_space::local_space) {
+        sycl_exp::group_store(g, span{data}, local_acc.begin(), striped);
+        copy_local_acc_to_global_output(store_striped);
+      } else {
+        sycl_exp::group_store(g, span{data}, store_striped.begin(), striped);
+      }
     });
   });
 
@@ -117,5 +150,12 @@ int main() {
     }
   }
 
+  return 0;
+}
+
+int main() {
+  queue q;
+  test<access::address_space::global_space>(q);
+  test<access::address_space::local_space>(q);
   return 0;
 }
