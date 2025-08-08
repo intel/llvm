@@ -30,6 +30,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
+#include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/LineIterator.h"
@@ -217,17 +218,12 @@ struct Wrapper {
         "__sycl.tgt_bin_desc");
   }
 
+  /// Adds Native CPU declarations to the module so that they can be
+  /// referenced in the binary.
   Function *addDeclarationForNativeCPU(StringRef Name) {
-    FunctionType *NativeCPUFuncTy = FunctionType::get(
+    FunctionType *FTy = FunctionType::get(
         Type::getVoidTy(C),
         {PointerType::getUnqual(C), PointerType::getUnqual(C)}, false);
-    FunctionType *NativeCPUBuiltinTy = FunctionType::get(
-        PointerType::getUnqual(C), {PointerType::getUnqual(C)}, false);
-    FunctionType *FTy;
-    if (Name.starts_with("__dpcpp_nativecpu"))
-      FTy = NativeCPUBuiltinTy;
-    else
-      FTy = NativeCPUFuncTy;
     auto FCalle = M.getOrInsertFunction(
         sycl::utils::addSYCLNativeCPUSuffix(Name).str(), FTy);
     Function *F = dyn_cast<Function>(FCalle.getCallee());
@@ -236,18 +232,32 @@ struct Wrapper {
     return F;
   }
 
-  std::pair<Constant *, Constant *>
-  addDeclarationsForNativeCPU(std::string Entries) {
+  /// Adds declarations of NativeCPU kernels to the binary in a format so that
+  /// the NativeCPU UR adapter can extract the pointers and invoke the kernels.
+  std::pair<Constant *, Constant *> addDeclarationsForNativeCPU(
+      std::string Entries,
+      const std::optional<util::PropertySet> &NativeCPUProps) {
     auto *NullPtr = llvm::ConstantPointerNull::get(PointerType::getUnqual(C));
     if (Entries.empty())
       return {NullPtr, NullPtr};
 
     std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(Entries);
-    // the Native CPU PI Plug-in expects the BinaryStart field to point to an
-    // array of struct nativecpu_entry {
+    // the Native CPU UR adapter expects the BinaryStart field to point to
+    //
+    // struct nativecpu_program {
+    //   nativecpu_entry *entries;
+    //   ur_program_properties_t *properties;
+    // };
+    //
+    // where "entries" is an array of:
+    //
+    // struct nativecpu_entry {
     //   char *kernelname;
     //   unsigned char *kernel_ptr;
     // };
+    StructType *NCPUProgramT = StructType::create(
+        {PointerType::getUnqual(C), PointerType::getUnqual(C)},
+        "nativecpu_program");
     StructType *NCPUEntryT = StructType::create(
         {PointerType::getUnqual(C), PointerType::getUnqual(C)},
         "__nativecpu_entry");
@@ -272,12 +282,37 @@ struct Wrapper {
     auto *GVar = new GlobalVariable(M, CA->getType(), true,
                                     GlobalVariable::InternalLinkage, CA,
                                     "__sycl_native_cpu_decls");
-    auto *Begin = ConstantExpr::getGetElementPtr(GVar->getValueType(), GVar,
-                                                 getSizetConstPair(0, 0));
-    auto *End = ConstantExpr::getGetElementPtr(
-        GVar->getValueType(), GVar,
-        getSizetConstPair(0, NativeCPUEntries.size()));
-    return std::make_pair(Begin, End);
+    auto *EntriesBegin = ConstantExpr::getGetElementPtr(
+        GVar->getValueType(), GVar, getSizetConstPair(0u, 0u));
+
+    // Add Native CPU specific properties to the nativecpu_program struct
+    Constant *PropValue = NullPtr;
+    if (NativeCPUProps.has_value()) {
+      auto Props = addPropertySetToModule(*NativeCPUProps);
+      auto *Category = addStringToModule(
+          sycl::PropSetRegTy::SYCL_NATIVE_CPU_PROPS, "SYCL_PropSetName");
+      auto S = ConstantStruct::get(SyclPropSetTy, Category, Props.first,
+                                   Props.second);
+      auto T = addStructArrayToModule({S}, SyclPropSetTy);
+      PropValue = T.first;
+    }
+
+    // Create the nativecpu_program struct.
+    // We add it to a ConstantArray of length 1 because the SYCL runtime expects
+    // a non-zero sized binary image, and this allows it to point the end of the
+    // binary image to the end of the array.
+    auto *Program =
+        ConstantStruct::get(NCPUProgramT, {EntriesBegin, PropValue});
+    ArrayType *ProgramATy = ArrayType::get(NCPUProgramT, 1);
+    Constant *CPA = ConstantArray::get(ProgramATy, {Program});
+    auto *ProgramGVar =
+        new GlobalVariable(M, ProgramATy, true, GlobalVariable::InternalLinkage,
+                           CPA, "__sycl_native_cpu_program");
+    auto *ProgramBegin = ConstantExpr::getGetElementPtr(
+        ProgramGVar->getValueType(), ProgramGVar, getSizetConstPair(0u, 0u));
+    auto *ProgramEnd = ConstantExpr::getGetElementPtr(
+        ProgramGVar->getValueType(), ProgramGVar, getSizetConstPair(0u, 1u));
+    return std::make_pair(ProgramBegin, ProgramEnd);
   }
 
   /// Adds a global readonly variable that is initialized by given
@@ -498,13 +533,20 @@ struct Wrapper {
   ///
   /// \returns Pair of pointers to the beginning and end of the property set
   /// array, or a pair of nullptrs in case the properties file wasn't specified.
-  std::pair<Constant *, Constant *>
-  addPropertySetRegistry(const PropertySetRegistry &PropRegistry) {
+  std::pair<Constant *, Constant *> addPropertySetRegistry(
+      const PropertySetRegistry &PropRegistry,
+      std::optional<util::PropertySet> &SYCLNativeCPUPropSet) {
     // transform all property sets to IR and get the middle column image into
     // the PropSetsInits
     SmallVector<Constant *> PropSetsInits;
     for (const auto &PropSet : PropRegistry) {
       // create content in the rightmost column and get begin/end pointers
+      if (PropSet.first == sycl::PropSetRegTy::SYCL_NATIVE_CPU_PROPS) {
+        // We don't emit Native CPU specific properties in this section, but
+        // instead we emit them in the native_cpu_entry struct directly.
+        SYCLNativeCPUPropSet = PropSet.second;
+        continue;
+      }
       std::pair<Constant *, Constant *> Props =
           addPropertySetToModule(PropSet.second);
       // get the next the middle column element
@@ -559,12 +601,13 @@ struct Wrapper {
     auto *LinkOptions = addStringToModule(
         Options.LinkOptions, Twine(OffloadKindTag) + "opts.link." + ImageID);
 
+    std::optional<util::PropertySet> SYCLNativeCPUPropSet;
     std::pair<Constant *, Constant *> PropSets =
-        addPropertySetRegistry(Image.PropertyRegistry);
+        addPropertySetRegistry(Image.PropertyRegistry, SYCLNativeCPUPropSet);
 
     std::pair<Constant *, Constant *> Binary;
     if (Image.Target == "native_cpu")
-      Binary = addDeclarationsForNativeCPU(Image.Entries);
+      Binary = addDeclarationsForNativeCPU(Image.Entries, SYCLNativeCPUPropSet);
     else {
       auto &MB = *Image.Image;
       Binary = addDeviceImageToModule(
