@@ -14,6 +14,10 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; INTEL_CUSTOMIZATION begin
+; CHECK-SPIRV-NOT: Name [[#]] "llvm.fpbuiltin."
+; INTEL_CUSTOMIZATION end
+
 ; CHECK-SPIRV: Capability FPMaxErrorINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fp_max_error"
 ; CHECK-SPIRV: ExtInstImport [[#OCLEXTID:]] "OpenCL.std"

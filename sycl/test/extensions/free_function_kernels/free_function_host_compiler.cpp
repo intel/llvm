@@ -2,6 +2,7 @@
 // RUN: %clangxx -fsycl -fno-sycl-unnamed-lambda %s
 // RUN: %clangxx -fsycl -fsycl-host-compiler=g++ %s
 // REQUIRES: linux
+// UNSUPPORTED: libcxx
 
 // This test serves as a sanity check that compilation succeeds
 // for a simple free function kernel when using the host compiler
