@@ -111,8 +111,8 @@ runs:
     shell: bash
     run: |
       # Sparse-checkout UR at build ref:
-      mkdir ur; cd ur
-      git clone --depth 1 --no-checkout https://github.com/intel/llvm
+      git clone --depth 1 --no-checkout https://github.com/intel/llvm ur
+      cd ur
       git sparse-checkout init
       git sparse-checkout set unified-runtime
       git checkout ${{ inputs.build_ref }}
