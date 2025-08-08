@@ -2,7 +2,7 @@
 
 // This test check the semantics of sycl_esimd_vectorize attribute
 
-// expected-warning@+1{{'sycl_esimd_vectorize' attribute ignored}}
+// expected-warning@+1{{'intel::sycl_esimd_vectorize' attribute ignored}}
 [[intel::sycl_esimd_vectorize(17)]] void foo1() {}
 
 // We explicitly do not support a GNU spelling for this attribute, which is why it is
