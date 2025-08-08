@@ -978,9 +978,7 @@ elif platform.system() == "Windows":
     if os.path.exists(os.path.join(config.sycl_libs_dir, "sycl-jit.lib")):
         config.available_features.add("sycl-jit")
 if "sycl-jit" not in config.available_features:
-    lit_config.note(
-        "sycl-jit was not found, corresponding tests will be skipped."
-    )
+    lit_config.note("sycl-jit was not found. Tests requiring sycl-jit will be skipped.")
 
 # That has to be executed last so that all device-independent features have been
 # discovered already.
