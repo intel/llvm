@@ -970,7 +970,7 @@ elif os.path.exists(f"{config.sycl_include}/llvm/SYCLLowerIR/DeviceConfigFile.hp
     config.available_features.add("device-config-file")
     config.substitutions.append(("%device_config_file_include_flag", ""))
 
-# Check sycl-jit
+# Check for sycl-jit library
 if platform.system() == "Linux":
     if os.path.exists(os.path.join(config.sycl_libs_dir, "libsycl-jit.so")):
         config.available_features.add("sycl-jit")
@@ -979,7 +979,7 @@ elif platform.system() == "Windows":
         config.available_features.add("sycl-jit")
 if "sycl-jit" not in config.available_features:
     lit_config.note(
-        "sycl-jit not found. Check if the '--disable-jit' flag was passed or the library was renamed. Tests requiring sycl-jit will be skipped."
+        "sycl-jit was not found, corresponding tests will be skipped."
     )
 
 # That has to be executed last so that all device-independent features have been
