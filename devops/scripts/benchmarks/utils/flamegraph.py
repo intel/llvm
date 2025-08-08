@@ -139,7 +139,7 @@ class FlameGraph:
 
         return perf_data_file, perf_command
 
-    def handle_output(self, bench_name: str, perf_data_file: str):
+    def handle_output(self, bench_name: str, perf_data_file: str, suite_name: str = ""):
         """
         Generate SVG flamegraph from perf data file.
         Returns the path to the generated SVG file.
@@ -156,51 +156,41 @@ class FlameGraph:
         try:
             # Step 1: Convert perf script to folded format
             log.debug(f"Converting perf data to folded format: {folded_file}")
-            with open(folded_file, "w") as f_folded:
-                # Run perf script to get the stack traces
-                perf_script_proc = subprocess.Popen(
-                    ["perf", "script", "-i", perf_data_file],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
-                    text=True,
-                )
 
-                # Pipe through stackcollapse-perf.pl
-                stackcollapse_perf_path = os.path.join(
-                    self.repo_dir, "stackcollapse-perf.pl"
-                )
+            # Generate perf script output
+            perf_result = run(["perf", "script", "-i", perf_data_file])
+
+            # Pipe through stackcollapse-perf.pl
+            stackcollapse_perf_path = os.path.join(
+                self.repo_dir, "stackcollapse-perf.pl"
+            )
+            with open(folded_file, "w") as f_folded:
                 stackcollapse_proc = subprocess.Popen(
                     [stackcollapse_perf_path],
-                    stdin=perf_script_proc.stdout,
+                    stdin=subprocess.PIPE,
                     stdout=f_folded,
                     stderr=subprocess.DEVNULL,
                     text=True,
                 )
-
-                perf_script_proc.stdout.close()
-                stackcollapse_proc.wait()
-                perf_script_proc.wait()
+                stackcollapse_proc.communicate(input=perf_result.stdout.decode())
 
             # Step 2: Generate flamegraph SVG
             log.debug(f"Generating flamegraph SVG: {svg_file}")
             flamegraph_pl_path = os.path.join(self.repo_dir, "flamegraph.pl")
-            with open(folded_file, "r") as f_folded, open(svg_file, "w") as f_svg:
-                flamegraph_proc = subprocess.Popen(
-                    [
-                        flamegraph_pl_path,
-                        "--title",
-                        f"{options.save_name} - {bench_name}",
-                        "--width",
-                        str(
-                            self.FLAMEGRAPH_WIDTH
-                        ),  # Fit within container without scrollbars
-                    ],
-                    stdin=f_folded,
-                    stdout=f_svg,
-                    stderr=subprocess.DEVNULL,
-                    text=True,
-                )
-                flamegraph_proc.wait()
+
+            # Generate SVG
+            flamegraph_cmd = [
+                flamegraph_pl_path,
+                "--title",
+                f"{options.save_name} - {bench_name}",
+                "--width",
+                str(self.FLAMEGRAPH_WIDTH),
+                folded_file,
+            ]
+
+            result = run(flamegraph_cmd)
+            with open(svg_file, "w") as f_svg:
+                f_svg.write(result.stdout.decode())
 
             # Clean up intermediate files
             if os.path.exists(folded_file):
@@ -212,7 +202,7 @@ class FlameGraph:
             log.debug(f"Generated flamegraph: {svg_file}")
 
             # Create symlink immediately after SVG generation
-            self._create_immediate_symlink(svg_file)
+            self._create_immediate_symlink(svg_file, suite_name)
 
             # Prune old flamegraph directories
             self._prune_flamegraph_dirs(os.path.dirname(perf_data_file))
@@ -226,7 +216,7 @@ class FlameGraph:
                     os.remove(temp_file)
             raise RuntimeError(f"Failed to generate flamegraph for {bench_name}: {e}")
 
-    def _create_immediate_symlink(self, svg_file: str):
+    def _create_immediate_symlink(self, svg_file: str, suite_name: str = ""):
         """
         Create a symbolic link for the SVG file immediately after generation.
         This ensures the web interface can access the file right away.
@@ -268,20 +258,21 @@ class FlameGraph:
             log.debug(f"Created immediate symlink: {target_file} -> {svg_file}")
 
             # Update the flamegraph manifest for the web interface
-            self._update_flamegraph_manifest(html_path, rel_path, options.save_name)
+            self._update_flamegraph_manifest(
+                html_path, rel_path, options.save_name, suite_name
+            )
 
         except Exception as e:
             log.debug(f"Failed to create immediate symlink for {svg_file}: {e}")
 
     def _update_flamegraph_manifest(
-        self, html_path: str, svg_rel_path: str, run_name: str
+        self, html_path: str, svg_rel_path: str, run_name: str, suite_name: str = ""
     ):
         """
-        Update the data.js file with flamegraph information by dynamically adding the flamegraphData variable.
-        This works with a clean data.js from the repo and adds the necessary structure during execution.
+        Store flamegraph information for later batch update.
+        All flamegraphs for a run will be written together at the end.
         """
         try:
-            import re
             from datetime import datetime
 
             # Extract benchmark name from the relative path
@@ -290,143 +281,170 @@ class FlameGraph:
             if len(path_parts) >= 1:
                 benchmark_name = path_parts[0]
 
-                data_js_file = os.path.join(html_path, "data.js")
+                # Store the flamegraph info for this run (will be written in batch later)
+                if not hasattr(self, "_flamegraph_data"):
+                    self._flamegraph_data = {}
 
-                # Read the current data.js file
-                if not os.path.exists(data_js_file):
-                    log.error(
-                        f"data.js not found at {data_js_file}, cannot update flamegraph manifest"
-                    )
-                    return
+                if run_name not in self._flamegraph_data:
+                    self._flamegraph_data[run_name] = {
+                        "benchmarks": {},
+                        "suites": {},
+                        "timestamp": self.timestamp,
+                    }
 
-                with open(data_js_file, "r") as f:
-                    content = f.read()
+                # Store latest flamegraph for this benchmark (overwrites if same benchmark runs again)
+                self._flamegraph_data[run_name]["benchmarks"][
+                    benchmark_name
+                ] = svg_rel_path
 
-                # Check if flamegraphData already exists
-                if "flamegraphData" not in content:
-                    # Add flamegraphData object at the end of the file
-                    flamegraph_data = f"""
+                # Store suite information for this benchmark
+                if suite_name:
+                    self._flamegraph_data[run_name]["suites"][
+                        benchmark_name
+                    ] = suite_name
 
-flamegraphData = {{
-  runs: {{}},
-  last_updated: '{datetime.now().isoformat()}'
-}};"""
-                    content = content.rstrip() + flamegraph_data
-                    log.debug("Added flamegraphData object to data.js")
+                self._flamegraph_data[run_name][
+                    "timestamp"
+                ] = self.timestamp  # Update to latest
 
-                # Parse and update the flamegraphData runs structure
-                flamegraph_start = content.find("flamegraphData = {")
-                if flamegraph_start != -1:
-                    # Find the runs object within flamegraphData
-                    runs_start = content.find("runs: {", flamegraph_start)
-                    if runs_start != -1:
-                        # Find the matching closing brace for the runs object
-                        brace_count = 0
-                        runs_content_start = runs_start + 7  # After "runs: {"
-                        runs_content_end = runs_content_start
-
-                        for i, char in enumerate(
-                            content[runs_content_start:], runs_content_start
-                        ):
-                            if char == "{":
-                                brace_count += 1
-                            elif char == "}":
-                                if brace_count == 0:
-                                    runs_content_end = i
-                                    break
-                                brace_count -= 1
-
-                        existing_runs_str = content[
-                            runs_content_start:runs_content_end
-                        ].strip()
-                        existing_runs = {}
-
-                        # Parse existing runs if any
-                        if existing_runs_str:
-                            # Simple parsing of run entries like: "RunName": { benchmarks: [...], timestamp: "..." }
-                            run_matches = re.findall(
-                                r'"([^"]+)":\s*\{[^}]*benchmarks:\s*\[([^\]]*)\][^}]*timestamp:\s*"([^"]*)"[^}]*\}',
-                                existing_runs_str,
-                            )
-
-                            for run_match in run_matches:
-                                existing_run_name = run_match[0]
-                                existing_benchmarks_str = run_match[1]
-                                existing_timestamp = run_match[2]
-
-                                # Parse benchmarks array
-                                existing_benchmarks = []
-                                if existing_benchmarks_str.strip():
-                                    benchmark_matches = re.findall(
-                                        r'"([^"]*)"', existing_benchmarks_str
-                                    )
-                                    existing_benchmarks = benchmark_matches
-
-                                existing_runs[existing_run_name] = {
-                                    "benchmarks": existing_benchmarks,
-                                    "timestamp": existing_timestamp,
-                                }
-
-                        # Add or update this run's benchmark
-                        if run_name not in existing_runs:
-                            existing_runs[run_name] = {
-                                "benchmarks": [],
-                                "timestamp": self.timestamp,
-                            }
-                        else:
-                            # Update timestamp to latest for this run (in case of multiple benchmarks in same run)
-                            if self.timestamp > existing_runs[run_name]["timestamp"]:
-                                existing_runs[run_name]["timestamp"] = self.timestamp
-
-                        # Add benchmark if not already present
-                        if benchmark_name not in existing_runs[run_name]["benchmarks"]:
-                            existing_runs[run_name]["benchmarks"].append(benchmark_name)
-                            existing_runs[run_name]["benchmarks"].sort()  # Keep sorted
-                            log.debug(
-                                f"Added {benchmark_name} to flamegraphData for run {run_name}"
-                            )
-
-                        # Create the new runs object string
-                        runs_entries = []
-                        for rn, data in existing_runs.items():
-                            benchmarks_array = (
-                                "["
-                                + ", ".join(f'"{b}"' for b in data["benchmarks"])
-                                + "]"
-                            )
-                            runs_entries.append(
-                                f'    "{rn}": {{\n      benchmarks: {benchmarks_array},\n      timestamp: "{data["timestamp"]}"\n    }}'
-                            )
-
-                        runs_object = "{\n" + ",\n".join(runs_entries) + "\n  }"
-
-                        # Replace the runs object by reconstructing the content
-                        before_runs = content[: runs_start + 7]  # Up to "runs: {"
-                        after_runs_brace = content[
-                            runs_content_end:
-                        ]  # From the closing } onwards
-                        content = (
-                            before_runs + runs_object[1:-1] + after_runs_brace
-                        )  # Remove outer braces from runs_object
-
-                        # Update the last_updated timestamp
-                        timestamp_pattern = r'(last_updated:\s*)["\'][^"\']*["\']'
-                        content = re.sub(
-                            timestamp_pattern,
-                            rf'\g<1>"{datetime.now().isoformat()}"',
-                            content,
-                        )
-
-                    # Write the updated content back to data.js
-                    with open(data_js_file, "w") as f:
-                        f.write(content)
-
-                    log.debug(
-                        f"Updated data.js with flamegraph data for {benchmark_name} in run {run_name}"
-                    )
+                log.debug(
+                    f"Stored flamegraph data for {run_name}: {benchmark_name} (suite: {suite_name})"
+                )
 
         except Exception as e:
-            log.debug(f"Failed to update data.js with flamegraph data: {e}")
+            log.debug(f"Failed to store flamegraph data: {e}")
+
+    def finalize_run_flamegraphs(self, html_path: str, run_name: str):
+        """
+        Write all flamegraphs for a completed run to the flamegraphs.js file.
+        This should be called at the end of a benchmark run.
+        Accumulates multiple runs - new runs are added to existing data.
+        """
+        try:
+            from datetime import datetime
+            import json
+            import re
+
+            if (
+                not hasattr(self, "_flamegraph_data")
+                or run_name not in self._flamegraph_data
+            ):
+                log.debug(f"No flamegraph data to finalize for run {run_name}")
+                return
+
+            flamegraphs_js_file = os.path.join(html_path, "flamegraphs.js")
+
+            # Read existing data if file exists
+            existing_runs = {}
+            if os.path.exists(flamegraphs_js_file):
+                try:
+                    with open(flamegraphs_js_file, "r") as f:
+                        content = f.read()
+
+                    # Parse existing runs data using regex
+                    # Look for the runs object structure - fix regex to handle nested braces
+                    runs_match = re.search(
+                        r"runs:\s*\{(.*)\},\s*last_updated:", content, re.DOTALL
+                    )
+                    if runs_match:
+                        runs_content = runs_match.group(1)
+                        # Simple parsing for existing run entries
+                        # Extract run names that already exist
+                        run_entries = re.findall(r'"([^"]+)":\s*\{', runs_content)
+                        for existing_run in run_entries:
+                            if (
+                                existing_run != run_name
+                            ):  # Don't include current run (will be overwritten)
+                                # Extract benchmark list, timestamp, and suites for this run
+                                run_match = re.search(
+                                    rf'"{re.escape(existing_run)}":\s*\{{\s*benchmarks:\s*(\[[^\]]*\]),\s*timestamp:\s*"([^"]*)"(?:,\s*suites:\s*(\{{[^}}]*\}}))?',
+                                    runs_content,
+                                )
+                                if run_match:
+                                    benchmarks_str, timestamp, suites_str = (
+                                        run_match.groups()
+                                    )
+                                    try:
+                                        benchmarks = json.loads(benchmarks_str)
+                                        existing_run_data = {
+                                            "benchmarks": benchmarks,
+                                            "timestamp": timestamp,
+                                        }
+                                        # Add suites if available
+                                        if suites_str:
+                                            suites = json.loads(suites_str)
+                                            existing_run_data["suites"] = suites
+
+                                        existing_runs[existing_run] = existing_run_data
+                                    except json.JSONDecodeError:
+                                        log.debug(
+                                            f"Could not parse data for run {existing_run}"
+                                        )
+
+                        log.debug(
+                            f"Found {len(existing_runs)} existing runs in flamegraphs.js"
+                        )
+
+                except Exception as e:
+                    log.debug(f"Could not read existing flamegraphs.js: {e}")
+
+            # Prepare data for this run
+            run_data = self._flamegraph_data[run_name]
+            benchmark_list = list(run_data["benchmarks"].keys())
+            suites_dict = run_data.get("suites", {})
+
+            # Add current run to existing runs
+            all_runs = existing_runs.copy()
+            all_runs[run_name] = {
+                "benchmarks": benchmark_list,
+                "suites": suites_dict,
+                "timestamp": run_data["timestamp"],
+            }
+
+            # Generate runs object content
+            runs_content_parts = []
+            for run_name_key, run_info in all_runs.items():
+                # Include suites information if available
+                suites_content = ""
+                if "suites" in run_info and run_info["suites"]:
+                    suites_content = (
+                        f',\n      suites: {json.dumps(run_info["suites"])}'
+                    )
+
+                runs_content_parts.append(
+                    f"""    "{run_name_key}": {{
+      benchmarks: {json.dumps(run_info['benchmarks'])},
+      timestamp: "{run_info['timestamp']}"{suites_content}
+    }}"""
+                )
+
+            runs_content = ",\n".join(runs_content_parts)
+
+            # Create the complete content with all accumulated runs
+            flamegraph_content = f"""// Flamegraph data - latest flamegraph from each benchmark per run
+// This file is automatically generated by the flamegraph system
+flamegraphData = {{
+  runs: {{
+{runs_content}
+  }},
+  last_updated: "{datetime.now().isoformat()}"
+}};
+"""
+
+            # Write the flamegraph data
+            with open(flamegraphs_js_file, "w") as f:
+                f.write(flamegraph_content)
+
+            log.info(
+                f"Finalized flamegraphs.js with {len(benchmark_list)} benchmarks for run {run_name} (total runs: {len(all_runs)})"
+            )
+
+            # Clean up stored data for this run
+            if hasattr(self, "_flamegraph_data"):
+                del self._flamegraph_data[run_name]
+
+        except Exception as e:
+            log.debug(f"Failed to finalize flamegraphs.js: {e}")
 
 
 # Singleton pattern to ensure only one instance of FlameGraph is created

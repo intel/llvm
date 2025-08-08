@@ -114,6 +114,7 @@ function createRunElement(name) {
 }
 
 function addSelectedRun() {
+    if (!runSelect) return; // Safety check for DOM element
     const selectedRun = runSelect.value;
     if (selectedRun && !activeRuns.has(selectedRun)) {
         activeRuns.add(selectedRun);
@@ -1331,12 +1332,19 @@ function initializeCharts() {
     console.log('Layer comparisons data processed:', layerComparisonsData.length, 'items');
     
     allRunNames = [...new Set(loadedBenchmarkRuns.map(run => run.name))];
+    
+    // In flamegraph-only mode, ensure we include runs from flamegraph data
+    if (validateFlameGraphData()) {
+        const flamegraphRunNames = Object.keys(flamegraphData.runs);
+        allRunNames = [...new Set([...allRunNames, ...flamegraphRunNames])];
+    }
+    
     latestRunsLookup = createLatestRunsLookup();
     console.log('Run names and lookup created. Runs:', allRunNames);
 
     // Check if we have actual benchmark results vs flamegraph-only results
     const hasActualBenchmarks = loadedBenchmarkRuns.some(run => 
-        run.results && run.results.some(result => result.suite !== 'flamegraph')
+        run.results && run.results.length > 0 && run.results.some(result => result.suite !== 'flamegraph')
     );
     
     const hasFlameGraphResults = loadedBenchmarkRuns.some(run => 
@@ -1346,7 +1354,14 @@ function initializeCharts() {
     console.log('Benchmark analysis:', {
         hasActualBenchmarks,
         hasFlameGraphResults,
-        loadedBenchmarkRuns: loadedBenchmarkRuns.length
+        loadedBenchmarkRuns: loadedBenchmarkRuns.length,
+        runDetails: loadedBenchmarkRuns.map(run => ({
+            name: run.name,
+            resultCount: run.results ? run.results.length : 0,
+            hasResults: run.results && run.results.length > 0
+        })),
+        flamegraphValidation: validateFlameGraphData(),
+        flamegraphRunCount: validateFlameGraphData() ? Object.keys(flamegraphData.runs).length : 0
     });
 
     // If we only have flamegraph results (no actual benchmark data), create synthetic data
@@ -1408,6 +1423,12 @@ function initializeCharts() {
     } else {
         // No runs parameter, use defaults
         activeRuns = new Set(defaultCompareNames || []);
+        
+        // If no default runs and we're in flamegraph-only mode, use all available runs
+        if (activeRuns.size === 0 && !hasActualBenchmarks && hasFlameGraphResults) {
+            activeRuns = new Set(allRunNames);
+            console.log('Flamegraph-only mode: auto-selected all available runs:', Array.from(activeRuns));
+        }
     }
 
     // Setup UI components
@@ -1779,27 +1800,24 @@ function createSyntheticFlameGraphData(flamegraphLabels) {
     
     // Create synthetic benchmark results for each flamegraph
     flamegraphLabels.forEach(label => {
-        // Try to determine suite from metadata, default to "Flamegraphs"
-        const metadata = metadataForLabel(label, 'benchmark');
-        let suite = 'Flamegraphs';
+        // Get suite from flamegraphData - this should always be available
+        let suite = null;
         
-        // Try to match with existing metadata to get proper suite name
-        if (metadata) {
-            // Most flamegraphs are likely from Compute Benchmarks
-            suite = 'Compute Benchmarks';
-        } else {
-            // For common benchmark patterns, assume Compute Benchmarks
-            const computeBenchmarkPatterns = [
-                'SubmitKernel', 'SubmitGraph', 'FinalizeGraph', 'SinKernelGraph',
-                'AllocateBuffer', 'CopyBuffer', 'CopyImage', 'CreateBuffer',
-                'CreateContext', 'CreateImage', 'CreateKernel', 'CreateProgram',
-                'CreateQueue', 'ExecuteKernel', 'MapBuffer', 'MapImage',
-                'ReadBuffer', 'ReadImage', 'WriteBuffer', 'WriteImage'
-            ];
-            
-            if (computeBenchmarkPatterns.some(pattern => label.includes(pattern))) {
-                suite = 'Compute Benchmarks';
+        if (window.flamegraphData?.runs) {
+            // Check all runs for suite information for this benchmark
+            for (const runName in flamegraphData.runs) {
+                const runData = flamegraphData.runs[runName];
+                if (runData.suites && runData.suites[label]) {
+                    suite = runData.suites[label];
+                    break;
+                }
             }
+        }
+        
+        // If no suite found, this indicates a problem with the flamegraph data generation
+        if (!suite) {
+            console.error(`No suite information found for flamegraph: ${label}. This indicates missing suite data in flamegraphs.js`);
+            suite = `ERROR: Missing suite for ${label}`;
         }
         
         // Add to suite names
@@ -1808,7 +1826,7 @@ function createSyntheticFlameGraphData(flamegraphLabels) {
         // Create a synthetic timeseries entry for this flamegraph
         const syntheticData = {
             label: label,
-            display_label: metadata?.display_name || label,
+            display_label: label, // Use label directly since this is synthetic data
             suite: suite,
             unit: 'flamegraph',
             lower_is_better: false,

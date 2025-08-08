@@ -410,6 +410,15 @@ def main(directory, additional_env_vars, compare_names, filter):
                 f"Reloaded {len(history.runs)} benchmark runs for HTML generation."
             )
 
+        # Finalize flamegraph data for this run (write all benchmarks to flamegraphs.js)
+        if options.flamegraph and options.save_name:
+            try:
+                flamegraph = get_flamegraph()
+                flamegraph.finalize_run_flamegraphs(html_path, options.save_name)
+                log.info(f"Finalized flamegraph data for run: {options.save_name}")
+            except Exception as e:
+                log.debug(f"Failed to finalize flamegraph data: {e}")
+
         generate_html(history, compare_names, html_path, metadata)
         log.info(f"HTML with benchmark results has been generated")
 

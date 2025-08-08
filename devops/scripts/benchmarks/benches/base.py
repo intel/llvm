@@ -195,7 +195,9 @@ class Benchmark(ABC):
             raise
 
         if self.traceable(TracingType.FLAMEGRAPH) and run_flamegraph and perf_data_file:
-            svg_file = get_flamegraph().handle_output(self.name(), perf_data_file)
+            svg_file = get_flamegraph().handle_output(
+                self.name(), perf_data_file, self.get_suite_name()
+            )
             log.info(f"FlameGraph generated: {svg_file}")
 
         if use_stdout:
