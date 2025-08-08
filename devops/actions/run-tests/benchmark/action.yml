@@ -115,7 +115,8 @@ runs:
       cd ur
       git sparse-checkout init
       git sparse-checkout set unified-runtime
-      git checkout ${{ inputs.build_ref }}
+      git fetch origin ${{ inputs.build_ref }}
+      git checkout FETCH_HEAD
       
       # Configure UR
       mkdir build install
