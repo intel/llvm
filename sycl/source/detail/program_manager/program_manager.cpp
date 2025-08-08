@@ -2042,6 +2042,9 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     }
     m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
     KernelIDs->push_back(It->second);
+
+    // Keep track of image to kernel name reference count for cleanup.
+    m_KernelNameRefCount[name]++;
   }
 
   cacheKernelUsesAssertInfo(*Img);
@@ -2115,6 +2118,18 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     addImage(&(DeviceBinary->DeviceBinaries[I]));
 }
 
+template <typename MultimapT, typename KeyT, typename ValT>
+void removeFromMultimap(MultimapT &Map, const KeyT &Key, const ValT &Val,
+                        bool AssertContains = true) {
+  auto [RangeBegin, RangeEnd] = Map.equal_range(Key);
+  auto It = std::find_if(RangeBegin, RangeEnd,
+                         [&](const auto &Pair) { return Pair.second == Val; });
+  if (!AssertContains && It == RangeEnd)
+    return;
+  assert(It != RangeEnd);
+  Map.erase(It);
+}
+
 void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
   if (DeviceBinary->NumDeviceBinaries == 0)
     return;
@@ -2140,44 +2155,67 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // Unmap the unique kernel IDs for the offload entries
     for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
          EntriesIt = EntriesIt->Increment()) {
-
+      const char *Name = EntriesIt->GetName();
       // Drop entry for service kernel
-      if (std::strstr(EntriesIt->GetName(), "__sycl_service_kernel__")) {
-        m_ServiceKernels.erase(EntriesIt->GetName());
+      if (std::strstr(Name, "__sycl_service_kernel__")) {
+        removeFromMultimap(m_ServiceKernels, Name, Img);
         continue;
       }
 
       // Exported device functions won't have a kernel ID
-      if (m_ExportedSymbolImages.find(EntriesIt->GetName()) !=
-          m_ExportedSymbolImages.end()) {
+      if (m_ExportedSymbolImages.find(Name) != m_ExportedSymbolImages.end()) {
         continue;
       }
 
-      // remove everything associated with this KernelName
-      m_KernelUsesAssert.erase(EntriesIt->GetName());
-      m_KernelImplicitLocalArgPos.erase(EntriesIt->GetName());
+      // Remove everything associated with this KernelName if this is the last
+      // image referencing it, otherwise remove just the ID -> Img mapping.
+      auto RefCountIt = m_KernelNameRefCount.find(Name);
+      assert(RefCountIt != m_KernelNameRefCount.end());
+      int &RefCount = RefCountIt->second;
+      assert(RefCount > 0);
+      --RefCount;
 
-      if (auto It = m_KernelName2KernelIDs.find(EntriesIt->GetName());
+      if (auto It = m_KernelName2KernelIDs.find(Name);
           It != m_KernelName2KernelIDs.end()) {
-        m_KernelIDs2BinImage.erase(It->second);
-        m_KernelName2KernelIDs.erase(It);
+        if (RefCount == 0) {
+          m_KernelIDs2BinImage.erase(It->second);
+          m_KernelName2KernelIDs.erase(It);
+        } else {
+          removeFromMultimap(m_KernelIDs2BinImage, It->second, Img);
+        }
+      }
+
+      if (RefCount == 0) {
+        m_KernelUsesAssert.erase(Name);
+        m_KernelImplicitLocalArgPos.erase(Name);
+        m_KernelNameRefCount.erase(RefCountIt);
       }
     }
 
     // Drop reverse mapping
     m_BinImg2KernelIDs.erase(Img);
 
-    // Unregister exported symbols (needs to happen after the ID unmap loop)
+    // Unregister exported symbol -> Img pair (needs to happen after the ID
+    // unmap loop)
     for (const sycl_device_binary_property &ESProp :
          Img->getExportedSymbols()) {
-      m_ExportedSymbolImages.erase(ESProp->Name);
+      removeFromMultimap(m_ExportedSymbolImages, ESProp->Name, Img,
+                         /*AssertContains*/ false);
     }
 
     for (const sycl_device_binary_property &VFProp :
          Img->getVirtualFunctions()) {
       std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
-      for (const auto &SetName : detail::split_string(StrValue, ','))
-        m_VFSet2BinImage.erase(SetName);
+      for (const auto &SetName : detail::split_string(StrValue, ',')) {
+        auto It = m_VFSet2BinImage.find(SetName);
+        assert(It != m_VFSet2BinImage.end());
+        auto &ImgSet = It->second;
+        auto ImgIt = ImgSet.find(Img);
+        assert(ImgIt != ImgSet.end());
+        ImgSet.erase(ImgIt);
+        if (ImgSet.empty())
+          m_VFSet2BinImage.erase(It);
+      }
     }
 
     m_DeviceGlobals.eraseEntries(Img);
