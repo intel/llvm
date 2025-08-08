@@ -119,7 +119,7 @@ runs:
       git checkout FETCH_HEAD
       
       # Configure UR
-      mkdir build install
+      mkdir build
       cmake -DCMAKE_BUILD_TYPE=Release \
         -Sunified-runtime \
         -Bbuild \
@@ -129,7 +129,6 @@ runs:
 
       # Build UR
       cmake --build build -j "$(nproc)" 
-      cmake --install install
   - name: Checkout results repo
     shell: bash
     run: |
