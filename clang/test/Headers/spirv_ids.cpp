@@ -86,6 +86,7 @@
 // NV: call noundef i32 @_Z40__spirv_BuiltInSubgroupLocalInvocationIdv() #2
 
 SYCL_EXTERNAL void test_id_and_range() {
+<<<<<<< HEAD
   __spirv_BuiltInNumWorkgroups(0);
   __spirv_BuiltInNumWorkgroups(1);
   __spirv_BuiltInNumWorkgroups(2);
@@ -112,4 +113,32 @@ SYCL_EXTERNAL void test_id_and_range() {
   unsigned int snum = __spirv_BuiltInNumSubgroups();
   unsigned int sid = __spirv_BuiltInSubgroupId();
   unsigned int sinvocid = __spirv_BuiltInSubgroupLocalInvocationId();
+=======
+  __spirv_NumWorkgroups(0);
+  __spirv_NumWorkgroups(1);
+  __spirv_NumWorkgroups(2);
+  __spirv_WorkgroupSize(0);
+  __spirv_WorkgroupSize(1);
+  __spirv_WorkgroupSize(2);
+  __spirv_WorkgroupId(0);
+  __spirv_WorkgroupId(1);
+  __spirv_WorkgroupId(2);
+  __spirv_LocalInvocationId(0);
+  __spirv_LocalInvocationId(1);
+  __spirv_LocalInvocationId(2);
+  __spirv_GlobalInvocationId(0);
+  __spirv_GlobalInvocationId(1);
+  __spirv_GlobalInvocationId(2);
+  __spirv_GlobalSize(0);
+  __spirv_GlobalSize(1);
+  __spirv_GlobalSize(2);
+  __spirv_GlobalOffset(0);
+  __spirv_GlobalOffset(1);
+  __spirv_GlobalOffset(2);
+  unsigned int ssize = __spirv_SubgroupSize();
+  unsigned int smax = __spirv_SubgroupMaxSize();
+  unsigned int snum = __spirv_NumSubgroups();
+  unsigned int sid = __spirv_SubgroupId();
+  unsigned int sinvocid = __spirv_SubgroupLocalInvocationId();
+>>>>>>> 4946b5d099683d08962f8fb04640383bee408bfc
 }

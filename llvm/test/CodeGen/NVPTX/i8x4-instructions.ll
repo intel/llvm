@@ -1961,6 +1961,7 @@ define <4 x i8> @test_insertelement(<4 x i8> %a, i8 %x) #0 {
 }
 
 define <4 x i8> @test_fptosi_4xhalf_to_4xi8(<4 x half> %a) #0 {
+<<<<<<< HEAD
 ; O0-LABEL: test_fptosi_4xhalf_to_4xi8(
 ; O0:       {
 ; O0-NEXT:    .reg .b16 %rs<13>;
@@ -2012,11 +2013,40 @@ define <4 x i8> @test_fptosi_4xhalf_to_4xi8(<4 x half> %a) #0 {
 ; O3-NEXT:    prmt.b32 %r9, %r8, %r4, 0x5410U;
 ; O3-NEXT:    st.param.b32 [func_retval0], %r9;
 ; O3-NEXT:    ret;
+=======
+; CHECK-LABEL: test_fptosi_4xhalf_to_4xi8(
+; CHECK:       {
+; CHECK-NEXT:    .reg .b16 %rs<13>;
+; CHECK-NEXT:    .reg .b32 %r<12>;
+; CHECK-EMPTY:
+; CHECK-NEXT:  // %bb.0:
+; CHECK-NEXT:    ld.param.v2.b32 {%r1, %r2}, [test_fptosi_4xhalf_to_4xi8_param_0];
+; CHECK-NEXT:    mov.b32 {%rs1, %rs2}, %r2;
+; CHECK-NEXT:    cvt.rzi.s16.f16 %rs3, %rs2;
+; CHECK-NEXT:    cvt.rzi.s16.f16 %rs4, %rs1;
+; CHECK-NEXT:    mov.b32 %r3, {%rs4, %rs3};
+; CHECK-NEXT:    mov.b32 {%rs5, %rs6}, %r3;
+; CHECK-NEXT:    cvt.u32.u16 %r4, %rs6;
+; CHECK-NEXT:    cvt.u32.u16 %r5, %rs5;
+; CHECK-NEXT:    prmt.b32 %r6, %r5, %r4, 0x3340U;
+; CHECK-NEXT:    mov.b32 {%rs7, %rs8}, %r1;
+; CHECK-NEXT:    cvt.rzi.s16.f16 %rs9, %rs8;
+; CHECK-NEXT:    cvt.rzi.s16.f16 %rs10, %rs7;
+; CHECK-NEXT:    mov.b32 %r7, {%rs10, %rs9};
+; CHECK-NEXT:    mov.b32 {%rs11, %rs12}, %r7;
+; CHECK-NEXT:    cvt.u32.u16 %r8, %rs12;
+; CHECK-NEXT:    cvt.u32.u16 %r9, %rs11;
+; CHECK-NEXT:    prmt.b32 %r10, %r9, %r8, 0x3340U;
+; CHECK-NEXT:    prmt.b32 %r11, %r10, %r6, 0x5410U;
+; CHECK-NEXT:    st.param.b32 [func_retval0], %r11;
+; CHECK-NEXT:    ret;
+>>>>>>> 4946b5d099683d08962f8fb04640383bee408bfc
   %r = fptosi <4 x half> %a to <4 x i8>
   ret <4 x i8> %r
 }
 
 define <4 x i8> @test_fptoui_4xhalf_to_4xi8(<4 x half> %a) #0 {
+<<<<<<< HEAD
 ; O0-LABEL: test_fptoui_4xhalf_to_4xi8(
 ; O0:       {
 ; O0-NEXT:    .reg .b16 %rs<13>;
@@ -2068,6 +2098,34 @@ define <4 x i8> @test_fptoui_4xhalf_to_4xi8(<4 x half> %a) #0 {
 ; O3-NEXT:    prmt.b32 %r9, %r8, %r4, 0x5410U;
 ; O3-NEXT:    st.param.b32 [func_retval0], %r9;
 ; O3-NEXT:    ret;
+=======
+; CHECK-LABEL: test_fptoui_4xhalf_to_4xi8(
+; CHECK:       {
+; CHECK-NEXT:    .reg .b16 %rs<13>;
+; CHECK-NEXT:    .reg .b32 %r<12>;
+; CHECK-EMPTY:
+; CHECK-NEXT:  // %bb.0:
+; CHECK-NEXT:    ld.param.v2.b32 {%r1, %r2}, [test_fptoui_4xhalf_to_4xi8_param_0];
+; CHECK-NEXT:    mov.b32 {%rs1, %rs2}, %r2;
+; CHECK-NEXT:    cvt.rzi.u16.f16 %rs3, %rs2;
+; CHECK-NEXT:    cvt.rzi.u16.f16 %rs4, %rs1;
+; CHECK-NEXT:    mov.b32 %r3, {%rs4, %rs3};
+; CHECK-NEXT:    mov.b32 {%rs5, %rs6}, %r3;
+; CHECK-NEXT:    cvt.u32.u16 %r4, %rs6;
+; CHECK-NEXT:    cvt.u32.u16 %r5, %rs5;
+; CHECK-NEXT:    prmt.b32 %r6, %r5, %r4, 0x3340U;
+; CHECK-NEXT:    mov.b32 {%rs7, %rs8}, %r1;
+; CHECK-NEXT:    cvt.rzi.u16.f16 %rs9, %rs8;
+; CHECK-NEXT:    cvt.rzi.u16.f16 %rs10, %rs7;
+; CHECK-NEXT:    mov.b32 %r7, {%rs10, %rs9};
+; CHECK-NEXT:    mov.b32 {%rs11, %rs12}, %r7;
+; CHECK-NEXT:    cvt.u32.u16 %r8, %rs12;
+; CHECK-NEXT:    cvt.u32.u16 %r9, %rs11;
+; CHECK-NEXT:    prmt.b32 %r10, %r9, %r8, 0x3340U;
+; CHECK-NEXT:    prmt.b32 %r11, %r10, %r6, 0x5410U;
+; CHECK-NEXT:    st.param.b32 [func_retval0], %r11;
+; CHECK-NEXT:    ret;
+>>>>>>> 4946b5d099683d08962f8fb04640383bee408bfc
   %r = fptoui <4 x half> %a to <4 x i8>
   ret <4 x i8> %r
 }

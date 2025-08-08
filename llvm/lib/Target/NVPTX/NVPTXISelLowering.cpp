@@ -6642,6 +6642,7 @@ void NVPTXTargetLowering::computeKnownBitsForTargetNode(
     break;
   }
 }
+<<<<<<< HEAD
 
 static std::pair<APInt, APInt> getPRMTDemandedBits(const APInt &SelectorVal,
                                                    const APInt &DemandedBits) {
@@ -6741,3 +6742,5 @@ bool NVPTXTargetLowering::SimplifyDemandedBitsForTargetNode(
   computeKnownBitsForTargetNode(Op, Known, DemandedElts, TLO.DAG, Depth);
   return false;
 }
+=======
+>>>>>>> 4946b5d099683d08962f8fb04640383bee408bfc
