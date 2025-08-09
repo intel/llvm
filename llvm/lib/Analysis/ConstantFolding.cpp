@@ -1704,6 +1704,12 @@ bool llvm::canConstantFoldCallTo(const CallBase *Call, const Function *F) {
   case Intrinsic::amdgcn_fma_legacy:
   case Intrinsic::amdgcn_fract:
   case Intrinsic::amdgcn_sin:
+
+  // Floating point builtin intrinsics can be folded if accuracy requirements
+  // are satisfied in addition to the rules defined for regular floating point
+  // operations.
+  case Intrinsic::fpbuiltin_sqrt:
+
   // The intrinsics below depend on rounding mode in MXCSR.
   case Intrinsic::x86_sse_cvtss2si:
   case Intrinsic::x86_sse_cvtss2si64:
@@ -2623,6 +2629,7 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
           return ConstantFP::get(Ty->getContext(), U);
         return ConstantFoldFP(atan, APF, Ty);
       case Intrinsic::sqrt:
+      case Intrinsic::fpbuiltin_sqrt:
         return ConstantFoldFP(sqrt, APF, Ty);
 
       // NVVM Intrinsics:
