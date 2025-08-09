@@ -119,16 +119,18 @@ runs:
       git checkout FETCH_HEAD
       
       # Configure UR
-      mkdir build
+      mkdir build install
       cmake -DCMAKE_BUILD_TYPE=Release \
         -Sunified-runtime \
         -Bbuild \
+        -DCMAKE_INSTALL_PREFIX=install
         -DUR_BUILD_TESTS=OFF \
         -DUR_BUILD_ADAPTER_L0=ON \
         -DUR_BUILD_ADAPTER_L0_V2=ON
 
-      # Build UR
+      # Build and install UR
       cmake --build build -j "$(nproc)" 
+      cmake --install build
   - name: Checkout results repo
     shell: bash
     run: |
