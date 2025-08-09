@@ -5,6 +5,7 @@
 namespace sycl {
 inline namespace _V1 {
 
+#define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 namespace khr {
 
@@ -153,27 +154,24 @@ void launch_grouped(const queue &q, range<1> r, range<1> size,
                     const KernelType &k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
-  submit(
-      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
-      codeLoc);
+  (void)codeLoc;
+  q.parallel_for_no_handler(nd_range<1>(r, size), k);
 }
 template <typename KernelType>
 void launch_grouped(const queue &q, range<2> r, range<2> size,
                     const KernelType &k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
-  submit(
-      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
-      codeLoc);
+  (void)codeLoc;
+  q.parallel_for_no_handler(nd_range<2>(r, size), k);
 }
 template <typename KernelType>
 void launch_grouped(const queue &q, range<3> r, range<3> size,
                     const KernelType &k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
-  submit(
-      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
-      codeLoc);
+  (void)codeLoc;
+  q.parallel_for_no_handler(nd_range<3>(r, size), k);
 }
 
 template <typename... Args>
@@ -283,7 +281,8 @@ template <typename KernelType>
 void launch_task(const sycl::queue &q, const KernelType &k,
                  const sycl::detail::code_location &codeLoc =
                      sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, codeLoc);
+  (void)codeLoc;
+  q.single_task_no_handler(k);
 }
 
 template <typename... Args>

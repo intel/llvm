@@ -319,6 +319,21 @@ void queue::submit_without_event_impl(
   impl->submit_without_event(CGH, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
+// no_handler
+
+template<int Dims>
+void queue::submit_no_handler_impl(nd_range<Dims> Range, const char *KernelName, void *KernelFunc,
+  int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) const {
+
+  detail::NDRDescT NDRDesc{padRange(Range.get_global_range()),
+        padRange(Range.get_local_range()),
+        padId(Range.get_offset()), Dims};
+
+  impl->submit_no_handler(impl, NDRDesc, KernelName, KernelFunc, KernelNumParams,
+    KernelParamDescGetter, KernelNameBasedCachePtr);
+}
+
 void queue::wait_proxy(const detail::code_location &CodeLoc) {
   impl->wait(CodeLoc);
 }
@@ -472,6 +487,18 @@ void queue::ext_oneapi_set_external_event(const event &external_event) {
 }
 
 const property_list &queue::getPropList() const { return impl->getPropList(); }
+
+template void queue::submit_no_handler_impl<1>(nd_range<1> Range, const char *KernelName, void *KernelFunc,
+  int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) const;
+
+template void queue::submit_no_handler_impl<2>(nd_range<2> Range, const char *KernelName, void *KernelFunc,
+  int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) const;
+
+template void queue::submit_no_handler_impl<3>(nd_range<3> Range, const char *KernelName, void *KernelFunc,
+  int KernelNumParams, detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) const;
 
 } // namespace _V1
 } // namespace sycl
