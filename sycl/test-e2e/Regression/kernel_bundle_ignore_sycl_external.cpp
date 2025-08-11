@@ -5,9 +5,6 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16417
 // UNSUPPORTED: target-amd
 
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
-
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 

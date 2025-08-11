@@ -27,6 +27,7 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/memory.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/memory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
@@ -62,14 +63,14 @@ add_library(cudadrv SHARED IMPORTED GLOBAL)
 if (WIN32)
   set_target_properties(
     cudadrv PROPERTIES 
-      IMPORTED_IMPLIB               ${CUDA_cuda_driver_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
+      IMPORTED_IMPLIB               "${CUDA_cuda_driver_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIRS}"
   )
 else()
   set_target_properties(
     cudadrv PROPERTIES 
-      IMPORTED_LOCATION             ${CUDA_cuda_driver_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
+      IMPORTED_LOCATION             "${CUDA_cuda_driver_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIRS}"
   )
 endif()
 

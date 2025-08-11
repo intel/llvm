@@ -46,8 +46,14 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
   }
 }
 
+#if CUDA_VERSION >= 13000
+using CuLocationType = CUmemLocation;
+#else
+using CuLocationType = CUdevice;
+#endif
 void setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
-                    ur_usm_advice_flags_t URAdviceFlags, CUdevice Device) {
+                    ur_usm_advice_flags_t URAdviceFlags,
+                    CuLocationType Location) {
   std::unordered_map<ur_usm_advice_flags_t, CUmem_advise>
       URToCUMemAdviseDeviceFlagsMap = {
           {UR_USM_ADVICE_FLAG_SET_READ_MOSTLY, CU_MEM_ADVISE_SET_READ_MOSTLY},
@@ -64,7 +70,7 @@ void setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
       };
   for (auto &FlagPair : URToCUMemAdviseDeviceFlagsMap) {
     if (URAdviceFlags & FlagPair.first) {
-      UR_CHECK_ERROR(cuMemAdvise(DevPtr, Size, FlagPair.second, Device));
+      UR_CHECK_ERROR(cuMemAdvise(DevPtr, Size, FlagPair.second, Location));
     }
   }
 
@@ -82,7 +88,14 @@ void setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
 
   for (auto &FlagPair : URToCUMemAdviseHostFlagsMap) {
     if (URAdviceFlags & FlagPair.first) {
-      UR_CHECK_ERROR(cuMemAdvise(DevPtr, Size, FlagPair.second, CU_DEVICE_CPU));
+#if CUDA_VERSION >= 13000
+      CUmemLocation LocationHost;
+      LocationHost.id = 0; // ignored with HOST_NUMA_CURRENT
+      LocationHost.type = CU_MEM_LOCATION_TYPE_HOST_NUMA_CURRENT;
+#else
+      int LocationHost = CU_DEVICE_CPU;
+#endif
+      UR_CHECK_ERROR(cuMemAdvise(DevPtr, Size, FlagPair.second, LocationHost));
     }
   }
 
@@ -1550,8 +1563,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
       return UR_RESULT_SUCCESS;
     }
 
+#if CUDA_VERSION >= 13000
+    CUmemLocation Location;
+    Location.id = Device->get();
+    Location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+    unsigned int Flags = 0U;
+    UR_CHECK_ERROR(
+        cuMemPrefetchAsync((CUdeviceptr)pMem, size, Location, Flags, CuStream));
+#else
     UR_CHECK_ERROR(
         cuMemPrefetchAsync((CUdeviceptr)pMem, size, Device->get(), CuStream));
+#endif
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -1619,19 +1641,24 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       return UR_RESULT_SUCCESS;
     }
 
+#if CUDA_VERSION >= 13000
+    CUmemLocation Location;
+    Location.id = hQueue->getDevice()->get();
+    Location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+#else
+    int Location = hQueue->getDevice()->get();
+#endif
+
     if (advice & UR_USM_ADVICE_FLAG_DEFAULT) {
       UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
-                                 CU_MEM_ADVISE_UNSET_READ_MOSTLY,
-                                 hQueue->getDevice()->get()));
+                                 CU_MEM_ADVISE_UNSET_READ_MOSTLY, Location));
       UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
                                  CU_MEM_ADVISE_UNSET_PREFERRED_LOCATION,
-                                 hQueue->getDevice()->get()));
+                                 Location));
       UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
-                                 CU_MEM_ADVISE_UNSET_ACCESSED_BY,
-                                 hQueue->getDevice()->get()));
+                                 CU_MEM_ADVISE_UNSET_ACCESSED_BY, Location));
     } else {
-      setCuMemAdvise((CUdeviceptr)pMem, size, advice,
-                     hQueue->getDevice()->get());
+      setCuMemAdvise((CUdeviceptr)pMem, size, advice, Location);
     }
   } catch (ur_result_t err) {
     return err;

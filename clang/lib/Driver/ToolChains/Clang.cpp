@@ -997,7 +997,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   // openmp_wrappers folder which contains alternative system headers.
   if (JA.isDeviceOffloading(Action::OFK_OpenMP) &&
       !Args.hasArg(options::OPT_nostdinc) &&
-      !Args.hasArg(options::OPT_nogpuinc) &&
+      Args.hasFlag(options::OPT_offload_inc, options::OPT_no_offload_inc,
+                   true) &&
       getToolChain().getTriple().isGPU()) {
     if (!Args.hasArg(options::OPT_nobuiltininc)) {
       // Add openmp_wrappers/* to our system include path.  This lets us wrap
@@ -1198,7 +1199,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   // TODO: This should be moved to `AddClangSystemIncludeArgs` by passing the
   //       OffloadKind as an argument.
   if (!Args.hasArg(options::OPT_nostdinc) &&
-      !Args.hasArg(options::OPT_nogpuinc) &&
+      Args.hasFlag(options::OPT_offload_inc, options::OPT_no_offload_inc,
+                   true) &&
       !Args.hasArg(options::OPT_nobuiltininc)) {
     // Without an offloading language we will include these headers directly.
     // Offloading languages will instead only use the declarations stored in
@@ -1744,7 +1746,8 @@ void Clang::AddAArch64TargetArgs(const ArgList &Args,
   }
 
   // Handle -msve_vector_bits=<bits>
-  if (Arg *A = Args.getLastArg(options::OPT_msve_vector_bits_EQ)) {
+  auto HandleVectorBits = [&](Arg *A, StringRef VScaleMin,
+                              StringRef VScaleMax) {
     StringRef Val = A->getValue();
     const Driver &D = getToolChain().getDriver();
     if (Val == "128" || Val == "256" || Val == "512" || Val == "1024" ||
@@ -1752,22 +1755,31 @@ void Clang::AddAArch64TargetArgs(const ArgList &Args,
         Val == "1024+" || Val == "2048+") {
       unsigned Bits = 0;
       if (!Val.consume_back("+")) {
-        bool Invalid = Val.getAsInteger(10, Bits); (void)Invalid;
+        bool Invalid = Val.getAsInteger(10, Bits);
+        (void)Invalid;
         assert(!Invalid && "Failed to parse value");
         CmdArgs.push_back(
-            Args.MakeArgString("-mvscale-max=" + llvm::Twine(Bits / 128)));
+            Args.MakeArgString(VScaleMax + llvm::Twine(Bits / 128)));
       }
 
-      bool Invalid = Val.getAsInteger(10, Bits); (void)Invalid;
+      bool Invalid = Val.getAsInteger(10, Bits);
+      (void)Invalid;
       assert(!Invalid && "Failed to parse value");
+
       CmdArgs.push_back(
-          Args.MakeArgString("-mvscale-min=" + llvm::Twine(Bits / 128)));
-    // Silently drop requests for vector-length agnostic code as it's implied.
-    } else if (Val != "scalable")
+          Args.MakeArgString(VScaleMin + llvm::Twine(Bits / 128)));
+    } else if (Val == "scalable") {
+      // Silently drop requests for vector-length agnostic code as it's implied.
+    } else {
       // Handle the unsupported values passed to msve-vector-bits.
       D.Diag(diag::err_drv_unsupported_option_argument)
           << A->getSpelling() << Val;
-  }
+    }
+  };
+  if (Arg *A = Args.getLastArg(options::OPT_msve_vector_bits_EQ))
+    HandleVectorBits(A, "-mvscale-min=", "-mvscale-max=");
+  if (Arg *A = Args.getLastArg(options::OPT_msve_streaming_vector_bits_EQ))
+    HandleVectorBits(A, "-mvscale-streaming-min=", "-mvscale-streaming-max=");
 
   AddAAPCSVolatileBitfieldArgs(Args, CmdArgs);
 
@@ -1811,6 +1823,13 @@ void Clang::AddAArch64TargetArgs(const ArgList &Args,
                     options::OPT_fno_ptrauth_init_fini_address_discrimination);
   Args.addOptInFlag(CmdArgs, options::OPT_faarch64_jump_table_hardening,
                     options::OPT_fno_aarch64_jump_table_hardening);
+
+  Args.addOptInFlag(CmdArgs, options::OPT_fptrauth_objc_isa,
+                    options::OPT_fno_ptrauth_objc_isa);
+  Args.addOptInFlag(CmdArgs, options::OPT_fptrauth_objc_interface_sel,
+                    options::OPT_fno_ptrauth_objc_interface_sel);
+  Args.addOptInFlag(CmdArgs, options::OPT_fptrauth_objc_class_ro,
+                    options::OPT_fno_ptrauth_objc_class_ro);
 
   if (Triple.getEnvironment() == llvm::Triple::PAuthTest)
     handlePAuthABI(Args, CmdArgs);
@@ -2816,29 +2835,10 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
   }
 }
 
-static std::string ComplexRangeKindToStr(LangOptions::ComplexRangeKind Range) {
-  switch (Range) {
-  case LangOptions::ComplexRangeKind::CX_Full:
-    return "full";
-    break;
-  case LangOptions::ComplexRangeKind::CX_Basic:
-    return "basic";
-    break;
-  case LangOptions::ComplexRangeKind::CX_Improved:
-    return "improved";
-    break;
-  case LangOptions::ComplexRangeKind::CX_Promoted:
-    return "promoted";
-    break;
-  default:
-    return "";
-  }
-}
-
 static std::string ComplexArithmeticStr(LangOptions::ComplexRangeKind Range) {
   return (Range == LangOptions::ComplexRangeKind::CX_None)
              ? ""
-             : "-fcomplex-arithmetic=" + ComplexRangeKindToStr(Range);
+             : "-fcomplex-arithmetic=" + complexRangeKindToStr(Range);
 }
 
 static void EmitComplexRangeDiag(const Driver &D, std::string str1,
@@ -2846,14 +2846,6 @@ static void EmitComplexRangeDiag(const Driver &D, std::string str1,
   if (str1 != str2 && !str2.empty() && !str1.empty()) {
     D.Diag(clang::diag::warn_drv_overriding_option) << str1 << str2;
   }
-}
-
-static std::string
-RenderComplexRangeOption(LangOptions::ComplexRangeKind Range) {
-  std::string ComplexRangeStr = ComplexRangeKindToStr(Range);
-  if (!ComplexRangeStr.empty())
-    return "-complex-range=" + ComplexRangeStr;
-  return ComplexRangeStr;
 }
 
 static void EmitAccuracyDiag(const Driver &D, const JobAction &JA,
@@ -3054,7 +3046,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     case options::OPT_fcx_limited_range:
       if (GccRangeComplexOption.empty()) {
         if (Range != LangOptions::ComplexRangeKind::CX_Basic)
-          EmitComplexRangeDiag(D, RenderComplexRangeOption(Range),
+          EmitComplexRangeDiag(D, renderComplexRangeOption(Range),
                                "-fcx-limited-range");
       } else {
         if (GccRangeComplexOption != "-fno-cx-limited-range")
@@ -3066,7 +3058,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       break;
     case options::OPT_fno_cx_limited_range:
       if (GccRangeComplexOption.empty()) {
-        EmitComplexRangeDiag(D, RenderComplexRangeOption(Range),
+        EmitComplexRangeDiag(D, renderComplexRangeOption(Range),
                              "-fno-cx-limited-range");
       } else {
         if (GccRangeComplexOption != "-fcx-limited-range" &&
@@ -3080,7 +3072,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       break;
     case options::OPT_fcx_fortran_rules:
       if (GccRangeComplexOption.empty())
-        EmitComplexRangeDiag(D, RenderComplexRangeOption(Range),
+        EmitComplexRangeDiag(D, renderComplexRangeOption(Range),
                              "-fcx-fortran-rules");
       else
         EmitComplexRangeDiag(D, GccRangeComplexOption, "-fcx-fortran-rules");
@@ -3090,7 +3082,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       break;
     case options::OPT_fno_cx_fortran_rules:
       if (GccRangeComplexOption.empty()) {
-        EmitComplexRangeDiag(D, RenderComplexRangeOption(Range),
+        EmitComplexRangeDiag(D, renderComplexRangeOption(Range),
                              "-fno-cx-fortran-rules");
       } else {
         if (GccRangeComplexOption != "-fno-cx-limited-range")
@@ -3579,12 +3571,12 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     CmdArgs.push_back("-fno-strict-float-cast-overflow");
 
   if (Range != LangOptions::ComplexRangeKind::CX_None)
-    ComplexRangeStr = RenderComplexRangeOption(Range);
+    ComplexRangeStr = renderComplexRangeOption(Range);
   if (!ComplexRangeStr.empty()) {
     CmdArgs.push_back(Args.MakeArgString(ComplexRangeStr));
     if (Args.hasArg(options::OPT_fcomplex_arithmetic_EQ))
       CmdArgs.push_back(Args.MakeArgString("-fcomplex-arithmetic=" +
-                                           ComplexRangeKindToStr(Range)));
+                                           complexRangeKindToStr(Range)));
   }
   if (Args.hasArg(options::OPT_fcx_limited_range))
     CmdArgs.push_back("-fcx-limited-range");
@@ -3996,16 +3988,18 @@ static void RenderOpenCLOptions(const ArgList &Args, ArgStringList &CmdArgs,
 
 static void RenderHLSLOptions(const ArgList &Args, ArgStringList &CmdArgs,
                               types::ID InputType) {
-  const unsigned ForwardedArguments[] = {options::OPT_dxil_validator_version,
-                                         options::OPT_res_may_alias,
-                                         options::OPT_D,
-                                         options::OPT_I,
-                                         options::OPT_O,
-                                         options::OPT_emit_llvm,
-                                         options::OPT_emit_obj,
-                                         options::OPT_disable_llvm_passes,
-                                         options::OPT_fnative_half_type,
-                                         options::OPT_hlsl_entrypoint};
+  const unsigned ForwardedArguments[] = {
+      options::OPT_dxil_validator_version,
+      options::OPT_res_may_alias,
+      options::OPT_D,
+      options::OPT_I,
+      options::OPT_O,
+      options::OPT_emit_llvm,
+      options::OPT_emit_obj,
+      options::OPT_disable_llvm_passes,
+      options::OPT_fnative_half_type,
+      options::OPT_hlsl_entrypoint,
+      options::OPT_fdx_rootsignature_version};
   if (!types::isHLSL(InputType))
     return;
   for (const auto &Arg : ForwardedArguments)
@@ -4798,11 +4792,8 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
   }
 
   if (Args.hasFlag(options::OPT_gkey_instructions,
-                   options::OPT_gno_key_instructions, false)) {
+                   options::OPT_gno_key_instructions, false))
     CmdArgs.push_back("-gkey-instructions");
-    CmdArgs.push_back("-mllvm");
-    CmdArgs.push_back("-dwarf-use-key-instructions");
-  }
 
   if (EmitCodeView) {
     CmdArgs.push_back("-gcodeview");
@@ -6834,7 +6825,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // -fasynchronous-unwind-tables and -fnon-call-exceptions interact in more
   // complicated ways.
   auto SanitizeArgs = TC.getSanitizerArgs(Args);
-
+  Args.AddLastArg(CmdArgs,
+                  options::OPT_fallow_runtime_check_skip_hot_cutoff_EQ);
   bool IsAsyncUnwindTablesDefault =
       TC.getDefaultUnwindTableLevel(Args) == ToolChain::UnwindTableLevel::Asynchronous;
   bool IsSyncUnwindTablesDefault =
@@ -7115,7 +7107,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_fclang_abi_compat_EQ);
 
   if (getLastProfileSampleUseArg(Args) &&
-      Args.hasArg(options::OPT_fsample_profile_use_profi)) {
+      Args.hasFlag(options::OPT_fsample_profile_use_profi,
+                   options::OPT_fno_sample_profile_use_profi, true)) {
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("-sample-profile-use-profi");
   }
@@ -7653,6 +7646,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddLastArg(CmdArgs, options::OPT_fms_hotpatch);
 
+  if (Args.hasArg(options::OPT_fms_secure_hotpatch_functions_file))
+    Args.AddLastArg(CmdArgs, options::OPT_fms_secure_hotpatch_functions_file);
+
+  for (const auto &A :
+       Args.getAllArgValues(options::OPT_fms_secure_hotpatch_functions_list))
+    CmdArgs.push_back(
+        Args.MakeArgString("-fms-secure-hotpatch-functions-list=" + Twine(A)));
+
   if (TC.SupportsProfiling()) {
     Args.AddLastArg(CmdArgs, options::OPT_pg);
 
@@ -7909,6 +7910,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fapinotes-modules");
   Args.AddLastArg(CmdArgs, options::OPT_fapinotes_swift_version);
 
+  if (Args.hasFlag(options::OPT_fswift_version_independent_apinotes,
+                   options::OPT_fno_swift_version_independent_apinotes, false))
+    CmdArgs.push_back("-fswift-version-independent-apinotes");
+
   // -fblocks=0 is default.
   if (Args.hasFlag(options::OPT_fblocks, options::OPT_fno_blocks,
                    TC.IsBlocksDefault()) ||
@@ -8047,6 +8052,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       LanguageStandard = llvm::StringSwitch<StringRef>(StdArg->getValue())
                              .Case("c11", "-std=c11")
                              .Case("c17", "-std=c17")
+                             // TODO: add c23 when MSVC supports it.
+                             .Case("clatest", "-std=c23")
                              .Default("");
       if (LanguageStandard.empty())
         D.Diag(clang::diag::warn_drv_unused_argument)
@@ -10303,9 +10310,17 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     if (Input.getType() == types::TY_Tempfilelist)
       File = C.getArgs().MakeArgString("@" + File);
 
-    StringRef Arch = OffloadAction->getOffloadingArch()
-                         ? OffloadAction->getOffloadingArch()
-                         : TCArgs.getLastArgValue(options::OPT_march_EQ);
+    StringRef Arch;
+    if (OffloadAction->getOffloadingArch()) {
+      if (TC->getTripleString() == "spir64_gen-unknown-unknown") {
+        Arch = mapIntelGPUArchName(OffloadAction->getOffloadingArch());
+      } else {
+        Arch = OffloadAction->getOffloadingArch();
+      }
+    } else {
+      TCArgs.getLastArgValue(options::OPT_march_EQ);
+    }
+
     StringRef Kind =
       Action::GetOffloadKindName(OffloadAction->getOffloadingDeviceKind());
 
@@ -11163,7 +11178,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       // specific architecture via -Xarch_<cpu> will not be forwarded.
       ArgStringList CompilerArgs;
       ArgStringList LinkerArgs;
-      for (Arg *A : C.getArgsForToolChain(TC, /*BoundArch=*/"", Kind)) {
+      const DerivedArgList &ToolChainArgs =
+          C.getArgsForToolChain(TC, /*BoundArch=*/"", Kind);
+      for (Arg *A : ToolChainArgs) {
         if (A->getOption().matches(OPT_Zlinker_input))
           LinkerArgs.emplace_back(A->getValue());
         else if (ShouldForward(CompilerOptions, A))
@@ -11171,6 +11188,11 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         else if (ShouldForward(LinkerOptions, A))
           A->render(Args, LinkerArgs);
       }
+
+      // If the user explicitly requested it via `--offload-arch` we should
+      // extract it from any static libraries if present.
+      for (StringRef Arg : ToolChainArgs.getAllArgValues(OPT_offload_arch_EQ))
+        CmdArgs.emplace_back(Args.MakeArgString("--should-extract=" + Arg));
 
       // If this is OpenMP the device linker will need `-lompdevice`.
       if (Kind == Action::OFK_OpenMP && !Args.hasArg(OPT_no_offloadlib) &&
@@ -11222,6 +11244,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Add any SYCL offloading specific options to the clang-linker-wrapper
   if (C.hasOffloadToolChain<Action::OFK_SYCL>()) {
+
+    if (Args.hasArg(options::OPT_fsycl_link_EQ))
+      CmdArgs.push_back(Args.MakeArgString("--sycl-device-link"));
+
     // -sycl-device-libraries=<comma separated list> contains all of the SYCL
     // device specific libraries that are needed. This generic list will be
     // populated with device binaries for all target triples in the current
