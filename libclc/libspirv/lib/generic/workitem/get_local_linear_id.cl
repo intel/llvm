@@ -8,9 +8,9 @@
 
 #include <libspirv/spirv.h>
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_LocalInvocationIndex() {
-  return __spirv_LocalInvocationId_z() * __spirv_WorkgroupSize_y() *
-             __spirv_WorkgroupSize_x() +
-         __spirv_LocalInvocationId_y() * __spirv_WorkgroupSize_x() +
-         __spirv_LocalInvocationId_x();
+_CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInLocalInvocationIndex() {
+  return __spirv_BuiltInLocalInvocationId(2) * __spirv_BuiltInWorkgroupSize(1) *
+             __spirv_BuiltInWorkgroupSize(0) +
+         __spirv_BuiltInLocalInvocationId(1) * __spirv_BuiltInWorkgroupSize(0) +
+         __spirv_BuiltInLocalInvocationId(0);
 }
