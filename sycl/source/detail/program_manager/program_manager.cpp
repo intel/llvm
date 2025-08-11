@@ -3431,7 +3431,7 @@ std::optional<sycl::exception> checkDevSupportJointMatrix(
 
     const std::string &MatrixTypeUser = JointMatrixVec[0];
     const std::string &UseStrUser = JointMatrixVec[1];
-    size_t RowsUser, ColsUser = 0;
+    size_t RowsUser = 0, ColsUser = 0;
     try {
       RowsUser = std::stoi(JointMatrixVec[2]);
       ColsUser = std::stoi(JointMatrixVec[3]);
@@ -3514,7 +3514,7 @@ std::optional<sycl::exception> checkDevSupportJointMatrixMad(
     const std::string &MatrixTypeBStrUser = JointMatrixMadVec[1];
     const std::string &MatrixTypeCStrUser = JointMatrixMadVec[2];
     const std::string &MatrixTypeDStrUser = JointMatrixMadVec[3];
-    size_t MSizeUser, KSizeUser, NSizeUser = 0;
+    size_t MSizeUser = 0, KSizeUser = 0, NSizeUser = 0;
     try {
       MSizeUser = std::stoi(JointMatrixMadVec[4]);
       KSizeUser = std::stoi(JointMatrixMadVec[5]);

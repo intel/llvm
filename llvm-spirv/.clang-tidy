@@ -9,6 +9,7 @@ Checks: |
   -misc-no-recursion,
   -misc-non-private-member-variables-in-classes,
   -misc-unused-parameters,
+  -misc-use-anonymous-namespace,
   readability-identifier-naming
 WarningsAsErrors: |
   llvm-*,
@@ -19,6 +20,7 @@ WarningsAsErrors: |
   -misc-no-recursion,
   -misc-non-private-member-variables-in-classes,
   -misc-unused-parameters,
+  -misc-use-anonymous-namespace,
   readability-identifier-naming
 CheckOptions:
   - key:             readability-identifier-naming.ClassCase
