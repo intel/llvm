@@ -86,13 +86,13 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
     return result;
   }
   pDdiTable->pfnBuild = urProgramBuild;
-  pDdiTable->pfnCompile = nullptr;
+  pDdiTable->pfnCompile = urProgramCompile;
   pDdiTable->pfnCreateWithBinary = urProgramCreateWithBinary;
-  pDdiTable->pfnCreateWithIL = nullptr;
+  pDdiTable->pfnCreateWithIL = urProgramCreateWithIL;
   pDdiTable->pfnCreateWithNativeHandle = urProgramCreateWithNativeHandle;
   pDdiTable->pfnGetBuildInfo = nullptr;
   pDdiTable->pfnGetFunctionPointer = nullptr;
-  pDdiTable->pfnGetGlobalVariablePointer = nullptr;
+  pDdiTable->pfnGetGlobalVariablePointer = urProgramGetGlobalVariablePointer;
   pDdiTable->pfnGetInfo = urProgramGetInfo;
   pDdiTable->pfnGetNativeHandle = urProgramGetNativeHandle;
   pDdiTable->pfnLink = nullptr;
@@ -149,16 +149,16 @@ urGetMemProcAddrTable(ur_api_version_t version, ur_mem_dditable_t *pDdiTable) {
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnBufferCreate = nullptr;
+  pDdiTable->pfnBufferCreate = urMemBufferCreate;
   pDdiTable->pfnBufferPartition = nullptr;
   pDdiTable->pfnBufferCreateWithNativeHandle = nullptr;
   pDdiTable->pfnImageCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnGetInfo = nullptr;
+  pDdiTable->pfnGetInfo = urMemGetInfo;
   pDdiTable->pfnGetNativeHandle = nullptr;
   pDdiTable->pfnImageCreate = nullptr;
   pDdiTable->pfnImageGetInfo = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnRetain = nullptr;
+  pDdiTable->pfnRelease = urMemRelease;
+  pDdiTable->pfnRetain = urMemRetain;
   return UR_RESULT_SUCCESS;
 }
 
@@ -168,23 +168,23 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnDeviceGlobalVariableRead = nullptr;
-  pDdiTable->pfnDeviceGlobalVariableWrite = nullptr;
+  pDdiTable->pfnDeviceGlobalVariableRead = urEnqueueDeviceGlobalVariableRead;
+  pDdiTable->pfnDeviceGlobalVariableWrite = urEnqueueDeviceGlobalVariableWrite;
   pDdiTable->pfnEventsWait = nullptr;
   pDdiTable->pfnEventsWaitWithBarrier = nullptr;
   pDdiTable->pfnKernelLaunch = urEnqueueKernelLaunch;
   pDdiTable->pfnMemBufferCopy = nullptr;
   pDdiTable->pfnMemBufferCopyRect = nullptr;
   pDdiTable->pfnMemBufferFill = nullptr;
-  pDdiTable->pfnMemBufferMap = nullptr;
-  pDdiTable->pfnMemBufferRead = nullptr;
+  pDdiTable->pfnMemBufferMap = urEnqueueMemBufferMap;
+  pDdiTable->pfnMemBufferRead = urEnqueueMemBufferRead;
   pDdiTable->pfnMemBufferReadRect = nullptr;
-  pDdiTable->pfnMemBufferWrite = nullptr;
+  pDdiTable->pfnMemBufferWrite = urEnqueueMemBufferWrite;
   pDdiTable->pfnMemBufferWriteRect = nullptr;
   pDdiTable->pfnMemImageCopy = nullptr;
   pDdiTable->pfnMemImageRead = nullptr;
   pDdiTable->pfnMemImageWrite = nullptr;
-  pDdiTable->pfnMemUnmap = nullptr;
+  pDdiTable->pfnMemUnmap = urEnqueueMemUnmap;
   pDdiTable->pfnUSMFill2D = urEnqueueUSMFill2D;
   pDdiTable->pfnUSMFill = nullptr;
   pDdiTable->pfnUSMAdvise = nullptr;
@@ -196,17 +196,19 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
-UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
-    ur_api_version_t version, ur_global_dditable_t *pDdiTable) {
+UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
+    ur_api_version_t version, ur_adapter_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnAdapterGet = urAdapterGet;
-  pDdiTable->pfnAdapterGetInfo = urAdapterGetInfo;
-  pDdiTable->pfnAdapterRelease = urAdapterRelease;
-  pDdiTable->pfnAdapterRetain = urAdapterRetain;
-  pDdiTable->pfnAdapterGetLastError = urAdapterGetLastError;
+  pDdiTable->pfnGet = urAdapterGet;
+  pDdiTable->pfnGetInfo = urAdapterGetInfo;
+  pDdiTable->pfnRelease = urAdapterRelease;
+  pDdiTable->pfnRetain = urAdapterRetain;
+  pDdiTable->pfnGetLastError = urAdapterGetLastError;
+  pDdiTable->pfnSetLoggerCallback = urAdapterSetLoggerCallback;
+  pDdiTable->pfnSetLoggerCallbackLevel = urAdapterSetLoggerCallbackLevel;
   return UR_RESULT_SUCCESS;
 }
 
@@ -379,21 +381,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnCooperativeKernelLaunchExp = nullptr;
   pDdiTable->pfnTimestampRecordingExp = nullptr;
   pDdiTable->pfnNativeCommandExp = nullptr;
-
-  return UR_RESULT_SUCCESS;
-}
-
-UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
-    ur_api_version_t version, ur_kernel_exp_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
-  }
-
-  pDdiTable->pfnSuggestMaxCooperativeGroupCountExp = nullptr;
 
   return UR_RESULT_SUCCESS;
 }
@@ -414,7 +403,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
 
 UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
                                                    ur_dditable_t *pDdiTable) {
-  urGetGlobalProcAddrTable(version, &pDdiTable->Global);
+  urGetAdapterProcAddrTable(version, &pDdiTable->Adapter);
   urGetBindlessImagesExpProcAddrTable(version, &pDdiTable->BindlessImagesExp);
   urGetCommandBufferExpProcAddrTable(version, &pDdiTable->CommandBufferExp);
   urGetContextProcAddrTable(version, &pDdiTable->Context);
@@ -422,7 +411,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   urGetEnqueueExpProcAddrTable(version, &pDdiTable->EnqueueExp);
   urGetEventProcAddrTable(version, &pDdiTable->Event);
   urGetKernelProcAddrTable(version, &pDdiTable->Kernel);
-  urGetKernelExpProcAddrTable(version, &pDdiTable->KernelExp);
   urGetMemProcAddrTable(version, &pDdiTable->Mem);
   urGetPhysicalMemProcAddrTable(version, &pDdiTable->PhysicalMem);
   urGetPlatformProcAddrTable(version, &pDdiTable->Platform);
@@ -435,7 +423,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   urGetUsmP2PExpProcAddrTable(version, &pDdiTable->UsmP2PExp);
   urGetVirtualMemProcAddrTable(version, &pDdiTable->VirtualMem);
   urGetDeviceProcAddrTable(version, &pDdiTable->Device);
-  urGetAdapterProcAddrTable(version, &pDdiTable->Adapter);
 
   return UR_RESULT_SUCCESS;
 }

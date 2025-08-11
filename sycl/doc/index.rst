@@ -10,6 +10,7 @@ Using oneAPI DPC++ for Application Development
    GetStartedGuide
    Getting Started (Japanese) <https://www.isus.jp/others/get-started-with-oneapi-dpc/>
    UsersManual
+   Releases
    PreprocessorMacros
    cuda/contents
    Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions>
@@ -55,8 +56,10 @@ Design Documents for the oneAPI DPC++ Compiler
    design/PrivateAlloca
    design/SYCLBINDesign
    design/PropertySets
+   design/SYCL-RTC
    New OpenCL Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/opencl-extensions>
    New SPIR-V Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions>
+   design/Fuzzing
 
 Developer Documentation
 ~~~~~~~~~~~~~~~~~~~~~~~

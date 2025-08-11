@@ -3,10 +3,17 @@ name: Reusable SYCL Windows build workflow
 on:
   workflow_call:
     inputs:
+      cxx:
+        type: string
+        required: false
+        default: "cl"
       build_cache_suffix:
         type: string
         required: false
         default: "default"
+      ref:
+        type: string
+        required: False
       build_configure_extra_args:
         type: string
         required: false
@@ -14,37 +21,40 @@ on:
         type: string
         required: false
         default: sycl-toolchain
+
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
-        default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+        default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
         required: false
-      ref:
-        type: string
-        required: False
-      artifact_archive_name:
-        type: string
-        default: llvm_sycl.tar.gz
+
+      # Artifacts:
       retention-days:
         description: 'Artifacts retention period'
         type: string
         default: 3
+
+      toolchain_artifact_filename:
+        type: string
+        default: llvm_sycl.tar.gz
+
+      release_toolchain_artifact:
+        type: string
+        required: false
+        description: |
+          If provided, create an additional toolchain artifact without utilities
+          used for testing in it. File name of the archive is the same as in the
+          `toolchain_artifact` above.
+
       e2e_binaries_artifact:
-        type: string
-        required: false
-      cxx:
-        type: string
-        required: false
-        default: "cl"
-      pack_release:
         type: string
         required: false
 
     outputs:
       build_conclusion:
         value: ${{ jobs.build.outputs.build_conclusion }}
-      artifact_archive_name:
-        value: ${{ inputs.artifact_archive_name }}
+      toolchain_artifact_filename:
+        value: ${{ inputs.toolchain_artifact_filename }}
 
   workflow_dispatch:
     inputs:
@@ -54,7 +64,7 @@ on:
         options:
           - "[]"
           - '[sycl]'
-          - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+          - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
       build_cache_suffix:
         type: choice
         options:
@@ -67,7 +77,7 @@ on:
         options:
           - "sycl-toolchain"
           - "all"
-      artifact_archive_name:
+      toolchain_artifact_filename:
         type: choice
         options:
           - 'llvm_sycl.tar.gz'
@@ -81,10 +91,7 @@ on:
         options:
           - cl
           - icx
-      pack_release:
-        type: string
-        required: false
-          
+
 permissions: read-all
 
 jobs:
@@ -146,8 +153,7 @@ jobs:
           "-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ^
           -DCMAKE_C_COMPILER_LAUNCHER=ccache ^
-          -DLLVM_INSTALL_UTILS=ON ^
-          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV
+          -DLLVM_INSTALL_UTILS=ON
     - name: Build
       id: build
       shell: bash
@@ -180,7 +186,7 @@ jobs:
       run: |
         cmake --build build --target check-xptifw
     - name: check-libdevice
-      if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |
         cmake --build build --target check-libdevice
     - name: Generate/diff new ABI symbols
@@ -202,14 +208,14 @@ jobs:
         cmake --build build --target deploy-sycl-toolchain
 
     - name: Pack toolchain release
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
-      run: tar -czf ${{ inputs.artifact_archive_name }} -C install .
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
+      run: tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain release
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
       uses: actions/upload-artifact@v4
       with:
-        name: sycl_windows_release
-        path: ${{ inputs.artifact_archive_name }}
+        name: ${{ inputs.release_toolchain_artifact }}
+        path: ${{ inputs.toolchain_artifact_filename }}
         retention-days: ${{ inputs.retention-days }}
 
     - name: Install utilities
@@ -230,16 +236,17 @@ jobs:
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
       run: |
-        tar -czf ${{ inputs.artifact_archive_name }} -C install .
+        tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v4
       with:
         name: sycl_windows_default
-        path: ${{ inputs.artifact_archive_name }}
+        path: ${{ inputs.toolchain_artifact_filename }}
         retention-days: ${{ inputs.retention-days }}
 
     - name: Setup SYCL toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       run: |
         echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "LIB=$env:GITHUB_WORKSPACE\\install\\lib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append

@@ -6,12 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc.h>
 #include <clc/math/clc_copysign.h>
-#include <libspirv/spirv.h>
 
 #define FUNCTION __spirv_ocl_copysign
-#define __CLC_FUNCTION(x) __clc_copysign
+#define __IMPL_FUNCTION(x) __clc_copysign
 #define __CLC_BODY <clc/shared/binary_def.inc>
 
 #include <clc/math/gentype.inc>

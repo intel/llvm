@@ -37,7 +37,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <optional>
 
 using namespace clang;
 
@@ -730,7 +729,7 @@ ASTTemplateArgumentListInfo::ASTTemplateArgumentListInfo(
   RAngleLoc = Info.getRAngleLoc();
   NumTemplateArgs = Info.size();
 
-  TemplateArgumentLoc *ArgBuffer = getTrailingObjects<TemplateArgumentLoc>();
+  TemplateArgumentLoc *ArgBuffer = getTrailingObjects();
   for (unsigned i = 0; i != NumTemplateArgs; ++i)
     new (&ArgBuffer[i]) TemplateArgumentLoc(Info[i]);
 }
@@ -741,7 +740,7 @@ ASTTemplateArgumentListInfo::ASTTemplateArgumentListInfo(
   RAngleLoc = Info->getRAngleLoc();
   NumTemplateArgs = Info->getNumTemplateArgs();
 
-  TemplateArgumentLoc *ArgBuffer = getTrailingObjects<TemplateArgumentLoc>();
+  TemplateArgumentLoc *ArgBuffer = getTrailingObjects();
   for (unsigned i = 0; i != NumTemplateArgs; ++i)
     new (&ArgBuffer[i]) TemplateArgumentLoc((*Info)[i]);
 }

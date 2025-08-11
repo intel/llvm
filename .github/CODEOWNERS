@@ -125,6 +125,13 @@ sycl/test-e2e/InvokeSimd/ @intel/dpcpp-esimd-reviewers
 buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
 sycl/cts_exclude_filter/ @intel/dpcpp-devops-reviewers
+.ci/ @intel/dpcpp-devops-reviewers
+
+# Third-party dependencies updated by dependabot
+**/requirements.txt @intel/dpcpp-devops-reviewers
+**/requirements-hashed.txt @intel/dpcpp-devops-reviewers
+**/package-lock.json @intel/dpcpp-devops-reviewers
+llvm/utils/git/requirements_formatting.txt @intel/dpcpp-devops-reviewers
 
 # dev-igc driver update
 devops/dependencies-igc-dev.json @intel/sycl-matrix-reviewers @intel/dpcpp-esimd-reviewers @intel/dpcpp-devops-reviewers
@@ -163,10 +170,8 @@ libdevice/nativecpu* @intel/dpcpp-nativecpu-reviewers
 
 # SYCL-Graphs extensions
 sycl/include/sycl/ext/oneapi/experimental/graph.hpp @intel/sycl-graphs-reviewers
-sycl/source/detail/graph_impl.cpp @intel/sycl-graphs-reviewers
-sycl/source/detail/graph_impl.hpp @intel/sycl-graphs-reviewers
-sycl/source/detail/graph_memory_pool.hpp @intel/sycl-graphs-reviewers
-sycl/source/detail/graph_memory_pool.cpp @intel/sycl-graphs-reviewers
+sycl/include/sycl/ext/oneapi/experimental/graph @intel/sycl-graphs-reviewers
+sycl/source/detail/graph @intel/sycl-graphs-reviewers
 sycl/unittests/Extensions/CommandGraph/ @intel/sycl-graphs-reviewers
 sycl/test-e2e/Graph @intel/sycl-graphs-reviewers
 sycl/doc/design/CommandGraph.md @intel/sycl-graphs-reviewers

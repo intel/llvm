@@ -57,6 +57,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/enqueued_pool.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
     )
     install_ur_library(ur_adapter_level_zero)
 
@@ -88,13 +89,6 @@ if(UR_BUILD_ADAPTER_L0)
                 )
             endif()
         endforeach()
-    endif()
-
-    if(NOT WIN32)
-        target_sources(ur_adapter_level_zero
-            PRIVATE
-                ${CMAKE_CURRENT_SOURCE_DIR}/adapter_lib_init_linux.cpp
-        )
     endif()
 
     # TODO: fix level_zero adapter conversion warnings
@@ -155,6 +149,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
         # v2-only sources
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_buffer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.hpp
@@ -171,6 +166,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/lockable.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_out_of_order.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/api.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_buffer.cpp
@@ -187,6 +183,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_create.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_out_of_order.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.cpp
     )
     install_ur_library(ur_adapter_level_zero_v2)
@@ -195,11 +192,6 @@ if(UR_BUILD_ADAPTER_L0_V2)
         # api.cpp contains NOT_SUPPORTED functions-only
         set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/v2/api.cpp
             PROPERTIES APPEND_STRING PROPERTY COMPILE_FLAGS "-Wno-unused-parameter")
-
-        target_sources(ur_adapter_level_zero_v2
-            PRIVATE
-                ${CMAKE_CURRENT_SOURCE_DIR}/adapter_lib_init_linux.cpp
-        )
     endif()
 
     target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_STATIC_LEVEL_ZERO)

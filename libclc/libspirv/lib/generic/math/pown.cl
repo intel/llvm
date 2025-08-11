@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_pown.h>
 #include <libspirv/spirv.h>
 
-#include <clc/math/clc_pown.h>
-
-#define __CLC_BODY <pown.inc>
+#define FUNCTION __spirv_ocl_pown
+#define __IMPL_FUNCTION(x) __clc_pown
+#define __CLC_BODY <clc/shared/binary_def_with_int_second_arg.inc>
 #include <clc/math/gentype.inc>

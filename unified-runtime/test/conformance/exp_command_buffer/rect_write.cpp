@@ -75,6 +75,10 @@ struct urCommandBufferAppendMemBufferWriteRectTestWithParam
           uur::test_parameters_t> {
 
   void SetUp() override {
+    // Buffer write not supported on OpenCL
+    // see https://github.com/KhronosGroup/OpenCL-Docs/issues/1281
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::command_buffer::urCommandBufferExpTestWithParam<
             uur::test_parameters_t>::SetUp());
@@ -117,7 +121,7 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
         urCommandBufferAppendMemBufferWriteRectTestWithParam>);
 
 TEST_P(urCommandBufferAppendMemBufferWriteRectTestWithParam, Success) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   // Zero it to begin with since the write may not cover the whole buffer.
   const uint8_t zero = 0x0;

@@ -1019,7 +1019,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return UR_RESULT_SUCCESS;
   }
   case UR_DEVICE_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hDevice->getReferenceCount());
+    return ReturnValue(hDevice->RefCount.getCount());
   }
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
@@ -1180,13 +1180,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VERSION: {
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice, CL_DEVICE_VERSION,
                                          propSize, pPropValue, pPropSizeRet));
-
-    return UR_RESULT_SUCCESS;
-  }
-  case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION: {
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
-                                         CL_DEVICE_OPENCL_C_VERSION, propSize,
-                                         pPropValue, pPropSizeRet));
 
     return UR_RESULT_SUCCESS;
   }
@@ -1421,12 +1414,63 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(false);
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    return ReturnValue(false);
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
-    return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
-    return ReturnValue(false);
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
+    return ReturnValue(0);
+  case UR_DEVICE_INFO_LUID: {
+    // LUID is only available on Windows.
+    // Intel extension for device LUID. This returns the LUID as
+    // std::array<std::byte, 8>. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+
+    // Use the cl_khr_device_uuid extension, if available.
+    bool isKhrDeviceLuidSupported = false;
+    if (hDevice->checkDeviceExtensions({"cl_khr_device_uuid"},
+                                       isKhrDeviceLuidSupported) !=
+            UR_RESULT_SUCCESS ||
+        !isKhrDeviceLuidSupported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+
+    cl_bool isLuidValid;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(hDevice->CLDevice, CL_DEVICE_LUID_VALID_KHR,
+                        sizeof(cl_bool), &isLuidValid, nullptr));
+
+    if (!isLuidValid) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+
+    static_assert(CL_LUID_SIZE_KHR == 8);
+    std::array<unsigned char, CL_LUID_SIZE_KHR> UUID{};
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice, CL_DEVICE_LUID_KHR,
+                                         UUID.size(), UUID.data(), nullptr));
+    return ReturnValue(UUID);
+  }
+  case UR_DEVICE_INFO_NODE_MASK: {
+    // Device node mask is only available on Windows.
+    // Intel extension for device node mask. This returns the node mask as
+    // uint32_t. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+
+    // Use the cl_khr_device_uuid extension, if available.
+    bool isKhrDeviceLuidSupported = false;
+    if (hDevice->checkDeviceExtensions({"cl_khr_device_uuid"},
+                                       isKhrDeviceLuidSupported) !=
+            UR_RESULT_SUCCESS ||
+        !isKhrDeviceLuidSupported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+
+    cl_int nodeMask = 0;
+
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
+                                         CL_DEVICE_NODE_MASK_KHR,
+                                         sizeof(cl_int), &nodeMask, nullptr));
+
+    return ReturnValue(nodeMask);
+  }
   // TODO: We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
@@ -1435,7 +1479,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP:
@@ -1457,6 +1500,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP:
+  case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
+  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
@@ -1570,7 +1615,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
 // Root devices ref count are unchanged through out the program lifetime.
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
   if (hDevice->ParentDevice) {
-    hDevice->incrementReferenceCount();
+    hDevice->RefCount.retain();
   }
 
   return UR_RESULT_SUCCESS;
@@ -1580,7 +1625,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceRelease(ur_device_handle_t hDevice) {
   if (hDevice->ParentDevice) {
-    if (hDevice->decrementReferenceCount() == 0) {
+    if (hDevice->RefCount.release()) {
       delete hDevice;
     }
   }

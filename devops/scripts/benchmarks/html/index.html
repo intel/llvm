@@ -12,8 +12,10 @@
     <title>Benchmark Results</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
     <script src="data.js"></script>
     <script src="config.js"></script>
+    <script src="chart-annotations.js"></script>
     <script src="scripts.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -51,6 +53,10 @@
                             <input type="checkbox" id="custom-range">
                             Adjust Y-axis for comparisons
                         </label>
+                        <label title="Load older benchmark results that have been archived.">
+                            <input type="checkbox" id="show-archived-data">
+                            Include archived runs
+                        </label>
                     </div>
                 </div>
 
@@ -80,6 +86,10 @@
         <details class="bar-charts">
             <summary>Comparisons</summary>
             <div class="charts"></div>
+        </details>
+        <details class="platform-info">
+            <summary>Platform Information</summary>
+            <div class="platform"></div>
         </details>
     </div>
 </body>

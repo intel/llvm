@@ -1093,7 +1093,7 @@ public:
 
   Architecture *GetArchitecturePlugin() const { return m_arch.GetPlugin(); }
 
-  Debugger &GetDebugger() { return m_debugger; }
+  Debugger &GetDebugger() const { return m_debugger; }
 
   size_t ReadMemoryFromFileCache(const Address &addr, void *dst, size_t dst_len,
                                  Status &error);
@@ -1157,6 +1157,11 @@ public:
                                      bool is_signed, Scalar &scalar,
                                      Status &error,
                                      bool force_live_memory = false);
+
+  int64_t ReadSignedIntegerFromMemory(const Address &addr,
+                                      size_t integer_byte_size,
+                                      int64_t fail_value, Status &error,
+                                      bool force_live_memory = false);
 
   uint64_t ReadUnsignedIntegerFromMemory(const Address &addr,
                                          size_t integer_byte_size,

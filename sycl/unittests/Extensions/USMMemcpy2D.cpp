@@ -280,8 +280,7 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
   sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
-  std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
-      sycl::detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(Q);
 
   mock::getCallbacks().set_after_callback(
       "urContextGetInfo", &after_urContextGetInfo<true, true, true>);
@@ -297,7 +296,7 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
 
   Q.ext_oneapi_fill2d(Ptr1, 5, 42l, 4, 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  EXPECT_EQ(LastFill2D.hQueue, (ur_queue_handle_t)QueueImpl->getHandleRef());
+  EXPECT_EQ(LastFill2D.hQueue, (ur_queue_handle_t)QueueImpl.getHandleRef());
   EXPECT_EQ(LastFill2D.pMem, (void *)Ptr1);
   EXPECT_EQ(LastFill2D.pitch, (size_t)5);
   EXPECT_EQ(LastFill2D.patternSize, sizeof(long));
@@ -306,7 +305,7 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
 
   Q.ext_oneapi_memset2d(Ptr1, 5 * sizeof(long), 123, 4 * sizeof(long), 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  EXPECT_EQ(LastFill2D.hQueue, (ur_queue_handle_t)QueueImpl->getHandleRef());
+  EXPECT_EQ(LastFill2D.hQueue, (ur_queue_handle_t)QueueImpl.getHandleRef());
   EXPECT_EQ(LastFill2D.pMem, (void *)Ptr1);
   EXPECT_EQ(LastFill2D.pitch, (size_t)5 * sizeof(long));
   EXPECT_EQ(LastFill2D.pattern[0], 123);
@@ -316,7 +315,7 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
   Q.ext_oneapi_memcpy2d(Ptr1, 5 * sizeof(long), Ptr2, 8 * sizeof(long),
                         4 * sizeof(long), 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  EXPECT_EQ(LastMemcpy2D.hQueue, (ur_queue_handle_t)QueueImpl->getHandleRef());
+  EXPECT_EQ(LastMemcpy2D.hQueue, (ur_queue_handle_t)QueueImpl.getHandleRef());
   EXPECT_EQ(LastMemcpy2D.pDst, (void *)Ptr1);
   EXPECT_EQ(LastMemcpy2D.dstPitch, (size_t)5 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.pSrc, (void *)Ptr2);
@@ -326,7 +325,7 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
 
   Q.ext_oneapi_copy2d(Ptr1, 5, Ptr2, 8, 4, 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  EXPECT_EQ(LastMemcpy2D.hQueue, (ur_queue_handle_t)QueueImpl->getHandleRef());
+  EXPECT_EQ(LastMemcpy2D.hQueue, (ur_queue_handle_t)QueueImpl.getHandleRef());
   EXPECT_EQ(LastMemcpy2D.pDst, (void *)Ptr2);
   EXPECT_EQ(LastMemcpy2D.dstPitch, (size_t)8 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.pSrc, (void *)Ptr1);
@@ -381,8 +380,7 @@ TEST(USMMemcpy2DTest, USMFillSupportedOnly) {
   sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
-  std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
-      sycl::detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(Q);
 
   mock::getCallbacks().set_after_callback(
       "urContextGetInfo", &after_urContextGetInfo<true, false, false>);
@@ -402,7 +400,7 @@ TEST(USMMemcpy2DTest, USMFillSupportedOnly) {
 
   Q.ext_oneapi_fill2d(Ptr1, 5, 42l, 4, 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  EXPECT_EQ(LastFill2D.hQueue, QueueImpl->getHandleRef());
+  EXPECT_EQ(LastFill2D.hQueue, QueueImpl.getHandleRef());
   EXPECT_EQ(LastFill2D.pMem, (void *)Ptr1);
   EXPECT_EQ(LastFill2D.pitch, (size_t)5);
   EXPECT_EQ(LastFill2D.patternSize, sizeof(long));
@@ -427,8 +425,7 @@ TEST(USMMemcpy2DTest, USMMemsetSupportedOnly) {
   sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
-  std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
-      sycl::detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(Q);
 
   // Enable fill + set, they are implemented with the same entry point in the
   // backend so supporting one means supporting both.
@@ -450,7 +447,7 @@ TEST(USMMemcpy2DTest, USMMemsetSupportedOnly) {
 
   Q.ext_oneapi_memset2d(Ptr1, 5 * sizeof(long), 123, 4 * sizeof(long), 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  EXPECT_EQ(LastFill2D.hQueue, QueueImpl->getHandleRef());
+  EXPECT_EQ(LastFill2D.hQueue, QueueImpl.getHandleRef());
   EXPECT_EQ(LastFill2D.pMem, (void *)Ptr1);
   EXPECT_EQ(LastFill2D.pitch, (size_t)5 * sizeof(long));
   EXPECT_EQ(LastFill2D.pattern[0], 123);
@@ -475,8 +472,7 @@ TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
   sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
-  std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
-      sycl::detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(Q);
 
   mock::getCallbacks().set_after_callback(
       "urContextGetInfo", &after_urContextGetInfo<false, false, true>);
@@ -505,7 +501,7 @@ TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
   Q.ext_oneapi_memcpy2d(Ptr1, 5 * sizeof(long), Ptr2, 8 * sizeof(long),
                         4 * sizeof(long), 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  EXPECT_EQ(LastMemcpy2D.hQueue, QueueImpl->getHandleRef());
+  EXPECT_EQ(LastMemcpy2D.hQueue, QueueImpl.getHandleRef());
   EXPECT_EQ(LastMemcpy2D.pDst, (void *)Ptr1);
   EXPECT_EQ(LastMemcpy2D.dstPitch, (size_t)5 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.pSrc, (void *)Ptr2);
@@ -516,7 +512,7 @@ TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
 
   Q.ext_oneapi_copy2d(Ptr1, 5, Ptr2, 8, 4, 2);
   EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  EXPECT_EQ(LastMemcpy2D.hQueue, QueueImpl->getHandleRef());
+  EXPECT_EQ(LastMemcpy2D.hQueue, QueueImpl.getHandleRef());
   EXPECT_EQ(LastMemcpy2D.pDst, (void *)Ptr2);
   EXPECT_EQ(LastMemcpy2D.dstPitch, (size_t)8 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.pSrc, (void *)Ptr1);

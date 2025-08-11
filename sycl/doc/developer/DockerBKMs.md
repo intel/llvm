@@ -60,13 +60,12 @@ development containers:
    setup for building DPC++ compiler from source.
 - `devops/containers/ubuntu2404_intel_drivers`: contains everything from the
    base Dockerfile + pre-installed Intel drivers.
-   The Dockerfile comes in four flavors/tags:
+   The Dockerfile comes in three flavors/tags:
    * `latest`: Intel drivers are downloaded from release/tag and saved in
     dependencies.json. The drivers are tested/validated everytime we upgrade
     the driver.
    * `devigc`: Intel Graphics Compiler driver from github actions artifacts,
    other drivers are downloaded from release/tag and saved in dependencies.json.
-   * `unstable`: Intel drivers are downloaded from release/latest.
    * `alldeps`: Includes the same Intel drivers as `latest`, as well as the
    development kits for NVidia/AMD from the `ubuntu2404_build` Dockerfile.
    The drivers are installed as it is, not tested or validated.

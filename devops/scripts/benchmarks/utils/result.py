@@ -10,15 +10,29 @@ from datetime import datetime
 
 @dataclass_json
 @dataclass
+class Platform:
+    timestamp: str = ""
+    os: str = ""
+    python: str = ""
+    cpu_count: int = 0
+    cpu_info: str = ""
+    gpu_count: int = 0
+    gpu_info: list[str] = field(default_factory=list)
+    gpu_driver_version: str = ""  # Add GPU driver version
+    gcc_version: str = ""
+    clang_version: str = ""
+    level_zero_version: str = ""  # Add Level Zero version
+    compute_runtime_version: str = ""  # Add Compute Runtime version
+
+
+@dataclass_json
+@dataclass
 class Result:
     label: str
     value: float
     command: list[str]
     env: dict[str, str]
-    stdout: str
-    passed: bool = True
     unit: str = ""
-    explicit_group: str = ""
     # stddev can be optionally set by the benchmark,
     # if not set, it will be calculated automatically.
     stddev: float = 0.0
@@ -37,12 +51,13 @@ class BenchmarkRun:
     name: str = "This PR"
     hostname: str = "Unknown"
     git_hash: str = ""
-    github_repo: str = None
-    date: datetime = field(
+    github_repo: str = ""
+    date: datetime | None = field(
         default=None,
         metadata=config(encoder=datetime.isoformat, decoder=datetime.fromisoformat),
     )
     compute_runtime: str = "Unknown"
+    platform: Platform | None = None
 
 
 @dataclass_json
@@ -63,6 +78,7 @@ class BenchmarkMetadata:
     range_min: float = None
     range_max: float = None
     display_name: str = None
+    explicit_group: str = None
 
 
 @dataclass_json

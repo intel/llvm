@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 
 #include <vector>
@@ -18,12 +19,11 @@ struct ur_mem_handle_t_ : ur::opencl::handle_base {
   using native_type = cl_mem;
   native_type CLMemory;
   ur_context_handle_t Context;
-  std::atomic<uint32_t> RefCount = 0;
   bool IsNativeHandleOwned = true;
+  ur::RefCount RefCount;
 
   ur_mem_handle_t_(native_type Mem, ur_context_handle_t Ctx)
       : handle_base(), CLMemory(Mem), Context(Ctx) {
-    RefCount = 1;
     urContextRetain(Context);
   }
 
@@ -33,12 +33,6 @@ struct ur_mem_handle_t_ : ur::opencl::handle_base {
       clReleaseMemObject(CLMemory);
     }
   }
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   static ur_result_t makeWithNative(native_type NativeMem,
                                     ur_context_handle_t Ctx,

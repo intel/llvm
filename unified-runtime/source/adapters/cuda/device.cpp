@@ -593,7 +593,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue("CUDA");
   }
   case UR_DEVICE_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hDevice->getReferenceCount());
+    return ReturnValue(hDevice->RefCount.getCount());
   }
   case UR_DEVICE_INFO_VERSION: {
     std::stringstream SS;
@@ -606,9 +606,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         &Minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, hDevice->get()));
     SS << "." << Minor;
     return ReturnValue(SS.str().c_str());
-  }
-  case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION: {
-    return ReturnValue("");
   }
   case UR_DEVICE_INFO_EXTENSIONS: {
     std::string SupportedExtensions = "cl_khr_fp64 ";
@@ -1164,25 +1161,71 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP: {
-    int Value = getAttribute(hDevice,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >= 9;
-    return ReturnValue(static_cast<bool>(Value));
-  }
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
-    return ReturnValue(true);
-  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
-    return ReturnValue(true);
-  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES: {
+    auto LaunchPropsSupport =
+        UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE |
+        UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY;
+    if (getAttribute(hDevice, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >=
+        9) {
+      LaunchPropsSupport |=
+          UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION |
+          UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
+    }
+
+    return ReturnValue(0);
+  }
+  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_LUID: {
+    // LUID is only available on Windows.
+    // Intel extension for device LUID. This returns the LUID as
+    // std::array<std::byte, 8>. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+    std::array<char, 8> LUID{};
+    cuDeviceGetLuid(LUID.data(), nullptr, hDevice->get());
+
+    bool isAllZeros = true;
+    for (char num : LUID) {
+      if (num != 0) {
+        isAllZeros = false;
+      }
+    }
+
+    if (isAllZeros) {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    std::array<unsigned char, 8> Name{};
+    std::copy(LUID.begin(), LUID.end(), Name.begin());
+    return ReturnValue(Name.data(), 8);
+  }
+  case UR_DEVICE_INFO_NODE_MASK: {
+    // Device node mask is only available on Windows.
+    // Intel extension for device node mask. This returns the node mask as
+    // uint32_t. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+    uint32_t nodeMask = 0;
+    cuDeviceGetLuid(nullptr, &nodeMask, hDevice->get());
+
+    // If nodeMask has not changed, return unsupported.
+    if (nodeMask == 0) {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    return ReturnValue(nodeMask);
+  }
   default:
     break;
   }
@@ -1314,17 +1357,20 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
     UR_CHECK_ERROR(cuEventCreate(&Event, CU_EVENT_DEFAULT));
     UR_CHECK_ERROR(cuEventRecord(Event, 0));
   }
+
+  if (pDeviceTimestamp) {
+    UR_CHECK_ERROR(cuEventSynchronize(Event));
+    *pDeviceTimestamp = hDevice->getElapsedTime(Event);
+  }
+
+  // Record the host timestamp after the cuEventSynchronize() call for more
+  // precise measurement.
   if (pHostTimestamp) {
 
     using namespace std::chrono;
     *pHostTimestamp =
         duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
             .count();
-  }
-
-  if (pDeviceTimestamp) {
-    UR_CHECK_ERROR(cuEventSynchronize(Event));
-    *pDeviceTimestamp = hDevice->getElapsedTime(Event);
   }
 
   return UR_RESULT_SUCCESS;

@@ -16,7 +16,7 @@ namespace detail {
 
 // This class and detail::string_view class are intended to support
 // different ABIs between libsycl and the user program.
-// This class is not inteded to replace std::string for general purpose usage.
+// This class is not intended to replace std::string for general purpose usage.
 class string {
   char *str = nullptr;
 

@@ -27,10 +27,6 @@ __SYCL_EXPORT size_t memory_pool::get_threshold() const {
   return impl->get_threshold();
 }
 
-const property_list &memory_pool::getPropList() const {
-  return impl->getPropList();
-}
-
 __SYCL_EXPORT size_t memory_pool::get_reserved_size_current() const {
   return impl->get_reserved_size_current();
 }
@@ -45,22 +41,17 @@ __SYCL_EXPORT void memory_pool::increase_threshold_to(size_t newThreshold) {
     impl->set_new_threshold(newThreshold);
 }
 
-__SYCL_EXPORT memory_pool::memory_pool(const sycl::context &ctx,
-                                       const sycl::device &dev,
-                                       sycl::usm::alloc kind,
-                                       const property_list &props) {
-
-  if (kind == sycl::usm::alloc::host)
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::invalid),
-        "Host allocated memory pools selected but device supplied!");
-
+memory_pool::memory_pool(const sycl::context &ctx, const sycl::device &dev,
+                         sycl::usm::alloc kind,
+                         memory_pool::pool_properties props) {
   if (kind != sycl::usm::alloc::device)
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Only device allocated memory pools are supported!");
 
-  impl = std::make_shared<detail::memory_pool_impl>(ctx, dev, kind, props);
+  detail::pool_properties poolProps{props.initial_threshold, props.maximum_size,
+                                    props.zero_init};
+  impl = std::make_shared<detail::memory_pool_impl>(ctx, dev, kind, poolProps);
 }
 
 } // namespace ext::oneapi::experimental

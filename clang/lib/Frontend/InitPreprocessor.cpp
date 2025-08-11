@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Basic/FileManager.h"
+#include "clang/Basic/DiagnosticLex.h"
 #include "clang/Basic/HLSLRuntime.h"
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/SourceManager.h"
@@ -639,8 +639,10 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__HIPCC__");
     if (LangOpts.HIPStdPar) {
       Builder.defineMacro("__HIPSTDPAR__");
-      if (LangOpts.HIPStdParInterposeAlloc)
+      if (LangOpts.HIPStdParInterposeAlloc) {
         Builder.defineMacro("__HIPSTDPAR_INTERPOSE_ALLOC__");
+        Builder.defineMacro("__HIPSTDPAR_INTERPOSE_ALLOC_V1__");
+      }
     }
     if (LangOpts.CUDAIsDevice) {
       Builder.defineMacro("__HIP_DEVICE_COMPILE__");
@@ -800,13 +802,11 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
   Builder.defineMacro("__cpp_pack_indexing", "202311L");
   Builder.defineMacro("__cpp_deleted_function", "202403L");
   Builder.defineMacro("__cpp_variadic_friend", "202403L");
+  // Builder.defineMacro("__cpp_trivial_relocatability", "202502L");
 
   if (LangOpts.Char8)
     Builder.defineMacro("__cpp_char8_t", "202207L");
   Builder.defineMacro("__cpp_impl_destroying_delete", "201806L");
-
-  // TODO: Final number?
-  Builder.defineMacro("__cpp_type_aware_allocators", "202500L");
 }
 
 /// InitializeOpenCLFeatureTestMacros - Define OpenCL macros based on target
@@ -1547,7 +1547,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     const llvm::Triple::SubArchType SubArch = Triple.getSubArch();
     if (Triple.isNVPTX() || Triple.isAMDGPU() ||
         (Triple.isSPIR() && SubArch != llvm::Triple::SPIRSubArch_fpga) ||
-        LangOpts.SYCLIsNativeCPU)
+        Triple.isNativeCPU())
       Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
     // Enable generation of USM address spaces for FPGA.
     if (SubArch == llvm::Triple::SPIRSubArch_fpga) {
@@ -1714,4 +1714,11 @@ void clang::InitializePreprocessor(Preprocessor &PP,
 
   // Copy PredefinedBuffer into the Preprocessor.
   PP.setPredefines(std::move(PredefineBuffer));
+
+  // Match gcc behavior regarding gnu-line-directive diagnostics, assuming that
+  // '-x <*>-cpp-output' is analogous to '-fpreprocessed'.
+  if (FEOpts.DashX.isPreprocessed()) {
+    PP.getDiagnostics().setSeverity(diag::ext_pp_gnu_line_directive,
+                                    diag::Severity::Ignored, SourceLocation());
+  }
 }

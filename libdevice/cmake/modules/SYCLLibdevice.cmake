@@ -55,8 +55,21 @@ set(compile_opts
 
 set(SYCL_LIBDEVICE_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
 
+set(SYCL_LIBDEVICE_CXX_FLAGS "" CACHE STRING "C++ compiler flags for SYCL libdevice")
+if(NOT SYCL_LIBDEVICE_CXX_FLAGS STREQUAL "")
+  separate_arguments(SYCL_LIBDEVICE_CXX_FLAGS NATIVE_COMMAND ${SYCL_LIBDEVICE_CXX_FLAGS})
+endif()
+
 if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
-  list(APPEND compile_opts "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
+  list(APPEND SYCL_LIBDEVICE_CXX_FLAGS "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
+endif()
+
+if(NOT SYCL_LIBDEVICE_CXX_FLAGS STREQUAL "")
+  list(APPEND compile_opts ${SYCL_LIBDEVICE_CXX_FLAGS})
+endif()
+
+if(LLVM_LIBCXX_USED)
+  list(APPEND compile_opts "-stdlib=libc++")
 endif()
 
 if (WIN32)
@@ -78,17 +91,17 @@ endforeach()
 # file and all files created this way are linked into one large bitcode
 # library.
 # Additional compilation options are needed for compiling each device library.
-set(devicelib_arch)
+set(full_build_archs)
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
-  list(APPEND devicelib_arch nvptx64-nvidia-cuda)
+  list(APPEND full_build_archs nvptx64-nvidia-cuda)
   set(compile_opts_nvptx64-nvidia-cuda "-fsycl-targets=nvptx64-nvidia-cuda"
-  "-Xsycl-target-backend" "--cuda-gpu-arch=sm_50" "-nocudalib")
+  "-Xsycl-target-backend" "--cuda-gpu-arch=sm_50" "-nocudalib" "-fno-sycl-libspirv" "-Wno-unsafe-libspirv-not-linked")
   set(opt_flags_nvptx64-nvidia-cuda "-O3" "--nvvm-reflect-enable=false")
 endif()
 if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
-  list(APPEND devicelib_arch amdgcn-amd-amdhsa)
+  list(APPEND full_build_archs amdgcn-amd-amdhsa)
   set(compile_opts_amdgcn-amd-amdhsa "-nogpulib" "-fsycl-targets=amdgcn-amd-amdhsa"
-  "-Xsycl-target-backend" "--offload-arch=gfx942")
+  "-Xsycl-target-backend" "--offload-arch=gfx942" "-fno-sycl-libspirv" "-Wno-unsafe-libspirv-not-linked")
   set(opt_flags_amdgcn-amd-amdhsa "-O3" "--amdgpu-oclc-reflect-enable=false")
 endif()
 
@@ -161,6 +174,105 @@ function(compile_lib_ext filename)
            COMPONENT libsycldevice)
 endfunction()
 
+# Links together one or more bytecode files
+#
+# Arguments:
+# * INTERNALIZE
+#     Set if -internalize flag should be passed when linking
+# * TARGET <string>
+#     Custom target to create
+# * INPUT <string> ...
+#     List of bytecode files to link together
+# * RSP_DIR <string>
+#     Directory where a response file should be placed
+#     (Only needed for WIN32 or CYGWIN)
+# * DEPENDENCIES <string> ...
+#     List of extra dependencies to inject
+function(link_bc)
+  cmake_parse_arguments(ARG
+    "INTERNALIZE"
+    "TARGET;RSP_DIR"
+    "INPUTS;DEPENDENCIES"
+    ${ARGN}
+  )
+
+  set( LINK_INPUT_ARG ${ARG_INPUTS} )
+  if( WIN32 OR CYGWIN )
+    # Create a response file in case the number of inputs exceeds command-line
+    # character limits on certain platforms.
+    file( TO_CMAKE_PATH ${ARG_RSP_DIR}/${ARG_TARGET}.rsp RSP_FILE )
+    # Turn it into a space-separate list of input files
+    list( JOIN ARG_INPUTS " " RSP_INPUT )
+    file( GENERATE OUTPUT ${RSP_FILE} CONTENT ${RSP_INPUT} )
+    # Ensure that if this file is removed, we re-run CMake
+    set_property( DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+      ${RSP_FILE}
+    )
+    set( LINK_INPUT_ARG "@${RSP_FILE}" )
+  endif()
+
+  if( ARG_INTERNALIZE )
+    set( link_flags --internalize --only-needed )
+  endif()
+
+  add_custom_command(
+    OUTPUT ${ARG_TARGET}.bc
+    COMMAND ${llvm-link_exe} ${link_flags} -o ${ARG_TARGET}.bc ${LINK_INPUT_ARG}
+    DEPENDS ${llvm-link_target} ${ARG_DEPENDENCIES} ${ARG_INPUTS} ${RSP_FILE}
+  )
+
+  add_custom_target( ${ARG_TARGET} ALL DEPENDS ${ARG_TARGET}.bc )
+  set_target_properties( ${ARG_TARGET} PROPERTIES
+    TARGET_FILE ${CMAKE_CURRENT_BINARY_DIR}/${ARG_TARGET}.bc
+  )
+endfunction()
+
+# Runs opt and prepare-builtins on a bitcode file specified by lib_tgt
+#
+# ARGUMENTS:
+# * LIB_TGT string
+#     Target name that becomes dependent on the out file named LIB_TGT.bc
+# * IN_FILE string
+#     Target name of the input bytecode file
+# * OUT_DIR string
+#     Name of the directory where the output should be placed
+# *  DEPENDENCIES <string> ...
+#     List of extra dependencies to inject
+function(process_bc out_file)
+  cmake_parse_arguments(ARG
+    ""
+    "LIB_TGT;IN_FILE;OUT_DIR"
+    "OPT_FLAGS;DEPENDENCIES"
+    ${ARGN})
+  add_custom_command( OUTPUT ${ARG_LIB_TGT}.bc
+    COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${ARG_LIB_TGT}.bc
+    ${ARG_IN_FILE}
+    DEPENDS ${opt_target} ${ARG_IN_FILE} ${ARG_DEPENDENCIES}
+  )
+  add_custom_target( ${ARG_LIB_TGT}
+    ALL DEPENDS ${ARG_LIB_TGT}.bc
+  )
+  set_target_properties( ${ARG_LIB_TGT}
+    PROPERTIES TARGET_FILE ${ARG_LIB_TGT}.bc
+  )
+
+  set( builtins_opt_lib $<TARGET_PROPERTY:${ARG_LIB_TGT},TARGET_FILE> )
+
+  # Add prepare target
+  # FIXME: prepare_builtins_exe comes from having included libclc before this.
+  # This is brittle.
+  add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
+    COMMAND ${prepare_builtins_exe} -o ${ARG_OUT_DIR}/${out_file}
+      ${builtins_opt_lib}
+      DEPENDS ${builtins_opt_lib} ${ARG_LIB_TGT} ${prepare_builtins_target} )
+  add_custom_target( prepare-${out_file} ALL
+    DEPENDS ${ARG_OUT_DIR}/${out_file}
+  )
+  set_target_properties( prepare-${out_file}
+    PROPERTIES TARGET_FILE ${ARG_OUT_DIR}/${out_file}
+  )
+endfunction()
+
 # Appends a list to a global property.
 #
 # Arguments:
@@ -178,7 +290,7 @@ function(append_to_property list)
 endfunction()
 
 # Creates device libaries for all filetypes.
-# Adds bitcode library files additionally for each devicelib_arch target and
+# Adds bitcode library files additionally for each devicelib build arch and
 # adds the created file to an arch specific global property.
 #
 # Arguments:
@@ -195,7 +307,7 @@ function(add_devicelibs filename)
   cmake_parse_arguments(ARG
     ""
     ""
-    "SRC;EXTRA_OPTS;DEPENDENCIES;SKIP_ARCHS;FILETYPES"
+    "SRC;EXTRA_OPTS;DEPENDENCIES;BUILD_ARCHS;FILETYPES"
     ${ARGN})
   if(ARG_FILETYPES)
     set(devicelib_filetypes "${ARG_FILETYPES}")
@@ -210,10 +322,7 @@ function(add_devicelibs filename)
       EXTRA_OPTS ${ARG_EXTRA_OPTS} ${${filetype}_device_compile_opts})
   endforeach()
 
-  foreach(arch IN LISTS devicelib_arch)
-    if(arch IN_LIST ARG_SKIP_ARCHS)
-      continue()
-    endif()
+  foreach(arch IN LISTS ARG_BUILD_ARCHS)
     compile_lib(${filename}-${arch}
       FILETYPE bc
       SRC ${ARG_SRC}
@@ -246,7 +355,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/asan_rtl.hpp
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
-    include/group_utils.hpp
+    include/sanitizer_utils.hpp
     ${sycl-compiler_deps})
 
   set(sanitizer_generic_compile_opts ${compile_opts}
@@ -305,8 +414,8 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/msan_rtl.hpp
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
-    include/group_utils.hpp
-    sycl-compiler)
+    include/sanitizer_utils.hpp
+    ${sycl-compiler_deps})
 
   set(tsan_obj_deps
     device.h atomic.hpp spirv_vars.h
@@ -314,8 +423,8 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/tsan_rtl.hpp
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
-    include/group_utils.hpp
-    sycl-compiler)
+    include/sanitizer_utils.hpp
+    ${sycl-compiler_deps})
 endif()
 
 if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -326,12 +435,13 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   # libsycl-nativecpu_utils is only needed as BC file by NativeCPU.
   add_custom_command(
     OUTPUT ${bc_binary_dir}/nativecpu_utils.bc
-    COMMAND ${clang_exe} ${compile_opts} ${bc_device_compile_opts} -fsycl-targets=native_cpu
-      -I ${NATIVE_CPU_DIR}
+    COMMAND ${clang_exe} ${compile_opts} ${bc_device_compile_opts}
+      -fsycl-targets=native_cpu -fno-sycl-libspirv -Wno-unsafe-libspirv-not-linked
+      -I ${PROJECT_BINARY_DIR}/include -I ${NATIVE_CPU_DIR}
       ${CMAKE_CURRENT_SOURCE_DIR}/nativecpu_utils.cpp
       -o ${bc_binary_dir}/nativecpu_utils.bc
     MAIN_DEPENDENCY nativecpu_utils.cpp
-    DEPENDS ${sycl-compiler_deps}
+    DEPENDS sycl-headers ${sycl-compiler_deps}
     VERBATIM)
   add_custom_target(nativecpu_utils-bc DEPENDS ${bc_binary_dir}/nativecpu_utils.bc)
   process_bc(libsycl-nativecpu_utils.bc
@@ -350,55 +460,69 @@ check_cxx_compiler_flag(-Wno-invalid-noreturn HAS_NO_INVALID_NORETURN_WARN_FLAG)
 # ones.
 add_devicelibs(libsycl-itt-stubs
   SRC itt_stubs.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${itt_obj_deps})
 add_devicelibs(libsycl-itt-compiler-wrappers
   SRC itt_compiler_wrappers.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${itt_obj_deps})
 add_devicelibs(libsycl-itt-user-wrappers
   SRC itt_user_wrappers.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${itt_obj_deps})
 
 add_devicelibs(libsycl-crt
   SRC crt_wrapper.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${crt_obj_deps}
   EXTRA_OPTS $<$<BOOL:${HAS_NO_INVALID_NORETURN_WARN_FLAG}>:-Wno-invalid-noreturn>)
 
 add_devicelibs(libsycl-complex
   SRC complex_wrapper.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${complex_obj_deps})
 add_devicelibs(libsycl-complex-fp64
   SRC complex_wrapper_fp64.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${complex_obj_deps} )
 add_devicelibs(libsycl-cmath
   SRC cmath_wrapper.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps})
 add_devicelibs(libsycl-cmath-fp64
   SRC cmath_wrapper_fp64.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps} )
+set(imf_build_archs)
 add_devicelibs(libsycl-imf
   SRC imf_wrapper.cpp
-  DEPENDENCIES ${imf_obj_deps})
+  DEPENDENCIES ${imf_obj_deps}
+  BUILD_ARCHS ${imf_build_archs})
 add_devicelibs(libsycl-imf-fp64
   SRC imf_wrapper_fp64.cpp
-  DEPENDENCIES ${imf_obj_deps})
+  DEPENDENCIES ${imf_obj_deps}
+  BUILD_ARCHS ${imf_build_archs})
 add_devicelibs(libsycl-imf-bf16
   SRC imf_wrapper_bf16.cpp
-  DEPENDENCIES ${imf_obj_deps})
+  DEPENDENCIES ${imf_obj_deps}
+  BUILD_ARCHS ${imf_build_archs})
 add_devicelibs(libsycl-bfloat16
   SRC bfloat16_wrapper.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps})
 if(MSVC)
   add_devicelibs(libsycl-msvc-math
     SRC msvc_math.cpp
+    BUILD_ARCHS ${full_build_archs}
     DEPENDENCIES ${cmath_obj_deps})
 else()
   if(UR_SANITIZER_INCLUDE_DIR)
+    set(sanitizer_build_archs)
     # asan jit
     add_devicelibs(libsycl-asan
       SRC sanitizer/asan_rtl.cpp
       DEPENDENCIES ${asan_obj_deps}
-      SKIP_ARCHS nvptx64-nvidia-cuda
-                 amdgcn-amd-amdhsa
+      BUILD_ARCHS ${sanitizer_build_archs}
       FILETYPES "${filetypes_no_spv}"
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
@@ -421,8 +545,7 @@ else()
     add_devicelibs(libsycl-msan
       SRC sanitizer/msan_rtl.cpp
       DEPENDENCIES ${msan_obj_deps}
-      SKIP_ARCHS nvptx64-nvidia-cuda
-                 amdgcn-amd-amdhsa
+      BUILD_ARCHS ${sanitizer_build_archs}
       FILETYPES "${filetypes_no_spv}"
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
@@ -445,8 +568,7 @@ else()
     add_devicelibs(libsycl-tsan
       SRC sanitizer/tsan_rtl.cpp
       DEPENDENCIES ${tsan_obj_deps}
-      SKIP_ARCHS nvptx64-nvidia-cuda
-                 amdgcn-amd-amdhsa
+      BUILD_ARCHS ${sanitizer_build_archs}
       FILETYPES "${filetypes_no_spv}"
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
@@ -469,30 +591,38 @@ endif()
 
 add_devicelibs(libsycl-fallback-cassert
   SRC fallback-cassert.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${crt_obj_deps}
   EXTRA_OPTS -fno-sycl-instrument-device-code)
 add_devicelibs(libsycl-fallback-cstring
   SRC fallback-cstring.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${crt_obj_deps})
 add_devicelibs(libsycl-fallback-complex
   SRC fallback-complex.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${complex_obj_deps})
 add_devicelibs(libsycl-fallback-complex-fp64
   SRC fallback-complex-fp64.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${complex_obj_deps})
 add_devicelibs(libsycl-fallback-cmath
   SRC fallback-cmath.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps})
 add_devicelibs(libsycl-fallback-cmath-fp64
   SRC fallback-cmath-fp64.cpp
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps})
 add_devicelibs(libsycl-fallback-bfloat16
   SRC fallback-bfloat16.cpp
   FILETYPES "${filetypes_no_spv}"
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${bfloat16_obj_deps})
 add_devicelibs(libsycl-native-bfloat16
   SRC bfloat16_wrapper.cpp
   FILETYPES "${filetypes_no_spv}"
+  BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${bfloat16_obj_deps})
 
 # Create dependency and source lists for Intel math function libraries.
@@ -522,10 +652,11 @@ set(imf_bf16_fallback_src ${imf_fallback_src_dir}/imf_bf16_fallback.cpp)
 set(imf_host_cxx_flags -c
   --target=${LLVM_HOST_TRIPLE}
   -D__LIBDEVICE_HOST_IMPL__
+  ${SYCL_LIBDEVICE_CXX_FLAGS}
 )
 
-if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
-  list(APPEND imf_host_cxx_flags "--gcc-install-dir=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
+if(LLVM_LIBCXX_USED)
+  list(APPEND  imf_host_cxx_flags "-stdlib=libc++")
 endif()
 
 macro(mangle_name str output)
@@ -651,9 +782,9 @@ foreach(dtype IN ITEMS bf16 fp32 fp64)
   endforeach()
 endforeach()
 
-# Add device fallback imf libraries for the NVPTX and AMD targets.
+# Add device fallback imf libraries for single bitcode targets.
 # The output files are bitcode.
-foreach(arch IN LISTS devicelib_arch)
+foreach(arch IN LISTS imf_build_archs)
   foreach(dtype IN ITEMS bf16 fp32 fp64)
     set(tgt_name imf_fallback_${dtype}_bc_${arch})
 
@@ -673,7 +804,7 @@ endforeach()
 
 # Create one large bitcode file for the NVPTX and AMD targets.
 # Use all the files collected in the respective global properties.
-foreach(arch IN LISTS devicelib_arch)
+foreach(arch IN LISTS full_build_archs)
   get_property(BC_DEVICE_LIBS_${arch} GLOBAL PROPERTY BC_DEVICE_LIBS_${arch})
   # Link the bitcode files together.
   link_bc(TARGET device_lib_device_${arch}

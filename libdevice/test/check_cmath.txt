@@ -1,0 +1,12 @@
+REQUIRES: libsycldevice
+
+Check functions in fp32 libdevice spirv file.
+
+RUN: llvm-spirv --spirv-target-env=SPV-IR -r %libsycldevice_spv_dir/libsycl-cmath.spv -o %t.bc
+RUN: llvm-dis %t.bc -o %t.ll
+RUN: FileCheck %s --input-file %t.ll
+
+CHECK: target triple ={{.*}}spir64
+
+CHECK-LABEL: define spir_func float @rintf(
+CHECK: call spir_func float @_Z16__spirv_ocl_rintf(

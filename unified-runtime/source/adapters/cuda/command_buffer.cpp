@@ -23,7 +23,9 @@ namespace {
 ur_result_t
 commandBufferDestroy(ur_exp_command_buffer_handle_t CommandBuffer) try {
   // Release the memory allocated to the CudaGraph
-  UR_CHECK_ERROR(cuGraphDestroy(CommandBuffer->CudaGraph));
+  if (CommandBuffer->CudaGraph) {
+    UR_CHECK_ERROR(cuGraphDestroy(CommandBuffer->CudaGraph));
+  }
 
   // Release the memory allocated to the CudaGraphExec
   if (CommandBuffer->CudaGraphExec) {
@@ -60,7 +62,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     bool IsInOrder)
     : handle_base(), Context(Context), Device(Device), IsUpdatable(IsUpdatable),
       IsInOrder(IsInOrder), CudaGraph{nullptr}, CudaGraphExec{nullptr},
-      RefCount{1}, NextSyncPoint{0} {
+      NextSyncPoint{0} {
   urContextRetain(Context);
 }
 
@@ -380,13 +382,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  hCommandBuffer->incrementReferenceCount();
+  hCommandBuffer->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  if (hCommandBuffer->decrementReferenceCount() == 0) {
+  if (hCommandBuffer->RefCount.release()) {
     // Ref count has reached zero, release of created commands
     for (auto &Command : hCommandBuffer->CommandHandles) {
       commandHandleDestroy(Command);
@@ -1345,14 +1347,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     UR_CHECK_ERROR(validateCommandDesc(hCommandBuffer, pUpdateKernelLaunch[i]));
   }
 
-  // Store changes in config struct in command handle object
+  // Store changes in config struct in command handle object and propagate
+  // changes to CUDA graph
   for (uint32_t i = 0; i < numKernelUpdates; i++) {
     UR_CHECK_ERROR(updateCommand(pUpdateKernelLaunch[i]));
     UR_CHECK_ERROR(updateKernelArguments(pUpdateKernelLaunch[i]));
-  }
 
-  // Propagate changes to CUDA driver API
-  for (uint32_t i = 0; i < numKernelUpdates; i++) {
     const auto &UpdateCommandDesc = pUpdateKernelLaunch[i];
 
     // If no work-size is provided make sure we pass nullptr to setKernelParams
@@ -1476,7 +1476,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
-    return ReturnValue(hCommandBuffer->getReferenceCount());
+    return ReturnValue(hCommandBuffer->RefCount.getCount());
   case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
     ur_exp_command_buffer_desc_t Descriptor{};
     Descriptor.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;
@@ -1515,9 +1515,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
 
     // Add user defined node to graph as a subgraph
     CUgraphNode GraphNode;
+#if CUDA_VERSION >= 12090
+    // CUDA 12.9 required to enable native commands to contain memory nodes
+    // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#memory-nodes-in-child-graphs
+    CUgraphNodeParams ChildNodeParams{};
+    ChildNodeParams.type = CU_GRAPH_NODE_TYPE_GRAPH;
+    ChildNodeParams.graph.graph = ChildGraph;
+    ChildNodeParams.graph.ownership = CU_GRAPH_CHILD_GRAPH_OWNERSHIP_MOVE;
+    UR_CHECK_ERROR(cuGraphAddNode_v2(&GraphNode, hCommandBuffer->CudaGraph,
+                                     DepsList.data(), NULL /* edge data */,
+                                     DepsList.size(), &ChildNodeParams));
+    // The handle to the child graph is now owned by the parent and will be
+    // destroyed when the parent is destroyed. However, the SYCL-RT will
+    // call `urCommandBufferReleaseExp` on the child command-buffer, to
+    // avoid destroying the underlying handle, set it to nullptr.
+    hChildCommandBuffer->CudaGraph = nullptr;
+#else
     UR_CHECK_ERROR(
         cuGraphAddChildGraphNode(&GraphNode, hCommandBuffer->CudaGraph,
                                  DepsList.data(), DepsList.size(), ChildGraph));
+#endif
+
     auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
     if (pSyncPoint) {
       *pSyncPoint = SyncPoint;

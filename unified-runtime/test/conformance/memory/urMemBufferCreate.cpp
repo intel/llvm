@@ -121,8 +121,10 @@ TEST_P(urMemBufferCreateTest, CopyHostPointer) {
 
 TEST_P(urMemBufferCreateTest, UseHostPointer) {
   // These all copy memory instead of mapping it
+  // https://github.com/intel/llvm/issues/18836
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{}, uur::HIP{},
-                       uur::CUDA{}, uur::OpenCL{"Intel(R) UHD Graphics 770"});
+                       uur::CUDA{}, uur::OpenCL{"Intel(R) UHD Graphics 770"},
+                       uur::Offload{});
 
   std::vector<unsigned char> dataWrite{};
   dataWrite.resize(4096);

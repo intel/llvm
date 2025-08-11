@@ -16,7 +16,7 @@ class TestSuite(Suite):
     def __init__(self):
         return
 
-    def setup(self):
+    def setup(self) -> None:
         return
 
     def name(self) -> str:
@@ -88,16 +88,14 @@ class TestBench(Benchmark):
     def unstable(self) -> str:
         return self.unstable_text
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         random_value = self.value + random.uniform(-1 * (self.diff), self.diff)
         return [
             Result(
                 label=self.name(),
-                explicit_group=self.group,
                 value=random_value,
                 command=["test", "--arg1", "foo"],
                 env={"A": "B"},
-                stdout="no output",
                 unit="ms",
             )
         ]

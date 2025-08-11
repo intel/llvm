@@ -152,7 +152,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
     return ReturnValue(hKernel->Context);
   }
   case UR_KERNEL_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hKernel->getReferenceCount());
+    return ReturnValue(hKernel->RefCount.getCount());
   }
   default: {
     size_t CheckPropSize = 0;
@@ -343,13 +343,13 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
-  hKernel->incrementReferenceCount();
+  hKernel->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRelease(ur_kernel_handle_t hKernel) {
-  if (hKernel->decrementReferenceCount() == 0) {
+  if (hKernel->RefCount.release()) {
     delete hKernel;
   }
   return UR_RESULT_SUCCESS;
@@ -454,7 +454,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
     [[maybe_unused]] ur_kernel_handle_t hKernel,
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] uint32_t workDim,

@@ -1887,8 +1887,10 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   case Intrinsic::log:
   case Intrinsic::log10:
   case Intrinsic::log2:
+  case Intrinsic::maximumnum:
   case Intrinsic::maximum:
   case Intrinsic::maxnum:
+  case Intrinsic::minimumnum:
   case Intrinsic::minimum:
   case Intrinsic::minnum:
   case Intrinsic::nearbyint:
@@ -2618,6 +2620,10 @@ public:
       break;
     case OpenCLLIB::Nan:
       addUnsignedArg(0);
+      break;
+    case OpenCLLIB::Prefetch:
+      setArgAttr(0, SPIR::ATTR_CONST);
+      addUnsignedArg(1);
       break;
     case OpenCLLIB::Shuffle:
       addUnsignedArg(1);

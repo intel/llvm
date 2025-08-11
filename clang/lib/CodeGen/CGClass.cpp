@@ -628,6 +628,7 @@ static void EmitMemberInitializer(CodeGenFunction &CGF,
                                   CXXCtorInitializer *MemberInit,
                                   const CXXConstructorDecl *Constructor,
                                   FunctionArgList &Args) {
+  ApplyAtomGroup Grp(CGF.getDebugInfo());
   ApplyDebugLocation Loc(CGF, MemberInit->getSourceLocation());
   assert(MemberInit->isAnyMemberInitializer() &&
          "Must have member initializer!");
@@ -1001,7 +1002,8 @@ namespace {
     void emitMemcpyIR(Address DestPtr, Address SrcPtr, CharUnits Size) {
       DestPtr = DestPtr.withElementType(CGF.Int8Ty);
       SrcPtr = SrcPtr.withElementType(CGF.Int8Ty);
-      CGF.Builder.CreateMemCpy(DestPtr, SrcPtr, Size.getQuantity());
+      auto *I = CGF.Builder.CreateMemCpy(DestPtr, SrcPtr, Size.getQuantity());
+      CGF.addInstToCurrentSourceAtom(I, nullptr);
     }
 
     void addInitialField(FieldDecl *F) {
@@ -1114,6 +1116,7 @@ namespace {
       }
 
       pushEHDestructors();
+      ApplyAtomGroup Grp(CGF.getDebugInfo());
       emitMemcpy();
       AggregatedInits.clear();
     }
@@ -1249,6 +1252,7 @@ namespace {
         reset();
       }
 
+      ApplyAtomGroup Grp(CGF.getDebugInfo());
       emitMemcpy();
       AggregatedStmts.clear();
     }
@@ -1341,6 +1345,7 @@ void CodeGenFunction::EmitCtorPrologue(const CXXConstructorDecl *CD,
            "Delegating initializer on non-delegating constructor");
     CM.addMemberInitializer(Member);
   }
+
   CM.finish();
 }
 
@@ -1563,6 +1568,7 @@ void CodeGenFunction::emitImplicitAssignmentOperatorBody(FunctionArgList &Args) 
   AssignmentMemcpyizer AM(*this, AssignOp, Args);
   for (auto *I : RootCS->body())
     AM.emitAssignment(I);
+
   AM.finish();
 }
 
@@ -2043,6 +2049,8 @@ void CodeGenFunction::EmitCXXAggrConstructorCall(const CXXConstructorDecl *ctor,
   cur->addIncoming(arrayBegin, entryBB);
 
   // Inside the loop body, emit the constructor call on the array element.
+  if (CGM.shouldEmitConvergenceTokens())
+    ConvergenceTokenStack.push_back(emitConvergenceLoopToken(loopBB));
 
   // The alignment of the base, adjusted by the size of a single element,
   // provides a conservative estimate of the alignment of every element.
@@ -2102,6 +2110,9 @@ void CodeGenFunction::EmitCXXAggrConstructorCall(const CXXConstructorDecl *ctor,
   // Patch the earlier check to skip over the loop.
   if (zeroCheckBranch) zeroCheckBranch->setSuccessor(0, contBB);
 
+  if (CGM.shouldEmitConvergenceTokens())
+    ConvergenceTokenStack.pop_back();
+
   EmitBlock(contBB);
 }
 
@@ -2133,8 +2144,8 @@ void CodeGenFunction::EmitCXXConstructorCall(const CXXConstructorDecl *D,
     unsigned TargetThisAS = getContext().getTargetAddressSpace(ThisAS);
     llvm::Type *NewType =
         llvm::PointerType::get(getLLVMContext(), TargetThisAS);
-    ThisPtr = getTargetHooks().performAddrSpaceCast(*this, ThisPtr, ThisAS,
-                                                    SlotAS, NewType);
+    ThisPtr =
+        getTargetHooks().performAddrSpaceCast(*this, ThisPtr, ThisAS, NewType);
   }
 
   // Push the this ptr.
@@ -2785,12 +2796,40 @@ void CodeGenFunction::EmitTypeMetadataCodeForVCall(const CXXRecordDecl *RD,
   }
 }
 
+/// Converts the CFITypeCheckKind into SanitizerKind::SanitizerOrdinal and
+/// llvm::SanitizerStatKind.
+static std::pair<SanitizerKind::SanitizerOrdinal, llvm::SanitizerStatKind>
+SanitizerInfoFromCFICheckKind(CodeGenFunction::CFITypeCheckKind TCK) {
+  switch (TCK) {
+  case CodeGenFunction::CFITCK_VCall:
+    return std::make_pair(SanitizerKind::SO_CFIVCall, llvm::SanStat_CFI_VCall);
+  case CodeGenFunction::CFITCK_NVCall:
+    return std::make_pair(SanitizerKind::SO_CFINVCall,
+                          llvm::SanStat_CFI_NVCall);
+  case CodeGenFunction::CFITCK_DerivedCast:
+    return std::make_pair(SanitizerKind::SO_CFIDerivedCast,
+                          llvm::SanStat_CFI_DerivedCast);
+  case CodeGenFunction::CFITCK_UnrelatedCast:
+    return std::make_pair(SanitizerKind::SO_CFIUnrelatedCast,
+                          llvm::SanStat_CFI_UnrelatedCast);
+  case CodeGenFunction::CFITCK_ICall:
+  case CodeGenFunction::CFITCK_NVMFCall:
+  case CodeGenFunction::CFITCK_VMFCall:
+    llvm_unreachable("unexpected sanitizer kind");
+  }
+  llvm_unreachable("Unknown CFITypeCheckKind enum");
+}
+
 void CodeGenFunction::EmitVTablePtrCheckForCall(const CXXRecordDecl *RD,
                                                 llvm::Value *VTable,
                                                 CFITypeCheckKind TCK,
                                                 SourceLocation Loc) {
   if (!SanOpts.has(SanitizerKind::CFICastStrict))
     RD = LeastDerivedClassWithSameLayout(RD);
+
+  auto [Ordinal, _] = SanitizerInfoFromCFICheckKind(TCK);
+  SanitizerDebugLocation SanScope(this, {Ordinal},
+                                  SanitizerHandler::CFICheckFail);
 
   EmitVTablePtrCheck(RD, VTable, TCK, Loc);
 }
@@ -2813,6 +2852,10 @@ void CodeGenFunction::EmitVTablePtrCheckForCast(QualType T, Address Derived,
 
   if (!SanOpts.has(SanitizerKind::CFICastStrict))
     ClassDecl = LeastDerivedClassWithSameLayout(ClassDecl);
+
+  auto [Ordinal, _] = SanitizerInfoFromCFICheckKind(TCK);
+  SanitizerDebugLocation SanScope(this, {Ordinal},
+                                  SanitizerHandler::CFICheckFail);
 
   llvm::BasicBlock *ContBlock = nullptr;
 
@@ -2844,41 +2887,19 @@ void CodeGenFunction::EmitVTablePtrCheck(const CXXRecordDecl *RD,
                                          llvm::Value *VTable,
                                          CFITypeCheckKind TCK,
                                          SourceLocation Loc) {
+  assert(IsSanitizerScope);
+
   if (!CGM.getCodeGenOpts().SanitizeCfiCrossDso &&
       !CGM.HasHiddenLTOVisibility(RD))
     return;
 
-  SanitizerKind::SanitizerOrdinal M;
-  llvm::SanitizerStatKind SSK;
-  switch (TCK) {
-  case CFITCK_VCall:
-    M = SanitizerKind::SO_CFIVCall;
-    SSK = llvm::SanStat_CFI_VCall;
-    break;
-  case CFITCK_NVCall:
-    M = SanitizerKind::SO_CFINVCall;
-    SSK = llvm::SanStat_CFI_NVCall;
-    break;
-  case CFITCK_DerivedCast:
-    M = SanitizerKind::SO_CFIDerivedCast;
-    SSK = llvm::SanStat_CFI_DerivedCast;
-    break;
-  case CFITCK_UnrelatedCast:
-    M = SanitizerKind::SO_CFIUnrelatedCast;
-    SSK = llvm::SanStat_CFI_UnrelatedCast;
-    break;
-  case CFITCK_ICall:
-  case CFITCK_NVMFCall:
-  case CFITCK_VMFCall:
-    llvm_unreachable("unexpected sanitizer kind");
-  }
+  auto [M, SSK] = SanitizerInfoFromCFICheckKind(TCK);
 
   std::string TypeName = RD->getQualifiedNameAsString();
   if (getContext().getNoSanitizeList().containsType(
           SanitizerMask::bitPosToMask(M), TypeName))
     return;
 
-  SanitizerScope SanScope(this);
   EmitSanitizerStatReport(SSK);
 
   llvm::Metadata *MD =
@@ -2935,7 +2956,9 @@ bool CodeGenFunction::ShouldEmitVTableTypeCheckedLoad(const CXXRecordDecl *RD) {
 llvm::Value *CodeGenFunction::EmitVTableTypeCheckedLoad(
     const CXXRecordDecl *RD, llvm::Value *VTable, llvm::Type *VTableTy,
     uint64_t VTableByteOffset) {
-  SanitizerScope SanScope(this);
+  auto CheckOrdinal = SanitizerKind::SO_CFIVCall;
+  auto CheckHandler = SanitizerHandler::CFICheckFail;
+  SanitizerDebugLocation SanScope(this, {CheckOrdinal}, CheckHandler);
 
   EmitSanitizerStatReport(llvm::SanStat_CFI_VCall);
 
@@ -2956,8 +2979,7 @@ llvm::Value *CodeGenFunction::EmitVTableTypeCheckedLoad(
   if (SanOpts.has(SanitizerKind::CFIVCall) &&
       !getContext().getNoSanitizeList().containsType(SanitizerKind::CFIVCall,
                                                      TypeName)) {
-    EmitCheck(std::make_pair(CheckResult, SanitizerKind::SO_CFIVCall),
-              SanitizerHandler::CFICheckFail, {}, {});
+    EmitCheck(std::make_pair(CheckResult, CheckOrdinal), CheckHandler, {}, {});
   }
 
   return Builder.CreateBitCast(Builder.CreateExtractValue(CheckedLoad, 0),

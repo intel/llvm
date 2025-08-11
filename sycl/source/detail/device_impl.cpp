@@ -23,7 +23,7 @@ namespace detail {
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
                          device_impl::private_tag)
-    : MDevice(Device), MPlatform(Platform.shared_from_this()),
+    : MDevice(Device), MPlatform(Platform),
       // No need to set MRootDevice when MAlwaysRootDevice is true
       MRootDevice(Platform.MAlwaysRootDevice
                       ? nullptr
@@ -32,16 +32,15 @@ device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
       MCache{*this} {
   // Interoperability Constructor already calls DeviceRetain in
   // urDeviceCreateWithNativeHandle.
-  getAdapter()->call<UrApiKind::urDeviceRetain>(MDevice);
+  getAdapter().call<UrApiKind::urDeviceRetain>(MDevice);
 }
 
 device_impl::~device_impl() {
   try {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    const AdapterPtr &Adapter = getAdapter();
-    ur_result_t Err =
-        Adapter->call_nocheck<UrApiKind::urDeviceRelease>(MDevice);
-    __SYCL_CHECK_UR_CODE_NO_EXC(Err);
+    adapter_impl &Adapter = getAdapter();
+    ur_result_t Err = Adapter.call_nocheck<UrApiKind::urDeviceRelease>(MDevice);
+    __SYCL_CHECK_UR_CODE_NO_EXC(Err, Adapter.getBackend());
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_impl", e);
   }
@@ -107,9 +106,13 @@ device_impl::get_backend_info<info::device::backend_version>() const {
 #endif
 
 bool device_impl::has_extension(const std::string &ExtensionName) const {
-  std::string AllExtensionNames = get_info_impl<UR_DEVICE_INFO_EXTENSIONS>();
+  const std::string AllExtensionNames{
+      get_info_impl<UR_DEVICE_INFO_EXTENSIONS>()};
 
-  return (AllExtensionNames.find(ExtensionName) != std::string::npos);
+  // We add a space to both sides of both the extension string and the query
+  // string. This prevents to lookup from finding partial extension matches.
+  return ((" " + AllExtensionNames + " ").find(" " + ExtensionName + " ") !=
+          std::string::npos);
 }
 
 bool device_impl::is_partition_supported(info::partition_property Prop) const {
@@ -123,8 +126,8 @@ std::vector<device> device_impl::create_sub_devices(
     size_t SubDevicesCount) const {
   std::vector<ur_device_handle_t> SubDevices(SubDevicesCount);
   uint32_t ReturnedSubDevices = 0;
-  const AdapterPtr &Adapter = getAdapter();
-  Adapter->call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
+  adapter_impl &Adapter = getAdapter();
+  Adapter.call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
       MDevice, Properties, SubDevicesCount, SubDevices.data(),
       &ReturnedSubDevices);
   if (ReturnedSubDevices != SubDevicesCount) {
@@ -140,7 +143,7 @@ std::vector<device> device_impl::create_sub_devices(
   std::for_each(SubDevices.begin(), SubDevices.end(),
                 [&res, this](const ur_device_handle_t &a_ur_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
-                      MPlatform->getOrMakeDeviceImpl(a_ur_device));
+                      MPlatform.getOrMakeDeviceImpl(a_ur_device));
                   res.push_back(sycl_device);
                 });
   return res;
@@ -270,9 +273,9 @@ std::vector<device> device_impl::create_sub_devices(
   Properties.pProperties = &Prop;
 
   uint32_t SubDevicesCount = 0;
-  const AdapterPtr &Adapter = getAdapter();
-  Adapter->call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
-      MDevice, &Properties, 0, nullptr, &SubDevicesCount);
+  adapter_impl &Adapter = getAdapter();
+  Adapter.call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
+      MDevice, &Properties, 0u, nullptr, &SubDevicesCount);
 
   return create_sub_devices(&Properties, SubDevicesCount);
 }
@@ -295,17 +298,17 @@ std::vector<device> device_impl::create_sub_devices() const {
   Properties.PropCount = 1;
 
   uint32_t SubDevicesCount = 0;
-  const AdapterPtr &Adapter = getAdapter();
-  Adapter->call<UrApiKind::urDevicePartition>(MDevice, &Properties, 0, nullptr,
-                                              &SubDevicesCount);
+  adapter_impl &Adapter = getAdapter();
+  Adapter.call<UrApiKind::urDevicePartition>(MDevice, &Properties, 0u, nullptr,
+                                             &SubDevicesCount);
 
   return create_sub_devices(&Properties, SubDevicesCount);
 }
 
 ur_native_handle_t device_impl::getNative() const {
-  auto Adapter = getAdapter();
+  adapter_impl &Adapter = getAdapter();
   ur_native_handle_t Handle;
-  Adapter->call<UrApiKind::urDeviceGetNativeHandle>(getHandleRef(), &Handle);
+  Adapter.call<UrApiKind::urDeviceGetNativeHandle>(getHandleRef(), &Handle);
   if (getBackend() == backend::opencl) {
     __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(Handle));
   }
@@ -324,44 +327,11 @@ ur_native_handle_t device_impl::getNative() const {
 // clock drift between host and device.
 //
 uint64_t device_impl::getCurrentDeviceTime() {
-  using namespace std::chrono;
-  uint64_t HostTime =
-      duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-          .count();
-
-  // To account for potential clock drift between host clock and device clock.
-  // The value set is arbitrary: 200 seconds
-  std::shared_lock<std::shared_mutex> ReadLock(MDeviceHostBaseTimeMutex);
-  constexpr uint64_t TimeTillRefresh = 200e9;
-  assert(HostTime >= MDeviceHostBaseTime.second);
-  uint64_t Diff = HostTime - MDeviceHostBaseTime.second;
-
-  // If getCurrentDeviceTime is called for the first time or we have to refresh.
-  if (!MDeviceHostBaseTime.second || Diff > TimeTillRefresh) {
-    ReadLock.unlock();
-    std::unique_lock<std::shared_mutex> WriteLock(MDeviceHostBaseTimeMutex);
-    // Recheck the condition after acquiring the write lock.
-    if (MDeviceHostBaseTime.second && Diff <= TimeTillRefresh) {
-      // If we are here, it means that another thread has already updated
-      // MDeviceHostBaseTime, so we can just return the current device time.
-      return MDeviceHostBaseTime.first + Diff;
-    }
-    const auto &Adapter = getAdapter();
-    auto Result = Adapter->call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
-        MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);
-    // We have to remember base host timestamp right after UR call and it is
-    // going to be used for calculation of the device timestamp at the next
-    // getCurrentDeviceTime() call. We need to do it here because getAdapter()
-    // and urDeviceGetGlobalTimestamps calls may take significant amount of
-    // time, for example on the first call to getAdapter adapters may need to be
-    // initialized. If we use timestamp from the beginning of the function then
-    // the difference between host timestamps of the current
-    // getCurrentDeviceTime and the next getCurrentDeviceTime will be incorrect
-    // because it will include execution time of the code before we get device
-    // timestamp from urDeviceGetGlobalTimestamps.
-    HostTime =
-        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-            .count();
+  auto GetGlobalTimestamps = [this](ur_device_handle_t Device,
+                                    uint64_t *DeviceTime, uint64_t *HostTime) {
+    auto Result =
+        getAdapter().call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
+            Device, DeviceTime, HostTime);
     if (Result == UR_RESULT_ERROR_INVALID_OPERATION) {
       // NOTE(UR port): Removed the call to GetLastError because  we shouldn't
       // be calling it after ERROR_INVALID_OPERATION: there is no
@@ -372,12 +342,32 @@ uint64_t device_impl::getCurrentDeviceTime() {
               "Device and/or backend does not support querying timestamp."),
           UR_RESULT_ERROR_INVALID_OPERATION);
     } else {
-      Adapter->checkUrResult<errc::feature_not_supported>(Result);
+      getAdapter().checkUrResult<errc::feature_not_supported>(Result);
     }
-    // Until next sync we will compute device time based on the host time
-    // returned in HostTime, so make this our base host time.
-    MDeviceHostBaseTime.second = HostTime;
-    Diff = 0;
+  };
+
+  uint64_t HostTime = 0;
+  uint64_t Diff = 0;
+  // To account for potential clock drift between host clock and device clock.
+  // The value set is arbitrary: 200 seconds
+  constexpr uint64_t TimeTillRefresh = 200e9;
+  // If getCurrentDeviceTime is called for the first time or we have to refresh.
+  std::shared_lock<std::shared_mutex> ReadLock(MDeviceHostBaseTimeMutex);
+  if (!MDeviceHostBaseTime.second || Diff > TimeTillRefresh) {
+    ReadLock.unlock();
+    std::unique_lock<std::shared_mutex> WriteLock(MDeviceHostBaseTimeMutex);
+    // Recheck the condition after acquiring the write lock.
+    if (MDeviceHostBaseTime.second && Diff <= TimeTillRefresh) {
+      // If we are here, it means that another thread has already updated
+      // MDeviceHostBaseTime, so we can just return the current device time.
+      return MDeviceHostBaseTime.first + Diff;
+    }
+    GetGlobalTimestamps(MDevice, &MDeviceHostBaseTime.first,
+                        &MDeviceHostBaseTime.second);
+  } else {
+    GetGlobalTimestamps(MDevice, nullptr, &HostTime);
+    assert(HostTime >= MDeviceHostBaseTime.second);
+    Diff = HostTime - MDeviceHostBaseTime.second;
   }
   return MDeviceHostBaseTime.first + Diff;
 }
@@ -385,11 +375,9 @@ uint64_t device_impl::getCurrentDeviceTime() {
 bool device_impl::extOneapiCanBuild(
     ext::oneapi::experimental::source_language Language) {
   try {
-    // Get the shared_ptr to this object from the platform that owns it.
-    device_impl &Self = MPlatform->getOrMakeDeviceImpl(MDevice);
     return sycl::ext::oneapi::experimental::detail::
         is_source_kernel_bundle_supported(Language,
-                                          std::vector<device_impl *>{&Self});
+                                          std::vector<device_impl *>{this});
 
   } catch (sycl::exception &) {
     return false;
@@ -400,11 +388,10 @@ bool device_impl::extOneapiCanCompile(
     ext::oneapi::experimental::source_language Language) {
   try {
     // Currently only SYCL language is supported for compiling.
-    device_impl &Self = MPlatform->getOrMakeDeviceImpl(MDevice);
     return Language == ext::oneapi::experimental::source_language::sycl &&
            sycl::ext::oneapi::experimental::detail::
                is_source_kernel_bundle_supported(
-                   Language, std::vector<device_impl *>{&Self});
+                   Language, std::vector<device_impl *>{this});
   } catch (sycl::exception &) {
     return false;
   }

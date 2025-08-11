@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2022-2023 Intel Corporation
+ * Copyright (C) 2022 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -34,22 +34,21 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
 
   auto context = getContext();
 
-  size_t adapterIndex = 0;
-  if (nullptr != phAdapters && NumEntries != 0) {
-    for (auto &platform : context->platforms) {
-      if (platform.initStatus != UR_RESULT_SUCCESS)
-        continue;
-      platform.dditable.Global.pfnAdapterGet(1, &phAdapters[adapterIndex],
-                                             nullptr);
-      adapterIndex++;
-      if (adapterIndex == NumEntries) {
-        break;
-      }
-    }
+  uint32_t numAdapters = 0;
+  for (auto &platform : context->platforms) {
+    if (platform.initStatus != UR_RESULT_SUCCESS)
+      continue;
+
+    uint32_t adapter;
+    ur_adapter_handle_t *adapterHandle =
+        numAdapters < NumEntries ? &phAdapters[numAdapters] : nullptr;
+    platform.dditable.Adapter.pfnGet(1, adapterHandle, &adapter);
+
+    numAdapters += adapter;
   }
 
   if (pNumAdapters != nullptr) {
-    *pNumAdapters = static_cast<uint32_t>(context->platforms.size());
+    *pNumAdapters = numAdapters;
   }
 
   return UR_RESULT_SUCCESS;
@@ -63,12 +62,12 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
 
-  auto *pfnAdapterRelease = dditable->Global.pfnAdapterRelease;
-  if (nullptr == pfnAdapterRelease)
+  auto *pfnRelease = dditable->Adapter.pfnRelease;
+  if (nullptr == pfnRelease)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnAdapterRelease(hAdapter);
+  return pfnRelease(hAdapter);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -79,12 +78,12 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
 
-  auto *pfnAdapterRetain = dditable->Global.pfnAdapterRetain;
-  if (nullptr == pfnAdapterRetain)
+  auto *pfnRetain = dditable->Adapter.pfnRetain;
+  if (nullptr == pfnRetain)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnAdapterRetain(hAdapter);
+  return pfnRetain(hAdapter);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -101,12 +100,12 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
 
-  auto *pfnAdapterGetLastError = dditable->Global.pfnAdapterGetLastError;
-  if (nullptr == pfnAdapterGetLastError)
+  auto *pfnGetLastError = dditable->Adapter.pfnGetLastError;
+  if (nullptr == pfnGetLastError)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnAdapterGetLastError(hAdapter, ppMessage, pError);
+  return pfnGetLastError(hAdapter, ppMessage, pError);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -130,13 +129,12 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hAdapter);
 
-  auto *pfnAdapterGetInfo = dditable->Global.pfnAdapterGetInfo;
-  if (nullptr == pfnAdapterGetInfo)
+  auto *pfnGetInfo = dditable->Adapter.pfnGetInfo;
+  if (nullptr == pfnGetInfo)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnAdapterGetInfo(hAdapter, propName, propSize, pPropValue,
-                           pPropSizeRet);
+  return pfnGetInfo(hAdapter, propName, propSize, pPropValue, pPropSizeRet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1240,6 +1238,9 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     /// device is null then the granularity is suitable for all devices in
     /// context.
     ur_device_handle_t hDevice,
+    /// [in] allocation size in bytes for which the alignment is being
+    /// queried.
+    size_t allocationSize,
     /// [in] type of the info to query.
     ur_virtual_mem_granularity_info_t propName,
     /// [in] size in bytes of the memory pointed to by pPropValue.
@@ -1260,8 +1261,8 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnGranularityGetInfo(hContext, hDevice, propName, propSize,
-                               pPropValue, pPropSizeRet);
+  return pfnGranularityGetInfo(hContext, hDevice, allocationSize, propName,
+                               propSize, pPropValue, pPropSizeRet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2207,6 +2208,39 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCount
+__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] number of dimensions, from 1 to 3, to specify the work-group
+    /// work-items
+    uint32_t workDim,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of local work-items forming a work-group that will execute the
+    /// kernel function.
+    const size_t *pLocalWorkSize,
+    /// [in] size of dynamic shared memory, for each work-group, in bytes,
+    /// that will be used when the kernel is launched
+    size_t dynamicSharedMemorySize,
+    /// [out] pointer to maximum number of groups
+    uint32_t *pGroupCountRet) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
+
+  auto *pfnSuggestMaxCooperativeGroupCount =
+      dditable->Kernel.pfnSuggestMaxCooperativeGroupCount;
+  if (nullptr == pfnSuggestMaxCooperativeGroupCount)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnSuggestMaxCooperativeGroupCount(
+      hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
+      pGroupCountRet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueGetInfo
 __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     /// [in] handle of the queue object
@@ -2550,6 +2584,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// execute the kernel function.
     /// If nullptr, the runtime implementation will choose the work-group size.
     const size_t *pLocalWorkSize,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
+    /// of launch properties
+    const ur_kernel_launch_property_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -2571,8 +2610,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   // forward to device-platform
   return pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                         pGlobalWorkSize, pLocalWorkSize, numEventsInWaitList,
-                         phEventWaitList, phEvent);
+                         pGlobalWorkSize, pLocalWorkSize,
+                         numPropsInLaunchPropList, launchPropList,
+                         numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4358,6 +4398,30 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesSupportsImportingHandleTypeExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesSupportsImportingHandleTypeExp(
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] type of external memory handle
+    ur_exp_external_mem_type_t memHandleType,
+    /// [out] whether the device supports importing the specified external
+    /// memory handle type
+    ur_bool_t *pSupportedRet) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+
+  auto *pfnSupportsImportingHandleTypeExp =
+      dditable->BindlessImagesExp.pfnSupportsImportingHandleTypeExp;
+  if (nullptr == pfnSupportsImportingHandleTypeExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnSupportsImportingHandleTypeExp(hDevice, memHandleType,
+                                           pSupportedRet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImportExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     /// [in] handle of the context object
@@ -5349,87 +5413,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueCooperativeKernelLaunchExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
-
-  auto *pfnCooperativeKernelLaunchExp =
-      dditable->EnqueueExp.pfnCooperativeKernelLaunchExp;
-  if (nullptr == pfnCooperativeKernelLaunchExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnCooperativeKernelLaunchExp(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCountExp
-__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] number of dimensions, from 1 to 3, to specify the work-group
-    /// work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of local work-items forming a work-group that will execute the
-    /// kernel function.
-    const size_t *pLocalWorkSize,
-    /// [in] size of dynamic shared memory, for each work-group, in bytes,
-    /// that will be used when the kernel is launched
-    size_t dynamicSharedMemorySize,
-    /// [out] pointer to maximum number of groups
-    uint32_t *pGroupCountRet) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnSuggestMaxCooperativeGroupCountExp =
-      dditable->KernelExp.pfnSuggestMaxCooperativeGroupCountExp;
-  if (nullptr == pfnSuggestMaxCooperativeGroupCountExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnSuggestMaxCooperativeGroupCountExp(
-      hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
-      pGroupCountRet);
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueTimestampRecordingExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     /// [in] handle of the queue object
@@ -5470,56 +5453,80 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueKernelLaunchCustomExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function. If nullptr, the runtime implementation
-    /// will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
-    /// properties
-    const ur_exp_launch_property_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution. If nullptr,
-    /// the numEventsInWaitList must be 0, indicating that no wait event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
+/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem) {
 
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
 
-  auto *pfnKernelLaunchCustomExp =
-      dditable->EnqueueExp.pfnKernelLaunchCustomExp;
-  if (nullptr == pfnKernelLaunchCustomExp)
+  auto *pfnAllocExportableMemoryExp =
+      dditable->MemoryExportExp.pfnAllocExportableMemoryExp;
+  if (nullptr == pfnAllocExportableMemoryExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnKernelLaunchCustomExp(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
-      numEventsInWaitList, phEventWaitList, phEvent);
+  return pfnAllocExportableMemoryExp(hContext, hDevice, alignment, size,
+                                     handleTypeToExport, ppMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportFreeExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
+    /// [in] Handle to context in which to free memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to free memory.
+    ur_device_handle_t hDevice,
+    /// [in][release] Pointer to exportable memory to be deallocated.
+    void *pMem) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnFreeExportableMemoryExp =
+      dditable->MemoryExportExp.pfnFreeExportableMemoryExp;
+  if (nullptr == pfnFreeExportableMemoryExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnFreeExportableMemoryExp(hContext, hDevice, pMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportExportMemoryHandleExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
+    /// [in] Handle to context in which the exportable memory was allocated.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which the exportable memory was allocated.
+    ur_device_handle_t hDevice,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [in] Pointer to exportable memory handle.
+    void *pMem,
+    /// [out] Returned exportable handle to memory allocated in `pMem`
+    void *pMemHandleRet) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnExportMemoryHandleExp =
+      dditable->MemoryExportExp.pfnExportMemoryHandleExp;
+  if (nullptr == pfnExportMemoryHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnExportMemoryHandleExp(hContext, hDevice, handleTypeToExport, pMem,
+                                  pMemHandleRet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5595,6 +5602,29 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
   // forward to device-platform
   return pfnLinkExp(hContext, numDevices, phDevices, count, phPrograms,
                     pOptions, phProgram);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMContextMemcpyExp
+__urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    /// [in] Context associated with the device(s) that own the allocations
+    /// `pSrc` and `pDst`.
+    ur_context_handle_t hContext,
+    /// [in] Destination pointer to copy to.
+    void *pDst,
+    /// [in] Source pointer to copy from.
+    const void *pSrc,
+    /// [in] Size in bytes to be copied.
+    size_t size) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnContextMemcpyExp = dditable->USMExp.pfnContextMemcpyExp;
+  if (nullptr == pfnContextMemcpyExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnContextMemcpyExp(hContext, pDst, pSrc, size);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5783,65 +5813,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 
 } // namespace ur_loader
 
-#if defined(__cplusplus)
 extern "C" {
-#endif
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Global table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_global_dditable_t *pDdiTable) {
-  if (nullptr == pDdiTable)
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-  if (ur_loader::getContext()->version < version)
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  // Load the device-platform DDI tables
-  for (auto &platform : ur_loader::getContext()->platforms) {
-    // statically linked adapter inside of the loader
-    if (platform.handle == nullptr)
-      continue;
-
-    if (platform.initStatus != UR_RESULT_SUCCESS)
-      continue;
-    auto getTable = reinterpret_cast<ur_pfnGetGlobalProcAddrTable_t>(
-        ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
-                                             "urGetGlobalProcAddrTable"));
-    if (!getTable)
-      continue;
-    platform.initStatus = getTable(version, &platform.dditable.Global);
-  }
-
-  if (UR_RESULT_SUCCESS == result) {
-    if (ur_loader::getContext()->platforms.size() != 1 ||
-        ur_loader::getContext()->forceIntercept) {
-      // return pointers to loader's DDIs
-      pDdiTable->pfnAdapterGet = ur_loader::urAdapterGet;
-      pDdiTable->pfnAdapterRelease = ur_loader::urAdapterRelease;
-      pDdiTable->pfnAdapterRetain = ur_loader::urAdapterRetain;
-      pDdiTable->pfnAdapterGetLastError = ur_loader::urAdapterGetLastError;
-      pDdiTable->pfnAdapterGetInfo = ur_loader::urAdapterGetInfo;
-    } else {
-      // return pointers directly to platform's DDIs
-      *pDdiTable = ur_loader::getContext()->platforms.front().dditable.Global;
-    }
-  }
-
-  return result;
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Adapter table
@@ -5885,6 +5857,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
     if (ur_loader::getContext()->platforms.size() != 1 ||
         ur_loader::getContext()->forceIntercept) {
       // return pointers to loader's DDIs
+      pDdiTable->pfnGet = ur_loader::urAdapterGet;
+      pDdiTable->pfnRelease = ur_loader::urAdapterRelease;
+      pDdiTable->pfnRetain = ur_loader::urAdapterRetain;
+      pDdiTable->pfnGetLastError = ur_loader::urAdapterGetLastError;
+      pDdiTable->pfnGetInfo = ur_loader::urAdapterGetInfo;
       pDdiTable->pfnSetLoggerCallback = ur_loader::urAdapterSetLoggerCallback;
       pDdiTable->pfnSetLoggerCallbackLevel =
           ur_loader::urAdapterSetLoggerCallbackLevel;
@@ -5973,6 +5950,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
           ur_loader::urBindlessImagesReleaseExternalMemoryExp;
       pDdiTable->pfnFreeMappedLinearMemoryExp =
           ur_loader::urBindlessImagesFreeMappedLinearMemoryExp;
+      pDdiTable->pfnSupportsImportingHandleTypeExp =
+          ur_loader::urBindlessImagesSupportsImportingHandleTypeExp;
       pDdiTable->pfnImportExternalSemaphoreExp =
           ur_loader::urBindlessImagesImportExternalSemaphoreExp;
       pDdiTable->pfnReleaseExternalSemaphoreExp =
@@ -6265,15 +6244,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     if (ur_loader::getContext()->platforms.size() != 1 ||
         ur_loader::getContext()->forceIntercept) {
       // return pointers to loader's DDIs
-      pDdiTable->pfnKernelLaunchCustomExp =
-          ur_loader::urEnqueueKernelLaunchCustomExp;
       pDdiTable->pfnUSMDeviceAllocExp = ur_loader::urEnqueueUSMDeviceAllocExp;
       pDdiTable->pfnUSMSharedAllocExp = ur_loader::urEnqueueUSMSharedAllocExp;
       pDdiTable->pfnUSMHostAllocExp = ur_loader::urEnqueueUSMHostAllocExp;
       pDdiTable->pfnUSMFreeExp = ur_loader::urEnqueueUSMFreeExp;
       pDdiTable->pfnCommandBufferExp = ur_loader::urEnqueueCommandBufferExp;
-      pDdiTable->pfnCooperativeKernelLaunchExp =
-          ur_loader::urEnqueueCooperativeKernelLaunchExp;
       pDdiTable->pfnTimestampRecordingExp =
           ur_loader::urEnqueueTimestampRecordingExp;
       pDdiTable->pfnNativeCommandExp = ur_loader::urEnqueueNativeCommandExp;
@@ -6408,63 +6383,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
       pDdiTable->pfnSetArgMemObj = ur_loader::urKernelSetArgMemObj;
       pDdiTable->pfnSetSpecializationConstants =
           ur_loader::urKernelSetSpecializationConstants;
+      pDdiTable->pfnSuggestMaxCooperativeGroupCount =
+          ur_loader::urKernelSuggestMaxCooperativeGroupCount;
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()->platforms.front().dditable.Kernel;
-    }
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's KernelExp table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_kernel_exp_dditable_t *pDdiTable) {
-  if (nullptr == pDdiTable)
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-  if (ur_loader::getContext()->version < version)
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  // Load the device-platform DDI tables
-  for (auto &platform : ur_loader::getContext()->platforms) {
-    // statically linked adapter inside of the loader
-    if (platform.handle == nullptr)
-      continue;
-
-    if (platform.initStatus != UR_RESULT_SUCCESS)
-      continue;
-    auto getTable = reinterpret_cast<ur_pfnGetKernelExpProcAddrTable_t>(
-        ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
-                                             "urGetKernelExpProcAddrTable"));
-    if (!getTable)
-      continue;
-    platform.initStatus = getTable(version, &platform.dditable.KernelExp);
-  }
-
-  if (UR_RESULT_SUCCESS == result) {
-    if (ur_loader::getContext()->platforms.size() != 1 ||
-        ur_loader::getContext()->forceIntercept) {
-      // return pointers to loader's DDIs
-      pDdiTable->pfnSuggestMaxCooperativeGroupCountExp =
-          ur_loader::urKernelSuggestMaxCooperativeGroupCountExp;
-    } else {
-      // return pointers directly to platform's DDIs
-      *pDdiTable =
-          ur_loader::getContext()->platforms.front().dditable.KernelExp;
     }
   }
 
@@ -6528,6 +6451,64 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()->platforms.front().dditable.Mem;
+    }
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's MemoryExportExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetMemoryExportExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_memory_export_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (ur_loader::getContext()->version < version)
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  // Load the device-platform DDI tables
+  for (auto &platform : ur_loader::getContext()->platforms) {
+    // statically linked adapter inside of the loader
+    if (platform.handle == nullptr)
+      continue;
+
+    if (platform.initStatus != UR_RESULT_SUCCESS)
+      continue;
+    auto getTable = reinterpret_cast<ur_pfnGetMemoryExportExpProcAddrTable_t>(
+        ur_loader::LibLoader::getFunctionPtr(
+            platform.handle.get(), "urGetMemoryExportExpProcAddrTable"));
+    if (!getTable)
+      continue;
+    platform.initStatus = getTable(version, &platform.dditable.MemoryExportExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    if (ur_loader::getContext()->platforms.size() != 1 ||
+        ur_loader::getContext()->forceIntercept) {
+      // return pointers to loader's DDIs
+      pDdiTable->pfnAllocExportableMemoryExp =
+          ur_loader::urMemoryExportAllocExportableMemoryExp;
+      pDdiTable->pfnFreeExportableMemoryExp =
+          ur_loader::urMemoryExportFreeExportableMemoryExp;
+      pDdiTable->pfnExportMemoryHandleExp =
+          ur_loader::urMemoryExportExportMemoryHandleExp;
+    } else {
+      // return pointers directly to platform's DDIs
+      *pDdiTable =
+          ur_loader::getContext()->platforms.front().dditable.MemoryExportExp;
     }
   }
 
@@ -7001,6 +6982,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
       pDdiTable->pfnPoolGetDevicePoolExp = ur_loader::urUSMPoolGetDevicePoolExp;
       pDdiTable->pfnPoolTrimToExp = ur_loader::urUSMPoolTrimToExp;
       pDdiTable->pfnPitchedAllocExp = ur_loader::urUSMPitchedAllocExp;
+      pDdiTable->pfnContextMemcpyExp = ur_loader::urUSMContextMemcpyExp;
       pDdiTable->pfnImportExp = ur_loader::urUSMImportExp;
       pDdiTable->pfnReleaseExp = ur_loader::urUSMReleaseExp;
     } else {
@@ -7191,7 +7173,4 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 
   return result;
 }
-
-#if defined(__cplusplus)
 }
-#endif

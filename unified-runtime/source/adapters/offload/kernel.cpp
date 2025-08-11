@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "kernel.hpp"
+#include "memory.hpp"
 #include "program.hpp"
 #include "ur2offload.hpp"
 #include <OffloadAPI.h>
@@ -20,8 +21,8 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
                ur_kernel_handle_t *phKernel) {
   ur_kernel_handle_t Kernel = new ur_kernel_handle_t_;
 
-  auto Res = olGetKernel(hProgram->OffloadProgram, pKernelName,
-                         &Kernel->OffloadKernel);
+  auto Res = olGetSymbol(hProgram->OffloadProgram, pKernelName,
+                         OL_SYMBOL_KIND_KERNEL, &Kernel->OffloadKernel);
 
   if (Res != OL_SUCCESS) {
     delete Kernel;
@@ -80,6 +81,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
     const ur_kernel_arg_value_properties_t *, const void *pArgValue) {
   hKernel->Args.addArg(argIndex, argSize, pArgValue);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                     const ur_kernel_arg_mem_obj_properties_t *Properties,
+                     ur_mem_handle_t hArgValue) {
+  // Handle zero-sized buffers
+  if (hArgValue == nullptr) {
+    hKernel->Args.addArg(argIndex, 0, nullptr);
+    return UR_RESULT_SUCCESS;
+  }
+
+  ur_mem_flags_t MemAccess =
+      Properties ? Properties->memoryAccess
+                 : static_cast<ur_mem_flags_t>(UR_MEM_FLAG_READ_WRITE);
+  hKernel->Args.addMemObjArg(argIndex, hArgValue, MemAccess);
+
+  auto Ptr = std::get<BufferMem>(hArgValue->Mem).Ptr;
+  hKernel->Args.addArg(argIndex, sizeof(void *), &Ptr);
   return UR_RESULT_SUCCESS;
 }
 

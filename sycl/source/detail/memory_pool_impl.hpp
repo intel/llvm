@@ -7,8 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/context.hpp>       // for context
-#include <sycl/device.hpp>        // for device
+#include <sycl/context.hpp> // for context
+#include <sycl/device.hpp>  // for device
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 #include <sycl/queue.hpp>         // for queue
 #include <sycl/usm/usm_enums.hpp> // for usm::alloc
 
@@ -17,13 +18,23 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 
+// Type to store pool properties values.
+// Every property is represented by a pair that represent
+// (is_property_assigned, property_value)
+struct pool_properties {
+  size_t initial_threshold;
+  size_t maximum_size;
+  bool zero_init;
+};
+
 class memory_pool_impl {
 public:
   memory_pool_impl(const sycl::context &ctx, const sycl::device &dev,
-                   const sycl::usm::alloc kind, const property_list &props);
+                   const sycl::usm::alloc kind,
+                   const pool_properties props = {});
   memory_pool_impl(const sycl::context &ctx, const sycl::device &dev,
                    const sycl::usm::alloc kind, ur_usm_pool_handle_t poolHandle,
-                   const bool isDefaultPool, const property_list &props);
+                   const bool isDefaultPool, const pool_properties props = {});
 
   ~memory_pool_impl();
 
@@ -36,7 +47,7 @@ public:
     return sycl::detail::createSyclObjFromImpl<sycl::context>(MContextImplPtr);
   }
   sycl::usm::alloc get_alloc_kind() const { return MKind; }
-  const property_list &getPropList() const { return MPropList; }
+  const pool_properties &getProps() const { return MProps; }
 
   // Returns backend specific values.
   size_t get_allocation_chunk_size() const;
@@ -56,7 +67,7 @@ private:
   sycl::usm::alloc MKind;
   ur_usm_pool_handle_t MPoolHandle{0};
   bool MIsDefaultPool = false;
-  property_list MPropList;
+  pool_properties MProps;
 };
 
 } // namespace detail

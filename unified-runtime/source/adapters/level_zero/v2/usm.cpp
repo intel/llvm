@@ -15,6 +15,7 @@
 #include "umf_pools/disjoint_pool_config_parser.hpp"
 #include "usm.hpp"
 
+#include <umf/experimental/ctl.h>
 #include <umf/providers/provider_level_zero.h>
 
 static inline void UMF_CALL_THROWS(umf_result_t res) {
@@ -176,10 +177,72 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
       auto &poolConfig =
           disjointPoolConfigs.value().Configs[descToDisjoinPoolMemType(desc)];
       auto pool = usm::makeDisjointPool(makeProvider(desc), poolConfig);
-      usmPool = std::make_unique<UsmPool>(std::move(pool));
+      usmPool = std::make_unique<UsmPool>(this, std::move(pool));
     } else {
       auto pool = usm::makeProxyPool(makeProvider(desc));
-      usmPool = std::make_unique<UsmPool>(std::move(pool));
+      usmPool = std::make_unique<UsmPool>(this, std::move(pool));
+    }
+    UMF_CALL_THROWS(
+        umfPoolSetTag(usmPool->umfPool.get(), usmPool.get(), nullptr));
+    poolManager.addPool(desc, std::move(usmPool));
+  }
+}
+
+ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
+                                             ur_device_handle_t hDevice,
+                                             ur_usm_pool_desc_t *pPoolDesc)
+    : hContext(hContext) {
+  // TODO: handle UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK from pPoolDesc
+  auto disjointPoolConfigs = initializeDisjointPoolConfig();
+
+  if (disjointPoolConfigs.has_value()) {
+    if (auto limits = find_stype_node<ur_usm_pool_limits_desc_t>(pPoolDesc)) {
+      for (auto &config : disjointPoolConfigs.value().Configs) {
+        config.MaxPoolableSize = limits->maxPoolableSize;
+        config.SlabMinSize = limits->minDriverAllocSize;
+      }
+    }
+  } else {
+    // If pooling is disabled, do nothing.
+    UR_LOG(INFO, "USM pooling is disabled. Skiping pool limits adjustment.");
+  }
+
+  // Create pool descriptor for single device provided
+  std::vector<usm::pool_descriptor> descriptors;
+  {
+    auto &desc = descriptors.emplace_back();
+    desc.poolHandle = this;
+    desc.hContext = hContext;
+    desc.hDevice = hDevice;
+    desc.type = UR_USM_TYPE_DEVICE;
+  }
+  {
+    auto &desc = descriptors.emplace_back();
+    desc.poolHandle = this;
+    desc.hContext = hContext;
+    desc.hDevice = hDevice;
+    desc.type = UR_USM_TYPE_SHARED;
+    desc.deviceReadOnly = false;
+  }
+  {
+    auto &desc = descriptors.emplace_back();
+    desc.poolHandle = this;
+    desc.hContext = hContext;
+    desc.hDevice = hDevice;
+    desc.type = UR_USM_TYPE_SHARED;
+    desc.deviceReadOnly = true;
+  }
+
+  for (auto &desc : descriptors) {
+    std::unique_ptr<UsmPool> usmPool;
+    if (disjointPoolConfigs.has_value()) {
+      auto &poolConfig =
+          disjointPoolConfigs.value().Configs[descToDisjoinPoolMemType(desc)];
+      auto pool = usm::makeDisjointPool(makeProvider(desc), poolConfig);
+      usmPool = std::make_unique<UsmPool>(this, std::move(pool));
+    } else {
+      auto pool = usm::makeProxyPool(makeProvider(desc));
+      usmPool = std::make_unique<UsmPool>(this, std::move(pool));
     }
     UMF_CALL_THROWS(
         umfPoolSetTag(usmPool->umfPool.get(), usmPool.get(), nullptr));
@@ -233,17 +296,56 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
     return umf::umf2urResult(umfRet);
   }
 
+  size_t usableSize = 0;
+  auto UmfRet = umfPoolMallocUsableSize(umfPool, *ppRetMem, &usableSize);
+  if (UmfRet != UMF_RESULT_SUCCESS &&
+      UmfRet != UMF_RESULT_ERROR_NOT_SUPPORTED) {
+    return umf::umf2urResult(UmfRet);
+  }
+
+  allocStats.update(AllocationStats::UpdateType::INCREASE, usableSize);
+
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_usm_pool_handle_t_::free(void *ptr) {
-  auto umfPool = umfPoolByPtr(ptr);
-  if (umfPool) {
-    return umf::umf2urResult(umfPoolFree(umfPool, ptr));
-  } else {
-    UR_LOG(ERR, "Failed to find pool for pointer: {}", ptr);
-    return UR_RESULT_ERROR_INVALID_VALUE;
+ur_result_t ur_usm_pool_handle_t_::free(void *ptr,
+                                        umf_memory_pool_handle_t umfPool) {
+  // There's no hint for the UMF pool, so we need to find it by pointer.
+  if (!umfPool) {
+    if (umfPoolByPtr(ptr, &umfPool) != UMF_RESULT_SUCCESS || !umfPool) {
+      UR_LOG(ERR, "Failed to find pool for pointer: {}", ptr);
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
   }
+
+  size_t size = 0;
+  auto umfRet = umfPoolMallocUsableSize(umfPool, ptr, &size);
+  if (umfRet != UMF_RESULT_SUCCESS &&
+      umfRet != UMF_RESULT_ERROR_NOT_SUPPORTED) {
+    return umf::umf2urResult(umfRet);
+  }
+
+  umfRet = umfPoolFree(umfPool, ptr);
+  if (umfRet != UMF_RESULT_SUCCESS) {
+    UR_LOG(ERR, "Failed to free pointer: {}", ptr);
+    return umf::umf2urResult(umfRet);
+  }
+
+  allocStats.update(AllocationStats::UpdateType::DECREASE, size);
+
+  return UR_RESULT_SUCCESS;
+}
+
+bool ur_usm_pool_handle_t_::hasPool(const umf_memory_pool_handle_t umfPool) {
+  bool found = false;
+  poolManager.forEachPool([&](UsmPool *p) {
+    if (p->umfPool.get() == umfPool) {
+      found = true;
+      return false; // break
+    }
+    return true;
+  });
+  return found;
 }
 
 std::optional<std::pair<void *, ur_event_handle_t>>
@@ -281,17 +383,71 @@ ur_usm_pool_handle_t_::allocateEnqueued(ur_context_handle_t hContext,
 
 void ur_usm_pool_handle_t_::cleanupPools() {
   poolManager.forEachPool([&](UsmPool *p) {
-    return p->asyncPool.cleanup();
+    p->asyncPool.cleanup();
     return true;
   });
 }
 
 void ur_usm_pool_handle_t_::cleanupPoolsForQueue(void *hQueue) {
   poolManager.forEachPool([&](UsmPool *p) {
-    return p->asyncPool.cleanupForQueue(hQueue);
+    p->asyncPool.cleanupForQueue(hQueue);
     return true;
   });
 }
+
+size_t ur_usm_pool_handle_t_::getTotalReservedSize() {
+  size_t totalAllocatedSize = 0;
+  umf_result_t umfRet = UMF_RESULT_SUCCESS;
+  poolManager.forEachPool([&](UsmPool *p) {
+    umf_memory_provider_handle_t hProvider = nullptr;
+    size_t allocatedSize = 0;
+    umfRet = umfPoolGetMemoryProvider(p->umfPool.get(), &hProvider);
+    if (umfRet != UMF_RESULT_SUCCESS) {
+      return false;
+    }
+
+    umfRet = umfCtlGet("umf.provider.by_handle.{}.stats.allocated_memory",
+                       &allocatedSize, sizeof(allocatedSize), hProvider);
+    if (umfRet != UMF_RESULT_SUCCESS) {
+      return false;
+    }
+
+    totalAllocatedSize += allocatedSize;
+    return true;
+  });
+
+  return umfRet == UMF_RESULT_SUCCESS ? totalAllocatedSize : 0;
+}
+
+size_t ur_usm_pool_handle_t_::getPeakReservedSize() {
+  size_t maxPeakSize = 0;
+  umf_result_t umfRet = UMF_RESULT_SUCCESS;
+  poolManager.forEachPool([&](UsmPool *p) {
+    umf_memory_provider_handle_t hProvider = nullptr;
+    size_t peakSize = 0;
+    umfRet = umfPoolGetMemoryProvider(p->umfPool.get(), &hProvider);
+    if (umfRet != UMF_RESULT_SUCCESS) {
+      return false;
+    }
+
+    umfRet = umfCtlGet("umf.provider.by_handle.{}.stats.peak_memory", &peakSize,
+                       sizeof(peakSize), hProvider);
+    if (umfRet != UMF_RESULT_SUCCESS) {
+      return false;
+    }
+
+    maxPeakSize = std::max(maxPeakSize, peakSize);
+    return true;
+  });
+
+  return umfRet == UMF_RESULT_SUCCESS ? maxPeakSize : 0;
+}
+
+size_t ur_usm_pool_handle_t_::getTotalUsedSize() {
+  return allocStats.getCurrent();
+}
+
+size_t ur_usm_pool_handle_t_::getPeakUsedSize() { return allocStats.getPeak(); }
 
 namespace ur::level_zero {
 ur_result_t urUSMPoolCreate(
@@ -303,6 +459,7 @@ ur_result_t urUSMPoolCreate(
     /// [out] pointer to USM memory pool
     ur_usm_pool_handle_t *hPool) try {
   *hPool = new ur_usm_pool_handle_t_(hContext, pPoolDesc);
+  hContext->addUsmPool(*hPool);
   return UR_RESULT_SUCCESS;
 } catch (umf_result_t e) {
   return umf::umf2urResult(e);
@@ -313,7 +470,7 @@ ur_result_t urUSMPoolCreate(
 ur_result_t
 /// [in] pointer to USM memory pool
 urUSMPoolRetain(ur_usm_pool_handle_t hPool) try {
-  hPool->RefCount.increment();
+  hPool->RefCount.retain();
   return UR_RESULT_SUCCESS;
 } catch (umf_result_t e) {
   return umf::umf2urResult(e);
@@ -324,7 +481,8 @@ urUSMPoolRetain(ur_usm_pool_handle_t hPool) try {
 ur_result_t
 /// [in] pointer to USM memory pool
 urUSMPoolRelease(ur_usm_pool_handle_t hPool) try {
-  if (hPool->RefCount.decrementAndTest()) {
+  if (hPool->RefCount.release()) {
+    hPool->getContextHandle()->removeUsmPool(hPool);
     delete hPool;
   }
   return UR_RESULT_SUCCESS;
@@ -349,7 +507,7 @@ ur_result_t urUSMPoolGetInfo(
 
   switch (propName) {
   case UR_USM_POOL_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hPool->RefCount.load());
+    return ReturnValue(hPool->RefCount.getCount());
   }
   case UR_USM_POOL_INFO_CONTEXT: {
     return ReturnValue(hPool->getContextHandle());
@@ -362,6 +520,101 @@ ur_result_t urUSMPoolGetInfo(
   return umf::umf2urResult(e);
 } catch (...) {
   return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urUSMPoolCreateExp(ur_context_handle_t hContext,
+                               ur_device_handle_t hDevice,
+                               ur_usm_pool_desc_t *pPoolDesc,
+                               ur_usm_pool_handle_t *pPool) try {
+  *pPool = new ur_usm_pool_handle_t_(hContext, hDevice, pPoolDesc);
+  hContext->addUsmPool(*pPool);
+  return UR_RESULT_SUCCESS;
+} catch (umf_result_t e) {
+  return umf::umf2urResult(e);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urUSMPoolDestroyExp(ur_context_handle_t, ur_device_handle_t,
+                                ur_usm_pool_handle_t hPool) try {
+  if (hPool->RefCount.release()) {
+    hPool->getContextHandle()->removeUsmPool(hPool);
+    delete hPool;
+  }
+  return UR_RESULT_SUCCESS;
+} catch (umf_result_t e) {
+  return umf::umf2urResult(e);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
+                                ur_usm_pool_info_t propName, void *pPropValue,
+                                size_t *pPropSizeRet) {
+  size_t value = 0;
+  switch (propName) {
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+    // Current pool implementation ignores threshold.
+    value = 0;
+    break;
+  case UR_USM_POOL_INFO_RESERVED_CURRENT_EXP:
+    value = hPool->getTotalReservedSize();
+    break;
+  case UR_USM_POOL_INFO_USED_CURRENT_EXP:
+    value = hPool->getTotalUsedSize();
+    break;
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+    value = hPool->getPeakReservedSize();
+    break;
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    value = hPool->getPeakUsedSize();
+    break;
+  default:
+    // Unknown enumerator
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+
+  if (pPropValue) {
+    *(size_t *)pPropValue = value;
+  }
+
+  if (pPropSizeRet) {
+    *(size_t *)pPropSizeRet = sizeof(size_t);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urUSMPoolSetInfoExp(ur_usm_pool_handle_t /*hPool*/,
+                                ur_usm_pool_info_t propName,
+                                void * /*pPropValue*/, size_t propSize) {
+  if (propSize < sizeof(size_t)) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+
+  switch (propName) {
+  // TODO: Support for pool release threshold and maximum size hints.
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+  case UR_USM_POOL_INFO_MAXIMUM_SIZE_EXP:
+  // TODO: Allow user to overwrite pool peak statistics.
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    break;
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urUSMPoolGetDefaultDevicePoolExp(ur_context_handle_t hContext,
+                                             ur_device_handle_t,
+                                             ur_usm_pool_handle_t *pPool) {
+  // Default async pool should contain an internal pool for all detected
+  // devices.
+  *pPool = hContext->getAsyncPool();
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urUSMDeviceAlloc(
@@ -442,7 +695,20 @@ ur_result_t urUSMFree(
     ur_context_handle_t /*hContext*/,
     /// [in] pointer to USM memory object
     void *pMem) try {
-  return umf::umf2urResult(umfFree(pMem));
+  umf_memory_pool_handle_t umfPool = nullptr;
+  auto umfRet = umfPoolByPtr(pMem, &umfPool);
+  if (umfRet != UMF_RESULT_SUCCESS || !umfPool) {
+    return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
+  }
+
+  UsmPool *usmPool = nullptr;
+  umfRet = umfPoolGetTag(umfPool, (void **)&usmPool);
+  if (umfRet != UMF_RESULT_SUCCESS || !usmPool) {
+    // This should never happen
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return usmPool->urPool->free(pMem, umfPool);
 } catch (umf_result_t e) {
   return umf::umf2urResult(e);
 } catch (...) {
@@ -517,12 +783,25 @@ ur_result_t urUSMGetMemAllocInfo(
     return ReturnValue(size);
   }
   case UR_USM_ALLOC_INFO_POOL: {
-    // TODO
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    umf_memory_pool_handle_t umfPool = nullptr;
+    auto umfRet = umfPoolByPtr(ptr, &umfPool);
+    if (umfRet != UMF_RESULT_SUCCESS || !umfPool) {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+
+    ur_result_t ret = UR_RESULT_ERROR_INVALID_VALUE;
+    hContext->forEachUsmPool([&](ur_usm_pool_handle_t hPool) {
+      if (hPool->hasPool(umfPool)) {
+        ret = ReturnValue(hPool);
+        return false; // break;
+      }
+      return true;
+    });
+    return ret;
+  }
   default:
     UR_LOG(ERR, "urUSMGetMemAllocInfo: unsupported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
-  }
   }
   return UR_RESULT_SUCCESS;
 } catch (umf_result_t e) {
@@ -562,6 +841,23 @@ ur_result_t urUSMReleaseExp(ur_context_handle_t hContext, void *hostPtr) {
   if (ZeUSMImport.Supported && hostPtr != nullptr)
     ZeUSMImport.doZeUSMRelease(
         hContext->getPlatform()->ZeDriverHandleExpTranslated, hostPtr);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t hContext,
+                                             void *pDst, const void *pSrc,
+                                             size_t size) {
+  ur_device_handle_t hDevice = hContext->getDevices()[0];
+  auto Ordinal = static_cast<uint32_t>(
+      hDevice
+          ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
+          .ZeOrdinal);
+  auto commandList = hContext->getCommandListCache().getImmediateCommandList(
+      hDevice->ZeDevice, {true, Ordinal, true},
+      ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS, ZE_COMMAND_QUEUE_PRIORITY_NORMAL,
+      std::nullopt);
+  ZE2UR_CALL(zeCommandListAppendMemoryCopy,
+             (commandList.get(), pDst, pSrc, size, nullptr, 0, nullptr));
   return UR_RESULT_SUCCESS;
 }
 

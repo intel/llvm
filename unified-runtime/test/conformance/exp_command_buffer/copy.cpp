@@ -116,6 +116,10 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     printMemcpyTestString<urCommandBufferMemcpyCommandsTest>);
 
 TEST_P(urCommandBufferMemcpyCommandsTest, Buffer) {
+  // Buffer read & write not supported on OpenCL
+  // See https://github.com/KhronosGroup/OpenCL-Docs/issues/1281
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   std::vector<uint8_t> input(size);
   std::iota(input.begin(), input.end(), 1);
 

@@ -23,12 +23,11 @@ uint8_t GImageStreamID;
 #endif
 
 template <typename Param>
-static bool checkImageValueRange(const std::vector<device> &Devices,
-                                 const size_t Value) {
-  return Value >= 1 && std::all_of(Devices.cbegin(), Devices.cend(),
-                                   [Value](const device &Dev) {
-                                     return Value <= Dev.get_info<Param>();
-                                   });
+static bool checkImageValueRange(devices_range Devices, const size_t Value) {
+  return Value >= 1 &&
+         std::all_of(Devices.begin(), Devices.end(), [Value](device_impl &Dev) {
+           return Value <= Dev.get_info<Param>();
+         });
 }
 
 template <typename T, typename... Args> static bool checkAnyImpl(T) {
@@ -259,11 +258,11 @@ image_channel_type convertChannelType(ur_image_channel_type_t Type) {
 }
 
 template <typename T>
-static void getImageInfo(const ContextImplPtr &Context, ur_image_info_t Info,
-                         T &Dest, ur_mem_handle_t InteropMemObject) {
-  const AdapterPtr &Adapter = Context->getAdapter();
-  Adapter->call<UrApiKind::urMemImageGetInfo>(InteropMemObject, Info, sizeof(T),
-                                              &Dest, nullptr);
+static void getImageInfo(context_impl &Context, ur_image_info_t Info, T &Dest,
+                         ur_mem_handle_t InteropMemObject) {
+  adapter_impl &Adapter = Context.getAdapter();
+  Adapter.call<UrApiKind::urMemImageGetInfo>(InteropMemObject, Info, sizeof(T),
+                                             &Dest, nullptr);
 }
 
 image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
@@ -274,10 +273,10 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
             std::move(Allocator)),
       MDimensions(Dimensions), MRange({0, 0, 0}) {
   ur_mem_handle_t Mem = ur::cast<ur_mem_handle_t>(BaseT::MInteropMemObject);
-  const ContextImplPtr &Context = getSyclObjImpl(SyclContext);
-  const AdapterPtr &Adapter = Context->getAdapter();
-  Adapter->call<UrApiKind::urMemGetInfo>(Mem, UR_MEM_INFO_SIZE, sizeof(size_t),
-                                         &(BaseT::MSizeInBytes), nullptr);
+  detail::context_impl &Context = *getSyclObjImpl(SyclContext);
+  adapter_impl &Adapter = Context.getAdapter();
+  Adapter.call<UrApiKind::urMemGetInfo>(Mem, UR_MEM_INFO_SIZE, sizeof(size_t),
+                                        &(BaseT::MSizeInBytes), nullptr);
 
   ur_image_format_t Format;
   getImageInfo(Context, UR_IMAGE_INFO_FORMAT, Format, Mem);
@@ -323,7 +322,7 @@ image_impl::image_impl(ur_native_handle_t MemObject, const context &SyclContext,
   setPitches(); // sets MRowPitch, MSlice and BaseT::MSizeInBytes
 }
 
-void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
+void *image_impl::allocateMem(context_impl *Context, bool InitFromUserData,
                               void *HostPtr,
                               ur_event_handle_t &OutEventToWait) {
   bool HostPtrReadOnly = false;
@@ -338,53 +337,54 @@ void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
          "The check an image format failed.");
 
   return MemoryManager::allocateMemImage(
-      std::move(Context), this, HostPtr, HostPtrReadOnly,
-      BaseT::getSizeInBytes(), Desc, Format, BaseT::MInteropEvent,
-      BaseT::MInteropContext, MProps, OutEventToWait);
+      Context, this, HostPtr, HostPtrReadOnly, BaseT::getSizeInBytes(), Desc,
+      Format, BaseT::MInteropEvent, BaseT::MInteropContext.get(), MProps,
+      OutEventToWait);
 }
 
 bool image_impl::checkImageDesc(const ur_image_desc_t &Desc,
-                                ContextImplPtr Context, void *UserPtr) {
+                                context_impl *Context, void *UserPtr) {
+  devices_range Devices = Context ? Context->getDevices() : devices_range{};
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE1D, UR_MEM_TYPE_IMAGE1D_ARRAY,
                UR_MEM_TYPE_IMAGE2D_ARRAY, UR_MEM_TYPE_IMAGE2D) &&
-      !checkImageValueRange<info::device::image2d_max_width>(
-          getDevices(Context), Desc.width))
+      !checkImageValueRange<info::device::image2d_max_width>(Devices,
+                                                             Desc.width))
     throw exception(make_error_code(errc::invalid),
                     "For a 1D/2D image/image array, the width must be a Value "
                     ">= 1 and <= info::device::image2d_max_width");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE3D) &&
-      !checkImageValueRange<info::device::image3d_max_width>(
-          getDevices(Context), Desc.width))
+      !checkImageValueRange<info::device::image3d_max_width>(Devices,
+                                                             Desc.width))
     throw exception(make_error_code(errc::invalid),
                     "For a 3D image, the width must be a Value >= 1 and <= "
                     "info::device::image3d_max_width");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE2D, UR_MEM_TYPE_IMAGE2D_ARRAY) &&
-      !checkImageValueRange<info::device::image2d_max_height>(
-          getDevices(Context), Desc.height))
+      !checkImageValueRange<info::device::image2d_max_height>(Devices,
+                                                              Desc.height))
     throw exception(make_error_code(errc::invalid),
                     "For a 2D image or image array, the height must be a Value "
                     ">= 1 and <= info::device::image2d_max_height");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE3D) &&
-      !checkImageValueRange<info::device::image3d_max_height>(
-          getDevices(Context), Desc.height))
+      !checkImageValueRange<info::device::image3d_max_height>(Devices,
+                                                              Desc.height))
     throw exception(make_error_code(errc::invalid),
                     "For a 3D image, the heightmust be a Value >= 1 and <= "
                     "info::device::image3d_max_height");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE3D) &&
-      !checkImageValueRange<info::device::image3d_max_depth>(
-          getDevices(Context), Desc.depth))
+      !checkImageValueRange<info::device::image3d_max_depth>(Devices,
+                                                             Desc.depth))
     throw exception(make_error_code(errc::invalid),
                     "For a 3D image, the depth must be a Value >= 1 and <= "
                     "info::device::image2d_max_depth");
 
   if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE1D_ARRAY,
                UR_MEM_TYPE_IMAGE2D_ARRAY) &&
-      !checkImageValueRange<info::device::image_max_array_size>(
-          getDevices(Context), Desc.arraySize))
+      !checkImageValueRange<info::device::image_max_array_size>(Devices,
+                                                                Desc.arraySize))
     throw exception(make_error_code(errc::invalid),
                     "For a 1D and 2D image array, the array_size must be a "
                     "Value >= 1 and <= info::device::image_max_array_size.");
@@ -409,7 +409,7 @@ bool image_impl::checkImageDesc(const ur_image_desc_t &Desc,
 }
 
 bool image_impl::checkImageFormat(const ur_image_format_t &Format,
-                                  ContextImplPtr Context) {
+                                  context_impl *Context) {
   (void)Context;
   if (checkAny(Format.channelOrder, UR_IMAGE_CHANNEL_ORDER_INTENSITY,
                UR_IMAGE_CHANNEL_ORDER_LUMINANCE) &&
@@ -449,12 +449,6 @@ bool image_impl::checkImageFormat(const ur_image_format_t &Format,
         "or CL_UNSIGNED_INT8.");
 
   return true;
-}
-
-std::vector<device> image_impl::getDevices(const ContextImplPtr Context) {
-  if (!Context)
-    return {};
-  return Context->get_info<info::context::devices>();
 }
 
 void image_impl::sampledImageConstructorNotification(

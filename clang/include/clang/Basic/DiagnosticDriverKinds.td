@@ -127,7 +127,7 @@ def err_drv_no_sycl_libspirv : Error<
 def warn_flag_no_sycl_libspirv
     : Warning<"'-fno-sycl-libspirv' should not be used with target '%0'; "
               "libspirv is required for correct behavior">,
-      InGroup<NoLibspirvHipCuda>;
+      InGroup<UnsafeLibspirvNotLinked>;
 def err_drv_mix_cuda_hip : Error<
   "mixed CUDA and HIP compilation is not supported">;
 def err_drv_bad_target_id : Error<
@@ -158,8 +158,8 @@ def warn_drv_unsupported_option_for_processor : Warning<
 def warn_drv_unsupported_openmp_library : Warning<
   "the library '%0=%1' is not supported, OpenMP will not be enabled">,
   InGroup<OptionIgnored>;
-def warn_openmp_experimental : Warning<
-  "OpenMP support in flang is still experimental">,
+def warn_openmp_incomplete : Warning<
+  "OpenMP support for version %0 in flang is still incomplete">,
   InGroup<ExperimentalOption>;
 
 def err_drv_invalid_thread_model_for_target : Error<
@@ -236,6 +236,9 @@ def err_drv_cannot_open_randomize_layout_seed_file : Error<
   "cannot read randomize layout seed file '%0'">;
 def err_drv_invalid_version_number : Error<
   "invalid version number in '%0'">;
+def err_drv_invalid_version_number_inferred
+    : Error<"invalid version number '%0' inferred from '%1'">;
+def err_drv_missing_version_number : Error<"missing version number in '%0'">;
 def err_drv_kcfi_arity_unsupported_target : Error<
   "target '%0' is unsupported by -fsanitize-kcfi-arity">;
 def err_drv_no_linker_llvm_support : Error<
@@ -553,6 +556,9 @@ def warn_ignoring_value_using_default : Warning<
 def warn_drv_overriding_option : Warning<
   "overriding '%0' option with '%1'">,
   InGroup<DiagGroup<"overriding-option">>;
+def warn_drv_overriding_deployment_version
+    : Warning<"overriding deployment version from '%0' to '%1'">,
+      InGroup<DiagGroup<"overriding-deployment-version">>;
 def warn_drv_treating_input_as_cxx : Warning<
   "treating '%0' input as '%1' when in C++ mode, this behavior is deprecated">,
   InGroup<Deprecated>;
@@ -755,6 +761,10 @@ def note_drv_verify_prefix_spelling : Note<
   "-verify prefixes must start with a letter and contain only alphanumeric"
   " characters, hyphens, and underscores">;
 
+def note_command_line_code_loc_requirement
+    : Note<"-code-completion-at=<file>:<line>:<column> requires <line> and "
+           "<column> to be integers greater than zero">;
+
 def warn_drv_global_isel_incomplete : Warning<
   "-fglobal-isel support for the '%0' architecture is incomplete">,
   InGroup<GlobalISel>;
@@ -924,6 +934,9 @@ def note_drv_available_multilibs : Note<
   "available multilibs are:%0">;
 def err_drv_multilib_custom_error : Error<
   "multilib configuration error: %0">;
+def warn_drv_multilib_not_available_for_target: Warning<
+  "no multilib structure encoded for Arm, Aarch64 and PPC targets">,
+  InGroup<DiagGroup<"multilib-not-found">>;
 
 def err_drv_experimental_crel : Error<
   "-Wa,--allow-experimental-crel must be specified to use -Wa,--crel. "

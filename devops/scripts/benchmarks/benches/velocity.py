@@ -18,9 +18,6 @@ import os
 
 class VelocityBench(Suite):
     def __init__(self, directory):
-        if options.sycl is None:
-            return
-
         self.directory = directory
 
     def name(self) -> str:
@@ -32,7 +29,7 @@ class VelocityBench(Suite):
     def git_hash(self) -> str:
         return "b22215c16f789100449c34bf4eaa3fb178983d69"
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
@@ -44,18 +41,6 @@ class VelocityBench(Suite):
         )
 
     def benchmarks(self) -> list[Benchmark]:
-        if options.sycl is None:
-            return []
-
-        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
-            return [
-                Hashtable(self),
-                Bitcracker(self),
-                CudaSift(self),
-                QuickSilver(self),
-                SobelFilter(self),
-            ]
-
         return [
             Hashtable(self),
             Bitcracker(self),
@@ -76,6 +61,19 @@ class VelocityBase(Benchmark):
         self.bench_name = name
         self.bin_name = bin_name
         self.unit = unit
+
+    def enabled(self) -> bool:
+        if options.sycl is None:
+            return False
+        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
+            return self.bench_name in [
+                "hashtable",
+                "bitcracker",
+                "cudaSift",
+                "QuickSilver",
+                "sobel_filter",
+            ]
+        return True
 
     def download_deps(self):
         return
@@ -132,7 +130,7 @@ class VelocityBase(Benchmark):
     def get_tags(self):
         return ["SYCL", "application"]
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         env_vars.update(self.extra_env_vars())
 
         command = [
@@ -140,7 +138,12 @@ class VelocityBase(Benchmark):
         ]
         command += self.bin_args()
 
-        result = self.run_bench(command, env_vars, ld_library=self.ld_libraries())
+        result = self.run_bench(
+            command,
+            env_vars,
+            ld_library=self.ld_libraries(),
+            run_unitrace=run_unitrace,
+        )
 
         return [
             Result(
@@ -148,7 +151,6 @@ class VelocityBase(Benchmark):
                 value=self.parse_output(result),
                 command=command,
                 env=env_vars,
-                stdout=result,
                 unit=self.unit,
                 git_url=self.vb.git_url(),
                 git_hash=self.vb.git_hash(),
@@ -285,7 +287,7 @@ class QuickSilver(VelocityBase):
     def __init__(self, vb: VelocityBench):
         super().__init__("QuickSilver", "qs", vb, "MMS/CTT")
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         # TODO: fix the crash in QuickSilver when UR_L0_USE_IMMEDIATE_COMMANDLISTS=0
         if (
             "UR_L0_USE_IMMEDIATE_COMMANDLISTS" in env_vars

@@ -1,3 +1,4 @@
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: aspect-ext_oneapi_mipmap
 // REQUIRES: vulkan
@@ -11,8 +12,8 @@
 // Define NOMINMAX to enable compilation on Windows
 #define NOMINMAX
 
+#include "../../CommonUtils/vulkan_common.hpp"
 #include "../helpers/common.hpp"
-#include "vulkan_common.hpp"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
@@ -267,8 +268,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   // Create input image memory
   auto inputImage = vkutil::createImage(imgType, format, {width, height, depth},
                                         VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                            VK_IMAGE_USAGE_STORAGE_BIT,
+                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                         mipLevels);
   VkMemoryRequirements memRequirements;
   auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(

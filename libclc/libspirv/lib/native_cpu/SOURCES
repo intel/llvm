@@ -1,4 +1,3 @@
-integer/popcount.cl
 math/sqrt.cl
 math/clc_sqrt.cl
 math/fma.cl
@@ -11,6 +10,9 @@ math/native_log2.cl
 math/native_sin.cl
 math/native_sqrt.cl
 math/round.cl
+atomic/atomic_add.ll
+atomic/atomic_max.ll
+atomic/atomic_min.ll
 workitem/get_global_id.cl
 workitem/get_global_size.cl
 workitem/get_num_sub_groups.cl

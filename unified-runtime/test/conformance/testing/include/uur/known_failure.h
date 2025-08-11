@@ -90,6 +90,11 @@ struct NativeCPU : Matcher {
       : Matcher(1, UR_BACKEND_NATIVE_CPU, {il.begin(), il.end()}) {}
 };
 
+struct Offload : Matcher {
+  Offload(std::initializer_list<std::string> il)
+      : Matcher(1, UR_BACKEND_OFFLOAD, {il.begin(), il.end()}) {}
+};
+
 inline bool isKnownFailureOn(ur_adapter_handle_t adapter,
                              const std::vector<Matcher> &matchers) {
   auto adapterInfo = detail::getAdapterInfo(adapter);

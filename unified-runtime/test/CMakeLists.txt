@@ -3,12 +3,23 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-include(FetchContent)
-FetchContent_Declare(
-  googletest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG        v1.13.0
-)
+set(GTEST_VER 1.13.0)
+
+find_package(GTest ${GTEST_VER} QUIET)
+
+if(GTest_FOUND AND NOT TARGET GTest::gmock)
+  message(WARNING "Found system install of GTest but not GMock. Building GTest and GMock from source")
+  set(GTest_FOUND FALSE)
+endif()
+
+if(NOT GTest_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(
+      googletest
+      GIT_REPOSITORY https://github.com/google/googletest.git
+      GIT_TAG        v${GTEST_VER}
+    )
+endif()
 
 include(FindLit)
 
@@ -22,16 +33,27 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND UR_DPCXX AND UR_TEST_FUZZTESTS)
     set(UR_FUZZTESTING_ENABLED ON)
 endif()
 
-set(INSTALL_GTEST OFF)
-FetchContent_MakeAvailable(googletest)
+if(NOT GTest_FOUND)
+    set(INSTALL_GTEST OFF)
+    FetchContent_MakeAvailable(googletest)
+endif()
 enable_testing()
 
 # At the time of writing this comment, this is only used for level_zero adapter testing.
 # It is found here for use in `lit.site.cfg.py.in`, which is inherited by said testing.
 find_program(VALGRIND valgrind)
 
+function(ur_configure_file input output main_file)
+  configure_file(${input} ${output} @ONLY)
+  if(NOT UR_STANDALONE_BUILD)
+    get_property(LLVM_LIT_CONFIG_FILES GLOBAL PROPERTY LLVM_LIT_CONFIG_FILES)
+    list(APPEND LLVM_LIT_CONFIG_FILES "${CMAKE_CURRENT_SOURCE_DIR}/${main_file}" "${CMAKE_CURRENT_BINARY_DIR}/${output}")
+    set_property(GLOBAL PROPERTY LLVM_LIT_CONFIG_FILES ${LLVM_LIT_CONFIG_FILES})
+  endif()
+endfunction()
+
 # Set up the root `check-unified-runtime` target
-configure_file(lit.site.cfg.py.in lit.site.cfg.py)
+ur_configure_file(lit.site.cfg.py.in lit.site.cfg.py lit.cfg.py)
 add_custom_target(deps_check-unified-runtime)
 if(UR_STANDALONE_BUILD)
   add_custom_target(check-unified-runtime
@@ -60,7 +82,7 @@ function(add_ur_lit_testsuite suite)
   set(TARGET "check-unified-runtime-${suite}")
 
   if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in)
-    configure_file(lit.site.cfg.py.in lit.site.cfg.py)
+    ur_configure_file(lit.site.cfg.py.in lit.site.cfg.py lit.cfg.py)
   endif()
 
   if(UR_STANDALONE_BUILD)
@@ -103,7 +125,7 @@ function(add_gtest_test name)
     add_testing_binary(${TEST_TARGET_NAME} ${ARGN})
     target_link_libraries(${TEST_TARGET_NAME}
         PRIVATE
-        gmock
+        GTest::gmock
         GTest::gtest_main)
 endfunction()
 

@@ -1,3 +1,4 @@
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: vulkan
@@ -8,8 +9,8 @@
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
+#include "../../CommonUtils/vulkan_common.hpp"
 #include "../helpers/common.hpp"
-#include "vulkan_common.hpp"
 #include <sycl/properties/queue_properties.hpp>
 
 #include <random>

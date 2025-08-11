@@ -1,15 +1,23 @@
-from utils.aggregate import Aggregator, SimpleMedian
-from utils.validate import Validate
-from utils.result import Result, BenchmarkRun
-from options import options
+# Copyright (C) 2024-2025 Intel Corporation
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import os
-import sys
+import re
 import json
 import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import dataclass, asdict
+
+from utils.aggregate import Aggregator, SimpleMedian, EWMA
+from utils.validate import Validate
+from utils.result import BenchmarkRun
+from utils.logger import log
+from options import options
+
+
+verbose = False
 
 
 @dataclass
@@ -104,16 +112,12 @@ class Compare:
         def validate_benchmark_result(result: BenchmarkRun) -> bool:
             """
             Returns True if result file:
-            - Was ran on the target machine/hostname specified
-            - Sanity check: ensure metadata are all expected values:
               - Date is truly before cutoff timestamp
               - Name truly matches up with specified result_name
             """
-            if result.hostname != hostname:
-                return False
             if result.name != result_name:
-                print(
-                    f"Warning: Result file {result_path} does not match specified result name {result.name}."
+                log.warning(
+                    f"Result file {result_path} does not match specified result name {result.name}."
                 )
                 return False
             if result.date < datetime.strptime(cutoff, "%Y%m%d_%H%M%S").replace(
@@ -145,6 +149,9 @@ class Compare:
 
                 def reset_aggregate() -> dict:
                     return {
+                        # TODO compare determine which command args have an
+                        # impact on perf results, and do not compare arg results
+                        # are incomparable
                         "command_args": set(test_run.command[1:]),
                         "aggregate": aggregator(starting_elements=[test_run.value]),
                     }
@@ -153,27 +160,7 @@ class Compare:
                 if test_run.name not in average_aggregate:
                     average_aggregate[test_run.name] = reset_aggregate()
                 else:
-                    # Check that we are comparing runs with the same cmd args:
-                    if (
-                        set(test_run.command[1:])
-                        == average_aggregate[test_run.name]["command_args"]
-                    ):
-                        average_aggregate[test_run.name]["aggregate"].add(
-                            test_run.value
-                        )
-                    else:
-                        # If the command args used between runs are different,
-                        # discard old run data and prefer new command args
-                        #
-                        # This relies on the fact that paths from get_result_paths()
-                        # is sorted from older to newer
-                        print(
-                            f"Warning: Command args for {test_run.name} from {result_path} is different from prior runs."
-                        )
-                        print(
-                            "DISCARDING older data and OVERRIDING with data using new arg."
-                        )
-                        average_aggregate[test_run.name] = reset_aggregate()
+                    average_aggregate[test_run.name]["aggregate"].add(test_run.value)
 
         return {
             name: BenchmarkHistoricAverage(
@@ -217,9 +204,9 @@ class Compare:
         for test in target.results:
             if test.name not in hist_avg:
                 continue
-            if hist_avg[test.name].command_args != set(test.command[1:]):
-                print(f"Warning: skipped {test.name} due to command args mismatch.")
-                continue
+            # TODO compare command args which have an impact on performance
+            # (i.e. ignore --save-name): if command results are incomparable,
+            # skip the result.
 
             delta = 1 - (
                 test.value / hist_avg[test.name].value
@@ -240,6 +227,10 @@ class Compare:
                 improvement.append(perf_diff_entry())
             elif halfway_round(delta, 2) < -options.regression_threshold:
                 regression.append(perf_diff_entry())
+
+            log.debug(
+                f"{test.name}: expect {hist_avg[test.name].value}, got {test.value}"
+            )
 
         return improvement, regression
 
@@ -271,25 +262,29 @@ class Compare:
             from the average for this benchmark run.
         """
 
-        if avg_type != "median":
-            print("Only median is currently supported: Refusing to continue.")
+        if avg_type == "median":
+            aggregator_type = SimpleMedian
+        elif avg_type == "EWMA":
+            aggregator_type = EWMA
+        else:
+            log.error("Unsupported avg_type f{avg_type}.")
             exit(1)
 
         try:
             with open(compare_file, "r") as compare_f:
                 compare_result = BenchmarkRun.from_json(json.load(compare_f))
         except:
-            print(f"Unable to open {compare_file}.")
+            log.error(f"Unable to open {compare_file}.")
             exit(1)
 
         # Sanity checks:
         if compare_result.hostname == "Unknown":
-            print(
+            log.error(
                 "Hostname for results in {compare_file} unknown, unable to build a historic average: Refusing to continue."
             )
             exit(1)
         if not Validate.timestamp(cutoff):
-            print("Invalid timestamp provided, please follow YYYYMMDD_HHMMSS.")
+            log.error("Invalid timestamp provided, please follow YYYYMMDD_HHMMSS.")
             exit(1)
 
         # Build historic average and compare results against historic average:
@@ -298,6 +293,7 @@ class Compare:
             result_dir,
             compare_result.hostname,
             cutoff,
+            aggregator=aggregator_type,
             exclude=[Path(compare_file).stem],
         )
         return Compare.to_hist_avg(hist_avg, compare_result)
@@ -336,38 +332,86 @@ if __name__ == "__main__":
         help="Timestamp (in YYYYMMDD_HHMMSS) of oldest result to include in historic average calculation",
         default="20000101_010101",
     )
+    parser_avg.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Increase output verbosity",
+    )
+    parser_avg.add_argument(
+        "--regression-filter",
+        type=str,
+        help="If provided, only regressions matching provided regex will cause exit status 1.",
+        default=None,
+    )
+    parser_avg.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Do not return error upon regressions.",
+    )
 
     args = parser.parse_args()
 
+    log.initialize(args.verbose)
+    log.info("-- Compare.py --")
+
     if args.operation == "to_hist":
-        if args.avg_type != "median":
-            print("Only median is currently supported: exiting.")
-            exit(1)
         if not Validate.timestamp(args.cutoff):
             raise ValueError("Timestamp must be provided as YYYYMMDD_HHMMSS.")
+        if args.avg_type not in ["median", "EWMA"]:
+            log.error("Only median, EWMA is currently supported: exiting.")
+            exit(1)
 
         improvements, regressions = Compare.to_hist(
-            "median", args.name, args.compare_file, args.results_dir, args.cutoff
+            args.avg_type, args.name, args.compare_file, args.results_dir, args.cutoff
         )
 
-        def print_regression(entry: dict):
-            """Print an entry outputted from Compare.to_hist"""
-            print(f"Test: {entry['name']}")
-            print(f"-- Historic {entry['avg_type']}: {entry['hist_avg']}")
-            print(f"-- Run result: {test['value']}")
-            print(f"-- Delta: {test['delta']}")
-            print("")
+        # Not all regressions are of concern: if a filter is provided, filter
+        # regressions using filter
+        regressions_ignored = []
+        regressions_of_concern = []
+        if args.regression_filter is not None:
+            filter_pattern = re.compile(args.regression_filter)
+            for test in regressions:
+                if filter_pattern.search(test["name"]):
+                    regressions_of_concern.append(test)
+                else:
+                    regressions_ignored.append(test)
+
+        def print_regression(entry: dict, is_warning: bool = False):
+            """Print an entry outputted from Compare.to_hist
+
+            Args:
+                entry (dict): The entry to print
+                is_warning (bool): If True, use log.warning instead of log.info
+            """
+            log_func = log.warning if is_warning else log.info
+            log_func(f"Test: {entry['name']}")
+            log_func(f"-- Historic {entry['avg_type']}: {entry['hist_avg']}")
+            log_func(f"-- Run result: {entry['value']}")
+            log_func(f"-- Delta: {entry['delta']}")
+            log_func("")
 
         if improvements:
-            print("#\n# Improvements:\n#\n")
+            log.info("#")
+            log.info("# Improvements:")
+            log.info("#")
             for test in improvements:
                 print_regression(test)
-        if regressions:
-            print("#\n# Regressions:\n#\n")
-            for test in regressions:
+        if regressions_ignored:
+            log.info("#")
+            log.info("# Regressions (filtered out by regression-filter):")
+            log.info("#")
+            for test in regressions_ignored:
                 print_regression(test)
-            exit(1)  # Exit 1 to trigger github test failure
-        print("\nNo regressions found!")
+        if regressions_of_concern:
+            log.warning("#")
+            log.warning("# Regressions:")
+            log.warning("#")
+            for test in regressions_of_concern:
+                print_regression(test, is_warning=True)
+            if not args.dry_run:
+                exit(1)  # Exit 1 to trigger github test failure
+        log.info("No unexpected regressions found!")
     else:
-        print("Unsupported operation: exiting.")
+        log.error("Unsupported operation: exiting.")
         exit(1)

@@ -8,9 +8,6 @@
 
 #include "include/asan_rtl.hpp"
 #include "asan/asan_libdevice.hpp"
-#include "atomic.hpp"
-#include "device.h"
-#include "spirv_vars.h"
 
 // Save the pointer to LaunchInfo
 __SYCL_GLOBAL__ uptr *__SYCL_LOCAL__ __AsanLaunchInfo;
@@ -29,8 +26,8 @@ static const __SYCL_CONSTANT__ char __local_shadow_out_of_bound[] =
     "[kernel] Local shadow memory out-of-bound (ptr: %p -> %p, wid: %llu, "
     "base: %p)\n";
 static const __SYCL_CONSTANT__ char __private_shadow_out_of_bound[] =
-    "[kernel] Private shadow memory out-of-bound (ptr: %p -> %p, wid: %llu, "
-    "sid: %llu, base: %p)\n";
+    "[kernel] Private shadow memory out-of-bound (ptr: %p -> %p, sid: %llu, "
+    "base: %p)\n";
 
 static const __SYCL_CONSTANT__ char __asan_print_unsupport_device_type[] =
     "[kernel] Unsupport device type: %d\n";
@@ -58,8 +55,18 @@ static __SYCL_CONSTANT__ const char __generic_to[] =
 
 namespace {
 
-void __asan_report_unknown_device();
-void __asan_print_shadow_memory(uptr addr, uptr shadow_address, uint32_t as);
+struct DebugInfo {
+  uptr addr;
+  uint32_t as;
+  size_t access_size;
+  bool is_write;
+  const char __SYCL_CONSTANT__ *file;
+  const char __SYCL_CONSTANT__ *func;
+  uint32_t line;
+};
+
+void ReportUnknownDevice(const DebugInfo *debug);
+void PrintShadowMemory(uptr addr, uptr shadow_address, uint32_t as);
 
 __SYCL_GLOBAL__ void *ToGlobal(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToGlobal(ptr, 5);
@@ -81,7 +88,7 @@ inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
     // FIXME: I'm not sure if we need to check ADDRESS_SPACE_CONSTANT,
     // but this can really simplify the generic pointer conversion logic
     as = ADDRESS_SPACE_GLOBAL;
-    addr = old;
+    addr = (uptr)ToGlobal((void *)old);
   }
   ASAN_DEBUG(__spirv_ocl_printf(__generic_to, old, addr, as));
 }
@@ -91,7 +98,8 @@ inline uptr MemToShadow_CPU(uptr addr) {
   return launch_info->GlobalShadowOffset + (addr >> ASAN_SHADOW_SCALE);
 }
 
-inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
+inline uptr MemToShadow_DG2(uptr addr, uint32_t as,
+                            [[maybe_unused]] const DebugInfo *debug) {
   if (as == ADDRESS_SPACE_GENERIC) {
     ConvertGenericPointer(addr, as);
   }
@@ -118,13 +126,13 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
     return shadow_ptr;
   } else if (as == ADDRESS_SPACE_LOCAL) { // local
     const auto shadow_offset = launch_info->LocalShadowOffset;
-    if (shadow_offset == 0) {
+    const size_t wid = WorkGroupLinearId();
+    if (shadow_offset == 0 || wid >= ASAN_MAX_WG_LOCAL) {
       return 0;
     }
 
     // The size of SLM is 64KB on DG2
     constexpr unsigned slm_size = 64 * 1024;
-    const size_t wid = WorkGroupLinearId();
 
     auto shadow_ptr = shadow_offset + ((wid * slm_size) >> ASAN_SHADOW_SCALE) +
                       ((addr & (slm_size - 1)) >> ASAN_SHADOW_SCALE);
@@ -138,12 +146,11 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
     return shadow_ptr;
   } else if (as == ADDRESS_SPACE_PRIVATE) { // private
     const auto shadow_offset = launch_info->PrivateShadowOffset;
-    if (shadow_offset == 0) {
+    const size_t sid = SubGroupLinearId();
+    if (shadow_offset == 0 || sid >= ASAN_MAX_SG_PRIVATE) {
       return 0;
     }
 
-    const auto wid = WorkGroupLinearId();
-    const size_t sid = SubGroupLinearId();
     const uptr private_base = launch_info->PrivateBase[sid];
 
     // FIXME: The recorded private_base may not be the most bottom one,
@@ -153,13 +160,13 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
     }
 
     uptr shadow_ptr = shadow_offset +
-                      ((wid * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE) +
+                      ((sid * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE) +
                       ((addr - private_base) >> ASAN_SHADOW_SCALE);
 
     const auto shadow_offset_end = launch_info->PrivateShadowOffsetEnd;
     if (shadow_ptr > shadow_offset_end) {
-      __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr, wid,
-                         sid, private_base);
+      __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr, sid,
+                         private_base);
       return 0;
     };
 
@@ -169,7 +176,8 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
   return 0;
 }
 
-inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
+inline uptr MemToShadow_PVC(uptr addr, uint32_t as,
+                            [[maybe_unused]] const DebugInfo *debug) {
   if (as == ADDRESS_SPACE_GENERIC) {
     ConvertGenericPointer(addr, as);
   }
@@ -195,13 +203,13 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
     return shadow_ptr;
   } else if (as == ADDRESS_SPACE_LOCAL) { // local
     const auto shadow_offset = launch_info->LocalShadowOffset;
-    if (shadow_offset == 0) {
+    const auto wid = WorkGroupLinearId();
+    if (shadow_offset == 0 || wid >= ASAN_MAX_WG_LOCAL) {
       return 0;
     }
 
     // The size of SLM is 128KB on PVC
     constexpr unsigned SLM_SIZE = 128 * 1024;
-    const auto wid = WorkGroupLinearId();
 
     uptr shadow_ptr = shadow_offset + ((wid * SLM_SIZE) >> ASAN_SHADOW_SCALE) +
                       ((addr & (SLM_SIZE - 1)) >> ASAN_SHADOW_SCALE);
@@ -215,12 +223,11 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
     return shadow_ptr;
   } else if (as == ADDRESS_SPACE_PRIVATE) { // private
     const auto shadow_offset = launch_info->PrivateShadowOffset;
-    if (shadow_offset == 0) {
+    const size_t sid = SubGroupLinearId();
+    if (shadow_offset == 0 || sid >= ASAN_MAX_SG_PRIVATE) {
       return 0;
     }
 
-    const size_t wid = WorkGroupLinearId();
-    const size_t sid = SubGroupLinearId();
     const uptr private_base = launch_info->PrivateBase[sid];
 
     // FIXME: The recorded private_base may not be the most bottom one,
@@ -230,13 +237,13 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
     }
 
     uptr shadow_ptr = shadow_offset +
-                      ((wid * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE) +
+                      ((sid * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE) +
                       ((addr - private_base) >> ASAN_SHADOW_SCALE);
 
     const auto shadow_offset_end = launch_info->PrivateShadowOffsetEnd;
     if (shadow_ptr > shadow_offset_end) {
-      __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr, wid,
-                         sid, private_base);
+      __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr, sid,
+                         private_base);
       return 0;
     };
 
@@ -246,27 +253,28 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
   return 0;
 }
 
-inline uptr MemToShadow(uptr addr, uint32_t as) {
+inline uptr MemToShadow(uptr addr, uint32_t as,
+                        const DebugInfo *debug = nullptr) {
   uptr shadow_ptr = 0;
 
 #if defined(__LIBDEVICE_PVC__)
-  shadow_ptr = MemToShadow_PVC(addr, as);
+  shadow_ptr = MemToShadow_PVC(addr, as, debug);
 #elif defined(__LIBDEVICE_CPU__)
   shadow_ptr = MemToShadow_CPU(addr);
 #elif defined(__LIBDEVICE_DG2__)
-  shadow_ptr = MemToShadow_DG2(addr, as);
+  shadow_ptr = MemToShadow_DG2(addr, as, debug);
 #else
   auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
   if (launch_info->DeviceTy == DeviceType::CPU) {
     shadow_ptr = MemToShadow_CPU(addr);
   } else if (launch_info->DeviceTy == DeviceType::GPU_PVC) {
-    shadow_ptr = MemToShadow_PVC(addr, as);
+    shadow_ptr = MemToShadow_PVC(addr, as, debug);
   } else if (launch_info->DeviceTy == DeviceType::GPU_DG2) {
-    shadow_ptr = MemToShadow_DG2(addr, as);
+    shadow_ptr = MemToShadow_DG2(addr, as, debug);
   } else {
     ASAN_DEBUG(__spirv_ocl_printf(__asan_print_unsupport_device_type,
                                   (int)launch_info->DeviceTy));
-    __asan_report_unknown_device();
+    ReportUnknownDevice(debug);
     return 0;
   }
 #endif
@@ -274,7 +282,7 @@ inline uptr MemToShadow(uptr addr, uint32_t as) {
   ASAN_DEBUG(
       if (shadow_ptr) {
         if (as == ADDRESS_SPACE_PRIVATE)
-          __asan_print_shadow_memory(addr, shadow_ptr, as);
+          PrintShadowMemory(addr, shadow_ptr, as);
         else
           __spirv_ocl_printf(__asan_print_shadow_value1, addr, as, shadow_ptr,
                              *(u8 *)shadow_ptr);
@@ -323,7 +331,7 @@ bool MemIsZero(__SYCL_GLOBAL__ const char *beg, uptr size) {
 static __SYCL_CONSTANT__ const char __mem_sanitizer_report[] =
     "[kernel] SanitizerReport (ErrorType=%d, IsRecover=%d)\n";
 
-void __asan_exit(ErrorType error_type) {
+void Exit(ErrorType error_type) {
   // Exit the kernel when we really need it
   switch (error_type) {
   case ErrorType::UNKNOWN:
@@ -336,37 +344,8 @@ void __asan_exit(ErrorType error_type) {
   }
 }
 
-void __asan_internal_report_save(ErrorType error_type) {
-  const int Expected = ASAN_REPORT_NONE;
-  int Desired = ASAN_REPORT_START;
-
-  const size_t wid = WorkGroupLinearId();
-  auto &SanitizerReport = ((__SYCL_GLOBAL__ AsanRuntimeData *)__AsanLaunchInfo)
-                              ->Report[wid % ASAN_MAX_NUM_REPORTS];
-
-  if (atomicCompareAndSet(
-          &(((__SYCL_GLOBAL__ AsanRuntimeData *)__AsanLaunchInfo)->ReportFlag),
-          1, 0) == 0 &&
-      atomicCompareAndSet(&SanitizerReport.Flag, Desired, Expected) ==
-          Expected) {
-    SanitizerReport.ErrorTy = error_type;
-    SanitizerReport.IsRecover = false;
-
-    // Show we've done copying
-    atomicStore(&SanitizerReport.Flag, ASAN_REPORT_FINISH);
-
-    ASAN_DEBUG(__spirv_ocl_printf(__mem_sanitizer_report,
-                                  SanitizerReport.ErrorTy,
-                                  SanitizerReport.IsRecover));
-  }
-  __asan_exit(error_type);
-}
-
-void __asan_internal_report_save(
-    uptr ptr, uint32_t as, const char __SYCL_CONSTANT__ *file, uint32_t line,
-    const char __SYCL_CONSTANT__ *func, bool is_write, uint32_t access_size,
-    MemoryType memory_type, ErrorType error_type, bool is_recover = false) {
-
+void SaveReport(ErrorType error_type, MemoryType memory_type, bool is_recover,
+                const DebugInfo *debug) {
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
 
@@ -380,6 +359,14 @@ void __asan_internal_report_save(
            1, 0) == 0) &&
       atomicCompareAndSet(&SanitizerReport.Flag, Desired, Expected) ==
           Expected) {
+
+    const uptr ptr = debug ? debug->addr : 0;
+    const uint32_t as = debug ? debug->as : 5;
+    const char __SYCL_CONSTANT__ *file = debug ? debug->file : nullptr;
+    const uint32_t line = debug ? debug->line : 0;
+    const char __SYCL_CONSTANT__ *func = debug ? debug->func : nullptr;
+    const bool is_write = debug ? debug->is_write : false;
+    const uint32_t access_size = debug ? debug->access_size : 0;
 
     int FileLength = 0;
     int FuncLength = 0;
@@ -408,12 +395,12 @@ void __asan_internal_report_save(
     SanitizerReport.Func[MaxFuncIdx] = '\0';
 
     SanitizerReport.Line = line;
-    SanitizerReport.GID0 = __spirv_GlobalInvocationId_x();
-    SanitizerReport.GID1 = __spirv_GlobalInvocationId_y();
-    SanitizerReport.GID2 = __spirv_GlobalInvocationId_z();
-    SanitizerReport.LID0 = __spirv_LocalInvocationId_x();
-    SanitizerReport.LID1 = __spirv_LocalInvocationId_y();
-    SanitizerReport.LID2 = __spirv_LocalInvocationId_z();
+    SanitizerReport.GID0 = __spirv_BuiltInGlobalInvocationId(0);
+    SanitizerReport.GID1 = __spirv_BuiltInGlobalInvocationId(1);
+    SanitizerReport.GID2 = __spirv_BuiltInGlobalInvocationId(2);
+    SanitizerReport.LID0 = __spirv_BuiltInLocalInvocationId(0);
+    SanitizerReport.LID1 = __spirv_BuiltInLocalInvocationId(1);
+    SanitizerReport.LID2 = __spirv_BuiltInLocalInvocationId(2);
 
     SanitizerReport.Address = ptr;
     SanitizerReport.IsWrite = is_write;
@@ -429,7 +416,7 @@ void __asan_internal_report_save(
                                   SanitizerReport.ErrorTy,
                                   SanitizerReport.IsRecover));
   }
-  __asan_exit(error_type);
+  Exit(error_type);
 }
 
 ///
@@ -462,14 +449,11 @@ MemoryType GetMemoryTypeByShadowValue(int shadow_value) {
   }
 }
 
-void __asan_report_access_error(uptr addr, uint32_t as, size_t size,
-                                bool is_write, uptr poisoned_addr,
-                                const char __SYCL_CONSTANT__ *file,
-                                uint32_t line,
-                                const char __SYCL_CONSTANT__ *func,
-                                bool is_recover = false) {
+void ReportAccessError(uptr poisoned_addr, uint32_t as, bool is_recover,
+                       const DebugInfo *debug) {
   // Check Error Type
-  auto *shadow_address = (__SYCL_GLOBAL__ s8 *)MemToShadow(poisoned_addr, as);
+  auto *shadow_address =
+      (__SYCL_GLOBAL__ s8 *)MemToShadow(poisoned_addr, as, debug);
   int shadow_value = *shadow_address;
   if (shadow_value > 0) {
     shadow_value = *(shadow_address + 1);
@@ -503,39 +487,34 @@ void __asan_report_access_error(uptr addr, uint32_t as, size_t size,
     error_type = ErrorType::UNKNOWN;
   }
 
-  __asan_internal_report_save(addr, as, file, line, func, is_write, size,
-                              memory_type, error_type, is_recover);
+  SaveReport(error_type, memory_type, is_recover, debug);
 }
 
-void __asan_report_misalign_error(uptr addr, uint32_t as, size_t size,
-                                  bool is_write, uptr poisoned_addr,
-                                  const char __SYCL_CONSTANT__ *file,
-                                  uint32_t line,
-                                  const char __SYCL_CONSTANT__ *func,
-                                  bool is_recover = false) {
+void ReportMisalignError(uptr addr, uint32_t as, bool is_recover,
+                         const DebugInfo *debug) {
 
-  auto *shadow = (__SYCL_GLOBAL__ s8 *)MemToShadow(addr, as);
+  auto *shadow = (__SYCL_GLOBAL__ s8 *)MemToShadow(addr, as, debug);
+  if (!shadow)
+    return;
+
   while (*shadow >= 0) {
     ++shadow;
   }
   int shadow_value = *shadow;
 
-  ErrorType error_type = ErrorType::MISALIGNED;
-  MemoryType memory_type = GetMemoryTypeByShadowValue(shadow_value);
-
-  __asan_internal_report_save(addr, as, file, line, func, is_write, size,
-                              memory_type, error_type, is_recover);
+  SaveReport(ErrorType::MISALIGNED, GetMemoryTypeByShadowValue(shadow_value),
+             is_recover, debug);
 }
 
-void __asan_report_unknown_device() {
-  __asan_internal_report_save(ErrorType::UNKNOWN_DEVICE);
+void ReportUnknownDevice(const DebugInfo *debug) {
+  SaveReport(ErrorType::UNKNOWN_DEVICE, MemoryType::UNKNOWN, false, debug);
 }
 
 ///
 /// ASan utils
 ///
 
-void __asan_print_shadow_memory(uptr addr, uptr shadow_address, uint32_t as) {
+void PrintShadowMemory(uptr addr, uptr shadow_address, uint32_t as) {
   uptr p = shadow_address & (~0xf);
   __spirv_ocl_printf(__asan_shadow_value_start, addr, as, p);
   for (int i = 0; i < 0xf; ++i) {
@@ -549,23 +528,10 @@ void __asan_print_shadow_memory(uptr addr, uptr shadow_address, uint32_t as) {
   __spirv_ocl_printf(__newline);
 }
 
-bool __asan_region_is_value(uptr addr, uint32_t as, std::size_t size,
-                            char value) {
-  if (size == 0)
-    return true;
-  while (size--) {
-    auto *shadow = (__SYCL_GLOBAL__ char *)MemToShadow(addr, as);
-    if (*shadow != value) {
-      return false;
-    }
-    ++addr;
-  }
-  return true;
-}
-
 // NOTE: size <= 16
-inline int __asan_address_is_poisoned(uptr a, uint32_t as, size_t size = 1) {
-  auto *shadow_address = (__SYCL_GLOBAL__ s8 *)MemToShadow(a, as);
+inline int IsAddressPoisoned(uptr a, uint32_t as, size_t size,
+                             const DebugInfo *debug) {
+  auto *shadow_address = (__SYCL_GLOBAL__ s8 *)MemToShadow(a, as, debug);
   if (shadow_address) {
     auto shadow_value = *shadow_address;
     if (shadow_value) {
@@ -578,7 +544,8 @@ inline int __asan_address_is_poisoned(uptr a, uint32_t as, size_t size = 1) {
   return false;
 }
 
-inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, size_t size) {
+inline uptr IsRegionPoisoned(uptr beg, uint32_t as, size_t size,
+                             const DebugInfo *debug) {
   if (!size)
     return 0;
 
@@ -586,11 +553,11 @@ inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, size_t size) {
   uptr aligned_b = RoundUpTo(beg, ASAN_SHADOW_GRANULARITY);
   uptr aligned_e = RoundDownTo(end, ASAN_SHADOW_GRANULARITY);
 
-  uptr shadow_beg = MemToShadow(aligned_b, as);
+  uptr shadow_beg = MemToShadow(aligned_b, as, debug);
   if (!shadow_beg) {
     return 0;
   }
-  uptr shadow_end = MemToShadow(aligned_e, as);
+  uptr shadow_end = MemToShadow(aligned_e, as, debug);
   if (!shadow_end) {
     return 0;
   }
@@ -598,8 +565,8 @@ inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, size_t size) {
   // First check the first and the last application bytes,
   // then check the ASAN_SHADOW_GRANULARITY-aligned region by calling
   // MemIsZero on the corresponding shadow.
-  if (!__asan_address_is_poisoned(beg, as) &&
-      !__asan_address_is_poisoned(end - 1, as) &&
+  if (!IsAddressPoisoned(beg, as, 1, debug) &&
+      !IsAddressPoisoned(end - 1, as, 1, debug) &&
       (shadow_end <= shadow_beg ||
        MemIsZero((__SYCL_GLOBAL__ const char *)shadow_beg,
                  shadow_end - shadow_beg)))
@@ -608,7 +575,7 @@ inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, size_t size) {
   // The fast check failed, so we have a poisoned byte somewhere.
   // Find it slowly.
   for (; beg < end; beg++)
-    if (__asan_address_is_poisoned(beg, as))
+    if (IsAddressPoisoned(beg, as, 1, debug))
       return beg;
 
   return 0;
@@ -631,13 +598,12 @@ constexpr size_t AlignMask(size_t n) { return n - 1; }
       const char __SYCL_CONSTANT__ *func) {                                    \
     if (!__AsanLaunchInfo)                                                     \
       return;                                                                  \
+    DebugInfo debug{addr, as, size, is_write, file, func, line};               \
     if (addr & AlignMask(size)) {                                              \
-      __asan_report_misalign_error(addr, as, size, is_write, addr, file, line, \
-                                   func);                                      \
+      ReportMisalignError(addr, as, false, &debug);                            \
     }                                                                          \
-    if (__asan_address_is_poisoned(addr, as, size)) {                          \
-      __asan_report_access_error(addr, as, size, is_write, addr, file, line,   \
-                                 func);                                        \
+    if (IsAddressPoisoned(addr, as, size, &debug)) {                           \
+      ReportAccessError(addr, as, false, &debug);                              \
     }                                                                          \
   }                                                                            \
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##size##_as##as##_noabort(        \
@@ -645,13 +611,12 @@ constexpr size_t AlignMask(size_t n) { return n - 1; }
       const char __SYCL_CONSTANT__ *func) {                                    \
     if (!__AsanLaunchInfo)                                                     \
       return;                                                                  \
+    DebugInfo debug{addr, as, size, is_write, file, func, line};               \
     if (addr & AlignMask(size)) {                                              \
-      __asan_report_misalign_error(addr, as, size, is_write, addr, file, line, \
-                                   func, true);                                \
+      ReportMisalignError(addr, as, true, &debug);                             \
     }                                                                          \
-    if (__asan_address_is_poisoned(addr, as, size)) {                          \
-      __asan_report_access_error(addr, as, size, is_write, addr, file, line,   \
-                                 func, true);                                  \
+    if (IsAddressPoisoned(addr, as, size, &debug)) {                           \
+      ReportAccessError(addr, as, true, &debug);                               \
     }                                                                          \
   }
 
@@ -679,9 +644,9 @@ ASAN_REPORT_ERROR(store, true, 16)
       uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
     if (!__AsanLaunchInfo)                                                     \
       return;                                                                  \
-    if (auto poisoned_addr = __asan_region_is_poisoned(addr, as, size)) {      \
-      __asan_report_access_error(addr, as, size, is_write, poisoned_addr,      \
-                                 file, line, func);                            \
+    DebugInfo debug{addr, as, size, is_write, file, func, line};               \
+    if (auto poisoned_addr = IsRegionPoisoned(addr, as, size, &debug)) {       \
+      ReportAccessError(poisoned_addr, as, false, &debug);                     \
     }                                                                          \
   }                                                                            \
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##N_as##as##_noabort(             \
@@ -689,9 +654,9 @@ ASAN_REPORT_ERROR(store, true, 16)
       uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
     if (!__AsanLaunchInfo)                                                     \
       return;                                                                  \
-    if (auto poisoned_addr = __asan_region_is_poisoned(addr, as, size)) {      \
-      __asan_report_access_error(addr, as, size, is_write, poisoned_addr,      \
-                                 file, line, func, true);                      \
+    DebugInfo debug{addr, as, size, is_write, file, func, line};               \
+    if (auto poisoned_addr = IsRegionPoisoned(addr, as, size, &debug)) {       \
+      ReportAccessError(poisoned_addr, as, true, &debug);                      \
     }                                                                          \
   }
 
@@ -707,11 +672,23 @@ ASAN_REPORT_ERROR_N(store, true)
 
 ///
 /// ASAN convert memory address to shadow memory address
+/// This function is used only for getting shadow address of private memory so
+/// that we can poison them later. And the current implmentation require the ptr
+/// to be aligned with ASAN_SHADOW_GRANULARITY. If not aligned, the subsequent
+/// poisoning will not work correctly.
 ///
+static __SYCL_CONSTANT__ const char __asan_mem_to_shadow_unaligned_msg[] =
+    "[kernel] __asan_mem_to_shadow() unaligned address: %p\n";
 
 DEVICE_EXTERN_C_NOINLINE uptr __asan_mem_to_shadow(uptr ptr, uint32_t as) {
   if (!__AsanLaunchInfo)
     return 0;
+
+  // If ptr is not aligned, then it should be considered as implementation
+  // error. Print a warning for it.
+  if (ptr & AlignMask(ASAN_SHADOW_GRANULARITY)) {
+    __spirv_ocl_printf(__asan_mem_to_shadow_unaligned_msg, (void *)ptr);
+  }
 
   return MemToShadow(ptr, as);
 }
@@ -736,6 +713,9 @@ __asan_set_shadow_static_local(uptr ptr, size_t size,
   // Set red zone
   {
     auto shadow_address = MemToShadow(ptr + aligned_size, ADDRESS_SPACE_LOCAL);
+    if (!shadow_address)
+      return;
+
     auto count = (size_with_redzone - aligned_size) >> ASAN_SHADOW_SCALE;
 
     ASAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_local, shadow_address,
@@ -752,6 +732,9 @@ __asan_set_shadow_static_local(uptr ptr, size_t size,
     auto user_end = ptr + size;
     auto *shadow_end =
         (__SYCL_GLOBAL__ s8 *)MemToShadow(user_end, ADDRESS_SPACE_LOCAL);
+    if (!shadow_end)
+      return;
+
     auto value = user_end - RoundDownTo(user_end, ASAN_SHADOW_GRANULARITY) + 1;
     *shadow_end = value;
 
@@ -774,7 +757,11 @@ __asan_unpoison_shadow_static_local(uptr ptr, size_t size,
   ASAN_DEBUG(__spirv_ocl_printf(__mem_unpoison_shadow_static_local_begin));
 
   auto shadow_begin = MemToShadow(ptr + size, ADDRESS_SPACE_LOCAL);
+  if (!shadow_begin)
+    return;
   auto shadow_end = MemToShadow(ptr + size_with_redzone, ADDRESS_SPACE_LOCAL);
+  if (!shadow_end)
+    return;
 
   ASAN_DEBUG(
       __spirv_ocl_printf(__mem_set_shadow_local, shadow_begin, shadow_end, 0));
@@ -905,16 +892,16 @@ static __SYCL_CONSTANT__ const char __asan_print_private_base[] =
 DEVICE_EXTERN_C_NOINLINE void
 __asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
   auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
-  if (!launch_info || launch_info->PrivateShadowOffset == 0 ||
-      launch_info->PrivateBase == 0)
+  const size_t sid = SubGroupLinearId();
+  if (!launch_info || sid >= ASAN_MAX_SG_PRIVATE ||
+      launch_info->PrivateShadowOffset == 0 || launch_info->PrivateBase == 0)
     return;
   // Only set on the first sub-group item
-  if (__spirv_BuiltInSubgroupLocalInvocationId != 0)
-    return;
-  const size_t sid = SubGroupLinearId();
-  launch_info->PrivateBase[sid] = (uptr)ptr;
+  if (__spirv_BuiltInSubgroupLocalInvocationId() == 0) {
+    launch_info->PrivateBase[sid] = (uptr)ptr;
+    ASAN_DEBUG(__spirv_ocl_printf(__asan_print_private_base, sid, ptr));
+  }
   SubGroupBarrier();
-  ASAN_DEBUG(__spirv_ocl_printf(__asan_print_private_base, sid, ptr));
 }
 
 #endif // __SPIR__ || __SPIRV__

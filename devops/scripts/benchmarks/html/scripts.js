@@ -7,12 +7,41 @@
 let activeRuns = new Set(defaultCompareNames);
 let chartInstances = new Map();
 let suiteNames = new Set();
-let timeseriesData, barChartsData, allRunNames;
 let activeTags = new Set();
+let timeseriesData, barChartsData, allRunNames;
 let layerComparisonsData;
+let latestRunsLookup = new Map();
+let pendingCharts = new Map(); // Store chart data for lazy loading
+let chartObserver; // Intersection observer for lazy loading charts
+let annotationsOptions = new Map(); // Global options map for annotations
+let archivedDataLoaded = false;
+let loadedBenchmarkRuns = []; // Loaded results from the js/json files
 
 // DOM Elements
 let runSelect, selectedRunsDiv, suiteFiltersContainer, tagFiltersContainer;
+
+// Observer for lazy loading charts
+function initChartObserver() {
+    if (chartObserver) return;
+
+    chartObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const containerId = entry.target.querySelector('canvas').id;
+                if (pendingCharts.has(containerId)) {
+                    const { data, type } = pendingCharts.get(containerId);
+                    createChart(data, containerId, type);
+                    pendingCharts.delete(containerId);
+                    chartObserver.unobserve(entry.target);
+                }
+            }
+        });
+    }, {
+        root: null, // viewport (current view)
+        rootMargin: '100px', // Load charts a bit before they enter the viewport
+        threshold: 0.1 // Start loading when 10% of the chart is within the rootMargin
+    });
+}
 
 const colorPalette = [
     'rgb(255, 50, 80)',
@@ -36,6 +65,16 @@ const colorPalette = [
     'rgb(210, 190, 0)',
 ];
 
+const annotationPalette = [
+    'rgba(167, 109, 59, 0.8)',
+    'rgba(185, 185, 60, 0.8)',
+    'rgba(58, 172, 58, 0.8)',
+    'rgba(158, 59, 158, 0.8)',
+    'rgba(167, 93, 63, 0.8)',
+    'rgba(163, 60, 81, 0.8)',
+    'rgba(51, 148, 155, 0.8)',
+]
+
 const nameColorMap = {};
 let colorIndex = 0;
 
@@ -53,6 +92,10 @@ function updateSelectedRuns(forceUpdate = true) {
     activeRuns.forEach(name => {
         selectedRunsDiv.appendChild(createRunElement(name));
     });
+
+    // Update platform information for selected runs
+    displaySelectedRunsPlatformInfo();
+
     if (forceUpdate)
         updateCharts();
 }
@@ -84,8 +127,10 @@ function createChart(data, containerId, type) {
     }
 
     const ctx = document.getElementById(containerId).getContext('2d');
+
     const options = {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: {
             title: {
                 display: true,
@@ -105,7 +150,10 @@ function createChart(data, containerId, type) {
                                 `Value: ${point.y.toFixed(2)} ${data.unit}`,
                                 `Stddev: ${point.stddev.toFixed(2)} ${data.unit}`,
                                 `Git Hash: ${point.gitHash}`,
-                                `Compute Runtime: ${point.compute_runtime}`,
+                                ...(point.compute_runtime && point.compute_runtime !== 'null' && point.compute_runtime !== 'unknown' ?
+                                    [`Compute Runtime: ${point.compute_runtime}`] : []),
+                                ...(point.gitBenchHash ? [`Bench hash: ${point.gitBenchHash.substring(0, 7)}`] : []),
+                                ...(point.gitBenchUrl ? [`Bench URL: ${point.gitBenchUrl}`] : []),
                             ];
                         } else {
                             return [`${context.dataset.label}:`,
@@ -114,7 +162,17 @@ function createChart(data, containerId, type) {
                         }
                     }
                 }
-            }
+            },
+            legend: {
+                position: 'top',
+                labels: {
+                    boxWidth: 12,
+                    padding: 10,
+                }
+            },
+            annotation: type === 'time' ? {
+                annotations: {}
+            } : undefined
         },
         scales: {
             y: {
@@ -132,7 +190,7 @@ function createChart(data, containerId, type) {
     if (type === 'time') {
         options.interaction = {
             mode: 'nearest',
-            intersect: false
+            intersect: true // Require to hover directly over a point
         };
         options.onClick = (event, elements) => {
             if (elements.length > 0) {
@@ -154,6 +212,11 @@ function createChart(data, containerId, type) {
                 maxTicksLimit: 10
             }
         };
+
+        // Add dependencies version change annotations
+        if (Object.keys(data.runs).length > 0) {
+            ChartAnnotations.addVersionChangeAnnotations(data, options);
+        }
     }
 
     const chartConfig = {
@@ -163,8 +226,8 @@ function createChart(data, containerId, type) {
                 ...runData,
                 // For timeseries (historical results charts) use runName,
                 // otherwise use displayLabel (for layer comparison charts)
-                label: containerId.startsWith('timeseries') ? 
-                    runData.runName : 
+                label: containerId.startsWith('timeseries') ?
+                    runData.runName :
                     (runData.displayLabel || runData.label)
             }))
         } : {
@@ -176,27 +239,39 @@ function createChart(data, containerId, type) {
 
     const chart = new Chart(ctx, chartConfig);
     chartInstances.set(containerId, chart);
-    return chart;
-}
 
-function createTimeseriesDatasets(data) {
-    return Object.entries(data.runs).map(([name, runData], index) => ({
-        label: runData.runName, // Use run name for legend
-        data: runData.points.map(p => ({
-            seriesName: runData.runName, // Use run name for tooltips
-            x: p.date,
-            y: p.value,
-            gitHash: p.git_hash,
-            gitRepo: p.github_repo,
-            stddev: p.stddev
-        })),
-        borderColor: colorPalette[index % colorPalette.length],
-        backgroundColor: colorPalette[index % colorPalette.length],
-        borderWidth: 1,
-        pointRadius: 3,
-        pointStyle: 'circle',
-        pointHoverRadius: 5
-    }));
+    // Set explicit canvas size after chart creation to ensure proper sizing
+    const canvas = document.getElementById(containerId);
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+
+    // Calculate dynamic height based on number of legend items
+    const legendItemCount = type === 'time' ?
+        Object.values(data.runs).length :
+        data.datasets.length;
+
+    // Base chart height + legend height (25px per line + padding)
+    const baseChartHeight = 350;
+    const legendHeight = Math.max(legendItemCount * 25, 50); // minimum 50px for legend
+    const totalHeight = baseChartHeight + legendHeight;
+
+    // Set canvas dimensions for crisp rendering
+    canvas.width = rect.width * dpr;
+    canvas.height = totalHeight * dpr;
+
+    // Scale the context to ensure correct drawing operations
+    const context = canvas.getContext('2d');
+    context.scale(dpr, dpr);
+
+    // Force chart to use these exact dimensions
+    chart.resize(rect.width, totalHeight);
+
+    // Add annotation interaction handlers for time-series charts
+    if (type === 'time') {
+        ChartAnnotations.setupAnnotationListeners(chart, ctx, options);
+    }
+
+    return chart;
 }
 
 function updateCharts() {
@@ -229,13 +304,17 @@ function drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayer
     document.querySelectorAll('.charts').forEach(container => container.innerHTML = '');
     chartInstances.forEach(chart => chart.destroy());
     chartInstances.clear();
+    pendingCharts.clear();
+
+    initChartObserver(); // For lazy loading charts
 
     // Create timeseries charts
     filteredTimeseriesData.forEach((data, index) => {
         const containerId = `timeseries-${index}`;
         const container = createChartContainer(data, containerId, 'benchmark');
         document.querySelector('.timeseries .charts').appendChild(container);
-        createChart(data, containerId, 'time');
+        pendingCharts.set(containerId, { data, type: 'time' });
+        chartObserver.observe(container);
     });
 
     // Create layer comparison charts
@@ -243,7 +322,8 @@ function drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayer
         const containerId = `layer-comparison-${index}`;
         const container = createChartContainer(data, containerId, 'group');
         document.querySelector('.layer-comparisons .charts').appendChild(container);
-        createChart(data, containerId, 'time');
+        pendingCharts.set(containerId, { data, type: 'time' });
+        chartObserver.observe(container);
     });
 
     // Create bar charts
@@ -251,7 +331,8 @@ function drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayer
         const containerId = `barchart-${index}`;
         const container = createChartContainer(data, containerId, 'group');
         document.querySelector('.bar-charts .charts').appendChild(container);
-        createChart(data, containerId, 'bar');
+        pendingCharts.set(containerId, { data, type: 'bar' });
+        chartObserver.observe(container);
     });
 
     // Apply current filters
@@ -264,6 +345,10 @@ function createChartContainer(data, canvasId, type) {
     container.setAttribute('data-label', data.label);
     container.setAttribute('data-suite', data.suite);
 
+    // Create header section for metadata
+    const headerSection = document.createElement('div');
+    headerSection.className = 'chart-header';
+
     // Check if this benchmark is marked as unstable
     const metadata = metadataForLabel(data.label, type);
     if (metadata && metadata.unstable) {
@@ -274,15 +359,17 @@ function createChartContainer(data, canvasId, type) {
         unstableWarning.className = 'benchmark-unstable';
         unstableWarning.textContent = metadata.unstable;
         unstableWarning.style.display = isUnstableEnabled() ? 'block' : 'none';
-        container.appendChild(unstableWarning);
+        unstableWarning.style.marginBottom = '5px';
+        headerSection.appendChild(unstableWarning);
     }
 
-    // Add description if present in metadata (moved outside of details)
+    // Add description if present in metadata
     if (metadata && metadata.description) {
         const descElement = document.createElement('div');
         descElement.className = 'benchmark-description';
         descElement.textContent = metadata.description;
-        container.appendChild(descElement);
+        descElement.style.marginBottom = '5px';
+        headerSection.appendChild(descElement);
     }
 
     // Add notes if present
@@ -291,7 +378,7 @@ function createChartContainer(data, canvasId, type) {
         noteElement.className = 'benchmark-note';
         noteElement.textContent = metadata.notes;
         noteElement.style.display = isNotesEnabled() ? 'block' : 'none';
-        container.appendChild(noteElement);
+        headerSection.appendChild(noteElement);
     }
 
     // Add tags if present
@@ -316,12 +403,31 @@ function createChartContainer(data, canvasId, type) {
             tagsContainer.appendChild(tagElement);
         });
 
-        container.appendChild(tagsContainer);
+        headerSection.appendChild(tagsContainer);
     }
 
+    // Add header section to container
+    container.appendChild(headerSection);
+
+    // Create main content section (chart + legend area)
+    const contentSection = document.createElement('div');
+    contentSection.className = 'chart-content';
+
+    // Canvas for the chart - fixed position in content flow
     const canvas = document.createElement('canvas');
     canvas.id = canvasId;
-    container.appendChild(canvas);
+    canvas.style.width = '100%';
+
+    // Set a default height - will be properly sized later in createChart
+    canvas.style.height = '400px';
+    canvas.style.marginBottom = '10px';
+    contentSection.appendChild(canvas);
+
+    container.appendChild(contentSection);
+
+    // Create footer section for details
+    const footerSection = document.createElement('div');
+    footerSection.className = 'chart-footer';
 
     // Create details section for extra info
     const details = document.createElement('details');
@@ -342,11 +448,11 @@ function createChartContainer(data, canvasId, type) {
     // Create and append extra info
     const extraInfo = document.createElement('div');
     extraInfo.className = 'extra-info';
-    latestRunsLookup = createLatestRunsLookup(benchmarkRuns);
-    extraInfo.innerHTML = generateExtraInfo(latestRunsLookup, data, 'benchmark');
+    extraInfo.innerHTML = generateExtraInfo(data, 'benchmark');
     details.appendChild(extraInfo);
 
-    container.appendChild(details);
+    footerSection.appendChild(details);
+    container.appendChild(footerSection);
 
     return container;
 }
@@ -356,7 +462,7 @@ function metadataForLabel(label, type) {
     if (benchmarkMetadata[label]?.type === type) {
         return benchmarkMetadata[label];
     }
-    
+
     // Then fall back to prefix match for backward compatibility
     for (const [key, metadata] of Object.entries(benchmarkMetadata)) {
         if (metadata.type === type && label.startsWith(key)) {
@@ -367,15 +473,14 @@ function metadataForLabel(label, type) {
 }
 
 // Pre-compute a lookup for the latest run per label
-function createLatestRunsLookup(benchmarkRuns) {
+function createLatestRunsLookup() {
     const latestRunsMap = new Map();
 
-    benchmarkRuns.forEach(run => {
-        // Yes, we need to convert the date every time. I checked.
-        const runDate = new Date(run.date);
+    loadedBenchmarkRuns.forEach(run => {
+        const runDate = run.date;
         run.results.forEach(result => {
             const label = result.label;
-            if (!latestRunsMap.has(label) || runDate > new Date(latestRunsMap.get(label).date)) {
+            if (!latestRunsMap.has(label) || runDate > latestRunsMap.get(label).date) {
                 latestRunsMap.set(label, {
                     run,
                     result
@@ -417,7 +522,7 @@ function getDisplayLabel(label, data, metadata) {
     return label;
 }
 
-function generateExtraInfo(latestRunsLookup, data, type = 'benchmark') {
+function generateExtraInfo(data, type = 'benchmark') {
     const labels = extractLabels(data);
 
     return labels.map(label => {
@@ -541,6 +646,12 @@ function updateURL() {
         url.searchParams.set('customRange', 'true');
     }
 
+    if (!isArchivedDataEnabled()) {
+        url.searchParams.delete('archived');
+    } else {
+        url.searchParams.set('archived', 'true');
+    }
+
     history.replaceState(null, '', url);
 }
 
@@ -578,10 +689,10 @@ function getActiveSuites() {
 }
 
 // Data processing
-function processTimeseriesData(benchmarkRuns) {
+function processTimeseriesData() {
     const resultsByLabel = {};
 
-    benchmarkRuns.forEach(run => {
+    loadedBenchmarkRuns.forEach(run => {
         run.results.forEach(result => {
             const metadata = metadataForLabel(result.label, 'benchmark');
 
@@ -604,20 +715,22 @@ function processTimeseriesData(benchmarkRuns) {
     return Object.values(resultsByLabel);
 }
 
-function processBarChartsData(benchmarkRuns) {
+function processBarChartsData() {
     const groupedResults = {};
 
-    benchmarkRuns.forEach(run => {
+    loadedBenchmarkRuns.forEach(run => {
         run.results.forEach(result => {
-            if (!result.explicit_group) return;
+            const resultMetadata = metadataForLabel(result.label, 'benchmark');
+            const explicitGroup = resultMetadata?.explicit_group || result?.explicit_group;
+            if (!explicitGroup) return;
 
-            if (!groupedResults[result.explicit_group]) {
+            if (!groupedResults[explicitGroup]) {
                 // Look up group metadata
-                const groupMetadata = metadataForLabel(result.explicit_group);
+                const groupMetadata = metadataForLabel(explicitGroup, 'group');
 
-                groupedResults[result.explicit_group] = {
-                    label: result.explicit_group,
-                    display_label: groupMetadata?.display_name || result.explicit_group, // Use display_name if available
+                groupedResults[explicitGroup] = {
+                    label: explicitGroup,
+                    display_label: groupMetadata?.display_name || explicitGroup, // Use display_name if available
                     suite: result.suite,
                     unit: result.unit,
                     lower_is_better: result.lower_is_better,
@@ -632,7 +745,7 @@ function processBarChartsData(benchmarkRuns) {
                 };
             }
 
-            const group = groupedResults[result.explicit_group];
+            const group = groupedResults[explicitGroup];
 
             if (!group.labels.includes(run.name)) {
                 group.labels.push(run.name);
@@ -679,31 +792,36 @@ function getLayerTags(metadata) {
     return layerTags;
 }
 
-function processLayerComparisonsData(benchmarkRuns) {
+function processLayerComparisonsData() {
     const groupedResults = {};
     const labelsByGroup = {};
 
-    benchmarkRuns.forEach(run => {
+    loadedBenchmarkRuns.forEach(run => {
         run.results.forEach(result => {
-            if (result.explicit_group) {
-                if (!labelsByGroup[result.explicit_group]) {
-                    labelsByGroup[result.explicit_group] = new Set();
-                }
-                labelsByGroup[result.explicit_group].add(result.label);
+            const resultMetadata = metadataForLabel(result.label, 'benchmark');
+            const explicitGroup = resultMetadata?.explicit_group || result.explicit_group;
+            if (!explicitGroup) return;
+
+            if (!labelsByGroup[explicitGroup]) {
+                labelsByGroup[explicitGroup] = new Set();
             }
+            labelsByGroup[explicitGroup].add(result.label);
         });
     });
 
-    benchmarkRuns.forEach(run => {
+    loadedBenchmarkRuns.forEach(run => {
         run.results.forEach(result => {
-            if (!result.explicit_group) return;
+            // Get explicit_group from metadata
+            const resultMetadata = metadataForLabel(result.label, 'benchmark');
+            const explicitGroup = resultMetadata?.explicit_group || result.explicit_group;
+            if (!explicitGroup) return;
 
             // Skip if no metadata available
-            const metadata = metadataForLabel(result.explicit_group, 'group');
+            const metadata = metadataForLabel(explicitGroup, 'group');
             if (!metadata) return;
 
             // Get all benchmark labels in this group
-            const labelsInGroup = labelsByGroup[result.explicit_group];
+            const labelsInGroup = labelsByGroup[explicitGroup];
 
             // Check if this group compares different layers
             const uniqueLayers = new Set();
@@ -716,9 +834,9 @@ function processLayerComparisonsData(benchmarkRuns) {
             // Only process groups that compare different layers
             if (uniqueLayers.size <= 1) return;
 
-            if (!groupedResults[result.explicit_group]) {
-                groupedResults[result.explicit_group] = {
-                    label: result.explicit_group,
+            if (!groupedResults[explicitGroup]) {
+                groupedResults[explicitGroup] = {
+                    label: explicitGroup,
                     suite: result.suite,
                     unit: result.unit,
                     lower_is_better: result.lower_is_better,
@@ -732,7 +850,7 @@ function processLayerComparisonsData(benchmarkRuns) {
                 };
             }
 
-            const group = groupedResults[result.explicit_group];
+            const group = groupedResults[explicitGroup];
             const name = result.label + ' (' + run.name + ')';
 
             // Add the benchmark label if it's not already in the array
@@ -778,7 +896,9 @@ function addRunDataPoint(group, run, result, comparison, name = null) {
         stddev: result.stddev,
         gitHash: run.git_hash,
         gitRepo: run.github_repo,
-        compute_runtime: run.compute_runtime
+        compute_runtime: run.compute_runtime,
+        gitBenchUrl: result.git_url,
+        gitBenchHash: result.git_hash,
     });
 
     return group;
@@ -788,6 +908,9 @@ function addRunDataPoint(group, run, result, comparison, name = null) {
 function setupRunSelector() {
     runSelect = document.getElementById('run-select');
     selectedRunsDiv = document.getElementById('selected-runs');
+
+    // Clear existing options first to prevent duplicates when reloading with archived data
+    runSelect.innerHTML = '';
 
     allRunNames.forEach(name => {
         const option = document.createElement('option');
@@ -802,7 +925,10 @@ function setupRunSelector() {
 function setupSuiteFilters() {
     suiteFiltersContainer = document.getElementById('suite-filters');
 
-    benchmarkRuns.forEach(run => {
+    // Clear existing suite filters before adding new ones
+    suiteFiltersContainer.innerHTML = '';
+
+    loadedBenchmarkRuns.forEach(run => {
         run.results.forEach(result => {
             suiteNames.add(result.suite);
         });
@@ -837,10 +963,16 @@ function isCustomRangesEnabled() {
     return rangesToggle.checked;
 }
 
+function isArchivedDataEnabled() {
+    const archivedDataToggle = document.getElementById('show-archived-data');
+    return archivedDataToggle.checked;
+}
+
 function setupToggles() {
     const notesToggle = document.getElementById('show-notes');
     const unstableToggle = document.getElementById('show-unstable');
     const customRangeToggle = document.getElementById('custom-range');
+    const archivedDataToggle = document.getElementById('show-archived-data');
 
     notesToggle.addEventListener('change', function () {
         // Update all note elements visibility
@@ -863,9 +995,25 @@ function setupToggles() {
         updateCharts();
     });
 
+    // Add event listener for archived data toggle
+    if (archivedDataToggle) {
+        archivedDataToggle.addEventListener('change', function() {
+            if (archivedDataToggle.checked) {
+                loadArchivedData();
+            } else {
+                if (archivedDataLoaded) {
+                    // Reload the page to reset
+                    location.reload();
+                }
+            }
+            updateURL();
+        });
+    }
+
     // Initialize from URL params if present
     const notesParam = getQueryParam('notes');
     const unstableParam = getQueryParam('unstable');
+    const archivedParam = getQueryParam('archived');
 
     if (notesParam !== null) {
         let showNotes = notesParam === 'true';
@@ -881,10 +1029,21 @@ function setupToggles() {
     if (customRangesParam !== null) {
         customRangeToggle.checked = customRangesParam === 'true';
     }
+
+    if (archivedDataToggle && archivedParam !== null) {
+        archivedDataToggle.checked = archivedParam === 'true';
+
+        if (archivedDataToggle.checked) {
+            loadArchivedData();
+        }
+    }
 }
 
 function setupTagFilters() {
     tagFiltersContainer = document.getElementById('tag-filters');
+
+    // Clear existing tag filters before adding new ones
+    tagFiltersContainer.innerHTML = '';
 
     const allTags = [];
 
@@ -954,10 +1113,16 @@ function toggleAllTags(select) {
 
 function initializeCharts() {
     // Process raw data
-    timeseriesData = processTimeseriesData(benchmarkRuns);
-    barChartsData = processBarChartsData(benchmarkRuns);
-    layerComparisonsData = processLayerComparisonsData(benchmarkRuns);
-    allRunNames = [...new Set(benchmarkRuns.map(run => run.name))];
+    timeseriesData = processTimeseriesData();
+    barChartsData = processBarChartsData();
+    layerComparisonsData = processLayerComparisonsData();
+    allRunNames = [...new Set(loadedBenchmarkRuns.map(run => run.name))];
+    latestRunsLookup = createLatestRunsLookup();
+
+    // Create global options map for annotations
+    annotationsOptions = createAnnotationsOptions();
+    // Make it available to the ChartAnnotations module
+    window.annotationsOptions = annotationsOptions;
 
     // Set up active runs
     const runsParam = getQueryParam('runs');
@@ -991,6 +1156,7 @@ function initializeCharts() {
     setupSuiteFilters();
     setupTagFilters();
     setupToggles();
+    initializePlatformTab();
 
     // Apply URL parameters
     const regexParam = getQueryParam('regex');
@@ -1035,6 +1201,42 @@ window.addSelectedRun = addSelectedRun;
 window.removeRun = removeRun;
 window.toggleAllTags = toggleAllTags;
 
+// Helper function to fetch and process benchmark data
+function fetchAndProcessData(url, isArchived = false) {
+    const loadingIndicator = document.getElementById('loading-indicator');
+
+    return fetch(url)
+        .then(response => {
+            if (!response.ok) { throw new Error(`Got response status ${response.status}.`) }
+            return response.json();
+        })
+        .then(data => {
+            const newRuns = data.runs || data;
+
+            if (isArchived) {
+                // Merge with existing data for archived data
+                loadedBenchmarkRuns = loadedBenchmarkRuns.concat(newRuns);
+                archivedDataLoaded = true;
+            } else {
+                // Replace existing data for current data
+                loadedBenchmarkRuns = newRuns;
+            }
+            // The following variables have same values regardless of whether
+            // we load archived or current data
+            benchmarkMetadata = data.metadata || benchmarkMetadata || {};
+            benchmarkTags = data.tags || benchmarkTags || {};
+
+            initializeCharts();
+        })
+        .catch(error => {
+            console.error(`Error fetching ${isArchived ? 'archived' : 'remote'} data:`, error);
+            loadingIndicator.textContent = 'Fetching remote data failed.';
+        })
+        .finally(() => {
+            loadingIndicator.style.display = 'none';
+        });
+}
+
 // Load data based on configuration
 function loadData() {
     const loadingIndicator = document.getElementById('loading-indicator');
@@ -1042,28 +1244,51 @@ function loadData() {
 
     if (typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== '') {
         // Fetch data from remote URL
-        fetch(remoteDataUrl)
-            .then(response => {
-                if (!response.ok) { throw new Error(`Got response status ${response.status}.`) }
-                return response.json();
-            })
-            .then(data => {
-                benchmarkRuns = data.runs || data;
-                benchmarkMetadata = data.metadata || benchmarkMetadata || {};
-                benchmarkTags = data.tags || benchmarkTags || {};
-                initializeCharts();
-            })
-            .catch(error => {
-                console.error('Error fetching remote data:', error);
-                loadingIndicator.textContent = 'Fetching remote data failed.';
-            })
-            .finally(() => {
-                loadingIndicator.style.display = 'none'; // Hide loading indicator
-            });
+        const url = remoteDataUrl.endsWith('/') ? remoteDataUrl + 'data.json' : remoteDataUrl + '/data.json';
+        fetchAndProcessData(url);
     } else {
-        // Use local data (benchmarkRuns and benchmarkMetadata should be defined in data.js)
+        // Use local data
+        loadedBenchmarkRuns = benchmarkRuns;
         initializeCharts();
         loadingIndicator.style.display = 'none'; // Hide loading indicator
+    }
+}
+
+// Function to load archived data and merge with current data
+// Archived data consists of older benchmark results that have been separated from
+// the primary dataset but are still available for historical analysis.
+function loadArchivedData() {
+    const loadingIndicator = document.getElementById('loading-indicator');
+    loadingIndicator.style.display = 'block';
+
+    if (archivedDataLoaded) {
+        updateCharts();
+        loadingIndicator.style.display = 'none';
+        return;
+    }
+
+    if (typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== '') {
+        // Fetch data from remote URL
+        const url = remoteDataUrl.endsWith('/') ? remoteDataUrl + 'data_archive.json' : remoteDataUrl + '/data_archive.json';
+        fetchAndProcessData(url, true);
+    } else {
+        // For local data use a static js file
+        const script = document.createElement('script');
+        script.src = 'data_archive.js';
+        script.onload = () => {
+            // Merge the archived runs with current runs
+            loadedBenchmarkRuns = loadedBenchmarkRuns.concat(benchmarkRuns);
+            archivedDataLoaded = true;
+            initializeCharts();
+            loadingIndicator.style.display = 'none';
+        };
+
+        script.onerror = () => {
+            console.error('Failed to load data_archive.js');
+            loadingIndicator.style.display = 'none';
+        };
+
+        document.head.appendChild(script);
     }
 }
 
@@ -1071,3 +1296,121 @@ function loadData() {
 document.addEventListener('DOMContentLoaded', () => {
     loadData();
 });
+
+// Process all benchmark runs to create a global options map for annotations
+function createAnnotationsOptions() {
+    const repoMap = new Map();
+
+    loadedBenchmarkRuns.forEach(run => {
+        run.results.forEach(result => {
+            if (result.git_url && !repoMap.has(result.git_url)) {
+                const suiteName = result.suite;
+                const colorIndex = repoMap.size % annotationPalette.length;
+                const backgroundColor = annotationPalette[colorIndex].replace('0.8', '0.9');
+                const color = {
+                    border: annotationPalette[colorIndex],
+                    background: backgroundColor
+                };
+
+                repoMap.set(result.git_url, {
+                    name: suiteName,
+                    url: result.git_url,
+                    color: color,
+                });
+            }
+        });
+    });
+
+    return repoMap;
+}
+
+function displaySelectedRunsPlatformInfo() {
+    const container = document.querySelector('.platform-info .platform');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    // Get platform info for only the selected runs
+    const selectedRunsWithPlatform = Array.from(activeRuns)
+        .map(runName => {
+            const run = loadedBenchmarkRuns.find(r => r.name === runName);
+            if (run && run.platform) {
+                return { name: runName, platform: run.platform };
+            }
+            return null;
+        })
+        .filter(item => item !== null);
+    if (selectedRunsWithPlatform.length === 0) {
+        container.innerHTML = '<p>No platform information available to display.</p>';
+        return;
+    }
+    selectedRunsWithPlatform.forEach(runData => {
+        const runSection = document.createElement('div');
+        runSection.className = 'platform-run-section';
+            const runTitle = document.createElement('h3');
+        runTitle.textContent = `Run: ${runData.name}`;
+        runTitle.className = 'platform-run-title';
+        runSection.appendChild(runTitle);
+            // Create just the platform details without the grid wrapper
+        const platform = runData.platform;
+        const detailsContainer = document.createElement('div');
+        detailsContainer.className = 'platform-details-compact';
+        detailsContainer.innerHTML = createPlatformDetailsHTML(platform);
+        runSection.appendChild(detailsContainer);
+            container.appendChild(runSection);
+    });
+}
+
+// Platform Information Functions
+
+function createPlatformDetailsHTML(platform) {
+    const formattedTimestamp = platform.timestamp ?
+        new Date(platform.timestamp).toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        }) : 'Unknown';
+
+    return `
+        <div class="platform-section compact">
+            <div class="platform-item">
+                <span class="platform-label">Time:</span>
+                <span class="platform-value">${formattedTimestamp}</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">OS:</span>
+                <span class="platform-value">${platform.os || 'Unknown'}</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">CPU:</span>
+                <span class="platform-value">${platform.cpu_info || 'Unknown'} (${platform.cpu_count || '?'} cores)</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">GPU:</span>
+                <div class="platform-value multiple">
+                    ${platform.gpu_info && platform.gpu_info.length > 0
+                        ? platform.gpu_info.map(gpu => `<div class="platform-gpu-item">    • ${gpu}</div>`).join('')
+                        : '<div class="platform-gpu-item">    • No GPU detected</div>'}
+                </div>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">Driver:</span>
+                <span class="platform-value">${platform.gpu_driver_version || 'Unknown'}</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">Tools:</span>
+                <span class="platform-value">${platform.gcc_version || '?'} • ${platform.clang_version || '?'} • ${platform.python || '?'}</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">Runtime:</span>
+                <span class="platform-value">${platform.level_zero_version || '?'} • compute-runtime ${platform.compute_runtime_version || '?'}</span>
+            </div>
+        </div>
+    `;
+}
+
+function initializePlatformTab() {
+    displaySelectedRunsPlatformInfo();
+}

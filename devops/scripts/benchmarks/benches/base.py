@@ -3,7 +3,6 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from dataclasses import dataclass
 import os
 import shutil
 import subprocess
@@ -12,6 +11,8 @@ from utils.result import BenchmarkMetadata, BenchmarkTag, Result
 from options import options
 from utils.utils import download, run
 from abc import ABC, abstractmethod
+from utils.unitrace import get_unitrace
+from utils.logger import log
 
 benchmark_tags = [
     BenchmarkTag("SYCL", "Benchmark uses SYCL runtime"),
@@ -51,6 +52,22 @@ class Benchmark(ABC):
         """
         return self.name()
 
+    def explicit_group(self) -> str:
+        """Returns the explicit group name for this benchmark, if any.
+        Can be modified."""
+        return ""
+
+    def enabled(self) -> bool:
+        """Returns whether this benchmark is enabled.
+        By default, it returns True, but can be overridden to disable a benchmark."""
+        return True
+
+    def traceable(self) -> bool:
+        """Returns whether this benchmark should be traced by Unitrace.
+        By default, it returns True, but can be overridden to disable tracing for a benchmark.
+        """
+        return True
+
     @abstractmethod
     def setup(self):
         pass
@@ -60,7 +77,19 @@ class Benchmark(ABC):
         pass
 
     @abstractmethod
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
+        """Execute the benchmark with the given environment variables.
+
+        Args:
+            env_vars: Environment variables to use when running the benchmark.
+            run_unitrace: Whether to run benchmark under Unitrace.
+
+        Returns:
+            A list of Result objects with the benchmark results.
+
+        Raises:
+            Exception: If the benchmark fails for any reason.
+        """
         pass
 
     @staticmethod
@@ -76,7 +105,14 @@ class Benchmark(ABC):
         ), f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
     def run_bench(
-        self, command, env_vars, ld_library=[], add_sycl=True, use_stdout=True
+        self,
+        command,
+        env_vars,
+        ld_library=[],
+        add_sycl=True,
+        use_stdout=True,
+        run_unitrace=False,
+        extra_unitrace_opt=None,
     ):
         env_vars = env_vars.copy()
         if options.ur is not None:
@@ -89,13 +125,30 @@ class Benchmark(ABC):
         ld_libraries = options.extra_ld_libraries.copy()
         ld_libraries.extend(ld_library)
 
-        result = run(
-            command=command,
-            env_vars=env_vars,
-            add_sycl=add_sycl,
-            cwd=options.benchmark_cwd,
-            ld_library=ld_libraries,
-        )
+        if self.traceable() and run_unitrace:
+            if extra_unitrace_opt is None:
+                extra_unitrace_opt = []
+            unitrace_output, command = get_unitrace().setup(
+                self.name(), command, extra_unitrace_opt
+            )
+            log.debug(f"Unitrace output: {unitrace_output}")
+            log.debug(f"Unitrace command: {' '.join(command)}")
+
+        try:
+            result = run(
+                command=command,
+                env_vars=env_vars,
+                add_sycl=add_sycl,
+                cwd=options.benchmark_cwd,
+                ld_library=ld_libraries,
+            )
+        except subprocess.CalledProcessError:
+            if run_unitrace:
+                get_unitrace().cleanup(options.benchmark_cwd, unitrace_output)
+            raise
+
+        if self.traceable() and run_unitrace:
+            get_unitrace().handle_output(unitrace_output)
 
         if use_stdout:
             return result.stdout.decode()
@@ -164,6 +217,7 @@ class Benchmark(ABC):
                 range_min=range[0] if range else None,
                 range_max=range[1] if range else None,
                 display_name=self.display_name(),
+                explicit_group=self.explicit_group(),
             )
         }
 
@@ -177,7 +231,8 @@ class Suite(ABC):
     def name(self) -> str:
         pass
 
-    def setup(self):
+    @abstractmethod
+    def setup(self) -> None:
         return
 
     def additional_metadata(self) -> dict[str, BenchmarkMetadata]:

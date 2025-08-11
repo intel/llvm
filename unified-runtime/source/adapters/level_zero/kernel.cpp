@@ -76,6 +76,11 @@ ur_result_t urEnqueueKernelLaunch(
     /// will execute the kernel function. If nullptr, the runtime
     /// implementation will choose the work-group size.
     const size_t *LocalWorkSize,
+    /// [in] size of the launch prop list
+    uint32_t NumPropsInLaunchPropList,
+    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
+    /// properties
+    const ur_kernel_launch_property_t *LaunchPropList,
     /// [in] size of the event wait list
     uint32_t NumEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -86,6 +91,24 @@ ur_result_t urEnqueueKernelLaunch(
     /// [in,out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t *OutEvent) {
+  using ZeKernelLaunchFuncT = ze_result_t (*)(
+      ze_command_list_handle_t, ze_kernel_handle_t, const ze_group_count_t *,
+      ze_event_handle_t, uint32_t, ze_event_handle_t *);
+  ZeKernelLaunchFuncT ZeKernelLaunchFunc = &zeCommandListAppendLaunchKernel;
+  for (uint32_t PropIndex = 0; PropIndex < NumPropsInLaunchPropList;
+       PropIndex++) {
+    if (LaunchPropList[PropIndex].id ==
+            UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE &&
+        LaunchPropList[PropIndex].value.cooperative) {
+      ZeKernelLaunchFunc = &zeCommandListAppendLaunchCooperativeKernel;
+    }
+    if (LaunchPropList[PropIndex].id != UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE &&
+        LaunchPropList[PropIndex].id !=
+            UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE) {
+      // We don't support any other properties.
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+  }
   UR_ASSERT(WorkDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(WorkDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
@@ -176,7 +199,7 @@ ur_result_t urEnqueueKernelLaunch(
     ContextsLock.lock();
     Queue->CaptureIndirectAccesses();
     // Add the command to the command list, which implies submission.
-    ZE2UR_CALL(zeCommandListAppendLaunchKernel,
+    ZE2UR_CALL(ZeKernelLaunchFunc,
                (CommandList->first, ZeKernel, &ZeThreadGroupDimensions, ZeEvent,
                 (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
   } else {
@@ -184,269 +207,12 @@ ur_result_t urEnqueueKernelLaunch(
     // No lock is needed here, unlike the immediate commandlist case above,
     // because the kernels are not actually submitted yet. Kernels will be
     // submitted only when the comamndlist is closed. Then, a lock is held.
-    ZE2UR_CALL(zeCommandListAppendLaunchKernel,
+    ZE2UR_CALL(ZeKernelLaunchFunc,
                (CommandList->first, ZeKernel, &ZeThreadGroupDimensions, ZeEvent,
                 (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
   }
 
   UR_LOG(DEBUG, "calling zeCommandListAppendLaunchKernel() with ZeEvent {}",
-         ur_cast<std::uintptr_t>(ZeEvent));
-  printZeEventList((*Event)->WaitList);
-
-  // Execute command list asynchronously, as the event will be used
-  // to track down its completion.
-  UR_CALL(Queue->executeCommandList(CommandList, false /*IsBlocking*/,
-                                    true /*OKToBatchCommand*/));
-
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t urEnqueueCooperativeKernelLaunchExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t Queue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t Kernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t WorkDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *GlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *GlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that
-    /// will execute the kernel function. If nullptr, the runtime
-    /// implementation will choose the work-group size.
-    const size_t *LocalWorkSize,
-    /// [in] size of the event wait list
-    uint32_t NumEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution. If
-    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *EventWaitList,
-    /// [in,out][optional] return an event object that identifies this
-    /// particular kernel execution instance.
-    ur_event_handle_t *OutEvent) {
-  UR_ASSERT(WorkDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
-  UR_ASSERT(WorkDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
-
-  auto ZeDevice = Queue->Device->ZeDevice;
-
-  ze_kernel_handle_t ZeKernel{};
-  if (Kernel->ZeKernelMap.empty()) {
-    ZeKernel = Kernel->ZeKernel;
-  } else {
-    auto It = Kernel->ZeKernelMap.find(ZeDevice);
-    if (It == Kernel->ZeKernelMap.end()) {
-      /* kernel and queue don't match */
-      return UR_RESULT_ERROR_INVALID_QUEUE;
-    }
-    ZeKernel = It->second;
-  }
-  // Lock automatically releases when this goes out of scope.
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
-      Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
-  if (GlobalWorkOffset != NULL) {
-    UR_CALL(setKernelGlobalOffset(Queue->Context, ZeKernel, WorkDim,
-                                  GlobalWorkOffset));
-  }
-
-  // If there are any pending arguments set them now.
-  for (auto &Arg : Kernel->PendingArguments) {
-    // The ArgValue may be a NULL pointer in which case a NULL value is used for
-    // the kernel argument declared as a pointer to global or constant memory.
-    char **ZeHandlePtr = nullptr;
-    if (Arg.Value) {
-      UR_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
-                                        Queue->Device, EventWaitList,
-                                        NumEventsInWaitList));
-    }
-    ZE2UR_CALL(zeKernelSetArgumentValue,
-               (ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
-  }
-  Kernel->PendingArguments.clear();
-
-  ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
-  uint32_t WG[3]{};
-
-  // New variable needed because GlobalWorkSize parameter might not be of size 3
-  size_t GlobalWorkSize3D[3]{1, 1, 1};
-  std::copy(GlobalWorkSize, GlobalWorkSize + WorkDim, GlobalWorkSize3D);
-
-  if (LocalWorkSize) {
-    // L0
-    for (uint32_t I = 0; I < WorkDim; I++) {
-      UR_ASSERT(LocalWorkSize[I] < (std::numeric_limits<uint32_t>::max)(),
-                UR_RESULT_ERROR_INVALID_VALUE);
-      WG[I] = static_cast<uint32_t>(LocalWorkSize[I]);
-    }
-  } else {
-    // We can't call to zeKernelSuggestGroupSize if 64-bit GlobalWorkSize
-    // values do not fit to 32-bit that the API only supports currently.
-    bool SuggestGroupSize = true;
-    for (int I : {0, 1, 2}) {
-      if (GlobalWorkSize3D[I] > UINT32_MAX) {
-        SuggestGroupSize = false;
-      }
-    }
-    if (SuggestGroupSize) {
-      ZE2UR_CALL(zeKernelSuggestGroupSize,
-                 (ZeKernel, GlobalWorkSize3D[0], GlobalWorkSize3D[1],
-                  GlobalWorkSize3D[2], &WG[0], &WG[1], &WG[2]));
-    } else {
-      for (int I : {0, 1, 2}) {
-        // Try to find a I-dimension WG size that the GlobalWorkSize[I] is
-        // fully divisable with. Start with the max possible size in
-        // each dimension.
-        uint32_t GroupSize[] = {
-            Queue->Device->ZeDeviceComputeProperties->maxGroupSizeX,
-            Queue->Device->ZeDeviceComputeProperties->maxGroupSizeY,
-            Queue->Device->ZeDeviceComputeProperties->maxGroupSizeZ};
-        GroupSize[I] = (std::min)(size_t(GroupSize[I]), GlobalWorkSize3D[I]);
-        while (GlobalWorkSize3D[I] % GroupSize[I]) {
-          --GroupSize[I];
-        }
-
-        if (GlobalWorkSize3D[I] / GroupSize[I] > UINT32_MAX) {
-          UR_LOG(ERR,
-                 "urEnqueueCooperativeKernelLaunchExp: can't find a WG size "
-                 "suitable for global work size > UINT32_MAX");
-          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-        }
-        WG[I] = GroupSize[I];
-      }
-      UR_LOG(DEBUG,
-             "urEnqueueCooperativeKernelLaunchExp: using computed WG "
-             "size = {{{}, {}, {}}}",
-             WG[0], WG[1], WG[2]);
-    }
-  }
-
-  // TODO: assert if sizes do not fit into 32-bit?
-
-  switch (WorkDim) {
-  case 3:
-    ZeThreadGroupDimensions.groupCountX =
-        static_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    ZeThreadGroupDimensions.groupCountY =
-        static_cast<uint32_t>(GlobalWorkSize3D[1] / WG[1]);
-    ZeThreadGroupDimensions.groupCountZ =
-        static_cast<uint32_t>(GlobalWorkSize3D[2] / WG[2]);
-    break;
-  case 2:
-    ZeThreadGroupDimensions.groupCountX =
-        static_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    ZeThreadGroupDimensions.groupCountY =
-        static_cast<uint32_t>(GlobalWorkSize3D[1] / WG[1]);
-    WG[2] = 1;
-    break;
-  case 1:
-    ZeThreadGroupDimensions.groupCountX =
-        static_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    WG[1] = WG[2] = 1;
-    break;
-
-  default:
-    UR_LOG(ERR, "urEnqueueCooperativeKernelLaunchExp: unsupported work_dim");
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  }
-
-  // Error handling for non-uniform group size case
-  if (GlobalWorkSize3D[0] !=
-      size_t(ZeThreadGroupDimensions.groupCountX) * WG[0]) {
-    UR_LOG(ERR,
-           "urEnqueueCooperativeKernelLaunchExp: invalid work_dim. The "
-           "range is not a multiple of the group size in the 1st dimension");
-    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-  }
-  if (GlobalWorkSize3D[1] !=
-      size_t(ZeThreadGroupDimensions.groupCountY) * WG[1]) {
-    UR_LOG(ERR,
-           "urEnqueueCooperativeKernelLaunchExp: invalid work_dim. The "
-           "range is not a multiple of the group size in the 2nd dimension");
-    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-  }
-  if (GlobalWorkSize3D[2] !=
-      size_t(ZeThreadGroupDimensions.groupCountZ) * WG[2]) {
-    UR_LOG(DEBUG,
-           "urEnqueueCooperativeKernelLaunchExp: invalid work_dim. The "
-           "range is not a multiple of the group size in the 3rd dimension");
-    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-  }
-
-  ZE2UR_CALL(zeKernelSetGroupSize, (ZeKernel, WG[0], WG[1], WG[2]));
-
-  bool UseCopyEngine = false;
-  ur_ze_event_list_t TmpWaitList;
-  UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
-      NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
-
-  // Get a new command list to be used on this call
-  ur_command_list_ptr_t CommandList{};
-  UR_CALL(Queue->Context->getAvailableCommandList(
-      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
-      true /* AllowBatching */, nullptr /*ForcedCmdQueue*/));
-
-  ze_event_handle_t ZeEvent = nullptr;
-  ur_event_handle_t InternalEvent{};
-  bool IsInternal = OutEvent == nullptr;
-  ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
-
-  UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_KERNEL_LAUNCH,
-                                       CommandList, IsInternal, false));
-  UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
-                         NumEventsInWaitList, EventWaitList,
-                         CommandList->second.ZeQueue));
-  (*Event)->WaitList = TmpWaitList;
-
-  // Save the kernel in the event, so that when the event is signalled
-  // the code can do a urKernelRelease on this kernel.
-  (*Event)->CommandData = (void *)Kernel;
-
-  // Increment the reference count of the Kernel and indicate that the Kernel
-  // is in use. Once the event has been signalled, the code in
-  // CleanupCompletedEvent(Event) will do a urKernelRelease to update the
-  // reference count on the kernel, using the kernel saved in CommandData.
-  UR_CALL(ur::level_zero::urKernelRetain(Kernel));
-
-  // Add to list of kernels to be submitted
-  if (IndirectAccessTrackingEnabled)
-    Queue->KernelsToBeSubmitted.push_back(Kernel);
-
-  if (Queue->UsingImmCmdLists && IndirectAccessTrackingEnabled) {
-    // If using immediate commandlists then gathering of indirect
-    // references and appending to the queue (which means submission)
-    // must be done together.
-    std::unique_lock<ur_shared_mutex> ContextsLock(
-        Queue->Device->Platform->ContextsMutex, std::defer_lock);
-    // We are going to submit kernels for execution. If indirect access flag is
-    // set for a kernel then we need to make a snapshot of existing memory
-    // allocations in all contexts in the platform. We need to lock the mutex
-    // guarding the list of contexts in the platform to prevent creation of new
-    // memory alocations in any context before we submit the kernel for
-    // execution.
-    ContextsLock.lock();
-    Queue->CaptureIndirectAccesses();
-    // Add the command to the command list, which implies submission.
-    ZE2UR_CALL(zeCommandListAppendLaunchCooperativeKernel,
-               (CommandList->first, ZeKernel, &ZeThreadGroupDimensions, ZeEvent,
-                (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
-  } else {
-    // Add the command to the command list for later submission.
-    // No lock is needed here, unlike the immediate commandlist case above,
-    // because the kernels are not actually submitted yet. Kernels will be
-    // submitted only when the comamndlist is closed. Then, a lock is held.
-    ZE2UR_CALL(zeCommandListAppendLaunchCooperativeKernel,
-               (CommandList->first, ZeKernel, &ZeThreadGroupDimensions, ZeEvent,
-                (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
-  }
-
-  UR_LOG(DEBUG,
-         "calling zeCommandListAppendLaunchCooperativeKernel() with ZeEvent {}",
          ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList((*Event)->WaitList);
 
@@ -766,7 +532,7 @@ ur_result_t urKernelGetInfo(
     }
   }
   case UR_KERNEL_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Kernel->RefCount.load()});
+    return ReturnValue(uint32_t{Kernel->RefCount.getCount()});
   case UR_KERNEL_INFO_ATTRIBUTES:
     try {
       uint32_t Size;
@@ -917,7 +683,7 @@ ur_result_t urKernelGetSubGroupInfo(
 ur_result_t urKernelRetain(
     /// [in] handle for the Kernel to retain
     ur_kernel_handle_t Kernel) {
-  Kernel->RefCount.increment();
+  Kernel->RefCount.retain();
 
   return UR_RESULT_SUCCESS;
 }
@@ -925,7 +691,7 @@ ur_result_t urKernelRetain(
 ur_result_t urKernelRelease(
     /// [in] handle for the Kernel to release
     ur_kernel_handle_t Kernel) {
-  if (!Kernel->RefCount.decrementAndTest())
+  if (!Kernel->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   auto KernelProgram = Kernel->Program;
@@ -1094,22 +860,23 @@ ur_result_t urKernelGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urKernelSuggestMaxCooperativeGroupCountExp(
+ur_result_t urKernelSuggestMaxCooperativeGroupCount(
     ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
     const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
     uint32_t *pGroupCountRet) {
   (void)dynamicSharedMemorySize;
   std::shared_lock<ur_shared_mutex> Guard(hKernel->Mutex);
 
+  ze_kernel_handle_t ZeKernel;
+  UR_CALL(getZeKernel(hDevice->ZeDevice, hKernel, &ZeKernel));
+
   uint32_t WG[3];
   WG[0] = ur_cast<uint32_t>(pLocalWorkSize[0]);
   WG[1] = workDim >= 2 ? ur_cast<uint32_t>(pLocalWorkSize[1]) : 1;
   WG[2] = workDim == 3 ? ur_cast<uint32_t>(pLocalWorkSize[2]) : 1;
-  ZE2UR_CALL(zeKernelSetGroupSize, (hKernel->ZeKernel, WG[0], WG[1], WG[2]));
+  ZE2UR_CALL(zeKernelSetGroupSize, (ZeKernel, WG[0], WG[1], WG[2]));
 
   uint32_t TotalGroupCount = 0;
-  ze_kernel_handle_t ZeKernel;
-  UR_CALL(getZeKernel(hDevice->ZeDevice, hKernel, &ZeKernel));
   ZE2UR_CALL(zeKernelSuggestMaxCooperativeGroupCount,
              (ZeKernel, &TotalGroupCount));
   *pGroupCountRet = TotalGroupCount;

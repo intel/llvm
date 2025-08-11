@@ -22,7 +22,7 @@
 ; CHECK: DW_TAG_variable
 ; CHECK-NEXT: DW_AT_name {{.*}} = "a")
 ; CHECK-NEXT: DW_AT_type {{.*}} "int")
-; CHECK-NEXT: DW_AT_decl_file {{.*}} ("/work/tmp{{[/\\]}}tmp.cl")
+; CHECK-NEXT: DW_AT_decl_file {{.*}} ("/work{{[/\\]}}tmp{{[/\\]}}tmp.cl")
 ; CHECK-NEXT: DW_AT_decl_line {{.*}} (2)
 ; CHECK-NEXT: DW_AT_location [DW_FORM_exprloc]      (DW_OP_addr 0x0)
 
@@ -51,7 +51,7 @@ attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide
 !1 = distinct !DIGlobalVariable(name: "a", scope: !2, file: !3, line: 2, type: !10, isLocal: true, isDefinition: true)
 !2 = distinct !DISubprogram(name: "foo", scope: !3, file: !3, line: 1, type: !4, scopeLine: 1, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !6, retainedNodes: !8)
 !3 = !DIFile(filename: "tmp/tmp.cl", directory: "/work")
-!4 = !DISubroutineType(cc: DW_CC_LLVM_OpenCLKernel, types: !5)
+!4 = !DISubroutineType(cc: DW_CC_LLVM_DeviceKernel, types: !5)
 !5 = !{null}
 !6 = distinct !DICompileUnit(language: DW_LANG_C99, file: !7, producer: "clang version 9.0.0 (https://llvm.org/git/clang 92470c6aadff9e614bfac44f48e6e1d430e5a32d) (https://llvm.org/git/llvm 461a7ee6493f997d6dc03ca0e80b6a7bd7943a83)", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !8, globals: !9, nameTableKind: None)
 !7 = !DIFile(filename: "/work/tmp/<stdin>", directory: "/work/llvm/build")

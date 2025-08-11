@@ -19,12 +19,11 @@
 
 struct ur_mem_handle_t_ : ur_object {
   ur_mem_handle_t_(size_t Size, bool _IsImage)
-      : _mem{static_cast<char *>(malloc(Size))}, _ownsMem{true},
-        IsImage{_IsImage} {}
+      : _mem{static_cast<char *>(native_cpu::aligned_malloc(Size))},
+        _ownsMem{true}, IsImage{_IsImage} {}
 
   ur_mem_handle_t_(void *HostPtr, size_t Size, bool _IsImage)
-      : _mem{static_cast<char *>(malloc(Size))}, _ownsMem{true},
-        IsImage{_IsImage} {
+      : ur_mem_handle_t_(Size, _IsImage) {
     memcpy(_mem, HostPtr, Size);
   }
 
@@ -34,7 +33,7 @@ struct ur_mem_handle_t_ : ur_object {
 
   ~ur_mem_handle_t_() {
     if (_ownsMem) {
-      free(_mem);
+      native_cpu::aligned_free(_mem);
     }
   }
 

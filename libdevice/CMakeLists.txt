@@ -1,8 +1,6 @@
 # Utility project providing various functionalities for SPIR-V devices
 # without native support of these functionalities.
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../libclc/cmake/modules/AddLibclc.cmake)
-
 set(CMAKE_MODULE_PATH
   ${CMAKE_MODULE_PATH}
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules"

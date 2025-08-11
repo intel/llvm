@@ -1,16 +1,20 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17339
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19116
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: spirv-backend
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18230
 
-#include <cassert>
-#include <cstring>
+#include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/half_type.hpp>
+
+#include <cassert>
+#include <cstring>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 

@@ -51,6 +51,7 @@ jobs:
     needs: [detect_changes, source_checks]
     if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
+      fail-fast: false
       matrix:
       # Extra native CPU jobs are here to force the loader to be used.
       # UR will not use the loader if there is only one target.
@@ -97,6 +98,13 @@ jobs:
       other_adapter_name: ${{ matrix.other_adapter || '' }}
       docker_image: ${{ matrix.docker_image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
       image_options: ${{ matrix.image_options || '' }}
+
+# TODO: Enable once the apt package at https://apt.llvm.org/noble/pool/main/l/llvm-toolchain-snapshot/ is updated
+#  offload_build:
+#    name: Adapters (Offload)
+#    needs: [detect_changes, source_checks]
+#    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_offload_adapter') }}
+#    uses: ./.github/workflows/ur-build-offload.yml
 
   macos:
     name: MacOS build only

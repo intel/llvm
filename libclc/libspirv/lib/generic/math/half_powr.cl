@@ -10,4 +10,4 @@
 
 #define __CLC_BUILTIN __spirv_ocl_powr
 #define __CLC_FUNCTION __spirv_ocl_half_powr
-#include <math/binary_builtin.inc>
+#include <clc/math/binary_builtin.inc>

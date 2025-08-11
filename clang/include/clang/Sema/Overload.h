@@ -350,6 +350,11 @@ class Sema;
     LLVM_PREFERRED_TYPE(bool)
     unsigned BindsToRvalue : 1;
 
+    /// Whether this was an identity conversion with qualification
+    /// conversion for the implicit object argument.
+    LLVM_PREFERRED_TYPE(bool)
+    unsigned IsImplicitObjectArgumentQualificationConversion : 1;
+
     /// Whether this binds an implicit object argument to a
     /// non-static member function without a ref-qualifier.
     LLVM_PREFERRED_TYPE(bool)
@@ -430,8 +435,15 @@ class Sema;
       if (!ReferenceBinding) {
 #ifndef NDEBUG
         auto Decay = [&](QualType T) {
-          return (T->isArrayType() || T->isFunctionType()) ? C.getDecayedType(T)
-                                                           : T;
+          if (T->isArrayType() || T->isFunctionType())
+            T = C.getDecayedType(T);
+
+          // A function pointer type can be resolved to a member function type,
+          // which is still an identity conversion.
+          if (auto *N = T->getAs<MemberPointerType>();
+              N && N->isMemberFunctionPointer())
+            T = C.getDecayedType(N->getPointeeType());
+          return T;
         };
         // The types might differ if there is an array-to-pointer conversion
         // an function-to-pointer conversion, or lvalue-to-rvalue conversion.
@@ -441,11 +453,11 @@ class Sema;
 #endif
         return true;
       }
-      if (!C.hasSameType(getFromType(), getToType(2)))
-        return false;
       if (BindsToRvalue && IsLvalueReference)
         return false;
-      return true;
+      if (IsImplicitObjectArgumentQualificationConversion)
+        return C.hasSameUnqualifiedType(getFromType(), getToType(2));
+      return C.hasSameType(getFromType(), getToType(2));
     }
 
     ImplicitConversionRank getRank() const;
@@ -980,7 +992,8 @@ class Sema;
     /// Have we matched any packs on the parameter side, versus any non-packs on
     /// the argument side, in a context where the opposite matching is also
     /// allowed?
-    bool StrictPackMatch : 1;
+    LLVM_PREFERRED_TYPE(bool)
+    unsigned StrictPackMatch : 1;
 
     /// True if the candidate was found using ADL.
     LLVM_PREFERRED_TYPE(CallExpr::ADLCallKind)
@@ -996,7 +1009,8 @@ class Sema;
 
     /// FailureKind - The reason why this candidate is not viable.
     /// Actually an OverloadFailureKind.
-    unsigned char FailureKind;
+    LLVM_PREFERRED_TYPE(OverloadFailureKind)
+    unsigned FailureKind : 8;
 
     /// The number of call arguments that were explicitly provided,
     /// to be used while performing partial ordering of function templates.

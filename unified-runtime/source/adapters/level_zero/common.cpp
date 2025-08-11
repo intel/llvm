@@ -84,10 +84,6 @@ bool setEnvVar(const char *name, const char *value) {
   return true;
 }
 
-ZeUSMImportExtension ZeUSMImport;
-
-std::map<std::string, int> *ZeCallCount = nullptr;
-
 void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   switch (ZeError) {
 #define ZE_ERRCASE(ERR)                                                        \
@@ -137,31 +133,10 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   } // switch
 }
 
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
 ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *, const char *,
                            bool) {
   return ZeResult;
 }
-#else
-ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
-                           const char *ZeArgs, bool TraceError) {
-  UR_LOG(DEBUG, "ZE ---> {}{}", ZeName, ZeArgs);
-
-  if (ZeResult == ZE_RESULT_SUCCESS) {
-    if (UrL0LeaksDebug) {
-      ++(*ZeCallCount)[ZeName];
-    }
-    return ZE_RESULT_SUCCESS;
-  }
-
-  if (TraceError) {
-    const char *ErrorString = "Unknown";
-    zeParseError(ZeResult, ErrorString);
-    UR_LOG(ERR, "Error ({}) in {}", ErrorString, ZeName);
-  }
-  return ZeResult;
-}
-#endif
 
 // Specializations for various L0 structures
 template <> ze_structure_type_t getZeStructureType<ze_event_pool_desc_t>() {
@@ -303,6 +278,11 @@ ze_structure_type_t getZeStructureType<ze_device_ip_version_ext_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT;
 }
 template <>
+ze_structure_type_t
+getZeStructureType<ze_device_vector_width_properties_ext_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_VECTOR_WIDTH_PROPERTIES_EXT;
+}
+template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
 }
@@ -339,6 +319,10 @@ template <> zes_structure_type_t getZesStructureType<zes_freq_properties_t>() {
 
 template <> zes_structure_type_t getZesStructureType<zes_power_properties_t>() {
   return ZES_STRUCTURE_TYPE_POWER_PROPERTIES;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_device_cache_line_size_ext_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_CACHELINE_SIZE_EXT;
 }
 
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME

@@ -9,7 +9,7 @@ from templates import print_helper as tph
     X=x.upper()
 %>/*
  *
- * Copyright (C) 2023-2024 Intel Corporation
+ * Copyright (C) 2023 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -34,6 +34,9 @@ extern "C" {
 %>
 ## Declarations ###############################################################
 %for func in api_types_funcs:
+%if func.guard:
+// ${func.guard}
+%endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ${func.print_arg.type_name} ${func.print_arg.base_type}
 /// @returns
@@ -41,6 +44,9 @@ extern "C" {
 ///     - ::${X}_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
 ${X}_APIEXPORT ${x}_result_t ${X}_APICALL ${func.c_name}(${func.c_args});
+%if func.guard:
+// end ${func.guard}
+%endif
 
 %endfor
 

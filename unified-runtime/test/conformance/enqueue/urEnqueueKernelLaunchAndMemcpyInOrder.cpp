@@ -203,8 +203,8 @@ TEST_P(urEnqueueKernelLaunchIncrementTest, Success) {
 
     // execute kernel that increments each element by 1
     ASSERT_SUCCESS(urEnqueueKernelLaunch(
-        queue, kernels[i], n_dimensions, &global_offset, &ArraySize, nullptr,
-        bool(lastMemcpyEvent), lastMemcpyEvent, kernelEvent));
+        queue, kernels[i], n_dimensions, &global_offset, &ArraySize, nullptr, 0,
+        nullptr, bool(lastMemcpyEvent), lastMemcpyEvent, kernelEvent));
 
     // copy the memory (input for the next kernel)
     if (i < numOps - 1) {
@@ -268,6 +268,8 @@ UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
 // ... ops
 TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+  // https://github.com/intel/llvm/issues/19033
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   auto waitOnEvent = std::get<0>(getParam()).value;
   auto runBackgroundCheck = std::get<1>(getParam()).value;
@@ -296,9 +298,10 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
     memcpyEvent = i < devices.size() - 1 ? memcpyEvents[i].ptr() : nullptr;
 
     // execute kernel that increments each element by 1
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(
-        queues[i], kernels[i], n_dimensions, &global_offset, &ArraySize,
-        nullptr, bool(lastMemcpyEvent), lastMemcpyEvent, kernelEvent));
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[i], kernels[i], n_dimensions,
+                                         &global_offset, &ArraySize, nullptr, 0,
+                                         nullptr, bool(lastMemcpyEvent),
+                                         lastMemcpyEvent, kernelEvent));
 
     // copy the memory to next device
     if (i < devices.size() - 1) {
@@ -364,6 +367,9 @@ UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
 
 // Enqueue kernelLaunch concurrently from multiple threads
 TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
+  // https://github.com/intel/llvm/issues/19607
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
   if (!queuePerThread) {
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
   }
@@ -396,8 +402,8 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
 
         // execute kernel that increments each element by 1
         ASSERT_SUCCESS(urEnqueueKernelLaunch(
-            queue, kernel, n_dimensions, &global_offset, &ArraySize, nullptr,
-            waitNum, lastEvent, signalEvent));
+            queue, kernel, n_dimensions, &global_offset, &ArraySize, nullptr, 0,
+            nullptr, waitNum, lastEvent, signalEvent));
       }
 
       std::vector<uint32_t> data(ArraySize);

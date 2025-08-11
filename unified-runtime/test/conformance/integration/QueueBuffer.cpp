@@ -87,7 +87,7 @@ TEST_P(QueueBufferTestWithParam, QueueBufferTest) {
 
     ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, NDimensions,
                                          &GlobalOffset, &ArraySize, nullptr, 0,
-                                         nullptr, &Event));
+                                         nullptr, 0, nullptr, &Event));
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
 
     CurValueMem2 = CurValueMem1 * 2;
@@ -100,7 +100,7 @@ TEST_P(QueueBufferTestWithParam, QueueBufferTest) {
 
     ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, NDimensions,
                                          &GlobalOffset, &ArraySize, nullptr, 0,
-                                         nullptr, &Event));
+                                         nullptr, 0, nullptr, &Event));
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
 
     CurValueMem1 = CurValueMem2 * 2;

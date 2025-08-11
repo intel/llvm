@@ -39,7 +39,7 @@ int main() {
   // Check that device type of USM allocation is supported inside free function
   // kernel.
   {
-    int *HostDataPtr = new int[NumOfElements];
+    int HostDataPtr[NumOfElements];
     constexpr int ExpectedResultValue = 111;
     int *DeviceDataPtr = sycl::malloc_device<int>(NumOfElements, Queue);
     sycl::kernel UsedKernel = getKernel<ns::nsNdRangeFreeFunc>(Context);

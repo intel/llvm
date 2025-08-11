@@ -14,7 +14,7 @@ foo1(int start, ...) { // expected-error {{free function kernel cannot be a vari
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 1)]] void
 foo2(int start);
 
-// expected-error@+1 {{attribute 'add_ir_attributes_function' is already applied with different arguments}}
+// expected-error@+1 {{attribute '__sycl_detail__::add_ir_attributes_function' is already applied with different arguments}}
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] void 
 foo2(int start) {
 }
@@ -69,3 +69,52 @@ singleTaskKernelReturnType(int Value) {
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]] int 
 ndRangeKernelReturnType(int Value) {
 }
+
+class TestClass {
+public:
+
+// expected-error@+2 {{class method cannot be used to define a SYCL kernel free function kernel}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]] void 
+ndRangeKernelMethod(int Value) {
+}
+
+// expected-error@+2 {{class method cannot be used to define a SYCL kernel free function kernel}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] void 
+singleTaskKernelMethod(int Value) {
+}
+
+// expected-error@+2 {{static class method cannot be used to define a SYCL kernel free function kernel}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
+static void StaticndRangeKernelMethod(int Value) {
+}
+
+// expected-error@+2 {{static class method cannot be used to define a SYCL kernel free function kernel}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+static void StaticsingleTaskKernelMethod(int Value) {
+}
+
+};
+
+struct TestStruct {
+
+// expected-error@+2 {{class method cannot be used to define a SYCL kernel free function kernel}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]] void 
+ndRangeKernelMethod(int Value) {
+}
+
+// expected-error@+2 {{class method cannot be used to define a SYCL kernel free function kernel}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] void 
+singleTaskKernelMethod(int Value) {
+}
+
+// expected-error@+2 {{static class method cannot be used to define a SYCL kernel free function kernel}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
+static void StaticndRangeKernelMethod(int Value) {
+}
+
+// expected-error@+2 {{static class method cannot be used to define a SYCL kernel free function kernel}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+static void StaticsingleTaskKernelMethod(int Value) {
+}
+
+};

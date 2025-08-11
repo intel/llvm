@@ -7,35 +7,82 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <detail/hashers.hpp>
 #include <detail/kernel_arg_mask.hpp>
+#include <emhash/hash_table8.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 
 #include <mutex>
-
-#include <boost/unordered/unordered_flat_map.hpp>
+#include <optional>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 using FastKernelCacheKeyT = std::pair<ur_device_handle_t, ur_context_handle_t>;
-using FastKernelCacheValT =
-    std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
-               ur_program_handle_t>;
-using FastKernelSubcacheMapT =
-    ::boost::unordered_flat_map<FastKernelCacheKeyT, FastKernelCacheValT>;
+
+struct FastKernelCacheVal {
+  Managed<ur_kernel_handle_t> MKernelHandle; /* UR kernel. */
+  std::mutex *MMutex;                  /* Mutex guarding this kernel. When
+                                     caching is disabled, the pointer is
+                                     nullptr. */
+  const KernelArgMask *MKernelArgMask; /* Eliminated kernel argument mask. */
+  Managed<ur_program_handle_t> MProgramHandle; /* UR program handle
+                                    corresponding to this kernel. */
+  adapter_impl &MAdapter; /* We can keep reference to the adapter
+                            because during 2-stage shutdown the kernel
+                            cache is destroyed deliberately before the
+                            adapter. */
+
+  FastKernelCacheVal(Managed<ur_kernel_handle_t> &&KernelHandle,
+                     std::mutex *Mutex, const KernelArgMask *KernelArgMask,
+                     Managed<ur_program_handle_t> &&ProgramHandle,
+                     adapter_impl &Adapter)
+      : MKernelHandle(std::move(KernelHandle)), MMutex(Mutex),
+        MKernelArgMask(KernelArgMask), MProgramHandle(std::move(ProgramHandle)),
+        MAdapter(Adapter) {}
+
+  ~FastKernelCacheVal() {
+    MMutex = nullptr;
+    MKernelArgMask = nullptr;
+  }
+
+  FastKernelCacheVal(const FastKernelCacheVal &) = delete;
+  FastKernelCacheVal &operator=(const FastKernelCacheVal &) = delete;
+};
+using FastKernelCacheValPtr = std::shared_ptr<FastKernelCacheVal>;
 
 using FastKernelSubcacheMutexT = SpinLock;
 using FastKernelSubcacheReadLockT = std::lock_guard<FastKernelSubcacheMutexT>;
 using FastKernelSubcacheWriteLockT = std::lock_guard<FastKernelSubcacheMutexT>;
 
+struct FastKernelEntryT {
+  FastKernelCacheKeyT Key;
+  FastKernelCacheValPtr Value;
+
+  FastKernelEntryT(FastKernelCacheKeyT Key, const FastKernelCacheValPtr &Value)
+      : Key(Key), Value(Value) {}
+
+  FastKernelEntryT(const FastKernelEntryT &) = default;
+  FastKernelEntryT &operator=(const FastKernelEntryT &) = default;
+  FastKernelEntryT(FastKernelEntryT &&) = default;
+  FastKernelEntryT &operator=(FastKernelEntryT &&) = default;
+};
+
+using FastKernelSubcacheEntriesT = std::vector<FastKernelEntryT>;
+
 struct FastKernelSubcacheT {
-  FastKernelSubcacheMapT Map;
+  FastKernelSubcacheEntriesT Entries;
   FastKernelSubcacheMutexT Mutex;
 };
 
 struct KernelNameBasedCacheT {
   FastKernelSubcacheT FastKernelSubcache;
+  std::optional<bool> UsesAssert;
+  // Implicit local argument position is represented by an optional int, this
+  // uses another optional on top of that to represent lazy initialization of
+  // the cached value.
+  std::optional<std::optional<int>> ImplicitLocalArgPos;
 };
 
 } // namespace detail

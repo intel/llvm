@@ -43,13 +43,13 @@ jobs:
       - name: Checkout OffloadTest
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
-          repository: llvm-beanz/offload-test-suite
+          repository: llvm/offload-test-suite
           ref: main
           path: OffloadTest
       - name: Checkout Golden Images
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
-          repository: llvm-beanz/offload-golden-images
+          repository: llvm/offload-golden-images
           ref: main
           path: golden-images
       - name: Setup Windows
@@ -80,7 +80,7 @@ jobs:
             ninja check-hlsl-unit
             ninja ${{ inputs.TestTarget }}
       - name: Publish Test Results
-        uses: EnricoMi/publish-unit-test-result-action/macos@afb2984f4d89672b2f9d9c13ae23d53779671984 # v2
+        uses: EnricoMi/publish-unit-test-result-action/macos@3a74b2957438d0b6e2e61d67b05318aa25c9e6c6 # v2
         if: always() && runner.os == 'macOS'
         with:
           comment_mode: off

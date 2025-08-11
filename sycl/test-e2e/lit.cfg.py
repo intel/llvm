@@ -22,6 +22,7 @@ config.backend_to_target = {
     "cuda": "target-nvidia",
     "hip": "target-amd",
     "native_cpu": "target-native_cpu",
+    "offload": config.offload_build_target,
 }
 config.target_to_triple = {
     "target-spir": "spir64",
@@ -316,9 +317,8 @@ with test_env():
 # check if the compiler was built in NDEBUG configuration
 has_ndebug = False
 ps = subprocess.Popen(
-    [config.dpcpp_compiler, "-mllvm", "-debug", "-x", "c", "-", "-S", "-o", "-"],
+    [config.dpcpp_compiler, "-mllvm", "-debug", "-x", "c", "-", "-S", "-o", os.devnull],
     stdin=subprocess.PIPE,
-    stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
 )
 _ = ps.communicate(input=b"int main(){}\n")
@@ -382,9 +382,13 @@ with test_env():
     else:
         config.substitutions.append(("%level_zero_options", ""))
 
-if lit_config.params.get("test-preview-mode", False):
+test_preview = lit_config.params.get("test-preview-mode")
+if test_preview is not None and test_preview not in ["True", "False"]:
+    lit_config.fatal("test-preview-mode must be unset or set to True/False")
+
+if test_preview == "True":
     config.available_features.add("preview-mode")
-else:
+elif test_preview is None:
     # Check for sycl-preview library
     check_preview_breaking_changes_file = "preview_breaking_changes_link.cpp"
     with open_check_file(check_preview_breaking_changes_file) as fp:
@@ -426,10 +430,9 @@ ps = subprocess.Popen(
         "c++",
         "-",
         "-o",
-        "-",
+        os.devnull,
     ],
     stdin=subprocess.PIPE,
-    stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
 )
 op = ps.communicate(input=b"")
@@ -574,7 +577,7 @@ if cl_options:
     )
     config.substitutions.append(("%include_option", "/FI"))
     config.substitutions.append(("%debug_option", "/Zi /DEBUG"))
-    config.substitutions.append(("%cxx_std_option", "/std:"))
+    config.substitutions.append(("%cxx_std_option", "/clang:-std="))
     config.substitutions.append(("%fPIC", ""))
     config.substitutions.append(("%shared_lib", "/LD"))
     config.substitutions.append(("%O0", "/Od"))
@@ -615,6 +618,25 @@ else:
 # Enable `vulkan` feature if Vulkan was found.
 if config.vulkan_found == "TRUE":
     config.available_features.add("vulkan")
+
+# Add Vulkan include and library paths to the configuration for substitution.
+link_vulkan = "-I %s " % (config.vulkan_include_dir)
+if platform.system() == "Windows":
+    if cl_options:
+        link_vulkan += "/clang:-l%s" % (config.vulkan_lib)
+    else:
+        link_vulkan += "-l %s" % (config.vulkan_lib)
+else:
+    vulkan_lib_path = os.path.dirname(config.vulkan_lib)
+    link_vulkan += "-L %s -lvulkan" % (vulkan_lib_path)
+config.substitutions.append(("%link-vulkan", link_vulkan))
+
+# Add DirectX 12 libraries to the configuration for substitution.
+if platform.system() == "Windows":
+    directx_libs = ["-ld3d11", "-ld3d12", "-ldxgi", "-ldxguid"]
+    if cl_options:
+        directx_libs = ["/clang:" + l for l in directx_libs]
+    config.substitutions.append(("%link-directx", " ".join(directx_libs)))
 
 if not config.gpu_aot_target_opts:
     config.gpu_aot_target_opts = '"-device *"'
@@ -670,7 +692,7 @@ if len(config.sycl_devices) > 1:
 
 
 def remove_level_zero_suffix(devices):
-    return [device.replace("_v2", "") for device in devices]
+    return [device.replace("_v2", "").replace("_v1", "") for device in devices]
 
 
 available_devices = {
@@ -679,6 +701,7 @@ available_devices = {
     "level_zero": "gpu",
     "hip": "gpu",
     "native_cpu": "cpu",
+    "offload": "gpu",
 }
 for d in remove_level_zero_suffix(config.sycl_devices):
     be, dev = d.split(":")
@@ -799,6 +822,8 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(
 feature_tools = [
     ToolSubst("llvm-spirv", unresolved="ignore"),
     ToolSubst("llvm-link", unresolved="ignore"),
+    ToolSubst("opencl-aot", unresolved="ignore"),
+    ToolSubst("ocloc", unresolved="ignore"),
 ]
 
 tools = [
@@ -808,7 +833,14 @@ tools = [
     ToolSubst(
         r"\| \bnot\b", command=FindTool("not"), verbatim=True, unresolved="ignore"
     ),
-    ToolSubst("sycl-ls", command=sycl_ls, unresolved="ignore"),
+    ToolSubst("sycl-ls", command=sycl_ls, unresolved="fatal"),
+    ToolSubst("syclbin-dump", unresolved="fatal"),
+    ToolSubst("llvm-ar", unresolved="fatal"),
+    ToolSubst("clang-offload-bundler", unresolved="fatal"),
+    ToolSubst("clang-offload-wrapper", unresolved="fatal"),
+    ToolSubst("sycl-post-link", unresolved="fatal"),
+    ToolSubst("file-table-tform", unresolved="fatal"),
+    ToolSubst("llvm-foreach", unresolved="fatal"),
 ] + feature_tools
 
 # Try and find each of these tools in the DPC++ bin directory, in the llvm tools directory
@@ -828,19 +860,6 @@ for tool in feature_tools:
 
 if shutil.which("cmc") is not None:
     config.available_features.add("cm-compiler")
-
-# Device AOT compilation tools aren't part of the SYCL project,
-# so they need to be pre-installed on the machine
-aot_tools = ["ocloc", "opencl-aot"]
-
-for aot_tool in aot_tools:
-    if shutil.which(aot_tool) is not None:
-        lit_config.note("Found pre-installed AOT device compiler " + aot_tool)
-        config.available_features.add(aot_tool)
-    else:
-        lit_config.warning(
-            "Couldn't find pre-installed AOT device compiler " + aot_tool
-        )
 
 # Clear build targets when not in build-only, to populate according to devices
 if config.test_mode != "build-only":
@@ -932,6 +951,18 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
 
 for target in config.sycl_build_targets:
     config.available_features.add("any-target-is-" + target.replace("target-", ""))
+
+if config.llvm_main_include_dir:
+    lit_config.note("Using device config file built from LLVM")
+    config.available_features.add("device-config-file")
+    config.substitutions.append(
+        ("%device_config_file_include_flag", f"-I {config.llvm_main_include_dir}")
+    )
+elif os.path.exists(f"{config.sycl_include}/llvm/SYCLLowerIR/DeviceConfigFile.hpp"):
+    lit_config.note("Using installed device config file")
+    config.available_features.add("device-config-file")
+    config.substitutions.append(("%device_config_file_include_flag", ""))
+
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}
@@ -943,13 +974,11 @@ for full_name, sycl_device in zip(
 ):
     env = copy.copy(llvm_config.config.environment)
 
-    if "v2" in full_name:
-        env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "1"
-
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
         env["SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
 
+    features = set()
     dev_aspects = []
     dev_sg_sizes = []
     architectures = set()
@@ -990,6 +1019,8 @@ for full_name, sycl_device in zip(
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
             architectures.add(architecture.strip())
+        if re.match(r" *Name *:", line) and "Level-Zero V2" in line:
+            features.add("level_zero_v2_adapter")
 
     if dev_aspects == []:
         lit_config.error(
@@ -1053,7 +1084,6 @@ for full_name, sycl_device in zip(
             )
         )
 
-    features = set()
     features.update(aspect_features)
     features.update(sg_size_features)
     features.update(architecture_feature)
@@ -1061,8 +1091,14 @@ for full_name, sycl_device in zip(
 
     be, dev = sycl_device.split(":")
     features.add(dev.replace("fpga", "accelerator"))
-    if "v2" in full_name:
+    if "level_zero_v2" in full_name:
         features.add("level_zero_v2_adapter")
+    elif "level_zero_v1" in full_name:
+        features.discard("level_zero_v2_adapter")
+
+    if "level_zero_v2_adapter" in features:
+        lit_config.note("Using Level Zero V2 adapter for {}".format(sycl_device))
+
     # Use short names for LIT rules.
     features.add(be)
     # Add corresponding target feature
@@ -1086,7 +1122,7 @@ for full_name, sycl_device in zip(
     else:
         config.intel_driver_ver[full_name] = {}
 
-if lit_config.params.get("compatibility_testing", False):
+if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))
     config.substitutions.append(("%clang", " true "))
 else:

@@ -1249,7 +1249,7 @@ struct ConvertVectorTransferRead final
 
     auto loc = op.getLoc();
     auto containerElemTy =
-        cast<MemRefType>(adaptor.getSource().getType()).getElementType();
+        cast<MemRefType>(adaptor.getBase().getType()).getElementType();
     Type emulatedElemTy = op.getType().getElementType();
     int emulatedBits = emulatedElemTy.getIntOrFloatBitWidth();
     int containerBits = containerElemTy.getIntOrFloatBitWidth();
@@ -1268,11 +1268,21 @@ struct ConvertVectorTransferRead final
     bool isDivisibleInSize =
         fitsInMultiByteContainerTy(op.getVectorType(), containerElemTy);
 
-    auto newPadding = rewriter.create<arith::ExtUIOp>(loc, containerElemTy,
-                                                      adaptor.getPadding());
+    // Pad the padding value with 0s on the left. These bits are discarded and
+    // thus their values don't matter.
+    Value padding = adaptor.getPadding();
+    if (!padding.getType().isInteger()) {
+      padding = rewriter.create<arith::BitcastOp>(
+          loc,
+          IntegerType::get(rewriter.getContext(),
+                           padding.getType().getIntOrFloatBitWidth()),
+          padding);
+    }
+    auto newPadding =
+        rewriter.create<arith::ExtUIOp>(loc, containerElemTy, padding);
 
     auto stridedMetadata =
-        rewriter.create<memref::ExtractStridedMetadataOp>(loc, op.getSource());
+        rewriter.create<memref::ExtractStridedMetadataOp>(loc, op.getBase());
 
     OpFoldResult linearizedIndices;
     memref::LinearizedMemRefInfo linearizedInfo;
@@ -1294,7 +1304,7 @@ struct ConvertVectorTransferRead final
                                         emulatedPerContainerElem);
 
     auto newRead = rewriter.create<vector::TransferReadOp>(
-        loc, VectorType::get(numElements, containerElemTy), adaptor.getSource(),
+        loc, VectorType::get(numElements, containerElemTy), adaptor.getBase(),
         getValueOrCreateConstantIndexOp(rewriter, loc, linearizedIndices),
         newPadding);
 

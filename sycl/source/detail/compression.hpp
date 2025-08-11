@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+#ifdef SYCL_RT_ZSTD_AVAILABLE
 
 #include <sycl/exception.hpp>
 
@@ -33,7 +33,9 @@ private:
 
   // Get the singleton instance of the ZSTDCompressor class.
   static ZSTDCompressor &GetSingletonInstance() {
-    static ZSTDCompressor instance;
+    // Use thread_local to ensure that each thread has its own instance.
+    // This avoids issues with concurrent access to the ZSTD contexts.
+    thread_local ZSTDCompressor instance;
     return instance;
   }
 
@@ -150,4 +152,4 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-#endif // SYCL_RT_ZSTD_NOT_AVAIABLE
+#endif // SYCL_RT_ZSTD_AVAILABLE

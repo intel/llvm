@@ -135,6 +135,17 @@ add_fp_unittest(
 )
 
 add_fp_unittest(
+  tanpif_test
+  SUITE
+    libc-math-smoke-tests
+  SRCS
+    tanpif_test.cpp
+  DEPENDS
+    libc.src.errno.errno
+    libc.src.math.tanpif
+)
+
+add_fp_unittest(
   tanpif16_test
   SUITE
     libc-math-smoke-tests
@@ -4052,6 +4063,18 @@ add_fp_unittest(
 )
 
 add_fp_unittest(
+  acos_test
+  SUITE
+    libc-math-smoke-tests
+  SRCS
+    acos_test.cpp
+  DEPENDS
+    libc.hdr.fenv_macros
+    libc.src.errno.errno
+    libc.src.math.acos
+)
+
+add_fp_unittest(
   acosf16_test
   SUITE
     libc-math-smoke-tests
@@ -4093,6 +4116,17 @@ add_fp_unittest(
     atan_test.cpp
   DEPENDS
     libc.src.math.atan
+)
+
+add_fp_unittest(
+  atanf16_test
+  SUITE
+    libc-math-smoke-tests
+  SRCS
+    atanf16_test.cpp
+  DEPENDS
+    libc.src.errno.errno
+    libc.src.math.atanf16
 )
 
 add_fp_unittest(

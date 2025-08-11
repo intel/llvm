@@ -13,6 +13,7 @@
 
 #include "ur_api.h"
 #include "ur_pool_manager.hpp"
+#include <map>
 #include <set>
 #include <umf_helpers.hpp>
 
@@ -30,9 +31,11 @@ public:
   };
 
   using event_release_callback_t = ur_result_t (*)(ur_event_handle_t);
+  using memory_free_callback_t = std::function<ur_result_t(void *)>;
 
-  EnqueuedPool(event_release_callback_t eventRelease)
-      : eventRelease(eventRelease) {}
+  EnqueuedPool(event_release_callback_t EventReleaseFn,
+               memory_free_callback_t MemFreeFn)
+      : EventReleaseFn(EventReleaseFn), MemFreeFn(MemFreeFn) {}
 
   ~EnqueuedPool();
   std::optional<Allocation> getBestFit(size_t Size, size_t Alignment,
@@ -41,24 +44,44 @@ public:
   bool cleanup();
   bool cleanupForQueue(void *Queue);
 
-private:
-  struct Comparator {
-    bool operator()(const Allocation &lhs, const Allocation &rhs) const {
+  // Allocations are grouped by queue and alignment.
+  struct AllocationGroupKey {
+    void *Queue;
+    size_t Alignment;
+  };
+
+  struct GroupComparator {
+    bool operator()(const AllocationGroupKey &lhs,
+                    const AllocationGroupKey &rhs) const {
       if (lhs.Queue != rhs.Queue) {
-        return lhs.Queue < rhs.Queue; // Compare by queue handle first
+        return lhs.Queue < rhs.Queue;
       }
-      if (lhs.Alignment != rhs.Alignment) {
-        return lhs.Alignment < rhs.Alignment; // Then by alignment
-      }
-      if (lhs.Size != rhs.Size) {
-        return lhs.Size < rhs.Size; // Then by size
-      }
-      return lhs.Ptr < rhs.Ptr; // Finally by pointer address
+      return lhs.Alignment < rhs.Alignment;
     }
   };
 
-  using AllocationSet = std::set<Allocation, Comparator>;
+  // Then, the allocations are sorted by size.
+  struct SizeComparator {
+    bool operator()(const Allocation &lhs, const Allocation &rhs) const {
+      if (lhs.Size != rhs.Size) {
+        return lhs.Size < rhs.Size;
+      }
+      return lhs.Ptr < rhs.Ptr;
+    }
+  };
+
+  using AllocationGroup = std::set<Allocation, SizeComparator>;
+  using AllocationGroupMap =
+      std::map<AllocationGroupKey, AllocationGroup, GroupComparator>;
+
+private:
   ur_mutex Mutex;
-  AllocationSet Freelist;
-  event_release_callback_t eventRelease;
+
+  // Freelist grouped by queue and alignment.
+  AllocationGroupMap FreelistByQueue;
+  // Freelist grouped by alignment only.
+  AllocationGroupMap FreelistGlobal;
+
+  event_release_callback_t EventReleaseFn;
+  memory_free_callback_t MemFreeFn;
 };

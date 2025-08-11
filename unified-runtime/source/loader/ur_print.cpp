@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023-2024 Intel Corporation
+ * Copyright (C) 2023 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -287,6 +287,14 @@ ur_result_t
 urPrintDeviceThrottleReasonsFlags(enum ur_device_throttle_reasons_flag_t value,
                                   char *buffer, const size_t buff_size,
                                   size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintKernelLaunchPropertiesFlags(
+    enum ur_kernel_launch_properties_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << value;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -882,6 +890,24 @@ ur_result_t urPrintExecutionInfo(enum ur_execution_info_t value, char *buffer,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t
+urPrintKernelLaunchPropertyId(enum ur_kernel_launch_property_id_t value,
+                              char *buffer, const size_t buff_size,
+                              size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintKernelLaunchProperty(const struct ur_kernel_launch_property_t params,
+                            char *buffer, const size_t buff_size,
+                            size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintMapFlags(enum ur_map_flag_t value, char *buffer,
                             const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
@@ -1100,23 +1126,6 @@ ur_result_t urPrintExpCommandBufferUpdateValueArgDesc(
 ur_result_t urPrintExpCommandBufferUpdateKernelLaunchDesc(
     const struct ur_exp_command_buffer_update_kernel_launch_desc_t params,
     char *buffer, const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintExpLaunchPropertyId(enum ur_exp_launch_property_id_t value,
-                                       char *buffer, const size_t buff_size,
-                                       size_t *out_size) {
-  std::stringstream ss;
-  ss << value;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t
-urPrintExpLaunchProperty(const struct ur_exp_launch_property_t params,
-                         char *buffer, const size_t buff_size,
-                         size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -1367,6 +1376,15 @@ ur_result_t urPrintBindlessImagesReleaseExternalMemoryExpParams(
 
 ur_result_t urPrintBindlessImagesFreeMappedLinearMemoryExpParams(
     const struct ur_bindless_images_free_mapped_linear_memory_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintBindlessImagesSupportsImportingHandleTypeExpParams(
+    const struct ur_bindless_images_supports_importing_handle_type_exp_params_t
         *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
@@ -1851,14 +1869,6 @@ ur_result_t urPrintEnqueueWriteHostPipeParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintEnqueueKernelLaunchCustomExpParams(
-    const struct ur_enqueue_kernel_launch_custom_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
 ur_result_t urPrintEnqueueEventsWaitWithBarrierExtParams(
     const struct ur_enqueue_events_wait_with_barrier_ext_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
@@ -1902,14 +1912,6 @@ ur_result_t urPrintEnqueueUsmFreeExpParams(
 ur_result_t urPrintEnqueueCommandBufferExpParams(
     const struct ur_enqueue_command_buffer_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintEnqueueCooperativeKernelLaunchExpParams(
-    const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -2130,9 +2132,8 @@ ur_result_t urPrintKernelSetSpecializationConstantsParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintKernelSuggestMaxCooperativeGroupCountExpParams(
-    const struct ur_kernel_suggest_max_cooperative_group_count_exp_params_t
-        *params,
+ur_result_t urPrintKernelSuggestMaxCooperativeGroupCountParams(
+    const struct ur_kernel_suggest_max_cooperative_group_count_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
@@ -2292,6 +2293,30 @@ urPrintMemGetInfoParams(const struct ur_mem_get_info_params_t *params,
 ur_result_t urPrintMemImageGetInfoParams(
     const struct ur_mem_image_get_info_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintMemoryExportAllocExportableMemoryExpParams(
+    const struct ur_memory_export_alloc_exportable_memory_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintMemoryExportFreeExportableMemoryExpParams(
+    const struct ur_memory_export_free_exportable_memory_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintMemoryExportExportMemoryHandleExpParams(
+    const struct ur_memory_export_export_memory_handle_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -2790,6 +2815,14 @@ ur_result_t urPrintUsmPoolTrimToExpParams(
 
 ur_result_t urPrintUsmPitchedAllocExpParams(
     const struct ur_usm_pitched_alloc_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintUsmContextMemcpyExpParams(
+    const struct ur_usm_context_memcpy_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
