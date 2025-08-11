@@ -100,7 +100,7 @@ ABIArgInfo CommonSPIRABIInfo::classifyRegcallReturnType(QualType RetTy) const {
         return ABIArgInfo::getDirect(CGT.ConvertType(QualType(SeltTy, 0)));
 
       if (const RecordType *RT = RetTy->getAs<RecordType>()) {
-        const RecordDecl *RD = RT->getDecl();
+        const RecordDecl *RD = RT->getOriginalDecl();
         if (RD->hasFlexibleArrayMember())
           return classifyReturnType(RetTy);
       }
@@ -150,7 +150,7 @@ ABIArgInfo CommonSPIRABIInfo::classifyRegcallArgumentType(QualType Ty) const {
       return ABIArgInfo::getDirect(CGT.ConvertType(QualType(SeltTy, 0)));
 
     if (const RecordType *RT = Ty->getAs<RecordType>()) {
-      const RecordDecl *RD = RT->getDecl();
+      const RecordDecl *RD = RT->getOriginalDecl();
       if (RD->hasFlexibleArrayMember())
         return classifyArgumentType(Ty);
     }

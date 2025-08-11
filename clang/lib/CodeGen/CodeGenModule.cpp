@@ -6367,7 +6367,7 @@ void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
     auto RT = VD->getType()->castAs<RecordType>();
 
     auto Gen = [&AnnotStr, this](const RecordType *Ty, auto &&Gen) -> void {
-      const CXXRecordDecl *RD = cast<CXXRecordDecl>(Ty->getDecl());
+      const CXXRecordDecl *RD = cast<CXXRecordDecl>(Ty->getOriginalDecl());
 
       // Iterate over the fields of the struct.
       for (const auto *Field : RD->fields()) {

@@ -764,7 +764,7 @@ public:
 
   // Skip checking the size expr, since a constant array type loc's size expr is
   // a constant expression.
-  bool TraverseConstantArrayTypeLoc(const ConstantArrayTypeLoc &) {
+  bool TraverseConstantArrayTypeLoc(const ConstantArrayTypeLoc &, bool) {
     return true;
   }
 
@@ -1112,7 +1112,7 @@ public:
     if (!Callee)
       // not a direct call - continue search
       return true;
-    QualType Ty = Ctx.getRecordType(Call->getRecordDecl());
+    QualType Ty = Ctx.getCanonicalTagType(Call->getRecordDecl());
     if (!SemaSYCL::isSyclType(Ty, SYCLTypeAttr::group))
       // not a member of sycl::group - continue search
       return true;
@@ -1336,7 +1336,7 @@ static ParmVarDecl *getSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
 static bool isReadOnlyAccessor(const TemplateArgument &AccessModeArg) {
   const auto *AccessModeArgEnumType =
       AccessModeArg.getIntegralType()->castAs<EnumType>();
-  const EnumDecl *ED = AccessModeArgEnumType->getDecl();
+  const EnumDecl *ED = AccessModeArgEnumType->getOriginalDecl();
 
   auto ReadOnly =
       llvm::find_if(ED->enumerators(), [&](const EnumConstantDecl *E) {
@@ -2530,7 +2530,8 @@ class SyclKernelPointerHandler : public SyclKernelFieldHandler {
                            const CXXBaseSpecifier &BS) {
     TypeSourceInfo *TInfo =
         SemaSYCLRef.getASTContext().getTrivialTypeSourceInfo(
-            QualType(RD->getTypeForDecl(), 0), SourceLocation());
+            SemaSYCLRef.getASTContext().getCanonicalTagType(RD),
+            SourceLocation());
     CXXBaseSpecifier *ModifiedBase = SemaSYCLRef.SemaRef.CheckBaseSpecifier(
         const_cast<CXXRecordDecl *>(Parent), SourceRange(), BS.isVirtual(),
         BS.getAccessSpecifier(), TInfo, SourceLocation());
@@ -2583,10 +2584,10 @@ public:
     // Add this record as a field of it's parent record if it is not an
     // array element.
     if (!isArrayElement(FD, Ty))
-      addField(FD, QualType(ModifiedRD->getTypeForDecl(), 0));
+      addField(FD, SemaSYCLRef.getASTContext().getCanonicalTagType(ModifiedRD));
     else
       ModifiedArrayElementsOrArray.push_back(
-          QualType(ModifiedRD->getTypeForDecl(), 0));
+          SemaSYCLRef.getASTContext().getCanonicalTagType(ModifiedRD));
 
     return true;
   }
@@ -2713,7 +2714,7 @@ public:
     if (!ModifiedBases.empty())
       ModifiedRD->setBases(ModifiedBases.data(), ModifiedBases.size());
 
-    return QualType(ModifiedRD->getTypeForDecl(), 0);
+    return SemaSYCLRef.getASTContext().getCanonicalTagType(ModifiedRD);
   }
   QualType getNewArrayType() {
     return ModifiedArrayElementsOrArray.pop_back_val();
@@ -3085,7 +3086,7 @@ public:
     // struct are wrapped in a generated '__wrapper_class'.
     if (StructDepth) {
       RecordDecl *WrappedPointer = wrapField(FD, ModTy);
-      ModTy = SemaSYCLRef.getASTContext().getRecordType(WrappedPointer);
+      ModTy = SemaSYCLRef.getASTContext().getCanonicalTagType(WrappedPointer);
     }
 
     addParam(FD, ModTy);
@@ -3107,7 +3108,7 @@ public:
 
     // Arrays are wrapped in a struct since they cannot be passed directly.
     RecordDecl *WrappedArray = wrapField(FD, ArrayTy);
-    addParam(FD, SemaSYCLRef.getASTContext().getRecordType(WrappedArray));
+    addParam(FD, SemaSYCLRef.getASTContext().getCanonicalTagType(WrappedArray));
     return true;
   }
 
@@ -3939,14 +3940,16 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     const ASTRecordLayout &Info =
         SemaSYCLRef.getASTContext().getASTRecordLayout(RD);
     uint64_t NumInitExprs = Info.getFieldCount() + RD->getNumBases();
-    addCollectionInitListExpr(QualType(RD->getTypeForDecl(), 0), NumInitExprs);
+    addCollectionInitListExpr(
+        SemaSYCLRef.getASTContext().getCanonicalTagType(RD), NumInitExprs);
   }
 
   InitListExpr *createInitListExpr(const CXXRecordDecl *RD) {
     const ASTRecordLayout &Info =
         SemaSYCLRef.getASTContext().getASTRecordLayout(RD);
     uint64_t NumInitExprs = Info.getFieldCount() + RD->getNumBases();
-    return createInitListExpr(QualType(RD->getTypeForDecl(), 0), NumInitExprs);
+    return createInitListExpr(
+        SemaSYCLRef.getASTContext().getCanonicalTagType(RD), NumInitExprs);
   }
 
   InitListExpr *createInitListExpr(QualType InitTy, uint64_t NumChildInits) {
@@ -3981,7 +3984,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     VarDecl *VD = VarDecl::Create(
         Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(), Ident,
-        QualType(KernelObj->getTypeForDecl(), 0), TSInfo, SC_None);
+        Ctx.getCanonicalTagType(KernelObj), TSInfo, SC_None);
     return VD;
   }
 
@@ -4175,7 +4178,7 @@ public:
       DeclRefExpr *KernelObjCloneRef = DeclRefExpr::Create(
           S.getASTContext(), NestedNameSpecifierLoc(), KernelCallerSrcLoc,
           KernelObjClone, false, DeclarationNameInfo(),
-          QualType(KernelObj->getTypeForDecl(), 0), VK_LValue);
+          S.getASTContext().getCanonicalTagType(KernelObj), VK_LValue);
       MemberExprBases.push_back(KernelObjCloneRef);
     }
   }
@@ -4292,7 +4295,7 @@ public:
     ++StructDepth;
 
     CXXCastPath BasePath;
-    QualType DerivedTy(RD->getTypeForDecl(), 0);
+    QualType DerivedTy = SemaSYCLRef.getASTContext().getCanonicalTagType(RD);
     QualType BaseTy = BS.getType();
     SemaSYCLRef.SemaRef.CheckDerivedToBaseConversion(
         DerivedTy, BaseTy, KernelCallerSrcLoc, SourceRange(), &BasePath,
@@ -4792,9 +4795,11 @@ public:
       : SyclKernelFieldHandler(S), Header(H) {
 
     // The header needs to access the kernel object size.
-    int64_t ObjSize = SemaSYCLRef.getASTContext()
-                          .getTypeSizeInChars(KernelObj->getTypeForDecl())
-                          .getQuantity();
+    int64_t ObjSize =
+        SemaSYCLRef.getASTContext()
+            .getTypeSizeInChars(
+                SemaSYCLRef.getASTContext().getCanonicalTagType(KernelObj))
+            .getQuantity();
     Header.startKernel(KernelFunc, NameType, KernelObj->getLocation(), IsESIMD,
                        IsSYCLUnnamedKernel(S, KernelFunc), ObjSize);
   }
@@ -5144,7 +5149,7 @@ public:
   }
 
   void VisitTagType(const TagType *TT) {
-    return DiagnoseKernelNameType(TT->getDecl());
+    return DiagnoseKernelNameType(TT->getOriginalDecl());
   }
 
   void DiagnoseKernelNameType(const NamedDecl *DeclNamed) {
@@ -6269,7 +6274,7 @@ public:
   }
 
   void VisitTagType(const TagType *T) {
-    TagDecl *TD = T->getDecl();
+    TagDecl *TD = T->getOriginalDecl();
     if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(TD)) {
       // - first, recurse into template parameters and emit needed forward
       //   declarations
@@ -6423,7 +6428,7 @@ public:
   }
 
   void VisitTagType(const TagType *T) {
-    TagDecl *RD = T->getDecl();
+    TagDecl *RD = T->getOriginalDecl();
     if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
 
       // Print template class name
@@ -6469,8 +6474,8 @@ public:
     if (const EnumType *ET = T->getAs<EnumType>()) {
       const llvm::APSInt &Val = TA.getAsIntegral();
       OS << "static_cast<";
-      ET->getDecl()->printQualifiedName(OS, Policy,
-                                        /*WithGlobalNsPrefix*/ true);
+      ET->getOriginalDecl()->printQualifiedName(OS, Policy,
+                                                /*WithGlobalNsPrefix*/ true);
       OS << ">(" << Val << ")";
     } else {
       TA.print(Policy, OS, false /* IncludeType */);
@@ -6774,14 +6779,7 @@ private:
       QualType T = Param->getType();
       QualType CT = T.getCanonicalType();
 
-      auto *ET = dyn_cast<ElaboratedType>(T.getTypePtr());
-      if (!ET) {
-        ParmListOstream << T.getAsString(Policy);
-        continue;
-      }
-
-      auto *TST =
-          dyn_cast<TemplateSpecializationType>(ET->getNamedType().getTypePtr());
+      auto *TST = dyn_cast<TemplateSpecializationType>(T.getTypePtr());
       auto *CTST = dyn_cast<TemplateSpecializationType>(CT.getTypePtr());
       if (!TST || !CTST) {
         ParmListOstream << T.getAsString(Policy);

@@ -916,7 +916,7 @@ static ABIArgInfo classifyOpenCL(QualType Ty, ASTContext &Context) {
     return ABIArgInfo::getIgnore();
 
   if (const EnumType *EnumTy = Ty->getAs<EnumType>())
-    Ty = EnumTy->getDecl()->getIntegerType();
+    Ty = EnumTy->getOriginalDecl()->getIntegerType();
 
   if (const RecordType *RT = Ty->getAs<RecordType>())
     return ABIArgInfo::getIndirect(Context.getTypeAlignInChars(RT),
