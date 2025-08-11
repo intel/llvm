@@ -919,6 +919,8 @@ public:
     case CapabilityFunctionVariantsINTEL:
     case CapabilitySpecConditionalINTEL:
       return ExtensionID::SPV_INTEL_function_variants;
+    case internal::CapabilityBFloat16ArithmeticINTEL:
+      return ExtensionID::SPV_INTEL_bfloat16_arithmetic;
     default:
       return {};
     }
