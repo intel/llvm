@@ -326,6 +326,11 @@ static bool needsTargetExtTy(spv::Op TypeOpcode) {
   case OpTypeImage:
   case OpTypeSampledImage:
   case OpTypeSampler:
+  case OpTypeDeviceEvent:
+  case OpTypeEvent:
+  case OpTypeQueue:
+  case OpTypeReserveId:
+  case OpTypePipe:
     return true;
   }
 }

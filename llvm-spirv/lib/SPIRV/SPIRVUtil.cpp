@@ -1308,6 +1308,17 @@ static SPIR::TypePrimitiveEnum getOCLTypePrimitiveEnum(TargetExtType *Ty) {
     std::string OpenCLName = SPIRVToOCLBase::translateOpaqueType(SPIRVName);
     return getOCLTypePrimitiveEnum(OpenCLName);
   }
+  if (Ty->getName() == "spirv.Pipe")
+    return Ty->getIntParameter(0) ? SPIR::PRIMITIVE_PIPE_WO_T
+                                  : SPIR::PRIMITIVE_PIPE_RO_T;
+  if (Ty->getName() == "spirv.DeviceEvent")
+    return SPIR::PRIMITIVE_CLK_EVENT_T;
+  if (Ty->getName() == "spirv.Event")
+    return SPIR::PRIMITIVE_EVENT_T;
+  if (Ty->getName() == "spirv.ReserveId")
+    return SPIR::PRIMITIVE_RESERVE_ID_T;
+  if (Ty->getName() == "spirv.Queue")
+    return SPIR::PRIMITIVE_QUEUE_T;
 
   return SPIR::PRIMITIVE_NONE;
 }

@@ -66,8 +66,8 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV: 3 FunctionParameter [[IMG2D_RW]] {{[0-9]+}}
 
 ; CHECK-LLVM:        define spir_kernel void @foo(
-; CHECK-LLVM-SAME:     ptr addrspace(1) %a,
-; CHECK-LLVM-SAME:     ptr addrspace(1) %b,
+; CHECK-LLVM-SAME:     target("spirv.Pipe", 0) %a,
+; CHECK-LLVM-SAME:     target("spirv.Pipe", 1) %b,
 ; CHECK-LLVM-SAME:     target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 0) %c1,
 ; CHECK-LLVM-SAME:     target("spirv.Image", i32, 1, 0, 0, 0, 0, 0, 0) %d1,
 ; CHECK-LLVM-SAME:     target("spirv.Image", i32, 2, 0, 0, 0, 0, 0, 0) %e1,
@@ -103,10 +103,10 @@ entry:
 ; CHECK-SPIRV: 3 FunctionParameter [[RESID]] {{[0-9]+}}
 
 ; CHECK-LLVM: define spir_func void @bar(
-; CHECK-LLVM:  ptr %a,
-; CHECK-LLVM:  ptr %b,
-; CHECK-LLVM:  ptr %c,
-; CHECK-LLVM:  ptr %d)
+; CHECK-LLVM:  target("spirv.DeviceEvent") %a,
+; CHECK-LLVM:  target("spirv.Event") %b,
+; CHECK-LLVM:  target("spirv.Queue") %c,
+; CHECK-LLVM:  target("spirv.ReserveId") %d)
 
 define spir_func void @bar(
   target("spirv.DeviceEvent") %a,
