@@ -979,7 +979,9 @@ if config.test_mode != "build-only":
         if os.path.exists(os.path.join(config.dpcpp_bin_dir, "sycl-jit.dll")):
             config.available_features.add("sycl-jit")
     if "sycl-jit" not in config.available_features:
-        lit_config.note("sycl-jit was not found. Tests requiring sycl-jit will be skipped.")
+        lit_config.note(
+            "sycl-jit was not found. Tests requiring sycl-jit will be skipped."
+        )
 
 # That has to be executed last so that all device-independent features have been
 # discovered already.
