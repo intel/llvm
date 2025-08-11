@@ -975,7 +975,7 @@ if platform.system() == "Linux":
     if os.path.exists(os.path.join(config.sycl_libs_dir, "libsycl-jit.so")):
         config.available_features.add("sycl-jit")
 elif platform.system() == "Windows":
-    if os.path.exists(os.path.join(config.sycl_libs_dir, "sycl-jit.lib")):
+    if os.path.exists(os.path.join(config.dpcpp_bin_dir, "sycl-jit.dll")):
         config.available_features.add("sycl-jit")
 if "sycl-jit" not in config.available_features:
     lit_config.note("sycl-jit was not found. Tests requiring sycl-jit will be skipped.")
