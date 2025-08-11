@@ -118,19 +118,19 @@ runs:
       git fetch origin ${{ inputs.build_ref }}
       git checkout FETCH_HEAD
 
-      # UR requires lit; the SYCL toolchain does not package lit. Thus we
-      # install from pip:
-      pip install --user --break-system-packages lit
-      # Add pip binaries dir to PATH
-      old_path="$PATH"
-      PATH="$HOME/.local/bin:$PATH"
+      # # UR requires lit; the SYCL toolchain does not package lit. Thus we
+      # # install from pip:
+      # pip install --user --break-system-packages lit
+      # # Add pip binaries dir to PATH
+      # old_path="$PATH"
+      # PATH="$HOME/.local/bin:$PATH"
 
       # Configure UR
       mkdir build install
       cmake -DCMAKE_BUILD_TYPE=Release \
         -Sunified-runtime \
         -Bbuild \
-        -DCMAKE_INSTALL_PREFIX=install
+        -DCMAKE_INSTALL_PREFIX=install \
         -DUR_BUILD_TESTS=OFF \
         -DUR_BUILD_ADAPTER_L0=ON \
         -DUR_BUILD_ADAPTER_L0_V2=ON
@@ -139,7 +139,9 @@ runs:
       cmake --build build -j "$(nproc)" 
       cmake --install build
 
-      PATH="$old_path"
+      cd -
+
+      #PATH="$old_path"
   - name: Checkout results repo
     shell: bash
     run: |
