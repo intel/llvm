@@ -178,7 +178,8 @@ public:
     assert(!hasExecuted() && "Action should only be invoked on a single file");
 
     // Create a compiler instance to handle the actual work.
-    CompilerInstance Compiler(std::move(Invocation), std::move(PCHContainerOps));
+    CompilerInstance Compiler(std::move(Invocation),
+                              std::move(PCHContainerOps));
     Compiler.setFileManager(Files);
     // Suppress summary with number of warnings and errors being printed to
     // stdout.
@@ -275,7 +276,7 @@ public:
   ClangDiagnosticWrapper(std::string &LogString, DiagnosticOptions *DiagOpts)
       : LogStream(LogString),
         LogPrinter(
-            std::make_unique<TextDiagnosticPrinter>(LogStream, DiagOpts)) {}
+            std::make_unique<TextDiagnosticPrinter>(LogStream, *DiagOpts)) {}
 
   clang::TextDiagnosticPrinter *consumer() { return LogPrinter.get(); }
 
@@ -417,8 +418,8 @@ jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
   FixedCompilationDatabase DB{".", CommandLine};
   ClangTool Tool{DB, {SourceFile.Path}};
 
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts{new DiagnosticOptions};
-  ClangDiagnosticWrapper Wrapper(BuildLog, DiagOpts.get());
+  DiagnosticOptions DiagOpts;
+  ClangDiagnosticWrapper Wrapper(BuildLog, &DiagOpts);
 
   setupTool(Tool, DPCPPRoot, SourceFile, IncludeFiles, Wrapper.consumer());
 
@@ -549,8 +550,8 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   }
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID{new DiagnosticIDs};
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts{new DiagnosticOptions};
-  ClangDiagnosticWrapper Wrapper(BuildLog, DiagOpts.get());
+  DiagnosticOptions DiagOpts;
+  ClangDiagnosticWrapper Wrapper(BuildLog, &DiagOpts);
   DiagnosticsEngine Diags(DiagID, DiagOpts, Wrapper.consumer(),
                           /* ShouldOwnClient=*/false);
 
@@ -734,10 +735,12 @@ jit_compiler::performPostLink(ModuleUPtr Module,
                 [](Function *F) { return F->getName(); });
 
       // TODO: Determine what is requested.
-      GlobalBinImageProps PropReq{
-          /*EmitKernelParamInfo=*/true, /*EmitProgramMetadata=*/true,
-          /*EmitExportedSymbols=*/true, /*EmitImportedSymbols=*/true,
-          /*DeviceGlobals=*/true};
+      GlobalBinImageProps PropReq{/*EmitKernelParamInfo=*/true,
+                                  /*EmitProgramMetadata=*/true,
+                                  /*EmitKernelNames=*/true,
+                                  /*EmitExportedSymbols=*/true,
+                                  /*EmitImportedSymbols=*/true,
+                                  /*DeviceGlobals=*/true};
       PropertySetRegistry Properties =
           computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq,
                                   AllowDeviceImageDependencies);

@@ -316,9 +316,8 @@ with test_env():
 # check if the compiler was built in NDEBUG configuration
 has_ndebug = False
 ps = subprocess.Popen(
-    [config.dpcpp_compiler, "-mllvm", "-debug", "-x", "c", "-", "-S", "-o", "-"],
+    [config.dpcpp_compiler, "-mllvm", "-debug", "-x", "c", "-", "-S", "-o", os.devnull],
     stdin=subprocess.PIPE,
-    stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
 )
 _ = ps.communicate(input=b"int main(){}\n")
@@ -382,7 +381,7 @@ with test_env():
     else:
         config.substitutions.append(("%level_zero_options", ""))
 
-if lit_config.params.get("test-preview-mode", False):
+if lit_config.params.get("test-preview-mode", "False") != "False":
     config.available_features.add("preview-mode")
 else:
     # Check for sycl-preview library
@@ -426,10 +425,9 @@ ps = subprocess.Popen(
         "c++",
         "-",
         "-o",
-        "-",
+        os.devnull,
     ],
     stdin=subprocess.PIPE,
-    stdout=subprocess.DEVNULL,
     stderr=subprocess.PIPE,
 )
 op = ps.communicate(input=b"")
@@ -574,7 +572,7 @@ if cl_options:
     )
     config.substitutions.append(("%include_option", "/FI"))
     config.substitutions.append(("%debug_option", "/Zi /DEBUG"))
-    config.substitutions.append(("%cxx_std_option", "/std:"))
+    config.substitutions.append(("%cxx_std_option", "/clang:-std="))
     config.substitutions.append(("%fPIC", ""))
     config.substitutions.append(("%shared_lib", "/LD"))
     config.substitutions.append(("%O0", "/Od"))
@@ -932,6 +930,18 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
 
 for target in config.sycl_build_targets:
     config.available_features.add("any-target-is-" + target.replace("target-", ""))
+
+if config.llvm_main_include_dir:
+    lit_config.note("Using device config file built from LLVM")
+    config.available_features.add("device-config-file")
+    config.substitutions.append(
+        ("%device_config_file_include_flag", f"-I {config.llvm_main_include_dir}")
+    )
+elif os.path.exists(f"{config.sycl_include}/llvm/SYCLLowerIR/DeviceConfigFile.hpp"):
+    lit_config.note("Using installed device config file")
+    config.available_features.add("device-config-file")
+    config.substitutions.append(("%device_config_file_include_flag", ""))
+
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}
@@ -1086,7 +1096,7 @@ for full_name, sycl_device in zip(
     else:
         config.intel_driver_ver[full_name] = {}
 
-if lit_config.params.get("compatibility_testing", False):
+if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))
     config.substitutions.append(("%clang", " true "))
 else:

@@ -40,11 +40,6 @@ on:
         required: True
         description: |
           Commit SHA or branch to checkout the intel/llvm repo.
-      devops_ref:
-        type: string
-        required: False
-        description: |
-          Commit SHA or branch to checkout the devops directory.
       tests_ref:
         type: string
         required: False
@@ -217,9 +212,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        ref: ${{ inputs.devops_ref || inputs.repo_ref }}
         sparse-checkout: |
           devops
+          sycl/cts_exclude_filter
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
     - name: Reset Intel GPU
@@ -326,7 +321,6 @@ jobs:
       timeout-minutes: 35
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
-        cts_exclude_ref: ${{ inputs.repo_ref }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         cts_testing_mode: ${{ inputs.cts_testing_mode }}
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}

@@ -18,10 +18,11 @@ TEST_F(SchedulerTest, FailedDependency) {
   unittest::UrMock<> Mock;
   platform Plt = sycl::platform();
   queue Queue(context(Plt), default_selector_v);
+  sycl::detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
 
   detail::Requirement MockReq = getMockRequirement();
-  MockCommand MDep(detail::getSyclObjImpl(Queue));
-  MockCommand MUser(detail::getSyclObjImpl(Queue));
+  MockCommand MDep(&QueueImpl);
+  MockCommand MUser(&QueueImpl);
   MDep.addUser(&MUser);
   std::vector<detail::Command *> ToCleanUp;
   (void)MUser.addDep(detail::DepDesc{&MDep, &MockReq, nullptr}, ToCleanUp);

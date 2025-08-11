@@ -28,7 +28,6 @@ namespace detail {
 // Forward declaration
 class kernel_bundle_impl;
 
-using ContextImplPtr = std::shared_ptr<context_impl>;
 using KernelBundleImplPtr = std::shared_ptr<kernel_bundle_impl>;
 class kernel_impl {
 public:
@@ -40,8 +39,8 @@ public:
   /// \param Kernel is a valid UrKernel instance
   /// \param Context is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
-              KernelBundleImplPtr KernelBundleImpl,
+  kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
+              kernel_bundle_impl *KernelBundleImpl,
               const KernelArgMask *ArgMask = nullptr);
 
   /// Constructs a SYCL kernel_impl instance from a SYCL device_image,
@@ -50,9 +49,9 @@ public:
   /// \param Kernel is a valid UrKernel instance
   /// \param ContextImpl is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
+  kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
               DeviceImageImplPtr DeviceImageImpl,
-              KernelBundleImplPtr KernelBundleImpl,
+              const kernel_bundle_impl &KernelBundleImpl,
               const KernelArgMask *ArgMask, ur_program_handle_t Program,
               std::mutex *CacheMutex);
 
@@ -233,7 +232,7 @@ public:
   bool isInterop() const { return MIsInterop; }
 
   ur_program_handle_t getProgramRef() const { return MProgram; }
-  ContextImplPtr getContextImplPtr() const { return MContext; }
+  context_impl &getContextImpl() const { return *MContext; }
 
   std::mutex &getNoncacheableEnqueueMutex() const {
     return MNoncacheableEnqueueMutex;
@@ -245,7 +244,7 @@ public:
 
 private:
   ur_kernel_handle_t MKernel = nullptr;
-  const ContextImplPtr MContext;
+  const std::shared_ptr<context_impl> MContext;
   const ur_program_handle_t MProgram = nullptr;
   bool MCreatedFromSource = true;
   const DeviceImageImplPtr MDeviceImageImpl;

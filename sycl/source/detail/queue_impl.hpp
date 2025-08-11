@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/graph/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -33,8 +34,6 @@
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
 
-#include "detail/graph_impl.hpp"
-
 #include <memory>
 #include <utility>
 
@@ -49,12 +48,10 @@ inline namespace _V1 {
 // forward declaration
 
 namespace ext::oneapi::experimental::detail {
-class graph_impl;
-}
+class node_impl;
+} // namespace ext::oneapi::experimental::detail
 
 namespace detail {
-
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
 /// Sets max number of queues supported by FPGA RT.
 static constexpr size_t MaxNumQueues = 256;
@@ -88,17 +85,17 @@ protected:
 public:
   // \return a default context for the platform if it includes the device
   // passed and default contexts are enabled, a new context otherwise.
-  static ContextImplPtr getDefaultOrNew(device_impl &Device) {
-    if (!SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
-      return detail::getSyclObjImpl(
-          context{createSyclObjFromImpl<device>(Device), {}, {}});
+  static std::shared_ptr<context_impl> getDefaultOrNew(device_impl &Device) {
+    if (SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get()) {
+      context_impl &CtxImpl =
+          Device.getPlatformImpl().khr_get_default_context();
+      if (CtxImpl.isDeviceValid(Device))
+        return CtxImpl.shared_from_this();
+    }
 
-    ContextImplPtr DefaultContext =
-        detail::getSyclObjImpl(Device.get_platform().khr_get_default_context());
-    if (DefaultContext->isDeviceValid(Device))
-      return DefaultContext;
-    return detail::getSyclObjImpl(
-        context{createSyclObjFromImpl<device>(Device), {}, {}});
+    return context_impl::create(
+        std::vector<device>{createSyclObjFromImpl<device>(Device)},
+        async_handler{}, property_list{});
   }
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
@@ -121,11 +118,11 @@ public:
   /// constructed.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties to use for queue construction.
-  queue_impl(device_impl &Device, const ContextImplPtr &Context,
+  queue_impl(device_impl &Device, std::shared_ptr<context_impl> &&Context,
              const async_handler &AsyncHandler, const property_list &PropList,
              private_tag)
-      : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
-        MPropList(PropList),
+      : MDevice(Device), MContext(std::move(Context)),
+        MAsyncHandler(AsyncHandler), MPropList(PropList),
         MIsInorder(has_property<property::queue::in_order>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
@@ -150,8 +147,8 @@ public:
             "Queue compute index must be a non-negative number less than "
             "device's number of available compute queue indices.");
     }
-    if (!Context->isDeviceValid(Device)) {
-      if (Context->getBackend() == backend::opencl)
+    if (!MContext->isDeviceValid(Device)) {
+      if (MContext->getBackend() == backend::opencl)
         throw sycl::exception(
             make_error_code(errc::invalid),
             "Queue cannot be constructed with the given context and device "
@@ -181,6 +178,12 @@ public:
     trySwitchingToNoEventsMode();
   }
 
+  queue_impl(device_impl &Device, context_impl &Context,
+             const async_handler &AsyncHandler, const property_list &PropList,
+             private_tag Tag)
+      : queue_impl(Device, Context.shared_from_this(), AsyncHandler, PropList,
+                   Tag) {}
+
   sycl::detail::optional<event> getLastEvent();
 
   /// Constructs a SYCL queue from adapter interoperability handle.
@@ -189,29 +192,19 @@ public:
   /// \param Context is a SYCL context to associate with the queue being
   /// constructed.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  queue_impl(ur_queue_handle_t UrQueue, const ContextImplPtr &Context,
-             const async_handler &AsyncHandler, private_tag tag)
-      : queue_impl(UrQueue, Context, AsyncHandler, {}, tag) {}
-
-  /// Constructs a SYCL queue from adapter interoperability handle.
-  ///
-  /// \param UrQueue is a raw UR queue handle.
-  /// \param Context is a SYCL context to associate with the queue being
-  /// constructed.
-  /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is the queue properties.
-  queue_impl(ur_queue_handle_t UrQueue, const ContextImplPtr &Context,
+  queue_impl(ur_queue_handle_t UrQueue, context_impl &Context,
              const async_handler &AsyncHandler, const property_list &PropList,
              private_tag)
       : MDevice([&]() -> device_impl & {
           ur_device_handle_t DeviceUr{};
-          const AdapterPtr &Adapter = Context->getAdapter();
+          const AdapterPtr &Adapter = Context.getAdapter();
           // TODO catch an exception and put it to list of asynchronous
           // exceptions
           Adapter->call<UrApiKind::urQueueGetInfo>(
               UrQueue, UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr,
               nullptr);
-          device_impl *Device = Context->findMatchingDeviceImpl(DeviceUr);
+          device_impl *Device = Context.findMatchingDeviceImpl(DeviceUr);
           if (Device == nullptr) {
             throw sycl::exception(
                 make_error_code(errc::invalid),
@@ -219,8 +212,9 @@ public:
           }
           return *Device;
         }()),
-        MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
-        MQueue(UrQueue), MIsInorder(has_property<property::queue::in_order>()),
+        MContext(Context.shared_from_this()), MAsyncHandler(AsyncHandler),
+        MPropList(PropList), MQueue(UrQueue),
+        MIsInorder(has_property<property::queue::in_order>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
@@ -265,7 +259,7 @@ public:
 #endif
       throw_asynchronous();
       auto status =
-          getAdapter()->call_nocheck<UrApiKind::urQueueRelease>(MQueue);
+          getAdapter().call_nocheck<UrApiKind::urQueueRelease>(MQueue);
       // If loader is already closed, it'll return a not-initialized status
       // which the UR should convert to SUCCESS code. But that isn't always
       // working on Windows. This is a temporary workaround until that is fixed.
@@ -273,7 +267,7 @@ public:
       // ->call<>() instead of ->call_nocheck<>() above.
       if (status != UR_RESULT_SUCCESS &&
           status != UR_RESULT_ERROR_UNINITIALIZED) {
-        __SYCL_CHECK_UR_CODE_NO_EXC(status);
+        __SYCL_CHECK_UR_CODE_NO_EXC(status, getAdapter().getBackend());
       }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
@@ -284,8 +278,8 @@ public:
 
   cl_command_queue get() {
     ur_native_handle_t nativeHandle = 0;
-    getAdapter()->call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
-                                                          &nativeHandle);
+    getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
+                                                         &nativeHandle);
     __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
   }
@@ -295,9 +289,15 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
+  adapter_impl &getAdapter() const { return *MContext->getAdapter(); }
 
-  const ContextImplPtr &getContextImplPtr() const { return MContext; }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  const std::shared_ptr<context_impl> &getContextImplPtr() const {
+    return MContext;
+  }
+#endif
+
+  context_impl &getContextImpl() const { return *MContext; }
 
   device_impl &getDeviceImpl() const { return MDevice; }
 
@@ -329,7 +329,7 @@ public:
                             "flush cannot be called for a queue which is "
                             "recording to a command graph.");
     }
-    getAdapter()->call<UrApiKind::urQueueFlush>(MQueue);
+    getAdapter().call<UrApiKind::urQueueFlush>(MQueue);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -497,7 +497,6 @@ public:
     ur_queue_handle_t Queue{};
     ur_context_handle_t Context = MContext->getHandleRef();
     ur_device_handle_t Device = MDevice.getHandleRef();
-    const AdapterPtr &Adapter = getAdapter();
     /*
         sycl::detail::pi::PiQueueProperties Properties[] = {
             PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
@@ -513,8 +512,8 @@ public:
               .get_index();
       Properties.pNext = &IndexProperties;
     }
-    Adapter->call<UrApiKind::urQueueCreate>(Context, Device, &Properties,
-                                            &Queue);
+    getAdapter().call<UrApiKind::urQueueCreate>(Context, Device, &Properties,
+                                                &Queue);
 
     return Queue;
   }
@@ -658,8 +657,8 @@ public:
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
-  static ContextImplPtr getContext(const QueueImplPtr &Queue) {
-    return Queue ? Queue->getContextImplPtr() : nullptr;
+  static context_impl *getContext(queue_impl *Queue) {
+    return Queue ? &Queue->getContextImpl() : nullptr;
   }
 
   // Must be called under MMutex protection
@@ -673,10 +672,10 @@ public:
   /// will wait for the completion of all work in the queue at the time of the
   /// insertion, but will not act as a barrier unless the queue is in-order.
   EventImplPtr insertMarkerEvent() {
-    auto ResEvent = std::make_shared<detail::event_impl>(shared_from_this());
+    auto ResEvent = detail::event_impl::create_device_event(*this);
     ur_event_handle_t UREvent = nullptr;
-    getAdapter()->call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
-                                                       nullptr, &UREvent);
+    getAdapter().call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
+                                                      nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;
   }
@@ -697,11 +696,10 @@ public:
 protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
-    auto &Queue = Handler.impl->get_queue();
-    auto ResEvent =
-        std::make_shared<detail::event_impl>(Queue.shared_from_this());
+    queue_impl &Queue = Handler.impl->get_queue();
+    auto ResEvent = detail::event_impl::create_device_event(Queue);
     ur_event_handle_t UREvent = nullptr;
-    getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+    getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
         Queue.getHandleRef(), 0, nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;
@@ -718,7 +716,11 @@ protected:
   }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-#define parseEvent(arg) (arg)
+  inline const detail::EventImplPtr &
+  parseEvent(const detail::EventImplPtr &Event) {
+    assert(!Event || !Event->isDiscarded());
+    return Event;
+  }
 #else
   inline detail::EventImplPtr parseEvent(const event &Event) {
     const detail::EventImplPtr &EventImpl = getSyclObjImpl(Event);
@@ -734,7 +736,7 @@ protected:
       return false;
 
     if (MDefaultGraphDeps.LastEventPtr != nullptr &&
-        !Scheduler::CheckEventReadiness(MContext,
+        !Scheduler::CheckEventReadiness(*MContext,
                                         MDefaultGraphDeps.LastEventPtr))
       return false;
 
@@ -752,14 +754,23 @@ protected:
 
     synchronizeWithExternalEvent(Handler);
 
-    return parseEvent(Handler.finalize());
+    auto Event = parseEvent(Handler.finalize());
+
+    if (Event && !Scheduler::CheckEventReadiness(*MContext, Event)) {
+      MDefaultGraphDeps.LastEventPtr = Event;
+      MNoLastEventMode.store(false, std::memory_order_relaxed);
+    }
+
+    return Event;
   }
 
   template <typename HandlerType = handler>
   detail::EventImplPtr
   finalizeHandlerInOrderHostTaskUnlocked(HandlerType &Handler) {
     assert(isInOrder());
-    assert(Handler.getType() == CGType::CodeplayHostTask);
+    assert(Handler.getType() == CGType::CodeplayHostTask ||
+           (Handler.getType() == CGType::ExecCommandBuffer &&
+            getSyclObjImpl(Handler)->MExecGraph->containsHostTask()));
 
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;
@@ -793,13 +804,8 @@ protected:
   finalizeHandlerInOrderWithDepsUnlocked(HandlerType &Handler) {
     // this is handled by finalizeHandlerInOrderHostTask
     assert(Handler.getType() != CGType::CodeplayHostTask);
-
-    if (Handler.getType() == CGType::ExecCommandBuffer && MNoLastEventMode) {
-      // TODO: this shouldn't be needed but without this
-      // the legacy adapter doesn't synchronize the operations properly
-      // when non-immediate command lists are used.
-      Handler.depends_on(insertHelperBarrier(Handler));
-    }
+    assert(!(Handler.getType() == CGType::ExecCommandBuffer &&
+             getSyclObjImpl(Handler)->MExecGraph->containsHostTask()));
 
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;
@@ -986,7 +992,7 @@ protected:
   mutable std::mutex MMutex;
 
   device_impl &MDevice;
-  const ContextImplPtr MContext;
+  const std::shared_ptr<context_impl> MContext;
 
   /// These events are tracked, but not owned, by the queue.
   std::vector<std::weak_ptr<event_impl>> MEventsWeak;
@@ -998,7 +1004,6 @@ protected:
   const async_handler MAsyncHandler;
   const property_list MPropList;
 
-  /// List of queues created for FPGA device from a single SYCL queue.
   ur_queue_handle_t MQueue;
 
   // Access should be guarded with MMutex

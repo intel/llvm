@@ -22,6 +22,7 @@ This document describes the YaML format used by the scripts for the API specific
 * A header may take the following optional scalar fields: {`ordinal`, `version`}
   - `ordinal` will be used to override the default order (alphabetical) in which regions appear in the specification; `default="1000"`. Multiple regions with the same ordinal will be ordered alphabetically.
   - `version` can be used to define the minimum API version for all documents in the yml file; `default="1.0"`
+  - `guard` takes a name, which must be a valid C identifier, that will be used to generate pre-processor guards around feature code
 
 <table>
 <tr><th>YaML</th><th>C\C++</th><th>Python</th></tr>
@@ -58,6 +59,7 @@ n/a
   - `version` will be used to define the minimum API version in which the macro will appear; `default="1.0"` This will also affect the order in which the macro appears within its section.
 * A macro may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
   - `details` will be used as the macro's detailed comment
+  - `guard` takes a name, which must be a valid C identifier, that will be used to generate pre-processor guards around feature code
 
 <table>
 <tr><th>YaML</th><th>C\C++</th><th>Python</th></tr>
@@ -149,6 +151,7 @@ n/a
   - `version` will be used to define the minimum API version in which the typedef will appear; `default="1.0"` This will also affect the order in which the typedef appears within its section and class.
 * A typedef may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
   - `details` will be used as the typedef's detailed comment
+  - `guard` takes a name, which must be a valid C identifier, that will be used to generate pre-processor guards around feature code
 
 <table>
 <tr><th>YaML</th><th>C</th><th>C++</th><th>Python</th></tr>
@@ -201,6 +204,7 @@ class ur_name_t(c_void_p):
   - `desc` will be used as param's description comment
   - `name` must be a unique ISO-C standard identifier
   - `type` must be ISO-C standard data type
+  - `guard` takes a name, which must be a valid C identifier, that will be used to generate pre-processor guards around feature code
 
 <table>
 <tr><th>YaML</th><th>C</th><th>C++</th></tr>
@@ -247,6 +251,7 @@ std::function<void(void*)> ur_callback_t;
   - `loader_only` will be used to decide whether the handle can be instantiated and managed only by the loader.
 * A handle may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
   - `details` will be used as the handle's detailed comment
+  - `guard` takes a name, which must be a valid C identifier, that will be used to generate pre-processor guards around feature code
 
 <table>
 <tr><th>YaML</th><th>C</th><th>C++</th><th>Python</th></tr>
@@ -344,6 +349,7 @@ plural form *enumerators* is abbreviated to `etors`.
     + `version` will be used to define the minimum API version in which the etor will appear; `default="1.0"` This will also affect the order in which the etor appears within the enum.
 * An enum may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
   - `details` will be used as the enum's detailed comment
+  - `guard` takes a name, which must be a valid C identifier, that will be used to generate pre-processor guards around feature code
 
 <table>
 <tr><th>YaML</th><th>C</th><th>C++</th><th>Python</th></tr>
@@ -491,6 +497,7 @@ class ur_name_flags_v(IntEnum):
     + `tag` applies only to unions and refers to a value for when this member can be accessed.
 * A struct|union may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
   - `details` will be used as the struct|union's detailed comment
+  - `guard` takes a name, which must be a valid C identifier, that will be used to generate pre-processor guards around feature code
 
 <table>
 <tr><th>YaML</th><th>C</th><th>C++</th><th>Python</th></tr>
@@ -652,6 +659,7 @@ class ur_name_t(Structure):
   - `returns` may contain a sequence of custom validation layer code blocks
 * A function may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
   - `details` will be used as the function's detailed comment
+  - `guard` takes a name, which must be a valid C identifier, that will be used to generate pre-processor guards around feature code
 
 <table>
 <tr><th>YaML</th><th>C</th><th>C++</th><th>Python</th></tr>
@@ -762,6 +770,7 @@ _urClsNameFnName_t = CFUNCTYPE( ur_result_t, ur_cls_handle_t, c_ulong, POINTER(c
   - The next member may be the `_desc_t` used to create the object; the `name` must be `"desc"`
 * A class may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
   - `details` will be used as the class's detailed comment
+  - `guard` takes a name, which must be a valid C identifier, that will be used to generate pre-processor guards around feature code
 
 <table>
 <tr><th>YaML</th><th>C++</th></tr>

@@ -32,7 +32,7 @@ namespace detail {
 
 platform_impl &
 platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
-                                     const AdapterPtr &Adapter) {
+                                     adapter_impl &Adapter) {
   std::shared_ptr<platform_impl> Result;
   {
     const std::lock_guard<std::mutex> Guard(
@@ -50,7 +50,7 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
     // Otherwise make the impl. Our ctor/dtor are private, so std::make_shared
     // needs a bit of help...
     struct creator : platform_impl {
-      creator(ur_platform_handle_t APlatform, const AdapterPtr &AAdapter)
+      creator(ur_platform_handle_t APlatform, adapter_impl &AAdapter)
           : platform_impl(APlatform, AAdapter) {}
     };
     Result = std::make_shared<creator>(UrPlatform, Adapter);
@@ -62,13 +62,30 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
 
 platform_impl &
 platform_impl::getPlatformFromUrDevice(ur_device_handle_t UrDevice,
-                                       const AdapterPtr &Adapter) {
+                                       adapter_impl &Adapter) {
   ur_platform_handle_t Plt =
       nullptr; // TODO catch an exception and put it to list
   // of asynchronous exceptions
-  Adapter->call<UrApiKind::urDeviceGetInfo>(UrDevice, UR_DEVICE_INFO_PLATFORM,
-                                            sizeof(Plt), &Plt, nullptr);
+  Adapter.call<UrApiKind::urDeviceGetInfo>(UrDevice, UR_DEVICE_INFO_PLATFORM,
+                                           sizeof(Plt), &Plt, nullptr);
   return getOrMakePlatformImpl(Plt, Adapter);
+}
+
+context_impl &platform_impl::khr_get_default_context() {
+  GlobalHandler &GH = GlobalHandler::instance();
+  // Keeping the default context for platforms in the global cache to avoid
+  // shared_ptr based circular dependency between platform and context classes
+  std::unordered_map<platform_impl *, std::shared_ptr<context_impl>>
+      &PlatformToDefaultContextCache = GH.getPlatformToDefaultContextCache();
+
+  std::lock_guard<std::mutex> Lock{GH.getPlatformToDefaultContextCacheMutex()};
+
+  auto It = PlatformToDefaultContextCache.find(this);
+  if (PlatformToDefaultContextCache.end() == It)
+    std::tie(It, std::ignore) = PlatformToDefaultContextCache.insert(
+        {this, detail::getSyclObjImpl(context{get_devices()})});
+
+  return *It->second;
 }
 
 static bool IsBannedPlatform(platform Platform) {
@@ -114,10 +131,15 @@ std::vector<platform> platform_impl::getAdapterPlatforms(AdapterPtr &Adapter,
 
   for (const auto &UrPlatform : UrPlatforms) {
     platform Platform = detail::createSyclObjFromImpl<platform>(
-        getOrMakePlatformImpl(UrPlatform, Adapter));
+        getOrMakePlatformImpl(UrPlatform, *Adapter));
     const bool IsBanned = IsBannedPlatform(Platform);
-    const bool HasAnyDevices =
-        !Platform.get_devices(info::device_type::all).empty();
+    bool HasAnyDevices = false;
+
+    // Platform.get_devices() increments the device count for the platform
+    // and if the platform is banned (like OpenCL for AMD), it can cause
+    // incorrect device numbering, when used with ONEAPI_DEVICE_SELECTOR.
+    if (!IsBanned)
+      HasAnyDevices = !Platform.get_devices(info::device_type::all).empty();
 
     if (!Supported) {
       if (IsBanned || !HasAnyDevices) {
@@ -146,7 +168,7 @@ std::vector<platform> platform_impl::get_platforms() {
 
   // See which platform we want to be served by which adapter.
   // There should be just one adapter serving each backend.
-  std::vector<AdapterPtr> &Adapters = sycl::detail::ur::initializeUr();
+  std::vector<AdapterPtr> &Adapters = ur::initializeUr();
   std::vector<std::pair<platform, AdapterPtr>> PlatformsWithAdapter;
 
   // Then check backend-specific adapters
@@ -482,7 +504,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // analysis. Doing adjustment by simple copy of last device num from
     // previous platform.
     // Needs non const adapter reference.
-    std::vector<AdapterPtr> &Adapters = sycl::detail::ur::initializeUr();
+    std::vector<AdapterPtr> &Adapters = ur::initializeUr();
     auto It = std::find_if(Adapters.begin(), Adapters.end(),
                            [&Platform = MPlatform](AdapterPtr &Adapter) {
                              return Adapter->containsUrPlatform(Platform);
@@ -521,7 +543,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // The next step is to inflate the filtered UrDevices into SYCL Device
   // objects.
-  platform_impl &PlatformImpl = getOrMakePlatformImpl(MPlatform, MAdapter);
+  platform_impl &PlatformImpl = getOrMakePlatformImpl(MPlatform, *MAdapter);
   std::transform(UrDevices.begin(), UrDevices.end(), std::back_inserter(Res),
                  [&PlatformImpl](const ur_device_handle_t UrDevice) -> device {
                    return detail::createSyclObjFromImpl<device>(

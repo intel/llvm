@@ -77,12 +77,10 @@ void addKernels(
 }
 
 bool checkExecGraphSchedule(
-    std::shared_ptr<sycl::ext::oneapi::experimental::detail::exec_graph_impl>
-        GraphA,
-    std::shared_ptr<sycl::ext::oneapi::experimental::detail::exec_graph_impl>
-        GraphB) {
-  auto ScheduleA = GraphA->getSchedule();
-  auto ScheduleB = GraphB->getSchedule();
+    sycl::ext::oneapi::experimental::detail::exec_graph_impl &GraphA,
+    sycl::ext::oneapi::experimental::detail::exec_graph_impl &GraphB) {
+  auto ScheduleA = GraphA.getSchedule();
+  auto ScheduleB = GraphB.getSchedule();
   if (ScheduleA.size() != ScheduleB.size())
     return false;
 
@@ -94,7 +92,7 @@ bool checkExecGraphSchedule(
       VScheduleB{std::begin(ScheduleB), std::end(ScheduleB)};
 
   for (size_t i = 0; i < VScheduleA.size(); i++) {
-    if (!VScheduleA[i]->isSimilar(VScheduleB[i]))
+    if (!VScheduleA[i]->isSimilar(*VScheduleB[i]))
       return false;
   }
   return true;
@@ -132,9 +130,9 @@ TEST_F(MultiThreadGraphTest, BeginEndRecording) {
     GraphRef.end_recording(MyQueue);
   }
 
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-  auto GraphRefImpl = sycl::detail::getSyclObjImpl(GraphRef);
-  ASSERT_EQ(GraphImpl->hasSimilarStructure(GraphRefImpl), true);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphRefImpl = *getSyclObjImpl(GraphRef);
+  ASSERT_EQ(GraphImpl.hasSimilarStructure(GraphRefImpl), true);
 }
 
 TEST_F(MultiThreadGraphTest, ExplicitAddNodes) {
@@ -162,9 +160,9 @@ TEST_F(MultiThreadGraphTest, ExplicitAddNodes) {
     addKernels(GraphRef);
   }
 
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-  auto GraphRefImpl = sycl::detail::getSyclObjImpl(GraphRef);
-  ASSERT_EQ(GraphImpl->hasSimilarStructure(GraphRefImpl), true);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphRefImpl = *getSyclObjImpl(GraphRef);
+  ASSERT_EQ(GraphImpl.hasSimilarStructure(GraphRefImpl), true);
 }
 
 TEST_F(MultiThreadGraphTest, RecordAddNodes) {
@@ -196,9 +194,9 @@ TEST_F(MultiThreadGraphTest, RecordAddNodes) {
   }
   GraphRef.end_recording(QueueRef);
 
-  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-  auto GraphRefImpl = sycl::detail::getSyclObjImpl(GraphRef);
-  ASSERT_EQ(GraphImpl->hasSimilarStructure(GraphRefImpl), true);
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  experimental::detail::graph_impl &GraphRefImpl = *getSyclObjImpl(GraphRef);
+  ASSERT_EQ(GraphImpl.hasSimilarStructure(GraphRefImpl), true);
 }
 
 TEST_F(MultiThreadGraphTest, RecordAddNodesInOrderQueue) {
@@ -237,20 +235,21 @@ TEST_F(MultiThreadGraphTest, RecordAddNodesInOrderQueue) {
   }
   InOrderGraphRef.end_recording(InOrderQueueRef);
 
-  auto GraphImpl = sycl::detail::getSyclObjImpl(InOrderGraph);
-  auto GraphRefImpl = sycl::detail::getSyclObjImpl(InOrderGraphRef);
-  ASSERT_EQ(GraphImpl->getNumberOfNodes(), GraphRefImpl->getNumberOfNodes());
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(InOrderGraph);
+  experimental::detail::graph_impl &GraphRefImpl =
+      *getSyclObjImpl(InOrderGraphRef);
+  ASSERT_EQ(GraphImpl.getNumberOfNodes(), GraphRefImpl.getNumberOfNodes());
 
   // In-order graph must have only a single root
-  ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
+  ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
 
   // Check structure graph
-  auto CurrentNode = (*GraphImpl->MRoots.begin()).lock();
-  for (size_t i = 1; i <= GraphImpl->getNumberOfNodes(); i++) {
+  auto CurrentNode = GraphImpl.MRoots.begin()->lock();
+  for (size_t i = 1; i <= GraphImpl.getNumberOfNodes(); i++) {
     EXPECT_LE(CurrentNode->MSuccessors.size(), 1lu);
 
     // Checking the last node has no successors
-    if (i == GraphImpl->getNumberOfNodes()) {
+    if (i == GraphImpl.getNumberOfNodes()) {
       EXPECT_EQ(CurrentNode->MSuccessors.size(), 0lu);
     } else {
       // Check other nodes have 1 successor
@@ -299,9 +298,10 @@ TEST_F(MultiThreadGraphTest, Finalize) {
     auto GraphExecRef = GraphRef.finalize();
     QueueRef.submit(
         [&](sycl::handler &CGH) { CGH.ext_oneapi_graph(GraphExecRef); });
-    auto GraphExecImpl =
-        sycl::detail::getSyclObjImpl(GraphsExecMap.find(i)->second);
-    auto GraphExecRefImpl = sycl::detail::getSyclObjImpl(GraphExecRef);
+    experimental::detail::exec_graph_impl &GraphExecImpl =
+        *getSyclObjImpl(GraphsExecMap.find(i)->second);
+    experimental::detail::exec_graph_impl &GraphExecRefImpl =
+        *getSyclObjImpl(GraphExecRef);
     ASSERT_EQ(checkExecGraphSchedule(GraphExecImpl, GraphExecRefImpl), true);
   }
 }

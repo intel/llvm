@@ -33,9 +33,6 @@ class UMFSuite(Suite):
         self.built = True
 
     def benchmarks(self) -> list[Benchmark]:
-        if not isUMFAvailable():
-            return []
-
         benches = [
             GBench(self),
             GBenchUmfProxy(self),
@@ -52,8 +49,6 @@ class GBench(Benchmark):
 
         self.bench = bench
         self.bench_name = "umf-benchmark"
-        self.oneapi = get_oneapi()
-        self.umf_lib = options.umf + "lib"
 
         self.fragmentation_prefix = "FRAGMENTATION_"
 
@@ -80,6 +75,9 @@ class GBench(Benchmark):
     def name(self):
         return self.bench_name
 
+    def enabled(self):
+        return isUMFAvailable()
+
     # --benchmark_format describes stdout output
     # --benchmark_out=<file> and --benchmark_out_format=<format>
     # describe output to a file
@@ -98,6 +96,8 @@ class GBench(Benchmark):
             print("UMF prefix path not provided")
             return
 
+        self.oneapi = get_oneapi()
+        self.umf_lib = options.umf + "lib"
         self.benchmark_bin = os.path.join(options.umf, "benchmark", self.bench_name)
 
     def is_memory_statistics_included(self, data_row):
@@ -165,7 +165,6 @@ class GBench(Benchmark):
                         value=value,
                         command=command,
                         env=env_vars,
-                        stdout=result,
                         unit=self.get_unit_time_or_overhead(explicit_group),
                     )
                 )

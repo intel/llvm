@@ -5,6 +5,8 @@
 // XFAIL: linux && run-mode && (arch-intel_gpu_bmg_g21 || gpu-intel-dg2) && !igc-dev
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18576
 
+// XFAIL: windows && arch-intel_gpu_bmg_g21
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18576
 // As of now, ZEX_NUMBER_OF_CCS is not working with FLAT hierachy,
 // which is the new default on PVC.
 

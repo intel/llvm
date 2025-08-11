@@ -146,6 +146,12 @@ Environment Variables
 |                                             | The wait-event path relies on                                | the immediate append path only for some devices when the     |                  |
 |                                             | zeCommandQueueExecuteCommandLists()                          | pre-requisites are met.                                      |                  |
 +---------------------------------------------+--------------------------------------------------------------+--------------------------------------------------------------+------------------+
+| UR_L0_VECTOR_WIDTH_SIZE                     | Specifies the size (in bits) of the vector width supported   | Any positive integer: Indicates the maximum number of data   | Device-specific  |
+|                                             | by the Level Zero device. This value indicates the maximum   | elements that can be processed simultaneously in a single    |                  |
+|                                             | number of data elements that can be processed simultaneously | instruction. The value entered by user user is the desired   |                  |
+|                                             | in a single instruction, which is useful for optimizing      | width size to config. If this width size is not supported,   |                  |
+|                                             | data-parallel workloads and understanding device caps.       | then the default "max" will be used.                         |                  |
++---------------------------------------------+--------------------------------------------------------------+--------------------------------------------------------------+------------------+
 Contributors
 ------------
 

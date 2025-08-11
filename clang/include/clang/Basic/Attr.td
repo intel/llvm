@@ -140,6 +140,12 @@ def SharedVar : SubsetSubject<Var,
                               [{S->hasGlobalStorage() && !S->getTLSKind()}],
                               "global variables">;
 
+def HLSLInputBuiltin
+    : SubsetSubject<Var, [{S->hasGlobalStorage() &&
+                           S->getStorageClass() == StorageClass::SC_Static &&
+                           S->getType().isConstQualified()}],
+                    "static const globals">;
+
 def GlobalVar : SubsetSubject<Var,
                              [{S->hasGlobalStorage()}], "global variables">;
 
@@ -1394,6 +1400,17 @@ def Cleanup : InheritableAttr {
   let Args = [DeclArgument<Function, "FunctionDecl">];
   let Subjects = SubjectList<[LocalVar]>;
   let Documentation = [CleanupDocs];
+  // FIXME: DeclArgument should be reworked to also store the
+  // Expr instead of adding attr specific hacks like the following.
+  // See the discussion in https://github.com/llvm/llvm-project/pull/14023.
+  let AdditionalMembers = [{
+private:
+    SourceLocation ArgLoc;
+
+public:
+    void setArgLoc(const SourceLocation &Loc) { ArgLoc = Loc; }
+    auto getArgLoc() const { return ArgLoc; }
+  }];
 }
 
 def CmseNSEntry : InheritableAttr, TargetSpecificAttr<TargetARM> {
@@ -2663,10 +2680,12 @@ private:
   ArrayRef<SourceLocation> ArgLocs;
 
 public:
-  static constexpr int THIS = 0;
-  static constexpr int INVALID = -1;
-  static constexpr int UNKNOWN = -2;
-  static constexpr int GLOBAL = -3;
+  enum ArgIndex {
+    This = 0,
+    Invalid = -1,
+    Unknown = -2,
+    Global = -3,
+  };
 
   void setArgs(ArrayRef<IdentifierInfo*> Idents, ArrayRef<SourceLocation> Locs) {
     assert(Idents.size() == params_Size);
@@ -5069,6 +5088,13 @@ def LocksExcluded : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def ReentrantCapability : InheritableAttr {
+  let Spellings = [Clang<"reentrant_capability">];
+  let Subjects = SubjectList<[Record, TypedefName]>;
+  let Documentation = [Undocumented];
+  let SimpleHandler = 1;
+}
+
 // C/C++ consumed attributes.
 
 def Consumable : InheritableAttr {
@@ -5857,7 +5883,7 @@ def HLSLResourceBinding: InheritableAttr {
       void setImplicitBindingOrderID(uint32_t Value) {
         ImplicitBindingOrderID = Value;
       }
-      bool hasImplicitBindingOrderID() const { 
+      bool hasImplicitBindingOrderID() const {
         return ImplicitBindingOrderID.has_value();
       }
       uint32_t getImplicitBindingOrderID() const {
@@ -5971,6 +5997,14 @@ def HLSLWaveSize: InheritableAttr {
       int getSpelledArgsCount() const { return SpelledArgsCount; }
   }];
   let Documentation = [WaveSizeDocs];
+}
+
+def HLSLVkExtBuiltinInput : InheritableAttr {
+  let Spellings = [CXX11<"vk", "ext_builtin_input">];
+  let Args = [UnsignedArgument<"BuiltIn">];
+  let Subjects = SubjectList<[HLSLInputBuiltin], ErrorDiag>;
+  let LangOpts = [HLSL];
+  let Documentation = [HLSLVkExtBuiltinInputDocs];
 }
 
 def RandomizeLayout : InheritableAttr {

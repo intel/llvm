@@ -10,6 +10,7 @@
 #include <iostream>
 #include <mutex>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 #include <vector>
 
 template <typename T> using dpcpp_info_t = typename T::return_type;

@@ -12,10 +12,8 @@
 
 #include <cstdint>
 
-#ifndef __NVPTX__
 #define RAND_NEXT_LEN 1024
 DeviceGlobal<uint64_t[RAND_NEXT_LEN]> RandNext;
-#endif
 
 #if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
     defined(__AMDGCN__)
@@ -33,8 +31,6 @@ DEVICE_EXTERN_C_INLINE
 int memcmp(const void *s1, const void *s2, size_t n) {
   return __devicelib_memcmp(s1, s2, n);
 }
-
-#ifndef __NVPTX__
 
 // This simple rand is for ease of use only, the implementation aligns with
 // LLVM libc rand which is based on xorshift64star pseudo random number
@@ -106,8 +102,6 @@ void srand(unsigned int seed) {
       (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
   RAND_NEXT_ACC[gid1] = seed;
 }
-
-#endif
 
 #if defined(_WIN32)
 // Truncates a wide (16 or 32 bit) string (wstr) into an ASCII string (str).

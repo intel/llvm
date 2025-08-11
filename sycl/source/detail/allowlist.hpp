@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/ur.hpp>
 

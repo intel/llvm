@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023-2024 Intel Corporation
+ * Copyright (C) 2023 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -274,6 +274,8 @@ printFlag<ur_exp_enqueue_native_command_flag_t>(std::ostream &os,
 
 } // namespace ur::details
 
+inline std::ostream &operator<<(std::ostream &os,
+                                [[maybe_unused]] const ur_bool_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_structure_type_t value);
@@ -1259,6 +1261,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP:
     os << "UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP";
+    break;
+  case UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP:
+    os << "UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -11313,6 +11318,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE:
     os << "UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE";
     break;
+  case UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF:
+    os << "UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -18614,6 +18622,32 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
+/// ur_bindless_images_supports_importing_handle_type_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os, [[maybe_unused]] const struct
+    ur_bindless_images_supports_importing_handle_type_exp_params_t *params) {
+
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".memHandleType = ";
+
+  os << *(params->pmemHandleType);
+
+  os << ", ";
+  os << ".pSupportedRet = ";
+
+  ur::details::printPtr(os, *(params->ppSupportedRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
 /// ur_bindless_images_import_external_semaphore_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -21398,6 +21432,11 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_BINDLESS_IMAGES_FREE_MAPPED_LINEAR_MEMORY_EXP: {
     os << (const struct
            ur_bindless_images_free_mapped_linear_memory_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP: {
+    os << (const struct
+           ur_bindless_images_supports_importing_handle_type_exp_params_t *)
+            params;
   } break;
   case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP: {
     os << (const struct

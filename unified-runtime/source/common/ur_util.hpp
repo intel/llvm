@@ -553,4 +553,19 @@ inline bool isPointerAlignedTo(uint32_t Alignment, void *Ptr) {
          reinterpret_cast<std::uintptr_t>(Ptr) % Alignment == 0;
 }
 
+template <typename T, typename F, size_t... Is>
+std::array<T, sizeof...(Is)> createArrayOfHelper(F &&f,
+                                                 std::index_sequence<Is...>) {
+  return {(f(Is))...};
+}
+
+// Helper function to intialize std::array of non-default constructible
+// types. Calls provided ctor function (passing index to the array) to create
+// each element of the array.
+template <typename T, size_t N, typename F>
+std::array<T, N> createArrayOf(F &&ctor) {
+  return createArrayOfHelper<T, F>(std::forward<F>(ctor),
+                                   std::make_index_sequence<N>{});
+}
+
 #endif /* UR_UTIL_H */

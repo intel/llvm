@@ -1,5 +1,3 @@
-#ifndef CLC_CONVERSIONS
-#define CLC_CONVERSIONS
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -101,5 +99,3 @@ _CLC_VECTOR_CONVERT_TO_SUFFIX()
 #undef _CLC_VECTOR_CONVERT_FROM1
 #undef _CLC_VECTOR_CONVERT_DECL
 #undef _CLC_CONVERT_DECL
-
-#endif // CLC_CONVERSIONS

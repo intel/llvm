@@ -23,7 +23,9 @@ namespace {
 ur_result_t
 commandBufferDestroy(ur_exp_command_buffer_handle_t CommandBuffer) try {
   // Release the memory allocated to the CudaGraph
-  UR_CHECK_ERROR(cuGraphDestroy(CommandBuffer->CudaGraph));
+  if (CommandBuffer->CudaGraph) {
+    UR_CHECK_ERROR(cuGraphDestroy(CommandBuffer->CudaGraph));
+  }
 
   // Release the memory allocated to the CudaGraphExec
   if (CommandBuffer->CudaGraphExec) {
@@ -1515,9 +1517,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
 
     // Add user defined node to graph as a subgraph
     CUgraphNode GraphNode;
+#if CUDA_VERSION >= 12090
+    // CUDA 12.9 required to enable native commands to contain memory nodes
+    // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#memory-nodes-in-child-graphs
+    CUgraphNodeParams ChildNodeParams{};
+    ChildNodeParams.type = CU_GRAPH_NODE_TYPE_GRAPH;
+    ChildNodeParams.graph.graph = ChildGraph;
+    ChildNodeParams.graph.ownership = CU_GRAPH_CHILD_GRAPH_OWNERSHIP_MOVE;
+    UR_CHECK_ERROR(cuGraphAddNode_v2(&GraphNode, hCommandBuffer->CudaGraph,
+                                     DepsList.data(), NULL /* edge data */,
+                                     DepsList.size(), &ChildNodeParams));
+    // The handle to the child graph is now owned by the parent and will be
+    // destroyed when the parent is destroyed. However, the SYCL-RT will
+    // call `urCommandBufferReleaseExp` on the child command-buffer, to
+    // avoid destroying the underlying handle, set it to nullptr.
+    hChildCommandBuffer->CudaGraph = nullptr;
+#else
     UR_CHECK_ERROR(
         cuGraphAddChildGraphNode(&GraphNode, hCommandBuffer->CudaGraph,
                                  DepsList.data(), DepsList.size(), ChildGraph));
+#endif
+
     auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
     if (pSyncPoint) {
       *pSyncPoint = SyncPoint;

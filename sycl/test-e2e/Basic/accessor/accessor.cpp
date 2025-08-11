@@ -15,6 +15,8 @@
 //===----------------------------------------------------------------------===//
 #include <cassert>
 #include <iostream>
+
+#include <sycl/atomic.hpp>
 #include <sycl/detail/core.hpp>
 
 struct IdxID1 {

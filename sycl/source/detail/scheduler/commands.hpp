@@ -43,9 +43,7 @@ class event_impl;
 class context_impl;
 class DispatchHostTask;
 
-using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
 class Command;
@@ -121,7 +119,7 @@ public:
   };
 
   Command(
-      CommandType Type, QueueImplPtr Queue,
+      CommandType Type, queue_impl *Queue,
       ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
       const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints = {});
 
@@ -174,7 +172,7 @@ public:
     MBlockedUsers.push_back(NewUser);
   }
 
-  const QueueImplPtr &getQueue() const { return MQueue; }
+  queue_impl *getQueue() const { return MQueue.get(); }
 
   const EventImplPtr &getEvent() const { return MEvent; }
 
@@ -222,7 +220,7 @@ public:
 
   /// Get the context of the queue this command will be submitted to. Could
   /// differ from the context of MQueue for memory copy commands.
-  virtual ContextImplPtr getWorkerContext() const;
+  virtual context_impl *getWorkerContext() const;
 
   /// Returns true iff the command produces a UR event on non-host devices.
   virtual bool producesPiEvent() const;
@@ -258,19 +256,25 @@ public:
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 protected:
-  QueueImplPtr MQueue;
+  std::shared_ptr<queue_impl> MQueue;
   EventImplPtr MEvent;
-  QueueImplPtr MWorkerQueue;
+  std::shared_ptr<queue_impl> MWorkerQueue;
 
   /// Dependency events prepared for waiting by backend.
   /// See processDepEvent for details.
   std::vector<EventImplPtr> &MPreparedDepsEvents;
   std::vector<EventImplPtr> &MPreparedHostDepsEvents;
 
-  void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
+  void waitForEvents(queue_impl *Queue, std::vector<EventImplPtr> &RawEvents,
                      ur_event_handle_t &Event);
 
   void waitForPreparedHostEvents() const;
+
+  void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls) {
+    for (auto &EventImpl : EventImpls) {
+      EventImpl->flushIfNeeded(MWorkerQueue.get());
+    }
+  }
 
   /// Perform glueing of events from different contexts
   /// \param DepEvent event this commands should depend on
@@ -431,7 +435,7 @@ private:
 /// on Host or underlying framework.
 class ReleaseCommand : public Command {
 public:
-  ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd);
+  ReleaseCommand(queue_impl *Queue, AllocaCommandBase *AllocaCmd);
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() override;
@@ -449,7 +453,7 @@ private:
 /// Base class for memory allocation commands.
 class AllocaCommandBase : public Command {
 public:
-  AllocaCommandBase(CommandType Type, QueueImplPtr Queue, Requirement Req,
+  AllocaCommandBase(CommandType Type, queue_impl *Queue, Requirement Req,
                     AllocaCommandBase *LinkedAllocaCmd, bool IsConst);
 
   ReleaseCommand *getReleaseCmd() { return &MReleaseCmd; }
@@ -494,7 +498,7 @@ protected:
 /// or underlying framework.
 class AllocaCommand : public AllocaCommandBase {
 public:
-  AllocaCommand(QueueImplPtr Queue, Requirement Req,
+  AllocaCommand(queue_impl *Queue, Requirement Req,
                 bool InitFromUserData = true,
                 AllocaCommandBase *LinkedAllocaCmd = nullptr,
                 bool IsConst = false);
@@ -514,7 +518,7 @@ private:
 /// The AllocaSubBuf command enqueues creation of sub-buffer of memory object.
 class AllocaSubBufCommand : public AllocaCommandBase {
 public:
-  AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
+  AllocaSubBufCommand(queue_impl *Queue, Requirement Req,
                       AllocaCommandBase *ParentAlloca,
                       std::vector<Command *> &ToEnqueue,
                       std::vector<Command *> &ToCleanUp);
@@ -534,7 +538,7 @@ private:
 class MapMemObject : public Command {
 public:
   MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req, void **DstPtr,
-               QueueImplPtr Queue, access::mode MapMode);
+               queue_impl *Queue, access::mode MapMode);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MSrcReq; }
@@ -553,7 +557,7 @@ private:
 class UnMapMemObject : public Command {
 public:
   UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
-                 void **SrcPtr, QueueImplPtr Queue);
+                 void **SrcPtr, queue_impl *Queue);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
@@ -574,18 +578,18 @@ class MemCpyCommand : public Command {
 public:
   MemCpyCommand(Requirement SrcReq, AllocaCommandBase *SrcAllocaCmd,
                 Requirement DstReq, AllocaCommandBase *DstAllocaCmd,
-                QueueImplPtr SrcQueue, QueueImplPtr DstQueue);
+                queue_impl *SrcQueue, queue_impl *DstQueue);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  ContextImplPtr getWorkerContext() const final;
+  context_impl *getWorkerContext() const final;
   bool producesPiEvent() const final;
 
 private:
   ur_result_t enqueueImp() final;
 
-  QueueImplPtr MSrcQueue;
+  std::shared_ptr<queue_impl> MSrcQueue;
   Requirement MSrcReq;
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MDstReq;
@@ -597,34 +601,27 @@ private:
 class MemCpyCommandHost : public Command {
 public:
   MemCpyCommandHost(Requirement SrcReq, AllocaCommandBase *SrcAllocaCmd,
-                    Requirement DstReq, void **DstPtr, QueueImplPtr SrcQueue,
-                    QueueImplPtr DstQueue);
+                    Requirement DstReq, void **DstPtr, queue_impl *SrcQueue,
+                    queue_impl *DstQueue);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  ContextImplPtr getWorkerContext() const final;
+  context_impl *getWorkerContext() const final;
 
 private:
   ur_result_t enqueueImp() final;
 
-  QueueImplPtr MSrcQueue;
+  std::shared_ptr<queue_impl> MSrcQueue;
   Requirement MSrcReq;
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MDstReq;
   void **MDstPtr = nullptr;
 };
 
-ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
-                                     const std::string &PipeName, bool blocking,
-                                     void *ptr, size_t size,
-                                     std::vector<ur_event_handle_t> &RawEvents,
-                                     detail::event_impl *OutEventImpl,
-                                     bool read);
-
 void enqueueImpKernel(
     queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
-    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+    detail::kernel_bundle_impl *KernelBundleImplPtr,
     const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr,
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
@@ -641,7 +638,7 @@ void enqueueImpKernel(
 class ExecCGCommand : public Command {
 public:
   ExecCGCommand(
-      std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
+      std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
       bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
       const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
 
@@ -693,14 +690,13 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     std::string_view SyclKernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
-    const NDRDescT &NDRDesc,
-    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+    const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs);
 #endif
 
 class UpdateHostRequirementCommand : public Command {
 public:
-  UpdateHostRequirementCommand(QueueImplPtr Queue, Requirement Req,
+  UpdateHostRequirementCommand(queue_impl *Queue, Requirement Req,
                                AllocaCommandBase *SrcAllocaCmd, void **DstPtr);
 
   void printDot(std::ostream &Stream) const final;
@@ -718,7 +714,7 @@ private:
 class UpdateCommandBufferCommand : public Command {
 public:
   explicit UpdateCommandBufferCommand(
-      QueueImplPtr Queue,
+      queue_impl *Queue,
       ext::oneapi::experimental::detail::exec_graph_impl *Graph,
       std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
           Nodes);
@@ -744,16 +740,6 @@ ur_result_t enqueueImpCommandBufferKernel(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint,
     ur_exp_command_buffer_command_handle_t *OutCommand,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
-
-// Sets arguments for a given kernel and device based on the argument type.
-// Refactored from SetKernelParamsAndLaunch to allow it to be used in the graphs
-// extension.
-void SetArgBasedOnType(
-    const detail::AdapterPtr &Adapter, ur_kernel_handle_t Kernel,
-    const std::shared_ptr<device_image_impl> &DeviceImageImpl,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const ContextImplPtr &ContextImpl, detail::ArgDesc &Arg,
-    size_t NextTrueIndex);
 
 template <typename FuncT>
 void applyFuncOnFilteredArgs(const KernelArgMask *EliminatedArgMask,

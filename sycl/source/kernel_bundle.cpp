@@ -90,7 +90,7 @@ bool kernel_bundle_plain::native_specialization_constant() const noexcept {
 }
 
 kernel kernel_bundle_plain::get_kernel(const kernel_id &KernelID) const {
-  return impl->get_kernel(KernelID, impl);
+  return impl->get_kernel(KernelID);
 }
 
 const device_image_plain *kernel_bundle_plain::begin() const {
@@ -135,7 +135,7 @@ bool kernel_bundle_plain::ext_oneapi_has_kernel(detail::string_view name) {
 }
 
 kernel kernel_bundle_plain::ext_oneapi_get_kernel(detail::string_view name) {
-  return impl->ext_oneapi_get_kernel(std::string(std::string_view(name)), impl);
+  return impl->ext_oneapi_get_kernel(std::string(std::string_view(name)));
 }
 
 detail::string
@@ -194,34 +194,38 @@ kernel_id get_kernel_id_impl(string_view KernelName) {
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State) {
-  return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs, State);
+  return detail::kernel_bundle_impl::create(Ctx, Devs, State);
 }
 
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        const std::vector<kernel_id> &KernelIDs,
                        bundle_state State) {
-  return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs, KernelIDs,
-                                                      State);
+  return detail::kernel_bundle_impl::create(Ctx, Devs, KernelIDs, State);
 }
 
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State, const DevImgSelectorImpl &Selector) {
-  return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs, Selector,
-                                                      State);
+  return detail::kernel_bundle_impl::create(Ctx, Devs, Selector, State);
+}
+
+detail::KernelBundleImplPtr
+get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
+                       const sycl::span<char> &Bytes, bundle_state State) {
+  return detail::kernel_bundle_impl::create(Ctx, Devs, Bytes, State);
 }
 
 detail::KernelBundleImplPtr
 get_empty_interop_kernel_bundle_impl(const context &Ctx,
                                      const std::vector<device> &Devs) {
-  return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs);
+  return detail::kernel_bundle_impl::create(Ctx, Devs);
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>
 join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
           bundle_state State) {
-  return std::make_shared<detail::kernel_bundle_impl>(Bundles, State);
+  return detail::kernel_bundle_impl::create(Bundles, State);
 }
 
 bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
@@ -301,22 +305,21 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
 std::shared_ptr<detail::kernel_bundle_impl>
 compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
              const std::vector<device> &Devs, const property_list &PropList) {
-  return std::make_shared<detail::kernel_bundle_impl>(
-      InputBundle, Devs, PropList, bundle_state::object);
+  return detail::kernel_bundle_impl::create(InputBundle, Devs, PropList,
+                                            bundle_state::object);
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>
 link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
           const std::vector<device> &Devs, const property_list &PropList) {
-  return std::make_shared<detail::kernel_bundle_impl>(ObjectBundles, Devs,
-                                                      PropList);
+  return detail::kernel_bundle_impl::create(ObjectBundles, Devs, PropList);
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>
 build_impl(const kernel_bundle<bundle_state::input> &InputBundle,
            const std::vector<device> &Devs, const property_list &PropList) {
-  return std::make_shared<detail::kernel_bundle_impl>(
-      InputBundle, Devs, PropList, bundle_state::executable);
+  return detail::kernel_bundle_impl::create(InputBundle, Devs, PropList,
+                                            bundle_state::executable);
 }
 
 // This function finds intersection of associated devices in common for all
@@ -369,15 +372,15 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   // number of targets. This kernel is compatible with the device if there is
   // at least one image (containing this kernel) whose aspects are supported by
   // the device and whose target matches the device.
+  detail::device_impl &DevImpl = *getSyclObjImpl(Dev);
   for (const auto &KernelID : KernelIDs) {
-    std::set<detail::RTDeviceBinaryImage *> BinImages =
+    std::set<const detail::RTDeviceBinaryImage *> BinImages =
         detail::ProgramManager::getInstance().getRawDeviceImages({KernelID});
 
     if (std::none_of(BinImages.begin(), BinImages.end(),
                      [&](const detail::RTDeviceBinaryImage *Img) {
-                       return doesDevSupportDeviceRequirements(Dev, *Img) &&
-                              doesImageTargetMatchDevice(
-                                  *Img, getSyclObjImpl(Dev).get());
+                       return doesDevSupportDeviceRequirements(DevImpl, *Img) &&
+                              doesImageTargetMatchDevice(*Img, DevImpl);
                      }))
       return false;
   }
@@ -488,8 +491,7 @@ make_kernel_bundle_from_source(const context &SyclContext,
   // }
 
   std::shared_ptr<kernel_bundle_impl> KBImpl =
-      std::make_shared<kernel_bundle_impl>(SyclContext, Language, Source,
-                                           IncludePairs);
+      kernel_bundle_impl::create(SyclContext, Language, Source, IncludePairs);
   return sycl::detail::createSyclObjFromImpl<source_kb>(std::move(KBImpl));
 }
 
@@ -503,7 +505,7 @@ source_kb make_kernel_bundle_from_source(const context &SyclContext,
                           "kernel_bundle creation from source not supported");
 
   std::shared_ptr<kernel_bundle_impl> KBImpl =
-      std::make_shared<kernel_bundle_impl>(SyclContext, Language, Bytes);
+      kernel_bundle_impl::create(SyclContext, Language, Bytes);
   return sycl::detail::createSyclObjFromImpl<source_kb>(std::move(KBImpl));
 }
 
@@ -522,8 +524,8 @@ obj_kb compile_from_source(
     LogPtr = &Log;
   std::vector<device> UniqueDevices =
       sycl::detail::removeDuplicateDevices(Devices);
-  std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
-  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->compile_from_source(
+  kernel_bundle_impl &sourceImpl = *getSyclObjImpl(SourceKB);
+  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl.compile_from_source(
       UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
   auto result = sycl::detail::createSyclObjFromImpl<obj_kb>(KBImpl);
   if (LogView)
@@ -546,9 +548,8 @@ exe_kb build_from_source(
     LogPtr = &Log;
   std::vector<device> UniqueDevices =
       sycl::detail::removeDuplicateDevices(Devices);
-  const std::shared_ptr<kernel_bundle_impl> &sourceImpl =
-      getSyclObjImpl(SourceKB);
-  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->build_from_source(
+  kernel_bundle_impl &sourceImpl = *getSyclObjImpl(SourceKB);
+  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl.build_from_source(
       UniqueDevices, BuildOptions, LogPtr, RegisteredKernelNames);
   auto result = sycl::detail::createSyclObjFromImpl<exe_kb>(std::move(KBImpl));
   if (LogView)

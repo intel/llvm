@@ -6,11 +6,6 @@
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
 
-// Intended - The following limitation is not restricted to Sycl-Graph
-// but comes from the orignal test : `SpecConstants/2020/handler-api.cpp`
-// FIXME: ACC devices use emulation path, which is not yet supported
-// UNSUPPORTED: accelerator
-
 #define GRAPH_E2E_EXPLICIT
 
 #include "../Inputs/spec_constants_handler_api.cpp"

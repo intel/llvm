@@ -20,6 +20,7 @@
 namespace {
 using namespace sycl;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
+using sycl::detail::getSyclObjImpl;
 
 constexpr auto DisableCleanupName = "SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP";
 
@@ -45,7 +46,7 @@ protected:
       GTEST_SKIP();
 
     queue QueueDev(context(Plt), default_selector_v);
-    QueueDevImpl = detail::getSyclObjImpl(QueueDev);
+    QueueDevImpl = getSyclObjImpl(QueueDev);
   }
 
   void TearDown() {}
@@ -56,7 +57,7 @@ protected:
     std::vector<detail::Command *> ToEnqueue;
 
     // Emulating processing of command group function
-    MockHandlerCustomFinalize MockCGH(QueueDevImpl,
+    MockHandlerCustomFinalize MockCGH(*QueueDevImpl,
                                       /*CallerNeedsEvent=*/true);
 
     for (auto EventImpl : Events)
@@ -80,7 +81,7 @@ protected:
 
     detail::Command *NewCmd =
         MS.addCG(std::move(CmdGroup),
-                 Type == TestCGType::HOST_TASK ? nullptr : QueueDevImpl,
+                 Type == TestCGType::HOST_TASK ? nullptr : QueueDevImpl.get(),
                  ToEnqueue, /*EventNeeded=*/true);
     EXPECT_EQ(ToEnqueue.size(), 0u);
     return NewCmd;
@@ -154,7 +155,7 @@ protected:
       detail::SYCLConfig<detail::SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::reset};
   MockScheduler MS;
 
-  detail::QueueImplPtr QueueDevImpl;
+  std::shared_ptr<detail::queue_impl> QueueDevImpl;
 
   std::mutex m;
   std::function<void()> CustomHostLambda = [&]() {
@@ -326,25 +327,23 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
   // Mock up an incomplete host task
   auto HostTaskEvent =
       Queue.submit([&](sycl::handler &cgh) { cgh.host_task([=]() {}); });
-  std::shared_ptr<detail::event_impl> HostTaskEventImpl =
-      detail::getSyclObjImpl(HostTaskEvent);
+  detail::event_impl &HostTaskEventImpl = *getSyclObjImpl(HostTaskEvent);
   HostTaskEvent.wait();
-  auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl->getCommand());
+  auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl.getCommand());
   ASSERT_NE(Cmd, nullptr);
   Cmd->MIsBlockable = true;
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
-  HostTaskEventImpl->setStateIncomplete();
+  HostTaskEventImpl.setStateIncomplete();
 
   auto SingleTaskEvent = Queue.submit([&](sycl::handler &cgh) {
     cgh.depends_on(HostTaskEvent);
     cgh.single_task<TestKernel<>>([] {});
   });
-  std::shared_ptr<detail::event_impl> SingleTaskEventImpl =
-      detail::getSyclObjImpl(SingleTaskEvent);
-  EXPECT_EQ(SingleTaskEventImpl->getHandle(), nullptr);
+  detail::event_impl &SingleTaskEventImpl = *getSyclObjImpl(SingleTaskEvent);
+  EXPECT_EQ(SingleTaskEventImpl.getHandle(), nullptr);
 
   // make HostTaskEvent completed, so SingleTaskEvent can be enqueued
-  HostTaskEventImpl->setComplete();
+  HostTaskEventImpl.setComplete();
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
   EventsInWaitList.clear();
 
@@ -356,9 +355,9 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
                                             QueueDevImpl->get_context());
   auto ShortcutFuncEvent = Queue.memcpy(
       SecondBuf, FirstBuf, sizeof(int) * ArraySize, {SingleTaskEvent});
-  EXPECT_NE(SingleTaskEventImpl->getHandle(), nullptr);
+  EXPECT_NE(SingleTaskEventImpl.getHandle(), nullptr);
   ASSERT_EQ(EventsInWaitList.size(), 1u);
-  EXPECT_EQ(EventsInWaitList[0], SingleTaskEventImpl->getHandle());
+  EXPECT_EQ(EventsInWaitList[0], SingleTaskEventImpl.getHandle());
   Queue.wait();
   sycl::free(FirstBuf, Queue);
   sycl::free(SecondBuf, Queue);
@@ -372,31 +371,29 @@ TEST_F(DependsOnTests, BarrierWithWaitList) {
 
   auto HostTaskEvent =
       Queue.submit([&](sycl::handler &cgh) { cgh.host_task([=]() {}); });
-  std::shared_ptr<detail::event_impl> HostTaskEventImpl =
-      detail::getSyclObjImpl(HostTaskEvent);
+  detail::event_impl &HostTaskEventImpl = *getSyclObjImpl(HostTaskEvent);
   HostTaskEvent.wait();
-  auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl->getCommand());
+  auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl.getCommand());
   ASSERT_NE(Cmd, nullptr);
   Cmd->MIsBlockable = true;
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
-  HostTaskEventImpl->setStateIncomplete();
+  HostTaskEventImpl.setStateIncomplete();
 
   auto SingleTaskEvent = Queue.submit([&](sycl::handler &cgh) {
     cgh.depends_on(HostTaskEvent);
     cgh.single_task<TestKernel<>>([] {});
   });
-  std::shared_ptr<detail::event_impl> SingleTaskEventImpl =
-      detail::getSyclObjImpl(SingleTaskEvent);
-  EXPECT_EQ(SingleTaskEventImpl->getHandle(), nullptr);
+  detail::event_impl &SingleTaskEventImpl = *getSyclObjImpl(SingleTaskEvent);
+  EXPECT_EQ(SingleTaskEventImpl.getHandle(), nullptr);
 
-  HostTaskEventImpl->setComplete();
+  HostTaskEventImpl.setComplete();
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
   EventsInWaitList.clear();
 
   Queue.ext_oneapi_submit_barrier(std::vector<sycl::event>{SingleTaskEvent});
-  EXPECT_NE(SingleTaskEventImpl->getHandle(), nullptr);
+  EXPECT_NE(SingleTaskEventImpl.getHandle(), nullptr);
   ASSERT_EQ(EventsInWaitList.size(), 1u);
-  EXPECT_EQ(EventsInWaitList[0], SingleTaskEventImpl->getHandle());
+  EXPECT_EQ(EventsInWaitList[0], SingleTaskEventImpl.getHandle());
   Queue.wait();
 }
 } // anonymous namespace

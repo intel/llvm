@@ -38,7 +38,7 @@
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++11 \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all \
 // RUN: -fsycl-instrument-device-code -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
-// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/nvidiacl \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
 // RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-NO-CC %s
 //
@@ -57,7 +57,7 @@
 // CHK-PHASES-NO-CC: 10: input, "{{.*}}libsycl-itt-user-wrappers.bc", ir, (device-sycl, sm_50)
 // CHK-PHASES-NO-CC: 11: input, "{{.*}}libsycl-itt-compiler-wrappers.bc", ir, (device-sycl, sm_50)
 // CHK-PHASES-NO-CC: 12: input, "{{.*}}libsycl-itt-stubs.bc", ir, (device-sycl, sm_50)
-// CHK-PHASES-NO-CC: 13: input, "{{.*}}nvidiacl{{.*}}", ir, (device-sycl, sm_50)
+// CHK-PHASES-NO-CC: 13: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_50)
 // CHK-PHASES-NO-CC: 14: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_50)
 // CHK-PHASES-NO-CC: 15: linker, {9, 10, 11, 12, 13, 14}, ir, (device-sycl, sm_50)
 // CHK-PHASES-NO-CC: 16: sycl-post-link, {15}, ir, (device-sycl, sm_50)
@@ -75,7 +75,7 @@
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++11 \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all \
 // RUN: -fsycl-instrument-device-code -fsycl-targets=nvptx64-nvidia-cuda \
-// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/nvidiacl \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
 // RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN: -Xsycl-target-backend "--cuda-gpu-arch=sm_35" %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PHASES %s
@@ -95,7 +95,7 @@
 // CHK-PHASES: 10: input, "{{.*}}libsycl-itt-user-wrappers.bc", ir, (device-sycl, sm_35)
 // CHK-PHASES: 11: input, "{{.*}}libsycl-itt-compiler-wrappers.bc", ir, (device-sycl, sm_35)
 // CHK-PHASES: 12: input, "{{.*}}libsycl-itt-stubs.bc", ir, (device-sycl, sm_35)
-// CHK-PHASES: 13: input, "{{.*}}nvidiacl{{.*}}", ir, (device-sycl, sm_35)
+// CHK-PHASES: 13: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_35)
 // CHK-PHASES: 14: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_35)
 // CHK-PHASES: 15: linker, {9, 10, 11, 12, 13, 14}, ir, (device-sycl, sm_35)
 // CHK-PHASES: 16: sycl-post-link, {15}, ir, (device-sycl, sm_35)

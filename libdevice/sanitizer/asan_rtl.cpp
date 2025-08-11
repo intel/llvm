@@ -8,9 +8,6 @@
 
 #include "include/asan_rtl.hpp"
 #include "asan/asan_libdevice.hpp"
-#include "atomic.hpp"
-#include "device.h"
-#include "spirv_vars.h"
 
 // Save the pointer to LaunchInfo
 __SYCL_GLOBAL__ uptr *__SYCL_LOCAL__ __AsanLaunchInfo;
@@ -81,7 +78,7 @@ inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
     // FIXME: I'm not sure if we need to check ADDRESS_SPACE_CONSTANT,
     // but this can really simplify the generic pointer conversion logic
     as = ADDRESS_SPACE_GLOBAL;
-    addr = old;
+    addr = (uptr)ToGlobal((void *)old);
   }
   ASAN_DEBUG(__spirv_ocl_printf(__generic_to, old, addr, as));
 }
@@ -707,11 +704,23 @@ ASAN_REPORT_ERROR_N(store, true)
 
 ///
 /// ASAN convert memory address to shadow memory address
+/// This function is used only for getting shadow address of private memory so
+/// that we can poison them later. And the current implmentation require the ptr
+/// to be aligned with ASAN_SHADOW_GRANULARITY. If not aligned, the subsequent
+/// poisoning will not work correctly.
 ///
+static __SYCL_CONSTANT__ const char __asan_mem_to_shadow_unaligned_msg[] =
+    "[kernel] __asan_mem_to_shadow() unaligned address: %p\n";
 
 DEVICE_EXTERN_C_NOINLINE uptr __asan_mem_to_shadow(uptr ptr, uint32_t as) {
   if (!__AsanLaunchInfo)
     return 0;
+
+  // If ptr is not aligned, then it should be considered as implementation
+  // error. Print a warning for it.
+  if (ptr & AlignMask(ASAN_SHADOW_GRANULARITY)) {
+    __spirv_ocl_printf(__asan_mem_to_shadow_unaligned_msg, (void *)ptr);
+  }
 
   return MemToShadow(ptr, as);
 }
@@ -909,12 +918,12 @@ __asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
       launch_info->PrivateBase == 0)
     return;
   // Only set on the first sub-group item
-  if (__spirv_BuiltInSubgroupLocalInvocationId != 0)
-    return;
-  const size_t sid = SubGroupLinearId();
-  launch_info->PrivateBase[sid] = (uptr)ptr;
+  if (__spirv_BuiltInSubgroupLocalInvocationId == 0) {
+    const size_t sid = SubGroupLinearId();
+    launch_info->PrivateBase[sid] = (uptr)ptr;
+    ASAN_DEBUG(__spirv_ocl_printf(__asan_print_private_base, sid, ptr));
+  }
   SubGroupBarrier();
-  ASAN_DEBUG(__spirv_ocl_printf(__asan_print_private_base, sid, ptr));
 }
 
 #endif // __SPIR__ || __SPIRV__

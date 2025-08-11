@@ -100,6 +100,7 @@ bool Qualifiers::isTargetAddressSpaceSupersetOf(LangAS A, LangAS B,
          // address spaces to default to work around this problem.
          (A == LangAS::Default && B == LangAS::hlsl_private) ||
          (A == LangAS::Default && B == LangAS::hlsl_device) ||
+         (A == LangAS::Default && B == LangAS::hlsl_input) ||
          // Conversions from target specific address spaces may be legal
          // depending on the target information.
          Ctx.getTargetInfo().isAddressSpaceSupersetOf(A, B);
@@ -2581,8 +2582,7 @@ bool Type::isSVESizelessBuiltinType() const {
 #define SVE_PREDICATE_TYPE(Name, MangledName, Id, SingletonId)                 \
   case BuiltinType::Id:                                                        \
     return true;
-#define SVE_TYPE(Name, Id, SingletonId)
-#include "clang/Basic/AArch64SVEACLETypes.def"
+#include "clang/Basic/AArch64ACLETypes.def"
     default:
       return false;
     }
@@ -3529,7 +3529,7 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
 #define SVE_TYPE(Name, Id, SingletonId)                                        \
   case Id:                                                                     \
     return #Name;
-#include "clang/Basic/AArch64SVEACLETypes.def"
+#include "clang/Basic/AArch64ACLETypes.def"
 #define PPC_VECTOR_TYPE(Name, Id, Size)                                        \
   case Id:                                                                     \
     return #Name;
@@ -3803,13 +3803,13 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
       ExtraBits.EffectsHaveConditions = true;
       auto *DestConds = getTrailingObjects<EffectConditionExpr>();
       llvm::uninitialized_copy(SrcConds, DestConds);
-      assert(std::any_of(SrcConds.begin(), SrcConds.end(),
-                         [](const EffectConditionExpr &EC) {
-                           if (const Expr *E = EC.getCondition())
-                             return E->isTypeDependent() ||
-                                    E->isValueDependent();
-                           return false;
-                         }) &&
+      assert(llvm::any_of(SrcConds,
+                          [](const EffectConditionExpr &EC) {
+                            if (const Expr *E = EC.getCondition())
+                              return E->isTypeDependent() ||
+                                     E->isValueDependent();
+                            return false;
+                          }) &&
              "expected a dependent expression among the conditions");
       addDependence(TypeDependence::DependentInstantiation);
     }
@@ -4770,6 +4770,8 @@ static CachedProperties computeCachedProperties(const Type *T) {
     return Cache::get(cast<PipeType>(T)->getElementType());
   case Type::HLSLAttributedResource:
     return Cache::get(cast<HLSLAttributedResourceType>(T)->getWrappedType());
+  case Type::HLSLInlineSpirv:
+    return CachedProperties(Linkage::External, false);
   }
 
   llvm_unreachable("unhandled type class");
@@ -4868,6 +4870,17 @@ LinkageInfo LinkageComputer::computeTypeLinkageInfo(const Type *T) {
     return computeTypeLinkageInfo(cast<HLSLAttributedResourceType>(T)
                                       ->getContainedType()
                                       ->getCanonicalTypeInternal());
+  case Type::HLSLInlineSpirv:
+    return LinkageInfo::external();
+    {
+      const auto *ST = cast<HLSLInlineSpirvType>(T);
+      LinkageInfo LV = LinkageInfo::external();
+      for (auto &Operand : ST->getOperands()) {
+        if (Operand.isConstant() || Operand.isType())
+          LV.merge(computeTypeLinkageInfo(Operand.getResultType()));
+      }
+      return LV;
+    }
   }
 
   llvm_unreachable("unhandled type class");
@@ -4995,7 +5008,7 @@ bool Type::canHaveNullability(bool ResultIfUnknown) const {
     case BuiltinType::OCLQueue:
     case BuiltinType::OCLReserveID:
 #define SVE_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
-#include "clang/Basic/AArch64SVEACLETypes.def"
+#include "clang/Basic/AArch64ACLETypes.def"
 #define PPC_VECTOR_TYPE(Name, Id, Size) case BuiltinType::Id:
 #include "clang/Basic/PPCTypes.def"
 #define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
@@ -5060,6 +5073,7 @@ bool Type::canHaveNullability(bool ResultIfUnknown) const {
   case Type::DependentBitInt:
   case Type::ArrayParameter:
   case Type::HLSLAttributedResource:
+  case Type::HLSLInlineSpirv:
     return false;
   }
   llvm_unreachable("bad type kind!");

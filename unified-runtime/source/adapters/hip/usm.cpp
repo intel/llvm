@@ -126,7 +126,8 @@ USMFreeImpl([[maybe_unused]] ur_context_handle_t hContext, void *pMem) {
 /// USM: Frees the given USM pointer associated with the context.
 UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
                                               void *pMem) {
-  if (auto Pool = umfPoolByPtr(pMem)) {
+  umf_memory_pool_handle_t Pool = nullptr;
+  if (umfPoolByPtr(pMem, &Pool) == UMF_RESULT_SUCCESS && Pool) {
     return umf::umf2urResult(umfPoolFree(Pool, pMem));
   } else {
     return USMFreeImpl(hContext, pMem);
@@ -230,8 +231,9 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
       return ReturnValue(Device);
     }
     case UR_USM_ALLOC_INFO_POOL: {
-      auto UMFPool = umfPoolByPtr(pMem);
-      if (!UMFPool) {
+      umf_memory_pool_handle_t UMFPool = nullptr;
+      auto UMFResult = umfPoolByPtr(pMem, &UMFPool);
+      if (UMFResult != UMF_RESULT_SUCCESS || !UMFPool) {
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
       ur_usm_pool_handle_t Pool = hContext->getOwningURPool(UMFPool);
@@ -316,10 +318,11 @@ enum umf_result_t USMMemoryProvider::free(void *Ptr, size_t Size) {
   return UMF_RESULT_SUCCESS;
 }
 
-void USMMemoryProvider::get_last_native_error(const char **ErrMsg,
-                                              int32_t *ErrCode) {
+enum umf_result_t USMMemoryProvider::get_last_native_error(const char **ErrMsg,
+                                                           int32_t *ErrCode) {
   (void)ErrMsg;
   *ErrCode = static_cast<int32_t>(getLastStatusRef());
+  return UMF_RESULT_SUCCESS;
 }
 
 umf_result_t USMMemoryProvider::get_min_page_size(const void *Ptr,

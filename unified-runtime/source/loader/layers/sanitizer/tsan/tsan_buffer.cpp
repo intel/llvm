@@ -121,7 +121,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
         UR_LOG_L(getContext()->logger, ERR,
                  "Failed to copy {} bytes data from host "
                  "pointer {} to buffer {}",
-                 Size, HostPtr, this);
+                 Size, (void *)HostPtr, this);
         return URes;
       }
     }
@@ -189,7 +189,7 @@ ur_result_t MemBuffer::free() {
     ur_result_t URes = getContext()->urDdiTable.USM.pfnFree(Context, Ptr);
     if (URes != UR_RESULT_SUCCESS) {
       UR_LOG_L(getContext()->logger, ERR, "Failed to free buffer handle {}",
-               Ptr);
+               (void *)Ptr);
       return URes;
     }
   }

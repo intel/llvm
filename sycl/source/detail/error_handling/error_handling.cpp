@@ -11,8 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "error_handling.hpp"
+#include "sycl/detail/common.hpp"
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/ur.hpp>
 
@@ -69,8 +70,7 @@ void handleOutOfResources(const device_impl &DeviceImpl,
   // Fallback
   constexpr ur_result_t Error = UR_RESULT_ERROR_OUT_OF_RESOURCES;
   throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                        "UR backend failed. UR backend returns:" +
-                            codeToString(Error));
+                        __SYCL_UR_ERROR_REPORT(Backend) + codeToString(Error));
 }
 
 void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
@@ -459,7 +459,8 @@ void handleErrorOrWarning(ur_result_t Error, const device_impl &DeviceImpl,
   default:
     throw detail::set_ur_error(
         exception(make_error_code(errc::runtime),
-                  "UR error: " + sycl::detail::codeToString(Error)),
+                  __SYCL_UR_ERROR_REPORT(DeviceImpl.getBackend()) +
+                      sycl::detail::codeToString(Error)),
         Error);
   }
 }

@@ -9184,6 +9184,58 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesSupportsImportingHandleTypeExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesSupportsImportingHandleTypeExp(
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] type of external memory handle
+    ur_exp_external_mem_type_t memHandleType,
+    /// [out] whether the device supports importing the specified external
+    /// memory handle type
+    ur_bool_t *pSupportedRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_bindless_images_supports_importing_handle_type_exp_params_t params = {
+      &hDevice, &memHandleType, &pSupportedRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urBindlessImagesSupportsImportingHandleTypeExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urBindlessImagesSupportsImportingHandleTypeExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urBindlessImagesSupportsImportingHandleTypeExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImportExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     /// [in] handle of the context object
@@ -11957,6 +12009,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
 
   pDdiTable->pfnFreeMappedLinearMemoryExp =
       driver::urBindlessImagesFreeMappedLinearMemoryExp;
+
+  pDdiTable->pfnSupportsImportingHandleTypeExp =
+      driver::urBindlessImagesSupportsImportingHandleTypeExp;
 
   pDdiTable->pfnImportExternalSemaphoreExp =
       driver::urBindlessImagesImportExternalSemaphoreExp;

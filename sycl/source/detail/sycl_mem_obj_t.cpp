@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/memory_manager.hpp>
@@ -118,7 +118,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
   }
 }
 
-void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {
+void SYCLMemObjT::releaseMem(context_impl *Context, void *MemAllocation) {
   void *Ptr = getUserPtr();
   return MemoryManager::releaseMemObj(Context, this, MemAllocation, Ptr);
 }
@@ -167,22 +167,10 @@ const AdapterPtr &SYCLMemObjT::getAdapter() const {
   return (MInteropContext->getAdapter());
 }
 
-size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
-                                         ur_native_handle_t MemObject) {
-  size_t BufSize = 0;
-  const AdapterPtr &Adapter = Context->getAdapter();
-  // TODO is there something required to support non-OpenCL backends?
-  Adapter->call<UrApiKind::urMemGetInfo>(
-      detail::ur::cast<ur_mem_handle_t>(MemObject), UR_MEM_INFO_SIZE,
-      sizeof(size_t), &BufSize, nullptr);
-  return BufSize;
-}
-
 bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
 
-void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
-                                   bool InitFromUserData, void *&HostPtr,
-                                   bool &HostPtrReadOnly) {
+void SYCLMemObjT::determineHostPtr(context_impl *Context, bool InitFromUserData,
+                                   void *&HostPtr, bool &HostPtrReadOnly) {
   // The data for the allocation can be provided via either the user pointer
   // (InitFromUserData, can be read-only) or a runtime-allocated read-write
   // HostPtr. We can have one of these scenarios:

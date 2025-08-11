@@ -9,7 +9,7 @@ from pathlib import Path
 import socket
 from utils.result import Result, BenchmarkRun
 from options import Compare, options
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from utils.utils import run
 from utils.validate import Validate
 
@@ -223,3 +223,27 @@ class BenchmarkHistory:
             return self.compute_average(data)
 
         raise Exception("invalid compare type")
+
+    def partition_runs_by_age(self) -> tuple[list[BenchmarkRun], list[BenchmarkRun]]:
+        """
+        Partition runs into current and archived based on their age.
+        Returns:
+            tuple: (current_runs, archived_runs)
+        """
+        current_runs = []
+        archived_runs = []
+
+        for run in self.runs:
+            archive_after = (
+                options.archive_baseline_days
+                if run.name.startswith("Baseline_")
+                else options.archive_pr_days
+            )
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=archive_after)
+
+            if run.date > cutoff_date:
+                current_runs.append(run)
+            else:
+                archived_runs.append(run)
+
+        return current_runs, archived_runs

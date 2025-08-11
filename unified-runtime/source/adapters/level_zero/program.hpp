@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "device.hpp"
 
 struct ur_program_handle_t_ : ur_object {
@@ -225,6 +226,8 @@ struct ur_program_handle_t_ : ur_object {
   // in the returned array of devices for UR_PROGRAM_INFO_DEVICES. Same for
   // UR_PROGRAM_INFO_BINARY_SIZES.
   const std::vector<ur_device_handle_t> AssociatedDevices;
+
+  ur::RefCount RefCount;
 
 private:
   struct DeviceData {

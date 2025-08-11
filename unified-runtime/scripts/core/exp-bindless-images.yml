@@ -212,6 +212,8 @@ etors:
     desc: "Win32 NT handle"
   - name: WIN32_NT_DX12_RESOURCE
     desc: "Win32 NT DirectX 12 resource handle"
+  - name: DMA_BUF
+    desc: "dma_buf file descriptor"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Dictates the type of external semaphore handle."
@@ -923,6 +925,25 @@ returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
         - "`pMem == NULL`"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Checks whether the device supports importing the specified external memory handle type"
+class: $xBindlessImages
+name: SupportsImportingHandleTypeExp
+ordinal: "0"
+params:
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_exp_external_mem_type_t
+      name: memHandleType
+      desc: "[in] type of external memory handle"
+    - type: $x_bool_t*
+      name: pSupportedRet
+      desc: "[out] whether the device supports importing the specified external memory handle type"
+returns:
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_CONTEXT
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Import an external semaphore"

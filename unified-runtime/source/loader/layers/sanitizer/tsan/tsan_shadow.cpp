@@ -29,10 +29,10 @@ std::shared_ptr<ShadowMemory> GetShadowMemory(ur_context_handle_t Context,
     return ShadowCPU;
   } else if (Type == DeviceType::GPU_PVC) {
     return std::make_shared<ShadowMemoryPVC>(Context, Device);
-  } else {
-    UR_LOG_L(getContext()->logger, ERR, "Unsupport device type");
-    return nullptr;
   }
+
+  die("GetShadowMemory: Unsupport device type");
+  return nullptr;
 }
 
 ur_result_t ShadowMemoryCPU::Setup() {
@@ -47,7 +47,7 @@ ur_result_t ShadowMemoryCPU::Setup() {
   return URes;
 }
 
-ur_result_t ShadowMemoryCPU::Destory() {
+ur_result_t ShadowMemoryCPU::Destroy() {
   if (ShadowBegin == 0 && ShadowEnd == 0)
     return UR_RESULT_SUCCESS;
   static ur_result_t URes = [this]() {
@@ -98,14 +98,18 @@ ur_result_t ShadowMemoryGPU::Setup() {
     return Result;
   }
   ShadowEnd = ShadowBegin + ShadowSize;
-  // Retain the context which reserves shadow memory
-  getContext()->urDdiTable.Context.pfnRetain(Context);
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ShadowMemoryGPU::Destory() {
+ur_result_t ShadowMemoryGPU::Destroy() {
   if (ShadowBegin == 0) {
     return UR_RESULT_SUCCESS;
+  }
+
+  if (LocalShadowOffset != 0) {
+    UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
+                                                 (void *)LocalShadowOffset));
+    LocalShadowOffset = 0;
   }
 
   const size_t PageSize = GetVirtualMemGranularity(Context, Device);
@@ -165,21 +169,14 @@ ur_result_t ShadowMemoryGPU::CleanShadow(ur_queue_handle_t Queue, uptr Ptr,
         UR_LOG_L(getContext()->logger, DEBUG, "urVirtualMemMap: {} ~ {}",
                  (void *)MappedPtr, (void *)(MappedPtr + PageSize - 1));
 
-        // Initialize to zero
-        URes = EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, 0, PageSize);
-        if (URes != UR_RESULT_SUCCESS) {
-          UR_LOG_L(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}",
-                   URes);
-          return URes;
-        }
-
         VirtualMemMaps[MappedPtr] = PhysicalMem;
       }
     }
   }
 
-  auto URes = EnqueueUSMBlockingSet(
-      Queue, (void *)Begin, 0, Size / kShadowCell * kShadowCnt * kShadowSize);
+  // Initialize to zero
+  auto URes = EnqueueUSMSet(Queue, (void *)Begin, (char)0,
+                            Size / kShadowCell * kShadowCnt * kShadowSize);
   if (URes != UR_RESULT_SUCCESS) {
     UR_LOG_L(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}", URes);
     return URes;
@@ -210,8 +207,8 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
         (void **)&LocalShadowOffset));
 
     // Initialize shadow memory
-    ur_result_t URes = EnqueueUSMBlockingSet(Queue, (void *)LocalShadowOffset,
-                                             0, RequiredShadowSize);
+    ur_result_t URes =
+        EnqueueUSMSet(Queue, (void *)LocalShadowOffset, 0, RequiredShadowSize);
     if (URes != UR_RESULT_SUCCESS) {
       UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
                                                    (void *)LocalShadowOffset));

@@ -51,6 +51,7 @@ jobs:
     needs: [detect_changes, source_checks]
     if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
+      fail-fast: false
       matrix:
       # Extra native CPU jobs are here to force the loader to be used.
       # UR will not use the loader if there is only one target.

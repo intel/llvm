@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
 #include <detail/queue_impl.hpp>
@@ -38,15 +38,17 @@ void event_impl::initContextIfNeeded() {
     return;
 
   const device SyclDevice;
-  this->setContextImpl(
-      detail::queue_impl::getDefaultOrNew(*detail::getSyclObjImpl(SyclDevice)));
+  MIsHostEvent = false;
+  MContext =
+      detail::queue_impl::getDefaultOrNew(*detail::getSyclObjImpl(SyclDevice));
+  assert(MContext);
 }
 
 event_impl::~event_impl() {
   try {
     auto Handle = this->getHandle();
     if (Handle)
-      getAdapter()->call<UrApiKind::urEventRelease>(Handle);
+      getAdapter().call<UrApiKind::urEventRelease>(Handle);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~event_impl", e);
   }
@@ -57,7 +59,7 @@ void event_impl::waitInternal(bool *Success) {
   if (!MIsHostEvent && Handle) {
     // Wait for the native event
     ur_result_t Err =
-        getAdapter()->call_nocheck<UrApiKind::urEventWait>(1, &Handle);
+        getAdapter().call_nocheck<UrApiKind::urEventWait>(1, &Handle);
     // TODO drop the UR_RESULT_ERROR_UKNOWN from here (this was waiting for
     // https://github.com/oneapi-src/unified-runtime/issues/1459 which is now
     // closed).
@@ -66,7 +68,7 @@ void event_impl::waitInternal(bool *Success) {
          Err == UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS))
       *Success = false;
     else {
-      getAdapter()->checkUrResult(Err);
+      getAdapter().checkUrResult(Err);
       if (Success != nullptr)
         *Success = true;
     }
@@ -113,10 +115,25 @@ void event_impl::setComplete() {
   assert(false && "setComplete is not supported for non-host event");
 }
 
-static uint64_t inline getTimestamp() {
-  auto Timestamp = std::chrono::high_resolution_clock::now().time_since_epoch();
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(Timestamp)
-      .count();
+static uint64_t inline getTimestamp(device_impl *Device) {
+  if (Device) {
+    try {
+      return Device->getCurrentDeviceTime();
+    } catch (sycl::exception &e) {
+      if (e.code() == sycl::errc::feature_not_supported)
+        throw sycl::exception(
+            make_error_code(errc::profiling),
+            std::string("Unable to get command group submission time: ") +
+                e.what());
+      std::rethrow_exception(std::current_exception());
+    }
+  } else {
+    // Returning host time
+    using namespace std::chrono;
+    return duration_cast<nanoseconds>(
+               high_resolution_clock::now().time_since_epoch())
+        .count();
+  }
 }
 
 ur_event_handle_t event_impl::getHandle() const { return MEvent.load(); }
@@ -125,29 +142,31 @@ void event_impl::setHandle(const ur_event_handle_t &UREvent) {
   MEvent.store(UREvent);
 }
 
-const ContextImplPtr &event_impl::getContextImpl() {
+context_impl &event_impl::getContextImpl() {
   initContextIfNeeded();
-  return MContext;
+  assert(MContext && "Trying to get context from a host event!");
+  return *MContext;
 }
 
-const AdapterPtr &event_impl::getAdapter() {
+adapter_impl &event_impl::getAdapter() {
   initContextIfNeeded();
-  return MContext->getAdapter();
+  return *MContext->getAdapter();
 }
 
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
-void event_impl::setContextImpl(const ContextImplPtr &Context) {
-  MIsHostEvent = Context == nullptr;
-  MContext = Context;
+void event_impl::setContextImpl(context_impl &Context) {
+  MIsHostEvent = false;
+  MContext = Context.shared_from_this();
 }
 
-event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
+event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
+                       private_tag)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
       MIsFlushed(true), MState(HES_Complete) {
 
   ur_context_handle_t TempContext;
-  getAdapter()->call<UrApiKind::urEventGetInfo>(
+  getAdapter().call<UrApiKind::urEventGetInfo>(
       this->getHandle(), UR_EVENT_INFO_CONTEXT, sizeof(ur_context_handle_t),
       &TempContext, nullptr);
 
@@ -159,31 +178,46 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
   }
 }
 
-event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue}, MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled} {
-  if (Queue)
-    this->setContextImpl(Queue->getContextImplPtr());
-  else {
-    MState.store(HES_NotComplete);
-    MHostProfilingInfo.reset(new HostProfilingInfo());
-    if (!MHostProfilingInfo)
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::runtime),
-          "Out of host memory " +
-              codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
-    return;
-  }
+event_impl::event_impl(queue_impl &Queue, private_tag)
+    : MQueue{Queue.weak_from_this()},
+      MIsProfilingEnabled{Queue.MIsProfilingEnabled} {
+  this->setContextImpl(Queue.getContextImpl());
   MState.store(HES_Complete);
 }
 
+event_impl::event_impl(HostEventState State, private_tag) : MState(State) {
+  MIsHostEvent = true;
+  if (State == HES_Discarded || State == HES_Complete)
+    MIsFlushed = true;
+}
+
 void event_impl::setQueue(queue_impl &Queue) {
-  MQueue = Queue.shared_from_this();
+  MQueue = Queue.weak_from_this();
   MIsProfilingEnabled = Queue.MIsProfilingEnabled;
 
   // TODO After setting the queue, the event is no longer default
   // constructed. Consider a design change which would allow
   // for such a change regardless of the construction method.
   MIsDefaultConstructed = false;
+}
+
+void event_impl::initHostProfilingInfo() {
+  assert(isHost() && "This must be a host event");
+  assert(MState == HES_NotComplete &&
+         "Host event must be incomplete to initialize profiling info");
+
+  std::shared_ptr<queue_impl> QueuePtr = MSubmittedQueue.lock();
+  assert(QueuePtr && "Queue must be valid to initialize host profiling info");
+  assert(QueuePtr->MIsProfilingEnabled && "Queue must have profiling enabled");
+
+  MIsProfilingEnabled = true;
+  MHostProfilingInfo = std::make_unique<HostProfilingInfo>();
+  device_impl &Device = QueuePtr->getDeviceImpl();
+  MHostProfilingInfo->setDevice(&Device);
+}
+
+void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
+  MSubmittedQueue = std::move(SubmittedQueue);
 }
 
 void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
@@ -212,7 +246,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
     // queue is available with the wait events. We check to see if the
     // TraceEvent is available in the Queue object.
     void *TraceEvent = nullptr;
-    if (QueueImplPtr Queue = MQueue.lock()) {
+    if (std::shared_ptr<queue_impl> Queue = MQueue.lock()) {
       TraceEvent = Queue->getTraceEvent();
       WaitEvent =
           (TraceEvent ? static_cast<xpti_td *>(TraceEvent) : GSYCLGraphEvent);
@@ -281,7 +315,7 @@ void event_impl::wait_and_throw(
     std::shared_ptr<sycl::detail::event_impl> Self) {
   wait(Self);
 
-  if (QueueImplPtr SubmittedQueue = MSubmittedQueue.lock())
+  if (std::shared_ptr<queue_impl> SubmittedQueue = MSubmittedQueue.lock())
     SubmittedQueue->throw_asynchronous();
 }
 
@@ -426,7 +460,7 @@ event_impl::get_backend_info<info::platform::version>() const {
                           "the info::platform::version info descriptor can "
                           "only be queried with an OpenCL backend");
   }
-  if (QueueImplPtr Queue = MQueue.lock()) {
+  if (std::shared_ptr<queue_impl> Queue = MQueue.lock()) {
     return Queue->getDeviceImpl()
         .get_platform()
         .get_info<info::platform::version>();
@@ -449,7 +483,7 @@ event_impl::get_backend_info<info::device::version>() const {
                           "the info::device::version info descriptor can only "
                           "be queried with an OpenCL backend");
   }
-  if (QueueImplPtr Queue = MQueue.lock()) {
+  if (std::shared_ptr<queue_impl> Queue = MQueue.lock()) {
     return Queue->getDeviceImpl().get_info<info::device::version>();
   }
   return ""; // If the queue has been released, no device will be associated so
@@ -476,28 +510,28 @@ event_impl::get_backend_info<info::device::backend_version>() const {
 }
 #endif
 
-void HostProfilingInfo::start() { StartTime = getTimestamp(); }
+void HostProfilingInfo::start() { StartTime = getTimestamp(Device); }
 
-void HostProfilingInfo::end() { EndTime = getTimestamp(); }
+void HostProfilingInfo::end() { EndTime = getTimestamp(Device); }
 
 ur_native_handle_t event_impl::getNative() {
   if (isHost())
     return {};
   initContextIfNeeded();
 
-  auto Adapter = getAdapter();
+  adapter_impl &Adapter = getAdapter();
   auto Handle = getHandle();
   if (MIsDefaultConstructed && !Handle) {
     auto TempContext = MContext.get()->getHandleRef();
     ur_event_native_properties_t NativeProperties{};
     ur_event_handle_t UREvent = nullptr;
-    Adapter->call<UrApiKind::urEventCreateWithNativeHandle>(
+    Adapter.call<UrApiKind::urEventCreateWithNativeHandle>(
         0, TempContext, &NativeProperties, &UREvent);
     this->setHandle(UREvent);
     Handle = UREvent;
   }
   ur_native_handle_t OutHandle;
-  Adapter->call<UrApiKind::urEventGetNativeHandle>(Handle, &OutHandle);
+  Adapter.call<UrApiKind::urEventGetNativeHandle>(Handle, &OutHandle);
   if (MContext->getBackend() == backend::opencl)
     __SYCL_OCL_CALL(clRetainEvent, ur::cast<cl_event>(OutHandle));
   return OutHandle;
@@ -516,30 +550,30 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
   return Result;
 }
 
-void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
+void event_impl::flushIfNeeded(queue_impl *UserQueue) {
   // Some events might not have a native handle underneath even at this point,
   // e.g. those produced by memset with 0 size (no UR call is made).
   auto Handle = this->getHandle();
   if (MIsFlushed || !Handle)
     return;
 
-  QueueImplPtr Queue = MQueue.lock();
+  std::shared_ptr<queue_impl> Queue = MQueue.lock();
   // If the queue has been released, all of the commands have already been
   // implicitly flushed by urQueueRelease.
   if (!Queue) {
     MIsFlushed = true;
     return;
   }
-  if (Queue == UserQueue)
+  if (Queue.get() == UserQueue)
     return;
 
   // Check if the task for this event has already been submitted.
   ur_event_status_t Status = UR_EVENT_STATUS_QUEUED;
-  getAdapter()->call<UrApiKind::urEventGetInfo>(
+  getAdapter().call<UrApiKind::urEventGetInfo>(
       Handle, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(ur_event_status_t),
       &Status, nullptr);
   if (Status == UR_EVENT_STATUS_QUEUED) {
-    getAdapter()->call<UrApiKind::urQueueFlush>(Queue->getHandleRef());
+    getAdapter().call<UrApiKind::urQueueFlush>(Queue->getHandleRef());
   }
   MIsFlushed = true;
 }
@@ -568,23 +602,10 @@ void event_impl::setSubmissionTime() {
   if (!MIsProfilingEnabled && !MProfilingTagEvent)
     return;
 
-  if (QueueImplPtr Queue = MQueue.lock()) {
-    try {
-      MSubmitTime = Queue->getDeviceImpl().getCurrentDeviceTime();
-    } catch (sycl::exception &e) {
-      if (e.code() == sycl::errc::feature_not_supported)
-        throw sycl::exception(
-            make_error_code(errc::profiling),
-            std::string("Unable to get command group submission time: ") +
-                e.what());
-      std::rethrow_exception(std::current_exception());
-    }
-  } else {
-    // Returning host time
-    using namespace std::chrono;
-    MSubmitTime = duration_cast<nanoseconds>(
-                      high_resolution_clock::now().time_since_epoch())
-                      .count();
+  if (std::shared_ptr<queue_impl> Queue =
+          isHost() ? MSubmittedQueue.lock() : MQueue.lock()) {
+    device_impl &Device = Queue->getDeviceImpl();
+    MSubmitTime = getTimestamp(&Device);
   }
 }
 
@@ -595,12 +616,7 @@ bool event_impl::isCompleted() {
          info::event_command_status::complete;
 }
 
-void event_impl::setCommand(void *Cmd) {
-  MCommand = Cmd;
-  auto TypedCommand = static_cast<Command *>(Cmd);
-  if (TypedCommand)
-    MIsHostEvent = TypedCommand->getWorkerContext() == nullptr;
-}
+void event_impl::setCommand(void *Cmd) { MCommand = Cmd; }
 
 } // namespace detail
 } // namespace _V1

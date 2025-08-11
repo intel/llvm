@@ -177,14 +177,19 @@ defvar IntelCpuAspects = [
     AspectExt_oneapi_srgb, AspectExt_oneapi_native_assert,
     AspectExt_intel_legacy_image, AspectExt_oneapi_ballot_group,
     AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
-    AspectExt_oneapi_tangle_group, AspectExt_oneapi_private_alloca
+    AspectExt_oneapi_tangle_group, AspectExt_oneapi_private_alloca, 
+    AspectOnline_compiler, AspectOnline_linker, AspectExt_intel_gpu_slices,
+    AspectExt_intel_gpu_subslices_per_slice, AspectExt_intel_gpu_eu_count_per_subslice,
+    AspectExt_intel_gpu_hw_threads_per_eu, AspectExt_intel_device_id, 
+    AspectExt_oneapi_virtual_functions
 ] # AllUSMAspects;
 
 def : TargetInfo<"spir64", [], [], "", "", 1>;
 def : TargetInfo<"spir64_gen", [], [], "", "", 1>;
 def : TargetInfo<"spir64_x86_64", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
 def : TargetInfo<"spir64_fpga", [], [], "", "", 1>;
-def : TargetInfo<"x86_64", [], [], "", "", 1>;
+def : TargetInfo<"x86_64", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
+def : TargetInfo<"intel_cpu_spr", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
 // Examples of how to use a combination of explicitly specified values + predefined lists
 //defvar AspectList = [AspectCpu] # AllUSMAspects;
 //def : TargetInfo<"Test", AspectList, []>;
@@ -196,9 +201,11 @@ defvar Fp16Fp64Atomic64 = [AspectFp16, AspectFp64, AspectAtomic64];
 defvar Fp16Atomic64 = [AspectFp16, AspectAtomic64];
 defvar Sg8_16_32 = [8, 16, 32];
 defvar Sg16_32 = [16, 32];
-defvar IntelBaseAspects = [AspectExt_intel_esimd];
+defvar IntelGPUBaseAspects = [AspectExt_intel_esimd, AspectExt_oneapi_ballot_group,
+    AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
+    AspectExt_oneapi_tangle_group];
 class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizesList>
-: TargetInfo<Name, IntelBaseAspects # Aspects, subGroupSizesList>;
+: TargetInfo<Name, IntelGPUBaseAspects # Aspects, subGroupSizesList>;
 // Note: only the "canonical" target names are listed here - see
 // SYCL::gen::resolveGenDevice().
 //
@@ -220,9 +227,11 @@ class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizes
 // sizes to be 16 and 32, which corresponds to PVC having 16 and 32 
 // as sub-group sizes the supported sub-group sizes. 
 
+def : IntelTargetInfo<"intel_gpu_wcl", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_ptl_u", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_ptl_h", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_lnl_m", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_bmg_g31", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_bmg_g21", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_arl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_h", Fp16Fp64Atomic64, Sg8_16_32>;
@@ -266,7 +275,7 @@ defvar CudaMinUSMAspects = [AspectUsm_device_allocations, AspectUsm_host_allocat
 defvar CudaSM90USMAspects = [AspectUsm_system_allocations, AspectUsm_atomic_host_allocations, AspectUsm_atomic_shared_allocations];
 
 defvar CudaMinAspects = !listconcat(CudaMinUSMAspects, [AspectGpu, AspectFp64, AspectOnline_compiler, AspectOnline_linker,
-    AspectQueue_profiling, AspectExt_intel_pci_address, AspectExt_intel_max_mem_bandwidth, AspectExt_intel_memory_bus_width,
+    AspectQueue_profiling, AspectExt_intel_pci_address, AspectExt_intel_memory_bus_width,
     AspectExt_intel_device_info_uuid, AspectExt_oneapi_native_assert, AspectExt_intel_free_memory, AspectExt_intel_device_id,
     AspectExt_intel_memory_clock_rate, AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group,
     AspectExt_oneapi_opportunistic_group, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]);
@@ -323,9 +332,9 @@ defvar HipSubgroupSizesCDNA = [64];     // gfx908, gfx90a (encapsulates CDNA1..2
 
 defvar HipMinAspects = [AspectGpu, AspectFp16, AspectFp64,
     AspectOnline_compiler, AspectOnline_linker, AspectQueue_profiling,
-    AspectExt_intel_pci_address, AspectExt_intel_max_mem_bandwidth,
-    AspectExt_intel_device_id, AspectExt_intel_memory_clock_rate,
-    AspectExt_intel_memory_bus_width, AspectExt_intel_free_memory];
+    AspectExt_intel_pci_address, AspectExt_intel_device_id,
+    AspectExt_intel_memory_clock_rate, AspectExt_intel_memory_bus_width,
+    AspectExt_intel_free_memory];
 
 defvar HipUSMAspects = !listremove(AllUSMAspects, [AspectUsm_system_allocations]);
 defvar HipGraphAspects = [AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph];

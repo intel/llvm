@@ -365,6 +365,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
       urBindlessImagesGetImageUnsampledHandleSupportExp;
   pDdiTable->pfnGetImageSampledHandleSupportExp =
       urBindlessImagesGetImageSampledHandleSupportExp;
+  pDdiTable->pfnSupportsImportingHandleTypeExp =
+      urBindlessImagesSupportsImportingHandleTypeExp;
 
   return UR_RESULT_SUCCESS;
 }

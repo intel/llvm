@@ -49,7 +49,7 @@ public:
 #else
   virtual event finalize() {
     sycl::detail::EventImplPtr NewEvent =
-        std::make_shared<detail::event_impl>();
+        detail::event_impl::create_completed_host_event();
     return sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   }
 #endif
@@ -61,6 +61,8 @@ public:
     handler_impl(std::shared_ptr<MockQueueImpl> Queue) : MQueue(Queue) {}
     std::shared_ptr<MockQueueImpl> MQueue;
     MockQueueImpl &get_queue() { return *MQueue; }
+    std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
+        MExecGraph;
   };
   std::shared_ptr<handler_impl> impl;
   std::shared_ptr<detail::kernel_impl> MKernel;

@@ -233,10 +233,12 @@ template <typename RetT, class HandleT>
 extern __DPCPP_SYCL_EXTERNAL
     RetT __spirv_ConvertHandleToSampledImageINTEL(HandleT);
 
-#define __SYCL_OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
-#define __SYCL_OpGroupAsyncCopyLocalToGlobal __spirv_GroupAsyncCopy
-
 // Atomic SPIR-V builtins
+// TODO: drop these forward-declarations.
+// As of now, compiler does not forward-declare long long overloads for
+// these and as such we can't drop anything from here. But ideally, we should
+// rely on the compiler to generate those - that would allow to drop
+// spirv_ops.hpp include from more files.
 #define __SPIRV_ATOMIC_LOAD(AS, Type)                                          \
   extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicLoad(AS Type *P, int S,      \
                                                        int O) noexcept;
@@ -792,10 +794,6 @@ extern __DPCPP_SYCL_EXTERNAL __ocl_WPipeTy<dataT>
 __spirv_CreatePipeFromPipeStorage_write(
     const ConstantPipeStorage *Storage) noexcept;
 
-extern __DPCPP_SYCL_EXTERNAL void
-__spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
-                     size_t NumBytes) noexcept;
-
 extern __DPCPP_SYCL_EXTERNAL float
 __spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint16_t
@@ -967,43 +965,4 @@ extern __DPCPP_SYCL_EXTERNAL RetT __spirv_TaskSequenceGetINTEL(
 extern __DPCPP_SYCL_EXTERNAL void __spirv_TaskSequenceReleaseINTEL(
     __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
 
-#else  // if !__SYCL_DEVICE_ONLY__
-
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __ocl_event_t
-__SYCL_OpGroupAsyncCopyGlobalToLocal(int32_t, dataT *Dest, const dataT *Src,
-                                     size_t NumElements, size_t Stride,
-                                     __ocl_event_t) noexcept {
-  for (size_t i = 0; i < NumElements; i++) {
-    Dest[i] = Src[i * Stride];
-  }
-  // A real instance of the class is not needed, return dummy pointer.
-  return nullptr;
-}
-
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __ocl_event_t
-__SYCL_OpGroupAsyncCopyLocalToGlobal(int32_t, dataT *Dest, const dataT *Src,
-                                     size_t NumElements, size_t Stride,
-                                     __ocl_event_t) noexcept {
-  for (size_t i = 0; i < NumElements; i++) {
-    Dest[i * Stride] = Src[i];
-  }
-  // A real instance of the class is not needed, return dummy pointer.
-  return nullptr;
-}
-
-extern __SYCL_EXPORT void __spirv_ocl_prefetch(const char *Ptr,
-                                               size_t NumBytes) noexcept;
-
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
-__spirv_ControlBarrier(__spv::Scope Execution, __spv::Scope Memory,
-                       uint32_t Semantics) noexcept;
-
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
-__spirv_MemoryBarrier(__spv::Scope Memory, uint32_t Semantics) noexcept;
-
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
-__spirv_GroupWaitEvents(__spv::Scope Execution, uint32_t NumEvents,
-                        __ocl_event_t *WaitEvents) noexcept;
 #endif // !__SYCL_DEVICE_ONLY__

@@ -1,15 +1,14 @@
 // UNSUPPORTED: spirv-backend
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17813
 // REQUIRES: aspect-fp64
-// UNSUPPORTED: target-amd || target-nvidia
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
 // RUN: %{build} %{mathflags} -o %t1.out
 // RUN: %{run} %t1.out
 
-// RUN: %{build} -fsycl-device-lib-jit-link %{mathflags} -o %t2.out
-// RUN: %{run} %t2.out
+// RUN: %if target-spir %{ %{build} -fsycl-device-lib-jit-link -Wno-deprecated %{mathflags} -o %t2.out %}
+// RUN: %if target-spir %{ %{run} %t2.out %}
 
 #include "math_utils.hpp"
 #include <cmath>

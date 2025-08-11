@@ -147,4 +147,16 @@ void *GetMemFunctionPointer(const char *);
 
 std::string DemangleName(const std::string &name);
 
+// ================================================================
+
+// Sync with llvm/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.h
+enum SanitizedKernelFlags : uint32_t {
+  NO_CHECK = 0,
+  CHECK_GLOBALS = 1U << 1,
+  CHECK_LOCALS = 1U << 2,
+  CHECK_PRIVATES = 1U << 3,
+  CHECK_GENERICS = 1U << 4,
+  MSAN_TRACK_ORIGINS = 1U << 5,
+};
+
 } // namespace ur_sanitizer_layer

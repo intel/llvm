@@ -303,6 +303,11 @@ ze_structure_type_t getZeStructureType<ze_device_ip_version_ext_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT;
 }
 template <>
+ze_structure_type_t
+getZeStructureType<ze_device_vector_width_properties_ext_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_VECTOR_WIDTH_PROPERTIES_EXT;
+}
+template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
 }
@@ -339,6 +344,10 @@ template <> zes_structure_type_t getZesStructureType<zes_freq_properties_t>() {
 
 template <> zes_structure_type_t getZesStructureType<zes_power_properties_t>() {
   return ZES_STRUCTURE_TYPE_POWER_PROPERTIES;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_device_cache_line_size_ext_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_CACHELINE_SIZE_EXT;
 }
 
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME

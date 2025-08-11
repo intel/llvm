@@ -2,8 +2,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 import multiprocessing
 
-from presets import presets
-
 
 class Compare(Enum):
     LATEST = "latest"
@@ -41,6 +39,7 @@ class DetectVersionsOptions:
     # Max amount of api calls permitted on each run of the benchmark scripts
     max_api_calls = 4
 
+
 @dataclass
 class Options:
     workdir: str = None
@@ -65,11 +64,12 @@ class Options:
     build_compute_runtime: bool = False
     extra_ld_libraries: list[str] = field(default_factory=list)
     extra_env_vars: dict = field(default_factory=dict)
-    compute_runtime_tag: str = "25.22.33944.4"
+    compute_runtime_tag: str = "25.22.33944.8"
     build_igc: bool = False
     current_run_name: str = "This PR"
     preset: str = "Full"
     build_jobs: int = multiprocessing.cpu_count()
+    exit_on_failure: bool = False
 
     # Options intended for CI:
     regression_threshold: float = 0.05
@@ -88,6 +88,11 @@ class Options:
     # CI scripts vs SYCl build source.
     github_repo_override: str = None
     git_commit_override: str = None
+    # Archiving settings
+    # Archived runs are stored separately from the main dataset but are still accessible
+    # via the HTML UI when "Include archived runs" is enabled
+    archive_baseline_days: int = 30  # Archive Baseline_* runs after 30 days
+    archive_pr_days: int = 7  # Archive other (PR/dev) runs after 7 days
 
     detect_versions: DetectVersionsOptions = field(
         default_factory=DetectVersionsOptions

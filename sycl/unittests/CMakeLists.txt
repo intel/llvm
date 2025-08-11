@@ -1,6 +1,5 @@
 add_custom_target(SYCLUnitTests)
 set_target_properties(SYCLUnitTests PROPERTIES FOLDER "SYCL tests")
-include_directories(${BOOST_UNORDERED_INCLUDE_DIRS})
 
 foreach(flag_var
     CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
@@ -8,7 +7,7 @@ foreach(flag_var
 string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
 endforeach()
 
-add_compile_definitions(SYCL2020_DISABLE_DEPRECATION_WARNINGS)
+add_compile_definitions(SYCL2020_DISABLE_DEPRECATION_WARNINGS SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
 
 # suppress warnings which came from Google Test sources
 if (CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG)

@@ -23,31 +23,22 @@
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
-template <typename InteropMemHandleT>
-void runSycl(const sycl::device &syclDevice, sycl::range<1> globalSize,
+template <syclexp::external_mem_handle_type ExtMemHandleTypeV,
+          typename InteropMemHandleT>
+void runSycl(sycl::queue &syclQueue, sycl::range<1> globalSize,
              sycl::range<1> localSize, InteropMemHandleT extMemInHandle,
              InteropMemHandleT extMemOutHandle) {
-
-  sycl::queue syclQueue{syclDevice};
-
   const size_t bufferSizeBytes = globalSize.size() * sizeof(uint32_t);
 
-#ifdef _WIN32
-  syclexp::external_mem_descriptor<syclexp::resource_win32_handle> extMemInDesc{
-      extMemInHandle, syclexp::external_mem_handle_type::win32_nt_handle,
-      bufferSizeBytes};
-  syclexp::external_mem_descriptor<syclexp::resource_win32_handle>
-      extMemOutDesc{extMemOutHandle,
-                    syclexp::external_mem_handle_type::win32_nt_handle,
-                    bufferSizeBytes};
-#else
-  syclexp::external_mem_descriptor<syclexp::resource_fd> extMemInDesc{
-      extMemInHandle, syclexp::external_mem_handle_type::opaque_fd,
-      bufferSizeBytes};
-  syclexp::external_mem_descriptor<syclexp::resource_fd> extMemOutDesc{
-      extMemOutHandle, syclexp::external_mem_handle_type::opaque_fd,
-      bufferSizeBytes};
-#endif
+  using ResourceT =
+      std::conditional_t<(ExtMemHandleTypeV ==
+                          syclexp::external_mem_handle_type::win32_nt_handle),
+                         syclexp::resource_win32_handle, syclexp::resource_fd>;
+
+  syclexp::external_mem_descriptor<ResourceT> extMemInDesc{
+      extMemInHandle, ExtMemHandleTypeV, bufferSizeBytes};
+  syclexp::external_mem_descriptor<ResourceT> extMemOutDesc{
+      extMemOutHandle, ExtMemHandleTypeV, bufferSizeBytes};
 
   // Extension: create interop memory handles.
   syclexp::external_mem externalMemIn =
@@ -64,13 +55,13 @@ void runSycl(const sycl::device &syclDevice, sycl::range<1> globalSize,
 
   try {
     syclQueue.submit([&](sycl::handler &cgh) {
-      cgh.parallel_for<class TestVkBufferUSMInterop>(
-          sycl::nd_range<1>{globalSize, localSize}, [=](sycl::nd_item<1> it) {
-            size_t index = it.get_global_id(0);
+      cgh.parallel_for(sycl::nd_range<1>{globalSize, localSize},
+                       [=](sycl::nd_item<1> it) {
+                         size_t index = it.get_global_id(0);
 
-            uint32_t bufferValue = memIn[index];
-            memOut[index] = bufferValue * 2;
-          });
+                         uint32_t bufferValue = memIn[index];
+                         memOut[index] = bufferValue * 2;
+                       });
     });
 
     // Wait for kernel completion before destroying external objects.
@@ -91,8 +82,25 @@ void runSycl(const sycl::device &syclDevice, sycl::range<1> globalSize,
   }
 }
 
+template <syclexp::external_mem_handle_type ExtMemHandleTypeV>
 bool runTest(const sycl::device &syclDevice, sycl::range<1> bufferSize,
              sycl::range<1> localSize) {
+  sycl::queue syclQueue{syclDevice};
+  if constexpr (ExtMemHandleTypeV ==
+                syclexp::external_mem_handle_type::dma_buf) {
+    if (!supportsDmaBuf) {
+      std::cout
+          << "dma_buf test skipped because Vulkan driver does not support it\n";
+      return true;
+    }
+    if (!syclexp::supports_importing_handle_type(ExtMemHandleTypeV,
+                                                 syclDevice)) {
+      std::cout
+          << "dma_buf test skipped because SYCL backend does not support it\n";
+      return true;
+    }
+  }
+
   const size_t bufferSizeElems = bufferSize[0];
   const size_t bufferSizeBytes = bufferSizeElems * sizeof(uint32_t);
 
@@ -194,17 +202,26 @@ bool runTest(const sycl::device &syclDevice, sycl::range<1> bufferSize,
 
   printString("Getting memory interop handles\n");
   // Get memory interop handles.
+  const auto get_memory_handle = [](VkDeviceMemory vulkanDeviceMem) {
 #ifdef _WIN32
-  auto bufferMemIn = vkutil::getMemoryWin32Handle(vkInputBufferMemory);
-  auto bufferMemOut = vkutil::getMemoryWin32Handle(vkOutputBufferMemory);
+    return vkutil::getMemoryWin32Handle(vulkanDeviceMem);
 #else
-  auto bufferMemIn = vkutil::getMemoryOpaqueFD(vkInputBufferMemory);
-  auto bufferMemOut = vkutil::getMemoryOpaqueFD(vkOutputBufferMemory);
+    if constexpr (ExtMemHandleTypeV ==
+                  syclexp::external_mem_handle_type::dma_buf) {
+      return vkutil::getMemoryOpaqueFD<
+          VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT>(vulkanDeviceMem);
+    } else {
+      return vkutil::getMemoryOpaqueFD(vulkanDeviceMem);
+    }
 #endif
+  };
+  auto bufferMemIn = get_memory_handle(vkInputBufferMemory);
+  auto bufferMemOut = get_memory_handle(vkOutputBufferMemory);
 
   // Call into SYCL to read from input buffer, and populate the output buffer.
   printString("Calling into SYCL with interop memory handles\n");
-  runSycl(syclDevice, bufferSize, localSize, bufferMemIn, bufferMemOut);
+  runSycl<ExtMemHandleTypeV>(syclQueue, bufferSize, localSize, bufferMemIn,
+                             bufferMemOut);
 
   // Copy device buffer memory to temporary staging buffer, and back to host.
   printString("Copying buffer memory to host\n");
@@ -309,14 +326,35 @@ int main() {
     return EXIT_FAILURE;
   }
 
-  auto testPassed = runTest(syclDevice, {1024}, {256});
+  const auto globalSize = sycl::range<1>{1024};
+  const auto localSize = sycl::range<1>{256};
+#ifdef _WIN32
+  const bool opaqueTestPassed =
+      runTest<syclexp::external_mem_handle_type::win32_nt_handle>(
+          syclDevice, globalSize, localSize);
+  constexpr bool dmaBufTestPassed = true;
+  // No check for opaqueTestPassed here, there is a common check later
+#else
+  const bool opaqueTestPassed =
+      runTest<syclexp::external_mem_handle_type::opaque_fd>(
+          syclDevice, globalSize, localSize);
+  if (!opaqueTestPassed) {
+    std::cout << "opaque_fd test failed!\n";
+  }
+  const bool dmaBufTestPassed =
+      runTest<syclexp::external_mem_handle_type::dma_buf>(
+          syclDevice, globalSize, localSize);
+  if (!dmaBufTestPassed) {
+    std::cout << "dma_buf test failed!\n";
+  }
+#endif
 
   if (vkutil::cleanup() != VK_SUCCESS) {
     std::cerr << "Cleanup failed!\n";
     return EXIT_FAILURE;
   }
 
-  if (testPassed) {
+  if (opaqueTestPassed && dmaBufTestPassed) {
     std::cout << "Test passed!\n";
     return EXIT_SUCCESS;
   }

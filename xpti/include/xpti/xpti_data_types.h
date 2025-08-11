@@ -358,7 +358,7 @@ enum class payload_flag_t {
 //
 using trace_point_t = uint16_t;
 using event_type_t = uint16_t;
-using string_id_t = int32_t;
+using string_id_t = uint32_t;
 using object_id_t = int32_t;
 
 using safe_flag_t = std::atomic<bool>;
@@ -455,60 +455,105 @@ struct payload_t {
 
   payload_t() = default;
 
-  //  If the address of the kernel/function name is provided, we mark it as
-  //  valid since we can potentially reconstruct the name and the source file
-  //  information during post-processing step of symbol resolution; this
-  //  indicates a partial but valid payload.
+  ///
+  /// @brief Constructs a payload_t with only a code pointer.
+  ///
+  /// @details
+  /// Initializes the payload with the provided code pointer address. All other
+  /// fields (name, source file, line number, column number) are set to invalid
+  /// or null values. If a valid code pointer is provided, the corresponding
+  /// flag is set to indicate its availability.
+  ///
+  /// If the address of the kernel/function name is provided, we mark it as
+  /// valid since we can potentially reconstruct the name and the source file
+  /// information during post-processing step of symbol resolution; this
+  /// indicates a partial but valid payload.
+  ///
+  /// @param codeptr Pointer to the code location associated with this payload.
+  ///
   payload_t(const void *codeptr) {
-    code_ptr_va = codeptr;
-    name = nullptr;           ///< Invalid name string pointer
-    source_file = nullptr;    ///< Invalid source file string pointer
-    line_no = invalid_id<>;   ///< Invalid line number
-    column_no = invalid_id<>; ///< Invalid column number
+    code_ptr_va = codeptr; ///< Override the default initialization
+    // If the incoming code ptr is null, we ensure that the flags are set
+    // correctly
     if (codeptr) {
       flags = (uint64_t)payload_flag_t::CodePointerAvailable;
     }
   }
 
-  //  If neither an address or the fully identifyable source file name and
-  //  location are not available, we take in the name of the
-  //  function/task/user-defined name as input and create a hash from it. We
-  //  mark it as valid since we can display the name in a timeline view, but
-  //  the payload is considered to be a partial but valid payload.
+  ///
+  /// @brief Constructs a payload_t with only a function or kernel name.
+  ///
+  /// @details
+  /// Initializes the payload with the provided function or kernel name.
+  /// If neither an address or the fully identifyable source file name and
+  /// location are not available, we take in the name of the
+  /// function/task/user-defined name as input and create a hash from it. We
+  /// mark it as valid since we can display the name in a timeline view, but
+  /// the payload is considered to be a partial but valid payload.
+  ///
+  /// @param func_name Name of the function, kernel, or user-defined entity.
+  ///
   payload_t(const char *func_name) {
-    code_ptr_va = nullptr;
-    name = func_name;      ///< Invalid name string pointer
-    source_file = nullptr; ///< Invalid source file string pointer
+    name = func_name; ///< Override the default initialization
+    // If the incoming name is null, we ensure that the flags are set correctly
     if (func_name) {
       flags = (uint64_t)(payload_flag_t::NameAvailable);
     }
   }
 
+  ///
+  /// @brief Constructs a payload_t with a function or kernel name and code
+  /// pointer.
+  ///
+  /// @details
+  /// Initializes the payload with the provided function or kernel name and code
+  /// pointer. The source file is set to null. Flags are set to indicate which
+  /// fields are available. The payload is considered partial, but valid.
+  ///
+  /// @param func_name Name of the function, kernel, or user-defined entity.
+  /// @param codeptr Pointer to the code location associated with this payload.
+  ///
   payload_t(const char *func_name, const void *codeptr) {
-    code_ptr_va = codeptr;
-    name = func_name;      ///< Invalid name string pointer
-    source_file = nullptr; ///< Invalid source file string pointer
+    code_ptr_va = codeptr; ///< Override the default initialization
+    name = func_name;      ///< Override the default initialization
+    // If the incoming name is null, we ensure that the flags are set correctly
     if (func_name) {
       flags = (uint64_t)(payload_flag_t::NameAvailable);
     }
+    // If the incoming code ptr is null, we ensure that the flags are set
+    // correctly
     if (codeptr) {
       flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
     }
   }
 
-  //  When the end user opts out of preserving the code location information and
-  //  the KernelInfo is not available from the given entry point, we will rely
-  //  on dynamic backtrace as a possibility. In this case, we send in the
-  //  caller/callee information as a string in the form "caller->callee" that
-  //  will be used to generate the unique ID.
+  ///
+  /// @brief Constructs a payload_t with a name, stack trace, and code pointer.
+  ///
+  /// @details
+  /// Used when code location information is not preserved and dynamic backtrace
+  /// is used. Initializes the payload with the provided kernel name,
+  /// caller-callee stack trace, and code pointer. Sets flags to indicate which
+  /// fields are available.
+  ///
+  /// When the end user opts out of preserving the code location information and
+  /// the KernelInfo is not available from the given entry point, we will rely
+  /// on dynamic backtrace as a possibility. In this case, we send in the
+  /// caller/callee information as a string in the form "caller->callee" that
+  /// will be used to generate the unique ID.
+  ///
+  /// @param kname Name of the kernel or function.
+  /// @param caller_callee String representing the caller->callee relationship.
+  /// @param codeptr Pointer to the code location associated with this payload.
+  ///
   payload_t(const char *kname, const char *caller_callee, const void *codeptr) {
     if (codeptr) {
-      code_ptr_va = codeptr;
+      code_ptr_va = codeptr; ///< Override the default initialization
       flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
     }
-    /// Capture the rest of the parameters
+    // If the incoming name is null, we ensure that the flags are set correctly
     if (kname) {
-      name = kname;
+      name = kname; ///< Override the default initialization
       flags |= (uint64_t)payload_flag_t::NameAvailable;
     }
     if (caller_callee) {
@@ -517,34 +562,69 @@ struct payload_t {
     }
   }
 
-  //  We need the payload to contain at the very least, the code pointer
-  //  information of the kernel or function. In the full payload case, we will
-  //  also have the function name and source file name along with the line and
-  //  column number of the trace point that forms the payload.
+  ///
+  /// @brief Constructs a fully populated payload_t.
+  ///
+  /// @details
+  /// Initializes the payload with the provided kernel name, source file, line
+  /// number, column number, and optionally a code pointer. Sets flags to
+  /// indicate which fields are available. This would constitute a fully
+  /// populated payload.
+  ///
+  /// @param kname Name of the kernel or function.
+  /// @param sf Source file name.
+  /// @param line Line number in the source file.
+  /// @param col Column number in the source file.
+  /// @param codeptr (Optional) Pointer to the code location associated with
+  /// this payload.
+  ///
   payload_t(const char *kname, const char *sf, int line, int col,
             const void *codeptr = nullptr) {
-    code_ptr_va = codeptr;
-    /// Capture the rest of the parameters
-    name = kname;
-    source_file = sf;
-    line_no = static_cast<uint32_t>(line);
-    column_no = static_cast<uint32_t>(col);
+    code_ptr_va = codeptr; ///< Override the default initialization
+    name = kname;          ///< Override the default initialization
+    source_file = sf;      ///< Override the default initialization
+    line_no =
+        static_cast<uint32_t>(line); ///< Override the default initialization
+    column_no =
+        static_cast<uint32_t>(col); ///< Override the default initialization
+    // If the incoming name is null, we ensure that the flags are set correctly
     if (kname && kname[0] != '\0') {
       flags = (uint64_t)payload_flag_t::NameAvailable;
     }
+    // If the incoming source file name is null, we ensure that the flags are
+    // set correctly
     if (sf && sf[0] != '\0') {
       flags |= (uint64_t)payload_flag_t::SourceFileAvailable |
                (uint64_t)payload_flag_t::LineInfoAvailable |
                (uint64_t)payload_flag_t::ColumnInfoAvailable;
     }
+    // If the incoming code ptr is null, we ensure that the flags are set
+    // correctly
     if (codeptr) {
       flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
     }
   }
 
-  int32_t name_sid() const { return (int32_t)(uid.p2 & 0x00000000ffffffff); }
-  int32_t stacktrace_sid() const { return (int32_t)(uid.p2 >> 32); }
-  int32_t source_file_sid() const { return (int32_t)(uid.p1 >> 32); }
+  /// @brief Retrieves the string ID (SID) for the name.
+  /// @details Extracts the lower 32 bits of the uid.p2 member, which represents
+  /// the xpti::string_id_t in legacy implementations or XPTI_USE_STRICT_HASH
+  /// mode and contains the FNV1a hash value associated with the name.
+  /// @return The 32-bit name string ID.
+  uint32_t name_sid() const { return (uint32_t)(uid.p2 & 0x00000000ffffffff); }
+
+  /// @brief Retrieves the string ID (SID) for the stack trace.
+  /// @details Extracts the upper 32 bits of the uid.p2 member, which represents
+  /// the xpti::string_id_t in legacy implementations or XPTI_USE_STRICT_HASH
+  /// mode and contains the FNV1a hash value associated with the stack trace.
+  /// @return The 32-bit stack trace string ID.
+  uint32_t stacktrace_sid() const { return (uint32_t)(uid.p2 >> 32); }
+
+  /// @brief Retrieves the string ID (SID) for the source file.
+  /// @details Extracts the upper 32 bits of the uid.p1 member, which represents
+  /// the xpti::string_id_t in legacy implementations or XPTI_USE_STRICT_HASH
+  /// mode and contains the FNV1a hash value associated with the source file.
+  /// @return The 32-bit source file string ID.
+  uint32_t source_file_sid() const { return (uint32_t)(uid.p1 >> 32); }
 };
 
 /// A data structure that holds information about an API function call and its

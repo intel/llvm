@@ -50,9 +50,10 @@ static const unsigned SPIRDefIsPrivMap[] = {
     0,  // ptr32_uptr
     0,  // ptr64
     0,  // hlsl_groupshared
-    2,  // hlsl_constant
+    12, // hlsl_constant
     10, // hlsl_private
     11, // hlsl_device
+    7,  // hlsl_input
     // Wasm address space values for this target are dummy values,
     // as it is only enabled for Wasm targets.
     20, // wasm_funcref
@@ -88,6 +89,7 @@ static const unsigned SPIRDefIsGenMap[] = {
     0,  // hlsl_constant
     10, // hlsl_private
     11, // hlsl_device
+    7,  // hlsl_input
     // Wasm address space values for this target are dummy values,
     // as it is only enabled for Wasm targets.
     20, // wasm_funcref
@@ -394,12 +396,55 @@ public:
   }
 };
 
+// ARM64 SPIR64 Windows target
+class LLVM_LIBRARY_VISIBILITY WindowsARM64_SPIR64TargetInfo
+    : public WindowsTargetInfo<SPIR64TargetInfo> {
+public:
+  WindowsARM64_SPIR64TargetInfo(const llvm::Triple &Triple,
+                                const TargetOptions &Opts)
+      : WindowsTargetInfo<SPIR64TargetInfo>(Triple, Opts) {
+    LongWidth = LongAlign = 32;
+    DoubleAlign = LongLongAlign = 64;
+    IntMaxType = SignedLongLong;
+    Int64Type = SignedLongLong;
+    SizeType = UnsignedLongLong;
+    PtrDiffType = SignedLongLong;
+    IntPtrType = SignedLongLong;
+    WCharType = UnsignedShort;
+  }
+
+  BuiltinVaListKind getBuiltinVaListKind() const override {
+    return TargetInfo::CharPtrBuiltinVaList;
+  }
+
+  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
+                                                            : CCCR_Warning;
+  }
+};
+
+// ARM64 SPIR64 Windows Visual Studio target
+class LLVM_LIBRARY_VISIBILITY MicrosoftARM64_SPIR64TargetInfo
+    : public WindowsARM64_SPIR64TargetInfo {
+public:
+  MicrosoftARM64_SPIR64TargetInfo(const llvm::Triple &Triple,
+                                  const TargetOptions &Opts)
+      : WindowsARM64_SPIR64TargetInfo(Triple, Opts) {}
+
+  void getTargetDefines(const LangOptions &Opts,
+                        MacroBuilder &Builder) const override {
+    WindowsARM64_SPIR64TargetInfo::getTargetDefines(Opts, Builder);
+  }
+};
+
 class LLVM_LIBRARY_VISIBILITY BaseSPIRVTargetInfo : public BaseSPIRTargetInfo {
 public:
   BaseSPIRVTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : BaseSPIRTargetInfo(Triple, Opts) {
     assert(Triple.isSPIRV() && "Invalid architecture for SPIR-V.");
   }
+
+  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override;
 
   bool hasFeature(StringRef Feature) const override {
     return Feature == "spirv";
@@ -428,8 +473,6 @@ public:
     resetDataLayout("e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-"
                     "v256:256-v512:512-v1024:1024-n8:16:32:64-G10");
   }
-
-  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override;
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
@@ -588,6 +631,47 @@ public:
     WindowsX86_64_SPIRV64TargetInfo::getTargetDefines(Opts, Builder);
     Builder.defineMacro("_M_X64", "100");
     Builder.defineMacro("_M_AMD64", "100");
+  }
+};
+
+// ARM64 SPIRV64 Windows target
+class LLVM_LIBRARY_VISIBILITY WindowsARM64_SPIRV64TargetInfo
+    : public WindowsTargetInfo<SPIRV64TargetInfo> {
+public:
+  WindowsARM64_SPIRV64TargetInfo(const llvm::Triple &Triple,
+                                 const TargetOptions &Opts)
+      : WindowsTargetInfo<SPIRV64TargetInfo>(Triple, Opts) {
+    LongWidth = LongAlign = 32;
+    DoubleAlign = LongLongAlign = 64;
+    IntMaxType = SignedLongLong;
+    Int64Type = SignedLongLong;
+    SizeType = UnsignedLongLong;
+    PtrDiffType = SignedLongLong;
+    IntPtrType = SignedLongLong;
+    WCharType = UnsignedShort;
+  }
+
+  BuiltinVaListKind getBuiltinVaListKind() const override {
+    return TargetInfo::CharPtrBuiltinVaList;
+  }
+
+  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
+                                                            : CCCR_Warning;
+  }
+};
+
+// ARM64 SPIRV64 Windows Visual Studio target
+class LLVM_LIBRARY_VISIBILITY MicrosoftARM64_SPIRV64TargetInfo
+    : public WindowsARM64_SPIRV64TargetInfo {
+public:
+  MicrosoftARM64_SPIRV64TargetInfo(const llvm::Triple &Triple,
+                                   const TargetOptions &Opts)
+      : WindowsARM64_SPIRV64TargetInfo(Triple, Opts) {}
+
+  void getTargetDefines(const LangOptions &Opts,
+                        MacroBuilder &Builder) const override {
+    WindowsARM64_SPIRV64TargetInfo::getTargetDefines(Opts, Builder);
   }
 };
 

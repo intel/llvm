@@ -22,7 +22,7 @@ sampler::sampler(coordinate_normalization_mode normalizationMode,
 
 sampler::sampler(cl_sampler clSampler, const context &syclContext)
     : impl(std::make_shared<detail::sampler_impl>(
-          clSampler, detail::getSyclObjImpl(syclContext))) {}
+          clSampler, *detail::getSyclObjImpl(syclContext))) {}
 
 addressing_mode sampler::get_addressing_mode() const {
   return impl->get_addressing_mode();

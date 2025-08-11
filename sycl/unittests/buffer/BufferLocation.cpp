@@ -181,10 +181,9 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
             Acc{Buf, cgh, sycl::write_only, PL};
       })
       .wait();
-  std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-      sycl::detail::getSyclObjImpl(Buf);
+  sycl::detail::buffer_impl &BufImpl = *sycl::detail::getSyclObjImpl(Buf);
   EXPECT_EQ(
-      BufImpl->get_property<sycl::property::buffer::detail::buffer_location>()
+      BufImpl.get_property<sycl::property::buffer::detail::buffer_location>()
           .get_buffer_location(),
       (uint64_t)3);
 
@@ -200,7 +199,7 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
       .wait();
 
   EXPECT_EQ(
-      BufImpl->has_property<sycl::property::buffer::detail::buffer_location>(),
+      BufImpl.has_property<sycl::property::buffer::detail::buffer_location>(),
       0);
 }
 

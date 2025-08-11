@@ -8,6 +8,8 @@ Scripts for running performance tests on SYCL and Unified Runtime.
 - [Compute Benchmarks](https://github.com/intel/compute-benchmarks/)
 - [LlamaCpp Benchmarks](https://github.com/ggerganov/llama.cpp)
 - [SYCL-Bench](https://github.com/unisa-hpc/sycl-bench)
+- [Gromacs](https://gitlab.com/gromacs/gromacs.git)/[Grappa](https://github.com/graeter-group/grappa)
+- [BenchDNN](https://github.com/uxlfoundation/oneDNN/tree/main/tests/benchdnn)
 
 ## Running
 

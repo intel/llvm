@@ -121,6 +121,7 @@ struct ShadowMemoryGPU : public ShadowMemory {
   uptr LocalShadowOffset = 0;
 
   uptr PrivateShadowOffset = 0;
+  uptr PrivateBasePtr = 0;
 };
 
 /// Shadow Memory layout of GPU PVC device

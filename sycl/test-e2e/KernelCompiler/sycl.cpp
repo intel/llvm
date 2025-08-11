@@ -9,11 +9,11 @@
 // REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_device_allocations
 
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
-
 // RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
+
+// XFAIL: preview-mode && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18390
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

@@ -15,7 +15,6 @@ import re
 
 
 class GromacsBench(Suite):
-
     def git_url(self):
         return "https://gitlab.com/gromacs/gromacs.git"
 
@@ -154,9 +153,11 @@ class GromacsBenchmark(Benchmark):
             f"{str(model_dir)}/{self.type}.tpr",
         ]
 
+        env_vars = {"GMX_MAXBACKUP": "-1"}
         # Generate configuration files
         self.conf_result = run(
             cmd_list,
+            env_vars=env_vars,
             add_sycl=True,
             ld_library=self.suite.oneapi.ld_libraries(),
         )
@@ -219,7 +220,6 @@ class GromacsBenchmark(Benchmark):
                 unit="s",
                 command=command,
                 env=env_vars,
-                stdout=mdrun_output,
                 git_url=self.suite.git_url(),
                 git_hash=self.suite.git_tag(),
             )

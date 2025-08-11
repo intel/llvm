@@ -84,6 +84,7 @@ ur_exp_command_buffer_handle_t_::getSyncPoint(ur_event_handle_t event) {
     throw UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
   syncPoints.push_back(event);
+  usedSyncPoints.push_back(false);
   return static_cast<ur_exp_command_buffer_sync_point_t>(syncPoints.size() - 1);
 }
 
@@ -99,6 +100,7 @@ ur_event_handle_t *ur_exp_command_buffer_handle_t_::getWaitListFromSyncPoints(
       UR_LOG(ERR, "Invalid sync point");
       throw UR_RESULT_ERROR_INVALID_VALUE;
     }
+    usedSyncPoints[pSyncPointWaitList[i]] = true;
     syncPointWaitList[i] = syncPoints[pSyncPointWaitList[i]];
   }
   return syncPointWaitList.data();
@@ -132,9 +134,13 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   if (!isInOrder) {
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (commandListLocked->getZeCommandList(), nullptr, 0, nullptr));
-    for (auto &event : syncPoints) {
-      ZE2UR_CALL(zeCommandListAppendEventReset,
-                 (commandListLocked->getZeCommandList(), event->getZeEvent()));
+    for (size_t i = 0; i < usedSyncPoints.size(); ++i) {
+      if (!usedSyncPoints[i]) {
+        continue;
+      }
+      ZE2UR_CALL(
+          zeCommandListAppendEventReset,
+          (commandListLocked->getZeCommandList(), syncPoints[i]->getZeEvent()));
     }
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (commandListLocked->getZeCommandList(), nullptr, 0, nullptr));
@@ -252,7 +258,7 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
 
 ur_result_t
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
-  hCommandBuffer->RefCount.increment();
+  hCommandBuffer->RefCount.retain();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -260,9 +266,13 @@ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
 
 ur_result_t
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
-  if (!hCommandBuffer->RefCount.decrementAndTest())
+  if (!hCommandBuffer->RefCount.release())
     return UR_RESULT_SUCCESS;
 
+  if (auto executionEvent = hCommandBuffer->getExecutionEventUnlocked()) {
+    ZE2UR_CALL(zeEventHostSynchronize,
+               (executionEvent->getZeEvent(), UINT64_MAX));
+  }
   delete hCommandBuffer;
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -620,7 +630,7 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{hCommandBuffer->RefCount.load()});
+    return ReturnValue(uint32_t{hCommandBuffer->RefCount.getCount()});
   case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
     ur_exp_command_buffer_desc_t Descriptor{};
     Descriptor.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;

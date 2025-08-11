@@ -21,7 +21,6 @@ class event;
 namespace detail {
 class CGExecKernel;
 class queue_impl;
-using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
 class RTDeviceBinaryImage;
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES

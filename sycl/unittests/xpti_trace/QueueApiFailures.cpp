@@ -88,7 +88,7 @@ public:
   const std::string TestKernelLocationMessage = BuildCodeLocationMessage(
       TestKI::getFileName(), TestKI::getFunctionName(), TestKI::getLineNumber(),
       TestKI::getColumnNumber());
-  const std::string URLevelFailMessage = "Native API failed";
+  const std::string URLevelFailMessage = " backend failed with error: ";
   const std::string SYCLLevelFailMessage = "Enqueue process failed";
 };
 

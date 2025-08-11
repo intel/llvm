@@ -12,6 +12,7 @@ from benches.syclbench import *
 from benches.llamacpp import *
 from benches.umf import *
 from benches.test import TestSuite
+from benches.benchdnn import OneDnnBench
 from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
@@ -42,14 +43,22 @@ def run_iterations(
         print(f"running {benchmark.name()}, iteration {iter}... ", flush=True)
         bench_results = benchmark.run(env_vars)
         if bench_results is None:
-            failures[benchmark.name()] = "benchmark produced no results!"
-            break
+            if options.exit_on_failure:
+                raise RuntimeError(f"Benchmark {benchmark.name()} produced no results!")
+            else:
+                failures[benchmark.name()] = "benchmark produced no results!"
+                break
 
         for bench_result in bench_results:
             if not bench_result.passed:
-                failures[bench_result.label] = "verification failed"
-                print(f"complete ({bench_result.label}: verification failed).")
-                continue
+                if options.exit_on_failure:
+                    raise RuntimeError(
+                        f"Benchmark {benchmark.name()} failed: {bench_result.label} verification failed."
+                    )
+                else:
+                    failures[bench_result.label] = "verification failed"
+                    print(f"complete ({bench_result.label}: verification failed).")
+                    continue
 
             print(
                 f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
@@ -171,6 +180,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         LlamaCppBench(directory),
         UMFSuite(directory),
         GromacsBench(directory),
+        OneDnnBench(directory),
         TestSuite(),
     ]
 
@@ -188,7 +198,10 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         if s.name() not in enabled_suites(options.preset):
             continue
 
-        suite_benchmarks = s.benchmarks()
+        # filter out benchmarks that are disabled
+        suite_benchmarks = [
+            benchmark for benchmark in s.benchmarks() if benchmark.enabled()
+        ]
         if filter:
             suite_benchmarks = [
                 benchmark
@@ -215,7 +228,6 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             benchmark.setup()
             if options.verbose:
                 print(f"{benchmark.name()} setup complete.")
-
         except Exception as e:
             if options.exit_on_failure:
                 raise e
@@ -313,7 +325,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         if options.output_directory is None:
             html_path = os.path.join(os.path.dirname(__file__), "html")
 
-        generate_html(history.runs, compare_names, html_path, metadata)
+        generate_html(history, compare_names, html_path, metadata)
 
 
 def validate_and_parse_env_args(env_args):
@@ -400,7 +412,9 @@ if __name__ == "__main__":
         "--verbose", help="Print output of all the commands.", action="store_true"
     )
     parser.add_argument(
-        "--exit-on-failure", help="Exit on first failure.", action="store_true"
+        "--exit-on-failure",
+        help="Exit on first benchmark failure.",
+        action="store_true",
     )
     parser.add_argument(
         "--compare-type",
@@ -554,6 +568,22 @@ if __name__ == "__main__":
         type=Path,
         help="Location of detect_version.cpp used to query e.g. DPC++, L0",
         default=None,
+    )
+    parser.add_argument(
+        "--archive-baseline-after",
+        type=int,
+        help="Archive baseline results (runs starting with 'Baseline_') older than this many days. "
+        "Archived results are stored separately and can be viewed in the HTML UI by enabling "
+        "'Include archived runs'. This helps manage the size of the primary dataset.",
+        default=options.archive_baseline_days,
+    )
+    parser.add_argument(
+        "--archive-pr-after",
+        type=int,
+        help="Archive PR and other non-baseline results older than this many days. "
+        "Archived results are stored separately and can be viewed in the HTML UI by enabling "
+        "'Include archived runs'. PR runs typically have a shorter retention period than baselines.",
+        default=options.archive_pr_days,
     )
 
     args = parser.parse_args()

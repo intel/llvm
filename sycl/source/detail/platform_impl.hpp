@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/split_string.hpp>
 #include <detail/ur.hpp>
 #include <detail/ur_info_code.hpp>
@@ -35,16 +35,16 @@ class platform_impl : public std::enable_shared_from_this<platform_impl> {
   /// Constructs platform_impl from a UR platform handle.
   ///
   /// \param APlatform is a raw plug-in platform handle.
-  /// \param AAdapter is a plug-in handle.
+  /// \param Adapter is a plug-in handle.
   //
   // Platforms can only be created under `GlobalHandler`'s ownership via
   // `platform_impl::getOrMakePlatformImpl` method.
-  explicit platform_impl(ur_platform_handle_t APlatform,
-                         const std::shared_ptr<Adapter> &AAdapter)
-      : MPlatform(APlatform), MAdapter(AAdapter) {
+  explicit platform_impl(ur_platform_handle_t APlatform, adapter_impl &Adapter)
+      : MPlatform(APlatform), MAdapter(&Adapter) {
+
     // Find out backend of the platform
     ur_backend_t UrBackend = UR_BACKEND_UNKNOWN;
-    AAdapter->call_nocheck<UrApiKind::urPlatformGetInfo>(
+    Adapter.call_nocheck<UrApiKind::urPlatformGetInfo>(
         APlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_backend_t), &UrBackend,
         nullptr);
     MBackend = convertUrBackend(UrBackend);
@@ -138,15 +138,6 @@ public:
   // \return the Adapter associated with this platform.
   const AdapterPtr &getAdapter() const { return MAdapter; }
 
-  /// Sets the platform implementation to use another adapter.
-  ///
-  /// \param AdapterPtr is a pointer to a adapter instance
-  /// \param Backend is the backend that we want this platform to use
-  void setAdapter(AdapterPtr &AdapterPtr, backend Backend) {
-    MAdapter = AdapterPtr;
-    MBackend = Backend;
-  }
-
   /// Gets the native handle of the SYCL platform.
   ///
   /// \return a native handle.
@@ -189,7 +180,7 @@ public:
   /// \param Adapter is the UR adapter providing the backend for the platform
   /// \return the platform_impl representing the UR platform
   static platform_impl &getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
-                                              const AdapterPtr &Adapter);
+                                              adapter_impl &Adapter);
 
   /// Queries the cache for the specified platform based on an input device.
   /// If found, returns the the cached platform_impl, otherwise creates a new
@@ -201,7 +192,9 @@ public:
   /// platform
   /// \return the platform_impl that contains the input device
   static platform_impl &getPlatformFromUrDevice(ur_device_handle_t UrDevice,
-                                                const AdapterPtr &Adapter);
+                                                adapter_impl &Adapter);
+
+  context_impl &khr_get_default_context();
 
   // when getting sub-devices for ONEAPI_DEVICE_SELECTOR we may temporarily
   // ensure every device is a root one.

@@ -13,6 +13,7 @@
 #include "../program.hpp"
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "memory.hpp"
 
 struct ur_single_device_kernel_t {
@@ -90,6 +91,8 @@ public:
                                    uint32_t groupSizeY, uint32_t groupSizeZ,
                                    ze_command_list_handle_t cmdList,
                                    wait_list_view &waitListView);
+
+  ur::RefCount RefCount;
 
 private:
   // Keep the program of the kernel.

@@ -34,15 +34,15 @@ endif()
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
-    # commit 4e4811a9b4945088667e1a1653742ffdf84e5168
-    # Merge: b347adff05 0101b4ff40
+    # commit d0a32d701e34b3285de7ce776ea36abfec673df7
+    # Merge: a9f848e0e8 56473a8c25
     # Author: Harald van Dijk <harald.vandijk@codeplay.com>
-    # Date:   Wed Jun 4 13:17:16 2025 +0100
+    # Date:   Mon Jun 30 12:24:46 2025 +0100
     # 
-    #     Merge pull request #854 from hvdijk/avoid-computeknownbits
+    #     Merge pull request #878 from hvdijk/specify-fuse-ld-lld
     #     
-    #     [LLVM 21] Avoid computeKnownBits.
-    set(OCK_GIT_INTERNAL_TAG 4e4811a9b4945088667e1a1653742ffdf84e5168)
+    #     [RefSi] Explicitly specify -fuse-ld=lld.
+    set(OCK_GIT_INTERNAL_TAG d0a32d701e34b3285de7ce776ea36abfec673df7)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)

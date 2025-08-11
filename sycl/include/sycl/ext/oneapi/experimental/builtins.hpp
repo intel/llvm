@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/aliases.hpp>                    // for half
 #include <sycl/builtins.hpp>                   // for to_vec2
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE

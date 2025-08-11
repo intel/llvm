@@ -658,6 +658,9 @@ etors:
 - name: USM_CONTEXT_MEMCPY_EXP
   desc: Enumerator for $xUSMContextMemcpyExp
   value: '273'
+- name: BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP
+  desc: Enumerator for $xBindlessImagesSupportsImportingHandleTypeExp
+  value: '274'
 ---
 type: enum
 desc: Defines structure types
