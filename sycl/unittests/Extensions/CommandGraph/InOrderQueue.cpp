@@ -35,9 +35,9 @@ TEST_F(CommandGraphTest, InOrderQueue) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front().lock().get(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MPredecessors.front().lock().get(), PtrNode1);
+  ASSERT_EQ(PtrNode2->MPredecessors.front(), PtrNode1);
 
   auto Node3Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
@@ -47,9 +47,9 @@ TEST_F(CommandGraphTest, InOrderQueue) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front().lock().get(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
-  ASSERT_EQ(PtrNode3->MPredecessors.front().lock().get(), PtrNode2);
+  ASSERT_EQ(PtrNode3->MPredecessors.front(), PtrNode2);
 
   InOrderGraph.end_recording(InOrderQueue);
 
@@ -92,9 +92,9 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmpty) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front().lock().get(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MPredecessors.front().lock().get(), PtrNode1);
+  ASSERT_EQ(PtrNode2->MPredecessors.front(), PtrNode1);
 
   auto Node3Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
@@ -104,9 +104,9 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmpty) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front().lock().get(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
-  ASSERT_EQ(PtrNode3->MPredecessors.front().lock().get(), PtrNode2);
+  ASSERT_EQ(PtrNode3->MPredecessors.front(), PtrNode2);
 
   InOrderGraph.end_recording(InOrderQueue);
 
@@ -150,9 +150,9 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyFirst) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front().lock().get(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MPredecessors.front().lock().get(), PtrNode1);
+  ASSERT_EQ(PtrNode2->MPredecessors.front(), PtrNode1);
 
   auto Node3Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
@@ -162,9 +162,9 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyFirst) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front().lock().get(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
-  ASSERT_EQ(PtrNode3->MPredecessors.front().lock().get(), PtrNode2);
+  ASSERT_EQ(PtrNode3->MPredecessors.front(), PtrNode2);
 
   InOrderGraph.end_recording(InOrderQueue);
 
@@ -209,9 +209,9 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front().lock().get(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MPredecessors.front().lock().get(), PtrNode1);
+  ASSERT_EQ(PtrNode2->MPredecessors.front(), PtrNode1);
 
   auto Node3Graph = InOrderQueue.submit([&](sycl::handler &cgh) {});
 
@@ -220,9 +220,9 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front().lock().get(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
-  ASSERT_EQ(PtrNode3->MPredecessors.front().lock().get(), PtrNode2);
+  ASSERT_EQ(PtrNode3->MPredecessors.front(), PtrNode2);
 
   InOrderGraph.end_recording(InOrderQueue);
 
@@ -279,9 +279,9 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front().lock().get(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MPredecessors.front().lock().get(), PtrNode1);
+  ASSERT_EQ(PtrNode2->MPredecessors.front(), PtrNode1);
 
   auto Node3Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
@@ -291,9 +291,9 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front().lock().get(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
-  ASSERT_EQ(PtrNode3->MPredecessors.front().lock().get(), PtrNode2);
+  ASSERT_EQ(PtrNode3->MPredecessors.front(), PtrNode2);
 
   InOrderGraph.end_recording(InOrderQueue);
 
@@ -346,9 +346,9 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
     ASSERT_NE(PtrNode2, nullptr);
     ASSERT_NE(PtrNode2, PtrNode1);
     ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-    ASSERT_EQ(PtrNode1->MSuccessors.front().lock().get(), PtrNode2);
+    ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
     ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
-    ASSERT_EQ(PtrNode2->MPredecessors.front().lock().get(), PtrNode1);
+    ASSERT_EQ(PtrNode2->MPredecessors.front(), PtrNode1);
 
     auto Node3Graph = InOrderQueue.submit(
         [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
@@ -358,9 +358,9 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
     ASSERT_NE(PtrNode3, nullptr);
     ASSERT_NE(PtrNode3, PtrNode2);
     ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-    ASSERT_EQ(PtrNode2->MSuccessors.front().lock().get(), PtrNode3);
+    ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
     ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
-    ASSERT_EQ(PtrNode3->MPredecessors.front().lock().get(), PtrNode2);
+    ASSERT_EQ(PtrNode3->MPredecessors.front(), PtrNode2);
 
     InOrderGraph.end_recording(InOrderQueue);
 
@@ -423,9 +423,9 @@ TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front().lock().get(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MPredecessors.front().lock().get(), PtrNode1);
+  ASSERT_EQ(PtrNode2->MPredecessors.front(), PtrNode1);
 
   auto Node3Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
@@ -435,9 +435,9 @@ TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front().lock().get(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
-  ASSERT_EQ(PtrNode3->MPredecessors.front().lock().get(), PtrNode2);
+  ASSERT_EQ(PtrNode3->MPredecessors.front(), PtrNode2);
 
   InOrderGraph.end_recording(InOrderQueue);
 
@@ -483,9 +483,9 @@ TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front().lock().get(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MPredecessors.front().lock().get(), PtrNode1);
+  ASSERT_EQ(PtrNode2->MPredecessors.front(), PtrNode1);
 
   auto Node3Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
@@ -495,9 +495,9 @@ TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front().lock().get(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
-  ASSERT_EQ(PtrNode3->MPredecessors.front().lock().get(), PtrNode2);
+  ASSERT_EQ(PtrNode3->MPredecessors.front(), PtrNode2);
 
   InOrderGraph.end_recording(InOrderQueue);
 

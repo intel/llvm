@@ -147,30 +147,30 @@ public:
   /// @param CommandGroup The CG which stores all information for this node.
   /// @param Deps Dependencies of the created node.
   /// @return Created node in the graph.
-  std::shared_ptr<node_impl> add(node_type NodeType,
-                                 std::shared_ptr<sycl::detail::CG> CommandGroup,
-                                 nodes_range Deps);
+  node_impl &add(node_type NodeType,
+                 std::shared_ptr<sycl::detail::CG> CommandGroup,
+                 nodes_range Deps);
 
   /// Create a CGF node in the graph.
   /// @param CGF Command-group function to create node with.
   /// @param Args Node arguments.
   /// @param Deps Dependencies of the created node.
   /// @return Created node in the graph.
-  std::shared_ptr<node_impl> add(std::function<void(handler &)> CGF,
-                                 const std::vector<sycl::detail::ArgDesc> &Args,
-                                 std::vector<std::shared_ptr<node_impl>> &Deps);
+  node_impl &add(std::function<void(handler &)> CGF,
+                 const std::vector<sycl::detail::ArgDesc> &Args,
+                 nodes_range Deps);
 
   /// Create an empty node in the graph.
   /// @param Deps List of predecessor nodes.
   /// @return Created node in the graph.
-  std::shared_ptr<node_impl> add(nodes_range Deps);
+  node_impl &add(nodes_range Deps);
 
   /// Create a dynamic command-group node in the graph.
   /// @param DynCGImpl Dynamic command-group used to create node.
   /// @param Deps List of predecessor nodes.
   /// @return Created node in the graph.
-  std::shared_ptr<node_impl>
-  add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl, nodes_range Deps);
+  node_impl &add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
+                 nodes_range Deps);
 
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
@@ -293,6 +293,7 @@ public:
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
 
   nodes_range roots() const { return MRoots; }
+  nodes_range nodes() const { return MNodeStorage; }
 
   /// Find the last node added to this graph from an in-order queue.
   /// @param Queue In-order queue to find the last node added to the graph from.
@@ -329,8 +330,7 @@ public:
   /// this edge.
   /// @param Src The source of the new edge.
   /// @param Dest The destination of the new edge.
-  void makeEdge(std::shared_ptr<node_impl> Src,
-                std::shared_ptr<node_impl> Dest);
+  void makeEdge(node_impl &Src, node_impl &Dest);
 
   /// Throws an invalid exception if this function is called
   /// while a queue is recording commands to the graph.
@@ -511,6 +511,12 @@ public:
   }
 
 private:
+  template <typename... Ts> node_impl &createNode(Ts &&...Args) {
+    MNodeStorage.push_back(
+        std::make_shared<node_impl>(std::forward<Ts>(Args)...));
+    return *MNodeStorage.back();
+  }
+
   /// Check the graph for cycles by performing a depth-first search of the
   /// graph. If a node is visited more than once in a given path through the
   /// graph, a cycle is present and the search ends immediately.
@@ -525,13 +531,13 @@ private:
   /// added as a root node.
   /// @param Node The node to add deps for
   /// @param Deps List of dependent nodes
-  void addDepsToNode(const std::shared_ptr<node_impl> &Node, nodes_range Deps) {
+  void addDepsToNode(node_impl &Node, nodes_range Deps) {
     for (node_impl &N : Deps) {
       N.registerSuccessor(Node);
-      this->removeRoot(*Node);
+      this->removeRoot(Node);
     }
-    if (Node->MPredecessors.empty()) {
-      this->addRoot(*Node);
+    if (Node.MPredecessors.empty()) {
+      this->addRoot(Node);
     }
   }
 
@@ -659,6 +665,8 @@ public:
     return MPartitions;
   }
 
+  nodes_range nodes() const { return MNodeStorage; }
+
   /// Query whether the graph contains any host-task nodes.
   /// @return True if the graph contains any host-task nodes. False otherwise.
   bool containsHostTask() const { return MContainsHostTask; }
@@ -683,8 +691,8 @@ public:
   }
 
   void update(std::shared_ptr<graph_impl> GraphImpl);
-  void update(std::shared_ptr<node_impl> Node);
-  void update(const std::vector<std::shared_ptr<node_impl>> &Nodes);
+  void update(node_impl &Node);
+  void update(nodes_range Nodes);
 
   /// Calls UR entry-point to update nodes in command-buffer.
   /// @param CommandBuffer The UR command-buffer to update commands in.
@@ -697,8 +705,7 @@ public:
   /// Update host-task nodes
   /// @param Nodes List of nodes to update, any node that is not a host-task
   /// will be ignored.
-  void updateHostTasksImpl(
-      const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+  void updateHostTasksImpl(nodes_range Nodes) const;
 
   /// Splits a list of nodes into separate lists of nodes for each
   /// command-buffer partition.
@@ -825,14 +832,14 @@ private:
     std::fstream Stream(FilePath, std::ios::out);
     Stream << "digraph dot {" << std::endl;
 
-    std::vector<std::shared_ptr<node_impl>> Roots;
-    for (auto &Node : MNodeStorage) {
-      if (Node->MPredecessors.size() == 0) {
-        Roots.push_back(Node);
+    std::vector<node_impl *> Roots;
+    for (node_impl &Node : nodes()) {
+      if (Node.MPredecessors.size() == 0) {
+        Roots.push_back(&Node);
       }
     }
 
-    for (std::shared_ptr<node_impl> Node : Roots)
+    for (node_impl *Node : Roots)
       Node->printDotRecursive(Stream, VisitedNodes, Verbose);
 
     Stream << "}" << std::endl;
@@ -845,7 +852,7 @@ private:
   /// @param[out] UpdateRequirements Accessor requirements found in /p Nodes.
   /// return True if update should be done through the scheduler.
   bool needsScheduledUpdate(
-      const std::vector<std::shared_ptr<node_impl>> &Nodes,
+      nodes_range Nodes,
       std::vector<sycl::detail::AccessorImplHost *> &UpdateRequirements);
 
   /// Sets the UR struct values required to update a graph node.
@@ -911,7 +918,7 @@ private:
 
   // Stores a cache of node ids from modifiable graph nodes to the companion
   // node(s) in this graph. Used for quick access when updating this graph.
-  std::multimap<node_impl::id_type, std::shared_ptr<node_impl>> MIDCache;
+  std::multimap<node_impl::id_type, node_impl *> MIDCache;
 
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.

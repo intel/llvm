@@ -76,6 +76,16 @@
 // RUN:   | FileCheck -check-prefix=CHK-DUPLICATES %s
 // CHK-DUPLICATES: warning: SYCL offloading target 'spir64-unknown-unknown' is similar to target 'spir64-unknown-unknown' already specified; will be ignored
 
+// RUN:   %clang -### -ccc-print-phases -fsycl --no-offload-new-driver -fsycl-targets=intel_gpu_pvc,intel_gpu_pvc  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DUPLICATES-GPU %s
+// CHK-DUPLICATES-GPU: warning: SYCL offloading target 'intel_gpu_pvc' is similar to target 'intel_gpu_pvc' already specified; will be ignored
+
+/// No duplicate warning should be emitted for 'like' triples but different
+/// arch targets.
+// RUN:   %clang -### -ccc-print-phases -fsycl --no-offload-new-driver -fsycl-targets=intel_gpu_pvc,intel_gpu_bdw  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DIFF-GPU %s
+// CHK-DIFF-GPU-NOT: warning: SYCL offloading target 'intel_gpu_bdw' is similar to target 'intel_gpu_pvc' already specified; will be ignored
+
 /// ###########################################################################
 
 /// Check -Xsycl-target-frontend triggers error when multiple triples are used.
@@ -501,6 +511,10 @@
 // RUN:  %clang_cl -fsycl --no-offload-new-driver /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
 /// Check sycld is pulled in when msvcrtd is used
 // RUN: %clangxx -fsycl --no-offload-new-driver -Xclang --dependent-lib=msvcrtd \
+// RUN:   -target x86_64-unknown-windows-msvc -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
+/// Check sycld is pulled in when -fms-runtime-lib=dll_dbg
+// RUN: %clangxx -fsycl --no-offload-new-driver -fms-runtime-lib=dll_dbg \
 // RUN:   -target x86_64-unknown-windows-msvc -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
 // CHECK-LINK-SYCL-DEBUG: "--dependent-lib=sycl{{[0-9]*}}d"

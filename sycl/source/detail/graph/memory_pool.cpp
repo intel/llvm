@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "memory_pool.hpp"
+#include "detail/virtual_mem.hpp"
 #include "graph_impl.hpp"
 
 #include <optional>
@@ -39,10 +40,12 @@ void *graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
   switch (AllocType) {
   case usm::alloc::device: {
 
-    context_impl &CtxImpl = *getSyclObjImpl(MContext);
-    adapter_impl &Adapter = CtxImpl.getAdapter();
+    const context_impl &CtxImpl = *getSyclObjImpl(MContext);
+    const adapter_impl &Adapter = CtxImpl.getAdapter();
+    const device_impl &DeviceImpl = *getSyclObjImpl(MDevice);
 
-    size_t Granularity = get_mem_granularity(MDevice, MContext);
+    const size_t Granularity = get_mem_granularity_for_allocation_size(
+        DeviceImpl, CtxImpl, granularity_mode::recommended, Size);
     uintptr_t StartPtr = 0;
     size_t AlignedSize = alignByteSize(Size, Granularity);
     // See if we can find an allocation to reuse
@@ -114,12 +117,8 @@ graph_mem_pool::tryReuseExistingAllocation(size_t Size, usm::alloc AllocType,
   // free nodes. We do this in a breadth-first approach because we want to find
   // the shortest path to a reusable allocation.
 
-  std::queue<node_impl *> NodesToCheck;
-
   // Add all the dependent nodes to the queue, they will be popped first
-  for (node_impl &Dep : DepNodes) {
-    NodesToCheck.push(&Dep);
-  }
+  auto NodesToCheck = DepNodes.to<std::queue<node_impl *>>();
 
   // Called when traversing over nodes to check if the current node is a free
   // node for one of the available allocations. If it is we populate AllocInfo

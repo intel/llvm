@@ -454,7 +454,7 @@ XPTI_EXPORT_API const xpti::payload_t *xptiQueryPayloadByUID(uint64_t uid) {
 }
 
 XPTI_EXPORT_API xpti::result_t
-xptiRegisterCallback(uint8_t stream_id, uint16_t trace_type,
+xptiRegisterCallback(xpti::stream_id_t stream_id, uint16_t trace_type,
                      xpti::tracepoint_callback_api_t cb) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f =
@@ -467,7 +467,7 @@ xptiRegisterCallback(uint8_t stream_id, uint16_t trace_type,
 }
 
 XPTI_EXPORT_API xpti::result_t
-xptiUnregisterCallback(uint8_t stream_id, uint16_t trace_type,
+xptiUnregisterCallback(xpti::stream_id_t stream_id, uint16_t trace_type,
                        xpti::tracepoint_callback_api_t cb) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f =
@@ -480,7 +480,7 @@ xptiUnregisterCallback(uint8_t stream_id, uint16_t trace_type,
 }
 
 XPTI_EXPORT_API xpti::result_t
-xptiNotifySubscribers(uint8_t stream_id, uint16_t trace_type,
+xptiNotifySubscribers(xpti::stream_id_t stream_id, uint16_t trace_type,
                       xpti::trace_event_data_t *parent,
                       xpti::trace_event_data_t *object, uint64_t instance,
                       const void *user_data) {
@@ -505,7 +505,8 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
   return false;
 }
 
-XPTI_EXPORT_API bool xptiCheckTraceEnabled(uint16_t stream, uint16_t ttype) {
+XPTI_EXPORT_API bool xptiCheckTraceEnabled(xpti::stream_id_t stream,
+                                           uint16_t ttype) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f =
         xpti::ProxyLoader::instance().functionByIndex(XPTI_CHECK_TRACE_ENABLED);
@@ -681,7 +682,7 @@ xptiRegisterTracepointScope(const char *FuncName, const char *FileName,
   return nullptr;
 }
 
-XPTI_EXPORT_API uint8_t xptiGetDefaultStreamID() {
+XPTI_EXPORT_API xpti::stream_id_t xptiGetDefaultStreamID() {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f = xpti::ProxyLoader::instance().functionByIndex(
         XPTI_GET_DEFAULT_STREAM_ID);
@@ -689,10 +690,11 @@ XPTI_EXPORT_API uint8_t xptiGetDefaultStreamID() {
       return (*(xpti_get_default_stream_id_t)f)();
     }
   }
-  return xpti::invalid_id<uint8_t>;
+  return xpti::invalid_id<xpti::stream_id_t>;
 }
 
-XPTI_EXPORT_API xpti::result_t xptiSetDefaultStreamID(uint8_t stream_id) {
+XPTI_EXPORT_API xpti::result_t
+xptiSetDefaultStreamID(xpti::stream_id_t stream_id) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f = xpti::ProxyLoader::instance().functionByIndex(
         XPTI_SET_DEFAULT_STREAM_ID);

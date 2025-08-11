@@ -24,8 +24,8 @@ int main() {
   // CHECK: <--- urKernelCreate
   // CHECK-NOT: <--- urKernelRetain
   // CHECK: <--- urEnqueueKernelLaunch
-  // CHECK: <--- urKernelRelease
   // CHECK: <--- urProgramRelease
+  // CHECK: <--- urKernelRelease
   // CHECK: <--- urEventWait
 
   // CHECK-CACHE: <--- urProgramCreate
@@ -96,8 +96,8 @@ int main() {
 // windows should handle the memory cleanup.
 
 // (Program cache releases)
-// CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urProgramRelease
+// CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease

@@ -42,7 +42,7 @@
 //CHECK_BINDINGS:# "{{.*}}" - "offload wrapper", inputs: ["[[TABLEFILE]].table"], output: "[[WRAPPEROBJ:.*]].o"
 //CHECK_BINDINGS:# "{{.*}}" - "{{.*}}::Linker", inputs: ["[[HOSTOBJ]].o", "[[KERNELOBJ]].o", "[[WRAPPEROBJ]].o"], output: "a.{{.*}}"
 
-//CHECK_INVO:{{.*}}clang{{.*}}-fsycl-is-device{{.*}}"-fsycl-is-native-cpu" "-D" "__SYCL_NATIVE_CPU__"
+//CHECK_INVO:{{.*}}clang{{.*}}"-fsycl-is-device"{{.*}} "-D" "__SYCL_NATIVE_CPU__"
 //CHECK_INVO:{{.*}}clang{{.*}}"-fsycl-is-host"{{.*}}
 //CHECK_INVO:{{.*}}clang{{.*}}"-x" "ir"
 //CHECK_INVO:{{.*}}sycl-post-link{{.*}}"-emit-program-metadata"

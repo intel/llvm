@@ -118,15 +118,19 @@ void emitMemReleaseEndTrace(uintptr_t ObjHandle, uintptr_t AllocPtr,
 #endif
 }
 
-static void waitForEvents(const std::vector<EventImplPtr> &Events) {
+static void waitForEvents(events_range Events) {
   // Assuming all events will be on the same device or
   // devices associated with the same Backend.
   if (!Events.empty()) {
-    adapter_impl &Adapter = Events[0]->getAdapter();
+    adapter_impl &Adapter = Events.front().getAdapter();
     std::vector<ur_event_handle_t> UrEvents(Events.size());
-    std::transform(
-        Events.begin(), Events.end(), UrEvents.begin(),
-        [](const EventImplPtr &EventImpl) { return EventImpl->getHandle(); });
+    std::transform(Events.begin(), Events.end(), UrEvents.begin(),
+                   [](event_impl &Event) { return Event.getHandle(); });
+    // TODO: Why this condition??? Added during PI Removal in
+    // https://github.com/intel/llvm/pull/14145 with no explanation.
+    // Should we just filter out all `nullptr`, not only the one in the first
+    // element?
+    assert(!UrEvents.empty() && UrEvents[0]);
     if (!UrEvents.empty() && UrEvents[0]) {
       Adapter.call<UrApiKind::urEventWait>(UrEvents.size(), &UrEvents[0]);
     }
@@ -251,8 +255,7 @@ void memUnmapHelper(adapter_impl &Adapter, ur_queue_handle_t Queue,
 }
 
 void MemoryManager::release(context_impl *TargetContext, SYCLMemObjI *MemObj,
-                            void *MemAllocation,
-                            std::vector<EventImplPtr> DepEvents,
+                            void *MemAllocation, events_range DepEvents,
                             ur_event_handle_t &OutEvent) {
   // There is no async API for memory releasing. Explicitly wait for all
   // dependency events and return empty event.
@@ -281,7 +284,7 @@ void MemoryManager::releaseMemObj(context_impl *TargetContext,
 
 void *MemoryManager::allocate(context_impl *TargetContext, SYCLMemObjI *MemObj,
                               bool InitFromUserData, void *HostPtr,
-                              std::vector<EventImplPtr> DepEvents,
+                              events_range DepEvents,
                               ur_event_handle_t &OutEvent) {
   // There is no async API for memory allocation. Explicitly wait for all
   // dependency events and return empty event.
@@ -432,7 +435,7 @@ void *MemoryManager::allocateMemImage(
 void *MemoryManager::allocateMemSubBuffer(context_impl *TargetContext,
                                           void *ParentMemObj, size_t ElemSize,
                                           size_t Offset, range<3> Range,
-                                          std::vector<EventImplPtr> DepEvents,
+                                          events_range DepEvents,
                                           ur_event_handle_t &OutEvent) {
   waitForEvents(DepEvents);
   OutEvent = nullptr;
@@ -927,7 +930,7 @@ void MemoryManager::prefetch_usm(void *Mem, queue_impl &Queue, size_t Length,
                                  ur_event_handle_t *OutEvent) {
   adapter_impl &Adapter = Queue.getAdapter();
   Adapter.call<UrApiKind::urEnqueueUSMPrefetch>(Queue.getHandleRef(), Mem,
-                                                Length, 0, DepEvents.size(),
+                                                Length, 0u, DepEvents.size(),
                                                 DepEvents.data(), OutEvent);
 }
 
@@ -1152,7 +1155,7 @@ getOrBuildProgramForDeviceGlobal(queue_impl &Queue,
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
   device_image_plain BuiltImage =
       PM.build(std::move(DeviceImage), {std::move(Device)}, {});
-  return getSyclObjImpl(BuiltImage)->get_ur_program_ref();
+  return getSyclObjImpl(BuiltImage)->get_ur_program();
 }
 
 static void
@@ -1263,7 +1266,7 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
     Adapter.call<UrApiKind::urCommandBufferAppendMemBufferCopyExp>(
         CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
         sycl::detail::ur::cast<ur_mem_handle_t>(DstMem), SrcXOffBytes,
-        DstXOffBytes, SrcAccessRangeWidthBytes, Deps.size(), Deps.data(), 0,
+        DstXOffBytes, SrcAccessRangeWidthBytes, Deps.size(), Deps.data(), 0u,
         nullptr, OutSyncPoint, nullptr, nullptr);
   } else {
     // passing 0 for pitches not allowed. Because clEnqueueCopyBufferRect will
@@ -1290,7 +1293,7 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
         CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
         sycl::detail::ur::cast<ur_mem_handle_t>(DstMem), SrcOrigin, DstOrigin,
         Region, SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
-        Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
+        Deps.size(), Deps.data(), 0u, nullptr, OutSyncPoint, nullptr, nullptr);
   }
 }
 
@@ -1328,7 +1331,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
         Adapter.call_nocheck<UrApiKind::urCommandBufferAppendMemBufferReadExp>(
             CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
             SrcXOffBytes, SrcAccessRangeWidthBytes, DstMem + DstXOffBytes,
-            Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr,
+            Deps.size(), Deps.data(), 0u, nullptr, OutSyncPoint, nullptr,
             nullptr);
 
     if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
@@ -1360,7 +1363,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
                 CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
                 BufferOffset, HostOffset, RectRegion, BufferRowPitch,
                 BufferSlicePitch, HostRowPitch, HostSlicePitch, DstMem,
-                Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr,
+                Deps.size(), Deps.data(), 0u, nullptr, OutSyncPoint, nullptr,
                 nullptr);
     if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
@@ -1406,7 +1409,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
         Adapter.call_nocheck<UrApiKind::urCommandBufferAppendMemBufferWriteExp>(
             CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(DstMem),
             DstXOffBytes, DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes,
-            Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr,
+            Deps.size(), Deps.data(), 0u, nullptr, OutSyncPoint, nullptr,
             nullptr);
 
     if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
@@ -1436,7 +1439,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
         UrApiKind::urCommandBufferAppendMemBufferWriteRectExp>(
         CommandBuffer, sycl::detail::ur::cast<ur_mem_handle_t>(DstMem),
         BufferOffset, HostOffset, RectRegion, BufferRowPitch, BufferSlicePitch,
-        HostRowPitch, HostSlicePitch, SrcMem, Deps.size(), Deps.data(), 0,
+        HostRowPitch, HostSlicePitch, SrcMem, Deps.size(), Deps.data(), 0u,
         nullptr, OutSyncPoint, nullptr, nullptr);
 
     if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
@@ -1461,7 +1464,7 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
   adapter_impl &Adapter = Context->getAdapter();
   ur_result_t Result =
       Adapter.call_nocheck<UrApiKind::urCommandBufferAppendUSMMemcpyExp>(
-          CommandBuffer, DstMem, SrcMem, Len, Deps.size(), Deps.data(), 0,
+          CommandBuffer, DstMem, SrcMem, Len, Deps.size(), Deps.data(), 0u,
           nullptr, OutSyncPoint, nullptr, nullptr);
   if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     throw sycl::exception(
@@ -1487,7 +1490,8 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
   ur_result_t Result =
       Adapter.call_nocheck<UrApiKind::urCommandBufferAppendUSMFillExp>(
           CommandBuffer, DstMem, Pattern.data(), Pattern.size(), Len,
-          Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
+          Deps.size(), Deps.data(), 0u, nullptr, OutSyncPoint, nullptr,
+          nullptr);
   if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -1525,7 +1529,7 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
     Adapter.call<UrApiKind::urCommandBufferAppendMemBufferFillExp>(
         CommandBuffer, ur::cast<ur_mem_handle_t>(Mem), Pattern, PatternSize,
         AccessOffset[0] * ElementSize, RangeMultiplier * ElementSize,
-        Deps.size(), Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
+        Deps.size(), Deps.data(), 0u, nullptr, OutSyncPoint, nullptr, nullptr);
     return;
   }
   // The sycl::handler uses a parallel_for kernel in the case of unusable
@@ -1542,7 +1546,7 @@ void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
   adapter_impl &Adapter = Context->getAdapter();
   Adapter.call<UrApiKind::urCommandBufferAppendUSMPrefetchExp>(
       CommandBuffer, Mem, Length, ur_usm_migration_flags_t(0), Deps.size(),
-      Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
+      Deps.data(), 0u, nullptr, OutSyncPoint, nullptr, nullptr);
 }
 
 void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
@@ -1553,7 +1557,7 @@ void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   adapter_impl &Adapter = Context->getAdapter();
   Adapter.call<UrApiKind::urCommandBufferAppendUSMAdviseExp>(
-      CommandBuffer, Mem, Length, Advice, Deps.size(), Deps.data(), 0, nullptr,
+      CommandBuffer, Mem, Length, Advice, Deps.size(), Deps.data(), 0u, nullptr,
       OutSyncPoint, nullptr, nullptr);
 }
 

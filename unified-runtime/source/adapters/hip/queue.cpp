@@ -107,7 +107,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
   case UR_QUEUE_INFO_DEVICE:
     return ReturnValue(hQueue->Device);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(hQueue->getReferenceCount());
+    return ReturnValue(hQueue->RefCount.getCount());
   case UR_QUEUE_INFO_FLAGS:
     return ReturnValue(hQueue->URFlags);
   case UR_QUEUE_INFO_EMPTY: {
@@ -135,14 +135,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
-  UR_ASSERT(hQueue->getReferenceCount() > 0, UR_RESULT_ERROR_INVALID_QUEUE);
+  UR_ASSERT(hQueue->RefCount.getCount() > 0, UR_RESULT_ERROR_INVALID_QUEUE);
 
-  hQueue->incrementReferenceCount();
+  hQueue->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  if (hQueue->decrementReferenceCount() > 0) {
+  if (!hQueue->RefCount.release()) {
     return UR_RESULT_SUCCESS;
   }
 

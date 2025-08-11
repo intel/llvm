@@ -22,6 +22,10 @@
 // verify the (profiling) outputs.
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -fprofile-instr-generate -fcoverage-mapping -mllvm -system-headers-coverage -c -o %t
 
+// Use new offload driver
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t-new --offload-new-driver
+// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t-new
+
 #include <sycl/sycl.hpp>
 
 #include <array>

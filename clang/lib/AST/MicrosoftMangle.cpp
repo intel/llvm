@@ -1164,7 +1164,9 @@ void MicrosoftCXXNameMangler::mangleUnqualifiedName(GlobalDecl GD,
                   ->hasAttr<CUDAGlobalAttr>())) &&
             GD.getKernelReferenceKind() == KernelReferenceKind::Stub;
         bool IsOCLDeviceStub =
-            ND && isa<FunctionDecl>(ND) && ND->hasAttr<OpenCLKernelAttr>() &&
+            ND && isa<FunctionDecl>(ND) &&
+            DeviceKernelAttr::isOpenCLSpelling(
+                ND->getAttr<DeviceKernelAttr>()) &&
             GD.getKernelReferenceKind() == KernelReferenceKind::Stub;
         if (IsDeviceStub)
           mangleSourceName(
@@ -3218,13 +3220,13 @@ void MicrosoftCXXNameMangler::mangleCallingConvention(CallingConv CC,
       else
         Out << "w";
       return;
-    case CC_OpenCLKernel:
-      // This can occur on the SYCl NativeCPU device
+    case CC_DeviceKernel:
+      // This can occur on the SYCL NativeCPU device
       // where device code is compiled with the same
       // target triple (eg for Windows) as host code.
       // FIXME: 1.) provide mangling if needed
       //        2.) check if other conventions need to be handled.
-      if (!getASTContext().getLangOpts().SYCLIsNativeCPU)
+      if (!getASTContext().getTargetInfo().getTriple().isNativeCPU())
         // Currently we only allow this convention in
         // SYCLNativeCPU and raise the usual error otherwise.
         llvm_unreachable("Unsupported CC for mangling");

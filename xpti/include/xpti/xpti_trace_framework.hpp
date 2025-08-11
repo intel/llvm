@@ -1124,7 +1124,7 @@ public:
   ///
   /// @return The stream ID.
   ///
-  uint8_t streamId() { return MStreamId; }
+  stream_id_t streamId() { return MStreamId; }
 
   /// @brief Sets the stream for the tracepoint scoped notification
   ///
@@ -1152,7 +1152,7 @@ public:
   /// with.
   /// @return tracepoint_scope_t& A reference to the tracepoint scope
   ///
-  tracepoint_scope_t &stream(uint8_t streamId) {
+  tracepoint_scope_t &stream(stream_id_t streamId) {
     // If tracing is not enabled, don't do anything
     if (xptiTraceEnabled()) {
       MStreamId = streamId;
@@ -1355,7 +1355,7 @@ private:
   /// from self notification
   uint64_t MScopedCorrelationId = 0;
   /// Stores the ID of the stream
-  uint8_t MStreamId = 0;
+  stream_id_t MStreamId = 0;
   /// Stores the ID of the default stream use for self notification; the
   /// system sets the default stream ID at the start of the program
   uint8_t MDefaultStreamId = 0;
@@ -1397,7 +1397,7 @@ public:
   /// @param UserData The user data.
   /// @param traceType The type of the trace event. Defaults to function_begin.
   ///
-  notify_scope_t(uint8_t streamId, xpti::trace_event_data_t *traceEvent,
+  notify_scope_t(stream_id_t streamId, xpti::trace_event_data_t *traceEvent,
                  const char *UserData,
                  uint16_t traceType = (uint16_t)
                      xpti::trace_point_type_t::function_begin)
@@ -1593,8 +1593,8 @@ public:
   // Constructor that makes calls to xpti API layer to register strings and
   // create the Universal ID that is stored in the TLS entry for lookup; this
   // constructor is needed when only code location information is available
-  tracepoint_t(const char *fileName, const char *funcName, int line, int column,
-               void *codeptr = nullptr)
+  tracepoint_t(const char *fileName, const char *funcName, uint32_t line,
+               uint32_t column, void *codeptr = nullptr)
       : m_payload(nullptr), m_top(false) {
     // If tracing is not enabled, don't do anything
     if (!xptiTraceEnabled())

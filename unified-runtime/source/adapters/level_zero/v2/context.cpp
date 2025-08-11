@@ -44,12 +44,20 @@ populateP2PDevices(size_t maxDevices,
   return p2pDevices;
 }
 
+static std::vector<ur_device_handle_t>
+uniqueDevices(uint32_t numDevices, const ur_device_handle_t *phDevices) {
+  std::vector<ur_device_handle_t> devices(phDevices, phDevices + numDevices);
+  std::sort(devices.begin(), devices.end());
+  devices.erase(std::unique(devices.begin(), devices.end()), devices.end());
+  return devices;
+}
+
 ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                            uint32_t numDevices,
                                            const ur_device_handle_t *phDevices,
                                            bool ownZeContext)
     : hContext(hContext, ownZeContext),
-      hDevices(phDevices, phDevices + numDevices),
+      hDevices(uniqueDevices(numDevices, phDevices)),
       commandListCache(hContext,
                        {phDevices[0]->Platform->ZeCopyOffloadExtensionSupported,
                         phDevices[0]->Platform->ZeMutableCmdListExt.Supported}),

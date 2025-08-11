@@ -121,7 +121,7 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
         urCommandBufferAppendMemBufferWriteRectTestWithParam>);
 
 TEST_P(urCommandBufferAppendMemBufferWriteRectTestWithParam, Success) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   // Zero it to begin with since the write may not cover the whole buffer.
   const uint8_t zero = 0x0;

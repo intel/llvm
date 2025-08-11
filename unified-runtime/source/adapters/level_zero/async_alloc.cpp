@@ -28,11 +28,11 @@ static ur_result_t enqueueUSMAllocHelper(
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
   // Allocate USM memory
-  ur_usm_pool_handle_t USMPool = nullptr;
+  ur_usm_pool_handle_t UrPool = nullptr;
   if (Pool) {
-    USMPool = Pool;
+    UrPool = Pool;
   } else {
-    USMPool = &Queue->Context->AsyncPool;
+    UrPool = &Queue->Context->AsyncPool;
   }
 
   auto Device = (Type == UR_USM_TYPE_HOST) ? nullptr : Queue->Device;
@@ -40,10 +40,10 @@ static ur_result_t enqueueUSMAllocHelper(
   std::vector<ur_event_handle_t> ExtEventWaitList;
   ur_event_handle_t OriginAllocEvent = nullptr;
   auto AsyncAlloc =
-      USMPool->allocateEnqueued(Queue, Device, nullptr, Type, Size);
+      UrPool->allocateEnqueued(Queue, Device, nullptr, Type, Size);
   if (!AsyncAlloc) {
     auto Ret =
-        USMPool->allocate(Queue->Context, Device, nullptr, Type, Size, RetMem);
+        UrPool->allocate(Queue->Context, Device, nullptr, Type, Size, RetMem);
     if (Ret) {
       return Ret;
     }
@@ -235,26 +235,26 @@ ur_result_t urEnqueueUSMFreeExp(
                (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
   }
 
-  umf_memory_pool_handle_t hPool = nullptr;
-  auto umfRet = umfPoolByPtr(Mem, &hPool);
-  if (umfRet != UMF_RESULT_SUCCESS || !hPool) {
+  umf_memory_pool_handle_t UmfPool = nullptr;
+  auto UmfRet = umfPoolByPtr(Mem, &UmfPool);
+  if (UmfRet != UMF_RESULT_SUCCESS || !UmfPool) {
     return USMFreeHelper(Queue->Context, Mem);
   }
 
-  UsmPool *usmPool = nullptr;
-  umfRet = umfPoolGetTag(hPool, (void **)&usmPool);
-  if (umfRet != UMF_RESULT_SUCCESS || usmPool == nullptr) {
+  UsmPool *UsmPool = nullptr;
+  UmfRet = umfPoolGetTag(UmfPool, (void **)&UsmPool);
+  if (UmfRet != UMF_RESULT_SUCCESS || UsmPool == nullptr) {
     return USMFreeHelper(Queue->Context, Mem);
   }
 
-  size_t size = 0;
-  umfRet = umfPoolMallocUsableSize(hPool, Mem, &size);
-  if (umfRet != UMF_RESULT_SUCCESS) {
+  size_t Size = 0;
+  UmfRet = umfPoolMallocUsableSize(UmfPool, Mem, &Size);
+  if (UmfRet != UMF_RESULT_SUCCESS) {
     return USMFreeHelper(Queue->Context, Mem);
   }
 
   (*Event)->RefCount.retain();
-  usmPool->AsyncPool.insert(Mem, size, *Event, Queue);
+  UsmPool->AsyncPool.insert(Mem, Size, *Event, Queue);
 
   // Signal that USM free event was finished
   ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));

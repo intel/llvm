@@ -23,17 +23,22 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/access/access.hpp>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+#include <xpti/xpti_data_types.h>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 
 namespace ext::oneapi::experimental::detail {
 class exec_graph_impl;
 class node_impl;
+class nodes_range;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
+void emitInstrumentationGeneral(xpti::stream_id_t StreamID, uint64_t InstanceID,
                                 xpti_td *TraceEvent, uint16_t Type,
                                 const void *Addr);
 #endif
@@ -231,21 +236,19 @@ public:
   /// Returns true iff this command is ready to be submitted for cleanup.
   virtual bool readyForCleanup() const;
 
-  /// Collect UR events from EventImpls and filter out some of them in case of
-  /// in order queue
-  std::vector<ur_event_handle_t>
-  getUrEvents(const std::vector<EventImplPtr> &EventImpls) const;
+  /// Collect UR events from Events and filter out some of them in case of
+  /// in order queue.
+  std::vector<ur_event_handle_t> getUrEvents(events_range Events) const;
 
-  static std::vector<ur_event_handle_t>
-  getUrEvents(const std::vector<EventImplPtr> &EventImpls,
-              queue_impl *CommandQueue, bool IsHostTaskCommand);
+  static std::vector<ur_event_handle_t> getUrEvents(events_range Events,
+                                                    queue_impl *CommandQueue,
+                                                    bool IsHostTaskCommand);
 
   /// Collect UR events from EventImpls and filter out some of them in case of
   /// in order queue. Does blocking enqueue if event is expected to produce ur
   /// event but has empty native handle.
-  std::vector<ur_event_handle_t>
-  getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
-                      bool HasEventMode) const;
+  std::vector<ur_event_handle_t> getUrEventsBlocking(events_range Events,
+                                                     bool HasEventMode) const;
 
   bool isHostTask() const;
 
@@ -270,9 +273,9 @@ protected:
 
   void waitForPreparedHostEvents() const;
 
-  void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls) {
-    for (auto &EventImpl : EventImpls) {
-      EventImpl->flushIfNeeded(MWorkerQueue.get());
+  void flushCrossQueueDeps(events_range Events) {
+    for (event_impl &Event : Events) {
+      Event.flushIfNeeded(MWorkerQueue.get());
     }
   }
 
@@ -347,10 +350,12 @@ public:
 
   /// The event for node_create and task_begin.
   void *MTraceEvent = nullptr;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   /// The stream under which the traces are emitted.
   ///
   /// Stream ids are positive integers and we set it to an invalid value.
-  int32_t MStreamID = -1;
+  xpti::stream_id_t MStreamID = xpti::invalid_id<xpti::stream_id_t>;
+#endif
   /// Reserved for storing the object address such as SPIR-V or memory object
   /// address.
   void *MAddress = nullptr;
@@ -686,7 +691,8 @@ private:
 // Very close to ExecCGCommand::emitInstrumentationData content.
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
-    int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    xpti::stream_id_t StreamID,
+    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     std::string_view SyclKernelName,
     KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
@@ -716,8 +722,7 @@ public:
   explicit UpdateCommandBufferCommand(
       queue_impl *Queue,
       ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-          Nodes);
+      ext::oneapi::experimental::detail::nodes_range Nodes);
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() final;
