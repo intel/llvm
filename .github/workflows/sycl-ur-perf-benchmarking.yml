@@ -134,7 +134,7 @@ jobs:
 
           BENCHMARK_SAVE_NAME=""
           BUILD_REF="${{ github.ref }}"
-          if [ -z "$SAVE_NAME" ]; then
+          if [ -n "$SAVE_NAME" ]; then
             BENCHMARK_SAVE_NAME="$(echo "$SAVE_NAME" | tr -cd 'A-Za-z0-9_-')"
           fi;
           if [ -n "$COMMIT_HASH" ]; then
