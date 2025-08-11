@@ -15,10 +15,8 @@
 #define SYCL_KHR_GROUP_INTERFACE 1
 #endif
 
-#if __cplusplus >= 202302L && defined(__has_include)
 #if __has_include(<mdspan>)
 #include <mdspan>
-#endif
 #endif
 
 namespace sycl {
