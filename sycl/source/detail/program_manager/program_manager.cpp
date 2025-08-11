@@ -1147,7 +1147,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
   auto ret_val = std::make_shared<FastKernelCacheVal>(
       KernelArgMaskPair.first.retain(), &(BuildResult->MBuildResultMutex),
       KernelArgMaskPair.second, std::move(Program), ContextImpl.getAdapter());
-  Cache.saveKernel(KernelName, UrDevice, ret_val, 
+  Cache.saveKernel(KernelName, UrDevice, ret_val,
                    KernelNameBasedCache.getKernelSubcache());
   return ret_val;
 }
@@ -2207,7 +2207,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       }
     }
 
-   // Unmap the unique kernel IDs for the offload entries
+    // Unmap the unique kernel IDs for the offload entries
     for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
          EntriesIt = EntriesIt->Increment()) {
       const char *Name = EntriesIt->GetName();
