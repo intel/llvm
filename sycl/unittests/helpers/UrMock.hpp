@@ -606,14 +606,18 @@ public:
     // these between tests
     detail::GlobalHandler::instance().prepareSchedulerToRelease(true);
     detail::GlobalHandler::instance().releaseDefaultContexts();
-    // clear platform cache in case subsequent tests want a different backend,
-    // this forces platforms to be reconstructed (and thus queries about UR
-    // backend info to be called again)
-    //
-    // This also erases each platform's devices (normally done in the library
-    // shutdown) so that platforms/devices' lifetimes could work in unittests
-    // scenario.
+#ifndef WIN32
+    // Clear platform cache in case subsequent tests want a different backend.
+    // This forces platforms to be reconstructed (and thus queries about UR
+    // backend info to be called again) This also erases each platform's devices
+    // (normally done in the library shutdown) so that platforms/devices'
+    // lifetimes could work in unittests scenario. But on Windows, because the
+    // shutdown/teardown timing is slightly different, doing this now can cause
+    // a race which will cause errors. At the moment, skipping this on Windows
+    // is fine. If, in the future, we really need to clear this, do it in the
+    // UrMock constructor.
     detail::GlobalHandler::instance().getPlatformCache().clear();
+#endif // !WIN32
     mock::getCallbacks().resetCallbacks();
   }
 

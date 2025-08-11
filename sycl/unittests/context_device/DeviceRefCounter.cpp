@@ -28,6 +28,9 @@ static ur_result_t redefinedDeviceReleaseAfter(void *) {
   return UR_RESULT_SUCCESS;
 }
 
+#ifndef WIN32
+// This test passes because the UrMock emulates teardown on Linux, but
+// on Windows there is a difference so this test is skipped.
 TEST(DevRefCounter, DevRefCounter) {
   {
     sycl::unittest::UrMock<> Mock;
@@ -41,6 +44,7 @@ TEST(DevRefCounter, DevRefCounter) {
     sycl::platform Plt = sycl::platform();
 
     Plt.get_devices();
-  }
+  } // <- ~UrMock destructor called here.
   EXPECT_EQ(DevRefCounter, 0);
 }
+#endif // !WIN32
