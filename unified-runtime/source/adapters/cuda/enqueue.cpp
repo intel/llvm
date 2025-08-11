@@ -15,7 +15,6 @@
 #include "kernel.hpp"
 #include "memory.hpp"
 #include "queue.hpp"
-#include "sampler.hpp"
 
 #include <cmath>
 #include <cuda.h>
@@ -47,8 +46,14 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
   }
 }
 
+#if CUDA_VERSION >= 13000
+using CuLocationType = CUmemLocation;
+#else
+using CuLocationType = CUdevice;
+#endif
 void setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
-                    ur_usm_advice_flags_t URAdviceFlags, CUdevice Device) {
+                    ur_usm_advice_flags_t URAdviceFlags,
+                    CuLocationType Location) {
   std::unordered_map<ur_usm_advice_flags_t, CUmem_advise>
       URToCUMemAdviseDeviceFlagsMap = {
           {UR_USM_ADVICE_FLAG_SET_READ_MOSTLY, CU_MEM_ADVISE_SET_READ_MOSTLY},
@@ -65,7 +70,7 @@ void setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
       };
   for (auto &FlagPair : URToCUMemAdviseDeviceFlagsMap) {
     if (URAdviceFlags & FlagPair.first) {
-      UR_CHECK_ERROR(cuMemAdvise(DevPtr, Size, FlagPair.second, Device));
+      UR_CHECK_ERROR(cuMemAdvise(DevPtr, Size, FlagPair.second, Location));
     }
   }
 
@@ -83,7 +88,14 @@ void setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
 
   for (auto &FlagPair : URToCUMemAdviseHostFlagsMap) {
     if (URAdviceFlags & FlagPair.first) {
-      UR_CHECK_ERROR(cuMemAdvise(DevPtr, Size, FlagPair.second, CU_DEVICE_CPU));
+#if CUDA_VERSION >= 13000
+      CUmemLocation LocationHost;
+      LocationHost.id = 0; // ignored with HOST_NUMA_CURRENT
+      LocationHost.type = CU_MEM_LOCATION_TYPE_HOST_NUMA_CURRENT;
+#else
+      int LocationHost = CU_DEVICE_CPU;
+#endif
+      UR_CHECK_ERROR(cuMemAdvise(DevPtr, Size, FlagPair.second, LocationHost));
     }
   }
 
@@ -618,60 +630,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                   UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
   return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 #endif // CUDA_VERSION >= 11080
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numArgs,
-    const ur_exp_kernel_arg_properties_t *pArgs,
-    uint32_t numPropsInLaunchPropList,
-    const ur_kernel_launch_property_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  try {
-    for (uint32_t i = 0; i < numArgs; i++) {
-      switch (pArgs[i].type) {
-      case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
-        hKernel->setKernelLocalArg(pArgs[i].index, pArgs[i].size);
-        break;
-      }
-      case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
-        hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
-                              pArgs[i].value.value);
-        break;
-      }
-      case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
-        // setKernelArg is expecting a pointer to our argument
-        hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
-                              &pArgs[i].value.pointer);
-        break;
-      }
-      case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
-        ur_kernel_arg_mem_obj_properties_t Props = {
-            UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
-            pArgs[i].value.memObjTuple.flags};
-        UR_CALL(urKernelSetArgMemObj(hKernel, pArgs[i].index, &Props,
-                                     pArgs[i].value.memObjTuple.hMem));
-        break;
-      }
-      case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-        uint32_t SamplerProps = pArgs[i].value.sampler->Props;
-        hKernel->setKernelArg(pArgs[i].index, sizeof(uint32_t),
-                              (void *)&SamplerProps);
-        break;
-      }
-      default:
-        return UR_RESULT_ERROR_INVALID_ENUMERATION;
-      }
-    }
-  } catch (ur_result_t Err) {
-    return Err;
-  }
-  return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                               pGlobalWorkSize, pLocalWorkSize,
-                               numPropsInLaunchPropList, launchPropList,
-                               numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 /// Set parameters for general 3D memory copy.
@@ -1562,6 +1520,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
   ur_device_handle_t Device = hQueue->getDevice();
+#if CUDA_VERSION >= 13000
+  CUmemLocation Location;
+  switch (flags) {
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    Location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+    Location.id = Device->get();
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    Location.type = CU_MEM_LOCATION_TYPE_HOST;
+    break;
+#else
   int dstDevice;
   switch (flags) {
   case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
@@ -1570,6 +1539,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
     dstDevice = CU_DEVICE_CPU;
     break;
+#endif
   default:
     setErrorMessage("Invalid USM migration flag",
                     UR_RESULT_ERROR_INVALID_ENUMERATION);
@@ -1619,8 +1589,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
       return UR_RESULT_SUCCESS;
     }
 
+#if CUDA_VERSION >= 13000
+    unsigned int Flags = 0U;
+    UR_CHECK_ERROR(
+        cuMemPrefetchAsync((CUdeviceptr)pMem, size, Location, Flags, CuStream));
+#else
     UR_CHECK_ERROR(
         cuMemPrefetchAsync((CUdeviceptr)pMem, size, dstDevice, CuStream));
+#endif
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -1688,19 +1664,24 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       return UR_RESULT_SUCCESS;
     }
 
+#if CUDA_VERSION >= 13000
+    CUmemLocation Location;
+    Location.id = hQueue->getDevice()->get();
+    Location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+#else
+    int Location = hQueue->getDevice()->get();
+#endif
+
     if (advice & UR_USM_ADVICE_FLAG_DEFAULT) {
       UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
-                                 CU_MEM_ADVISE_UNSET_READ_MOSTLY,
-                                 hQueue->getDevice()->get()));
+                                 CU_MEM_ADVISE_UNSET_READ_MOSTLY, Location));
       UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
                                  CU_MEM_ADVISE_UNSET_PREFERRED_LOCATION,
-                                 hQueue->getDevice()->get()));
+                                 Location));
       UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,
-                                 CU_MEM_ADVISE_UNSET_ACCESSED_BY,
-                                 hQueue->getDevice()->get()));
+                                 CU_MEM_ADVISE_UNSET_ACCESSED_BY, Location));
     } else {
-      setCuMemAdvise((CUdeviceptr)pMem, size, advice,
-                     hQueue->getDevice()->get());
+      setCuMemAdvise((CUdeviceptr)pMem, size, advice, Location);
     }
   } catch (ur_result_t err) {
     return err;

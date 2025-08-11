@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/Vector/Transforms/VectorDistribution.h"
 #include "mlir/Dialect/XeGPU/IR/XeGPU.h"
+#include "mlir/Dialect/XeGPU/IR/XeGPUTargetInfo.h"
 #include "mlir/Dialect/XeGPU/Transforms/Passes.h"
 #include "mlir/Dialect/XeGPU/Transforms/Transforms.h"
 #include "mlir/Dialect/XeGPU/Utils/XeGPUUtils.h"
@@ -455,6 +456,14 @@ struct LoadNdDistribution final : public gpu::WarpDistributionPattern {
     if (!operand)
       return rewriter.notifyMatchFailure(
           subgroupOp, "warp result is not a xegpu::LoadNd op");
+    // Make sure the load op is the last operation in the warp op body. This
+    // ensure that load op is not sinked earlier violating any barrier
+    // synchronizations.
+    auto yield = cast<gpu::YieldOp>(
+        subgroupOp.getBodyRegion().getBlocks().begin()->getTerminator());
+    Operation *lastNode = yield->getPrevNode();
+    if (!dyn_cast_or_null<xegpu::LoadNdOp>(lastNode))
+      return failure();
 
     auto loadOp = operand->get().getDefiningOp<xegpu::LoadNdOp>();
     xegpu::TensorDescType tensorDescTy = loadOp.getTensorDescType();
@@ -782,6 +791,29 @@ struct PrefetchNdDistribution final : public gpu::WarpDistributionPattern {
   }
 };
 
+/// Sink a gpu::BarrierOp at the end of enclosing `gpu.warp_execute_on_lane_0`
+/// region. This will simply move the barrier op outside of the warp op.
+struct GpuBarrierDistribution final : public gpu::WarpDistributionPattern {
+  using gpu::WarpDistributionPattern::WarpDistributionPattern;
+  LogicalResult matchAndRewrite(gpu::WarpExecuteOnLane0Op subgroupOp,
+                                PatternRewriter &rewriter) const override {
+    auto yield = cast<gpu::YieldOp>(
+        subgroupOp.getBodyRegion().getBlocks().begin()->getTerminator());
+    Operation *lastNode = yield->getPrevNode();
+    // The last node must be a gpu::BarrierOp.
+    auto barrierOp = dyn_cast_or_null<gpu::BarrierOp>(lastNode);
+    if (!barrierOp)
+      return failure();
+    // Move the barrier op outside of the warp op.
+    rewriter.setInsertionPointAfter(subgroupOp);
+    rewriter.create<gpu::BarrierOp>(
+        barrierOp.getLoc(), barrierOp->getResultTypes(),
+        barrierOp->getOperands(), barrierOp->getAttrs());
+    rewriter.eraseOp(barrierOp);
+    return success();
+  }
+};
+
 } // namespace
 
 namespace {
@@ -796,7 +828,8 @@ void xegpu::populateXeGPUSubgroupDistributePatterns(
     RewritePatternSet &patterns) {
   patterns.add<CreateNdDescDistribution, StoreNdDistribution,
                LoadNdDistribution, DpasDistribution, PrefetchNdDistribution,
-               UpdateNdOffsetDistribution>(patterns.getContext());
+               UpdateNdOffsetDistribution, GpuBarrierDistribution>(
+      patterns.getContext());
 }
 
 void XeGPUSubgroupDistributePass::runOnOperation() {
@@ -843,15 +876,32 @@ void XeGPUSubgroupDistributePass::runOnOperation() {
   // Step 3: Apply subgroup to workitem distribution patterns.
   RewritePatternSet patterns(&getContext());
   xegpu::populateXeGPUSubgroupDistributePatterns(patterns);
-  // TODO: distributionFn and shuffleFn are not used at this point.
+  // distributionFn is used by vector distribution patterns to determine the
+  // distributed vector type for a given vector value. In XeGPU subgroup
+  // distribution context, we compute this based on lane layout.
   auto distributionFn = [](Value val) {
     VectorType vecType = dyn_cast<VectorType>(val.getType());
     int64_t vecRank = vecType ? vecType.getRank() : 0;
-    OpBuilder builder(val.getContext());
     if (vecRank == 0)
       return AffineMap::get(val.getContext());
-    return AffineMap::getMultiDimIdentityMap(vecRank, val.getContext());
+    // Get the layout of the vector type.
+    xegpu::LayoutAttr layout = xegpu::getLayoutAttr(val);
+    // If no layout is specified, assume the inner most dimension is distributed
+    // for now.
+    if (!layout)
+      return AffineMap::getMultiDimMapWithTargets(
+          vecRank, {static_cast<unsigned int>(vecRank - 1)}, val.getContext());
+    SmallVector<unsigned int> distributedDims;
+    // Get the distributed dimensions based on the layout.
+    ArrayRef<int> laneLayout = layout.getLaneLayout().asArrayRef();
+    for (unsigned i = 0; i < laneLayout.size(); ++i) {
+      if (laneLayout[i] > 1)
+        distributedDims.push_back(i);
+    }
+    return AffineMap::getMultiDimMapWithTargets(vecRank, distributedDims,
+                                                val.getContext());
   };
+  // TODO: shuffleFn is not used.
   auto shuffleFn = [](Location loc, OpBuilder &builder, Value val, Value srcIdx,
                       int64_t warpSz) { return Value(); };
   vector::populatePropagateWarpVectorDistributionPatterns(

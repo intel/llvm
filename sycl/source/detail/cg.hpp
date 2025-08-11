@@ -265,7 +265,7 @@ public:
   bool MKernelUsesClusterLaunch = false;
   size_t MKernelWorkGroupMemorySize = 0;
 
-  CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
+  CGExecKernel(const NDRDescT &NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
@@ -276,9 +276,8 @@ public:
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
                bool KernelIsCooperative, bool MKernelUsesClusterLaunch,
                size_t KernelWorkGroupMemorySize, detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
-        MSyclKernel(std::move(SyclKernel)),
+      : CG(Type, std::move(CGData), std::move(loc)), MNDRDesc(NDRDesc),
+        MHostKernel(std::move(HKernel)), MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)),
         MKernelNameBasedCachePtr(KernelNameBasedCachePtr),

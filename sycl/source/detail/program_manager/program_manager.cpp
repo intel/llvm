@@ -2378,6 +2378,27 @@ void ProgramManager::addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
   m_DeviceGlobals.addOrInitialize(DeviceGlobalPtr, UniqueId);
 }
 
+void ProgramManager::registerKernelGlobalInfo(
+    std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy) {
+  std::lock_guard<std::mutex> Guard(MNativeProgramsMutex);
+  if (m_FreeFunctionKernelGlobalInfo.empty())
+    m_FreeFunctionKernelGlobalInfo = std::move(GlobalInfoToCopy);
+  else {
+    for (auto &GlobalInfo : GlobalInfoToCopy) {
+      m_FreeFunctionKernelGlobalInfo.insert(GlobalInfo);
+    }
+  }
+}
+
+std::optional<unsigned>
+ProgramManager::getKernelGlobalInfoDesc(const char *UniqueId) {
+  std::lock_guard<std::mutex> Guard(MNativeProgramsMutex);
+  const auto It = m_FreeFunctionKernelGlobalInfo.find(UniqueId);
+  if (It == m_FreeFunctionKernelGlobalInfo.end())
+    return std::nullopt;
+  return It->second;
+}
+
 std::set<const RTDeviceBinaryImage *>
 ProgramManager::getRawDeviceImages(const std::vector<kernel_id> &KernelIDs) {
   std::set<const RTDeviceBinaryImage *> BinImages;
@@ -2816,7 +2837,7 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
       setSpecializationConstants(InputImpl, Prog, Adapter);
 
     KernelNameSetT KernelNames = InputImpl.getKernelNames();
-    std::unordered_map<std::string, KernelArgMask> EliminatedKernelArgMasks =
+    std::map<std::string, KernelArgMask, std::less<>> EliminatedKernelArgMasks =
         InputImpl.getEliminatedKernelArgMasks();
 
     std::optional<detail::KernelCompilerBinaryInfo> RTCInfo =
@@ -3006,7 +3027,8 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
       RTCInfoPtrs;
   RTCInfoPtrs.reserve(Imgs.size());
   KernelNameSetT MergedKernelNames;
-  std::unordered_map<std::string, KernelArgMask> MergedEliminatedKernelArgMasks;
+  std::map<std::string, KernelArgMask, std::less<>>
+      MergedEliminatedKernelArgMasks;
   for (const device_image_plain &DevImg : Imgs) {
     device_image_impl &DevImgImpl = *getSyclObjImpl(DevImg);
     CombinedOrigins |= DevImgImpl.getOriginMask();
@@ -3088,7 +3110,8 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
       RTCInfoPtrs;
   RTCInfoPtrs.reserve(DevImgWithDeps.size());
   KernelNameSetT MergedKernelNames;
-  std::unordered_map<std::string, KernelArgMask> MergedEliminatedKernelArgMasks;
+  std::map<std::string, KernelArgMask, std::less<>>
+      MergedEliminatedKernelArgMasks;
   for (const device_image_plain &DevImg : DevImgWithDeps) {
     device_image_impl &DevImgImpl = *getSyclObjImpl(DevImg);
     RTCInfoPtrs.emplace_back(&(DevImgImpl.getRTCInfo()));
@@ -3370,7 +3393,7 @@ std::optional<sycl::exception> checkDevSupportJointMatrix(
 
     const std::string &MatrixTypeUser = JointMatrixVec[0];
     const std::string &UseStrUser = JointMatrixVec[1];
-    size_t RowsUser, ColsUser = 0;
+    size_t RowsUser = 0, ColsUser = 0;
     try {
       RowsUser = std::stoi(JointMatrixVec[2]);
       ColsUser = std::stoi(JointMatrixVec[3]);
@@ -3453,7 +3476,7 @@ std::optional<sycl::exception> checkDevSupportJointMatrixMad(
     const std::string &MatrixTypeBStrUser = JointMatrixMadVec[1];
     const std::string &MatrixTypeCStrUser = JointMatrixMadVec[2];
     const std::string &MatrixTypeDStrUser = JointMatrixMadVec[3];
-    size_t MSizeUser, KSizeUser, NSizeUser = 0;
+    size_t MSizeUser = 0, KSizeUser = 0, NSizeUser = 0;
     try {
       MSizeUser = std::stoi(JointMatrixMadVec[4]);
       KSizeUser = std::stoi(JointMatrixMadVec[5]);

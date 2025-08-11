@@ -128,9 +128,8 @@ TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
 
 std::vector<size_t> KernelEventListSize;
 
-inline ur_result_t customEnqueueKernelLaunchWithArgsExp(void *pParams) {
-  auto params =
-      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
+inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
+  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
   KernelEventListSize.push_back(*params.pnumEventsInWaitList);
   return UR_RESULT_SUCCESS;
 }
@@ -138,9 +137,8 @@ inline ur_result_t customEnqueueKernelLaunchWithArgsExp(void *pParams) {
 TEST_F(SchedulerTest, TwoInOrderQueuesOnSameContext) {
   KernelEventListSize.clear();
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_before_callback(
-      "urEnqueueKernelLaunchWithArgsExp",
-      &customEnqueueKernelLaunchWithArgsExp);
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &customEnqueueKernelLaunch);
 
   sycl::platform Plt = sycl::platform();
 
@@ -167,9 +165,8 @@ TEST_F(SchedulerTest, TwoInOrderQueuesOnSameContext) {
 TEST_F(SchedulerTest, InOrderQueueNoSchedulerPath) {
   KernelEventListSize.clear();
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_before_callback(
-      "urEnqueueKernelLaunchWithArgsExp",
-      &customEnqueueKernelLaunchWithArgsExp);
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &customEnqueueKernelLaunch);
 
   sycl::platform Plt = sycl::platform();
 

@@ -23,7 +23,7 @@ namespace detail {
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
                          device_impl::private_tag)
-    : MDevice(Device), MPlatform(Platform.shared_from_this()),
+    : MDevice(Device), MPlatform(Platform),
       // No need to set MRootDevice when MAlwaysRootDevice is true
       MRootDevice(Platform.MAlwaysRootDevice
                       ? nullptr
@@ -143,7 +143,7 @@ std::vector<device> device_impl::create_sub_devices(
   std::for_each(SubDevices.begin(), SubDevices.end(),
                 [&res, this](const ur_device_handle_t &a_ur_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
-                      MPlatform->getOrMakeDeviceImpl(a_ur_device));
+                      MPlatform.getOrMakeDeviceImpl(a_ur_device));
                   res.push_back(sycl_device);
                 });
   return res;
