@@ -117,9 +117,13 @@ runs:
       git sparse-checkout set unified-runtime
       git fetch origin ${{ inputs.build_ref }}
       git checkout FETCH_HEAD
-      
-      # UR requires lit
+
+      # UR requires lit; the SYCL toolchain does not package lit. Thus we
+      # install from pip:
       pip install --user --break-system-packages lit
+      # Add pip binaries dir to PATH
+      old_path="$PATH"
+      PATH="$HOME/.local/bin:$PATH"
 
       # Configure UR
       mkdir build install
@@ -134,6 +138,8 @@ runs:
       # Build and install UR
       cmake --build build -j "$(nproc)" 
       cmake --install build
+
+      PATH="$old_path"
   - name: Checkout results repo
     shell: bash
     run: |
