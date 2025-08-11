@@ -434,7 +434,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
 
   // For NVPTX and AMDGCN we only use one single bitcode library and ignore
   // manually specified SYCL device libraries.
-  bool IgnoreSingleLibs = TargetTriple.isNVPTX() || TargetTriple.isAMDGCN();
+  // For NativeCPU, only native_utils devicelib is used.
+  bool UseSingleLib = TargetTriple.isNVPTX() || TargetTriple.isAMDGCN() ||
+                      TargetTriple.isNativeCPU();
+  bool IgnoreSingleLib = false;
 
   struct DeviceLibOptInfo {
     StringRef DeviceLibName;
@@ -474,8 +477,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
 
           // Make sure that internal libraries are still linked against
           // when -fno-sycl-device-lib contains "all" and single libraries
-          // should be ignored.
-          IgnoreSingleLibs = IgnoreSingleLibs && !ExcludeDeviceLibs;
+          // should be ignored. For NativeCPU, the native_cpu utils library
+          // is always linked without '-only-needed' flag.
+          IgnoreSingleLib =
+              UseSingleLib && ExcludeDeviceLibs && !TargetTriple.isNativeCPU();
 
           for (const auto &K : DeviceLibLinkInfo.keys())
             DeviceLibLinkInfo[K] = (K == "internal") || !ExcludeDeviceLibs;
@@ -490,21 +495,24 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
               << A->getSpelling() << Val;
         }
         DeviceLibLinkInfo[Val] = !ExcludeDeviceLibs;
-        PrintUnusedExcludeWarning = IgnoreSingleLibs && ExcludeDeviceLibs;
+        PrintUnusedExcludeWarning = UseSingleLib && ExcludeDeviceLibs;
       }
       if (PrintUnusedExcludeWarning)
         C.getDriver().Diag(diag::warn_drv_unused_argument) << A->getSpelling();
     }
   }
 
-  if (TargetTriple.isNVPTX() && IgnoreSingleLibs)
+  if (TargetTriple.isNVPTX() && !IgnoreSingleLib)
     LibraryList.push_back(
         Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
 
-  if (TargetTriple.isAMDGCN() && IgnoreSingleLibs)
+  if (TargetTriple.isAMDGCN() && !IgnoreSingleLib)
     LibraryList.push_back(Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
 
-  if (IgnoreSingleLibs)
+  if (TargetTriple.isNativeCPU() && !IgnoreSingleLib)
+    LibraryList.push_back(Args.MakeArgString("libsycl-nativecpu_utils.bc"));
+
+  if (UseSingleLib)
     return LibraryList;
 
   using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
