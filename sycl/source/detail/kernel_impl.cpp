@@ -16,11 +16,12 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
+kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
+                         context_impl &Context,
                          kernel_bundle_impl *KernelBundleImpl,
                          const KernelArgMask *ArgMask)
-    : MKernel(Kernel), MContext(Context.shared_from_this()),
-      MProgram(ProgramManager::getInstance().getUrProgramFromUrKernel(Kernel,
+    : MKernel(std::move(Kernel)), MContext(Context.shared_from_this()),
+      MProgram(ProgramManager::getInstance().getUrProgramFromUrKernel(MKernel,
                                                                       Context)),
       MCreatedFromSource(true),
       MKernelBundleImpl(KernelBundleImpl ? KernelBundleImpl->shared_from_this()
@@ -28,7 +29,7 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
       MIsInterop(true), MKernelArgMaskPtr{ArgMask} {
   ur_context_handle_t UrContext = nullptr;
   // Using the adapter from the passed ContextImpl
-  getAdapter()->call<UrApiKind::urKernelGetInfo>(
+  getAdapter().call<UrApiKind::urKernelGetInfo>(
       MKernel, UR_KERNEL_INFO_CONTEXT, sizeof(UrContext), &UrContext, nullptr);
   if (Context.getHandleRef() != UrContext)
     throw sycl::exception(
@@ -39,12 +40,13 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
   enableUSMIndirectAccess();
 }
 
-kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
-                         DeviceImageImplPtr DeviceImageImpl,
+kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
+                         context_impl &ContextImpl,
+                         std::shared_ptr<device_image_impl> &&DeviceImageImpl,
                          const kernel_bundle_impl &KernelBundleImpl,
                          const KernelArgMask *ArgMask,
                          ur_program_handle_t Program, std::mutex *CacheMutex)
-    : MKernel(Kernel), MContext(ContextImpl.shared_from_this()),
+    : MKernel(std::move(Kernel)), MContext(ContextImpl.shared_from_this()),
       MProgram(Program),
       MCreatedFromSource(DeviceImageImpl->isNonSYCLSourceBased()),
       MDeviceImageImpl(std::move(DeviceImageImpl)),
@@ -58,14 +60,21 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
     enableUSMIndirectAccess();
 }
 
-kernel_impl::~kernel_impl() {
-  try {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getAdapter()->call<UrApiKind::urKernelRelease>(MKernel);
-  } catch (std::exception &e) {
-    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
-  }
+#ifdef _MSC_VER
+#pragma warning(push)
+// https://developercommunity.visualstudio.com/t/False-C4297-warning-while-using-function/1130300
+// https://godbolt.org/z/xsMvKf84f
+#pragma warning(disable : 4297)
+#endif
+kernel_impl::~kernel_impl() try {
+} catch (std::exception &e) {
+  // TODO put it to list of asynchronous exceptions
+  __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
+  return; // Don't re-throw.
 }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 bool kernel_impl::isCreatedFromSource() const {
   // TODO it is not clear how to understand whether the SYCL kernel is created
@@ -103,7 +112,7 @@ std::string_view kernel_impl::getName() const {
   return MName;
 }
 
-bool kernel_impl::isBuiltInKernel(const device &Device) const {
+bool kernel_impl::isBuiltInKernel(device_impl &Device) const {
   auto BuiltInKernels = Device.get_info<info::device::built_in_kernel_ids>();
   if (BuiltInKernels.empty())
     return false;
@@ -116,9 +125,10 @@ bool kernel_impl::isBuiltInKernel(const device &Device) const {
 void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
   if (isInteropOrSourceBased())
     return;
-  auto Devices = MKernelBundleImpl->get_devices();
-  if (std::any_of(Devices.begin(), Devices.end(),
-                  [this](device &Device) { return isBuiltInKernel(Device); }))
+  devices_range Devices = MKernelBundleImpl->get_devices();
+  if (std::any_of(Devices.begin(), Devices.end(), [this](device_impl &Device) {
+        return isBuiltInKernel(Device);
+      }))
     return;
 
   throw sycl::exception(
@@ -128,6 +138,10 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
       "interoperability function or to query a device built-in kernel");
 }
 
+std::optional<unsigned> kernel_impl ::getFreeFuncKernelArgSize() const {
+  return MKernelBundleImpl->tryGetKernelArgsSize(getName());
+}
+
 void kernel_impl::enableUSMIndirectAccess() const {
   if (!MContext->getPlatformImpl().supports_usm())
     return;
@@ -135,7 +149,7 @@ void kernel_impl::enableUSMIndirectAccess() const {
   // Some UR Adapters (like OpenCL) require this call to enable USM
   // For others, UR will turn this into a NOP.
   bool EnableAccess = true;
-  getAdapter()->call<UrApiKind::urKernelSetExecInfo>(
+  getAdapter().call<UrApiKind::urKernelSetExecInfo>(
       MKernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),
       nullptr, &EnableAccess);
 }
@@ -149,8 +163,8 @@ kernel_impl::get_backend_info<info::platform::version>() const {
                           "the info::platform::version info descriptor can "
                           "only be queried with an OpenCL backend");
   }
-  auto Devices = MKernelBundleImpl->get_devices();
-  return Devices[0].get_platform().get_info<info::platform::version>();
+  devices_range Devices = MKernelBundleImpl->get_devices();
+  return Devices.front().get_platform().get_info<info::platform::version>();
 }
 #endif
 
@@ -166,7 +180,7 @@ kernel_impl::get_backend_info<info::device::version>() const {
                           "the info::device::version info descriptor can only "
                           "be queried with an OpenCL backend");
   }
-  auto Devices = MKernelBundleImpl->get_devices();
+  auto Devices = MKernelBundleImpl->get_devices().to<std::vector<device>>();
   if (Devices.empty()) {
     return "No available device";
   }

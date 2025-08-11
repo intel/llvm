@@ -21,26 +21,11 @@ test___spirv_SConvert_Rshort_sat(__clc_int8_t args_0) {
 }
 
 __attribute__((overloadable)) __clc_int16_t
-test___spirv_SConvert_Rshort_sat(__clc_uint8_t args_0) {
-  return __spirv_SConvert_Rshort_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_int16_t
 test___spirv_SConvert_Rshort_sat(__clc_int32_t args_0) {
   return __spirv_SConvert_Rshort_sat(args_0);
 }
 
 __attribute__((overloadable)) __clc_int16_t
-test___spirv_SConvert_Rshort_sat(__clc_uint32_t args_0) {
-  return __spirv_SConvert_Rshort_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_int16_t
 test___spirv_SConvert_Rshort_sat(__clc_int64_t args_0) {
-  return __spirv_SConvert_Rshort_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_int16_t
-test___spirv_SConvert_Rshort_sat(__clc_uint64_t args_0) {
   return __spirv_SConvert_Rshort_sat(args_0);
 }

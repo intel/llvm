@@ -85,11 +85,11 @@ void event_impl::waitInternal(bool *Success) {
 
   // Wait for connected events(e.g. streams prints)
   for (const EventImplPtr &Event : MPostCompleteEvents)
-    Event->wait(Event);
+    Event->wait();
   for (const std::weak_ptr<event_impl> &WeakEventPtr :
        MWeakPostCompleteEvents) {
     if (EventImplPtr Event = WeakEventPtr.lock())
-      Event->wait(Event);
+      Event->wait();
   }
 }
 
@@ -150,7 +150,7 @@ context_impl &event_impl::getContextImpl() {
 
 adapter_impl &event_impl::getAdapter() {
   initContextIfNeeded();
-  return *MContext->getAdapter();
+  return MContext->getAdapter();
 }
 
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
@@ -220,10 +220,11 @@ void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
   MSubmittedQueue = std::move(SubmittedQueue);
 }
 
-void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+void *event_impl::instrumentationProlog(std::string &Name,
+                                        xpti::stream_id_t StreamID,
                                         uint64_t &IId) const {
   void *TraceEvent = nullptr;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_begin;
   if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
     return TraceEvent;
@@ -258,14 +259,13 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
   xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, WaitEvent,
                         IId, static_cast<const void *>(Name.c_str()));
   TraceEvent = (void *)WaitEvent;
-#endif
   return TraceEvent;
 }
 
 void event_impl::instrumentationEpilog(void *TelemetryEvent,
                                        const std::string &Name,
-                                       int32_t StreamID, uint64_t IId) const {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
+                                       xpti::stream_id_t StreamID,
+                                       uint64_t IId) const {
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_end;
   if (!(xptiCheckTraceEnabled(StreamID, NotificationTraceType) &&
         TelemetryEvent))
@@ -275,11 +275,10 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
       (xpti::trace_event_data_t *)TelemetryEvent;
   xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, TraceEvent,
                         IId, static_cast<const void *>(Name.c_str()));
-#endif
 }
+#endif // XPTI_ENABLE_INSTRUMENTATION
 
-void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
-                      bool *Success) {
+void event_impl::wait(bool *Success) {
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
@@ -294,7 +293,7 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
   void *TelemetryEvent = nullptr;
   uint64_t IId = 0;
   std::string Name;
-  int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+  xpti::stream_id_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
   TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
 #endif
 
@@ -304,16 +303,15 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
     // need to go via the slow path event waiting in the scheduler
     waitInternal(Success);
   else if (MCommand)
-    detail::Scheduler::getInstance().waitForEvent(Self, Success);
+    detail::Scheduler::getInstance().waitForEvent(*this, Success);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
 #endif
 }
 
-void event_impl::wait_and_throw(
-    std::shared_ptr<sycl::detail::event_impl> Self) {
-  wait(Self);
+void event_impl::wait_and_throw() {
+  wait();
 
   if (std::shared_ptr<queue_impl> SubmittedQueue = MSubmittedQueue.lock())
     SubmittedQueue->throw_asynchronous();
@@ -526,7 +524,7 @@ ur_native_handle_t event_impl::getNative() {
     ur_event_native_properties_t NativeProperties{};
     ur_event_handle_t UREvent = nullptr;
     Adapter.call<UrApiKind::urEventCreateWithNativeHandle>(
-        0, TempContext, &NativeProperties, &UREvent);
+        0u, TempContext, &NativeProperties, &UREvent);
     this->setHandle(UREvent);
     Handle = UREvent;
   }
@@ -616,7 +614,7 @@ bool event_impl::isCompleted() {
          info::event_command_status::complete;
 }
 
-void event_impl::setCommand(void *Cmd) { MCommand = Cmd; }
+void event_impl::setCommand(Command *Cmd) { MCommand = Cmd; }
 
 } // namespace detail
 } // namespace _V1

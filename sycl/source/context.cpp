@@ -79,7 +79,7 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
   ur_native_handle_t nativeHandle =
       reinterpret_cast<ur_native_handle_t>(ClContext);
   Adapter.call<detail::UrApiKind::urContextCreateWithNativeHandle>(
-      nativeHandle, Adapter.getUrAdapter(), 0, nullptr, nullptr, &hContext);
+      nativeHandle, Adapter.getUrAdapter(), 0u, nullptr, nullptr, &hContext);
 
   impl = detail::context_impl::create(hContext, AsyncHandler, Adapter);
 }

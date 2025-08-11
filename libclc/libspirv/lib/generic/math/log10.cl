@@ -6,29 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_log10.h>
 #include <libspirv/spirv.h>
 
-#include <clc/math/tables.h>
-#include <clc/clcmacro.h>
+#define FUNCTION __spirv_ocl_log10
+#define __IMPL_FUNCTION(x) __clc_log10
+#define __CLC_BODY <clc/shared/unary_def.inc>
 
-#ifdef cl_khr_fp64
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-#endif // cl_khr_fp64
-
-#define COMPILING_LOG10
-#include "log_base.h"
-#undef COMPILING_LOG10
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_log10, float);
-
-#ifdef cl_khr_fp64
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_log10, double);
-#endif // cl_khr_fp64
-
-#ifdef cl_khr_fp16
-
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_log10, __builtin_log10f16, half)
-
-#endif
+#include <clc/math/gentype.inc>

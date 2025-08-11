@@ -779,8 +779,7 @@ ur_result_t bindlessImagesHandleCopyFlags(
 
   switch (imageCopyFlags) {
   case UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE: {
-    uint32_t SrcRowPitch =
-        pSrcImageDesc->width * getPixelSizeBytes(pSrcImageFormat);
+    uint32_t SrcRowPitch = pSrcImageDesc->rowPitch;
     uint32_t SrcSlicePitch = SrcRowPitch * pSrcImageDesc->height;
     if (pDstImageDesc->rowPitch == 0) {
       // Copy to Non-USM memory
@@ -824,8 +823,7 @@ ur_result_t bindlessImagesHandleCopyFlags(
     return UR_RESULT_SUCCESS;
   };
   case UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST: {
-    uint32_t DstRowPitch =
-        pDstImageDesc->width * getPixelSizeBytes(pDstImageFormat);
+    uint32_t DstRowPitch = pDstImageDesc->rowPitch;
     uint32_t DstSlicePitch = DstRowPitch * pDstImageDesc->height;
     if (pSrcImageDesc->rowPitch == 0) {
       // Copy from Non-USM memory to host
@@ -1267,6 +1265,9 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
         break;
       case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE:
         importWin32->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_D3D12_RESOURCE;
+        break;
+      case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE:
+        importWin32->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_D3D11_TEXTURE;
         break;
       default:
         delete importWin32;

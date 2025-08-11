@@ -1335,51 +1335,63 @@ For the forms that take a USM pointer, the image memory must also have been
 allocated within the same context and device of the `queue`. The USM memory 
 must be accessible on the queue's device.
 
-The `ext_oneapi_copy` function variants that don't take offsets and extents may 
-fail in the following scenarios:
+The `ext_oneapi_copy` function variants that do not take offsets and extents
+must ensure that the following conditions are met:
 
-1. The `Src` and `Dest` memory was not allocated on the same device and 
-context of the queue.
+1. The `Src` and `Dest` memory was allocated on the same device and context.
 
-2. The `Src` and `Dest` memory regions, where `Src` or `Dest` can be either 
-on the host or device, do not have the same memory capacity, where the capacity 
-is calculate from the `width`, `height`, `depth`, `channel_order`, and 
+2. The `Src` and `Dest` memory regions, where `Src` or `Dest` can be either
+on the host or device, have the same memory capacity, where the capacity
+is calculated from the `width`, `height`, `depth`, `channel_order`, and
 `channel_type` members of the `image_descriptor` parameter.
 
-The `ext_oneapi_copy` function variants that do take offsets and extents may 
-fail in the following scenarios:
+The `ext_oneapi_copy` function variants that do take offsets and extents must
+ensure that the following conditions are met. If a condition names a specific
+parameter, it is only applicable to the function variants that take that
+parameter.
 
-1. The `Src` and `Dest` memory was not allocated on the same device and 
-context of the queue.
+1. The `Src` and `Dest` memory was allocated on the same device and context.
 
-2. The image descriptor passed does not match the image descriptor used to 
-allocate the image on the device.
+2. The image descriptors passed match the image descriptors used to allocate
+the image's memory on the device.
 
-3. the `CopyExtent` describes a memory region larger than that which was 
-allocated on either the host or the device.
+3. The `CopyExtent` describes a memory region that is not larger than that which
+was allocated on either the host or the device.
 
-4. The `HostExtent` describes a memory region larger than that which was 
-allocated on the host.
+4. The `HostExtent` describes a memory region that is not larger than that which
+was allocated on the host.
 
-5. The `SrcExtent` describes a memory region larger than that which was 
-allocated, where `Src` can be either the host or device.
+5. The `SrcExtent` describes a memory region that is not larger than that which
+was allocated, where `Src` can be either on the host or on the device.
 
-6. The `DestExtent` describes a memory region larger than that which was 
-allocated, where `Dest` can be either the host or device.
+6. The `DestExtent` describes a memory region that is not larger than that which
+was allocated, where `Dest` can be either on the host or on the device.
 
-7. If `SrcOffset + CopyExtent` moves the memory sub-region outside the bounds 
-of the memory described by `Src`, irrespective of whether `Src` is on the host 
-or the device.
+7. The `DeviceRowPitch` adheres to the alignment requirements outlined in the
+"Pitch alignment restrictions and queries" section.
 
-8. If `DestOffset + CopyExtent` moves the memory sub-region outside the bounds 
-of the memory described by `Dest`, irrespective of whether `Dest` is on the 
-host or the device.
-
-9. The `DeviceRowPitch` does not adhere to the alignment requirements 
-outlined in section "Pitch alignment restrictions and queries"
-
-10. The value of `DeviceRowPitch` is smaller than the width of the image on 
+8. The `DeviceRowPitch` is greater than or equal to the width of the image on
 the device.
+
+9. For the relevant dimensions, `SrcOffset + CopyExtent` does not move the
+memory sub-region outside the bounds of the memory described by `Src`, 
+irrespective of whether `Src` is on the host or the device. The relevant
+dimensions are `x` for 1D images; `x` and `y` for 2D images; and `x`, `y`, and
+`z` for 3D images. `x`, `y`, and `z` correspond to indices `0`, `1`, and `2` of
+the `SrcOffset` and `CopyExtent` parameters, respectively.
+
+10. For the relevant dimensions, `DestOffset + CopyExtent` does not move the
+memory sub-region outside the bounds of the memory described by `Dest`,
+irrespective of whether `Dest` is on the host or the device. The relevant
+dimensions are `x` for 1D images, `x` and `y` for 2D images, and `x`, `y`, and
+`z` for 3D images. `x`, `y`, and `z` correspond to indices `0`, `1`, and `2` of
+the `SrcOffset` and `CopyExtent` parameters, respectively.
+
+11. The `CopyExtent`'s' `x`, `y`, and `z` dimensions must not be `0`. They must
+be greater than or equal to `1`. Even if the image is 1D or 2D, the remaining
+non-relevant dimension's values must be set to `1` in the `CopyExtent`
+parameter.
+
 
 If copying of an image fails, `ext_oneapi_copy` will throw a `sycl::exception` 
 with error code `sycl::errc::invalid`, and relay an error message back to the 
@@ -1531,8 +1543,6 @@ construct `ImageHandle` using an `image_descriptor` with member
 `image_type::gather`. Calling `gather_image` on an `ImageHandle` constructed
 with `image_descriptor::num_channels < 4` will result in undefined behavior.
 
-====
-
 === Recognized standard types [[recognized_standard_types]]
 
 For the purposes of this extension, the following are classified as recognized 
@@ -1544,8 +1554,6 @@ standard types.
   `2`, or `3`
 
 Any other types are classified as user-defined types.
-
-===
 
 ==== User-defined types
 
@@ -2075,6 +2083,7 @@ enum class external_mem_handle_type {
   win32_nt_handle = 1,
   win32_nt_dx12_resource = 2,
   dma_buf = 3,
+  win32_nt_dx11_resource = 4,
 };
 
 // Descriptor templated on specific resource type
@@ -2739,3 +2748,6 @@ This query should be added in a later revision of the proposal.
                   - Clarify how and when external memory should be unmapped.
 |6.11|2025-06-16| - Add `external_mem_handle_type::dma_buf`
                   - Add `supports_importing_handle_type`
+|6.12|2025-07-03| - Add `win32_nt_dx11_resource` enum entry to
+                    `external_mem_handle_type` for Direct3D 11 memory interop.
+|======================

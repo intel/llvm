@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/helpers.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/aspects.hpp>
@@ -113,8 +114,8 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
 
   bool has_info_desc(ur_device_info_t Desc) const {
     size_t return_size = 0;
-    return getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-               MDevice, Desc, 0, nullptr, &return_size) == UR_RESULT_SUCCESS;
+    return getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+               MDevice, Desc, 0u, nullptr, &return_size) == UR_RESULT_SUCCESS;
   }
 
   // This should really be
@@ -152,25 +153,23 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
       static_assert(
           !check_type_in_v<typename ur_ret_t::value_type, bool, std::string>);
       size_t ResultSize = 0;
-      ur_result_t Error =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-              getHandleRef(), Desc, 0, nullptr, &ResultSize);
+      ur_result_t Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getHandleRef(), Desc, 0u, nullptr, &ResultSize);
       if (Error != UR_RESULT_SUCCESS)
         return {Error};
       if (ResultSize == 0)
         return {ur_ret_t{}};
 
       ur_ret_t Result(ResultSize / sizeof(typename ur_ret_t::value_type));
-      Error = getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+      Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
       if (Error != UR_RESULT_SUCCESS)
         return {Error};
       return {Result};
     } else {
       ur_ret_t Result;
-      ur_result_t Error =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-              getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
+      ur_result_t Error = getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
       if (Error == UR_RESULT_SUCCESS)
         return {Result};
       else
@@ -188,18 +187,18 @@ class device_impl : public std::enable_shared_from_this<device_impl> {
         return urGetInfoString<UrApiKind::urDeviceGetInfo>(*this, Desc);
       } else if constexpr (is_std_vector_v<ur_ret_t>) {
         size_t ResultSize = 0;
-        getAdapter()->call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0,
-                                                       nullptr, &ResultSize);
+        getAdapter().call<UrApiKind::urDeviceGetInfo>(getHandleRef(), Desc, 0u,
+                                                      nullptr, &ResultSize);
         if (ResultSize == 0)
           return ur_ret_t{};
 
         ur_ret_t Result(ResultSize / sizeof(typename ur_ret_t::value_type));
-        getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        getAdapter().call<UrApiKind::urDeviceGetInfo>(
             getHandleRef(), Desc, ResultSize, Result.data(), nullptr);
         return Result;
       } else {
         ur_ret_t Result;
-        getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        getAdapter().call<UrApiKind::urDeviceGetInfo>(
             getHandleRef(), Desc, sizeof(Result), &Result, nullptr);
         return Result;
       }
@@ -468,7 +467,7 @@ public:
   platform get_platform() const;
 
   /// \return the associated adapter with this device.
-  const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
+  adapter_impl &getAdapter() const { return MPlatform.getAdapter(); }
 
   /// Check SYCL extension support by device
   ///
@@ -724,7 +723,7 @@ public:
     CASE(info::device::platform) {
       return createSyclObjFromImpl<platform>(
           platform_impl::getOrMakePlatformImpl(
-              get_info_impl<UR_DEVICE_INFO_PLATFORM>(), *getAdapter()));
+              get_info_impl<UR_DEVICE_INFO_PLATFORM>(), getAdapter()));
     }
 
     CASE(info::device::profile) {
@@ -833,7 +832,7 @@ public:
       // We claim, that all Intel FPGA devices support kernel to kernel pipe
       // feature (at least at the scope of SYCL_INTEL_data_flow_pipes
       // extension).
-      std::string platform_name = MPlatform->get_info<info::platform::name>();
+      std::string platform_name = MPlatform.get_info<info::platform::name>();
       if (platform_name == "Intel(R) FPGA Emulation Platform for OpenCL(TM)" ||
           platform_name == "Intel(R) FPGA SDK for OpenCL(TM)")
         return true;
@@ -940,7 +939,7 @@ public:
 
       // TODO: std::array<size_t, 3> ?
       size_t result[3];
-      getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+      getAdapter().call<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(result),
           &result, nullptr);
       return id<3>(std::min(Limit, result[2]), std::min(Limit, result[1]),
@@ -1011,14 +1010,14 @@ public:
         ur_result_t Err = Devs.error();
         if (Err == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION)
           return std::vector<sycl::device>{};
-        getAdapter()->checkUrResult(Err);
+        getAdapter().checkUrResult(Err);
       }
 
       std::vector<sycl::device> Result;
       Result.reserve(Devs.value().size());
       for (const auto &d : Devs.value())
         Result.push_back(
-            createSyclObjFromImpl<device>(MPlatform->getOrMakeDeviceImpl(d)));
+            createSyclObjFromImpl<device>(MPlatform.getOrMakeDeviceImpl(d)));
 
       return Result;
     }
@@ -1032,7 +1031,7 @@ public:
       if (ur_device_handle_t Result =
               get_info_impl<UR_DEVICE_INFO_COMPOSITE_DEVICE>())
         return createSyclObjFromImpl<device>(
-            MPlatform->getOrMakeDeviceImpl(Result));
+            MPlatform.getOrMakeDeviceImpl(Result));
 
       throw sycl::exception(make_error_code(errc::invalid),
                             "A component with aspect::ext_oneapi_is_component "
@@ -1195,6 +1194,20 @@ public:
             "The device does not have the ext_intel_power_limits aspect");
       return get_info_impl<UR_DEVICE_INFO_MIN_POWER_LIMIT>();
     }
+    CASE(ext::intel::info::device::luid) {
+      if (!has(aspect::ext_intel_device_info_luid))
+        throw exception(
+            make_error_code(errc::feature_not_supported),
+            "The device does not have the ext_intel_device_info_luid aspect");
+      return get_info_impl<UR_DEVICE_INFO_LUID>();
+    }
+    CASE(ext::intel::info::device::node_mask) {
+      if (!has(aspect::ext_intel_device_info_node_mask))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_device_info_node_mask aspect");
+      return get_info_impl<UR_DEVICE_INFO_NODE_MASK>();
+    }
     else {
       constexpr auto Desc = UrInfoCode<Param>::value;
       return static_cast<typename Param::return_type>(get_info_impl<Desc>());
@@ -1304,6 +1317,12 @@ public:
     }
     CASE(ext_intel_device_info_uuid) {
       return has_info_desc(UR_DEVICE_INFO_UUID);
+    }
+    CASE(ext_intel_device_info_luid) {
+      return has_info_desc(UR_DEVICE_INFO_LUID);
+    }
+    CASE(ext_intel_device_info_node_mask) {
+      return has_info_desc(UR_DEVICE_INFO_NODE_MASK);
     }
     CASE(ext_intel_max_mem_bandwidth) {
       // currently not supported
@@ -1433,22 +1452,17 @@ public:
     CASE(ext_intel_esimd) {
       return get_info_impl_nocheck<UR_DEVICE_INFO_ESIMD_SUPPORT>().value_or(0);
     }
-    CASE(ext_oneapi_ballot_group) {
+    CASE(ext_oneapi_fragment) {
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||
              (this->getBackend() == backend::opencl) ||
              (this->getBackend() == backend::ext_oneapi_cuda);
     }
-    CASE(ext_oneapi_fixed_size_group) {
+    CASE(ext_oneapi_chunk) {
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||
              (this->getBackend() == backend::opencl) ||
              (this->getBackend() == backend::ext_oneapi_cuda);
     }
-    CASE(ext_oneapi_opportunistic_group) {
-      return (this->getBackend() == backend::ext_oneapi_level_zero) ||
-             (this->getBackend() == backend::opencl) ||
-             (this->getBackend() == backend::ext_oneapi_cuda);
-    }
-    CASE(ext_oneapi_tangle_group) {
+    CASE(ext_oneapi_tangle) {
       // TODO: tangle_group is not currently supported for CUDA devices. Add
       // when implemented.
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||
@@ -1488,7 +1502,7 @@ public:
     CASE(ext_oneapi_graph) {
       ur_device_command_buffer_update_capability_flags_t UpdateCapabilities;
       bool CallSuccessful =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
               MDevice, UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP,
               sizeof(UpdateCapabilities), &UpdateCapabilities,
               nullptr) == UR_RESULT_SUCCESS;
@@ -1510,7 +1524,7 @@ public:
     CASE(ext_oneapi_limited_graph) {
       bool SupportsCommandBuffers = false;
       bool CallSuccessful =
-          getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+          getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
               MDevice, UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP,
               sizeof(SupportsCommandBuffers), &SupportsCommandBuffers,
               nullptr) == UR_RESULT_SUCCESS;
@@ -1555,6 +1569,11 @@ public:
     CASE(ext_oneapi_async_memory_alloc) {
       return get_info_impl_nocheck<
                  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_exportable_device_mem) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP>()
           .value_or(0);
     }
     else {
@@ -1678,10 +1697,10 @@ public:
   uint64_t getCurrentDeviceTime();
 
   /// Get the backend of this device
-  backend getBackend() const { return MPlatform->getBackend(); }
+  backend getBackend() const { return MPlatform.getBackend(); }
 
   /// @brief  Get the platform impl serving this device
-  platform_impl &getPlatformImpl() const { return *MPlatform; }
+  platform_impl &getPlatformImpl() const { return MPlatform; }
 
   template <ur_device_info_t Desc>
   std::vector<info::fp_config> get_fp_config() const {
@@ -1875,7 +1894,7 @@ public:
           // Not all devices support this device info query
           return std::nullopt;
         }
-        getAdapter()->checkUrResult(Err);
+        getAdapter().checkUrResult(Err);
       }
 
       auto Val = static_cast<int>(DeviceIp.value());
@@ -2230,7 +2249,7 @@ public:
 private:
   ur_device_handle_t MDevice = 0;
   // This is used for getAdapter so should be above other properties.
-  std::shared_ptr<platform_impl> MPlatform;
+  platform_impl &MPlatform;
 
   std::shared_mutex MDeviceHostBaseTimeMutex;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
@@ -2282,6 +2301,34 @@ private:
       MCache;
 
 }; // class device_impl
+
+using devices_iterator = variadic_iterator<
+    device, std::vector<std::shared_ptr<device_impl>>::const_iterator,
+    std::vector<device>::const_iterator,
+    std::vector<device_impl *>::const_iterator, device_impl *>;
+
+class devices_range : public iterator_range<devices_iterator> {
+private:
+  using Base = iterator_range<devices_iterator>;
+
+public:
+  using Base::Base;
+  template <typename Container>
+  decltype(std::declval<Base>().to<Container>()) to() const {
+    return this->Base::to<Container>();
+  }
+
+  template <typename Container>
+  std::enable_if_t<std::is_same_v<Container, std::vector<ur_device_handle_t>>,
+                   Container>
+  to() const {
+    std::vector<ur_device_handle_t> DeviceHandles;
+    DeviceHandles.reserve(size());
+    std::transform(begin(), end(), std::back_inserter(DeviceHandles),
+                   [](device_impl &Dev) { return Dev.getHandleRef(); });
+    return DeviceHandles;
+  }
+};
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename Param>

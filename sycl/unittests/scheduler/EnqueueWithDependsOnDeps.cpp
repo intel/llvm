@@ -74,7 +74,7 @@ protected:
               QueueDevImpl->get_context());
       auto ExecBundle = sycl::build(KernelBundle);
       MockCGH.use_kernel_bundle(ExecBundle);
-      MockCGH.single_task<TestKernel<>>([] {});
+      MockCGH.single_task<TestKernel>([] {});
     }
 
     std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
@@ -135,7 +135,7 @@ protected:
     TestLock.unlock();
 
     auto BlockingEvent = BlockingCommand->getEvent();
-    BlockingEvent->wait(BlockingEvent);
+    BlockingEvent->wait();
     {
       auto Lock = MS.acquireOriginSchedGraphWriteLock();
       Lock.lock();
@@ -145,7 +145,7 @@ protected:
     }
     for (detail::Command *BlockedCmd : BlockedCommands) {
       auto BlockedEvent = BlockedCmd->getEvent();
-      BlockedEvent->wait(BlockedEvent);
+      BlockedEvent->wait();
     }
   }
 
@@ -224,7 +224,7 @@ TEST_F(DependsOnTests, EnqueueNoMemObjHostDepKernel) {
 
   EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
   EXPECT_TRUE(Cmd2->isSuccessfullyEnqueued());
-  Cmd2Event->wait(Cmd2Event);
+  Cmd2Event->wait();
 }
 
 TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
@@ -337,7 +337,7 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
 
   auto SingleTaskEvent = Queue.submit([&](sycl::handler &cgh) {
     cgh.depends_on(HostTaskEvent);
-    cgh.single_task<TestKernel<>>([] {});
+    cgh.single_task<TestKernel>([] {});
   });
   detail::event_impl &SingleTaskEventImpl = *getSyclObjImpl(SingleTaskEvent);
   EXPECT_EQ(SingleTaskEventImpl.getHandle(), nullptr);
@@ -381,7 +381,7 @@ TEST_F(DependsOnTests, BarrierWithWaitList) {
 
   auto SingleTaskEvent = Queue.submit([&](sycl::handler &cgh) {
     cgh.depends_on(HostTaskEvent);
-    cgh.single_task<TestKernel<>>([] {});
+    cgh.single_task<TestKernel>([] {});
   });
   detail::event_impl &SingleTaskEventImpl = *getSyclObjImpl(SingleTaskEvent);
   EXPECT_EQ(SingleTaskEventImpl.getHandle(), nullptr);

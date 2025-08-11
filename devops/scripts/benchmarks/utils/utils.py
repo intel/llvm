@@ -7,13 +7,16 @@ import gzip
 import os
 import shutil
 import subprocess
+import re
 
 import tarfile
-from options import options
-from pathlib import Path
 import hashlib
+from pathlib import Path
 from urllib.request import urlopen  # nosec B404
 from shutil import copyfileobj
+
+from options import options
+from utils.logger import log
 
 
 def run(
@@ -39,7 +42,7 @@ def run(
                     ldlib + os.pathsep + env.get("LD_LIBRARY_PATH", "")
                 )
             else:
-                print(f"Warning: LD_LIBRARY_PATH component does not exist: {ldlib}")
+                log.warning(f"LD_LIBRARY_PATH component does not exist: {ldlib}")
 
         # order is important, we want provided sycl rt libraries to be first
         if add_sycl:
@@ -52,11 +55,10 @@ def run(
 
         env.update(env_vars)
 
-        if options.verbose:
-            command_str = " ".join(command)
-            env_str = " ".join(f"{key}={value}" for key, value in env_vars.items())
-            full_command_str = f"{env_str} {command_str}".strip()
-            print(f"Running: {full_command_str}")
+        command_str = " ".join(command)
+        env_str = " ".join(f"{key}={value}" for key, value in env_vars.items())
+        full_command_str = f"{env_str} {command_str}".strip()
+        log.debug(f"Running: {full_command_str}")
 
         result = subprocess.run(
             command,
@@ -68,19 +70,21 @@ def run(
             timeout=timeout,
         )  # nosec B603
 
-        if options.verbose:
-            print(result.stdout.decode())
-            print(result.stderr.decode())
+        if result.stdout:
+            log.debug(result.stdout.decode())
+        if result.stderr:
+            log.debug(result.stderr.decode())
 
         return result
     except subprocess.CalledProcessError as e:
-        print(e.stdout.decode())
-        print(e.stderr.decode())
+        log.error(e.stdout.decode())
+        log.error(e.stderr.decode())
         raise
 
 
 def git_clone(dir, name, repo, commit):
     repo_path = os.path.join(dir, name)
+    log.debug(f"Cloning {repo} into {repo_path} at commit {commit}")
 
     if os.path.isdir(repo_path) and os.path.isdir(os.path.join(repo_path, ".git")):
         run("git fetch", cwd=repo_path)
@@ -93,6 +97,7 @@ def git_clone(dir, name, repo, commit):
         raise Exception(
             f"The directory {repo_path} exists but is not a git repository."
         )
+    log.debug(f"Cloned {repo} into {repo_path} at commit {commit}")
     return repo_path
 
 
@@ -116,11 +121,12 @@ def prepare_workdir(dir, version):
                 prepare_bench_cwd(dir)
                 return
             else:
-                print(f"Version mismatch, cleaning up benchmark directory {dir}")
+                log.warning(f"Version mismatch, cleaning up benchmark directory {dir}")
                 shutil.rmtree(dir)
         else:
             raise Exception(
-                f"The directory {dir} exists but is not a benchmark work directory."
+                f"The directory {dir} exists but is not a benchmark work directory. "
+                f"A BENCH_WORKDIR_VERSION file is expected with version {version} but not found at {version_file_path}."
             )
 
     os.makedirs(dir)
@@ -152,13 +158,13 @@ def calculate_checksum(file_path):
 def download(dir, url, file, untar=False, unzip=False, checksum=""):
     data_file = os.path.join(dir, file)
     if not Path(data_file).exists():
-        print(f"{data_file} does not exist, downloading")
+        log.info(f"{data_file} does not exist, downloading")
         with urlopen(url) as in_stream, open(data_file, "wb") as out_file:
             copyfileobj(in_stream, out_file)
 
         calculated_checksum = calculate_checksum(data_file)
         if calculated_checksum != checksum:
-            print(
+            log.critical(
                 f"Checksum mismatch: expected {checksum}, got {calculated_checksum}. Refusing to continue."
             )
             exit(1)
@@ -172,5 +178,25 @@ def download(dir, url, file, untar=False, unzip=False, checksum=""):
             with gzip.open(data_file, "rb") as f_in, open(stripped_gz, "wb") as f_out:
                 shutil.copyfileobj(f_in, f_out)
     else:
-        print(f"{data_file} exists, skipping...")
+        log.debug(f"{data_file} exists, skipping...")
     return data_file
+
+
+def get_device_architecture(additional_env_vars):
+    sycl_ls_output = run(
+        ["sycl-ls", "--verbose"], add_sycl=True, env_vars=additional_env_vars
+    ).stdout.decode()
+
+    architectures = set()
+    for line in sycl_ls_output.splitlines():
+        if re.match(r" *Architecture:", line):
+            _, architecture = line.strip().split(":", 1)
+            architectures.add(architecture.strip())
+
+    if len(architectures) != 1:
+        raise ValueError(
+            f"Expected exactly one device architecture, but found {len(architectures)}: {architectures}."
+            "Set ONEAPI_DEVICE_SELECTOR=backend:device_id to specify a single device."
+        )
+
+    return architectures.pop()

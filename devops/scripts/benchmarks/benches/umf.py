@@ -3,17 +3,16 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import random
-from utils.utils import git_clone
-from .base import Benchmark, Suite
-from utils.result import Result
-from utils.utils import run, create_build_path
-from options import options
-from utils.oneapi import get_oneapi
 import os
 import csv
 import io
 import re
+
+from .base import Benchmark, Suite
+from utils.result import Result
+from options import options
+from utils.oneapi import get_oneapi
+from utils.logger import log
 
 
 def isUMFAvailable():
@@ -27,9 +26,9 @@ class UMFSuite(Suite):
     def name(self) -> str:
         return "UMF"
 
-    def setup(self):
+    def setup(self) -> None:
         if not isUMFAvailable():
-            return []
+            return
         self.built = True
 
     def benchmarks(self) -> list[Benchmark]:
@@ -93,11 +92,11 @@ class GBench(Benchmark):
 
     def setup(self):
         if not isUMFAvailable():
-            print("UMF prefix path not provided")
+            log.warning("UMF prefix path not provided")
             return
 
         self.oneapi = get_oneapi()
-        self.umf_lib = options.umf + "lib"
+        self.umf_lib = os.path.join(options.umf, "lib")
         self.benchmark_bin = os.path.join(options.umf, "benchmark", self.bench_name)
 
     def is_memory_statistics_included(self, data_row):
@@ -138,7 +137,7 @@ class GBench(Benchmark):
 
         return all_names
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         command = [f"{self.benchmark_bin}"]
 
         all_names = self.get_names_of_benchmarks_to_be_run(command, env_vars)
@@ -152,7 +151,11 @@ class GBench(Benchmark):
             specific_benchmark = command + ["--benchmark_filter=^" + name + "$"]
 
             result = self.run_bench(
-                specific_benchmark, env_vars, add_sycl=False, ld_library=[self.umf_lib]
+                specific_benchmark,
+                env_vars,
+                add_sycl=False,
+                ld_library=[self.umf_lib],
+                run_unitrace=run_unitrace,
             )
 
             parsed = self.parse_output(result)

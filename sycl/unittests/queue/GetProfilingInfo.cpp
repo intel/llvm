@@ -311,8 +311,8 @@ TEST(GetProfilingInfo,
   queue Queue{Ctx, Dev};
   DeviceTimerCalled = false;
 
-  event E = Queue.submit(
-      [&](handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  event E =
+      Queue.submit([&](handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   EXPECT_FALSE(DeviceTimerCalled);
 }
 
@@ -340,7 +340,7 @@ TEST(GetProfilingInfo, check_command_submission_time_with_host_accessor) {
   event E = Queue.submit([&](handler &cgh) {
     accessor writeRes{Buf, cgh, read_write};
 
-    cgh.single_task<TestKernel<>>([]() {});
+    cgh.single_task<TestKernel>([]() {});
   });
 
   EXPECT_TRUE(DeviceTimerCalled);

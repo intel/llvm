@@ -63,14 +63,22 @@ static ur_result_t redefinedDeviceGetInfoAfter(void *pParams) {
     const size_t nameSize = name.size() + 1;
 
     if (!*params->ppPropValue) {
+      size_t beforeSize = **params->ppPropSizeRet;
       // Choose bigger size so that both original and redefined function
-      // has enough memory for storing the extension string
-      **params->ppPropSizeRet = nameSize > **params->ppPropSizeRet
-                                    ? nameSize
-                                    : **params->ppPropSizeRet;
+      // has enough memory for storing the extension string. If the original has
+      // reported it has a non-empty string to report, we additionally need room
+      // for a space.
+      **params->ppPropSizeRet = beforeSize + (beforeSize > 0) + nameSize;
     } else {
+      assert(*params->ppropSize >= nameSize);
+      // Insert at the end of the extension string.
+      size_t nameOffset = *params->ppropSize - nameSize;
       char *dst = static_cast<char *>(*params->ppPropValue);
-      strcpy(dst, name.data());
+      // If the offset isn't at the start of the string, we need to insert a
+      // space before it.
+      if (nameOffset > 0)
+        dst[nameOffset - 1] = ' ';
+      strcpy(dst + *params->ppropSize - nameSize, name.data());
     }
     break;
   }
@@ -130,8 +138,7 @@ TEST_F(BufferTest, BufferLocationOnly) {
             sycl::ext::oneapi::accessor_property_list<
                 sycl::ext::intel::property::buffer_location::instance<2>>>
             Acc{Buf, cgh, sycl::read_write, PL};
-        constexpr size_t KS = sizeof(decltype(Acc));
-        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
+        cgh.single_task<TestKernelWithAcc>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, (uint64_t)2);
@@ -159,9 +166,7 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
                 sycl::ext::oneapi::property::no_alias::instance<true>,
                 sycl::ext::intel::property::buffer_location::instance<5>>>
             Acc{Buf, cgh, sycl::write_only, PL};
-
-        constexpr size_t KS = sizeof(decltype(Acc));
-        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
+        cgh.single_task<TestKernelWithAcc>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, (uint64_t)5);
@@ -216,8 +221,7 @@ TEST_F(BufferTest, WOBufferLocation) {
                        sycl::access::placeholder::false_t,
                        sycl::ext::oneapi::accessor_property_list<>>
             Acc{Buf, cgh, sycl::read_write};
-        constexpr size_t KS = sizeof(decltype(Acc));
-        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
+        cgh.single_task<TestKernelWithAcc>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, DEFAULT_VALUE);

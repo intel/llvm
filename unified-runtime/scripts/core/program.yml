@@ -385,7 +385,7 @@ etors:
     - name: BINARY_SIZES
       desc: "[size_t[]] Return program binary sizes for each device."
     - name: BINARIES
-      desc: "[unsigned char[]] Return program binaries for all devices for this Program. These are not null-terminated."
+      desc: "[unsigned char *[]] Write program binaries into caller-provided buffers for each device. These are not null-terminated."
     - name: NUM_KERNELS
       desc: "[size_t][optional-query] Number of kernels in Program, return type size_t."
     - name: KERNEL_NAMES

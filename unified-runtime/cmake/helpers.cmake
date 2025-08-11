@@ -88,7 +88,13 @@ endif()
 
 function(add_ur_target_compile_options name)
     if(NOT MSVC)
-        target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
+        if (NOT LLVM_ENABLE_PROJECTS)
+            # If UR is built as part of LLVM (i.e. as part of SYCL), then
+            # _FORTIFY_SOURCE will be set globally in advance to a potentially
+            # different value. To avoid redefinition errors, only set the
+            # macro for a "standalone" build.
+            target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
+        endif()
         target_compile_options(${name} PRIVATE
             # Warning options
             -Wall

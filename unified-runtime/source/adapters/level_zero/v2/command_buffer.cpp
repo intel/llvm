@@ -166,13 +166,18 @@ ur_result_t ur_exp_command_buffer_handle_t_::registerExecutionEventUnlocked(
   return UR_RESULT_SUCCESS;
 }
 
-ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
+ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() try {
+  UR_CALL_NOCHECK(commandListManager.lock()->releaseSubmittedKernels());
+
   if (currentExecution) {
     currentExecution->release();
   }
   for (auto &event : syncPoints) {
     event->release();
   }
+} catch (...) {
+  UR_LOG(DEBUG, "ur_exp_command_buffer_handle_t_ destructor failed with: {}",
+         exceptionToResult(std::current_exception()));
 }
 
 ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(

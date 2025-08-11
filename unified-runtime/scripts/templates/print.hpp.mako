@@ -284,7 +284,7 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const ur_bool
                 %>case ${ename}: {
                     %if th.value_traits.is_array(vtype):
                     <% atype = th.value_traits.get_array_name(vtype) %>
-                    %if 'void' in atype:
+                    %if 'void' in atype or '*' in atype:
                     const ${atype} const *tptr = (const ${atype} const*)ptr;
                     %else:
                     const ${atype} *tptr = (const ${atype} *)ptr;

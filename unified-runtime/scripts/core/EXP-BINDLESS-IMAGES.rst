@@ -120,6 +120,7 @@ Enums
     * ${X}_EXP_EXTERNAL_MEM_TYPE_WIN32_NT
     * ${X}_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE
     * ${X}_EXP_EXTERNAL_MEM_TYPE_DMA_BUF
+    * ${X}_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE
 
 * ${x}_exp_external_semaphore_type_t
     * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD
@@ -300,6 +301,9 @@ Changelog
 |          || (or other external memory handle types):                   |
 |          ||   * ${X}_EXP_EXTERNAL_MEM_TYPE_DMA_BUF                     |
 |          ||   * ${x}BindlessImagesSupportsImportingHandleTypeExp       |
++----------+-------------------------------------------------------------+
+| 26.0     || Added support for importing DX11 resources                 |
+|          ||   * ${X}_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE      |
 +----------+-------------------------------------------------------------+
 
 Contributors

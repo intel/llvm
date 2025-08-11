@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 import multiprocessing
+import os
 
 
 class Compare(Enum):
@@ -52,7 +53,7 @@ class Options:
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
     iterations: int = 3
-    verbose: bool = False
+    save_name: str = None
     compare: Compare = Compare.LATEST
     compare_max: int = 10  # average/median over how many results
     output_markdown: MarkdownSize = MarkdownSize.SHORT
@@ -64,14 +65,17 @@ class Options:
     build_compute_runtime: bool = False
     extra_ld_libraries: list[str] = field(default_factory=list)
     extra_env_vars: dict = field(default_factory=dict)
-    compute_runtime_tag: str = "25.22.33944.8"
+    compute_runtime_tag: str = "25.27.34303.5"
     build_igc: bool = False
     current_run_name: str = "This PR"
     preset: str = "Full"
-    build_jobs: int = multiprocessing.cpu_count()
+    build_jobs: int = len(os.sched_getaffinity(0))  # Cores available for the process.
     exit_on_failure: bool = False
+    unitrace: bool = False
+    TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"  # Format for timestamps in filenames and logs, including Unitrace traces.
 
     # Options intended for CI:
+
     regression_threshold: float = 0.05
     # It's necessary in CI to compare or redo benchmark runs. Instead of
     # generating a new timestamp each run by default, specify a single timestamp
@@ -90,9 +94,22 @@ class Options:
     git_commit_override: str = None
     # Archiving settings
     # Archived runs are stored separately from the main dataset but are still accessible
-    # via the HTML UI when "Include archived runs" is enabled
+    # via the HTML UI when "Include archived runs" is enabled.
+    # Archived runs older than 3 times the specified days are not included in the dashboard,
+    # ie. when archiving data older than 7 days, runs older than 21 days are not included.
     archive_baseline_days: int = 30  # Archive Baseline_* runs after 30 days
     archive_pr_days: int = 7  # Archive other (PR/dev) runs after 7 days
+
+    # EWMA Options:
+
+    # The smoothing factor is alpha in the EWMA equation. Generally, a higher
+    # smoothing factor results in newer data having more weight, and a lower
+    # smoothing factor results in older data having more weight.
+    #
+    # Valid values for this smoothing factor ranges from (0, 1). Note that no
+    # value of smothing factor will result in older elements having more weight
+    # than newer elements.
+    EWMA_smoothing_factor: float = 0.15
 
     detect_versions: DetectVersionsOptions = field(
         default_factory=DetectVersionsOptions

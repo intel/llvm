@@ -328,9 +328,6 @@ public:
 // Helper wrapper for working with USM import extension in Level Zero.
 extern ZeUSMImportExtension ZeUSMImport;
 
-// This will count the calls to Level-Zero
-extern std::map<std::string, int> *ZeCallCount;
-
 // Some opencl extensions we know are supported by all Level Zero devices.
 constexpr char ZE_SUPPORTED_EXTENSIONS[] =
     "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "

@@ -46,7 +46,7 @@ public:
   inline sycl::kernel GetTestKernel() {
     auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
         Queue.get_context());
-    return KB.get_kernel<TestKernel<>>();
+    return KB.get_kernel<TestKernel>();
   }
 
 protected:
@@ -64,7 +64,7 @@ TEST(KernelQueriesBasicTests, NoAspect) {
   sycl::queue q{sycl::context(sycl::platform()), sycl::default_selector_v};
   auto KB =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(q.get_context());
-  auto kernel = KB.get_kernel<TestKernel<>>();
+  auto kernel = KB.get_kernel<TestKernel>();
   const auto dev = q.get_device();
   try {
     kernel.template get_info<

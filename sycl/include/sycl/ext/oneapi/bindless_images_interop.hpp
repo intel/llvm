@@ -8,21 +8,14 @@
 
 #pragma once
 
-#include <ur_api.h>
+#include "interop_common.hpp" // For external_mem_handle_type.
 
-#include <stddef.h> // for size_t
+#include <stddef.h> // For size_t.
+#include <ur_api.h>
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
-
-// Types of external memory handles
-enum class external_mem_handle_type {
-  opaque_fd = 0,
-  win32_nt_handle = 1,
-  win32_nt_dx12_resource = 2,
-  dma_buf = 3,
-};
 
 // Types of external semaphore handles
 enum class external_semaphore_handle_type {

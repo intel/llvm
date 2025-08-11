@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc_convert.h>
-#include <clc/utils.h>
+#include <clc/math/clc_minmag.h>
 #include <libspirv/spirv.h>
 
-#define __CLC_BODY <minmag.inc>
+#define FUNCTION __spirv_ocl_minmag
+#define __IMPL_FUNCTION(x) __clc_minmag
+#define __CLC_BODY <clc/shared/binary_def.inc>
 #include <clc/math/gentype.inc>

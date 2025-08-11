@@ -13,7 +13,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
-__attribute__((noinline)) long long foo(int data1, long long data2) {
+__attribute__((noinline)) int check(int data1, int data2) {
   return data1 + data2;
 }
 
@@ -21,7 +21,8 @@ void check_memset(sycl::queue &Q) {
   std::cout << "check_memset" << std::endl;
   auto *array = sycl::malloc_device<int>(2, Q);
   auto ev1 = Q.memset(array, 0, 2 * sizeof(int));
-  auto ev2 = Q.single_task(ev1, [=]() { array[0] = foo(array[0], array[1]); });
+  auto ev2 =
+      Q.single_task(ev1, [=]() { array[0] = check(array[0], array[1]); });
   Q.wait();
   sycl::free(array, Q);
   std::cout << "PASS" << std::endl;
@@ -30,25 +31,41 @@ void check_memset(sycl::queue &Q) {
 // CHECK-NOT: use-of-uninitialized-value
 // CHECK: PASS
 
+void check_fill(sycl::queue &Q) {
+  std::cout << "check_fill" << std::endl;
+  int *array = sycl::malloc_device<int>(2, Q);
+  uint32_t pattern = 0;
+  auto ev1 = Q.fill(array, pattern, 2);
+  auto ev2 =
+      Q.single_task(ev1, [=]() { array[0] = check(array[0], array[1]); });
+  Q.wait();
+  sycl::free(array, Q);
+  std::cout << "PASS" << std::endl;
+}
+// CHECK-LABEL: check_fill
+// CHECK-NOT: use-of-uninitialized-value
+// CHECK: PASS
+
 void check_memcpy(sycl::queue &Q) {
-  std::cout << "check_memcpy2" << std::endl;
+  std::cout << "check_memcpy" << std::endl;
   auto *source = sycl::malloc_device<int>(2, Q);
   auto *array = sycl::malloc_device<int>(2, Q);
-  // FIXME: We don't support shadow propagation on host/shared usm
   auto ev1 = Q.memcpy(array, source, 2 * sizeof(int));
-  auto ev2 = Q.single_task(ev1, [=]() { array[0] = foo(array[0], array[1]); });
+  auto ev2 =
+      Q.single_task(ev1, [=]() { array[0] = check(array[0], array[1]); });
   Q.wait();
   sycl::free(array, Q);
   sycl::free(source, Q);
   std::cout << "PASS" << std::endl;
 }
-// CHECK-LABEL: check_memcpy2
+// CHECK-LABEL: check_memcpy
 // CHECK: use-of-uninitialized-value
 // CHECK-NOT: PASS
 
 int main() {
   sycl::queue Q;
   check_memset(Q);
+  check_fill(Q);
   check_memcpy(Q);
   return 0;
 }

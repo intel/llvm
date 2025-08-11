@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 
 #include <umf_helpers.hpp>
 #include <umf_pools/disjoint_pool_config_parser.hpp>
@@ -18,7 +19,7 @@ usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
 // A ur_usm_pool_handle_t can represent different types of memory pools. It may
 // sit on top of a UMF pool or a CUmemoryPool, but not both.
 struct ur_usm_pool_handle_t_ : ur::cuda::handle_base {
-  std::atomic_uint32_t RefCount = 1;
+  ur::RefCount RefCount;
 
   ur_context_handle_t Context = nullptr;
   ur_device_handle_t Device = nullptr;
@@ -43,12 +44,6 @@ struct ur_usm_pool_handle_t_ : ur::cuda::handle_base {
   // Explicit device default pool.
   ur_usm_pool_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device,
                         CUmemoryPool CUmemPool);
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   bool hasUMFPool(umf_memory_pool_t *umf_pool);
 
