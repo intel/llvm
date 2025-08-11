@@ -362,11 +362,11 @@ string if it is not already a string.
 [9]: <https://llvm.org/doxygen/classllvm_1_1Function.html#ae7b919df259dce5480774e656791c079>
 
 **NOTE**: The intention is to replace the existing member functions like
-`handler::kernel_single_task()` with wrapper classes like
+`detail::KernelWrapperHelperFuncs::kernel_single_task()` with wrapper classes like
 `KernelSingleTaskWrapper`.  We believe this will not cause problems for the
 device compiler front-end because it recognizes kernel functions via the
 `[[clang::sycl_kernel]]` attribute, not by the name
-`handler::kernel_single_task()`.
+`detail::KernelWrapperHelperFuncs::kernel_single_task()`.
 
 
 ## Properties on a non-global variable type

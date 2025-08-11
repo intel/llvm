@@ -12,7 +12,7 @@ TEST_P(urDeviceReleaseTest, Success) {
   uint32_t prevRefCount = 0;
   ASSERT_SUCCESS(uur::GetObjectReferenceCount(device, prevRefCount));
 
-  EXPECT_SUCCESS(urDeviceRelease(device));
+  ASSERT_SUCCESS(urDeviceRelease(device));
 
   uint32_t refCount = 0;
   ASSERT_SUCCESS(uur::GetObjectReferenceCount(device, refCount));
@@ -46,14 +46,14 @@ TEST_P(urDeviceReleaseTest, SuccessSubdevices) {
   uint32_t prevRefCount = 0;
   ASSERT_SUCCESS(uur::GetObjectReferenceCount(sub_device, prevRefCount));
 
-  EXPECT_SUCCESS(urDeviceRelease(sub_device));
+  ASSERT_SUCCESS(urDeviceRelease(sub_device));
 
   uint32_t refCount = 0;
   ASSERT_SUCCESS(uur::GetObjectReferenceCount(sub_device, refCount));
 
   ASSERT_GT(prevRefCount, refCount);
 
-  EXPECT_SUCCESS(urDeviceRelease(sub_device));
+  ASSERT_SUCCESS(urDeviceRelease(sub_device));
 }
 
 TEST_P(urDeviceReleaseTest, InvalidNullHandle) {

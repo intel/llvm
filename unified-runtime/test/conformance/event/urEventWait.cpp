@@ -75,13 +75,13 @@ TEST_P(urEventWaitTest, Success) {
                                         size, output.data(), 0, nullptr,
                                         &event2));
   std::vector<ur_event_handle_t> events{event1, event2};
-  EXPECT_SUCCESS(urQueueFlush(queues[0]));
+  ASSERT_SUCCESS(urQueueFlush(queues[0]));
   ASSERT_SUCCESS(
       urEventWait(static_cast<uint32_t>(events.size()), events.data()));
   ASSERT_EQ(input[0], output);
 
-  EXPECT_SUCCESS(urEventRelease(event1));
-  EXPECT_SUCCESS(urEventRelease(event2));
+  ASSERT_SUCCESS(urEventRelease(event1));
+  ASSERT_SUCCESS(urEventRelease(event2));
 }
 
 using urEventWaitNegativeTest = uur::urQueueTest;
@@ -125,7 +125,7 @@ TEST_P(urEventWaitTest, WaitWithMultipleContexts) {
   }
 
   for (auto &event : events) {
-    EXPECT_SUCCESS(urEventRelease(event));
+    ASSERT_SUCCESS(urEventRelease(event));
   }
 }
 
@@ -162,6 +162,6 @@ TEST_P(urEventWaitTest, WithCrossContextDependencies) {
       urEventWait(static_cast<uint32_t>(events.size()), events.data()));
   ASSERT_EQ(input.front(), output);
 
-  EXPECT_SUCCESS(urEventRelease(event1));
-  EXPECT_SUCCESS(urEventRelease(event2));
+  ASSERT_SUCCESS(urEventRelease(event1));
+  ASSERT_SUCCESS(urEventRelease(event2));
 }

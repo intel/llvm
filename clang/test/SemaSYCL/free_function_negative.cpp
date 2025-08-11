@@ -14,7 +14,7 @@ foo1(int start, ...) { // expected-error {{free function kernel cannot be a vari
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 1)]] void
 foo2(int start);
 
-// expected-error@+1 {{attribute 'add_ir_attributes_function' is already applied with different arguments}}
+// expected-error@+1 {{attribute '__sycl_detail__::add_ir_attributes_function' is already applied with different arguments}}
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] void 
 foo2(int start) {
 }

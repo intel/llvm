@@ -10,6 +10,7 @@
 // LLVMObject.
 
 #include <detail/compiler.hpp>
+#include <detail/device_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/syclbin.hpp>
 
@@ -389,14 +390,13 @@ SYCLBINBinaries::convertAbstractModuleProperties(SYCLBIN::AbstractModule &AM) {
 }
 
 std::vector<const RTDeviceBinaryImage *>
-SYCLBINBinaries::getBestCompatibleImages(const device &Dev) {
-  detail::device_impl &DevImpl = *getSyclObjImpl(Dev);
+SYCLBINBinaries::getBestCompatibleImages(device_impl &Dev) {
   auto SelectCompatibleImages =
       [&](const std::vector<RTDeviceBinaryImage> &Imgs) {
         std::vector<const RTDeviceBinaryImage *> CompatImgs;
         for (const RTDeviceBinaryImage &Img : Imgs)
-          if (doesDevSupportDeviceRequirements(DevImpl, Img) &&
-              doesImageTargetMatchDevice(Img, DevImpl))
+          if (doesDevSupportDeviceRequirements(Dev, Img) &&
+              doesImageTargetMatchDevice(Img, Dev))
             CompatImgs.push_back(&Img);
         return CompatImgs;
       };
@@ -412,9 +412,9 @@ SYCLBINBinaries::getBestCompatibleImages(const device &Dev) {
 }
 
 std::vector<const RTDeviceBinaryImage *>
-SYCLBINBinaries::getBestCompatibleImages(const std::vector<device> &Devs) {
+SYCLBINBinaries::getBestCompatibleImages(devices_range Devs) {
   std::set<const RTDeviceBinaryImage *> Images;
-  for (const device &Dev : Devs) {
+  for (device_impl &Dev : Devs) {
     std::vector<const RTDeviceBinaryImage *> BestImagesForDev =
         getBestCompatibleImages(Dev);
     Images.insert(BestImagesForDev.cbegin(), BestImagesForDev.cend());

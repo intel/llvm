@@ -15,6 +15,7 @@
 
 #include "sanitizer_common/sanitizer_allocator.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
+#include "sanitizer_common/sanitizer_utils.hpp"
 #include "tsan_buffer.hpp"
 #include "tsan_libdevice.hpp"
 #include "tsan_shadow.hpp"
@@ -30,6 +31,10 @@ struct TsanAllocInfo {
   uptr AllocBegin = 0;
 
   size_t AllocSize = 0;
+
+  bool operator<(TsanAllocInfo const &Other) const {
+    return AllocBegin < Other.AllocBegin;
+  }
 };
 
 struct DeviceInfo {
@@ -39,9 +44,14 @@ struct DeviceInfo {
 
   std::shared_ptr<ShadowMemory> Shadow;
 
+  ur_shared_mutex AllocInfosMutex;
+  std::set<TsanAllocInfo> AllocInfos;
+
   explicit DeviceInfo(ur_device_handle_t Device) : Handle(Device) {}
 
   ur_result_t allocShadowMemory();
+
+  void insertAllocInfo(TsanAllocInfo AI);
 };
 
 struct ContextInfo {
@@ -51,9 +61,9 @@ struct ContextInfo {
 
   std::vector<ur_device_handle_t> DeviceList;
 
-  ur_shared_mutex AllocInfosMapMutex;
-  std::unordered_map<ur_device_handle_t, std::vector<TsanAllocInfo>>
-      AllocInfosMap;
+  ur_shared_mutex InternalQueueMapMutex;
+  std::unordered_map<ur_device_handle_t, std::optional<ManagedQueue>>
+      InternalQueueMap;
 
   explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
     [[maybe_unused]] auto Result =
@@ -62,6 +72,7 @@ struct ContextInfo {
   }
 
   ~ContextInfo() {
+    InternalQueueMap.clear();
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Context.pfnRelease(Handle);
     assert(Result == UR_RESULT_SUCCESS);
@@ -71,12 +82,38 @@ struct ContextInfo {
 
   ContextInfo &operator=(const ContextInfo &) = delete;
 
-  void insertAllocInfo(ur_device_handle_t Device, TsanAllocInfo AI);
+  ur_queue_handle_t getInternalQueue(ur_device_handle_t);
 };
 
 struct DeviceGlobalInfo {
   uptr Size;
   uptr Addr;
+};
+
+struct ProgramInfo {
+  ur_program_handle_t Handle;
+  std::atomic<int32_t> RefCount = 1;
+
+  // Program is built only once, so we don't need to lock it
+  std::vector<TsanAllocInfo> AllocInfoForGlobals;
+
+  ProgramInfo() = default;
+
+  explicit ProgramInfo(ur_program_handle_t Program) : Handle(Program) {
+    [[maybe_unused]] auto Result =
+        getContext()->urDdiTable.Program.pfnRetain(Handle);
+    assert(Result == UR_RESULT_SUCCESS);
+  }
+
+  ~ProgramInfo() {
+    [[maybe_unused]] auto Result =
+        getContext()->urDdiTable.Program.pfnRelease(Handle);
+    assert(Result == UR_RESULT_SUCCESS);
+  }
+
+  ProgramInfo(const ProgramInfo &) = delete;
+
+  ProgramInfo &operator=(const ProgramInfo &) = delete;
 };
 
 struct KernelInfo {
@@ -189,7 +226,11 @@ public:
                              ur_usm_pool_handle_t Pool, size_t Size,
                              AllocType Type, void **ResultPtr);
 
+  ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
+
   ur_result_t registerProgram(ur_program_handle_t Program);
+
+  ur_result_t unregisterProgram(ur_program_handle_t Program);
 
   ur_result_t insertContext(ur_context_handle_t Context,
                             std::shared_ptr<ContextInfo> &CI);
@@ -198,6 +239,10 @@ public:
 
   ur_result_t insertDevice(ur_device_handle_t Device,
                            std::shared_ptr<DeviceInfo> &DI);
+
+  ur_result_t insertProgram(ur_program_handle_t Program);
+
+  ur_result_t eraseProgram(ur_program_handle_t Program);
 
   ur_result_t insertKernel(ur_kernel_handle_t Kernel);
 
@@ -237,6 +282,12 @@ public:
     return m_DeviceMap[Device];
   }
 
+  ProgramInfo &getProgramInfo(ur_program_handle_t Program) {
+    std::shared_lock<ur_shared_mutex> Guard(m_ProgramMapMutex);
+    assert(m_ProgramMap.find(Program) != m_ProgramMap.end());
+    return m_ProgramMap[Program];
+  }
+
   KernelInfo &getKernelInfo(ur_kernel_handle_t Kernel) {
     std::shared_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
     assert(m_KernelMap.find(Kernel) != m_KernelMap.end());
@@ -246,8 +297,8 @@ public:
   ur_shared_mutex KernelLaunchMutex;
 
 private:
-  ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &CI,
-                                 std::shared_ptr<DeviceInfo> &DI,
+  ur_result_t updateShadowMemory(std::shared_ptr<DeviceInfo> &DI,
+                                 ur_kernel_handle_t Kernel,
                                  ur_queue_handle_t Queue);
 
   ur_result_t prepareLaunch(std::shared_ptr<ContextInfo> &CI,
@@ -265,6 +316,9 @@ private:
   std::unordered_map<ur_device_handle_t, std::shared_ptr<DeviceInfo>>
       m_DeviceMap;
   ur_shared_mutex m_DeviceMapMutex;
+
+  std::unordered_map<ur_program_handle_t, ProgramInfo> m_ProgramMap;
+  ur_shared_mutex m_ProgramMapMutex;
 
   std::unordered_map<ur_kernel_handle_t, KernelInfo> m_KernelMap;
   ur_shared_mutex m_KernelMapMutex;

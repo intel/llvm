@@ -62,6 +62,7 @@ benches_final_set = [
         "graph",
         "sdpa-plain-f16",
         "--reset --dt=f16 --case=complex_fusion/mha/sdpa-plain-implicit-causal-mask-fp32-bs1.json",
+        False,  # Do not run SYCL graph for this benchmark
     ],
     [
         "graph",

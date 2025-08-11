@@ -20,6 +20,7 @@ The Feature Test Macro SYCL\_EXT\_INTEL\_DEVICE\_INFO will be defined as one of 
 | 5     | Device ID is supported |
 | 6     | Memory clock rate and bus width queries are supported |
 | 7     | Throttle reasons, fan speed and power limits queries are supported |
+| 8     | Device LUID and device node mask is supported |
 
 
 
@@ -626,7 +627,66 @@ Then the power limits can be obtained using the standard `get_info()` interface.
 ```
 
 
+# Device LUID #
 
+A new device descriptor is added which will provide the device Locally Unique ID (LUID).
+
+## Version ##
+
+The extension supports this query in version 8 and later.
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+|`ext::intel::info::device::luid` |`std::array<unsigned char, 8>` | Returns the device LUID. |
+
+## Aspects ##
+
+A new aspect, `ext_intel_device_info_luid`, is added.
+
+## Error Condition ##
+
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_device_info_luid`.
+
+## Example Usage ##
+
+The LUID can be obtained using the standard `get_info()` interface.
+
+```
+    if (dev.has(aspect::ext_intel_device_info_luid)) {
+      auto LUID = dev.get_info<ext::intel::info::device::luid>();
+    }
+```
+
+
+# Device Node Mask #
+
+A new device descriptor is added which will provide the device node mask.
+
+## Version ##
+
+The extension supports this query in version 8 and later.
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+|`ext::intel::info::device::node_mask` |`unsigned int` | Returns the device node mask. |
+
+## Aspects ##
+
+A new aspect, `ext_intel_device_info_node_mask`, is added.
+
+## Error Condition ##
+
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_device_info_node_mask`.
+
+## Example Usage ##
+
+The device node mask can be obtained using the standard `get_info()` interface.
+
+```
+    if (dev.has(aspect::ext_intel_device_info_node_mask)) {
+      auto node_mask = dev.get_info<ext::intel::info::device::node_mask>();
+    }
+```
 
 # Deprecated queries #
 

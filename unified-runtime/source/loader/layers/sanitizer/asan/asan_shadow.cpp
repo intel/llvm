@@ -247,7 +247,8 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
                                               uptr &End) {
   const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
   const size_t RequiredShadowSize =
-      (NumWG * LocalMemorySize) >> ASAN_SHADOW_SCALE;
+      (std::min(ASAN_MAX_WG_LOCAL, NumWG) * LocalMemorySize) >>
+      ASAN_SHADOW_SCALE;
   static size_t LastAllocedSize = 0;
   if (RequiredShadowSize > LastAllocedSize) {
     ur_context_handle_t QueueContext = GetContext(Queue);
@@ -285,16 +286,17 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
 }
 
 ur_result_t ShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
-                                                uint64_t NumWI, uint32_t NumWG,
-                                                uptr *&Base, uptr &Begin,
-                                                uptr &End) {
+                                                uint32_t NumSG, uptr *&Base,
+                                                uptr &Begin, uptr &End) {
   // Trying to allocate private base array and private shadow, and any one of
   // them fail to allocate would be a failure
   static size_t LastPrivateBaseAllocedSize = 0;
   static size_t LastPrivateShadowAllocedSize = 0;
 
+  NumSG = std::min(NumSG, ASAN_MAX_SG_PRIVATE);
+
   try {
-    const size_t NewPrivateBaseSize = NumWI * sizeof(uptr);
+    const size_t NewPrivateBaseSize = NumSG * sizeof(uptr);
     if (NewPrivateBaseSize > LastPrivateBaseAllocedSize) {
       if (PrivateBasePtr) {
         UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnFree(
@@ -317,7 +319,7 @@ ur_result_t ShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
     }
 
     const size_t NewPrivateShadowSize =
-        (NumWG * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE;
+        (NumSG * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE;
     if (NewPrivateShadowSize > LastPrivateShadowAllocedSize) {
       ur_context_handle_t QueueContext = GetContext(Queue);
       auto ContextInfo = getAsanInterceptor()->getContextInfo(QueueContext);

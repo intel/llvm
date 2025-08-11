@@ -84,8 +84,6 @@ bool setEnvVar(const char *name, const char *value) {
   return true;
 }
 
-ZeUSMImportExtension ZeUSMImport;
-
 void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   switch (ZeError) {
 #define ZE_ERRCASE(ERR)                                                        \

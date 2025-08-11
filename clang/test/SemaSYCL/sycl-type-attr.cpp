@@ -2,22 +2,22 @@
 
 // Diagnostic tests for sycl_type() attribute
 
-// expected-error@+1{{'sycl_type' attribute only applies to classes}}
+// expected-error@+1{{'__sycl_detail__::sycl_type' attribute only applies to classes}}
 [[__sycl_detail__::sycl_type(accessor)]] int a;
 
-// expected-error@+1{{'sycl_type' attribute only applies to classes}}
+// expected-error@+1{{'__sycl_detail__::sycl_type' attribute only applies to classes}}
 [[__sycl_detail__::sycl_type(accessor)]] void func1() {}
 
-// expected-error@+1{{'sycl_type' attribute requires an identifier}}
+// expected-error@+1{{'__sycl_detail__::sycl_type' attribute requires an identifier}}
 class [[__sycl_detail__::sycl_type("accessor")]] A {};
 
-// expected-error@+1{{'sycl_type' attribute takes one argument}}
+// expected-error@+1{{'__sycl_detail__::sycl_type' attribute takes one argument}}
 class [[__sycl_detail__::sycl_type()]] B {};
 
-// expected-error@+1{{'sycl_type' attribute argument 'NotValidType' is not supported}}
+// expected-error@+1{{'__sycl_detail__::sycl_type' attribute argument 'NotValidType' is not supported}}
 class [[__sycl_detail__::sycl_type(NotValidType)]] C {};
 
-// expected-error@+2{{attribute 'sycl_type' is already applied with different arguments}}
+// expected-error@+2{{attribute '__sycl_detail__::sycl_type' is already applied with different arguments}}
 // expected-note@+1{{previous attribute is here}}
 class [[__sycl_detail__::sycl_type(group)]] [[__sycl_detail__::sycl_type(accessor)]] group {};
 

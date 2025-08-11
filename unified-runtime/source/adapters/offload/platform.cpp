@@ -95,14 +95,27 @@ urPlatformGetBackendOption(ur_platform_handle_t, const char *pFrontendOption,
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGetNativeHandle(ur_platform_handle_t, ur_native_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
+    ur_platform_handle_t hAdapter, ur_native_handle_t *phNativePlatform) {
+  *phNativePlatform =
+      reinterpret_cast<ur_native_handle_t>(hAdapter->OffloadPlatform);
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
-    ur_native_handle_t, ur_adapter_handle_t,
-    const ur_platform_native_properties_t *, ur_platform_handle_t *) {
+    ur_native_handle_t hNativePlatform, ur_adapter_handle_t hAdapter,
+    const ur_platform_native_properties_t *, ur_platform_handle_t *phPlatform) {
+
+  auto Found = std::find_if(
+      hAdapter->Platforms.begin(), hAdapter->Platforms.end(), [&](auto &P) {
+        return P->OffloadPlatform ==
+               reinterpret_cast<ol_platform_handle_t>(hNativePlatform);
+      });
+  if (Found != hAdapter->Platforms.end()) {
+    *phPlatform = Found->get();
+    return UR_RESULT_SUCCESS;
+  }
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

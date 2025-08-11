@@ -83,9 +83,6 @@ llvm::Expected<JITBinary *> Translator::translateToPTX(llvm::Module &Mod,
   LLVMInitializeNVPTXAsmPrinter();
   LLVMInitializeNVPTXTargetMC();
 
-  static const char *TARGET_CPU_ATTRIBUTE = "target-cpu";
-  static const char *TARGET_FEATURE_ATTRIBUTE = "target-features";
-
   std::string TargetTriple{"nvptx64-nvidia-cuda"};
 
   std::string ErrorMessage;
@@ -99,32 +96,11 @@ llvm::Expected<JITBinary *> Translator::translateToPTX(llvm::Module &Mod,
         ErrorMessage.c_str());
   }
 
-  // Give priority to user specified values (through environment variables:
-  // SYCL_JIT_AMDGCN_PTX_TARGET_CPU and SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES).
-  auto CPUVal = ConfigHelper::get<option::JITTargetCPU>();
-  auto FeaturesVal = ConfigHelper::get<option::JITTargetFeatures>();
-  llvm::StringRef CPU = CPUVal.begin();
-  llvm::StringRef Features = FeaturesVal.begin();
-
-  auto *KernelFunc = KernelName ? Mod.getFunction(KernelName) : nullptr;
-  // If they were not set, use default and consult the module for alternatives
-  // (if present).
-  if (CPU.empty()) {
-    CPU = "sm_50";
-    if (KernelFunc && KernelFunc->hasFnAttribute(TARGET_CPU_ATTRIBUTE)) {
-      CPU = KernelFunc->getFnAttribute(TARGET_CPU_ATTRIBUTE).getValueAsString();
-    }
-  }
-  if (Features.empty()) {
-    Features = "+sm_50,+ptx76";
-    if (KernelFunc && KernelFunc->hasFnAttribute(TARGET_FEATURE_ATTRIBUTE)) {
-      Features = KernelFunc->getFnAttribute(TARGET_FEATURE_ATTRIBUTE)
-                     .getValueAsString();
-    }
-  }
+  auto [CPU, Features] =
+      getTargetCPUAndFeatureAttrs(&Mod, KernelName, BinaryFormat::PTX);
 
   std::unique_ptr<TargetMachine> TargetMachine(Target->createTargetMachine(
-      Mod.getTargetTriple(), CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
+      Triple{TargetTriple}, CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
       llvm::CodeGenOptLevel::Default));
 
   llvm::legacy::PassManager PM;
@@ -166,9 +142,6 @@ Translator::translateToAMDGCN(llvm::Module &Mod, JITContext &JITCtx,
   LLVMInitializeAMDGPUAsmPrinter();
   LLVMInitializeAMDGPUTargetMC();
 
-  static const char *TARGET_CPU_ATTRIBUTE = "target-cpu";
-  static const char *TARGET_FEATURE_ATTRIBUTE = "target-features";
-
   std::string TargetTriple{"amdgcn-amd-amdhsa"};
 
   std::string ErrorMessage;
@@ -181,29 +154,10 @@ Translator::translateToAMDGCN(llvm::Module &Mod, JITContext &JITCtx,
         "Failed to load and translate AMDGCN LLVM IR module with error %s",
         ErrorMessage.c_str());
 
-  auto CPUVal = ConfigHelper::get<option::JITTargetCPU>();
-  auto FeaturesVal = ConfigHelper::get<option::JITTargetFeatures>();
-  llvm::StringRef CPU = CPUVal.begin();
-  llvm::StringRef Features = FeaturesVal.begin();
-
-  auto *KernelFunc = KernelName ? Mod.getFunction(KernelName) : nullptr;
-  if (CPU.empty()) {
-    // Set to the lowest tested target according to the GetStartedGuide, section
-    // "Build DPC++ toolchain with support for HIP AMD"
-    CPU = "gfx906";
-    if (KernelFunc && KernelFunc->hasFnAttribute(TARGET_CPU_ATTRIBUTE)) {
-      CPU = KernelFunc->getFnAttribute(TARGET_CPU_ATTRIBUTE).getValueAsString();
-    }
-  }
-  if (Features.empty()) {
-    if (KernelFunc && KernelFunc->hasFnAttribute(TARGET_FEATURE_ATTRIBUTE)) {
-      Features = KernelFunc->getFnAttribute(TARGET_FEATURE_ATTRIBUTE)
-                     .getValueAsString();
-    }
-  }
-
+  auto [CPU, Features] =
+      getTargetCPUAndFeatureAttrs(&Mod, KernelName, BinaryFormat::AMDGCN);
   std::unique_ptr<TargetMachine> TargetMachine(Target->createTargetMachine(
-      Mod.getTargetTriple(), CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
+      Triple{TargetTriple}, CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
       llvm::CodeGenOptLevel::Default));
 
   std::string AMDObj;
@@ -225,4 +179,35 @@ Translator::translateToAMDGCN(llvm::Module &Mod, JITContext &JITCtx,
 
   return &JITCtx.emplaceBinary(std::move(AMDObj), BinaryFormat::AMDGCN);
 #endif // JIT_SUPPORT_AMDGCN
+}
+
+std::pair<std::string, std::string> Translator::getTargetCPUAndFeatureAttrs(
+    const llvm::Module *M, const char *KernelName, BinaryFormat Format) {
+  assert((Format == BinaryFormat::AMDGCN || Format == BinaryFormat::PTX) &&
+         "Unexpected format found");
+  static const char *TARGET_CPU_ATTRIBUTE = "target-cpu";
+  static const char *TARGET_FEATURE_ATTRIBUTE = "target-features";
+  // Give priority to user specified values (through environment variables:
+  // SYCL_JIT_AMDGCN_PTX_TARGET_CPU and SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES).
+  auto *KernelFunc = (M && KernelName) ? M->getFunction(KernelName) : nullptr;
+  auto CPUVal = ConfigHelper::get<option::JITTargetCPU>();
+  auto FeaturesVal = ConfigHelper::get<option::JITTargetFeatures>();
+  llvm::StringRef CPU{CPUVal.begin(), CPUVal.size()};
+  llvm::StringRef Features{FeaturesVal.begin(), FeaturesVal.size()};
+  if (CPU.empty()) {
+    // Set to the lowest tested target according to the GetStartedGuide, section
+    // "Build DPC++ toolchain with support for HIP AMD"
+    CPU = Format == BinaryFormat::AMDGCN ? "gfx90a" : "sm_50";
+    if (KernelFunc && KernelFunc->hasFnAttribute(TARGET_CPU_ATTRIBUTE)) {
+      CPU = KernelFunc->getFnAttribute(TARGET_CPU_ATTRIBUTE).getValueAsString();
+    }
+  }
+  if (Features.empty()) {
+    Features = Format == BinaryFormat::PTX ? "+sm_50,+ptx76" : "";
+    if (KernelFunc && KernelFunc->hasFnAttribute(TARGET_FEATURE_ATTRIBUTE)) {
+      Features = KernelFunc->getFnAttribute(TARGET_FEATURE_ATTRIBUTE)
+                     .getValueAsString();
+    }
+  }
+  return std::make_pair(std::string{CPU}, std::string{Features});
 }

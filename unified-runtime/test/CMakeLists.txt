@@ -3,12 +3,23 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-include(FetchContent)
-FetchContent_Declare(
-  googletest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG        v1.13.0
-)
+set(GTEST_VER 1.13.0)
+
+find_package(GTest ${GTEST_VER} QUIET)
+
+if(GTest_FOUND AND NOT TARGET GTest::gmock)
+  message(WARNING "Found system install of GTest but not GMock. Building GTest and GMock from source")
+  set(GTest_FOUND FALSE)
+endif()
+
+if(NOT GTest_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(
+      googletest
+      GIT_REPOSITORY https://github.com/google/googletest.git
+      GIT_TAG        v${GTEST_VER}
+    )
+endif()
 
 include(FindLit)
 
@@ -22,8 +33,10 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND UR_DPCXX AND UR_TEST_FUZZTESTS)
     set(UR_FUZZTESTING_ENABLED ON)
 endif()
 
-set(INSTALL_GTEST OFF)
-FetchContent_MakeAvailable(googletest)
+if(NOT GTest_FOUND)
+    set(INSTALL_GTEST OFF)
+    FetchContent_MakeAvailable(googletest)
+endif()
 enable_testing()
 
 # At the time of writing this comment, this is only used for level_zero adapter testing.
@@ -112,7 +125,7 @@ function(add_gtest_test name)
     add_testing_binary(${TEST_TARGET_NAME} ${ARGN})
     target_link_libraries(${TEST_TARGET_NAME}
         PRIVATE
-        gmock
+        GTest::gmock
         GTest::gtest_main)
 endfunction()
 

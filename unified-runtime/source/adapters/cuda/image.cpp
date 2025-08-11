@@ -704,7 +704,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
-        cpy_desc.srcPitch = pSrcImageDesc->width * PixelSizeBytes;
+        cpy_desc.srcPitch = pSrcImageDesc->rowPitch;
         if (pDstImageDesc->rowPitch == 0) {
           cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
           cpy_desc.dstArray = (CUarray)pDst;
@@ -725,7 +725,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
         cpy_desc.srcHost = pSrc;
-        cpy_desc.srcPitch = pSrcImageDesc->width * PixelSizeBytes;
+        cpy_desc.srcPitch = pSrcImageDesc->rowPitch;
         cpy_desc.srcHeight = pSrcImageDesc->height;
         cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
         cpy_desc.dstArray = (CUarray)pDst;
@@ -745,7 +745,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
         cpy_desc.srcHost = pSrc;
-        cpy_desc.srcPitch = pSrcImageDesc->width * PixelSizeBytes;
+        cpy_desc.srcPitch = pSrcImageDesc->rowPitch;
         cpy_desc.srcHeight = std::max(uint64_t{1}, pSrcImageDesc->height);
         cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
         cpy_desc.dstArray = (CUarray)pDst;
@@ -793,7 +793,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
-        cpy_desc.dstPitch = pDstImageDesc->width * PixelSizeBytes;
+        cpy_desc.dstPitch = pDstImageDesc->rowPitch;
         cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
         cpy_desc.dstHost = pDst;
         if (pSrcImageDesc->rowPitch == 0) {
@@ -818,7 +818,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.srcArray = as_CUArray(pSrc);
         cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
         cpy_desc.dstHost = pDst;
-        cpy_desc.dstPitch = pDstImageDesc->width * PixelSizeBytes;
+        cpy_desc.dstPitch = pDstImageDesc->rowPitch;
         cpy_desc.dstHeight = pDstImageDesc->height;
         cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
@@ -838,7 +838,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.srcArray = as_CUArray(pSrc);
         cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
         cpy_desc.dstHost = pDst;
-        cpy_desc.dstPitch = pDstImageDesc->width * PixelSizeBytes;
+        cpy_desc.dstPitch = pDstImageDesc->rowPitch;
         cpy_desc.dstHeight = std::max(uint64_t{1}, pDstImageDesc->height);
         cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
         cpy_desc.Height = std::max(uint64_t{1}, pCopyRegion->copyExtent.height);

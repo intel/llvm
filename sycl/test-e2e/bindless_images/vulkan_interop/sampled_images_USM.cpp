@@ -5,8 +5,8 @@
 // RUN: %{build} %link-vulkan -o %t.out
 // RUN: %{run} %t.out
 
+#include "../../CommonUtils/vulkan_common.hpp"
 #include "../helpers/common.hpp"
-#include "vulkan_common.hpp"
 
 #include <sycl/detail/core.hpp>
 

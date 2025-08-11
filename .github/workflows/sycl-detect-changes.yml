@@ -54,6 +54,7 @@ jobs:
               - *libclc
               - 'sycl/*'
               - 'sycl/!(test-e2e|doc)/**'
+              - 'libdevice/**'
             ci:
               - .github/workflows/**
               # devops/* contains config files, including drivers versions.
@@ -64,6 +65,8 @@ jobs:
               - devops/scripts/install_drivers.sh
             devigccfg:
               - devops/dependencies-igc-dev.json
+            benchmarks:
+              - 'devops/scripts/benchmarks/**'
             perf-tests:
               - sycl/test-e2e/PerformanceTests/**
             esimd:

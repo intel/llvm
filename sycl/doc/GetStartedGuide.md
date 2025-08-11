@@ -150,23 +150,19 @@ needed at the moment.
 ### Build DPC++ toolchain with libc++ library
 
 There is experimental support for building and linking DPC++ runtime with libc++
-library instead of libstdc++. To enable it the following CMake options should be
+library instead of libstdc++. To enable it the following CMake option should be
 used.
 
 **Linux**:
 
 ```sh
--DSYCL_USE_LIBCXX=ON \
--DSYCL_LIBCXX_INCLUDE_PATH=<path to libc++ headers> \
--DSYCL_LIBCXX_LIBRARY_PATH=<path to libc++ and libc++abi libraries>
+-DLLVM_ENABLE_LIBCXX=ON
 ```
 
 You can also use configure script to enable:
 
 ```sh
-python %DPCPP_HOME%\llvm\buildbot\configure.py --use-libcxx \
---libcxx-include <path to libc++ headers> \
---libcxx-library <path to libc++ and libc++ abi libraries>
+python %DPCPP_HOME%\llvm\buildbot\configure.py --use-libcxx
 python %DPCPP_HOME%\llvm\buildbot\compile.py
 ```
 

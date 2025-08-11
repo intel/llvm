@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "memory_pool.hpp"
+#include "detail/virtual_mem.hpp"
 #include "graph_impl.hpp"
 
 #include <optional>
@@ -39,10 +40,12 @@ void *graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
   switch (AllocType) {
   case usm::alloc::device: {
 
-    context_impl &CtxImpl = *getSyclObjImpl(MContext);
-    adapter_impl &Adapter = CtxImpl.getAdapter();
+    const context_impl &CtxImpl = *getSyclObjImpl(MContext);
+    const adapter_impl &Adapter = CtxImpl.getAdapter();
+    const device_impl &DeviceImpl = *getSyclObjImpl(MDevice);
 
-    size_t Granularity = get_mem_granularity(MDevice, MContext);
+    const size_t Granularity = get_mem_granularity_for_allocation_size(
+        DeviceImpl, CtxImpl, granularity_mode::recommended, Size);
     uintptr_t StartPtr = 0;
     size_t AlignedSize = alignByteSize(Size, Granularity);
     // See if we can find an allocation to reuse

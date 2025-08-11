@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "fixtures.h"
+#include "uur/checks.h"
 #include "uur/known_failure.h"
 
 using urEventGetProfilingInfoTest = uur::event::urEventTest;
@@ -179,8 +180,9 @@ TEST_P(urEventGetProfilingInfoTest, InvalidValue) {
 
   const ur_profiling_info_t property_name = UR_PROFILING_INFO_COMMAND_QUEUED;
   size_t property_size = 0;
-  ASSERT_SUCCESS(urEventGetProfilingInfo(event, property_name, 0, nullptr,
-                                         &property_size));
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urEventGetProfilingInfo(event, property_name, 0, nullptr, &property_size),
+      property_name);
   ASSERT_NE(property_size, 0);
 
   uint64_t property_value = 0;
@@ -221,8 +223,10 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventGetProfilingInfoForWaitWithBarrier);
 
 TEST_P(urEventGetProfilingInfoForWaitWithBarrier, Success) {
   uint64_t submit_value = 0;
-  ASSERT_SUCCESS(urEventGetProfilingInfo(event, UR_PROFILING_INFO_COMMAND_START,
-                                         size, &submit_value, nullptr));
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urEventGetProfilingInfo(event, UR_PROFILING_INFO_COMMAND_START, size,
+                              &submit_value, nullptr),
+      UR_PROFILING_INFO_COMMAND_START);
   ASSERT_NE(submit_value, 0);
 
   uint64_t complete_value = 0;

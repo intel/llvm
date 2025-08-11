@@ -5,7 +5,9 @@
 
 // Checks that lowerESIMD pass builds proper vc-intrinsics
 // RUN: %clangxx -O2 -fsycl -c -fsycl-device-only -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -properties -split-esimd -lower-esimd -O0 -S %t -o %t.table
+// -O0 lowering, requires `-force-disable-esimd-opt` to disable all
+// optimizations.
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -O0 -force-disable-esimd-opt -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
 #include <sycl/ext/intel/esimd.hpp>
@@ -34,7 +36,9 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void bf16_vector() {
   simd<float, 8> F32 = 0;
   simd<bfloat16, 8> BF16 = F32;
+  // CHECK: call <8 x half> @llvm.genx.bf.cvt.v8f16.v8f32(<8 x float> {{[^)]+}})
   simd<float, 8> F32_conv = BF16;
+  // CHECK: call <8 x float> @llvm.genx.bf.cvt.v8f32.v8f16(<8 x half> {{[^)]+}})
 }
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void bf16_scalar() {

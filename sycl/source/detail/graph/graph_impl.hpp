@@ -330,8 +330,7 @@ public:
   /// this edge.
   /// @param Src The source of the new edge.
   /// @param Dest The destination of the new edge.
-  void makeEdge(std::shared_ptr<node_impl> Src,
-                std::shared_ptr<node_impl> Dest);
+  void makeEdge(node_impl &Src, node_impl &Dest);
 
   /// Throws an invalid exception if this function is called
   /// while a queue is recording commands to the graph.
@@ -692,8 +691,8 @@ public:
   }
 
   void update(std::shared_ptr<graph_impl> GraphImpl);
-  void update(std::shared_ptr<node_impl> Node);
-  void update(const std::vector<std::shared_ptr<node_impl>> &Nodes);
+  void update(node_impl &Node);
+  void update(nodes_range Nodes);
 
   /// Calls UR entry-point to update nodes in command-buffer.
   /// @param CommandBuffer The UR command-buffer to update commands in.
@@ -706,8 +705,7 @@ public:
   /// Update host-task nodes
   /// @param Nodes List of nodes to update, any node that is not a host-task
   /// will be ignored.
-  void updateHostTasksImpl(
-      const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+  void updateHostTasksImpl(nodes_range Nodes) const;
 
   /// Splits a list of nodes into separate lists of nodes for each
   /// command-buffer partition.
@@ -834,14 +832,14 @@ private:
     std::fstream Stream(FilePath, std::ios::out);
     Stream << "digraph dot {" << std::endl;
 
-    std::vector<std::shared_ptr<node_impl>> Roots;
-    for (auto &Node : MNodeStorage) {
-      if (Node->MPredecessors.size() == 0) {
-        Roots.push_back(Node);
+    std::vector<node_impl *> Roots;
+    for (node_impl &Node : nodes()) {
+      if (Node.MPredecessors.size() == 0) {
+        Roots.push_back(&Node);
       }
     }
 
-    for (std::shared_ptr<node_impl> Node : Roots)
+    for (node_impl *Node : Roots)
       Node->printDotRecursive(Stream, VisitedNodes, Verbose);
 
     Stream << "}" << std::endl;
@@ -854,7 +852,7 @@ private:
   /// @param[out] UpdateRequirements Accessor requirements found in /p Nodes.
   /// return True if update should be done through the scheduler.
   bool needsScheduledUpdate(
-      const std::vector<std::shared_ptr<node_impl>> &Nodes,
+      nodes_range Nodes,
       std::vector<sycl::detail::AccessorImplHost *> &UpdateRequirements);
 
   /// Sets the UR struct values required to update a graph node.

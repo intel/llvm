@@ -9,6 +9,7 @@
 		urGetEventProcAddrTable;
 		urGetKernelProcAddrTable;
 		urGetMemProcAddrTable;
+		urGetMemoryExportExpProcAddrTable;
 		urGetPhysicalMemProcAddrTable;
 		urGetPlatformProcAddrTable;
 		urGetProgramProcAddrTable;

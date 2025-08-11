@@ -10,7 +10,7 @@
 #include <clc/math/clc_atan2pi.h>
 
 #define FUNCTION __spirv_ocl_atan2pi
-#define __CLC_FUNCTION(x) __clc_atan2pi
+#define __IMPL_FUNCTION(x) __clc_atan2pi
 #define __CLC_BODY <clc/shared/binary_def.inc>
 
 #include <clc/math/gentype.inc>

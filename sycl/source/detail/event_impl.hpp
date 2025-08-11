@@ -9,10 +9,12 @@
 #pragma once
 
 #include <detail/adapter_impl.hpp>
+#include <detail/helpers.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/host_profiling_info.hpp>
 #include <sycl/detail/ur.hpp>
+#include <sycl/event.hpp>
 #include <sycl/info/info_desc.hpp>
 
 #include <atomic>
@@ -458,6 +460,19 @@ protected:
   bool MIsHostEvent = false;
 };
 
+using events_iterator =
+    variadic_iterator<event,
+                      std::vector<std::shared_ptr<event_impl>>::const_iterator,
+                      std::vector<event>::const_iterator,
+                      std::vector<event_impl *>::const_iterator, event_impl *>;
+
+class events_range : public iterator_range<events_iterator> {
+private:
+  using Base = iterator_range<events_iterator>;
+
+public:
+  using Base::Base;
+};
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

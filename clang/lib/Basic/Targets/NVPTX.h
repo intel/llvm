@@ -211,8 +211,9 @@ public:
     return CCCR_Warning;
   }
 
-  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts) override {
-    TargetInfo::adjust(Diags, Opts);
+  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts,
+              const TargetInfo *Aux) override {
+    TargetInfo::adjust(Diags, Opts, Aux);
     // FIXME: Needed for compiling SYCL to PTX.
     TLSSupported = TLSSupported || Opts.SYCLIsDevice;
   }

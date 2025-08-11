@@ -47,7 +47,7 @@ const RTDeviceBinaryImage *retrieveKernelBinary(queue_impl &Queue,
   bool isHIP = Dev.getBackend() == backend::ext_oneapi_hip;
   if (isNvidia || isHIP) {
     auto KernelID = ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    std::vector<kernel_id> KernelIds{KernelID};
+    std::vector<kernel_id> KernelIds{std::move(KernelID)};
     auto DeviceImages =
         ProgramManager::getInstance().getRawDeviceImages(KernelIds);
     auto DeviceImage = std::find_if(
@@ -64,12 +64,12 @@ const RTDeviceBinaryImage *retrieveKernelBinary(queue_impl &Queue,
   }
 
   if (KernelCG->MSyclKernel != nullptr)
-    return KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
+    return KernelCG->MSyclKernel->getDeviceImage().get_bin_image_ref();
 
   if (auto KernelBundleImpl = KernelCG->getKernelBundle())
     if (auto SyclKernelImpl = KernelBundleImpl->tryGetKernel(KernelName))
       // Retrieve the device image from the kernel bundle.
-      return SyclKernelImpl->getDeviceImage()->get_bin_image_ref();
+      return SyclKernelImpl->getDeviceImage().get_bin_image_ref();
 
   context_impl &ContextImpl = Queue.getContextImpl();
   return &detail::ProgramManager::getInstance().getDeviceImage(

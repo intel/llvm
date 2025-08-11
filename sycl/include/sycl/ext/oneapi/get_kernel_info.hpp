@@ -85,6 +85,15 @@ std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>,
 get_kernel_info(const queue &q) {
   return get_kernel_info<Func, Param>(q.get_context(), q.get_device());
 }
+
+template <auto *Func, typename Param>
+std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func> &&
+                     std::is_same_v<Param, sycl::info::kernel::num_args>,
+                 typename sycl::detail::is_kernel_info_desc<Param>::return_type>
+get_kernel_info(const context &, const device &) {
+  return sycl::detail::FreeFunctionInfoData<Func>::getNumParams();
+}
+
 } // namespace experimental
 } // namespace ext::oneapi
 } // namespace _V1

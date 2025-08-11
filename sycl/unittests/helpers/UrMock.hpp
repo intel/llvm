@@ -613,7 +613,7 @@ public:
     // This also erases each platform's devices (normally done in the library
     // shutdown) so that platforms/devices' lifetimes could work in unittests
     // scenario.
-    detail::GlobalHandler::instance().clearPlatforms();
+    detail::GlobalHandler::instance().getPlatformCache().clear();
     mock::getCallbacks().resetCallbacks();
   }
 

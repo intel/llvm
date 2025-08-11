@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -67,8 +67,15 @@ add_l0_v2_devices_test(memory_residency
     ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/ur_level_zero.cpp
 )
 
-add_l0_v2_kernels_test(deferred_kernel
-    deferred_kernel.cpp
-    ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/common.cpp
-    ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/ur_level_zero.cpp
-)
+if(NOT UR_FOUND_DPCXX)
+    # Tests that require kernels can't be used if we aren't generating
+    # device binaries
+    message(WARNING
+        "UR_DPCXX is not defined, skipping kernels' tests for L0v2")
+else()
+    add_l0_v2_kernels_test(deferred_kernel
+        deferred_kernel.cpp
+        ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/common.cpp
+        ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/ur_level_zero.cpp
+    )
+endif()

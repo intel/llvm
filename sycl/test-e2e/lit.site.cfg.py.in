@@ -34,6 +34,7 @@ config.cuda_libs_dir = "@CUDA_LIBS_DIR@"
 config.cuda_include = "@CUDA_INCLUDE@"
 config.hip_libs_dir = "@HIP_LIBS_DIR@"
 config.hip_include = "@HIP_INCLUDE@"
+config.offload_build_target = "@OFFLOAD_BUILD_TARGET@"
 
 config.opencl_include_dir = os.path.join(config.sycl_include, 'sycl')
 

@@ -154,8 +154,8 @@ public:
   virtual umf_result_t ext_close_ipc_handle(void *, size_t) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   }
-  virtual umf_result_t ext_ctl(int, const char *, void *, size_t,
-                               umf_ctl_query_type_t) {
+  virtual umf_result_t ext_ctl(umf_ctl_query_source_t, const char *, void *,
+                               size_t, umf_ctl_query_type_t, va_list) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   }
   virtual umf_result_t get_name(const char **) {
@@ -193,8 +193,8 @@ public:
   umf_result_t ext_put_ipc_handle(void *) override;
   umf_result_t ext_open_ipc_handle(void *, void **) override;
   umf_result_t ext_close_ipc_handle(void *, size_t) override;
-  umf_result_t ext_ctl(int, const char *, void *, size_t,
-                       umf_ctl_query_type_t) override;
+  umf_result_t ext_ctl(umf_ctl_query_source_t, const char *, void *, size_t,
+                       umf_ctl_query_type_t, va_list) override;
 };
 
 // Allocation routines for shared memory type

@@ -32,11 +32,11 @@ ur_result_t urPlatformGet(
   if (NumPlatforms) {
     *NumPlatforms = nplatforms;
   }
-    if (Platforms) {
-      for (uint32_t i = 0; i < std::min(nplatforms, NumEntries); ++i) {
-        Platforms[i] = GlobalAdapter->Platforms.at(i).get();
-      }
+  if (Platforms) {
+    for (uint32_t i = 0; i < std::min(nplatforms, NumEntries); ++i) {
+      Platforms[i] = GlobalAdapter->Platforms.at(i).get();
     }
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -293,6 +293,12 @@ ur_result_t ur_platform_handle_t_::initialize() {
                 strlen(ZE_BINDLESS_IMAGE_EXP_NAME) + 1) == 0) {
       if (extension.version == ZE_BINDLESS_IMAGE_EXP_VERSION_1_0) {
         ZeBindlessImagesExtensionSupported = true;
+      }
+    }
+    if (strncmp(extension.name, ZE_DEVICE_LUID_EXT_NAME,
+                strlen(ZE_DEVICE_LUID_EXT_NAME) + 1) == 0) {
+      if (extension.version == ZE_DEVICE_LUID_EXT_VERSION_1_0) {
+        ZeLUIDSupported = true;
       }
     }
     zeDriverExtensionMap[extension.name] = extension.version;

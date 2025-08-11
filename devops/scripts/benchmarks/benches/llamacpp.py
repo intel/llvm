@@ -28,7 +28,7 @@ class LlamaCppBench(Suite):
     def git_hash(self) -> str:
         return "916c83bfe7f8b08ada609c3b8e583cf5301e594b"
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
@@ -115,7 +115,7 @@ class LlamaBench(Benchmark):
     def lower_is_better(self):
         return False
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
             "--output",
@@ -141,7 +141,10 @@ class LlamaBench(Benchmark):
         ]
 
         result = self.run_bench(
-            command, env_vars, ld_library=self.bench.oneapi.ld_libraries()
+            command,
+            env_vars,
+            ld_library=self.bench.oneapi.ld_libraries(),
+            run_unitrace=run_unitrace,
         )
         parsed = self.parse_output(result)
         results = []

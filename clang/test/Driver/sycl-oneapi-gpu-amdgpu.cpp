@@ -124,9 +124,9 @@
 // DEVICE_AMD: clang-offload-wrapper{{.*}} "-compile-opts=--offload-arch=[[DEV_STR]]{{.*}}"
 
 /// test for invalid amd arch
-// RUN: not %clangxx -c -fsycl -fsycl-targets=amd_gpu_bad -### %s 2>&1 | \
+// RUN: not %clangxx -c -fsycl -nogpulib -fsycl-targets=amd_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_AMD_INPUT
-// RUN: not %clang_cl -c -fsycl -fsycl-targets=amd_gpu_bad -### %s 2>&1 | \
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=amd_gpu_bad --rocm-device-lib-path=/Inputs/rocm/amdgcn/bitcode -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_AMD_INPUT
 // BAD_AMD_INPUT: error: SYCL target is invalid: 'amd_gpu_bad'
 

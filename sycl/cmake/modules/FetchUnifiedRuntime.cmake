@@ -28,6 +28,9 @@ set(UR_BUILD_TESTS "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
 # UR tests require the examples to be built
 set(UR_BUILD_EXAMPLES "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
 
+option(SYCL_UR_FORMAT_CPP_STYLE "Format code style of UR C++ sources" OFF)
+set(UR_FORMAT_CPP_STYLE "${SYCL_UR_FORMAT_CPP_STYLE}" CACHE BOOL "" FORCE)
+
 # Here we override the defaults to unified-runtime
 set(UR_BUILD_XPTI_LIBS OFF CACHE BOOL "")
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
@@ -53,8 +56,6 @@ if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
 endif()
 if("opencl" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_OPENCL ON)
-  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD CACHE FILEPATH
-    "Path of the OpenCL ICD Loader library" FORCE)
 endif()
 if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
@@ -425,7 +426,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   endif()
 endif()
 
-if(NOT UR_USE_EXTERNAL_UMF)
+if(TARGET umf)
   install(TARGETS umf
     LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
     ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework

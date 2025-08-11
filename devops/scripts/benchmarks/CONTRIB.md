@@ -42,11 +42,9 @@ The suite is structured around three main components: Suites, Benchmarks, and Re
     * **Fields (set by Benchmark):**
         * `label`: Unique identifier for this *specific result type* within the benchmark instance (e.g., "Submit In Order Time"). Ideally contains `benchmark.name()`.
         * `value`: The measured numerical result (float).
-        * `unit`: The unit of the value (string, e.g., "μs", "GB/s", "token/s").
         * `command`: The command list used to run the benchmark (`list[str]`).
         * `env`: Environment variables used (`dict[str, str]`).
-        * `stdout`: Full standard output of the benchmark run (string).
-        * `passed`: Boolean indicating if verification passed (default: `True`).
+        * `unit`: The unit of the value (string, e.g., "μs", "GB/s", "token/s").
         * `stddev`: Standard deviation, if calculated by the benchmark itself (float, default: 0.0).
         * `git_url`, `git_hash`: Git info for the benchmark's source code (string).
     * **Fields (set by Framework):**
@@ -67,6 +65,104 @@ The suite is structured around three main components: Suites, Benchmarks, and Re
         * `display_name`: Optional user-friendly name for the benchmark (string). Defaults to `name()`.
         * `explicit_group`: Optional explicit group name for results (string). Used to group results in visualizations.
 
+## Dashboard and Visualization
+
+The benchmark suite generates an interactive HTML dashboard that visualizes `Result` objects and their metadata.
+
+### Data Flow from Results to Dashboard
+
+1. **Collection Phase:**
+    * Benchmarks generate `Result` objects containing performance measurements.
+    * The framework combines these with `BenchmarkMetadata` from benchmarks and suites. The metadata
+    is used for defining charts.
+    * All data is packaged into a `BenchmarkOutput` object containing runs, metadata, and tags for serialization.
+
+2. **Serialization:**
+    * For local viewing (`--output-html local`): Data is written as JavaScript variables in `data.js`.
+    These are directly loaded in the HTML dashboard.
+    * For remote deployment (`--output-html remote`): Data is written as JSON in `data.json`.
+    The `config.js` file contains the URL where the json file is hosted.
+    * Historical runs may be separated into archive files for better dashboard load times.
+
+3. **Dashboard Rendering:**
+    * JavaScript processes the data to create three chart types:
+        * **Historical Results**: Time-series charts showing performance trends over multiple runs. One chart for each unique benchmark scenario.
+        * **Historical Layer Comparisons**: Time-series charts for grouped results. Benchmark scenarios that can be directly compared are grouped either by using `explicit_group()` or matching the beginning of their labels with predefined groups.
+        * **Comparisons**: Bar charts comparing selected runs side-by-side. Again, based on the `explicit_group()` or labels.
+
+### Chart Types and Result Mapping
+
+**Historical Results (Time-series):**
+* One chart per unique `result.label`.
+* X-axis: `BenchmarkRun.date` (time).
+* Y-axis: `result.value` with `result.unit`.
+* Multiple lines for different `BenchmarkRun.name` entries.
+* Points include `result.stddev`, `result.git_hash`, and environment info in tooltips.
+
+**Historical Layer Comparisons:**
+* Groups related results using `benchmark.explicit_group()` or `result.label` prefixes.
+* Useful for comparing different implementations/configurations of the same benchmark.
+* Same time-series format but with grouped data.
+
+**Comparisons (Bar charts):**
+* Compares selected runs side-by-side.
+* X-axis: `BenchmarkRun.name`.
+* Y-axis: `result.value` with `result.unit`.
+* One bar per selected run.
+
+### Dashboard Features Controlled by Results/Metadata
+
+**Visual Properties:**
+* **Chart Title**: `metadata.display_name` or `result.label`.
+* **Y-axis Range**: `metadata.range_min` and `range_max` (when custom ranges enabled).
+* **Direction Indicator**: `result.lower_is_better` (shows "Lower/Higher is better").
+* **Grouping**: `benchmark.explicit_group()` groups related results together.
+
+**Filtering and Organization:**
+* **Suite Filters**: Filter by `result.suite`.
+* **Tag Filters**: Filter by `metadata.tags`.
+* **Regex Search**: Search by `result.label` patterns, `metadata.display_name` patterns are not searchable.
+* **Stability**: Hide/show based on `metadata.unstable`.
+
+**Information Display:**
+* **Description**: `metadata.description` appears prominently above charts.
+* **Notes**: `metadata.notes` provides additional context (toggleable).
+* **Tags**: `metadata.tags` displayed as colored badges with descriptions.
+* **Command Details**: Shows `result.command` and `result.env` in expandable sections.
+* **Git Information**: `result.git_url` and `result.git_hash` for benchmark source tracking.
+
+### Dashboard Interaction
+
+**Run Selection:**
+* Users select which `BenchmarkRun.name` entries to compare.
+* Default selection uses `BenchmarkOutput.default_compare_names`.
+* Changes affect all chart types simultaneously.
+
+**URL State Preservation:**
+* All filters, selections, and options are preserved in URL parameters.
+* Enables sharing specific dashboard views via URL address copy.
+
+### Best Practices for Dashboard-Friendly Results
+
+**Naming:**
+* Use unique `result.label` names that will be most descriptive.
+* Consider `metadata.display_name` for prettier chart titles.
+* Ensure `benchmark.name()` is unique across all suites.
+
+**Grouping:**
+* Use `benchmark.explicit_group()` to group related measurements.
+* Ensure grouped results have the same `result.unit`.
+* Group metadata keys in `Suite.additional_metadata()` should match group prefixes.
+
+**Metadata:**
+* Provide `metadata.description` for user understanding.
+* Use `metadata.notes` for implementation details or caveats.
+* Tag with relevant `metadata.tags` for filtering.
+* Set `metadata.range_min`/`range_max` for consistent comparisons when needed.
+
+**Stability:**
+* Mark unstable benchmarks with `metadata.unstable` to hide them by default.
+
 ## Adding New Benchmarks
 
 1. **Create Benchmark Class:** Implement a new class inheriting from `benches.base.Benchmark`. Implement required methods (`setup`, `run`, `teardown`, `name`) and optional ones (`description`, `get_tags`, etc.) as needed.
@@ -84,6 +180,14 @@ The suite is structured around three main components: Suites, Benchmarks, and Re
 * **Use unique names:** Ensure `benchmark.name()` and `result.label` are descriptive and unique.
 * **Group related results:** Use `benchmark.explicit_group()` consistently for results you want to compare directly in outputs. Ensure units match within a group. If defining group-level metadata in the Suite, ensure the chosen explicit_group name starts with the corresponding key defined in additional_metadata.
 * **Test locally:** Before submitting changes, test with relevant drivers/backends (e.g., using `--compute-runtime --build-igc` for L0). Check the visualization locally if possible (--output-markdown --output-html, then open the generated files).
+* **Test dashboard visualization:** When adding new benchmarks, always generate and review the HTML dashboard to ensure:
+    * Chart titles and labels are clear and readable.
+    * Results are grouped logically using `explicit_group()`.
+    * Metadata (description, notes, tags) displays correctly.
+    * Y-axis ranges are appropriate (consider setting `range_min`/`range_max` if needed).
+    * Filtering by suite and tags works as expected.
+    * Time-series trends make sense for historical data.
+    * **Tip**: Use `--dry-run --output-html local` to regenerate the dashboard without re-running benchmarks. This uses existing historical data and is useful for testing metadata changes, new groupings, or dashboard improvements.
 
 ## Utilities
 

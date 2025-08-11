@@ -78,8 +78,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
-  UR_ASSERT(hMem->getReferenceCount() > 0, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  hMem->incrementReferenceCount();
+  UR_ASSERT(hMem->RefCount.getCount() > 0, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  hMem->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
@@ -89,7 +89,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
 UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
   try {
     // Do nothing if there are other references
-    if (hMem->decrementReferenceCount() > 0) {
+    if (!hMem->RefCount.release()) {
       return UR_RESULT_SUCCESS;
     }
 
@@ -162,7 +162,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
     return ReturnValue(hMemory->getContext());
   }
   case UR_MEM_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hMemory->getReferenceCount());
+    return ReturnValue(hMemory->RefCount.getCount());
   }
 
   default:

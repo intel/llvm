@@ -6,6 +6,4 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_DECL _CLC_OVERLOAD size_t __spirv_GlobalOffset_x();
-_CLC_DECL _CLC_OVERLOAD size_t __spirv_GlobalOffset_y();
-_CLC_DECL _CLC_OVERLOAD size_t __spirv_GlobalOffset_z();
+_CLC_DECL _CLC_OVERLOAD size_t __spirv_BuiltInGlobalOffset(int);

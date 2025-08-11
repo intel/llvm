@@ -43,9 +43,9 @@ runs:
         if [ "${{ contains(inputs.cts_testing_mode, 'build-only')  }}" = "true" ]; then
           cts_exclude_filter=$PWD/sycl/cts_exclude_filter/compfails
         elif [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
-          cts_exclude_filter=$PWD/sycl/cts_exclude_filter/OCL_CPU
+          cts_exclude_filter=$PWD/sycl/cts_exclude_filter/LINUX_OCL_CPU
         elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
-          cts_exclude_filter=$PWD/sycl/cts_exclude_filter/L0_GPU
+          cts_exclude_filter=$PWD/sycl/cts_exclude_filter/LINUX_L0_GPU
         fi
 
         # List excluded SYCL CTS categories:
@@ -105,7 +105,7 @@ runs:
   # If the suite was built on another machine then the build contains the full
   # set of tests. We have special files to filter out some test categories,
   # see "sycl/cts_exclude_filter/*". Each configuration has its own file, e.g.
-  # there is "cts_exclude_filter/OCL_CPU" for opencl:cpu device. Therefore,
+  # there is "cts_exclude_filter/LINUX_OCL_CPU" for opencl:cpu device. Therefore,
   # these files may differ from each other, so when there is a pre-built set of
   # tests, we need to filter it according to the filter-file.
   - name: Filter SYCL CTS test categories
@@ -114,9 +114,9 @@ runs:
     run: |
       cts_exclude_filter=""
       if [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
-        cts_exclude_filter=$PWD/sycl/cts_exclude_filter/OCL_CPU
+        cts_exclude_filter=$PWD/sycl/cts_exclude_filter/LINUX_OCL_CPU
       elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
-        cts_exclude_filter=$PWD/sycl/cts_exclude_filter/L0_GPU
+        cts_exclude_filter=$PWD/sycl/cts_exclude_filter/LINUX_L0_GPU
       fi
 
       if [ -f "$cts_exclude_filter" ]; then

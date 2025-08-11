@@ -136,7 +136,8 @@ public:
   using sycl::handler::impl;
 
   MockHandler(sycl::detail::queue_impl &Queue)
-      : sycl::handler(Queue.shared_from_this(), /*CallerNeedsEvent*/ true) {}
+      : sycl::handler(std::make_unique<sycl::detail::handler_impl>(
+            Queue, nullptr, /*CallerNeedsEvent*/ true)) {}
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     auto CGH = static_cast<sycl::handler *>(this);
@@ -185,9 +186,9 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
   auto SyclKernelImpl =
       KernelBundleImplPtr->tryGetKernel(ExecKernel->MKernelName);
   EXPECT_TRUE(SyclKernelImpl != nullptr);
-  std::shared_ptr<sycl::detail::device_image_impl> DeviceImageImpl =
+  sycl::detail::device_image_impl &DeviceImageImpl =
       SyclKernelImpl->getDeviceImage();
-  ur_program_handle_t Program = DeviceImageImpl->get_ur_program_ref();
+  ur_program_handle_t Program = DeviceImageImpl.get_ur_program();
 
   EXPECT_TRUE(nullptr == ExecKernel->MSyclKernel ||
               !ExecKernel->MSyclKernel->isCreatedFromSource());
@@ -304,7 +305,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
     ProgBefore = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
-                                      *sycl::detail::getSyclObjImpl(Dev), Name);
+                                      *sycl::detail::getSyclObjImpl(Dev), Name)
+                     .release();
     auto Mask = PM.getEliminatedKernelArgMask(ProgBefore, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 1);
@@ -329,7 +331,8 @@ TEST(EliminatedArgMask, ReuseOfHandleValues) {
     sycl::queue Queue{Dev};
     auto Ctx = Queue.get_context();
     ProgAfter = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
-                                     *sycl::detail::getSyclObjImpl(Dev), Name);
+                                     *sycl::detail::getSyclObjImpl(Dev), Name)
+                    .release();
     auto Mask = PM.getEliminatedKernelArgMask(ProgAfter, Name);
     EXPECT_NE(Mask, nullptr);
     EXPECT_EQ(Mask->at(0), 0);

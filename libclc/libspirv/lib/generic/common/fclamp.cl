@@ -10,7 +10,7 @@
 #include <libspirv/spirv.h>
 
 #define FUNCTION __spirv_ocl_fclamp
-#define __CLC_FUNCTION(x) __clc_clamp
+#define __IMPL_FUNCTION(x) __clc_clamp
 
 #define __CLC_BODY <clc/shared/ternary_def.inc>
 #include <clc/math/gentype.inc>

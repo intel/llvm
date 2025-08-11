@@ -10,7 +10,7 @@
 #include <libspirv/spirv.h>
 
 #define FUNCTION __spirv_ocl_shuffle
-#define __CLC_FUNCTION(x) __clc_shuffle
+#define __IMPL_FUNCTION(x) __clc_shuffle
 
 #define __CLC_BODY <clc/misc/shuffle_def.inc>
 #include <clc/integer/gentype.inc>

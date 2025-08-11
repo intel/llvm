@@ -23,7 +23,8 @@
 namespace ur_sanitizer_layer {
 
 struct ManagedQueue {
-  ManagedQueue(ur_context_handle_t Context, ur_device_handle_t Device);
+  ManagedQueue(ur_context_handle_t Context, ur_device_handle_t Device,
+               bool IsOutOfOrder = false);
   ~ManagedQueue();
 
   // Disable copy semantics
@@ -48,6 +49,7 @@ ur_device_handle_t GetParentDevice(ur_device_handle_t Device);
 bool GetDeviceUSMCapability(ur_device_handle_t Device,
                             ur_device_info_t Feature);
 std::string GetKernelName(ur_kernel_handle_t Kernel);
+size_t GetSubGroupSize(ur_kernel_handle_t Kernel, ur_device_handle_t Device);
 size_t GetDeviceLocalMemorySize(ur_device_handle_t Device);
 ur_program_handle_t GetProgram(ur_kernel_handle_t Kernel);
 bool IsUSM(ur_context_handle_t Context, const void *MemPtr);

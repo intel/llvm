@@ -99,13 +99,13 @@ TEST_P(urEnqueueMemBufferReadRectTestWithParam, Success) {
   // The input will just be sequentially increasing values.
   std::vector<uint8_t> input(buffer_size, 0x0);
   std::iota(std::begin(input), std::end(input), 0x0);
-  EXPECT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, /* isBlocking */ true,
+  ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, /* isBlocking */ true,
                                          0, input.size(), input.data(), 0,
                                          nullptr, nullptr));
 
   // Enqueue the rectangular read.
   std::vector<uint8_t> output(host_size, 0x0);
-  EXPECT_SUCCESS(urEnqueueMemBufferReadRect(
+  ASSERT_SUCCESS(urEnqueueMemBufferReadRect(
       queue, buffer, /* isBlocking */ true, buffer_offset, host_offset, region,
       buffer_row_pitch, buffer_slice_pitch, host_row_pitch, host_slice_pitch,
       output.data(), 0, nullptr, nullptr));
@@ -119,7 +119,7 @@ TEST_P(urEnqueueMemBufferReadRectTestWithParam, Success) {
   EXPECT_EQ(expected, output);
 
   // Cleanup.
-  EXPECT_SUCCESS(urMemRelease(buffer));
+  ASSERT_SUCCESS(urMemRelease(buffer));
 }
 
 struct urEnqueueMemBufferReadRectTest : public uur::urMemBufferQueueTest {

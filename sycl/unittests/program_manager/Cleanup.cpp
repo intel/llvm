@@ -35,7 +35,7 @@ public:
     return m_ServiceKernels;
   }
 
-  std::unordered_multimap<sycl::detail::KernelNameStrT,
+  std::unordered_multimap<std::string,
                           const sycl::detail::RTDeviceBinaryImage *> &
   getExportedSymbolImages() {
     return m_ExportedSymbolImages;

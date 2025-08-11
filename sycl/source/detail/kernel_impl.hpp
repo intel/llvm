@@ -39,7 +39,7 @@ public:
   /// \param Kernel is a valid UrKernel instance
   /// \param Context is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(ur_kernel_handle_t Kernel, context_impl &Context,
+  kernel_impl(Managed<ur_kernel_handle_t> &&Kernel, context_impl &Context,
               kernel_bundle_impl *KernelBundleImpl,
               const KernelArgMask *ArgMask = nullptr);
 
@@ -49,8 +49,8 @@ public:
   /// \param Kernel is a valid UrKernel instance
   /// \param ContextImpl is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(ur_kernel_handle_t Kernel, context_impl &ContextImpl,
-              DeviceImageImplPtr DeviceImageImpl,
+  kernel_impl(Managed<ur_kernel_handle_t> &&Kernel, context_impl &ContextImpl,
+              std::shared_ptr<device_image_impl> &&DeviceImageImpl,
               const kernel_bundle_impl &KernelBundleImpl,
               const KernelArgMask *ArgMask, ur_program_handle_t Program,
               std::mutex *CacheMutex);
@@ -198,11 +198,7 @@ public:
   typename Param::return_type ext_oneapi_get_info(queue Queue,
                                                   const range<1> &WG) const;
 
-  /// Get a constant reference to a raw kernel object.
-  ///
-  /// \return a constant reference to a valid UrKernel instance with raw
-  /// kernel object.
-  const ur_kernel_handle_t &getHandleRef() const { return MKernel; }
+  ur_kernel_handle_t getHandleRef() const { return MKernel; }
 
   /// Check if kernel was created from a program that had been created from
   /// source.
@@ -213,7 +209,7 @@ public:
   bool isInteropOrSourceBased() const noexcept;
   bool hasSYCLMetadata() const noexcept;
 
-  const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
+  device_image_impl &getDeviceImage() const { return *MDeviceImageImpl; }
 
   ur_native_handle_t getNative() const {
     adapter_impl &Adapter = MContext->getAdapter();
@@ -243,11 +239,11 @@ public:
   std::string_view getName() const;
 
 private:
-  ur_kernel_handle_t MKernel = nullptr;
+  Managed<ur_kernel_handle_t> MKernel;
   const std::shared_ptr<context_impl> MContext;
   const ur_program_handle_t MProgram = nullptr;
   bool MCreatedFromSource = true;
-  const DeviceImageImplPtr MDeviceImageImpl;
+  const std::shared_ptr<device_image_impl> MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;
   bool MIsInterop = false;
   mutable std::mutex MNoncacheableEnqueueMutex;
@@ -255,7 +251,7 @@ private:
   std::mutex *MCacheMutex = nullptr;
   mutable std::string MName;
 
-  bool isBuiltInKernel(const device &Device) const;
+  bool isBuiltInKernel(device_impl &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
 
   /// Check if the occupancy limits are exceeded for the given kernel launch
@@ -270,6 +266,7 @@ private:
                                size_t DynamicLocalMemorySize) const;
 
   void enableUSMIndirectAccess() const;
+  std::optional<unsigned> getFreeFuncKernelArgSize() const;
 };
 
 template <int Dimensions>
@@ -309,9 +306,13 @@ template <typename Param>
 inline typename Param::return_type kernel_impl::get_info() const {
   static_assert(is_kernel_info_desc<Param>::value,
                 "Invalid kernel information descriptor");
-  if constexpr (std::is_same_v<Param, info::kernel::num_args>)
+  if constexpr (std::is_same_v<Param, info::kernel::num_args>) {
+    // if kernel is a free function, we need to get num_args from integration
+    // header, stored in program manager
+    if (std::optional<unsigned> FFArgSize = getFreeFuncKernelArgSize())
+      return *FFArgSize;
     checkIfValidForNumArgsInfoQuery();
-
+  }
   return get_kernel_info<Param>(this->getHandleRef(), getAdapter());
 }
 
@@ -327,7 +328,7 @@ kernel_impl::get_info(const device &Device) const {
                     Param, info::kernel_device_specific::global_work_size>) {
     bool isDeviceCustom = Device.get_info<info::device::device_type>() ==
                           info::device_type::custom;
-    if (!isDeviceCustom && !isBuiltInKernel(Device))
+    if (!isDeviceCustom && !isBuiltInKernel(*getSyclObjImpl(Device)))
       throw exception(
           sycl::make_error_code(errc::invalid),
           "info::kernel_device_specific::global_work_size descriptor may only "

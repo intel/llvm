@@ -72,12 +72,12 @@ int main() {
   });
 }
 
-// CHECK: {{.*}}use_image1d_r 'void (__read_only image1d_t)'
-// CHECK: {{.*}}use_image2d_r 'void (__read_only image2d_t)'
-// CHECK: {{.*}}use_image3d_r 'void (__read_only image3d_t)'
-// CHECK: {{.*}}use_image1d_w 'void (__write_only image1d_t)'
-// CHECK: {{.*}}use_image2d_w 'void (__write_only image2d_t)'
-// CHECK: {{.*}}use_image3d_w 'void (__write_only image3d_t)'
+// CHECK: {{.*}}use_image1d_r 'void (__read_only image1d_t) __attribute__((device_kernel))'
+// CHECK: {{.*}}use_image2d_r 'void (__read_only image2d_t) __attribute__((device_kernel))'
+// CHECK: {{.*}}use_image3d_r 'void (__read_only image3d_t) __attribute__((device_kernel))'
+// CHECK: {{.*}}use_image1d_w 'void (__write_only image1d_t) __attribute__((device_kernel))'
+// CHECK: {{.*}}use_image2d_w 'void (__write_only image2d_t) __attribute__((device_kernel))'
+// CHECK: {{.*}}use_image3d_w 'void (__write_only image3d_t) __attribute__((device_kernel))'
 
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: target=x86_64-pc-windows-msvc

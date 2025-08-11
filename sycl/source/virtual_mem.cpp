@@ -9,7 +9,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/physical_mem_impl.hpp>
-#include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
+#include <detail/virtual_mem.hpp>
 
 // System headers for querying page-size.
 #ifdef _WIN32
@@ -22,9 +22,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-__SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
-                                         const context &SyclContext,
-                                         granularity_mode Mode) {
+size_t
+get_mem_granularity_for_allocation_size(const detail::device_impl &SyclDevice,
+                                        const detail::context_impl &SyclContext,
+                                        granularity_mode Mode,
+                                        const size_t AllocationSize) {
   if (!SyclDevice.has(aspect::ext_oneapi_virtual_mem))
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -45,18 +47,28 @@ __SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
 #ifndef NDEBUG
   size_t InfoOutputSize = 0;
   Adapter->call<sycl::detail::UrApiKind::urVirtualMemGranularityGetInfo>(
-      urCtx, urDevice, GranularityQuery, 0u, nullptr, &InfoOutputSize);
+      urCtx, urDevice, AllocationSize, GranularityQuery, 0u, nullptr,
+      &InfoOutputSize);
   assert(InfoOutputSize == sizeof(size_t) &&
          "Unexpected output size of granularity info query.");
 #endif // NDEBUG
   size_t Granularity = 0;
   Adapter->call<sycl::detail::UrApiKind::urVirtualMemGranularityGetInfo>(
-      urCtx, urDevice, GranularityQuery, sizeof(size_t), &Granularity, nullptr);
+      urCtx, urDevice, AllocationSize, GranularityQuery, sizeof(size_t),
+      &Granularity, nullptr);
   if (Granularity == 0)
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "Unexpected granularity result: memory granularity shouldn't be 0.");
   return Granularity;
+}
+
+__SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
+                                         const context &SyclContext,
+                                         granularity_mode Mode) {
+  return get_mem_granularity_for_allocation_size(
+      *detail::getSyclObjImpl(SyclDevice), *detail::getSyclObjImpl(SyclContext),
+      Mode, 1);
 }
 
 __SYCL_EXPORT size_t get_mem_granularity(const context &SyclContext,

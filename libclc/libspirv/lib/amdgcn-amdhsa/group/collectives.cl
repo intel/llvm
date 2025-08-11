@@ -51,9 +51,9 @@ __clc__get_group_scratch_double() __asm("__clc__get_group_scratch_double");
 #define __CLC_LOGICAL_AND(x, y) (x && y)
 
 #define __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, IDENTITY)                     \
-  uint sg_lid = __spirv_SubgroupLocalInvocationId();                           \
+  uint sg_lid = __spirv_BuiltInSubgroupLocalInvocationId();                    \
   /* Can't use XOR/butterfly shuffles; some lanes may be inactive */           \
-  for (int o = 1; o < __spirv_SubgroupMaxSize(); o *= 2) {                     \
+  for (int o = 1; o < __spirv_BuiltInSubgroupMaxSize(); o *= 2) {              \
     TYPE contribution = __spirv_SubgroupShuffleUpINTEL(x, x, o);               \
     bool inactive = (sg_lid < o);                                              \
     contribution = (inactive) ? IDENTITY : contribution;                       \
@@ -62,7 +62,8 @@ __clc__get_group_scratch_double() __asm("__clc__get_group_scratch_double");
   /* For Reduce, broadcast result from highest active lane */                  \
   TYPE result;                                                                 \
   if (op == Reduce) {                                                          \
-    result = __spirv_SubgroupShuffleINTEL(x, __spirv_SubgroupSize() - 1);      \
+    result =                                                                   \
+        __spirv_SubgroupShuffleINTEL(x, __spirv_BuiltInSubgroupSize() - 1);    \
     *carry = result;                                                           \
   } /* For InclusiveScan, use results as computed */                           \
   else if (op == InclusiveScan) {                                              \
@@ -171,7 +172,7 @@ __CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
 
 #define __CLC_GROUP_COLLECTIVE_INNER(SPIRV_NAME, CLC_NAME, OP, TYPE, IDENTITY) \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
-      __spirv_Group, SPIRV_NAME)(int scope, int op, TYPE x) {                \
+      __spirv_Group, SPIRV_NAME)(int scope, int op, TYPE x) {                  \
     TYPE carry = IDENTITY;                                                     \
     /* Perform GroupOperation within sub-group */                              \
     TYPE sg_x = __CLC_APPEND(__clc__Subgroup, CLC_NAME)(op, x, &carry);        \
@@ -179,10 +180,10 @@ __CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
       return sg_x;                                                             \
     }                                                                          \
     __local TYPE *scratch = __CLC_APPEND(__clc__get_group_scratch_, TYPE)();   \
-    uint sg_id = __spirv_SubgroupId();                                         \
-    uint num_sg = __spirv_NumSubgroups();                                      \
-    uint sg_lid = __spirv_SubgroupLocalInvocationId();                         \
-    uint sg_size = __spirv_SubgroupSize();                                     \
+    uint sg_id = __spirv_BuiltInSubgroupId();                                  \
+    uint num_sg = __spirv_BuiltInNumSubgroups();                               \
+    uint sg_lid = __spirv_BuiltInSubgroupLocalInvocationId();                  \
+    uint sg_size = __spirv_BuiltInSubgroupSize();                              \
     /* Share carry values across sub-groups */                                 \
     if (sg_lid == sg_size - 1) {                                               \
       scratch[sg_id] = carry;                                                  \
@@ -329,15 +330,15 @@ __CLC_GROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
 #undef __CLC_MUL
 
 long __clc__2d_to_linear_local_id(ulong2 id) {
-  size_t size_x = __spirv_WorkgroupSize_x();
-  size_t size_y = __spirv_WorkgroupSize_y();
+  size_t size_x = __spirv_BuiltInWorkgroupSize(0);
+  size_t size_y = __spirv_BuiltInWorkgroupSize(1);
   return (id.y * size_x + id.x);
 }
 
 long __clc__3d_to_linear_local_id(ulong3 id) {
-  size_t size_x = __spirv_WorkgroupSize_x();
-  size_t size_y = __spirv_WorkgroupSize_y();
-  size_t size_z = __spirv_WorkgroupSize_z();
+  size_t size_x = __spirv_BuiltInWorkgroupSize(0);
+  size_t size_y = __spirv_BuiltInWorkgroupSize(1);
+  size_t size_z = __spirv_BuiltInWorkgroupSize(2);
   return (id.z * size_y * size_x + id.y * size_x + id.x);
 }
 
@@ -347,7 +348,7 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
     if (scope == Subgroup) {                                                   \
       return __spirv_SubgroupShuffleINTEL(x, local_id);                        \
     }                                                                          \
-    bool source = (__spirv_LocalInvocationIndex() == local_id);                \
+    bool source = (__spirv_BuiltInLocalInvocationIndex() == local_id);         \
     __local TYPE *scratch = __CLC_APPEND(__clc__get_group_scratch_, TYPE)();   \
     if (source) {                                                              \
       *scratch = x;                                                            \

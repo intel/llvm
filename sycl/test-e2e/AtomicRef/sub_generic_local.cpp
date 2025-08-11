@@ -1,5 +1,3 @@
-// XFAIL: hip
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19077
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

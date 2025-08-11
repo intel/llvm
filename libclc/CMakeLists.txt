@@ -49,6 +49,12 @@ set( LIBCLC_TARGETS_TO_BUILD "all"
 
 option( ENABLE_RUNTIME_SUBNORMAL "Enable runtime linking of subnormal support." OFF )
 
+# Top level target used to build all Libclc libraries.
+add_custom_target( libclc ALL )
+
+add_custom_target( libclc-opencl-builtins COMMENT "Build libclc OpenCL builtins" )
+add_dependencies( libclc libclc-opencl-builtins )
+
 if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # Out-of-tree configuration
   set( LIBCLC_STANDALONE_BUILD TRUE )
@@ -79,7 +85,7 @@ else()
   # Note that we check this later (for both build types) but we can provide a
   # more useful error message when built in-tree. We assume that LLVM tools are
   # always available so don't warn here.
-  if( NOT clang IN_LIST LLVM_ENABLE_PROJECTS )
+  if( NOT LLVM_RUNTIMES_BUILD AND NOT clang IN_LIST LLVM_ENABLE_PROJECTS )
     message(FATAL_ERROR "Clang is not enabled, but is required to build libclc in-tree")
   endif()
 
@@ -173,7 +179,6 @@ if( "spirv-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD OR "spirv64-mesa3d-" IN_LIST
 endif()
 
 add_custom_target(libspirv-builtins COMMENT "Build libspirv builtins")
-add_custom_target(libopencl-builtins COMMENT "Build libclc builtins")
 
 if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
   set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
@@ -194,9 +199,6 @@ endif()
 
 list( SORT LIBCLC_TARGETS_TO_BUILD )
 
-# Construct LLVM version define
-set( LLVM_VERSION_DEFINE "-DHAVE_LLVM=0x${LLVM_VERSION_MAJOR}0${LLVM_VERSION_MINOR}" )
-
 set(LIBCLC_TARGET_TO_TEST)
 
 foreach ( t ${LIBCLC_TEST_TARGETS_ALL})
@@ -205,8 +207,14 @@ foreach ( t ${LIBCLC_TEST_TARGETS_ALL})
   endif()
 endforeach(t)
 
+# This needs to be set before any target that needs it
+# We need to use LLVM_INCLUDE_DIRS here, because if we are linking to an
+# llvm build directory, this includes $src/llvm/include which is where all the
+# headers are not $build/include/ which is what LLVM_INCLUDE_DIR is set to.
+include_directories( ${LLVM_INCLUDE_DIRS} )
+
 # Configure prepare_builtins
-add_subdirectory(utils)
+add_subdirectory( utils )
 
 # Setup arch devices
 set( r600--_devices cedar cypress barts cayman )
@@ -247,7 +255,6 @@ if( ENABLE_RUNTIME_SUBNORMAL )
   foreach( file IN ITEMS subnormal_use_default subnormal_disable )
     link_bc(
        TARGET ${file}
-       RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/opencl/lib/generic/${file}.ll
     )
     install(
@@ -338,6 +345,10 @@ else(LIBCLC_STANDALONE_BUILD)
   set(LIBCLC_LIBRARY_OUTPUT_INTDIR ${LLVM_LIBRARY_OUTPUT_INTDIR})
 endif(LIBCLC_STANDALONE_BUILD)
 file( TO_CMAKE_PATH ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/clc LIBCLC_LIBRARY_OUTPUT_INTDIR )
+
+# Setup the paths where libclc runtimes should be stored.
+# FIXME: Align with upstream
+set( LIBCLC_OUTPUT_LIBRARY_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR} )
 
 foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   message( STATUS "libclc target '${t}' is enabled" )
@@ -514,6 +525,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       -I${CMAKE_CURRENT_SOURCE_DIR}/clc/include
       # Error on undefined macros
       -Werror=undef
+      -fdiscard-value-names
     )
 
     if( NOT "${cpu}" STREQUAL "" )
@@ -572,7 +584,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         ARCH ${ARCH}
         ARCH_SUFFIX libspirv-${arch_suffix}
         TRIPLE ${clang_triple}
-        TARGET_ENV libspirv-
         REMANGLE ${LIBCLC_GENERATE_REMANGLED_VARIANTS}
         COMPILE_FLAGS ${spirv_build_flags}
         OPT_FLAGS ${opt_flags}
@@ -599,7 +610,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       LIB_FILES ${opencl_lib_files}
       GEN_FILES ${opencl_gen_files}
       ALIASES ${${d}_aliases}
-      PARENT_TARGET libopencl-builtins
+      PARENT_TARGET libclc-opencl-builtins
       # Link in the CLC builtins and internalize their symbols
       INTERNAL_LINK_DEPENDENCIES builtins.link.clc-${arch_suffix}
     )

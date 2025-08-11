@@ -1060,6 +1060,9 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
     OS << "))";
   }
 
+  if (T->hasCFIUncheckedCallee())
+    OS << " __attribute__((cfi_unchecked_callee))";
+
   if (T->hasTrailingReturn()) {
     OS << " -> ";
     print(T->getReturnType(), OS, StringRef());
@@ -1102,13 +1105,13 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
       OS << " __attribute__((pcs(\"aapcs-vfp\")))";
       break;
     case CC_AArch64VectorCall:
-      OS << "__attribute__((aarch64_vector_pcs))";
+      OS << " __attribute__((aarch64_vector_pcs))";
       break;
     case CC_AArch64SVEPCS:
-      OS << "__attribute__((aarch64_sve_pcs))";
+      OS << " __attribute__((aarch64_sve_pcs))";
       break;
-    case CC_AMDGPUKernelCall:
-      OS << "__attribute__((amdgpu_kernel))";
+    case CC_DeviceKernel:
+      OS << " __attribute__((device_kernel))";
       break;
     case CC_IntelOclBicc:
       OS << " __attribute__((intel_ocl_bicc))";
@@ -1123,7 +1126,6 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
       OS << " __attribute__((regcall))";
       break;
     case CC_SpirFunction:
-    case CC_OpenCLKernel:
       // Do nothing. These CCs are not available as attributes.
       break;
     case CC_Swift:
@@ -1876,6 +1878,17 @@ void TypePrinter::printAttributedBefore(const AttributedType *T,
   if (T->getAttrKind() == attr::ObjCKindOf)
     OS << "__kindof ";
 
+  if (T->getAttrKind() == attr::PreserveNone) {
+    OS << "__attribute__((preserve_none)) ";
+    spaceBeforePlaceHolder(OS);
+  } else if (T->getAttrKind() == attr::PreserveMost) {
+    OS << "__attribute__((preserve_most)) ";
+    spaceBeforePlaceHolder(OS);
+  } else if (T->getAttrKind() == attr::PreserveAll) {
+    OS << "__attribute__((preserve_all)) ";
+    spaceBeforePlaceHolder(OS);
+  }
+
   if (T->getAttrKind() == attr::AddressSpace)
     printBefore(T->getEquivalentType(), OS);
   else
@@ -1987,6 +2000,13 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     return;
   }
 
+  if (T->getAttrKind() == attr::PreserveAll ||
+      T->getAttrKind() == attr::PreserveMost ||
+      T->getAttrKind() == attr::PreserveNone) {
+    // This has to be printed before the type.
+    return;
+  }
+
   OS << " __attribute__((";
   switch (T->getAttrKind()) {
 #define TYPE_ATTR(NAME)
@@ -2055,6 +2075,9 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::Blocking:
   case attr::Allocating:
   case attr::SwiftAttr:
+  case attr::PreserveAll:
+  case attr::PreserveMost:
+  case attr::PreserveNone:
     llvm_unreachable("This attribute should have been handled already");
 
   case attr::NSReturnsRetained:
@@ -2087,20 +2110,14 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   }
   case attr::AArch64VectorPcs: OS << "aarch64_vector_pcs"; break;
   case attr::AArch64SVEPcs: OS << "aarch64_sve_pcs"; break;
-  case attr::AMDGPUKernelCall: OS << "amdgpu_kernel"; break;
-  case attr::IntelOclBicc: OS << "inteloclbicc"; break;
-  case attr::PreserveMost:
-    OS << "preserve_most";
+  case attr::DeviceKernel:
+    OS << T->getAttr()->getSpelling();
     break;
-
-  case attr::PreserveAll:
-    OS << "preserve_all";
+  case attr::IntelOclBicc:
+    OS << "inteloclbicc";
     break;
   case attr::M68kRTD:
     OS << "m68k_rtd";
-    break;
-  case attr::PreserveNone:
-    OS << "preserve_none";
     break;
   case attr::RISCVVectorCC:
     OS << "riscv_vector_cc";
@@ -2110,6 +2127,9 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     break;
   case attr::NoDeref:
     OS << "noderef";
+    break;
+  case attr::CFIUncheckedCallee:
+    OS << "cfi_unchecked_callee";
     break;
   case attr::AcquireHandle:
     OS << "acquire_handle";

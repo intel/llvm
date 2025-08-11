@@ -367,6 +367,9 @@ UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
 
 // Enqueue kernelLaunch concurrently from multiple threads
 TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
+  // https://github.com/intel/llvm/issues/19607
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
   if (!queuePerThread) {
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
   }

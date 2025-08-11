@@ -206,7 +206,7 @@ public:
     TestAltMathLibrary  // Use a fake alternate math library for testing
   };
 
-  LLVM_ABI TargetLibraryInfoImpl();
+  TargetLibraryInfoImpl() = delete;
   LLVM_ABI explicit TargetLibraryInfoImpl(const Triple &T);
 
   // Provide value semantics.
@@ -387,6 +387,8 @@ class TargetLibraryInfo {
   std::bitset<NumLibFuncs> OverrideAsUnavailable;
 
 public:
+  TargetLibraryInfo() = delete;
+
   explicit TargetLibraryInfo(const TargetLibraryInfoImpl &Impl,
                              std::optional<const Function *> F = std::nullopt)
       : Impl(&Impl) {
@@ -752,7 +754,11 @@ class LLVM_ABI TargetLibraryInfoWrapperPass : public ImmutablePass {
 
 public:
   static char ID;
+
+  /// The default constructor should not be used and is only for pass manager
+  /// initialization purposes.
   TargetLibraryInfoWrapperPass();
+
   explicit TargetLibraryInfoWrapperPass(const Triple &T);
   explicit TargetLibraryInfoWrapperPass(const TargetLibraryInfoImpl &TLI);
 
