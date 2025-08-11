@@ -1877,17 +1877,27 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     SPIRVLifetimeStart *LTStart = static_cast<SPIRVLifetimeStart *>(BV);
     IRBuilder<> Builder(BB);
     auto *Var = transValue(LTStart->getObject(), F, BB);
+<<<<<<< HEAD
+=======
+    Var = Var->stripPointerCasts();
+>>>>>>> Adjust Lifetime intrinsics translation after llvm/llvm-project@c23b4fb (#3304)
     CallInst *Start = Builder.CreateLifetimeStart(Var);
     return mapValue(BV, Start);
   }
-
   case OpLifetimeStop: {
     SPIRVLifetimeStop *LTStop = static_cast<SPIRVLifetimeStop *>(BV);
     IRBuilder<> Builder(BB);
     auto *Var = transValue(LTStop->getObject(), F, BB);
+<<<<<<< HEAD
     for (const auto &I : Var->users())
       if (auto *II = getLifetimeStartIntrinsic(dyn_cast<Instruction>(I)))
         return mapValue(BV, Builder.CreateLifetimeEnd(II->getOperand(1)));
+=======
+    Var = Var->stripPointerCasts();
+    for (const auto &I : Var->users())
+      if (auto *II = getLifetimeStartIntrinsic(dyn_cast<Instruction>(I)))
+        return mapValue(BV, Builder.CreateLifetimeEnd(II->getOperand(0)));
+>>>>>>> Adjust Lifetime intrinsics translation after llvm/llvm-project@c23b4fb (#3304)
     return mapValue(BV, Builder.CreateLifetimeEnd(Var));
   }
 
