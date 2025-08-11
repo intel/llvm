@@ -5316,8 +5316,8 @@ class OffloadingActionBuilder final {
       bool IsNativeCPU = TargetTriple.isNativeCPU();
       for (const auto &Input : ListIndex) {
         // No need for any conversion if we are coming in from the
-        // clang-offload-deps path.
-        if (ContainsOffloadDepsAction(Input) ||
+        // clang-offload-deps path or regular compilation path.
+        if (IsNVPTX || IsAMDGCN || ContainsOffloadDepsAction(Input) ||
             ContainsCompileOrAssembleAction(Input)) {
           LinkObjects.push_back(Input);
           continue;
@@ -6448,7 +6448,7 @@ public:
       // FIXME - unbundling action with -fsycl-link is unbundling for both host
       // and device, where only the device is needed.
       auto UnbundlingHostAction = C.MakeAction<OffloadUnbundlingJobAction>(
-          A, (HostAction->getType() == types::TY_Archive)
+          A, (HasSPIRTarget && HostAction->getType() == types::TY_Archive)
                  ? types::TY_Tempfilelist
                  : A->getType());
       UnbundlingHostAction->registerDependentActionInfo(
