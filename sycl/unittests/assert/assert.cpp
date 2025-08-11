@@ -49,10 +49,10 @@ struct KernelInfo<TestKernel> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "TestKernel"; }
 };
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 static constexpr const kernel_param_desc_t Signatures[] = {
     {kernel_param_kind_t::kind_accessor, 4062, 0}};
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier>
     : public unittest::MockKernelInfoBase {
