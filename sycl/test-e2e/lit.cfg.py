@@ -15,6 +15,7 @@ import lit.util
 from lit.llvm import llvm_config
 from lit.llvm.subst import ToolSubst, FindTool
 
+
 # Configuration file for the 'lit' test runner.
 config.backend_to_target = {
     "level_zero": "target-spir",
@@ -34,6 +35,8 @@ config.triple_to_target = {v: k for k, v in config.target_to_triple.items()}
 config.backend_to_triple = {
     k: config.target_to_triple.get(v) for k, v in config.backend_to_target.items()
 }
+
+config.available_features = AvailableFeatures()
 
 # name: The name of this test suite.
 config.name = "SYCL"
