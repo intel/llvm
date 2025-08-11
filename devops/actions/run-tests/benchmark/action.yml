@@ -118,6 +118,9 @@ runs:
       git fetch origin ${{ inputs.build_ref }}
       git checkout FETCH_HEAD
       
+      # UR requires lit
+      pip install --user --break-system-packages lit
+
       # Configure UR
       mkdir build install
       cmake -DCMAKE_BUILD_TYPE=Release \
