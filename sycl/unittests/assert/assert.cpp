@@ -52,6 +52,7 @@ struct KernelInfo<TestKernel> : public unittest::MockKernelInfoBase {
 static constexpr const kernel_param_desc_t Signatures[] = {
     {kernel_param_kind_t::kind_accessor, 4062, 0}};
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier>
     : public unittest::MockKernelInfoBase {
@@ -69,6 +70,7 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier>
                                  sycl::access::mode::write>);
   }
 };
+#endif
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
@@ -77,8 +79,6 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   static const std::string KernelName = "TestKernel";
-  static const std::string CopierKernelName =
-      "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
   MockPropertySet PropSet;
 
@@ -91,6 +91,7 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
   return Img;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 static sycl::unittest::MockDeviceImage generateCopierKernelImage() {
   using namespace sycl::unittest;
 
@@ -105,9 +106,13 @@ static sycl::unittest::MockDeviceImage generateCopierKernelImage() {
 
   return Img;
 }
+#endif
 
-sycl::unittest::MockDeviceImage Imgs[] = {generateDefaultImage(),
-                                          generateCopierKernelImage()};
+sycl::unittest::MockDeviceImage Imgs[] = {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    generateCopierKernelImage(),
+#endif
+    generateDefaultImage()};
 sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
 struct AssertHappened {
@@ -501,6 +506,7 @@ TEST(Assert, TestPositive) {
 #endif // _WIN32
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 TEST(Assert, TestAssertServiceKernelHidden) {
   const char *AssertServiceKernelName = sycl::detail::KernelInfo<
       sycl::detail::__sycl_service_kernel__::AssertInfoCopier>::getName();
@@ -514,6 +520,7 @@ TEST(Assert, TestAssertServiceKernelHidden) {
 
   EXPECT_TRUE(NoFoundServiceKernelID);
 }
+#endif
 
 TEST(Assert, TestInteropKernelNegative) {
   sycl::unittest::UrMock<> Mock;
