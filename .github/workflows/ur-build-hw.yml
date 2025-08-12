@@ -29,6 +29,16 @@ on:
         required: true
         type: string
         default: ""
+      run_tests:
+        required: false
+        type: string
+        default: "ON"
+    outputs:
+      artifact:
+        value: ${{ jobs.adapter_build_hw.outputs.artifact }}
+      artifact_filename:
+        value: ${{ jobs.adapter_build_hw.outputs.artifact_filename }}
+
   workflow_dispatch:
     inputs:
       adapter_name:
@@ -57,6 +67,10 @@ on:
         required: true
         type: string
         default: ""
+      run_tests:
+        required: false
+        type: string
+        default: "ON"
 
 permissions: read-all
 
@@ -85,11 +99,22 @@ jobs:
         ]
         build_type: [Release]
         compiler: [{c: gcc, cxx: g++}]
+        # sanitize input: enforce run_tests to be either "ON" or "OFF"
+        run_tests: ${{ inputs.run_tests == "ON" && "ON" || "OFF" }}
+        artifact: {
+          name: "ur_adapter_${{inputs.adapter_name}}",
+          archive_name: "ur_adapter_${{inputs.adapter_name}}.tar.zst",
+          compress_command: "zstd -9",
+          decompress_command: "zstd",
+        }
 
     runs-on: ${{inputs.runner_name}}
     container:
       image: ${{ inputs.docker_image }}
       options: ${{ inputs.image_options }}
+    outputs:
+      artifact: ${{ steps.pack_artifact.outputs.artifact }}
+      artifact_filename: ${{ steps.pack_artifact.outputs.artifact_filename }}
 
     steps:
     # TODO:
@@ -140,9 +165,9 @@ jobs:
         -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
         -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
-        -DUR_ENABLE_TRACING=ON
-        -DUR_DEVELOPER_MODE=ON
-        -DUR_BUILD_TESTS=ON
+        -DUR_ENABLE_TRACING=${{matrix.run_tests}}
+        -DUR_DEVELOPER_MODE=${{matrix.run_tests}}
+        -DUR_BUILD_TESTS=${{matrix.run_tests}}
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
         ${{ matrix.adapter.other_name != '' && format('-DUR_BUILD_ADAPTER_{0}=ON', matrix.adapter.other_name) || '' }}
         -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
@@ -154,10 +179,12 @@ jobs:
         ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
 
     - name: Build
+      id: build_ur
       # This is so that device binaries can find the sycl runtime library
       run: cmake --build build -j $(nproc)
 
     - name: Install
+      id: install_ur
       # This is to check that install command does not fail
       run: cmake --install build
 
@@ -169,13 +196,31 @@ jobs:
         LIT_FILTER_OUT: "(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)"
       run: cmake --build build -j $(nproc) -- check-unified-runtime-adapter
       # Don't run adapter specific tests when building multiple adapters
-      if: ${{ matrix.adapter.other_name == '' }}
+      if: ${{ matrix.adapter.other_name == '' && matrix.run_tests == 'ON' }}
 
     - name: Test adapters
+      if: matrix.run_tests == 'ON'
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         LIT_OPTS: "--timeout 120"
       run: cmake --build build -j $(nproc) -- check-unified-runtime-conformance
+
+    - name: Pack UR build
+      id: pack_artifact
+      if: ${{ steps.build_ur.conclusion == 'success' && steps.install_ur.conclusion == 'success' }}
+      run: |
+        tar -I '${{ matrix.artifact.compress_command }}' \
+            -cf '${{ matrix.artifact.archive_name }}' -C ./install .
+        echo "artifact=${{ matrix.artifact.name }}" >> $GITHUB_OUTPUT
+        echo "artifact_filename=${{ matrix.artifact.archive_name }}" >> $GITHUB_OUTPUT
+        echo "decompress_command=${{ matrix.artifact.decompress_command }}" >> $GITHUB_OUTPUT
+    - name: Upload UR build
+      if: ${{ steps.build_ur.conclusion == 'success' && steps.install_ur.conclusion == 'success' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact.name }}
+        path: ${{ matrix.artifact.archive_name }}
+        retention-days: 3
 
     - name: Get information about platform
       if: ${{ always() }}
