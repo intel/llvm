@@ -8,3 +8,8 @@
 benchmarkRuns = [];
 
 defaultCompareNames = [];
+
+benchmarkMetadata = {};
+
+benchmarkTags = {};
+

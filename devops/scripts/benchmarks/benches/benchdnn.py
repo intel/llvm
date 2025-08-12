@@ -132,7 +132,9 @@ class OneDnnBenchmark(Benchmark):
         if not self.bench_bin.exists():
             raise FileNotFoundError(f"Benchmark binary not found: {self.bench_bin}")
 
-    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
+    def run(
+        self, env_vars, run_flamegraph: bool = False, run_unitrace: bool = False
+    ) -> list[Result]:
         command = [
             str(self.bench_bin),
             *self.bench_args.split(),
@@ -153,6 +155,7 @@ class OneDnnBenchmark(Benchmark):
             use_stdout=True,
             run_unitrace=run_unitrace,
             extra_unitrace_opt=["--chrome-dnn-logging"],
+            run_flamegraph=run_flamegraph,
         )
         result_value = self._extract_time(output)
 

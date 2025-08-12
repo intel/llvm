@@ -14,29 +14,29 @@
 
 # the final choice of benchmarks to run, used in CI and other environments
 benches_final_set = [
-    [
-        "sum",
-        "f16-1",
-        "--sdt=f16:f16:f16 --stag=abx:abx:abx --scales=1.25:3:0.5 16x2x6x4x3",
-        False,  # Do not run graph for this benchmark
-    ],
-    [
-        "sum",
-        "f16-2",
-        "--reset --ddt=f16 \
-            --sdt=f16:f16:f16:f16:f16:f16:f16:f16:f16:f16 \
-            --stag=abx:aBx16b:ABx16a16b:ABcd16b16a:BAcd16a16b:BAcd16b16a:aBCd16b16c:aBCd16c16b:aCBd16b16c:aCBd16c16b \
-            --dtag=abx,aBx16b,ABx16a16b,ABcd16b16a,BAcd16a16b,BAcd16b16a,aBCd16b16c,aBCd16c16b,aCBd16b16c,aCBd16c16b \
-            --scales=1.25:3:0.5:2:0.5:2:0.5:2:0.5:2 \
-            16x32x48x5",
-        False,  # Do not run graph for this benchmark
-    ],
-    [
-        "sum",
-        "f32-1",
-        "--sdt=bf16:bf16:bf16 --stag=abx:abx:abx --scales=0.5:2:0.5    16x2x6x4x3",
-        False,  # Do not run graph for this benchmark
-    ],
+    # [
+    #     "sum",
+    #     "f16-1",
+    #     "--sdt=f16:f16:f16 --stag=abx:abx:abx --scales=1.25:3:0.5 16x2x6x4x3",
+    #     False,  # Do not run graph for this benchmark
+    # ],
+    # [
+    #     "sum",
+    #     "f16-2",
+    #     "--reset --ddt=f16 \
+    #         --sdt=f16:f16:f16:f16:f16:f16:f16:f16:f16:f16 \
+    #         --stag=abx:aBx16b:ABx16a16b:ABcd16b16a:BAcd16a16b:BAcd16b16a:aBCd16b16c:aBCd16c16b:aCBd16b16c:aCBd16c16b \
+    #         --dtag=abx,aBx16b,ABx16a16b,ABcd16b16a,BAcd16a16b,BAcd16b16a,aBCd16b16c,aBCd16c16b,aCBd16b16c,aCBd16c16b \
+    #         --scales=1.25:3:0.5:2:0.5:2:0.5:2:0.5:2 \
+    #         16x32x48x5",
+    #     False,  # Do not run graph for this benchmark
+    # ],
+    # [
+    #     "sum",
+    #     "f32-1",
+    #     "--sdt=bf16:bf16:bf16 --stag=abx:abx:abx --scales=0.5:2:0.5    16x2x6x4x3",
+    #     False,  # Do not run graph for this benchmark
+    # ],
     [
         "sum",
         "f32-2",

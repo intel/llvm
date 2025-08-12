@@ -77,8 +77,10 @@ def run(
 
         return result
     except subprocess.CalledProcessError as e:
-        log.error(e.stdout.decode())
-        log.error(e.stderr.decode())
+        if e.stdout and e.stdout.decode().strip():
+            log.error(e.stdout.decode())
+        if e.stderr and e.stderr.decode().strip():
+            log.error(e.stderr.decode())
         raise
 
 
