@@ -15,7 +15,7 @@
 // interprocedural passes, which add possibly-dead arguments or return values.
 //
 //===----------------------------------------------------------------------===//
-#include <iostream>
+
 #include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -582,7 +582,6 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
       F.hasFnAttribute("sycl-single-task-kernel") ||
       F.hasFnAttribute("sycl-nd-range-kernel");
   if (FuncIsSyclFreeFunctionKernel) {
-    std::cout << "Frozen!" << std::endl;
     markFrozen(F);
     return;
   }
