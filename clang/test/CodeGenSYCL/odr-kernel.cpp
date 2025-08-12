@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -x c++ -std=c++17 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
 //
 // Kernel definition may be shared by multiple translation unit if a kernel is
 // defined as a functor in a header file. Therefore, we need to make sure that

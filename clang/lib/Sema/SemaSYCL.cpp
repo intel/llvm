@@ -5443,7 +5443,7 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   ESIMDKernelDiagnostics esimdKernel(*this, KernelObj->getLocation(),
                                      IsSIMDKernel);
 
-  // In case of syntax errors in input programs we are not be able to access
+  // In case of syntax errors in input programs we are not able to access
   // CallOperator. In this case the value of IsInlined doesn't matter, because
   // compilation will fail with errors anyways.
   const bool IsInlined =
