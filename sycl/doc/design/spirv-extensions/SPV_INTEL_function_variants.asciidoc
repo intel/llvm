@@ -476,7 +476,7 @@ See *Specialization*.
 1+|Capability: +
 *{fnvar_capability_name}*
 
-| 4 + variable | {spec_const_capabilities_token}
+| 3 + variable | {spec_const_capabilities_token}
 | '<id>' +
 'Result Type'
 | 'Result <id>'
