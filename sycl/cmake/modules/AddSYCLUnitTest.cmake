@@ -1,6 +1,6 @@
 # Internal function to create SYCL unit tests with code reuse
-# add_sycl_unittest_internal(test_dirname SHARED|OBJECT is_preview file1.cpp, file2.cpp ...)
-function(add_sycl_unittest_internal test_dirname link_variant is_preview)
+# add_sycl_unittest_internal(test_dirname SHARED|OBJECT is_preview is_no_cgh file1.cpp, file2.cpp ...)
+function(add_sycl_unittest_internal test_dirname link_variant is_preview is_no_cgh)
   # Enable exception handling for these unit tests
   set(LLVM_REQUIRES_EH ON)
   set(LLVM_REQUIRES_RTTI ON)
@@ -34,7 +34,11 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
   # Chaning CMAKE_CURRENT_BINARY_DIR should not affect this variable in its
   # parent scope.
   if (${is_preview})
-    set(CMAKE_CURRENT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/Preview")
+    if (${is_no_cgh})
+      set(CMAKE_CURRENT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/PreviewNoCGH")
+    else()
+      set(CMAKE_CURRENT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/Preview")
+    endif()
   endif()
 
   if ("${link_variant}" MATCHES "SHARED")
@@ -62,7 +66,19 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
   if (${is_preview})
     target_compile_definitions(${test_dirname}
         PRIVATE __INTEL_PREVIEW_BREAKING_CHANGES)
-    set(sycl_cache_suffix "_preview")
+    if (${is_no_cgh})
+      set(sycl_cache_suffix "_preview_no_cgh")
+    else()
+      set(sycl_cache_suffix "_preview")
+    endif()
+  endif()
+
+  if (${is_no_cgh})
+    target_compile_definitions(
+      ${test_dirname}
+      PRIVATE
+        __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+    )
   endif()
 
   if (SYCL_ENABLE_XPTI_TRACING)
@@ -151,14 +167,6 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
   endif()
 
   target_compile_definitions(${test_dirname} PRIVATE SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
-
-  if (SYCL_ENABLE_UNFINISHED_NO_CGH_SUBMIT)
-    target_compile_definitions(
-      ${test_dirname}
-      PRIVATE
-        __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-    )
-  endif()
 endfunction()
 
 # add_sycl_unittest(test_name_prefix SHARED|OBJECT file1.cpp, file2.cpp ...)
@@ -167,6 +175,7 @@ endfunction()
 # the SYCL preview features enabled.
 # Produces two binaries, named `basename(test_name_prefix_non_preview)` and `basename(test_name_prefix_preview)`
 macro(add_sycl_unittest test_name_prefix link_variant)
-  add_sycl_unittest_internal(${test_name_prefix}_non_preview ${link_variant} FALSE ${ARGN})
-  add_sycl_unittest_internal(${test_name_prefix}_preview ${link_variant} TRUE ${ARGN})
+  add_sycl_unittest_internal(${test_name_prefix}_non_preview ${link_variant} FALSE FALSE ${ARGN})
+  add_sycl_unittest_internal(${test_name_prefix}_preview ${link_variant} TRUE FALSE ${ARGN})
+  add_sycl_unittest_internal(${test_name_prefix}_preview_no_cgh ${link_variant} TRUE TRUE ${ARGN})
 endmacro()

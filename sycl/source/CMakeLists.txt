@@ -56,14 +56,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
   )
 
-  if (SYCL_ENABLE_UNFINISHED_NO_CGH_SUBMIT)
-    target_compile_definitions(
-      ${LIB_OBJ_NAME}
-      PRIVATE
-        __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-    )
-  endif()
-
   target_include_directories(
     ${LIB_OBJ_NAME}
     PRIVATE

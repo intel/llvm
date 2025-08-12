@@ -370,7 +370,7 @@ public:
     return createSyclObjFromImpl<event>(ResEvent);
   }
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   event
   submit_direct_with_event(nd_range<1> Range,
                     const detail::v1::SubmissionInfo &SubmitInfo,
@@ -430,7 +430,7 @@ public:
     submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, false, CodeLoc,
                     IsTopCodeLoc);
   }
-#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
                             const v1::SubmissionInfo &SubmitInfo,
@@ -988,14 +988,14 @@ protected:
                                    bool IsTopCodeLoc,
                                    const v1::SubmissionInfo &SubmitInfo);
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::EventImplPtr submit_direct_impl(const NDRDescT &NDRDesc,
                                    const v1::SubmissionInfo &SubmitInfo,
                                    const v1::KernelRuntimeInfo &KRInfo,
                                    bool CallerNeedsEvent,
                                    const detail::code_location &CodeLoc,
                                    bool IsTopCodeLoc);
-#endif
+#endif //__INTEL_PREVIEW_BREAKING_CHANGES
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.
   /// \param HandlerFunc is a function that submits the operation with a

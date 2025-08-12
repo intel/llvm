@@ -312,7 +312,7 @@ event queue::submit_with_event_impl(
   return impl->submit_with_event(CGH, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 event queue::submit_direct_with_event_impl(
     nd_range<1> Range,
     const detail::v1::SubmissionInfo &SubmitInfo,
@@ -367,7 +367,7 @@ void queue::submit_direct_without_event_impl(
       CodeLoc, IsTopCodeLoc);
 }
 
-#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
 void queue::submit_without_event_impl(
     const detail::type_erased_cgfo_ty &CGH,

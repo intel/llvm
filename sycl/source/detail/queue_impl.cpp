@@ -415,7 +415,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 }
 #endif
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
 std::vector<ArgDesc> queue_impl::extractArgsAndReqsFromLambda(
     char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
@@ -513,7 +513,7 @@ queue_impl::submit_direct_impl(const NDRDescT &NDRDesc,
   return CallerNeedsEvent ? EventImpl : nullptr;
 }
 
-#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::vector<event> &DepEvents,
