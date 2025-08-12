@@ -81,11 +81,18 @@ RocmInstallationDetector::CommonBitcodeLibsPreferences::
                                        options::OPT_fno_fast_math, false);
 
   const bool DefaultSqrt = IsKnownOffloading ? true : false;
-  CorrectSqrt =
-      DriverArgs.hasArg(options::OPT_cl_fp32_correctly_rounded_divide_sqrt) ||
-      DriverArgs.hasFlag(
-          options::OPT_fhip_fp32_correctly_rounded_divide_sqrt,
-          options::OPT_fno_hip_fp32_correctly_rounded_divide_sqrt, DefaultSqrt);
+
+  if (DeviceOffloadingKind == Action::OFK_SYCL)
+    // When using SYCL, sqrt is only correctly rounded if the flag is specified.
+    CorrectSqrt = DriverArgs.hasArg(options::OPT_foffload_fp32_prec_sqrt);
+  else
+    CorrectSqrt =
+        DriverArgs.hasArg(options::OPT_cl_fp32_correctly_rounded_divide_sqrt) ||
+        DriverArgs.hasFlag(
+            options::OPT_fhip_fp32_correctly_rounded_divide_sqrt,
+            options::OPT_fno_hip_fp32_correctly_rounded_divide_sqrt,
+            DefaultSqrt);
+
   // GPU Sanitizer currently only supports ASan and is enabled through host
   // ASan.
   GPUSan = (DriverArgs.hasFlag(options::OPT_fgpu_sanitize,

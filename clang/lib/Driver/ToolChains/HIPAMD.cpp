@@ -281,7 +281,6 @@ void HIPAMDToolChain::addClangTargetOptions(
                                                : "-mlink-bitcode-file");
     CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
   }
-
 }
 
 llvm::opt::DerivedArgList *
