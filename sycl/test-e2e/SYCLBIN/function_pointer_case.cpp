@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
   std::cout << "Link objects." << std::endl;
   auto KBExe = sycl::link({SYCLBINInputObj, SYCLBINObj});
 
-  ArgsT *Args = sycl::malloc_shared<ArgsT>(N, Q);
+  ArgsT *Args = sycl::malloc_shared<ArgsT>(1, Q);
   Args->Ptr = sycl::malloc_shared<size_t>(N, Q);
 
   // Prefetch the data pointer on the device. This is needed as the device
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
   // Though this is done prior to the GetFuncPtrKern launch, as it may avoid the
   // need for the copy-back of Args. The resulting event is only a dependency of
   // the launch of Kernel however.
-  sycl::event ArgPtrPrefetchEvent = Q.prefetch(Args->Ptr, sizeof(ArgsT));
+  sycl::event ArgPtrPrefetchEvent = Q.prefetch(Args->Ptr, sizeof(size_t) * N);
 
   // Get function pointer through kernel. This deviates from the original.
   sycl::kernel GetFuncPtrKern = KBExe.ext_oneapi_get_kernel("GetFuncPtr");
