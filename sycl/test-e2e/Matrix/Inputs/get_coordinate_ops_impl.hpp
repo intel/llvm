@@ -211,12 +211,7 @@ int main() {
       // A
       test_get_coord_op<bfloat16, float, /*TM*/ 16, /*TK*/ 16, use::a,
                         layout::row_major, 1>();
-      // B
-      // Duplicate from 8x16x16
-      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
-      //             layout::ext_intel_packed, 2>();
-      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
-      //             layout::row_major, 1>();
+      // B - duplicate from 8x16x16
       // Accumulator
       test_get_coord_op<bfloat16, float, /*TM*/ 16, /*TN*/ 16, use::accumulator,
                         layout::row_major, 1>();
@@ -260,29 +255,19 @@ int main() {
       // A
       test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TK*/ 16, use::a,
                         layout::row_major, 1>();
-      // B
-      // Duplicate from 1x64x16
-      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 64, use::b,
-      //             layout::ext_intel_packed, 2>();
-      // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 64, use::b,
-      //             layout::row_major, 1>();
+      // B - duplicate from 1x64x16
       // Accumulator
       test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TN*/ 64, use::accumulator,
                         layout::row_major, 1>();
       test_get_coord_op<float, float, /*TM*/ 32, /*TN*/ 64, use::accumulator,
                         layout::row_major, 1>();
 
-      // // 32x64x32 float/bfloat16
+      // 32x64x32 float/bfloat16
       std::cout << "32x64x32 float/bfloat16" << std::endl;
       // A
       test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TK*/ 32, use::a,
                         layout::row_major, 1>();
-      // B
-      // Duplicate from 1x64x32
-      // test_get_coord_op<bfloat16, float, /*TK*/ 32, /*TN*/ 64, use::b,
-      //             layout::ext_intel_packed, 2>();
-      // test_get_coord_op<bfloat16, float, /*TK*/ 32, /*TN*/ 64, use::b,
-      //             layout::row_major, 1>();
+      // B - duplicate from 1x64x32
       // Accumulator
       test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TN*/ 64, use::accumulator,
                         layout::row_major, 1>();
