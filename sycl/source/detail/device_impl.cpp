@@ -109,7 +109,7 @@ bool device_impl::has_extension(const std::string &ExtensionName) const {
   const std::string AllExtensionNames{
       get_info_impl<UR_DEVICE_INFO_EXTENSIONS>()};
 
-  int FoundExtPos = AllExtensionNames.find(ExtensionName);
+  size_t FoundExtPos = AllExtensionNames.find(ExtensionName);
   while (FoundExtPos != std::string::npos) {
     // If the extension name was found, we need to ensure it is not a partial
     // match. That is, the following must hold:
