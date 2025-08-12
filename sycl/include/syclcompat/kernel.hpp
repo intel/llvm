@@ -38,9 +38,9 @@
 #include <dlfcn.h>
 #endif
 
-#if defined(__has_include) && __has_include(<filesystem>)
+#if __has_include(<filesystem>)
 #include <filesystem>
-#elif defined(__has_include) && __has_include(<experimental/filesystem>)
+#elif __has_include(<experimental/filesystem>)
 #include <experimental/filesystem>
 #else
 #error "SYCLomatic runtime requires C++ filesystem support"
@@ -83,7 +83,7 @@ get_kernel_function_info(const void *function) {
 
 namespace detail {
 
-#if defined(__has_include) && __has_include(<filesystem>)
+#if __has_include(<filesystem>)
 namespace fs = std::filesystem;
 #else
 namespace fs = std::experimental::filesystem;
