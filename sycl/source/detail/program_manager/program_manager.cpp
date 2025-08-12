@@ -2155,15 +2155,16 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // Unmap the unique kernel IDs for the offload entries
     for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
          EntriesIt = EntriesIt->Increment()) {
-      const char *Name = EntriesIt->GetName();
+      detail::KernelNameStrT Name = EntriesIt->GetName();
       // Drop entry for service kernel
-      if (std::strstr(Name, "__sycl_service_kernel__")) {
+      if (Name.find("__sycl_service_kernel__") != std::string::npos) {
         removeFromMultimapByVal(m_ServiceKernels, Name, Img);
         continue;
       }
 
       // Exported device functions won't have a kernel ID
-      if (m_ExportedSymbolImages.find(Name) != m_ExportedSymbolImages.end()) {
+      if (m_ExportedSymbolImages.find(std::string(Name)) !=
+          m_ExportedSymbolImages.end()) {
         continue;
       }
 
