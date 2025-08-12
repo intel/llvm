@@ -15,7 +15,7 @@
 // interprocedural passes, which add possibly-dead arguments or return values.
 //
 //===----------------------------------------------------------------------===//
-
+#include <iostream>
 #include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -571,6 +571,18 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
       (F.getCallingConv() == CallingConv::SPIR_KERNEL || IsNVPTXKernel(&F));
   bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSyclKernel;
   if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
+    markFrozen(F);
+    return;
+  }
+
+  // Do not modify arguments when the SYCL kernel is a free function kernel.
+  // In this case, the user sets the arguments of the kernel by themselves
+  // and dead argument elimination may interfere with their expectations.
+  bool FuncIsSyclFreeFunctionKernel =
+      F.hasFnAttribute("sycl-single-task-kernel") ||
+      F.hasFnAttribute("sycl-nd-range-kernel");
+  if (FuncIsSyclFreeFunctionKernel) {
+    std::cout << "Frozen!" << std::endl;
     markFrozen(F);
     return;
   }
