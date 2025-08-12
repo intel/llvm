@@ -195,11 +195,11 @@ There are several ways this extension could be implemented:
   kernel or function decorated with `range_type`, and then conditionally insert
   an equivalent of `__builtin_assume`.
 
-- The existing `__builtin_assume` intrinsic in `__SYCL_ASSUME_INT` could be
+- The existing `+__builtin_assume+` intrinsic in `+__SYCL_ASSUME_INT+` could be
   replaced by a new (but similar) SPIR-V intrinsic, shifting range-type
   optimizations to the device compiler.
-  This could take the form of a dedicated `__spirv_AssumeInRange` intrinsic,
-  or a general `__spirv_Assume` intrinsic coupled with a `__spirv_MaxRange`
+  This could take the form of a dedicated `+__spirv_AssumeInRange+` intrinsic,
+  or a general `+__spirv_Assume+` intrinsic coupled with a `+__spirv_MaxRange+`
   value.
 
 Ideally, the solution should not generate SPIR-V modules that require new
