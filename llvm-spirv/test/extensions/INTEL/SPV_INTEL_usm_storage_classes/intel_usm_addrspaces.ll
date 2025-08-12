@@ -73,12 +73,8 @@ entry:
 ; CHECK-LLVM-NO-USM: %HOST = alloca ptr addrspace(1), align 8
   %HOST = alloca ptr addrspace(6), align 8
 
-; CHECK-LLVM: bitcast ptr %DEVICE to ptr
-; CHECK-LLVM-NO-USM: bitcast ptr %DEVICE to ptr
   call void @llvm.lifetime.start.p0(i64 8, ptr %DEVICE) #4
 
-; CHECK-LLVM: bitcast ptr %HOST to ptr
-; CHECK-LLVM-NO-USM: bitcast ptr %HOST to ptr
   call void @llvm.lifetime.start.p0(i64 8, ptr %HOST) #4
 
 ; CHECK-LLVM: %[[DLOAD_E:[0-9]+]] = load ptr addrspace(5), ptr %DEVICE, align 8
@@ -99,12 +95,8 @@ entry:
   %3 = addrspacecast ptr addrspace(6) %2 to ptr addrspace(4)
   call spir_func void @_Z3fooPi(ptr addrspace(4) %3)
 
-; CHECK-LLVM: bitcast ptr %HOST to ptr
-; CHECK-LLVM-NO-USM: bitcast ptr %HOST to ptr
   call void @llvm.lifetime.end.p0(i64 8, ptr %HOST) #4
 
-; CHECK-LLVM: bitcast ptr %DEVICE to ptr
-; CHECK-LLVM-NO-USM: bitcast ptr %DEVICE to ptr
   call void @llvm.lifetime.end.p0(i64 8, ptr %DEVICE) #4
 
   ret void

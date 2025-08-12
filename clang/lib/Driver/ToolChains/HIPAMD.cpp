@@ -281,7 +281,6 @@ void HIPAMDToolChain::addClangTargetOptions(
                                                : "-mlink-bitcode-file");
     CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
   }
-
 }
 
 llvm::opt::DerivedArgList *
@@ -381,9 +380,8 @@ VersionTuple HIPAMDToolChain::computeMSVCVersion(const Driver *D,
 }
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
-HIPAMDToolChain::getDeviceLibs(
-    const llvm::opt::ArgList &DriverArgs,
-    const Action::OffloadKind DeviceOffloadingKind) const {
+HIPAMDToolChain::getDeviceLibs(const llvm::opt::ArgList &DriverArgs,
+                               Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
   if (!DriverArgs.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib,
                           true) ||
@@ -400,19 +398,22 @@ HIPAMDToolChain::getDeviceLibs(
   // Maintain compatability with --hip-device-lib.
   auto BCLibArgs = DriverArgs.getAllArgValues(options::OPT_hip_device_lib_EQ);
   if (!BCLibArgs.empty()) {
-    llvm::for_each(BCLibArgs, [&](StringRef BCName) {
+    for (StringRef BCName : BCLibArgs) {
       StringRef FullName;
+      bool Found = false;
       for (StringRef LibraryPath : LibraryPaths) {
         SmallString<128> Path(LibraryPath);
         llvm::sys::path::append(Path, BCName);
         FullName = Path;
         if (llvm::sys::fs::exists(FullName)) {
           BCLibs.emplace_back(FullName);
-          return;
+          Found = true;
+          break;
         }
       }
-      getDriver().Diag(diag::err_drv_no_such_file) << BCName;
-    });
+      if (!Found)
+        getDriver().Diag(diag::err_drv_no_such_file) << BCName;
+    }
   } else {
     if (!RocmInstallation->hasDeviceLibrary()) {
       getDriver().Diag(diag::err_drv_no_rocm_device_lib) << 0;

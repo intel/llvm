@@ -5,8 +5,7 @@
 
 set(OPENCL_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "OpenCL adapter directory")
 
-set(UR_OPENCL_INCLUDE_DIR "" CACHE PATH "Directory containing the OpenCL Headers")
-set(UR_OPENCL_ICD_LOADER_LIBRARY "" CACHE FILEPATH "Path of the OpenCL ICD Loader library")
+include(FetchOpenCL)
 
 find_package(Threads REQUIRED)
 
@@ -53,52 +52,12 @@ set_target_properties(${TARGET_NAME} PROPERTIES
     SOVERSION "${PROJECT_VERSION_MAJOR}"
 )
 
-if(UR_OPENCL_INCLUDE_DIR)
-    set(OpenCLIncludeDirectory ${UR_OPENCL_INCLUDE_DIR})
-else()
-    FetchContent_Declare(OpenCL-Headers
-        GIT_REPOSITORY  "https://github.com/KhronosGroup/OpenCL-Headers.git"
-        GIT_TAG         6eabe90aa7b6cff9c67800a2fe25a0cd88d8b749
-    )
-    FetchContent_MakeAvailable(OpenCL-Headers)
-    FetchContent_GetProperties(OpenCL-Headers
-        SOURCE_DIR OpenCLIncludeDirectory
-    )
+# https://github.com/intel/llvm/issues/19648
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND LLVM_ENABLE_PEDANTIC)
+    target_compile_options(ur_adapter_opencl PRIVATE -std=gnu++17)
 endif()
-
-# The OpenCL target can be set manually on upstream cmake to avoid using
-# find_package().
-if(UR_OPENCL_ICD_LOADER_LIBRARY)
-    set(OpenCLICDLoaderLibrary ${UR_OPENCL_ICD_LOADER_LIBRARY})
-else()
-    find_package(OpenCL 3.0)
-    if(NOT OpenCL_FOUND)
-        FetchContent_Declare(OpenCL-ICD-Loader
-            GIT_REPOSITORY  "https://github.com/KhronosGroup/OpenCL-ICD-Loader.git"
-            GIT_TAG         main
-        )
-        FetchContent_MakeAvailable(OpenCL-ICD-Loader)
-    endif()
-    set(OpenCLICDLoaderLibrary OpenCL::OpenCL)
-endif()
-
-# Make interface library use within the project.
-add_library(OpenCLICDLoader INTERFACE)
-target_link_libraries(OpenCLICDLoader INTERFACE "${OpenCLICDLoaderLibrary}")
-target_include_directories(OpenCLICDLoader INTERFACE ${OpenCLIncludeDirectory})
-
-message(STATUS "OpenCL Include Directory: ${OpenCLIncludeDirectory}")
-message(STATUS "OpenCL ICD Loader Library: ${OpenCLICDLoaderLibrary}")
-
-# Suppress a compiler message about undefined CL_TARGET_OPENCL_VERSION.
-# Define all symbols up to OpenCL 3.0.
-target_compile_definitions(ur_adapter_opencl PRIVATE
-    CL_TARGET_OPENCL_VERSION=300
-    CL_USE_DEPRECATED_OPENCL_1_2_APIS
-)
 
 target_include_directories(${TARGET_NAME} PRIVATE
-    ${OpenCLIncludeDirectory}
     "${CMAKE_CURRENT_SOURCE_DIR}/../../"
 )
 
@@ -107,5 +66,6 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::common
     ${PROJECT_NAME}::umf
     Threads::Threads
-    ${OpenCLICDLoaderLibrary}
+    OpenCL-Headers
+    ${OpenCL_LIBRARY}
 )
