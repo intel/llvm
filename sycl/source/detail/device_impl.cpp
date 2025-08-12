@@ -109,10 +109,28 @@ bool device_impl::has_extension(const std::string &ExtensionName) const {
   const std::string AllExtensionNames{
       get_info_impl<UR_DEVICE_INFO_EXTENSIONS>()};
 
-  // We add a space to both sides of both the extension string and the query
-  // string. This prevents to lookup from finding partial extension matches.
-  return ((" " + AllExtensionNames + " ").find(" " + ExtensionName + " ") !=
-          std::string::npos);
+  int FoundExtPos = AllExtensionNames.find(ExtensionName);
+  while (FoundExtPos != std::string::npos) {
+    // If the extension name was found, we need to ensure it is not a partial
+    // match. That is, the following must hold:
+    //  * The match must be at the start of the list of names or have a
+    //    whitespace before it and
+    //  * the match must end at the end of the list of names or have a
+    //    whitespace after it.
+    bool IsStartOrTerminated =
+        FoundExtPos == 0 || AllExtensionNames[FoundExtPos - 1] == ' ';
+    bool IsEndOrTerminated =
+        FoundExtPos + ExtensionName.size() == AllExtensionNames.size() ||
+        AllExtensionNames[FoundExtPos + ExtensionName.size()] == ' ';
+    if (IsStartOrTerminated && IsEndOrTerminated)
+      return true;
+
+    // If the match was partial, the extension name could still be later in the
+    // list. As such, search for the next match and recheck.
+    FoundExtPos = AllExtensionNames.find(ExtensionName,
+                                         FoundExtPos + ExtensionName.size());
+  }
+  return false;
 }
 
 bool device_impl::is_partition_supported(info::partition_property Prop) const {

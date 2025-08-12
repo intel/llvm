@@ -91,7 +91,6 @@ TEST_F(HasExtensionWordBoundaryTest, SingleExtension) {
 
   sycl::platform Plt{sycl::platform()};
   sycl::device Dev = Plt.get_devices()[0];
-  auto DevImpl = detail::getSyclObjImpl(Dev);
 
   EXPECT_TRUE(Dev.has_extension("cl_khr_fp64"));
   EXPECT_FALSE(Dev.has_extension("cl_khr_fp6"));
@@ -102,11 +101,19 @@ TEST_F(HasExtensionWordBoundaryTest, FirstMiddleLastExtensions) {
 
   sycl::platform Plt{sycl::platform()};
   sycl::device Dev = Plt.get_devices()[0];
-  auto DevImpl = detail::getSyclObjImpl(Dev);
 
   EXPECT_TRUE(Dev.has_extension("cl_first_ext"));
   EXPECT_TRUE(Dev.has_extension("cl_middle_ext"));
   EXPECT_TRUE(Dev.has_extension("cl_last_ext"));
+}
+
+TEST_F(HasExtensionWordBoundaryTest, MatchAfterPartialMatch) {
+  MockExtensions = "cl_khr_fp64_with_more cl_khr_fp64";
+
+  sycl::platform Plt{sycl::platform()};
+  sycl::device Dev = Plt.get_devices()[0];
+
+  EXPECT_TRUE(Dev.has_extension("cl_khr_fp64"));
 }
 
 TEST_F(HasExtensionWordBoundaryTest, NonUniformGroupExtensions) {
@@ -118,7 +125,6 @@ TEST_F(HasExtensionWordBoundaryTest, NonUniformGroupExtensions) {
 
   sycl::platform Plt{sycl::platform()};
   sycl::device Dev = Plt.get_devices()[0];
-  auto DevImpl = detail::getSyclObjImpl(Dev);
 
   EXPECT_TRUE(Dev.has_extension("cl_khr_subgroup_non_uniform_vote"));
   EXPECT_TRUE(Dev.has_extension("cl_khr_subgroup_ballot"));
