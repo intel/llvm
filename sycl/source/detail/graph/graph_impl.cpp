@@ -834,7 +834,7 @@ void exec_graph_impl::createCommandBuffers(
     throw sycl::exception(errc::invalid, "Failed to create UR command-buffer");
   }
 
-  Partition->MCommandBuffers[Device] = OutCommandBuffer;
+  Partition->MCommandBuffer = OutCommandBuffer;
 
   for (node_impl &Node : Partition->schedule()) {
     // Some nodes are not scheduled like other nodes, and only their
@@ -909,13 +909,12 @@ exec_graph_impl::~exec_graph_impl() {
 
     for (const auto &Partition : MPartitions) {
       Partition->MSchedule.clear();
-      for (const auto &Iter : Partition->MCommandBuffers) {
-        if (auto CmdBuf = Iter.second; CmdBuf) {
-          ur_result_t Res = Adapter.call_nocheck<
-              sycl::detail::UrApiKind::urCommandBufferReleaseExp>(CmdBuf);
-          (void)Res;
-          assert(Res == UR_RESULT_SUCCESS);
-        }
+      if (Partition->MCommandBuffer) {
+        ur_result_t Res = Adapter.call_nocheck<
+            sycl::detail::UrApiKind::urCommandBufferReleaseExp>(
+            Partition->MCommandBuffer);
+        (void)Res;
+        assert(Res == UR_RESULT_SUCCESS);
       }
     }
   } catch (std::exception &e) {
@@ -987,11 +986,9 @@ EventImplPtr exec_graph_impl::enqueuePartitionWithScheduler(
                               Partition->MAccessors.end());
   }
 
-  auto CommandBuffer = Partition->MCommandBuffers[Queue.get_device()];
-
   std::unique_ptr<sycl::detail::CG> CommandGroup =
       std::make_unique<sycl::detail::CGExecCommandBuffer>(
-          CommandBuffer, nullptr, std::move(CGData));
+          Partition->MCommandBuffer, nullptr, std::move(CGData));
 
   EventImplPtr SchedulerEvent = sycl::detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), Queue, EventNeeded);
@@ -1008,25 +1005,28 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     std::shared_ptr<partition> &Partition, sycl::detail::queue_impl &Queue,
     std::vector<detail::EventImplPtr> &WaitEvents, bool EventNeeded) {
 
+  ur_event_handle_t *UrEnqueueWaitList = nullptr;
+  size_t UrEnqueueWaitListSize = 0;
+
   // Create a list containing all the UR event handles in WaitEvents. WaitEvents
   // is assumed to be safe for scheduler bypass and any host-task events that it
   // contains can be ignored.
   std::vector<ur_event_handle_t> UrEventHandles{};
-  UrEventHandles.reserve(WaitEvents.size());
-  for (auto &SyclWaitEvent : WaitEvents) {
-    if (auto URHandle = SyclWaitEvent->getHandle()) {
-      UrEventHandles.push_back(URHandle);
+  if (!WaitEvents.empty()) {
+    UrEventHandles.reserve(WaitEvents.size());
+    for (auto &SyclWaitEvent : WaitEvents) {
+      if (auto URHandle = SyclWaitEvent->getHandle()) {
+        UrEventHandles.push_back(URHandle);
+      }
     }
-  }
 
-  auto CommandBuffer = Partition->MCommandBuffers[Queue.get_device()];
-  const size_t UrEnqueueWaitListSize = UrEventHandles.size();
-  const ur_event_handle_t *UrEnqueueWaitList =
-      UrEnqueueWaitListSize == 0 ? nullptr : UrEventHandles.data();
+    UrEnqueueWaitList = UrEventHandles.data();
+    UrEnqueueWaitListSize = UrEventHandles.size();
+  }
 
   if (!EventNeeded) {
     Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-        Queue.getHandleRef(), CommandBuffer, UrEnqueueWaitListSize,
+        Queue.getHandleRef(), Partition->MCommandBuffer, UrEnqueueWaitListSize,
         UrEnqueueWaitList, nullptr);
     return nullptr;
   } else {
@@ -1036,7 +1036,7 @@ EventImplPtr exec_graph_impl::enqueuePartitionDirectly(
     NewEvent->setSubmissionTime();
     ur_event_handle_t UrEvent = nullptr;
     Queue.getAdapter().call<sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
-        Queue.getHandleRef(), CommandBuffer, UrEventHandles.size(),
+        Queue.getHandleRef(), Partition->MCommandBuffer, UrEventHandles.size(),
         UrEnqueueWaitList, &UrEvent);
     NewEvent->setHandle(UrEvent);
     NewEvent->setEventFromSubmittedExecCommandBuffer(true);
@@ -1160,17 +1160,20 @@ exec_graph_impl::enqueuePartitions(sycl::detail::queue_impl &Queue,
 
 EventImplPtr
 exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
-                         sycl::detail::CG::StorageInitHelper CGData,
+                         sycl::detail::CG::StorageInitHelper &CGData,
                          bool EventNeeded) {
   WriteLock Lock(MMutex);
 
-  cleanupExecutionEvents(MSchedulerDependencies);
-  CGData.MEvents.insert(CGData.MEvents.end(), MSchedulerDependencies.begin(),
-                        MSchedulerDependencies.end());
+  if (!MSchedulerDependencies.empty()) {
+    cleanupExecutionEvents(MSchedulerDependencies);
+    CGData.MEvents.insert(CGData.MEvents.end(), MSchedulerDependencies.begin(),
+                          MSchedulerDependencies.end());
+  }
 
   bool IsCGDataSafeForSchedulerBypass =
-      detail::Scheduler::areEventsSafeForSchedulerBypass(
-          CGData.MEvents, Queue.getContextImpl()) &&
+      (CGData.MEvents.empty() ||
+       detail::Scheduler::areEventsSafeForSchedulerBypass(
+           CGData.MEvents, Queue.getContextImpl())) &&
       CGData.MRequirements.empty();
 
   // This variable represents the returned event. It will always be nullptr if
@@ -1477,8 +1480,7 @@ void exec_graph_impl::update(nodes_range Nodes) {
     auto PartitionedNodes = getURUpdatableNodes(Nodes);
     for (auto &[PartitionIndex, NodeImpl] : PartitionedNodes) {
       auto &Partition = MPartitions[PartitionIndex];
-      auto CommandBuffer = Partition->MCommandBuffers[MDevice];
-      updateURImpl(CommandBuffer, NodeImpl);
+      updateURImpl(Partition->MCommandBuffer, NodeImpl);
     }
   }
 
