@@ -116,6 +116,13 @@ TEST_F(HasExtensionWordBoundaryTest, MatchAfterPartialMatch) {
   EXPECT_TRUE(Dev.has_extension("cl_khr_fp64"));
 }
 
+TEST_F(HasExtensionWordBoundaryTest, MatchEmptyString) {
+  sycl::platform Plt{sycl::platform()};
+  sycl::device Dev = Plt.get_devices()[0];
+
+  EXPECT_FALSE(Dev.has_extension(""));
+}
+
 TEST_F(HasExtensionWordBoundaryTest, NonUniformGroupExtensions) {
   MockExtensions = "cl_khr_subgroup_non_uniform_vote "
                    "cl_khr_subgroup_ballot "

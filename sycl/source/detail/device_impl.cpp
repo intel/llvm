@@ -106,6 +106,9 @@ device_impl::get_backend_info<info::device::backend_version>() const {
 #endif
 
 bool device_impl::has_extension(const std::string &ExtensionName) const {
+  if (ExtensionName.empty())
+    return false;
+
   const std::string AllExtensionNames{
       get_info_impl<UR_DEVICE_INFO_EXTENSIONS>()};
 
