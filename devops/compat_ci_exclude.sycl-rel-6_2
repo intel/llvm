@@ -29,7 +29,10 @@ KernelAndProgram/disable-caching.cpp
 # binaries built with sanitizers?
 Sanitizer
 
-# https://github.com/intel/llvm/pull/19238
+# https://github.com/intel/llvm/pull/19238 removed the device aspect
+# corresponding to the opportunistic_group support, in favor of it being merged
+# into the fragment_group aspect. Since this was a full refactoring and renaming
+# of an experimental extension, we accept the breaking change.
 NonUniformGroups/opportunistic_group.cpp
 
 # https://github.com/intel/llvm/pull/17955, experimental extension
