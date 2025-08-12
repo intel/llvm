@@ -83,6 +83,16 @@
 // RUN:   | FileCheck -check-prefix=CHK-DUPLICATES %s
 // CHK-DUPLICATES: warning: SYCL offloading target 'spir64-unknown-unknown' is similar to target 'spir64-unknown-unknown' already specified; will be ignored
 
+// RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc,intel_gpu_pvc  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DUPLICATES-GPU %s
+// CHK-DUPLICATES-GPU: warning: SYCL offloading target 'intel_gpu_pvc' is similar to target 'intel_gpu_pvc' already specified; will be ignored
+
+/// No duplicate warning should be emitted for 'like' triples but different
+/// arch targets.
+// RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc,intel_gpu_bdw  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DIFF-GPU %s
+// CHK-DIFF-GPU-NOT: warning: SYCL offloading target 'intel_gpu_bdw' is similar to target 'intel_gpu_pvc' already specified; will be ignored
+
 /// ###########################################################################
 
 /// Check -Xsycl-target-frontend triggers error when multiple triples are used.
@@ -415,16 +425,16 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 2: compiler, {1}, ir, (host-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 3: input, "[[INPUT]]", c++, (device-sycl, skl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, skl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 5: compiler, {4}, ir, (device-sycl, skl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 6: backend, {5}, ir, (device-sycl, skl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 7: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {6}, ir
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 8: input, "[[INPUT]]", c++, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 9: preprocessor, {8}, c++-cpp-output, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 10: compiler, {9}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 11: backend, {10}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 12: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {11}, ir
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 3: input, "[[INPUT]]", c++, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 5: compiler, {4}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 6: backend, {5}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 7: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {6}, ir
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 8: input, "[[INPUT]]", c++, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 9: preprocessor, {8}, c++-cpp-output, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 10: compiler, {9}, ir, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 11: backend, {10}, ir, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 12: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {11}, ir
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 13: clang-offload-packager, {7, 12}, image, (device-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 14: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {13}, ir
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 15: backend, {14}, assembler, (host-sycl)

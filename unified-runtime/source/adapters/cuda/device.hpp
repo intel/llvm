@@ -113,7 +113,7 @@ public:
       umfMemoryProviderDestroy(MemoryProviderShared);
     }
     if (NVMLDevice.has_value()) {
-      UR_CHECK_ERROR(nvmlShutdown());
+      nvmlShutdown();
     }
     cuDevicePrimaryCtxRelease(CuDevice);
   }

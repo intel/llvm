@@ -1,9 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: v2 adapter does not support pool statistics.
-
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/queue_properties.hpp>

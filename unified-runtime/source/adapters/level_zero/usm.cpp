@@ -607,8 +607,26 @@ ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t /*Context*/,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t,
-                                           ur_usm_pool_info_t, void *, size_t) {
+ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t /*Pool*/,
+                                           ur_usm_pool_info_t PropName,
+                                           void * /*PropValue*/,
+                                           size_t PropSize) {
+  if (PropSize < sizeof(size_t)) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+
+  switch (PropName) {
+  // TODO: Support for pool release threshold and maximum size hints.
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+  case UR_USM_POOL_INFO_MAXIMUM_SIZE_EXP:
+  // TODO: Allow user to overwrite pool peak statistics.
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    break;
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -907,20 +925,15 @@ umf_result_t L0MemoryProvider::ext_ctl(umf_ctl_query_source_t /*Source*/,
                                        const char *Name, void *Arg, size_t Size,
                                        umf_ctl_query_type_t /*QueryType*/,
                                        va_list /*Args*/) {
-  if (std::string(Name) == "stats.allocated_memory") {
-    if (!Arg && Size < sizeof(size_t)) {
-      return UMF_RESULT_ERROR_INVALID_ARGUMENT;
-    }
+  if (!Arg || Size < sizeof(size_t)) {
+    return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+  }
 
+  if (std::string(Name) == "stats.allocated_memory") {
     *(reinterpret_cast<size_t *>(Arg)) = AllocStats.getCurrent();
     UR_LOG(DEBUG, "L0MemoryProvider::ext_ctl with name: {}, value: {}", Name,
            AllocStats.getCurrent());
   } else if (std::string(Name) == "stats.peak_memory") {
-    if (!Arg && Size < sizeof(size_t)) {
-      return UMF_RESULT_ERROR_INVALID_ARGUMENT;
-    }
-
-    // Return the peak memory size.
     *(reinterpret_cast<size_t *>(Arg)) = AllocStats.getPeak();
     UR_LOG(DEBUG, "L0MemoryProvider::ext_ctl with name: {}, value: {}", Name,
            AllocStats.getPeak());

@@ -64,12 +64,12 @@ const RTDeviceBinaryImage *retrieveKernelBinary(queue_impl &Queue,
   }
 
   if (KernelCG->MSyclKernel != nullptr)
-    return KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
+    return KernelCG->MSyclKernel->getDeviceImage().get_bin_image_ref();
 
   if (auto KernelBundleImpl = KernelCG->getKernelBundle())
     if (auto SyclKernelImpl = KernelBundleImpl->tryGetKernel(KernelName))
       // Retrieve the device image from the kernel bundle.
-      return SyclKernelImpl->getDeviceImage()->get_bin_image_ref();
+      return SyclKernelImpl->getDeviceImage().get_bin_image_ref();
 
   context_impl &ContextImpl = Queue.getContextImpl();
   return &detail::ProgramManager::getInstance().getDeviceImage(

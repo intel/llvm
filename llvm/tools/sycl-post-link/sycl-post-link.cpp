@@ -177,6 +177,10 @@ cl::opt<bool> OptLevelO3("O3",
                          cl::desc("Optimization level 3. Similar to clang -O3"),
                          cl::cat(PostLinkCat));
 
+cl::opt<bool> ForceDisableESIMDOpt("force-disable-esimd-opt", cl::Hidden,
+                                   cl::desc("Force no optimizations."),
+                                   cl::cat(PostLinkCat));
+
 cl::opt<module_split::IRSplitMode> SplitMode(
     "split", cl::desc("split input module"), cl::Optional,
     cl::init(module_split::SPLIT_NONE),
@@ -523,7 +527,8 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   for (auto &MD : Result) {
     DUMP_ENTRY_POINTS(MD.entries(), MD.Name.c_str(), 3);
     if (LowerEsimd && MD.isESIMD())
-      Modified |= sycl::lowerESIMDConstructs(MD, OptLevelO0, SplitEsimd);
+      Modified |=
+          sycl::lowerESIMDConstructs(MD, ForceDisableESIMDOpt, SplitEsimd);
   }
 
   if (!SplitEsimd && Result.size() > 1) {

@@ -14,6 +14,8 @@ struct testParametersFill {
 struct urEnqueueMemBufferFillTest
     : uur::urQueueTestWithParam<testParametersFill> {
   void SetUp() override {
+    // https://github.com/intel/llvm/issues/19604
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
     UUR_RETURN_ON_FATAL_FAILURE(
         urQueueTestWithParam<testParametersFill>::SetUp());
     size = std::get<1>(GetParam()).size;

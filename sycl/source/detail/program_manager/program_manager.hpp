@@ -143,9 +143,9 @@ public:
       const std::unordered_set<const RTDeviceBinaryImage *> &ImagesToVerify,
       context_impl &ContextImpl, const device_impl &DeviceImpl);
 
-  ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
-                                      context_impl &ContextImpl,
-                                      devices_range Devices);
+  Managed<ur_program_handle_t> createURProgram(const RTDeviceBinaryImage &Img,
+                                               context_impl &ContextImpl,
+                                               devices_range Devices);
   /// Creates a UR program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
   /// \param Img The device image used to create the program.
@@ -165,7 +165,7 @@ public:
   /// \return A pair consisting of the UR program created with the corresponding
   ///         device code binary and a boolean that is true if the device code
   ///         binary was found in the persistent cache and false otherwise.
-  std::pair<ur_program_handle_t, bool> getOrCreateURProgram(
+  std::pair<Managed<ur_program_handle_t>, bool> getOrCreateURProgram(
       const RTDeviceBinaryImage &Img,
       const std::vector<const RTDeviceBinaryImage *> &AllImages,
       context_impl &ContextImpl, devices_range Devices,
@@ -177,10 +177,10 @@ public:
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
-  ur_program_handle_t getBuiltURProgram(context_impl &ContextImpl,
-                                        device_impl &DeviceImpl,
-                                        KernelNameStrRefT KernelName,
-                                        const NDRDescT &NDRDesc = {});
+  Managed<ur_program_handle_t> getBuiltURProgram(context_impl &ContextImpl,
+                                                 device_impl &DeviceImpl,
+                                                 KernelNameStrRefT KernelName,
+                                                 const NDRDescT &NDRDesc = {});
 
   /// Builds a program from a given set of images or retrieves that program from
   /// cache.
@@ -192,7 +192,7 @@ public:
   /// represents the images.
   /// \param SpecConsts is an optional parameter containing spec constant values
   /// the program should be built with.
-  ur_program_handle_t
+  Managed<ur_program_handle_t>
   getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
                     context_impl &ContextImpl, devices_range Devs,
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
@@ -254,6 +254,15 @@ public:
   // device_global map.
   void addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
                                   const char *UniqueId);
+
+  // The function inserts or initializes a kernel global desc into the
+  // kernel global map.
+  void registerKernelGlobalInfo(
+      std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy);
+
+  // The function returns a pointer to the kernel global desc identified by
+  // the unique ID from the kernel global map.
+  std::optional<unsigned> getKernelGlobalInfoDesc(const char *UniqueId);
 
   // Returns true if any available image is compatible with the device Dev.
   bool hasCompatibleImage(const device_impl &DeviceImpl);
@@ -350,7 +359,7 @@ public:
   device_image_plain build(const DevImgPlainWithDeps &ImgWithDeps,
                            devices_range Devs, const property_list &PropList);
 
-  std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *>
+  std::tuple<Managed<ur_kernel_handle_t>, std::mutex *, const KernelArgMask *>
   getOrCreateKernel(const context &Context, KernelNameStrRefT KernelName,
                     const property_list &PropList, ur_program_handle_t Program);
 
@@ -393,15 +402,12 @@ private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
-  using ProgramPtr = std::unique_ptr<std::remove_pointer_t<ur_program_handle_t>,
-                                     decltype(&::urProgramRelease)>;
-  ProgramPtr build(ProgramPtr Program, context_impl &Context,
-                   const std::string &CompileOptions,
-                   const std::string &LinkOptions,
-                   std::vector<ur_device_handle_t> &Devices,
-                   uint32_t DeviceLibReqMask,
-                   const std::vector<ur_program_handle_t> &ProgramsToLink,
-                   bool CreatedFromBinary = false);
+  Managed<ur_program_handle_t>
+  build(Managed<ur_program_handle_t> Program, context_impl &Context,
+        const std::string &CompileOptions, const std::string &LinkOptions,
+        std::vector<ur_device_handle_t> &Devices, uint32_t DeviceLibReqMask,
+        const std::vector<Managed<ur_program_handle_t>> &ProgramsToLink,
+        bool CreatedFromBinary = false);
 
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
@@ -434,7 +440,6 @@ protected:
 
   // Maps KernelIDs to device binary images. There can be more than one image
   // in case of SPIRV + AOT.
-  // Using shared_ptr to avoid expensive copy of the vector.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_multimap<kernel_id, const RTDeviceBinaryImage *>
       m_KernelIDs2BinImage;
@@ -464,9 +469,11 @@ protected:
       m_ServiceKernels;
 
   /// Caches all exported symbols to allow faster lookup when excluding these
-  // from kernel bundles.
+  /// from kernel bundles.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_multimap<KernelNameStrT, const RTDeviceBinaryImage *>
+  /// Owns its keys to support the bfloat16 use case with dynamic images,
+  /// where the symbol is taken from another image (that might be unloaded).
+  std::unordered_multimap<std::string, const RTDeviceBinaryImage *>
       m_ExportedSymbolImages;
 
   /// Keeps all device images we are refering to during program lifetime. Used
@@ -536,6 +543,10 @@ protected:
   // their associated entry resources when they die.
   DeviceGlobalMap m_DeviceGlobals{/*OwnerControlledCleanup=*/true};
 
+  // Maps between free function kernel name and associated kernel global
+  // information.
+  std::unordered_map<std::string_view, unsigned> m_FreeFunctionKernelGlobalInfo;
+
   // Maps between host_pipe identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>
       m_HostPipes;
@@ -545,7 +556,7 @@ protected:
   std::mutex m_HostPipesMutex;
 
   using MaterializedEntries =
-      std::map<std::vector<unsigned char>, ur_kernel_handle_t>;
+      std::map<std::vector<unsigned char>, Managed<ur_kernel_handle_t>>;
   std::unordered_map<KernelNameStrT, MaterializedEntries> m_MaterializedKernels;
 
   // Holds bfloat16 device library images, the 1st element is for fallback

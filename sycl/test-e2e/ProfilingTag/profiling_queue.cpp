@@ -22,6 +22,9 @@
 
 // UNSUPPORTED: level_zero_v2_adapter
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19116
+//
+// UNSUPPORTED: ((intel_gpu_acm{{.*}} || intel_gpu_pvc || intel_gpu_bmg{{.*}}) && (!level_zero)) || preview-mode
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19425
 
 #include "common.hpp"
 

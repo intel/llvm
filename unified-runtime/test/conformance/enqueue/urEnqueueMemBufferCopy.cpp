@@ -121,11 +121,11 @@ TEST_P(urEnqueueMemBufferCopyMultiDeviceTest, CopyReadDifferentQueues) {
   ur_mem_handle_t dst_buffer = nullptr;
   ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_ONLY, size,
                                    nullptr, &dst_buffer));
-  EXPECT_SUCCESS(urEnqueueMemBufferCopy(queues[0], buffer, dst_buffer, 0, 0,
+  ASSERT_SUCCESS(urEnqueueMemBufferCopy(queues[0], buffer, dst_buffer, 0, 0,
                                         size, 0, nullptr, nullptr));
 
   // Wait for the queue to finish executing.
-  EXPECT_SUCCESS(urEnqueueEventsWait(queues[0], 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueEventsWait(queues[0], 0, nullptr, nullptr));
 
   // Then the remaining queues do blocking reads from the buffer. Since the
   // queues target different devices this checks that any devices memory has
@@ -133,7 +133,7 @@ TEST_P(urEnqueueMemBufferCopyMultiDeviceTest, CopyReadDifferentQueues) {
   for (unsigned i = 1; i < queues.size(); ++i) {
     const auto queue = queues[i];
     std::vector<uint32_t> output(count, 0);
-    EXPECT_SUCCESS(urEnqueueMemBufferRead(queue, dst_buffer, true, 0, size,
+    ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, dst_buffer, true, 0, size,
                                           output.data(), 0, nullptr, nullptr));
     for (unsigned j = 0; j < count; ++j) {
       EXPECT_EQ(input, output[j])
@@ -141,5 +141,5 @@ TEST_P(urEnqueueMemBufferCopyMultiDeviceTest, CopyReadDifferentQueues) {
     }
   }
 
-  EXPECT_SUCCESS(urMemRelease(dst_buffer));
+  ASSERT_SUCCESS(urMemRelease(dst_buffer));
 }
