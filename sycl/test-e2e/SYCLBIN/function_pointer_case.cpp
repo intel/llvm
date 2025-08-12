@@ -83,6 +83,14 @@ int main(int argc, char *argv[]) {
   ArgsT *Args = sycl::malloc_shared<ArgsT>(N, Q);
   Args->Ptr = sycl::malloc_shared<size_t>(N, Q);
 
+  // Prefetch the data pointer on the device. This is needed as the device
+  // compiler might not be able to detect the use of the pointer, due to the
+  // indirect call to the pointer-user function.
+  // Though this is done prior to the GetFuncPtrKern launch, as it may avoid the
+  // need for the copy-back of Args. The resulting event is only a dependency of
+  // the launch of Kernel however.
+  sycl::event ArgPtrPrefetchEvent = Q.prefetch(Args->Ptr, sizeof(ArgsT));
+
   // Get function pointer through kernel. This deviates from the original.
   sycl::kernel GetFuncPtrKern = KBExe.ext_oneapi_get_kernel("GetFuncPtr");
   std::cout << "Launching GetFuncPtr" << std::endl;
@@ -95,6 +103,7 @@ int main(int argc, char *argv[]) {
   sycl::kernel Kern = KBExe.ext_oneapi_get_kernel("Kernel");
   std::cout << "Launching Kernel" << std::endl;
   Q.submit([&](sycl::handler &CGH) {
+     CGH.depends_on(ArgPtrPrefetchEvent);
      CGH.set_args(Args);
      CGH.parallel_for(sycl::nd_range{{N}, {N}}, Kern);
    }).wait();
