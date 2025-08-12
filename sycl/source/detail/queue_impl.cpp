@@ -445,6 +445,7 @@ queue_impl::submit_direct_impl(const NDRDescT &NDRDesc,
             bool CallerNeedsEvent,
             const detail::code_location &CodeLoc,
             bool IsTopCodeLoc) {
+  (void)SubmitInfo;
 
   std::unique_ptr<detail::CG> CommandGroup;
   detail::CG::StorageInitHelper CGData;
@@ -501,6 +502,8 @@ queue_impl::submit_direct_impl(const NDRDescT &NDRDesc,
       false, // MKernelUsesClusterLaunch
       0, // MKernelWorkGroupMemorySize
       CodeLoc));
+
+  CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
 
   EventImplPtr EventImpl = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), *this, CallerNeedsEvent);
