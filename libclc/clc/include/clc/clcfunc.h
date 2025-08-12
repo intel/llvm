@@ -15,6 +15,7 @@
 #define _CLC_CONVERGENT __attribute__((convergent))
 #define _CLC_PURE __attribute__((pure))
 #define _CLC_CONSTFN __attribute__((const))
+#define _CLC_CONST __attribute__((const))
 
 // avoid inlines for SPIR-V related targets since we'll optimise later in the
 // chain
