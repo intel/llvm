@@ -21,6 +21,7 @@ The Feature Test Macro SYCL\_EXT\_INTEL\_DEVICE\_INFO will be defined as one of 
 | 6     | Memory clock rate and bus width queries are supported |
 | 7     | Throttle reasons, fan speed and power limits queries are supported |
 | 8     | Device LUID and device node mask is supported |
+| 9     | SLM per subslice is supported |
 
 
 
@@ -687,6 +688,51 @@ The device node mask can be obtained using the standard `get_info()` interface.
       auto node_mask = dev.get_info<ext::intel::info::device::node_mask>();
     }
 ```
+
+
+# Intel GPU SLM per Subslice #
+
+A new device descriptor will be added which will provide the amount of shared
+local memory (SLM) per subslice on an Intel GPU.
+
+**Note:** The amount of SLM per subslice may be greater than the amount of
+memory available to a single work-group, and can be used to reason about
+occupancy.
+
+
+## Version ##
+
+The extension supports this query in version 9 and later.
+
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| ext\:\:intel\:\:info\:\:device\:\:gpu\_slm\_per\_subslice | uint64\_t| Returns the amount of SLM per subslice, in bytes. |
+
+
+## Aspects ##
+
+A new aspect, `ext\_intel\_gpu\_slm\_per\_subslice`, will be added.
+
+
+## Error Condition ##
+
+Throws a synchronous `exception` with the `errc::feature_not_supported` error
+code if the device does not have `aspect::ext_intel_gpu_slm_per_subslice`.
+
+## Example Usage ##
+
+The amount of SLM per subslice can be obtained using the standard get\_info()
+interface.
+
+```
+    if (dev.has(aspect::ext_intel_gpu_slm_per_subslice)) {
+      auto slmBytes = dev.get_info<ext::intel::info::device::gpu_slm_per_subslice>();
+    }
+```
+
 
 # Deprecated queries #
 
