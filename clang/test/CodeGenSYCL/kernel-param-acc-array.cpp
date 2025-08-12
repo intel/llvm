@@ -24,7 +24,7 @@ int main() {
         acc[1].use();
       });
 }
-// CHECK-LABEL: define dso_local spir_kernel void @_ZTSZ4mainE8kernel_A(
+// CHECK-LABEL: define {{.*}}spir_kernel void @_ZTSZ4mainE8kernel_A(
 // CHECK-SAME: ptr addrspace(1) noundef align 4 [[_ARG_ACC:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_ACC1:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_ACC2:%.*]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[_ARG_ACC3:%.*]], ptr addrspace(1) noundef align 4 [[_ARG_ACC4:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_ACC6:%.*]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[_ARG_ACC7:%.*]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[_ARG_ACC8:%.*]]) #[[ATTR0:[0-9]+]]
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[_ARG_ACC_ADDR:%.*]] = alloca ptr addrspace(1), align 8

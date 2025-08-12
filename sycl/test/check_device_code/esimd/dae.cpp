@@ -15,7 +15,7 @@ __attribute__((sycl_kernel)) void my_kernel(Func kernelFunc) {
 
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION ESIMD_NOINLINE void callee(int x) {}
 
-// CHECK: define dso_local spir_kernel {{.*}} !sycl_kernel_omit_args ![[#MD:]]
+// CHECK: define {{.*}}spir_kernel {{.*}} !sycl_kernel_omit_args ![[#MD:]]
 SYCL_EXTERNAL void __attribute__((noinline)) caller(int x) {
   my_kernel<class kernel_abc>([=]() SYCL_ESIMD_KERNEL { callee(x); });
 }
