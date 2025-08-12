@@ -2119,8 +2119,8 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 }
 
 template <typename MultimapT, typename KeyT, typename ValT>
-void removeFromMultimap(MultimapT &Map, const KeyT &Key, const ValT &Val,
-                        bool AssertContains = true) {
+void removeFromMultimapByVal(MultimapT &Map, const KeyT &Key, const ValT &Val,
+                             bool AssertContains = true) {
   auto [RangeBegin, RangeEnd] = Map.equal_range(Key);
   auto It = std::find_if(RangeBegin, RangeEnd,
                          [&](const auto &Pair) { return Pair.second == Val; });
@@ -2158,7 +2158,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       const char *Name = EntriesIt->GetName();
       // Drop entry for service kernel
       if (std::strstr(Name, "__sycl_service_kernel__")) {
-        removeFromMultimap(m_ServiceKernels, Name, Img);
+        removeFromMultimapByVal(m_ServiceKernels, Name, Img);
         continue;
       }
 
@@ -2167,28 +2167,25 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
         continue;
       }
 
-      // Remove everything associated with this KernelName if this is the last
-      // image referencing it, otherwise remove just the ID -> Img mapping.
+      auto Name2IDIt = m_KernelName2KernelIDs.find(Name);
+      if (Name2IDIt != m_KernelName2KernelIDs.end())
+        removeFromMultimapByVal(m_KernelIDs2BinImage, Name2IDIt->second, Img);
+
       auto RefCountIt = m_KernelNameRefCount.find(Name);
       assert(RefCountIt != m_KernelNameRefCount.end());
       int &RefCount = RefCountIt->second;
       assert(RefCount > 0);
-      --RefCount;
 
-      if (auto It = m_KernelName2KernelIDs.find(Name);
-          It != m_KernelName2KernelIDs.end()) {
-        if (RefCount == 0) {
-          m_KernelIDs2BinImage.erase(It->second);
-          m_KernelName2KernelIDs.erase(It);
-        } else {
-          removeFromMultimap(m_KernelIDs2BinImage, It->second, Img);
-        }
-      }
-
-      if (RefCount == 0) {
+      // Remove everything associated with this KernelName if this is the last
+      // image referencing it.
+      if (--RefCount == 0) {
+        // TODO aggregate all these maps into a single one since their entries
+        // share lifetime.
         m_KernelUsesAssert.erase(Name);
         m_KernelImplicitLocalArgPos.erase(Name);
         m_KernelNameRefCount.erase(RefCountIt);
+        if (Name2IDIt != m_KernelName2KernelIDs.end())
+          m_KernelName2KernelIDs.erase(Name2IDIt);
       }
     }
 
@@ -2199,20 +2196,23 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // unmap loop)
     for (const sycl_device_binary_property &ESProp :
          Img->getExportedSymbols()) {
-      removeFromMultimap(m_ExportedSymbolImages, ESProp->Name, Img,
-                         /*AssertContains*/ false);
+      removeFromMultimapByVal(m_ExportedSymbolImages, ESProp->Name, Img,
+                              /*AssertContains*/ false);
     }
 
     for (const sycl_device_binary_property &VFProp :
          Img->getVirtualFunctions()) {
       std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
-      for (const auto &SetName : detail::split_string(StrValue, ',')) {
-        auto It = m_VFSet2BinImage.find(SetName);
+      // Unregister the image from all referenced virtual function sets.
+      for (const auto &VFSetName : detail::split_string(StrValue, ',')) {
+        auto It = m_VFSet2BinImage.find(VFSetName);
         assert(It != m_VFSet2BinImage.end());
-        auto &ImgSet = It->second;
+        std::set<const RTDeviceBinaryImage *> &ImgSet = It->second;
         auto ImgIt = ImgSet.find(Img);
         assert(ImgIt != ImgSet.end());
         ImgSet.erase(ImgIt);
+        // If no images referencing this virtual function set remain, drop
+        // it from the map.
         if (ImgSet.empty())
           m_VFSet2BinImage.erase(It);
       }
