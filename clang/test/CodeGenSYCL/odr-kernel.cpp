@@ -7,11 +7,11 @@
 
 #include "sycl.hpp"
 
-// CHECK-DAG: define dso_local spir_kernel void @_Z32__sycl_kernel_FreeFunctionKernelv
-// CHECK-DAG: define weak_odr spir_kernel void @_Z38__sycl_kernel_FreeFunctionKernelInlinev
 // CHECK-DAG: define weak_odr spir_kernel void @_ZTS13FunctorInline
 // CHECK-DAG: define dso_local spir_kernel void @_ZTS15FunctorNoInline
-// CHECK-DAG: define weak_odr spir_kernel void @_ZTS16FunctorNoInline2
+// CHECK-DAG: define dso_local spir_kernel void @_ZTSZ4mainE10KernelName
+// CHECK-DAG: define dso_local spir_kernel void @_Z32__sycl_kernel_FreeFunctionKernelv
+// CHECK-DAG: define weak_odr spir_kernel void @_Z38__sycl_kernel_FreeFunctionKernelInlinev
 
 class FunctorInline {
 public:
@@ -26,9 +26,9 @@ void FunctorNoInline::operator()(sycl::id<1>) const {}
 
 class FunctorNoInline2 {
 public:
-  void operator()(sycl::id<1>) const;
+  void operator()() const;
 };
-void FunctorNoInline2:operator()(sycl::id<1>) const {}
+void FunctorNoInline2::operator()() const {}
 
 
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
