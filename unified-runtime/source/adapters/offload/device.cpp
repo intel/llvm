@@ -12,6 +12,7 @@
 #include <ur/ur.hpp>
 #include <ur_api.h>
 
+#include "adapters/offload/adapter.hpp"
 #include "device.hpp"
 #include "platform.hpp"
 #include "ur2offload.hpp"
@@ -84,6 +85,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
     // TODO: Implement subgroups in Offload
     return ReturnValue(1);
+  case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
+    if (pPropSizeRet) {
+      *pPropSizeRet = sizeof(size_t);
+    }
+
+    if (pPropValue) {
+      uint32_t as32;
+      OL_RETURN_ON_ERR(olGetDeviceInfo(hDevice->OffloadDevice,
+                                       OL_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                                       sizeof(as32), &as32));
+
+      *reinterpret_cast<size_t *>(pPropValue) = as32;
+    }
+
+    return UR_RESULT_SUCCESS;
   case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
     // OL dimensions are uint32_t while UR is size_t, so they need to be mapped
     if (pPropSizeRet) {
@@ -93,9 +109,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     if (pPropValue) {
       ol_dimensions_t olVec;
       size_t *urVec = reinterpret_cast<size_t *>(pPropValue);
-      OL_RETURN_ON_ERR(olGetDeviceInfo(hDevice->OffloadDevice,
-                                       OL_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-                                       sizeof(olVec), &olVec));
+      OL_RETURN_ON_ERR(
+          olGetDeviceInfo(hDevice->OffloadDevice,
+                          OL_DEVICE_INFO_MAX_WORK_GROUP_SIZE_PER_DIMENSION,
+                          sizeof(olVec), &olVec));
 
       urVec[0] = olVec.x;
       urVec[1] = olVec.y;
@@ -106,11 +123,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   // Unimplemented features
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
+  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
   case UR_DEVICE_INFO_IMAGE_SUPPORT:
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
   // TODO: Atomic queries in Offload
   case UR_DEVICE_INFO_ATOMIC_64:
   case UR_DEVICE_INFO_IMAGE_SRGB:
@@ -132,6 +151,71 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       *pPropSizeRet = 0;
     }
     return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
+    return ReturnValue(0u);
+  }
+  case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
+    return ReturnValue(0u);
+  }
+  case UR_DEVICE_INFO_PARTITION_TYPE: {
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR: {
+    return ReturnValue(1u);
+  }
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT: {
+    return ReturnValue(1u);
+  }
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT: {
+    return ReturnValue(1u);
+  }
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG: {
+    return ReturnValue(1u);
+  }
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT: {
+    return ReturnValue(1u);
+  }
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE: {
+    return ReturnValue(1u);
+  }
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR: {
+    return ReturnValue(1u);
+  }
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT: {
+    return ReturnValue(1u);
+  }
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT: {
+    return ReturnValue(1u);
+  }
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG: {
+    return ReturnValue(1u);
+  }
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT: {
+    return ReturnValue(1u);
+  }
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE: {
+    return ReturnValue(1u);
+  }
+  case UR_DEVICE_INFO_SINGLE_FP_CONFIG:
+  case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
+    // This minimal set of flags will at least signal to sycl that we support
+    // the basic FP types.
+    ur_device_fp_capability_flags_t SupportedFlags =
+        UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+    return ReturnValue(SupportedFlags);
+  }
+  case UR_DEVICE_INFO_AVAILABLE: {
+    return ReturnValue(ur_bool_t{true});
+  }
+  case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
+    // An empty string is returned if no built-in kernels are supported by the
+    // device.
+    return ReturnValue("");
   }
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
@@ -211,14 +295,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   return UR_RESULT_ERROR_INVALID_BINARY;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urDeviceGetNativeHandle(ur_device_handle_t, ur_native_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
+    ur_device_handle_t UrDevice, ur_native_handle_t *Handle) {
+  *Handle = reinterpret_cast<ur_native_handle_t>(UrDevice->OffloadDevice);
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t, ur_adapter_handle_t,
-    const ur_device_native_properties_t *, ur_device_handle_t *) {
+    ur_native_handle_t hNativeDevice, ur_adapter_handle_t hAdapter,
+    const ur_device_native_properties_t *, ur_device_handle_t *phDevice) {
+  ol_device_handle_t OlDevice =
+      reinterpret_cast<ol_device_handle_t>(hNativeDevice);
+
+  // Currently, all devices are found at initialization, there is no way to
+  // create sub devices yet
+  for (auto &P : hAdapter->Platforms) {
+    auto Found =
+        std::find_if(P->Devices.begin(), P->Devices.end(),
+                     [&](std::unique_ptr<ur_device_handle_t_> &PDevice) {
+                       return PDevice->OffloadDevice == OlDevice;
+                     });
+    if (Found != P->Devices.end()) {
+      *phDevice = Found->get();
+      return UR_RESULT_SUCCESS;
+    }
+  }
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

@@ -24,11 +24,6 @@
 //      loads from __spirv_BuiltIn GVs)
 //      – Unknown  : any other mayReadOrWriteMemory() (intrinsics, calls,
 //      generic addrspace)
-//    * At the same time, build a per-basic block summary of memory accesses:
-//      - None   : only private/constant or no accesses
-//      - Local  : at least one addrspace(3) access
-//      - Global : at least one addrspace(1/5/6) access (except loads from
-//      __spirv_BuiltIn globals)
 //      - Unknown: any other mayReadOrWriteMemory() instruction
 //
 // 2) **At Entry and At Exit Elimination**
@@ -45,10 +40,6 @@
 //         – Find the single barrier with the *widest* (ExecScope, MemScope)
 //         (ignore Unknown).
 //         – Erase all other barriers (they synchronize nothing).
-//       If BB summary == None (no local, global or unknown accesses):
-//         - Find the single barrier with the widest (ExecScope, MemScope)
-//           ignoring Unknown scopes.
-//         - Erase all other barriers since they synchronize nothing.
 //    b) *General Redundancy Check*
 //       Otherwise we walk the barriers in source order and compare each new
 //       barrier to the most recent one that is still alive:
@@ -314,6 +305,36 @@ static inline RegionMemScope getBarrierMaxFencedScope(const BarrierDesc &BD) {
   return getBarrierFencedScopeImpl<RegionMemScope::Global>(BD);
 }
 
+static bool isSPIRVBuiltinFunction(const StringRef FName) {
+  return FName == "_Z22__spirv_BuiltInWorkDimv" ||
+         FName == "_Z28__spirv_BuiltInWorkgroupSizei" ||
+         FName == "_Z32__spirv_BuiltInLocalInvocationIdi" ||
+         FName == "_Z33__spirv_BuiltInGlobalInvocationIdi" ||
+         FName == "_Z26__spirv_BuiltInWorkgroupIdi" ||
+         FName == "_Z27__spirv_BuiltInGlobalOffseti" ||
+         FName == "_Z25__spirv_BuiltInGlobalSizei" ||
+         FName == "_Z28__spirv_BuiltInNumWorkgroupsi" ||
+         FName == "_Z30__spirv_BuiltInSubgroupMaxSizev" ||
+         FName == "_Z25__spirv_BuiltInSubgroupIdv" ||
+         FName == "_Z40__spirv_BuiltInSubgroupLocalInvocationIdv" ||
+         FName == "_Z27__spirv_BuiltInSubgroupSizev" ||
+         FName == "_Z27__spirv_BuiltInNumSubgroupsv" ||
+         FName == "_Z35__spirv_BuiltInLocalInvocationIndexv" ||
+         FName == "_Z29__spirv_BuiltInGlobalLinearIdv" ||
+         FName == "_Z36__spirv_BuiltInEnqueuedWorkgroupSizei" ||
+         FName == "_Z35__spirv_BuiltInNumEnqueuedSubgroupsv" ||
+         FName == "_Z40__spirv_BuiltInSubgroupLocalInvocationIdv" ||
+         FName == "_Z29__spirv_BuiltInSubgroupEqMaskv" ||
+         FName == "_Z32__spirv_BuiltInSubgroupEqMaskKHRv" ||
+         FName == "_Z29__spirv_BuiltInSubgroupGeMaskv" ||
+         FName == "_Z32__spirv_BuiltInSubgroupGeMaskKHRv" ||
+         FName == "_Z29__spirv_BuiltInSubgroupGtMaskv" ||
+         FName == "_Z32__spirv_BuiltInSubgroupGtMaskKHRv" ||
+         FName == "_Z29__spirv_BuiltInSubgroupLeMaskv" ||
+         FName == "_Z32__spirv_BuiltInSubgroupLeMaskKHRv" ||
+         FName == "_Z29__spirv_BuiltInSubgroupLtMaskv" ||
+         FName == "_Z32__spirv_BuiltInSubgroupLtMaskKHRv";
+}
 // Classify a single instruction's memory scope. Used to set/update memory
 // scope of a basic block.
 static RegionMemScope classifyMemScope(Instruction *I) {
@@ -322,6 +343,8 @@ static RegionMemScope classifyMemScope(Instruction *I) {
       const StringRef FName = F->getName();
       if (FName == CONTROL_BARRIER || FName == MEMORY_BARRIER ||
           FName == ITT_BARRIER || FName == ITT_RESUME)
+        return RegionMemScope::None;
+      if (isSPIRVBuiltinFunction(FName))
         return RegionMemScope::None;
       if (FName.contains("__spirv_Atomic")) {
         // SPIR-V atomics all have the same signature:
@@ -968,6 +991,11 @@ PreservedAnalyses SYCLOptimizeBarriersPass::run(Function &F,
     Changed |= eliminateBackToBackInBB(BarrierBBPair.first,
                                        BarrierBBPair.second, BBMemInfo);
 
+  // Refresh the list of barriers after back-to-back elimination.
+  BarrierPtrs.clear();
+  for (auto &Pair : BarriersByBB)
+    for (auto &BD : Pair.second)
+      BarrierPtrs.push_back(&BD);
   // TODO: hoist 2 barriers with the same predecessor BBs.
 
   // In the end eliminate or narrow barriers depending on DT and PDT analyses.

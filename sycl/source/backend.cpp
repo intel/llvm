@@ -321,7 +321,7 @@ kernel make_kernel(const context &TargetContext,
                    const kernel_bundle<bundle_state::executable> &KernelBundle,
                    ur_native_handle_t NativeHandle, bool KeepOwnership,
                    backend Backend) {
-  const auto &Adapter = getAdapter(Backend);
+  adapter_impl &Adapter = getAdapter(Backend);
   context_impl &ContextImpl = *getSyclObjImpl(TargetContext);
   kernel_bundle_impl &KernelBundleImpl = *getSyclObjImpl(KernelBundle);
 
@@ -347,7 +347,7 @@ kernel make_kernel(const context &TargetContext,
   }
 
   // Create UR kernel first.
-  ur_kernel_handle_t UrKernel = nullptr;
+  Managed<ur_kernel_handle_t> UrKernel{Adapter};
   ur_kernel_native_properties_t Properties{};
   Properties.stype = UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES;
   Properties.isNativeHandleOwned = !KeepOwnership;
@@ -359,8 +359,8 @@ kernel make_kernel(const context &TargetContext,
     __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeHandle));
 
   // Construct the SYCL queue from UR queue.
-  return detail::createSyclObjFromImpl<kernel>(
-      std::make_shared<kernel_impl>(UrKernel, ContextImpl, &KernelBundleImpl));
+  return detail::createSyclObjFromImpl<kernel>(std::make_shared<kernel_impl>(
+      std::move(UrKernel), ContextImpl, &KernelBundleImpl));
 }
 
 kernel make_kernel(ur_native_handle_t NativeHandle,

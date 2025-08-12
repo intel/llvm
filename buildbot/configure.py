@@ -46,7 +46,7 @@ def do_configure(args, passthrough_args):
     xptifw_dir = os.path.join(abs_src_dir, "xptifw")
     libdevice_dir = os.path.join(abs_src_dir, "libdevice")
     jit_dir = os.path.join(abs_src_dir, "sycl-jit")
-    llvm_targets_to_build = args.host_target
+    llvm_targets_to_build = args.host_target + ";SPIRV"
     llvm_enable_projects = "clang;" + llvm_external_projects
     libclc_build_native = "OFF"
     libclc_targets_to_build = ""
@@ -137,9 +137,10 @@ def do_configure(args, passthrough_args):
     # CI Default conditionally appends to options, keep it at the bottom of
     # args handling
     if args.ci_defaults:
-        print("#############################################")
-        print("# Default CI configuration will be applied. #")
-        print("#############################################")
+        if not args.print_cmake_flags:
+            print("#############################################")
+            print("# Default CI configuration will be applied. #")
+            print("#############################################")
 
         # For clang-format, clang-tidy and code coverage
         llvm_enable_projects += ";clang-tools-extra;compiler-rt"
@@ -255,20 +256,24 @@ def do_configure(args, passthrough_args):
         )
 
     cmake_cmd += passthrough_args
-    print("[Cmake Command]: {}".format(" ".join(map(shlex.quote, cmake_cmd))))
 
-    try:
-        subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
-    except subprocess.CalledProcessError:
-        cmake_cache = os.path.join(abs_obj_dir, "CMakeCache.txt")
-        if os.path.isfile(cmake_cache):
-            print(
-                "There is CMakeCache.txt at "
-                + cmake_cache
-                + " ... you can try to remove it and rerun."
-            )
-            print("Configure failed!")
-        return False
+    if args.print_cmake_flags:
+        print(" ".join(map(shlex.quote, cmake_cmd[1:])))
+    else:
+        print("[Cmake Command]: {}".format(" ".join(map(shlex.quote, cmake_cmd))))
+
+        try:
+            subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
+        except subprocess.CalledProcessError:
+            cmake_cache = os.path.join(abs_obj_dir, "CMakeCache.txt")
+            if os.path.isfile(cmake_cache):
+                print(
+                    "There is CMakeCache.txt at "
+                    + cmake_cache
+                    + " ... you can try to remove it and rerun."
+                )
+                print("Configure failed!")
+            return False
 
     return True
 
@@ -411,9 +416,15 @@ def main():
     parser.add_argument(
         "--use-zstd", action="store_true", help="Force zstd linkage while building."
     )
+    parser.add_argument(
+        "--print-cmake-flags",
+        action="store_true",
+        help="Print the generated CMake flags to a single line on standard output and exit. Suppresses all other output and does not run the cmake command.",
+    )
     args, passthrough_args = parser.parse_known_intermixed_args()
 
-    print("args:{}".format(args))
+    if not args.print_cmake_flags:
+        print("args:{}".format(args))
 
     return do_configure(args, passthrough_args)
 

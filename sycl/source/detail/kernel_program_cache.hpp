@@ -194,22 +194,23 @@ public:
 
   struct KernelBuildResult
       : public BuildResult<
-            std::pair<ur_kernel_handle_t, const KernelArgMask *>> {
-    const adapter_impl &MAdapter;
-    KernelBuildResult(const adapter_impl &Adapter) : MAdapter(Adapter) {
-      Val.first = nullptr;
+            std::pair<Managed<ur_kernel_handle_t>, const KernelArgMask *>> {
+    KernelBuildResult() = default;
+
+#ifdef _MSC_VER
+#pragma warning(push)
+// https://developercommunity.visualstudio.com/t/False-C4297-warning-while-using-function/1130300
+// https://godbolt.org/z/xsMvKf84f
+#pragma warning(disable : 4297)
+#endif
+    ~KernelBuildResult() try {
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
+      return; // Don't re-throw.
     }
-    ~KernelBuildResult() {
-      try {
-        if (Val.first) {
-          ur_result_t Err =
-              MAdapter.call_nocheck<UrApiKind::urKernelRelease>(Val.first);
-          __SYCL_CHECK_UR_CODE_NO_EXC(Err, MAdapter.getBackend());
-        }
-      } catch (std::exception &e) {
-        __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
-      }
-    }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
   };
 
   using KernelCacheT = emhash8::HashMap<
@@ -445,7 +446,7 @@ public:
     auto &Cache = LockedCache.get()[Program];
     auto [It, DidInsert] = Cache.try_emplace(KernelName, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<KernelBuildResult>(getAdapter());
+      It->second = std::make_shared<KernelBuildResult>();
       traceKernel("Kernel inserted.", KernelName);
     } else
       traceKernel("Kernel fetched.", KernelName);

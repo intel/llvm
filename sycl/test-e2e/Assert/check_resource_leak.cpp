@@ -12,7 +12,6 @@
 
 #include <sycl/builtins.hpp>
 #include <sycl/detail/spirv.hpp>
-#include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 

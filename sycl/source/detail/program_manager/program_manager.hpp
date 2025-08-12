@@ -255,6 +255,15 @@ public:
   void addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
                                   const char *UniqueId);
 
+  // The function inserts or initializes a kernel global desc into the
+  // kernel global map.
+  void registerKernelGlobalInfo(
+      std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy);
+
+  // The function returns a pointer to the kernel global desc identified by
+  // the unique ID from the kernel global map.
+  std::optional<unsigned> getKernelGlobalInfoDesc(const char *UniqueId);
+
   // Returns true if any available image is compatible with the device Dev.
   bool hasCompatibleImage(const device_impl &DeviceImpl);
 
@@ -350,7 +359,7 @@ public:
   device_image_plain build(const DevImgPlainWithDeps &ImgWithDeps,
                            devices_range Devs, const property_list &PropList);
 
-  std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *>
+  std::tuple<Managed<ur_kernel_handle_t>, std::mutex *, const KernelArgMask *>
   getOrCreateKernel(const context &Context, KernelNameStrRefT KernelName,
                     const property_list &PropList, ur_program_handle_t Program);
 
@@ -431,7 +440,6 @@ protected:
 
   // Maps KernelIDs to device binary images. There can be more than one image
   // in case of SPIRV + AOT.
-  // Using shared_ptr to avoid expensive copy of the vector.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_multimap<kernel_id, const RTDeviceBinaryImage *>
       m_KernelIDs2BinImage;
@@ -535,6 +543,10 @@ protected:
   // their associated entry resources when they die.
   DeviceGlobalMap m_DeviceGlobals{/*OwnerControlledCleanup=*/true};
 
+  // Maps between free function kernel name and associated kernel global
+  // information.
+  std::unordered_map<std::string_view, unsigned> m_FreeFunctionKernelGlobalInfo;
+
   // Maps between host_pipe identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>
       m_HostPipes;
@@ -544,7 +556,7 @@ protected:
   std::mutex m_HostPipesMutex;
 
   using MaterializedEntries =
-      std::map<std::vector<unsigned char>, ur_kernel_handle_t>;
+      std::map<std::vector<unsigned char>, Managed<ur_kernel_handle_t>>;
   std::unordered_map<KernelNameStrT, MaterializedEntries> m_MaterializedKernels;
 
   // Holds bfloat16 device library images, the 1st element is for fallback

@@ -10,7 +10,7 @@
 #include <clc/math/clc_round.h>
 
 #define FUNCTION __spirv_ocl_round
-#define __CLC_FUNCTION(x) __clc_round
+#define __IMPL_FUNCTION(x) __clc_round
 #define __CLC_BODY <clc/shared/unary_def.inc>
 
 #include <clc/math/gentype.inc>

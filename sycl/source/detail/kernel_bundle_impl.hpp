@@ -692,7 +692,7 @@ public:
       throw sycl::exception(make_error_code(errc::invalid),
                             "kernel '" + Name + "' not found in kernel_bundle");
 
-    return It->adjustKernelName(Name);
+    return It->getAdjustedKernelNameStr(Name);
   }
 
   bool ext_oneapi_has_device_global(const std::string &Name) const {
@@ -983,8 +983,9 @@ public:
             SelectedImage->get_ur_program());
 
     return std::make_shared<kernel_impl>(
-        Kernel, *detail::getSyclObjImpl(MContext), std::move(SelectedImage),
-        *this, ArgMask, SelectedImage->get_ur_program(), CacheMutex);
+        std::move(Kernel), *detail::getSyclObjImpl(MContext),
+        std::move(SelectedImage), *this, ArgMask,
+        SelectedImage->get_ur_program(), CacheMutex);
   }
 
   std::shared_ptr<kernel_impl>
@@ -1011,6 +1012,12 @@ public:
   }
 
   DeviceGlobalMap &getDeviceGlobalMap() { return MDeviceGlobals; }
+
+  std::optional<unsigned>
+  tryGetKernelArgsSize(const std::string_view KernelName) const {
+    auto &PM = sycl::detail::ProgramManager::getInstance();
+    return PM.getKernelGlobalInfoDesc(KernelName.data());
+  }
 
 private:
   DeviceGlobalMapEntry *getDeviceGlobalEntry(const std::string &Name) const {

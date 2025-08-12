@@ -3221,7 +3221,7 @@ void MicrosoftCXXNameMangler::mangleCallingConvention(CallingConv CC,
         Out << "w";
       return;
     case CC_DeviceKernel:
-      // This can occur on the SYCl NativeCPU device
+      // This can occur on the SYCL NativeCPU device
       // where device code is compiled with the same
       // target triple (eg for Windows) as host code.
       // FIXME: 1.) provide mangling if needed
